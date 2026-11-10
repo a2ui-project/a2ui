@@ -1,0 +1,1713 @@
+---
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+---
+
+<div class="ic-root" id="hero-chat-visual" role="region" aria-label="One app screen whose surface is composed differently for each customer intent">
+  <div class="ic-split">
+    <!-- =================================================================
+         INTENTS — four requests, one screen. Explicit trigger; zero timers.
+         ================================================================= -->
+    <div class="ic-picker">
+      <div class="ic-steps" id="ic-steps" role="group" aria-label="Choose a customer intent to compose">
+        <button type="button" class="ic-step is-active" data-ic="dinner" aria-pressed="true">
+          <span class="ic-step__head">
+            <span class="ic-step__tag">PLAN</span>
+            <span class="ic-step__play" aria-hidden="true">
+              <i class="ic-step__play-ico"></i>
+              <span class="ic-step__play-lbl" data-lbl-idle="Play" data-lbl-live="Live"></span>
+            </span>
+          </span>
+          <span class="ic-step__q">"Dinner for four tonight, one vegetarian, under $40."</span>
+          <span class="ic-step__desc">A recipe that fits the diet and the budget, a basket built from it, pantry items skipped, and the 5:30 slot booked — as one screen.</span>
+        </button>
+
+        <button type="button" class="ic-step" data-ic="bill" aria-pressed="false">
+          <span class="ic-step__head">
+            <span class="ic-step__tag">EXPLAIN</span>
+            <span class="ic-step__play" aria-hidden="true">
+              <i class="ic-step__play-ico"></i>
+              <span class="ic-step__play-lbl" data-lbl-idle="Play" data-lbl-live="Live"></span>
+            </span>
+          </span>
+          <span class="ic-step__q">"Why was last week's order $23 more than usual?"</span>
+          <span class="ic-step__desc">Same screen, different shape: a comparison, the three lines that moved, and a switch that stops it happening again.</span>
+        </button>
+
+        <button type="button" class="ic-step" data-ic="party" aria-pressed="false">
+          <span class="ic-step__head">
+            <span class="ic-step__tag">HOST</span>
+            <span class="ic-step__play" aria-hidden="true">
+              <i class="ic-step__play-ico"></i>
+              <span class="ic-step__play-lbl" data-lbl-idle="Play" data-lbl-live="Live"></span>
+            </span>
+          </span>
+          <span class="ic-step__q">"Hosting twelve kids Saturday afternoon — help me not forget anything."</span>
+          <span class="ic-step__desc">Now it's a plan: a timeline to the party, a checklist seeded from the RSVPs, and the two nut allergies already flagged.</span>
+        </button>
+
+        <button type="button" class="ic-step" data-ic="eggs" aria-pressed="false">
+          <span class="ic-step__head">
+            <span class="ic-step__tag">FIX</span>
+            <span class="ic-step__play" aria-hidden="true">
+              <i class="ic-step__play-ico"></i>
+              <span class="ic-step__play-lbl" data-lbl-idle="Play" data-lbl-live="Live"></span>
+            </span>
+          </span>
+          <span class="ic-step__q">"Half the eggs arrived cracked."</span>
+          <span class="ic-step__desc">No form, no ticket. The item is already found, you say how many, pick refund or replace, done.</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- =================================================================
+         RIGHT: INTERACTIVE STAGE — THE SAME ASSIST SCREEN
+         ================================================================= -->
+    <!-- The phone, interactive inside assist_zone -->
+    <div class="ic-stage">
+        <div class="ic-device" role="group" aria-label="Interactive A2UI composed surface preview">
+          <div class="ic-device__status" aria-hidden="true">
+            <span>9:41</span>
+            <span class="ic-device__sig"><i></i><i></i><i></i></span>
+          </div>
+
+          <!-- Constant app header -->
+          <div class="ic-shell-hdr" aria-hidden="true">
+            <span class="ic-shell-brand">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.5 6.5h11l-1.2 6.5h-8.6z"/><path d="M5.5 6.5 8 2.5l2.5 4"/></svg>
+              Marigold Market
+            </span>
+            <svg class="ic-shell-bell" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 11h8l-1-1.4V7a3 3 0 0 0-6 0v2.6L4 11z"/><path d="M6.8 13a1.3 1.3 0 0 0 2.4 0"/></svg>
+          </div>
+
+          <!-- Chat thread: the sent prompt rises to the top, the composed surface answers below -->
+          <div class="ic-thread">
+            <div class="ic-sent" id="ic-sent" aria-live="polite">
+              <p id="ic-sent-text">Dinner for four tonight, one vegetarian, under $40.</p>
+            </div>
+
+            <!-- The one surface slot that A2UI composes -->
+            <div class="ic-zone">
+            <span class="ic-zone__tag" aria-hidden="true">A2UI SURFACE · interactive</span>
+
+            <div class="ic-zone__skel" aria-hidden="true">
+              <span class="ic-zone__skel-lbl">COMPOSING FROM INTENT…</span>
+              <i style="width: 58%"></i>
+              <i style="width: 100%; height: 72px"></i>
+              <i style="width: 100%; height: 40px"></i>
+            </div>
+
+            <!-- 01 · PLAN: one recipe, one action -->
+            <div class="ic-screen is-active" data-ic-screen="dinner">
+              <header class="ic-greet">
+                <strong>Tonight · 4 servings</strong>
+                <span>Vegetarian · under $40 · 5:30pm slot open</span>
+              </header>
+
+              <div class="ic-recipe">
+                <span class="ic-lbl">PICKED FOR YOU</span>
+                <strong>Sheet-pan gnocchi &amp; peppers</strong>
+                <span class="ic-recipe__meta">32 min · 5 items · $24.92</span>
+              </div>
+
+              <button type="button" class="ic-cta" data-ic-cta data-done="✓ Added · arrives 5:30pm">
+                <span>Add 5 items · $24.92</span><span aria-hidden="true">→</span>
+              </button>
+            </div>
+
+            <!-- 02 · EXPLAIN: the comparison, one action -->
+            <div class="ic-screen" data-ic-screen="bill">
+              <header class="ic-greet">
+                <strong>Last week vs. usual</strong>
+                <span>Salmon was up 18% · raspberries out of season</span>
+              </header>
+
+              <div class="ic-bars2" aria-hidden="true">
+                <div><span>USUAL</span><div class="ic-bars2__track"><i style="width: 79%"></i></div><b>$86</b></div>
+                <div class="is-hi"><span>LAST WK</span><div class="ic-bars2__track"><i style="width: 100%"></i></div><b>$109</b></div>
+              </div>
+
+              <button type="button" class="ic-cta" data-ic-cta data-done="✓ Weekly cap set · $90">
+                <span>Set a $90 weekly cap</span><span aria-hidden="true">→</span>
+              </button>
+            </div>
+
+            <!-- 03 · HOST: a short checklist, one action -->
+            <div class="ic-screen" data-ic-screen="party">
+              <header class="ic-greet">
+                <strong>Saturday · 12 kids</strong>
+                <span>2 nut allergies flagged from your list</span>
+              </header>
+
+              <div class="ic-checklist" id="ic-pt-list" role="group" aria-label="Party checklist">
+                <button type="button" class="ic-ck is-done"><i></i><span>Cake · ordered Tuesday</span></button>
+                <button type="button" class="ic-ck"><i></i><span>Nut-free snacks ×2 <b>ALLERGY</b></span></button>
+                <button type="button" class="ic-ck"><i></i><span>Ice · pick up Sat 1pm</span></button>
+              </div>
+
+              <button type="button" class="ic-cta" id="ic-pt-cta" data-ic-cta data-done="✓ Added · Sat 10am delivery">
+                <span>Add the 2 missing · Sat 10am</span><span aria-hidden="true">→</span>
+              </button>
+            </div>
+
+            <!-- 04 · FIX: refund or replace, one action -->
+            <div class="ic-screen" data-ic-screen="eggs">
+              <header class="ic-greet">
+                <strong>Organic eggs · 6 of 12 cracked</strong>
+                <span>Order #7731 · delivered 8:12am</span>
+              </header>
+
+              <div class="ic-choice2" role="group" aria-label="Resolution">
+                <button type="button" class="ic-choice is-on" data-eg-choice="refund"><span>REFUND</span><strong>$3.25</strong><em>back on card today</em></button>
+                <button type="button" class="ic-choice" data-eg-choice="replace"><span>REPLACE</span><strong>Tomorrow</strong><em>7–9am · free</em></button>
+              </div>
+
+              <button type="button" class="ic-cta" id="ic-eg-cta" data-ic-cta data-done="✓ Done · sorry about that">
+                <span>Refund $3.25 now</span><span aria-hidden="true">→</span>
+              </button>
+            </div>
+          </div>
+
+          </div>
+
+          <!-- Constant composer: where the intent is typed, then sent -->
+          <div class="ic-composer" id="ic-composer" aria-hidden="true">
+            <span class="ic-composer__ico"></span>
+            <span class="ic-composer__txt"><span id="ic-composer-text" data-placeholder="Ask Marigold anything…"></span><i class="ic-caret"></i></span>
+            <span class="ic-composer__send">↑</span>
+          </div>
+
+          <!-- Constant tab bar -->
+          <nav class="ic-tabbar" aria-hidden="true">
+            <span><i class="ic-tab-ico ic-tab-ico--shop"></i>Shop</span>
+            <span class="is-on"><i class="ic-tab-ico ic-tab-ico--assist"></i>Assist</span>
+            <span><i class="ic-tab-ico ic-tab-ico--orders"></i>Orders</span>
+            <span><i class="ic-tab-ico ic-tab-ico--you"></i>You</span>
+          </nav>
+        </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================
+       WHAT THE AGENT COMPOSES FROM — THREE ALIGNED ARCHITECTURAL COLUMNS
+       =================================================================== -->
+  <div class="ic-sources">
+    <div class="ic-sources__grid">
+      <!-- 01 · Personalized in the moment: user intent + preferences -> tailored UI surface -->
+      <div class="ic-source">
+        <svg class="ic-art" viewBox="0 0 320 160" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+          <!-- Left: user prompt + personal constraints -->
+          <text class="lbl lbl--tiny" x="6" y="23">USER INTENT</text>
+          <rect class="card-surface" x="4" y="29" width="128" height="44" rx="4" />
+          <text class="lbl lbl--ink" x="13" y="46">"Dinner for 4,</text>
+          <text class="lbl lbl--acc" x="13" y="61">under $40"</text>
+
+          <rect class="card-surface" x="4" y="83" width="128" height="47" rx="4" />
+          <text class="lbl lbl--tiny" x="13" y="98">PREFERENCES</text>
+          <rect class="soft-fill acc" x="12" y="105" width="60" height="17" rx="3" />
+          <text class="lbl lbl--chip" x="42" y="116.5" text-anchor="middle">vegetarian</text>
+          <rect class="node" x="76" y="105" width="48" height="17" rx="3" />
+          <text class="lbl lbl--chip-muted" x="100" y="116.5" text-anchor="middle">5:30pm</text>
+
+          <!-- Middle: dynamic composition -->
+          <path class="ln dash" d="M132 51 C 149 51, 151 80, 164 80" />
+          <path class="ln dash" d="M132 106 C 149 106, 151 80, 164 80" />
+          <rect class="node" x="158" y="74" width="12" height="12" transform="rotate(45 164 80)" />
+          <rect class="acc-fill ic-art__blink" x="161.5" y="77.5" width="5" height="5" transform="rotate(45 164 80)" />
+          <line class="acc ic-art__flow" x1="172" y1="80" x2="188" y2="80" />
+          <path class="acc" d="M184 76l4 4-4 4" />
+
+          <!-- Right: bespoke UI tailored to that exact user -->
+          <rect class="card-surface" x="192" y="22" width="124" height="116" rx="5" />
+          <line class="ln-subtle" x1="192" y1="41" x2="316" y2="41" />
+          <circle class="acc-fill" cx="202" cy="31.5" r="2.5" />
+          <text class="lbl lbl--tiny" x="210" y="34.5">TAILORED UI</text>
+
+          <rect class="soft-fill acc" x="200" y="48" width="108" height="35" rx="3" />
+          <text class="lbl lbl--card-strong" x="207" y="61.5">Veg gnocchi</text>
+          <text class="lbl lbl--chip" x="207" y="75">Serves 4 · $24.92</text>
+
+          <rect class="node" x="200" y="89" width="108" height="18" rx="3" />
+          <text class="lbl lbl--chip-muted" x="207" y="101">5:30pm slot</text>
+          <path class="acc w15" d="M294 98l2.5 2.5 5-5" />
+
+          <rect class="acc-fill" x="200" y="113" width="108" height="17" rx="3" />
+          <text class="lbl lbl--cta" x="254" y="124.5" text-anchor="middle">Add 5 items →</text>
+        </svg>
+
+        <h3>Personalized in the moment</h3>
+        <p>Your agent constructs UI that adapts to each user's unique needs and preferences.</p>
+      </div>
+
+      <!-- 02 · Native to your brand: locked component catalog -> 1:1 native host widgets -->
+      <div class="ic-source">
+        <svg class="ic-art" viewBox="0 0 320 160" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+          <!-- Left: locked component catalog -->
+          <rect class="card-surface" x="4" y="22" width="130" height="116" rx="5" />
+          <line class="ln-subtle" x1="4" y1="41" x2="134" y2="41" />
+          <rect class="acc w15" x="12" y="30.5" width="7.5" height="5.5" rx="1" />
+          <path class="acc w15" d="M13.6 30.5v-1.8a2.15 2.15 0 0 1 4.3 0v1.8" />
+          <text class="lbl lbl--tiny lbl--acc" x="24" y="34.5">LOCKED CATALOG</text>
+
+          <!-- Registered components -->
+          <rect class="soft-fill acc" x="12" y="48" width="114" height="18" rx="3" />
+          <text class="lbl lbl--chip" x="20" y="60">Card</text>
+          <circle class="acc-fill" cx="126" cy="57" r="2.3" />
+
+          <rect class="soft-fill acc" x="12" y="70" width="114" height="18" rx="3" />
+          <text class="lbl lbl--chip" x="20" y="82">ChoiceChip</text>
+          <circle class="acc-fill" cx="126" cy="79" r="2.3" />
+
+          <rect class="node" x="12" y="92" width="114" height="18" rx="3" />
+          <text class="lbl lbl--chip-muted" x="20" y="104">DatePicker</text>
+
+          <rect class="soft-fill acc" x="12" y="114" width="114" height="18" rx="3" />
+          <text class="lbl lbl--chip" x="20" y="126">Button</text>
+          <circle class="acc-fill" cx="126" cy="123" r="2.3" />
+
+          <!-- Middle: 1:1 catalog-to-widget binding -->
+          <path class="acc dash-map" d="M128 57 C 158 57, 168 59, 200 59" />
+          <path class="acc dash-map" d="M128 79 C 158 79, 168 86, 200 86" />
+          <path class="acc dash-map" d="M128 123 C 158 123, 168 121, 200 121" />
+
+          <!-- Right: native host app styled by your design system -->
+          <rect class="card-surface" x="192" y="22" width="124" height="116" rx="5" />
+          <line class="ln-subtle" x1="192" y1="41" x2="316" y2="41" />
+          <rect class="acc-fill" x="200" y="28" width="7" height="7" rx="1.5" />
+          <text class="lbl lbl--tiny" x="212" y="34.5">YOUR DESIGN SYSTEM</text>
+
+          <!-- Native Card -->
+          <rect class="plane" x="200" y="48" width="108" height="22" rx="3" />
+          <line class="ln ln-strong w2" x1="208" y1="56" x2="262" y2="56" />
+          <line class="ln" x1="208" y1="63" x2="244" y2="63" />
+
+          <!-- Native ChoiceChips -->
+          <rect class="soft-fill acc" x="200" y="77" width="52" height="18" rx="9" />
+          <circle class="acc-fill" cx="209" cy="86" r="2" />
+          <line class="acc w2" x1="215" y1="86" x2="242" y2="86" />
+          <rect class="node" x="256" y="77" width="52" height="18" rx="9" />
+          <line class="ln" x1="267" y1="86" x2="296" y2="86" />
+
+          <!-- Native Branded Button -->
+          <rect class="acc-fill" x="200" y="112" width="108" height="18" rx="4" />
+          <line class="cta-bar" x1="234" y1="121" x2="274" y2="121" />
+        </svg>
+
+        <h3>Native to your brand</h3>
+        <p>Your design system, locked. Agents place only components you registered.</p>
+      </div>
+
+      <!-- 03 · Fast, reliable, secure: Jev, Express, or your own DSL + server macros all compile to one wire message -->
+      <div class="ic-source">
+        <svg class="ic-art" viewBox="0 0 320 160" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+          <!-- Left: swappable model formats -->
+          <rect class="card-surface" x="4" y="24" width="104" height="28" rx="4" />
+          <text class="lbl lbl--ink" x="14" y="41.5">jev format</text>
+
+          <rect class="soft-fill acc" x="4" y="66" width="104" height="28" rx="4" />
+          <text class="lbl lbl--acc" x="14" y="83.5">&lt;a2ui&gt; express</text>
+
+          <rect class="card-surface" x="4" y="108" width="104" height="28" rx="4" />
+          <text class="lbl" x="14" y="125.5">your format</text>
+
+          <!-- Middle: @MACRO compiler -> ONE WIRE stream -->
+          <path class="ln dash" d="M108 38 C 131 38, 136 80, 147 80" />
+          <path class="acc dash-map" d="M108 80 H147" />
+          <path class="ln dash" d="M108 122 C 131 122, 136 80, 147 80" />
+
+          <text class="lbl lbl--tiny lbl--acc" x="154" y="61" text-anchor="middle">@MACRO</text>
+          <rect class="node" x="148" y="74" width="12" height="12" transform="rotate(45 154 80)" />
+          <rect class="acc-fill ic-art__blink" x="151.5" y="77.5" width="5" height="5" transform="rotate(45 154 80)" />
+
+          <line class="acc ic-art__flow" x1="162" y1="80" x2="204" y2="80" />
+          <path class="acc" d="M200 76l4 4-4 4" />
+          <text class="lbl lbl--tiny" x="183" y="96" text-anchor="middle">ONE WIRE</text>
+
+          <!-- Right: progressive streamed surface -->
+          <rect class="card-surface" x="210" y="22" width="106" height="116" rx="5" />
+          <line class="ln-subtle" x1="210" y1="41" x2="316" y2="41" />
+          <circle class="acc-fill ic-art__blink" cx="220" cy="31.5" r="2.5" />
+          <text class="lbl lbl--tiny" x="228" y="34.5">STREAMING</text>
+
+          <rect class="plane" x="218" y="48" width="90" height="25" rx="3" />
+          <line class="ln ln-strong w2" x1="225" y1="57" x2="274" y2="57" />
+          <line class="ln" x1="225" y1="65" x2="258" y2="65" />
+
+          <rect class="soft-fill acc" x="218" y="80" width="90" height="24" rx="3" />
+          <line class="acc w2" x1="225" y1="89" x2="282" y2="89" />
+          <line class="ln" x1="225" y1="97" x2="264" y2="97" />
+
+          <rect class="acc-fill" x="218" y="112" width="90" height="18" rx="4" />
+          <line class="cta-bar" x1="246" y1="121" x2="280" y2="121" />
+        </svg>
+
+        <h3>Fast, reliable, secure in production</h3>
+        <p>Agents compose UI with A2UI Express or Jev-style decision models. Macros bind data and components reliably, and the client streams it in as the agent thinks.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script is:inline>
+  (() => {
+    const root = document.getElementById('hero-chat-visual');
+    if (!root) return;
+
+    const intents = {
+      dinner: {
+        quote: 'Dinner for four tonight, one vegetarian, under $40.',
+      },
+      bill: {
+        quote: "Why was last week's order $23 more than usual?",
+      },
+      party: {
+        quote: 'Hosting twelve kids Saturday afternoon — help me not forget anything.',
+      },
+      eggs: {
+        quote: 'Half the eggs arrived cracked.',
+      },
+    };
+
+    const steps = Array.from(root.querySelectorAll('[data-ic]'));
+    const screens = Array.from(root.querySelectorAll('[data-ic-screen]'));
+    const zone = root.querySelector('.ic-zone');
+    const composer = document.getElementById('ic-composer');
+    const composerText = document.getElementById('ic-composer-text');
+    const sentBubble = document.getElementById('ic-sent');
+    const sentText = document.getElementById('ic-sent-text');
+    const reduceMotion =
+      window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const narrow = window.matchMedia ? window.matchMedia('(max-width: 920px)') : { matches: false };
+
+    /* --- Interactive surface controls inside assist_zone --- */
+    const ctas = Array.from(root.querySelectorAll('[data-ic-cta]'));
+    ctas.forEach((btn) => {
+      const firstSpan = btn.querySelector('span');
+      if (firstSpan && !btn.dataset.defaultLabel) {
+        btn.dataset.defaultLabel = firstSpan.textContent || '';
+      }
+    });
+
+    const resetCta = (btn) => {
+      btn.classList.remove('is-done');
+      const label = btn.dataset.defaultLabel || '';
+      btn.innerHTML = '';
+      const txt = document.createElement('span');
+      txt.textContent = label;
+      const arr = document.createElement('span');
+      arr.setAttribute('aria-hidden', 'true');
+      arr.textContent = '→';
+      btn.append(txt, arr);
+    };
+
+    const syncPartyChecklistCta = () => {
+      const list = document.getElementById('ic-pt-list');
+      const ptCta = document.getElementById('ic-pt-cta');
+      if (!list || !ptCta) return;
+      const items = Array.from(list.querySelectorAll('.ic-ck'));
+      const missing = items.filter((el) => !el.classList.contains('is-done')).length;
+      const nextLabel =
+        missing === 0
+          ? 'Confirm all 3 · Sat 10am'
+          : `Add the ${missing} missing · Sat 10am`;
+      ptCta.dataset.defaultLabel = nextLabel;
+      resetCta(ptCta);
+    };
+
+    const resetDeviceState = () => {
+      const partyItems = Array.from(root.querySelectorAll('#ic-pt-list .ic-ck'));
+      partyItems.forEach((el, idx) => {
+        const done = idx === 0;
+        el.classList.toggle('is-done', done);
+        el.setAttribute('aria-pressed', done ? 'true' : 'false');
+      });
+
+      const eggChoices = Array.from(root.querySelectorAll('[data-eg-choice]'));
+      eggChoices.forEach((el) => {
+        const on = el.getAttribute('data-eg-choice') === 'refund';
+        el.classList.toggle('is-on', on);
+        el.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+      const egCta = document.getElementById('ic-eg-cta');
+      if (egCta) {
+        egCta.dataset.defaultLabel = 'Refund $3.25 now';
+        egCta.setAttribute('data-done', '✓ Refunded $3.25 · back today');
+      }
+
+      syncPartyChecklistCta();
+      ctas.forEach(resetCta);
+    };
+
+    root.querySelectorAll('#ic-pt-list .ic-ck').forEach((item) => {
+      item.setAttribute('aria-pressed', item.classList.contains('is-done') ? 'true' : 'false');
+      item.addEventListener('click', () => {
+        const nowDone = !item.classList.contains('is-done');
+        item.classList.toggle('is-done', nowDone);
+        item.setAttribute('aria-pressed', nowDone ? 'true' : 'false');
+        syncPartyChecklistCta();
+      });
+    });
+
+    root.querySelectorAll('[data-eg-choice]').forEach((choice) => {
+      choice.setAttribute('aria-pressed', choice.classList.contains('is-on') ? 'true' : 'false');
+      choice.addEventListener('click', () => {
+        const mode = choice.getAttribute('data-eg-choice');
+        root.querySelectorAll('[data-eg-choice]').forEach((other) => {
+          const on = other === choice;
+          other.classList.toggle('is-on', on);
+          other.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+        const egCta = document.getElementById('ic-eg-cta');
+        if (egCta) {
+          if (mode === 'replace') {
+            egCta.dataset.defaultLabel = 'Replace tomorrow 7–9am';
+            egCta.setAttribute('data-done', '✓ Replacement booked · 7–9am');
+          } else {
+            egCta.dataset.defaultLabel = 'Refund $3.25 now';
+            egCta.setAttribute('data-done', '✓ Refunded $3.25 · back today');
+          }
+          resetCta(egCta);
+        }
+      });
+    });
+
+    ctas.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (btn.classList.contains('is-done')) {
+          resetCta(btn);
+          return;
+        }
+        const doneText = btn.getAttribute('data-done') || '✓ Done';
+        btn.classList.add('is-done');
+        btn.innerHTML = '';
+        const span = document.createElement('span');
+        span.textContent = doneText;
+        btn.appendChild(span);
+      });
+    });
+
+    /* --- Explicit user-triggered intent selection (zero background timers) --- */
+    let timers = [];
+    let current = 'dinner';
+    const clearTimers = () => {
+      timers.forEach(clearTimeout);
+      timers = [];
+    };
+
+    const showScreen = (key) => {
+      screens.forEach((s) =>
+        s.classList.toggle('is-active', s.getAttribute('data-ic-screen') === key),
+      );
+    };
+
+    const composeZone = (key) => {
+      if (!zone || reduceMotion) {
+        showScreen(key);
+        return;
+      }
+      zone.classList.add('is-composing');
+      timers.push(
+        setTimeout(() => {
+          showScreen(key);
+          zone.classList.remove('is-composing');
+        }, 560),
+      );
+    };
+
+    const sendPrompt = (text) => {
+      if (sentText) sentText.textContent = text;
+      if (composerText) composerText.textContent = '';
+      if (sentBubble && !reduceMotion) {
+        sentBubble.classList.remove('is-fly');
+        void sentBubble.offsetWidth;
+        sentBubble.classList.add('is-fly');
+      }
+    };
+
+    const typeIntoComposer = (text, done) => {
+      if (!composer || !composerText || reduceMotion) {
+        done();
+        return;
+      }
+      composer.classList.remove('is-sent');
+      composer.classList.add('is-typing');
+      composerText.textContent = '';
+      const chars = Array.from(text);
+      let i = 0;
+      const step = () => {
+        i += 2;
+        composerText.textContent = chars.slice(0, i).join('');
+        if (i < chars.length) {
+          timers.push(setTimeout(step, 14));
+        } else {
+          composer.classList.remove('is-typing');
+          composer.classList.add('is-sent');
+          timers.push(setTimeout(() => composer.classList.remove('is-sent'), 550));
+          done();
+        }
+      };
+      step();
+    };
+
+    const setIntent = (key, animate) => {
+      const d = intents[key];
+      if (!d) return;
+      current = key;
+      clearTimers();
+      if (zone) zone.classList.remove('is-composing');
+      if (composer) composer.classList.remove('is-typing', 'is-sent');
+      resetDeviceState();
+
+      steps.forEach((s) => {
+        const on = s.getAttribute('data-ic') === key;
+        s.classList.toggle('is-active', on);
+        s.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+
+      if (!animate) {
+        if (sentText) sentText.textContent = d.quote;
+        if (composerText) composerText.textContent = '';
+        showScreen(key);
+        return;
+      }
+      typeIntoComposer(d.quote, () => {
+        sendPrompt(d.quote);
+        composeZone(key);
+      });
+    };
+
+    const order = steps.map((st) => st.getAttribute('data-ic') || 'dinner');
+    const strip = document.getElementById('ic-steps');
+
+    const stripScrollTo = (st, smooth) => {
+      if (!strip || !narrow.matches) return;
+      const left = st.offsetLeft - (strip.clientWidth - st.offsetWidth) / 2;
+      strip.scrollTo({
+        left: Math.max(0, left),
+        behavior: smooth && !reduceMotion ? 'smooth' : 'auto',
+      });
+    };
+
+    const go = (key, animate) => {
+      setIntent(key, animate);
+      const st = root.querySelector(`.ic-step[data-ic="${key}"]`);
+      if (st) stripScrollTo(st, true);
+    };
+
+    steps.forEach((st) => {
+      st.addEventListener('click', () => {
+        const key = st.getAttribute('data-ic') || 'dinner';
+        go(key, true);
+      });
+      st.addEventListener('keydown', (e) => {
+        if (
+          e.key !== 'ArrowDown' &&
+          e.key !== 'ArrowRight' &&
+          e.key !== 'ArrowUp' &&
+          e.key !== 'ArrowLeft'
+        ) {
+          return;
+        }
+        e.preventDefault();
+        const idx = order.indexOf(st.getAttribute('data-ic') || 'dinner');
+        const delta = e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : -1;
+        const nextIdx = (idx + delta + order.length) % order.length;
+        const nextKey = order[nextIdx];
+        const nextEl = steps[nextIdx];
+        if (nextEl) nextEl.focus();
+        go(nextKey, true);
+      });
+    });
+
+    // narrow: a manual swipe selects whichever card snaps to the centre
+    if (strip) {
+      let scrollEndTimer = 0;
+      const onSettle = () => {
+        if (!narrow.matches) return;
+        const mid = strip.scrollLeft + strip.clientWidth / 2;
+        let best = null;
+        let bestDist = Infinity;
+        steps.forEach((st) => {
+          const c = st.offsetLeft + st.offsetWidth / 2;
+          const dist = Math.abs(c - mid);
+          if (dist < bestDist) {
+            bestDist = dist;
+            best = st;
+          }
+        });
+        if (!best) return;
+        const key = best.getAttribute('data-ic') || 'dinner';
+        if (key !== current) go(key, true);
+      };
+      strip.addEventListener(
+        'scroll',
+        () => {
+          clearTimeout(scrollEndTimer);
+          scrollEndTimer = setTimeout(onSettle, 140);
+        },
+        { passive: true },
+      );
+    }
+
+    if (narrow.addEventListener) {
+      narrow.addEventListener('change', () => {
+        const st = root.querySelector('.ic-step.is-active');
+        if (st) stripScrollTo(st, false);
+      });
+    }
+  })();
+</script>
+
+<style>
+  /* User-triggered: each intent is typed, sent up the thread, and answered by an interactive surface. */
+  .ic-root {
+    width: 100%;
+    color: var(--a2-text);
+  }
+
+  /* =======================================================================
+     SPLIT: INTENT LIST | INTERACTIVE STAGE  (zero timers, zero layout shift)
+     ======================================================================= */
+  .ic-split {
+    display: grid;
+    grid-template-columns: minmax(300px, 0.94fr) minmax(0, 1.06fr);
+    gap: 56px;
+    align-items: center;
+  }
+
+  /* --- Intents: static-height list beside the phone with explicit Play trigger --- */
+  .ic-picker {
+    padding-top: 2px;
+  }
+
+  .ic-steps {
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid var(--a2-border-strong);
+  }
+
+  .ic-step {
+    appearance: none;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 15px 4px 16px 14px;
+    border: none;
+    border-left: 2px solid transparent;
+    border-bottom: 1px solid var(--a2-border);
+    background: transparent;
+    color: var(--a2-text);
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition:
+      opacity 0.2s ease,
+      border-color 0.2s ease,
+      background-color 0.2s ease;
+  }
+
+  .ic-step.is-active {
+    border-left-color: var(--a2-accent);
+    background: var(--a2-accent-soft);
+  }
+
+  .ic-step:not(.is-active) {
+    opacity: 0.66;
+  }
+
+  .ic-step:not(.is-active):hover {
+    opacity: 0.96;
+    background: var(--a2-surface-subtle);
+  }
+
+  .ic-step:focus-visible {
+    outline: 2px solid var(--a2-accent);
+    outline-offset: -2px;
+  }
+
+  .ic-step__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding-right: 8px;
+  }
+
+  .ic-step__tag {
+    font-family: var(--a2-font-mono);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--a2-accent);
+  }
+
+  .ic-step__play {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 7px;
+    border-radius: 2px;
+    border: 1px solid var(--a2-border-strong);
+    background: var(--a2-surface);
+    font-family: var(--a2-font-mono);
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--a2-text-secondary);
+    transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+  }
+
+  .ic-step:not(.is-active):hover .ic-step__play {
+    border-color: var(--a2-accent);
+    color: var(--a2-accent-strong);
+  }
+
+  .ic-step.is-active .ic-step__play {
+    border-color: var(--a2-accent-border);
+    background: var(--a2-bg);
+    color: var(--a2-accent-strong);
+  }
+
+  .ic-step__play-ico {
+    display: inline-block;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 3.5px 0 3.5px 6px;
+    border-color: transparent transparent transparent currentColor;
+  }
+
+  .ic-step.is-active .ic-step__play-ico {
+    width: 6px;
+    height: 6px;
+    border: none;
+    border-radius: 50%;
+    background: var(--a2-accent);
+  }
+
+  .ic-step__play-lbl::before {
+    content: attr(data-lbl-idle);
+  }
+
+  .ic-step.is-active .ic-step__play-lbl::before {
+    content: attr(data-lbl-live);
+  }
+
+  .ic-step__q {
+    font-family: var(--a2-font-display);
+    font-weight: 600;
+    font-size: clamp(16.5px, 1.38vw, 19px);
+    line-height: 1.28;
+    letter-spacing: var(--a2-tracking-h3);
+    color: var(--a2-text);
+    padding-right: 8px;
+  }
+
+  /* Always rendered so switching intents causes zero vertical layout shift */
+  .ic-step__desc {
+    display: block;
+    font-size: 13.5px;
+    line-height: 1.52;
+    color: var(--a2-text-secondary);
+    max-width: 46ch;
+    padding-right: 8px;
+  }
+
+  /* --- Narrow: the intents become swipeable cards above a full-size phone --- */
+  @media (max-width: 920px) {
+    .ic-split {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 22px;
+    }
+
+    .ic-picker {
+      padding: 0;
+      margin: 0 -36px;
+    }
+
+    .ic-steps {
+      flex-direction: row;
+      align-items: stretch;
+      gap: 12px;
+      padding: 0 36px 4px;
+      border-top: none;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .ic-steps::-webkit-scrollbar {
+      display: none;
+    }
+
+    .ic-step {
+      flex: 0 0 min(84%, 400px);
+      scroll-snap-align: center;
+      padding: 18px 18px 20px;
+      border: 1px solid var(--a2-border-strong);
+      border-left-width: 2px;
+      border-radius: 3px;
+      background: var(--a2-bg);
+    }
+
+    .ic-step.is-active {
+      border-color: var(--a2-accent-border);
+      border-left-color: var(--a2-accent);
+    }
+
+    .ic-step:not(.is-active) {
+      opacity: 0.72;
+    }
+
+    .ic-step__head,
+    .ic-step__q,
+    .ic-step__desc {
+      padding-right: 0;
+    }
+
+    .ic-step__q {
+      font-size: 18px;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .ic-picker {
+      margin: 0 -20px;
+    }
+
+    .ic-steps {
+      padding: 0 20px 4px;
+    }
+  }
+
+  /* --- Stage: just the phone, centred in its column (no field, no chrome) --- */
+  .ic-stage {
+    display: flex;
+    justify-content: center;
+    padding: 8px 0;
+  }
+
+  /* --- Device + constant shell (assist_zone is live & interactive) --- */
+  .ic-device {
+    user-select: none;
+    width: 328px;
+    max-width: 100%;
+    background: var(--a2-bg);
+    border: 1px solid var(--a2-border-strong);
+    border-radius: 28px;
+    box-shadow: var(--a2-shadow-lg);
+    padding: 12px 14px 12px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .ic-device__status {
+    height: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 8px;
+    font-family: var(--a2-font-mono);
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--a2-text-muted);
+  }
+
+  .ic-device__sig {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 2px;
+  }
+
+  .ic-device__sig i {
+    width: 3px;
+    background: var(--a2-text-muted);
+    display: block;
+  }
+  .ic-device__sig i:nth-child(1) { height: 5px; }
+  .ic-device__sig i:nth-child(2) { height: 8px; }
+  .ic-device__sig i:nth-child(3) { height: 11px; }
+
+  .ic-shell-hdr {
+    margin-top: 8px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 6px;
+    border-bottom: 1px solid var(--a2-border);
+  }
+
+  .ic-shell-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 13px;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    color: var(--a2-text);
+  }
+
+  .ic-shell-brand svg {
+    width: 15px;
+    height: 15px;
+    color: var(--a2-accent);
+  }
+
+  .ic-shell-bell {
+    width: 16px;
+    height: 16px;
+    color: var(--a2-text-muted);
+  }
+
+  /* Thread: sent prompt on top, composed surface below with air between (fixed height keeps the shell steady) */
+  .ic-thread {
+    margin-top: 10px;
+    height: 336px;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+  }
+
+  .ic-sent {
+    position: relative;
+    z-index: 3;
+    align-self: flex-end;
+    height: 46px;
+    max-width: 88%;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    padding: 6px 11px;
+    border: 1px solid var(--a2-accent-border);
+    border-radius: 12px 12px 3px 12px;
+    background: var(--a2-accent-soft);
+  }
+
+  .ic-sent p {
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.3;
+    color: var(--a2-text);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .ic-sent.is-fly {
+    animation: icFlyUp 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+
+  @keyframes icFlyUp {
+    from { transform: translateY(290px) scale(0.96); opacity: 0; }
+    30% { opacity: 1; }
+    to { transform: none; opacity: 1; }
+  }
+
+  .ic-zone {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    box-sizing: border-box;
+    padding: 14px 10px 10px;
+    border: 1px dashed var(--a2-accent-border);
+  }
+
+  .ic-zone__tag {
+    position: absolute;
+    top: -7px;
+    left: 10px;
+    padding: 0 5px;
+    background: var(--a2-bg);
+    font-family: var(--a2-font-mono);
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--a2-accent-strong);
+  }
+
+  /* Composing skeleton */
+  .ic-zone__skel {
+    position: absolute;
+    inset: 14px 10px 10px;
+    display: none;
+    flex-direction: column;
+    gap: 12px;
+    z-index: 2;
+  }
+
+  .ic-zone.is-composing .ic-zone__skel { display: flex; }
+  .ic-zone.is-composing .ic-screen { visibility: hidden; }
+
+  .ic-zone__skel-lbl {
+    font-family: var(--a2-font-mono);
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--a2-accent-strong);
+    margin-bottom: 4px;
+  }
+
+  .ic-zone__skel i {
+    display: block;
+    height: 14px;
+    background: var(--a2-border-strong);
+    animation: icShimmer 0.9s ease-in-out infinite;
+  }
+
+  .ic-zone__skel i:nth-child(3) { animation-delay: 0.12s; }
+  .ic-zone__skel i:nth-child(4) { animation-delay: 0.24s; }
+  .ic-zone__skel i:nth-child(5) { animation-delay: 0.36s; }
+
+  @keyframes icShimmer {
+    0%, 100% { opacity: 0.35; }
+    50% { opacity: 0.9; }
+  }
+
+  /* Composer */
+  .ic-composer {
+    margin-top: 10px;
+    height: 46px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 0 8px 0 10px;
+    border: 1px solid var(--a2-border-strong);
+    border-radius: 12px;
+    background: var(--a2-surface);
+    transition: border-color 0.18s ease;
+  }
+
+  .ic-composer.is-typing { border-color: var(--a2-accent); }
+
+  .ic-composer__ico {
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+    border: 1.5px solid var(--a2-text-muted);
+    border-radius: 50%;
+  }
+
+  .ic-composer__txt {
+    flex: 1;
+    min-width: 0;
+    font-size: 11px;
+    line-height: 1.3;
+    color: var(--a2-text);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  #ic-composer-text:empty::before {
+    content: attr(data-placeholder);
+    color: var(--a2-text-muted);
+  }
+
+  .ic-caret {
+    display: none;
+    width: 1.5px;
+    height: 11px;
+    margin-left: 1px;
+    vertical-align: -2px;
+    background: var(--a2-accent-strong);
+    animation: icCaret 0.8s steps(1) infinite;
+  }
+
+  .ic-composer.is-typing .ic-caret { display: inline-block; }
+
+  @keyframes icCaret { 50% { opacity: 0; } }
+
+  .ic-composer__send {
+    width: 26px;
+    height: 26px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--a2-border-strong);
+    color: var(--a2-text);
+    font-size: 13px;
+    font-weight: 700;
+    transition: background-color 0.18s ease, color 0.18s ease;
+  }
+
+  .ic-composer.is-sent .ic-composer__send {
+    background: var(--a2-accent);
+    color: var(--a2-cta-fg);
+  }
+
+  .ic-tabbar {
+    margin-top: 8px;
+    height: 46px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    align-items: center;
+    text-align: center;
+    font-family: var(--a2-font-sans);
+    font-size: 9.5px;
+    font-weight: 600;
+    color: var(--a2-text-muted);
+  }
+
+  .ic-tabbar span.is-on { color: var(--a2-accent-strong); }
+
+  .ic-tab-ico {
+    display: block;
+    width: 14px;
+    height: 14px;
+    margin: 0 auto 4px;
+    border: 1.5px solid currentColor;
+    border-radius: 3px;
+  }
+
+  .ic-tab-ico--assist { border-radius: 50%; }
+  .ic-tab-ico--orders { height: 11px; width: 16px; }
+  .ic-tab-ico--you { border-radius: 50%; width: 12px; height: 12px; }
+
+  /* =======================================================================
+     COMPOSED SCREENS (four structurally different surfaces)
+     ======================================================================= */
+  .ic-screen {
+    display: none;
+    height: 100%;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .ic-screen.is-active {
+    display: flex;
+    animation: icFade 0.22s ease-out;
+  }
+
+  @keyframes icFade {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .ic-greet {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 2px 2px 0;
+  }
+
+  .ic-greet strong {
+    font-size: 15.5px;
+    font-weight: 640;
+    letter-spacing: -0.02em;
+    color: var(--a2-text);
+  }
+
+  .ic-greet span {
+    font-family: var(--a2-font-mono);
+    font-size: 9.5px;
+    color: var(--a2-text-muted);
+  }
+
+  .ic-lbl {
+    font-family: var(--a2-font-mono);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--a2-accent-strong);
+  }
+
+  .ic-cta {
+    appearance: none;
+    margin-top: auto;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 11px 16px;
+    border: 1px solid var(--a2-cta-bg);
+    border-radius: 3px;
+    background: var(--a2-cta-bg);
+    color: var(--a2-cta-fg);
+    font-family: var(--a2-font-sans);
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+  }
+
+  .ic-cta:hover { background: var(--a2-cta-hover); }
+
+  .ic-cta.is-done {
+    justify-content: center;
+    background: var(--a2-success);
+    border-color: var(--a2-success);
+    color: #ffffff;
+  }
+
+  /* 01 · recipe + grid + meter */
+  .ic-recipe {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 12px 11px;
+    border: 1px solid var(--a2-accent-border);
+    background: var(--a2-accent-soft);
+  }
+
+  .ic-recipe strong {
+    font-family: var(--a2-font-display);
+    font-size: 17px;
+    font-weight: 660;
+    letter-spacing: -0.025em;
+    line-height: 1.15;
+    color: var(--a2-text);
+  }
+
+  .ic-recipe__meta {
+    font-size: 10.5px;
+    color: var(--a2-text-secondary);
+  }
+
+  /* 02 · compare bars + deltas + toggle */
+  .ic-bars2 {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    padding: 9px 12px 10px;
+    border: 1px solid var(--a2-border);
+    background: var(--a2-surface-subtle);
+  }
+
+  .ic-bars2 > div {
+    display: grid;
+    grid-template-columns: 52px 1fr 38px;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--a2-font-mono);
+    font-size: 9.5px;
+    color: var(--a2-text-muted);
+  }
+
+  .ic-bars2__track {
+    height: 14px;
+    background: var(--a2-border);
+  }
+
+  .ic-bars2__track i {
+    display: block;
+    height: 100%;
+    background: var(--a2-text-muted);
+  }
+
+  .ic-bars2 .is-hi .ic-bars2__track i { background: var(--a2-accent); }
+  .ic-bars2 .is-hi b, .ic-bars2 .is-hi span { color: var(--a2-text); }
+
+  .ic-bars2 b {
+    text-align: right;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .ic-checklist {
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid var(--a2-border);
+  }
+
+  .ic-ck {
+    appearance: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 2px;
+    border: none;
+    border-bottom: 1px solid var(--a2-border);
+    background: transparent;
+    color: var(--a2-text);
+    font-family: inherit;
+    font-size: 12px;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .ic-ck i {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    border: 1.5px solid var(--a2-border-strong);
+    border-radius: 3px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .ic-ck.is-done { color: var(--a2-text-muted); }
+  .ic-ck.is-done span { text-decoration: line-through; }
+
+  .ic-ck.is-done i {
+    background: var(--a2-accent);
+    border-color: var(--a2-accent);
+  }
+
+  .ic-ck.is-done i::after {
+    content: '✓';
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--a2-cta-fg);
+  }
+
+  .ic-ck b {
+    margin-left: 6px;
+    font-family: var(--a2-font-mono);
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--a2-amber);
+    border: 1px solid var(--a2-amber-border);
+    padding: 1px 4px;
+  }
+
+  .ic-item__row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--a2-text);
+  }
+
+  .ic-item__row b {
+    font-family: var(--a2-font-mono);
+    font-size: 12px;
+  }
+
+  .ic-choice2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .ic-choice {
+    appearance: none;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 10px 11px;
+    border: 1px solid var(--a2-border-strong);
+    background: var(--a2-surface);
+    color: var(--a2-text);
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+  }
+
+  .ic-choice span {
+    font-family: var(--a2-font-mono);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--a2-text-muted);
+  }
+
+  .ic-choice strong {
+    font-family: var(--a2-font-display);
+    font-size: 18px;
+    font-weight: 680;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+  }
+
+  .ic-choice em {
+    font-style: normal;
+    font-size: 10.5px;
+    color: var(--a2-text-muted);
+  }
+
+  .ic-choice.is-on {
+    border-color: var(--a2-accent);
+    background: var(--a2-accent-soft);
+  }
+
+  .ic-choice.is-on span { color: var(--a2-accent-strong); }
+
+  /* --- Wire JSON --- */
+
+  /* =======================================================================
+     WHAT THE AGENT COMPOSES FROM — SYMMETRIC 3-COLUMN GRID + SUBGRID ALIGNMENT
+     ======================================================================= */
+  .ic-sources {
+    margin-top: 96px;
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+  }
+
+  .ic-sources__grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    column-gap: 64px;
+    align-items: start;
+  }
+
+  .ic-source {
+    position: relative;
+    display: grid;
+    grid-row: span 3;
+    grid-template-rows: subgrid;
+    row-gap: 0;
+    padding: 0;
+  }
+
+  .ic-source + .ic-source::before {
+    content: '';
+    position: absolute;
+    top: 4px;
+    bottom: 0;
+    left: -32px;
+    width: 1px;
+    background: var(--a2-border);
+  }
+
+  @media (max-width: 1080px) {
+    .ic-sources__grid {
+      column-gap: 44px;
+    }
+
+    .ic-source + .ic-source::before {
+      left: -22px;
+    }
+  }
+
+  @media (max-width: 860px) {
+    .ic-sources__grid {
+      grid-template-columns: 1fr;
+      row-gap: 48px;
+    }
+
+    .ic-source {
+      display: flex;
+      flex-direction: column;
+      grid-row: auto;
+      gap: 10px;
+    }
+
+    .ic-source + .ic-source {
+      padding-top: 36px;
+      border-top: 1px solid var(--a2-border);
+    }
+
+    .ic-source + .ic-source::before {
+      display: none;
+    }
+  }
+
+  .ic-source h3 {
+    margin: 0 0 10px;
+    font-family: var(--a2-font-display);
+    font-size: clamp(17.5px, 1.38vw, 18.5px);
+    font-weight: 640;
+    line-height: 1.24;
+    letter-spacing: -0.022em;
+    color: var(--a2-text);
+  }
+
+  .ic-source p {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--a2-text-secondary);
+    max-width: 38ch;
+  }
+
+  /* --- Architectural schematics (identical bounding box + shared visual grammar) --- */
+  .ic-art {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 2 / 1;
+    display: block;
+    margin-bottom: 18px;
+    overflow: visible;
+  }
+
+  .ic-art .ln {
+    fill: none;
+    stroke: var(--a2-text-muted);
+    stroke-width: 1;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: 0.78;
+  }
+
+  .ic-art .ln-subtle {
+    fill: none;
+    stroke: var(--a2-border-strong);
+    stroke-width: 1;
+  }
+
+  .ic-art .ln-strong {
+    stroke: var(--a2-text);
+    opacity: 0.85;
+  }
+
+  .ic-art .dash {
+    stroke-dasharray: 2.5 3;
+  }
+
+  .ic-art .dash-map {
+    fill: none;
+    stroke-dasharray: 3 3;
+    opacity: 0.75;
+  }
+
+  .ic-art .card-surface {
+    fill: var(--a2-bg);
+    stroke: var(--a2-border-strong);
+    stroke-width: 1;
+  }
+
+  .ic-art .plane {
+    fill: var(--a2-surface-subtle);
+    stroke: var(--a2-border-strong);
+    stroke-width: 1;
+  }
+
+  .ic-art .acc {
+    fill: none;
+    stroke: var(--a2-accent);
+    stroke-width: 1;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .ic-art .w15 {
+    stroke-width: 1.4;
+  }
+
+  .ic-art .w2 {
+    stroke-width: 2;
+  }
+
+  .ic-art .cta-bar {
+    stroke: #ffffff;
+    stroke-width: 2;
+    stroke-linecap: round;
+    opacity: 0.92;
+  }
+
+  .ic-art .acc-fill {
+    fill: var(--a2-accent);
+  }
+
+  .ic-art .soft-fill {
+    fill: var(--a2-accent-soft);
+  }
+
+  .ic-art .node {
+    fill: var(--a2-surface-subtle);
+    stroke: var(--a2-border-strong);
+    stroke-width: 1;
+  }
+
+  .ic-art__blink {
+    animation: icBlink 2.4s ease-in-out infinite;
+  }
+
+  .ic-art .lbl {
+    font-family: var(--a2-font-mono);
+    font-size: 9.5px;
+    letter-spacing: 0.01em;
+    fill: var(--a2-text-secondary);
+  }
+
+  .ic-art .lbl--ink {
+    fill: var(--a2-text);
+    font-weight: 600;
+  }
+
+  .ic-art .lbl--card-strong {
+    font-family: var(--a2-font-sans);
+    font-size: 9.5px;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    fill: var(--a2-text);
+  }
+
+  .ic-art .lbl--chip {
+    font-size: 8.5px;
+    font-weight: 600;
+    fill: var(--a2-accent-strong);
+  }
+
+  .ic-art .lbl--chip-muted {
+    font-size: 8.5px;
+    fill: var(--a2-text-muted);
+  }
+
+  .ic-art .lbl--cta {
+    font-family: var(--a2-font-sans);
+    font-size: 8.5px;
+    font-weight: 650;
+    letter-spacing: 0.01em;
+    fill: #ffffff;
+  }
+
+  .ic-art .lbl--tiny {
+    font-size: 7px;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    fill: var(--a2-text-muted);
+  }
+
+  .ic-art .lbl--acc {
+    fill: var(--a2-accent-strong);
+    font-weight: 600;
+  }
+
+  .ic-art__flow {
+    stroke-width: 1.6;
+    stroke-dasharray: 5 7;
+    animation: icFlowDash 1.1s linear infinite;
+  }
+
+  @keyframes icFlowDash {
+    to { stroke-dashoffset: -24; }
+  }
+
+  @keyframes icBlink {
+    0%, 100% { opacity: 0.35; }
+    50% { opacity: 1; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ic-caret,
+    .ic-zone__skel i,
+    .ic-sent,
+    .ic-art__caret,
+    .ic-art__hand,
+    .ic-art__flow,
+    .ic-art__blink {
+      animation: none;
+    }
+  }
+</style>

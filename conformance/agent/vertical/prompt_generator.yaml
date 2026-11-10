@@ -15,7 +15,7 @@
 # Vertical prompt generation conformance: system prompt rules and component signatures.
 
 - name: test_vertical_snippet_filters_children_components
-  description: Verifies that components requiring children (Card, Column) are filtered out from Vertical prompt signatures.
+  description: Verifies that components requiring children (Button, Card, Column) are filtered out from Vertical prompt signatures.
   action: generate_prompt_snippet
   args:
     format: vertical
@@ -37,3 +37,26 @@
   expect_contains:
     - "<a2ui>"
     - "## Component Signatures"
+  expect_deterministic: true
+
+- name: test_vertical_snippet_teaches_event_user_message_from_v1_0
+  description: Verifies that v1.0 Vertical prompt rules teach Event userMessage= keyword syntax.
+  action: generate_prompt_snippet
+  args:
+    format: vertical
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  expect_contains:
+    - "userMessage="
+
+- name: test_vertical_snippet_names_agent_callable_functions_in_v1_0
+  description: Verifies that v1.0 Vertical prompt rules list agent-callable renderer functions for standalone invocation.
+  action: generate_prompt_snippet
+  args:
+    format: vertical
+    catalogs:
+      - catalog: "test_data/catalogs/allowed_callers_catalog_v1_0.json"
+  expect_callable_functions:
+    - "readSessionToken"
+  expect_contains:
+    - "readSessionToken"

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import '../primitives/data_path.dart';
 import '../primitives/errors.dart';
+import '../primitives/event_notifier.dart';
 import '../primitives/reactivity.dart';
 
 /// The maximum list index that auto-vivification will expand to.
@@ -22,26 +22,159 @@ import '../primitives/reactivity.dart';
 /// allocate a billion-element list.
 const int maxAutoVivifyIndex = 10000;
 
+/// A live subscription to a value at a data-model path or dynamic expression.
+abstract interface class DataSubscription<T extends Object?>
+    implements Subscription {
+  /// The latest resolved value.
+  T? get value;
+
+  /// Stops change notifications. Idempotent.
+  @override
+  void unsubscribe();
+}
+
+class _DataModelSubscription<T extends Object?> implements DataSubscription<T> {
+  final DataModel _model;
+  final ReadonlySignal<Object?> _signal;
+  void Function()? _dispose;
+
+  _DataModelSubscription(this._model, this._signal);
+
+  @override
+  T? get value => _signal.peek() as T?;
+
+  @override
+  void unsubscribe() {
+    final void Function()? dispose = _dispose;
+    if (dispose == null) return;
+    _dispose = null;
+    _model._subscriptions.remove(this);
+    dispose();
+  }
+}
+
 /// A standalone, observable data store representing the client-side state.
 /// It handles JSON Pointer path resolution and reactive signal management.
 class DataModel {
+  static final RegExp _numericIndexPattern = RegExp(r'^(?:0|[1-9]\d*)$');
+
+  static int? _parseListIndex(String segment) =>
+      _numericIndexPattern.hasMatch(segment) ? int.tryParse(segment) : null;
+
   Object? _data;
   final Map<String, WeakReference<Signal<Object?>>> _signals = {};
+  final Map<(String, Type), WeakReference<ReadonlySignal<Object?>>>
+      _typedSignals = {};
+  final Set<DataSubscription<Object?>> _subscriptions = {};
 
-  DataModel([Object? initialData]) : _data = initialData ?? <String, Object?>{};
+  DataModel([Object? initialData])
+      : _data = _own(initialData) ?? <String, Object?>{};
+
+  /// Returns a modifiable deep copy of [value], normalizing string-keyed maps
+  /// to `Map<String, Object?>` and lists to `List<Object?>`.
+  ///
+  /// Maps whose keys are all strings (including empty `Map<dynamic, dynamic>`)
+  /// are normalized to `Map<String, Object?>` so JSON Pointer traversal works
+  /// uniformly regardless of the caller's map runtime type. Maps containing
+  /// non-string keys are deep-copied as `Map<Object?, Object?>` so opaque
+  /// caller values round-trip with their original keys intact.
+  static Object? _own(Object? value) {
+    if (value is Map) {
+      if (value is Map<String, Object?> ||
+          value.keys.every((Object? key) => key is String)) {
+        return <String, Object?>{
+          for (final MapEntry<Object?, Object?> entry in value.entries)
+            entry.key as String: _own(entry.value),
+        };
+      }
+      return <Object?, Object?>{
+        for (final MapEntry<Object?, Object?> entry in value.entries)
+          entry.key: _own(entry.value),
+      };
+    }
+    if (value is List) {
+      return <Object?>[for (final Object? entry in value) _own(entry)];
+    }
+    return value;
+  }
+
+  static const Set<String> _forbiddenKeys = {
+    '__proto__',
+    'constructor',
+    'prototype',
+  };
+
+  static final RegExp _invalidEscapePattern = RegExp(r'~(?![01])');
+
+  /// Splits a JSON Pointer (RFC 6901) into unescaped segments.
+  ///
+  /// `~1` and `~0` are unescaped to `/` and `~`. Any other `~` sequence, and
+  /// any segment that is a prototype-pollution key (`__proto__`,
+  /// `constructor`, `prototype`), throws [A2uiDataError]. Empty segments are
+  /// dropped, so `''`, `'/'`, and `'foo'` parse the same as `web_core` and the
+  /// Python core parse them.
+  static List<String> _parsePointer(String path) {
+    if (_invalidEscapePattern.hasMatch(path)) {
+      throw A2uiDataError(
+        "Invalid escape sequence in path '$path': "
+        "'~' must be followed by '0' or '1'.",
+        path: path,
+      );
+    }
+    if (path.isEmpty || path == '/') return const [];
+
+    final List<String> segments = path
+        .split('/')
+        .where((s) => s.isNotEmpty)
+        .map((s) => s.replaceAll('~1', '/').replaceAll('~0', '~'))
+        .toList(growable: false);
+    for (final segment in segments) {
+      if (_forbiddenKeys.contains(segment)) {
+        throw A2uiDataError(
+          "Forbidden path segment '$segment' in path '$path'.",
+          path: path,
+        );
+      }
+    }
+    return segments;
+  }
+
+  /// Assembles unescaped [segments] back into an absolute JSON Pointer, the
+  /// canonical key under which signals are cached.
+  static String _buildPointer(List<String> segments) {
+    if (segments.isEmpty) return '/';
+    return '/${segments.map((s) => s.replaceAll('~', '~0').replaceAll('/', '~1')).join('/')}';
+  }
+
+  /// Resolves [path] against an optional [basePath] into an absolute JSON
+  /// Pointer string.
+  static String resolvePath(String path, [String? basePath]) {
+    if (path.startsWith('/')) return path;
+    final String rawBase = basePath == null || basePath.isEmpty
+        ? '/'
+        : (basePath.startsWith('/') ? basePath : '/$basePath');
+    var trimmedBase = rawBase;
+    while (trimmedBase.length > 1 && trimmedBase.endsWith('/')) {
+      trimmedBase = trimmedBase.substring(0, trimmedBase.length - 1);
+    }
+    if (path.isEmpty || path == '.') return trimmedBase;
+
+    final base = trimmedBase == '/' ? '' : trimmedBase;
+    return '$base/$path';
+  }
 
   /// Synchronously gets data at a specific JSON pointer path.
   Object? get(String path) {
-    final dataPath = DataPath.parse(path);
-    if (dataPath.isEmpty) return _data;
+    final List<String> segments = _parsePointer(path);
+    if (segments.isEmpty) return _data;
 
     Object? currentNode = _data;
-    for (final String segment in dataPath.segments) {
+    for (final segment in segments) {
       if (currentNode == null) return null;
       if (currentNode is Map<String, Object?>) {
         currentNode = currentNode[segment];
       } else if (currentNode is List<Object?>) {
-        final int? index = int.tryParse(segment);
+        final int? index = _parseListIndex(segment);
         if (index == null || index < 0 || index >= currentNode.length) {
           return null;
         }
@@ -53,30 +186,71 @@ class DataModel {
     return currentNode;
   }
 
+  /// Whether a value, possibly null, exists at the JSON pointer [path].
+  bool has(String path) => hasPath(path);
+
+  /// Returns whether [path] physically exists in the data model hierarchy.
+  bool hasPath(String path) => _hasSegments(_parsePointer(path));
+
+  bool _hasSegments(List<String> segments) {
+    if (segments.isEmpty) return true;
+    Object? currentNode = _data;
+    for (final segment in segments) {
+      if (currentNode is Map<String, Object?>) {
+        if (!currentNode.containsKey(segment)) return false;
+        currentNode = currentNode[segment];
+      } else if (currentNode is List<Object?>) {
+        final int? index = _parseListIndex(segment);
+        if (index == null || index < 0 || index >= currentNode.length) {
+          return false;
+        }
+        currentNode = currentNode[index];
+      } else {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// Deletes the value at [path].
+  ///
+  /// Equivalent to `set(path, null)`: removes the key from its parent map,
+  /// sets an in-bounds list slot to `null`, or resets the root to `{}`.
+  void delete(String path) => set(path, null);
+
   /// Updates data at a specific path and notifies subscribers.
   void set(String path, Object? value) {
-    final dataPath = DataPath.parse(path);
+    final List<String> segments = _parsePointer(path);
+    if (segments.isNotEmpty && value == null && !_hasSegments(segments)) {
+      return;
+    }
 
     batch(() {
-      if (dataPath.isEmpty) {
-        _data = value;
+      if (segments.isEmpty) {
+        _data = _own(value) ?? <String, Object?>{};
       } else {
+        if (_data != null && _data is! Map && _data is! List) {
+          throw A2uiDataError(
+            "Cannot set path '$path': "
+            'the data model root is a primitive value.',
+            path: path,
+          );
+        }
         _data ??= <String, Object?>{};
         Object? current = _data;
-        for (var i = 0; i < dataPath.segments.length - 1; i++) {
-          final String segment = dataPath.segments[i];
-          final String nextSegment = dataPath.segments[i + 1];
-          final isNextNumeric = int.tryParse(nextSegment) != null;
+        for (var i = 0; i < segments.length - 1; i++) {
+          final String segment = segments[i];
+          final String nextSegment = segments[i + 1];
+          final isNextNumeric = _parseListIndex(nextSegment) != null;
 
           if (current is Map<String, Object?>) {
             if (!current.containsKey(segment) || current[segment] == null) {
-              current[segment] = isNextNumeric
-                  ? <Object?>[]
-                  : <String, Object?>{};
+              current[segment] =
+                  isNextNumeric ? <Object?>[] : <String, Object?>{};
             }
             current = current[segment];
           } else if (current is List<Object?>) {
-            final int? index = int.tryParse(segment);
+            final int? index = _parseListIndex(segment);
             if (index == null) {
               throw A2uiDataError(
                 "Cannot use non-numeric segment '$segment' on a list.",
@@ -93,9 +267,8 @@ class DataModel {
               current.add(null);
             }
             if (current[index] == null) {
-              current[index] = isNextNumeric
-                  ? <Object?>[]
-                  : <String, Object?>{};
+              current[index] =
+                  isNextNumeric ? <Object?>[] : <String, Object?>{};
             }
             current = current[index];
           } else {
@@ -107,15 +280,15 @@ class DataModel {
           }
         }
 
-        final String lastSegment = dataPath.segments.last;
+        final String lastSegment = segments.last;
         if (current is Map<String, Object?>) {
           if (value == null) {
             current.remove(lastSegment);
           } else {
-            current[lastSegment] = value;
+            current[lastSegment] = _own(value);
           }
         } else if (current is List<Object?>) {
-          final int? index = int.tryParse(lastSegment);
+          final int? index = _parseListIndex(lastSegment);
           if (index == null) {
             throw A2uiDataError(
               "Cannot use non-numeric segment '$lastSegment' on a list.",
@@ -134,7 +307,7 @@ class DataModel {
             while (current.length <= index) {
               current.add(null);
             }
-            current[index] = value;
+            current[index] = _own(value);
           } else if (index < current.length) {
             current[index] = null;
           }
@@ -149,30 +322,68 @@ class DataModel {
         }
       }
 
-      _notifyPathAndRelated(dataPath);
+      _notifyPathAndRelated(segments);
     });
   }
 
   /// Returns a [ReadonlySignal] for a specific path.
   /// Internally cached using a [WeakReference] to prevent leaks.
-  ReadonlySignal<T?> watch<T>(String path) {
-    final normalizedPath = DataPath.parse(path).toString();
+  ReadonlySignal<T?> watch<T extends Object?>(String path) {
+    final String normalizedPath = _buildPointer(_parsePointer(path));
+    Signal<Object?>? sig;
     final WeakReference<Signal<Object?>>? ref = _signals[normalizedPath];
     if (ref != null) {
-      final Signal<Object?>? sig = ref.target;
-      if (sig != null) {
-        return sig as ReadonlySignal<T?>;
+      sig = ref.target;
+    }
+    if (sig == null) {
+      sig = signal<Object?>(get(normalizedPath));
+      _signals[normalizedPath] = WeakReference(sig);
+      _pruneSignals();
+    }
+
+    if (T == Object || T == dynamic || <Object?>[] is List<T>) {
+      return sig as ReadonlySignal<T?>;
+    }
+
+    final key = (normalizedPath, T);
+    final WeakReference<ReadonlySignal<Object?>>? typedRef = _typedSignals[key];
+    if (typedRef != null) {
+      final ReadonlySignal<Object?>? existing = typedRef.target;
+      if (existing != null) {
+        return existing as ReadonlySignal<T?>;
       }
     }
 
-    final Signal<T?> sig = signal<T?>(get(normalizedPath) as T?);
-    _signals[normalizedPath] = WeakReference(sig as Signal<Object?>);
-    _pruneSignals();
-    return sig;
+    final ReadonlySignal<T?> computedSig = computed<T?>(() {
+      final Object? val = sig!.value;
+      return val as T?;
+    });
+    _typedSignals[key] = WeakReference(computedSig as ReadonlySignal<Object?>);
+    return computedSig;
   }
 
-  void _notifyPathAndRelated(DataPath dataPath) {
-    final changedPath = dataPath.toString();
+  /// Subscribes [onChange] to changes at [path], including mutations to
+  /// ancestor and descendant paths.
+  ///
+  /// Does not fire [onChange] synchronously upon subscription; the current
+  /// value is immediately available via [DataSubscription.value].
+  DataSubscription<T> subscribe<T extends Object?>(
+    String path,
+    void Function(T? value) onChange,
+  ) {
+    final ReadonlySignal<Object?> source = watch<Object?>(path);
+    final subscription = _DataModelSubscription<T>(this, source);
+    var initial = true;
+    subscription._dispose = source.subscribe((Object? next) {
+      if (!initial) onChange(next as T?);
+    });
+    initial = false;
+    _subscriptions.add(subscription);
+    return subscription;
+  }
+
+  void _notifyPathAndRelated(List<String> segments) {
+    final String changedPath = _buildPointer(segments);
     final String changedDescendantPrefix = _descendantPrefix(changedPath);
     for (final String entryPath in _signals.keys.toList()) {
       if (changedPath == entryPath ||
@@ -214,9 +425,17 @@ class DataModel {
 
   void _pruneSignals() {
     _signals.removeWhere((key, ref) => ref.target == null);
+    _typedSignals.removeWhere((key, ref) => ref.target == null);
   }
 
   void dispose() {
+    for (final subscription in List<DataSubscription<Object?>>.of(
+      _subscriptions,
+    )) {
+      subscription.unsubscribe();
+    }
+    _subscriptions.clear();
     _signals.clear();
+    _typedSignals.clear();
   }
 }

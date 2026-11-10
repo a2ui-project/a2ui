@@ -20,6 +20,13 @@ from .common_types import StrictBaseModel, CallId, Extensions, FunctionCall, Fun
 from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE
 
 
+class ActionMetadata(StrictBaseModel):
+    """Optional renderer-side metadata to send back to the agent with the action."""
+
+    model_config = ConfigDict(populate_by_name=True)
+    extensions: Extensions | None = Field(default=None)
+
+
 class A2uiRendererAction(StrictBaseModel):
     """Reports a user-initiated action from a component."""
 
@@ -32,7 +39,7 @@ class A2uiRendererAction(StrictBaseModel):
         ),
     )
     user_message: str | None = Field(
-        None,
+        default=None,
         alias="userMessage",
         description=(
             "An optional human-readable string describing the action performed by the"
@@ -63,8 +70,8 @@ class A2uiRendererAction(StrictBaseModel):
             " action.event.context, after resolving all data bindings."
         ),
     )
-    metadata: Extensions | None = Field(
-        None,
+    metadata: ActionMetadata | None = Field(
+        default=None,
         description=(
             "Optional renderer-side metadata to send back to the agent with the action."
         ),
@@ -145,7 +152,7 @@ class A2uiGenericError(BaseModel):
         ),
     )
     surface_id: str | None = Field(
-        None,
+        default=None,
         alias="surfaceId",
         description=(
             "The id of the surface where the error occurred. It must be globally unique"
@@ -153,7 +160,7 @@ class A2uiGenericError(BaseModel):
         ),
     )
     function_call_id: str | None = Field(
-        None,
+        default=None,
         alias="functionCallId",
         description=(
             "The unique ID of the function invocation, which must be identical to the"

@@ -13,6 +13,7 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "strict": true,
+    "noImplicitOverride": true,
     "target": "ES2022",
     "plugins": [
       {

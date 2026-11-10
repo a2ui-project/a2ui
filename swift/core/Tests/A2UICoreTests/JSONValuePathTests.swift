@@ -104,4 +104,31 @@ struct JSONValuePathTests {
     value["0/name"] = "Alice"
     #expect(value == .string("primitive"))
   }
+
+  @MainActor
+  @Test func watchCancellationStopsDeliveringUpdates() throws {
+    let model = DataModel(initial: ["user": ["name": "Alice"]])
+    var observed: [String?] = []
+    let cancellable = try model.watch("/user/name") { val in
+      observed.append(val?.stringValue)
+    }
+    try model.setThrowing("/user/name", value: "Bob")
+    #expect(observed == ["Bob"])
+    cancellable.cancel()
+    try model.setThrowing("/user/name", value: "Charlie")
+    #expect(observed == ["Bob"])
+  }
+
+  @Test func subscriptSetRejectsArrayIndexBeyondMaxArrayIndex() {
+    var value: JSONValue = ["items": ["a", "b"]]
+    value["/items/10001"] = "too-far"
+    value["/items/999999999"] = "way-too-far"
+    #expect(value["/items"]?.arrayValue?.count == 2)
+
+    var emptyRoot: JSONValue = [:]
+    emptyRoot["/newArray/10001"] = "ignored"
+    emptyRoot["/nested/path/999999999"] = "ignored"
+    #expect(emptyRoot["/newArray"] == nil)
+    #expect(emptyRoot["/nested"] == nil)
+  }
 }

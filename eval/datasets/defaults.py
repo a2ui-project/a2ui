@@ -16,16 +16,17 @@ from pathlib import Path
 
 DEFAULT_CATALOG_PATH = "specification/v0_9/catalogs/basic/catalog.json"
 DEFAULT_ROLE_DESCRIPTION = (
-    "You are an AI assistant. Based on the following request, generate a stream of JSON"
-    " messages that conform to the provided JSON Schemas."
+    "You are an AI assistant. Based on the following request, generate a stream"
+    " of JSON messages that conform to the provided JSON Schemas."
 )
 
 DEFAULT_WORKFLOW_DESCRIPTION = """
 Additional Rules:
-1. Generate a 'createSurface' message with surfaceId 'main' and catalogId from the catalog.
+1. Generate a 'createSurface' message with surfaceId 'main' and the exact catalogId from the provided Catalog Schema (never invent a custom or placeholder catalogId URL or identifier).
 2. Generate a 'updateComponents' message with surfaceId 'main' containing the requested UI.
 3. Among the 'updateComponents' messages in the output, there MUST be one root component with id: 'root'.
 4. Ensure all component children are referenced by ID, NOT nested inline as objects.
+5. Always wrap every A2UI JSON block in both the literal opening <a2ui-json> tag and closing </a2ui-json> tag. Do NOT wrap the tags in backticks or replace the opening <a2ui-json> tag with a markdown code fence (such as ```json).
 """
 
 FORMAT_AGNOSTIC_ROLE_DESCRIPTION = (
@@ -37,4 +38,5 @@ FORMAT_AGNOSTIC_WORKFLOW_DESCRIPTION = """
 Additional Rules:
 1. Construct the user interface on surfaceId 'main'.
 2. If components are defined, ensure there is one root component with id: 'root'.
+3. Always wrap every A2UI block in both the literal opening <a2ui> tag and closing </a2ui> tag. Do NOT wrap the tags in backticks or replace the opening <a2ui> tag with a markdown code fence (such as ```a2ui).
 """

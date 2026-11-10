@@ -7,40 +7,100 @@ the A2UI agent SDK.
 
 The following directories contain the base protocol logic, parsing, and schema operations directly under `src/a2ui/`:
 
-### Schema Management (`src/a2ui/schema`)
+### Processor & Catalog Configuration (`src/a2ui/processor`)
 
-- **`manager.py`**: The `A2uiSchemaManager` handles loading specification
-  schemas, managing catalogs, and generating system prompts for LLMs.
-- **`catalog.py`**: Defines `A2uiCatalog` and `CatalogConfig` for handling
-  component libraries. `A2uiCatalog.validate_components` checks components
-  against the catalog schema with the `a2ui-core` `PayloadValidator`.
+- **`generator.py`**: Defines `A2uiGenerator`, the main entry point for configuring an agent's catalogs and default inference format factory.
+- **`processor.py`**: Defines `A2uiRequestProcessor`, which binds the active catalogs negotiated for a request to an inference format and exposes prompt generation and response parsing. An agent creates one for each request with `A2uiGenerator.create_processor`, from the capabilities that the client sent.
+- **`catalog_config.py`**: Defines `CatalogConfig`, which binds a `Catalog` (or loads one from a path via `CatalogConfig.from_path`) with an optional sequence of `CatalogTransformer` instances into `transformed_catalog`.
+- **`catalog_providers.py`**: Defines `CatalogProvider`, `FileSystemCatalogProvider`, and `InMemoryCatalogProvider` for loading catalogs.
+
+### Constants (`src/a2ui/constants.py`)
+
+- Protocol and SDK string constants such as `A2UI_OPEN_TAG`,
+  `A2UI_CLOSE_TAG`, `A2UI_CLIENT_CAPABILITIES_KEY` and
+  `A2UI_RENDERER_CAPABILITIES_KEY`. Protocol versions are
+  `a2ui.core.schema.ProtocolVersion` members. The
+  module has no dependencies, so callers that only need a constant can import
+  `a2ui.constants` without loading the rest of the SDK.
+
+### Catalog transformers (`src/a2ui/catalog_transformers`)
+
+- **`pruning.py`**: `ComponentPruningTransformer` and
+  `FunctionPruningTransformer` return a copy of a catalog that keeps only the
+  allowed components or functions. Pass them to `CatalogConfig` as
+  `transformers`.
+
+### Builders (`src/a2ui/builder`)
+
+- **`v0_9/`**, **`v1_0/`**, and **`core/`**: Typesafe Pydantic component,
+  binding, action, and function builders for A2UI v0.9 and v1.0, plus
+  `flatten_component_tree` for converting nested Python component trees into
+  flat wire component lists. See [`src/a2ui/builder/README.md`](src/a2ui/builder/README.md).
+
+### Macro transformers (`src/a2ui/transformers/macros`)
+
+- **`macro.py`**, **`expander.py`**, and **`processor.py`**: `@macro` and
+  `MacroExpander` synthesize catalog component schemas from typed Python builder
+  functions and lower macro components into primitive component subtrees on
+  outbound messages. See [`src/a2ui/transformers/macros/README.md`](src/a2ui/transformers/macros/README.md).
+
+### Utilities (`src/a2ui/utils`)
+
+- **`catalog_resolver.py`**: `resolve_catalogs` returns the catalogs that are
+  active for the capabilities that a renderer sent.
+- **`examples.py`**: `load_examples` reads few-shot examples from a directory
+  or glob pattern and can validate them against the active catalogs.
+- **`schemas.py`**: `load_agent_to_renderer_schema` and
+  `load_common_types_schema` return the protocol JSON schemas for a version.
+- **`versions.py`**: `to_version_number` returns a protocol version without
+  its leading "v" (`ProtocolVersion.V0_9` gives `"0.9"`), the form that A2A
+  extension URIs and many file layouts use.
+- **`schema_pruning.py`**: `prune_messages_schema` and
+  `prune_common_types_schema` reduce the protocol schemas to the allowed
+  messages and the common types that are referenced.
+- **`renderer_state.py`**: `RendererState` is the agent's mirror of the
+  surfaces a renderer holds. It wraps one `MessageProcessor` and checks each
+  outbound message against everything sent before it. A chat agent uses a new
+  state per turn, which is what a parser does when it is given none. A canvas
+  agent keeps one state for the whole conversation. `validate_payload` checks
+  one payload the way a renderer holding the catalogs would, on a short-lived
+  `RendererState`, and raises `A2uiValidationError` if the renderer would
+  reject it.
 
 ### Parser (`src/a2ui/parser`)
 
-- **`parser.py`**: Implementation of `parse_response` for synchronous parsing.
-- **`streaming.py`**: Incremental streaming parsers with automatic JSON healing and validation.
-- **`payload_fixer.py`**: Utilities to automatically correct common LLM output
-  issues in A2UI payloads.
+- **`parser.py`**: Defines the `Parser` abstract base class. A format implements `compile` and `decompile`, which translate between its notation and A2UI messages, and `wrap` and `unwrap`, which handle its tags. The base class reads model responses with `parse_response`. `open_stream` reads a response chunk by chunk; the base class raises `NotImplementedError`, and only formats that stream, whose `supports_streaming` is true, implement it. Both check every message against a `RendererState`. A parser holds no per-response state, so one parser can be reused across turns.
+- **`response_stream.py`**: Defines the `ResponseStream` that `open_stream` returns. When `feed` or `close` raises, the error's `partial_results` holds the parts the call made ready before the failure, which are applied to the state. By default the first rejected block ends the stream; a stream opened with `after_rejected_block="continue"` returns an `ErrorPart` in place of a rejected block and reads on. `is_in_block` tells whether the response read so far ends inside a block, so a client that joins the chunks of a paused and resumed response knows whether a space between them could break a block.
+- **`response_part.py`**: Defines `ResponsePart` (`TextPart` / `A2uiPart`), `ErrorPart`, `StreamPart` (`ResponsePart` or `ErrorPart`) and `RawResponsePart` (`RawA2uiPart`).
+- **`lexer.py`**: Defines `BlockLexer` for sentinel-tag tokenization (`<a2ui-json>...</a2ui-json>`).
+- **`errors.py`**: Defines `A2uiCompilationError` and its subclasses `A2uiCompilationParseError` and `A2uiCompilationValidationError`.
+- **`messages.py`**: `to_message_models` and `to_message_dicts` convert between message dictionaries and typed models.
 
-## Basic Catalog (`src/a2ui/basic_catalog`)
+### Prompt & Inference Formats (`src/a2ui/prompt`, `src/a2ui/inference_formats`)
 
-- **`provider.py`**: Implementation of `BasicCatalog` for handling the basic
-  A2UI components.
+- **`prompt/generator.py`**: Defines the `PromptGenerator` (`A2uiPromptGenerator`) abstract base class, whose formats implement `catalogs` and the three hooks (`generate_base_rules`, `generate_catalog_instructions`, `generate_examples`), and `assemble_instructions`, which joins the hooks' output. `generate()` returns `assemble_instructions(self)` and is not overridden.
+- **`inference_format.py`**: Defines `InferenceFormat` and `InferenceFormatFactory`.
+- **`inference_formats/`**: Format implementations and factories for Direct JSON (`direct_json/`), Express (`express/`), and experimental Elemental and Atom (`experimental/`) formats. Direct JSON and Express both stream: `DirectJsonParser.open_stream` heals partial JSON per chunk, and `ExpressParser.open_stream` emits each statement once it closes.
 
-## A2A (`src/a2ui/a2a`)
+### Messages from the renderer (`src/a2ui/rpc`)
 
-- **`extension.py`**: Utilities for managing the A2UI extension URI and activation logic.
-- **`parts.py`**: Utilities for creating A2A Parts with A2UI data and helpers for response parsing.
+- **`processor.py`**: `RendererToAgentMessageProcessor` processes the messages a renderer sends to the agent. It answers `callAgentFunction` by running the agent functions of the agent's catalogs, and passes `action`, `error` and `rendererFunctionResponse` to optional callbacks.
+- **`renderer_function_calls.py`**: `RendererFunctionCalls` builds `callRendererFunction` messages for one conversation and settles their futures when the `rendererFunctionResponse` arrives. Its `resolve` method is the processor's `on_renderer_function_response` callback. `call` refuses an empty `functionCallId`, a name that isn't an identifier, and `args` that aren't an object of JSON values, and its timeouts must be finite positive numbers. Given the agent's `catalogs`, it also refuses a name that isn't one of the catalog's renderer functions, agent functions included (`UNKNOWN_FUNCTION`), a `rendererOnly` one, or one that requires user activation (`INVALID_FUNCTION_CALL`).
 
-## ADK Extensions (`src/a2ui/adk`)
+See [Agent Functions](agent_development.md#5-agent-functions) for how to use them.
 
-Support for
-the [Agent Development Kit (ADK)](https://github.com/google/adk-python) and A2A
-protocol.
+## Agent framework integrations
 
-- **`send_a2ui_to_client_toolset.py`**: Implementation of
-  `SendA2uiToClientToolset` to enable agents to send UI to clients via tool
-  calls.
+The agent SDK does not depend on an agent framework. Integrations are separate
+packages that add to the `a2ui` namespace:
+
+- [`a2ui-a2a`](../a2ui_a2a/README.md) provides `a2ui.a2a`, the A2UI extension
+  for the Agent-to-Agent (A2A) protocol.
+- [`a2ui-adk`](../a2ui_adk/README.md) provides `a2ui.adk`, the integration
+  with the [Agent Development Kit (ADK)](https://github.com/google/adk-python).
+
+Code in this package must not import an agent framework or model SDK.
+`tests/test_framework_agnostic.py` checks this.
 
 ## Running tests
 
@@ -58,16 +118,31 @@ protocol.
 
 ## Building the SDK
 
-Building from source regenerates the Express parser from
-`specification/inference_formats/express/Express.g4`. That step runs ANTLR, which
-requires a Java runtime (JRE 11 or newer) on the `PATH`.
-
 To build the SDK, run the following command from the `python/a2ui_agent`
 directory:
 
 ```bash
 uv build
 ```
+
+The build doesn't need Java. The Express lexer, parser, and visitor in
+`src/a2ui/inference_formats/express/generated/` are generated from
+`specification/inference_formats/express/Express.g4` and committed to the
+repository.
+
+## Regenerating the Express parser
+
+After changing `Express.g4`, regenerate the parser from the `python/a2ui_agent`
+directory and commit the result:
+
+```bash
+uv run python scripts/generate_express_parser.py
+```
+
+The script runs ANTLR 4.13.2 through `antlr4-tools` from the dev dependency
+group. ANTLR needs a Java runtime (JRE 11 or newer) on the `PATH`, and
+`antlr4-tools` downloads the ANTLR jar on first use. Add `--check` to compare
+the committed files with the grammar without changing them. CI runs this check.
 
 ## Formatting code
 

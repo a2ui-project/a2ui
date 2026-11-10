@@ -3,7 +3,7 @@
   "description": "Example of flight status demonstrating date formatting.",
   "messages": [
     {
-      "version": "v1.0",
+      "version": "1.0",
       "createSurface": {
         "surfaceId": "gallery-flight-status",
         "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
@@ -11,7 +11,7 @@
       }
     },
     {
-      "version": "v1.0",
+      "version": "1.0",
       "updateComponents": {
         "surfaceId": "gallery-flight-status",
         "components": [
@@ -48,17 +48,17 @@
             "id": "flight_number",
             "component": "Text",
             "text": {
-              "path": "/flightNumber"
+              "@path": "/flightNumber"
             }
           },
           {
             "id": "date",
             "component": "Text",
             "text": {
-              "call": "formatDate",
+              "@call": "formatDate",
               "args": {
                 "value": {
-                  "path": "/date"
+                  "@path": "/date"
                 },
                 "format": "E, MMM d"
               }
@@ -75,7 +75,7 @@
             "id": "origin",
             "component": "Text",
             "text": {
-              "call": "formatString",
+              "@call": "formatString",
               "args": {
                 "value": "## ${/origin}"
               }
@@ -90,7 +90,7 @@
             "id": "destination",
             "component": "Text",
             "text": {
-              "call": "formatString",
+              "@call": "formatString",
               "args": {
                 "value": "## ${/destination}"
               }
@@ -122,10 +122,10 @@
             "id": "departure_time",
             "component": "Text",
             "text": {
-              "call": "formatDate",
+              "@call": "formatDate",
               "args": {
                 "value": {
-                  "path": "/departureTime"
+                  "@path": "/departureTime"
                 },
                 "format": "h:mm a"
               }
@@ -147,7 +147,7 @@
             "id": "status_value",
             "component": "Text",
             "text": {
-              "path": "/status"
+              "@path": "/status"
             },
             "variant": "body"
           },
@@ -167,10 +167,10 @@
             "id": "arrival_time",
             "component": "Text",
             "text": {
-              "call": "formatDate",
+              "@call": "formatDate",
               "args": {
                 "value": {
-                  "path": "/arrivalTime"
+                  "@path": "/arrivalTime"
                 },
                 "format": "h:mm a"
               }
@@ -180,7 +180,7 @@
       }
     },
     {
-      "version": "v1.0",
+      "version": "1.0",
       "updateDataModel": {
         "surfaceId": "gallery-flight-status",
         "value": {

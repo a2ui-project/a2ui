@@ -24,9 +24,9 @@ from collections import Counter
 
 # Directory mapping for repo components to run git checks
 COMPONENT_DIRS = {
-    "component: lit renderer": "renderers/lit",
-    "component: angular renderer": "renderers/angular",
-    "component: react renderer": "renderers/react",
+    "component: lit renderer": "typescript/renderers/lit",
+    "component: angular renderer": "typescript/renderers/angular",
+    "component: react renderer": "typescript/renderers/react",
     "component: standard catalog specification": "specification",
     "component: specification": "specification",
     "component: samples": "samples",
@@ -291,7 +291,7 @@ def main():
         suggestions["suggested_assignees"] = suggested
 
         # If the issue already has an assignee, preserve it!
-        # Rule from triage-templates.md: Assigned issue without a priority gets P2 and assign_and_fix (unless compliance report)
+        # Rule from docs/contributing/triage/templates.md: Assigned issue without a priority gets P2 and assign_and_fix (unless compliance report)
         existing_assignees = issue.get("assignees", [])
         if existing_assignees:
             suggestions["assignee"] = existing_assignees[0]

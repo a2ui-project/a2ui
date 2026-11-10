@@ -1,0 +1,63 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Validate Agent Skills
+
+on:
+  push:
+    branches: [main]
+    paths: &paths
+      - ".agents/skills/**"
+      - "blueprints/skills/**"
+      - "eval/iterative_format_optimizer/skills/**"
+      - "skills/**"
+      - "skills_lint.yaml"
+      - ".github/workflows/validate_skills.yml"
+  pull_request:
+    paths: *paths
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate-skills:
+    name: Validate Skills
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Installs the prebuilt skills_lint binary, so no Dart SDK is needed.
+      # To update, change the version and copy the new hash for
+      # skills_lint-linux-x64.tar.gz from the release's SHA256SUMS file.
+      - name: Install skills_lint
+        env:
+          SKILLS_LINT_VERSION: "0.5.3+1"
+          SKILLS_LINT_SHA256: "c636c4d47459dd24270851c25b6b61769d0ec20c948e2b21caec2e4e48d12364"
+        run: |
+          cd "$RUNNER_TEMP"
+          curl -fsSLO "https://github.com/google/skills_lint.dart/releases/download/skills_lint-v${SKILLS_LINT_VERSION}/skills_lint-linux-x64.tar.gz"
+          echo "${SKILLS_LINT_SHA256}  skills_lint-linux-x64.tar.gz" | sha256sum -c -
+          tar -xzf skills_lint-linux-x64.tar.gz
+          install -D -m 0755 skills_lint-linux-x64 "$RUNNER_TEMP/bin/skills_lint"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: Run skills_lint
+        run: skills_lint

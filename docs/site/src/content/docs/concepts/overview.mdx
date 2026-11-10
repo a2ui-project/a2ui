@@ -1,0 +1,424 @@
+---
+title: 'Overview: How A2UI Works'
+description: 'How the A2UI agent SDK, transport, and client renderer fit together, traced through a single request.'
+---
+
+import {Tabs, TabItem} from '@astrojs/starlight/components';
+import ArchitecturePipelineOverview from '@components/docs/overview/ArchitecturePipelineOverview.astro';
+
+A2UI lets an AI agent describe an interactive UI as a stream of JSON messages that a client app renders with its own native widgets. Below you'll find the mechanics on each side of the connection, how they fit together, and one request traced from the user's prompt to a button tap.
+
+---
+
+## Generating UI
+
+On the server, you configure the [A2UI Agent SDK](/concepts/sdks/#agent-sdk) with a [component catalog](/concepts/catalogs/) (`catalog.json`) that describes the UI components and functions available to render on your client. From that catalog, the SDK's skill generator produces an A2UI skill containing prompt instructions and grammar rules. Your agent code and LLM runtime sit outside the SDK: they take the generated A2UI skill alongside your domain tools (such as a flight search API), call the model, and pass its UI output to the SDK's compiler. The compiler parses and validates the content against the catalog, then sends layout ([`updateComponents`](/concepts/messages/)) and data ([`updateDataModel`](/concepts/messages/)) messages over a transport such as AG-UI, A2A, MCP, or WebSockets.
+
+On the client, your app hosts an [A2UI Renderer](/concepts/sdks/#renderer-sdk), which draws the UI with native platform widgets inside a region of your screen called a surface. Controls bound to the surface's [data model](/concepts/data-binding/) update state locally as the user interacts with them, and user triggers such as button taps send [`action`](/concepts/actions-and-functions/) messages back to the agent.
+
+While this page focuses on generating UI at request time, A2UI content can also be authored in advance and sent as a static payload (for example, returned from an MCP server via an agent to a client), following a traditional server-driven UI pattern.
+
+<ArchitecturePipelineOverview />
+
+_In the diagram above, purple marks your server-side agent code, blue marks your client app, and the teal dashed outlines mark the A2UI libraries on each side (the Agent SDK on the server and the Renderer on the client)._
+
+---
+
+## Step-by-step generation
+
+The rest of this page traces a flight-booking request through each stage of the pipeline: defining the catalog, generating the skill, prompting the model, compiling and validating the output, rendering the surface on the client, and handling user actions.
+
+### Define the catalog
+
+You define the components and functions your client can render in `catalog.json`. A travel app might pair the basic catalog with domain components such as `FlightCard`. Each component declares its properties with JSON Schema, so the Agent SDK can validate that the model only emits components and properties the client knows how to draw:
+
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0">
+
+{/* prettier-ignore */}
+```jsonc
+{
+  "protocolVersion": "1.0",
+  "catalogId": "https://example.com/catalogs/travel/v1/catalog.json",
+  "components": {
+    "FlightCard": {
+      "type": "object",
+      "description": "Displays a flight segment with fare and passenger count.",
+      "properties": {
+        "component": {"const": "FlightCard"},
+        "flightNumber": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "IATA flight designator, such as 'LH 454'."
+        }
+        // ... origin, destination, price, passengers
+      },
+      "required": ["component", "flightNumber", "origin", "destination", "price", "passengers"]
+    }
+    // ... other components and functions
+  }
+}
+```
+
+  </TabItem>
+  <TabItem label="v0.9.1">
+
+{/* prettier-ignore */}
+```jsonc
+{
+  "catalogId": "https://example.com/catalogs/travel/v0_9/catalog.json",
+  "components": {
+    "FlightCard": {
+      "type": "object",
+      "allOf": [
+        {"$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentCommon"},
+        {
+          "type": "object",
+          "description": "Displays a flight segment with fare and passenger count.",
+          "properties": {
+            "component": {"const": "FlightCard"},
+            "flightNumber": {
+              "$ref": "https://a2ui.org/specification/v0_9/common_types.json#/$defs/DynamicString",
+              "description": "IATA flight designator, such as 'LH 454'."
+            }
+            // ... origin, destination, price, passengers
+          },
+          "required": ["component", "flightNumber", "origin", "destination", "price", "passengers"]
+        }
+      ],
+      "unevaluatedProperties": false
+    }
+    // ... other components and functions
+  }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+### Generate the skill
+
+From `catalog.json`, the Agent SDK's skill generator builds an A2UI skill containing grammar rules for the chosen [inference format](/concepts/inference-formats/) (such as Express) together with component and function signatures derived directly from your catalog:
+
+```text
+---
+name: a2ui
+description: Generates interactive user interface components for user requests.
+---
+
+# A2UI Express DSL Output Contract
+
+You must output the user interface using A2UI Express.
+
+IMPORTANT: You MUST always surround the entire A2UI Express block with the literal sentinel tags `<a2ui>` and `</a2ui>`...
+
+## Grammar Rules
+
+1. Component constructors can be assigned to variables or nested inline inside parent component arguments:
+   ...
+   Keyword arguments (`param=value`) and positional arguments with `_` placeholders are supported.
+...
+6. Data bindings: prefix absolute paths in the data model with '$', e.g., $/user/firstName.
+...
+
+## Positional Component Signatures
+...
+• FlightCard(flightNumber, origin, destination, price, passengers)
+  - Description: Displays a flight segment with fare and passenger count.
+  - flightNumber: IATA flight designator, such as 'LH 454'.
+  ...
+```
+
+### Prompt the model
+
+The user types a request in the client app:
+
+> _"Berlin to San Francisco today, and two tickets back on Oct 19."_
+
+Your agent then:
+
+1. Calls its domain tools, for example `searchFlights(from: "BER", to: "SFO", date: "2026-10-12")`, to get flights and prices.
+2. Decides that a form with passenger counts is more useful here than a paragraph of text.
+3. Loads the generated A2UI skill and prompts the model with the flight data.
+
+### Compile and validate the output
+
+The model streams its answer. Instead of writing wire JSON directly, it can use a compact inference format such as Express:
+
+```text
+<a2ui>
+$/outbound/pax = 1
+$/outbound/price = 455
+$/return/pax = 2
+$/return/price = 970
+
+root = Card(Column([
+  FlightCard(flightNumber="LH 454", origin="BER", destination="SFO", price=$/outbound/price, passengers=$/outbound/pax),
+  FlightCard(flightNumber="UA 901", origin="SFO", destination="BER", price=$/return/price, passengers=$/return/pax),
+  Button(Text("Confirm booking"), variant="primary", action=Event("confirm_booking", {outboundPax: $/outbound/pax, returnPax: $/return/pax}))
+]))
+</a2ui>
+```
+
+The Agent SDK compiler processes the stream as it arrives:
+
+1. Parses incoming tokens into an intermediate representation.
+2. Validates that each component exists in the catalog and that its properties match the schema, reporting invalid output as soon as it appears.
+3. Emits the wire messages: `createSurface` opens the surface on the client, `updateComponents` sends the validated component list, and `updateDataModel` sends the initial data values.
+
+#### Messages on the wire
+
+The tabs below show the `createSurface`, `updateComponents`, and `updateDataModel` messages for this example. Component IDs are chosen by the compiler; the ones here are for readability.
+
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0">
+
+Surface creation message, defined by [`CreateSurfaceMessage`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/CreateSurfaceMessage) (shown separately from `updateComponents` and `updateDataModel` below to illustrate each message type; in v1.0, the compiler can also inline initial `components` and `dataModel` inside `createSurface`):
+
+```json
+{
+  "version": "1.0",
+  "createSurface": {
+    "surfaceId": "flight-booking-surface",
+    "catalogId": "https://example.com/catalogs/travel/v1/catalog.json"
+  }
+}
+```
+
+Layout message, defined by [`UpdateComponentsMessage`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateComponentsMessage):
+
+```json
+{
+  "version": "1.0",
+  "updateComponents": {
+    "surfaceId": "flight-booking-surface",
+    "components": [
+      {"id": "root", "component": "Card", "child": "layout_col"},
+      {
+        "id": "layout_col",
+        "component": "Column",
+        "children": ["flight_outbound", "flight_return", "submit_btn"]
+      },
+      {
+        "id": "flight_outbound",
+        "component": "FlightCard",
+        "flightNumber": "LH 454",
+        "origin": "BER",
+        "destination": "SFO",
+        "price": {"@path": "/outbound/price"},
+        "passengers": {"@path": "/outbound/pax"}
+      },
+      {
+        "id": "flight_return",
+        "component": "FlightCard",
+        "flightNumber": "UA 901",
+        "origin": "SFO",
+        "destination": "BER",
+        "price": {"@path": "/return/price"},
+        "passengers": {"@path": "/return/pax"}
+      },
+      {"id": "submit_label", "component": "Text", "text": "Confirm booking"},
+      {
+        "id": "submit_btn",
+        "component": "Button",
+        "child": "submit_label",
+        "variant": "primary",
+        "action": {
+          "event": {
+            "name": "confirm_booking",
+            "context": {
+              "outboundPax": {"@path": "/outbound/pax"},
+              "returnPax": {"@path": "/return/pax"}
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+```
+
+Data message, defined by [`UpdateDataModelMessage`](/specification/v1.0/schemas/#agent_to_renderer.json/$defs/UpdateDataModelMessage):
+
+```json
+{
+  "version": "1.0",
+  "updateDataModel": {
+    "surfaceId": "flight-booking-surface",
+    "path": "/",
+    "value": {
+      "outbound": {"pax": 1, "price": 455},
+      "return": {"pax": 2, "price": 970}
+    }
+  }
+}
+```
+
+  </TabItem>
+  <TabItem label="v0.9.1">
+
+Surface creation message, defined by [`CreateSurfaceMessage`](/specification/v0.9.1/schemas/#server_to_client.json/$defs/CreateSurfaceMessage):
+
+```json
+{
+  "version": "v0.9",
+  "createSurface": {
+    "surfaceId": "flight-booking-surface",
+    "catalogId": "https://example.com/catalogs/travel/v0_9/catalog.json"
+  }
+}
+```
+
+Layout message, defined by [`UpdateComponentsMessage`](/specification/v0.9.1/schemas/#server_to_client.json/$defs/UpdateComponentsMessage):
+
+```json
+{
+  "version": "v0.9",
+  "updateComponents": {
+    "surfaceId": "flight-booking-surface",
+    "components": [
+      {"id": "root", "component": "Card", "child": "layout_col"},
+      {
+        "id": "layout_col",
+        "component": "Column",
+        "children": ["flight_outbound", "flight_return", "submit_btn"]
+      },
+      {
+        "id": "flight_outbound",
+        "component": "FlightCard",
+        "flightNumber": "LH 454",
+        "origin": "BER",
+        "destination": "SFO",
+        "price": {"path": "/outbound/price"},
+        "passengers": {"path": "/outbound/pax"}
+      },
+      {
+        "id": "flight_return",
+        "component": "FlightCard",
+        "flightNumber": "UA 901",
+        "origin": "SFO",
+        "destination": "BER",
+        "price": {"path": "/return/price"},
+        "passengers": {"path": "/return/pax"}
+      },
+      {"id": "submit_label", "component": "Text", "text": "Confirm booking"},
+      {
+        "id": "submit_btn",
+        "component": "Button",
+        "child": "submit_label",
+        "variant": "primary",
+        "action": {
+          "event": {
+            "name": "confirm_booking",
+            "context": {
+              "outboundPax": {"path": "/outbound/pax"},
+              "returnPax": {"path": "/return/pax"}
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+```
+
+Data message, defined by [`UpdateDataModelMessage`](/specification/v0.9.1/schemas/#server_to_client.json/$defs/UpdateDataModelMessage):
+
+```json
+{
+  "version": "v0.9",
+  "updateDataModel": {
+    "surfaceId": "flight-booking-surface",
+    "path": "/",
+    "value": {
+      "outbound": {"pax": 1, "price": 455},
+      "return": {"pax": 2, "price": 970}
+    }
+  }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+### Render on the client
+
+The client receives `createSurface`, `updateComponents`, and `updateDataModel` over its transport (for example AG-UI, A2A, MCP, or a WebSocket), and the A2UI Renderer:
+
+1. Creates the surface identified by `surfaceId` and stores the initial values in its data model.
+2. Resolves the flat component list and data model into a hierarchical node layer starting at `root`, following each `child` and `children` ID and binding path references (such as `/outbound/pax`) to their values in the data model.
+3. Builds the native widgets from that node tree and subscribes each widget to updates on its bound properties.
+
+At this point, the client's node layer joins the component hierarchy with the resolved values from the data model. `Card` (`root`) wraps `Column` (`layout_col`), which contains the two `FlightCard` nodes with their bound prices and passenger counts alongside `Button` (`submit_btn`) and its `Text` label:
+
+```text
+Surface ("flight-booking-surface")
+└── Card ("root")
+    └── Column ("layout_col")
+        ├── FlightCard ("flight_outbound")
+        │     flightNumber: "LH 454"
+        │     origin: "BER"
+        │     destination: "SFO"
+        │     price: 455        ← /outbound/price
+        │     passengers: 1     ← /outbound/pax
+        ├── FlightCard ("flight_return")
+        │     flightNumber: "UA 901"
+        │     origin: "SFO"
+        │     destination: "BER"
+        │     price: 970        ← /return/price
+        │     passengers: 2     ← /return/pax
+        └── Button ("submit_btn")
+            │ variant: "primary"
+            │ action: event "confirm_booking"
+            │   outboundPax: 1  ← /outbound/pax
+            │   returnPax: 2    ← /return/pax
+            └── Text ("submit_label")
+                  text: "Confirm booking"
+```
+
+### Handle user actions
+
+Once the surface is rendered, the renderer handles local state edits on the client and sends explicit user triggers back to the agent:
+
+1. When the user taps `+` on the outbound `FlightCard` to raise the passenger count to `2`, `FlightCard` writes `2` directly to `/outbound/pax` in the surface's data model. Every node bound to `/outbound/pax` updates in place, and nothing is sent to the agent.
+2. When the user taps _Confirm booking_, the renderer triggers the `Button` node's action, resolves its `context` paths against the current data model, and sends an [`action`](/concepts/actions-and-functions/) message to the agent.
+
+The action message for this example, after the user raised the outbound count to `2`:
+
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0">
+
+Defined by [`renderer_to_agent.json`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/action):
+
+```json
+{
+  "version": "1.0",
+  "action": {
+    "name": "confirm_booking",
+    "surfaceId": "flight-booking-surface",
+    "sourceComponentId": "submit_btn",
+    "timestamp": "2026-10-12T08:30:00Z",
+    "context": {"outboundPax": 2, "returnPax": 2}
+  }
+}
+```
+
+  </TabItem>
+  <TabItem label="v0.9.1">
+
+Defined by [`client_to_server.json`](/specification/v0.9.1/schemas/#client_to_server.json/properties/action):
+
+```json
+{
+  "version": "v0.9",
+  "action": {
+    "name": "confirm_booking",
+    "surfaceId": "flight-booking-surface",
+    "sourceComponentId": "submit_btn",
+    "timestamp": "2026-10-12T08:30:00Z",
+    "context": {"outboundPax": 2, "returnPax": 2}
+  }
+}
+```
+
+  </TabItem>
+</Tabs>

@@ -78,9 +78,9 @@ describe('A2uiRecipeApp', () => {
     });
 
     it('advertises the composite Basic+MCP catalog in its client capabilities', () => {
-      expect(app.processor.getClientCapabilities()['v0.9']?.supportedCatalogIds).toContain(
-        BASIC_WITH_MCP_CATALOG_ID,
-      );
+      expect(
+        app.processor.getClientCapabilities({versions: ['v0.9']})['v0.9']?.supportedCatalogIds,
+      ).toContain(BASIC_WITH_MCP_CATALOG_ID);
     });
 
     it('exposes callMcpTool to surfaces built on the composite catalog', () => {
@@ -96,7 +96,7 @@ describe('A2uiRecipeApp', () => {
 
       const surface = app.getSurface('composite-surface');
       expect(surface).toBeDefined();
-      expect(surface!.catalog.functions.has('callMcpTool')).toBe(true);
+      expect(surface?.defaultCatalog?.functions.has('callMcpTool')).toBe(true);
     });
   });
 

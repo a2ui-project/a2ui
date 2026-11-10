@@ -12,65 +12,237 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:convert';
+
 import 'package:a2ui_core/a2ui_core.dart';
 
+import '../../utils/catalogs.dart';
+import '../../utils/message_reader.dart';
+import 'ast.dart';
 import 'schema_helper.dart';
-import 'syntax.dart';
 
 /// The surface a block writes to when it names none with `surface(...)`.
 const String defaultSurfaceId = 'default_surface';
 
-/// Compiles Express blocks into v0.9 A2UI messages.
+/// The message a check written without one carries, such as `Required check
+/// failed` for `?required`.
+String defaultCheckMessage(String check) =>
+    '${check.substring(0, 1).toUpperCase()}${check.substring(1)} check failed';
+
+/// The helpers that belong to no catalog.
+const Set<String> _reservedHelpers = {'Event', '_template'};
+
+/// The keyword arguments the reserved `Event(...)` signature accepts.
+const List<String> _eventKeywords = ['userMessage', 'context'];
+
+final RegExp _openSentinelTag = RegExp(
+  r'<a2ui(?:\s[^>]*)?>',
+  caseSensitive: false,
+);
+final RegExp _closeSentinelTag = RegExp(r'</a2ui\s*>', caseSensitive: false);
+final RegExp _literalOrComment = RegExp(
+  r'[rR]"""[\s\S]*?(?:"""|$)'
+  r'|[rR](?!""")"[^\r\n"]*(?:"|$)'
+  r'|"""(?:\\[\s\S]|[^\\])*?(?:"""|$)'
+  r'|(?!""")"(?:\\[\s\S]|[^\\"\r\n])*?(?:"|$)'
+  r'|(?:#|//|--)[^\r\n]*'
+  r'|/\*[\s\S]*?(?:\*/|$)',
+);
+
+String _stripSentinelTags(String text) {
+  if (!text.contains('<')) return text;
+  final segments = <(bool, String)>[];
+  var pos = 0;
+  for (final Match m in _literalOrComment.allMatches(text)) {
+    if (m.start > pos) {
+      segments.add((false, text.substring(pos, m.start)));
+    }
+    final String tok = m.group(0)!;
+    if (!tok.startsWith('"') &&
+        !tok.startsWith('r') &&
+        !tok.startsWith('R') &&
+        !tok.startsWith('/*')) {
+      final RegExpMatch? closeMatch = _closeSentinelTag.firstMatch(tok);
+      if (closeMatch != null) {
+        if (closeMatch.start > 0) {
+          segments.add((true, tok.substring(0, closeMatch.start)));
+        }
+        segments.add((false, tok.substring(closeMatch.start)));
+        pos = m.end;
+        continue;
+      }
+    }
+    segments.add((true, tok));
+    pos = m.end;
+  }
+  if (pos < text.length) {
+    segments.add((false, text.substring(pos)));
+  }
+
+  final bool hasOpen = segments.any(
+    (seg) => !seg.$1 && _openSentinelTag.hasMatch(seg.$2),
+  );
+  final out = StringBuffer();
+  bool inside = !hasOpen;
+  for (final (bool isTok, String seg) in segments) {
+    if (isTok) {
+      if (inside) out.write(seg);
+      continue;
+    }
+    var cursor = 0;
+    while (cursor < seg.length) {
+      if (!inside) {
+        final Match? openMatch = _openSentinelTag.firstMatch(
+          seg.substring(cursor),
+        );
+        if (openMatch == null) break;
+        inside = true;
+        cursor += openMatch.end;
+        continue;
+      }
+      final String rem = seg.substring(cursor);
+      final Match? closeMatch = _closeSentinelTag.firstMatch(rem);
+      final Match? openMatch = _openSentinelTag.firstMatch(rem);
+      if (openMatch != null &&
+          (closeMatch == null || openMatch.start < closeMatch.start)) {
+        out.write(rem.substring(0, openMatch.start));
+        cursor += openMatch.end;
+        continue;
+      }
+      if (closeMatch != null) {
+        out.write(rem.substring(0, closeMatch.start));
+        inside = false;
+        cursor += closeMatch.end;
+        if (!hasOpen) return out.toString();
+        continue;
+      }
+      out.write(rem);
+      break;
+    }
+  }
+  return out.toString();
+}
+
+/// Compiles Express blocks into A2UI messages of the protocol version the
+/// catalogs target.
 ///
-/// The rules follow `conformance/agent/express/compiler.yaml`, with the
-/// messages shaped for v0.9: a surface is created by `createSurface` followed
-/// by `updateComponents`, and its initial data by `updateDataModel`.
+/// The rules follow `conformance/agent/express/compiler.yaml`. A block that
+/// assigns `root` creates its surface. A block that assigns components but
+/// no `root` updates a surface created by an earlier response, so it
+/// compiles to `updateComponents` alone.
+///
+/// For v0.9 a surface is created by `createSurface` followed by
+/// `updateComponents`, and its initial data by `updateDataModel`. A surface
+/// uses one catalog: the first of [catalogs], or the one its `surface(...)`
+/// line names.
+///
+/// From v1.0 the `createSurface` carries the surface's components and
+/// initial data, and a function call written as a statement of its own
+/// compiles to `callRendererFunction`. A component or function call may name
+/// its catalog with a `catalogId` keyword argument, and a check with a
+/// `{catalogId: ...}` argument; one that names none belongs to the one
+/// catalog declaring its name. With a single catalog the `createSurface`
+/// names that catalog, and a component or call names it only when written
+/// with a `catalogId` argument. With several, as
+/// `conformance/agent/multi_catalog_formats.yaml` describes, a surface names
+/// no catalog, its `surface(...)` line may not name one, and every component
+/// and function call carries the id of its catalog.
 class ExpressCompiler {
   /// The first of [catalogs] is the default for a surface that does not name
   /// its catalog.
   ExpressCompiler(this.catalogs);
 
-  final List<SchemaCatalog> catalogs;
+  final List<CatalogApi> catalogs;
 
-  late final Map<String, CatalogSchemaHelper> _helpers = {
-    for (final SchemaCatalog catalog in catalogs)
+  late final Map<String, CatalogSchemaHelper> _catalogHelpers = {
+    for (final CatalogApi catalog in catalogs)
       catalog.id: CatalogSchemaHelper(catalog),
   };
+
+  /// Schema helpers keyed by catalog id, used by streaming healers.
+  Map<String, CatalogSchemaHelper> get catalogHelpers => _catalogHelpers;
+
+  /// The protocol version [catalogs] target.
+  late final A2uiProtocolVersion _version = catalogsProtocolVersion(catalogs);
+
+  /// Checks each compiled v1.0 message, keeping its validators across
+  /// blocks.
+  late final MessageReader _reader = MessageReader(catalogs);
+
+  bool get _v1 => _version.isAtLeast(A2uiProtocolVersion.v1_0);
 
   /// Compiles the content of one block, without its sentinel tags.
   ///
   /// Throws [A2uiParseError] if [source] is not valid Express,
   /// [A2uiValidationError] if it names anything the catalogs do not declare,
-  /// a component does not match its schema, or the block uses something v0.9
-  /// has no message for, and [A2uiCatalogError] if there are no [catalogs].
+  /// a component does not match its schema, or the block uses something the
+  /// catalogs' version has no message for, and [A2uiCatalogError] if there are
+  /// no [catalogs] or they target different versions.
   List<AgentToRendererMessage> compile(String source) {
     if (catalogs.isEmpty) {
       throw A2uiCatalogError('Compiling Express needs at least one catalog.');
     }
-    final List<ExpressStatement> statements = parseExpress(source);
+    final List<ExpressStatement> statements = parseExpress(
+      _stripSentinelTags(source),
+    );
     if (statements.isEmpty) {
       throw A2uiParseError(
         'The Express block has no statements.',
         rawContent: source,
       );
     }
-    final List<Map<String, Object?>> envelopes = [
-      for (final Object operation in _operations(statements))
-        ...switch (operation) {
-          _Surface() => _SurfaceCompiler(operation).compile(),
-          String() => [
-            _envelope('deleteSurface', {'surfaceId': operation}),
-          ],
-          _ => throw StateError('Unexpected operation $operation'),
-        },
-    ];
-    return AgentToRendererMessage.parseAll(
-      envelopes,
-      protocolVersion: A2uiProtocolVersion.v0_9,
-    ).messages;
+    final envelopes = <Map<String, Object?>>[];
+    var calls = 0;
+    final callIds = <String>{};
+    for (final Object operation in _operations(statements)) {
+      switch (operation) {
+        case _Surface():
+          envelopes.addAll(_SurfaceCompiler(this, operation).compile());
+        case _StandaloneCall(:final CallNode call, :final _Surface? surface):
+          final Map<String, Object?> envelope = _SurfaceCompiler(
+            this,
+            surface ?? _Surface(defaultSurfaceId, _surfaceHelper(null)),
+          ).callRendererFunction(call, ++calls);
+          // The renderer answers each call by its id, so no two may share
+          // one.
+          final id =
+              (envelope['callRendererFunction']! as Map)['functionCallId']!
+                  as String;
+          if (!callIds.add(id)) {
+            throw A2uiValidationError(
+              "Two function calls of the block have the id '$id'. Give each "
+              'a functionCallId of its own.',
+            );
+          }
+          envelopes.add(envelope);
+        case String():
+          envelopes.add(_envelope('deleteSurface', {'surfaceId': operation}));
+      }
+    }
+    return _toMessages(envelopes, <String, String?>{});
   }
 
-  /// Groups [statements] into surfaces and deletions, in block order.
+  List<AgentToRendererMessage> _toMessages(
+    List<Map<String, Object?>> envelopes,
+    Map<String, String?> surfaces,
+  ) {
+    if (!_v1) {
+      return AgentToRendererMessage.parseAll(
+        envelopes,
+        protocolVersion: A2uiProtocolVersion.v0_9,
+      ).messages;
+    }
+    // Each message is checked as a renderer would check it on its own: every
+    // component against the catalog it belongs to, and every call against
+    // the catalog the call belongs to.
+    return [
+      for (final Map<String, Object?> envelope in envelopes)
+        _reader.read(envelope, surfaces),
+    ];
+  }
+
+  /// Groups [statements] into surfaces, deletions and, from v1.0, standalone
+  /// function calls, in block order.
   ///
   /// A deletion is the id of the surface to delete.
   List<Object> _operations(List<ExpressStatement> statements) {
@@ -81,10 +253,26 @@ class ExpressCompiler {
         case ExpressionStatement(
           value: CallNode(name: 'surface') && final CallNode call,
         ):
-          final String? catalogId = _stringArgument(call, 1, 'catalogId');
+          final ExpressNode? rawExtensions = call.kwargs['extensions'];
+          if (rawExtensions != null && !_v1) {
+            throw A2uiValidationError(
+              'extensions on surface() is only supported in '
+              'A2UI v1.0 or later.',
+            );
+          }
+          final bool isUpdate = _boolArgument(call, -1, 'update') ?? false;
+          if (isUpdate && rawExtensions != null) {
+            throw A2uiValidationError(
+              'surface() with update=true does not accept extensions.',
+            );
+          }
           current = _Surface(
             _stringArgument(call, 0, 'surfaceId') ?? defaultSurfaceId,
-            _helper(catalogId),
+            _surfaceHelper(_stringArgument(call, 1, 'catalogId')),
+            rawExtensions: rawExtensions,
+            hasSurfaceDirective: true,
+            sendDataModel: _boolArgument(call, -1, 'sendDataModel'),
+            isUpdate: isUpdate,
           );
           operations.add(current);
         case ExpressionStatement(
@@ -96,6 +284,12 @@ class ExpressCompiler {
                   'deleteSurface needs the id of the surface to delete.',
                 )),
           );
+        case ExpressionStatement(value: final CallNode call)
+            when _v1 && !_declaresComponent(call):
+          // A call before any surface line names the variables of the
+          // default surface, which the lines after it may assign.
+          current ??= _Surface(defaultSurfaceId, _surfaceHelper(null));
+          operations.add(_StandaloneCall(call, current));
         case ExpressionStatement(value: CallNode(:final String name)):
           throw A2uiValidationError(
             catalogs.any((c) => c.components.containsKey(name))
@@ -110,11 +304,12 @@ class ExpressCompiler {
             'An expression must be assigned to a variable or a data path.',
           );
         case AssignmentStatement():
-          if (current == null) {
-            current = _Surface(defaultSurfaceId, _helper(null));
-            operations.add(current);
-          }
+          current ??= _Surface(defaultSurfaceId, _surfaceHelper(null));
+          // The default surface is created on its first assignment, even
+          // when a call before it named its variables.
+          if (!operations.contains(current)) operations.add(current);
           if (statement.isDataPath) {
+            current.data.removeWhere((e) => e.$1 == statement.target);
             current.data.add((statement.target, statement.value));
           } else {
             current.symbols[statement.target] = statement.value;
@@ -124,20 +319,63 @@ class ExpressCompiler {
     return operations;
   }
 
-  CatalogSchemaHelper _helper(String? catalogId) {
-    if (catalogId == null) return _helpers[catalogs.first.id]!;
-    return _helpers[catalogId] ??
-        (throw A2uiValidationError(
-          "Catalog '$catalogId' is not active for this renderer. Active "
-          'catalogs: ${_helpers.keys.join(', ')}.',
-        ));
+  /// The catalog of a surface whose `surface(...)` line names [catalogId],
+  /// or null for a v1.0 surface of several catalogs, which has none.
+  ///
+  /// Throws [A2uiValidationError] if [catalogId] names no active catalog, or
+  /// names one when several v1.0 catalogs are active.
+  CatalogSchemaHelper? _surfaceHelper(String? catalogId) {
+    if (_v1 && catalogs.length > 1) {
+      if (catalogId == null) return null;
+      throw A2uiValidationError(
+        "surface(...) names catalog '$catalogId', but a surface names no "
+        'catalog when several catalogs are active. Leave the catalog off the '
+        'line, and name it with a catalogId argument only on a component or '
+        'function call whose name several catalogs declare.',
+      );
+    }
+    if (catalogId == null) return _catalogHelpers[catalogs.first.id]!;
+    return _helper(catalogId);
   }
+
+  CatalogSchemaHelper _helper(String catalogId) =>
+      _catalogHelpers[catalogId] ??
+      (throw A2uiValidationError(
+        "Catalog '$catalogId' is not active for this renderer. Active "
+        'catalogs: ${_catalogHelpers.keys.join(', ')}.',
+      ));
+
+  /// Whether a v1.0 [call] names a component: of the catalog its `catalogId`
+  /// names, or of any active catalog when it names none or one that is not
+  /// active, so that the component is compiled and its catalog rejected.
+  bool _declaresComponent(CallNode call) {
+    final String? catalogId = _catalogArgument(call);
+    if (_catalogHelpers[catalogId] case final CatalogSchemaHelper helper) {
+      return helper.isComponent(call.name);
+    }
+    return _catalogHelpers.values.any((h) => h.isComponent(call.name));
+  }
+
+  /// The `catalogId` keyword argument of [call], which v1.0 reads; before
+  /// v1.0 it is an argument like any other, so this is null.
+  ///
+  /// Throws [A2uiValidationError] if it is not a string literal.
+  String? _catalogArgument(CallNode call) =>
+      _v1 ? _stringArgument(call, -1, 'catalogId') : null;
+
+  Map<String, Object?> _envelope(String type, Map<String, Object?> body) => {
+    'version': (_v1 ? _version : A2uiProtocolVersion.v0_9).jsonValue,
+    type: body,
+  };
 }
 
 /// The string at [index] of [call], or under [name], or null if absent.
+///
+/// A negative [index] reads [name] only.
 String? _stringArgument(CallNode call, int index, String name) {
   final ExpressNode? node =
-      call.kwargs[name] ?? (index < call.args.length ? call.args[index] : null);
+      call.kwargs[name] ??
+      (index >= 0 && index < call.args.length ? call.args[index] : null);
   if (node == null) return null;
   if (node case LiteralNode(value: final String value)) return value;
   throw A2uiValidationError(
@@ -145,17 +383,71 @@ String? _stringArgument(CallNode call, int index, String name) {
   );
 }
 
-Map<String, Object?> _envelope(String type, Map<String, Object?> body) => {
-  'version': A2uiProtocolVersion.v0_9.jsonValue,
-  type: body,
-};
+/// The boolean at [index] of [call], or under [name], or null if absent.
+///
+/// A negative [index] reads [name] only.
+bool? _boolArgument(CallNode call, int index, String name) {
+  final ExpressNode? node =
+      call.kwargs[name] ??
+      (index >= 0 && index < call.args.length ? call.args[index] : null);
+  if (node == null) return null;
+  if (node case LiteralNode(value: final bool value)) return value;
+  throw A2uiValidationError(
+    "Argument '$name' of ${call.name}(...) must be a boolean literal.",
+  );
+}
+
+/// The component id of [call]: its `id` keyword argument, or [defaultId] when
+/// it has none.
+String _componentId(
+  String defaultId,
+  CallNode call, {
+  required bool atLeastV10,
+}) {
+  if (!call.kwargs.containsKey('id')) return defaultId;
+  final String? explicitId = _stringArgument(call, -1, 'id');
+  if (explicitId == null || explicitId.isEmpty) {
+    throw A2uiValidationError(
+      "Argument 'id' of ${call.name}(...) must be a non-empty string literal.",
+    );
+  }
+  if (atLeastV10 && !isValidUax31Identifier(explicitId)) {
+    throw A2uiValidationError(
+      "Component id '$explicitId' in ${call.name}(...) is not a valid UAX 31 "
+      'identifier.',
+    );
+  }
+  return explicitId;
+}
 
 /// The statements of one surface.
 class _Surface {
-  _Surface(this.surfaceId, this.helper);
+  _Surface(
+    this.surfaceId,
+    this.helper, {
+    this.rawExtensions,
+    this.hasSurfaceDirective = false,
+    this.sendDataModel,
+    this.isUpdate = false,
+  });
 
   final String surfaceId;
-  final CatalogSchemaHelper helper;
+
+  /// The surface's catalog, or null for a v1.0 surface of several catalogs,
+  /// whose components and calls each name their own.
+  final CatalogSchemaHelper? helper;
+
+  /// Optional `extensions=` AST expression from `surface(...)` in v1.0.
+  final ExpressNode? rawExtensions;
+
+  /// Whether the surface was introduced by an explicit `surface(...)` call.
+  final bool hasSurfaceDirective;
+
+  /// Optional `sendDataModel` flag from `surface(..., sendDataModel=...)`.
+  final bool? sendDataModel;
+
+  /// Whether `surface(..., update=true)` was specified.
+  final bool isUpdate;
 
   /// Variables, in the order they are first assigned.
   final Map<String, ExpressNode> symbols = {};
@@ -164,13 +456,57 @@ class _Surface {
   final List<(String, ExpressNode)> data = [];
 }
 
+/// Raised during incremental streaming compilation when a value variable is not
+/// yet assigned.
+class _PendingVariableError implements Exception {
+  const _PendingVariableError(this.name);
+
+  final String name;
+}
+
+/// A function call written as a statement of its own, and the surface whose
+/// variables it may name.
+class _StandaloneCall {
+  _StandaloneCall(this.call, this.surface);
+
+  final CallNode call;
+  final _Surface? surface;
+}
+
+/// The catalog schema declared at a value's position, with the helper whose
+/// catalog declares it.
+class _Slot {
+  const _Slot(this.schema, this.helper);
+
+  final Map<String, Object?> schema;
+  final CatalogSchemaHelper helper;
+
+  /// Whether the slot takes an action.
+  bool get holdsAction => isAction(schema);
+
+  /// The slot of the items of an array, or null when the schema declares
+  /// none.
+  _Slot? get item => _of(helper.resolveItemSchema(schema));
+
+  /// The slot of the property [name] of an object, whatever the property is
+  /// named, or null when the schema declares none.
+  _Slot? property(String name) =>
+      _of(helper.resolvePropertySchema(schema, name));
+
+  _Slot? _of(Map<String, Object?>? found) =>
+      found == null ? null : _Slot(found, helper);
+}
+
 /// Where a value is being compiled.
 class _Context {
   _Context({
     required this.idPrefix,
     required this.hoisted,
-    this.isAction = false,
     this.valueBinding,
+    this.allowPending = false,
+    this.allowComponentRef = false,
+    this.allowListComponentRefs = false,
+    this.slot,
   });
 
   /// The id a component written inline here takes.
@@ -179,131 +515,755 @@ class _Context {
   /// Components written inline, to emit after their parent.
   final List<Map<String, Object?>> hoisted;
 
-  /// Whether the value fills an action slot.
-  final bool isAction;
+  /// Whether the value fills an action slot, which its schema says.
+  bool get isAction => slot?.holdsAction ?? false;
 
   /// The binding of the enclosing component's `value`, which a check tests.
   final Map<String, Object?>? valueBinding;
 
-  _Context child(Object suffix) => _Context(
+  /// Whether unassigned variables are allowed during incremental streaming.
+  final bool allowPending;
+
+  /// Whether an unassigned variable here is a forward component reference.
+  final bool allowComponentRef;
+
+  /// Whether items of a list here are forward component references.
+  final bool allowListComponentRefs;
+
+  /// The schema declared at this position, when known. Array items and map
+  /// entries resolve their own sub-schema from it, so an action slot nested
+  /// inside a list item (such as `items: [{label, action}]`) is compiled as
+  /// an action too.
+  final _Slot? slot;
+
+  _Context child(Object suffix, {bool allowComponentRef = false}) => _Context(
     idPrefix: '${idPrefix}_$suffix',
     hoisted: hoisted,
     valueBinding: valueBinding,
+    allowPending: allowPending,
+    allowComponentRef: allowComponentRef,
   );
+
+  /// The context of the value at [suffix] inside this one, in [slot]: an
+  /// array item's or a map entry's.
+  _Context at(Object suffix, _Slot? slot, {bool allowComponentRef = false}) =>
+      _Context(
+        idPrefix: '${idPrefix}_$suffix',
+        hoisted: hoisted,
+        valueBinding: valueBinding,
+        allowPending: allowPending,
+        allowComponentRef:
+            allowComponentRef || (slot != null && isComponentId(slot.schema)),
+        allowListComponentRefs: slot != null && isChildList(slot.schema),
+        slot: slot,
+      );
 }
 
 class _SurfaceCompiler {
-  _SurfaceCompiler(this.surface)
-    : helper = surface.helper,
-      _usedIds = {
-        for (final MapEntry<String, ExpressNode> symbol
-            in surface.symbols.entries)
-          if (symbol.value case CallNode(
-            :final String name,
-          ) when surface.helper.isComponent(name))
-            symbol.key,
-      };
+  _SurfaceCompiler(this.compiler, this.surface, {this.allowPending = false}) {
+    for (final MapEntry<String, ExpressNode> symbol
+        in surface.symbols.entries) {
+      if (symbol.value case final CallNode call when _isComponent(call)) {
+        final String id = _componentId(symbol.key, call, atLeastV10: _v1);
+        if (!_usedIds.add(id)) {
+          throw A2uiValidationError("Duplicate component id '$id'.");
+        }
+      }
+    }
+  }
 
+  final ExpressCompiler compiler;
   final _Surface surface;
-  final CatalogSchemaHelper helper;
+  final bool allowPending;
 
-  /// Component ids taken so far, so that an inline component gets a new one.
-  final Set<String> _usedIds;
+  /// Component ids taken so far, which an inline component's may not repeat.
+  final Set<String> _usedIds = {};
 
   /// Variables being substituted, to catch one that refers to itself.
   final Set<String> _resolving = {};
 
-  String get _catalogId => helper.catalog.id;
+  /// Variables referenced during a single component or data path evaluation.
+  final Set<String> _referencedVars = {};
 
-  List<Map<String, Object?>> compile() {
-    final String surfaceId = surface.surfaceId;
-    final dataModel = <String, Object?>{};
-    for (final (String path, ExpressNode node) in surface.data) {
-      final Object? value = _value(
-        node,
-        _Context(idPrefix: 'data', hoisted: _noHoisting),
-      );
-      _setPath(dataModel, path, value);
-    }
-    final Map<String, Object?> dataUpdate = _envelope('updateDataModel', {
-      'surfaceId': surfaceId,
-      'path': '/',
-      'value': dataModel,
-    });
+  bool get _v1 => compiler._v1;
 
-    final bool hasComponents = surface.symbols.values.any(
-      (node) => node is CallNode && helper.isComponent(node.name),
-    );
-    if (!surface.symbols.containsKey('root')) {
-      if (surface.data.isNotEmpty && !hasComponents) return [dataUpdate];
-      throw A2uiValidationError(
-        "Surface '$surfaceId' has no 'root'. Assign the top component to "
-        "'root', such as 'root = Column([...])'.",
-      );
-    }
+  /// The key of a data binding: `@path` from v1.0 and `path` before.
+  String get _pathKey => _v1 ? '@path' : 'path';
 
+  /// The key of a function call: `@call` from v1.0 and `call` before.
+  String get _callKey => _v1 ? '@call' : 'call';
+
+  /// The catalogs a name that names none is looked up in, for errors.
+  String get _catalogNames => surface.helper == null
+      ? 'any active catalog (${compiler._catalogHelpers.keys.join(', ')})'
+      : "catalog '${surface.helper!.catalog.id}'";
+
+  List<Map<String, Object?>> _dataUpdates(String surfaceId) => [
+    for (final (String path, ExpressNode node) in surface.data)
+      () {
+        final jsonPath = path.isEmpty
+            ? '/'
+            : (path.startsWith('/') ? path : '/$path');
+        final Object? value = _value(
+          node,
+          _Context(idPrefix: 'data', hoisted: _noHoisting),
+        );
+        if (jsonPath == '/' && value is! Map<String, Object?>) {
+          throw A2uiValidationError(
+            r'Only a map can be assigned to the whole data model, $/.',
+          );
+        }
+        return compiler._envelope('updateDataModel', {
+          'surfaceId': surfaceId,
+          'path': jsonPath,
+          'value': value,
+        });
+      }(),
+  ];
+
+  List<Map<String, Object?>> collectReadyComponents([
+    _StreamSurfaceState? state,
+    List<(String, String)>? supersededComponents,
+  ]) {
     final components = <Map<String, Object?>>[];
+    final superseded = <String>[];
     for (final MapEntry<String, ExpressNode> symbol
         in surface.symbols.entries) {
+      final String varName = symbol.key;
       final ExpressNode node = symbol.value;
-      if (node is CallNode && helper.isComponent(node.name)) {
-        components.addAll(_component(symbol.key, node));
-      } else if (node is CallNode && !_isKnownCall(node.name)) {
-        throw _unknownCall(node.name);
-      } else if (symbol.key == 'root') {
+      if (node is CallNode && _isComponent(node)) {
+        final _CachedComp? cached = state?.compiledCache[varName];
+        if (cached != null && identical(cached.ast, node)) {
+          var depsUnchanged = true;
+          for (final MapEntry<String, (ExpressNode?, String?)> depEntry
+              in cached.deps.entries) {
+            final ExpressNode? curAst = surface.symbols[depEntry.key];
+            final String? curId = switch (curAst) {
+              final CallNode c when _isComponent(c) => _componentId(
+                depEntry.key,
+                c,
+                atLeastV10: _v1,
+              ),
+              _ => null,
+            };
+            if (!identical(curAst, depEntry.value.$1) ||
+                curId != depEntry.value.$2) {
+              depsUnchanged = false;
+              break;
+            }
+          }
+          if (depsUnchanged &&
+              cached.newIds.every((gid) => !_usedIds.contains(gid))) {
+            _usedIds.addAll(cached.newIds);
+            if (state != null && cached.comps.isNotEmpty) {
+              final compId = cached.comps.first['id']! as String;
+              final String? prevId = state.varIds[varName];
+              if (prevId != null && prevId != compId) {
+                superseded.add(prevId);
+              }
+              state.varIds[varName] = compId;
+            }
+            components.addAll(cached.comps);
+            continue;
+          }
+        }
+        final savedIds = Set<String>.from(_usedIds);
+        _referencedVars.clear();
+        try {
+          final List<Map<String, Object?>> compiled = _component(varName, node);
+          if (state != null) {
+            final deps = <String, (ExpressNode?, String?)>{
+              for (final dep in _referencedVars)
+                dep: (
+                  surface.symbols[dep],
+                  switch (surface.symbols[dep]) {
+                    final CallNode c when _isComponent(c) => _componentId(
+                      dep,
+                      c,
+                      atLeastV10: _v1,
+                    ),
+                    _ => null,
+                  },
+                ),
+            };
+            final Set<String> newIds = _usedIds.difference(savedIds);
+            state.compiledCache[varName] = (
+              ast: node,
+              comps: compiled,
+              deps: deps,
+              newIds: newIds,
+            );
+            if (compiled.isNotEmpty) {
+              final compId = compiled.first['id']! as String;
+              final String? prevId = state.varIds[varName];
+              if (prevId != null && prevId != compId) {
+                superseded.add(prevId);
+              }
+              state.varIds[varName] = compId;
+            }
+          }
+          components.addAll(compiled);
+        } on _PendingVariableError {
+          _usedIds
+            ..clear()
+            ..addAll(savedIds);
+        }
+      } else if (node is CallNode && !_isKnownCall(node)) {
+        throw _unknownCall(node);
+      } else if (varName == 'root') {
         throw A2uiValidationError("'root' must be assigned a component.");
       }
     }
-    components.forEach(helper.validator.validateComponent);
+    if (state != null && superseded.isNotEmpty) {
+      final Set<String> activeIds = {
+        for (final c in components) c['id']! as String,
+      };
+      for (final oldId in superseded) {
+        if (!activeIds.contains(oldId)) {
+          state.emittedComponents.remove(oldId);
+          supersededComponents?.add((surface.surfaceId, oldId));
+        }
+      }
+    }
+    return components;
+  }
 
+  List<(String, Object?)> collectReadyData([_StreamSurfaceState? state]) {
+    final ready = <(String, Object?)>[];
+    for (final (String path, ExpressNode node) in surface.data) {
+      final jsonPath = path.isEmpty
+          ? '/'
+          : (path.startsWith('/') ? path : '/$path');
+      final _CachedData? cached = state?.dataCache[jsonPath];
+      if (cached != null && identical(cached.ast, node)) {
+        var depsUnchanged = true;
+        for (final MapEntry<String, (ExpressNode?, String?)> depEntry
+            in cached.deps.entries) {
+          final ExpressNode? curAst = surface.symbols[depEntry.key];
+          final String? curId = switch (curAst) {
+            final CallNode c when _isComponent(c) => _componentId(
+              depEntry.key,
+              c,
+              atLeastV10: _v1,
+            ),
+            _ => null,
+          };
+          if (!identical(curAst, depEntry.value.$1) ||
+              curId != depEntry.value.$2) {
+            depsUnchanged = false;
+            break;
+          }
+        }
+        if (depsUnchanged) {
+          ready.add((jsonPath, cached.val));
+          continue;
+        }
+      }
+      _referencedVars.clear();
+      try {
+        final Object? value = _value(
+          node,
+          _Context(
+            idPrefix: 'data',
+            hoisted: _noHoisting,
+            allowPending: allowPending,
+          ),
+        );
+        if (jsonPath == '/' && value is! Map<String, Object?>) {
+          throw A2uiValidationError(
+            r'Only a map can be assigned to the whole data model, $/.',
+          );
+        }
+        if (state != null) {
+          final deps = <String, (ExpressNode?, String?)>{
+            for (final dep in _referencedVars)
+              dep: (
+                surface.symbols[dep],
+                switch (surface.symbols[dep]) {
+                  final CallNode c when _isComponent(c) => _componentId(
+                    dep,
+                    c,
+                    atLeastV10: _v1,
+                  ),
+                  _ => null,
+                },
+              ),
+          };
+          state.dataCache[jsonPath] = (ast: node, val: value, deps: deps);
+        }
+        ready.add((jsonPath, value));
+      } on _PendingVariableError {
+        continue;
+      }
+    }
+    return ready;
+  }
+
+  List<Map<String, Object?>> buildCreateMessages(
+    List<Map<String, Object?>> components,
+    List<(String, Object?)> readyData,
+  ) {
+    final String surfaceId = surface.surfaceId;
+    final dataModel = <String, Object?>{};
+    for (final (String jsonPath, Object? value) in readyData) {
+      final String rawPath = jsonPath == '/'
+          ? ''
+          : jsonPath.replaceFirst(RegExp('^/+'), '');
+      _setPath(dataModel, rawPath, value);
+    }
+    if (!_v1) {
+      final CatalogSchemaHelper helper = surface.helper!;
+      components.forEach(helper.validator.validateComponent);
+      return [
+        compiler._envelope('createSurface', {
+          'surfaceId': surfaceId,
+          'catalogId': helper.catalog.id,
+          'sendDataModel': ?surface.sendDataModel,
+        }),
+        compiler._envelope('updateComponents', {
+          'surfaceId': surfaceId,
+          'components': components,
+        }),
+        if (readyData.isNotEmpty)
+          compiler._envelope('updateDataModel', {
+            'surfaceId': surfaceId,
+            'path': '/',
+            'value': dataModel,
+          }),
+      ];
+    }
+    final Map<String, Object?>? surfaceMetadata =
+        switch (surface.rawExtensions) {
+          final ExpressNode ext => {
+            'extensions': _extensionsMap(ext, "surface '$surfaceId'"),
+          },
+          null => null,
+        };
     return [
-      _envelope('createSurface', {
+      compiler._envelope('createSurface', {
         'surfaceId': surfaceId,
-        'catalogId': _catalogId,
-      }),
-      _envelope('updateComponents', {
-        'surfaceId': surfaceId,
+        if (surface.helper case final CatalogSchemaHelper helper)
+          'catalogId': helper.catalog.id,
         'components': components,
+        if (readyData.isNotEmpty) 'dataModel': dataModel,
+        'sendDataModel': ?surface.sendDataModel,
+        'metadata': ?surfaceMetadata,
       }),
-      if (surface.data.isNotEmpty) dataUpdate,
     ];
   }
 
-  bool _isKnownCall(String name) =>
-      helper.isComponent(name) ||
-      helper.isFunction(name) ||
-      name == 'Event' ||
-      name == '_template';
+  List<Map<String, Object?>> compile() {
+    final String surfaceId = surface.surfaceId;
+    final bool hasComponents = surface.symbols.values.any(
+      (node) => node is CallNode && _isComponent(node),
+    );
+    // Assigning `root` creates the surface unless `update=true` is set.
+    // Components without it update a surface created by an earlier response.
+    final bool creates =
+        !surface.isUpdate && surface.symbols.containsKey('root');
+    if (!creates && surface.rawExtensions != null) {
+      throw A2uiValidationError(
+        'surface() extensions require a surface-creating scope with a root '
+        'component.',
+      );
+    }
+    if (!creates && !hasComponents) {
+      if (surface.data.isNotEmpty) return _dataUpdates(surfaceId);
+      throw A2uiValidationError(
+        "Surface '$surfaceId' has no components and no data. Assign the top "
+        "component to 'root', such as 'root = Column([...])'.",
+      );
+    }
 
-  A2uiValidationError _unknownCall(String name) => A2uiValidationError(
-    "'$name' is neither a component nor a function of catalog "
-    "'$_catalogId'.",
-  );
+    final List<Map<String, Object?>> components = collectReadyComponents();
+
+    if (!creates) {
+      if (!_v1) {
+        components.forEach(surface.helper!.validator.validateComponent);
+      }
+      return [
+        compiler._envelope('updateComponents', {
+          'surfaceId': surfaceId,
+          'components': components,
+        }),
+        ..._dataUpdates(surfaceId),
+      ];
+    }
+
+    return buildCreateMessages(components, collectReadyData());
+  }
+
+  ExpressNode _resolveAstVar(ExpressNode node, Set<String> seen) {
+    var current = node;
+    while (current is VariableNode) {
+      final String name = current.name;
+      _referencedVars.add(name);
+      if (!seen.add(name)) {
+        throw A2uiValidationError("Variable '$name' refers to itself.");
+      }
+      final ExpressNode? resolved = surface.symbols[name];
+      if (resolved == null) {
+        if (allowPending) {
+          throw _PendingVariableError(name);
+        }
+        throw A2uiValidationError(
+          "Variable '$name' is not assigned in surface "
+          "'${surface.surfaceId}'.",
+        );
+      }
+      current = resolved;
+    }
+    return current;
+  }
+
+  void _checkExtensionsAst(ExpressNode node, String subject, Set<String> seen) {
+    final ExpressNode resolved = _resolveAstVar(node, {...seen});
+    switch (resolved) {
+      case MapNode(:final entries):
+        for (final ExpressNode v in entries.values) {
+          _checkExtensionsAst(v, subject, seen);
+        }
+      case ArrayNode(:final items):
+        for (final item in items) {
+          _checkExtensionsAst(item, subject, seen);
+        }
+      case CallNode():
+        if (_isComponent(resolved)) {
+          throw A2uiValidationError(
+            'extensions on $subject cannot contain component '
+            "'${resolved.name}'.",
+          );
+        }
+        if (compiler._catalogArgument(resolved) == null &&
+            (resolved.name == 'Event' ||
+                resolved.name == '_template' ||
+                resolved.name == 'surface' ||
+                resolved.name == 'deleteSurface')) {
+          throw A2uiValidationError(
+            "extensions on $subject cannot contain '${resolved.name}()'.",
+          );
+        }
+        for (final ExpressNode arg in resolved.args) {
+          _checkExtensionsAst(arg, subject, seen);
+        }
+        for (final ExpressNode kwVal in resolved.kwargs.values) {
+          _checkExtensionsAst(kwVal, subject, seen);
+        }
+      default:
+        break;
+    }
+  }
+
+  Map<String, Object?> _extensionsMap(ExpressNode rawExt, String subject) {
+    final ExpressNode top = _resolveAstVar(rawExt, <String>{});
+    if (top is! MapNode) {
+      throw A2uiValidationError('extensions on $subject must be a map.');
+    }
+    _checkExtensionsAst(top, subject, <String>{});
+    final Object? compiled = _value(
+      rawExt,
+      _Context(
+        idPrefix: 'extensions',
+        hoisted: _noHoisting,
+        allowPending: allowPending,
+      ),
+    );
+    if (compiled case final Map<Object?, Object?> map) {
+      final result = <String, Object?>{};
+      for (final MapEntry(:Object? key, :Object? value) in map.entries) {
+        if (key case final String extKey) {
+          if (!isValidUax31Identifier(extKey)) {
+            throw A2uiValidationError(
+              "Extension key '$extKey' on $subject is not a valid "
+              'UAX 31 identifier.',
+            );
+          }
+          result[extKey] = value;
+        } else {
+          throw A2uiValidationError(
+            'extensions on $subject must have string keys.',
+          );
+        }
+      }
+      return result;
+    }
+    throw A2uiValidationError('extensions on $subject must be a map.');
+  }
+
+  /// The `callRendererFunction` that [call], the [index]th function call of
+  /// its block written as a statement of its own, compiles to.
+  ///
+  /// The call carries the id of its catalog, which the message requires,
+  /// and the id its `functionCallId` keyword argument gives, or else
+  /// `call_<index>`.
+  Map<String, Object?> callRendererFunction(CallNode call, int index) {
+    final String name = call.name;
+    if (name.startsWith('@')) {
+      throw A2uiValidationError(
+        "System function '$name' cannot be called as a standalone statement, "
+        'since a renderer function call names a catalog function.',
+      );
+    }
+    if (_reservedHelpers.contains(name)) {
+      throw A2uiValidationError(
+        '$name(...) is written as an argument, not as a statement of its own.',
+      );
+    }
+    final String functionCallId =
+        _stringArgument(call, -1, 'functionCallId') ?? 'call_$index';
+    if (functionCallId.isEmpty) {
+      throw A2uiValidationError(
+        "The functionCallId of the call to '$name' is empty.",
+      );
+    }
+    final (CatalogSchemaHelper helper, _) = _resolve(
+      name,
+      compiler._catalogArgument(call),
+      component: false,
+    );
+    final hoisted = <Map<String, Object?>>[];
+    final functionCall =
+        _call(
+              CallNode(
+                name,
+                call.args,
+                {...call.kwargs}..remove('functionCallId'),
+              ),
+              _Context(
+                idPrefix: functionCallId,
+                hoisted: hoisted,
+                allowPending: allowPending,
+              ),
+            )!
+            as Map<String, Object?>;
+    if (hoisted.isNotEmpty) {
+      throw A2uiValidationError(
+        "The call to '$name' written as a statement of its own passes a "
+        'component, which only a component can hold.',
+      );
+    }
+    return compiler._envelope('callRendererFunction', {
+      'functionCallId': functionCallId,
+      'callFunction': {
+        'catalogId': helper.catalog.id,
+        '@call': name,
+        'args': functionCall['args'],
+      },
+    });
+  }
+
+  /// Reads the system functions of the target version, which every
+  /// catalog's helper shares.
+  CatalogSchemaHelper get _systemFunctions =>
+      compiler._catalogHelpers.values.first;
+
+  /// Whether [call] names a component of its catalog.
+  bool _isComponent(CallNode call) => _v1
+      ? compiler._declaresComponent(call)
+      : surface.helper!.isComponent(call.name);
+
+  /// Whether a function named [name] belongs to the catalog [catalogId]
+  /// names, or else to the surface's catalog, or from v1.0 to any active
+  /// catalog when the surface has none.
+  bool _isFunction(String name, String? catalogId) {
+    if (catalogId != null) {
+      return compiler._catalogHelpers[catalogId]?.isFunction(name) ?? false;
+    }
+    if (surface.helper case final CatalogSchemaHelper helper when !_v1) {
+      return helper.isFunction(name);
+    }
+    return compiler._catalogHelpers.values.any((h) => h.isFunction(name));
+  }
+
+  /// Whether [call] calls a system function of the target version, which
+  /// takes no catalogId since no catalog defines it.
+  bool _isValidSystemCall(CallNode call) =>
+      _systemFunctions.isSystemFunction(call.name) &&
+      !call.kwargs.containsKey('catalogId');
+
+  bool _isKnownCall(CallNode call) =>
+      _isComponent(call) ||
+      _isValidSystemCall(call) ||
+      _isFunction(call.name, compiler._catalogArgument(call)) ||
+      (_reservedHelpers.contains(call.name) &&
+          compiler._catalogArgument(call) == null);
+
+  A2uiValidationError _unknownCall(CallNode call) {
+    final String name = call.name;
+    if (name.startsWith('@')) {
+      if (_systemFunctions.isSystemFunction(name)) {
+        return A2uiValidationError(
+          "System function '$name' is defined by the protocol, not a "
+          'catalog, so it takes no catalogId.',
+        );
+      }
+      final List<String> known = _systemFunctions.systemFunctions.keys.toList()
+        ..sort();
+      return A2uiValidationError(
+        "Unknown system function '$name' in A2UI "
+        '${compiler._version.semverValue}. System functions: '
+        '${known.isEmpty ? 'none' : known.join(', ')}.',
+      );
+    }
+    final String? catalogId = compiler._catalogArgument(call);
+    if (_reservedHelpers.contains(name) && catalogId != null) {
+      return A2uiValidationError(
+        "'$name' belongs to no catalog, so it takes no catalogId.",
+      );
+    }
+    return A2uiValidationError(
+      "'$name' is neither a component nor a function of "
+      '${catalogId == null ? _catalogNames : "catalog '$catalogId'"}.',
+    );
+  }
+
+  /// The catalog a component, or a function when [component] is false,
+  /// named [name] belongs to, and the `catalogId` the compiled item carries.
+  ///
+  /// Before v1.0 that is the surface's catalog, and the item carries none.
+  /// From v1.0 it is the catalog [catalogId] names, which the item carries,
+  /// or else the one catalog declaring [name], which it carries when several
+  /// catalogs are active.
+  ///
+  /// Throws [A2uiValidationError] if [catalogId] names a catalog that is not
+  /// active or does not declare [name], or it names none and no active
+  /// catalog, or several, declare [name].
+  (CatalogSchemaHelper, String?) _resolve(
+    String name,
+    String? catalogId, {
+    required bool component,
+  }) {
+    final kind = component ? 'component' : 'function';
+    bool declares(CatalogSchemaHelper helper) =>
+        component ? helper.isComponent(name) : helper.isFunction(name);
+    if (!_v1) {
+      final CatalogSchemaHelper helper = surface.helper!;
+      if (!declares(helper)) {
+        throw A2uiValidationError(
+          "Catalog '${helper.catalog.id}' declares no $kind named '$name'.",
+        );
+      }
+      return (helper, null);
+    }
+    if (catalogId != null) {
+      final CatalogSchemaHelper helper = compiler._helper(catalogId);
+      if (!declares(helper)) {
+        throw A2uiValidationError(
+          "Catalog '$catalogId' declares no $kind named '$name'.",
+        );
+      }
+      return (helper, catalogId);
+    }
+    final List<CatalogSchemaHelper> declaring = [
+      ...compiler._catalogHelpers.values.where(declares),
+    ];
+    if (declaring.length > 1) {
+      throw A2uiValidationError(
+        "The ${kind}s named '$name' of catalogs "
+        "${declaring.map((h) => "'${h.catalog.id}'").join(' and ')} could "
+        'each be meant. Name the catalog with a catalogId argument.',
+      );
+    }
+    if (declaring.isEmpty) {
+      throw A2uiValidationError(
+        "No active catalog declares a $kind named '$name'. Active catalogs: "
+        '${compiler._catalogHelpers.keys.join(', ')}.',
+      );
+    }
+    final CatalogSchemaHelper helper = declaring.single;
+    return (helper, surface.helper == null ? helper.catalog.id : null);
+  }
 
   /// Compiles one component, followed by the components written inline in
   /// it.
-  List<Map<String, Object?>> _component(String id, CallNode call) {
+  List<Map<String, Object?>> _component(String defaultId, CallNode call) {
+    final String id = _componentId(defaultId, call, atLeastV10: _v1);
     final String name = call.name;
+    final (CatalogSchemaHelper helper, String? catalogId) = _resolve(
+      name,
+      compiler._catalogArgument(call),
+      component: true,
+    );
     final List<String> properties = helper.properties(name);
 
     final checks = <CheckNode>[];
     final assigned = <(String, ExpressNode)>[];
     var position = 0;
+    final posArgs = <ExpressNode>[];
     for (final ExpressNode arg in call.args) {
       if (_checksOf(arg) case final List<CheckNode> found) {
         checks.addAll(found);
         continue;
       }
+      posArgs.add(arg);
+    }
+    final List<String> required = helper.requiredProperties(name);
+    for (var argIdx = 0; argIdx < posArgs.length; argIdx++) {
+      final ExpressNode arg = posArgs[argIdx];
       if (position >= properties.length) {
         throw A2uiValidationError(
           '$name takes at most ${properties.length} positional arguments '
           "(${properties.join(', ')}), but component '$id' passes "
-          '${call.args.length}.',
+          '${posArgs.length}.',
         );
+      }
+      if (arg is LiteralNode &&
+          arg.value is num &&
+          !helper.acceptsNumber(
+            helper.propertySchema(name, properties[position]),
+          )) {
+        var moved = false;
+        if (argIdx == posArgs.length - 1) {
+          final numericLater = <int>[
+            for (int later = position + 1; later < properties.length; later++)
+              if (!call.kwargs.containsKey(properties[later]) &&
+                  helper.acceptsNumber(
+                    helper.propertySchema(name, properties[later]),
+                  ))
+                later,
+          ];
+          if (numericLater.length == 1) {
+            final int target = numericLater.single;
+            bool canSkip(int idx) {
+              final String prop = properties[idx];
+              if (required.contains(prop)) return false;
+              return enumOf(helper.propertySchema(name, prop)) != null;
+            }
+
+            if ([
+              for (int idx = position; idx < target; idx++) idx,
+            ].every(canSkip)) {
+              position = target;
+              moved = true;
+            }
+          }
+        }
+        if (!moved &&
+            !required.contains(properties[position]) &&
+            helper.commonTypesLoaded) {
+          throw A2uiValidationError(
+            "Positional argument ${argIdx + 1} for component '$name' is a "
+            'number, which is not valid for optional property '
+            "'${properties[position]}'.",
+          );
+        }
       }
       assigned.add((properties[position++], arg));
     }
+    ExpressNode? rawExtensions;
     for (final MapEntry<String, ExpressNode> kwarg in call.kwargs.entries) {
+      if (kwarg.key == 'id') continue;
+      if (_v1 && kwarg.key == 'catalogId') continue;
+      if (kwarg.key == 'extensions' && !properties.contains('extensions')) {
+        if (!_v1) {
+          throw A2uiValidationError(
+            "extensions on component '$name' is only supported in "
+            'A2UI v1.0 or later.',
+          );
+        }
+        rawExtensions = kwarg.value;
+        continue;
+      }
       if (_checksOf(kwarg.value) case final List<CheckNode> found) {
         checks.addAll(found);
         continue;
@@ -321,8 +1281,26 @@ class _SurfaceCompiler {
       }
       assigned.add((kwarg.key, kwarg.value));
     }
+    if (checks.isNotEmpty && !helper.isCheckable(name)) {
+      throw A2uiValidationError(
+        "$name does not take checks, but component '$id' is given "
+        '${checks.map((c) => '?${c.name}').join(', ')}. Remove the checks, '
+        'or use a component whose schema declares checks.',
+      );
+    }
 
-    final component = <String, Object?>{'id': id, 'component': name};
+    final Map<String, Object?>? componentMetadata = switch (rawExtensions) {
+      final ExpressNode ext => {
+        'extensions': _extensionsMap(ext, "component '$name'"),
+      },
+      null => null,
+    };
+    final component = <String, Object?>{
+      'id': id,
+      'component': name,
+      'catalogId': ?catalogId,
+      'metadata': ?componentMetadata,
+    };
     final hoisted = <Map<String, Object?>>[];
     Map<String, Object?>? valueBinding;
     for (final (String property, ExpressNode node) in assigned) {
@@ -331,12 +1309,22 @@ class _SurfaceCompiler {
         name,
         property,
       );
+      final bool isChildRef =
+          isComponentId(schema) ||
+          (!helper.commonTypesLoaded && property == 'child');
+      final bool isChildrenList =
+          (isChildList(schema) ||
+              (!helper.commonTypesLoaded && property == 'children')) &&
+          node is ArrayNode;
       Object? value = _value(
         node,
         _Context(
           idPrefix: '${id}_$property',
           hoisted: hoisted,
-          isAction: isAction(schema),
+          allowPending: allowPending,
+          allowComponentRef: isChildRef,
+          allowListComponentRefs: isChildrenList,
+          slot: schema == null ? null : _Slot(schema, helper),
         ),
       );
       if (value is List && expectsOptionObjects(schema)) {
@@ -358,6 +1346,7 @@ class _SurfaceCompiler {
         idPrefix: '${id}_checks',
         hoisted: hoisted,
         valueBinding: valueBinding,
+        allowPending: allowPending,
       );
       component['checks'] = [
         for (final CheckNode check in checks) _checkRule(check, context),
@@ -380,13 +1369,9 @@ class _SurfaceCompiler {
       check,
       context,
     );
-    final String name = check.name;
     return {
       'condition': condition,
-      'message':
-          message ??
-          '${name.substring(0, 1).toUpperCase()}${name.substring(1)} check '
-              'failed.',
+      'message': message ?? defaultCheckMessage(check.name),
     };
   }
 
@@ -396,14 +1381,24 @@ class _SurfaceCompiler {
   /// When the function's first parameter is `value`, the enclosing
   /// component's bound value fills it, and the written arguments fill the
   /// parameters after it. A string left over, or one written where a number
-  /// or boolean belongs, is the message.
+  /// or boolean belongs, is the message. From v1.0 an argument
+  /// `{catalogId: ...}` names the catalog of the function.
   (Map<String, Object?>, String?) _check(CheckNode check, _Context context) {
     final String name = check.name;
-    if (!helper.isFunction(name)) {
+    final (List<ExpressNode> written, String? catalogId) = _checkArguments(
+      check,
+    );
+    if (!_v1 && !surface.helper!.isFunction(name)) {
       throw A2uiValidationError(
-        "Check '?$name' names no function of catalog '$_catalogId'.",
+        "Check '?$name' names no function of catalog "
+        "'${surface.helper!.catalog.id}'.",
       );
     }
+    final (CatalogSchemaHelper helper, String? writtenCatalog) = _resolve(
+      name,
+      catalogId,
+      component: false,
+    );
     final List<String> parameters = helper.parameters(name);
     final args = <String, Object?>{};
     var first = 0;
@@ -411,12 +1406,12 @@ class _SurfaceCompiler {
     if (binding != null &&
         parameters.isNotEmpty &&
         parameters.first == 'value' &&
-        !(check.args.isNotEmpty && check.args.first is PathNode)) {
+        !(written.isNotEmpty && written.first is PathNode)) {
       args['value'] = binding;
       first = 1;
     }
     String? message;
-    for (final (int index, ExpressNode arg) in check.args.indexed) {
+    for (final (int index, ExpressNode arg) in written.indexed) {
       final int target = index + first;
       final String? text = switch (arg) {
         LiteralNode(value: final String value) => value,
@@ -444,22 +1439,48 @@ class _SurfaceCompiler {
         args[parameter] = value;
       }
     }
-    return ({'call': name, 'args': args}, message);
+    return (
+      {_callKey: name, 'catalogId': ?writtenCatalog, 'args': args},
+      message,
+    );
+  }
+
+  /// The arguments of [check], less the v1.0 `{catalogId: ...}` argument
+  /// naming its catalog, and that catalog, or null.
+  ///
+  /// Throws [A2uiValidationError] if that argument's `catalogId` is not a
+  /// string literal.
+  (List<ExpressNode>, String?) _checkArguments(CheckNode check) {
+    if (!_v1) return (check.args, null);
+    for (final (int index, ExpressNode arg) in check.args.indexed) {
+      if (arg case MapNode(
+        entries: {'catalogId': final ExpressNode node},
+      ) when arg.entries.length == 1) {
+        if (node case LiteralNode(value: final String catalogId)) {
+          return ([...check.args]..removeAt(index), catalogId);
+        }
+        throw A2uiValidationError(
+          "Argument 'catalogId' of ?${check.name}(...) must be a string "
+          'literal.',
+        );
+      }
+    }
+    return (check.args, null);
   }
 
   Object? _value(ExpressNode node, _Context context) => switch (node) {
     LiteralNode(:final Object? value) => value,
-    PathNode(:final String path) => {'path': path},
+    PathNode(:final String path) => {_pathKey: path},
     SkippedNode() => throw A2uiValidationError(
       "'_' can only stand in for an argument.",
     ),
-    ArrayNode(:final List<ExpressNode> items) => [
-      for (final (int index, ExpressNode item) in items.indexed)
-        _value(item, context.child(index)),
-    ],
+    ArrayNode(:final List<ExpressNode> items) => _list(items, context),
     MapNode(:final Map<String, ExpressNode> entries) => {
       for (final MapEntry<String, ExpressNode> entry in entries.entries)
-        entry.key: _value(entry.value, context.child(entry.key)),
+        entry.key: _value(
+          entry.value,
+          context.at(entry.key, context.slot?.property(entry.key)),
+        ),
     },
     VariableNode(:final String name) => _variable(name, context),
     CheckNode() => _check(node, context).$1,
@@ -468,13 +1489,21 @@ class _SurfaceCompiler {
 
   /// A variable holding a component is its id; any other is substituted.
   Object? _variable(String name, _Context context) {
-    final ExpressNode node =
-        surface.symbols[name] ??
-        (throw A2uiValidationError(
-          "Variable '$name' is not assigned in surface "
-          "'${surface.surfaceId}'.",
-        ));
-    if (node is CallNode && helper.isComponent(node.name)) return name;
+    _referencedVars.add(name);
+    final ExpressNode? node = surface.symbols[name];
+    if (node == null) {
+      if (context.allowComponentRef && context.allowPending) return name;
+      if (context.allowPending) {
+        throw _PendingVariableError(name);
+      }
+      throw A2uiValidationError(
+        "Variable '$name' is not assigned in surface "
+        "'${surface.surfaceId}'.",
+      );
+    }
+    if (node is CallNode && _isComponent(node)) {
+      return _componentId(name, node, atLeastV10: _v1);
+    }
     if (!_resolving.add(name)) {
       throw A2uiValidationError("Variable '$name' refers to itself.");
     }
@@ -487,17 +1516,28 @@ class _SurfaceCompiler {
 
   Object? _call(CallNode call, _Context context) {
     final String name = call.name;
-    if (helper.isComponent(name)) {
+    if (_isComponent(call)) {
       if (identical(context.hoisted, _noHoisting)) {
         throw A2uiValidationError(
           'A data path cannot be assigned a component.',
         );
       }
-      final String id = _newId(context.idPrefix);
+      final String id;
+      if (call.kwargs.containsKey('id')) {
+        id = _componentId(context.idPrefix, call, atLeastV10: _v1);
+        if (!_usedIds.add(id)) {
+          throw A2uiValidationError("Duplicate component id '$id'.");
+        }
+      } else {
+        id = _newId(context.idPrefix);
+      }
       context.hoisted.addAll(_component(id, call));
       return id;
     }
+    final String? catalogId = compiler._catalogArgument(call);
     switch (name) {
+      case '_template' || 'Event' when catalogId != null:
+        throw _unknownCall(call);
       case '_template':
         return _template(call, context);
       case 'Event':
@@ -507,7 +1547,17 @@ class _SurfaceCompiler {
           '$name(...) must be written as a statement of its own.',
         );
     }
-    if (!helper.isFunction(name)) throw _unknownCall(name);
+    final CatalogSchemaHelper helper;
+    final String? writtenCatalog;
+    if (name.startsWith('@')) {
+      // A system function is defined by the protocol, not a catalog, so it
+      // is looked up before any catalog and never carries a catalogId.
+      if (!_isValidSystemCall(call)) throw _unknownCall(call);
+      (helper, writtenCatalog) = (_systemFunctions, null);
+    } else {
+      if (!_isFunction(name, catalogId)) throw _unknownCall(call);
+      (helper, writtenCatalog) = _resolve(name, catalogId, component: false);
+    }
 
     final List<String> parameters = helper.parameters(name);
     if (call.args.length > parameters.length) {
@@ -525,6 +1575,7 @@ class _SurfaceCompiler {
       }
     }
     for (final MapEntry<String, ExpressNode> kwarg in call.kwargs.entries) {
+      if (_v1 && kwarg.key == 'catalogId') continue;
       if (!parameters.contains(kwarg.key)) {
         throw A2uiValidationError(
           "Function '$name' has no parameter '${kwarg.key}'. Its parameters "
@@ -544,7 +1595,12 @@ class _SurfaceCompiler {
         args[kwarg.key] = value;
       }
     }
-    final functionCall = <String, Object?>{'call': name, 'args': args};
+    // A system function's args are optional, so an empty list is left out.
+    final functionCall = <String, Object?>{
+      _callKey: name,
+      'catalogId': ?writtenCatalog,
+      if (args.isNotEmpty || !name.startsWith('@')) 'args': args,
+    };
     return context.isAction ? {'functionCall': functionCall} : functionCall;
   }
 
@@ -567,10 +1623,11 @@ class _SurfaceCompiler {
     final ExpressNode template = call.args[1];
     final bool isComponent = switch (template) {
       VariableNode(:final String name) => switch (surface.symbols[name]) {
-        CallNode(name: final String type) => helper.isComponent(type),
+        final CallNode node => _isComponent(node),
+        null => context.allowPending,
         _ => false,
       },
-      CallNode(:final String name) => helper.isComponent(name),
+      final CallNode node => _isComponent(node),
       _ => false,
     };
     if (!isComponent) {
@@ -578,26 +1635,94 @@ class _SurfaceCompiler {
         'The second argument of _template must be a component.',
       );
     }
+    // A child list template keeps the plain `path` key in every version.
     return {
-      'componentId': _value(template, context.child('template')),
+      'componentId': _value(
+        template,
+        context.child('template', allowComponentRef: true),
+      ),
       'path': path.path,
     };
   }
 
-  /// `Event(name, context?)`: an action sent to the agent.
-  Map<String, Object?> _event(CallNode call, _Context context) {
-    ExpressNode? argument(int index, String name) =>
-        call.kwargs[name] ??
-        (index < call.args.length ? call.args[index] : null);
+  /// The values of an array, each in the slot of the array's items, which is
+  /// resolved once since every item shares it.
+  List<Object?> _list(List<ExpressNode> items, _Context context) {
+    final _Slot? itemSlot = context.slot?.item;
+    return [
+      for (final (int index, ExpressNode item) in items.indexed)
+        _value(
+          item,
+          context.at(
+            index,
+            itemSlot,
+            allowComponentRef: context.allowListComponentRefs,
+          ),
+        ),
+    ];
+  }
 
-    final ExpressNode? nameNode = argument(0, 'name');
+  /// `Event(name, context?, userMessage=?, context=?)`: an action sent to
+  /// the agent.
+  ///
+  /// `userMessage` is a v1.0 field of the Action, so before v1.0 it is
+  /// rejected, as is any keyword the signature does not define, rather than
+  /// dropped from the compiled action.
+  Map<String, Object?> _event(CallNode call, _Context context) {
+    if (call.args.length > 2) {
+      throw A2uiValidationError(
+        'Event takes at most 2 positional arguments (name, context), but '
+        '${call.args.length} are given.',
+      );
+    }
+    for (final String key in call.kwargs.keys) {
+      if (!_eventKeywords.contains(key)) {
+        throw A2uiValidationError(
+          "Event has no keyword parameter '$key'. Its keyword parameters "
+          'are: ${_eventKeywords.join(', ')}.',
+        );
+      }
+    }
+    if (call.args.length == 2 && call.kwargs.containsKey('context')) {
+      throw A2uiValidationError("Parameter 'context' of Event is given twice.");
+    }
+
+    final ExpressNode? nameNode = call.args.firstOrNull;
     final Object? eventName = nameNode == null
         ? null
         : _value(nameNode, context.child('name'));
     if (eventName is! String) {
       throw A2uiValidationError('Event needs a name, such as Event("submit").');
     }
-    final ExpressNode? contextNode = argument(1, 'context');
+    final event = <String, Object?>{'name': eventName};
+
+    if (call.kwargs['userMessage'] case final ExpressNode userMessageNode) {
+      if (!_v1) {
+        throw A2uiValidationError(
+          'Event userMessage requires protocol v1.0 or later; the target '
+          'version ${compiler._version.jsonValue} has no userMessage field.',
+        );
+      }
+      final Object? userMessage = _value(
+        userMessageNode,
+        context.child('userMessage'),
+      );
+      // `userMessage` is a DynamicString: a string, a data binding or a
+      // function call.
+      if (userMessage is! String &&
+          !_isBinding(userMessage) &&
+          !_isCall(userMessage)) {
+        throw A2uiValidationError(
+          'Event userMessage must be a string, a \$path data binding or a '
+          'function call, got ${_describe(userMessageNode)}.',
+        );
+      }
+      event['userMessage'] = userMessage;
+    }
+
+    final ExpressNode? contextNode = call.args.length == 2
+        ? call.args[1]
+        : call.kwargs['context'];
     final Object? eventContext = contextNode == null
         ? null
         : _value(contextNode, context.child('context'));
@@ -607,23 +1732,49 @@ class _SurfaceCompiler {
         'Event("submit", {id: \$/item/id}).',
       );
     }
-    return {
-      'event': {
-        'name': eventName,
-        if (eventContext is Map && eventContext.isNotEmpty)
-          'context': eventContext,
-      },
-    };
+    if (eventContext is Map && eventContext.isNotEmpty) {
+      event['context'] = eventContext;
+    }
+    return {'event': event};
   }
 
-  String _newId(String prefix) {
-    var id = prefix;
-    for (var n = 2; _usedIds.contains(id); n++) {
-      id = '${prefix}_$n';
+  /// [id], the id an inline component takes from where it is written, such
+  /// as `root_child` for the child of `root`.
+  ///
+  /// Throws [A2uiValidationError] if a variable or another inline component
+  /// has it already, rather than overwriting one of the two.
+  String _newId(String id) {
+    if (!_usedIds.add(id)) {
+      throw A2uiValidationError(
+        "An inline component takes the id '$id', which another component "
+        'has already. Rename the variable, or assign the inline component to '
+        'a variable of its own.',
+      );
     }
-    _usedIds.add(id);
     return id;
   }
+
+  bool _isBinding(Object? value) =>
+      value is Map && value.length == 1 && value[_pathKey] is String;
+
+  bool _isCall(Object? value) => value is Map && value[_callKey] is String;
+
+  /// Names a parsed value for an error message in the terms the model wrote
+  /// it in, rather than as the node's type.
+  String _describe(ExpressNode node) => switch (node) {
+    CallNode(:final String name) => 'a call to $name(...)',
+    CheckNode(:final String name) => 'a check (?$name)',
+    VariableNode(:final String name) => 'the variable $name',
+    PathNode(:final String path) => 'the data binding \$$path',
+    SkippedNode() => "'_'",
+    MapNode() => 'a map literal',
+    ArrayNode() => 'a list',
+    LiteralNode(value: null) => 'null',
+    LiteralNode(value: final bool value) => 'the boolean $value',
+    LiteralNode(value: final num value) => 'the number ${jsonEncode(value)}',
+    LiteralNode(value: final String value) => 'the string ${jsonEncode(value)}',
+    LiteralNode(:final Object? value) => 'a ${value.runtimeType}',
+  };
 }
 
 /// Marks a context in which a component cannot be written.
@@ -631,8 +1782,68 @@ final List<Map<String, Object?>> _noHoisting = List.unmodifiable(
   <Map<String, Object?>>[],
 );
 
-bool _isBinding(Object? value) =>
-    value is Map && value.length == 1 && value['path'] is String;
+final RegExp _canonicalIndex = RegExp(r'^(?:0|[1-9][0-9]*)$');
+const int _maxAutovivifyIndex = 10000;
+
+int? _parseArrayIndex(String segment) {
+  if (!_canonicalIndex.hasMatch(segment)) return null;
+  final int? index = int.tryParse(segment);
+  if (index == null || index > _maxAutovivifyIndex) {
+    throw A2uiValidationError(
+      'Array index $segment exceeds maximum supported index '
+      '($_maxAutovivifyIndex).',
+    );
+  }
+  return index;
+}
+
+Object _materializeChild(
+  Object? existing,
+  String key,
+  String nextKey,
+  int? nextIdx,
+) {
+  if (existing == null) {
+    return nextIdx != null ? <Object?>[] : <String, Object?>{};
+  }
+  // A map or list assigned earlier is copied rather than written into: its
+  // element type may be narrower than Object?, as it is for an Event's map.
+  // Copying produces the same output as mutating in place (as the Python and
+  // TypeScript compilers do) because _value compiles a fresh container for
+  // each path assignment, so no two branches share a container instance.
+  if (existing is Map) return Map<String, Object?>.from(existing);
+  if (existing is List) return List<Object?>.from(existing);
+  throw A2uiValidationError(
+    "Cannot traverse path segment '$nextKey' through primitive value at "
+    "'$key'.",
+  );
+}
+
+Object _stepPathContainer(Object current, String key, String nextKey) {
+  final int? nextIdx = _parseArrayIndex(nextKey);
+  if (current is List<Object?>) {
+    final int? idx = _parseArrayIndex(key);
+    if (idx == null) {
+      throw A2uiValidationError(
+        "Cannot traverse non-numeric segment '$key' on a list in data model.",
+      );
+    }
+    while (current.length <= idx) {
+      current.add(null);
+    }
+    final Object child = _materializeChild(current[idx], key, nextKey, nextIdx);
+    current[idx] = child;
+    return child;
+  }
+  if (current is Map<String, Object?>) {
+    final Object child = _materializeChild(current[key], key, nextKey, nextIdx);
+    current[key] = child;
+    return child;
+  }
+  throw A2uiValidationError(
+    "Cannot traverse path segment '$key' through primitive value.",
+  );
+}
 
 /// Sets [value] at [path], a data path such as `/user/name`, in [model].
 void _setPath(Map<String, Object?> model, String path, Object? value) {
@@ -648,18 +1859,475 @@ void _setPath(Map<String, Object?> model, String path, Object? value) {
         r'Only a map can be assigned to the whole data model, $/.',
       );
     }
-    model.addAll(value);
+    model
+      ..clear()
+      ..addAll(value);
     return;
   }
-  var current = model;
-  for (final String key in keys.take(keys.length - 1)) {
-    // A map assigned earlier is copied rather than written into: its value
-    // type may be narrower than Object?, as it is for an Event's map.
-    final Object? existing = current[key];
-    final child = existing is Map
-        ? Map<String, Object?>.from(existing)
-        : <String, Object?>{};
-    current = current[key] = child;
+  Object current = model;
+  for (var i = 0; i < keys.length - 1; i++) {
+    current = _stepPathContainer(current, keys[i], keys[i + 1]);
   }
-  current[keys.last] = value;
+  final String lastKey = keys.last;
+  if (current is List<Object?>) {
+    final int? idx = _parseArrayIndex(lastKey);
+    if (idx == null) {
+      throw A2uiValidationError(
+        "Cannot assign non-numeric segment '$lastKey' on a list in data model.",
+      );
+    }
+    while (current.length <= idx) {
+      current.add(null);
+    }
+    current[idx] = value;
+  } else if (current is Map<String, Object?>) {
+    current[lastKey] = value;
+  }
+}
+
+typedef _CachedComp = ({
+  ExpressNode ast,
+  List<Map<String, Object?>> comps,
+  Map<String, (ExpressNode?, String?)> deps,
+  Set<String> newIds,
+});
+
+typedef _CachedData = ({
+  ExpressNode ast,
+  Object? val,
+  Map<String, (ExpressNode?, String?)> deps,
+});
+
+class _StreamSurfaceState {
+  String surfaceId = '';
+  bool created = false;
+  final Map<String, Map<String, Object?>> emittedComponents = {};
+  final Map<String, Object?> emittedDataPaths = {};
+  final Map<String, String> varIds = {};
+  final Map<String, _CachedComp> compiledCache = {};
+  final Map<String, _CachedData> dataCache = {};
+
+  _StreamSurfaceState clone() => _StreamSurfaceState()
+    ..surfaceId = surfaceId
+    ..created = created
+    ..emittedComponents.addAll(emittedComponents)
+    ..emittedDataPaths.addAll(emittedDataPaths)
+    ..varIds.addAll(varIds)
+    ..compiledCache.addAll(compiledCache)
+    ..dataCache.addAll(dataCache);
+}
+
+const Set<String> _continuationOperators = {
+  '+',
+  '-',
+  '*',
+  '/',
+  '%',
+  '=',
+  '<',
+  '>',
+  '!',
+  '&',
+  '|',
+  '.',
+  ',',
+  ':',
+};
+
+bool _isValidPrefixBoundary(String dslText, int prefixLen) {
+  if (prefixLen <= 0 || prefixLen >= dslText.length) return true;
+  final String rest = dslText.substring(prefixLen).trimLeft();
+  if (rest.isEmpty) return true;
+  if (rest.startsWith('//') || rest.startsWith('/*') || rest.startsWith('--')) {
+    return true;
+  }
+  return !_continuationOperators.contains(rest[0]);
+}
+
+bool _sameValue(Object? a, Object? b) {
+  if (identical(a, b)) return true;
+  if (a is List && b is List) return _sameList(a, b);
+  if (a is Map && b is Map) return _sameMap(a, b);
+  return a == b;
+}
+
+bool _sameList(List<Object?> a, List<Object?> b) {
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (!_sameValue(a[i], b[i])) return false;
+  }
+  return true;
+}
+
+bool _sameMap(Map<Object?, Object?> a, Map<Object?, Object?> b) {
+  if (a.length != b.length) return false;
+  for (final MapEntry<Object?, Object?> entry in a.entries) {
+    if (!b.containsKey(entry.key) || !_sameValue(entry.value, b[entry.key])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/// Stateful session for incrementally compiling one `<a2ui>` Express block.
+class ExpressScopeSession {
+  ExpressScopeSession(this.compiler);
+
+  final ExpressCompiler compiler;
+  final Map<int, _StreamSurfaceState> _surfaceStates = {};
+  final Set<String> _emittedCallIds = {};
+  final Set<int> _emittedDeleteOps = {};
+  final Map<String, String?> _surfaces = {};
+  final List<(String, String)> supersededComponents = [];
+  String _cachedPrefix = '';
+  List<ExpressStatement> _cachedStatements = const [];
+
+  /// Whether any messages have been emitted by this session so far.
+  bool hasEmitted = false;
+
+  /// Captures a copy of the session's emitted state so a speculative step can
+  /// roll back.
+  Object snapshot() => (
+    hasEmitted,
+    List<(String, String)>.from(supersededComponents),
+    <int, _StreamSurfaceState>{
+      for (final entry in _surfaceStates.entries)
+        entry.key: entry.value.clone(),
+    },
+    Set<String>.from(_emittedCallIds),
+    Set<int>.from(_emittedDeleteOps),
+    Map<String, String?>.from(_surfaces),
+    _cachedPrefix,
+    List<ExpressStatement>.from(_cachedStatements),
+  );
+
+  /// Restores a snapshot captured by [snapshot].
+  void restore(Object saved) {
+    final (
+      bool savedHasEmitted,
+      List<(String, String)> savedSuperseded,
+      Map<int, _StreamSurfaceState> savedStates,
+      Set<String> savedCallIds,
+      Set<int> savedDeleteOps,
+      Map<String, String?> savedSurfaces,
+      String savedPrefix,
+      List<ExpressStatement> savedStatements,
+    ) = saved
+        as (
+          bool,
+          List<(String, String)>,
+          Map<int, _StreamSurfaceState>,
+          Set<String>,
+          Set<int>,
+          Map<String, String?>,
+          String,
+          List<ExpressStatement>,
+        );
+    hasEmitted = savedHasEmitted;
+    supersededComponents
+      ..clear()
+      ..addAll(savedSuperseded);
+    _surfaceStates
+      ..clear()
+      ..addAll(savedStates);
+    _emittedCallIds
+      ..clear()
+      ..addAll(savedCallIds);
+    _emittedDeleteOps
+      ..clear()
+      ..addAll(savedDeleteOps);
+    _surfaces
+      ..clear()
+      ..addAll(savedSurfaces);
+    _cachedPrefix = savedPrefix;
+    _cachedStatements = savedStatements;
+  }
+
+  /// Compiles the current cumulative [dslText] of the block and returns only
+  /// newly ready or updated messages.
+  List<AgentToRendererMessage> compileStep(
+    String dslText, {
+    required bool isFinal,
+    required Set<String> existingSurfaces,
+    bool cachePrefix = true,
+  }) {
+    supersededComponents.clear();
+    if (compiler.catalogs.isEmpty) {
+      throw A2uiCatalogError('Compiling Express needs at least one catalog.');
+    }
+    final List<ExpressStatement> statements = _parseIncrementalStatements(
+      dslText,
+      cachePrefix: cachePrefix,
+    );
+    if (statements.isEmpty) {
+      if (isFinal && !hasEmitted) {
+        throw A2uiParseError(
+          'The Express block has no statements.',
+          rawContent: dslText,
+        );
+      }
+      return const [];
+    }
+    final Object saved = snapshot();
+    try {
+      final activeSurfaces = Set<String>.from(existingSurfaces);
+      final envelopes = <Map<String, Object?>>[];
+      var calls = 0;
+      final seenCallIds = <String>{};
+      final List<Object> operations = compiler._operations(statements);
+      for (final (int opIndex, Object operation) in operations.indexed) {
+        switch (operation) {
+          case _Surface():
+            envelopes.addAll(
+              _stepSurface(
+                opIndex,
+                operation,
+                isFinal: isFinal,
+                activeSurfaces: activeSurfaces,
+              ),
+            );
+          case _StandaloneCall(:final CallNode call, :final _Surface? surface):
+            calls++;
+            final Map<String, Object?>? env = _stepStandaloneCall(
+              call,
+              surface,
+              calls,
+              seenCallIds,
+              isFinal: isFinal,
+            );
+            if (env != null) envelopes.add(env);
+          case String():
+            envelopes.addAll(
+              _stepDeleteSurface(opIndex, operation, activeSurfaces),
+            );
+        }
+      }
+      if (envelopes.isEmpty) return const [];
+      final List<AgentToRendererMessage> messages = compiler._toMessages(
+        envelopes,
+        _surfaces,
+      );
+      if (messages.isNotEmpty) hasEmitted = true;
+      return messages;
+    } catch (_) {
+      restore(saved);
+      rethrow;
+    }
+  }
+
+  List<ExpressStatement> _parseIncrementalStatements(
+    String dslText, {
+    required bool cachePrefix,
+  }) {
+    if (_cachedPrefix.isNotEmpty &&
+        dslText.startsWith(_cachedPrefix) &&
+        _isValidPrefixBoundary(dslText, _cachedPrefix.length)) {
+      final String tail = dslText.substring(_cachedPrefix.length);
+      final List<ExpressStatement> tailStatements = tail.trim().isNotEmpty
+          ? parseExpress(tail)
+          : const [];
+      final statements = <ExpressStatement>[
+        ..._cachedStatements,
+        ...tailStatements,
+      ];
+      if (cachePrefix) {
+        _cachedPrefix = dslText;
+        _cachedStatements = statements;
+      }
+      return statements;
+    }
+    final List<ExpressStatement> statements = parseExpress(dslText);
+    if (cachePrefix) {
+      _cachedPrefix = dslText;
+      _cachedStatements = statements;
+    }
+    return statements;
+  }
+
+  Map<String, Object?>? _stepStandaloneCall(
+    CallNode call,
+    _Surface? surface,
+    int callIndex,
+    Set<String> seenCallIds, {
+    required bool isFinal,
+  }) {
+    final sc = _SurfaceCompiler(
+      compiler,
+      surface ?? _Surface(defaultSurfaceId, compiler._surfaceHelper(null)),
+      allowPending: !isFinal,
+    );
+    final Map<String, Object?> envelope;
+    try {
+      envelope = sc.callRendererFunction(call, callIndex);
+    } on _PendingVariableError {
+      return null;
+    }
+    final id =
+        (envelope['callRendererFunction']! as Map)['functionCallId']! as String;
+    if (!seenCallIds.add(id)) {
+      throw A2uiValidationError(
+        "Two function calls of the block have the id '$id'. Give each "
+        'a functionCallId of its own.',
+      );
+    }
+    if (!_emittedCallIds.add(id)) return null;
+    return envelope;
+  }
+
+  List<Map<String, Object?>> _stepDeleteSurface(
+    int opIndex,
+    String surfaceId,
+    Set<String> activeSurfaces,
+  ) {
+    activeSurfaces.remove(surfaceId);
+    if (!_emittedDeleteOps.add(opIndex)) return const [];
+    return [
+      compiler._envelope('deleteSurface', {'surfaceId': surfaceId}),
+    ];
+  }
+
+  Map<String, Object?>? _earlierScopeComponent(
+    _StreamSurfaceState currentState,
+    String surfaceId,
+    String compId,
+  ) {
+    Map<String, Object?>? found;
+    for (final _StreamSurfaceState st in _surfaceStates.values) {
+      if (identical(st, currentState)) break;
+      if (st.surfaceId == surfaceId &&
+          st.emittedComponents.containsKey(compId)) {
+        found = st.emittedComponents[compId];
+      }
+    }
+    return found;
+  }
+
+  List<Map<String, Object?>> _stepSurface(
+    int opIndex,
+    _Surface surface, {
+    required bool isFinal,
+    required Set<String> activeSurfaces,
+  }) {
+    final String surfaceId = surface.surfaceId;
+    final _StreamSurfaceState state = _surfaceStates.putIfAbsent(
+      opIndex,
+      _StreamSurfaceState.new,
+    )..surfaceId = surfaceId;
+    final sc = _SurfaceCompiler(compiler, surface, allowPending: !isFinal);
+    final localSuperseded = <(String, String)>[];
+    final List<Map<String, Object?>> readyComponents = sc
+        .collectReadyComponents(state, localSuperseded);
+    for (final (String surfId, String oldId) in localSuperseded) {
+      final Map<String, Object?>? earlierComp = _earlierScopeComponent(
+        state,
+        surfId,
+        oldId,
+      );
+      if (earlierComp != null) {
+        readyComponents.add(earlierComp);
+      } else {
+        supersededComponents.add((surfId, oldId));
+      }
+    }
+    final List<(String, Object?)> readyData = sc.collectReadyData(state);
+
+    final bool hasRootReady = readyComponents.any((c) => c['id'] == 'root');
+    final bool surfaceAlreadyExists =
+        state.created || activeSurfaces.contains(surfaceId);
+
+    if (isFinal &&
+        !surfaceAlreadyExists &&
+        !hasRootReady &&
+        readyComponents.isEmpty &&
+        readyData.isEmpty &&
+        surface.symbols.isEmpty &&
+        surface.data.isEmpty) {
+      throw A2uiValidationError(
+        "Surface '$surfaceId' has no components and no data. Assign the top "
+        "component to 'root', such as 'root = Column([...])'.",
+      );
+    }
+
+    final bool needsCreate =
+        !surface.isUpdate &&
+        !state.created &&
+        (!surfaceAlreadyExists ||
+            hasRootReady ||
+            surface.rawExtensions != null);
+    if (needsCreate) {
+      if (hasRootReady) {
+        final List<Map<String, Object?>> envelopes;
+        try {
+          envelopes = sc.buildCreateMessages(readyComponents, readyData);
+        } on _PendingVariableError {
+          if (!isFinal) return const [];
+          rethrow;
+        }
+        state.created = true;
+        activeSurfaces.add(surfaceId);
+        for (final comp in readyComponents) {
+          state.emittedComponents[comp['id']! as String] = comp;
+        }
+        for (final (String path, Object? val) in readyData) {
+          state.emittedDataPaths[path] = val;
+        }
+        return envelopes;
+      }
+      if (!isFinal) return const [];
+      if (surface.rawExtensions != null) {
+        throw A2uiValidationError(
+          'surface() extensions require a surface-creating scope with a root '
+          'component.',
+        );
+      }
+    }
+
+    if (surfaceAlreadyExists) {
+      activeSurfaces.add(surfaceId);
+    }
+    return _stepSurfaceUpdates(surface, state, readyComponents, readyData);
+  }
+
+  List<Map<String, Object?>> _stepSurfaceUpdates(
+    _Surface surface,
+    _StreamSurfaceState state,
+    List<Map<String, Object?>> readyComponents,
+    List<(String, Object?)> readyData,
+  ) {
+    final String surfaceId = surface.surfaceId;
+    final envelopes = <Map<String, Object?>>[];
+    final changedComponents = <Map<String, Object?>>[];
+    for (final comp in readyComponents) {
+      final compId = comp['id']! as String;
+      if (!_sameValue(state.emittedComponents[compId], comp)) {
+        changedComponents.add(comp);
+        state.emittedComponents[compId] = comp;
+      }
+    }
+    if (changedComponents.isNotEmpty) {
+      if (!compiler._v1) {
+        changedComponents.forEach(surface.helper!.validator.validateComponent);
+      }
+      envelopes.add(
+        compiler._envelope('updateComponents', {
+          'surfaceId': surfaceId,
+          'components': changedComponents,
+        }),
+      );
+    }
+    for (final (String jsonPath, Object? val) in readyData) {
+      if (!state.emittedDataPaths.containsKey(jsonPath) ||
+          !_sameValue(state.emittedDataPaths[jsonPath], val)) {
+        state.emittedDataPaths[jsonPath] = val;
+        envelopes.add(
+          compiler._envelope('updateDataModel', {
+            'surfaceId': surfaceId,
+            'path': jsonPath,
+            'value': val,
+          }),
+        );
+      }
+    }
+    return envelopes;
+  }
 }

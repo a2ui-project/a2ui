@@ -50,4 +50,13 @@ struct SurfaceGroupModelTests {
     #expect(group.surfacesMap["s1"] == nil)
     #expect(group.surfacesMap.isEmpty)
   }
+
+  @Test func subscriptReturnsSurfaceOrNil() throws {
+    let group = SurfaceGroupModel()
+    let catalog = try makeTestCatalog()
+    let vm = SurfaceViewModel(surfaceID: "s1", catalog: catalog)
+    group.addSurface(vm)
+    #expect(group["s1"] === vm)
+    #expect(group["unknown"] == nil)
+  }
 }

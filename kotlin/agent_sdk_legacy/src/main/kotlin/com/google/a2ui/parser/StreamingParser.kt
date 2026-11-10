@@ -22,6 +22,7 @@ import com.google.a2ui.schema.A2uiCatalog
 import com.google.a2ui.schema.A2uiConstants
 import com.google.a2ui.schema.A2uiValidator
 import com.google.a2ui.schema.A2uiVersion
+import com.google.a2ui.schema.SchemaInspector
 import com.google.a2ui.schema.TopologyAnalyzer
 import java.util.logging.Logger
 import kotlinx.serialization.SerializationException
@@ -890,13 +891,18 @@ abstract class StreamingParser(
           raiseOnOrphans = raiseOnOrphans,
         )
 
-      val availableReachable = reachableIds.intersect(seenComponents.keys)
+      val seenReachable = reachableIds.intersect(seenComponents.keys)
 
-      if (checkRoot && availableReachable.isEmpty()) {
+      if (checkRoot && seenReachable.isEmpty()) {
         throw A2uiIntegrityException(
           "No root component (id='$currentRootId') found in $activeMsgType"
         )
       }
+
+      // Without placeholders, a missing child cannot be stood in for, so the tree is held back
+      // until it is complete.
+      val availableReachable =
+        if (canUsePlaceholders()) seenReachable else completeTree(currentRootId)
 
       val processedComponents = mutableListOf<JsonObject>()
       val extraComponents = mutableListOf<JsonObject>()
@@ -958,6 +964,42 @@ abstract class StreamingParser(
     }
   }
 
+  /**
+   * Whether the catalog declares the placeholder's component type, so a placeholder can stand in
+   * for a child that has not arrived. A parser without a catalog cannot know, so it uses none.
+   */
+  protected fun canUsePlaceholders(): Boolean {
+    val components =
+      catalog?.catalogSchema?.get(A2uiConstants.CATALOG_COMPONENTS_KEY) as? JsonObject
+        ?: return false
+    val placeholderType =
+      when (val compDef = placeholderComponent["component"]) {
+        is JsonPrimitive -> compDef.content
+        is JsonObject -> compDef.keys.firstOrNull()
+        else -> null
+      }
+    return placeholderType != null && placeholderType in components
+  }
+
+  /**
+   * Returns the ids of the tree under [rootId] once every component in it has arrived, or an empty
+   * set while any is missing.
+   */
+  private fun completeTree(rootId: String): Set<String> {
+    val tree = mutableSetOf<String>()
+
+    fun isComplete(nodeId: String, ancestors: Set<String>): Boolean {
+      val comp = seenComponents[nodeId] ?: return false
+      if (nodeId in ancestors) return false
+      tree.add(nodeId)
+      return SchemaInspector.getComponentReferences(comp, refFieldsMap).all { (childId, _) ->
+        isComplete(childId, ancestors + nodeId)
+      }
+    }
+
+    return if (isComplete(rootId, emptySet())) tree else emptySet()
+  }
+
   protected fun getPlaceholderId(childId: String): String = "loading_$childId"
 
   private fun addPlaceholderComponent(
@@ -978,6 +1020,7 @@ abstract class StreamingParser(
     inlineResolved: Boolean = false,
   ): JsonObject {
     val compId = comp["id"]?.jsonPrimitive?.content ?: "unknown"
+    val usePlaceholders = canUsePlaceholders()
     val addedPlaceholderIds = mutableSetOf<String>()
     extraComponents.forEach {
       it["id"]?.jsonPrimitive?.content?.let { id -> addedPlaceholderIds.add(id) }
@@ -1035,7 +1078,7 @@ abstract class StreamingParser(
                   val childId = childElem.content
                   if (seenComponents.containsKey(childId)) {
                     validChildren.add(childElem)
-                  } else {
+                  } else if (usePlaceholders) {
                     val placeholderId = getPlaceholderId(childId)
                     validChildren.add(JsonPrimitive(placeholderId))
                     addPlaceholderComponent(placeholderId, extraComponents, addedPlaceholderIds)
@@ -1045,7 +1088,11 @@ abstract class StreamingParser(
                 }
               }
 
-              if (validChildren.isEmpty() && field in listOf("children", "explicitList")) {
+              if (
+                usePlaceholders &&
+                  validChildren.isEmpty() &&
+                  field in listOf("children", "explicitList")
+              ) {
                 val term = "\"$field\""
                 val termIdx = jsonBuffer.lastIndexOf(term)
                 if (termIdx != -1) {
@@ -1057,10 +1104,12 @@ abstract class StreamingParser(
                   }
                 }
               }
-              map[field] = JsonArray(validChildren)
+              if (usePlaceholders || validChildren.isNotEmpty()) {
+                map[field] = JsonArray(validChildren)
+              }
             } else if (fieldVal is JsonPrimitive && fieldVal.isString) {
               val childId = fieldVal.content
-              if (!seenComponents.containsKey(childId)) {
+              if (usePlaceholders && !seenComponents.containsKey(childId)) {
                 val placeholderId = getPlaceholderId(childId)
                 map[field] = JsonPrimitive(placeholderId)
                 addPlaceholderComponent(placeholderId, extraComponents, addedPlaceholderIds)

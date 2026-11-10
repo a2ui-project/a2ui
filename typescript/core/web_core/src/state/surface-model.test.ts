@@ -1,0 +1,606 @@
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import * as assert from 'node:assert';
+import {describe, it, beforeEach} from 'node:test';
+import {SurfaceModel} from './surface-model.js';
+import {DataModel} from './data-model.js';
+import {Catalog, ComponentApi} from '../catalog/types.js';
+import {ComponentModel} from './component-model.js';
+import {ComponentContext} from '../resolution/component-context.js';
+import {setValue} from '../reactivity/signals.js';
+import {A2uiRpcError, RpcErrorCode} from '../errors.js';
+
+describe('SurfaceModel', () => {
+  let surface: SurfaceModel<ComponentApi>;
+  let catalog: Catalog<ComponentApi>;
+  let actions: any[] = [];
+  let errors: any[] = [];
+
+  beforeEach(() => {
+    actions = [];
+    errors = [];
+    catalog = new Catalog('test-catalog', '1.0', []);
+    surface = new SurfaceModel<ComponentApi>('surface-1', catalog, new Map(), {});
+    surface.onAction.subscribe(async action => {
+      actions.push(action);
+    });
+    surface.onError.subscribe(async error => {
+      errors.push(error);
+    });
+  });
+
+  it('initializes with empty data model', () => {
+    assert.deepStrictEqual(surface.dataModel.get('/'), {});
+  });
+
+  it('accepts custom data model in constructor', () => {
+    const customData = new DataModel({custom: 'data'});
+    const customSurface = new SurfaceModel('surface-2', catalog, new Map(), {}, false, customData);
+    assert.strictEqual(customSurface.dataModel, customData);
+    assert.strictEqual(customSurface.dataModel.get('/custom'), 'data');
+  });
+
+  it('exposes components model', () => {
+    surface.componentsModel.addComponent(new ComponentModel('c1', 'Button', {}, catalog));
+    assert.ok(surface.componentsModel.get('c1'));
+  });
+
+  it('dispatches actions with metadata', async () => {
+    await surface.dispatchAction({event: {name: 'click', context: {foo: 'bar'}}}, 'comp-1');
+    assert.strictEqual(actions.length, 1);
+    const action = actions[0];
+    assert.strictEqual(action.name, 'click');
+    assert.strictEqual(action.surfaceId, 'surface-1');
+    assert.strictEqual(action.sourceComponentId, 'comp-1');
+    assert.deepStrictEqual(action.context, {foo: 'bar'});
+    assert.ok(action.timestamp);
+    assert.doesNotThrow(() => new Date(action.timestamp));
+  });
+
+  it('exposes the default catalog through the deprecated catalog alias', () => {
+    assert.strictEqual(surface.defaultCatalog, catalog);
+    assert.strictEqual(surface.catalog, catalog);
+  });
+
+  it('seeds defaultCatalog into availableCatalogs when none are supplied', () => {
+    assert.strictEqual(surface.availableCatalogs.size, 1);
+    assert.strictEqual(surface.availableCatalogs.get(catalog.id), catalog);
+  });
+
+  it('takes its protocol version from the default catalog unless one is given', () => {
+    assert.strictEqual(surface.protocolVersion, '1.0');
+    const noDefault = new SurfaceModel<ComponentApi>(
+      'surface-no-default',
+      undefined,
+      new Map([[catalog.id, catalog]]),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      '1.0',
+    );
+    assert.strictEqual(noDefault.defaultCatalog, undefined);
+    assert.strictEqual(noDefault.protocolVersion, '1.0');
+    assert.strictEqual(noDefault.availableCatalogs.get(catalog.id), catalog);
+  });
+
+  it('stores the protocol version in one canonical form', () => {
+    const fromCatalog = new SurfaceModel<ComponentApi>('a', catalog);
+    const fromArgument = new SurfaceModel<ComponentApi>(
+      'b',
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      '1.0.0',
+    );
+    assert.strictEqual(catalog.protocolVersion, '1.0');
+    assert.strictEqual(fromCatalog.protocolVersion, '1.0');
+    assert.strictEqual(fromArgument.protocolVersion, '1.0');
+  });
+
+  it('exposes the catalogs it was constructed with', () => {
+    const other = new Catalog<ComponentApi>('other-catalog', '1.0', []);
+    const multi = new SurfaceModel<ComponentApi>(
+      'surface-multi',
+      catalog,
+      new Map([
+        [catalog.id, catalog],
+        [other.id, other],
+      ]),
+    );
+    assert.strictEqual(multi.availableCatalogs.get('other-catalog'), other);
+    assert.strictEqual(multi.availableCatalogs.get('test-catalog'), catalog);
+  });
+
+  it('carries an explicit catalogId into the dispatched action', async () => {
+    await surface.dispatchAction({event: {name: 'submit', catalogId: 'other-catalog'}}, 'comp-1');
+    assert.strictEqual(actions.length, 1);
+    assert.strictEqual(actions[0].catalogId, 'other-catalog');
+
+    await surface.dispatchAction(
+      {event: {name: 'submitTopLevel'}, catalogId: 'top-level-catalog'},
+      'comp-1',
+    );
+    assert.strictEqual(actions.length, 2);
+    assert.strictEqual(actions[1].catalogId, 'top-level-catalog');
+  });
+
+  it('omits catalogId when the payload does not name a catalog', async () => {
+    await surface.dispatchAction({event: {name: 'click'}}, 'comp-1');
+    assert.strictEqual(actions.length, 1);
+    assert.ok(!('catalogId' in actions[0]));
+  });
+
+  it('does not dispatch onAction for functionCall actions', async () => {
+    await surface.dispatchAction({functionCall: {call: 'doTask', args: {param: 123}}}, 'comp-2');
+    await surface.dispatchAction({call: 'doTask', args: {param: 123}}, 'comp-2');
+    assert.strictEqual(actions.length, 0);
+  });
+
+  it('dispatches actions with default context', async () => {
+    await surface.dispatchAction({event: {name: 'click'}}, 'comp-1');
+    assert.strictEqual(actions.length, 1);
+    assert.deepStrictEqual(actions[0].context, {});
+  });
+
+  it('dispatches errors', async () => {
+    await surface.dispatchError({
+      code: 'TEST_ERROR',
+      message: 'Something failed',
+    });
+    assert.strictEqual(errors.length, 1);
+    assert.strictEqual(errors[0].code, 'TEST_ERROR');
+    assert.strictEqual(errors[0].message, 'Something failed');
+    assert.strictEqual(errors[0].surfaceId, 'surface-1');
+  });
+
+  it('creates a component context', () => {
+    surface.componentsModel.addComponent(new ComponentModel('root', 'Box', {}, catalog));
+    const ctx = new ComponentContext(surface, 'root', '/mydata');
+    assert.ok(ctx);
+    assert.strictEqual(ctx.dataContext.path, '/mydata');
+  });
+
+  it('disposes resources', () => {
+    // Verify that the dispose method clears subscriptions and internal state.
+    // Ideally, we would need to mock dependencies to verify deep disposal,
+    // but here we ensure that the surface's own emitters are cleared.
+
+    let actionReceived = false;
+    surface.onAction.subscribe(() => {
+      actionReceived = true;
+    });
+
+    surface.dispose();
+
+    // After dispose, no more actions should be emitted.
+    // The EventEmitter.dispose method clears all listeners.
+    surface.dispatchAction({event: {name: 'click'}}, 'c1');
+    assert.strictEqual(actionReceived, false, 'Should not receive actions after dispose');
+  });
+
+  it('ignores invalid or missing action payloads gracefully', async () => {
+    await surface.dispatchAction(null, 'c1');
+    await surface.dispatchAction(undefined, 'c1');
+    await surface.dispatchAction({}, 'c1');
+    await surface.dispatchAction({foo: 'bar'}, 'c1');
+    await surface.dispatchAction({event: {}}, 'c1');
+    await surface.dispatchAction({event: {name: 123}}, 'c1');
+    assert.strictEqual(actions.length, 0);
+  });
+
+  it('automatically seeds defaultCatalog into availableCatalogs when omitted', () => {
+    const standaloneSurface = new SurfaceModel('s-standalone', catalog);
+    assert.strictEqual(standaloneSurface.availableCatalogs.get(catalog.id), catalog);
+  });
+
+  it('preserves non-empty string userMessage on emitted ActionPayload and ignores empty or non-string userMessage', async () => {
+    await surface.dispatchAction(
+      {event: {name: 'submit', userMessage: 'Submitted form', context: {ok: true}}},
+      'btn-1',
+    );
+    await surface.dispatchAction({event: {name: 'emptyMsg', userMessage: ''}}, 'btn-empty');
+    await surface.dispatchAction({event: {name: 'numericMsg', userMessage: 42}}, 'btn-2');
+    await surface.dispatchAction({event: {name: 'objMsg', userMessage: {nested: 'bad'}}}, 'btn-3');
+    assert.strictEqual(actions.length, 4);
+    assert.strictEqual(actions[0].userMessage, 'Submitted form');
+    assert.strictEqual(actions[1].userMessage, undefined);
+    assert.strictEqual(actions[2].userMessage, undefined);
+    assert.strictEqual(actions[3].userMessage, undefined);
+  });
+
+  it('drops a non-string userMessage the same way whether it settles synchronously or not', async () => {
+    await surface.dispatchAction({event: {name: 'syncMsg', userMessage: 42}}, 'btn-1');
+    await surface.dispatchAction(
+      {event: {name: 'asyncMsg', userMessage: Promise.resolve(42)}},
+      'btn-2',
+    );
+    await surface.dispatchAction(
+      {event: {name: 'asyncText', userMessage: Promise.resolve('Sent')}},
+      'btn-3',
+    );
+    assert.deepStrictEqual(
+      actions.map(a => [a.name, a.userMessage]),
+      [
+        ['syncMsg', undefined],
+        ['asyncMsg', undefined],
+        ['asyncText', 'Sent'],
+      ],
+    );
+    assert.deepStrictEqual(errors, []);
+  });
+
+  it('stops dispatch without an unhandled rejection when a pending action value rejects', async () => {
+    await surface.dispatchAction(
+      {event: {name: 'ctx', context: {v: Promise.reject(new Error('context failed'))}}},
+      'btn-1',
+    );
+    await surface.dispatchAction(
+      {event: {name: 'msg', userMessage: Promise.reject(new Error('message failed'))}},
+      'btn-2',
+    );
+    await surface.dispatchAction(Promise.reject(new Error('payload failed')), 'btn-3');
+    await surface.dispatchAction(
+      {
+        event: {
+          name: 'cancelled',
+          context: {v: Promise.reject(new A2uiRpcError('gone', RpcErrorCode.CANCELLED))},
+        },
+      },
+      'btn-4',
+    );
+    assert.deepStrictEqual(actions, []);
+    assert.deepStrictEqual(
+      errors.map(e => [e.code, e.message]),
+      [
+        ['INVALID_ACTION', 'Action could not be resolved: context failed'],
+        ['INVALID_ACTION', 'Action could not be resolved: message failed'],
+        ['INVALID_ACTION', 'Action could not be resolved: payload failed'],
+      ],
+      'a cancelled agent call is not reported',
+    );
+  });
+
+  it('dispatches the Promise of a resolved action once it settles', async () => {
+    await surface.dispatchAction(
+      Promise.resolve({event: {name: 'later', context: {a: 1}}}),
+      'btn-1',
+    );
+    await surface.dispatchAction(Promise.resolve(undefined), 'btn-2');
+    assert.strictEqual(actions.length, 1);
+    assert.deepStrictEqual(actions[0].context, {a: 1});
+  });
+
+  describe('callAgentFunction', () => {
+    const call = {'@call': 'fetchRate', 'catalogId': 'test-catalog', 'args': {base: 'EUR'}};
+    const callFor = (base: string) => ({...call, args: {base}});
+
+    /** Installs a caller that counts its calls per `base`. */
+    function countingCaller(target: SurfaceModel<ComponentApi>): Map<string, number> {
+      const counts = new Map<string, number>();
+      target.agentFunctionCaller = async c => {
+        const base = (c.args as {base: string}).base;
+        counts.set(base, (counts.get(base) ?? 0) + 1);
+        return base;
+      };
+      return counts;
+    }
+
+    it('caches 256 answers by default and evicts the oldest first, even after a hit', async () => {
+      assert.strictEqual(surface.maxAgentCallCacheEntries, 256);
+      surface.maxAgentCallCacheEntries = 2;
+      const counts = countingCaller(surface);
+
+      await surface.callAgentFunction(callFor('A'));
+      await surface.callAgentFunction(callFor('B'));
+      // A hit on A doesn't refresh it: it's still the oldest.
+      assert.strictEqual(await surface.callAgentFunction(callFor('A')), 'A');
+      assert.strictEqual(counts.get('A'), 1);
+      await surface.callAgentFunction(callFor('C'));
+
+      await surface.callAgentFunction(callFor('B'));
+      await surface.callAgentFunction(callFor('C'));
+      assert.strictEqual(counts.get('B'), 1, 'B is still cached');
+      assert.strictEqual(counts.get('C'), 1, 'C is cached');
+      await surface.callAgentFunction(callFor('A'));
+      assert.strictEqual(counts.get('A'), 2, 'A was evicted first');
+    });
+
+    it('takes maxAgentCallCacheEntries in the constructor, and lowering it evicts the oldest', async () => {
+      const bounded = new SurfaceModel<ComponentApi>(
+        'surface-3',
+        catalog,
+        new Map(),
+        {},
+        false,
+        undefined,
+        'root',
+        undefined,
+        undefined,
+        2,
+      );
+      assert.strictEqual(bounded.maxAgentCallCacheEntries, 2);
+      const counts = countingCaller(bounded);
+      await bounded.callAgentFunction(callFor('A'));
+      await bounded.callAgentFunction(callFor('B'));
+
+      bounded.maxAgentCallCacheEntries = 1;
+      await bounded.callAgentFunction(callFor('B'));
+      await bounded.callAgentFunction(callFor('A'));
+      assert.deepStrictEqual(
+        [counts.get('A'), counts.get('B')],
+        [2, 1],
+        'A, the oldest, was evicted; B stayed',
+      );
+    });
+
+    it('rejects a maxAgentCallCacheEntries that is not a positive integer', () => {
+      for (const value of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+        assert.throws(
+          () => {
+            surface.maxAgentCallCacheEntries = value;
+          },
+          RangeError,
+          String(value),
+        );
+        assert.throws(
+          () =>
+            new SurfaceModel(
+              's',
+              catalog,
+              new Map(),
+              {},
+              false,
+              undefined,
+              'root',
+              undefined,
+              undefined,
+              value,
+            ),
+          RangeError,
+          String(value),
+        );
+      }
+      assert.strictEqual(surface.maxAgentCallCacheEntries, 256);
+    });
+
+    it('does not cache an answer that arrives after the caller was replaced', async () => {
+      let resolveOld!: (v: unknown) => void;
+      surface.agentFunctionCaller = () => new Promise(resolve => (resolveOld = resolve));
+      const pending = surface.callAgentFunction(call);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      let newCalls = 0;
+      surface.agentFunctionCaller = async () => {
+        newCalls++;
+        return 'new';
+      };
+      resolveOld('old');
+      assert.strictEqual(await pending, 'old');
+      assert.strictEqual(await surface.callAgentFunction(call), 'new');
+      assert.strictEqual(newCalls, 1, 'the old answer was not cached for the new caller');
+    });
+
+    it('clears cached answers when the caller is cleared', async () => {
+      surface.agentFunctionCaller = async () => 'first';
+      assert.strictEqual(await surface.callAgentFunction(call), 'first');
+      surface.agentFunctionCaller = undefined;
+      await assert.rejects(surface.callAgentFunction(call), /cannot call the agent/);
+    });
+
+    it('sends nothing for an aborted signal or a disposed surface', async () => {
+      let calls = 0;
+      surface.agentFunctionCaller = async () => {
+        calls++;
+        return 1;
+      };
+      const controller = new AbortController();
+      controller.abort();
+      assert.strictEqual(
+        await surface.callAgentFunction(call, {abortSignal: controller.signal}),
+        undefined,
+      );
+
+      const beforeDispose = surface.callAgentFunction(call);
+      surface.dispose();
+      await assert.rejects(
+        beforeDispose,
+        (e: unknown) => e instanceof A2uiRpcError && e.code === RpcErrorCode.CANCELLED,
+      );
+      await assert.rejects(
+        surface.callAgentFunction(call),
+        (e: unknown) => e instanceof A2uiRpcError && e.code === RpcErrorCode.CANCELLED,
+      );
+      assert.strictEqual(calls, 0);
+    });
+  });
+
+  it('takes a plain object in the 3rd argument as the theme of a pre-1.0 caller', () => {
+    const v09Catalog = new Catalog<ComponentApi>('v09-catalog', '0.9', []);
+    const v09Surface = new SurfaceModel('surface-v09', v09Catalog, {primaryColor: 'red'});
+    assert.deepStrictEqual(v09Surface.theme, {primaryColor: 'red'});
+    assert.strictEqual(v09Surface.sendDataModel, false);
+    assert.strictEqual(v09Surface.availableCatalogs.get(v09Catalog.id), v09Catalog);
+  });
+
+  it('shifts sendDataModel and dataModel along with the pre-1.0 theme', () => {
+    const v09Catalog = new Catalog<ComponentApi>('v09-catalog', '0.9', []);
+    const customData = new DataModel({custom: 'data'});
+    const v09Surface = new SurfaceModel(
+      'surface-v09',
+      v09Catalog,
+      {primaryColor: 'red'},
+      true,
+      customData,
+    );
+    assert.deepStrictEqual(v09Surface.theme, {primaryColor: 'red'});
+    assert.strictEqual(v09Surface.sendDataModel, true);
+    assert.strictEqual(v09Surface.dataModel, customData);
+  });
+
+  it('throws TypeError if 3rd argument is neither a Map, a theme object, nor undefined/null', () => {
+    assert.throws(() => new SurfaceModel('surface-err', catalog, [catalog] as any), {
+      name: 'TypeError',
+      message: /availableCatalogs.*3rd argument.*theme.*4th argument/i,
+    });
+  });
+
+  it('accepts a Map or undefined/null for availableCatalogs in constructor', () => {
+    const other = new Catalog<ComponentApi>('other-catalog', '1.0', []);
+    const surfaceWithMap = new SurfaceModel('s-map', catalog, new Map([['other-catalog', other]]));
+    assert.strictEqual(surfaceWithMap.availableCatalogs.get('other-catalog'), other);
+
+    const surfaceWithNull = new SurfaceModel('s-null', catalog, null);
+    assert.strictEqual(surfaceWithNull.availableCatalogs.get(catalog.id), catalog);
+
+    const surfaceWithUndefined = new SurfaceModel('s-undef', catalog, undefined);
+    assert.strictEqual(surfaceWithUndefined.availableCatalogs.get(catalog.id), catalog);
+  });
+
+  describe('resolveCatalog', () => {
+    const other = new Catalog<ComponentApi>('other-catalog', '1.0', []);
+
+    it('returns the named available catalog, or the default when none is named', () => {
+      const s = new SurfaceModel('s', catalog, new Map([['other-catalog', other]]));
+      assert.strictEqual(s.resolveCatalog('other-catalog'), other);
+      assert.strictEqual(s.resolveCatalog(catalog.id), catalog);
+      assert.strictEqual(s.resolveCatalog(undefined), catalog);
+    });
+
+    it('throws A2uiCatalogError for a catalog the surface does not offer', () => {
+      const s = new SurfaceModel('s', catalog);
+      assert.throws(() => s.resolveCatalog('missing'), {
+        name: 'A2uiCatalogError',
+        message: 'Catalog not found: missing',
+      });
+    });
+
+    it('throws A2uiCatalogError naming the subject when there is no default', () => {
+      const s = new SurfaceModel('no-default', undefined, new Map([['other-catalog', other]]));
+      assert.strictEqual(s.resolveCatalog('other-catalog'), other);
+      assert.throws(() => s.resolveCatalog(undefined), {
+        name: 'A2uiCatalogError',
+        message: "Item names no catalogId and surface 'no-default' has no default catalogId.",
+      });
+      assert.throws(() => s.resolveCatalog(undefined, "Function call 'f'"), {
+        name: 'A2uiCatalogError',
+        message:
+          "Function call 'f' names no catalogId and surface 'no-default' has no default catalogId.",
+      });
+    });
+  });
+
+  describe('metadata APIs', () => {
+    it('manages metadata, extensions, setExtension, and removeExtension reactively', async () => {
+      const emissions: Array<Record<string, unknown> | undefined> = [];
+      surface.onMetadataChanged.subscribe(meta => {
+        emissions.push(meta);
+      });
+
+      assert.strictEqual(surface.metadata, undefined);
+      assert.strictEqual(surface.extensions, undefined);
+
+      const input = {extensions: {agui: {sessionId: 's-1'}}};
+      surface.metadata = input;
+      // Mutating caller object does not mutate internal state
+      (input.extensions.agui as any).sessionId = 'mutated';
+
+      assert.deepStrictEqual(surface.metadata, {extensions: {agui: {sessionId: 's-1'}}});
+      assert.deepStrictEqual(surface.extensions, {agui: {sessionId: 's-1'}});
+      assert.ok(Object.isFrozen(surface.metadata));
+      assert.ok(Object.isFrozen(surface.extensions));
+
+      await new Promise(resolve => setTimeout(resolve, 0));
+      assert.strictEqual(emissions.length, 1);
+
+      // Structural equality no-op does not emit again
+      surface.metadata = {extensions: {agui: {sessionId: 's-1'}}};
+      await new Promise(resolve => setTimeout(resolve, 0));
+      assert.strictEqual(emissions.length, 1);
+
+      // setExtension with null stores explicit null
+      surface.setExtension('flag', null);
+      assert.deepStrictEqual(surface.extensions, {agui: {sessionId: 's-1'}, flag: null});
+
+      // setExtension with undefined deletes the key
+      surface.setExtension('flag', undefined);
+      assert.deepStrictEqual(surface.extensions, {agui: {sessionId: 's-1'}});
+
+      // removeExtension removes last key and clears metadata to undefined
+      surface.removeExtension('agui');
+      assert.strictEqual(surface.metadata, undefined);
+      assert.strictEqual(surface.extensions, undefined);
+
+      // Empty metadata envelopes normalize to undefined
+      surface.metadata = {};
+      assert.strictEqual(surface.metadata, undefined);
+      surface.metadata = {extensions: {}};
+      assert.strictEqual(surface.metadata, undefined);
+    });
+
+    it('rejects non-UAX 31 extension keys and read-only signal writes', () => {
+      assert.throws(() => {
+        surface.metadata = {extensions: {'bad-key': 1}};
+      }, /Invalid UAX #31 extension identifier: "bad-key"/);
+      assert.throws(
+        () => surface.setExtension('123bad', 'v'),
+        /Invalid UAX #31 extension identifier: "123bad"/,
+      );
+      assert.throws(
+        () => setValue(surface.metadataSignal as any, {extensions: {ok: 1}}),
+        TypeError,
+      );
+    });
+
+    it('propagates and validates metadata on dispatchAction', async () => {
+      await surface.dispatchAction({event: {name: 'save', context: {id: 1}}}, 'btn-1', {
+        extensions: {trace_id: 'tr-99'},
+      });
+      assert.strictEqual(actions.length, 1);
+      assert.deepStrictEqual(actions[0].metadata, {extensions: {trace_id: 'tr-99'}});
+
+      await surface.dispatchAction(
+        {
+          event: {
+            name: 'save',
+            metadata: {extensions: {fromPayload: 1, shared: 'payload'}},
+          },
+        },
+        'btn-1',
+        {extensions: {fromCall: 2, shared: 'call'}},
+      );
+      assert.strictEqual(actions.length, 2);
+      assert.deepStrictEqual(actions[1].metadata, {
+        extensions: {fromPayload: 1, fromCall: 2, shared: 'call'},
+      });
+
+      await assert.rejects(
+        async () =>
+          surface.dispatchAction({event: {name: 'save'}}, 'btn-1', {
+            extensions: {'invalid-key': true},
+          }),
+        /Invalid UAX #31 extension identifier: "invalid-key"/,
+      );
+    });
+  });
+});

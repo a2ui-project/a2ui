@@ -32,6 +32,15 @@ const angularApp = new AngularNodeAppEngine();
 let client: A2AClient | null = null;
 const enableStreaming = process.env['ENABLE_STREAMING'] !== 'false';
 
+// The catalogs that the app's renderer registers, keyed by A2UI protocol
+// version. Every message carries them, so the agent negotiates the catalogs of
+// each request from them.
+const A2UI_CLIENT_CAPABILITIES = {
+  'v0.9': {
+    supportedCatalogIds: ['https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json'],
+  },
+};
+
 app.use(
   express.static(browserDistFolder, {
     maxAge: '1y',
@@ -113,6 +122,7 @@ app.post('/a2a', (req, res) => {
       };
     }
 
+    sendParams.message.metadata = {a2uiClientCapabilities: A2UI_CLIENT_CAPABILITIES};
     try {
       const client = await createOrGetClient();
       if (enableStreaming) {

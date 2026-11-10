@@ -170,7 +170,48 @@ sequenceDiagram
 
 Let's peek at what the agent is returning. Here's a simplified example of the JSON messages:
 
-=== "v0.9"
+The restaurant finder sample sends v0.9.1 messages. The v1.0 tab shows the same messages in v1.0 form.
+
+=== "v1.0"
+
+    **Creating the surface:**
+
+    ```json
+    { "version": "1.0",
+      "createSurface": {
+        "surfaceId": "main",
+        "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+      }}
+    ```
+
+    **Defining the UI:**
+
+    ```json
+    { "version": "1.0",
+      "updateComponents": {
+        "surfaceId": "main",
+        "components": [
+          {"id": "root", "component": "Column", "children": ["header", "date-picker", "submit-btn"]},
+          {"id": "header", "component": "Text", "text": "# Book Your Table"},
+          {"id": "date-picker", "component": "DateTimeInput", "label": "Select Date", "value": {"@path": "/reservation/date"}, "enableDate": true},
+          {"id": "submit-text", "component": "Text", "text": "Confirm Reservation"},
+          {"id": "submit-btn", "component": "Button", "child": "submit-text", "variant": "primary", "action": {"event": {"name": "confirm_booking"}}}
+        ]
+      }}
+    ```
+
+    **Populating data:**
+
+    ```json
+    { "version": "1.0",
+      "updateDataModel": {
+        "surfaceId": "main",
+        "path": "/reservation",
+        "value": {"date": "2025-12-15", "time": "19:00", "guests": 2}
+      }}
+    ```
+
+=== "v0.9.1"
 
     **Creating the surface:**
 
@@ -178,7 +219,7 @@ Let's peek at what the agent is returning. Here's a simplified example of the JS
     { "version": "v0.9.1",
       "createSurface": {
         "surfaceId": "main",
-        "catalogId": "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
       }}
     ```
 
@@ -189,6 +230,7 @@ Let's peek at what the agent is returning. Here's a simplified example of the JS
       "updateComponents": {
         "surfaceId": "main",
         "components": [
+          {"id": "root", "component": "Column", "children": ["header", "date-picker", "submit-btn"]},
           {"id": "header", "component": "Text", "text": "# Book Your Table", "variant": "h1"},
           {"id": "date-picker", "component": "DateTimeInput", "label": "Select Date", "value": {"path": "/reservation/date"}, "enableDate": true},
           {"id": "submit-text", "component": "Text", "text": "Confirm Reservation"},
@@ -208,41 +250,6 @@ Let's peek at what the agent is returning. Here's a simplified example of the JS
       }}
     ```
 
-=== "Legacy (v0.8)"
-
-    **Defining the UI:**
-
-    ```json
-    {"surfaceUpdate": {"surfaceId": "main", "components": [
-      {"id": "header", "component": {"Text": {"text": {"literalString": "Book Your Table"}, "usageHint": "h1"}}},
-      {"id": "date-picker", "component": {"DateTimeInput": {"label": {"literalString": "Select Date"}, "value": {"path": "/reservation/date"}, "enableDate": true}}},
-      {"id": "submit-text", "component": {"Text": {"text": {"literalString": "Confirm Reservation"}}}},
-      {"id": "submit-btn", "component": {"Button": {"child": "submit-text", "action": {"name": "confirm_booking"}}}}
-    ]}}
-    ```
-
-    **Populating data:**
-
-    ```json
-    {"dataModelUpdate": {"surfaceId": "main", "contents": [
-      {"key": "reservation", "valueMap": [
-        {"key": "date", "valueString": "2025-12-15"},
-        {"key": "time", "valueString": "19:00"},
-        {"key": "guests", "valueInt": 2}
-      ]}
-    ]}}
-    ```
-
-    **Signaling render:**
-
-    ```json
-    {"beginRendering": {"surfaceId": "main", "root": "header"}}
-    ```
-
-    Note: In v0.8, `createSurface` was `beginRendering`, components were nested
-    in the response, and the data model used an adjacency list instead of
-    flat JSON.
-
 > [!TIP]
 > **It's Just JSON**
 >
@@ -257,7 +264,7 @@ Want to see what the code looks like? Check out:
 === "Lit"
 
     - **Client Code**: `samples/client/lit/` — The Lit web client with A2UI renderer
-    - **A2UI Renderers**: `renderers/lit/` (Lit) and `typescript/web_core/` (framework-agnostic core)
+    - **A2UI Renderers**: `typescript/renderers/lit/` (Lit) and `typescript/core/web_core/` (framework-agnostic core)
 
 === "Flutter"
 
@@ -344,7 +351,7 @@ uv run .
     If you're running the gallery from a fresh checkout, build the gallery and its workspace dependencies first:
 
     ```bash
-    cd renderers/lit/a2ui_explorer
+    cd typescript/renderers/lit/a2ui_explorer
     yarn build
     ```
 

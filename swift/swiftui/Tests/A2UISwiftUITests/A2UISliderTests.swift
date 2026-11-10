@@ -1,0 +1,94 @@
+// Copyright 2024 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import A2UICore
+import A2UISwiftUI
+import BasicCatalog
+import BasicCatalogSwiftUI
+import Testing
+
+@MainActor
+struct A2UISliderTests {
+
+  @Test func stepValueDividesRangeIntoSteps() throws {
+    let node = Node(
+      id: "s1",
+      type: "Slider",
+      properties: ["min": 1, "max": 7, "steps": 6]
+    )
+    #expect(try #require(A2UISlider(node: node).stepValue) == 1)
+  }
+
+  @Test func stepValueIsNilForInvalidSteps() {
+    let invalid: [Node] = [
+      Node(id: "s2", type: "Slider", properties: ["min": 0, "max": 100]),
+      Node(id: "s3", type: "Slider", properties: ["min": 0, "max": 100, "steps": 0]),
+      Node(id: "s4", type: "Slider", properties: ["min": 0, "max": 100, "steps": -3]),
+      Node(id: "s5", type: "Slider", properties: ["min": 50, "max": 50, "steps": 4]),
+      Node(
+        id: "s6", type: "Slider",
+        properties: ["min": 0, "max": Double.leastNormalMagnitude, "steps": Int.max]),
+    ]
+    for node in invalid {
+      #expect(A2UISlider(node: node).stepValue == nil)
+    }
+  }
+
+  @Test func formattedValueTextShowsWholeAndFractionalValues() {
+    #expect(A2UISlider(node: sliderNode(value: 42)).formattedValueText == "42")
+    #expect(A2UISlider(node: sliderNode(value: -7)).formattedValueText == "-7")
+    #expect(A2UISlider(node: sliderNode(value: 2.5)).formattedValueText == "2.5")
+  }
+
+  @Test func formattedValueTextDoesNotTrapOutsideIntRange() {
+    let cases: [(Double, String)] = [
+      (1e19, "1e+19"),
+      (-1e19, "-1e+19"),
+      (1e300, "1e+300"),
+      (9_223_372_036_854_775_808, "9.223372036854776e+18"),
+      (Double(Int.min), "-9223372036854775808"),
+      (Double(Int.min).nextDown, "-9.223372036854778e+18"),
+      (-0.0, "0"),
+      (.infinity, "inf"),
+      (-.infinity, "-inf"),
+      (.nan, "nan"),
+    ]
+    for (value, expected) in cases {
+      #expect(A2UISlider(node: sliderNode(value: value)).formattedValueText == expected)
+    }
+  }
+
+  @Test func bodyRendersValueOutsideIntRange() {
+    _ = A2UISlider(node: sliderNode(value: 1e19)).body
+    _ = A2UISlider(node: sliderNode(value: 1e19, steps: 10)).body
+    _ = A2UISlider(node: sliderNode(value: 1e19, label: nil)).body
+  }
+
+  private func sliderNode(
+    value: Double,
+    label: String? = "Volume",
+    steps: Int? = nil
+  ) -> Node {
+    var properties: [String: any Resolved] = [
+      "value": DataBinding<Double>(identity: .path("/value"), value: value, set: { _ in })
+    ]
+    if let label {
+      properties["label"] = label
+    }
+    if let steps {
+      properties["steps"] = steps
+    }
+    return Node(id: "slider", type: "Slider", properties: properties)
+  }
+}

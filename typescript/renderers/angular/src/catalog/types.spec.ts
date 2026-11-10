@@ -1,0 +1,236 @@
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import {Component} from '@angular/core';
+import {ComponentApi, MessageProcessor} from '@a2ui/web_core/v0_9';
+import {A2uiText} from '@a2ui/web_core/v0_9/basic_catalog';
+import {CommonSchemas} from '@a2ui/web_core/v1_0';
+import {isWebComponentImplementation} from '@a2ui/web_core/v0_9/universal';
+import {AngularCatalog, createComponentImplementation} from './types';
+import {UniversalOnlyComponent} from './universal_only.component';
+import {BASIC_COMPONENTS} from '../v0_9/catalog/basic/basic-catalog';
+import {CatalogComponent} from '../core/catalog_component';
+import {z} from 'zod';
+
+@Component({
+  selector: 'test-comp',
+  template: '',
+  standalone: true,
+})
+class TestComponent extends CatalogComponent<ComponentApi> {}
+
+@Component({
+  selector: 'wrapped-comp',
+  template: '',
+  standalone: true,
+})
+class WrappedComponent extends CatalogComponent<ComponentApi> {}
+
+describe('createComponentImplementation', () => {
+  it('should map ComponentApi and Angular Component Type correctly', () => {
+    const api: ComponentApi = {
+      name: 'TestComp',
+      schema: z.object({}),
+    };
+
+    const impl = createComponentImplementation(api, TestComponent);
+
+    expect(impl.name).toBe('TestComp');
+    expect(impl.schema).toEqual(api.schema);
+    expect(impl.component).toBe(TestComponent);
+  });
+
+  it('wraps a plain ComponentApi into a Web Component so universal containers can render it', () => {
+    const impl = createComponentImplementation(
+      {name: 'WrappedComp', schema: z.object({})},
+      WrappedComponent,
+    );
+
+    expect(impl.component).toBe(WrappedComponent);
+    if (!isWebComponentImplementation(impl)) {
+      fail('expected a Web Component implementation');
+      return;
+    }
+    expect(impl.tagName).toBe('a2ui-ng-wrappedcomp');
+    expect(typeof impl.element).toBe('function');
+    expect(customElements.get(impl.tagName)).toBeUndefined();
+  });
+
+  it('keeps allowedParents and allowedChildren, so the message processor enforces them', () => {
+    // Own component classes: `toWebComponent` caches its element per class.
+    @Component({selector: 'box-comp', template: '', standalone: true})
+    class BoxComponent extends CatalogComponent<ComponentApi> {}
+    @Component({selector: 'rune-comp', template: '', standalone: true})
+    class RuneComponent extends CatalogComponent<ComponentApi> {}
+
+    const box = createComponentImplementation(
+      {
+        name: 'Box',
+        schema: z.object({children: CommonSchemas.ChildList}),
+        allowedChildren: ['Rune'],
+      },
+      BoxComponent,
+    );
+    const rune = createComponentImplementation(
+      {name: 'Rune', schema: z.object({}), allowedParents: ['Box']},
+      RuneComponent,
+    );
+    expect(box.allowedChildren).toEqual(['Rune']);
+    expect(rune.allowedParents).toEqual(['Box']);
+
+    const catalogId = 'https://example.com/composition.json';
+    const createSurface = (components: Array<Record<string, unknown>>) =>
+      new MessageProcessor([new AngularCatalog(catalogId, '1.0', [box, rune])]).processMessages([
+        {version: '1.0', createSurface: {surfaceId: 's1', catalogId, components}},
+      ]);
+
+    expect(() =>
+      createSurface([
+        {id: 'root', component: 'Box', children: ['r']},
+        {id: 'r', component: 'Rune'},
+      ]),
+    ).not.toThrow();
+    expect(() => createSurface([{id: 'root', component: 'Rune'}])).toThrowMatching(
+      (e: {code?: string}) => e.code === 'UNALLOWED_PARENT',
+    );
+    expect(() =>
+      createSurface([
+        {id: 'root', component: 'Box', children: ['b']},
+        {id: 'b', component: 'Box', children: []},
+      ]),
+    ).toThrowMatching((e: {code?: string}) => e.code === 'UNALLOWED_CHILD');
+  });
+
+  it('reuses the element of a WebComponentImplementation instead of wrapping the Angular component', () => {
+    class MockCustomWcElement extends HTMLElement {}
+    const wcApi = {
+      name: 'CustomWcItem',
+      schema: z.object({}),
+      tagName: 'a2ui-custom-wc-item',
+      element: MockCustomWcElement,
+    };
+
+    const impl = createComponentImplementation(wcApi, TestComponent);
+
+    expect(impl.name).toBe('CustomWcItem');
+    expect(impl.component).toBe(TestComponent);
+    if (!isWebComponentImplementation(impl)) {
+      fail('expected a Web Component implementation');
+      return;
+    }
+    expect(impl.tagName).toBe('a2ui-custom-wc-item');
+    expect(impl.element).toBe(MockCustomWcElement);
+  });
+});
+
+@Component({
+  selector: 'test-custom-comp',
+  template: '<div>custom angular component</div>',
+  standalone: true,
+})
+class TestCustomComponent extends CatalogComponent<ComponentApi> {}
+
+describe('AngularCatalog & Catalog Types', () => {
+  it('instantiates empty AngularCatalog by default when no components are provided', () => {
+    const catalog = new AngularCatalog('https://example.com/catalog.json', '0.9', []);
+    expect(catalog.id).toBe('https://example.com/catalog.json');
+    expect(catalog.components.size).toBe(0);
+    expect(catalog.functions.size).toBe(0);
+  });
+
+  it('defaults to v0.9 when constructed with the pre-1.0 argument order', () => {
+    const themeSchema = z.object({primaryColor: z.string()});
+    const catalog = new AngularCatalog(
+      'v09-catalog',
+      [{name: 'CustomTest', schema: z.object({}), component: TestCustomComponent}],
+      [],
+      themeSchema,
+      'Use it',
+    );
+    expect(catalog.protocolVersion).toBe('0.9');
+    expect(catalog.components.get('CustomTest')?.component).toBe(TestCustomComponent);
+    expect(catalog.themeSchema).toBe(themeSchema);
+    expect(catalog.instructions).toBe('Use it');
+
+    const bare = new AngularCatalog('bare-catalog');
+    expect(bare.protocolVersion).toBe('0.9');
+    expect(bare.components.size).toBe(0);
+
+    const undefComp = new AngularCatalog('undef-catalog', undefined, [], themeSchema, 'Use it');
+    expect(undefComp.protocolVersion).toBe('0.9');
+    expect(undefComp.components.size).toBe(0);
+
+    const v10 = new AngularCatalog('v10-catalog', '1.0');
+    expect(v10.protocolVersion).toBe('1.0');
+    expect(v10.components.size).toBe(0);
+  });
+
+  it('instantiates AngularCatalog with components as a pure registry without injection context', () => {
+    const catalog = new AngularCatalog('test-catalog', '0.9', [
+      {
+        name: 'CustomTest',
+        schema: z.object({}),
+        component: TestCustomComponent,
+      },
+    ]);
+    expect(catalog.components.size).toBe(1);
+    const comp = catalog.components.get('CustomTest');
+    expect(comp).toBeDefined();
+    expect(comp?.component).toBe(TestCustomComponent);
+  });
+
+  it('gives Web Component entries the placeholder Angular component', () => {
+    const catalog = new AngularCatalog('test-catalog', '0.9', [A2uiText]);
+    const comp = catalog.components.get('Text');
+    expect(comp?.component).toBe(UniversalOnlyComponent);
+    expect(isWebComponentImplementation(comp)).toBeTrue();
+    expect(isWebComponentImplementation(comp) && comp.tagName).toBe(A2uiText.tagName);
+  });
+
+  it('keeps entries that already have an Angular component', () => {
+    const impl = createComponentImplementation(A2uiText, TestCustomComponent);
+    const catalog = new AngularCatalog('test-catalog', '0.9', [impl]);
+    expect(catalog.components.get('Text')).toBe(impl);
+  });
+
+  it('exports BASIC_COMPONENTS with 18 native components by default', () => {
+    expect(BASIC_COMPONENTS.length).toBe(18);
+    const textComp = BASIC_COMPONENTS.find(c => c.name === 'Text');
+    expect(textComp).toBeDefined();
+    expect(textComp?.component).toBeDefined();
+  });
+
+  it('creates an AngularComponentImplementation via createComponentImplementation', () => {
+    const schema = z.object({value: z.string()});
+    const impl = createComponentImplementation({name: 'CustomItem', schema}, TestCustomComponent);
+    expect(impl.name).toBe('CustomItem');
+    expect(impl.schema).toBe(schema);
+    expect(impl.component).toBe(TestCustomComponent);
+  });
+
+  it('preserves native AngularComponentImplementation without converting to Web Component', () => {
+    const catalog = new AngularCatalog('test-catalog', '0.9', [
+      {
+        name: 'CustomNative',
+        schema: z.object({}),
+        component: TestCustomComponent,
+      },
+    ]);
+    const comp = catalog.components.get('CustomNative');
+    expect(comp).toBeDefined();
+    expect(comp?.component).toBe(TestCustomComponent);
+  });
+});

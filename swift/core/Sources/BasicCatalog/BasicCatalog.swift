@@ -13,56 +13,68 @@
 // limitations under the License.
 
 import A2UICore
-import A2UIJSON
-import JSONSchema
-import OrderedJSON
+import Foundation
 
 /// Provides pre-configured Basic Catalog instances containing all 18 standard components
 /// and basic client-side functions across supported A2UI specification versions.
 public enum BasicCatalog: Sendable {
-
-  public static let v09CatalogURI =
-    "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
-
-  public static let v091CatalogURI =
-    "https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"
-
-  /// The standard theme JSON schema for Basic Catalog surfaces.
-  public static let themeSchema: Schema = try! Schema(
-    instance: """
-      {
-        "type": "object",
-        "properties": {
-          "primaryColor": {
-            "type": "string",
-            "pattern": "^#[0-9a-fA-F]{6}$"
-          },
-          "iconUrl": {
-            "type": "string"
-          },
-          "agentDisplayName": {
-            "type": "string"
-          }
-        }
-      }
-      """
-  )
-
-  private static func makeCatalog(id: String) -> AnyCatalog {
-    Catalog(
-      id: id,
-      components: BasicCatalogComponents.allComponents,
-      functions: BasicFunctions.allFunctions,
-      themeSchema: BasicCatalog.themeSchema
-    )
+  /// Returns the canonical catalog URI for the specified A2UI protocol version.
+  public static func catalogURI(version: A2UIProtocolVersion) -> String {
+    switch version {
+    case .v09:
+      return V09BasicCatalog.catalogURI
+    case .v091:
+      return V09BasicCatalog.v091CatalogURI
+    case .v10:
+      return V10BasicCatalog.catalogURI
+    }
   }
 
-  public static let v09Catalog = makeCatalog(id: v09CatalogURI)
-  public static let v091Catalog = makeCatalog(id: v091CatalogURI)
+  /// Returns a pre-configured Basic Catalog instance for the specified A2UI protocol version.
+  public static func makeCatalog(version: A2UIProtocolVersion) -> AnyCatalog {
+    switch version {
+    case .v09:
+      return V09BasicCatalog.catalog
+    case .v091:
+      return V09BasicCatalog.v091Catalog
+    case .v10:
+      return V10BasicCatalog.catalog
+    }
+  }
+
+  /// Returns a new Basic Catalog instance for the specified A2UI protocol version whose
+  /// `formatNumber`, `formatCurrency` and `pluralize` functions use `locale`, and whose `openUrl`
+  /// function passes the resolved URL to `openURLHandler`. The handler is held weakly, so keep a
+  /// strong reference to it for as long as the catalog is in use.
+  ///
+  /// `makeCatalog(version:)` returns shared instances that use `BasicFunctions.defaultLocale`
+  /// and have no `OpenURLHandler`, so their `openUrl` only validates the URL.
+  public static func makeCatalog(
+    version: A2UIProtocolVersion,
+    locale: Locale = BasicFunctions.defaultLocale,
+    openURLHandler: (any OpenURLHandler)? = nil
+  ) -> AnyCatalog {
+    switch version {
+    case .v09, .v091:
+      return Catalog(
+        id: catalogURI(version: version),
+        protocolVersion: version,
+        components: V09BasicCatalog.components,
+        functions: V09BasicFunctions.makeFunctions(locale: locale, openURLHandler: openURLHandler),
+        themeSchema: V09BasicCatalog.themeSchema
+      )
+    case .v10:
+      return Catalog(
+        id: catalogURI(version: version),
+        protocolVersion: version,
+        components: V10BasicCatalog.components,
+        functions: V10BasicFunctions.makeFunctions(locale: locale, openURLHandler: openURLHandler),
+        themeSchema: nil
+      )
+    }
+  }
 
   /// All supported standard Basic Catalog instances.
-  public static let allCatalogs: [AnyCatalog] = [
-    v09Catalog,
-    v091Catalog,
-  ]
+  public static let allCatalogs: [AnyCatalog] =
+    A2UIProtocolVersion.allCases.map(makeCatalog(version:))
 }

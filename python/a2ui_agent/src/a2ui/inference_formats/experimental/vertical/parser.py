@@ -14,108 +14,142 @@
 
 """Parser utilities to extract and compile A2UI Vertical syntax from LLM responses."""
 
+from __future__ import annotations
+
+from collections.abc import Mapping, Sequence
 import re
-from typing import Any, List, Union
-from a2ui.core.catalog import Catalog
-from a2ui.schema.catalog import A2uiCatalog
-from a2ui.parser.response_part import ResponsePart
-from a2ui.parser.parser import Parser
-from a2ui.schema.constants import (
-    A2UI_INFERENCE_OPEN_TAG,
-    A2UI_INFERENCE_CLOSE_TAG,
+from typing import Any, Literal, overload
+
+from a2ui.constants import A2UI_INFERENCE_CLOSE_TAG, A2UI_INFERENCE_OPEN_TAG
+from a2ui.core import A2uiError, CatalogApi
+from a2ui.core.schema import AgentToRendererMessage
+from a2ui.inference_formats._shared import check_mixed_catalogs
+from a2ui.parser import (
+    A2uiCompilationError,
+    A2uiCompilationParseError,
+    A2uiCompilationValidationError,
+    BlockLexer,
+    Parser,
+    RawA2uiPart,
+    RawResponsePart,
+    ResponsePart,
+    StreamPart,
+    TextPart,
 )
-from .compiler import VerticalCompiler
+from a2ui.utils import RendererState
+from a2ui.utils._experimental import experimental
+
+from .compiler import (
+    VerticalCompiler,
+    VerticalParseError,
+    VerticalValidationError,
+)
 from .decompiler import VerticalDecompiler
+from .streaming import VerticalResponseStream
 
-try:
-    from google.adk.utils.feature_decorator import experimental
-except ImportError:
-
-    def experimental(cls):
-        return cls
+_OPEN_SENTINEL_RE = re.compile(r"<(?:a2ui-vertical|a2ui)(?:\s[^>]*)?>", re.IGNORECASE)
+_CLOSE_SENTINEL_RE = re.compile(r"</(?:a2ui-vertical|a2ui)\s*>", re.IGNORECASE)
+VERTICAL_PAYLOAD_START_RE = re.compile(r"^[ \t]*[A-Z][A-Za-z0-9_]*\s*\(", re.MULTILINE)
 
 
 @experimental
 class VerticalParser(Parser):
-    """Parses, unwraps, compiles, and decompiles A2UI Vertical format responses."""
+    """Stateless parser, compiler, decompiler, and stream factory for A2UI Vertical."""
 
     def __init__(
         self,
-        catalog: Union[Catalog[Any, Any], A2uiCatalog],
+        catalogs: Sequence[CatalogApi],
         surface_id: str = "main",
-        version: str = "v1.0",
+        version: str | None = None,
     ):
-        """Initializes the Vertical parser.
-
-        Args:
-            catalog: Catalog or A2uiCatalog schema helper.
-            surface_id: Default surface identifier for compiled messages.
-            version: Target A2UI protocol version ("v0.9", "v0.9.1", or "v1.0").
-        """
-        self.catalog = catalog
+        self._catalogs = check_mixed_catalogs(catalogs)
         self.surface_id = surface_id
         self.version = version
-        self._stream_parser = None
+
+    @property
+    def catalogs(self) -> list[CatalogApi]:
+        """A copy of the active catalogs in priority order."""
+        return list(self._catalogs)
 
     @property
     def supports_streaming(self) -> bool:
-        """Whether the parser supports streaming token chunk compilation."""
+        """Whether this parser supports incremental streaming via `open_stream`."""
         return True
 
-    def process_chunk(self, chunk: str) -> List[ResponsePart]:
-        """Processes streamed token chunks incrementally, emitting a Surface per component.
+    @overload
+    def open_stream(
+        self,
+        *,
+        wrapped: bool = True,
+        state: RendererState | None = None,
+        after_rejected_block: Literal["end"] = "end",
+    ) -> VerticalResponseStream[ResponsePart]:
+        ...
 
-        Args:
-            chunk: The next token text chunk.
+    @overload
+    def open_stream(
+        self,
+        *,
+        wrapped: bool = True,
+        state: RendererState | None = None,
+        after_rejected_block: Literal["end", "continue"],
+    ) -> VerticalResponseStream[StreamPart]:
+        ...
 
-        Returns:
-            A list of parsed or completed ResponsePart objects.
-        """
-        if self._stream_parser is None:
-            from .streaming import VerticalStreamParser
+    def open_stream(
+        self,
+        *,
+        wrapped: bool = True,
+        state: RendererState | None = None,
+        after_rejected_block: Literal["end", "continue"] = "end",
+    ) -> VerticalResponseStream[StreamPart]:
+        """Opens a stream that incrementally compiles Vertical statements as chunks arrive."""
+        return VerticalResponseStream(
+            self,
+            wrapped=wrapped,
+            state=state,
+            after_rejected_block=after_rejected_block,
+        )
 
-            self._stream_parser = VerticalStreamParser(
-                self.catalog, surface_id=self.surface_id, version=self.version
-            )
-        return self._stream_parser.process_chunk(chunk)
-
-    def has_format_content(self, content: str, *, complete: bool = False) -> bool:
-        """Checks whether the given content string contains A2UI sentinel tags."""
-        patterns = [
-            (r"<a2ui\b", r"</a2ui\s*>"),
-            (r"<a2ui-vertical\b", r"</a2ui-vertical\s*>"),
-        ]
-        for open_pat, close_pat in patterns:
-            if complete:
-                if re.search(open_pat, content, re.IGNORECASE) and re.search(
-                    close_pat, content, re.IGNORECASE
-                ):
-                    return True
-            else:
-                if re.search(open_pat, content, re.IGNORECASE):
+    def has_format_content(self, content: str, complete: bool = False) -> bool:
+        """Checks whether `content` contains Vertical sentinel blocks."""
+        for part in self.unwrap(content):
+            if isinstance(part.part, RawA2uiPart):
+                if not complete or part.is_final:
                     return True
         return False
 
-    def unwrap(self, content: str) -> List[ResponsePart]:
-        """Tokenizes response content into raw Vertical parts and conversational text."""
-        from a2ui.parser.lexer import BlockLexer
+    def wrap(self, blocks: Sequence[RawResponsePart]) -> str:
+        """Wraps text and raw Vertical blocks into a single LLM-formatted string."""
+        parts: list[str] = []
+        for block in blocks:
+            inner = block.part if isinstance(block, RawResponsePart) else block
+            if isinstance(inner, TextPart):
+                parts.append(inner.text)
+            elif isinstance(inner, RawA2uiPart):
+                parts.append(
+                    f"{A2UI_INFERENCE_OPEN_TAG}\n{inner.a2ui_raw}\n{A2UI_INFERENCE_CLOSE_TAG}"
+                )
+        return "\n".join(parts)
 
+    def unwrap(self, content: str) -> list[RawResponsePart]:
+        """Unwraps and tokenizes response content into text and raw Vertical blocks."""
         lexer = BlockLexer(
-            open_tag=re.compile(r"<(?:a2ui|a2ui-vertical)\b[^>]*>", re.IGNORECASE),
-            close_tag=re.compile(r"</(?:a2ui|a2ui-vertical)\s*>", re.IGNORECASE),
+            open_tag=_OPEN_SENTINEL_RE,
+            close_tag=_CLOSE_SENTINEL_RE,
             string_delimiters={"'", '"'},
-            single_line_comments={"#", ";"},
+            single_line_comments={"#", "//", "--"},
+            payload_start_pattern=VERTICAL_PAYLOAD_START_RE,
+            block_comments=[("/*", "*/")],
         )
         return lexer.tokenize(content)
 
     def compile(
         self, format_content: str, *, is_final: bool = True
-    ) -> List[dict[str, Any]]:
-        """Compiles raw Vertical text into structured A2UI messages."""
-        from a2ui.parser.errors import A2uiCompilationError
-
+    ) -> Sequence[AgentToRendererMessage | Mapping[str, Any]]:
+        """Compiles a single raw Vertical block into A2UI messages."""
         compiler = VerticalCompiler(
-            self.catalog, surface_id=self.surface_id, version=self.version
+            self._catalogs, surface_id=self.surface_id, version=self.version
         )
         try:
             return compiler.compile(
@@ -124,20 +158,50 @@ class VerticalParser(Parser):
                 is_final=is_final,
                 version=self.version,
             )
+        except A2uiError:
+            raise
+        except (VerticalValidationError, ValueError) as e:
+            raise A2uiCompilationValidationError(
+                message=str(e),
+                raw_content=format_content,
+                help_message=(
+                    "Please correct the validation error in your Vertical UI"
+                    " component expression."
+                ),
+            ) from e
+        except (VerticalParseError, SyntaxError) as e:
+            raise A2uiCompilationParseError(
+                message=str(e),
+                raw_content=format_content,
+                help_message=(
+                    "Please correct the syntax error in your Vertical UI"
+                    " component expression."
+                ),
+            ) from e
         except Exception as e:
             raise A2uiCompilationError(
                 message=str(e),
                 raw_content=format_content,
                 help_message=(
-                    "Please correct the syntax error in your Vertical UI component"
-                    " expression."
+                    "Please correct the error in your Vertical UI component expression."
                 ),
             ) from e
 
-    def decompile(self, val: Union[dict[str, Any], List[dict[str, Any]]]) -> str:
-        """Decompiles structured A2UI payload into Vertical notation."""
-        return VerticalDecompiler(self.catalog).decompile(val)
+    def decompile(
+        self,
+        a2ui_payload: (
+            Sequence[AgentToRendererMessage | Mapping[str, Any]]
+            | AgentToRendererMessage
+            | Mapping[str, Any]
+        ),
+    ) -> str:
+        """Decompiles structured A2UI payload messages into Vertical notation."""
+        return VerticalDecompiler(self._catalogs, version=self.version).decompile(
+            a2ui_payload
+        )
 
-    def wrap_decompiled_blocks(self, blocks: List[str]) -> str:
+    def wrap_decompiled_blocks(self, blocks: Sequence[str]) -> str:
         """Wraps multiple decompiled blocks with sentinel tags."""
-        return VerticalDecompiler(self.catalog).wrap_decompiled_blocks(blocks)
+        return VerticalDecompiler(
+            self._catalogs, version=self.version
+        ).wrap_decompiled_blocks(blocks)

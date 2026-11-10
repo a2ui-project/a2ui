@@ -40,20 +40,58 @@ struct OrFunctionTests {
 
   // MARK: - Edge-Case Evaluation
 
-  @Test func evaluatesToFalseWhenValuesIsMissing() throws {
-    let result = try function.evaluate(arguments: [:], context: context)
+  @Test func throwsErrorWhenValuesIsMissing() throws {
+    #expect(throws: FunctionError.self) {
+      try function.evaluate(arguments: [:], context: context)
+    }
+  }
+
+  @Test func throwsErrorWhenValuesIsNotAnArray() throws {
+    #expect(throws: FunctionError.self) {
+      try function.evaluate(
+        arguments: ["values": .boolean(true)], context: context)
+    }
+  }
+
+  @Test func throwsErrorWithEmptyArray() throws {
+    #expect(throws: FunctionError.self) {
+      try function.evaluate(
+        arguments: ["values": .array([])], context: context)
+    }
+  }
+
+  // MARK: - ValidationResult Operands
+
+  @Test func readsFailingValidationResultOperandsAsFalseInV10() throws {
+    let result = try OrFunction(readsValidationResults: true).evaluate(
+      arguments: [
+        "values": .array([
+          .object(["valid": .boolean(false)]),
+          .object(["valid": .boolean(false)]),
+        ])
+      ],
+      context: context)
     #expect(result == .boolean(false))
   }
 
-  @Test func evaluatesToFalseWhenValuesIsNotAnArray() throws {
-    let result = try function.evaluate(
-      arguments: ["values": .boolean(true)], context: context)
-    #expect(result == .boolean(false))
+  @Test func readsOnePassingValidationResultOperandAsTrueInV10() throws {
+    let result = try OrFunction(readsValidationResults: true).evaluate(
+      arguments: [
+        "values": .array([
+          .object(["valid": .boolean(false)]),
+          .object(["valid": .boolean(true)]),
+        ])
+      ],
+      context: context)
+    #expect(result == .boolean(true))
   }
 
-  @Test func evaluatesToFalseWithEmptyArray() throws {
+  @Test func readsValidationResultOperandByValidityInV09() throws {
     let result = try function.evaluate(
-      arguments: ["values": .array([])], context: context)
+      arguments: [
+        "values": .array([.object(["valid": .boolean(false)]), .boolean(false)])
+      ],
+      context: context)
     #expect(result == .boolean(false))
   }
 }

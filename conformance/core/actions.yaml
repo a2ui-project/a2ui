@@ -1,0 +1,351 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# ==============================================================================
+# Action Dispatch Conformance Test Suite
+# ==============================================================================
+
+- name: test_action_event_basic
+  features: [F-CORE-23]
+  description: Verifies dispatching a basic server event with name only.
+  action: dispatch_action
+  actionPayload:
+    event:
+      name: "submit"
+  expectDispatched:
+    name: "submit"
+
+- name: test_action_event_with_literal_context
+  features: [F-CORE-23]
+  description: Verifies event action preserves literal context properties.
+  action: dispatch_action
+  actionPayload:
+    event:
+      name: "filter_change"
+      context:
+        query: "books"
+        limit: 10
+        active: true
+  expectDispatched:
+    name: "filter_change"
+    context:
+      query: "books"
+      limit: 10
+      active: true
+
+- name: test_action_event_context_literal_keys_path_and_call
+  features: [F-CORE-16, F-CORE-23]
+  description: Verifies context keys literally named 'path' and 'call' are preserved as literal keys (D1).
+  action: dispatch_action
+  actionPayload:
+    event:
+      name: "save"
+      context:
+        path: "/custom/file.txt"
+        call: "external"
+        regular: "data"
+  expectDispatched:
+    name: "save"
+    context:
+      path: "/custom/file.txt"
+      call: "external"
+      regular: "data"
+
+- name: test_action_event_with_data_binding
+  features: [F-CORE-14, F-CORE-23]
+  description: Verifies event action dynamically resolves bound context values from DataModel.
+  action: dispatch_action
+  dataModel:
+    user:
+      id: "u_123"
+      role: "admin"
+  actionPayload:
+    event:
+      name: "user_action"
+      context:
+        userId:
+          path: "/user/id"
+        role:
+          path: "/user/role"
+        staticKey: "constant"
+  expectDispatched:
+    name: "user_action"
+    context:
+      userId: "u_123"
+      role: "admin"
+      staticKey: "constant"
+
+- name: test_action_event_with_relative_scope
+  features: [F-CORE-15, F-CORE-23]
+  description: Verifies event action resolves relative data bindings against the provided scope.
+  action: dispatch_action
+  scope: "/items/1"
+  dataModel:
+    items:
+      - title: "Item 0"
+        id: "id_0"
+      - title: "Item 1"
+        id: "id_1"
+  actionPayload:
+    event:
+      name: "select_item"
+      context:
+        selectedId:
+          path: "id"
+        selectedTitle:
+          path: "title"
+  expectDispatched:
+    name: "select_item"
+    context:
+      selectedId: "id_1"
+      selectedTitle: "Item 1"
+
+- name: test_action_event_with_user_message
+  features: [F-CORE-23]
+  description: Verifies event action preserves and dispatches userMessage.
+  action: dispatch_action
+  actionPayload:
+    event:
+      name: "feedback"
+      userMessage: "User requested additional details"
+      context:
+        score: 5
+  expectDispatched:
+    name: "feedback"
+    userMessage: "User requested additional details"
+    context:
+      score: 5
+
+- name: test_action_direct_name_shorthand
+  features: [F-CORE-23]
+  description: Verifies v0.9 direct action name shorthand is dispatched as an event.
+  action: dispatch_action
+  actionPayload:
+    name: "click"
+    context:
+      target: "btn1"
+  expectDispatched:
+    name: "click"
+    context:
+      target: "btn1"
+
+- name: test_action_event_with_dispatch_metadata
+  features: [F-CORE-23]
+  description: Verifies that metadata passed to dispatchAction is attached to the dispatched action as action.metadata (v1.0 extension envelope).
+  action: dispatch_action
+  protocolVersion: "1.0"
+  actionPayload:
+    event:
+      name: "submit"
+      context:
+        form: "signup"
+  metadata:
+    extensions:
+      com_example_attestation: "signed"
+      a2ui_experimental: {trace: 7}
+  expectDispatched:
+    name: "submit"
+    context:
+      form: "signup"
+    metadata:
+      extensions:
+        com_example_attestation: "signed"
+        a2ui_experimental: {trace: 7}
+
+- name: test_action_event_without_dispatch_metadata_has_none
+  description: Verifies that an action dispatched without metadata carries no action.metadata envelope.
+  action: dispatch_action
+  protocolVersion: "1.0"
+  actionPayload:
+    event:
+      name: "submit"
+  expectDispatched:
+    name: "submit"
+    metadata: null
+
+- name: test_action_event_dispatch_metadata_invalid_uax31_key_error
+  description: Verifies that dispatchAction rejects metadata whose extensions key is not a UAX 31 identifier and dispatches nothing.
+  action: dispatch_action
+  protocolVersion: "1.0"
+  actionPayload:
+    event:
+      name: "submit"
+  metadata:
+    extensions:
+      "com-example-attestation": "signed"
+  expectError:
+    category: "ValidationError"
+
+- name: test_action_v10_event_with_at_path_and_at_call_context
+  description: Verifies v1.0 @path and @call context bindings, @@ literal prefix unescaping, and @index inside template scope.
+  action: dispatch_action
+  protocolVersion: "1.0"
+  surfaceId: "main_surface"
+  sourceComponentId: "row_btn"
+  scope: "/items/1"
+  dataModel:
+    items:
+      - title: "First"
+      - title: "Second"
+  actionPayload:
+    event:
+      name: "item_selected"
+      context:
+        itemTitle:
+          "@path": "title"
+        upperTitle:
+          "@call": "formatString"
+          args:
+            value: "Selected: ${title}"
+        itemIndex:
+          "@call": "@index"
+        oneBasedIndex:
+          "@call": "@index"
+          args:
+            offset: 1
+        escapedKey:
+          "@@path": "/literal/not/bound"
+  expectDispatched:
+    name: "item_selected"
+    surfaceId: "main_surface"
+    sourceComponentId: "row_btn"
+    timestampIso8601: true
+    context:
+      itemTitle: "Second"
+      upperTitle: "Selected: Second"
+      itemIndex: 1
+      oneBasedIndex: 2
+      escapedKey:
+        "@path": "/literal/not/bound"
+
+- name: test_action_v10_event_context_literal_path_and_call_keys
+  description: Verifies v1.0 literal 'path' and 'call' keys inside event.context are preserved as literal keys through GenericBinder / NodeResolver without being misread as v0.9 bindings.
+  action: dispatch_action
+  protocolVersion: "1.0"
+  surfaceId: "main_surface"
+  sourceComponentId: "save_btn"
+  dataModel:
+    user: "Ada"
+  actionPayload:
+    event:
+      name: "save_document"
+      context:
+        path: "/documents/report.md"
+        call: "sync"
+        author:
+          "@path": "/user"
+  expectDispatched:
+    name: "save_document"
+    surfaceId: "main_surface"
+    sourceComponentId: "save_btn"
+    timestampIso8601: true
+    context:
+      path: "/documents/report.md"
+      call: "sync"
+      author: "Ada"
+
+- name: test_action_function_call_local_mutation_no_event_dispatched
+  description: Verifies a local functionCall action executes locally, mutates dataModel, and dispatches no outbound event (expectDispatched is null).
+  action: dispatch_action
+  protocolVersion: "1.0"
+  surfaceId: "main_surface"
+  sourceComponentId: "inc_btn"
+  dataModel:
+    count: 1
+  actionPayload:
+    functionCall:
+      "@call": "incrementCounter"
+      args:
+        path: "/count"
+        step: 2
+  expectDataModel:
+    count: 3
+  expectDispatched: null
+
+- name: test_action_function_call_open_url_with_user_activation_allowed
+  description: Verifies openUrl functionCall action succeeds when userActivation is true and dispatches no outbound event.
+  action: dispatch_action
+  protocolVersion: "1.0"
+  surfaceId: "main_surface"
+  sourceComponentId: "link_btn"
+  userActivation: true
+  actionPayload:
+    functionCall:
+      "@call": "openUrl"
+      args:
+        url: "https://example.com"
+  expectDispatched: null
+
+- name: test_action_function_call_open_url_without_user_activation_denied
+  description: Verifies openUrl functionCall action fails when userActivation is false and emits EXECUTION_ERROR / INVALID_ACTION on surface.onError.
+  action: dispatch_action
+  protocolVersion: "1.0"
+  surfaceId: "main_surface"
+  sourceComponentId: "link_btn"
+  userActivation: false
+  actionPayload:
+    functionCall:
+      "@call": "openUrl"
+      args:
+        url: "https://example.com"
+  expectDispatched: null
+  expectError:
+    surfaceId: "main_surface"
+    message: "openUrl"
+
+- name: test_action_event_missing_name_error
+  description: Verifies dispatch_action with a missing event name emits INVALID_ACTION on surface.onError.
+  action: dispatch_action
+  protocolVersion: "1.0"
+  surfaceId: "main_surface"
+  sourceComponentId: "bad_btn"
+  actionPayload:
+    event:
+      context:
+        foo: "bar"
+  expectDispatched: null
+  expectError:
+    code: "INVALID_ACTION"
+    surfaceId: "main_surface"
+
+- name: test_action_event_non_string_user_message_error
+  description: Verifies dispatch_action with a non-string userMessage emits INVALID_ACTION on surface.onError.
+  action: dispatch_action
+  protocolVersion: "1.0"
+  surfaceId: "main_surface"
+  sourceComponentId: "bad_msg_btn"
+  actionPayload:
+    event:
+      name: "submit"
+      userMessage: 12345
+  expectDispatched: null
+  expectError:
+    code: "INVALID_ACTION"
+    surfaceId: "main_surface"
+
+- name: test_action_function_call_execution_error
+  features: [F-CORE-28, F-CORE-30]
+  description: Verifies a failing local functionCall action emits EXECUTION_ERROR on surface.onError and dispatches no outbound event.
+  action: dispatch_action
+  protocolVersion: "1.0"
+  surfaceId: "main_surface"
+  sourceComponentId: "fail_btn"
+  actionPayload:
+    functionCall:
+      "@call": "failingAction"
+      args: {}
+  expectDispatched: null
+  expectError:
+    code: "EXECUTION_ERROR"
+    surfaceId: "main_surface"

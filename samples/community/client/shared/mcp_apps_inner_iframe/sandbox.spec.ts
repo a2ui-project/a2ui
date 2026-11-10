@@ -16,8 +16,10 @@
 
 import {describe, it, expect, vi} from 'vitest';
 import {
+  DEFAULT_INNER_SANDBOX,
   buildPermissionsPolicy,
   normalizeOrigin,
+  resolveInnerSandbox,
   SENSITIVE_PERMISSIONS,
   ALLOWED_REFERRER_PATTERN,
   createAllowedReferrerPattern,
@@ -35,6 +37,45 @@ describe('mcp_apps_inner_iframe sandbox', () => {
         'clipboard-read',
         'clipboard-write',
       ]);
+    });
+  });
+
+  describe('resolveInnerSandbox', () => {
+    it('exposes the default inner sandbox without allow-same-origin or allow-popups', () => {
+      expect(DEFAULT_INNER_SANDBOX).toBe('allow-scripts allow-forms allow-modals');
+      expect(DEFAULT_INNER_SANDBOX).not.toContain('allow-same-origin');
+      expect(DEFAULT_INNER_SANDBOX).not.toContain('allow-popups');
+      expect(DEFAULT_INNER_SANDBOX).not.toContain('allow-top-navigation');
+    });
+
+    it('returns the default inner sandbox when sandbox is undefined', () => {
+      expect(resolveInnerSandbox()).toBe('allow-scripts allow-forms allow-modals');
+      expect(resolveInnerSandbox(undefined, true)).toBe('allow-scripts allow-forms allow-modals');
+    });
+
+    it('preserves explicit host-provided sandbox flags without warning when not srcdoc', () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      expect(resolveInnerSandbox('allow-scripts allow-downloads allow-popups', false)).toBe(
+        'allow-scripts allow-downloads allow-popups',
+      );
+      expect(resolveInnerSandbox('allow-scripts allow-same-origin', false)).toBe(
+        'allow-scripts allow-same-origin',
+      );
+      expect(warnSpy).not.toHaveBeenCalled();
+      warnSpy.mockRestore();
+    });
+
+    it('warns when allow-same-origin is passed for an inline srcdoc iframe', () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      expect(resolveInnerSandbox('allow-scripts allow-same-origin', true)).toBe(
+        'allow-scripts allow-same-origin',
+      );
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(resolveInnerSandbox('allow-scripts ALLOW-SAME-ORIGIN', true)).toBe(
+        'allow-scripts ALLOW-SAME-ORIGIN',
+      );
+      expect(warnSpy).toHaveBeenCalledTimes(2);
+      warnSpy.mockRestore();
     });
   });
 

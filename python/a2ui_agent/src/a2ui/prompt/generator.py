@@ -14,107 +14,156 @@
 
 """Abstract prompt generator interface for inference formats."""
 
-from collections.abc import Mapping, Sequence
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
-from typing import Any
-from a2ui.core.schema.v0_9 import V09Capabilities
+from collections.abc import Sequence
+from typing import final
+import weakref
+
+from a2ui.constants import EXAMPLES_HEADING
+from a2ui.core import CatalogApi
+
+__all__ = [
+    "PromptGenerator",
+    "assemble_instructions",
+]
 
 
 class PromptGenerator(ABC):
-    """Abstract base class for inference format prompt generators."""
+    """Abstract base class for inference format prompt generators.
+
+    A format implements the three hooks, `generate_base_rules`,
+    `generate_catalog_instructions` and `generate_examples`, and the `catalogs`
+    property. `generate()` and `SkillGenerator` both assemble the hooks' output
+    with `assemble_instructions`, so a prompt snippet and a monolithic skill
+    for the same catalogs have the same body. Formats override the hooks, never
+    `generate()`.
+
+    A generator is treated as immutable once built: the assembled text for its
+    own catalogs is cached per generator.
+    """
+
+    @property
+    @abstractmethod
+    def catalogs(self) -> list[CatalogApi]:
+        """The catalogs the generator describes, in order."""
 
     def generate_base_rules(self) -> str:
-        """Returns the core syntax contract and grammar rules for the inference format.
-
-        Returns:
-            The core syntax rules string.
-        """
+        """Returns the core syntax contract and grammar rules for the inference format."""
         return ""
 
     def generate_catalog_instructions(
         self,
         include_schema: bool = True,
-        catalog: Any | None = None,
+        catalog: CatalogApi | None = None,
     ) -> str:
         """Returns component and function signatures or JSON schemas for a catalog.
 
-        Args:
-            include_schema: Whether to include schema details.
-            catalog: Optional target catalog instance.
-
-        Returns:
-            The catalog instructions string.
+        With no catalog, returns the instructions for every catalog in
+        `catalogs`, including any shared multi-catalog headings or definitions.
         """
         return ""
 
     def generate_examples(
         self,
-        catalog: Any | None = None,
+        catalog: CatalogApi | None = None,
         validate: bool = False,
     ) -> str:
-        """Returns formatted few-shot examples for a catalog.
-
-        Args:
-            catalog: Optional target catalog instance.
-            validate: Whether to validate examples.
-
-        Returns:
-            The formatted few-shot examples string.
-        """
+        """Returns formatted few-shot examples for a catalog."""
         return ""
 
-    def generate(
-        self,
-        role_description: str,
-        workflow_description: str = "",
-        ui_description: str = "",
-        client_ui_capabilities: Mapping[str, Any] | V09Capabilities | None = None,
-        allowed_components: Sequence[str] | None = None,
-        allowed_messages: Sequence[str] | None = None,
-        include_schema: bool = True,
-        include_examples: bool = False,
-        validate_examples: bool = False,
-    ) -> str:
-        """Template Method: Assembles prompt instructions using sub-methods.
+    @final
+    def generate(self) -> str:
+        """Returns the prompt snippet for all of the generator's catalogs.
 
-        Args:
-            role_description: Description of the agent's role.
-            workflow_description: Optional description of the task workflow.
-            ui_description: Optional UI context or rules.
-            client_ui_capabilities: Optional client UI capability details.
-            allowed_components: Optional list of component tags the LLM may use.
-            allowed_messages: Optional list of A2UI message types allowed.
-            include_schema: Whether to include component schemas in the prompt.
-            include_examples: Whether to include few-shot examples.
-            validate_examples: Whether to validate few-shot examples on generation.
-
-        Returns:
-            The complete generated prompt system instruction.
+        This is `assemble_instructions(self)`. Formats override the hooks,
+        never this method.
         """
-        parts = []
+        return assemble_instructions(self)
 
-        if role_description:
-            parts.append(role_description)
 
-        rules = self.generate_base_rules()
-        if workflow_description:
-            rules = (
-                f"{rules}\n\n{workflow_description}" if rules else workflow_description
-            )
-        if rules:
-            parts.append(f"## Workflow Description:\n{rules}")
+# The snippet for each generator's own catalogs, which the generator already
+# holds, so an entry keeps nothing alive beyond the generator.
+_cache: weakref.WeakKeyDictionary[PromptGenerator, str] = weakref.WeakKeyDictionary()
 
-        if ui_description:
-            parts.append(f"## UI Description:\n{ui_description}")
 
-        if include_schema:
-            catalog_inst = self.generate_catalog_instructions(include_schema=True)
-            if catalog_inst:
-                parts.append(catalog_inst)
+def assemble_instructions(
+    generator: PromptGenerator,
+    catalogs: Sequence[CatalogApi] | None = None,
+) -> str:
+    """Assembles a generator's hooks into the instructions for some catalogs.
 
-        if include_examples:
-            examples = self.generate_examples(validate=validate_examples)
-            if examples:
-                parts.append(f"### Examples:\n{examples}")
+    The text is the base rules, then the catalog instructions, then the
+    examples under `EXAMPLES_HEADING`, separated by blank lines. Sections that
+    render nothing are left out.
 
-        return "\n\n".join(parts)
+    For the generator's own catalogs, the catalog instructions and examples
+    come from one call each to `generate_catalog_instructions()` and
+    `generate_examples()`, so a format can render what its catalogs share once.
+    For any other catalogs, each catalog's instructions and examples are
+    rendered on their own and joined; a format whose examples aren't kept per
+    catalog returns the same examples for each catalog, so examples a catalog
+    repeats are added once.
+
+    `PromptGenerator.generate()` returns this for all of the generator's
+    catalogs, and `SkillGenerator.generate_skill()` uses it for the body of a
+    monolithic skill.
+
+    Args:
+      generator: The prompt generator whose hooks render the sections.
+      catalogs: The catalogs to describe, in order. Defaults to the
+        generator's `catalogs`.
+
+    Returns:
+      The assembled text. The text for the generator's own catalogs is cached
+      per generator; text for other catalogs is assembled on each call.
+    """
+    own_catalogs = tuple(generator.catalogs)
+    targets = own_catalogs if catalogs is None else tuple(catalogs)
+    own = _same_catalogs(targets, own_catalogs)
+    if own:
+        try:
+            cached = _cache.get(generator)
+        except TypeError:
+            # A generator that can't be weakly referenced isn't cached.
+            cached = None
+        if cached is not None:
+            return cached
+
+    parts: list[str] = []
+    base_rules = generator.generate_base_rules()
+    if base_rules:
+        parts.append(base_rules)
+
+    examples: list[str] = []
+    if own:
+        instructions = generator.generate_catalog_instructions()
+        if instructions:
+            parts.append(instructions)
+        all_examples = generator.generate_examples()
+        if all_examples:
+            examples.append(all_examples)
+    else:
+        for catalog in targets:
+            instructions = generator.generate_catalog_instructions(catalog=catalog)
+            if instructions:
+                parts.append(instructions)
+            catalog_examples = generator.generate_examples(catalog=catalog)
+            if catalog_examples and catalog_examples not in examples:
+                examples.append(catalog_examples)
+    if examples:
+        parts.append(EXAMPLES_HEADING + "\n\n".join(examples))
+
+    text = "\n\n".join(parts)
+    if own:
+        try:
+            _cache[generator] = text
+        except TypeError:
+            pass
+    return text
+
+
+def _same_catalogs(a: Sequence[CatalogApi], b: Sequence[CatalogApi]) -> bool:
+    """Whether two catalog sequences hold the same catalog objects in order."""
+    return len(a) == len(b) and all(x is y for x, y in zip(a, b))

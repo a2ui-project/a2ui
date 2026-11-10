@@ -30,7 +30,8 @@ from a2a.utils import (
 )
 from a2a.utils.errors import ServerError
 from a2ui.a2a import try_activate_a2ui_extension
-from a2ui.core.schema.constants import VERSION_0_8
+from a2ui.core.schema import ProtocolVersion
+from a2ui.utils import to_version_number
 from agent import ContactAgent
 
 
@@ -55,12 +56,12 @@ class ContactAgentExecutor(AgentExecutor):
         #     context, self._agent.agent_card
         # )
         # Hardcoded for now to test the UI flow.
-        active_ui_version = VERSION_0_8
+        active_ui_version = ProtocolVersion.V0_8
 
         if active_ui_version:
             print(
                 "--- AGENT_EXECUTOR: A2UI extension is active"
-                f" (v{active_ui_version}). Using UI runner. ---"
+                f" (v{to_version_number(active_ui_version)}). Using UI runner. ---"
             )
         else:
             print(

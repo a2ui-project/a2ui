@@ -26,13 +26,14 @@
         <a2ui>
         Text(
       expect:
-        - text: "Here is the UI:\n"
+        - text: "Here is the UI:"
+      expect_in_block: true
     - input: |
         "First")
         Text(
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               createSurface:
                 surfaceId: "default_surface"
                 catalogId: "conformance/simplified"
@@ -40,13 +41,14 @@
                   - id: "root"
                     component: "Text"
                     text: "First"
+      expect_in_block: true
     - input: |
         "Second")
         </a2ui>
         Done!
       expect:
         - a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               createSurface:
                 surfaceId: "default_surface_1"
                 catalogId: "conformance/simplified"
@@ -54,4 +56,19 @@
                   - id: "root"
                     component: "Text"
                     text: "Second"
-        - text: "\nDone!\n"
+        - text: "Done!"
+      expect_in_block: false
+  expect_close: []
+
+- name: test_chunk_vertical_unclosed_block_raises_on_close
+  description: Closing a stream while an <a2ui> block is still open raises ParseError.
+  action: parse_chunk
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  steps:
+    - input: "<a2ui>\nText(\"Hello"
+      expect: []
+      expect_in_block: true
+  expect_error:
+    category: "ParseError"

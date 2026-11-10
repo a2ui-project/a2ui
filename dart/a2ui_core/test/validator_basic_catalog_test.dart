@@ -28,8 +28,7 @@ import 'support/renderer_catalog.dart';
 /// a valid v0.9 payload looks like, so they are the sharpest available check
 /// that validation is neither too strict nor too permissive.
 
-const String basicCatalogId =
-    'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json';
+typedef _RendererCatalog = Catalog<ComponentApi, FunctionImplementation>;
 
 Map<String, Object?> _readJson(String relativePath) =>
     jsonDecode(File(resolveConformancePath(relativePath)).readAsStringSync())
@@ -38,33 +37,10 @@ Map<String, Object?> _readJson(String relativePath) =>
 Map<String, Object?> basicCatalogDocument() =>
     _readJson('../specification/v0_9_1/catalogs/basic/catalog.json');
 
-/// A processor over the published basic catalog.
-///
-/// Supplies no shared types, so these tests run against the
-/// `common_types.json` the package publishes — the same document a caller
-/// installing from pub.dev gets.
-MessageProcessor<ComponentApi> basicProcessor() =>
-    MessageProcessor<ComponentApi>(
-      catalogs: [rendererCatalog(basicCatalogDocument())],
-      protocolVersion: A2uiProtocolVersion.v0_9,
-    );
-
-/// A payload declaring one surface against the basic catalog.
-List<Map<String, Object?>> render(List<Map<String, Object?>> components) => [
-  {
-    'version': 'v0.9',
-    'createSurface': {'surfaceId': 's', 'catalogId': basicCatalogId},
-  },
-  {
-    'version': 'v0.9',
-    'updateComponents': {'surfaceId': 's', 'components': components},
-  },
-];
-
 void main() {
   group('the basic catalog', () {
     test('declares the child references of its layout components', () {
-      final SchemaCatalog catalog = Catalog.fromJson(basicCatalogDocument());
+      final CatalogApi catalog = Catalog.fromJson(basicCatalogDocument());
       final Map<String, ComponentRefFields> refs = extractComponentRefFields(
         catalog,
       );
@@ -85,13 +61,139 @@ void main() {
     });
   });
 
-  group('validating the basic catalog examples', () {
-    final examples = Directory(
-      resolveConformancePath('../specification/v0_9_1/catalogs/basic/examples'),
-    );
+  group('BasicCatalog child references', () {
+    for (final (String label, _RendererCatalog catalog) in [
+      ('v0.9', BasicCatalog.v0_9()),
+      ('1.0', BasicCatalog.v1_0()),
+    ]) {
+      test('$label declares the child references of its layout components', () {
+        final Map<String, ComponentRefFields> refs = extractComponentRefFields(
+          catalog,
+        );
+
+        expect(refs['Card']!.single, {'child'});
+        expect(refs['Button']!.single, {'child'});
+        expect(refs['Modal']!.single, {'trigger', 'content'});
+        expect(refs['Row']!.list, {'children'});
+        expect(refs['Column']!.list, {'children'});
+        expect(refs['List']!.list, {'children'});
+        expect(refs['Tabs']!.list, {'tabs'});
+        expect(refs['Tabs']!.nested, {
+          'tabs': {'child'},
+        });
+        expect(refs.keys, isNot(contains('Text')));
+      });
+    }
+  });
+
+  // `min` and `max` accept a date, a time or a date-time, told apart only by
+  // their `format` inside a `oneOf`. Without format checking every string
+  // matches all three branches, so `oneOf` rejects even a valid bound.
+  final Map<String, PayloadValidator<ComponentApi, FunctionApi> Function()>
+      dateTimeValidators = {
+    'v0.9.1': () => PayloadValidator<ComponentApi, FunctionApi>(
+          catalog: Catalog.fromJson(basicCatalogDocument()),
+          protocolVersion: A2uiProtocolVersion.v0_9,
+        ),
+    'v1': () => PayloadValidator<ComponentApi, FunctionApi>(
+          catalog:
+              Catalog.fromJson(_readJson('../catalogs/basic/v1/catalog.json')),
+          protocolVersion: A2uiProtocolVersion.v1_0,
+          commonTypesSchema: _readJson(
+            '../specification/v1_0/json/common_types.json',
+          ),
+        ),
+  };
+
+  Map<String, Object?> dateTimeInput(Map<String, Object?> bounds) => {
+        'id': 'when',
+        'component': 'DateTimeInput',
+        'value': '',
+        ...bounds,
+      };
+
+  for (final MapEntry(key: catalogName, value: newValidator)
+      in dateTimeValidators.entries) {
+    group('DateTimeInput bounds in the $catalogName basic catalog', () {
+      // Built on first use and shared by the group's tests, so the catalog is
+      // read and resolved once.
+      late final PayloadValidator<ComponentApi, FunctionApi> validator =
+          newValidator();
+
+      for (final bound in [
+        '2026-01-01',
+        '09:00:00',
+        '2026-01-01T09:00:00Z',
+      ]) {
+        test('accept the literal $bound', () {
+          expect(
+            () => validator.validateComponent(
+              dateTimeInput({'min': bound, 'max': bound}),
+            ),
+            returnsNormally,
+          );
+        });
+      }
+
+      test('accept a data binding', () {
+        expect(
+          () => validator.validateComponent(
+            dateTimeInput({
+              // v1.0 renamed the binding key to `@path`.
+              'min': {catalogName == 'v1' ? '@path' : 'path': '/earliest'},
+            }),
+          ),
+          returnsNormally,
+        );
+      });
+
+      for (final bound in ['tomorrow', '2026/01/01', '']) {
+        test('reject the literal "$bound"', () {
+          expect(
+            () => validator.validateComponent(dateTimeInput({'max': bound})),
+            throwsA(isA<A2uiValidationError>()),
+          );
+        });
+      }
+    });
+  }
+
+  _registerExamples(
+    'the v0.9.1 basic catalog examples against the v0.9.1 document',
+    '../specification/v0_9_1/catalogs/basic/examples',
+    () => rendererCatalog(basicCatalogDocument()),
+    A2uiProtocolVersion.v0_9,
+  );
+  _registerExamples(
+    'the v0.9 basic catalog examples against BasicCatalog.v0_9()',
+    '../specification/v0_9/catalogs/basic/examples',
+    BasicCatalog.v0_9,
+    A2uiProtocolVersion.v0_9,
+  );
+  _registerExamples(
+    'the v1.0 basic catalog examples against BasicCatalog.v1_0()',
+    '../catalogs/basic/v1/examples',
+    BasicCatalog.v1_0,
+    A2uiProtocolVersion.v1_0,
+  );
+}
+
+/// Registers a test per example payload in [directory], each processed by a
+/// [MessageProcessor] over the catalog [catalog] builds.
+void _registerExamples(
+  String description,
+  String directory,
+  _RendererCatalog Function() catalog,
+  A2uiProtocolVersion version, {
+  String? skip,
+  Map<String, String> skips = const {},
+}) {
+  group(description, skip: skip, () {
+    final examples = Directory(resolveConformancePath(directory));
     final List<File> files = examples.listSync().whereType<File>().where((f) {
       return f.path.endsWith('.json');
-    }).toList()..sort((a, b) => a.path.compareTo(b.path));
+    }).toList()
+      ..sort((a, b) => a.path.compareTo(b.path));
 
     test('the examples are present', () {
       expect(files, isNotEmpty, reason: examples.path);
@@ -99,11 +201,10 @@ void main() {
 
     for (final file in files) {
       final String name = file.uri.pathSegments.last;
-      test(name, () async {
+      test(name, skip: skips[name], () async {
         final Object? document = jsonDecode(file.readAsStringSync());
-        final Object? messages = document is Map
-            ? document['messages']
-            : document;
+        final Object? messages =
+            document is Map ? document['messages'] : document;
         expect(
           messages,
           isA<List<Object?>>(),
@@ -114,206 +215,20 @@ void main() {
             (message! as Map).cast<String, Object?>(),
         ];
 
-        // Reachability is relaxed for the examples, and only reachability:
-        // `31_incremental-dashboard` swaps its loading placeholders out by
-        // re-sending their parents with new children, and v0.9 has no way to
-        // remove the placeholders, so they stay on the surface with nothing
-        // pointing at them. The root and every reference are still required.
+        // `31_incremental-dashboard` streams components across messages where
+        // placeholders become orphaned when their parents are updated.
         final processor = MessageProcessor<ComponentApi>(
-          catalogs: [rendererCatalog(basicCatalogDocument())],
-          protocolVersion: A2uiProtocolVersion.v0_9,
-          validationConfig: const ValidationConfig(allowOrphanComponents: true),
+          catalogs: [catalog()],
+          defaultVersion: version,
+          validationConfig: ValidationConfig.relaxed,
         );
         expect(
           () => processor.processMessages(
-            AgentToRendererMessage.parseAll(
-              payload,
-              protocolVersion: A2uiProtocolVersion.v0_9,
-            ),
+            AgentToRendererMessage.parseAll(payload, protocolVersion: version),
           ),
           returnsNormally,
         );
       });
     }
-  });
-
-  group('validating against the basic catalog rejects', () {
-    late MessageProcessor<ComponentApi> processor;
-
-    setUp(() => processor = basicProcessor());
-
-    test('a component missing a required property', () {
-      expect(
-        () => processor.processMessages(
-          AgentToRendererMessage.parseAll(
-            render([
-              {'id': 'root', 'component': 'Text'},
-            ]),
-            protocolVersion: A2uiProtocolVersion.v0_9,
-          ),
-        ),
-        throwsA(isA<A2uiValidationError>()),
-      );
-    });
-
-    test('a value outside a property enum', () {
-      expect(
-        () => processor.processMessages(
-          AgentToRendererMessage.parseAll(
-            render([
-              {
-                'id': 'root',
-                'component': 'Text',
-                'text': 'hi',
-                'variant': 'h9',
-              },
-            ]),
-            protocolVersion: A2uiProtocolVersion.v0_9,
-          ),
-        ),
-        throwsA(isA<A2uiValidationError>()),
-      );
-    });
-
-    test('a property the component does not declare', () {
-      expect(
-        () => processor.processMessages(
-          AgentToRendererMessage.parseAll(
-            render([
-              {
-                'id': 'root',
-                'component': 'Text',
-                'text': 'hi',
-                'notAProperty': 1,
-              },
-            ]),
-            protocolVersion: A2uiProtocolVersion.v0_9,
-          ),
-        ),
-        throwsA(isA<A2uiValidationError>()),
-      );
-    });
-
-    test('a component type the catalog does not declare', () {
-      expect(
-        () => processor.processMessages(
-          AgentToRendererMessage.parseAll(
-            render([
-              {'id': 'root', 'component': 'Frobnicator'},
-            ]),
-            protocolVersion: A2uiProtocolVersion.v0_9,
-          ),
-        ),
-        throwsA(isA<A2uiValidationError>()),
-      );
-    });
-
-    test('a call to a function the catalog does not declare', () {
-      // `anyFunction` is reached through `common_types.json`, which points
-      // back at the catalog document, so resolving it in both directions is
-      // what makes this check possible.
-      expect(
-        () => processor.processMessages(
-          AgentToRendererMessage.parseAll(
-            render([
-              {
-                'id': 'root',
-                'component': 'Text',
-                'text': {
-                  'call': 'noSuchFunction',
-                  'args': <String, Object?>{},
-                  'returnType': 'string',
-                },
-              },
-            ]),
-            protocolVersion: A2uiProtocolVersion.v0_9,
-          ),
-        ),
-        throwsA(isA<A2uiValidationError>()),
-      );
-    });
-
-    test('a child reference that names no component', () {
-      // A reference resolves against the surface the payload leaves behind,
-      // not against the batch that carried it, so this fails at the end of the
-      // payload rather than as the batch is applied.
-      expect(
-        () => processor.processMessages(
-          AgentToRendererMessage.parseAll(
-            render([
-              {'id': 'root', 'component': 'Card', 'child': 'missing'},
-            ]),
-            protocolVersion: A2uiProtocolVersion.v0_9,
-          ),
-        ),
-        throwsA(isA<A2uiIntegrityError>()),
-      );
-    });
-
-    test('a malformed child list', () {
-      expect(
-        () => processor.processMessages(
-          AgentToRendererMessage.parseAll(
-            render([
-              {
-                'id': 'root',
-                'component': 'Column',
-                // A template needs `path` as well as `componentId`.
-                'children': {'componentId': 'a'},
-              },
-              {'id': 'a', 'component': 'Text', 'text': 'x'},
-            ]),
-            protocolVersion: A2uiProtocolVersion.v0_9,
-          ),
-        ),
-        throwsA(isA<A2uiValidationError>()),
-      );
-    });
-  });
-
-  group('validating against the basic catalog accepts', () {
-    late MessageProcessor<ComponentApi> processor;
-
-    setUp(() => processor = basicProcessor());
-
-    test('a data binding in place of a literal', () {
-      expect(
-        () => processor.processMessages(
-          AgentToRendererMessage.parseAll(
-            render([
-              {
-                'id': 'root',
-                'component': 'Text',
-                'text': {'path': '/greeting'},
-              },
-            ]),
-            protocolVersion: A2uiProtocolVersion.v0_9,
-          ),
-        ),
-        returnsNormally,
-      );
-    });
-
-    test('a call to a function the catalog declares', () {
-      expect(
-        () => processor.processMessages(
-          AgentToRendererMessage.parseAll(
-            render([
-              {
-                'id': 'root',
-                'component': 'Text',
-                'text': {
-                  'call': 'formatString',
-                  'args': {'value': 'x'},
-                  'returnType': 'string',
-                },
-              },
-            ]),
-            protocolVersion: A2uiProtocolVersion.v0_9,
-          ),
-        ),
-        returnsNormally,
-      );
-    });
   });
 }

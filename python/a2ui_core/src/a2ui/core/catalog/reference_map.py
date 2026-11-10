@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import types
 from typing import (
+    Annotated,
     Any,
     Final,
     Iterator,
@@ -107,7 +108,23 @@ def extract_child_refs_from_val(val: Any) -> Iterator[tuple[str, str]]:
                     yield ref_id, f"{sub_k}{'.' + sub_path if sub_path else ''}"
 
 
+def _unwrap_type(typ: Any) -> Any:
+    """Returns the type a named alias or `Annotated` type stands for.
+
+    For example `Child`, a `TypeAliasType`, stands for `SingleReference`, and
+    `Annotated[list[X], Field(min_length=1)]` for `list[X]`.
+    """
+    while True:
+        if type(typ).__name__ == "TypeAliasType":
+            typ = typ.__value__
+        elif get_origin(typ) is Annotated:
+            typ = get_args(typ)[0]
+        else:
+            return typ
+
+
 def _is_pydantic_single_ref(typ: Any) -> bool:
+    typ = _unwrap_type(typ)
     if typ is None:
         return False
     if isinstance(typ, type) and issubclass(typ, SingleReference):
@@ -119,6 +136,7 @@ def _is_pydantic_single_ref(typ: Any) -> bool:
 
 
 def _is_pydantic_list_ref(typ: Any) -> tuple[bool, set[str]]:
+    typ = _unwrap_type(typ)
     if typ is None:
         return False, set()
     if isinstance(typ, type) and issubclass(typ, (ListReference, TemplateChildList)):
@@ -127,7 +145,7 @@ def _is_pydantic_list_ref(typ: Any) -> tuple[bool, set[str]]:
     if origin is list:
         args = get_args(typ)
         if args:
-            elem = args[0]
+            elem = _unwrap_type(args[0])
             if isinstance(elem, type):
                 if issubclass(elem, SingleReference):
                     return True, set()
@@ -424,6 +442,14 @@ def analyze_child_ref_schema(
                         ):
                             items = target_schema.get("items")
                             if isinstance(items, dict):
+                                # An array of ComponentId (or ChildList) refs
+                                # declared directly. Check before resolving, which
+                                # would replace the ref with its plain string type.
+                                if _is_single_child_json_schema(
+                                    items
+                                ) or _is_child_list_json_schema(items):
+                                    list_refs.add(prop_name)
+                                    continue
                                 if "$ref" in items:
                                     resolved_items = _resolve_schema_ref(
                                         items["$ref"], schema, catalog_schema
@@ -462,7 +488,7 @@ def build_component_ref_map(catalog: Any) -> dict[str, ComponentRefSpec]:
     if not catalog or not hasattr(catalog, "components"):
         return ref_map
 
-    catalog_schema = getattr(catalog, "catalog_schema", None) or getattr(
+    catalog_schema = getattr(catalog, "validation_schema", None) or getattr(
         catalog, "schema", None
     )
     comps = catalog.components
@@ -471,6 +497,13 @@ def build_component_ref_map(catalog: Any) -> dict[str, ComponentRefSpec]:
         name = getattr(comp, "name", None)
         if not name:
             continue
-        target = getattr(comp, "model_class", None) or getattr(comp, "schema", None)
+        target = getattr(comp, "model_class", None)
+        if target is None:
+            # A catalog keeps authored schemas as written; resolve their
+            # references to the catalog's own `$defs` before analyzing them.
+            resolve = getattr(catalog, "resolved_component_schema", None)
+            target = (
+                resolve(name) if callable(resolve) else getattr(comp, "schema", None)
+            )
         ref_map[name] = analyze_child_ref_schema(target, catalog_schema=catalog_schema)
     return ref_map

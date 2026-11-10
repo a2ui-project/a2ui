@@ -14,191 +14,685 @@
 
 import A2UICore
 import A2UIJSON
+import BasicCatalog
 import Foundation
 import JSONSchema
+import OrderedCollections
 import OrderedJSON
 import Testing
 
+private final class ValidatorErrorCaptureHandler: ActionHandling, @unchecked Sendable {
+  var capturedErrors: [RendererError] = []
+
+  func handle(action: ResolvedAction, from surfaceID: String) {}
+
+  func handle(error: RendererError, from surfaceID: String) {
+    capturedErrors.append(error)
+  }
+}
+
+@MainActor
 struct ValidatorConformanceTests {
-  /// Cases that `A2UIValidator` can't pass, keyed by case name.
-  ///
-  /// `A2UIValidator` checks one payload at a time without surface state, and it merges the
-  /// components of every message in the payload into one graph with a single `root`.
-  private static let skippedCases: [String: String] = [
-    "test_v09_topology_circular_reference_error":
-      "cycles are reported as 'Circular reference detected', not 'Circular component reference'",
-    "test_v09_topology_dangling_child_reference_error":
-      "dangling references are reported as 'references non-existent component'",
-    "test_v09_unknown_component_type":
-      "component types that the catalog doesn't define are not rejected",
-    "test_v09_unknown_nested_function":
-      "function names are not checked against the catalog",
-    "test_v09_multi_surface_independent_roots":
-      "components of different surfaces are merged into one graph",
-    "test_v09_multi_surface_missing_root_error":
-      "components of different surfaces are merged into one graph",
-    "test_v09_incremental_update_without_root":
-      "a later update of the same component in one payload is reported as a duplicate ID",
-    "test_v09_incremental_update_self_reference_error":
-      "a later update of the same component in one payload is reported as a duplicate ID",
-    "test_v09_incremental_update_circular_reference_error":
-      "a later update of the same component in one payload is reported as a duplicate ID",
-    "test_v09_incremental_update_duplicate_component_id_error":
-      "a later update of the same component in one payload is reported as a duplicate ID",
+  private static let knownCaseKeys: Set<String> = [
+    "action",
+    "catalog",
+    "catalogPaths",
+    "expect",
+    "expectError",
+    "messages",
+    "payload",
+    "protocolVersion",
+    "steps",
+    "strictMode",
+    "validationConfig",
   ]
 
-  /// Steps that `A2UIValidator` can't pass, keyed by case name, as zero-based step indexes.
-  private static let skippedSteps: [String: Set<Int>] = [
-    // Steps 1 and 2: schema errors are reported at path "" instead of the property path.
-    // Step 3: a missing required property is reported with code `invalid_value` instead of
-    // `missing_field`. Step 4: an undefined component type is not rejected.
-    "test_custom_catalog_0_9": [1, 2, 3, 4]
+  private static let knownStepKeys: Set<String> = [
+    "expect",
+    "expectError",
+    "messages",
+    "payload",
   ]
 
-  @Test func validatorConformance() throws {
-    let rawYAML = try ConformanceTestHelper.loadYAML(filename: "core/validator_v0_9.yaml")
-    let testCases = ConformanceTestHelper.parseTestCases(from: rawYAML)
-    #expect(!testCases.isEmpty, "core/validator_v0_9.yaml should hold test cases")
+  private static let knownExpectErrorKeys: Set<String> = [
+    "category",
+    "code",
+    "details",
+    "functionCallId",
+    "message",
+    "path",
+    "rendererError",
+    "surfaceId",
+  ]
 
-    var executedSteps = 0
+  @Test(arguments: ConformanceTestHelper.cases("core/validator_v0_9.yaml"))
+  func validatorConformance(_ conformanceCase: ConformanceCase) throws {
+    try ConformanceManifest.run(conformanceCase) {
+      try runSingleValidatorCase(conformanceCase, versionPrefix: "v0.9")
+    }
+  }
 
-    for testCase in testCases {
-      guard testCase.action == "validate",
-        testCase.protocolVersion?.hasPrefix("v0.9") == true,
-        Self.skippedCases[testCase.name] == nil
-      else {
-        continue
-      }
+  @Test(arguments: ConformanceTestHelper.cases("core/validator_v1_0.yaml"))
+  func validatorV10Conformance(_ conformanceCase: ConformanceCase) throws {
+    try ConformanceManifest.run(conformanceCase) {
+      try runSingleValidatorCase(conformanceCase, versionPrefix: "1.0")
+    }
+  }
 
-      let validator = A2UIValidator(
-        catalogs: try ConformanceTestHelper.buildCatalogs(for: testCase),
-        config: testCase.strictMode ? .strict : .relaxed
+  @Test(arguments: ConformanceTestHelper.cases("core/error_responses.yaml"))
+  func errorResponsesConformance(_ conformanceCase: ConformanceCase) throws {
+    try ConformanceManifest.run(conformanceCase) {
+      try runSingleValidatorCase(conformanceCase, versionPrefix: nil)
+    }
+  }
+
+  private func runSingleValidatorCase(
+    _ conformanceCase: ConformanceCase,
+    versionPrefix: String?
+  ) throws {
+    try validateCaseStructure(conformanceCase)
+    let testCase = try #require(
+      conformanceCase.parsedTestCase(),
+      "[\(conformanceCase.name)] Could not parse validator case"
+    )
+    guard testCase.action == "validate" else {
+      throw UnknownConformanceKeyError(
+        "[\(conformanceCase.name)] Unknown validator action '\(testCase.action ?? "")'"
       )
-      let skippedStepIndexes = Self.skippedSteps[testCase.name] ?? []
+    }
+    let targetVersion = resolveTargetVersion(for: testCase, versionPrefix: versionPrefix)
+    let config =
+      testCase.validationConfig.flatMap {
+        ConformanceTestHelper.validationConfig(from: $0, targetVersion: targetVersion)
+      }
+      ?? makeValidationConfig(
+        strictMode: testCase.strictMode,
+        targetVersion: targetVersion
+      )
+    let catalogs = try buildCatalogsWithAliases(for: testCase)
+    let handler = ValidatorErrorCaptureHandler()
+    let processor = MessageProcessor(
+      catalogs: catalogs,
+      actionHandler: handler,
+      validationConfig: config
+    )
 
-      for (stepIndex, step) in testCase.steps.enumerated() {
-        guard let payload = step.payload, !skippedStepIndexes.contains(stepIndex) else {
-          continue
-        }
-        executedSteps += 1
+    _ = try executeValidationSteps(
+      for: testCase,
+      processor: processor,
+      handler: handler
+    )
+  }
 
-        if let expectedError = step.expectError {
-          var caughtError: Error?
-          do {
-            try validator.validate(payload: payload)
-          } catch {
-            caughtError = error
-          }
-
-          let error = try #require(
-            caughtError,
-            "Expected failure for '\(testCase.name)' at step \(stepIndex)"
+  private func validateCaseStructure(_ conformanceCase: ConformanceCase) throws {
+    let rawDict = conformanceCase.rawDictionary
+    try ConformanceTestHelper.assertKnownKeys(
+      rawDict,
+      Self.knownCaseKeys,
+      "\(conformanceCase.suite) case '\(conformanceCase.name)'"
+    )
+    if let errDict = rawDict["expectError"] as? [String: Any] {
+      try ConformanceTestHelper.assertKnownKeys(
+        errDict,
+        Self.knownExpectErrorKeys,
+        "\(conformanceCase.suite) expectError in '\(conformanceCase.name)'",
+        allowMetadata: false
+      )
+    }
+    if let steps = rawDict["steps"] as? [[String: Any]] {
+      for step in steps {
+        try ConformanceTestHelper.assertKnownKeys(
+          step,
+          Self.knownStepKeys,
+          "\(conformanceCase.suite) step in '\(conformanceCase.name)'",
+          allowMetadata: false
+        )
+        if let stepErr = step["expectError"] as? [String: Any] {
+          try ConformanceTestHelper.assertKnownKeys(
+            stepErr,
+            Self.knownExpectErrorKeys,
+            "\(conformanceCase.suite) step.expectError in '\(conformanceCase.name)'",
+            allowMetadata: false
           )
-
-          assertErrorMatches(error: error, expected: expectedError, testName: testCase.name)
-        } else {
-          do {
-            try validator.validate(payload: payload)
-          } catch {
-            Issue.record(
-              """
-              Expected payload to validate cleanly for '\(testCase.name)' \
-              at step \(stepIndex), but caught: \(error)
-              """
-            )
-          }
         }
       }
     }
+  }
 
-    #expect(executedSteps > 0, "no step of core/validator_v0_9.yaml was executed")
+  private func resolveTargetVersion(
+    for testCase: ConformanceTestCase,
+    versionPrefix: String?
+  ) -> String {
+    if let explicit = testCase.protocolVersion {
+      return (explicit.hasPrefix("v1.0") || explicit.hasPrefix("1.0")) ? "1.0" : explicit
+    }
+    return (versionPrefix == "v1.0" || versionPrefix == "1.0") ? "1.0" : "v0.9.1"
+  }
+
+  private func makeValidationConfig(strictMode: Bool, targetVersion: String) -> ValidationConfig {
+    if strictMode {
+      return ValidationConfig(
+        allowOrphanComponents: false,
+        allowDanglingReferences: false,
+        allowMissingRoot: false,
+        targetVersion: targetVersion
+      )
+    }
+    return ValidationConfig(
+      allowOrphanComponents: true,
+      allowDanglingReferences: true,
+      allowMissingRoot: true,
+      targetVersion: targetVersion
+    )
+  }
+
+  private func executeValidationSteps(
+    for testCase: ConformanceTestCase,
+    processor: MessageProcessor,
+    handler: ValidatorErrorCaptureHandler,
+    verifyExpectedSurfaces: Bool = false
+  ) throws -> Int {
+    var executed = 0
+    let lastStepIndex = testCase.steps.count - 1
+    for (stepIndex, step) in testCase.steps.enumerated() {
+      guard let payload = step.payload else { continue }
+      executed += 1
+      clearRecreatedSurfaces(in: payload, on: processor)
+      handler.capturedErrors.removeAll()
+
+      // A step's own expectError applies to that step; the case's applies to
+      // the last step only, as in the Dart and TypeScript harnesses.
+      let caseError = stepIndex == lastStepIndex ? testCase.expectError : nil
+      if let expectedError = step.expectError ?? caseError {
+        let error = try expectValidationFailure(
+          payload: payload,
+          processor: processor,
+          testName: testCase.name,
+          stepIndex: stepIndex
+        )
+        try assertErrorMatches(
+          error: error,
+          capturedRendererError: handler.capturedErrors.last,
+          expected: expectedError,
+          testName: testCase.name
+        )
+      } else {
+        try expectValidationSuccess(
+          payload: payload,
+          processor: processor,
+          testCase: testCase,
+          step: step,
+          stepIndex: stepIndex,
+          verifyExpectedSurfaces: verifyExpectedSurfaces
+        )
+      }
+    }
+    return executed
+  }
+
+  private func expectValidationFailure(
+    payload: JSONValue,
+    processor: MessageProcessor,
+    testName: String,
+    stepIndex: Int
+  ) throws -> Error {
+    var caughtError: Error?
+    do {
+      try processor.processMessages(payload)
+    } catch {
+      caughtError = error
+    }
+    return try #require(
+      caughtError,
+      "Expected failure for '\(testName)' at step \(stepIndex)"
+    )
+  }
+
+  private func expectValidationSuccess(
+    payload: JSONValue,
+    processor: MessageProcessor,
+    testCase: ConformanceTestCase,
+    step: ConformanceStep,
+    stepIndex: Int,
+    verifyExpectedSurfaces: Bool
+  ) throws {
+    do {
+      try processor.processMessages(payload)
+    } catch {
+      Issue.record(
+        """
+        Expected payload to validate cleanly for '\(testCase.name)' \
+        at step \(stepIndex), but caught: \(error)
+        """
+      )
+      return
+    }
+    // The case's expect applies to the last step only, like its expectError.
+    let caseExpect = stepIndex == testCase.steps.count - 1 ? testCase.expect : nil
+    if verifyExpectedSurfaces,
+      let expectedSurfaces = (step.expect ?? caseExpect)?["surfaces"]?.objectValue
+    {
+      try assertReservedKeysSurfaces(
+        expectedSurfaces: OrderedDictionary(
+          uniqueKeysWithValues: expectedSurfaces.map { ($0.key, $0.value) }
+        ),
+        processor: processor,
+        testName: testCase.name
+      )
+    }
+  }
+
+  private func buildCatalogsWithAliases(for testCase: ConformanceTestCase) throws -> [AnyCatalog] {
+    var catalogs = try ConformanceTestHelper.buildCatalogs(for: testCase)
+    let expectsCatalogError =
+      testCase.expectError?.category == "CatalogError"
+      || testCase.steps.contains { $0.expectError?.category == "CatalogError" }
+    guard !expectsCatalogError, catalogs.count == 1, let soleCatalog = catalogs.first else {
+      return catalogs
+    }
+
+    let referencedCatalogIDs = collectReferencedCatalogIDs(
+      in: testCase.steps,
+      excluding: soleCatalog.id
+    )
+    for aliasID in referencedCatalogIDs.sorted() {
+      catalogs.append(
+        Catalog(
+          id: aliasID,
+          protocolVersion: soleCatalog.protocolVersion,
+          components: Array(soleCatalog.components.values),
+          functions: Array(soleCatalog.functions.values),
+          themeSchema: soleCatalog.themeSchema
+        ).eraseToAnyCatalog()
+      )
+    }
+    return catalogs
+  }
+
+  private func collectReferencedCatalogIDs(
+    in steps: [ConformanceStep],
+    excluding defaultID: String
+  ) -> Set<String> {
+    var referenced: Set<String> = []
+    for step in steps {
+      guard let payload = step.payload else { continue }
+      let messages = payload.arrayValue ?? [payload]
+      for message in messages {
+        if let catalogID = message.objectValue?["createSurface"]?.objectValue?["catalogId"]?
+          .stringValue,
+          !catalogID.isEmpty,
+          catalogID != defaultID
+        {
+          referenced.insert(catalogID)
+        }
+      }
+    }
+    return referenced
+  }
+
+  private func clearRecreatedSurfaces(in payload: JSONValue, on processor: MessageProcessor) {
+    let messages = payload.arrayValue ?? [payload]
+    var createdInPayload: [String: Int] = [:]
+    for message in messages {
+      if let surfaceID = message.objectValue?["createSurface"]?.objectValue?["surfaceId"]?
+        .stringValue
+      {
+        createdInPayload[surfaceID, default: 0] += 1
+      }
+    }
+    for (surfaceID, count) in createdInPayload
+    where count == 1 && processor.surfaceGroupModel[surfaceID] != nil {
+      processor.surfaceGroupModel.removeSurface(id: surfaceID)
+    }
+  }
+
+  @Test(arguments: ConformanceTestHelper.cases("core/composition_constraints.yaml"))
+  func compositionConstraintsConformance(_ conformanceCase: ConformanceCase) throws {
+    try ConformanceManifest.run(conformanceCase) {
+      try runSingleCompositionCase(conformanceCase)
+    }
+  }
+
+  private func runSingleCompositionCase(_ conformanceCase: ConformanceCase) throws {
+    try validateCaseStructure(conformanceCase)
+    let testCase = try #require(
+      conformanceCase.parsedTestCase(),
+      "[\(conformanceCase.name)] Could not parse composition case"
+    )
+    guard testCase.action == "process_messages" || testCase.action == "validate" else {
+      throw UnknownConformanceKeyError(
+        "[\(conformanceCase.name)] Unknown composition action '\(testCase.action ?? "")'"
+      )
+    }
+    let catalogs = buildCompositionCatalogs(for: testCase)
+    let handler = ValidatorErrorCaptureHandler()
+    let validationConfig: ValidationConfig
+    if let flags = testCase.validationConfig {
+      guard
+        let config = ConformanceTestHelper.validationConfig(
+          from: flags,
+          targetVersion: "1.0"
+        )
+      else {
+        throw UnknownConformanceKeyError(
+          "[\(testCase.name)] Missing or unknown validationConfig flags \(flags.keys.sorted())"
+        )
+      }
+      validationConfig = config
+    } else {
+      validationConfig = ValidationConfig(targetVersion: "1.0")
+    }
+    let processor = MessageProcessor(
+      catalogs: catalogs,
+      actionHandler: handler,
+      validationConfig: validationConfig
+    )
+
+    _ = try executeValidationSteps(
+      for: testCase,
+      processor: processor,
+      handler: handler
+    )
+  }
+
+  private func buildCompositionCatalogs(for testCase: ConformanceTestCase) -> [AnyCatalog] {
+    let v10Catalog = BasicCatalog.makeCatalog(version: .v10)
+    var catalogs: [AnyCatalog] = [v10Catalog]
+    for aliasId in ["basic", "test-catalog", "https://a2ui.org/basic-catalog"] {
+      catalogs.append(
+        Catalog(
+          id: aliasId,
+          protocolVersion: v10Catalog.protocolVersion,
+          components: Array(v10Catalog.components.values),
+          functions: Array(v10Catalog.functions.values)
+        ).eraseToAnyCatalog()
+      )
+    }
+    if let customCatalog = ConformanceTestHelper.buildCatalog(from: testCase.catalogConfiguration) {
+      catalogs.append(customCatalog)
+    }
+    return catalogs
+  }
+
+  @Test(arguments: ConformanceTestHelper.cases("core/reserved_keys.yaml"))
+  func reservedKeysConformance(_ conformanceCase: ConformanceCase) throws {
+    try ConformanceManifest.run(conformanceCase) {
+      try runSingleReservedKeysCase(conformanceCase)
+    }
+  }
+
+  private func runSingleReservedKeysCase(_ conformanceCase: ConformanceCase) throws {
+    try validateCaseStructure(conformanceCase)
+    let testCase = try #require(
+      conformanceCase.parsedTestCase(),
+      "[\(conformanceCase.name)] Could not parse reserved_keys case"
+    )
+    guard testCase.action == "process_messages" || testCase.action == "validate" else {
+      throw UnknownConformanceKeyError(
+        "[\(conformanceCase.name)] Unknown reserved_keys action '\(testCase.action ?? "")'"
+      )
+    }
+    let catalogs = try buildCatalogsWithAliases(for: testCase)
+    let handler = ValidatorErrorCaptureHandler()
+    let processor = MessageProcessor(
+      catalogs: catalogs,
+      actionHandler: handler,
+      validationConfig: ValidationConfig(targetVersion: "1.0")
+    )
+
+    let executed = try executeValidationSteps(
+      for: testCase,
+      processor: processor,
+      handler: handler,
+      verifyExpectedSurfaces: true
+    )
+    #expect(executed > 0, "[\(testCase.name)] Expected at least one step to execute")
+  }
+
+  private func assertReservedKeysSurfaces(
+    expectedSurfaces: OrderedDictionary<String, JSONValue>,
+    processor: MessageProcessor,
+    testName: String
+  ) throws {
+    for (surfaceID, expectedSurface) in expectedSurfaces {
+      let surface = try #require(
+        processor.surfaceGroupModel[surfaceID],
+        "[\(testName)] Expected surface '\(surfaceID)' to exist"
+      )
+      guard let expectedComps = expectedSurface["components"]?.arrayValue else { continue }
+      for expectedComp in expectedComps {
+        try assertReservedKeysComponent(expectedComp, on: surface, testName: testName)
+      }
+    }
+  }
+
+  private func assertReservedKeysComponent(
+    _ expectedComp: JSONValue,
+    on surface: SurfaceViewModel,
+    testName: String
+  ) throws {
+    guard let compObj = expectedComp.objectValue,
+      let id = compObj["id"]?.stringValue
+    else { return }
+    let node = try #require(
+      surface.findNode(id: id),
+      "[\(testName)] Expected resolved node '\(id)'"
+    )
+    for (propKey, expectedVal) in compObj where propKey != "id" && propKey != "component" {
+      if let binding = node.properties[propKey] as? DataBinding<JSONValue> {
+        #expect(
+          binding.value == expectedVal,
+          "[\(testName)] Property '\(propKey)' mismatch"
+        )
+      } else if let strBinding = node.properties[propKey] as? DataBinding<String> {
+        #expect(
+          strBinding.value == expectedVal.stringValue,
+          "[\(testName)] Property '\(propKey)' mismatch"
+        )
+      }
+    }
   }
 
   private func assertErrorMatches(
     error: Error,
+    capturedRendererError: RendererError?,
     expected: ConformanceExpectError,
     testName: String
-  ) {
+  ) throws {
     if let category = expected.category {
-      switch category {
-      case "ValidationError":
-        // The suites use `ValidationError` for every rejected payload, including the
-        // integrity and recursion failures that Swift reports with their own error types.
-        #expect(
-          error is A2UIValidationError || error is A2UIIntegrityError
-            || error is A2UIRecursionError,
-          """
-          [\(testName)] Expected a validation, integrity, or recursion error for category \
-          '\(category)', got \(type(of: error))
-          """
-        )
-      case "IntegrityError":
-        #expect(
-          error is A2UIIntegrityError,
-          """
-          [\(testName)] Expected A2UIIntegrityError for category '\(category)', \
-          got \(type(of: error))
-          """
-        )
-      case "RecursionError":
-        #expect(
-          error is A2UIRecursionError,
-          """
-          [\(testName)] Expected A2UIRecursionError for category '\(category)', \
-          got \(type(of: error))
-          """
-        )
-      case "CatalogError":
-        #expect(
-          error is A2UICatalogError,
-          """
-          [\(testName)] Expected A2UICatalogError for category '\(category)', \
-          got \(type(of: error))
-          """
-        )
-      default:
-        break
-      }
+      try assertErrorCategory(error: error, category: category, testName: testName)
     }
-
-    if let expectedMessage = expected.message, !expectedMessage.isEmpty {
-      let description = (error as? (any A2UIError))?.message ?? error.localizedDescription
-      var matches =
-        description.localizedStandardContains(expectedMessage)
-        || description.range(of: expectedMessage, options: .regularExpression) != nil
-        || description.contains(expectedMessage)
-
-      // Handle library phrasing variations (e.g. Python jsonschema vs Swift JSONSchema)
-      if !matches && error is A2UIValidationError {
-        if expectedMessage.contains("is not of type")
-          && (description.contains("type") || description.contains("Expected type"))
-        {
-          matches = true
-        }
-      }
-
-      #expect(
-        matches,
-        "[\(testName)] Expected error containing '\(expectedMessage)', got '\(description)'"
+    if let expectedCode = expected.code {
+      assertErrorCode(
+        error: error,
+        capturedRendererError: capturedRendererError,
+        expectedCode: expectedCode,
+        testName: testName
       )
     }
-
-    if let expectedDetails = expected.details {
-      let actualDetails = (error as? A2UIValidationError)?.details ?? []
-      for expectedDetail in expectedDetails {
-        let found = actualDetails.contains { actualDetail in
-          normalizedDetailPath(actualDetail.path) == normalizedDetailPath(expectedDetail.path)
-            && actualDetail.code == expectedDetail.code
-        }
-        #expect(
-          found,
-          """
-          [\(testName)] Expected detail with path '\(expectedDetail.path)' and \
-          code '\(expectedDetail.code)' in \(actualDetails)
-          """
-        )
-      }
+    if let expectedPath = expected.path {
+      assertErrorPath(
+        error: error,
+        capturedRendererError: capturedRendererError,
+        expectedPath: expectedPath,
+        testName: testName
+      )
     }
+    if let expectedMessage = expected.message, !expectedMessage.isEmpty {
+      assertErrorMessage(error: error, expectedMessage: expectedMessage, testName: testName)
+    }
+    if let expectedDetails = expected.details {
+      assertErrorDetails(error: error, expectedDetails: expectedDetails, testName: testName)
+    }
+    // Top-level surfaceId and functionCallId name the context the error was
+    // reported in, which the emitted renderer error carries.
+    if expected.surfaceID != nil || expected.functionCallID != nil {
+      ConformanceTestHelper.assertRendererErrorMatches(
+        capturedRendererError,
+        expected: ConformanceExpectRendererError(
+          surfaceID: expected.surfaceID,
+          functionCallID: expected.functionCallID
+        ),
+        context: "\(testName) (expectError context)"
+      )
+    }
+    if let expectedRendererError = expected.rendererError {
+      ConformanceTestHelper.assertRendererErrorMatches(
+        capturedRendererError,
+        expected: expectedRendererError,
+        context: testName
+      )
+    }
+  }
+
+  private func assertErrorCategory(error: Error, category: String, testName: String) throws {
+    switch category {
+    case "ValidationError":
+      #expect(
+        error is A2UIValidationError,
+        "[\(testName)] Expected A2UIValidationError for '\(category)', got \(type(of: error))"
+      )
+    case "IntegrityError":
+      #expect(
+        error is A2UIIntegrityError,
+        "[\(testName)] Expected A2UIIntegrityError for '\(category)', got \(type(of: error))"
+      )
+    case "RecursionError":
+      #expect(
+        error is A2UIRecursionError,
+        "[\(testName)] Expected A2UIRecursionError for '\(category)', got \(type(of: error))"
+      )
+    case "CatalogError":
+      #expect(
+        error is A2UICatalogError,
+        "[\(testName)] Expected A2UICatalogError for '\(category)', got \(type(of: error))"
+      )
+    case "DataError":
+      #expect(
+        error is A2UIDataError,
+        "[\(testName)] Expected A2UIDataError for '\(category)', got \(type(of: error))"
+      )
+    default:
+      Issue.record("[\(testName)] Unknown error category '\(category)'")
+      throw UnknownConformanceKeyError("[\(testName)] Unknown error category '\(category)'")
+    }
+  }
+
+  private func assertErrorCode(
+    error: Error,
+    capturedRendererError: RendererError?,
+    expectedCode: String,
+    testName: String
+  ) {
+    if let valError = error as? A2UIValidationError {
+      #expect(
+        valError.details.contains(where: { $0.code == expectedCode }),
+        "[\(testName)] Expected error code '\(expectedCode)', got \(valError.details)"
+      )
+    } else if let capturedRendererError {
+      let fallback = ConformanceExpectRendererError(
+        code: expectedCode,
+        surfaceID: nil,
+        functionCallID: nil,
+        path: nil,
+        message: nil
+      )
+      ConformanceTestHelper.assertRendererErrorMatches(
+        capturedRendererError,
+        expected: fallback,
+        context: testName
+      )
+    }
+  }
+
+  private func assertErrorPath(
+    error: Error,
+    capturedRendererError: RendererError?,
+    expectedPath: String,
+    testName: String
+  ) {
+    if let valError = error as? A2UIValidationError {
+      let rendererPath: String?
+      if case .validationFailed(let rErr) = capturedRendererError {
+        rendererPath = rErr.path
+      } else {
+        rendererPath = nil
+      }
+      let matches =
+        rendererPath == expectedPath
+        || valError.details.contains { detail in
+          detail.path == expectedPath
+            || normalizedDetailPath(detail.path) == normalizedDetailPath(expectedPath)
+        }
+      #expect(
+        matches,
+        "[\(testName)] Expected error path '\(expectedPath)', got \(valError.details)"
+      )
+    } else if let capturedRendererError {
+      let fallback = ConformanceExpectRendererError(
+        code: nil,
+        surfaceID: nil,
+        functionCallID: nil,
+        path: expectedPath,
+        message: nil
+      )
+      ConformanceTestHelper.assertRendererErrorMatches(
+        capturedRendererError,
+        expected: fallback,
+        context: testName
+      )
+    }
+  }
+
+  private func assertErrorMessage(error: Error, expectedMessage: String, testName: String) {
+    let description = (error as? (any A2UIError))?.message ?? error.localizedDescription
+    let matches = ConformanceTestHelper.messageMatches(description, expected: expectedMessage)
+    #expect(
+      matches,
+      "[\(testName)] Expected error containing '\(expectedMessage)', got '\(description)'"
+    )
+  }
+
+  private func assertErrorDetails(
+    error: Error,
+    expectedDetails: [A2UIErrorDetail],
+    testName: String
+  ) {
+    let actualDetails = (error as? A2UIValidationError)?.details ?? []
+    for expectedDetail in expectedDetails {
+      let found = actualDetails.contains { actualDetail in
+        detailMatches(actual: actualDetail, expected: expectedDetail)
+      }
+      let message =
+        "[\(testName)] Expected detail with path '\(expectedDetail.path)', "
+        + "code '\(expectedDetail.code)', message '\(expectedDetail.message)' in \(actualDetails)"
+      #expect(found, Comment(rawValue: message))
+    }
+  }
+
+  private func detailMatches(actual: A2UIErrorDetail, expected: A2UIErrorDetail) -> Bool {
+    guard actual.code == expected.code,
+      detailPathMatches(actual: actual.path, expected: expected.path)
+    else {
+      return false
+    }
+    guard !expected.message.isEmpty else { return true }
+    return ConformanceTestHelper.messageMatches(actual.message, expected: expected.message)
+  }
+
+  private func detailPathMatches(actual: String, expected: String) -> Bool {
+    let normActual = normalizedDetailPath(actual)
+    let normExpected = normalizedDetailPath(expected)
+    if normActual == normExpected {
+      return true
+    }
+    // Component validation prefixes detail paths with `/components/<index>`, whereas some
+    // component-scoped expectations specify paths relative to the component object.
+    let parts = normActual.split(separator: ".", maxSplits: 2, omittingEmptySubsequences: false)
+    if parts.count == 3, parts[0] == "components", Int(parts[1]) != nil {
+      return String(parts[2]) == normExpected
+    }
+    return false
   }
 
   /// Converts a JSON Pointer such as `/children/0` to the dotted form `children.0` that the

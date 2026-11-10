@@ -34,7 +34,7 @@ class DataModel:
     """An atomic RFC 6901 JSON Pointer reactive store."""
 
     def __init__(self, initial_data: dict[str, Any] | None = None):
-        self._data = initial_data if initial_data is not None else {}
+        self._data = copy.deepcopy(initial_data) if initial_data is not None else {}
         self._listeners: dict[str, list[Callable[[Any], None]]] = {}
 
     @staticmethod
@@ -42,12 +42,7 @@ class DataModel:
         """Splits a JSON Pointer path into individual unescaped tokens."""
         if not path or path == "/":
             return []
-        if len(path) > 1 and path.endswith("/"):
-            path = path[:-1]
-        if not path.startswith("/"):
-            tokens = path.split("/")
-        else:
-            tokens = path[1:].split("/")
+        tokens = [s for s in path.split("/") if s]
         parsed = [t.replace("~1", "/").replace("~0", "~") for t in tokens]
         for segment in parsed:
             if segment in FORBIDDEN_KEYS:
@@ -174,7 +169,7 @@ class DataModel:
         old_values = {p: copy.deepcopy(self.get(p)) for p in self._listeners.keys()}
 
         if not tokens:
-            self._data = value if value is not None else {}
+            self._data = copy.deepcopy(value) if value is not None else {}
             self._trigger_cascade(tokens, old_values)
             return self
 
@@ -245,7 +240,7 @@ class DataModel:
             if value is None:
                 current.pop(last_token, None)
             else:
-                current[last_token] = value
+                current[last_token] = copy.deepcopy(value)
         elif isinstance(current, list):
             if not NUMERIC_PATTERN.match(last_token):
                 raise A2uiDataError(
@@ -268,7 +263,7 @@ class DataModel:
             else:
                 while len(current) <= idx:
                     current.append(None)
-                current[idx] = value
+                current[idx] = copy.deepcopy(value)
         else:
             raise A2uiDataError(
                 f"Cannot set path '{path}': segment '{last_token}' is a primitive"

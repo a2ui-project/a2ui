@@ -1,0 +1,1750 @@
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import {
+  signal,
+  computed,
+  Signal,
+  effect,
+  isSignal,
+  getValue,
+  setValue,
+  peekValue,
+} from '../reactivity/signals.js';
+import {z} from 'zod';
+import {DataModel, DataSubscription} from '../state/data-model.js';
+import {type FunctionCall, type Action} from '../types/common-types.js';
+import {MAX_FUNCTION_CALL_ARGS} from '../types/helpers.js';
+import {
+  A2uiCatalogError,
+  A2uiExpressionError,
+  A2uiRpcError,
+  A2uiValidationError,
+  RpcErrorCode,
+} from '../errors.js';
+import {canonicalJsonKey} from '../common/canonical_json.js';
+import {isAtLeastVersion} from '../common/semver.js';
+import {
+  FailedArgument,
+  findFailedArgument,
+  isPlainObject,
+  isThenable,
+  recordSettledValue,
+  settleDeep,
+} from '../common/settle_deep.js';
+
+import {FunctionInvoker} from '../catalog/function_invoker.js';
+import {Catalog, CatalogInterface} from '../catalog/types.js';
+import {SpecVersion} from '../spec_versions.js';
+import {resolveSurfaceCatalog} from '../state/resolve-surface-catalog.js';
+import {SurfaceModel} from '../state/surface-model.js';
+import {IndexApi, SYSTEM_FUNCTIONS} from '../v1_0/functions/system_functions.js';
+import {registerDataContextInternals, type DataContextFlags} from './data-context-internal.js';
+
+const schemaKeysCache = new WeakMap<z.ZodTypeAny, Set<string> | null>();
+
+/** Identifier of the built-in catalog holding the v1.0 system functions. */
+const SYSTEM_FUNCTION_CATALOG_ID = 'a2ui:system-functions';
+
+let systemFunctionCatalog: Catalog<any> | undefined;
+
+/**
+ * Returns the built-in catalog of reserved `@`-prefixed system functions.
+ *
+ * System functions such as `@index` belong to no catalog, so they are run
+ * from here rather than from a catalog resolved on the surface. Built lazily
+ * because `SYSTEM_FUNCTIONS` and this module import each other.
+ */
+function getSystemFunctionCatalog(): Catalog<any> {
+  systemFunctionCatalog ??= new Catalog(
+    SYSTEM_FUNCTION_CATALOG_ID,
+    SpecVersion.V1_0,
+    [],
+    SYSTEM_FUNCTIONS,
+  );
+  return systemFunctionCatalog;
+}
+
+/**
+ * Extracts declared property keys from a Zod schema representing an object with fixed keys.
+ *
+ * Traverses Zod wrappers (`ZodEffects`, `ZodOptional`, `ZodNullable`, `ZodDefault`,
+ * `ZodCatch`, `ZodIntersection`, `ZodUnion`, `ZodDiscriminatedUnion`) and returns the set
+ * of allowed key names.
+ *
+ * @param schema Zod schema to inspect.
+ * @returns Set of allowed property names, or `null` if arbitrary keys are permitted or undetermined.
+ */
+export function getKnownSchemaKeys(schema: z.ZodTypeAny): Set<string> | null {
+  if (schemaKeysCache.has(schema)) {
+    return schemaKeysCache.get(schema) as Set<string> | null;
+  }
+
+  const result = ((): Set<string> | null => {
+    let current: any = schema;
+    while (current) {
+      if (current instanceof z.ZodObject || current._def?.typeName === 'ZodObject') {
+        // If passthrough is enabled, arbitrary keys are allowed.
+        if (current._def?.unknownKeys === 'passthrough') {
+          return null;
+        }
+        const shape = typeof current.shape === 'function' ? current.shape() : current.shape;
+        if (shape && typeof shape === 'object') {
+          return new Set(Object.keys(shape));
+        }
+        return null;
+      }
+      if (current instanceof z.ZodEffects || current._def?.typeName === 'ZodEffects') {
+        current = current._def.schema;
+        continue;
+      }
+      if (
+        current instanceof z.ZodOptional ||
+        current instanceof z.ZodNullable ||
+        current._def?.typeName === 'ZodOptional' ||
+        current._def?.typeName === 'ZodNullable'
+      ) {
+        current = current._def.innerType;
+        continue;
+      }
+      if (current instanceof z.ZodDefault || current._def?.typeName === 'ZodDefault') {
+        current = current._def.innerType;
+        continue;
+      }
+      if (current instanceof z.ZodCatch || current._def?.typeName === 'ZodCatch') {
+        current = current._def.innerType;
+        continue;
+      }
+      if (current instanceof z.ZodIntersection || current._def?.typeName === 'ZodIntersection') {
+        const leftKeys = getKnownSchemaKeys(current._def.left);
+        const rightKeys = getKnownSchemaKeys(current._def.right);
+        if (!leftKeys || !rightKeys) {
+          return null;
+        }
+        return new Set([...leftKeys, ...rightKeys]);
+      }
+      if (
+        current instanceof z.ZodUnion ||
+        current instanceof z.ZodDiscriminatedUnion ||
+        current._def?.typeName === 'ZodUnion' ||
+        current._def?.typeName === 'ZodDiscriminatedUnion'
+      ) {
+        const options: Iterable<z.ZodTypeAny> = current._def.options;
+        const allKeys = new Set<string>();
+        for (const opt of options) {
+          const k = getKnownSchemaKeys(opt);
+          if (!k) return null; // If any union branch allows arbitrary keys, do not filter.
+          for (const key of k) {
+            allKeys.add(key);
+          }
+        }
+        return allKeys;
+      }
+      return null;
+    }
+    return null;
+  })();
+
+  schemaKeysCache.set(schema, result);
+  return result;
+}
+
+/**
+ * Validates a function call's arguments against the catalog function schema and global limits.
+ *
+ * Functions have a strict contract: supplying unknown or excessive arguments breaks that contract
+ * and causes an A2uiExpressionError rather than silently stripping them. Validating arguments before
+ * creating reactive nodes also prevents uncontrolled resource consumption.
+ *
+ * @param functionName Name of the function being validated.
+ * @param rawArgs Raw argument map to validate against the function schema.
+ * @param catalog Optional catalog providing the function's schema.
+ * @throws {A2uiExpressionError} If argument count exceeds `MAX_FUNCTION_CALL_ARGS`, unknown arguments are supplied, or arguments exceed expected count.
+ */
+export function validateFunctionArgs(
+  functionName: string,
+  rawArgs: Record<string, any> | undefined | null,
+  catalog?: CatalogInterface<any, any> | any,
+): void {
+  if (!rawArgs || typeof rawArgs !== 'object' || Array.isArray(rawArgs)) {
+    return;
+  }
+
+  const suppliedKeys = Object.keys(rawArgs);
+  if (suppliedKeys.length > MAX_FUNCTION_CALL_ARGS) {
+    throw new A2uiExpressionError(
+      `Function call '${functionName}' exceeds maximum allowed arguments count (${MAX_FUNCTION_CALL_ARGS})`,
+      functionName,
+    );
+  }
+
+  const fn =
+    catalog?.functions?.get?.(functionName) ??
+    (functionName === '@index' &&
+    catalog?.protocolVersion &&
+    isAtLeastVersion(catalog.protocolVersion, SpecVersion.V1_0)
+      ? IndexApi
+      : undefined);
+  if (!fn?.schema) {
+    return;
+  }
+
+  const knownKeys = getKnownSchemaKeys(fn.schema);
+  if (!knownKeys) {
+    // Schema allows arbitrary keys (e.g. passthrough)
+    return;
+  }
+
+  for (const key of suppliedKeys) {
+    if (!knownKeys.has(key)) {
+      throw new A2uiExpressionError(
+        `Unknown argument '${key}' passed to function '${functionName}'`,
+        functionName,
+      );
+    }
+  }
+
+  if (suppliedKeys.length > knownKeys.size) {
+    throw new A2uiExpressionError(
+      `Too many arguments for function '${functionName}': expected at most ${knownKeys.size}, received ${suppliedKeys.length}`,
+      functionName,
+    );
+  }
+}
+
+/**
+ * Checks whether a key begins with a single '@' character and is not escaped by prefix doubling.
+ *
+ * Matches property names conforming to `^@([^@]|$)`.
+ *
+ * @param key Object property key to test.
+ * @returns True if the key starts with a single unescaped '@'.
+ */
+export function isSingleAtKey(key: string): boolean {
+  return key.startsWith('@') && !key.startsWith('@@');
+}
+
+/**
+ * Unescapes a property key if it begins with doubled '@@' prefix.
+ *
+ * In A2UI v1.0, literal keys starting with '@' are escaped by prefix doubling ('@@path' -> '@path').
+ *
+ * @param key Object property key to unescape.
+ * @returns The unescaped key without the leading '@' if it started with '@@', otherwise the key unchanged.
+ */
+export function unescapeObjectKey(key: string): string {
+  return key.startsWith('@@') ? key.slice(1) : key;
+}
+
+/** Recognized reserved protocol directives in v1.0 dynamic objects. */
+const RESERVED_DIRECTIVES = new Set(['@path', '@call']);
+
+/**
+ * Validates that any single-'@' prefixed keys in an object are recognized protocol directives.
+ *
+ * In A2UI v1.0, any key matching `^@([^@]|$)` that is not a recognized protocol directive is invalid.
+ *
+ * @param keys The keys of the object to validate.
+ * @param protocolVersion The protocol specification version.
+ * @throws {A2uiValidationError} If an unrecognized single-'@' key is found in v1.0.
+ */
+export function validateReservedDirectives(keys: Iterable<string>, protocolVersion?: string): void {
+  if (!isAtLeastVersion(protocolVersion, '1.0')) {
+    return;
+  }
+  for (const key of keys) {
+    if (isSingleAtKey(key) && !RESERVED_DIRECTIVES.has(key)) {
+      throw new A2uiValidationError(
+        `Unrecognized reserved protocol directive '${key}' in v1.0 dynamic object. Reserved keys must be in ${Array.from(
+          RESERVED_DIRECTIVES,
+        ).join(', ')}, or escaped with prefix doubling (e.g. '@${key}').`,
+        undefined,
+        'INVALID_RESERVED_KEY',
+      );
+    }
+  }
+}
+
+/**
+ * Resolves the 0-based iteration index from a context or its ancestor chain.
+ *
+ * Checks for an explicit index first, then checks whether the trailing
+ * segment of the data path is numeric, walking the parent context chain until a
+ * match is found.
+ *
+ * @param startCtx Initial context or context-like object to inspect.
+ * @returns The resolved 0-based iteration index, or `undefined` if outside an iteration scope.
+ */
+export function resolveContextIndex(startCtx: unknown): number | undefined {
+  let ctx = startCtx as
+    | {
+        explicitIndex?: number;
+        getIndex?: () => number | undefined;
+        index?: number;
+        path?: string;
+        parent?: unknown;
+      }
+    | undefined;
+  while (ctx) {
+    if (ctx.explicitIndex !== undefined && Number.isFinite(ctx.explicitIndex)) {
+      return ctx.explicitIndex;
+    }
+    if (!(ctx instanceof DataContext) && typeof ctx.getIndex === 'function') {
+      const idx = ctx.getIndex();
+      if (idx !== undefined && Number.isFinite(idx)) {
+        return idx;
+      }
+    }
+    if (
+      !(ctx instanceof DataContext) &&
+      typeof ctx.index === 'number' &&
+      Number.isFinite(ctx.index)
+    ) {
+      return ctx.index;
+    }
+    if (typeof ctx.path === 'string') {
+      const parts = ctx.path.split('/').filter(Boolean);
+      if (parts.length > 0 && /^\d+$/.test(parts[parts.length - 1])) {
+        return parseInt(parts[parts.length - 1], 10);
+      }
+    }
+    ctx = ctx.parent as typeof ctx;
+  }
+  return undefined;
+}
+
+/**
+ * Creates an abort controller that is aborted when `parent` is.
+ *
+ * @param parent Abort signal of the enclosing evaluation, if any.
+ * @returns The new controller.
+ */
+function linkedAbortController(parent?: AbortSignal): AbortController {
+  const controller = new AbortController();
+  if (parent?.aborted) {
+    controller.abort();
+  } else {
+    parent?.addEventListener('abort', () => controller.abort(), {once: true});
+  }
+  return controller;
+}
+
+/**
+ * Aborts `controller` as soon as a pending value nested in `args` settles to
+ * a failure, so the other arguments of the same call stop.
+ *
+ * @param args The resolved arguments of a call, which may hold pending values.
+ * @param controller The controller of the call.
+ */
+function abortOnFailedArgument(args: unknown, controller: AbortController): void {
+  if (isThenable(args)) {
+    Promise.resolve(args).then(
+      settled => {
+        if (findFailedArgument(settled)) controller.abort();
+      },
+      () => controller.abort(),
+    );
+  } else if (Array.isArray(args)) {
+    for (const item of args) abortOnFailedArgument(item, controller);
+  } else if (isPlainObject(args)) {
+    for (const item of Object.values(args)) abortOnFailedArgument(item, controller);
+  }
+}
+
+/**
+ * Whether an error is the cancellation of a pending agent call (an
+ * `A2uiRpcError` with code `CANCELLED`), which is never reported or
+ * remembered as a failure.
+ */
+function isCancellation(e: unknown): boolean {
+  return e instanceof A2uiRpcError && e.code === RpcErrorCode.CANCELLED;
+}
+
+/**
+ * Sets `key` as an own enumerable property of `target`, so that a key such as
+ * `"__proto__"` stays an ordinary property.
+ */
+function defineOwn(target: Record<string, unknown>, key: string, value: unknown): void {
+  Object.defineProperty(target, key, {value, enumerable: true, writable: true, configurable: true});
+}
+
+/**
+ * The maximum allowed recursion depth for evaluating nested dynamic values or function calls.
+ * Prevents call stack exhaustion on deeply nested expression payloads.
+ */
+export const MAX_DYNAMIC_VALUE_DEPTH = 1_000;
+
+/**
+ * Scoped view of the main DataModel for resolving DynamicValues within a component hierarchy.
+ *
+ * Automatically resolves relative paths against the component's current scope
+ * and provides tools for evaluating complex, reactive expressions.
+ */
+export class DataContext {
+  /** Shared DataModel instance for the UI surface. */
+  readonly dataModel: DataModel;
+  /** Callback for executing function calls defined in the A2UI component tree. */
+  readonly functionInvoker: FunctionInvoker;
+  /** Parent DataContext in the hierarchy, if this context was created via `.nested()`. */
+  readonly parent?: DataContext;
+  /** Explicit collection iteration index supplied to this context, if any. */
+  readonly explicitIndex?: number;
+  private readonly warnedPaths: Set<string>;
+  private _isUserActivated = false;
+  private _isPassiveEvaluation = false;
+  private _isActionExecution = false;
+  /** Whether calls the renderer does not implement must fail instead of going to the agent. */
+  private _noAgentRouting = false;
+  /** Catalog ID of the currently executing catalog function, if any. */
+  private _activeCatalogId?: string;
+  /** Catalog instance of the currently executing catalog function, if any. */
+  private _activeCatalog?: Catalog<any>;
+
+  readonly surface?: SurfaceModel<any, any>;
+
+  static {
+    registerDataContextInternals({
+      withFlags: (ctx, flags) => ctx.withFlags(flags),
+      resolveValue: (ctx, value, depth, userActivated, keepPending) =>
+        ctx.resolveValue(value, depth, userActivated, keepPending),
+      allowsAgentRouting: ctx => ctx.allowsAgentRouting,
+      resolveSignalValue: (ctx, value, depth, keepPending) =>
+        ctx.resolveSignalValue(value, depth, keepPending),
+      activeCatalogId: ctx => ctx.activeCatalogId,
+      activeCatalog: ctx => ctx.activeCatalog,
+    });
+  }
+
+  /**
+   * Initializes a new DataContext instance.
+   *
+   * @param surface The surface model or data model this context belongs to.
+   * @param path The absolute path in the DataModel that this context is scoped to.
+   * @param index Optional explicit collection iteration index.
+   * @param parent Optional parent DataContext in the scope chain.
+   */
+  constructor(
+    surface: SurfaceModel<any, any> | DataModel,
+    readonly path: string,
+    index?: number,
+    parent?: DataContext,
+  ) {
+    if (surface instanceof DataModel) {
+      this.surface = undefined;
+      this.dataModel = surface;
+      this.functionInvoker = () => undefined;
+    } else {
+      this.surface = surface;
+      this.dataModel = surface.dataModel;
+      this.functionInvoker =
+        surface.defaultCatalog?.invoker ??
+        ((name, ...rest) =>
+          resolveSurfaceCatalog(surface, undefined, `Function call '${name}'`).invoker(
+            name,
+            ...rest,
+          ));
+    }
+    this.explicitIndex = index;
+    this.parent = parent;
+    this.warnedPaths = parent ? parent.warnedPaths : new Set<string>();
+  }
+
+  /** Whether the current function evaluation was initiated by an active user action. */
+  get isUserActivated(): boolean {
+    return this._isUserActivated || Boolean(this.parent?.isUserActivated);
+  }
+
+  /** Whether the current function evaluation is running inside a passive reactive binding. */
+  get isPassiveEvaluation(): boolean {
+    return this._isPassiveEvaluation || Boolean(this.parent?.isPassiveEvaluation);
+  }
+
+  /** Whether the current function evaluation was initiated by an imperative action. */
+  get isActionExecution(): boolean {
+    return this._isActionExecution || Boolean(this.parent?.isActionExecution);
+  }
+
+  /**
+   * Returns the 0-based iteration index if this context (or an ancestor context)
+   * is scoped to a collection template item, or `undefined` when outside any
+   * collection template scope.
+   *
+   * Mirrors `DataContext.index` in Python: checks an explicit `explicitIndex` first,
+   * then checks strictly the trailing segment of `ctx.path`, walking `ctx.parent`.
+   *
+   * @returns The 0-based iteration index, or `undefined` if outside an iteration scope.
+   */
+  getIndex(): number | undefined {
+    return resolveContextIndex(this);
+  }
+
+  /** Active iteration index if inside a collection template scope, or `undefined`. */
+  get index(): number | undefined {
+    return this.getIndex();
+  }
+
+  /**
+   * Mutates the underlying DataModel at the specified path.
+   *
+   * @param path JSON pointer path, resolved relative to this context's `path` if not absolute.
+   * @param value New value to store in the DataModel.
+   */
+  set(path: string, value: unknown): void {
+    const absolutePath = this.resolvePath(path);
+    // Pre-1.0 data models store `null`; v1.0 removes the entry. A context with
+    // no surface has no protocol version and follows the v1.0 behavior.
+    const preserveNull = Boolean(this.surfaceProtocolVersion && !this.atLeastV10);
+    this.dataModel.set(absolutePath, value, preserveNull);
+  }
+
+  /**
+   * Protocol version of the bound surface.
+   *
+   * Reads the surface's own version, which is set even when the surface has
+   * no default catalog, and falls back to the default or active catalog's
+   * version for surface-like or surface-less contexts.
+   */
+  private get surfaceProtocolVersion(): string | undefined {
+    return (
+      this.surface?.protocolVersion ??
+      this.surface?.defaultCatalog?.protocolVersion ??
+      this.activeCatalog?.protocolVersion
+    );
+  }
+
+  private _cachedAtLeastV10?: boolean;
+
+  /** Whether this context targets A2UI protocol v1.0 or newer. */
+  public get atLeastV10(): boolean {
+    if (this._cachedAtLeastV10 === undefined) {
+      this._cachedAtLeastV10 = isAtLeastVersion(this.surfaceProtocolVersion, '1.0');
+    }
+    return this._cachedAtLeastV10;
+  }
+
+  /**
+   * Checks whether an object represents a data binding.
+   *
+   * In v1.0, data bindings must use `@path`. In v0.9, data bindings use `path`.
+   *
+   * @param val Candidate object to inspect.
+   * @returns Whether the object represents a valid data binding for this context's protocol version.
+   */
+  private isDataBindingObject(val: Record<string, unknown>): boolean {
+    const hasPath = this.atLeastV10
+      ? '@path' in val && typeof val['@path'] === 'string'
+      : 'path' in val && typeof val.path === 'string';
+    return hasPath && !('componentId' in val);
+  }
+
+  /**
+   * Checks whether an object represents a function call.
+   *
+   * In v1.0, function calls must use `@call`. In v0.9, function calls use `call`.
+   *
+   * @param val Candidate object to inspect.
+   * @returns Whether the object represents a valid function call for this context's protocol version.
+   */
+  private isFunctionCallObject(val: Record<string, unknown>): boolean {
+    return this.atLeastV10
+      ? '@call' in val && typeof val['@call'] === 'string'
+      : 'call' in val && typeof val.call === 'string';
+  }
+
+  /**
+   * Checks whether a value contains any dynamic parts (path bindings,
+   * function calls, or escaped/reserved directive keys) at any nesting depth.
+   *
+   * @param value The value or data structure to inspect.
+   * @returns Whether the value contains dynamic elements requiring resolution.
+   */
+  private containsDynamicValue(value: unknown): boolean {
+    if (value === null || typeof value !== 'object' || isThenable(value)) {
+      return false;
+    }
+    if (Array.isArray(value)) {
+      return value.some(item => this.containsDynamicValue(item));
+    }
+    const rec = value as Record<string, unknown>;
+    if (this.isDataBindingObject(rec) || this.isFunctionCallObject(rec)) {
+      return true;
+    }
+    if (this.atLeastV10) {
+      for (const k of Object.keys(rec)) {
+        if (k.startsWith('@')) {
+          return true;
+        }
+      }
+    }
+    return Object.values(rec).some(v => this.containsDynamicValue(v));
+  }
+
+  /**
+   * Emits a warning if a data binding path does not exist in the data model.
+   *
+   * @param absolutePath Absolute JSON pointer path to check.
+   */
+  private emitMissingDataBindingWarning(absolutePath: string): void {
+    if (
+      typeof this.dataModel?.hasPath === 'function' &&
+      !this.dataModel.hasPath(absolutePath) &&
+      !this.warnedPaths.has(absolutePath)
+    ) {
+      this.warnedPaths.add(absolutePath);
+      void this.surface?.dispatchWarning?.({
+        code: 'MISSING_DATA_BINDING',
+        path: absolutePath,
+        message: `Preflight DataBinding Warning: The bound JSON Pointer '${absolutePath}' does not physically exist in the active DataModel. Evaluating to None.`,
+      });
+    }
+  }
+
+  /**
+   * Synchronously evaluates a DynamicValue into its concrete runtime value.
+   *
+   * Evaluates the value once at the current moment without creating reactive subscriptions.
+   * Use `subscribeDynamicValue` for reactive updates.
+   *
+   * The result of an asynchronous function, such as a call routed to the
+   * agent, is a Promise that resolves to the value, or to `undefined` once
+   * the failure has been reported on the surface.
+   * @param value The DynamicValue object or raw value from the A2UI JSON payload.
+   * @param depth The current recursion depth when evaluating nested arguments or expressions.
+   * @param userActivated Whether the evaluation was initiated by an active user action.
+   * @returns The synchronously resolved value.
+   */
+  resolveDynamicValue<V>(value: unknown, depth = 0, userActivated = false): V {
+    return this.resolveValue<V>(value, depth, userActivated, false);
+  }
+
+  /**
+   * Evaluates a DynamicValue once, as {@link resolveDynamicValue} does.
+   *
+   * Inside the arguments of a function call (`keepPending`), a pending result
+   * stays a Promise, which the invoker of the enclosing call awaits before
+   * validating its arguments, and, from v1.0, a call that fails resolves to a
+   * `FailedArgument` that stops the enclosing call.
+   *
+   * @param value The DynamicValue object or raw value.
+   * @param depth The current recursion depth.
+   * @param userActivated Whether the evaluation was initiated by an active user action.
+   * @param keepPending Whether the value is (part of) a function argument.
+   * @param parentSignal Abort signal of the enclosing call. Calls nested in
+   *   `value` are aborted with it.
+   * @returns The resolved value.
+   */
+  private resolveValue<V>(
+    value: unknown,
+    depth: number,
+    userActivated: boolean,
+    keepPending: boolean,
+    parentSignal?: AbortSignal,
+  ): V {
+    if (depth > MAX_DYNAMIC_VALUE_DEPTH) {
+      const err = new A2uiExpressionError(
+        `Maximum dynamic value nesting depth exceeded (${MAX_DYNAMIC_VALUE_DEPTH})`,
+      );
+      this.dispatchExpressionError(err, 'DynamicValue');
+      return (keepPending ? this.failedArgument(err) : undefined) as V;
+    }
+
+    if (value === null || typeof value !== 'object' || isThenable(value)) {
+      return value as V;
+    }
+
+    if (Array.isArray(value)) {
+      if (!this.containsDynamicValue(value)) {
+        return value as V;
+      }
+      return value.map(item =>
+        this.resolveValue(item, depth + 1, userActivated, keepPending, parentSignal),
+      ) as V;
+    }
+
+    const rec = value as Record<string, unknown>;
+
+    if (this.isDataBindingObject(rec)) {
+      const bindingPath = (rec['@path'] ?? rec.path) as string;
+      const absolutePath = this.resolvePath(bindingPath);
+      const val = this.dataModel.get(absolutePath);
+      if (val === undefined) {
+        this.emitMissingDataBindingWarning(absolutePath);
+      }
+      return val as V;
+    }
+
+    if (this.isFunctionCallObject(rec)) {
+      return this.resolveFunctionCallValue<V>(
+        rec as unknown as FunctionCall,
+        depth,
+        userActivated,
+        keepPending,
+        parentSignal,
+      );
+    }
+
+    return this.resolvePlainObjectValue<V>(rec, depth, userActivated, keepPending, parentSignal);
+  }
+
+  /**
+   * Resolves a function call by validating arguments and invoking the function.
+   *
+   * An asynchronous function returns a pending Promise. Outside function
+   * arguments (`!keepPending`), the Promise is returned with its rejection
+   * turned into an `EXPRESSION_ERROR` on the surface, since nothing else would
+   * report it; inside the arguments of another call (`keepPending`) it is
+   * wrapped so the inner call reports its own rejection once and resolves to a
+   * `FailedArgument` that stops the enclosing call from executing.
+   *
+   * When an argument fails, the call is aborted, and with it the calls in its
+   * other arguments: one that has not sent its agent call yet does not send
+   * it, and one that fails later reports nothing.
+   *
+   * @param call Function call definition to execute.
+   * @param depth Current recursion depth for nested expression tracking.
+   * @param userActivated Whether the evaluation was initiated by an active user action.
+   * @param keepPending Whether the call is nested inside a function argument.
+   * @param parentSignal Abort signal of the enclosing call, if any.
+   * @returns The resolved function return value.
+   */
+  private resolveFunctionCallValue<V>(
+    call: FunctionCall,
+    depth: number,
+    userActivated: boolean,
+    keepPending: boolean,
+    parentSignal?: AbortSignal,
+  ): V {
+    const callName = (call['@call'] ?? call.call)!;
+    // Resolve before validating: the arguments must be checked against the
+    // catalog that will actually run the call, not the surface default.
+    const targetCatalog = this.resolveCallCatalog(callName, call);
+    if (!targetCatalog) {
+      return (keepPending ? this.failedArgument(undefined) : undefined) as V;
+    }
+    try {
+      validateFunctionArgs(callName, call.args, targetCatalog);
+    } catch (e: unknown) {
+      this.dispatchExpressionError(e, callName);
+      return (keepPending ? this.failedArgument(e) : undefined) as V;
+    }
+    const abortController = linkedAbortController(parentSignal);
+    const args: Record<string, unknown> = {};
+    for (const [key, argVal] of Object.entries(call.args ?? {})) {
+      const arg = this.resolveValue(argVal, depth + 1, userActivated, true, abortController.signal);
+      const failed = findFailedArgument(arg);
+      if (failed) {
+        // The arguments resolved so far stop, and the rest are not evaluated.
+        abortController.abort();
+        return (keepPending ? failed : undefined) as V;
+      }
+      defineOwn(args, key, arg);
+    }
+    abortOnFailedArgument(args, abortController);
+
+    // The evaluation flags are fixed on a scoped view of this context, so
+    // the function and the error handling that run after pending arguments
+    // settle see the same flags as a synchronous call.
+    const activeCatalogId = !callName.startsWith('@') ? targetCatalog.id : undefined;
+    const scope =
+      (userActivated && !this.isUserActivated) || activeCatalogId !== undefined
+        ? this.withFlags({
+            userActivated: userActivated && !this.isUserActivated,
+            activeCatalogId,
+            activeCatalog: activeCatalogId !== undefined ? targetCatalog : undefined,
+          })
+        : this;
+    const result = scope.evaluateFunctionReactive<V>(
+      callName,
+      args,
+      targetCatalog.invoker,
+      abortController.signal,
+      keepPending,
+    );
+
+    if (result === undefined) {
+      return undefined as unknown as V;
+    }
+
+    if (result instanceof FailedArgument) {
+      abortController.abort();
+      return (keepPending ? result : undefined) as unknown as V;
+    }
+
+    if (isThenable(result)) {
+      if (keepPending) {
+        return scope.keepPendingResult(result, callName, abortController.signal) as V;
+      }
+      return Promise.resolve(result).then(
+        value => {
+          if (value instanceof FailedArgument) {
+            return undefined;
+          }
+          return isSignal(value) ? peekValue(value) : value;
+        },
+        (e: unknown) => {
+          scope.dispatchExpressionError(e, callName);
+          return undefined;
+        },
+      ) as V;
+    }
+
+    return (isSignal(result) ? peekValue(result) : result) as V;
+  }
+
+  /**
+   * Recursively resolves dynamic values nested inside a plain object.
+   *
+   * @param rec Plain object dictionary to resolve.
+   * @param depth Current recursion depth for nested expression tracking.
+   * @param userActivated Whether the evaluation was initiated by an active user action.
+   * @param keepPending Whether the object is nested inside a function argument.
+   * @param parentSignal Abort signal of the enclosing call, if any.
+   * @returns A copy of the object with all nested dynamic values resolved.
+   */
+  private resolvePlainObjectValue<V>(
+    rec: Record<string, unknown>,
+    depth: number,
+    userActivated: boolean,
+    keepPending: boolean,
+    parentSignal?: AbortSignal,
+  ): V {
+    if (this.atLeastV10) {
+      validateReservedDirectives(Object.keys(rec), this.surfaceProtocolVersion);
+    }
+    if (!this.containsDynamicValue(rec)) {
+      return rec as unknown as V;
+    }
+    const resolved: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(rec)) {
+      const key = this.atLeastV10 ? unescapeObjectKey(k) : k;
+      defineOwn(
+        resolved,
+        key,
+        this.resolveValue(v, depth + 1, userActivated, keepPending, parentSignal),
+      );
+    }
+    return resolved as unknown as V;
+  }
+
+  /**
+   * Reactively listens to changes in a DynamicValue.
+   *
+   * Whenever the underlying data or function dependencies change, the `onChange`
+   * callback fires with the freshly evaluated result.
+   *
+   * @template V Expected type of the resolved value.
+   * @param value The DynamicValue or raw value to evaluate and observe.
+   * @param onChange Callback fired whenever the evaluated result changes.
+   * @returns A subscription containing the current value and an `unsubscribe` method.
+   */
+  subscribeDynamicValue<V>(
+    value: unknown,
+    onChange: (value: V | undefined) => void,
+  ): DataSubscription<V> {
+    const sig = this.resolveSignal<V>(value);
+
+    let isSync = true;
+    let currentValue = peekValue(sig);
+
+    const dispose = effect(() => {
+      const val = getValue(sig);
+      currentValue = val;
+      if (!isSync) {
+        onChange(val);
+      }
+    });
+    isSync = false;
+
+    return {
+      get value() {
+        return currentValue;
+      },
+      unsubscribe: () => {
+        dispose();
+        sig.unsubscribe?.();
+      },
+    };
+  }
+
+  /**
+   * Resolves a DynamicValue into a reactive Signal.
+   *
+   * Recursively resolves any nested path bindings or function calls into a
+   * single reactive `Signal`. Changes to underlying data or function dependencies
+   * cause the signal's value to update.
+   *
+   * @template V Expected type of the signal value.
+   * @param value The DynamicValue or raw value to evaluate and observe.
+   * @param depth The current recursion depth when evaluating nested arguments or expressions.
+   * @returns A reactive Signal containing the result of the evaluation.
+   */
+  resolveSignal<V>(value: unknown, depth = 0): Signal<V> {
+    return this.resolveSignalValue<V>(value, depth, false);
+  }
+
+  /**
+   * Resolves a DynamicValue into a reactive Signal, as {@link resolveSignal}.
+   *
+   * Inside the arguments of a function call (`keepPending`), the pending
+   * result of an asynchronous function stays in its signal as a Promise, so
+   * the invoker of the enclosing call waits for it before validating and
+   * running, as it does when the value is resolved once. Elsewhere the
+   * signal holds `undefined` until the result settles.
+   *
+   * @param value The DynamicValue or raw value to evaluate and observe.
+   * @param depth The current recursion depth.
+   * @param keepPending Whether the value is (part of) a function argument.
+   * @returns A reactive Signal containing the result of the evaluation.
+   */
+  private resolveSignalValue<V>(value: unknown, depth: number, keepPending: boolean): Signal<V> {
+    if (depth > MAX_DYNAMIC_VALUE_DEPTH) {
+      const err = new A2uiExpressionError(
+        `Maximum dynamic value nesting depth exceeded (${MAX_DYNAMIC_VALUE_DEPTH})`,
+      );
+      this.dispatchExpressionError(
+        err,
+        typeof value === 'object' && value && ('@call' in value || 'call' in value)
+          ? (((value as any)['@call'] ?? (value as any).call) as string)
+          : 'DynamicValue',
+      );
+      return signal((keepPending ? this.failedArgument(err) : undefined) as unknown as V);
+    }
+
+    // 1. Primitive literals
+    if (typeof value !== 'object' || value === null) {
+      return signal(value as V);
+    }
+
+    // 1a. A pending value: the signal holds `undefined` until it settles, or
+    // the Promise itself inside a function argument.
+    if (isThenable(value)) {
+      if (keepPending) {
+        return signal(this.keepPendingResult(value, 'DynamicValue') as V);
+      }
+      const pendingSig = signal<V | undefined>(undefined);
+      this.settleIntoSignal(pendingSig, value, 'DynamicValue');
+      return pendingSig as Signal<V>;
+    }
+
+    // 1b. Arrays: each element may itself be a DynamicValue (e.g. `and`/`or` `values`)
+    if (Array.isArray(value)) {
+      // Fast path: fully static arrays need no per-element signals.
+      if (!this.containsDynamicValue(value)) {
+        return signal(value as V);
+      }
+      const itemSignals = value.map(item => this.resolveSignalValue(item, depth + 1, keepPending));
+      const resultSig = computed(() => itemSignals.map(s => getValue(s))) as Signal<V>;
+      resultSig.unsubscribe = () => {
+        for (const s of itemSignals) {
+          s.unsubscribe?.();
+        }
+      };
+      return resultSig;
+    }
+
+    const rec = value as Record<string, unknown>;
+
+    // 2. Path Check
+    if (this.isDataBindingObject(rec)) {
+      const bindingPath = (rec['@path'] ?? rec.path) as string;
+      const absolutePath = this.resolvePath(bindingPath);
+      this.emitMissingDataBindingWarning(absolutePath);
+      return this.dataModel.getSignal<V>(absolutePath) as Signal<V>;
+    }
+
+    // 3. Function Call
+    if (this.isFunctionCallObject(rec)) {
+      const call = rec as unknown as FunctionCall;
+      const callName = (call['@call'] ?? call.call)!;
+      // Resolve before validating: the arguments must be checked against the
+      // catalog that will actually run the call, not the surface default.
+      const targetCatalog = this.resolveCallCatalog(callName, call);
+      if (!targetCatalog) {
+        return signal((keepPending ? this.failedArgument(undefined) : undefined) as unknown as V);
+      }
+      try {
+        validateFunctionArgs(callName, call.args, targetCatalog);
+      } catch (e: unknown) {
+        this.dispatchExpressionError(e, callName);
+        return signal((keepPending ? this.failedArgument(e) : undefined) as unknown as V);
+      }
+      // A binding evaluates passively. The flag is fixed on a scoped view of
+      // this context, so the function and the error handling that run after
+      // pending arguments settle see it too.
+      const activeCatalogId = !callName.startsWith('@') ? targetCatalog.id : undefined;
+      const scope = this.withFlags({
+        passive: true,
+        activeCatalogId,
+        activeCatalog: activeCatalogId !== undefined ? targetCatalog : undefined,
+      });
+      const argSignals: Record<string, Signal<unknown>> = {};
+
+      for (const [key, argVal] of Object.entries(call.args ?? {})) {
+        argSignals[key] = this.resolveSignalValue(argVal, depth + 1, true);
+      }
+
+      if (Object.keys(argSignals).length === 0) {
+        const abortController = new AbortController();
+        const result = scope.evaluateFunctionReactive<V>(
+          callName,
+          {},
+          targetCatalog.invoker,
+          abortController.signal,
+          keepPending,
+        );
+        let sig: Signal<V>;
+        if (isSignal(result)) {
+          sig = result;
+        } else if (isThenable(result)) {
+          const pendingSig = signal<V | undefined>(undefined);
+          if (keepPending) {
+            setValue(
+              pendingSig,
+              scope.keepPendingResult(result, callName, abortController.signal, {
+                onSignal: inner => scope.forwardSignal(pendingSig, inner, abortController.signal),
+              }) as V,
+            );
+          } else {
+            scope.settleIntoSignal(pendingSig, result, callName, abortController.signal);
+          }
+          sig = pendingSig as Signal<V>;
+        } else if (result instanceof FailedArgument) {
+          sig = signal((keepPending ? result : this.atLeastV10 ? null : undefined) as unknown as V);
+        } else {
+          sig = signal(result as V);
+        }
+        sig.unsubscribe = () => abortController.abort();
+        return sig;
+      }
+
+      const keys = Object.keys(argSignals);
+      const resultSig = signal<V | undefined>(undefined);
+      let abortController: AbortController | undefined;
+      let innerUnsubscribe: (() => void) | undefined;
+      // Key of the arguments of the last evaluation, if it failed.
+      let failedArgsKey: string | undefined;
+
+      const argsSig = computed(() => {
+        const argsRecord: Record<string, unknown> = {};
+        for (let i = 0; i < keys.length; i++) {
+          defineOwn(argsRecord, keys[i], getValue(argSignals[keys[i]]));
+        }
+        return argsRecord;
+      });
+
+      const stopper = effect(() => {
+        let argsKey: string | undefined;
+        try {
+          const args = getValue(argsSig);
+
+          // A call that failed is not repeated while its arguments stay the
+          // same, such as when a dependency re-evaluates them to an equal
+          // value. A new evaluation (another binding, or a node mounted
+          // later) or a change of the arguments sends it again.
+          argsKey = canonicalJsonKey(args);
+          if (argsKey !== undefined && argsKey === failedArgsKey) {
+            return;
+          }
+          failedArgsKey = undefined;
+
+          if (abortController) abortController.abort();
+          if (innerUnsubscribe) {
+            innerUnsubscribe();
+            innerUnsubscribe = undefined;
+          }
+          const evaluation = new AbortController();
+          abortController = evaluation;
+          const evaluatedKey = argsKey;
+          const markFailed = () => {
+            if (!evaluation.signal.aborted) {
+              failedArgsKey = evaluatedKey;
+            }
+          };
+
+          const res = scope.evaluateFunctionReactive<V>(
+            callName,
+            args,
+            targetCatalog.invoker,
+            evaluation.signal,
+            keepPending,
+          );
+
+          if (isSignal(res)) {
+            // Seed the result synchronously before wiring the forwarding
+            // effect. Some reactivity backends (e.g. Angular) defer effects
+            // until the next flush, so without this an enclosing function
+            // call would observe `undefined` for this argument and could fail
+            // argument validation (e.g. `not(areComponentsValid(...))`).
+            // `peekValue` is untracked so the outer effect does not subscribe
+            // to `res`; the forwarding effect owns that subscription.
+            setValue(resultSig, peekValue(res));
+            innerUnsubscribe = effect(() => {
+              setValue(resultSig, getValue(res));
+            });
+          } else if (isThenable(res)) {
+            if (keepPending) {
+              setValue(
+                resultSig,
+                scope.keepPendingResult(res, callName, evaluation.signal, {
+                  onSignal: inner => scope.forwardSignal(resultSig, inner, evaluation.signal),
+                  onFailure: markFailed,
+                }) as V,
+              );
+            } else {
+              // Keep the current value until the call settles; a completion
+              // that arrives after the arguments changed again is ignored.
+              scope.settleIntoSignal(resultSig, res, callName, evaluation.signal, markFailed);
+            }
+          } else if (res instanceof FailedArgument) {
+            markFailed();
+            setValue(
+              resultSig,
+              (keepPending ? res : this.atLeastV10 ? null : undefined) as V | undefined,
+            );
+          } else {
+            setValue(resultSig, res);
+          }
+        } catch (e: unknown) {
+          failedArgsKey = argsKey;
+          scope.dispatchExpressionError(e, callName);
+          // In reactive mode, we should not throw. Instead, reset the signal value.
+          setValue(resultSig, (keepPending ? scope.failedArgument(e) : undefined) as V | undefined);
+        }
+      });
+
+      resultSig.unsubscribe = () => {
+        stopper();
+        if (innerUnsubscribe) innerUnsubscribe();
+        if (abortController) abortController.abort();
+        for (let i = 0; i < keys.length; i++) {
+          argSignals[keys[i]].unsubscribe?.();
+        }
+      };
+
+      return resultSig as unknown as Signal<V>;
+    }
+
+    if (this.atLeastV10) {
+      validateReservedDirectives(Object.keys(rec), this.surfaceProtocolVersion);
+    }
+
+    if (!this.containsDynamicValue(rec)) {
+      return signal(value as unknown as V);
+    }
+
+    const entrySignals = Object.entries(rec).map(([k, v]) => {
+      const key = this.atLeastV10 ? unescapeObjectKey(k) : k;
+      return [key, this.resolveSignalValue(v, depth + 1, keepPending)] as const;
+    });
+    const objSig = computed(() => {
+      const resolved: Record<string, unknown> = {};
+      for (const [k, s] of entrySignals) {
+        defineOwn(resolved, k, getValue(s));
+      }
+      return resolved as unknown as V;
+    }) as Signal<V>;
+    const prevUnsubscribe = objSig.unsubscribe?.bind(objSig);
+    objSig.unsubscribe = () => {
+      prevUnsubscribe?.();
+      for (const [, s] of entrySignals) {
+        s.unsubscribe?.();
+      }
+    };
+    return objSig;
+  }
+
+  private handleInvalidAction(message: string): undefined {
+    this.surface?.dispatchError({
+      code: 'INVALID_ACTION',
+      surfaceId: this.surface?.id,
+      message,
+    });
+    return undefined;
+  }
+
+  /**
+   * Resolves the `context` entries and `userMessage` of an event action.
+   *
+   * The entries are resolved in declared order, then `userMessage`, one at a
+   * time: an entry that waits on an asynchronous call, such as an agent
+   * function call, settles before the next entry is evaluated. The first entry
+   * that fails stops the resolution, so no later entry is evaluated and no
+   * later agent call is sent.
+   *
+   * @param ev The event to resolve.
+   * @param options `userActivation` as passed to {@link resolveAction}.
+   * @returns The resolved event, a Promise of it when an entry waits on an
+   *   asynchronous call, or `undefined` (or a Promise of it) when the event is
+   *   invalid or an entry failed. Every failure has been reported by then.
+   */
+  private resolveActionEventObject(
+    ev: Record<string, unknown>,
+    options?: {userActivation?: boolean},
+  ): Record<string, unknown> | undefined | Promise<Record<string, unknown> | undefined> {
+    if (typeof ev.name !== 'string' || ev.name.length === 0) {
+      return this.handleInvalidAction("Action event is missing required 'name' string.");
+    }
+    const userActivated = options?.userActivation ?? true;
+    const scope = this.withFlags({action: true, passive: options?.userActivation === false});
+
+    const contextEntries =
+      ev.context && typeof ev.context === 'object' && !Array.isArray(ev.context)
+        ? Object.entries(ev.context as Record<string, unknown>)
+        : undefined;
+    const hasUserMessage = ev.userMessage !== undefined;
+    const entryCount = (contextEntries?.length ?? 0) + (hasUserMessage ? 1 : 0);
+    const resolvedContext: Record<string, unknown> = {};
+    let resolvedUserMessage: unknown = undefined;
+
+    const finish = (): Record<string, unknown> | undefined => {
+      const resolvedEvent: Record<string, unknown> = {...ev};
+      if (contextEntries) {
+        resolvedEvent.context = resolvedContext;
+      }
+      if (ev.context === undefined) {
+        delete resolvedEvent.context;
+      }
+      if (hasUserMessage) {
+        // A `userMessage` that resolves to nothing, such as a binding to a
+        // missing path, is absent; any other non-string is invalid.
+        if (resolvedUserMessage === undefined || resolvedUserMessage === null) {
+          delete resolvedEvent.userMessage;
+        } else if (typeof resolvedUserMessage !== 'string') {
+          return this.handleInvalidAction("Action event 'userMessage' must resolve to a string.");
+        } else {
+          resolvedEvent.userMessage = resolvedUserMessage;
+        }
+      }
+      return resolvedEvent;
+    };
+
+    // Resolves the entries from `start` on; entry `contextEntries.length` is
+    // `userMessage`.
+    const resolveFrom = (
+      start: number,
+    ): Record<string, unknown> | undefined | Promise<Record<string, unknown> | undefined> => {
+      for (let index = start; index < entryCount; index++) {
+        const contextEntry = contextEntries?.[index];
+        const entryController = new AbortController();
+        let value: unknown;
+        try {
+          value = scope.resolveValue(
+            contextEntry ? contextEntry[1] : ev.userMessage,
+            0,
+            userActivated,
+            true,
+            entryController.signal,
+          );
+        } catch (e: unknown) {
+          // A malformed value, such as an unrecognized `@` key, is an
+          // expression error, reported the same way whether it comes first
+          // or after a pending entry.
+          entryController.abort();
+          this.surface?.dispatchError({
+            code: 'EXPRESSION_ERROR',
+            surfaceId: this.surface?.id,
+            message: `Action event ${contextEntry ? `context entry '${contextEntry[0]}'` : 'userMessage'} is invalid: ${
+              (e as {message?: string} | undefined)?.message ?? String(e)
+            }`,
+          });
+          return undefined;
+        }
+        const store = (settled: unknown): boolean => {
+          if (findFailedArgument(settled)) {
+            entryController.abort();
+            return false;
+          }
+          if (contextEntry) {
+            defineOwn(resolvedContext, contextEntry[0], settled);
+          } else {
+            resolvedUserMessage = settled;
+          }
+          return true;
+        };
+        const settled = settleDeep(value);
+        if (isThenable(settled)) {
+          return Promise.resolve(settled).then(
+            settledValue => (store(settledValue) ? resolveFrom(index + 1) : undefined),
+            (e: unknown) => {
+              entryController.abort();
+              scope.dispatchExpressionError(e, 'DynamicValue');
+              return undefined;
+            },
+          );
+        }
+        if (!store(settled)) {
+          return undefined;
+        }
+      }
+      return finish();
+    };
+
+    return resolveFrom(0);
+  }
+
+  private executeActionFunctionCall(
+    action: Record<string, unknown>,
+    options?: {userActivation?: boolean},
+  ): unknown {
+    let callTarget = 'functionCall' in action ? (action as any).functionCall : action;
+    if (callTarget && typeof callTarget === 'object') {
+      const callName = (callTarget['@call'] ?? callTarget.call) as string | undefined;
+      if (typeof callName === 'string') {
+        callTarget =
+          this.atLeastV10 && !('@call' in callTarget)
+            ? {'@call': callName, ...callTarget}
+            : !this.atLeastV10 && !('call' in callTarget)
+              ? {call: callName, ...callTarget}
+              : callTarget;
+      }
+    }
+    const userActivated = options?.userActivation ?? true;
+    const scope = this.withFlags({action: true, passive: options?.userActivation === false});
+    return scope.resolveValue(callTarget, 0, userActivated, false);
+  }
+
+  /**
+   * Resolves an action by evaluating its top-level dynamic values.
+   *
+   * For event actions, resolves each value in the context map, then
+   * `userMessage`, in order and one at a time (see the protocol's event
+   * actions). For function call actions, evaluates the function call.
+   *
+   * A `userMessage` that resolves to `null` or `undefined` is left out of the
+   * resolved event; one that resolves to any other non-string is reported as
+   * an `INVALID_ACTION`, and the action resolves to `undefined`.
+   *
+   * `options.userActivation` applies to both kinds: a function that requires
+   * user activation runs, or is sent to the agent, only when the action is
+   * user-activated (the default), and is refused when it is `false`.
+   *
+   * @param action The Action object to resolve.
+   * @param options Whether the action was initiated by an active user gesture.
+   * @returns For an event action, the action with its context and
+   *   `userMessage` resolved, or a Promise of it when an entry waits on an
+   *   asynchronous call such as an agent function call. `undefined`, or a
+   *   Promise of `undefined`, when the action is invalid or an entry failed;
+   *   the failure has then been reported and the action must not be
+   *   dispatched. For a function call action, the function's result.
+   */
+  resolveAction(
+    action: Action | Record<string, unknown>,
+    options?: {userActivation?: boolean},
+  ): Action | unknown {
+    if ('event' in action && typeof action.event === 'object' && action.event !== null) {
+      const resolvedEvent = this.resolveActionEventObject(
+        action.event as Record<string, unknown>,
+        options,
+      );
+      const withEvent = (event: Record<string, unknown> | undefined) =>
+        event === undefined ? undefined : {...action, event};
+      return isThenable(resolvedEvent)
+        ? Promise.resolve(resolvedEvent).then(withEvent)
+        : withEvent(resolvedEvent);
+    }
+    if ('name' in action) {
+      return this.resolveActionEventObject(action as Record<string, unknown>, options);
+    }
+    if ('functionCall' in action || 'call' in action || '@call' in action) {
+      return this.executeActionFunctionCall(action as Record<string, unknown>, options);
+    }
+    return action;
+  }
+
+  /**
+   * Resolves the catalog against which a function call executes.
+   *
+   * From v1.0, reserved `@`-prefixed system functions such as `@index` belong
+   * to no catalog, so they resolve to the built-in system function set
+   * whatever the surface's catalogs are. Before v1.0 a call cannot select a
+   * catalog, so a `catalogId` on it is ignored and the call runs in the
+   * surface catalog.
+   *
+   * @param name Name of the function being called.
+   * @param catalogId Identifier of the catalog named by the call, if specified.
+   * @param namesCatalog Whether the call carries a `catalogId` key, whatever
+   *   its value.
+   * @returns The resolved Catalog instance, or the surface default catalog if omitted.
+   * @throws {A2uiExpressionError} If, from v1.0, a call to a reserved `@`
+   *   system function names a catalog: such a function belongs to no catalog,
+   *   so the call is a malformed expression.
+   * @throws {A2uiCatalogError} If the call names a catalog ID that cannot be
+   *   resolved on this surface, or names none on a surface without a default
+   *   catalog. This is reported as a catalog fault rather than a missing
+   *   function, since the function may exist in a catalog that is not
+   *   available here.
+   */
+  private resolveFunctionCatalog(
+    name: string,
+    catalogId: string | undefined,
+    namesCatalog: boolean,
+  ): Catalog<any> {
+    if (this.atLeastV10 && name.startsWith('@')) {
+      if (namesCatalog) {
+        throw new A2uiExpressionError(
+          `System function '${name}' belongs to no catalog and must not name a catalogId.`,
+          name,
+        );
+      }
+      return getSystemFunctionCatalog();
+    }
+    const effectiveCatalogId = this.atLeastV10 ? catalogId : undefined;
+    if (typeof effectiveCatalogId === 'string') {
+      const activeCatalog = this.lookupActiveCatalog(effectiveCatalogId);
+      if (activeCatalog) {
+        return activeCatalog;
+      }
+    }
+    if (!this.surface) {
+      throw new A2uiCatalogError(
+        `No surface available to resolve catalog: ${catalogId ?? 'default'}`,
+      );
+    }
+    return resolveSurfaceCatalog(this.surface, effectiveCatalogId, `Function call '${name}'`);
+  }
+
+  /**
+   * Resolves the catalog a function call runs in, dispatching a
+   * `CATALOG_ERROR` to the surface when it cannot be resolved, and an
+   * `EXPRESSION_ERROR` for any other failure, such as a system function call
+   * that names a catalog.
+   *
+   * @param name Name of the function being called.
+   * @param call The function call, whose `catalogId` selects the catalog.
+   * @returns The resolved Catalog instance, or `undefined` if resolution failed.
+   */
+  private resolveCallCatalog(name: string, call: FunctionCall): Catalog<any> | undefined {
+    try {
+      return this.resolveFunctionCatalog(name, call.catalogId, 'catalogId' in call);
+    } catch (e: unknown) {
+      // A call whose catalog can't be resolved is a catalog fault, not a
+      // broken expression: the function may exist in a catalog this surface
+      // doesn't have.
+      if (e instanceof A2uiCatalogError && this.surface) {
+        this.surface.dispatchError({
+          code: 'CATALOG_ERROR',
+          message: e.message,
+          expression: name,
+        });
+      } else {
+        this.dispatchExpressionError(e, name);
+      }
+      return undefined;
+    }
+  }
+
+  /**
+   * Returns a view of this context with evaluation flags added.
+   *
+   * The view shares everything else with this context. A call evaluated
+   * through it keeps the flags for as long as it runs, including the parts
+   * that run after its pending arguments settle, instead of reading flags
+   * that were reset when the synchronous part returned.
+   *
+   * @param flags The flags to add to those of this context.
+   * @returns The view.
+   */
+  private withFlags(flags: DataContextFlags): this {
+    const view = Object.create(this) as this;
+    view._isUserActivated = this._isUserActivated || Boolean(flags.userActivated);
+    view._isPassiveEvaluation = this._isPassiveEvaluation || Boolean(flags.passive);
+    view._isActionExecution = this._isActionExecution || Boolean(flags.action);
+    view._noAgentRouting = this._noAgentRouting || Boolean(flags.noAgentRouting);
+    view._activeCatalogId = flags.activeCatalogId ?? this._activeCatalogId;
+    view._activeCatalog =
+      flags.activeCatalog !== undefined
+        ? flags.activeCatalog
+        : flags.activeCatalogId !== undefined && flags.activeCatalogId !== this._activeCatalogId
+          ? undefined
+          : this._activeCatalog;
+    if (flags.activeCatalogId !== undefined || flags.activeCatalog !== undefined) {
+      view._cachedAtLeastV10 = undefined;
+    }
+    return view;
+  }
+
+  /**
+   * The catalog ID of the catalog function currently executing in this context
+   * or an ancestor context, if any.
+   */
+  private get activeCatalogId(): string | undefined {
+    return this._activeCatalogId ?? this.parent?.activeCatalogId;
+  }
+
+  /**
+   * The active `Catalog` instance attached to the nearest active catalog scope,
+   * stopping at the closest context that defines `_activeCatalogId`.
+   */
+  private get activeCatalog(): Catalog<any> | undefined {
+    if (this._activeCatalogId !== undefined) {
+      return this._activeCatalog;
+    }
+    return this.parent?.activeCatalog;
+  }
+
+  /**
+   * Looks up a scoped active `Catalog` instance matching `catalogId` on the
+   * nearest active catalog scope.
+   */
+  private lookupActiveCatalog(catalogId: string): Catalog<any> | undefined {
+    const active = this.activeCatalog;
+    return active?.id === catalogId ? active : undefined;
+  }
+
+  /**
+   * Whether a call the renderer does not implement may be sent to the agent.
+   * It may not in an evaluation that cannot wait for the answer, such as the
+   * arguments of an agent's `callRendererFunction`.
+   */
+  private get allowsAgentRouting(): boolean {
+    return !this._noAgentRouting && (this.parent?.allowsAgentRouting ?? true);
+  }
+
+  /**
+   * The value of a failed call inside the arguments of another call.
+   *
+   * From v1.0 it is a `FailedArgument`, which stops the enclosing call. Before
+   * v1.0 it is `undefined`, as it always was.
+   *
+   * @param error The failure.
+   * @returns The value standing for the failed call.
+   */
+  private failedArgument(error: unknown): FailedArgument | undefined {
+    return this.atLeastV10 ? new FailedArgument(error) : undefined;
+  }
+
+  /**
+   * Evaluates a catalog function and returns its reactive Signal or static value.
+   *
+   * Invokes the function with this context through the invoker of the
+   * catalog the call resolved to, and dispatches an `EXPRESSION_ERROR` if
+   * execution throws.
+   *
+   * @template V Expected return type of the function evaluation.
+   * @param name Name of the function to evaluate.
+   * @param args Resolved arguments to pass to the function.
+   * @param invoker Invoker of the catalog the call resolved to.
+   * @param abortSignal Optional abort signal to cancel asynchronous execution.
+   * @param keepPending Whether the call is nested inside a function argument.
+   * @returns The evaluated result as a reactive `Signal` or static value, or `undefined` on failure.
+   */
+  private evaluateFunctionReactive<V>(
+    name: string,
+    args: Record<string, unknown>,
+    invoker: FunctionInvoker,
+    abortSignal?: AbortSignal,
+    keepPending = false,
+  ): Signal<V> | V {
+    try {
+      return invoker(name, args, this, abortSignal) as Signal<V> | V;
+    } catch (e: unknown) {
+      this.dispatchExpressionError(e, name);
+      return (keepPending ? this.failedArgument(e) : undefined) as unknown as V;
+    }
+  }
+
+  /**
+   * Wraps a pending function result nested inside a function argument.
+   *
+   * The inner call reports its own rejection once (attributed to `name`) and
+   * resolves to a `FailedArgument` (`undefined` before v1.0), which stops the
+   * enclosing call from executing or reporting a duplicate error. Settled
+   * values are recorded so `settleDeep` can read them synchronously if a
+   * sibling reactive dependency changes later.
+   *
+   * @param pending The pending result.
+   * @param name Name of the function that produced `pending`.
+   * @param abortSignal Signal that marks the evaluation as stale.
+   * @param handlers `onSignal` receives a `Signal` the result settles to, so
+   *   a binding can follow its later values; `onFailure` runs when the result
+   *   rejects. Neither runs once `abortSignal` has fired.
+   * @returns A Promise resolving to the settled value or a `FailedArgument`.
+   */
+  private keepPendingResult(
+    pending: PromiseLike<unknown>,
+    name: string,
+    abortSignal?: AbortSignal,
+    handlers?: {onSignal?: (source: Signal<unknown>) => void; onFailure?: () => void},
+  ): Promise<unknown> {
+    const tracked: Promise<unknown> = Promise.resolve(pending).then(
+      value => {
+        const unwrapped = isSignal(value) ? peekValue(value) : value;
+        recordSettledValue(tracked, unwrapped);
+        if (isSignal(value) && !abortSignal?.aborted) {
+          handlers?.onSignal?.(value);
+        }
+        return unwrapped;
+      },
+      (e: unknown) => {
+        if (!abortSignal?.aborted) {
+          // A cancelled call is not a failure: re-evaluating it sends it again.
+          if (!isCancellation(e)) handlers?.onFailure?.();
+          this.dispatchExpressionError(e, name);
+        }
+        const failed = this.failedArgument(e);
+        recordSettledValue(tracked, failed);
+        return failed;
+      },
+    );
+    return tracked;
+  }
+
+  /**
+   * Writes the settled value of a pending function result into a signal.
+   *
+   * The signal keeps its current value while the result is pending. A
+   * completion that arrives after `abortSignal` fired is ignored, since the
+   * arguments changed or the subscription ended in the meantime. A result
+   * that settles to a `Signal` is followed until `abortSignal` fires. A
+   * rejection is dispatched as an `EXPRESSION_ERROR` and resets the signal,
+   * as a synchronous failure of the same call would.
+   *
+   * @param sig The signal that exposes the result.
+   * @param pending The pending result.
+   * @param name Name of the function being evaluated.
+   * @param abortSignal Signal that marks the evaluation as stale.
+   * @param onFailure Runs when the result rejects, before subscribers see it.
+   */
+  private settleIntoSignal<V>(
+    sig: Signal<V | undefined>,
+    pending: PromiseLike<unknown>,
+    name: string,
+    abortSignal?: AbortSignal,
+    onFailure?: () => void,
+  ): void {
+    Promise.resolve(pending).then(
+      value => {
+        if (abortSignal?.aborted || this.surface?.disposed) return;
+        if (value instanceof FailedArgument) {
+          setValue(sig, (this.atLeastV10 ? null : undefined) as V | undefined);
+        } else if (isSignal(value) && abortSignal) {
+          this.forwardSignal(sig, value, abortSignal);
+        } else {
+          setValue(sig, (isSignal(value) ? peekValue(value) : value) as V);
+        }
+      },
+      (e: unknown) => {
+        if (abortSignal?.aborted || this.surface?.disposed) return;
+        // A cancelled call is not a failure: re-evaluating it sends it again.
+        const cancelled = isCancellation(e);
+        if (!cancelled) onFailure?.();
+        this.dispatchExpressionError(e, name);
+        setValue(sig, (!cancelled && this.atLeastV10 ? null : undefined) as V | undefined);
+      },
+    );
+  }
+
+  /**
+   * Copies the values of `source` into `target` until `abortSignal` fires.
+   *
+   * @param target The signal that exposes the result.
+   * @param source The signal a function returned.
+   * @param abortSignal Signal that ends the forwarding.
+   */
+  private forwardSignal<V>(
+    target: Signal<V | undefined>,
+    source: Signal<unknown>,
+    abortSignal: AbortSignal,
+  ): void {
+    if (abortSignal.aborted) return;
+    const stop = effect(() => {
+      setValue(target, getValue(source) as V);
+    });
+    abortSignal.addEventListener('abort', () => stop(), {once: true});
+  }
+
+  /**
+   * Dispatches an evaluation failure to the surface as an `EXPRESSION_ERROR`.
+   *
+   * Every failure other than an unresolvable catalog uses this code, including
+   * a function missing from the catalog the call resolved to and an unknown
+   * system function. Unresolvable catalogs are reported by
+   * {@link resolveCallCatalog} as `CATALOG_ERROR`. A cancelled agent call
+   * (an `A2uiRpcError` with code `CANCELLED`, as when its surface is deleted)
+   * is not reported.
+   *
+   * @param e The error thrown while evaluating the call.
+   * @param name Name of the function being evaluated.
+   */
+  private dispatchExpressionError(e: unknown, name: string): void {
+    if (!this.surface || this.surface.disposed) return;
+    if (isCancellation(e)) return;
+    if (
+      e instanceof z.ZodError ||
+      (typeof e === 'object' && e !== null && (e as {name?: string}).name === 'ZodError')
+    ) {
+      const zodErr = e as z.ZodError;
+      const err = new A2uiExpressionError(
+        `Validation failed for function '${name}': ${zodErr.message}`,
+        name,
+        zodErr.errors ?? (zodErr as unknown as {issues?: unknown}).issues,
+      );
+      this.surface.dispatchError({
+        code: 'EXPRESSION_ERROR',
+        message: err.message,
+        expression: name,
+        details: err.details,
+      });
+    } else if (e instanceof A2uiExpressionError) {
+      this.surface.dispatchError({
+        code: 'EXPRESSION_ERROR',
+        message: e.message,
+        expression: e.expression,
+        details: e.details,
+      });
+    } else {
+      const errObj = typeof e === 'object' && e !== null ? (e as {message?: string}) : {};
+      // A local function that throws while an action runs is an execution
+      // failure. A call the agent answers with an error, or that times out,
+      // is an expression failure wherever it runs.
+      const isAgentFailure = e instanceof A2uiRpcError;
+      this.surface.dispatchError({
+        code: this.isActionExecution && !isAgentFailure ? 'EXECUTION_ERROR' : 'EXPRESSION_ERROR',
+        message: errObj.message ?? `An unexpected error occurred in function ${name}.`,
+        expression: name,
+        ...(isAgentFailure && e.functionCallId ? {functionCallId: e.functionCallId} : {}),
+      });
+    }
+  }
+
+  /**
+   * Creates a child DataContext scoped to a deeper relative path.
+   *
+   * @param relativePath The path relative to the current context's path.
+   * @param index Optional explicit iteration index for this nested scope.
+   * @returns A new DataContext instance pointing to the resolved absolute path.
+   */
+  nested(relativePath: string, index?: number): DataContext {
+    const newPath = this.resolvePath(relativePath);
+    return new DataContext(this.surface ?? this.dataModel, newPath, index, this);
+  }
+
+  resolvePath(path: string): string {
+    if (path.startsWith('/')) {
+      return path;
+    }
+    let base = this.path;
+    if (base.endsWith('/') && base.length > 1) {
+      base = base.slice(0, -1);
+    }
+    if (path === '' || path === '.') {
+      return base || '/';
+    }
+    if (base === '/') base = '';
+
+    return `${base}/${path}`;
+  }
+}

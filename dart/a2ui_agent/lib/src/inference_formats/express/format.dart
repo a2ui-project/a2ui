@@ -15,36 +15,82 @@
 import 'package:a2ui_core/a2ui_core.dart';
 
 import '../../inference_format.dart';
-import '../../parser/parser.dart';
-import '../../prompt/generator.dart';
+import '../../utils/catalogs.dart';
 import 'parser.dart';
 import 'prompt_generator.dart';
+import 'response_stream.dart';
 
 /// The Express format: a compact DSL enclosed in `<a2ui>` tags, compiled into
 /// A2UI messages after the response is complete.
 ///
 /// See `specification/proposals/express/`.
+///
+/// The SDK calls [createFormat] with the catalogs of each request, so the
+/// options of the format are given here and passed on to every format created.
 class ExpressFormatFactory extends InferenceFormatFactory {
-  const ExpressFormatFactory();
+  const ExpressFormatFactory({
+    this.allowedMessages,
+    this.progressiveKeys = defaultExpressProgressiveKeys,
+  });
 
+  /// The message types the model may write, such as `createSurface`, or null
+  /// for all of them. The prompt describes only the statements that compile
+  /// to these types.
+  final List<String>? allowedMessages;
+
+  /// Property keys whose open string literals are healed progressively during
+  /// streaming.
+  final Set<String> progressiveKeys;
+
+  /// Throws [A2uiCatalogError] if two of [catalogs] share an id.
   @override
-  InferenceFormat createFormat(List<SchemaCatalog> catalogs) =>
-      ExpressFormat._(List.unmodifiable(catalogs));
+  InferenceFormat createFormat(
+    List<CatalogApi> catalogs, {
+    List<List<AgentToRendererMessage>> examples = const [],
+  }) => ExpressFormat(
+    catalogs,
+    examples: examples,
+    allowedMessages: allowedMessages,
+    progressiveKeys: progressiveKeys,
+  );
 }
 
 /// The Express format bound to the catalogs of one request.
 ///
 /// The first catalog is the default for a surface that does not name one.
 class ExpressFormat extends InferenceFormat {
-  ExpressFormat._(this._catalogs);
+  /// [allowedMessages] names the message types the model may write, such as
+  /// `createSurface`; null allows all of them. The prompt describes only the
+  /// statements that compile to these types.
+  ///
+  /// Throws [A2uiCatalogError] if two of [catalogs] share an id.
+  ExpressFormat(
+    List<CatalogApi> catalogs, {
+    List<List<AgentToRendererMessage>> examples = const [],
+    List<String>? allowedMessages,
+    Set<String> progressiveKeys = defaultExpressProgressiveKeys,
+  }) : progressiveKeys = Set.unmodifiable(progressiveKeys),
+       promptGenerator = ExpressPromptGenerator(
+         List.unmodifiable(catalogs),
+         examples: List.unmodifiable(examples),
+         allowedMessages: allowedMessages == null
+             ? null
+             : List.unmodifiable(allowedMessages),
+       ) {
+    checkDistinctIds(catalogs);
+  }
 
-  final List<SchemaCatalog> _catalogs;
+  /// Property keys whose open string literals are healed progressively during
+  /// streaming.
+  final Set<String> progressiveKeys;
+
+  /// Whether this format supports incremental streaming.
+  bool get supportsStreaming => true;
 
   @override
-  late final PromptGenerator promptGenerator = ExpressPromptGenerator(
-    _catalogs,
-  );
+  final ExpressPromptGenerator promptGenerator;
 
   @override
-  Parser createParser() => ExpressParser(_catalogs);
+  ExpressParser createParser() =>
+      ExpressParser(promptGenerator.catalogs, progressiveKeys: progressiveKeys);
 }

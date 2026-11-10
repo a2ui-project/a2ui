@@ -29,7 +29,6 @@
       "service": true
     },
     "test": {
-      "command": "node --test --enable-source-maps --test-reporter spec dist/src/0.8/tests/**/*.test.js",
       "dependencies": [
         "build",
         "test:vite-compilation"
@@ -52,7 +51,7 @@
         "FORCE_COLOR": "1"
       },
       "dependencies": [
-        "../../../../renderers/lit:build:tsc"
+        "../../../../typescript/renderers/lit:build:tsc"
       ],
       "files": [
         "**/*.ts",

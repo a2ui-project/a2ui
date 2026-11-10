@@ -1,0 +1,197 @@
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
+// Generated from specification/v1.0/json/ via src/v1_0/scripts/generate-schemas.mjs
+import {z} from 'zod';
+import {ExtensionsSchema} from './common-types.js';
+
+export const FunctionCallValidationSchemaSchema = z
+  .object({
+    'type': z.literal('object'),
+    'description': z.string().optional(),
+    'properties': z
+      .object({
+        '@call': z.object({'const': z.string()}),
+        'args': z.record(z.string(), z.any()).optional(),
+      })
+      .strict(),
+    'required': z.array(z.string()),
+  })
+  .describe('JSON Schema structure that validates a wire-level FunctionCall object.');
+export type FunctionCallValidationSchema = z.infer<typeof FunctionCallValidationSchemaSchema>;
+
+export type FunctionCallValidationSchemaInput = z.input<typeof FunctionCallValidationSchemaSchema>;
+
+export const FunctionDefinitionSchema = z
+  .record(z.string(), z.any())
+  .and(
+    z.intersection(
+      FunctionCallValidationSchemaSchema,
+      z.intersection(
+        z.object({
+          'returnType': z
+            .enum([
+              'string',
+              'number',
+              'boolean',
+              'array',
+              'object',
+              'validationResult',
+              'any',
+              'void',
+            ])
+            .describe('The type of value this function returns.'),
+          'allowedCallers': z
+            .enum(['rendererOnly', 'agentOnly', 'rendererOrAgent'])
+            .describe('Specifies which roles are authorized to invoke this function.')
+            .default('rendererOnly'),
+          'requiresUserActivation': z
+            .boolean()
+            .describe(
+              'Specifies whether this function requires a user activation context to execute.',
+            )
+            .default(false),
+        }),
+        z.any(),
+      ),
+    ),
+  )
+  .superRefine((val, ctx) => {
+    if (val && val.requiresUserActivation && val.allowedCallers !== 'rendererOnly') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "requiresUserActivation=true must have allowedCallers='rendererOnly'.",
+        path: ['allowedCallers'],
+      });
+    }
+  })
+  .describe("Describes a function's validation schema and interface metadata.");
+export type FunctionDefinition = z.infer<typeof FunctionDefinitionSchema>;
+
+export type FunctionDefinitionInput = z.input<typeof FunctionDefinitionSchema>;
+
+export const LeafDefinitionSchema = z
+  .record(z.string(), z.any())
+  .and(
+    z.intersection(
+      z.record(z.string(), z.any()),
+      z.any().refine(
+        value =>
+          !z
+            .union([
+              z.object({
+                'properties': z.object({
+                  'component': z.record(z.string(), z.any()).refine(c => 'const' in c),
+                }),
+                'type': z.any().optional(),
+              }),
+              z.object({
+                'allOf': z
+                  .array(z.any())
+                  .refine(
+                    arr =>
+                      arr.some(item =>
+                        Boolean(
+                          item &&
+                          typeof item === 'object' &&
+                          'properties' in item &&
+                          item.properties &&
+                          typeof item.properties === 'object' &&
+                          'component' in item.properties &&
+                          item.properties.component &&
+                          typeof item.properties.component === 'object' &&
+                          'const' in item.properties.component,
+                        ),
+                      ),
+                    'Contains component schema',
+                  ),
+              }),
+            ])
+            .safeParse(value).success,
+        'Invalid input: Should NOT be valid against schema',
+      ),
+    ),
+  )
+  .describe(
+    'Describes a reusable leaf data type (e.g. design token, value union, or payload structure). Must not define a component schema.',
+  );
+export type LeafDefinition = z.infer<typeof LeafDefinitionSchema>;
+
+export type LeafDefinitionInput = z.input<typeof LeafDefinitionSchema>;
+
+export const ComponentDefinitionSchema = z
+  .record(z.string(), z.any())
+  .and(
+    z.intersection(
+      z.record(z.string(), z.any()),
+      z.object({
+        'allowedParents': z
+          .array(z.string())
+          .refine(
+            arr => arr.every((item, i) => arr.indexOf(item) === i),
+            'All items must be unique!',
+          )
+          .describe(
+            'The list of parent component type names that can contain this component type. If omitted, all parent component types are allowed. To restrict a component so it can appear only as the top-level component (id=\'root\') of a surface, set "allowedParents": ["Surface"]. To allow a component as either the top-level component of a surface or a child of a specific container, specify both (e.g., "allowedParents": ["Surface", "CanvasContainer"]).',
+          )
+          .optional(),
+        'allowedChildren': z
+          .array(z.string())
+          .refine(
+            arr => arr.every((item, i) => arr.indexOf(item) === i),
+            'All items must be unique!',
+          )
+          .describe(
+            'The list of child component type names allowed inside this container or slot. If omitted, all child component types are allowed.',
+          )
+          .optional(),
+        'metadata': z
+          .object({'extensions': ExtensionsSchema.optional()})
+          .strict()
+          .describe('Optional static metadata.')
+          .optional(),
+      }),
+    ),
+  )
+  .refine(
+    val => !('anyOf' in val) && !('oneOf' in val),
+    'ComponentDefinition must not have root-level anyOf or oneOf.',
+  )
+  .describe("Describes a component's validation schema and composition constraints.");
+export type ComponentDefinition = z.infer<typeof ComponentDefinitionSchema>;
+
+export type ComponentDefinitionInput = z.input<typeof ComponentDefinitionSchema>;
+
+export const ValidationResultSchema = z
+  .object({
+    'valid': z.boolean().describe('Whether the check passed.'),
+    'code': z
+      .string()
+      .describe('Machine-readable error code (e.g. EXPIRED_CARD, OUT_OF_RANGE).')
+      .optional(),
+    'message': z.string().describe('Human-readable error or warning message.').optional(),
+    'severity': z
+      .enum(['error', 'warning', 'info'])
+      .describe('Severity level of the validation result.')
+      .default('error'),
+  })
+  .describe(
+    'Dynamic validation result object returned by a validation condition function or data binding.',
+  );
+export type ValidationResult = z.infer<typeof ValidationResultSchema>;
+
+export type ValidationResultInput = z.input<typeof ValidationResultSchema>;

@@ -1,0 +1,36 @@
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+export {
+  type A2uiChildRef,
+  A2uiLitElement,
+  type CheckableResolvedProps,
+  type ResolvedAccessibilityAttributes,
+  type ResolvedChildList,
+  type ResolvedChildRef,
+} from './a2ui-lit-element.js';
+export {A2uiController} from './a2ui-controller.js';
+export type {A2uiWebComponentElement} from './a2ui_web_component_element.js';
+export {registerUniversalElement} from './register_universal_element.js';
+export {isWebComponentImplementation} from './is_web_component_implementation.js';
+export {renderA2uiNode} from './render-a2ui-node.js';
+export {sanitizeMediaUrl} from '../common/sanitize_media_url.js';
+export {
+  bindHostAccessibility,
+  createAccessibilityTargets,
+  type AccessibilityTargets,
+} from './host_accessibility.js';
+export type {WebComponentImplementation} from './web_component_implementation.js';

@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "strict": true,
+    "noImplicitOverride": true,
+    "skipLibCheck": true,
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+    "sourceMap": true,
+    "isolatedModules": true,
+    "outDir": "dist",
+    // `build` runs `tsc && vite build`; vite emits dist/, so tsc is only a
+    // typecheck pass here. Without this, pulling the out-of-tree monorepo
+    // packages (see "paths" below) into the program would skew tsc's inferred
+    // root dir.
+    "noEmit": true,
+    "baseUrl": ".",
+    // Mirrors the monorepo aliases in vite.config.ts. See the TODO there.
+    "paths": {
+      "@a2ui/catalog-mcp": ["../../../../../typescript/catalogs/mcp/dist/index.d.ts"],
+      "@a2ui/lit": ["../../../../../typescript/renderers/lit/dist/src/index.d.ts"],
+      "@a2ui/web_core": ["../../../../../typescript/core/web_core/dist/src/index.d.ts"],
+      "@a2ui/web_core/v0_9": ["../../../../../typescript/core/web_core/dist/src/v0_9/index.d.ts"],
+      "@a2ui/web_core/v1_0": ["../../../../../typescript/core/web_core/dist/src/v1_0/index.d.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "*.ts"]
+}

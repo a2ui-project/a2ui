@@ -18,9 +18,9 @@
 # In Vertical:
 # - Each constructor statement maps to an independent surface (`default_surface`, `default_surface_1`, ...).
 # - Components within each surface have id "root".
-# - Positional arguments resolve according to the catalog schema's positionalIndex.
+# - Positional arguments resolve according to positionalIndex and schema property order.
 # - Quoted numbers, booleans, and percentages are coerced to native primitives according to the catalog schema.
-# - Data bindings starting with '$' are preserved as path references.
+# - Data bindings starting with '$' compile to protocol DataBinding objects (`@path` in 1.0, `path` in v0.9).
 
 - name: test_compile_vertical_single_component
   description: Compiles a single constructor invocation to a createSurface envelope.
@@ -30,7 +30,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: 'Text("Hello world")'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -47,7 +47,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: 'Text(text="Welcome", variant="caption")'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -66,7 +66,7 @@
   input: |-
     Text(text: "Hello colon", variant: "body")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -77,14 +77,14 @@
             variant: "body"
 
 - name: test_compile_vertical_data_binding
-  description: Compiles dynamic data-binding paths starting with '$' into protocol path objects.
+  description: Compiles dynamic data-binding paths starting with '$' into protocol DataBinding objects.
   action: compile
   args:
     format: vertical
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: "Text(text=$/user/profile/name)"
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -92,7 +92,7 @@
           - id: "root"
             component: "Text"
             text:
-              path: "/user/profile/name"
+              "@path": "/user/profile/name"
 
 - name: test_compile_vertical_multi_component_surface_per_component
   description: Compiles multiple constructors into separate independent surfaces (default_surface and default_surface_1).
@@ -104,7 +104,7 @@
     Text("First card")
     Text("Second card")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -112,7 +112,7 @@
           - id: "root"
             component: "Text"
             text: "First card"
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface_1"
         catalogId: "conformance/simplified"
@@ -129,7 +129,7 @@
     catalog: "test_data/catalogs/custom_catalog_v1_0.json"
   input: 'Gauge(value="42")'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/custom"
@@ -146,7 +146,7 @@
     catalog: "test_data/catalogs/custom_catalog_v1_0.json"
   input: 'Gauge(value="+10.9%")'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/custom"
@@ -163,7 +163,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: 'Text(text="Trailing comma",)'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -184,7 +184,7 @@
       variant="caption"
     )
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -195,14 +195,14 @@
             variant: "caption"
 
 - name: test_compile_vertical_positional_arguments
-  description: Resolves arguments passed by position according to catalog positionalIndex.
+  description: Resolves arguments passed by position according to catalog property order.
   action: compile
   args:
     format: vertical
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: 'Text("Positional text", "caption")'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -220,7 +220,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: 'Text(text="Unclosed paren"'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -237,7 +237,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: 'Text(text="Unclosed quote)'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -254,7 +254,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: 'root = Text("Assigned to root")'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -271,7 +271,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: '{"component": "Text", "text": "Raw JSON fallback"}'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -288,7 +288,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: '<Text text="JSX fallback" />'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -309,7 +309,7 @@
     Text("Inside code block")
     ```
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -323,40 +323,199 @@
   action: compile
   args:
     format: vertical
-    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-  input: 'Button(child="t1", action=Event("submit_form", payload="abc"))'
+    catalog: "test_data/catalogs/event_property_catalog_v1_0.json"
+  input: 'Select(label="Country", event="change", options=["AU", "US"], action=Event("submit_form", payload="abc"))'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
-        catalogId: "conformance/simplified"
+        catalogId: "conformance/event_property"
         components:
           - id: "root"
-            component: "Button"
-            child: "t1"
+            component: "Select"
+            label: "Country"
+            event: "change"
+            options: ["AU", "US"]
             action:
               event:
                 name: "submit_form"
                 context:
                   payload: "abc"
 
+- name: test_compile_vertical_event_user_message
+  description: Compiles v1.0 Event userMessage keyword argument alongside context bindings.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/event_property_catalog_v1_0.json"
+  input: 'Select(label="Country", event="change", options=["AU"], action=Event("submit_form", country=$/form/country, userMessage="Submitted country selection"))'
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/event_property"
+        components:
+          - id: "root"
+            component: "Select"
+            label: "Country"
+            event: "change"
+            options: ["AU"]
+            action:
+              event:
+                name: "submit_form"
+                userMessage: "Submitted country selection"
+                context:
+                  country:
+                    "@path": "/form/country"
+
+- name: test_compile_vertical_nested_function_call
+  description: Compiles a nested catalog function call expression inside a DynamicString property.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'Text(formatString("Hello ${/user/name}"))'
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text:
+              "@call": "formatString"
+              args:
+                value: "Hello ${/user/name}"
+
+- name: test_compile_vertical_multi_catalog_resolution
+  description: Resolves standalone components across multiple v1.0 catalogs on defaultless surfaces and stamps catalogId per component.
+  action: compile
+  args:
+    format: vertical
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |-
+    Text("Quarterly Revenue")
+    Gauge(value=84)
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        components:
+          - id: "root"
+            component: "Text"
+            catalogId: "conformance/simplified"
+            text: "Quarterly Revenue"
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface_1"
+        components:
+          - id: "root"
+            component: "Gauge"
+            catalogId: "conformance/custom"
+            value: 84
+
+- name: test_compile_vertical_component_extensions
+  description: Compiles v1.0 extensions keyword argument into component metadata.extensions.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'Text("Pinned note", extensions={acme_priority: "high"})'
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Pinned note"
+            metadata:
+              extensions:
+                acme_priority: "high"
+
+- name: test_compile_vertical_checkable_input
+  description: Compiles ?check rules on a standalone checkable input component and binds sibling value automatically.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/forms_catalog_v1_0.json"
+  input: 'TextField(label="Postal code", value=$/address/zip, checks=[?required, ?regex("^[0-9]{5}$", "Must be 5 digits")])'
+  expect_present:
+    - "/0/createSurface/components/0/checks/0/message"
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/forms"
+        components:
+          - id: "root"
+            component: "TextField"
+            label: "Postal code"
+            value:
+              "@path": "/address/zip"
+            checks:
+              - condition:
+                  "@call": "required"
+                  args:
+                    value:
+                      "@path": "/address/zip"
+              - condition:
+                  "@call": "regex"
+                  args:
+                    value:
+                      "@path": "/address/zip"
+                    pattern: "^[0-9]{5}$"
+                message: "Must be 5 digits"
+
+- name: test_compile_vertical_standalone_call_renderer_function
+  description: Compiles a top-level call to an agent-callable catalog function into a v1.0 callRendererFunction message.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/allowed_callers_catalog_v1_0.json"
+  input: "readSessionToken()"
+  expect:
+    - version: "1.0"
+      callRendererFunction:
+        functionCallId: "call_1"
+        callFunction:
+          catalogId: "https://a2ui.org/catalogs/v10/allowed_callers"
+          "@call": "readSessionToken"
+          args: {}
+
 - name: test_compile_vertical_coercion_preserves_data_binding
   description: Verifies that data binding paths starting with '$' are preserved and not coerced when targeting numeric properties.
   action: compile
   args:
     format: vertical
-    catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+    catalog:
+      catalogId: "conformance/dynamic_gauge"
+      protocolVersion: "1.0"
+      components:
+        Gauge:
+          type: object
+          properties:
+            component: {const: "Gauge"}
+            value: {$ref: "common_types.json#/$defs/DynamicNumber"}
+          required: ["component", "value"]
+      $defs:
+        anyComponent:
+          oneOf: [{$ref: "#/components/Gauge"}]
   input: "Gauge(value=$/state/gauge_val)"
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
-        catalogId: "conformance/custom"
+        catalogId: "conformance/dynamic_gauge"
         components:
           - id: "root"
             component: "Gauge"
             value:
-              path: "/state/gauge_val"
+              "@path": "/state/gauge_val"
 
 - name: test_compile_vertical_parse_arg_chunk_leading_colon
   description: Tolerates arguments with leading colons (:key "val").
@@ -366,7 +525,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: 'Text(:text "Colon text")'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -385,7 +544,7 @@
     Text("First line
     Text("Second line")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"
@@ -393,7 +552,7 @@
           - id: "root"
             component: "Text"
             text: "First line"
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface_1"
         catalogId: "conformance/simplified"
@@ -410,7 +569,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
   input: 'Text("First line\nSecond line\t\"Quoted\"")'
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "default_surface"
         catalogId: "conformance/simplified"

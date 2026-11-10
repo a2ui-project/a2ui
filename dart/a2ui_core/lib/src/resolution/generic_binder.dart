@@ -1,0 +1,799 @@
+// Copyright 2024 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import 'dart:async';
+
+import 'package:collection/collection.dart';
+import 'package:json_schema_builder/json_schema_builder.dart'
+    hide ValidationResult;
+
+import '../core/catalog.dart';
+import '../core/common.dart';
+import '../core/component_model.dart';
+import '../core/messages.dart';
+import '../core/metadata.dart';
+import '../core/validation_result.dart';
+import '../primitives/errors.dart';
+import '../primitives/event_notifier.dart';
+import '../primitives/reactivity.dart';
+import '../primitives/reference_schema.dart';
+import 'component_context.dart';
+import 'data_context.dart';
+import 'resolved_binding.dart';
+
+/// Represents the intended runtime behavior of a property parsed from
+/// its schema.
+enum Behavior { dynamic, action, structural, checkable, static, object, array }
+
+class BehaviorNode {
+  final Behavior type;
+  final Map<String, BehaviorNode>? shape;
+  final BehaviorNode? element;
+  final bool isBoolean;
+
+  BehaviorNode(this.type, {this.shape, this.element, this.isBoolean = false});
+}
+
+/// An unresolved child reference and the data scope it would render against.
+///
+/// The binder emits one per entry of a static `ChildList` array or expanded
+/// template, up to [maxDynamicChildListSize]. A descriptor is not a mounted
+/// node and owns no lifecycle.
+class ChildNode {
+  /// The referenced component id.
+  final String id;
+
+  /// The absolute data path for this reference's component instance.
+  final String basePath;
+
+  /// The item's 0-based position when a template expanded this reference;
+  /// null for an entry of a static id array.
+  final int? index;
+
+  ChildNode(this.id, this.basePath, {this.index});
+
+  @override
+  bool operator ==(Object other) =>
+      other is ChildNode &&
+      id == other.id &&
+      basePath == other.basePath &&
+      index == other.index;
+
+  @override
+  int get hashCode => Object.hash(id, basePath, index);
+
+  /// Serializes the id and scope; [index] is implied by [basePath].
+  Map<String, dynamic> toJson() => {'id': id, 'basePath': basePath};
+}
+
+/// Takes a component's raw JSON properties (which may contain data
+/// bindings, function calls, and action definitions) and resolves them
+/// into [ResolvedBinding] wrappers or literal shapes. The
+/// resolved output updates automatically when underlying data changes.
+class GenericBinder {
+  final ComponentContext context;
+  final Schema schema;
+  late final BehaviorNode _behaviorTree;
+  late final ReferenceSchemaReader _schemaReader;
+
+  late final Signal<Map<String, dynamic>> _resolvedProps;
+  final List<void Function()> _subscriptions = [];
+  Subscription? _componentUpdatedSub;
+  bool _isConnected = false;
+  bool _disposed = false;
+
+  // Actions resolve to closures, which cannot be compared by value; reusing
+  // the closure while the raw payload is unchanged keeps unchanged action
+  // props identical across rebuilds.
+  final Map<String, ({Object? raw, NodeAction closure})> _actionClosures = {};
+  static const DeepCollectionEquality _deepEquals = DeepCollectionEquality();
+
+  /// The live properties for the component. Dynamic properties resolve to
+  /// [ResolvedBinding] wrappers: a read-only [ResolvedBinding] for literals
+  /// and function calls, a [WritableBinding] for path bindings, and a read-only
+  /// null binding for omitted or null dynamic properties, including within
+  /// existing nested objects and arrays. Absent or null non-dynamic containers
+  /// are not synthesized. A path binding to missing data is still a
+  /// [WritableBinding] whose value is null.
+  ReadonlySignal<Map<String, dynamic>> get resolvedProps => _resolvedProps;
+
+  GenericBinder(this.context, this.schema) {
+    final Catalog<ComponentApi, FunctionImplementation> catalog =
+        context.surface.resolveCatalog(context.componentModel.catalog);
+    _schemaReader = ReferenceSchemaReader(
+      schema.value,
+      document: catalog.validationSchema,
+      commonTypes: catalog.commonTypesSchema,
+    );
+    _behaviorTree = _withAccessibility(_scrapeSchemaBehavior(schema.value));
+    _resolvedProps = signal<Map<String, dynamic>>({});
+    connect();
+  }
+
+  /// Connects to the component model for updates. No-op after [dispose].
+  void connect() {
+    if (_isConnected || _disposed) return;
+    _isConnected = true;
+    _componentUpdatedSub = context.componentModel.onUpdated.subscribe(
+      _onComponentUpdated,
+    );
+    _rebuildAllBindings();
+  }
+
+  void _onComponentUpdated(ComponentModel _) => _rebuildAllBindings();
+
+  void _rebuildAllBindings() {
+    if (_disposed) return;
+    batch(() {
+      _disposeSubscriptions();
+
+      final Map<String, dynamic> props = context.componentModel.properties;
+      final Object? next = _resolveAndBind(props, _behaviorTree, [], false);
+      if (!_disposed) {
+        _resolvedProps.value = next as Map<String, dynamic>;
+      }
+    });
+  }
+
+  void _disposeSubscriptions() {
+    final List<void Function()> subscriptions = List.of(_subscriptions);
+    _subscriptions.clear();
+    for (final dispose in subscriptions) {
+      dispose();
+    }
+  }
+
+  // subscribe evaluates synchronously. Evaluation may dispose this binder
+  // before subscribe returns its cleanup; never acquire that cleanup afterward.
+  // The initial synchronous pass captures initialValue without invoking
+  // onValue, avoiding writes to stale _resolvedProps during a rebuild.
+  Object? _subscribe(
+    ReadonlySignal<Object?> source,
+    void Function(Object?) onValue,
+  ) {
+    if (_disposed) return null;
+    Object? initialValue;
+    var isInitial = true;
+    final void Function() unsubscribe = source.subscribe((value) {
+      if (isInitial) {
+        isInitial = false;
+        initialValue = value;
+        return;
+      }
+      if (!_disposed) onValue(value);
+    });
+    if (_disposed) {
+      unsubscribe();
+      return null;
+    }
+    _subscriptions.add(unsubscribe);
+    return initialValue;
+  }
+
+  Object? _resolveAndBind(
+    Object? value,
+    BehaviorNode behavior,
+    List<String> path,
+    bool isSync, {
+    Map<String, dynamic>? parentResult,
+  }) {
+    if (_disposed) return null;
+    if (value == null &&
+        !(behavior.type == Behavior.dynamic && behavior.isBoolean)) {
+      return behavior.type == Behavior.dynamic
+          ? const ResolvedBinding<Object?>(null)
+          : null;
+    }
+
+    switch (behavior.type) {
+      case Behavior.dynamic:
+        final bool atLeastV10 = context.dataContext.atLeastV10;
+        final ReadonlySignal<Object?> sig = context.dataContext.resolveSignal(
+          value,
+        );
+        // When the protocol's binding key is present (without `componentId` in
+        // pre-v1.0), cast its value to `String` so a malformed non-string path
+        // (such as `{'path': 42}`) throws `TypeError` during materialization.
+        final String? boundPath = value is Map &&
+                (atLeastV10
+                    ? value.containsKey('@path')
+                    : (value.containsKey('path') &&
+                        !value.containsKey('componentId')))
+            ? (value[atLeastV10 ? '@path' : 'path'] as String)
+            : null;
+        ResolvedBinding<Object?> wrap(Object? current) {
+          final Object? coerced =
+              behavior.isBoolean ? coerceDynamicBoolean(current) : current;
+          final Object? snapshot = _snapshotBindingValue(coerced);
+          return boundPath == null
+              ? ResolvedBinding<Object?>(snapshot)
+              : WritableBinding<Object?>(
+                  snapshot,
+                  (newValue) => context.dataContext.set(
+                    boundPath,
+                    _mutableCopy(newValue),
+                  ),
+                  boundPath,
+                );
+        }
+        final Object? current = isSync
+            ? sig.value
+            : _subscribe(sig, (newValue) {
+                _updateDeepValue(path, wrap(newValue));
+              });
+        return _disposed ? null : wrap(current);
+
+      case Behavior.action:
+        final String cacheKey = path.join('/');
+        final ({Object? raw, NodeAction closure})? cached =
+            _actionClosures[cacheKey];
+        if (cached != null && _deepEquals.equals(cached.raw, value)) {
+          return cached.closure;
+        }
+        Future<void> closure([ActionDispatchOptions? options]) async {
+          // The v0.9.1 and v1.0 `Action` schemas define only the
+          // `{functionCall: {call, args}}` and `{event: {name, ...}}` forms.
+          // The unwrapped `{call, args}` and `{name, ...}` forms are also
+          // accepted on purpose, to match the TypeScript web_core binder.
+          if (value is Map) {
+            final Object? fc =
+                value['functionCall'] is Map ? value['functionCall'] : value;
+            if (context.dataContext.isFunctionCall(fc)) {
+              await _runLocalFunction(Map<String, dynamic>.from(fc as Map));
+              return;
+            }
+          }
+          var expressionFailed = false;
+          final FutureOr<Object?> resolvedOrFuture = _resolveEventAction(
+            context.dataContext.withUserActivation(),
+            value,
+            onExpressionFailed: () => expressionFailed = true,
+          );
+          final Object? resolved = resolvedOrFuture is Future
+              ? await resolvedOrFuture
+              : resolvedOrFuture;
+          if (resolved is Map) {
+            await context.dispatchAction(
+              Map<String, dynamic>.from(resolved),
+              metadata: options?.metadata,
+            );
+          } else if (!expressionFailed) {
+            await context.surface.dispatchError(
+              A2uiRendererError(
+                code: 'INVALID_ACTION',
+                surfaceId: context.surface.id,
+                message: 'Invalid action payload in component '
+                    "'${context.componentModel.id}': $value",
+                details: value,
+              ),
+            );
+          }
+        }
+
+        _actionClosures[cacheKey] = (raw: value, closure: closure);
+        return closure;
+
+      case Behavior.structural:
+        if (value is Map &&
+            value['path'] is String &&
+            value['componentId'] is String &&
+            value.keys.every((k) => k is String)) {
+          final tpl = ChildListTemplate.fromJson(
+            Map<String, dynamic>.from(value),
+          );
+          final ReadonlySignal<Object?> sig = context.dataContext.resolveSignal(
+            context.dataContext.bindingFor(tpl.path),
+          );
+
+          List<ChildNode> resolveChildren(Object? val) {
+            final List<Object?> list = val is List ? val.cast<Object?>() : [];
+            final DataContext nestedCtx = context.dataContext.nested(tpl.path);
+            final int count = list.length > maxDynamicChildListSize
+                ? maxDynamicChildListSize
+                : list.length;
+            return List.generate(
+              count,
+              (i) => ChildNode(
+                tpl.componentId,
+                nestedCtx.resolvePath(i.toString()),
+                index: i,
+              ),
+            );
+          }
+
+          final Object? current = isSync
+              ? sig.value
+              : _subscribe(sig, (newValue) {
+                  _updateDeepValue(path, resolveChildren(newValue));
+                });
+          return _disposed ? null : resolveChildren(current);
+        }
+        if (value is List) {
+          return value
+              .take(maxDynamicChildListSize)
+              .map((id) => ChildNode(id.toString(), context.dataContext.path))
+              .toList();
+        }
+        return value;
+
+      case Behavior.checkable:
+        // A non-list value is treated as no rules, as in web_core and the
+        // Python core. Schema validation of the property is the job of
+        // PayloadValidator at message time, not of the binder.
+        final List<Object?> rules =
+            value is List ? value.cast<Object?>() : const <Object?>[];
+        // A null slot is a rule whose condition awaits an agent response: it
+        // neither passes nor fails until the response arrives, and
+        // `validationPending` says so.
+        final ruleResults = <ValidationResult?>[];
+
+        void applyValidationState(
+          void Function(String key, Object value) write,
+        ) {
+          final failedResults = <ValidationResult>[
+            for (final ValidationResult? r in ruleResults)
+              if (r != null && !r.valid) r,
+          ];
+          final errors = <String>[
+            for (final ValidationResult r in failedResults)
+              if ((r.severity ?? 'error') == 'error')
+                r.message ?? 'Validation failed',
+          ];
+          write('isValid', errors.isEmpty);
+          write('validationErrors', errors);
+          write('validationResults', failedResults);
+          write('validationPending', ruleResults.any((r) => r == null));
+        }
+
+        void updateValidationState() {
+          final List<String> parentPath =
+              path.isEmpty ? const [] : path.sublist(0, path.length - 1);
+          batch(() {
+            applyValidationState(
+              (key, val) => _updateDeepValue([...parentPath, key], val),
+            );
+          });
+        }
+
+        for (var i = 0; i < rules.length; i++) {
+          if (_disposed) return null;
+          final Object? rawRule = rules[i];
+          if (rawRule is! Map || rawRule.keys.any((k) => k is! String)) {
+            context.surface.dispatchError(
+              A2uiRendererError(
+                code: 'VALIDATION_FAILED',
+                surfaceId: context.surface.id,
+                path: '/${[...path, i.toString()].join('/')}',
+                message: 'Check rule at index $i in component '
+                    "'${context.componentModel.id}' must be an object, "
+                    'got ${rawRule.runtimeType}.',
+              ),
+            );
+            continue;
+          }
+          final Object? condition =
+              rawRule.containsKey('condition') ? rawRule['condition'] : rawRule;
+          final bool isPathBound = condition is Map &&
+              ((condition.containsKey('@path') &&
+                      !condition.containsKey('@call')) ||
+                  (condition.containsKey('path') &&
+                      !condition.containsKey('call')));
+          final Object? rawMessage = rawRule['message'];
+          final String? ruleMessage =
+              (rawMessage != null && rawMessage.toString().isNotEmpty)
+                  ? rawMessage.toString()
+                  : null;
+          final String fallbackMessage = ruleMessage ?? 'Validation failed';
+          final String? explicitMessage = isPathBound ? null : ruleMessage;
+
+          final int slot = ruleResults.length;
+          ruleResults.add(const ValidationResult(valid: true));
+
+          ValidationResult? resultOf(DynamicValueState state) => state.pending
+              ? null
+              : ValidationResult.fromEvaluation(
+                  state.value,
+                  explicitMessage: explicitMessage,
+                  fallbackMessage: fallbackMessage,
+                );
+
+          final Object? initial = isSync
+              ? (
+                  value: context.dataContext.resolveDynamicValue(condition),
+                  pending: context.dataContext.isPendingAgentCall(condition),
+                )
+              : _subscribe(
+                  context.dataContext.resolveSignalWithPending(condition),
+                  (newValue) {
+                    ruleResults[slot] = resultOf(
+                      newValue! as DynamicValueState,
+                    );
+                    updateValidationState();
+                  },
+                );
+          if (_disposed) return null;
+          ruleResults[slot] = resultOf(initial! as DynamicValueState);
+        }
+
+        if (!_disposed && parentResult != null) {
+          applyValidationState((key, val) => parentResult[key] = val);
+        }
+
+        // Return original rules for 'checks' property
+        return value;
+
+      case Behavior.object:
+        if (value is! Map) return value;
+        final result = <String, dynamic>{};
+        final Map<String, BehaviorNode> shape = behavior.shape ?? {};
+
+        for (final MapEntry<Object?, Object?> entry in value.entries) {
+          final Object? rawKey = entry.key;
+          if (rawKey is! String) continue;
+          final String key = rawKey;
+          final BehaviorNode childBehavior =
+              shape[key] ?? BehaviorNode(Behavior.static);
+          result[key] = _resolveAndBind(
+            entry.value,
+            childBehavior,
+            [...path, key],
+            isSync,
+            parentResult: result,
+          );
+        }
+
+        // Dynamic props always have a binding, including omitted values. Only
+        // visit objects already present; absent static containers stay absent.
+        for (final MapEntry<String, BehaviorNode> entry in shape.entries) {
+          if (entry.value.type == Behavior.dynamic &&
+              !result.containsKey(entry.key)) {
+            result[entry.key] = const ResolvedBinding<Object?>(null);
+          }
+        }
+
+        return result;
+
+      case Behavior.array:
+        if (value is! List) return value;
+        final BehaviorNode elementBehavior =
+            behavior.element ?? BehaviorNode(Behavior.static);
+        return value
+            .asMap()
+            .entries
+            .map(
+              (e) => _resolveAndBind(
+                  e.value,
+                  elementBehavior,
+                  [
+                    ...path,
+                    e.key.toString(),
+                  ],
+                  isSync),
+            )
+            .toList();
+
+      case Behavior.static:
+        return value;
+    }
+  }
+
+  void _updateDeepValue(List<String> path, Object? newValue) {
+    if (_disposed) return;
+    _resolvedProps.value = _cloneAndUpdate(
+      _resolvedProps.value,
+      path,
+      newValue,
+    );
+  }
+
+  Map<String, dynamic> _cloneAndUpdate(
+    Map<String, dynamic> map,
+    List<String> path,
+    Object? newValue,
+  ) {
+    if (path.isEmpty) return newValue as Map<String, dynamic>;
+
+    final result = Map<String, dynamic>.from(map);
+    Object? current = result;
+
+    for (var i = 0; i < path.length - 1; i++) {
+      final String key = path[i];
+      if (current is Map) {
+        current[key] = current[key] is Map
+            ? Map<String, dynamic>.from(current[key] as Map)
+            : (current[key] is List
+                ? List<Object?>.from(current[key] as Iterable)
+                : <String, dynamic>{});
+        current = current[key];
+      } else if (current is List) {
+        final int idx = int.parse(key);
+        current[idx] = current[idx] is Map
+            ? Map<String, dynamic>.from(current[idx] as Map)
+            : (current[idx] is List
+                ? List<Object?>.from(current[idx] as Iterable)
+                : <String, dynamic>{});
+        current = current[idx];
+      }
+    }
+
+    final String lastKey = path.last;
+    if (current is Map) {
+      current[lastKey] = newValue;
+    } else if (current is List) {
+      current[int.parse(lastKey)] = newValue;
+    }
+
+    return result;
+  }
+
+  BehaviorNode _scrapeSchemaBehavior(
+    Object? schema, [
+    String? propertyName,
+    Set<Object>? ancestors,
+  ]) {
+    final Set<Object> visiting = Set.identity()..addAll(ancestors ?? {});
+    if (schema == null || !visiting.add(schema)) {
+      return BehaviorNode(Behavior.static);
+    }
+    final List<Map<String, Object?>> schemasToInspect = _schemaReader.schemas(
+      schema,
+    );
+    if (_schemaReader.referenceKind(schemasToInspect) is ListRef) {
+      return BehaviorNode(Behavior.structural);
+    }
+    // A recursive local alias can point back through a property or array.
+    // Those deeper occurrences stay literal rather than expanding forever.
+    if (schemasToInspect.any((node) => ancestors?.contains(node) ?? false)) {
+      return BehaviorNode(Behavior.static);
+    }
+    visiting.addAll(schemasToInspect);
+
+    if (_schemaReader.isCheckable(schemasToInspect)) {
+      return BehaviorNode(Behavior.checkable);
+    }
+
+    if (_schemaReader.referencesType(schemasToInspect, 'Action')) {
+      return BehaviorNode(Behavior.action);
+    }
+    if (_schemaReader.referencesType(schemasToInspect, 'DynamicBoolean')) {
+      return BehaviorNode(Behavior.dynamic, isBoolean: true);
+    }
+    if (const [
+      'DynamicValue',
+      'DynamicString',
+      'DynamicNumber',
+      'DynamicStringList',
+    ].any((type) => _schemaReader.referencesType(schemasToInspect, type))) {
+      return BehaviorNode(Behavior.dynamic);
+    }
+
+    // A component's own schema, the only one scraped without ancestors, is
+    // never an action.
+    if (ancestors != null && schemasToInspect.any(_isInlineAction)) {
+      return BehaviorNode(Behavior.action);
+    }
+
+    final bool atLeastV10 = context.dataContext.atLeastV10;
+    bool hasPath = schemasToInspect.any(
+      (s) =>
+          s['properties'] != null &&
+          (atLeastV10
+              ? (s['properties'] as Map)['@path'] != null
+              : (s['properties'] as Map)['path'] != null) &&
+          (s['properties'] as Map)['componentId'] == null,
+    );
+    if (hasPath) {
+      bool isDynamicBranch(Map<String, Object?> s) {
+        final Object? props = s['properties'];
+        if (props is! Map) return false;
+        final bool isBinding = props['componentId'] == null &&
+            (atLeastV10 ? props['@path'] != null : props['path'] != null);
+        final isCall =
+            atLeastV10 ? props['@call'] != null : props['call'] != null;
+        return isBinding || isCall;
+      }
+
+      final bool hasBoolBranch = schemasToInspect.any(
+        (s) => s['type'] == 'boolean',
+      );
+      final bool hasNonBoolLiteral = schemasToInspect.any((s) {
+        final Object? type = s['type'];
+        return type is String &&
+            type != 'boolean' &&
+            type != 'null' &&
+            !isDynamicBranch(s);
+      });
+      return BehaviorNode(
+        Behavior.dynamic,
+        isBoolean: hasBoolBranch && !hasNonBoolLiteral,
+      );
+    }
+
+    final Map<String, Object?> allProperties = _schemaReader.properties(
+      schemasToInspect,
+    );
+    final bool isObject = schemasToInspect.any((s) => s['type'] == 'object');
+    if (isObject || allProperties.isNotEmpty) {
+      final shape = <String, BehaviorNode>{};
+      for (final MapEntry<String, dynamic> entry in allProperties.entries) {
+        shape[entry.key] = _scrapeSchemaBehavior(
+          entry.value,
+          entry.key,
+          visiting,
+        );
+      }
+      return BehaviorNode(Behavior.object, shape: shape);
+    }
+
+    final Object? items = _schemaReader.items(schemasToInspect);
+    if (items != null) {
+      return BehaviorNode(
+        Behavior.array,
+        element: _scrapeSchemaBehavior(items, null, visiting),
+      );
+    }
+
+    return BehaviorNode(Behavior.static);
+  }
+
+  /// Adds the `accessibility` envelope property to a component's root
+  /// behavior when its schema does not declare one, so its `label`,
+  /// `description` and `hidden` resolve as dynamic values on every component.
+  static BehaviorNode _withAccessibility(BehaviorNode root) {
+    final Map<String, BehaviorNode>? shape = root.shape;
+    if (root.type != Behavior.object ||
+        shape == null ||
+        shape.containsKey(_accessibilityProperty)) {
+      return root;
+    }
+    return BehaviorNode(
+      Behavior.object,
+      shape: {
+        ...shape,
+        _accessibilityProperty: BehaviorNode(
+          Behavior.object,
+          shape: {
+            'label': BehaviorNode(Behavior.dynamic),
+            'description': BehaviorNode(Behavior.dynamic),
+            'hidden': BehaviorNode(Behavior.dynamic, isBoolean: true),
+          },
+        ),
+      },
+    );
+  }
+
+  static const String _accessibilityProperty = 'accessibility';
+
+  /// Runs a function action against the component's data context, within a
+  /// user activation, and awaits its result.
+  ///
+  /// On a v1.0 surface a function no catalog implements is sent to the agent
+  /// and awaited. Synchronous lookup, argument, and execution errors are
+  /// reported through the context's error reporter. A function that returns
+  /// a failing `Future` is reported through `SurfaceModel.dispatchError` as
+  /// `EXECUTION_ERROR`, and an agent call that fails or times out as
+  /// `EXPRESSION_ERROR` naming its `functionCallId`, so the error does not
+  /// escape a renderer callback that doesn't await the action. An agent call
+  /// that is cancelled, as when the surface is deleted, is not reported.
+  Future<void> _runLocalFunction(Map<String, dynamic> functionCall) async {
+    try {
+      await context.dataContext.withUserActivation().evaluateFunctionCall(
+            functionCall,
+          );
+    } catch (e) {
+      if (e is A2uiRpcError && e.rpcCode == RpcErrorCode.cancelled) return;
+      final Object? fnName = functionCall['@call'] ?? functionCall['call'];
+      final String? functionCallId =
+          e is A2uiRpcError ? e.functionCallId : null;
+      await context.surface.dispatchError(
+        A2uiRendererError(
+          code: e is A2uiRpcError ? 'EXPRESSION_ERROR' : 'EXECUTION_ERROR',
+          surfaceId: functionCallId == null ? context.surface.id : null,
+          functionCallId: functionCallId,
+          message: "Function '$fnName' failed in component "
+              "'${context.componentModel.id}': $e",
+        ),
+      );
+    }
+  }
+
+  FutureOr<Object?> _resolveEventAction(
+    DataContext dataContext,
+    Object? value, {
+    void Function()? onExpressionFailed,
+  }) {
+    final FutureOr<Map<String, dynamic>?> direct = dataContext
+        .resolveActionAsync(value, onExpressionFailed: onExpressionFailed);
+    // A data binding resolves to null synchronously, so a pending result is
+    // never one.
+    if (direct is Future<Map<String, dynamic>?>) return direct;
+    if (direct != null) return direct;
+    if (dataContext.isDataBinding(value)) {
+      return dataContext.resolveActionAsync(
+        dataContext.resolveDynamicValue(value),
+        onExpressionFailed: onExpressionFailed,
+      );
+    }
+    return null;
+  }
+
+  /// Permanently disconnects this binder, including an interrupted rebuild.
+  /// Later [connect] calls cannot reactivate it. Idempotent.
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    _componentUpdatedSub?.unsubscribe();
+    _componentUpdatedSub = null;
+    _disposeSubscriptions();
+  }
+}
+
+/// The maximum number of children a `ChildList` expands to, whether a static id
+/// array or a template bound to a very large array, bounding resource use.
+const int maxDynamicChildListSize = 10000;
+
+/// Copies container values handed to [WritableBinding.set], so a published
+/// unmodifiable snapshot written back, or a partial copy still holding one,
+/// is stored as a mutable container. Maps keep their keys, and a map with only
+/// string keys is copied as a `Map<String, Object?>`. Opaque values keep their
+/// identity.
+Object? _mutableCopy(Object? value) {
+  if (value is List) {
+    return <Object?>[for (final Object? item in value) _mutableCopy(item)];
+  }
+  if (value is Map && value.keys.every((key) => key is String)) {
+    return <String, Object?>{
+      for (final MapEntry<Object?, Object?> entry in value.entries)
+        entry.key as String: _mutableCopy(entry.value),
+    };
+  }
+  if (value is Map) {
+    return <Object?, Object?>{
+      for (final MapEntry<Object?, Object?> entry in value.entries)
+        entry.key: _mutableCopy(entry.value),
+    };
+  }
+  return value;
+}
+
+/// Copies container values so later data-model writes cannot mutate an
+/// already-emitted binding or hide a change from binding value comparison.
+/// Copies are recursively unmodifiable; opaque values keep their identity.
+Object? _snapshotBindingValue(Object? value) {
+  if (value is List) {
+    return List<Object?>.unmodifiable(value.map(_snapshotBindingValue));
+  }
+  // Keeps the Map<String, Object?> type, which the untyped branch would lose.
+  if (value is Map<String, Object?>) {
+    return UnmodifiableMapView(
+      value.map((key, item) => MapEntry(key, _snapshotBindingValue(item))),
+    );
+  }
+  if (value is Map) {
+    return UnmodifiableMapView(
+      value.map((key, item) => MapEntry(key, _snapshotBindingValue(item))),
+    );
+  }
+  return value;
+}
+
+/// Whether [schema] declares `event` or `functionCall` as its only property,
+/// like each branch of the spec's `Action`.
+bool _isInlineAction(Map<String, Object?> schema) {
+  final Object? properties = schema['properties'];
+  return properties is Map &&
+      properties.length == 1 &&
+      (properties.containsKey('event') ||
+          properties.containsKey('functionCall'));
+}

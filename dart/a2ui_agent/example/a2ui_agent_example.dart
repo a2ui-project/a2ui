@@ -20,17 +20,14 @@ import 'package:a2ui_core/a2ui_core.dart';
 /// [callLlm] sends the system prompt and the user's message to the model and
 /// returns its complete response.
 Future<List<AgentToRendererMessage>> respond({
-  required SchemaCatalog catalog,
+  required CatalogApi catalog,
   required A2uiRendererCapabilities rendererCapabilities,
   required String userMessage,
   required Future<String> Function(String systemPrompt, String userMessage)
   callLlm,
 }) async {
   // 1. At agent startup: register the catalogs the agent supports.
-  final generator = A2uiGenerator(
-    catalogs: [CatalogConfig(catalog)],
-    inferenceFormatFactory: const ExpressFormatFactory(),
-  );
+  final generator = A2uiGenerator(catalogs: [CatalogConfig(catalog)]);
 
   // 2. Per request: negotiate with the renderer's capabilities.
   final A2uiRequestProcessor processor = generator.createProcessor(
@@ -40,7 +37,10 @@ Future<List<AgentToRendererMessage>> respond({
   // 3. Call the LLM with the prompt snippet.
   final String llmOutput = await callLlm(processor.promptSnippet, userMessage);
 
-  // 4. Parse the response.
+  // 4. Parse the response. Each turn of this chat shows new UI, so the
+  // response is checked against a new, empty renderer state. A canvas agent,
+  // whose turns update earlier surfaces, keeps one `processor.createState()`
+  // for the conversation and passes it as `state:` on every turn.
   final List<ResponsePart> parts = processor.parseResponse(llmOutput);
 
   // 5. Deliver the A2UI messages to the renderer.

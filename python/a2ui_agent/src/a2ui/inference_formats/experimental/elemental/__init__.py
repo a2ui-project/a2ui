@@ -12,14 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""A2UI Elemental experimental package."""
+from __future__ import annotations
 
 from .compiler import ElementalCompiler
+from .decompiler import ElementalDecompiler
 from .format import ElementalFormat
+from .format import ElementalFormatFactory
 from .parser import ElementalParser
 
 __all__ = [
     "ElementalCompiler",
+    "ElementalDecompiler",
     "ElementalFormat",
+    "ElementalFormatFactory",
     "ElementalParser",
 ]

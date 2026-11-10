@@ -6,7 +6,7 @@ A2UI Express is a compact, token-efficient declarative syntax designed for dynam
 
 ## Environment Variable Gate
 
-To prevent pollution of the stable v1.0 baseline workspace during development, all A2UI Express code imports and command-line utilities are gated behind the environment variable `A2UI_EXPRESS_ENABLED`.
+To prevent pollution of the v1.0 baseline workspace during development, all A2UI Express code imports and command-line utilities are gated behind the environment variable `A2UI_EXPRESS_ENABLED`.
 
 You **must** prepend `A2UI_EXPRESS_ENABLED=true` to all python command invocations.
 
@@ -70,9 +70,11 @@ A2UI_EXPRESS_ENABLED=true uv run --project ../../../python/a2ui_agent scripts/ru
   --surface-id "dashboard_surface"
 ```
 
+`--surface-id` is the surface used when the DSL has no `surface(...)` statement.
+
 ### JSON-to-Express decompiler
 
-Convert standard A2UI v1.0 JSON envelopes back into compact A2UI Express code:
+Convert a standard A2UI v1.0 JSON example back into compact A2UI Express code. The script takes the components of the example's first `updateComponents` message, wraps them in a `createSurface` for the basic catalog, and prints the resulting `surface(...)` block:
 
 ```bash
 A2UI_EXPRESS_ENABLED=true uv run --project ../../../python/a2ui_agent scripts/run_decompiler.py ../../../catalogs/basic/v1/examples/01_flight-status.json

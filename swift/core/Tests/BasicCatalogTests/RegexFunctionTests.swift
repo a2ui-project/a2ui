@@ -58,10 +58,11 @@ struct RegexFunctionTests {
     #expect(result == .boolean(true))
   }
 
-  @Test func evaluatesToFalseWhenPatternIsInvalid() throws {
-    let result = try function.evaluate(
-      arguments: ["value": .string("foo"), "pattern": .string("[invalid")], context: context)
-    #expect(result == .boolean(false))
+  @Test func throwsErrorWhenPatternIsInvalid() throws {
+    #expect(throws: FunctionError.self) {
+      try function.evaluate(
+        arguments: ["value": .string("foo"), "pattern": .string("[invalid")], context: context)
+    }
   }
 
   @Test func evaluatesToFalseWhenValueIsMissing() throws {
@@ -86,5 +87,23 @@ struct RegexFunctionTests {
     let result = try function.evaluate(
       arguments: ["value": .string("foo"), "pattern": .boolean(true)], context: context)
     #expect(result == .boolean(false))
+  }
+
+  @Test func evaluatesToFalseWhenValueExceeds4096CodePoints() throws {
+    let longValue = String(repeating: "1", count: 4097)
+    let result = try function.evaluate(
+      arguments: ["value": .string(longValue), "pattern": .string("^\\d+$")],
+      context: context
+    )
+    #expect(result == .boolean(false))
+  }
+
+  @Test func throwsErrorWithRejectionTokenWhenPatternIsUnsafe() throws {
+    #expect(throws: FunctionError.self) {
+      try function.evaluate(
+        arguments: ["value": .string("aaa"), "pattern": .string("(a+)+$")],
+        context: context
+      )
+    }
   }
 }

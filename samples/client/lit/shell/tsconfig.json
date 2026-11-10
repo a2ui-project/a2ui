@@ -29,9 +29,10 @@
 
     /* Linting */
     "strict": false,
+    "noImplicitOverride": true,
     "noUnusedLocals": false,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "references": [{"path": "../../../../renderers/lit"}]
+  "references": [{"path": "../../../../typescript/renderers/lit"}]
 }

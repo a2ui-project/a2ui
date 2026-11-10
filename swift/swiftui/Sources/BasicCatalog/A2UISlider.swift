@@ -49,16 +49,31 @@ public struct A2UISlider: View {
     node.double(for: "max") ?? 100
   }
 
+  /// The snapping increment derived from the v1.0 `steps` property, or `nil` for a continuous
+  /// slider. `steps` is the number of divisions across `min...max`, so the increment is
+  /// `(max - min) / steps`. Missing, non-positive, or non-integer `steps` and `max <= min`
+  /// all keep the slider continuous.
+  public var stepValue: Double? {
+    guard let steps = node.int(for: "steps"), steps > 0, maxValue > minValue else {
+      return nil
+    }
+    let step = (maxValue - minValue) / Double(steps)
+    return step > 0 ? step : nil
+  }
+
   private var sliderBinding: Binding<Double> {
     node.binding(for: "value", default: minValue)
   }
 
-  private var formattedValueText: String {
-    let val = sliderBinding.wrappedValue
-    if val.truncatingRemainder(dividingBy: 1) == 0 {
-      return String(Int(val))
+  /// The value shown next to the label and used as the slider's accessibility value. Whole
+  /// numbers that fit in `Int` print without a decimal point; anything else, including whole
+  /// numbers beyond `Int`'s range, uses `Double`'s description.
+  public var formattedValueText: String {
+    let value = sliderBinding.wrappedValue
+    if let whole = Int(exactly: value) {
+      return String(whole)
     }
-    return String(val)
+    return String(value)
   }
 
   public var body: some View {
@@ -68,24 +83,30 @@ public struct A2UISlider: View {
           Text(labelText)
             .font(.subheadline.weight(.medium))
             .foregroundStyle(!node.isValid ? Color.red : Color.secondary)
+            .accessibilityHidden(true)
           Spacer()
           Text(formattedValueText)
             .font(.subheadline.monospacedDigit())
             .foregroundStyle(.secondary)
+            .accessibilityHidden(true)
         }
       }
 
-      Slider(
-        value: sliderBinding,
-        in: minValue...max(minValue + 0.001, maxValue)
-      )
+      sliderControl
+        .accessibilityValue(formattedValueText)
+        .a2uiAccessibilityControl(for: node, defaultLabel: labelText)
 
-      if let firstError = node.validationErrors.first {
-        Text(firstError)
-          .font(.caption)
-          .foregroundStyle(Color.red)
-          .accessibilityIdentifier("A2UISlider_Error_\(node.id)")
-      }
+      A2UICheckMessage(node: node, identifierPrefix: "A2UISlider")
+    }
+  }
+
+  @ViewBuilder
+  private var sliderControl: some View {
+    let range = minValue...max(minValue + 0.001, maxValue)
+    if let stepValue {
+      Slider(value: sliderBinding, in: range, step: stepValue)
+    } else {
+      Slider(value: sliderBinding, in: range)
     }
   }
 }

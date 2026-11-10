@@ -112,20 +112,47 @@ class V0Point8Adapter(BaseVersionAdapter):
         elif action == MSG_TYPE_DATA_MODEL_UPDATE:
             du = message[MSG_TYPE_DATA_MODEL_UPDATE]
             surface_id = self._get_surface_id(du)
+            raw_path = du.get("path")
+            base_path = ""
+            if isinstance(raw_path, str):
+                stripped = raw_path.strip()
+                if stripped and stripped != "/":
+                    base_path = (
+                        stripped if stripped.startswith("/") else f"/{stripped}"
+                    ).rstrip("/")
+
+            def _extract_content_val(entry: dict[str, Any]) -> Any:
+                for key in (
+                    "valueNumber",
+                    "valueString",
+                    "valueBoolean",
+                    "valueObject",
+                    "valueArray",
+                ):
+                    if key in entry:
+                        return entry[key]
+                if "valueMap" in entry and isinstance(entry["valueMap"], list):
+                    nested: dict[str, Any] = {}
+                    for sub in entry["valueMap"]:
+                        if isinstance(sub, dict) and isinstance(sub.get("key"), str):
+                            nested[sub["key"]] = _extract_content_val(sub)
+                    return nested
+                return entry.get("value")
+
             if "contents" in du and isinstance(du["contents"], list):
                 for item in du["contents"]:
-                    if isinstance(item, dict) and "key" in item:
-                        key = item["key"]
-                        val = None
-                        for k, v in item.items():
-                            if k.startswith("value"):
-                                val = v
-                                break
+                    if isinstance(item, dict) and isinstance(item.get("key"), str):
+                        item_key = item["key"].lstrip("/")
+                        full_path = (
+                            (base_path or "/")
+                            if item_key in ("", ".")
+                            else f"{base_path}/{item_key}"
+                        )
                         res.append(
                             InternalUpdateDataModelOp(
                                 surface_id=surface_id,
-                                path=f"/{key}",
-                                value=val,
+                                path=full_path,
+                                value=_extract_content_val(item),
                             )
                         )
             else:

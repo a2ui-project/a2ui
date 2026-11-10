@@ -1,0 +1,200 @@
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import {readFileSync} from 'fs';
+import {dirname, relative, resolve} from 'path';
+import {fileURLToPath} from 'url';
+
+import {loadAll} from 'js-yaml';
+
+// Using __dirname isn't directly available in ESM unless constructed
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+export const CONFORMANCE_ROOT = resolve(__dirname, '../../../../../conformance');
+
+export interface TestCase {
+  name: string;
+  description?: string;
+  action: string;
+  args?: Record<string, unknown>;
+  catalog?: Record<string, unknown>;
+  format?: string;
+  [key: string]: unknown;
+}
+
+export interface LoadedCase extends TestCase {
+  sourceFile: string;
+}
+
+const SUPPORTED_PROTOCOL_VERSIONS = new Set(['v0.9', '1.0']);
+
+/**
+ * Conformance cases that run but do not yet pass, with the reason for each.
+ *
+ * These are expected failures, not skips. The case executes and the suite asserts that it
+ * fails, so fixing the underlying gap turns the test red and prompts removal of the entry.
+ * Python passes every case listed here, so each one is a real gap in this SDK rather than
+ * an aspirational case. The streaming gaps are listed with the suite that finds them, in
+ * `direct-json-response-streaming.test.ts`.
+ */
+export const KNOWN_FAILURES = new Map<string, string>([]);
+
+/**
+ * Cases this SDK does not support, keyed by `<suite>::<case>`.
+ */
+export const UNSUPPORTED = new Map<string, string>([]);
+
+/**
+ * Legacy cases whose rules the newer suites replaced, with the suite that now covers each.
+ *
+ * The legacy suites describe the earlier agent interface, and a few of their rules were
+ * changed on purpose when the blueprint interface was written. This SDK follows the newer
+ * suites, so these cases are skipped rather than listed as failures.
+ */
+export const SUPERSEDED = new Map<string, string>([
+  ...[
+    'agent/legacy/inference_format.yaml::test_select_catalog_default',
+    'agent/legacy/inference_format.yaml::test_select_catalog_no_match',
+    'agent/legacy/inference_format.yaml::test_select_catalog_inline',
+    'agent/legacy/inference_format.yaml::test_select_catalog_multiple_inline',
+    'agent/legacy/inference_format.yaml::test_select_catalog_no_match_with_inline',
+    'agent/legacy/inference_format.yaml::test_select_catalog_inline_not_accepted',
+  ].map((name): [string, string] => [
+    name,
+    'superseded by catalog_resolution.yaml, which activates every catalog in common and adds inline catalogs alongside them',
+  ]),
+  ...[
+    'agent/legacy/parser.yaml::test_parse_empty_response',
+    'agent/legacy/parser.yaml::test_parse_response_only_text_no_tags',
+    'agent/legacy/parser.yaml::test_parse_response_empty_tags',
+  ].map((name): [string, string] => [
+    name,
+    'superseded by direct_json/response_parser.yaml, where a response without tags is a text part, an empty response has no parts, and an empty block fails when it compiles',
+  ]),
+  [
+    'agent/legacy/parser.yaml::test_parse_response_invalid_json',
+    'superseded by direct_json/compiler.yaml, which checks the ParseError without the removed payload fixer\'s "Failed to parse" message',
+  ],
+]);
+
+/**
+ * Legacy actions whose whole interface the newer suites replaced.
+ *
+ * `generate_prompt` assembled a full system prompt from role, workflow and UI descriptions.
+ * The prompt generator now renders only the catalog snippet and leaves the rest of the
+ * prompt to the agent developer. `process_chunk` drove a stream processor that a parser
+ * owned; a stream is now opened per response with `Parser.openStream`. `fix_payload`
+ * called a standalone payload fixer; the Direct JSON parser's reader now makes those
+ * repairs while it compiles a block.
+ */
+const SUPERSEDED_ACTIONS = new Map<string, string>([
+  [
+    'generate_prompt',
+    'superseded by direct-json/prompt_generator.yaml, since the generator renders only the catalog snippet',
+  ],
+  [
+    'process_chunk',
+    'superseded by direct_json/response_streaming.yaml, which reads a stream through Parser.openStream',
+  ],
+  [
+    'fix_payload',
+    'superseded by direct_json/compiler.yaml, since the Direct JSON parser repairs a payload while it compiles it',
+  ],
+]);
+
+const SUPPORTED_FORMATS = new Set(['direct_json', 'express']);
+
+/**
+ * Conformance actions this SDK has no implementation for. Their cases are skipped with the
+ * reason given, rather than falling through the harness and passing without running.
+ */
+const UNIMPLEMENTED_ACTIONS = new Map<string, string>([]);
+
+function skipVerdict(reason: string) {
+  return {runnable: false, reason};
+}
+
+export function classify(testCase: TestCase) {
+  const compositeKey =
+    typeof testCase.sourceFile === 'string'
+      ? `${testCase.sourceFile}::${testCase.name}`
+      : testCase.name;
+  const superseded =
+    SUPERSEDED.get(compositeKey) ??
+    SUPERSEDED.get(testCase.name) ??
+    SUPERSEDED_ACTIONS.get(testCase.action);
+  if (superseded) {
+    return skipVerdict(superseded);
+  }
+
+  const unimplemented = UNIMPLEMENTED_ACTIONS.get(testCase.action);
+  if (unimplemented) {
+    return skipVerdict(unimplemented);
+  }
+
+  let version = 'unversioned';
+  if (testCase.args?.version) {
+    version = testCase.args.version as string;
+  } else if (testCase.catalog?.protocolVersion) {
+    version = testCase.catalog.protocolVersion as string;
+  }
+
+  if (version === '0.9') version = 'v0.9';
+  if (version === 'v1.0') version = '1.0';
+  if (version === '0.8') version = 'v0.8';
+
+  let format = 'express';
+  if (typeof testCase.format === 'string') {
+    format = testCase.format;
+  } else if (testCase.args && typeof testCase.args.format === 'string') {
+    format = testCase.args.format;
+  }
+
+  if (version !== 'unversioned' && !SUPPORTED_PROTOCOL_VERSIONS.has(version)) {
+    return skipVerdict(`Unsupported protocol version: ${version}`);
+  }
+  if (!SUPPORTED_FORMATS.has(format)) {
+    return skipVerdict(`Unsupported format: ${format}`);
+  }
+
+  return {runnable: true, reason: ''};
+}
+
+export function loadCases(files: string[]): LoadedCase[] {
+  const allCases: LoadedCase[] = [];
+  for (const file of files) {
+    const sourceFile = relative(CONFORMANCE_ROOT, file).replace(/\\/g, '/');
+    const content = readFileSync(file, 'utf-8');
+    const docs = loadAll(content) as Array<Record<string, unknown> | Record<string, unknown>[]>;
+    for (const doc of docs) {
+      if (Array.isArray(doc)) {
+        for (const item of doc) {
+          allCases.push({...(item as TestCase), sourceFile});
+        }
+      } else if (doc && Array.isArray(doc.tests)) {
+        for (const item of doc.tests as Record<string, unknown>[]) {
+          const name = (item.id ?? item.name) as string;
+          const action = (item.action ?? 'build') as string;
+          allCases.push({...(item as TestCase), name, action, sourceFile});
+        }
+      } else if (doc) {
+        allCases.push({...(doc as TestCase), sourceFile});
+      }
+    }
+  }
+  return allCases;
+}

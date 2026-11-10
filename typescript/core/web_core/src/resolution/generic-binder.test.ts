@@ -1,0 +1,1873 @@
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import * as assert from 'node:assert';
+import {describe, it} from 'node:test';
+import {z} from 'zod';
+import {
+  GenericBinder,
+  getSafeChildList,
+  MAX_DYNAMIC_CHILD_LIST_SIZE,
+  scrapeSchemaBehavior,
+  type GenerateSetters,
+  type ResolveA2uiProps,
+  type ResolvedChildRef,
+} from './generic-binder.js';
+import {ComponentContext} from './component-context.js';
+import {SurfaceModel} from '../state/surface-model.js';
+import {Catalog, FunctionImplementation} from '../catalog/types.js';
+import {ComponentModel} from '../state/component-model.js';
+import {
+  CommonSchemas,
+  DataBindingSchema,
+  type ChildList,
+  type DataBinding,
+  type DynamicString,
+  type FunctionCall,
+} from '../types/common-types.js';
+import type {Action as V1Action, CheckRule as V1CheckRule} from '../v1_0/schema/common-types.js';
+
+describe('GenericBinder Checkable Trait', () => {
+  function setupSurfaceAndMocks() {
+    const mockFunctions: FunctionImplementation[] = [
+      {
+        name: 'required',
+        returnType: 'boolean',
+        schema: z.object({value: z.unknown()}),
+        execute: (args: Record<string, unknown>) => !!args.value,
+      },
+      {
+        name: 'min_length',
+        returnType: 'boolean',
+        schema: z.object({value: z.unknown(), min: z.number()}),
+        execute: (args: Record<string, unknown>) =>
+          typeof args.value === 'string' &&
+          typeof args.min === 'number' &&
+          args.value.length >= args.min,
+      },
+    ];
+    const mockCatalog = new Catalog('test', '0.9', [], mockFunctions);
+    const surface = new SurfaceModel('s1', mockCatalog);
+
+    const schema = z.object({
+      value: CommonSchemas.DynamicString,
+      checks: CommonSchemas.Checkable.shape.checks,
+    });
+
+    return {catalog: mockCatalog, surface, schema};
+  }
+
+  it('should resolve checkable validation state reactively', async () => {
+    const {catalog, surface, schema} = setupSurfaceAndMocks();
+    surface.dataModel.set('/val', '');
+
+    const compModel = new ComponentModel(
+      'c1',
+      'Test',
+      {
+        value: {path: '/val'},
+        checks: [
+          {
+            condition: {
+              call: 'required',
+              args: {value: {path: '/val'}},
+            },
+            message: 'Value is required',
+          },
+        ],
+      },
+      catalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    const context = new ComponentContext(surface, 'c1');
+    const binder = new GenericBinder<any>(context, schema);
+    binder.subscribe(() => {});
+
+    // Initial state: should be invalid
+    assert.strictEqual(binder.snapshot.isValid, false);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Value is required']);
+
+    // Update data: should become valid
+    surface.dataModel.set('/val', 'hello');
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    assert.strictEqual(binder.snapshot.isValid, true);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, []);
+  });
+
+  it('should aggregate multiple validation rules correctly', async () => {
+    const {catalog, surface, schema} = setupSurfaceAndMocks();
+    surface.dataModel.set('/val', '');
+
+    const compModel = new ComponentModel(
+      'c2',
+      'Test',
+      {
+        value: {path: '/val'},
+        checks: [
+          {
+            condition: {
+              call: 'required',
+              args: {value: {path: '/val'}},
+            },
+            message: 'Cannot be empty',
+          },
+          {
+            condition: {
+              call: 'min_length',
+              args: {value: {path: '/val'}, min: 3},
+            },
+            message: 'Must be at least 3 characters',
+          },
+        ],
+      },
+      catalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    const context = new ComponentContext(surface, 'c2');
+    const binder = new GenericBinder<any>(context, schema);
+    binder.subscribe(() => {});
+
+    // Both rules fail initially
+    assert.strictEqual(binder.snapshot.isValid, false);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, [
+      'Cannot be empty',
+      'Must be at least 3 characters',
+    ]);
+
+    // Update data to satisfy first rule but fail second
+    surface.dataModel.set('/val', 'hi');
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    assert.strictEqual(binder.snapshot.isValid, false);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Must be at least 3 characters']);
+
+    // Update data to satisfy all rules
+    surface.dataModel.set('/val', 'hello');
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    assert.strictEqual(binder.snapshot.isValid, true);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, []);
+  });
+
+  it('should provide a default message if rule.message is missing', async () => {
+    const {catalog, surface, schema} = setupSurfaceAndMocks();
+    surface.dataModel.set('/val', '');
+
+    const compModel = new ComponentModel(
+      'c3',
+      'Test',
+      {
+        value: {path: '/val'},
+        checks: [
+          {
+            condition: {
+              call: 'required',
+              args: {value: {path: '/val'}},
+            },
+          },
+        ] as unknown as Array<{condition: unknown; message?: string}>,
+      },
+      catalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    const context = new ComponentContext(surface, 'c3');
+    const binder = new GenericBinder<Record<string, unknown>>(context, schema);
+
+    assert.strictEqual(binder.snapshot.isValid, false);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Validation failed']);
+  });
+
+  it('should default to valid if checks array is empty', () => {
+    const {catalog, surface, schema} = setupSurfaceAndMocks();
+
+    const compModel = new ComponentModel(
+      'c4',
+      'Test',
+      {
+        value: 'hello',
+        checks: [],
+      },
+      catalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    const context = new ComponentContext(surface, 'c4');
+    const binder = new GenericBinder<Record<string, unknown>>(context, schema);
+
+    assert.strictEqual(binder.snapshot.isValid, true);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, []);
+  });
+
+  it('should resolve ACTION binding and dispatch resolved payload', () => {
+    const {catalog, surface} = setupSurfaceAndMocks();
+    surface.dataModel.set('/user/name', 'Alice');
+
+    const actionSchema = z.object({
+      onTap: CommonSchemas.Action,
+    });
+
+    const compModel = new ComponentModel(
+      'c5',
+      'Button',
+      {
+        onTap: {
+          event: {
+            name: 'submit',
+            context: {
+              user: {path: '/user/name'},
+            },
+          },
+        },
+      },
+      catalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    let dispatchedAction: {
+      name?: string;
+      sourceComponentId?: string;
+      context?: Record<string, unknown>;
+    } | null = null;
+    surface.onAction.subscribe(act => {
+      dispatchedAction = act as {
+        name?: string;
+        sourceComponentId?: string;
+        context?: Record<string, unknown>;
+      };
+    });
+
+    const context = new ComponentContext(surface, 'c5');
+    const binder = new GenericBinder<{onTap?: () => void}>(context, actionSchema);
+
+    // Call the resolved ACTION closure
+    assert.strictEqual(typeof binder.snapshot.onTap, 'function');
+    binder.snapshot.onTap?.();
+
+    assert.ok(dispatchedAction);
+    assert.strictEqual((dispatchedAction as {name?: string})?.name, 'submit');
+    assert.strictEqual((dispatchedAction as {sourceComponentId?: string})?.sourceComponentId, 'c5');
+    assert.deepStrictEqual((dispatchedAction as {context?: Record<string, unknown>})?.context, {
+      user: 'Alice',
+    });
+  });
+
+  it('should return action dispatch promise settling after onAction listeners complete', async () => {
+    const {catalog, surface} = setupSurfaceAndMocks();
+    surface.dataModel.set('/user/name', 'Alice');
+
+    const actionSchema = z.object({
+      onTap: CommonSchemas.Action,
+    });
+
+    const compModel = new ComponentModel(
+      'c5',
+      'Button',
+      {
+        onTap: {
+          event: {
+            name: 'submit',
+            context: {
+              user: {path: '/user/name'},
+            },
+          },
+        },
+      },
+      catalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    let listenerCompleted = false;
+    surface.onAction.subscribe(async () => {
+      await new Promise(resolve => setTimeout(resolve, 10));
+      listenerCompleted = true;
+    });
+
+    const context = new ComponentContext(surface, 'c5');
+    const binder = new GenericBinder<{onTap?: () => Promise<void>}>(context, actionSchema);
+
+    assert.strictEqual(typeof binder.snapshot.onTap, 'function');
+    const dispatchPromise = binder.snapshot.onTap!();
+    assert.strictEqual(typeof dispatchPromise?.then, 'function');
+    assert.strictEqual(listenerCompleted, false);
+
+    await dispatchPromise;
+    assert.strictEqual(listenerCompleted, true);
+  });
+
+  it('should resolve dynamic userMessage on direct name action and include it in dispatched action', () => {
+    const {catalog, surface} = setupSurfaceAndMocks();
+    surface.dataModel.set('/feedback', 'Great service!');
+
+    const actionSchema = z.object({
+      onTap: CommonSchemas.Action,
+    });
+
+    const compModel = new ComponentModel(
+      'c5_user_msg',
+      'Button',
+      {
+        onTap: {
+          name: 'sendFeedback',
+          userMessage: {path: '/feedback'},
+        },
+      },
+      catalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    let dispatchedAction: unknown = null;
+    surface.onAction.subscribe(act => {
+      dispatchedAction = act;
+    });
+
+    const context = new ComponentContext(surface, 'c5_user_msg');
+    const binder = new GenericBinder<{onTap?: () => void}>(context, actionSchema);
+
+    binder.snapshot.onTap?.();
+
+    assert.ok(dispatchedAction);
+    assert.strictEqual((dispatchedAction as {name?: string})?.name, 'sendFeedback');
+    assert.strictEqual((dispatchedAction as {userMessage?: string})?.userMessage, 'Great service!');
+  });
+
+  it('should execute functionCall ACTION binding locally and not dispatch onAction event', () => {
+    let orderSubmittedWith: Record<string, unknown> | null = null;
+    const mockFunctions: FunctionImplementation[] = [
+      {
+        name: 'submitOrder',
+        returnType: 'string',
+        schema: z.object({orderId: z.string(), total: z.number()}),
+        execute: (args: Record<string, unknown>) => {
+          orderSubmittedWith = args;
+          return 'ok';
+        },
+      },
+    ];
+    const mockCatalog = new Catalog('test', '0.9', [], mockFunctions);
+    const surface = new SurfaceModel('s1', mockCatalog);
+    surface.dataModel.set('/order/id', 'ORD-987');
+    surface.dataModel.set('/order/total', 49.99);
+
+    const actionSchema = z.object({
+      onTap: CommonSchemas.Action,
+    });
+
+    const compModel = new ComponentModel(
+      'c5_fc',
+      'Button',
+      {
+        onTap: {
+          functionCall: {
+            call: 'submitOrder',
+            args: {
+              orderId: {path: '/order/id'},
+              total: {path: '/order/total'},
+            },
+          },
+        },
+      },
+      mockCatalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    let dispatchedAction: unknown = null;
+    surface.onAction.subscribe(act => {
+      dispatchedAction = act;
+    });
+
+    const context = new ComponentContext(surface, 'c5_fc');
+    const binder = new GenericBinder<{onTap?: () => void}>(context, actionSchema);
+
+    assert.strictEqual(typeof binder.snapshot.onTap, 'function');
+    assert.strictEqual(orderSubmittedWith, null);
+    assert.strictEqual(dispatchedAction, null);
+
+    binder.snapshot.onTap?.();
+
+    assert.deepStrictEqual(orderSubmittedWith, {
+      orderId: 'ORD-987',
+      total: 49.99,
+    });
+    assert.strictEqual(dispatchedAction, null);
+  });
+
+  it('should execute functionCall ACTION without args locally upon activation and not prematurely during binding', () => {
+    let refreshCallCount = 0;
+    const mockFunctions: FunctionImplementation[] = [
+      {
+        name: 'refreshData',
+        returnType: 'string',
+        schema: z.object({}).passthrough(),
+        execute: () => {
+          refreshCallCount++;
+          return 'ok';
+        },
+      },
+    ];
+    const mockCatalog = new Catalog('test', '0.9', [], mockFunctions);
+    const surface = new SurfaceModel('s1', mockCatalog);
+
+    const actionSchema = z.object({
+      onTap: CommonSchemas.Action,
+    });
+
+    const compModel = new ComponentModel(
+      'c5_zero_arg',
+      'Button',
+      {
+        onTap: {
+          functionCall: {
+            call: 'refreshData',
+          },
+        },
+      },
+      mockCatalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    let dispatchedAction: unknown = null;
+    surface.onAction.subscribe(act => {
+      dispatchedAction = act;
+    });
+
+    const context = new ComponentContext(surface, 'c5_zero_arg');
+    const binder = new GenericBinder<{onTap?: () => void}>(context, actionSchema);
+
+    // Binding must create action closure, not execute functionCall prematurely
+    assert.strictEqual(typeof binder.snapshot.onTap, 'function');
+    assert.strictEqual(refreshCallCount, 0);
+    assert.strictEqual(dispatchedAction, null);
+
+    binder.snapshot.onTap?.();
+    assert.strictEqual(refreshCallCount, 1);
+    assert.strictEqual(dispatchedAction, null);
+  });
+
+  it('should return promise settling after async functionCall ACTION completes', async () => {
+    let executionCompleted = false;
+    const mockFunctions: FunctionImplementation[] = [
+      {
+        name: 'saveDraft',
+        returnType: 'string',
+        schema: z.object({}).passthrough(),
+        execute: async () => {
+          await new Promise(resolve => setTimeout(resolve, 10));
+          executionCompleted = true;
+          return 'saved';
+        },
+      },
+    ];
+    const mockCatalog = new Catalog('test', '1.0', [], mockFunctions);
+    const surface = new SurfaceModel('s1', mockCatalog);
+
+    const actionSchema = z.object({
+      onTap: CommonSchemas.Action,
+    });
+
+    const compModel = new ComponentModel(
+      'c5_async_fc',
+      'Button',
+      {
+        onTap: {
+          functionCall: {
+            call: 'saveDraft',
+          },
+        },
+      },
+      mockCatalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    let dispatchedAction: unknown = null;
+    surface.onAction.subscribe(act => {
+      dispatchedAction = act;
+    });
+
+    const context = new ComponentContext(surface, 'c5_async_fc');
+    const binder = new GenericBinder<{onTap?: () => Promise<void>}>(context, actionSchema);
+
+    assert.strictEqual(typeof binder.snapshot.onTap, 'function');
+    const actionPromise = binder.snapshot.onTap!();
+    assert.strictEqual(typeof actionPromise?.then, 'function');
+    assert.strictEqual(executionCompleted, false);
+
+    await actionPromise;
+    assert.strictEqual(executionCompleted, true);
+    assert.strictEqual(dispatchedAction, null);
+  });
+
+  it('should execute unwrapped {call} ACTION binding locally and not dispatch onAction event', () => {
+    let executedArgs: Record<string, unknown> | null = null;
+    const mockFunctions: FunctionImplementation[] = [
+      {
+        name: 'setValue',
+        returnType: 'boolean',
+        schema: z.object({path: z.string(), value: z.boolean()}),
+        execute: (args: Record<string, unknown>) => {
+          executedArgs = args;
+          return true;
+        },
+      },
+    ];
+    const mockCatalog = new Catalog('test', '0.9', [], mockFunctions);
+    const surface = new SurfaceModel('s1', mockCatalog);
+
+    const actionSchema = z.object({
+      onTap: CommonSchemas.Action,
+    });
+
+    const compModel = new ComponentModel(
+      'c5_unwrapped_call',
+      'Button',
+      {
+        onTap: {
+          call: 'setValue',
+          args: {
+            path: '/clicked',
+            value: true,
+          },
+        },
+      },
+      mockCatalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    let dispatchedAction: unknown = null;
+    surface.onAction.subscribe(act => {
+      dispatchedAction = act;
+    });
+
+    const context = new ComponentContext(surface, 'c5_unwrapped_call');
+    const binder = new GenericBinder<{onTap?: () => void}>(context, actionSchema);
+
+    binder.snapshot.onTap?.();
+
+    assert.deepStrictEqual(executedArgs, {
+      path: '/clicked',
+      value: true,
+    });
+    assert.strictEqual(dispatchedAction, null);
+  });
+
+  it('should resolve STRUCTURAL ChildList bindings and update dynamically', async () => {
+    const {catalog, surface} = setupSurfaceAndMocks();
+    surface.dataModel.set('/items', [{title: 'Item 1'}, {title: 'Item 2'}]);
+
+    const structuralSchema = z.object({
+      children: CommonSchemas.ChildList,
+    });
+
+    const compModel = new ComponentModel(
+      'c6',
+      'Column',
+      {
+        children: {
+          componentId: 'card-item',
+          path: '/items',
+        },
+      },
+      catalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    const context = new ComponentContext(surface, 'c6');
+    const binder = new GenericBinder<{children?: unknown[]}>(context, structuralSchema);
+    binder.subscribe(() => {});
+
+    assert.deepStrictEqual(binder.snapshot.children, [
+      {id: 'card-item', basePath: '/items/0'},
+      {id: 'card-item', basePath: '/items/1'},
+    ]);
+
+    // Update list in data model
+    surface.dataModel.set('/items', [{title: 'Item 1'}, {title: 'Item 2'}, {title: 'Item 3'}]);
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    assert.deepStrictEqual(binder.snapshot.children, [
+      {id: 'card-item', basePath: '/items/0'},
+      {id: 'card-item', basePath: '/items/1'},
+      {id: 'card-item', basePath: '/items/2'},
+    ]);
+  });
+
+  it('should cap dynamic ChildList materialization to MAX_DYNAMIC_CHILD_LIST_SIZE (Issue #2387)', async () => {
+    const {catalog, surface} = setupSurfaceAndMocks();
+    const largeList = Array.from({length: 12_000}, (_, i) => ({title: `Item ${i}`}));
+    surface.dataModel.set('/largeItems', largeList);
+
+    const structuralSchema = z.object({
+      children: CommonSchemas.ChildList,
+    });
+
+    const compModel = new ComponentModel(
+      'c_large',
+      'Column',
+      {
+        children: {
+          componentId: 'card-item',
+          path: '/largeItems',
+        },
+      },
+      catalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    const context = new ComponentContext(surface, 'c_large');
+    const binder = new GenericBinder<{children?: Array<{basePath: string}>}>(
+      context,
+      structuralSchema,
+    );
+    binder.subscribe(() => {});
+
+    assert.ok(Array.isArray(binder.snapshot.children));
+    assert.strictEqual(binder.snapshot.children!.length, MAX_DYNAMIC_CHILD_LIST_SIZE);
+    assert.strictEqual(binder.snapshot.children![0].basePath, '/largeItems/0');
+    assert.strictEqual(
+      binder.snapshot.children![MAX_DYNAMIC_CHILD_LIST_SIZE - 1].basePath,
+      `/largeItems/${MAX_DYNAMIC_CHILD_LIST_SIZE - 1}`,
+    );
+
+    // An even larger update stays capped.
+    const evenLargerList = Array.from({length: 15_000}, (_, i) => ({title: `Updated ${i}`}));
+    surface.dataModel.set('/largeItems', evenLargerList);
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    assert.strictEqual(binder.snapshot.children!.length, MAX_DYNAMIC_CHILD_LIST_SIZE);
+  });
+
+  it('should generate dynamic setters and update data model', () => {
+    const {catalog, surface} = setupSurfaceAndMocks();
+    surface.dataModel.set('/fieldVal', 'initial');
+
+    const dynamicSchema = z.object({
+      value: CommonSchemas.DynamicString,
+    });
+
+    const compModel = new ComponentModel(
+      'c7',
+      'Input',
+      {
+        value: {path: '/fieldVal'},
+      },
+      catalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    const context = new ComponentContext(surface, 'c7');
+    const binder = new GenericBinder<{value?: string; setValue?: (val: string) => void}>(
+      context,
+      dynamicSchema,
+    );
+
+    assert.strictEqual(binder.snapshot.value, 'initial');
+    assert.strictEqual(typeof binder.snapshot.setValue, 'function');
+
+    binder.snapshot.setValue?.('updated');
+    assert.strictEqual(surface.dataModel.get('/fieldVal'), 'updated');
+  });
+
+  it('should handle subscription, component update rebuilding, and dispose', async () => {
+    const {catalog, surface, schema} = setupSurfaceAndMocks();
+    surface.dataModel.set('/val', 'v1');
+
+    const compModel = new ComponentModel(
+      'c8',
+      'Test',
+      {
+        value: {path: '/val'},
+      },
+      catalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    const context = new ComponentContext(surface, 'c8');
+    const binder = new GenericBinder<{value?: string}>(context, schema);
+
+    let notificationCount = 0;
+    const sub = binder.subscribe(() => {
+      notificationCount++;
+    });
+
+    assert.strictEqual(binder.snapshot.value, 'v1');
+
+    // Trigger component update to test rebuildAllBindings
+    compModel.properties = {
+      value: {path: '/val'},
+      extra: 'new_prop',
+    };
+
+    assert.strictEqual(notificationCount, 1);
+
+    sub.unsubscribe();
+    // After unsubscribe, further updates should not notify
+    compModel.properties = {
+      value: {path: '/val'},
+      extra: 'another_prop',
+    };
+    assert.strictEqual(notificationCount, 1);
+  });
+
+  it('drops properties that a component update removes', () => {
+    const {catalog, surface, schema} = setupSurfaceAndMocks();
+    const compModel = new ComponentModel(
+      'c9',
+      'Test',
+      {value: 'kept', accessibility: {label: 'Name'}},
+      catalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+    const binder = new GenericBinder<any>(new ComponentContext(surface, 'c9'), schema);
+    binder.subscribe(() => {});
+
+    compModel.properties = {value: 'kept'};
+
+    assert.strictEqual(binder.snapshot.value, 'kept');
+    assert.ok(!('accessibility' in binder.snapshot));
+  });
+
+  it('keeps the validation state of checks across a component update', () => {
+    const {catalog, surface, schema} = setupSurfaceAndMocks();
+    const checks = [
+      {condition: {call: 'required', args: {value: {path: '/val'}}}, message: 'Required'},
+    ];
+    const compModel = new ComponentModel('c10', 'Test', {value: {path: '/val'}, checks}, catalog);
+    surface.componentsModel.addComponent(compModel);
+    const binder = new GenericBinder<any>(new ComponentContext(surface, 'c10'), schema);
+    binder.subscribe(() => {});
+
+    compModel.properties = {value: {path: '/val'}, checks};
+
+    assert.strictEqual(binder.snapshot.isValid, false);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Required']);
+  });
+
+  it('keeps the validation state of checks in a nested object across a component update', () => {
+    const {catalog, surface} = setupSurfaceAndMocks();
+    const schema = z.object({
+      section: z.object({
+        value: CommonSchemas.DynamicString,
+        checks: CommonSchemas.Checkable.shape.checks,
+      }),
+    });
+    const section = {
+      value: {path: '/val'},
+      checks: [{condition: {call: 'required', args: {value: {path: '/val'}}}, message: 'Required'}],
+    };
+    const compModel = new ComponentModel('c11', 'Test', {section}, catalog);
+    surface.componentsModel.addComponent(compModel);
+    const binder = new GenericBinder<any>(new ComponentContext(surface, 'c11'), schema);
+    assert.strictEqual(binder.snapshot.section.isValid, false);
+    binder.subscribe(() => {});
+
+    compModel.properties = {section};
+
+    assert.strictEqual(binder.snapshot.section.isValid, false);
+    assert.deepStrictEqual(binder.snapshot.section.validationErrors, ['Required']);
+  });
+
+  describe('scrapeSchemaBehavior schema inference', () => {
+    it('should infer behavior from schema descriptions', () => {
+      // Description-based matching across formats (relative, URI, pipe-annotated)
+      assert.deepStrictEqual(
+        scrapeSchemaBehavior(z.unknown().describe('REF:common_types.json#/$defs/Action')),
+        {type: 'ACTION'},
+      );
+      assert.deepStrictEqual(
+        scrapeSchemaBehavior(
+          z
+            .unknown()
+            .describe('REF:https://a2ui.org/v1_0/common_types.json#/$defs/Action|On click'),
+        ),
+        {type: 'ACTION'},
+      );
+      assert.deepStrictEqual(scrapeSchemaBehavior(z.unknown().describe('REF:#/$defs/ChildList')), {
+        type: 'STRUCTURAL',
+      });
+      assert.deepStrictEqual(
+        scrapeSchemaBehavior(
+          z.unknown().describe('REF:common_types.json#/$defs/ChildList|Children array'),
+        ),
+        {type: 'STRUCTURAL'},
+      );
+      assert.deepStrictEqual(
+        scrapeSchemaBehavior(z.unknown().describe('REF:#/$defs/DynamicString')),
+        {
+          type: 'DYNAMIC',
+        },
+      );
+      assert.deepStrictEqual(
+        scrapeSchemaBehavior(
+          z
+            .unknown()
+            .describe('REF:https://a2ui.org/v1_0/common_types.json#/$defs/DynamicNumber|Age'),
+        ),
+        {type: 'DYNAMIC'},
+      );
+      assert.deepStrictEqual(
+        scrapeSchemaBehavior(z.unknown().describe('REF:common_types.json#/$defs/DataBinding')),
+        {
+          type: 'DYNAMIC',
+        },
+      );
+
+      // Descriptions without the REF: prefix must NOT be treated as reference schemas
+      assert.deepStrictEqual(scrapeSchemaBehavior(z.unknown().describe('#/$defs/ChildList')), {
+        type: 'STATIC',
+      });
+      assert.deepStrictEqual(scrapeSchemaBehavior(z.unknown().describe('Action')), {
+        type: 'STATIC',
+      });
+      assert.deepStrictEqual(scrapeSchemaBehavior(z.unknown().describe('CheckRule')), {
+        type: 'STATIC',
+      });
+
+      // Ref-annotated Checkable or array of CheckRule is CHECKABLE, while unannotated fields (even if named 'checks') are STATIC
+      const objSchema = z.object({
+        checkableField: CommonSchemas.Checkable.shape.checks,
+        rulesField: z.array(z.unknown().describe('REF:common_types.json#/$defs/CheckRule')),
+        checks: z.unknown(),
+        customProp: z.unknown(),
+      });
+
+      const behavior = scrapeSchemaBehavior(objSchema);
+      assert.strictEqual(behavior.type, 'OBJECT');
+      if (behavior.type === 'OBJECT') {
+        assert.strictEqual(behavior.shape.checkableField.type, 'CHECKABLE');
+        assert.strictEqual(behavior.shape.rulesField.type, 'CHECKABLE');
+        assert.strictEqual(behavior.shape.checks.type, 'STATIC');
+        assert.strictEqual(behavior.shape.customProp.type, 'STATIC');
+      }
+
+      // Do not short-circuit to DYNAMIC if property is a nested ZodObject or ZodArray
+      const nestedSchema = z.object({
+        value: z.object({
+          nestedField: z.string().describe('REF:#/$defs/DynamicString'),
+        }),
+        text: z.array(z.string().describe('REF:#/$defs/DynamicString')),
+      });
+      const nestedBehavior = scrapeSchemaBehavior(nestedSchema);
+      assert.strictEqual(nestedBehavior.type, 'OBJECT');
+      if (nestedBehavior.type === 'OBJECT') {
+        assert.strictEqual(nestedBehavior.shape.value.type, 'OBJECT');
+        assert.strictEqual(nestedBehavior.shape.text.type, 'ARRAY');
+      }
+    });
+  });
+
+  describe('Static behavior for unannotated schemas', () => {
+    it('should pass unannotated properties through as static values without guessing bindings', () => {
+      const {catalog, surface} = setupSurfaceAndMocks();
+
+      const unannotatedSchema = z.object({
+        customProp: z.unknown(),
+        items: z.unknown(),
+        handleClick: z.unknown(),
+      });
+
+      const compModel = new ComponentModel(
+        'c10',
+        'Custom',
+        {
+          customProp: {path: '/rawTitle'},
+          items: {componentId: 'card-view', path: '/cards'},
+          handleClick: {
+            event: {
+              name: 'custom_click',
+              context: {userId: {path: '/user/id'}},
+            },
+          },
+        },
+        catalog,
+      );
+      surface.componentsModel.addComponent(compModel);
+
+      const context = new ComponentContext(surface, 'c10');
+      const binder = new GenericBinder<Record<string, unknown>>(context, unannotatedSchema);
+
+      // Data is passed through as-is rather than being misinterpreted as reactive bindings
+      assert.deepStrictEqual(binder.snapshot.customProp, {path: '/rawTitle'});
+      assert.deepStrictEqual(binder.snapshot.items, {componentId: 'card-view', path: '/cards'});
+      assert.deepStrictEqual(binder.snapshot.handleClick, {
+        event: {
+          name: 'custom_click',
+          context: {userId: {path: '/user/id'}},
+        },
+      });
+    });
+
+    it('does not create setter for literal path in v1.0, nor for @path in v0.9', () => {
+      const mockCatalogV10 = new Catalog('test', '1.0', [], []);
+      const surfaceV10 = new SurfaceModel('s1', mockCatalogV10);
+      const compV10 = new ComponentModel(
+        'c1',
+        'Custom',
+        {
+          details: {path: '/secret'},
+        },
+        mockCatalogV10,
+      );
+      surfaceV10.componentsModel.addComponent(compV10);
+      const contextV10 = new ComponentContext(surfaceV10, 'c1');
+      const binderV10 = new GenericBinder<{details: unknown}>(
+        contextV10,
+        z.object({details: z.unknown()}),
+      );
+      assert.strictEqual('setDetails' in (binderV10.snapshot as Record<string, unknown>), false);
+
+      const mockCatalogV09 = new Catalog('test', '0.9', [], []);
+      const surfaceV09 = new SurfaceModel('s2', mockCatalogV09);
+      const compV09 = new ComponentModel(
+        'c2',
+        'Custom',
+        {
+          details: {'@path': '/secret'},
+        },
+        mockCatalogV09,
+      );
+      surfaceV09.componentsModel.addComponent(compV09);
+      const contextV09 = new ComponentContext(surfaceV09, 'c2');
+      const binderV09 = new GenericBinder<{details: unknown}>(
+        contextV09,
+        z.object({details: z.unknown()}),
+      );
+      assert.strictEqual('setDetails' in (binderV09.snapshot as Record<string, unknown>), false);
+    });
+  });
+
+  it('should support v1.0 ValidationResult objects and dynamic messages', async () => {
+    const mockCatalog = new Catalog('test', '1.0', [], []);
+    const surface = new SurfaceModel('s1', mockCatalog);
+    (surface.defaultCatalog as any).functions = new Map([
+      [
+        'validate_email',
+        {
+          execute: (args: any) => {
+            const ok = typeof args.val === 'string' && args.val.includes('@');
+            return {
+              valid: ok,
+              message: ok ? undefined : 'Must contain @ symbol',
+            };
+          },
+          schema: z.object({val: z.any()}),
+        },
+      ],
+    ]);
+    (surface.defaultCatalog as any).invoker = (name: string, args: any) => {
+      const fn = (surface.defaultCatalog as any).functions.get(name);
+      return fn.execute(args);
+    };
+
+    const schema = z.object({
+      email: CommonSchemas.DynamicString,
+      validationRules: z.array(CommonSchemas.CheckRule),
+    });
+
+    surface.dataModel.set('/email', 'invalid');
+    const compModel = new ComponentModel(
+      'c_val',
+      'EmailInput',
+      {
+        email: {'@path': '/email'},
+        validationRules: [
+          {
+            condition: {
+              '@call': 'validate_email',
+              args: {val: {'@path': '/email'}},
+            },
+          },
+        ],
+      },
+      mockCatalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    const context = new ComponentContext(surface, 'c_val');
+    const binder = new GenericBinder<any>(context, schema);
+    binder.subscribe(() => {});
+
+    assert.strictEqual(binder.snapshot.isValid, false);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Must contain @ symbol']);
+
+    surface.dataModel.set('/email', 'user@domain.com');
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    assert.strictEqual(binder.snapshot.isValid, true);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, []);
+  });
+
+  it('treats a check waiting on an agent call as pending, then valid or invalid when it settles', async () => {
+    const catalog = new Catalog('test', '1.0', [], []);
+    const surface = new SurfaceModel('s1', catalog);
+    const answers: Array<{resolve: (v: unknown) => void; reject: (e: Error) => void}> = [];
+    surface.agentFunctionCaller = () =>
+      new Promise((resolve, reject) => answers.push({resolve, reject}));
+    surface.dataModel.set('/val', 'a');
+    const schema = z.object({
+      field: CommonSchemas.DynamicString,
+      checks: CommonSchemas.Checkable.shape.checks,
+    });
+    surface.componentsModel.addComponent(
+      new ComponentModel(
+        'c_remote',
+        'Input',
+        {
+          field: 'val',
+          checks: [
+            {
+              condition: {'@call': 'remoteCheck', args: {value: {'@path': '/val'}}},
+              message: 'Rejected by the agent',
+            },
+          ],
+        },
+        catalog,
+      ),
+    );
+    const binder = new GenericBinder<any>(new ComponentContext(surface, 'c_remote'), schema);
+    let notifications = 0;
+    binder.subscribe(() => notifications++);
+    const flush = () => new Promise(resolve => setTimeout(resolve, 0));
+
+    assert.strictEqual(binder.snapshot.isValid, true, 'a pending check is not a failure');
+    await flush();
+    assert.strictEqual(answers.length, 1);
+    answers[0].resolve(false);
+    await flush();
+    assert.strictEqual(binder.snapshot.isValid, false);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Rejected by the agent']);
+    assert.ok(notifications > 0);
+
+    surface.dataModel.set('/val', 'b');
+    assert.strictEqual(binder.snapshot.isValid, true, 'pending again while the new call runs');
+    await flush();
+    const before = notifications;
+    answers[1].reject(new Error('agent down'));
+    await flush();
+    assert.strictEqual(binder.snapshot.isValid, false, 'a failed call makes the rule invalid');
+    assert.ok(notifications > before, 'pending to failed notifies subscribers');
+    binder.dispose();
+  });
+
+  it('should reset custom message to fallback message when subsequent evaluation returns boolean or no custom message', async () => {
+    const mockCatalog = new Catalog('test', '1.0', [], []);
+    const surface = new SurfaceModel('s1', mockCatalog);
+    (surface.defaultCatalog as any).functions = new Map([
+      [
+        'dynamic_validator',
+        {
+          execute: (args: any) => {
+            if (args.mode === 'custom_error') {
+              return {valid: false, message: 'Custom dynamic error'};
+            }
+            if (args.mode === 'boolean_error') {
+              return false;
+            }
+            if (args.mode === 'object_without_msg') {
+              return {valid: false};
+            }
+            return true;
+          },
+          schema: z.object({mode: z.any()}),
+        },
+      ],
+    ]);
+    (surface.defaultCatalog as any).invoker = (name: string, args: any) => {
+      const fn = (surface.defaultCatalog as any).functions.get(name);
+      return fn.execute(args);
+    };
+
+    const schema = z.object({
+      field: CommonSchemas.DynamicString,
+      checks: CommonSchemas.Checkable.shape.checks,
+    });
+
+    surface.dataModel.set('/mode', 'custom_error');
+    const compModel = new ComponentModel(
+      'c_reset',
+      'Input',
+      {
+        field: 'val',
+        checks: [
+          {
+            condition: {
+              '@call': 'dynamic_validator',
+              args: {mode: {'@path': '/mode'}},
+            },
+          },
+        ],
+      },
+      mockCatalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    const context = new ComponentContext(surface, 'c_reset');
+    const binder = new GenericBinder<any>(context, schema);
+    binder.subscribe(() => {});
+
+    // Initial evaluation with custom message
+    assert.strictEqual(binder.snapshot.isValid, false);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Custom dynamic error']);
+
+    // Subsequent evaluation returning boolean false -> should reset to default message
+    surface.dataModel.set('/mode', 'boolean_error');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual(binder.snapshot.isValid, false);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Validation failed']);
+
+    // Subsequent evaluation returning { valid: false } without message -> should reset to default message
+    surface.dataModel.set('/mode', 'object_without_msg');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual(binder.snapshot.isValid, false);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Validation failed']);
+
+    // Subsequent evaluation returning true -> valid
+    surface.dataModel.set('/mode', 'valid');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual(binder.snapshot.isValid, true);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, []);
+  });
+
+  it('should give explicit CheckRule.message precedence over function message', async () => {
+    const mockCatalog = new Catalog('test', '1.0', [], []);
+    const surface = new SurfaceModel('s1', mockCatalog);
+    (surface.defaultCatalog as any).functions = new Map([
+      [
+        'dynamic_validator',
+        {
+          execute: () => ({valid: false, message: 'Custom dynamic error'}),
+          schema: z.object({}).passthrough(),
+        },
+      ],
+    ]);
+    (surface.defaultCatalog as any).invoker = (name: string, args: any) => {
+      const fn = (surface.defaultCatalog as any).functions.get(name);
+      return fn.execute(args);
+    };
+
+    const schema = z.object({
+      field: CommonSchemas.DynamicString,
+      checks: CommonSchemas.Checkable.shape.checks,
+    });
+
+    const compModel = new ComponentModel(
+      'c_override',
+      'Input',
+      {
+        field: 'val',
+        checks: [
+          {
+            condition: {
+              '@call': 'dynamic_validator',
+            },
+            message: 'Explicit rule message overrides function message',
+          },
+        ],
+      },
+      mockCatalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    const context = new ComponentContext(surface, 'c_override');
+    const binder = new GenericBinder<any>(context, schema);
+    binder.subscribe(() => {});
+
+    assert.strictEqual(binder.snapshot.isValid, false);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, [
+      'Explicit rule message overrides function message',
+    ]);
+  });
+
+  it('should keep the data model message on a path-bound check and fall back to CheckRule.message', async () => {
+    const mockCatalog = new Catalog('test', '1.0', [], []);
+    const surface = new SurfaceModel('s1', mockCatalog);
+    surface.dataModel.set('/check', {
+      valid: false,
+      code: 'FROM_DATA',
+      message: 'Message from the data model',
+    });
+
+    const schema = z.object({
+      field: CommonSchemas.DynamicString,
+      checks: CommonSchemas.Checkable.shape.checks,
+    });
+    const compModel = new ComponentModel(
+      'c_path_bound',
+      'Input',
+      {
+        field: 'val',
+        checks: [{condition: {'@path': '/check'}, message: 'Rule fallback message'}],
+      },
+      mockCatalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    const binder = new GenericBinder<any>(new ComponentContext(surface, 'c_path_bound'), schema);
+    binder.subscribe(() => {});
+
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Message from the data model']);
+
+    // Without a message in the data model, the rule message is the fallback.
+    surface.dataModel.set('/check', {valid: false});
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Rule fallback message']);
+
+    surface.dataModel.set('/check', false);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Rule fallback message']);
+  });
+
+  it('should not treat primitive fields or unannotated condition arrays as CHECKABLE', () => {
+    const {catalog, surface} = setupSurfaceAndMocks();
+
+    const schemaWithPrimitiveDesc = z.object({
+      status: z.string().describe('The validation status of the transaction'),
+      label: z.string().describe('Checkbox label to display'),
+      unannotatedChecks: z.array(
+        z.object({
+          condition: z.string(),
+        }),
+      ),
+    });
+
+    const compModel = new ComponentModel(
+      'c_primitive',
+      'Card',
+      {
+        status: 'pending',
+        label: 'Select all',
+        unannotatedChecks: [{condition: 'some_expr'}],
+      },
+      catalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    const context = new ComponentContext(surface, 'c_primitive');
+    const binder = new GenericBinder<any>(context, schemaWithPrimitiveDesc);
+
+    // Primitive fields and unannotated arrays should remain plain static fields and not inject validation props
+    assert.strictEqual(binder.snapshot.status, 'pending');
+    assert.strictEqual(binder.snapshot.label, 'Select all');
+    assert.deepStrictEqual(binder.snapshot.unannotatedChecks, [{condition: 'some_expr'}]);
+    assert.strictEqual(binder.snapshot.isValid, undefined);
+    assert.strictEqual(binder.snapshot.validationErrors, undefined);
+  });
+
+  it('should unwrap ZodBranded and ZodLazy schemas and preserve outer wrapper descriptions', () => {
+    // Outer description on optional wrapper
+    const optionalAction = z.unknown().describe('REF:common_types.json#/$defs/Action').optional();
+    assert.deepStrictEqual(scrapeSchemaBehavior(optionalAction), {type: 'ACTION'});
+
+    // ZodBranded
+    const brandedDynamic = z.string().describe('REF:#/$defs/DynamicString').brand<'CustomBrand'>();
+    assert.deepStrictEqual(scrapeSchemaBehavior(brandedDynamic), {type: 'DYNAMIC'});
+
+    // ZodLazy
+    const lazyAction = z.lazy(() => z.unknown().describe('REF:#/$defs/Action'));
+    assert.deepStrictEqual(scrapeSchemaBehavior(lazyAction), {type: 'ACTION'});
+
+    // Checkable wrapped in optional
+    const optionalCheckable = CommonSchemas.Checkable.shape.checks.optional();
+    assert.deepStrictEqual(scrapeSchemaBehavior(optionalCheckable), {type: 'CHECKABLE'});
+
+    // Union option with wrapped object shape containing ComponentId
+    const componentIdSchema = z.string().describe('REF:common_types.json#/$defs/ComponentId');
+    const templateChildOption = z
+      .object({
+        target: componentIdSchema,
+        data: z.string().describe('REF:common_types.json#/$defs/DataBinding'),
+      })
+      .optional();
+    const unionWithChild = z.union([z.array(z.string()), templateChildOption]);
+    assert.deepStrictEqual(scrapeSchemaBehavior(unionWithChild), {type: 'STRUCTURAL'});
+  });
+
+  it('should identify dynamic union options only when shape has path property', () => {
+    // Union with object containing path -> DYNAMIC
+    const unionWithDynamicPath = z.union([
+      z.string(),
+      z.object({
+        path: z.string(),
+      }),
+    ]);
+    assert.deepStrictEqual(scrapeSchemaBehavior(unionWithDynamicPath), {type: 'DYNAMIC'});
+
+    // Union with plain object without path or ComponentId -> STATIC
+    const unionWithPlainObject = z.union([
+      z.string(),
+      z.object({
+        label: z.string(),
+        value: z.number(),
+      }),
+    ]);
+    assert.deepStrictEqual(scrapeSchemaBehavior(unionWithPlainObject), {type: 'STATIC'});
+  });
+
+  it('treats a union option as an action only when its only key is event or functionCall', () => {
+    const eventOption = z.object({event: z.object({name: z.string()})});
+    const functionCallOption = z.object({functionCall: z.object({call: z.string()})});
+    assert.deepStrictEqual(scrapeSchemaBehavior(z.union([z.string(), eventOption])), {
+      type: 'ACTION',
+    });
+    assert.deepStrictEqual(scrapeSchemaBehavior(z.union([z.string(), functionCallOption])), {
+      type: 'ACTION',
+    });
+
+    const labeledEvent = z.object({label: z.string(), event: z.string()});
+    const labeledFunctionCall = z.object({label: z.string(), functionCall: z.string()});
+    assert.deepStrictEqual(scrapeSchemaBehavior(z.union([z.string(), labeledEvent])), {
+      type: 'STATIC',
+    });
+    assert.deepStrictEqual(scrapeSchemaBehavior(z.union([z.string(), labeledFunctionCall])), {
+      type: 'STATIC',
+    });
+  });
+
+  it('keeps event properties and list items with an event key as plain values', () => {
+    const {catalog, surface} = setupSurfaceAndMocks();
+    const schema = z.object({
+      label: z.string(),
+      event: z.string(),
+      functionCall: z.string(),
+      options: z.array(z.union([z.string(), z.object({label: z.string(), event: z.string()})])),
+      onPick: z.union([
+        z.object({event: z.object({name: z.string()})}),
+        z.object({functionCall: z.object({call: z.string()})}),
+      ]),
+    });
+    const compModel = new ComponentModel(
+      'c_select',
+      'Select',
+      {
+        label: 'Pick',
+        event: 'picked',
+        functionCall: 'pick',
+        options: [{label: 'Red', event: 'red'}, 'Blue'],
+        onPick: {event: {name: 'picked'}},
+      },
+      catalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    const binder = new GenericBinder<Record<string, unknown>>(
+      new ComponentContext(surface, 'c_select'),
+      schema,
+    );
+
+    assert.strictEqual(binder.snapshot.label, 'Pick');
+    assert.strictEqual(binder.snapshot.event, 'picked');
+    assert.strictEqual(binder.snapshot.functionCall, 'pick');
+    assert.deepStrictEqual(binder.snapshot.options, [{label: 'Red', event: 'red'}, 'Blue']);
+    assert.strictEqual(typeof binder.snapshot.onPick, 'function');
+  });
+
+  it('scrapeSchemaBehavior returns the same tree for the same schema', () => {
+    const schema = z.object({label: z.string()});
+    assert.strictEqual(scrapeSchemaBehavior(schema), scrapeSchemaBehavior(schema));
+  });
+
+  describe('Resolved prop types', () => {
+    type Props = ResolveA2uiProps<{
+      action?: V1Action;
+      items: {name?: string; title?: DynamicString; action?: V1Action}[];
+      header?: {action: V1Action};
+      checks?: V1CheckRule[];
+      rule?: V1CheckRule;
+      data?: Record<string, unknown>;
+    }>;
+    const props = {} as Props;
+
+    it('types an action in a list item or an object as the function the binder makes', () => {
+      const run: () => Promise<void> = async () => {};
+      const item = {} as Props['items'][number];
+      const fromItem: (() => Promise<void>) | undefined = item.action;
+      const fromHeader: (() => Promise<void>) | undefined = props.header?.action;
+      const topLevel: (() => Promise<void>) | undefined = props.action;
+      const assigned: Props['items'][number] = {name: 'a', action: run, setTitle: () => {}};
+      // @ts-expect-error a nested action is a function, not the raw action.
+      const raw: Props['items'][number] = {action: {event: {name: 'x'}}, setTitle: () => {}};
+      assert.deepStrictEqual(
+        [fromItem, fromHeader, topLevel, raw.name],
+        [undefined, undefined, undefined, undefined],
+      );
+      assert.strictEqual(assigned.action, run);
+    });
+
+    it('types a binding in a list item as its value, with a setter', () => {
+      const item: Props['items'][number] = {title: 'Hello', setTitle: () => {}};
+      const title: string | undefined = item.title;
+      // @ts-expect-error a nested binding resolves to its value.
+      const bound: Props['items'][number] = {title: {path: '/x'}, setTitle: () => {}};
+      assert.deepStrictEqual([title, bound.name], ['Hello', undefined]);
+    });
+
+    it('leaves check rules and data objects as they are', () => {
+      const checks: V1CheckRule[] | undefined = props.checks;
+      const rule: Props['rule'] = {condition: {path: '/valid'}};
+      const data: Record<string, unknown> | undefined = props.data;
+      assert.deepStrictEqual(
+        [checks, rule.condition, data],
+        [undefined, {path: '/valid'}, undefined],
+      );
+    });
+
+    it('types a list of strings as strings and a child list as child references', () => {
+      type Lists = ResolveA2uiProps<{
+        names?: string[];
+        csp?: {domains?: string[]};
+        children: ChildList;
+      }>;
+      const lists = {children: ['a', {id: 'b', basePath: '/'}]} as Lists;
+      const names: readonly string[] | undefined = lists.names;
+      const domains: readonly string[] | undefined = lists.csp?.domains;
+      const children: (string | ResolvedChildRef)[] = lists.children;
+      assert.deepStrictEqual([names, domains, children.length], [undefined, undefined, 2]);
+    });
+  });
+
+  describe('Generated setter types', () => {
+    it('keeps the setter callable for a property declared with no literal branch', () => {
+      const bindingOnly: GenerateSetters<{value: DataBinding | FunctionCall}> = {
+        setValue: () => {},
+      };
+      bindingOnly.setValue('anything');
+      const value: unknown = {selected: true};
+      bindingOnly.setValue(value);
+
+      const dataBindingOnly: GenerateSetters<{value: DataBinding}> = {
+        setValue: () => {},
+      };
+      dataBindingOnly.setValue('anything');
+
+      const functionCallOnly: GenerateSetters<{value: FunctionCall}> = {
+        setValue: () => {},
+      };
+      functionCallOnly.setValue('anything');
+
+      const withLiteral: GenerateSetters<{value: string | DataBinding | FunctionCall}> = {
+        setValue: () => {},
+      };
+      withLiteral.setValue('ok');
+      // @ts-expect-error a literal branch must still constrain the setter.
+      withLiteral.setValue(123);
+    });
+  });
+});
+
+describe('GenericBinder allowedCallers', () => {
+  function setup(allowedCallers: 'agentOnly' | 'rendererOrAgent') {
+    const calls: string[] = [];
+    const lookup: FunctionImplementation = {
+      name: 'lookup',
+      returnType: 'string',
+      schema: z.object({}),
+      allowedCallers,
+      execute: () => {
+        calls.push('lookup');
+        return 'secret';
+      },
+    };
+    const isValid: FunctionImplementation = {
+      name: 'isValid',
+      returnType: 'boolean',
+      schema: z.object({}),
+      allowedCallers,
+      execute: () => {
+        calls.push('isValid');
+        return true;
+      },
+    };
+    const catalog = new Catalog('test', '1.0', [], [lookup, isValid]);
+    const surface = new SurfaceModel('s1', catalog);
+    const errors: Array<{code: string; message: string; expression?: string}> = [];
+    surface.onError.subscribe(err => {
+      errors.push(err);
+    });
+
+    const schema = z.object({
+      text: CommonSchemas.DynamicString,
+      checks: CommonSchemas.Checkable.shape.checks,
+      onTap: CommonSchemas.Action,
+    });
+    surface.componentsModel.addComponent(
+      new ComponentModel(
+        'c1',
+        'Test',
+        {
+          text: {'@call': 'lookup', args: {}},
+          checks: [{condition: {'@call': 'isValid', args: {}}, message: 'Invalid'}],
+          onTap: {functionCall: {'@call': 'lookup', args: {}}},
+        },
+        catalog,
+      ),
+    );
+    const binder = new GenericBinder<{text?: string; isValid?: boolean; onTap: () => void}>(
+      new ComponentContext(surface, 'c1'),
+      schema,
+    );
+    binder.subscribe(() => {});
+    return {binder, calls, errors};
+  }
+
+  it('refuses agentOnly functions in bindings, checks and actions without running them', () => {
+    const {binder, calls, errors} = setup('agentOnly');
+
+    assert.strictEqual(binder.snapshot.text, undefined);
+    assert.deepStrictEqual(new Set(errors.map(e => e.expression)), new Set(['lookup', 'isValid']));
+    const errorsBeforeTap = errors.length;
+    binder.snapshot.onTap();
+    assert.strictEqual(errors.length, errorsBeforeTap + 1);
+
+    assert.deepStrictEqual(calls, []);
+    for (const err of errors) {
+      assert.strictEqual(err.code, 'EXPRESSION_ERROR');
+      assert.match(err.message, /cannot be called by renderer \(allowedCallers is agentOnly\)/);
+    }
+    binder.dispose();
+  });
+
+  it('runs rendererOrAgent functions in bindings, checks and actions', () => {
+    const {binder, calls, errors} = setup('rendererOrAgent');
+
+    assert.strictEqual(binder.snapshot.text, 'secret');
+    assert.strictEqual(binder.snapshot.isValid, true);
+    assert.ok(calls.includes('isValid'));
+    const callsBeforeTap = calls.length;
+    binder.snapshot.onTap();
+    assert.deepStrictEqual(calls.slice(callsBeforeTap), ['lookup']);
+    assert.deepStrictEqual(errors, []);
+    binder.dispose();
+  });
+});
+
+describe('getSafeChildList helper function', () => {
+  it('returns an empty array for non-array or nullish inputs', () => {
+    assert.deepStrictEqual(getSafeChildList(null), []);
+    assert.deepStrictEqual(getSafeChildList(undefined), []);
+    assert.deepStrictEqual(getSafeChildList('string'), []);
+    assert.deepStrictEqual(getSafeChildList(123), []);
+    assert.deepStrictEqual(getSafeChildList({}), []);
+  });
+
+  it('returns the same array if length is within MAX_DYNAMIC_CHILD_LIST_SIZE', () => {
+    const list = [1, 2, 3];
+    assert.deepStrictEqual(getSafeChildList(list), [1, 2, 3]);
+  });
+
+  it('slices array to MAX_DYNAMIC_CHILD_LIST_SIZE if length exceeds the limit', () => {
+    const largeList = Array.from({length: 15_000}, (_, i) => i);
+    const safe = getSafeChildList(largeList);
+    assert.strictEqual(safe.length, MAX_DYNAMIC_CHILD_LIST_SIZE);
+    assert.strictEqual(safe[0], 0);
+    assert.strictEqual(safe[MAX_DYNAMIC_CHILD_LIST_SIZE - 1], MAX_DYNAMIC_CHILD_LIST_SIZE - 1);
+  });
+
+  it('does not coerce non-boolean values on polymorphic dynamic unions containing ZodBoolean', () => {
+    const polySchema = z.object({
+      id: z.string(),
+      component: z.literal('Poly'),
+      val: z.union([z.string(), z.boolean(), DataBindingSchema]),
+    });
+    const catalog = new Catalog('poly', [{name: 'Poly', schema: polySchema}], []);
+    const surface = new SurfaceModel('s1', catalog, {});
+    surface.dataModel.set('/v', 'hello');
+    surface.componentsModel.addComponent(
+      new ComponentModel('c1', 'Poly', {val: {path: '/v'}}, catalog),
+    );
+    const binder = new GenericBinder<{val: string | boolean}>(
+      new ComponentContext(surface, 'c1'),
+      polySchema,
+    );
+    assert.strictEqual(binder.snapshot.val, 'hello');
+    binder.dispose();
+  });
+});
+
+describe('GenericBinder omitted property pruning on update (#3779)', () => {
+  it('prunes omitted scalar, nested object, array, dynamic-bound, and action properties while preserving dynamic setters', async () => {
+    const catalog = new Catalog('test', '0.9', [], []);
+    const surface = new SurfaceModel('s1', catalog);
+    surface.dataModel.set('/val', 'initial-val');
+    surface.dataModel.set('/a11yLabel', 'Save');
+
+    const schema = z.object({
+      variant: z.string().optional(),
+      tags: z.array(z.string()).optional(),
+      accessibility: z
+        .object({
+          label: CommonSchemas.DynamicString.optional(),
+          description: z.string().optional(),
+        })
+        .optional(),
+      value: CommonSchemas.DynamicString.optional(),
+      onTap: CommonSchemas.Action.optional(),
+      keepAction: CommonSchemas.Action.optional(),
+    });
+
+    const compModel = new ComponentModel(
+      'c1',
+      'Widget',
+      {
+        variant: 'primary',
+        tags: ['alpha', 'beta'],
+        accessibility: {
+          label: {path: '/a11yLabel'},
+          description: 'Submit the form',
+        },
+        value: {path: '/val'},
+        onTap: {event: {name: 'tap_evt'}},
+        keepAction: {event: {name: 'keep_evt'}},
+      },
+      catalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    const binder = new GenericBinder<{
+      variant?: string;
+      tags?: string[];
+      accessibility?: {
+        label?: string;
+        setLabel: (v: string) => void;
+        description?: string;
+      };
+      value?: string;
+      setValue: (v: string) => void;
+      onTap?: () => Promise<void>;
+      keepAction?: () => Promise<void>;
+    }>(new ComponentContext(surface, 'c1'), schema);
+
+    let notifications = 0;
+    const sub = binder.subscribe(() => {
+      notifications++;
+    });
+
+    const initialTapClosure = binder.snapshot.onTap;
+    const initialKeepClosure = binder.snapshot.keepAction;
+    assert.strictEqual(typeof initialTapClosure, 'function');
+    assert.strictEqual(typeof initialKeepClosure, 'function');
+    assert.strictEqual(binder.snapshot.variant, 'primary');
+    assert.deepStrictEqual(binder.snapshot.tags, ['alpha', 'beta']);
+    assert.strictEqual(binder.snapshot.value, 'initial-val');
+    assert.strictEqual(binder.snapshot.accessibility?.label, 'Save');
+    assert.strictEqual(binder.snapshot.accessibility?.description, 'Submit the form');
+
+    // Update omitting variant, tags, accessibility.description, value, and onTap
+    compModel.properties = {
+      accessibility: {
+        label: {path: '/a11yLabel'},
+      },
+      keepAction: {event: {name: 'keep_evt'}},
+    };
+
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'variant'), false);
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'tags'), false);
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'value'), false);
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'onTap'), false);
+    assert.ok(binder.snapshot.accessibility);
+    assert.strictEqual(Object.hasOwn(binder.snapshot.accessibility, 'description'), false);
+    assert.strictEqual(binder.snapshot.accessibility.label, 'Save');
+
+    // Dynamic setter remains intact and becomes a safe no-op when omitted
+    assert.strictEqual(typeof binder.snapshot.setValue, 'function');
+    binder.snapshot.setValue('should-not-write');
+    assert.strictEqual(surface.dataModel.get('/val'), 'initial-val');
+
+    // Unchanged action keeps closure identity
+    assert.strictEqual(binder.snapshot.keepAction, initialKeepClosure);
+
+    // Updating the old bound path does not notify or resurrect the omitted property
+    const notificationsBeforeDataWrite = notifications;
+    surface.dataModel.set('/val', 'updated-val');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual(notifications, notificationsBeforeDataWrite);
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'value'), false);
+
+    // Re-adding onTap creates a new closure because the omitted one was evicted
+    compModel.properties = {
+      onTap: {event: {name: 'tap_evt'}},
+      keepAction: {event: {name: 'keep_evt'}},
+    };
+    assert.strictEqual(typeof binder.snapshot.onTap, 'function');
+    assert.notStrictEqual(binder.snapshot.onTap, initialTapClosure);
+    assert.strictEqual(binder.snapshot.keepAction, initialKeepClosure);
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'accessibility'), false);
+
+    // Updating /a11yLabel after omitting accessibility does not notify or resurrect it
+    const notificationsBeforeA11yWrite = notifications;
+    surface.dataModel.set('/a11yLabel', 'Cancel');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual(notifications, notificationsBeforeA11yWrite);
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'accessibility'), false);
+
+    sub.unsubscribe();
+    surface.dispose();
+  });
+
+  it('preserves top-level, nested, and array-of-object checkable validation state when checks remain and prunes it when omitted', async () => {
+    const required: FunctionImplementation = {
+      name: 'required',
+      returnType: 'boolean',
+      schema: z.object({value: z.unknown()}),
+      execute: (args: Record<string, unknown>) => Boolean(args.value),
+    };
+    const catalog = new Catalog('test-v1', '1.0', [], [required]);
+    const surface = new SurfaceModel('s1', catalog);
+    surface.dataModel.set('/v', '');
+
+    const schema = z.object({
+      value: CommonSchemas.DynamicString.optional(),
+      extra: z.string().optional(),
+      checks: CommonSchemas.Checkable.shape.checks,
+      nested: z
+        .object({
+          checks: CommonSchemas.Checkable.shape.checks,
+        })
+        .optional(),
+      items: z
+        .array(
+          z.object({
+            checks: CommonSchemas.Checkable.shape.checks,
+          }),
+        )
+        .optional(),
+    });
+
+    const checkRule = (message: string) => [
+      {
+        condition: {'@call': 'required', args: {value: {'@path': '/v'}}},
+        message,
+      },
+    ];
+
+    const compModel = new ComponentModel(
+      'c1',
+      'ValidatedInput',
+      {
+        value: {'@path': '/v'},
+        extra: 'temporary',
+        checks: checkRule('Top required'),
+        nested: {
+          checks: checkRule('Nested required'),
+        },
+        items: [{checks: checkRule('Item 0 required')}],
+      },
+      catalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    const binder = new GenericBinder<Record<string, unknown>>(
+      new ComponentContext(surface, 'c1'),
+      schema,
+    );
+
+    // Synchronous initial snapshot includes top-level, nested, and array-element validation state
+    assert.strictEqual(binder.snapshot.isValid, false);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Top required']);
+    assert.strictEqual((binder.snapshot.nested as Record<string, unknown>).isValid, false);
+    assert.deepStrictEqual((binder.snapshot.nested as Record<string, unknown>).validationErrors, [
+      'Nested required',
+    ]);
+    const initialItems = binder.snapshot.items as Record<string, unknown>[];
+    assert.strictEqual(initialItems[0].isValid, false);
+    assert.deepStrictEqual(initialItems[0].validationErrors, ['Item 0 required']);
+
+    const sub = binder.subscribe(() => {});
+
+    // Component update omitting `extra` preserves validation state while `checks` remain
+    compModel.properties = {
+      value: {'@path': '/v'},
+      checks: checkRule('Top required'),
+      nested: {
+        checks: checkRule('Nested required'),
+      },
+      items: [{checks: checkRule('Item 0 required')}],
+    };
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'extra'), false);
+    assert.strictEqual(binder.snapshot.isValid, false);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Top required']);
+    assert.strictEqual((binder.snapshot.nested as Record<string, unknown>).isValid, false);
+    assert.deepStrictEqual((binder.snapshot.nested as Record<string, unknown>).validationErrors, [
+      'Nested required',
+    ]);
+    const updatedItems = binder.snapshot.items as Record<string, unknown>[];
+    assert.strictEqual(updatedItems[0].isValid, false);
+    assert.deepStrictEqual(updatedItems[0].validationErrors, ['Item 0 required']);
+
+    // Reactive data update updates top-level, nested, and array-element validation state
+    surface.dataModel.set('/v', 'non-empty');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual(binder.snapshot.isValid, true);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, []);
+    assert.deepStrictEqual(binder.snapshot.validationResults, []);
+    assert.strictEqual((binder.snapshot.nested as Record<string, unknown>).isValid, true);
+    assert.deepStrictEqual(
+      (binder.snapshot.nested as Record<string, unknown>).validationErrors,
+      [],
+    );
+    const reactiveItems = binder.snapshot.items as Record<string, unknown>[];
+    assert.strictEqual(reactiveItems[0].isValid, true);
+    assert.deepStrictEqual(reactiveItems[0].validationErrors, []);
+
+    // Component update omitting `checks`, `nested`, `items`, and `value` clears validation state
+    compModel.properties = {};
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'value'), false);
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'checks'), false);
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'isValid'), false);
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'validationErrors'), false);
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'validationResults'), false);
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'nested'), false);
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'items'), false);
+
+    // Subsequent updates to /v do not resurrect validation state or value
+    surface.dataModel.set('/v', '');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'isValid'), false);
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'validationErrors'), false);
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'validationResults'), false);
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'value'), false);
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'items'), false);
+
+    sub.unsubscribe();
+    surface.dispose();
+  });
+
+  it('prunes omitted properties for STATIC schemas without aliasing componentModel.properties', () => {
+    const catalog = new Catalog('test-static', '0.9', [], []);
+    const surface = new SurfaceModel('s1', catalog);
+    const compModel = new ComponentModel('c1', 'OpenBox', {a: 1, b: 2}, catalog);
+    surface.componentsModel.addComponent(compModel);
+
+    const binder = new GenericBinder<Record<string, unknown>>(
+      new ComponentContext(surface, 'c1'),
+      z.record(z.unknown()),
+    );
+
+    assert.notStrictEqual(binder.snapshot, compModel.properties);
+    assert.deepStrictEqual(binder.snapshot, {a: 1, b: 2});
+
+    const sub = binder.subscribe(() => {});
+    compModel.properties = {a: 1};
+
+    assert.notStrictEqual(binder.snapshot, compModel.properties);
+    assert.deepStrictEqual(binder.snapshot, {a: 1});
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'b'), false);
+
+    sub.unsubscribe();
+    surface.dispose();
+  });
+});

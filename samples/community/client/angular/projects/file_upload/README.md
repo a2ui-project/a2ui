@@ -18,7 +18,7 @@ This sample Angular application demonstrates host-delegated inversion of control
 
 ## Running the application
 
-1. Build shared dependencies from `typescript/web_core`:
+1. Build shared dependencies from `typescript/core/web_core`:
    ```bash
    yarn workspace @a2ui/web_core build
    ```

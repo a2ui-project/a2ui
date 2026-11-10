@@ -14,6 +14,7 @@
 
 """Dataset loader for A2UI evaluation."""
 
+from collections.abc import Sequence
 import json
 from pathlib import Path
 from typing import Any
@@ -62,6 +63,62 @@ def _resolve_catalog_path(catalog_path: str) -> str:
         if catalog_path.startswith(old_prefix):
             return new_prefix + catalog_path[len(old_prefix) :]
     return catalog_path
+
+
+def _interpolate_version(path: str, version: str | None) -> str:
+    """Fills the '{version}' placeholder and maps moved catalog locations."""
+    if version:
+        path = path.replace("{version}", _version_to_dir_name(version))
+    return _resolve_catalog_path(path)
+
+
+def _normalize_catalog_specs(
+    item: dict[str, Any],
+    version: str | None,
+    default_catalog_path: str | None,
+) -> list[dict[str, Any]]:
+    """Returns the sample's catalogs as a uniform list of catalog spec dicts.
+
+    A sample names its catalogs either with the legacy single `catalog` path
+    (plus an optional top-level `examples` list) or with a `catalogs` array of
+    objects. Both forms yield dicts with the keys `path`, `catalog_id`,
+    `allowed_components`, `allowed_functions` and `examples`, with paths
+    version-interpolated and relative to the repository root.
+    """
+    raw_specs = item.get("catalogs")
+    if not raw_specs:
+        raw_specs = [{
+            "path": item.get("catalog") or default_catalog_path or DEFAULT_CATALOG_PATH,
+            "examples": item.get("examples") or [],
+        }]
+    specs: list[dict[str, Any]] = []
+    for raw in raw_specs:
+        specs.append({
+            "path": _interpolate_version(raw["path"], version),
+            "catalog_id": raw.get("catalog_id"),
+            "allowed_components": raw.get("allowed_components"),
+            "allowed_functions": raw.get("allowed_functions"),
+            "examples": [
+                _interpolate_version(e, version) for e in raw.get("examples") or []
+            ],
+        })
+    return specs
+
+
+def _matches_tags(item: dict[str, Any], tags: list[str] | None) -> bool:
+    """True when no tag filter is set or the item carries one of the tags."""
+    if not tags:
+        return True
+    return bool(set(item.get("tags") or ()) & set(tags))
+
+
+def _split_names(value: str | Sequence[str] | None) -> list[str] | None:
+    """Splits a comma-separated string, or copies a sequence, into a name list."""
+    if not value:
+        return None
+    if isinstance(value, str):
+        return [v.strip() for v in value.split(",") if v.strip()]
+    return list(value)
 
 
 def _parse_tool_calls(
@@ -150,21 +207,31 @@ def _parse_messages(item: dict[str, Any]) -> list[ChatMessage]:
 
 def load_a2ui_dataset(
     file_path: str | Path | None = None,
-    dataset: str | list[str] | None = None,
+    dataset: str | Sequence[str] | None = None,
     default_catalog_path: str | None = None,
     version: str | None = None,
     format_name: str | None = None,
+    tags: str | Sequence[str] | None = None,
 ) -> MemoryDataset:
-    """Loads A2UI evaluation samples from YAML dataset files."""
+    """Loads A2UI evaluation samples from YAML dataset files.
+
+    Args:
+        file_path: One dataset file to load; defaults to every YAML file in
+            `eval/datasets/`.
+        dataset: Dataset name(s) to keep, as a list or comma-separated string.
+        default_catalog_path: Catalog used by samples that name none.
+        version: Protocol version that fills the '{version}' placeholder and
+            drops the datasets targeted at another version.
+        format_name: Inference format, which selects the default role and
+            workflow descriptions.
+        tags: Tag(s) a sample must carry to be kept, as a list or
+            comma-separated string. None keeps every sample.
+    """
     with open(SCHEMA_PATH, "r", encoding="utf-8") as f:
         schema = json.load(f)
 
-    filter_names = None
-    if dataset:
-        if isinstance(dataset, str):
-            filter_names = [d.strip() for d in dataset.split(",") if d.strip()]
-        else:
-            filter_names = list(dataset)
+    filter_names = _split_names(dataset)
+    filter_tags = _split_names(tags)
 
     target_files: list[Path] = []
     if file_path:
@@ -202,15 +269,13 @@ def load_a2ui_dataset(
                 item_dataset.endswith("v0_9_1") or item_dataset == "core_v0_9_1"
             ):
                 continue
+            if not _matches_tags(item, filter_tags):
+                continue
 
-            catalog_path = (
-                item.get("catalog") or default_catalog_path or DEFAULT_CATALOG_PATH
+            catalog_specs = _normalize_catalog_specs(
+                item, version, default_catalog_path
             )
-            if version and catalog_path:
-                catalog_path = catalog_path.replace(
-                    "{version}", _version_to_dir_name(version)
-                )
-            catalog_path = _resolve_catalog_path(catalog_path)
+            catalog_path = catalog_specs[0]["path"]
 
             default_role = (
                 DEFAULT_ROLE_DESCRIPTION
@@ -260,6 +325,13 @@ def load_a2ui_dataset(
                         "allowed_surface_ids": (
                             item.get("allowed_surface_ids") or ["main"]
                         ),
+                        "version": version,
+                        "catalog_specs": catalog_specs,
+                        "allowed_messages": item.get("allowed_messages"),
+                        "initial_state": item.get("initial_state"),
+                        "stream_chunk_size": item.get("stream_chunk_size"),
+                        "tags": list(item.get("tags") or []),
+                        "assertions": item.get("assertions") or {},
                     },
                 )
             )

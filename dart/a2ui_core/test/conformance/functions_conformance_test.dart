@@ -1,0 +1,271 @@
+// Copyright 2024 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import 'package:a2ui_core/a2ui_core.dart';
+import 'package:test/test.dart';
+
+import '../support/renderer_catalog.dart';
+import 'conformance_harness.dart';
+
+typedef _RendererCatalog = Catalog<ComponentApi, FunctionImplementation>;
+
+/// Suite-level error categories mapped onto this SDK's exception types.
+const Map<String, Type> _categoryToError = {
+  'CatalogError': A2uiCatalogError,
+  'ExpressionError': A2uiExpressionError,
+  'ValidationError': A2uiValidationError,
+};
+
+/// The basic catalog a case runs against, chosen by its protocol version.
+///
+/// A case that names no version runs against v0.9, as in the Python harness,
+/// so validators return booleans.
+_RendererCatalog _catalogFor(Map<String, Object?> testCase) {
+  final String version = caseVersion(testCase) ?? '0.9';
+  return version.startsWith('1')
+      ? BasicCatalog.v1_0(locale: _localeOf(testCase), openUrl: _openUrl)
+      : BasicCatalog.v0_9(locale: _localeOf(testCase), openUrl: _openUrl);
+}
+
+String _localeOf(Map<String, Object?> testCase) =>
+    testCase['locale'] as String? ?? 'en-US';
+
+// Conformance cases only check that a valid URL is accepted, so the callback
+// records nothing.
+void _openUrl(Uri _) {}
+
+/// Sets the case's `dataModel` values on [dataModel] and returns it.
+DataModel _withCaseData(DataModel dataModel, Map<String, Object?> testCase) {
+  final Object? data = testCase['dataModel'];
+  if (data is Map<String, Object?>) {
+    for (final MapEntry<String, Object?> entry in data.entries) {
+      dataModel.set('/${entry.key}', entry.value);
+    }
+  }
+  return dataModel;
+}
+
+Object? _evaluate(Map<String, Object?> testCase) {
+  if (testCase['surface'] is Map<String, Object?>) {
+    return _evaluateOnSurface(testCase);
+  }
+  final _RendererCatalog catalog = _catalogFor(testCase);
+  final name = testCase['function']! as String;
+  final FunctionImplementation? function = catalog.functions[name];
+  if (function == null) {
+    fail('Function $name is not in ${catalog.id}.');
+  }
+  final String? version = caseVersion(testCase);
+  final context = DataContext(
+    _withCaseData(DataModel(), testCase),
+    catalog.invoke,
+    '/',
+    protocolVersion:
+        version == null ? null : A2uiProtocolVersion.tryParseSemVer(version),
+  );
+  final args = Map<String, dynamic>.from(
+    testCase['args'] as Map<String, Object?>? ?? const {},
+  );
+  final Object? result = function.execute(args, context);
+  return result is ReadonlySignal<Object?> ? result.value : result;
+}
+
+/// The catalog a document in `catalogPaths` stands for: this SDK's basic
+/// catalog for the published basic catalog documents, whose functions run,
+/// and otherwise the document's signatures alone.
+_RendererCatalog _catalogOf(
+  Map<String, Object?> document,
+  Map<String, Object?> testCase,
+) =>
+    switch (document['catalogId']) {
+      BasicCatalog.v0_9Id => BasicCatalog.v0_9(
+          locale: _localeOf(testCase),
+          openUrl: _openUrl,
+        ),
+      BasicCatalog.v1_0Id => BasicCatalog.v1_0(
+          locale: _localeOf(testCase),
+          openUrl: _openUrl,
+        ),
+      _ => rendererCatalog(document),
+    };
+
+/// Evaluates a case with a `surface` block as a call on a surface, so the
+/// call goes through catalog resolution.
+///
+/// The surface's available catalogs are those of `catalogPaths` built for
+/// the case's protocol version, and `surface.catalogId` names its default.
+/// The case-level `catalogId` is the one the call names.
+Object? _evaluateOnSurface(Map<String, Object?> testCase) {
+  final A2uiProtocolVersion protocolVersion =
+      A2uiProtocolVersion.tryParseSemVer(caseVersion(testCase)!)!;
+  final String version = protocolVersion.jsonValue;
+  final bool atLeastV1 = protocolVersion.isAtLeast(A2uiProtocolVersion.v1_0);
+  final List<_RendererCatalog> available = [
+    for (final Object? path in testCase['catalogPaths']! as List<Object?>)
+      if (readConformanceJson(path! as String) case final document
+          when isAtLeastV1CatalogDocument(document) == atLeastV1)
+        _catalogOf(document, testCase),
+  ];
+  final surfaceBlock = testCase['surface']! as Map<String, Object?>;
+  final defaultId = surfaceBlock['catalogId'] as String?;
+  final surface = SurfaceModel<ComponentApi>(
+    'conformance',
+    defaultCatalog: defaultId == null
+        ? null
+        : available.firstWhere((catalog) => catalog.id == defaultId),
+    availableCatalogs: available,
+    protocolVersion: version,
+  );
+  addTearDown(surface.dispose);
+
+  final reported = <A2uiExpressionError>[];
+  final context = DataContext(
+    _withCaseData(surface.dataModel, testCase),
+    (name, args, context) =>
+        surface.resolveCatalog(null).invoke(name, args, context),
+    '/',
+    protocolVersion: protocolVersion,
+    invokerForCatalog: (catalogId) => surface.resolveCatalog(catalogId).invoke,
+    onError: reported.add,
+  );
+  Object? result = context.resolveDynamicValue(<String, Object?>{
+    atLeastV1 ? '@call' : 'call': testCase['function'],
+    if (testCase['catalogId'] case final String catalogId)
+      'catalogId': catalogId,
+    'args': testCase['args'] ?? const <String, Object?>{},
+  });
+  if (result is ReadonlySignal<Object?>) result = result.value;
+  if (reported.isNotEmpty) {
+    final A2uiExpressionError first = reported.first;
+    throw first.code == 'CATALOG_ERROR'
+        ? A2uiCatalogError(first.message, cause: first.cause)
+        : first;
+  }
+  return result;
+}
+
+const Map<String, Set<String>> _knownKeys = {
+  'case:evaluate_function': {
+    ...caseMetadataKeys,
+    'args',
+    'catalogId',
+    'catalogPaths',
+    'dataModel',
+    'expect',
+    'expectError',
+    'expect_error',
+    'function',
+    'locale',
+    'protocolVersion',
+    'surface',
+  },
+  'surface:evaluate_function': {
+    'catalogId',
+  },
+};
+
+void main() {
+  // The suite's `validate` cases render basic-catalog components on a
+  // surface, so `message_processor_conformance_test.dart` runs them.
+  final List<Map<String, Object?>> cases = [
+    for (final Map<String, Object?> testCase
+        in loadConformanceSuite('core/functions.yaml'))
+      if (testCase['action'] != 'validate') testCase,
+  ];
+
+  group('functions conformance', () {
+    runConformanceSuite(
+      cases,
+      _runFunctionCase,
+      suite: 'core/functions.yaml',
+    );
+  });
+}
+
+Object? _comparable(Object? value, Object? expected) {
+  if (value is ValidationResult) {
+    return <String, Object?>{
+      'valid': value.valid,
+      if (value.message != null &&
+          expected is Map<String, Object?> &&
+          expected.containsKey('message'))
+        'message': value.message,
+    };
+  }
+  return value;
+}
+
+void _runFunctionCase(Map<String, Object?> testCase) {
+  final action = testCase['action']! as String;
+  switch (action) {
+    case 'evaluate_function':
+      assertKnownKeys(
+        testCase,
+        _knownKeys['case:evaluate_function']!,
+        'case:evaluate_function',
+      );
+      if (testCase['surface'] case final Map<String, Object?> surfaceBlock) {
+        assertKnownKeys(
+          surfaceBlock,
+          _knownKeys['surface:evaluate_function']!,
+          'surface:evaluate_function',
+        );
+      }
+      final Object? expectError =
+          testCase['expectError'] ?? testCase['expect_error'];
+      if (expectError is Map<String, Object?>) {
+        assertKnownKeys(expectError, knownExpectErrorKeys, 'expectError');
+        _assertFunctionError(testCase, expectError);
+        return;
+      }
+      final Object? expected = testCase['expect'];
+      expect(_comparable(_evaluate(testCase), expected), equals(expected));
+    default:
+      fail('Unhandled action $action in functions.yaml.');
+  }
+}
+
+void _assertFunctionError(
+  Map<String, Object?> testCase,
+  Map<String, Object?> expectError,
+) {
+  final category = expectError['category']! as String;
+  final Type? expectedType = _categoryToError[category];
+  if (expectedType == null) {
+    fail('Unmapped error category $category.');
+  }
+  final message = expectError['message'] as String?;
+  expect(
+    () => _evaluate(testCase),
+    throwsA(
+      predicate(
+        (Object? e) {
+          final bool matchesType = switch (category) {
+            'CatalogError' => e is A2uiCatalogError &&
+                (e is! A2uiCatalogResolutionError || e.functionName == null),
+            'ExpressionError' => e is A2uiExpressionError ||
+                (e is A2uiCatalogResolutionError && e.functionName != null),
+            'ValidationError' => e is A2uiValidationError,
+            _ => e.runtimeType == expectedType,
+          };
+          return matchesType &&
+              (message == null ||
+                  RegExp(message).hasMatch((e! as A2uiError).message));
+        },
+        'throws $expectedType'
+        '${message == null ? '' : " matching '$message'"}',
+      ),
+    ),
+  );
+}

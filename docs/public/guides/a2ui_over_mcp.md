@@ -269,31 +269,61 @@ Before a server can send A2UI to a client, they must establish which catalogs ar
 
 MCP is a stateful session protocol, so the most efficient approach is to declare capabilities once during connection setup. The client declares its A2UI support under `capabilities`:
 
-```json
-{
-  "jsonrpc": "2.0",
-  "method": "initialize",
-  "id": "init-123",
-  "params": {
-    "protocolVersion": "2025-11-25",
-    "clientInfo": {
-      "name": "a2ui-enabled-client",
-      "version": "1.0.0"
-    },
-    "capabilities": {
-      "a2ui": {
-        "clientCapabilities": {
-          "v0.9": {
-            "supportedCatalogIds": [
-              "https://a2ui.org/specification/v0_9/basic_catalog.json"
-            ]
+=== "v1.0"
+
+    ```json
+    {
+      "jsonrpc": "2.0",
+      "method": "initialize",
+      "id": "init-123",
+      "params": {
+        "protocolVersion": "2025-11-25",
+        "clientInfo": {
+          "name": "a2ui-enabled-client",
+          "version": "1.0.0"
+        },
+        "capabilities": {
+          "a2ui": {
+            "rendererCapabilities": {
+              "1.0": {
+                "supportedCatalogIds": [
+                  "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+                ]
+              }
+            }
           }
         }
       }
     }
-  }
-}
-```
+    ```
+
+=== "v0.9.1"
+
+    ```json
+    {
+      "jsonrpc": "2.0",
+      "method": "initialize",
+      "id": "init-123",
+      "params": {
+        "protocolVersion": "2025-11-25",
+        "clientInfo": {
+          "name": "a2ui-enabled-client",
+          "version": "1.0.0"
+        },
+        "capabilities": {
+          "a2ui": {
+            "clientCapabilities": {
+              "v0.9": {
+                "supportedCatalogIds": [
+                  "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
 
 The server stores this state for the duration of the session.
 
@@ -301,29 +331,57 @@ The server stores this state for the duration of the session.
 
 If your server must remain stateless, the client can pass A2UI capabilities in the `_meta` field of every tool call:
 
-```json
-{
-  "jsonrpc": "2.0",
-  "method": "tools/call",
-  "id": "id-123",
-  "params": {
-    "name": "generate_report",
-    "arguments": {"date": "2026-03-01"},
-    "_meta": {
-      "a2ui": {
-        "clientCapabilities": {
-          "v0.9": {
-            "supportedCatalogIds": [
-              "https://a2ui.org/specification/v0_9/basic_catalog.json"
-            ],
-            "inlineCatalogs": []
+=== "v1.0"
+
+    ```json
+    {
+      "jsonrpc": "2.0",
+      "method": "tools/call",
+      "id": "id-123",
+      "params": {
+        "name": "generate_report",
+        "arguments": {"date": "2026-03-01"},
+        "_meta": {
+          "a2ui": {
+            "rendererCapabilities": {
+              "1.0": {
+                "supportedCatalogIds": [
+                  "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+                ],
+                "inlineCatalogs": []
+              }
+            }
           }
         }
       }
     }
-  }
-}
-```
+    ```
+
+=== "v0.9.1"
+
+    ```json
+    {
+      "jsonrpc": "2.0",
+      "method": "tools/call",
+      "id": "id-123",
+      "params": {
+        "name": "generate_report",
+        "arguments": {"date": "2026-03-01"},
+        "_meta": {
+          "a2ui": {
+            "clientCapabilities": {
+              "v0.9": {
+                "supportedCatalogIds": [
+                  "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+                ],
+                "inlineCatalogs": []
+              }
+            }
+          }
+        }
+      }
+    }
+    ```
 
 ## Handling User Actions
 
@@ -333,25 +391,51 @@ Interactive components like `Button` can trigger actions that are sent back to t
 
 In your A2UI JSON, add an `action` to a component:
 
-```json
-{
-  "id": "confirm-button",
-  "component": {
-    "Button": {
+=== "v1.0"
+
+    ```json
+    {
+      "id": "confirm-button",
+      "component": "Button",
       "child": "confirm-button-text",
       "action": {
         "event": {
           "name": "confirm_booking",
           "context": {
-            "start": "/dates/start",
-            "end": "/dates/end"
+            "start": {
+              "@path": "/dates/start"
+            },
+            "end": {
+              "@path": "/dates/end"
+            }
           }
         }
       }
     }
-  }
-}
-```
+    ```
+
+=== "v0.9.1"
+
+    ```json
+    {
+      "id": "confirm-button",
+      "component": "Button",
+      "child": "confirm-button-text",
+      "action": {
+        "event": {
+          "name": "confirm_booking",
+          "context": {
+            "start": {
+              "path": "/dates/start"
+            },
+            "end": {
+              "path": "/dates/end"
+            }
+          }
+        }
+      }
+    }
+    ```
 
 ### 2. Client Sends the Action as a Tool Call
 
@@ -477,28 +561,25 @@ pip install a2ui-agent-sdk
 ```
 
 ```python
-from a2ui.basic_catalog.provider import BasicCatalog
+from a2ui.core.basic_catalog import BasicCatalog
+from a2ui.core.schema import ProtocolVersion
 from a2ui.inference_formats.direct_json import DirectJsonFormat
-from a2ui.schema.constants import VERSION_0_9
+from a2ui.utils import validate_payload
 
 # Initialize the inference format with the basic catalog
-inference_format = DirectJsonFormat(
-    version=VERSION_0_9,
-    catalogs=[BasicCatalog.get_config(version=VERSION_0_9)],
-)
+inference_format = DirectJsonFormat([BasicCatalog(ProtocolVersion.V0_9)])
 
-# Validate A2UI output before sending
-selected_catalog = inference_format.get_selected_catalog()
-errors = selected_catalog.validate_components(a2ui_payload)
-if errors:
-    raise ValueError(f"Invalid A2UI payload: {errors}")
+# Validate A2UI output before sending. This raises A2uiValidationError if a
+# renderer holding the catalog would reject the payload.
+selected_catalog = inference_format.catalogs[0]
+validate_payload([selected_catalog], a2ui_payload)
 ```
 
 See the full [Agent Development Guide](agent-development.md) for details on schema management, dynamic catalogs, and streaming.
 
 ## Next Steps
 
-- [A2UI Specification](../specification/v0.9-a2ui.md) — full protocol reference
+- [A2UI Specification](../specification/v1.0-a2ui.md) — full protocol reference
 - [Component Gallery](../reference/components.md) — browse available components
 - [MCP Apps in A2UI Surface](mcp-apps-in-a2ui.md) — embed HTML-based MCP apps inside A2UI
 - [Client Setup](client-setup.md) — build a renderer that displays A2UI

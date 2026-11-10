@@ -3,7 +3,7 @@
   "description": "Example of workout summary demonstrating number and date formatting.",
   "messages": [
     {
-      "version": "v1.0",
+      "version": "1.0",
       "createSurface": {
         "surfaceId": "gallery-workout-summary",
         "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
@@ -11,7 +11,7 @@
       }
     },
     {
-      "version": "v1.0",
+      "version": "1.0",
       "updateComponents": {
         "surfaceId": "gallery-workout-summary",
         "components": [
@@ -35,7 +35,7 @@
             "id": "workout_icon",
             "component": "Icon",
             "name": {
-              "path": "/icon"
+              "@path": "/icon"
             }
           },
           {
@@ -63,7 +63,7 @@
             "id": "duration_value",
             "component": "Text",
             "text": {
-              "path": "/duration"
+              "@path": "/duration"
             }
           },
           {
@@ -82,10 +82,10 @@
             "id": "calories_value",
             "component": "Text",
             "text": {
-              "call": "formatNumber",
+              "@call": "formatNumber",
               "args": {
                 "value": {
-                  "path": "/calories"
+                  "@path": "/calories"
                 }
               }
             }
@@ -106,7 +106,7 @@
             "id": "distance_value",
             "component": "Text",
             "text": {
-              "call": "formatString",
+              "@call": "formatString",
               "args": {
                 "value": "${/distance} km"
               }
@@ -122,10 +122,10 @@
             "id": "date",
             "component": "Text",
             "text": {
-              "call": "formatDate",
+              "@call": "formatDate",
               "args": {
                 "value": {
-                  "path": "/date"
+                  "@path": "/date"
                 },
                 "format": "EEEE, MMM d 'at' h:mm a"
               }
@@ -136,7 +136,7 @@
       }
     },
     {
-      "version": "v1.0",
+      "version": "1.0",
       "updateDataModel": {
         "surfaceId": "gallery-workout-summary",
         "value": {

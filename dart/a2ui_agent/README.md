@@ -5,30 +5,83 @@ teaches the LLM the catalog through a system prompt snippet, and parses the
 LLM's response into A2UI messages.
 
 The package follows the
-[agent SDK blueprint](../../blueprints/modules/a2ui_agent.blueprint.md), limited
-to A2UI protocol v0.9 and the
-[Express](../../specification/proposals/express/README.md) inference format.
+[agent SDK blueprint](../../blueprints/modules/a2ui_agent.blueprint.md). It
+implements the whole API of the blueprint for A2UI protocols v0.9 and v1.0,
+with two inference formats: [Express](../../specification/proposals/express/README.md),
+the default compact notation, and direct JSON, both of which can be read either
+once complete or as they stream.
+
+The protocol version is the one the catalogs target. A v1.0 catalog document
+declares it as `protocolVersion`; a v0.9 document declares none, so a catalog
+provider loading one is given `A2uiProtocolVersion.v0_9`. The catalogs
+registered with one `A2uiGenerator` may target several versions: each
+processor negotiates one with its renderer, the latest version in which the
+two have a catalog in common, and shows the model the examples written in it.
 
 ## Status
 
-Implemented for one agent turn:
+Implemented:
 
-- `A2uiGenerator.createProcessor` picks the registered catalogs the renderer
-  supports.
-- `A2uiRequestProcessor.promptSnippet` teaches the model the Express syntax and
-  the catalogs' components and functions.
-- `A2uiRequestProcessor.parseResponse` compiles each Express block into v0.9
-  messages and checks them the way a renderer would.
+- `FileSystemCatalogProvider`, `InMemoryCatalogProvider` and
+  `CatalogConfig.fromPath` load catalog documents, checking the catalog id and
+  protocol version against the ones the provider is given.
+- `A2uiGenerator.createProcessor` and `resolveCatalogs` negotiate the
+  protocol version, then pick the registered catalogs of that version the
+  renderer supports, after their transformers, and the inline catalogs it
+  declares when `acceptsInlineCatalogs` is true. For a request
+  that carries no capabilities, `resolveCatalogs` takes null and activates
+  every registered catalog.
+- `ComponentPruningTransformer` and `FunctionPruningTransformer` narrow a
+  catalog to an allowlist.
+- `A2uiRequestProcessor.promptSnippet` teaches the model the format, the
+  catalogs' components and functions, and the prompt examples, written in the
+  format. Both format factories take `allowedMessages`, which limits the
+  prompt to the message types the model may write.
+- `A2uiRequestProcessor.parseResponse` compiles each payload block into
+  messages and checks them against a `RendererState`, the agent's mirror of
+  the surfaces a renderer holds, as described in
+  [Chat and canvas](#chat-and-canvas).
+- `validatePayload` checks one payload on its own, such as the argument of a
+  tool call.
+- Prompt examples are checked against the active catalogs, and written in the
+  format, when a processor is created.
+- For both formats, `Parser` wraps and unwraps responses, and compiles and
+  decompiles payloads. A parser holds no state, so one parser reads every
+  response of a request. Both the Express and direct JSON parsers also read a
+  streamed response through the `ResponseStream` that `openStream` returns.
 
-Not supported yet:
+What v1.0 adds to both formats:
 
-- Protocol versions other than v0.9, and formats other than Express.
-- Standalone function calls such as `openUrl("...")` on a line of their own,
-  since v0.9 has no message for them.
-- Catalog transformers and prompt examples.
-- Decompiling messages into Express, and `Parser.wrap`.
-- Function descriptions in the prompt, since `a2ui_core`'s `FunctionApi` does
-  not keep them.
+- A `createSurface` carries the surface's components and initial data model,
+  and a data binding or a function call is written with `@path` or `@call`.
+- A component or a function call may name its own catalog. With several
+  catalogs a surface names none, and each component and call names its own,
+  as [multi_catalog_formats.yaml](../../conformance/agent/multi_catalog_formats.yaml)
+  describes. In Express, a name that several catalogs declare takes a
+  `catalogId` argument.
+- `RendererToAgentMessageProcessor` processes the messages a renderer sends
+  the agent, as described in
+  [Messages from the renderer](#messages-from-the-renderer).
+- A `callRendererFunction` asks the renderer to run a function.
+  A parser and `processor.parseResponse` accept a call only to a function
+  whose `allowedCallers` lets the agent call it and that needs no user
+  activation, as `a2ui_core`'s `MessageProcessor.forAgent` checks, so
+  `openStream` never emits a call the renderer would reject. In Express it is a
+  function call written as a statement of its own, and the prompt names the
+  functions that can be called this way.
+- The direct JSON parser holds a streamed component back until its object
+  closes, since the component's `catalogId` may come last.
+- The Express prompt carries each catalog's `instructions`, with the JSON
+  examples in them written in Express.
+
+Not supported:
+
+- Protocol versions other than v0.9 and v1.0.
+- A request without renderer capabilities in `createProcessor`, which
+  requires them, as in the blueprint.
+- In Express for v0.9, function calls written as statements of their own,
+  such as `openUrl("...")`, since v0.9 has no message for them. Decompiling
+  messages that use what Express cannot write throws `A2uiValidationError`.
 
 ## Usage
 
@@ -36,10 +89,7 @@ See [example/a2ui_agent_example.dart](example/a2ui_agent_example.dart) for one
 agent turn:
 
 ```dart
-final generator = A2uiGenerator(
-  catalogs: [CatalogConfig(catalog)],
-  inferenceFormatFactory: const ExpressFormatFactory(),
-);
+final generator = A2uiGenerator(catalogs: [CatalogConfig(catalog)]);
 final A2uiRequestProcessor processor = generator.createProcessor(
   rendererCapabilities,
 );
@@ -47,14 +97,235 @@ final String llmOutput = await callLlm(processor.promptSnippet, userMessage);
 final List<ResponsePart> parts = processor.parseResponse(llmOutput);
 ```
 
+To show the UI while the model is still writing it, read the Express or direct
+JSON response as it streams, through a stream opened for that response. Each
+part carries the text, or the messages, that are new or changed since the
+previous chunk. Call `close` after the last chunk: it returns the text held back
+as a possible tag, throws if an `<a2ui>` or `<a2ui-json>` block is still open,
+and checks the tree of an unwrapped response:
+
+```dart
+final A2uiRequestProcessor processor = generator.createProcessor(
+  rendererCapabilities,
+);
+final ResponseStream stream = processor.openStream();
+await for (final String chunk in llmStream) {
+  stream.feed(chunk).forEach(deliver);
+}
+stream.close().forEach(deliver);
+```
+
+If `feed` or `close` throws, the stream has ended. A thrown `A2uiError`'s
+`partialResults` holds the parts the call made ready before the failure, which
+are applied to the state, so deliver them too.
+
+To show the rest of the response after a rejected block, open the stream with
+`openContinuingStream`. Its `feed` and `close` return an `ErrorPart` in place
+of a rejected block and go on with the text and blocks after it:
+
+```dart
+final ContinuingResponseStream stream = processor.openContinuingStream();
+for (final StreamPart part in stream.feed(chunk)) {
+  switch (part) {
+    case ErrorPart(:final A2uiError error):
+      showError(error);
+    case final ResponsePart part:
+      deliver(part);
+  }
+}
+```
+
+`stream.isInBlock` tells whether the response read so far ends inside a
+block. A client that joins the chunks of a paused and resumed response reads
+it before adding a space between them, since a space inside a block could
+break it.
+
+To heal a string while it streams, such as the text of a `Text` component,
+name its key in `progressiveKeys` of the `ExpressFormatFactory` or
+`DirectJsonFormatFactory` given to the generator.
+
+### An app that is both agent and renderer
+
+An app that calls the model and renders its answer itself, such as a Flutter
+chat, checks and renders each message once by giving the stream a state on the
+processor it renders from:
+
+```dart
+final renderer = MessageProcessor<ComponentImplementation>(
+  catalogs: [catalog],
+  onAction: onAction,
+);
+final ResponseStream stream = processor.openStream(
+  state: RendererState.of(renderer),
+);
+stream.feed(chunk); // the surfaces show up in renderer.model
+```
+
+`StreamedAnswer` does this for one answer and keeps its parts in the order the
+model wrote them: its text, a part for each surface it creates, and an
+`AnswerErrorPart` where it rejected a block, followed by the text and surfaces
+after it.
+
+```dart
+final answer = StreamedAnswer(processor, renderer: renderer);
+answer.feed(chunk);
+answer.close();
+answer.parts; // text, surfaces and errors, in order
+```
+
+### Chat and canvas
+
+Each response is checked against a `RendererState`, which holds the surfaces
+a renderer holds and checks each message against everything sent before it.
+How long the state lives depends on how the agent shows UI:
+
+1. In a chat, each turn shows new UI. Pass no state, and each call checks the
+   response against a new, empty one, so an update to a surface the response
+   does not create is rejected.
+2. In a canvas, turns update the surfaces that earlier turns created. Keep one
+   state for the conversation, created by `processor.createState()`, and pass
+   it to `parseResponse` or `openStream` on every turn, or bind it with
+   `generator.createProcessor(capabilities, state: state)`.
+
+A response parsed whole is applied to the state all or nothing, and the
+trees of the surfaces it touches are checked once every block is applied. A
+streamed response applies each message as it is emitted, so the state matches
+what the renderer received even when the response fails part way.
+
+```dart
+final RendererState canvas = processor.createState();
+// On every turn:
+final List<ResponsePart> parts = processor.parseResponse(
+  llmOutput,
+  state: canvas,
+);
+```
+
+### Messages from the renderer
+
+From v1.0, a catalog may declare functions that the agent runs: the renderer
+sends a `callAgentFunction` and waits for the `agentFunctionResponse`. Attach
+a handler to such a declaration with `AgentFunction.fromApi`, or define a new
+function with `AgentFunction`, and add it to the catalog with `copyWith`:
+
+```dart
+final CatalogApi withHandlers = catalog.copyWith(
+  agentFunctions: [
+    AgentFunction.fromApi(
+      catalog.functions['verifyProvider']!,
+      (args, _) => providers.isLicensed(args['providerId']! as String),
+    ),
+  ],
+);
+```
+
+`RendererToAgentMessageProcessor` answers each `callAgentFunction` with
+exactly one reply: the handler's value, `INVALID_FUNCTION_CALL` for arguments
+that break the function's schema, the code of an `A2uiRpcError` the handler
+throws, or `EXECUTION_ERROR` for anything else it throws, an
+`A2uiValidationError` included. It passes the other messages a renderer
+sends, `action`, `error` and `rendererFunctionResponse`, to the callbacks you
+give it. A message without a callback, or whose callback returns `false`, is
+left unhandled, so the agent can pass it on, for example to the model's next
+turn:
+
+```dart
+bool onAction(ActionMessage message) {
+  if (message.action.name != 'refresh') return false; // for the model
+  refresh(message.action.surfaceId);
+  return true;
+}
+
+final processor = RendererToAgentMessageProcessor(
+  catalogs: [withHandlers],
+  onAction: onAction,
+  onError: (message) => log(message.error.message), // void: handled
+);
+for (final Object? message in request.messages) {
+  final ProcessResult result = await processor.processMessage(message);
+  sendToRenderer(result.replies);
+  if (!result.handled) {
+    // Start a model turn with it.
+  }
+}
+```
+
+The processor keeps no state between messages, so one processor can serve
+every conversation, or one can be built per request from the active catalogs.
+It takes one message at a time, which leaves the caller to decide whether
+several run one after another or together, and what to do when one fails. A
+message that isn't a v1.0 renderer-to-agent message (its `version` must be
+`'1.0'`), or a `callAgentFunction` without a `functionCallId`, throws
+`A2uiValidationError`.
+
+### Calling renderer functions
+
+An agent that keeps a connection to the renderer open, such as a WebSocket,
+can call a renderer function and wait for its result with
+`RendererFunctionCalls`. Its `resolve` settles each call from the renderer's
+`rendererFunctionResponse`, and returns `false` for a response to a call it
+doesn't track, such as one the model wrote, so the processor declines that
+response and it reaches the model:
+
+```dart
+final calls = RendererFunctionCalls();
+final processor = RendererToAgentMessageProcessor(
+  catalogs: catalogs,
+  onRendererFunctionResponse: calls.resolve,
+);
+final (CallRendererFunctionMessage message, Future<Object?> result) = calls
+    .call(catalogId: catalogId, name: 'scrollIntoView', args: {'id': 'row-4'});
+sendToRenderer([message]);
+final Object? value = await result; // or throws A2uiRpcError
+```
+
+A call times out after 30 seconds unless given another timeout; give the
+tracker `defaultTimeout: null` for calls that never time out. `dispose`
+cancels the calls still pending, for example when the connection closes.
+
+`call` checks the call before sending anything and throws `A2uiRpcError`
+with `INVALID_FUNCTION_CALL` for an empty `functionCallId`, an empty name or
+catalog id, a name that isn't a UAX #31 identifier, or `args` whose keys
+aren't identifiers or whose values aren't JSON values (`NaN` and infinity
+included). Nested `@call` and `@path` objects in `args` are passed on as they
+are, for the renderer to check.
+
+Give `RendererFunctionCalls` the renderer's catalogs, as in
+`RendererFunctionCalls(catalogs: catalogs)`, and `call` refuses a call the
+renderer would refuse, throwing `A2uiRpcError` before anything is sent:
+`UNKNOWN_FUNCTION` when the catalog id names none of the catalogs or its
+catalog has no such renderer function (an agent function in the catalog runs
+on the agent, so it doesn't count), and `INVALID_FUNCTION_CALL` when the
+function's `allowedCallers` is `rendererOnly` (the default) or the function
+requires a user activation, which an agent's call doesn't have. Two catalogs
+with the same id throw `A2uiCatalogError`. Without catalogs, calls aren't
+checked.
+
 ## Tests
 
-[test/conformance](test/conformance) runs the shared suites under
-[conformance/agent/express](../../conformance/agent/express). They are written
-against v1.0, so the harness lifts the v0.9 messages this package emits into
-the v1.0 shape before comparing. Cases for what is not implemented yet are
-skipped with the reason.
+[test/conformance](test/conformance) runs every shared agent suite this API
+covers: those under [conformance/agent/direct_json](../../conformance/agent/direct_json)
+and [conformance/agent/express](../../conformance/agent/express), and
+`catalog_provider.yaml`, `catalog_resolution.yaml`, `catalog_transformer.yaml`
+and `request_processor.yaml` under [conformance/agent](../../conformance/agent).
+They are written against v1.0, and each runs twice: as written in v1.0, and
+lowered to v0.9, where the harness lowers what a case hands the package to
+v0.9 and lifts what it returns back to v1.0 before comparing; see
+[test/conformance/suites.dart](test/conformance/suites.dart). Cases that need
+something v0.9 or this API does not have are skipped with the reason.
+[conformance/agent/multi_catalog_formats.yaml](../../conformance/agent/multi_catalog_formats.yaml)
+runs as written in v1.0 only.
 
-[e2e_test](e2e_test) runs the example turn against a real Gemini model. It
-needs an API key, so it lives in a separate package and runs in a separate
-CI pipeline.
+The `scaling.yaml` suites time parsing rather than check what it returns, and
+a slow or loaded machine can fail them, so their tests are tagged
+`performance` and [dart_test.yaml](dart_test.yaml) skips them. Run them with
+`dart test -P performance`. CI runs them in a job of their own.
+
+The other tests cover what the suites do not: the published basic catalogs,
+decisions of this package, errors, and a round trip of every basic catalog
+example through both formats.
+
+[e2e_test](e2e_test) runs an agent turn in each format against a real Gemini
+model, and a direct JSON turn read as it streams, for v0.9 and v1.0. It needs
+an API key, so it lives in a separate package and runs in a separate CI
+pipeline.

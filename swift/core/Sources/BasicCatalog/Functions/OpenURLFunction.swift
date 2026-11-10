@@ -22,41 +22,54 @@ public protocol OpenURLHandler: AnyObject, Sendable {
   func open(_ url: URL)
 }
 
-/// Opens a URL using a registered handler, ensuring it has an `http` or `https` scheme.
+/// Opens a URL using a registered handler, ensuring it has an `http`, `https`, `mailto` or `tel`
+/// scheme.
+///
+/// The handler is held weakly, so the function never keeps it alive. Keep a strong reference to it
+/// outside the catalog, for example in the view model that owns the `MessageProcessor`, or the
+/// function only validates the URL and opens nothing.
 public final class OpenURLFunction: FunctionImplementation, @unchecked Sendable {
-  public let api = FunctionAPI(
-    name: "openUrl",
-    returnType: .void,
-    schema: try! Schema(
-      instance: """
-        {
-          "type": "object",
-          "properties": {
-            "url": { "type": "string" }
-          },
-          "required": ["url"]
-        }
-        """
-    )
-  )
-
+  public let api: FunctionAPI
+  /// The handler that opens the URL on the host platform, held weakly.
   public weak var handler: (any OpenURLHandler)?
   public let baseURL: URL?
 
   /// Initializes a new openUrl function.
   ///
   /// - Parameters:
-  ///   - handler: An optional weak reference to a handler that actually opens the URL on the host platform.
+  ///   - handler: An optional handler that opens the URL on the host platform. It is held weakly,
+  ///     so the caller must keep it alive.
   ///   - baseURL: An optional base URL to resolve relative URLs against.
-  public init(handler: (any OpenURLHandler)? = nil, baseURL: URL? = nil) {
+  ///   - requiresUserActivation: Whether this function requires user activation (true in v1.0).
+  public init(
+    handler: (any OpenURLHandler)? = nil,
+    baseURL: URL? = nil,
+    requiresUserActivation: Bool = false
+  ) {
     self.handler = handler
     self.baseURL = baseURL
+    self.api = FunctionAPI(
+      name: "openUrl",
+      returnType: .void,
+      schema: try! Schema(
+        instance: """
+          {
+            "type": "object",
+            "properties": {
+              "url": { "type": "string" }
+            },
+            "required": ["url"]
+          }
+          """
+      ),
+      requiresUserActivation: requiresUserActivation
+    )
   }
 
   /// Evaluates the openUrl function by resolving the URL and invoking the handler.
   ///
-  /// The resolved URL is checked against a strict allowlist of schemes (`http` and `https`)
-  /// to prevent security issues such as XSS via `javascript:` or `data:`.
+  /// The resolved URL is checked against a strict allowlist of schemes (`http`, `https`,
+  /// `mailto` and `tel`) to prevent security issues such as XSS via `javascript:` or `data:`.
   ///
   /// - Parameters:
   ///   - arguments: The dictionary of arguments provided to the function.
@@ -78,9 +91,9 @@ public final class OpenURLFunction: FunctionImplementation, @unchecked Sendable 
 
     // Enforce scheme allowlist (prevent javascript:, data:, etc.)
     let scheme = resolvedURL.scheme?.lowercased()
-    guard scheme == "https" || scheme == "http" else {
+    guard scheme == "https" || scheme == "http" || scheme == "mailto" || scheme == "tel" else {
       throw FunctionError.securityConstraintViolation(
-        "URL scheme must be http or https. Found: \(scheme ?? "none")")
+        "URL scheme must be http, https, mailto, or tel. Found: \(scheme ?? "none")")
     }
 
     // Delegate to the handler

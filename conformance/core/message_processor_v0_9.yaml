@@ -13,12 +13,13 @@
 # limitations under the License.
 
 # ==============================================================================
-# Protocol v0.9 / v0.9.1 MessageProcessor Conformance Test Suite (Active Baseline)
+# Protocol v0.9 / v0.9.1 MessageProcessor Conformance Test Suite
 # ==============================================================================
 
 # --- Surface Lifecycle & State Isolation ---
 
 - name: test_create_surface_basic
+  features: [F-CORE-01]
   description: Tests creating a surface with catalogId and theme, verifying sendDataModel defaults to false.
   action: process_messages
   catalogPaths:
@@ -39,6 +40,7 @@
           primaryColor: "#ff0000"
 
 - name: test_create_surface_send_data_model_enabled
+  features: [F-CORE-01, F-CORE-32]
   description: Tests creating a surface with sendDataModel explicitly enabled.
   action: process_messages
   catalogPaths:
@@ -71,7 +73,14 @@
         catalogId: "test-catalog"
   expectError:
     category: "IntegrityError"
+    surfaceId: "s1"
     message: "Surface s1 already exists"
+    rendererError:
+      version: "v0.9"
+      error:
+        code: "INTEGRITY_ERROR"
+        surfaceId: "s1"
+        message: "Surface s1 already exists"
 
 - name: test_create_surface_unknown_catalog_error
   description: Tests that creating a surface referencing an unregistered catalogId raises a CatalogError.
@@ -87,7 +96,38 @@
     category: "CatalogError"
     message: "Catalog not found: unknown-catalog"
 
+- name: test_create_surface_without_catalog_id_error
+  description: >-
+    Tests that a v0.9 createSurface without a catalogId is rejected with a ValidationError. The v0.9 server_to_client schema requires catalogId; only from v1.0 may a surface have no default catalog.
+  action: process_messages
+  protocolVersion: "v0.9"
+  catalogPaths:
+    - "specification/v0_9/catalogs/basic/catalog.json"
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s1"
+  expectError:
+    category: "ValidationError"
+    message: "catalogId"
+
+- name: test_v091_create_surface_without_catalog_id_error
+  description: >-
+    Tests that a v0.9.1 createSurface without a catalogId is rejected with a ValidationError, as the v0.9.1 server_to_client schema requires catalogId too.
+  action: process_messages
+  protocolVersion: "v0.9.1"
+  catalogPaths:
+    - "specification/v0_9_1/catalogs/basic/catalog.json"
+  messages:
+    - version: "v0.9.1"
+      createSurface:
+        surfaceId: "s1"
+  expectError:
+    category: "ValidationError"
+    message: "catalogId"
+
 - name: test_delete_surface_basic
+  features: [F-CORE-04]
   description: Tests deleting an active surface by surfaceId, cleanly removing it from state.
   action: process_messages
   catalogPaths:
@@ -108,6 +148,7 @@
 # --- Component Mutations & State Integrity ---
 
 - name: test_update_components_add_and_query
+  features: [F-CORE-02]
   description: Tests adding multiple components to an active surface and querying their properties.
   action: process_messages
   catalogPaths:
@@ -216,7 +257,14 @@
             component: "Text"
   expectError:
     category: "IntegrityError"
+    surfaceId: "unknown-s"
     message: "Surface not found for message: unknown-s"
+    rendererError:
+      version: "v0.9"
+      error:
+        code: "INTEGRITY_ERROR"
+        surfaceId: "unknown-s"
+        message: "Surface not found for message: unknown-s"
 
 - name: test_update_components_missing_id_error
   description: Tests that component entries missing an 'id' property raise a validation error.
@@ -320,7 +368,14 @@
             child: "root"
   expectError:
     category: "ValidationError"
+    surfaceId: "s1"
     message: "Circular reference detected"
+    rendererError:
+      version: "v0.9"
+      error:
+        code: "RECURSION_LIMIT_EXCEEDED"
+        surfaceId: "s1"
+        message: "Circular reference detected"
 
 - name: test_topology_indirect_circular_reference_error
   description: Tests that indirect circular references (root -> c1 -> c2 -> root) are detected and rejected.
@@ -419,7 +474,14 @@
             child: "missing_child_id"
   expectError:
     category: "ValidationError"
+    surfaceId: "s1"
     message: "Dangling reference"
+    rendererError:
+      version: "v0.9"
+      error:
+        code: "INTEGRITY_ERROR"
+        surfaceId: "s1"
+        message: "Dangling reference"
 
 - name: test_topology_orphaned_component_error
   description: Tests that orphaned components unreachable from the root component fail validation in strict mode.
@@ -461,7 +523,14 @@
             text: "Unreachable"
   expectError:
     category: "ValidationError"
+    surfaceId: "s1"
     message: "Orphaned component"
+    rendererError:
+      version: "v0.9"
+      error:
+        code: "INTEGRITY_ERROR"
+        surfaceId: "s1"
+        message: "Orphaned component"
 
 - name: test_topology_structured_array_child_ref_ignores_sibling_strings
   description: >-
@@ -663,7 +732,14 @@
         value: "bar"
   expectError:
     category: "IntegrityError"
+    surfaceId: "unknown-s"
     message: "Surface not found for message: unknown-s"
+    rendererError:
+      version: "v0.9"
+      error:
+        code: "INTEGRITY_ERROR"
+        surfaceId: "unknown-s"
+        message: "Surface not found for message: unknown-s"
 
 - name: test_get_renderer_data_model_filtering
   description: Tests that getRendererDataModel filters out surfaces where sendDataModel is false.
@@ -868,38 +944,6 @@
                     - "component"
                     - "label"
 
-- name: test_v09_get_renderer_capabilities_ref_description_transformation
-  description: "Tests transforming REF: tagged descriptions into valid JSON Schema $ref nodes."
-  action: get_renderer_capabilities
-  catalogs:
-    - catalogId: cat-ref
-      components:
-        Custom:
-          type: object
-          properties:
-            title:
-              type: string
-              description: "REF:common_types.json#/$defs/DynamicString|The title"
-  args:
-    includeInlineCatalogs: true
-    version: "v0.9"
-  expect:
-    v0.9:
-      supportedCatalogIds:
-        - "cat-ref"
-      inlineCatalogs:
-        - catalogId: "cat-ref"
-          components:
-            Custom:
-              allOf:
-                - $ref: "common_types.json#/$defs/ComponentCommon"
-                - properties:
-                    component:
-                      const: "Custom"
-                    title:
-                      $ref: "common_types.json#/$defs/DynamicString"
-                      description: "The title"
-
 - name: test_v09_get_renderer_capabilities_with_functions_and_theme
   description: Tests generating inline catalogs including function definitions and theme schema.
   action: get_renderer_capabilities
@@ -930,7 +974,8 @@
         type: object
         properties:
           primaryColor:
-            $ref: "common_types.json#/$defs/Color"
+            type: string
+            pattern: "^#[0-9a-fA-F]{6}$"
             description: The main color
   args:
     includeInlineCatalogs: true
@@ -967,7 +1012,8 @@
                 required: ["a", "b"]
           theme:
             primaryColor:
-              $ref: "common_types.json#/$defs/Color"
+              type: "string"
+              pattern: "^#[0-9a-fA-F]{6}$"
               description: "The main color"
 
 - name: test_v09_get_renderer_capabilities_multiple_catalogs
@@ -1034,3 +1080,98 @@
   expectError:
     category: "ValidationError"
     message: "surfaceId must be a string"
+
+- name: test_update_components_target_named_surface_only
+  features: [F-CORE-02]
+  description: Tests that components are added to the surface the message names, not to every open surface.
+  action: process_messages
+  catalogPaths:
+    - "specification/v0_9/catalogs/basic/catalog.json"
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "test-catalog"
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s2"
+        catalogId: "test-catalog"
+    - version: "v0.9"
+      updateComponents:
+        surfaceId: "s2"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+  expect:
+    surfaces:
+      s1:
+        exists: true
+        components: []
+      s2:
+        exists: true
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+
+- name: test_update_data_model_isolated_per_surface
+  features: [F-CORE-03]
+  description: Tests that each surface owns its data model, so the same path holds a different value per surface.
+  action: process_messages
+  catalogPaths:
+    - "specification/v0_9/catalogs/basic/catalog.json"
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "test-catalog"
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s2"
+        catalogId: "test-catalog"
+    - version: "v0.9"
+      updateDataModel:
+        surfaceId: "s1"
+        path: "/value"
+        value: "one"
+    - version: "v0.9"
+      updateDataModel:
+        surfaceId: "s2"
+        path: "/value"
+        value: "two"
+  expect:
+    surfaces:
+      s1:
+        dataModel:
+          value: "one"
+      s2:
+        dataModel:
+          value: "two"
+
+- name: test_v091_version_string_compatibility
+  features: [F-CORE-07]
+  description: Tests that messages carrying version 'v0.9.1' are accepted compatibly by v0.9 processors and catalogs.
+  action: process_messages
+  catalogPaths:
+    - "specification/v0_9/catalogs/basic/catalog.json"
+  messages:
+    - version: "v0.9.1"
+      createSurface:
+        surfaceId: "s_v091"
+        catalogId: "test-catalog"
+    - version: "v0.9.1"
+      updateComponents:
+        surfaceId: "s_v091"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello v0.9.1"
+  expect:
+    surfaces:
+      s_v091:
+        exists: true
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello v0.9.1"

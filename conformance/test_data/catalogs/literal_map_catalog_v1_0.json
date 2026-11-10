@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/conformance/test_data/catalogs/literal_map_catalog_v1_0.json",
+  "protocolVersion": "1.0",
+  "title": "Conformance Literal Map Catalog (v1.0)",
+  "description": "A catalog for testing that Express map literals keep their keys, including keys that share a name with an Express construct such as variable, path, call or check.",
+  "catalogId": "conformance/literal_map",
+  "components": {
+    "Probe": {
+      "type": "object",
+      "description": "Carries an arbitrary object payload.",
+      "properties": {
+        "component": { "const": "Probe" },
+        "payload": { "type": "object" }
+      },
+      "required": ["component", "payload"]
+    }
+  },
+  "functions": {
+    "series": {
+      "type": "object",
+      "description": "Repeats an item a number of times, naming the loop variable.",
+      "returnType": "array",
+      "properties": {
+        "@call": { "const": "series" },
+        "args": {
+          "type": "object",
+          "properties": {
+            "count": { "type": "integer" },
+            "variable": { "type": "string" },
+            "item": { "type": "object" }
+          },
+          "required": ["count", "item"],
+          "unevaluatedProperties": false
+        }
+      },
+      "required": ["@call", "args"]
+    }
+  }
+}

@@ -1,0 +1,97 @@
+## Unreleased
+
+- **BREAKING CHANGE**: `ComponentHostComponent` no longer assigns `element.context` when mounting universal Web Components, and `ComponentBinder.bind(context)` and `AngularWcHost.context` are deprecated in favor of `ComponentBinder.bindNode(node)` and `AngularWcHost.node`. Recommended migration: implement `node` on custom `A2uiWebComponentElement` classes instead of `context`. [#3841](https://github.com/a2ui-project/a2ui/pull/3841)
+- **BREAKING CHANGE**: The host element of an Angular catalog component (`<a2ui-v09-component-host>`, or `<a2ui-ng-<name>>` from `toWebComponent`) applies the component's `accessibility` attributes: `aria-live`, `aria-hidden`, and `inert` on the host, and `aria-label` and `aria-description` on the host with `role="group"` (unless the host already has a `role`). Add `AccessibilityTargetDirective` (`a2uiAccessibilityTarget`), which moves `aria-label` and `aria-description` to the element it marks and adds `aria-invalid="true"` there while a check fails, and `ValidationErrorsDirective` (`a2uiValidationErrors`), which marks the element showing the validation errors so the target gets `aria-describedby` pointing at it. The v0.9 native basic catalog marks the control of `Button`, `CheckBox`, `Slider`, `TextField`, `Image`, `AudioPlayer`, and `Video`, and wraps the error messages of `Slider` and `TextField` in `<div class="a2ui-validation-errors">`. Recommended migration: a component that already sets `aria-label` from `props().accessibility` on an inner element should mark that element with `a2uiAccessibilityTarget`, or the label is announced twice. [#3499](https://github.com/a2ui-project/a2ui/issues/3499), [#3869](https://github.com/a2ui-project/a2ui/pull/3869)
+- `ListComponent` hides the item of a child that renders nothing, so it leaves no empty marker or gap. `<a2ui-v09-component-host>` carries `data-a2ui-empty` while it renders nothing. [#2013](https://github.com/a2ui-project/a2ui/issues/2013)
+
+## 0.14.0
+
+- Add `metadata` (`input<A2uiMetadata | undefined>()`) and `extensions` (`computed<Extensions | undefined>()`) signals on `CatalogComponent` and `CatalogComponentInstance`, bound reactively from `ComponentNode.metadata` in `ComponentHostComponent` and `ComponentBinder.bindNode`. [#3469](https://github.com/a2ui-project/a2ui/issues/3469), [#3708](https://github.com/a2ui-project/a2ui/issues/3708), [#3757](https://github.com/a2ui-project/a2ui/pull/3757)
+- **BREAKING CHANGE**: `createComponentImplementation` and `toWebComponent` keep the `allowedParents`, `allowedChildren` and `metadata` of the component they receive. The message processor now enforces them for custom Angular components, so a payload that breaks them is rejected with `UNALLOWED_PARENT` or `UNALLOWED_CHILD` (previously accepted). [#3533](https://github.com/a2ui-project/a2ui/issues/3533)
+- `new AngularCatalog(id, components?, functions?, themeSchema?, instructions?)` without a `protocolVersion` constructs a `'0.9'` catalog (deprecated overload), so catalogs written against 0.9.x keep constructing. `new AngularCatalog(id, protocolVersion, ...)` is unchanged ([#3658](https://github.com/a2ui-project/a2ui/pull/3658)).
+- (v0_9) Re-export `DefaultMarkdownRenderer` from `@a2ui/angular/v0_9` ([#3658](https://github.com/a2ui-project/a2ui/pull/3658)).
+- Hosted components bind from the resolved `ComponentNode` instead of re-resolving each property through the `DataContext`: child references (`Child`) now carry their `node`, `ComponentBinder.bindNode` and `ComponentBinder.unbind` are new public methods, `ComponentBinder.bind(context)` is deprecated, and `CheckProps.validationResults` (`CheckValidationResult`) is available on components with `checks`. `provideA2Ui` now initializes Angular reactivity before any surface or resolver signal is created. [#3706](https://github.com/a2ui-project/a2ui/pull/3706)
+
+## 0.13.0
+
+- Bump dependencies for compatibility with `@a2ui/web_core: ^0.14.0`.
+- (v1_0) `ComponentHostComponent` renders components on a surface whose `createSurface` names no default catalog by resolving each against its own catalog. `SurfaceModel.defaultCatalog` (and the deprecated `catalog` getter) from `@a2ui/web_core` may now be `undefined`, so code that reads `surface.defaultCatalog` must handle that case.
+- Relocate package directory from `renderers/angular` to `typescript/renderers/angular`.
+
+## 0.12.0
+
+- Bump dependencies for compatibility with `@a2ui/web_core: ^0.13.0`.
+- Migrate package root `@a2ui/angular` to export version-agnostic core services (`A2uiRendererService`, `SurfaceComponent`, `ComponentHostComponent`, etc.) and the v1.0 `BasicCatalog`.
+  - **BREAKING CHANGE**: The package root no longer re-exports the v0.8 API (`export * from './v0_8/public-api'`) or the `A2UI_ANGULAR_VERSION` constant. v0.8 consumers must import from `@a2ui/angular/v0_8`.
+- Maintain `@a2ui/angular/v0_9` and `@a2ui/angular/v0_8` secondary entry points for version-specific components and catalogs.
+- (v0_9) Fix `ComponentHostComponent` keeping the old component mounted after a component's type or catalog changes in place. [#2824](https://github.com/a2ui-project/a2ui/pull/2824)
+- Provide `provideA2UI()` and `provideA2Ui()` standalone application configuration helper functions ([#2862](https://github.com/a2ui-project/a2ui/pull/2862)).
+- (v0_9) Add input validation support to `TextField` and `Slider` basic catalog components ([#2862](https://github.com/a2ui-project/a2ui/pull/2862)).
+- Enforce `noImplicitOverride: true` and forbid self-package imports ([#2878](https://github.com/a2ui-project/a2ui/pull/2878)).
+
+## 0.11.0
+
+- (v0_9) Support markdown in universal basic catalog:
+  - When `useUniversalComponents` is enabled, `A2uiRendererService` bridges `MarkdownRenderer` from Angular DI to `@a2ui/web_core`'s global markdown renderer.
+  - **BREAKING CHANGE**: Removed export of `MarkdownRendererOptions` from `@a2ui/angular/v0_9`. Consumers should now import `MarkdownRendererOptions` directly from `@a2ui/web_core/v0_9`. Additionally, `provideMarkdownRenderer` now accepts `MarkdownRenderer` from `@a2ui/web_core/v0_9` (where `tagClassMap` is typed as `Record<string, string[]>`). [#2604](https://github.com/a2ui-project/a2ui/pull/2604)
+- (v0_9) Support universal Web Components in the v0.9 renderer:
+  - Add the `useUniversalComponents` option to `RendererConfiguration`.
+  - `AngularCatalog` now also accepts plain `WebComponentImplementation` entries (universal Web Components) next to native Angular components; they render when `useUniversalComponents` is enabled. `AngularComponentImplementation` is unchanged.
+  - Entries from `createComponentImplementation` now also carry a Custom Element (`tagName`, `element`): the one of a `WebComponentImplementation` API, or the Angular component wrapped into an `a2ui-ng-<name>` element. Universal container components can always render them as children, and the renderer mounts the element when `useUniversalComponents` is enabled (detected with `isWebComponentImplementation`).
+  - Update `A2uiRendererService` and `ComponentHostComponent` to render either universal Web Components or native Angular components depending on `useUniversalComponents`. [#2273](https://github.com/a2ui-project/a2ui/pull/2273)
+
+## 0.10.7
+
+- (v0_9) Fix `ChoicePicker` radio groups colliding across surfaces: the radio group `name` now combines the surface id, component id, and data context path instead of using the surface-scoped component id alone, and checkboxes no longer receive a `name`. [#2447](https://github.com/a2ui-project/a2ui/issues/2447)
+
+## 0.10.6
+
+- (v0_9) Implement `createComponentImplementation` helper and deprecate `extraComponents` and `functions` in `BasicCatalogOptions` to align with the core API. [#2060](https://github.com/a2ui-project/a2ui/pull/2060)
+
+## 0.10.5
+
+- Add standalone helper `provideA2Ui` configuration function. [#2061](https://github.com/a2ui-project/a2ui/pull/2061)
+- Standardize package entry points to `index.ts` while maintaining `public-api.ts` wrappers for backward compatibility.
+- (v0_8) Export `A2uiMessageSchema` in public API.
+
+## 0.10.4
+
+- (v0_9) Normalize Safari placeholder text color for `DateTimeInput` by updating CSS selectors for `.a2ui-date-time-input`. [#1795](https://github.com/a2ui-project/a2ui/pull/1795)
+- (v0_9) Use quoted input names in `a2ui-v09-component-host` to help it survive closure compiler minification. [#1902](https://github.com/a2ui-project/a2ui/pull/1902)
+
+## 0.10.3
+
+- (v0_9) Export Angular test utilities under `@a2ui/angular/testing` and secondary entry point `@a2ui/angular/v0_9/testing`. [#1737](https://github.com/a2ui-project/a2ui/pull/1737)
+
+## 0.10.2
+
+- (v0_9) Align with signal implementation changes in `@a2ui/web_core`.
+
+## 0.10.1
+
+- (v0_8) Export `MarkdownRenderer` in public API of v0.8. [#1658](https://github.com/a2ui-project/a2ui/pull/1658)
+- (v0_9) Fix null de-referencing TypeError in `ComponentBinder` when `children` property is null or undefined. [#1472](https://github.com/a2ui-project/a2ui/pull/1472)
+- (v0_8) Fix Icon component to handle camelCase and TitleCase names by converting them to snake_case for `g-icon`.
+- (v0_8) Fix Modal component styling and position fixed for overlay.
+- (v0_9) Remove `placeholder` prop support from the `TextField` component, since it was not part of the v0_9 basic catalog schema. [#1372](https://github.com/a2ui-project/a2ui/pull/1372)
+- (v0_9) Preserve `checks` property in `ExtendedProps` type. [#1523](https://github.com/a2ui-project/a2ui/pull/1523)
+
+## 0.10.0
+
+- **BREAKING CHANGE**: (v0_9) Rename Icon `path` property to `svgPath` to fix type collision and avoid forced casts.
+- **BREAKING CHANGE**: `BoundProperty.raw` is now `unknown` instead of `any`. Recommended migration: replace `raw` access with typed sibling fields where available (e.g. use the new `template` field instead of `raw.componentId`/`raw.path`). [#1312](https://github.com/a2ui-project/a2ui/pull/1312)
+- **BREAKING CHANGE**: `BoundProperty<T = unknown>`: the default generic is now `unknown` instead of `any`. Recommended migration: provide explicit type arguments (e.g. `BoundProperty<string>`) at usage sites that previously relied on the default. Code typed via `ComponentApiToProps<Api>` is unaffected. [#1312](https://github.com/a2ui-project/a2ui/pull/1312)
+- `props()['children']?.value()` is now typed `Child[]` (was `Child`, despite runtime always returning an array). [#1312](https://github.com/a2ui-project/a2ui/pull/1312)
+- (v0_9) Improve type safety of `props()` in Catalog components. Custom catalog
+  components should extend the base class `CatalogComponent` from
+  `import {CatalogComponent} from '@a2ui/web_core/v0_9/'` or implement the
+  interface `CatalogComponentInstance`. [#1320](https://github.com/a2ui-project/a2ui/pull/1320)
+
+## 0.9.1
+
+- (v0_9) Re-style the v0_9 catalog components using the default theme from
+  `web_core`. [#1166](https://github.com/a2ui-project/a2ui/pull/1166)
+
+## 0.8.5
+
+- Handle `TextField.type` renamed to `TextField.textFieldType`.

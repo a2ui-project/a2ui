@@ -3,21 +3,21 @@
   "description": "Demonstrates structural evolution of a UI where loading placeholders are incrementally replaced by actual components.",
   "messages": [
     {
-      "version": "v1.0",
+      "version": "1.0",
       "createSurface": {
         "surfaceId": "gallery-incremental-dashboard",
         "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
       }
     },
     {
-      "version": "v1.0",
+      "version": "1.0",
       "updateComponents": {
         "surfaceId": "gallery-incremental-dashboard",
         "components": [
           {
             "id": "root",
             "component": "Column",
-            "children": ["header", "content-grid"],
+            "children": ["header", "content_grid"],
             "align": "stretch"
           },
           {
@@ -26,30 +26,30 @@
             "text": "## System Dashboard"
           },
           {
-            "id": "content-grid",
+            "id": "content_grid",
             "component": "Row",
-            "children": ["left-panel", "right_panel"]
+            "children": ["left_panel", "right_panel"]
           },
           {
-            "id": "left-panel",
+            "id": "left_panel",
             "component": "Column",
-            "children": ["panel-a-loading"],
+            "children": ["panel_a_loading"],
             "weight": 1
           },
           {
             "id": "right_panel",
             "component": "Column",
-            "children": ["panel-b-loading"],
+            "children": ["panel_b_loading"],
             "weight": 1
           },
           {
-            "id": "panel-a-loading",
+            "id": "panel_a_loading",
             "component": "Text",
             "text": "Loading analytics...",
             "variant": "caption"
           },
           {
-            "id": "panel-b-loading",
+            "id": "panel_b_loading",
             "component": "Text",
             "text": "Loading logs...",
             "variant": "caption"
@@ -58,23 +58,23 @@
       }
     },
     {
-      "version": "v1.0",
+      "version": "1.0",
       "updateComponents": {
         "surfaceId": "gallery-incremental-dashboard",
         "components": [
           {
-            "id": "left-panel",
+            "id": "left_panel",
             "component": "Column",
-            "children": ["analytics-card"],
+            "children": ["analytics_card"],
             "weight": 1
           },
           {
-            "id": "analytics-card",
+            "id": "analytics_card",
             "component": "Card",
-            "child": "analytics-text"
+            "child": "analytics_text"
           },
           {
-            "id": "analytics-text",
+            "id": "analytics_text",
             "component": "Text",
             "text": "Analytics are ready.",
             "variant": "body"
@@ -83,7 +83,7 @@
       }
     },
     {
-      "version": "v1.0",
+      "version": "1.0",
       "updateComponents": {
         "surfaceId": "gallery-incremental-dashboard",
         "components": [
@@ -105,7 +105,7 @@
             "id": "log_template",
             "component": "Text",
             "text": {
-              "path": "message"
+              "@path": "message"
             },
             "variant": "caption"
           }
@@ -113,7 +113,7 @@
       }
     },
     {
-      "version": "v1.0",
+      "version": "1.0",
       "updateDataModel": {
         "surfaceId": "gallery-incremental-dashboard",
         "value": {

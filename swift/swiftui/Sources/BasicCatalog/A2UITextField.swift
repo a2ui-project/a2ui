@@ -43,16 +43,48 @@ public struct A2UITextField: View {
     node.string(for: "label") ?? ""
   }
 
+  /// The optional hint text resolved from the v1.0 `placeholder` property.
+  public var placeholderText: String? {
+    node.string(for: "placeholder")
+  }
+
+  /// The prompt shown inside single-line fields; when `nil`, SwiftUI falls back to the label.
+  private var prompt: Text? {
+    placeholderText.map { Text($0) }
+  }
+
+  /// The top inset of the first line in `TextEditor`: the backing `UITextView` insets its text by
+  /// 8 points, while the `NSTextView` on macOS has no inset.
+  private var editorTextTopInset: CGFloat {
+    #if os(macOS)
+      0
+    #else
+      8
+    #endif
+  }
+
   private var variant: String {
     node.string(for: "variant") ?? "shortText"
   }
 
-  private var valueBinding: Binding<String> {
+  /// Two-way binding for the text field's `value` property.
+  public var valueBinding: Binding<String> {
     node.binding(for: "value", default: "")
   }
 
-  private var validationErrors: [String] {
+  /// Whether all blocking (`severity == .error`) validation checks pass.
+  public var isValid: Bool {
+    node.isValid
+  }
+
+  /// Active blocking validation error messages.
+  public var validationErrors: [String] {
     node.validationErrors
+  }
+
+  /// Structured validation results for all failing checks, including warnings and info.
+  public var validationResults: [ValidationResult] {
+    node.validationResults
   }
 
   private var hasError: Bool {
@@ -65,6 +97,7 @@ public struct A2UITextField: View {
         Text(labelText)
           .font(.subheadline.weight(.medium))
           .foregroundStyle(hasError ? Color.red : Color.secondary)
+          .accessibilityHidden(true)
       }
 
       inputFieldForVariant
@@ -76,14 +109,10 @@ public struct A2UITextField: View {
             .stroke(
               hasError ? Color.red : Color.primary.opacity(0.1), lineWidth: hasError ? 1.5 : 1)
         )
-        .accessibilityIdentifier("A2UITextField_\(node.id)")
+        .accessibilityIdentifier("a2ui-\(node.id)")
+        .a2uiAccessibilityControl(for: node, defaultLabel: labelText)
 
-      if let firstError = validationErrors.first {
-        Text(firstError)
-          .font(.caption)
-          .foregroundStyle(Color.red)
-          .accessibilityIdentifier("A2UITextField_Error_\(node.id)")
-      }
+      A2UICheckMessage(node: node, identifierPrefix: "A2UITextField")
     }
   }
 
@@ -91,25 +120,38 @@ public struct A2UITextField: View {
   private var inputFieldForVariant: some View {
     switch variant {
     case "obscured":
-      SecureField(labelText, text: valueBinding)
-        .accessibilityIdentifier("A2UITextField_\(node.id)")
+      SecureField(labelText, text: valueBinding, prompt: prompt)
+        .accessibilityIdentifier("a2ui-\(node.id)")
     case "longText":
       TextEditor(text: valueBinding)
         .scrollContentBackground(.hidden)
         .frame(minHeight: 80)
-        .accessibilityIdentifier("A2UITextField_\(node.id)")
+        // TextEditor takes no title, so name it for VoiceOver explicitly.
+        .accessibilityLabel(labelText.isEmpty ? (placeholderText ?? "") : labelText)
+        .overlay(alignment: .topLeading) {
+          // TextEditor has no native prompt, so draw the placeholder while it is empty.
+          if let placeholderText, valueBinding.wrappedValue.isEmpty {
+            Text(placeholderText)
+              .foregroundStyle(Color.secondary)
+              .padding(.top, editorTextTopInset)
+              .padding(.leading, 5)
+              .allowsHitTesting(false)
+              .accessibilityHidden(true)
+          }
+        }
+        .accessibilityIdentifier("a2ui-\(node.id)")
     case "number":
       #if os(iOS)
-        TextField(labelText, text: valueBinding)
+        TextField(labelText, text: valueBinding, prompt: prompt)
           .keyboardType(.decimalPad)
-          .accessibilityIdentifier("A2UITextField_\(node.id)")
+          .accessibilityIdentifier("a2ui-\(node.id)")
       #else
-        TextField(labelText, text: valueBinding)
-          .accessibilityIdentifier("A2UITextField_\(node.id)")
+        TextField(labelText, text: valueBinding, prompt: prompt)
+          .accessibilityIdentifier("a2ui-\(node.id)")
       #endif
     default:
-      TextField(labelText, text: valueBinding)
-        .accessibilityIdentifier("A2UITextField_\(node.id)")
+      TextField(labelText, text: valueBinding, prompt: prompt)
+        .accessibilityIdentifier("a2ui-\(node.id)")
     }
   }
 }

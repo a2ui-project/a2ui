@@ -33,12 +33,34 @@ The syntax rules define how types, structures, data paths, and validation action
 
 Every component definition is assigned to a unique variable identifier, or constructed inline directly within a parent component's argument list. A reserved variable named `root` acts as the primary entry point for the interface tree.
 
-To support multi-lingual models while ensuring syntax safety for future extensions (such as math or conditional expressions), all variable identifiers MUST conform to the Unicode Identifier standard ([UAX #31](https://www.unicode.org/reports/tr31/)):
+To support multi-lingual models while ensuring syntax safety for future extensions (such as math or conditional expressions), all variable identifiers MUST conform to the Unicode Identifier standard ([UAX #31](https://www.unicode.org/reports/tr31/)), matching the [Catalog Entity Naming Rules](../../v1_0/docs/a2ui_protocol.md#catalog-entity-naming-rules):
 
-- An identifier must start with a Unicode letter or an underscore `_`.
-- Subsequent characters must be Unicode letters, digits (`0-9`), or underscores `_`.
+- The first character must be in the Unicode property class `XID_Start` or an underscore (`_`, `U+005F`).
+- Subsequent characters must be in the Unicode property class `XID_Continue`.
+- In canonical regular-expression syntax: `^[\p{XID_Start}_][\p{XID_Continue}]*$`.
+- Reserved tokens (`true`, `false`, `null`, `_`) cannot be used as variable identifiers, and `root` is reserved for the surface root component.
 
 A2UI Express supports flexible hybrid component nesting: child components can either be defined inline (e.g., `Card(child=Text("Hello"))`) or assigned to top-level variables and referenced by name (e.g., `header = Text("Hello")` and `root = Card(child=header)`).
+
+#### Component IDs
+
+By default, a component's Express variable name becomes its A2UI component `"id"` in the compiled JSON (for example, `root = Column([grid])` compiles to a component with `"id": "root"`).
+
+In protocol versions before v1.0, a component `"id"` can be any string (such as `"content-grid"`, which contains a hyphen `-`), whereas an Express variable name must be a UAX #31 identifier so `-` is not mistaken for subtraction. To produce an A2UI component `"id"` that differs from its Express variable name (such as a pre-v1.0 hyphenated ID, or a reserved word like `"true"`), assign the component to a valid Express variable name (such as `grid`), reference that variable in parent child lists, and pass the target A2UI ID via the reserved `id=` keyword argument:
+
+```
+root = Column([grid])
+grid = Row([left, right], id="content-grid")
+```
+
+Here `root` compiles with `"id": "root"` and `"children": ["content-grid"]`, while `grid` compiles with `"id": "content-grid"`. The `id=` keyword argument works the same way on an inline component, and every catalog accepts it. For protocol versions before v1.0, when the decompiler encounters a component ID like `"content-grid"`, it derives a valid variable name (`content_grid`) and emits `id="content-grid"`. From protocol v1.0 onward, component IDs must themselves be valid UAX #31 identifiers, so the decompiler rejects non-UAX #31 component IDs rather than deriving a variable name (reserved words such as `"true"` are valid UAX #31 identifiers and continue to be derived as `_true` with `id="true"`).
+
+When updating an existing surface and referencing a child component ID that was created in an earlier turn (and is not defined in the current block), write the ID as a bare identifier if it is a valid variable name, or as a quoted string if it contains characters like hyphens:
+
+```
+surface("dashboard-surface-1")
+main_column = Column([earlier_header, "earlier-body"])
+```
 
 ### Argument passing (positional and keyword)
 
@@ -55,7 +77,7 @@ The syntax supports three literal primitive types:
 - **Strings** are represented in two formats:
   - **Standard Strings**: Enclosed in single double quotes (e.g., `"Enter your name"`) or triple double quotes (e.g., `"""Line 1\nLine 2"""`). Standard strings support common escape sequences: `\n` (newline), `\t` (tab), `\\` (backslash), and `\"` (double quote). Embedded newlines are allowed.
   - **Raw Strings**: Prefaced by `r` (e.g., `r"^[a-zA-Z]+$"` or `r"""Raw multi-line content"""`). In raw strings, no escape sequences are processed, and backslashes are interpreted as literal characters. This is particularly useful for validation regex patterns containing backslashes. Embedded newlines are allowed.
-- **Numbers** are written as plain integers or decimals, for example `42` or `3.14` or `-1`.
+- **Numbers** are JSON numbers with an optional leading `+`, for example `42`, `3.14`, `-1`, `.5`, `1e-7` or `2.5E+3`. The grammar is `[+-]? ([0-9]+ ('.' [0-9]*)? | '.' [0-9]+) ([eE] [+-]? [0-9]+)?`, the same one the core `${...}` expression parsers use. A literal outside the range of a double (such as `1e999`) is a parse error. Integers beyond ±(2^53−1) are not portable across SDKs, because an implementation may read them as doubles. `3` and `3.0` are the same value. Decompilers write numbers the way ECMAScript `Number.prototype.toString` does (exponent notation only below 1e-6 or at or above 1e21, written `2.5e-7` or `1.5e+21`), and may keep a `.0` on an integral double.
 - **Booleans** are represented by `true` or `false`.
 - **Null values** are represented by `null`.
 
@@ -96,22 +118,32 @@ $/title = "Enable notification"
 $/user = {firstName: "Alice", age: 30}
 ```
 
-The compiler resolves these statements and generates the structured `dataModel` JSON object at the root of the `createSurface` payload.
+The compiler resolves these statements according to whether the scope creates a new surface or updates an existing surface:
 
-If an A2UI Express block contains only data path assignments and omits the reserved `root` component variable entirely, the compiler produces a standalone `updateDataModel` protocol message instead of a `createSurface` layout payload:
+- When a scope creates a surface (defines `root` without `update=true`), the compiler folds all `$/...` assignments in the scope into the structured `dataModel` JSON object at the root of the `createSurface` payload (or a single initial root `updateDataModel` message in v0.9). Path folding traverses existing arrays and auto-vivifies an array when an unassigned path segment is followed by a canonical non-negative integer index (`0` through `10000`), so subsequent assignments in the same scope can populate or override individual list items (such as `$/items = [{id: "w1", state: "Draft"}]` followed by `$/items/0/state = "Ready"`). When a path segment already holds a map, a numeric next segment (such as `$/m/0 = "x"` after `$/m = {a: 1}`) sets string key `"0"` on that map. Assigning to a list index past the current end of a list pads intermediate slots with `null` (for example, `$/items/3 = "x"` on a new list produces `[null, null, null, "x"]`).
+- When a scope updates an existing surface (omits `root` or declares `surface(..., update=true)`), each `$/path = value` assignment compiles to its own `updateDataModel` message with `path: "/path"` and `value: value` in statement order, preserving unmodified sibling keys in the surface's data model. Assigning a map to `$/` (or `$`) replaces the entire root data model (`path: "/"`), while assigning a non-map value to `$/` is a validation error in both creating and updating scopes.
+
+For example, if an A2UI Express block contains only data path assignments (`$/icon = "check"` and `$/title = "Enable notification"`) and omits the reserved `root` component variable, the compiler produces one targeted `updateDataModel` protocol message per assigned path:
 
 ```json
-{
-  "version": "v1.0",
-  "updateDataModel": {
-    "surfaceId": "default_surface",
-    "path": "/",
-    "value": {
-      "icon": "check",
-      "title": "Enable notification"
+[
+  {
+    "version": "v1.0",
+    "updateDataModel": {
+      "surfaceId": "default_surface",
+      "path": "/icon",
+      "value": "check"
+    }
+  },
+  {
+    "version": "v1.0",
+    "updateDataModel": {
+      "surfaceId": "default_surface",
+      "path": "/title",
+      "value": "Enable notification"
     }
   }
-}
+]
 ```
 
 ### Nested function calls and actions
@@ -122,6 +154,32 @@ To support catalog flexibility and avoid hardcoding specific formatting or actio
 - If the client catalog contains a text formatting helper (such as `formatString`), it is called explicitly: `welcomeText = Text(formatString("Welcome, ${/user/firstName}!"))`. This prevents failures if a client catalog uses a different naming convention for interpolation.
 - Local actions use this same signature to trigger behaviors, for example `openUrl("https://example.com")`. The compiler maps these to standard client function actions.
 - Server events use a reserved `Event` signature to declare backend actions, for example `Event("save_deal", {rep: $/form/rep})`.
+  - `Event(name, context?)` takes the event name and an optional context map positionally. The context can also be given by keyword: `Event("save_deal", context={rep: $/form/rep})`.
+  - `userMessage=` sets the message shown on the user's behalf when the event fires. It takes what the v1.0 `DynamicString` type takes: a string, a `$path` binding or a function call, as in `Event("reply", userMessage="Replying now")` or `Event("reply", userMessage=formatString("Replying to ${/thread/title}"))`. It maps to the v1.0 `Action.event.userMessage` field, so the compiler rejects it when targeting an earlier protocol version.
+  - Any other keyword argument on `Event` is an error, rather than being dropped from the compiled action.
+- An action slot is any catalog property whose schema is the common `Action` type, including one nested inside a list item or object property (for example `Cards([{label: "Docs", action: openUrl("https://a2ui.org")}])`). A function call in an action slot compiles to a `functionCall` action; outside an action slot, it compiles to a plain function call value.
+
+### System functions
+
+From v1.0, the protocol itself defines a few functions, such as `@index`, that no catalog declares. Their names start with `@`, and Express writes them like any other function call: `@index()`, `@index(1)` or `@index(offset=1)`. The compiler reads their parameters from the protocol version's common types, so positional and keyword arguments work as they do for a catalog function.
+
+```
+root = Column(_template($/items, itemRow))
+itemRow = Text(@index(offset=1))
+```
+
+```json
+{"id": "itemRow", "component": "Text", "text": {"@call": "@index", "args": {"offset": 1}}}
+```
+
+A system function call differs from a catalog function call in these ways:
+
+- It never carries a `catalogId`, so the compiler rejects a `catalogId` argument on it, even with several catalogs.
+- It can't be a statement of its own, since a standalone call compiles to a `callRendererFunction` that names a catalog function. The compiler rejects `@index()` on a line of its own.
+- A variable may hold one, as in `n = @index(offset=1)`. The variable is inlined wherever it's named, like a variable that holds a catalog function call.
+- `@index` returns the position of the current item in a `_template` list, so it's only meaningful inside a template row. The compiler doesn't check where it's used.
+
+A name starting with `@` that the target version doesn't define is a validation error, and so is any system function call before v1.0, which defines none. The decompiler writes a `{"@call": "@index", ...}` call back as `@index(...)`, and rejects one that names a `catalogId` or an unknown `@` name. From v1.0, the Express prompt lists the system functions in a section of their own.
 
 ### Validation and logic expressions
 
@@ -135,15 +193,34 @@ Form validation checks are defined using the `?` prefix. If a component expects 
 
 To execute standalone lifecycle operations or invoke client-side functions directly from the server, A2UI Express supports standalone function call lines without variable assignments:
 
-#### Surface targeting
+#### Creating or updating a surface
 
-To specify or target a user interface surface, output `surface(surfaceId)` or `surface(surfaceId, catalogId)` before component variable definitions:
+To create or target a user interface surface, output `surface(surfaceId)` before component variable definitions:
 
 ```
 surface("dashboard-surface-1")
+root = Card(...)
 ```
 
-The compiler automatically emits `createSurface` or `updateComponents` protocol envelopes depending on whether the surface is being instantiated or updated in the active session. If `surface()` is omitted, the compiler falls back to the default surface identifier (`"default_surface"`).
+The optional `sendDataModel=true` keyword argument (`surface("dashboard-surface-1", sendDataModel=true)`) sets the `sendDataModel` flag of the `createSurface` message. To update components (including `root`) on an existing surface rather than creating a new surface, pass `update=true`: `surface("dashboard-surface-1", update=true)`.
+
+The statements after `surface(...)`, up to the next surface statement, form one scope. By default, a scope that defines `root` compiles to a `createSurface` message (or for v0.9 and v0.9.1 targets, a bare `createSurface` followed by `updateComponents` and `updateDataModel`), while a scope that defines components without `root` compiles to an `updateComponents` message (plus `updateDataModel` if data paths are assigned). Specifying `update=true` compiles the scope to an `updateComponents` message even if `root` is defined, allowing updates to the root container of an existing surface. If `surface()` is omitted, the compiler uses the surface ID passed to it (`"default_surface"` by default). A scope that only assigns data paths compiles to an `updateDataModel` message.
+
+#### Catalogs
+
+With a single catalog, `createSurface` carries that catalog's `catalogId` (and `surface(surfaceId, catalogId)` is optional). With multiple catalogs (supported in v1.0 and newer), `createSurface` omits `catalogId`, naming a catalog on `surface(...)` is an error, and every compiled component and function call carries its own `catalogId`.
+
+A component or function call written without a `catalogId` resolves by name across the active catalogs when exactly one catalog defines it, and requires an explicit `catalogId` override when multiple catalogs define that name. From v1.0, a component or function call can specify its catalog with a `catalogId` keyword argument, and a check takes a `{catalogId: ...}` map argument. A [system function](#system-functions) call is the exception: it belongs to no catalog and takes no `catalogId`.
+
+```
+widget = Chart($/sales, catalogId="https://example.com/charts.json")
+action = shareLink($/url, catalogId="https://example.com/sharing.json")
+field = TextField("Zip", $/zip, checks=[?zipCode({catalogId: "https://example.com/checks.json"})])
+```
+
+The decompiler writes a `catalogId` only when the component or function name is defined in more than one active catalog (or differs from the single registered catalog). The v0.9 and v0.9.1 schemas allow `catalogId` only on `createSurface`, so for those targets the compiler rejects multiple catalogs and per-component or per-function `catalogId` overrides.
+
+> **Note:** The multi-catalog behavior described above is implemented in the Python and TypeScript SDKs. The Dart Express compiler does not yet support v1.0 (`dart/a2ui_agent/lib/src/inference_formats/express/compiler.dart`); see `dart/a2ui_agent/test/conformance/multi_catalog_formats_conformance_test.dart` for current conformance status.
 
 #### Deleting a surface
 
@@ -164,7 +241,7 @@ deleteSurface("dashboard-surface-1")
 
 #### Executing client-side functions (RPC)
 
-When the compiler encounters any other standalone function call, it resolves the arguments against catalog definitions and produces a `callRendererFunction` message with an auto-generated `functionCallId`:
+When the compiler encounters any other standalone call of a catalog function, it resolves the arguments against catalog definitions and produces a `callRendererFunction` message with an auto-generated `functionCallId`. The call resolves its catalog from an explicit `catalogId` keyword argument, or else by function name across the active catalogs:
 
 ```
 openUrl("https://example.com")
@@ -176,17 +253,23 @@ openUrl("https://example.com")
   "callRendererFunction": {
     "functionCallId": "call_1",
     "callFunction": {
-      "catalogId": "https://a2ui.org/catalog.json",
-      "call": "openUrl",
+      "@call": "openUrl",
       "args": {
         "url": "https://example.com"
-      }
+      },
+      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
     }
   }
 }
 ```
 
-The `functionCallId` and the `callFunction` both sit inside `callRendererFunction`, and `catalogId` is required on the call. See `CallRendererFunctionMessage` in `specification/v1_0/json/agent_to_renderer.json` for the normative definition.
+The n-th standalone call of a block gets the `functionCallId` `call_<n>`. To set another ID, pass the reserved `functionCallId` keyword argument, which every catalog accepts: `openUrl("https://example.com", functionCallId="open-docs")`. The decompiler writes the argument only when the ID differs from the one the compiler would generate.
+
+The `functionCallId` and the `callFunction` both sit inside `callRendererFunction`, and `catalogId` is required on the call. See `CallRendererFunctionMessage` in `specification/v1_0/json/agent_to_renderer.json` for the normative definition. `callRendererFunction` exists only in v1.0, so the compiler rejects a standalone function call for v0.9 and v0.9.1 targets. A [system function](#system-functions) call, such as `@index()`, can't be a standalone call, since no catalog defines it.
+
+#### v1.0 binding keys
+
+For v1.0 targets, the compiler writes data bindings as `{"@path": ...}` and function calls as `{"@call": ..., "args": ...}`, the reserved keys of the v1.0 common types. For v0.9 and v0.9.1 targets, it writes `path` and `call`.
 
 ## Compilation pipeline
 
@@ -300,14 +383,14 @@ The compiler parses the text stream, resolves the parent-child references, maps 
         "id": "icon",
         "component": "Icon",
         "name": {
-          "path": "/icon"
+          "@path": "/icon"
         }
       },
       {
         "id": "title",
         "component": "Text",
         "text": {
-          "path": "/title"
+          "@path": "/title"
         },
         "variant": "h3"
       },
@@ -315,7 +398,7 @@ The compiler parses the text stream, resolves the parent-child references, maps 
         "id": "description",
         "component": "Text",
         "text": {
-          "path": "/description"
+          "@path": "/description"
         },
         "variant": "body"
       },

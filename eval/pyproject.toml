@@ -20,6 +20,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "a2ui-agent-sdk",
+    "google-genai>=1.27.0",
     "inspect-ai>=0.3.217",
     "jsonschema>=4.26.0",
     "openai>=1.0.0",
@@ -27,6 +28,16 @@ dependencies = [
     "pytest>=9.0.3",
     "pytest-asyncio>=1.3.0",
     "pyyaml>=6.0.3",
+]
+
+# Install with `uv sync --extra frontier`. The Gemini and OpenAI clients are
+# regular dependencies, and the OpenAI client also serves the local servers
+# (`ollama/`, `vllm/`, `openai-api/` for llama.cpp and LM Studio). This extra
+# covers the other cloud providers that `main.py --model` can route to on demand.
+[project.optional-dependencies]
+frontier = [
+    "anthropic>=0.49.0",
+    "mistralai>=1.5.0",
 ]
 
 [tool.hatch.build.targets.wheel]

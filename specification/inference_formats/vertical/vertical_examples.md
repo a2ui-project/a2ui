@@ -131,42 +131,37 @@ WeatherWidget(city="Seattle", temperature=58, condition="rainy", high=62, low=50
 
 ```text
 <a2ui>
-UserProfileCard(name=$/session/user/name, email=$/session/user/email, role="Administrator", onEdit=Event("openEditProfile", userId=$/session/user/id))
+UserProfileCard(name=$/session/user/name, email=$/session/user/email, role="Administrator", onEdit=Event("openEditProfile", userId=$/session/user/id, userMessage="Editing profile"))
 </a2ui>
 ```
 
-### Compiled A2UI v1.0 payload:
+### Compiled A2UI 1.0 payload:
 
 ```json
 [
   {
-    "version": "v1.0",
+    "version": "1.0",
     "createSurface": {
       "surfaceId": "main",
-      "catalogId": "https://a2ui.org/catalogs/basic/v1"
-    }
-  },
-  {
-    "version": "v1.0",
-    "updateComponents": {
-      "surfaceId": "main",
+      "catalogId": "https://a2ui.org/catalogs/basic/v1",
       "components": [
         {
           "id": "root",
           "component": "UserProfileCard",
           "name": {
-            "path": "/session/user/name"
+            "@path": "/session/user/name"
           },
           "email": {
-            "path": "/session/user/email"
+            "@path": "/session/user/email"
           },
           "role": "Administrator",
           "onEdit": {
             "event": {
               "name": "openEditProfile",
+              "userMessage": "Editing profile",
               "context": {
                 "userId": {
-                  "path": "/session/user/id"
+                  "@path": "/session/user/id"
                 }
               }
             }

@@ -54,7 +54,7 @@ public struct A2UIImage: View {
   }
 
   public var body: some View {
-    if let url = URL(string: urlString), !urlString.isEmpty {
+    if let url = BasicCatalog.sanitizeMediaURL(urlString) {
       AsyncImage(url: url) { phase in
         switch phase {
         case .empty:
@@ -72,7 +72,9 @@ public struct A2UIImage: View {
           EmptyView()
         }
       }
-      .accessibilityLabel(imageDescription.isEmpty ? "Image" : imageDescription)
+      .accessibilityLabel(
+        node.explicitAccessibilityAttributes?.label
+          ?? (imageDescription.isEmpty ? "Image" : imageDescription))
     } else {
       Image(systemName: "photo")
         .font(.largeTitle)

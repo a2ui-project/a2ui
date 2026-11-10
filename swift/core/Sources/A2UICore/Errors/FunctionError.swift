@@ -12,11 +12,102 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// Errors that occur during local function evaluation.
-public enum FunctionError: Error, Sendable {
+import Foundation
+
+/// Errors that occur during local or remote function evaluation.
+public enum FunctionError: Error, Sendable, Equatable, CustomStringConvertible, LocalizedError {
   case functionNotFound(String)
   case missingArgument(String)
   case invalidArgumentType(expected: String, actual: String)
   case securityConstraintViolation(String)
   case executionFailed(name: String, message: String)
+  case timeout(callID: String)
+  case cancelled(callID: String)
+  /// The pending calls of a surface were cancelled, such as when the surface was deleted.
+  case surfaceCallsCancelled(surfaceID: String)
+  case disposed(callID: String)
+  case duplicate(callID: String)
+  case noListener(name: String)
+  case callerDisallowed(name: String, caller: String)
+  case userActivationRequired(name: String)
+  case remoteError(code: String, message: String, callID: String? = nil)
+
+  /// The `functionCallId` associated with this error, if it originated from an RPC call.
+  public var functionCallID: String? {
+    switch self {
+    case .timeout(let callID),
+      .cancelled(let callID),
+      .disposed(let callID),
+      .duplicate(let callID):
+      return callID
+    case .remoteError(_, _, let callID):
+      return callID
+    default:
+      return nil
+    }
+  }
+
+  /// Standardized RPC error code corresponding to this error.
+  public var rpcCode: String {
+    switch self {
+    case .functionNotFound,
+      .missingArgument,
+      .invalidArgumentType,
+      .securityConstraintViolation,
+      .callerDisallowed,
+      .userActivationRequired:
+      return "INVALID_FUNCTION_CALL"
+    case .executionFailed:
+      return "EXECUTION_ERROR"
+    case .timeout:
+      return "TIMEOUT"
+    case .cancelled, .surfaceCallsCancelled:
+      return "CANCELLED"
+    case .disposed:
+      return "DISPOSED"
+    case .duplicate:
+      return "DUPLICATE"
+    case .noListener:
+      return "NO_LISTENER"
+    case .remoteError(let code, _, _):
+      return code
+    }
+  }
+
+  public var description: String {
+    switch self {
+    case .functionNotFound(let name):
+      return "Function not found: \(name)"
+    case .missingArgument(let arg):
+      return "Missing argument: \(arg)"
+    case .invalidArgumentType(let expected, let actual):
+      return "Invalid argument type: expected \(expected), actual \(actual)"
+    case .securityConstraintViolation(let message):
+      return "Security constraint violation: \(message)"
+    case .executionFailed(let name, let message):
+      return "Execution failed for \(name): \(message)"
+    case .timeout(let callID):
+      return "Function call timed out: \(callID)"
+    case .cancelled(let callID):
+      return "Function call cancelled: \(callID)"
+    case .surfaceCallsCancelled(let surfaceID):
+      return "Pending calls for surface '\(surfaceID)' were cancelled."
+    case .disposed(let callID):
+      return "Function call disposed: \(callID)"
+    case .duplicate(let callID):
+      return "Duplicate functionCallId: \(callID)"
+    case .noListener(let name):
+      return "No outbound listener registered to invoke function '\(name)'"
+    case .callerDisallowed(let name, let caller):
+      return "Function '\(name)' cannot be called by \(caller)"
+    case .userActivationRequired(let name):
+      return "Function '\(name)' requires user activation context to execute."
+    case .remoteError(let code, let message, _):
+      return "Remote function error (\(code)): \(message)"
+    }
+  }
+
+  public var errorDescription: String? {
+    description
+  }
 }

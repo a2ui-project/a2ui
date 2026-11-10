@@ -87,8 +87,8 @@ def test_format_pydantic_message_and_issue():
         err_extra
     )
     assert format_pydantic_issue(err_extra) == (
-        "user.unknown_field: Additional properties are not allowed: unrecognized key(s)"
-        " in object: 'unknown_field' (extra inputs are not permitted)"
+        "user.unknown_field: Additional properties are not allowed: unrecognized"
+        " key(s) in object: 'unknown_field' (extra inputs are not permitted)"
     )
 
     # Missing field

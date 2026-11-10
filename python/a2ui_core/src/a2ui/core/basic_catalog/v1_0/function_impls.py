@@ -13,14 +13,21 @@
 # limitations under the License.
 
 import datetime
+import json
 import math
 import re
 from typing import Any
+from urllib.parse import urlparse
+
 from ...resolution.data_context import DataContext
+from ...resolution.validation_result_coercion import coerce_dynamic_boolean
 from ...common.events import AbortSignal
-from ...catalog.functions import (
+from ...common.regex_subset import regex_test
+from ...exceptions import A2uiExpressionError
+from ...catalog import (
     FunctionImplementation,
     create_function_implementation,
+    system_functions_for,
 )
 from .function_apis import (
     RequiredApi,
@@ -38,10 +45,8 @@ from .function_apis import (
     OrApi,
     NotApi,
 )
-from .operator_apis import (
-    IndexApi,
-)
 from ...expressions.expression_parser import ExpressionParser
+from ...schema.v1_0.constants import PROTOCOL_VERSION
 from ..locale_formatting import apply_currency_spacing, get_locale
 from babel.numbers import format_decimal, format_currency, get_currency_symbol
 import re as _re
@@ -62,8 +67,6 @@ def _to_str(val: Any) -> str:
     if val is None:
         return ""
     if isinstance(val, (dict, list)):
-        import json
-
         return json.dumps(val, separators=(",", ":"))
     if isinstance(val, bool):
         return "true" if val else "false"
@@ -97,10 +100,9 @@ def _regex_execute(
     context: Any = None,
     abort_signal: Any | None = None,
 ) -> dict[str, Any]:
-    valid = bool(
-        re.search(_to_str(args.get("pattern", "")), _to_str(args.get("value", "")))
-    )
-    return {"valid": valid}
+    pattern = _to_str(args.get("pattern", ""))
+    val = _to_str(args.get("value", ""))
+    return {"valid": bool(regex_test(pattern, val))}
 
 
 RegexImplementation = create_function_implementation(RegexApi, _regex_execute)
@@ -111,12 +113,15 @@ def _length_execute(
     context: Any = None,
     abort_signal: Any | None = None,
 ) -> dict[str, Any]:
-    valid = (
-        args.get("min") is None
-        or len(_to_str(args.get("value", ""))) >= int(args["min"])
-    ) and (
-        args.get("max") is None
-        or len(_to_str(args.get("value", ""))) <= int(args["max"])
+    val = args.get("value")
+    if isinstance(val, list):
+        l = len(val)
+    elif val is None:
+        l = 0
+    else:
+        l = len(_to_str(val))
+    valid = (args.get("min") is None or l >= int(args["min"])) and (
+        args.get("max") is None or l <= int(args["max"])
     )
     return {"valid": valid}
 
@@ -129,12 +134,25 @@ def _numeric_execute(
     context: Any = None,
     abort_signal: Any | None = None,
 ) -> dict[str, Any]:
-    valid = (
-        args.get("min") is None or _to_float(args["value"]) >= _to_float(args["min"])
-    ) and (
-        args.get("max") is None or _to_float(args["value"]) <= _to_float(args["max"])
-    )
-    return {"valid": valid}
+    try:
+        val = _to_float(args["value"])
+    except (ValueError, TypeError):
+        return {"valid": False}
+    min_val = args.get("min")
+    if min_val is not None:
+        try:
+            if val < _to_float(min_val):
+                return {"valid": False}
+        except (ValueError, TypeError):
+            return {"valid": False}
+    max_val = args.get("max")
+    if max_val is not None:
+        try:
+            if val > _to_float(max_val):
+                return {"valid": False}
+        except (ValueError, TypeError):
+            return {"valid": False}
+    return {"valid": True}
 
 
 NumericImplementation = create_function_implementation(NumericApi, _numeric_execute)
@@ -164,39 +182,38 @@ def _email_execute(
 EmailImplementation = create_function_implementation(EmailApi, _email_execute)
 
 
-# System Functions
-def _index_execute(
-    args: dict[str, Any],
-    context: Any = None,
-    abort_signal: Any | None = None,
-) -> int:
-    offset = args.get("offset")
-    offset_val = int(offset) if offset is not None else 0
-    idx: int | None = None
-    if context is not None:
-        if hasattr(context, "index") and getattr(context, "index") is not None:
-            idx = int(getattr(context, "index"))
-        elif (
-            isinstance(context, dict)
-            and "index" in context
-            and context["index"] is not None
-        ):
-            idx = int(context["index"])
-
-    if idx is None:
-        if context is not None:
-            from ...exceptions import A2uiValidationError
-
-            raise A2uiValidationError(
-                "@index function can only be evaluated inside a collection template"
-                " iteration scope."
-            )
-        idx = 0
-
-    return idx + offset_val
-
-
-IndexImplementation = create_function_implementation(IndexApi, _index_execute)
+def _adapt_ast_part_for_v10(part: Any, catalog_id: str | None = None) -> Any:
+    if isinstance(part, list):
+        return [_adapt_ast_part_for_v10(item, catalog_id) for item in part]
+    if not isinstance(part, dict):
+        return part
+    if (
+        "path" in part
+        and isinstance(part["path"], str)
+        and "componentId" not in part
+        and "@path" not in part
+    ):
+        return {"@path": part["path"]}
+    has_call = "call" in part and isinstance(part["call"], str)
+    has_at_call = "@call" in part and isinstance(part["@call"], str)
+    call_name = (
+        part["call"]
+        if has_call and not has_at_call
+        else (part["@call"] if has_at_call else None)
+    )
+    if call_name is not None:
+        args = {}
+        raw_args = part.get("args")
+        if isinstance(raw_args, dict):
+            for k, v in raw_args.items():
+                args[k] = _adapt_ast_part_for_v10(v, catalog_id)
+        res: dict[str, Any] = {"@call": call_name, "args": args}
+        if "catalogId" in part and part["catalogId"] is not None:
+            res["catalogId"] = part["catalogId"]
+        elif catalog_id is not None and not call_name.startswith("@"):
+            res["catalogId"] = catalog_id
+        return res
+    return {k: _adapt_ast_part_for_v10(v, catalog_id) for k, v in part.items()}
 
 
 # Formatting
@@ -216,9 +233,21 @@ def _format_string(
         return ""
 
     resolved_parts = []
+    active_catalog_id = getattr(context, "active_catalog_id", None) if context else None
     for part in parts:
         if context and hasattr(context, "resolve_dynamic_value"):
-            resolved = context.resolve_dynamic_value(part)
+            dyn_part = (
+                _adapt_ast_part_for_v10(part, active_catalog_id)
+                if getattr(context, "at_least_v10", False)
+                else part
+            )
+            # A template part never waits for, sends to, or reads a cached
+            # answer from the agent: a part that calls a function the
+            # renderer doesn't implement is an error and renders empty.
+            resolve = getattr(
+                context, "resolve_without_agent", context.resolve_dynamic_value
+            )
+            resolved = resolve(dyn_part)
         else:
             resolved = part
         resolved_parts.append(_to_str(resolved))
@@ -423,12 +452,23 @@ def create_pluralize_implementation(
 PluralizeImplementation = create_pluralize_implementation(None)
 
 
+_ALLOWED_URL_SCHEMES = ("http:", "https:", "mailto:", "tel:")
+
+
 # Actions
 def _open_url_execute(
     args: dict[str, Any],
     context: Any = None,
     abort_signal: Any | None = None,
 ) -> None:
+    url = args.get("url")
+    if not isinstance(url, str) or not url.strip():
+        return None
+
+    parsed = urlparse(url)
+    scheme = f"{parsed.scheme.lower()}:"
+    if scheme not in _ALLOWED_URL_SCHEMES:
+        raise A2uiExpressionError(f"Unsupported URL scheme: {parsed.scheme}")
     return None
 
 
@@ -436,12 +476,19 @@ OpenUrlImplementation = create_function_implementation(OpenUrlApi, _open_url_exe
 
 
 # Logical
+def _is_truthy_or_valid(val: Any) -> bool:
+    return coerce_dynamic_boolean(val)
+
+
 def _and_execute(
     args: dict[str, Any],
     context: Any = None,
     abort_signal: Any | None = None,
 ) -> bool:
-    return all(_to_bool(v) for v in args.get("values", []))
+    values = args.get("values")
+    if not isinstance(values, list) or len(values) < 2:
+        raise A2uiExpressionError("AndFunction requires at least 2 values")
+    return all(_is_truthy_or_valid(v) for v in values)
 
 
 AndImplementation = create_function_implementation(AndApi, _and_execute)
@@ -452,7 +499,10 @@ def _or_execute(
     context: Any = None,
     abort_signal: Any | None = None,
 ) -> bool:
-    return any(_to_bool(v) for v in args.get("values", []))
+    values = args.get("values")
+    if not isinstance(values, list) or len(values) < 2:
+        raise A2uiExpressionError("OrFunction requires at least 2 values")
+    return any(_is_truthy_or_valid(v) for v in values)
 
 
 OrImplementation = create_function_implementation(OrApi, _or_execute)
@@ -463,7 +513,7 @@ def _not_execute(
     context: Any = None,
     abort_signal: Any | None = None,
 ) -> bool:
-    return not _to_bool(args.get("value"))
+    return not _is_truthy_or_valid(args.get("value"))
 
 
 NotImplementation = create_function_implementation(NotApi, _not_execute)
@@ -492,7 +542,7 @@ def create_basic_catalog_functions(
         LengthImplementation,
         NumericImplementation,
         EmailImplementation,
-        IndexImplementation,
+        *system_functions_for(PROTOCOL_VERSION).values(),
         FormatStringImplementation,
         create_format_number_implementation(locale),
         create_format_currency_implementation(locale),

@@ -17,14 +17,15 @@
 # ==============================================================================
 
 - name: test_validator_1_0
+  features: [F-CORE-07, F-CORE-11]
   description: Tests schema validation of v1.0 message envelopes (inline components, optional catalogId, data deletion) against the basic v1.0 catalog schema.
   action: validate
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   steps:
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s1"
             catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
@@ -36,11 +37,11 @@
             dataModel:
               counter: 100
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s_nocat"
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           updateDataModel:
             surfaceId: "s1"
             path: "/user/token"
@@ -54,7 +55,7 @@
           - path: "messages.0.version"
             code: "missing_field"
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: 123
       expectError:
@@ -66,7 +67,7 @@
 - name: test_custom_catalog_1_0
   description: Tests component property schema validation in v1.0 against custom catalog schema.
   action: validate
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalog:
     catalogId: "custom"
     components:
@@ -77,7 +78,8 @@
           component: {const: Canvas}
           children:
             type: array
-            items: {type: string}
+            items:
+              $ref: "common_types.json#/$defs/ComponentId"
         required:
           - component
           - children
@@ -95,11 +97,11 @@
           - component
   steps:
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: s1
             catalogId: custom
-        - version: "v1.0"
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -115,7 +117,7 @@
                 chartType: pie
                 title: Chart 2
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -124,11 +126,21 @@
                 chartType: bar
       expectError:
         category: "ValidationError"
+        surfaceId: "s1"
+        path: "/components/0/chartType"
         details:
-          - path: "chartType"
+          - path: "/chartType"
             code: "invalid_value"
+            surfaceId: "s1"
+        rendererError:
+          version: "1.0"
+          error:
+            code: "VALIDATION_FAILED"
+            surfaceId: "s1"
+            path: "/components/0/chartType"
+            message: "chartType"
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -136,11 +148,21 @@
                 component: Canvas
       expectError:
         category: "ValidationError"
+        surfaceId: "s1"
+        path: "/components/0/children"
         details:
-          - path: "children"
+          - path: "/children"
             code: "missing_field"
+            surfaceId: "s1"
+        rendererError:
+          version: "1.0"
+          error:
+            code: "VALIDATION_FAILED"
+            surfaceId: "s1"
+            path: "/components/0/children"
+            message: "children"
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -148,55 +170,35 @@
                 component: UnknownComponent
       expectError:
         category: "ValidationError"
+        surfaceId: "s1"
+        path: "/components/0/component"
         details:
-          - path: "component"
+          - path: "/component"
             code: "invalid_value"
-
-- name: test_validator_theme_schema
-  description: Tests schema validation of surface theme properties against catalog theme schema.
-  action: validate
-  catalog:
-    catalogId: "theme_cat"
-    theme:
-      type: "object"
-      properties:
-        primaryColor:
-          type: "string"
-          pattern: "^#[0-9a-fA-F]{6}$"
-      required: ["primaryColor"]
-      additionalProperties: false
-  steps:
-    - messages:
-        - version: "v0.9"
-          createSurface:
             surfaceId: "s1"
-            catalogId: "theme_cat"
-            theme:
-              primaryColor: "#ff0000"
-    - messages:
-        - version: "v0.9"
-          createSurface:
+        rendererError:
+          version: "1.0"
+          error:
+            code: "VALIDATION_FAILED"
             surfaceId: "s1"
-            catalogId: "theme_cat"
-            theme:
-              primaryColor: "not-a-hex"
-      expectError:
-        category: "ValidationError"
+            path: "/components/0/component"
+            message: "UnknownComponent"
 
 - name: test_v10_topology_circular_reference_error
+  features: [F-CORE-12]
   description: Tests that circular component references fail validation in v1.0 strict mode.
   action: validate
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   strictMode: true
   steps:
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s1"
             catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
-        - version: "v1.0"
+        - version: "1.0"
           updateComponents:
             surfaceId: "s1"
             components:
@@ -209,19 +211,20 @@
       expectError: "Circular component reference"
 
 - name: test_v10_topology_dangling_child_reference_error
+  features: [F-CORE-12]
   description: Tests that dangling child references fail validation in v1.0 strict mode.
   action: validate
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   strictMode: true
   steps:
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s1"
             catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
-        - version: "v1.0"
+        - version: "1.0"
           updateComponents:
             surfaceId: "s1"
             components:
@@ -231,19 +234,20 @@
       expectError: "Dangling reference"
 
 - name: test_v10_topology_self_reference_error
+  features: [F-CORE-12]
   description: Tests that self-referencing components fail validation in v1.0 strict mode.
   action: validate
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   strictMode: true
   steps:
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s1"
             catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
-        - version: "v1.0"
+        - version: "1.0"
           updateComponents:
             surfaceId: "s1"
             components:
@@ -253,19 +257,20 @@
       expectError: "Self-reference detected"
 
 - name: test_v10_topology_orphaned_component_error
+  features: [F-CORE-12]
   description: Tests that unreachable orphaned components fail validation in v1.0 strict mode.
   action: validate
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   strictMode: true
   steps:
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s1"
             catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
-        - version: "v1.0"
+        - version: "1.0"
           updateComponents:
             surfaceId: "s1"
             components:
@@ -278,19 +283,20 @@
       expectError: "is not reachable from"
 
 - name: test_v10_topology_missing_root_component_error
+  features: [F-CORE-12]
   description: Tests that component updates missing root component fail validation in v1.0 strict mode.
   action: validate
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   strictMode: true
   steps:
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s1"
             catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
-        - version: "v1.0"
+        - version: "1.0"
           updateComponents:
             surfaceId: "s1"
             components:
@@ -302,16 +308,16 @@
 - name: test_v10_unknown_component_type
   description: Tests that unknown component types fail schema validation in v1.0.
   action: validate
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   steps:
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s1"
             catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
-        - version: "v1.0"
+        - version: "1.0"
           updateComponents:
             surfaceId: "s1"
             components:
@@ -320,20 +326,29 @@
                 foo: "bar"
       expectError:
         category: "ValidationError"
+        surfaceId: "s1"
+        path: "/components/0/component"
+        rendererError:
+          version: "1.0"
+          error:
+            code: "VALIDATION_FAILED"
+            surfaceId: "s1"
+            path: "/components/0/component"
+            message: "UnknownWidget"
 
 - name: test_v10_unknown_component_property
   description: Tests that extra unknown component properties fail schema validation in v1.0.
   action: validate
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   steps:
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s1"
             catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
-        - version: "v1.0"
+        - version: "1.0"
           updateComponents:
             surfaceId: "s1"
             components:
@@ -343,40 +358,60 @@
                 unknownAttribute: "someValue"
       expectError:
         category: "ValidationError"
+        surfaceId: "s1"
+        rendererError:
+          version: "1.0"
+          error:
+            code: "VALIDATION_FAILED"
+            surfaceId: "s1"
+            path: "/components/0"
+            message: "Button"
 
 - name: test_v10_unknown_nested_function
   description: Tests that unknown nested functions fail schema validation in v1.0.
   action: validate
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   steps:
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s1"
             catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
-        - version: "v1.0"
+        - version: "1.0"
           updateComponents:
             surfaceId: "s1"
             components:
               - id: "root"
                 component: "Button"
-                label: "Click Me"
+                child: "t1"
                 action:
-                  call: "unknownFunc"
-                  args:
-                    arg: "val"
+                  functionCall:
+                    "@call": "unknownFunc"
+                    args:
+                      arg: "val"
+              - id: "t1"
+                component: "Text"
+                text: "Click Me"
       expectError:
         category: "ValidationError"
+        surfaceId: "s1"
+        rendererError:
+          version: "1.0"
+          error:
+            code: "VALIDATION_FAILED"
+            surfaceId: "s1"
+            path: "/components/0/action/functionCall"
+            message: "unknownFunc"
 
 - name: test_v10_multiple_action_envelope_error
   description: Tests that having multiple action keys in a single message envelope fails validation in v1.0.
   action: validate
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   steps:
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s1"
           deleteSurface:
@@ -387,10 +422,10 @@
 - name: test_v10_invalid_json_pointer_path_error
   description: Tests that invalid JSON Pointer path syntax fails validation in v1.0.
   action: validate
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   steps:
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           updateDataModel:
             surfaceId: "s1"
             path: "invalid path [0]"
@@ -401,12 +436,12 @@
 - name: test_v10_uax31_invalid_identifier_error
   description: Tests that component IDs violating UAX#31 identifier syntax fail validation in v1.0.
   action: validate
-  protocolVersion: "v1.0"
+  protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
   steps:
     - messages:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s1"
             catalogId: "https://a2ui.org/catalogs/basic/v1/catalog.json"
@@ -420,7 +455,16 @@
                 text: "Invalid ID"
       expectError:
         category: "ValidationError"
+        surfaceId: "s1"
+        path: "/components/1/id"
         message: "Component id '123invalid_id' must be a valid"
+        rendererError:
+          version: "1.0"
+          error:
+            code: "VALIDATION_FAILED"
+            surfaceId: "s1"
+            path: "/components/1/id"
+            message: "123invalid_id"
 
 # ------------------------------------------------------------------------------
 # Cases ported from the pre-split conformance/core/validator.yaml.
@@ -429,17 +473,17 @@
 - name: test_v10_topology_template_child_reachable
   description: Tests that a component referenced only as a list template is reachable from the root in v1.0 strict mode.
   action: validate
-  protocolVersion: v1.0
+  protocolVersion: "1.0"
   catalogPaths:
     - catalogs/basic/v1/catalog.json
   strictMode: true
   steps:
     - messages:
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: s1
             catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -455,17 +499,17 @@
 - name: test_v10_topology_template_dangling_reference_error
   description: Tests that a list template naming a component that does not exist fails validation in v1.0 strict mode.
   action: validate
-  protocolVersion: v1.0
+  protocolVersion: "1.0"
   catalogPaths:
     - catalogs/basic/v1/catalog.json
   strictMode: true
   steps:
     - messages:
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: s1
             catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -484,24 +528,24 @@
 - name: test_v10_invalid_binding_path_error
   description: Tests that a data binding path with an invalid JSON Pointer escape ('~2') fails validation in v1.0.
   action: validate
-  protocolVersion: v1.0
+  protocolVersion: "1.0"
   catalogPaths:
     - catalogs/basic/v1/catalog.json
   strictMode: true
   steps:
     - messages:
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: s1
             catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
               - id: root
                 component: Text
                 text:
-                  path: /invalid/escape/~2
+                  "@path": /invalid/escape/~2
       expectError:
         category: ValidationError
         message: Invalid path syntax
@@ -509,17 +553,17 @@
 - name: test_v10_component_nesting_depth_limit_exceeded_error
   description: Tests that a chain of nested components deeper than the global limit (50) fails validation in v1.0 strict mode.
   action: validate
-  protocolVersion: v1.0
+  protocolVersion: "1.0"
   catalogPaths:
     - catalogs/basic/v1/catalog.json
   strictMode: true
   steps:
     - messages:
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: s1
             catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -701,17 +745,17 @@
 - name: test_v10_component_nesting_depth_within_limit
   description: Tests that a chain of 41 nested components, within the global limit (50), passes validation in v1.0 strict mode.
   action: validate
-  protocolVersion: v1.0
+  protocolVersion: "1.0"
   catalogPaths:
     - catalogs/basic/v1/catalog.json
   strictMode: true
   steps:
     - messages:
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: s1
             catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -845,21 +889,21 @@
 - name: test_v10_multi_surface_independent_roots
   description: Tests that two surfaces are each validated against their own component tree in v1.0 strict mode.
   action: validate
-  protocolVersion: v1.0
+  protocolVersion: "1.0"
   catalogPaths:
     - catalogs/basic/v1/catalog.json
   strictMode: true
   steps:
     - messages:
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: surface_a
             catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: surface_b
             catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: surface_a
             components:
@@ -869,7 +913,7 @@
               - id: child_a
                 component: Text
                 text: Hello A
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: surface_b
             components:
@@ -883,28 +927,28 @@
 - name: test_v10_multi_surface_missing_root_error
   description: Tests that a missing root on one of two surfaces fails validation in v1.0 strict mode.
   action: validate
-  protocolVersion: v1.0
+  protocolVersion: "1.0"
   catalogPaths:
     - catalogs/basic/v1/catalog.json
   strictMode: true
   steps:
     - messages:
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: surface_a
             catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: surface_b
             catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: surface_a
             components:
               - id: root
                 component: Text
                 text: Hello A
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: surface_b
             components:
@@ -918,17 +962,17 @@
 - name: test_v10_incremental_update_without_root
   description: Tests that an updateComponents message that omits the root component passes once the root has been sent, in v1.0 strict mode.
   action: validate
-  protocolVersion: v1.0
+  protocolVersion: "1.0"
   catalogPaths:
     - catalogs/basic/v1/catalog.json
   strictMode: true
   steps:
     - messages:
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: s1
             catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -942,7 +986,7 @@
               - id: text
                 component: Text
                 text: Initial
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -956,17 +1000,17 @@
 - name: test_v10_incremental_update_self_reference_error
   description: Tests that an incremental updateComponents message introducing a self-reference fails validation in v1.0 strict mode.
   action: validate
-  protocolVersion: v1.0
+  protocolVersion: "1.0"
   catalogPaths:
     - catalogs/basic/v1/catalog.json
   strictMode: true
   steps:
     - messages:
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: s1
             catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -980,7 +1024,7 @@
               - id: text
                 component: Text
                 text: Initial
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -994,17 +1038,17 @@
 - name: test_v10_incremental_update_circular_reference_error
   description: Tests that an incremental updateComponents message introducing a cycle fails validation in v1.0 strict mode.
   action: validate
-  protocolVersion: v1.0
+  protocolVersion: "1.0"
   catalogPaths:
     - catalogs/basic/v1/catalog.json
   strictMode: true
   steps:
     - messages:
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: s1
             catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -1018,7 +1062,7 @@
               - id: text
                 component: Text
                 text: Initial
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -1035,17 +1079,17 @@
 - name: test_v10_incremental_update_duplicate_component_id_error
   description: Tests that an incremental updateComponents message listing the same component ID twice fails validation in v1.0 strict mode.
   action: validate
-  protocolVersion: v1.0
+  protocolVersion: "1.0"
   catalogPaths:
     - catalogs/basic/v1/catalog.json
   strictMode: true
   steps:
     - messages:
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: s1
             catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -1059,7 +1103,7 @@
               - id: text
                 component: Text
                 text: Initial
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
@@ -1076,39 +1120,39 @@
 - name: test_v10_recursion_limit_function_call_depth_exceeded_error
   description: Tests that nested function calls exceeding the maximum depth (5) fail validation in v1.0 strict mode.
   action: validate
-  protocolVersion: v1.0
+  protocolVersion: "1.0"
   catalogPaths:
     - catalogs/basic/v1/catalog.json
   strictMode: true
   steps:
     - messages:
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: s1
             catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
               - id: root
                 component: Text
                 text:
-                  call: f1
+                  "@call": f1
                   args:
                     v:
-                      call: f2
+                      "@call": f2
                       args:
                         v:
-                          call: f3
+                          "@call": f3
                           args:
                             v:
-                              call: f4
+                              "@call": f4
                               args:
                                 v:
-                                  call: f5
+                                  "@call": f5
                                   args:
                                     v:
-                                      call: f6
+                                      "@call": f6
                                       args: {}
       expectError:
         category: ValidationError
@@ -1117,24 +1161,24 @@
 - name: test_v10_data_model_nesting_depth_limit_exceeded_error
   description: Tests that an updateDataModel value nested deeper than the global limit (50) fails validation in v1.0.
   action: validate
-  protocolVersion: v1.0
+  protocolVersion: "1.0"
   catalogPaths:
     - catalogs/basic/v1/catalog.json
   strictMode: true
   steps:
     - messages:
-        - version: v1.0
+        - version: "1.0"
           createSurface:
             surfaceId: s1
             catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
-        - version: v1.0
+        - version: "1.0"
           updateComponents:
             surfaceId: s1
             components:
               - id: root
                 component: Text
                 text: Hello
-        - version: v1.0
+        - version: "1.0"
           updateDataModel:
             surfaceId: s1
             path: /
@@ -1365,3 +1409,1041 @@
       expectError:
         category: ValidationError
         message: Global recursion limit exceeded
+
+- name: test_v10_topology_structured_array_item_dangling_child_error
+  description: Tests that a dangling child reference inside a structured array item (Tabs.tabs[].child) fails validation in v1.0 strict mode.
+  action: validate
+  protocolVersion: "1.0"
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Tabs
+                tabs:
+                  - title: Overview
+                    child: tab_one
+                  - title: Details
+                    child: missing_tab
+              - id: tab_one
+                component: Text
+                text: First
+      expectError:
+        category: ValidationError
+        message: missing_tab
+
+- name: test_v10_topology_plain_string_property_not_treated_as_child_ref
+  description: Tests that a plain string property whose value happens to match another component's ID does not make that component reachable in v1.0 strict mode.
+  action: validate
+  protocolVersion: "1.0"
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Text
+                text: orphan_id
+              - id: orphan_id
+                component: Text
+                text: Still orphaned
+      expectError:
+        category: ValidationError
+        message: orphan_id
+
+- name: test_v10_topology_component_id_array_dangling_reference_error
+  description: Tests that every item of an array property whose items are ComponentId is a child reference, whatever the property is called, so an item naming no component fails validation in v1.0 strict mode even when no other item names one.
+  action: validate
+  protocolVersion: "1.0"
+  catalog:
+    catalogId: custom
+    components:
+      Stack:
+        type: object
+        properties:
+          id: {type: string}
+          component: {const: Stack}
+          slots:
+            type: array
+            items:
+              $ref: "common_types.json#/$defs/ComponentId"
+        required:
+          - component
+          - slots
+  strictMode: true
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s1
+            catalogId: custom
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Stack
+                slots: [missing_slot]
+      expectError:
+        category: ValidationError
+        message: missing_slot
+
+- name: test_v10_topology_component_id_array_child_reachable
+  description: Tests that a component named in an array property whose items are ComponentId is reachable from the root in v1.0 strict mode, whatever the property is called.
+  action: validate
+  protocolVersion: "1.0"
+  catalog:
+    catalogId: custom
+    components:
+      Stack:
+        type: object
+        properties:
+          id: {type: string}
+          component: {const: Stack}
+          slots:
+            type: array
+            items:
+              $ref: "common_types.json#/$defs/ComponentId"
+        required:
+          - component
+          - slots
+  strictMode: true
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s1
+            catalogId: custom
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Stack
+                slots: [first]
+              - id: first
+                component: Stack
+                slots: []
+
+- name: test_v10_topology_component_id_array_partial_dangling_reference_error
+  description: A property declared as an array of ComponentId directly (an array whose items are a ComponentId $ref, not a ChildList) is read as a list of child references. With one held and one missing item, the missing item is reported as a dangling reference at its index in v1.0 strict mode.
+  action: validate
+  protocolVersion: "1.0"
+  catalog:
+    catalogId: custom
+    components:
+      Stack:
+        type: object
+        properties:
+          id: {type: string}
+          component: {const: Stack}
+          slots:
+            type: array
+            items:
+              $ref: "common_types.json#/$defs/ComponentId"
+        required:
+          - component
+          - slots
+      Label:
+        type: object
+        properties:
+          id: {type: string}
+          component: {const: Label}
+          text: {type: string}
+        required:
+          - component
+          - text
+  strictMode: true
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s1
+            catalogId: custom
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Stack
+                slots: [held, missing]
+              - id: held
+                component: Label
+                text: held
+      expectError:
+        category: ValidationError
+        message: "references non-existent component 'missing' in field 'slots[1]'"
+
+- name: test_v10_topology_component_id_array_circular_reference_error
+  description: A property declared as an array of ComponentId directly (an array whose items are a ComponentId $ref, not a ChildList) is read as a list of child references, so a cycle through it is detected in v1.0 strict mode.
+  action: validate
+  protocolVersion: "1.0"
+  catalog:
+    catalogId: custom
+    components:
+      Stack:
+        type: object
+        properties:
+          id: {type: string}
+          component: {const: Stack}
+          slots:
+            type: array
+            items:
+              $ref: "common_types.json#/$defs/ComponentId"
+        required:
+          - component
+          - slots
+      Label:
+        type: object
+        properties:
+          id: {type: string}
+          component: {const: Label}
+          text: {type: string}
+        required:
+          - component
+          - text
+  strictMode: true
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s1
+            catalogId: custom
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Stack
+                slots: [loop_a]
+              - id: loop_a
+                component: Stack
+                slots: [loop_b]
+              - id: loop_b
+                component: Stack
+                slots: [loop_a]
+      expectError:
+        category: ValidationError
+        message: "Circular reference detected"
+
+- name: test_v10_child_list_template_missing_path_error
+  description: Tests that a ChildList template object missing its required 'path' property fails schema validation in v1.0.
+  action: validate
+  protocolVersion: "1.0"
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: List
+                children:
+                  componentId: item
+              - id: item
+                component: Text
+                text: Item
+      expectError:
+        category: ValidationError
+
+- name: test_v10_update_data_model_invalid_path_error
+  description: Tests that an updateDataModel message with an invalid JSON Pointer escape ('~2') fails validation in v1.0.
+  action: validate
+  protocolVersion: "1.0"
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateDataModel:
+            surfaceId: s1
+            path: /user/~2invalid
+            value: Alice
+      expectError:
+        category: ValidationError
+        message: Invalid path syntax
+
+- name: test_v10_function_argument_schema_mismatch_error
+  description: Tests that a function call passing an argument of the wrong type fails schema validation in v1.0.
+  action: validate
+  protocolVersion: "1.0"
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Text
+                text:
+                  "@call": formatNumber
+                  args:
+                    value: not_a_number
+      expectError:
+        category: ValidationError
+        surfaceId: s1
+        path: /components/0/text/args/value
+        rendererError:
+          version: "1.0"
+          error:
+            code: VALIDATION_FAILED
+            surfaceId: s1
+            path: /components/0/text/args/value
+            message: "value"
+
+- name: test_v10_incremental_update_same_component_id_across_messages
+  description: Tests that updating the same component ID across separate updateComponents messages succeeds in v1.0 strict mode.
+  action: validate
+  protocolVersion: "1.0"
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Text
+                text: Initial
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Text
+                text: Updated
+
+- name: test_v10_component_nesting_depth_at_limit
+  description: Tests that a chain of nested components at the exact global depth limit (50) passes validation in v1.0 strict mode.
+  action: validate
+  protocolVersion: "1.0"
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Card
+                child: c0
+              - id: c0
+                component: Card
+                child: c1
+              - id: c1
+                component: Card
+                child: c2
+              - id: c2
+                component: Card
+                child: c3
+              - id: c3
+                component: Card
+                child: c4
+              - id: c4
+                component: Card
+                child: c5
+              - id: c5
+                component: Card
+                child: c6
+              - id: c6
+                component: Card
+                child: c7
+              - id: c7
+                component: Card
+                child: c8
+              - id: c8
+                component: Card
+                child: c9
+              - id: c9
+                component: Card
+                child: c10
+              - id: c10
+                component: Card
+                child: c11
+              - id: c11
+                component: Card
+                child: c12
+              - id: c12
+                component: Card
+                child: c13
+              - id: c13
+                component: Card
+                child: c14
+              - id: c14
+                component: Card
+                child: c15
+              - id: c15
+                component: Card
+                child: c16
+              - id: c16
+                component: Card
+                child: c17
+              - id: c17
+                component: Card
+                child: c18
+              - id: c18
+                component: Card
+                child: c19
+              - id: c19
+                component: Card
+                child: c20
+              - id: c20
+                component: Card
+                child: c21
+              - id: c21
+                component: Card
+                child: c22
+              - id: c22
+                component: Card
+                child: c23
+              - id: c23
+                component: Card
+                child: c24
+              - id: c24
+                component: Card
+                child: c25
+              - id: c25
+                component: Card
+                child: c26
+              - id: c26
+                component: Card
+                child: c27
+              - id: c27
+                component: Card
+                child: c28
+              - id: c28
+                component: Card
+                child: c29
+              - id: c29
+                component: Card
+                child: c30
+              - id: c30
+                component: Card
+                child: c31
+              - id: c31
+                component: Card
+                child: c32
+              - id: c32
+                component: Card
+                child: c33
+              - id: c33
+                component: Card
+                child: c34
+              - id: c34
+                component: Card
+                child: c35
+              - id: c35
+                component: Card
+                child: c36
+              - id: c36
+                component: Card
+                child: c37
+              - id: c37
+                component: Card
+                child: c38
+              - id: c38
+                component: Card
+                child: c39
+              - id: c39
+                component: Card
+                child: c40
+              - id: c40
+                component: Card
+                child: c41
+              - id: c41
+                component: Card
+                child: c42
+              - id: c42
+                component: Card
+                child: c43
+              - id: c43
+                component: Card
+                child: c44
+              - id: c44
+                component: Card
+                child: c45
+              - id: c45
+                component: Card
+                child: c46
+              - id: c46
+                component: Card
+                child: c47
+              - id: c47
+                component: Card
+                child: c48
+              - id: c48
+                component: Card
+                child: c49
+              - id: c49
+                component: Text
+                text: Leaf
+
+- name: test_v10_component_nesting_depth_one_past_limit_error
+  description: Tests that a chain of nested components one past the global depth limit (51) fails validation with RecursionError in v1.0 strict mode.
+  action: validate
+  protocolVersion: "1.0"
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Card
+                child: c0
+              - id: c0
+                component: Card
+                child: c1
+              - id: c1
+                component: Card
+                child: c2
+              - id: c2
+                component: Card
+                child: c3
+              - id: c3
+                component: Card
+                child: c4
+              - id: c4
+                component: Card
+                child: c5
+              - id: c5
+                component: Card
+                child: c6
+              - id: c6
+                component: Card
+                child: c7
+              - id: c7
+                component: Card
+                child: c8
+              - id: c8
+                component: Card
+                child: c9
+              - id: c9
+                component: Card
+                child: c10
+              - id: c10
+                component: Card
+                child: c11
+              - id: c11
+                component: Card
+                child: c12
+              - id: c12
+                component: Card
+                child: c13
+              - id: c13
+                component: Card
+                child: c14
+              - id: c14
+                component: Card
+                child: c15
+              - id: c15
+                component: Card
+                child: c16
+              - id: c16
+                component: Card
+                child: c17
+              - id: c17
+                component: Card
+                child: c18
+              - id: c18
+                component: Card
+                child: c19
+              - id: c19
+                component: Card
+                child: c20
+              - id: c20
+                component: Card
+                child: c21
+              - id: c21
+                component: Card
+                child: c22
+              - id: c22
+                component: Card
+                child: c23
+              - id: c23
+                component: Card
+                child: c24
+              - id: c24
+                component: Card
+                child: c25
+              - id: c25
+                component: Card
+                child: c26
+              - id: c26
+                component: Card
+                child: c27
+              - id: c27
+                component: Card
+                child: c28
+              - id: c28
+                component: Card
+                child: c29
+              - id: c29
+                component: Card
+                child: c30
+              - id: c30
+                component: Card
+                child: c31
+              - id: c31
+                component: Card
+                child: c32
+              - id: c32
+                component: Card
+                child: c33
+              - id: c33
+                component: Card
+                child: c34
+              - id: c34
+                component: Card
+                child: c35
+              - id: c35
+                component: Card
+                child: c36
+              - id: c36
+                component: Card
+                child: c37
+              - id: c37
+                component: Card
+                child: c38
+              - id: c38
+                component: Card
+                child: c39
+              - id: c39
+                component: Card
+                child: c40
+              - id: c40
+                component: Card
+                child: c41
+              - id: c41
+                component: Card
+                child: c42
+              - id: c42
+                component: Card
+                child: c43
+              - id: c43
+                component: Card
+                child: c44
+              - id: c44
+                component: Card
+                child: c45
+              - id: c45
+                component: Card
+                child: c46
+              - id: c46
+                component: Card
+                child: c47
+              - id: c47
+                component: Card
+                child: c48
+              - id: c48
+                component: Card
+                child: c49
+              - id: c49
+                component: Card
+                child: c50
+              - id: c50
+                component: Text
+                text: Leaf
+      expectError:
+        category: RecursionError
+        message: Global recursion limit exceeded
+
+- name: test_v10_recursion_limit_function_call_depth_at_limit
+  description: Tests that nested function calls at the exact maximum depth (5) pass validation in v1.0 strict mode.
+  action: validate
+  protocolVersion: "1.0"
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Text
+                text:
+                  "@call": formatString
+                  args:
+                    value:
+                      "@call": formatString
+                      args:
+                        value:
+                          "@call": formatString
+                          args:
+                            value:
+                              "@call": formatString
+                              args:
+                                value:
+                                  "@call": formatString
+                                  args:
+                                    value: "At limit"
+
+- name: test_v10_recursion_limit_function_call_depth_one_past_limit_error
+  description: Tests that nested function calls one past the maximum depth (6) fail validation with RecursionError in v1.0 strict mode.
+  action: validate
+  protocolVersion: "1.0"
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Text
+                text:
+                  "@call": formatString
+                  args:
+                    value:
+                      "@call": formatString
+                      args:
+                        value:
+                          "@call": formatString
+                          args:
+                            value:
+                              "@call": formatString
+                              args:
+                                value:
+                                  "@call": formatString
+                                  args:
+                                    value:
+                                      "@call": formatString
+                                      args:
+                                        value: "One past limit"
+      expectError:
+        category: RecursionError
+        message: functionCall depth
+
+- name: test_v10_uax31_astral_plane_identifier_accepted
+  description: Tests that an astral-plane UAX #31 identifier starting with XID_Start U+1D465 ('𝑥Label') is accepted for component types and IDs in v1.0 strict mode.
+  action: validate
+  protocolVersion: "1.0"
+  catalog:
+    catalogId: astral_v10
+    components:
+      Stack:
+        type: object
+        properties:
+          id: {type: string}
+          component: {const: Stack}
+          children:
+            type: array
+            items:
+              $ref: "common_types.json#/$defs/ComponentId"
+        required:
+          - component
+          - children
+      "𝑥Label":
+        type: object
+        properties:
+          id: {type: string}
+          component: {const: "𝑥Label"}
+          text: {type: string}
+        required:
+          - component
+          - text
+  strictMode: true
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s1
+            catalogId: astral_v10
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Stack
+                children: ["𝑥Label"]
+              - id: "𝑥Label"
+                component: "𝑥Label"
+                text: "Astral plane"
+
+- name: test_v10_uax31_astral_non_identifier_component_type_error
+  description: Tests that an astral-plane non-identifier character (U+1F600 '😀') used as a component type fails UAX #31 validation in v1.0 even when unknown elements are allowed.
+  action: validate
+  protocolVersion: "1.0"
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  strictMode: false
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: "😀"
+      expectError:
+        category: ValidationError
+        message: "😀"
+
+- name: test_v10_agent_only_function_in_binding_error
+  description: Tests that a component property bound to a function whose allowedCallers is agentOnly fails validation in v1.0, since a binding is a renderer call and agentOnly functions can't be bound to component properties. The error is a validation error, raised before any binding is evaluated.
+  action: validate
+  protocolVersion: "1.0"
+  catalog:
+    catalogId: arcana
+    components:
+      Label:
+        type: object
+        properties:
+          id: {type: string}
+          component: {const: Label}
+          text:
+            $ref: "common_types.json#/$defs/DynamicString"
+        required:
+          - component
+          - text
+    functions:
+      getMoonPhase:
+        type: object
+        allowedCallers: agentOnly
+        returnType: string
+        properties:
+          "@call": {const: getMoonPhase}
+          args:
+            type: object
+            properties:
+              date: {type: string}
+            additionalProperties: false
+        required:
+          - "@call"
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s1
+            catalogId: arcana
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Label
+                text:
+                  "@call": getMoonPhase
+                  args:
+                    date: today
+      expectError:
+        category: ValidationError
+        surfaceId: s1
+        rendererError:
+          version: "1.0"
+          error:
+            code: VALIDATION_FAILED
+            surfaceId: s1
+            path: "/components/0/text"
+            message: "agentOnly"
+
+- name: test_v10_agent_only_function_in_action_error
+  description: Tests that an action functionCall of a function whose allowedCallers is agentOnly fails validation in v1.0, since renderer UI actions can't run agentOnly functions, while a rendererOrAgent function can be.
+  action: validate
+  protocolVersion: "1.0"
+  catalog:
+    catalogId: arcana
+    components:
+      Trigger:
+        type: object
+        properties:
+          id: {type: string}
+          component: {const: Trigger}
+          action:
+            $ref: "common_types.json#/$defs/Action"
+        required:
+          - component
+          - action
+    functions:
+      getMoonPhase:
+        type: object
+        allowedCallers: agentOnly
+        returnType: string
+        properties:
+          "@call": {const: getMoonPhase}
+          args:
+            type: object
+            additionalProperties: false
+        required:
+          - "@call"
+      getTide:
+        type: object
+        allowedCallers: rendererOrAgent
+        returnType: string
+        properties:
+          "@call": {const: getTide}
+          args:
+            type: object
+            additionalProperties: false
+        required:
+          - "@call"
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s1
+            catalogId: arcana
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Trigger
+                action:
+                  functionCall:
+                    "@call": getTide
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s2
+            catalogId: arcana
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s2
+            components:
+              - id: root
+                component: Trigger
+                action:
+                  functionCall:
+                    "@call": getMoonPhase
+      expectError:
+        category: ValidationError
+        surfaceId: s2
+        rendererError:
+          version: "1.0"
+          error:
+            code: VALIDATION_FAILED
+            surfaceId: s2
+            path: "/components/0/action/functionCall"
+            message: "agentOnly"
+
+- name: test_v10_agent_only_function_cross_catalog_and_nested_error
+  description: Tests that a component property bound to an agentOnly function of another catalog than the component's, or holding one nested in the args of a renderer call, fails validation in v1.0.
+  action: validate
+  protocolVersion: "1.0"
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+    - conformance/test_data/catalogs/allowed_callers_catalog_v1_0.json
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Text
+                text:
+                  "@call": readSessionToken
+                  catalogId: https://a2ui.org/catalogs/v10/allowed_callers
+      expectError:
+        category: ValidationError
+        surfaceId: s1
+        rendererError:
+          version: "1.0"
+          error:
+            code: VALIDATION_FAILED
+            surfaceId: s1
+            path: "/components/0/text"
+            message: "agentOnly"
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s2
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s2
+            components:
+              - id: root
+                component: Text
+                text:
+                  "@call": formatString
+                  args:
+                    value:
+                      "@call": readSessionToken
+                      catalogId: https://a2ui.org/catalogs/v10/allowed_callers
+      expectError:
+        category: ValidationError
+        surfaceId: s2
+        rendererError:
+          version: "1.0"
+          error:
+            code: VALIDATION_FAILED
+            surfaceId: s2
+            path: "/components/0/text/args/value"
+            message: "agentOnly"

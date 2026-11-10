@@ -15,209 +15,278 @@
 """Prompt generator for the A2UI Vertical inference format.
 
 Compiles component catalog schemas into concise, non-nested component signatures,
-automatically ignoring components that require children.
+automatically omitting container components that require child components.
 """
 
-import json
-import re
-from typing import Any, List, Optional, TYPE_CHECKING, Union
+from __future__ import annotations
+
+from collections.abc import Mapping, Sequence
+from typing import Any, Literal
+
+from a2ui.constants import A2UI_INFERENCE_CLOSE_TAG, A2UI_INFERENCE_OPEN_TAG
+from a2ui.core import CatalogApi
+from a2ui.core.common import is_at_least_version
+from a2ui.core.schema import AgentToRendererMessage, ProtocolVersion
+from a2ui.inference_formats._shared import (
+    CatalogSchemaHelper,
+    build_catalog_helpers,
+    catalogs_defining,
+    catalogs_protocol_version,
+    check_mixed_catalogs,
+    normalize_prompt_example_messages,
+    surface_catalog_id,
+    to_message_dicts,
+)
 from a2ui.prompt import PromptGenerator
-from a2ui.core.catalog import Catalog
-from a2ui.schema.catalog import A2uiCatalog
-from a2ui.core.schema.client_capabilities import V09Capabilities
-from a2ui.schema.schema_helper import CatalogSchemaHelper
-from a2ui.schema.constants import (
-    A2UI_INFERENCE_OPEN_TAG,
-    A2UI_INFERENCE_CLOSE_TAG,
+from a2ui.utils import agent_callable_functions, validate_payload
+
+from .compiler import normalize_wire_version, ordered_component_properties
+from .decompiler import VerticalDecompiler
+
+_EVENT_RULE_PRE_V1_0 = (
+    '3. Actions & Events:\n   - Server-side actions: `Event("action_name",'
+    ' param="val")` or `action="action_name"`.\n   - Function actions:'
+    ' `openUrl("https://example.com")`.'
 )
 
-if TYPE_CHECKING:
-    from .format import VerticalFormat
+_EVENT_RULE_V1_0 = (
+    '3. Actions & Events:\n   - Server-side actions: `Event("action_name", param="val",'
+    ' userMessage="Optional user text")`.\n     Pass `userMessage=` (a string, `$path`'
+    " binding, or function call) to set the message shown on the user's behalf.\n   -"
+    ' Function actions: `openUrl("https://example.com")`.'
+)
 
-VERTICAL_RULES = f"""# A2UI Vertical Output Contract
+_VERTICAL_HEADER = (
+    "# A2UI Vertical Output Contract\n\nYou must output user interfaces using A2UI"
+    " Vertical notation.\nYou MUST surround the UI block with sentinel tags"
+    f" `{A2UI_INFERENCE_OPEN_TAG}` and `{A2UI_INFERENCE_CLOSE_TAG}`.\n\n## Grammar"
+    " Rules"
+)
 
-You must output user interfaces using A2UI Vertical notation.
-You MUST surround the UI block with sentinel tags `{A2UI_INFERENCE_OPEN_TAG}` and `{A2UI_INFERENCE_CLOSE_TAG}`.
+_RULE_1_COMPONENTS = (
+    "1. Instantiate one or more standalone components directly:\n  "
+    ' ComponentName(param1="value1", param2=42)\n   If outputting multiple components,'
+    " write each component on a new line. Each component renders on its own surface in"
+    " a vertical sequence."
+)
 
-## Grammar Rules
+_RULE_2_SYNTAX = (
+    '2. Syntax:\n   - Use `param="value"` or `param: "value"` for named parameters.\n  '
+    " - Positional parameters matching catalog signatures are also supported (e.g."
+    ' `Text("Hello")`).\n   - Strings: Double or single quoted (e.g. "Hello").\n   -'
+    " Numbers: Integers or decimals (e.g. 42, 3.14).\n   - Booleans: true or false.\n  "
+    ' - Null: null.\n   - Lists: [item1, item2].\n   - Maps: {"key": "value"} or {key:'
+    ' "value"}.\n   - Validation checks (on checkable inputs): `?required` or'
+    ' `?regex("^[0-9]+$", "Digits only")`.'
+)
 
-1. Instantiate one or more components directly:
-   ComponentName(param1="value1", param2=42)
+_RULE_4_BINDINGS = (
+    "4. Data Bindings:\n"
+    "   - Prefix data model paths with `$/` (e.g. `$/user/name`).\n"
+    "   - Arguments marked `(static)` MUST use literal values, never `$` data bindings."
+)
 
-   If outputting multiple components, write each component on a new line. They will be displayed in a vertical list.
+_RULE_5_NO_CONTAINERS = (
+    "5. Do NOT specify surface IDs, component IDs, variable assignments, or container"
+    " nesting. The runtime automatically manages surfaces and IDs."
+)
 
-2. Syntax:
-   - Use `param="value"` or `param: "value"` for named parameters.
-   - Positional parameters matching catalog signatures are also supported (e.g. `Text("Hello")`).
-   - Strings: Double or single quoted (e.g. "Hello" or 'Hello').
-   - Numbers: Integers or decimals (e.g. 42, 3.14).
-   - Booleans: true or false.
-   - Null: null.
-   - Lists: [item1, item2].
-   - Maps: {{"key": "value"}} or {{key: "value"}}.
-
-3. Actions & Events:
-   - Server-side actions: `Event("action_name", param="val")` or `action="action_name"`.
-
-4. Data Bindings:
-   - Prefix data model paths with `$/` (e.g. `$/user/name`).
-
-5. Do NOT specify surface IDs, component IDs, or container nesting. The runtime automatically handles layout and IDs.
-"""
+VERTICAL_RULES = (
+    f"{_VERTICAL_HEADER}\n\n"
+    f"{_RULE_1_COMPONENTS}\n\n"
+    f"{_RULE_2_SYNTAX}\n\n"
+    f"{_EVENT_RULE_V1_0}\n\n"
+    f"{_RULE_4_BINDINGS}\n\n"
+    f"{_RULE_5_NO_CONTAINERS}"
+)
 
 
 def _schema_allows_databinding(prop_schema: Any) -> bool:
-    """Checks if a property schema allows dynamic data binding."""
+    """Checks recursively whether a property JSON schema permits dynamic data binding."""
+    if isinstance(prop_schema, Mapping):
+        ref = prop_schema.get("$ref")
+        if isinstance(ref, str) and ("DataBinding" in ref or "Dynamic" in ref):
+            return True
+        props = prop_schema.get("properties")
+        if (
+            isinstance(props, Mapping)
+            and ("path" in props or "@path" in props)
+            and "componentId" not in props
+        ):
+            return True
+        return any(_schema_allows_databinding(v) for v in prop_schema.values())
+    if isinstance(prop_schema, Sequence) and not isinstance(prop_schema, (str, bytes)):
+        return any(_schema_allows_databinding(item) for item in prop_schema)
+    return False
 
-    def has_data_binding(schema: Any) -> bool:
-        if isinstance(schema, dict):
-            if "$ref" in schema:
-                ref = schema["$ref"]
-                if isinstance(ref, str) and ("DataBinding" in ref or "Dynamic" in ref):
-                    return True
-            return any(has_data_binding(v) for v in schema.values())
-        elif isinstance(schema, list):
-            return any(has_data_binding(item) for item in schema)
-        return False
 
-    return has_data_binding(prop_schema)
-
-
-def _get_schema_enum(prop_schema: Any) -> Optional[List[str]]:
-    """Recursively finds enum definitions in a JSON schema."""
-    if not isinstance(prop_schema, dict):
+def _get_schema_enum(prop_schema: Any) -> list[str] | None:
+    """Recursively extracts enum definitions from a JSON schema."""
+    if not isinstance(prop_schema, Mapping):
         return None
-    if "enum" in prop_schema and isinstance(prop_schema["enum"], list):
+    if isinstance(prop_schema.get("enum"), list):
         return [str(x) for x in prop_schema["enum"]]
     for key in ("oneOf", "anyOf", "allOf"):
-        if key in prop_schema and isinstance(prop_schema[key], list):
-            for sub in prop_schema[key]:
+        subs = prop_schema.get(key)
+        if isinstance(subs, list):
+            for sub in subs:
                 res = _get_schema_enum(sub)
                 if res:
                     return res
     return None
 
 
+def _multi_catalog_rules(helpers: Mapping[str, CatalogSchemaHelper]) -> str:
+    catalog_ids = list(helpers)
+    example_id = catalog_ids[-1]
+    listing = "\n".join(f"- `{cat_id}`" for cat_id in catalog_ids)
+    lines = [
+        "## Multiple Catalogs",
+        "",
+        "Several component catalogs are active:",
+        listing,
+        "",
+        (
+            "Each component and function call resolves by name in whichever catalog"
+            " defines it."
+        ),
+        (
+            "When several catalogs define the same name, disambiguate with"
+            f' `catalogId="{example_id}"`.'
+        ),
+    ]
+    shared: list[str] = []
+    kinds: tuple[tuple[Literal["component", "function"], str], ...] = (
+        ("component", "Component"),
+        ("function", "Function"),
+    )
+    for kind, label in kinds:
+        names = {
+            name
+            for h in helpers.values()
+            for name in (h.components if kind == "component" else h.functions)
+        }
+        for name in sorted(names):
+            defining = catalogs_defining(helpers, kind, name)
+            if len(defining) > 1:
+                ids = ", ".join(f"`{cid}`" for cid in defining)
+                shared.append(f"- {label} `{name}`: {ids}")
+    if shared:
+        lines.extend([
+            "",
+            "Names defined in several catalogs requiring `catalogId`:",
+            *shared,
+        ])
+    return "\n".join(lines)
+
+
 class VerticalPromptGenerator(PromptGenerator):
-    """Generates system prompts guiding models to produce A2UI Vertical format.
+    """Generates system prompts guiding models to produce A2UI Vertical format."""
 
-    Filters the catalog to only include components that do NOT require children,
-    and formats concise parameter signatures.
-    """
+    def __init__(
+        self,
+        catalogs: Sequence[CatalogApi],
+        examples: Sequence[Sequence[AgentToRendererMessage]] | None = None,
+        allowed_messages: Sequence[str] | None = None,
+        surface_id: str = "main",
+        version: str | None = None,
+    ):
+        self._catalogs = check_mixed_catalogs(catalogs)
+        self._examples = (
+            [list(turn) for turn in examples] if examples is not None else None
+        )
+        self._allowed_messages = (
+            list(allowed_messages) if allowed_messages is not None else None
+        )
+        self.surface_id = surface_id
+        target_version = (
+            normalize_wire_version(version)
+            if version is not None
+            else catalogs_protocol_version(self._catalogs)
+        )
+        self.version = target_version
+        self._v1 = is_at_least_version(target_version, ProtocolVersion.V1_0)
+        self.helpers = build_catalog_helpers(self._catalogs, target_version)
 
-    def __init__(self, format_inst: "VerticalFormat"):
-        """Initializes the prompt generator with a VerticalFormat instance."""
-        self._format = format_inst
-        self.catalog = format_inst.catalog
-        if isinstance(self.catalog, CatalogSchemaHelper):
-            self.helper = self.catalog
-        elif isinstance(self.catalog, (Catalog, A2uiCatalog)):
-            self.helper = CatalogSchemaHelper(self.catalog)
-        elif hasattr(self.catalog, "get_components"):
-            comps = self.catalog.get_components()
-            fns = (
-                self.catalog.get_functions()
-                if hasattr(self.catalog, "get_functions")
-                else {}
-            )
-            cid = getattr(
-                self.catalog,
-                "catalog_id",
-                getattr(self.catalog, "id", "https://a2ui.org/mock"),
-            )
-            cat = Catalog.from_json(
-                {"catalogId": cid, "components": comps, "functions": fns},
-                protocol_version="0.9.1",
-            )
-            self.helper = CatalogSchemaHelper(cat)
-        else:
-            self.helper = CatalogSchemaHelper(self.catalog)
+    @property
+    def catalogs(self) -> list[CatalogApi]:
+        """The catalogs the generator describes, in order."""
+        return list(self._catalogs)
 
-    def component_requires_children(self, comp_name: str) -> bool:
-        """Determines whether a component requires child components.
-
-        In the Vertical format, components that require children cannot be specified
-        and must be ignored.
-        """
-        reqs = self.helper.get_component_required(comp_name) or []
-        props = self.helper.get_component_properties(comp_name) or []
-
-        for p in props:
-            if p in reqs:
-                p_type = self.helper.get_property_type(comp_name, p)
-                if p in ("child", "children") or p_type in ("Child", "ChildList"):
+    def component_requires_children(
+        self, comp_name: str, helper: CatalogSchemaHelper | None = None
+    ) -> bool:
+        """Returns True if `comp_name` requires `Child` or `ChildList` properties."""
+        target_helper = helper or next(iter(self.helpers.values()))
+        reqs = set(target_helper.get_component_required(comp_name))
+        for prop in target_helper.get_component_properties(comp_name):
+            if prop not in reqs:
+                continue
+            p_type = target_helper.get_property_type(comp_name, prop)
+            if prop in ("child", "children") or p_type in ("Child", "ChildList"):
+                return True
+            p_schema = target_helper.get_property_schema(comp_name, prop)
+            if isinstance(p_schema, Mapping) and isinstance(p_schema.get("$ref"), str):
+                ref = p_schema["$ref"]
+                if "ComponentId" in ref or "Child" in ref or "ChildList" in ref:
                     return True
-                p_schema = self.helper.get_property_schema(comp_name, p)
-                if isinstance(p_schema, dict) and "$ref" in p_schema:
-                    ref = p_schema["$ref"]
-                    if "ComponentId" in ref or "ChildList" in ref:
-                        return True
         return False
 
     def generate_component_signatures(
-        self, allowed_components: Optional[List[str]] = None
+        self,
+        allowed_components: Sequence[str] | None = None,
+        *,
+        helper: CatalogSchemaHelper | None = None,
     ) -> str:
-        """Compiles component definitions into clean function-like signatures.
+        """Compiles non-container component definitions into concise signatures."""
+        target_helper = helper or next(iter(self.helpers.values()))
+        allowed_set = (
+            set(allowed_components) if allowed_components is not None else None
+        )
+        signatures: list[str] = []
 
-        Ignores all components that require children.
-        """
-        signatures: List[str] = []
-
-        for name in sorted(self.helper.component_properties.keys()):
-            # Ignore components that require children
-            if self.component_requires_children(name):
+        for name in sorted(target_helper.component_properties.keys()):
+            if self.component_requires_children(name, target_helper):
+                continue
+            if allowed_set is not None and name not in allowed_set:
                 continue
 
-            # Respect allowed_components filter if provided
-            if allowed_components is not None and name not in allowed_components:
-                continue
+            props = ordered_component_properties(target_helper, name)
+            if target_helper.is_checkable(name):
+                props = [*props, "checks"]
+            reqs = set(target_helper.get_component_required(name))
+            comp_desc = target_helper.get_component_description(name)
 
-            props_raw = self.helper.get_component_properties(name) or []
-
-            def get_pos_index(p: str) -> int:
-                schema = self.helper.get_property_schema(name, p)
-                if isinstance(schema, dict):
-                    return schema.get("positionalIndex", 999)
-                return 999
-
-            props = sorted(props_raw, key=get_pos_index)
-            reqs = self.helper.get_component_required(name) or []
-            comp_desc = self.helper.get_component_description(name)
-
-            ordered_args: List[str] = []
-            prop_details: List[str] = []
+            ordered_args: list[str] = []
+            prop_details: list[str] = []
 
             for p in props:
-                # Omit structural or child slots
-                if p in ("component", "id", "child", "children"):
-                    continue
-                p_type = self.helper.get_property_type(name, p)
-                if p_type in ("Child", "ChildList"):
-                    continue
-
                 is_req = p in reqs
                 opt_suffix = "" if is_req else "?"
-                p_schema = self.helper.get_property_schema(name, p)
+                p_schema = target_helper.get_property_schema(name, p)
 
                 arg_label = f"{p}{opt_suffix}"
-                if not _schema_allows_databinding(p_schema):
+                if p != "checks" and not _schema_allows_databinding(p_schema):
                     arg_label += " (static)"
-
                 ordered_args.append(arg_label)
 
                 p_desc = (
-                    p_schema.get("description") if isinstance(p_schema, dict) else None
+                    p_schema.get("description")
+                    if isinstance(p_schema, Mapping)
+                    else None
                 )
-                enum_vals = _get_schema_enum(p_schema)
+                enum_vals = target_helper.get_property_enum(
+                    name, p
+                ) or _get_schema_enum(p_schema)
 
                 if p_desc or enum_vals:
-                    parts = []
-                    if p_desc:
-                        parts.append(p_desc)
+                    detail_parts: list[str] = []
+                    if isinstance(p_desc, str) and p_desc:
+                        detail_parts.append(p_desc)
                     if enum_vals:
                         enum_str = ", ".join(f"'{v}'" for v in enum_vals)
-                        parts.append(f"Must be one of: {enum_str}")
-                    prop_details.append(f"  - {p}: {' '.join(parts)}")
+                        detail_parts.append(f"Must be one of: {enum_str}")
+                    prop_details.append(f"  - {p}: {' '.join(detail_parts)}")
 
             sig = f"• {name}({', '.join(ordered_args)})"
             if comp_desc:
@@ -229,38 +298,31 @@ class VerticalPromptGenerator(PromptGenerator):
 
         return "\n".join(signatures)
 
-    def generate_function_signatures(self) -> str:
-        """Compiles catalog function definitions into clean signatures."""
-        signatures: List[str] = []
-        for name in sorted(self.helper.function_properties.keys()):
-            props = self.helper.get_function_properties(name) or []
-            reqs = self.helper.get_function_required(name) or []
-            f_desc = self.helper.get_function_description(name)
+    def generate_function_signatures(
+        self, *, helper: CatalogSchemaHelper | None = None
+    ) -> str:
+        """Compiles catalog function definitions into concise signatures."""
+        target_helper = helper or next(iter(self.helpers.values()))
+        signatures: list[str] = []
 
-            ordered_args = []
-            prop_details = []
+        for name in sorted(target_helper.function_properties.keys()):
+            props = target_helper.get_function_properties(name)
+            reqs = set(target_helper.get_function_required(name))
+            f_desc = target_helper.get_function_description(name)
 
-            func_schema = self.helper.functions.get(name, {})
-            args_properties = (
-                func_schema.get("properties", {}).get("args", {}).get("properties", {})
-                if isinstance(func_schema, dict)
-                else {}
-            )
+            ordered_args: list[str] = []
+            prop_details: list[str] = []
 
             for p in props:
-                is_req = p in reqs
-                opt_suffix = "" if is_req else "?"
+                opt_suffix = "" if p in reqs else "?"
                 ordered_args.append(f"{p}{opt_suffix}")
-
-                p_schema = (
-                    args_properties.get(p, {})
-                    if isinstance(args_properties, dict)
-                    else {}
-                )
+                p_schema = target_helper.get_function_property_schema(name, p)
                 p_desc = (
-                    p_schema.get("description") if isinstance(p_schema, dict) else None
+                    p_schema.get("description")
+                    if isinstance(p_schema, Mapping)
+                    else None
                 )
-                if p_desc:
+                if isinstance(p_desc, str) and p_desc:
                     prop_details.append(f"  - {p}: {p_desc}")
 
             sig = f"• {name}({', '.join(ordered_args)})"
@@ -273,30 +335,20 @@ class VerticalPromptGenerator(PromptGenerator):
 
         return "\n".join(signatures)
 
-    def catalog_description(
-        self,
-        include_schema: bool = True,
-        allowed_components: Optional[List[str]] = None,
+    def _catalog_block(
+        self, helper: CatalogSchemaHelper, *, include_heading: bool
     ) -> str:
-        """Returns the formatted catalog signatures block."""
-        if not include_schema:
-            return ""
-
-        comp_sigs = self.generate_component_signatures(allowed_components)
-        func_sigs = self.generate_function_signatures()
-
-        catalog_instructions = (
-            self.helper.catalog.get("instructions", "")
-            if isinstance(self.helper.catalog, dict)
+        comp_sigs = self.generate_component_signatures(helper=helper)
+        func_sigs = self.generate_function_signatures(helper=helper)
+        cat_instructions = (
+            helper.catalog.get("instructions", "")
+            if isinstance(helper.catalog, Mapping)
             else ""
         )
-        catalog_instructions_block = ""
-        if catalog_instructions:
-            catalog_instructions_block = (
-                f"\n\n## Catalog Instructions\n\n{catalog_instructions}"
-            )
 
-        parts = []
+        parts: list[str] = []
+        if include_heading:
+            parts.append(f"### Catalog: `{helper.catalog_model.catalog_id}`")
         if comp_sigs:
             parts.append(
                 "## Component Signatures\n\n"
@@ -305,79 +357,100 @@ class VerticalPromptGenerator(PromptGenerator):
             )
         if func_sigs:
             parts.append(f"## Function Signatures\n\n{func_sigs}")
-        if catalog_instructions_block:
-            parts.append(catalog_instructions_block)
-
+        if isinstance(cat_instructions, str) and cat_instructions.strip():
+            parts.append(f"## Catalog Instructions\n\n{cat_instructions.strip()}")
         return "\n\n".join(parts)
 
     def generate_base_rules(self) -> str:
         """Returns the core syntax contract and grammar rules for the Vertical format."""
-        return VERTICAL_RULES.strip()
+        allowed = (
+            set(self._allowed_messages) if self._allowed_messages is not None else None
+        )
+        allows_components = allowed is None or bool(
+            allowed
+            & {
+                "createSurface",
+                "CreateSurfaceMessage",
+                "updateComponents",
+                "UpdateComponentsMessage",
+            }
+        )
+        allows_renderer_call = allowed is None or bool(
+            allowed & {"callRendererFunction", "CallRendererFunctionMessage"}
+        )
+
+        rule_blocks: list[str] = [_VERTICAL_HEADER]
+        if allows_components:
+            event_rule = _EVENT_RULE_V1_0 if self._v1 else _EVENT_RULE_PRE_V1_0
+            rule_blocks.extend([
+                _RULE_1_COMPONENTS,
+                _RULE_2_SYNTAX,
+                event_rule,
+                _RULE_4_BINDINGS,
+                _RULE_5_NO_CONTAINERS,
+            ])
+
+        if self._v1 and allows_renderer_call:
+            callable_fns = agent_callable_functions(self._catalogs)
+            if callable_fns:
+                formatted = ", ".join(f"`{fn}`" for fn in callable_fns)
+                rule_blocks.append(
+                    "6. Standalone Renderer Function Calls:\n   - Invoke"
+                    f" `{callable_fns[0]}(...)` on its own line to have the renderer"
+                    " execute a function directly.\n   - Only these functions may be"
+                    f" called standalone: {formatted}."
+                )
+
+        if len(self._catalogs) > 1:
+            rule_blocks.append(_multi_catalog_rules(self.helpers))
+
+        return "\n\n".join(rule_blocks)
 
     def generate_catalog_instructions(
         self,
         include_schema: bool = True,
-        catalog: Optional[Any] = None,
+        catalog: CatalogApi | None = None,
     ) -> str:
-        """Returns component and function signatures for the catalog."""
-        return self.catalog_description(include_schema=include_schema)
-
-    def generate(
-        self,
-        role_description: str,
-        workflow_description: str = "",
-        ui_description: str = "",
-        client_ui_capabilities: Optional[Union[dict[str, Any], V09Capabilities]] = None,
-        allowed_components: Optional[list[str]] = None,
-        allowed_messages: Optional[list[str]] = None,
-        include_schema: bool = False,
-        include_examples: bool = False,
-        validate_examples: bool = False,
-    ) -> str:
-        """Generates the full system prompt contract."""
-        prompt_parts: List[str] = []
-
-        if role_description:
-            prompt_parts.append(f"## Role\n\n{role_description}")
-
-        if workflow_description:
-            prompt_parts.append(f"## Instructions\n\n{workflow_description}")
-
-        if ui_description:
-            prompt_parts.append(f"## UI Guidance\n\n{ui_description}")
-
-        prompt_parts.append(VERTICAL_RULES.strip())
-
-        if include_schema:
-            cat_desc = self.catalog_description(
-                include_schema=True, allowed_components=allowed_components
+        """Returns component and function signatures for one or all active catalogs."""
+        if not include_schema:
+            return ""
+        if catalog is not None:
+            helper = self.helpers.get(catalog.catalog_id) or CatalogSchemaHelper(
+                catalog, self.version
             )
-            if cat_desc:
-                prompt_parts.append(cat_desc)
+            return self._catalog_block(helper, include_heading=False)
 
-        return "\n\n".join(prompt_parts)
+        multi = len(self._catalogs) > 1
+        blocks = [
+            self._catalog_block(h, include_heading=multi) for h in self.helpers.values()
+        ]
+        return "\n\n".join(b for b in blocks if b)
 
-    def generate_system_prompt(
+    def generate_examples(
         self,
-        role_description: str = "",
-        workflow_description: str = "",
-        ui_description: str = "",
-        client_ui_capabilities: Optional[Union[dict[str, Any], V09Capabilities]] = None,
-        allowed_components: Optional[list[str]] = None,
-        allowed_messages: Optional[list[str]] = None,
-        include_schema: bool = True,
-        include_examples: bool = False,
-        validate_examples: bool = False,
+        catalog: CatalogApi | None = None,
+        validate: bool = False,
     ) -> str:
-        """Convenience method to generate full system prompt with schema included."""
-        return self.generate(
-            role_description=role_description,
-            workflow_description=workflow_description,
-            ui_description=ui_description,
-            client_ui_capabilities=client_ui_capabilities,
-            allowed_components=allowed_components,
-            allowed_messages=allowed_messages,
-            include_schema=include_schema,
-            include_examples=include_examples,
-            validate_examples=validate_examples,
-        )
+        """Returns formatted Vertical few-shot examples."""
+        del catalog
+        if not self._examples:
+            return ""
+
+        default_cat_id = surface_catalog_id(self._catalogs)
+        decompiler = VerticalDecompiler(self._catalogs, version=self.version)
+        rendered: list[str] = []
+
+        for turn in self._examples:
+            normalized = normalize_prompt_example_messages(
+                to_message_dicts(turn),
+                version=self.version,
+                default_catalog_id=default_cat_id,
+                default_surface_id=self.surface_id,
+            )
+            if validate:
+                validate_payload(self._catalogs, normalized)
+            dsl = decompiler.decompile(normalized)
+            if dsl.strip():
+                rendered.append(decompiler.wrap_decompiled_blocks([dsl]))
+
+        return "\n\n".join(rendered)

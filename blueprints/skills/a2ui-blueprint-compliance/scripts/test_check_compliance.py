@@ -16,20 +16,22 @@
 
 This module validates that the compliance check script successfully identifies
 codebases as up-to-date, out-of-date, not baselined, or erroneous based on
-associated module blueprints.
+associated module and feature blueprints.
 """
 
-import datetime
+from __future__ import annotations
+
 import io
 import os
 import sys
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 # Ensure the directory containing check_compliance.py is in the Python search path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from check_compliance import main, run_cmd
+from check_compliance import audit_feature_commits, is_valid_ancestor, main, run_cmd
+from validate_blueprints import _validate_single_codebase_blueprint, parse_yaml
 
 
 class TestCheckCompliance(unittest.TestCase):
@@ -48,13 +50,10 @@ class TestCheckCompliance(unittest.TestCase):
         mock_glob: MagicMock,
         mock_stdout: MagicMock,
     ) -> None:
-        """Verifies that a codebase that matches the latest module blueprint version is marked Up to Date."""
-        # 1. Mock codebase blueprint file discovery
+        """Verifies that a codebase matching the latest module blueprint is marked Up to Date."""
         mock_glob.return_value = [
             "/path/to/blueprints/codebases/flutter/codebase.blueprint.md"
         ]
-
-        # 2. Mock frontmatter parsed metadata
         mock_parse.return_value = (
             {
                 "codebase_path": "renderers/flutter",
@@ -63,11 +62,8 @@ class TestCheckCompliance(unittest.TestCase):
             },
             None,
         )
-
-        # 3. Mock existence of module blueprint file
         mock_exists.return_value = True
 
-        # 4. Mock git command executions: get_latest_commit returns the same hash
         mock_res = MagicMock()
         mock_res.returncode = 0
         mock_res.stdout = "abcdef1234567890\n"
@@ -96,7 +92,7 @@ class TestCheckCompliance(unittest.TestCase):
         mock_glob: MagicMock,
         mock_stdout: MagicMock,
     ) -> None:
-        """Verifies that a codebase behind by a few commits is marked Out of Date and lists the commits."""
+        """Verifies that a codebase behind by commits is marked Out of Date and lists commits."""
         mock_glob.return_value = [
             "/path/to/blueprints/codebases/flutter/codebase.blueprint.md"
         ]
@@ -110,10 +106,6 @@ class TestCheckCompliance(unittest.TestCase):
         )
         mock_exists.return_value = True
 
-        # Mock git commands:
-        # First call: git log -n 1 --pretty=format:%H (get_latest_commit) -> "abcdef12"
-        # Second call: git merge-base --is-ancestor (check if commit exists) -> returncode 0
-        # Third call: git log since_commit..HEAD (get_commits_since) -> list of 2 commits
         mock_latest = MagicMock()
         mock_latest.returncode = 0
         mock_latest.stdout = "abcdef12\n"
@@ -153,7 +145,7 @@ class TestCheckCompliance(unittest.TestCase):
         mock_glob: MagicMock,
         mock_stdout: MagicMock,
     ) -> None:
-        """Verifies that a codebase missing the commit pin in its blueprint is marked Not Baselined."""
+        """Verifies that a codebase missing the commit pin is marked Not Baselined."""
         mock_glob.return_value = [
             "/path/to/blueprints/codebases/flutter/codebase.blueprint.md"
         ]
@@ -161,7 +153,7 @@ class TestCheckCompliance(unittest.TestCase):
             {
                 "codebase_path": "renderers/flutter",
                 "associated_module": "flutter_core",
-                "module_blueprint_commit": None,  # Missing pin
+                "module_blueprint_commit": None,
             },
             None,
         )
@@ -210,7 +202,7 @@ class TestCheckCompliance(unittest.TestCase):
             },
             None,
         )
-        mock_exists.return_value = False  # File missing
+        mock_exists.return_value = False
 
         main()
 
@@ -220,6 +212,48 @@ class TestCheckCompliance(unittest.TestCase):
             "| `renderers/flutter` | `flutter_core` | 🔴 Error | 0 | `12345678` |"
             " `unknown` |",
             output,
+        )
+
+    @patch("subprocess.run")
+    def test_is_valid_ancestor_rejects_non_string_commit(
+        self, mock_run: MagicMock
+    ) -> None:
+        """Verifies that non-string commit values return False without invoking git."""
+        self.assertFalse(is_valid_ancestor(None))
+        self.assertFalse(is_valid_ancestor(True))
+        self.assertFalse(is_valid_ancestor(1234))
+        mock_run.assert_not_called()
+
+    @patch("validate_blueprints.parse_frontmatter")
+    def test_validate_codebase_blueprint_rejects_non_string_codebase_path(
+        self, mock_parse: MagicMock
+    ) -> None:
+        """Verifies that a non-string codebase_path reports an error instead of raising."""
+        mock_parse.return_value = (
+            {
+                "codebase_path": True,
+                "associated_module": "flutter_core",
+                "module_blueprint_commit": None,
+                "implemented_features": {},
+            },
+            None,
+        )
+        errors: list[str] = []
+        warnings: list[str] = []
+
+        _validate_single_codebase_blueprint(
+            "/path/to/blueprints/codebases/flutter/codebase.blueprint.md",
+            "flutter/codebase.blueprint.md",
+            "codebase.blueprint.md",
+            "/path/to",
+            {"flutter_core": {"file": "flutter_core.blueprint.md"}},
+            {},
+            errors,
+            warnings,
+        )
+
+        self.assertTrue(
+            any("'codebase_path' must be a string" in e for e in errors), errors
         )
 
     @patch("sys.stderr", new_callable=io.StringIO)
@@ -253,11 +287,10 @@ class TestCheckCompliance(unittest.TestCase):
         mock_glob: MagicMock,
         mock_stdout: MagicMock,
     ) -> None:
-        """Verifies that the script handles None or non-string commits without throwing TypeError."""
+        """Verifies that the script handles None commits without throwing TypeError."""
         mock_glob.return_value = [
             "/path/to/blueprints/codebases/flutter/codebase.blueprint.md"
         ]
-        # module_blueprint_commit is explicitly None (not the string "None")
         mock_parse.return_value = (
             {
                 "codebase_path": "renderers/flutter",
@@ -268,12 +301,10 @@ class TestCheckCompliance(unittest.TestCase):
         )
         mock_exists.return_value = True
 
-        # mock git commands: get_latest_commit fails (returncode = 1), so run_cmd returns None
         mock_latest = MagicMock()
         mock_latest.returncode = 1
         mock_latest.stdout = ""
 
-        # mock git log (which shouldn't run or fail)
         mock_log = MagicMock()
         mock_log.returncode = 1
         mock_log.stdout = ""
@@ -288,6 +319,81 @@ class TestCheckCompliance(unittest.TestCase):
             "| `renderers/flutter` | `flutter_core` | 🔴 Not Baselined | All | `None` |"
             " `unknown` |",
             output,
+        )
+
+    def test_parse_yaml_feature_commit_map_and_nulls(self) -> None:
+        """Verifies that parse_yaml parses per-feature commit maps and null literals."""
+        yaml_str = """
+codebase_path: typescript/core/web_core
+associated_module: a2ui_core
+module_blueprint_commit: null
+implemented_features:
+  node_resolution: b161f9bdc9395732b305b0adddfd182a36382f09
+  universal_custom_elements: ~
+"""
+        parsed = parse_yaml(yaml_str)
+        self.assertIsNone(parsed["module_blueprint_commit"])
+        self.assertEqual(
+            parsed["implemented_features"],
+            {
+                "node_resolution": "b161f9bdc9395732b305b0adddfd182a36382f09",
+                "universal_custom_elements": None,
+            },
+        )
+
+    @patch("os.path.exists")
+    @patch("subprocess.run")
+    def test_audit_feature_commits_statuses(
+        self, mock_run: MagicMock, mock_exists: MagicMock
+    ) -> None:
+        """Verifies UP-TO-DATE, OUT-OF-SYNC, UNTRACKED, and UNKNOWN COMMIT feature statuses."""
+        mock_exists.return_value = True
+
+        # 1. node_resolution: UP-TO-DATE (latest == pinned)
+        res_up_to_date = MagicMock(returncode=0, stdout="aaaa1111\n")
+        # 2. skill_generator: OUT-OF-SYNC (latest != pinned, is_ancestor=0, 1 commit behind)
+        res_out_latest = MagicMock(returncode=0, stdout="bbbb2222\n")
+        res_out_anc = MagicMock(returncode=0, stdout="")
+        res_out_log = MagicMock(returncode=0, stdout="bbbb2222 feat: update skill\n")
+        # 3. typesafe_builder_api: UNTRACKED (null commit)
+        res_untracked_latest = MagicMock(returncode=0, stdout="cccc3333\n")
+        res_untracked_log = MagicMock(returncode=0, stdout="cccc3333 init\n")
+        # 4. universal_custom_elements: UNKNOWN COMMIT (is_ancestor fails)
+        res_unknown_latest = MagicMock(returncode=0, stdout="dddd4444\n")
+        res_unknown_anc = MagicMock(returncode=1, stdout="")
+
+        mock_run.side_effect = [
+            res_up_to_date,
+            res_out_latest,
+            res_out_anc,
+            res_out_log,
+            res_untracked_latest,
+            res_untracked_log,
+            res_unknown_latest,
+            res_unknown_anc,
+        ]
+
+        results = audit_feature_commits(
+            {
+                "node_resolution": "aaaa1111",
+                "skill_generator": "00001111",
+                "typesafe_builder_api": None,
+                "universal_custom_elements": "deadbeef",
+            },
+            "/repo/blueprints",
+            "/repo",
+        )
+
+        by_feat = {r["feature"]: r for r in results}
+        self.assertEqual(by_feat["node_resolution"]["status"], "UP-TO-DATE")
+        self.assertEqual(
+            by_feat["skill_generator"]["status"], "OUT-OF-SYNC (1 commits behind)"
+        )
+        self.assertEqual(
+            by_feat["typesafe_builder_api"]["status"], "UNTRACKED (null commit)"
+        )
+        self.assertEqual(
+            by_feat["universal_custom_elements"]["status"], "UNKNOWN COMMIT"
         )
 
 

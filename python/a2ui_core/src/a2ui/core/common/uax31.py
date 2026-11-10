@@ -16,17 +16,24 @@
 from ..exceptions import A2uiCatalogError
 
 
-def is_valid_uax31_identifier(name: str) -> bool:
-    """Validates whether a string conforms to UAX #31 / system identifier syntax."""
+def is_valid_uax31_identifier(name: str, *, allow_leading_at: bool = False) -> bool:
+    """Validates whether a string conforms to UAX #31 identifier syntax.
+
+    When `allow_leading_at` is True, a single leading `@` is permitted and
+    ignored, accommodating reserved system-function calls such as `@index`
+    during payload validation. Catalog declarations disallow `@`-prefixed names.
+    """
     if not name or not isinstance(name, str):
         return False
-    test_name = name[1:] if name.startswith("@") else name
+    test_name = name[1:] if (allow_leading_at and name.startswith("@")) else name
     return test_name.isidentifier()
 
 
-def assert_uax31_identifier(name: str, context: str = "identifier") -> None:
+def assert_uax31_identifier(
+    name: str, context: str = "identifier", *, allow_leading_at: bool = False
+) -> None:
     """Asserts that a string is a valid UAX #31 identifier, raising A2uiCatalogError otherwise."""
-    if not is_valid_uax31_identifier(name):
+    if not is_valid_uax31_identifier(name, allow_leading_at=allow_leading_at):
         raise A2uiCatalogError(f"Invalid UAX #31 {context}: '{name}'")
 
 

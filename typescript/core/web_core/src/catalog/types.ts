@@ -1,0 +1,1335 @@
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import {z} from 'zod';
+import type {ProtocolVersion} from '../processing/adapters/base.js';
+import {DataContext} from '../resolution/data-context.js';
+import {allowsAgentRouting, withActiveCallCatalogId} from '../resolution/data-context-internal.js';
+import type {SurfaceModel} from '../state/surface-model.js';
+import {Signal} from '../reactivity/signals.js';
+import {A2uiCatalogError, A2uiExpressionError} from '../errors.js';
+import {A2uiMetadata, jsonValueEquals} from '../common/metadata.js';
+import {isAtLeastVersion} from '../common/semver.js';
+import {findFailedArgument, isThenable, settleDeep} from '../common/settle_deep.js';
+import {assertUax31Identifier} from '../common/uax31.js';
+import {SpecVersion} from '../spec_versions.js';
+import {AgentFunction, bindAgentFunctionDefs, isAgentFunction} from './agent_function.js';
+import {getDeclaredSchemaKeys, isZodSchema, parseCatalogSchema} from './schema_loader.js';
+import type {JsonSchemaObject} from './spec_annotations.js';
+import {generateValidationSchema} from './schema_generator.js';
+import {
+  deepCopyJson,
+  frozenJson,
+  retainedDefs,
+  serializeCatalogDocument,
+} from './schema_serializer.js';
+import {
+  buildComponentRefMap,
+  type ComponentChildRefs,
+  type ComponentRefMap,
+} from './reference-map.js';
+import {V08_CHILD_REF_OPTIONS} from '../v0_8/standard_defs.js';
+import {V09_CHILD_REF_OPTIONS} from '../v0_9/standard_defs.js';
+import {IndexImplementation} from '../v1_0/functions/system_functions.js';
+import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
+import {coerceDynamicBooleans} from './validation_result_coercion.js';
+
+export type {ComponentChildRefs};
+export {AgentFunction, isAgentFunction};
+export type {
+  AgentFunctionContext,
+  AgentFunctionHandler,
+  AgentFunctionInit,
+} from './agent_function.js';
+
+/**
+ * Registry mapping A2UI function return type identifiers to their TypeScript runtime types.
+ *
+ * Core defines version-agnostic primitives. Specific protocol versions (such as v1.0)
+ * or custom catalogs can augment this interface using TypeScript module declaration merging.
+ */
+export interface A2uiReturnTypeMap {
+  string: string;
+  number: number;
+  boolean: boolean;
+  array: unknown[];
+  object: Record<string, unknown>;
+  any: unknown;
+  void: void;
+}
+
+/**
+ * Union of valid A2UI function return type identifiers.
+ */
+export type A2uiReturnType = keyof A2uiReturnTypeMap | (string & {});
+
+/**
+ * Infers the TypeScript runtime return type for a given A2UI return type identifier.
+ */
+export type InferA2uiReturnType<T extends string> = T extends keyof A2uiReturnTypeMap
+  ? A2uiReturnTypeMap[T]
+  : unknown;
+
+/**
+ * Specification and schema for an A2UI function API.
+ */
+export interface FunctionApi {
+  /** Name of the function as it appears in A2UI JSON payloads. */
+  readonly name: string;
+  /** Return type identifier for the function. */
+  readonly returnType: A2uiReturnType;
+  /** Zod schema validating the function's input arguments. */
+  readonly schema: z.ZodTypeAny;
+  /** Allowed caller contexts for the function. */
+  readonly allowedCallers?: 'rendererOnly' | 'agentOnly' | 'rendererOrAgent';
+  /** Whether the function requires explicit user interaction before execution. */
+  readonly requiresUserActivation?: boolean;
+  /** Human-readable description of the function's purpose. */
+  readonly description?: string;
+}
+
+export type {JsonSchemaObject};
+
+/**
+ * A function implementation that can be registered with a catalog or evaluator.
+ */
+export interface FunctionImplementation extends FunctionApi {
+  /**
+   * Executes the function logic with the provided arguments and context.
+   *
+   * @param args Validated input arguments for the function.
+   * @param context Data context for expression and state resolution.
+   * @param abortSignal Optional abort signal to cancel async execution.
+   * @returns The resolved function output value or reactive Signal.
+   */
+  execute(
+    args: Record<string, unknown>,
+    context: DataContext,
+    abortSignal?: AbortSignal,
+  ): unknown | Signal<unknown>;
+}
+
+/**
+ * Recursively unwraps dynamic wire AST nodes into their evaluated runtime values.
+ */
+export type ResolvedDynamic<T> = T extends (infer U)[]
+  ? ResolvedDynamic<U>[]
+  : T extends object
+    ? {[K in keyof T]: ResolvedDynamic<T[K]>}
+    : T;
+
+/**
+ * Extracts and resolves execution-time argument types from a function's Zod validation schema.
+ */
+export type ResolvedFunctionArgs<Schema extends z.ZodTypeAny> = z.infer<Schema>;
+
+/**
+ * Creates a typed FunctionImplementation from an API definition and an execution callback.
+ *
+ * @param api The function API definition containing name, schema, and metadata.
+ * @param execute The execution handler callback.
+ * @returns A complete FunctionImplementation object.
+ */
+export function createFunctionImplementation<
+  Schema extends z.ZodTypeAny = z.ZodTypeAny,
+  TReturn extends A2uiReturnType = A2uiReturnType,
+>(
+  api: {
+    name: string;
+    returnType: TReturn;
+    schema: Schema;
+    allowedCallers?: 'rendererOnly' | 'agentOnly' | 'rendererOrAgent';
+    requiresUserActivation?: boolean;
+    description?: string;
+  },
+  execute: (
+    args: ResolvedFunctionArgs<Schema>,
+    context: DataContext,
+    abortSignal?: AbortSignal,
+  ) => InferA2uiReturnType<TReturn> | Signal<InferA2uiReturnType<TReturn>>,
+): FunctionImplementation {
+  return {
+    name: api.name,
+    returnType: api.returnType,
+    schema: api.schema,
+    allowedCallers: api.allowedCallers,
+    requiresUserActivation: api.requiresUserActivation,
+    description: api.description,
+    execute: execute as (
+      args: Record<string, unknown>,
+      ctx: DataContext,
+      ab?: AbortSignal,
+    ) => unknown,
+  };
+}
+
+import {FunctionInvoker} from './function_invoker.js';
+
+/**
+ * Contract for a component's capabilities and properties, independent of rendering implementation.
+ *
+ * @template Schema The Zod schema type for the component's properties.
+ */
+export interface ComponentApi<Schema extends z.ZodTypeAny = z.ZodTypeAny> {
+  /** Name of the component as it appears in A2UI JSON (e.g., 'Button'). */
+  name: string;
+
+  /**
+   * Zod schema describing the properties of this component.
+   *
+   * Must include catalog-specific common properties (e.g. 'weight', 'accessibility')
+   * and must omit envelope fields like 'component' or 'id'.
+   */
+  readonly schema: Schema;
+
+  /** Optional allowed parent component types (e.g. ['Column', 'Surface']). */
+  readonly allowedParents?: string[];
+
+  /** Optional allowed child component types (e.g. ['Text', 'Button']). */
+  readonly allowedChildren?: string[];
+
+  /** Optional component-level metadata from the catalog definition. */
+  readonly metadata?: A2uiMetadata;
+}
+
+/**
+ * Infers the schema type from a ComponentApi.
+ *
+ * Uses `z.infer` on the `schema` property of a `ComponentApi` object to access
+ * component properties with type safety.
+ */
+export type InferredComponentApiSchemaType<Api extends ComponentApi> = z.infer<Api['schema']>;
+
+/**
+ * The `anyComponent` and `anyFunction` unions a catalog document carries in
+ * `$defs`, which `Catalog.toJson` computes from the catalog's entries.
+ */
+export interface CatalogUnions {
+  /**
+   * Whether the document has `$defs.anyComponent`: a `oneOf` of references to
+   * every component, discriminated by `component`.
+   */
+  readonly anyComponent?: boolean;
+  /** Whether the document has `$defs.anyFunction`: a `oneOf` of references to every function. */
+  readonly anyFunction?: boolean;
+}
+
+/**
+ * The document-level fields of a catalog document, other than its ID,
+ * components and functions, as `Catalog.toJson` writes them.
+ *
+ * `Catalog.fromJson` reads them from the document it loads, and the built-in
+ * basic catalogs set the scalar ones, which their generated models carry. A
+ * catalog defined in code may leave them all out.
+ */
+export interface CatalogDocumentOptions {
+  /** System instructions or usage guidelines (`instructions`). */
+  instructions?: string;
+  /** The catalog document's `$schema`. */
+  schemaUri?: string;
+  /** The catalog document's `$id`. */
+  schemaId?: string;
+  /** The catalog document's `title`. */
+  title?: string;
+  /** The catalog document's `description`. */
+  description?: string;
+  /**
+   * The `protocolVersion` the document declares, exactly as written, which
+   * `toJson` emits verbatim. `null` for a document that declares none, such as
+   * the catalogs published before v1.0. When undefined, `toJson` emits the
+   * catalog's protocol version in canonical form.
+   */
+  declaredProtocolVersion?: string | null;
+  /**
+   * Whether the document declares `catalogId`. Defaults to `true`. `false` for
+   * a document such as the v0.8 basic catalog, which is identified by the ID
+   * it is loaded with, so that `toJson` does not add one.
+   */
+  declaresCatalogId?: boolean;
+  /**
+   * Whether the document declares `components`. Defaults to `true`. `false`
+   * for a document that has no `components` key, such as a catalog of
+   * functions only, so that `toJson` does not add an empty map. `toJson`
+   * still writes `components` if the catalog has any.
+   */
+  declaresComponents?: boolean;
+  /**
+   * Whether the document writes `functions` as a map from name to call schema
+   * (`'map'`) or as a list of named function definitions (`'list'`). When set,
+   * `toJson` emits `functions` in that form even if the catalog has none. When
+   * undefined, `toJson` emits a map, and only when the catalog has functions.
+   */
+  functionsLayout?: 'map' | 'list';
+  /**
+   * Which of the `anyComponent` and `anyFunction` unions the document has.
+   * When undefined, a v1.0 catalog has both, and an earlier one has each union
+   * whose section is not empty.
+   */
+  unions?: CatalogUnions;
+  /**
+   * The document's named `$defs`, as written, other than the `anyComponent`
+   * and `anyFunction` unions that `toJson` computes. Local `#/$defs/<name>`
+   * references in the catalog's entry definitions resolve against them.
+   * Includes the theme (`$defs.theme`) when the document declares it there.
+   * A catalog defined in code declares its definitions as models instead
+   * (`defModels` and the mixins of its components).
+   */
+  defs?: Readonly<Record<string, unknown>>;
+  /**
+   * How the document writes the common types document in references, such as
+   * `https://a2ui.org/specification/v0_9/common_types.json`. `toJson` writes
+   * the common types references of entries defined in code, and their
+   * `ComponentCommon`-style mixins, against it. Defaults to
+   * `common_types.json`.
+   */
+  commonTypesUri?: string;
+  /**
+   * Where the document of a catalog defined in code declares the theme that
+   * `themeSchema` models: under `$defs.theme` (`'defs'`), or as the map of
+   * theme properties under the top-level `styles` key (`'styles'`), as the
+   * v0.8 basic catalog does. When undefined, a catalog before v1.0 declares
+   * it under `$defs.theme`.
+   */
+  themeLocation?: 'defs' | 'styles';
+  /**
+   * Models of named definitions that the document declares under `$defs`
+   * besides those its components' mixins name, each named with `specDef`,
+   * such as the theme of the v0.9 basic catalog's document. `toJson`
+   * computes the definitions from them.
+   */
+  defModels?: readonly z.ZodTypeAny[];
+  /**
+   * Top-level document keys the fields above do not cover, as written: for
+   * example `extensions`, or the theme of a v0.8 catalog (`styles`).
+   */
+  extensionFields?: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * Optional settings for a `Catalog`, beyond its id, version and entries.
+ */
+export interface CatalogOptions extends CatalogDocumentOptions {
+  /** Schema for this catalog's theme parameters. */
+  themeSchema?: z.ZodTypeAny;
+}
+
+/** Options for {@link Catalog.copyWith}. */
+export interface CopyWithCatalogOptions<T extends ComponentApi, F extends FunctionApi> {
+  /** Replacement catalog ID. Defaults to this catalog's ID. */
+  catalogId?: string;
+  /** Replacement protocol version. Defaults to this catalog's protocol version. */
+  protocolVersion?: ProtocolVersion | string;
+  /** Replacement component list. Defaults to this catalog's components. */
+  components?: ReadonlyArray<T>;
+  /** Replacement function list. Defaults to this catalog's functions. */
+  functions?: ReadonlyArray<F>;
+  /**
+   * Agent functions for the copied catalog. When `functions` is omitted, any
+   * existing `AgentFunction` entries in this catalog are first restored to
+   * their `declaration` (or removed if they had none) before `agentFunctions`
+   * are merged in.
+   *
+   * An agent function built with `AgentFunction.fromApi` replaces the
+   * declaration it wraps, which the catalog must have. Any other agent
+   * function is added, and must not take the name of one of the catalog's
+   * functions.
+   */
+  agentFunctions?: ReadonlyArray<AgentFunction>;
+  /** Replacement theme schema. Defaults to this catalog's theme schema. */
+  themeSchema?: z.ZodTypeAny;
+  /** Replacement system instructions. Defaults to this catalog's instructions. */
+  instructions?: string;
+}
+
+/** What `Catalog.derive` builds a catalog from. */
+export interface DeriveCatalogOptions<T extends ComponentApi, F extends FunctionApi> {
+  /** The ID of the new catalog. */
+  catalogId: string;
+  /**
+   * The components of the new catalog: the name of one of this catalog's
+   * components, or a component. All of this catalog's components when
+   * omitted.
+   */
+  components?: readonly (string | T)[];
+  /**
+   * The functions of the new catalog: the name of one of this catalog's
+   * functions, or a function. All of this catalog's functions when omitted.
+   */
+  functions?: readonly (string | F)[];
+  /** System instructions or usage guidelines for the new catalog. */
+  instructions?: string;
+}
+
+/**
+ * Public structural interface for `Catalog`.
+ *
+ * Declares all publicly accessed properties of `Catalog` to prevent property
+ * renaming during compilation.
+ */
+export declare interface CatalogInterface<
+  T extends ComponentApi = ComponentApi,
+  F extends FunctionApi = FunctionImplementation,
+> {
+  /** Unique identifier for the catalog (usually a URI). */
+  readonly id: string;
+  /** Protocol specification version supported by this catalog. */
+  readonly protocolVersion: ProtocolVersion | string;
+  /** Map of registered component definitions. */
+  readonly components: ReadonlyMap<string, T>;
+  /** Map of registered function definitions. */
+  readonly functions: ReadonlyMap<string, F>;
+  /** Map of registered agent-side function definitions, keyed by function name. */
+  readonly agentFunctions: ReadonlyMap<string, AgentFunction>;
+  /** Map of the functions that run on the renderer (not agent functions), keyed by name. */
+  readonly rendererFunctions: ReadonlyMap<string, F>;
+  /** Schema for theme parameters used by this catalog. */
+  readonly themeSchema?: z.ZodTypeAny;
+  /** System instructions or usage guidelines for this catalog. */
+  readonly instructions?: string;
+  /** Invoker callback that delegates to this catalog's registered functions. */
+  readonly invoker: FunctionInvoker;
+  /** The document's `$schema`, if known. */
+  readonly schemaUri?: string;
+  /** The document's `$id`, if known. */
+  readonly schemaId?: string;
+  /** The document's `title`, if known. */
+  readonly title?: string;
+  /** The document's `description`, if known. */
+  readonly description?: string;
+  /** See {@link CatalogDocumentOptions.declaredProtocolVersion}. */
+  readonly declaredProtocolVersion?: string | null;
+  /** See {@link CatalogDocumentOptions.declaresCatalogId}. */
+  readonly declaresCatalogId?: boolean;
+  /** See {@link CatalogDocumentOptions.declaresComponents}. */
+  readonly declaresComponents?: boolean;
+  /** See {@link CatalogDocumentOptions.functionsLayout}. */
+  readonly functionsLayout?: 'map' | 'list';
+  /** See {@link CatalogDocumentOptions.unions}. */
+  readonly unions?: CatalogUnions;
+  /** Named `$defs` of the catalog document, without the computed unions. */
+  readonly defs?: Readonly<Record<string, unknown>>;
+  /** See {@link CatalogDocumentOptions.extensionFields}. */
+  readonly extensionFields?: Readonly<Record<string, unknown>>;
+  /** See {@link CatalogDocumentOptions.commonTypesUri}. */
+  readonly commonTypesUri?: string;
+  /** See {@link CatalogDocumentOptions.themeLocation}. */
+  readonly themeLocation?: 'defs' | 'styles';
+  /** See {@link CatalogDocumentOptions.defModels}. */
+  readonly defModels?: readonly z.ZodTypeAny[];
+  /** Self-contained, bundled JSON Schema used to validate payloads against this catalog. */
+  readonly validationSchema: Record<string, unknown>;
+  /**
+   * Dynamically reconstructed standard A2UI catalog JSON Schema document.
+   *
+   * @deprecated Use `validationSchema` instead.
+   */
+  readonly catalogSchema: Record<string, unknown>;
+  /** Unbundled catalog document for this catalog. */
+  toJson(): Record<string, unknown>;
+  /** Component reference map for child reference extraction and topology validation. */
+  readonly componentRefMap: ComponentRefMap;
+}
+
+/**
+ * Collection of available components and functions.
+ *
+ * The `F` parameter distinguishes catalogs that carry executable function
+ * implementations (`FunctionImplementation`, the default and the only kind a
+ * renderer should hold) from schema-only catalogs (`FunctionApi`), whose
+ * functions are signatures loaded from catalog JSON with no code attached.
+ * Consumers that need to execute functions, such as `NodeResolver`, constrain
+ * `F` to `FunctionImplementation` so a schema-only catalog is rejected at
+ * compile time rather than resolving values to `undefined` at runtime.
+ *
+ * A catalog is its catalog document in model form. An entry `fromJson`
+ * loaded (`JsonComponentApi`, `JsonFunctionApi`) has its JSON Schema
+ * definition as its model, from which its Zod schema is derived. An entry
+ * defined in code has its Zod schema as its model; when the schema is
+ * annotated as a specification model (see `spec`), as the built-in basic
+ * catalogs' generated models are, `toJson` computes its definition in the
+ * layout of the catalog's protocol version, and otherwise generates one. The
+ * catalog keeps the document-level fields (`CatalogDocumentOptions`).
+ * `toJson` assembles the document from all of these and `validationSchema`
+ * bundles it, so `Catalog.fromJson(doc).toJson()` equals `doc`, and `toJson`
+ * of a built-in basic catalog equals its published document.
+ */
+export class Catalog<
+  T extends ComponentApi,
+  F extends FunctionApi = FunctionImplementation,
+> implements CatalogInterface<T, F> {
+  /** Unique identifier for the catalog. */
+  readonly id: string;
+
+  /**
+   * Protocol specification version supported by this catalog.
+   */
+  readonly protocolVersion: ProtocolVersion | string;
+
+  /**
+   * Map of available components keyed by component name.
+   *
+   * Readonly to encourage immutable extension patterns.
+   */
+  readonly components: ReadonlyMap<string, T>;
+
+  /**
+   * Map of functions provided by this catalog.
+   */
+  readonly functions: ReadonlyMap<string, F>;
+
+  /**
+   * Map of agent functions provided by this catalog, keyed by function name.
+   * Each is also in `functions`.
+   */
+  readonly agentFunctions: ReadonlyMap<string, AgentFunction>;
+
+  /**
+   * Map of this catalog's functions that run on the renderer, keyed by
+   * function name: every entry of `functions` that isn't an agent function.
+   */
+  readonly rendererFunctions: ReadonlyMap<string, F>;
+
+  /**
+   * Schema for theme parameters used by this catalog.
+   */
+  readonly themeSchema?: z.ZodTypeAny;
+
+  /**
+   * Optional system instructions or usage guidelines for this catalog.
+   */
+  readonly instructions?: string;
+
+  /**
+   * Function invoker callback that delegates to this catalog's registered functions.
+   */
+  readonly invoker: FunctionInvoker;
+
+  /** The document's `$schema`, if known. */
+  readonly schemaUri?: string;
+
+  /** The document's `$id`, if known. */
+  readonly schemaId?: string;
+
+  /** The document's `title`, if known. */
+  readonly title?: string;
+
+  /** The document's `description`, if known. */
+  readonly description?: string;
+
+  /** See {@link CatalogDocumentOptions.declaredProtocolVersion}. */
+  readonly declaredProtocolVersion?: string | null;
+
+  /** See {@link CatalogDocumentOptions.declaresCatalogId}. */
+  readonly declaresCatalogId: boolean;
+
+  /** See {@link CatalogDocumentOptions.declaresComponents}. */
+  readonly declaresComponents: boolean;
+
+  /** See {@link CatalogDocumentOptions.functionsLayout}. */
+  readonly functionsLayout?: 'map' | 'list';
+
+  /** See {@link CatalogDocumentOptions.unions}. */
+  readonly unions?: CatalogUnions;
+
+  /**
+   * Named `$defs` of the catalog document, without the computed unions.
+   * Deeply frozen.
+   */
+  readonly defs?: Readonly<Record<string, unknown>>;
+
+  /** See {@link CatalogDocumentOptions.extensionFields}. Deeply frozen. */
+  readonly extensionFields?: Readonly<Record<string, unknown>>;
+
+  /** See {@link CatalogDocumentOptions.commonTypesUri}. */
+  readonly commonTypesUri?: string;
+
+  /** See {@link CatalogDocumentOptions.themeLocation}. */
+  readonly themeLocation?: 'defs' | 'styles';
+
+  /** See {@link CatalogDocumentOptions.defModels}. */
+  readonly defModels?: readonly z.ZodTypeAny[];
+
+  private cachedValidationSchema?: Record<string, unknown>;
+
+  private cachedDocument?: Record<string, unknown>;
+
+  /**
+   * Self-contained JSON Schema for validating payloads against this catalog.
+   *
+   * Built from the catalog's model and memoized: from the definition of each
+   * entry `toJson` writes, or, for an entry defined in code without
+   * specification annotations, from its Zod schema. Common
+   * types references are localized and the referenced standard definitions
+   * for the catalog's protocol version, and any of the catalog's `defs` an
+   * entry references, are bundled into `$defs`, together with the component
+   * envelope and the `anyComponent`/`anyFunction` unions. Use `toJson` for the
+   * catalog document itself.
+   *
+   * Each read returns a fresh copy that the caller may modify.
+   */
+  get validationSchema(): Record<string, unknown> {
+    if (!this.cachedValidationSchema) {
+      this.cachedValidationSchema = generateValidationSchema(this);
+    }
+    return deepCopyJson(this.cachedValidationSchema);
+  }
+
+  /**
+   * Dynamically reconstructs and memoizes the unified standard A2UI catalog JSON Schema document.
+   *
+   * @deprecated Use `validationSchema` for the bundled schema or `toJson` for
+   *   the catalog document.
+   */
+  get catalogSchema(): Record<string, unknown> {
+    return this.validationSchema;
+  }
+
+  /**
+   * Returns the unbundled catalog document for this catalog, assembled from
+   * its model and memoized.
+   *
+   * The document-level fields come from the catalog (`CatalogDocumentOptions`).
+   * An entry `fromJson` loaded is written as its definition, with references
+   * kept as written, unless it references a local definition the catalog
+   * lacks. An entry defined in code whose schema is a specification model is
+   * computed from its model in the layout of the catalog's protocol version,
+   * with its mixins and the `defModels` written to `$defs`; any other entry
+   * is generated from its Zod schema. Common types references are written
+   * against `commonTypesUri`. The `anyComponent` and `anyFunction` unions are
+   * computed from the entries. So for a catalog loaded with `fromJson`, the
+   * result equals the loaded document (minus any entries that the document's
+   * `anyComponent.oneOf` or `anyFunction.oneOf` unions omit, which `fromJson`
+   * filters out on load), and for a built-in basic catalog, the published
+   * document.
+   *
+   * @returns A fresh document that the caller may modify.
+   */
+  toJson(): Record<string, unknown> {
+    if (!this.cachedDocument) {
+      this.cachedDocument = serializeCatalogDocument(this);
+    }
+    return deepCopyJson(this.cachedDocument);
+  }
+
+  /**
+   * Returns a catalog with this catalog's ID, version, theme and
+   * document-level fields, and the given entries instead of its own.
+   *
+   * Definitions of `defs` that only entries left out referenced are dropped,
+   * so `toJson` of the result does not carry, say, the mixin of a pruned
+   * component. Catalog transformers use it to derive a catalog.
+   *
+   * @param components The components of the new catalog.
+   * @param functions The functions of the new catalog.
+   * @returns A new catalog.
+   */
+  withEntries(components: T[], functions: F[]): Catalog<T, F> {
+    return this.rebuild(components, functions, {
+      id: this.id,
+      schemaId: this.schemaId,
+      title: this.title,
+      description: this.description,
+      instructions: this.instructions,
+    });
+  }
+
+  /**
+   * Returns a shallow copy of this catalog with the specified fields or
+   * entries replaced.
+   *
+   * When `agentFunctions` is provided and `functions` is omitted, any existing
+   * `AgentFunction` entries in this catalog are first restored to their
+   * original `declaration` (or dropped when they had no `declaration`) before
+   * the new `agentFunctions` are merged in.
+   *
+   * @param options Fields and entries to override on the copied catalog.
+   * @returns A new `Catalog` instance.
+   * @throws {A2uiCatalogError} If an agent function's JSON Schema has a local
+   *   `$defs` entry that the catalog's `$defs`, or another agent function's,
+   *   defines differently.
+   */
+  copyWith(options: CopyWithCatalogOptions<T, F> = {}): Catalog<T, F> {
+    const nextComponents =
+      options.components !== undefined ? [...options.components] : [...this.components.values()];
+    let baseFunctions: F[];
+    if (options.functions !== undefined) {
+      baseFunctions = [...options.functions];
+    } else if (options.agentFunctions !== undefined) {
+      baseFunctions = [];
+      for (const fn of this.functions.values()) {
+        if (isAgentFunction(fn)) {
+          if (fn.declaration !== undefined) {
+            baseFunctions.push(fn.declaration as unknown as F);
+          }
+        } else {
+          baseFunctions.push(fn);
+        }
+      }
+    } else {
+      baseFunctions = [...this.functions.values()];
+    }
+    const nextId = options.catalogId ?? this.id;
+    const mergedFunctions = mergeAgentFunctions(nextId, baseFunctions, options.agentFunctions);
+    return this.rebuild(nextComponents, mergedFunctions, {
+      id: nextId,
+      protocolVersion: options.protocolVersion ?? this.protocolVersion,
+      themeSchema: options.themeSchema ?? this.themeSchema,
+      schemaId: this.schemaId,
+      title: this.title,
+      description: this.description,
+      instructions: options.instructions ?? this.instructions,
+    });
+  }
+
+  /**
+   * Returns a new catalog, under its own ID, built from entries of this one
+   * and new entries.
+   *
+   * In `components` and `functions`, a name keeps this catalog's entry of
+   * that name, and an entry adds it, or replaces this catalog's entry of the
+   * same name. Leaving either list out keeps all of this catalog's entries of
+   * that kind. The new catalog keeps this catalog's version, theme and the
+   * document-level fields that describe its layout, and drops `defs` that only
+   * entries left out referenced, as `withEntries` does.
+   *
+   * It does not keep this catalog's `$id`, title, description or
+   * instructions, which describe this catalog: instructions often name its
+   * ID and its components in their examples, so they would teach a model to
+   * write messages for the wrong catalog.
+   *
+   * @returns A new catalog.
+   * @throws {A2uiCatalogError} If a name is not an entry of this catalog.
+   */
+  derive(options: DeriveCatalogOptions<T, F>): Catalog<T, F> {
+    const pick = <E extends {name: string}>(
+      kind: string,
+      own: ReadonlyMap<string, E>,
+      wanted: readonly (string | E)[] | undefined,
+    ): E[] => {
+      if (wanted === undefined) return [...own.values()];
+      return wanted.map(item => {
+        if (typeof item !== 'string') return item;
+        const entry = own.get(item);
+        if (!entry) {
+          throw new A2uiCatalogError(
+            `Catalog '${this.id}' has no ${kind} '${item}' to derive catalog '${options.catalogId}' from.`,
+          );
+        }
+        return entry;
+      });
+    };
+    return this.rebuild(
+      pick('component', this.components, options.components),
+      pick('function', this.functions, options.functions),
+      {id: options.catalogId, instructions: options.instructions},
+    );
+  }
+
+  /**
+   * Builds a catalog with this catalog's version, theme and layout, the given
+   * entries and the given fields that describe the catalog.
+   */
+  private rebuild(
+    components: T[],
+    functions: F[],
+    described: {
+      id: string;
+      protocolVersion?: ProtocolVersion | string;
+      themeSchema?: z.ZodTypeAny;
+      schemaId?: string;
+      title?: string;
+      description?: string;
+      instructions?: string;
+    },
+  ): Catalog<T, F> {
+    const componentsChanged =
+      components.length !== this.components.size ||
+      components.some(c => this.components.get(c.name) !== c);
+    const functionsChanged =
+      functions.length !== this.functions.size ||
+      functions.some(f => this.functions.get(f.name) !== f);
+    let baseDefs = this.defs;
+    if (baseDefs && (componentsChanged || functionsChanged)) {
+      const copy = {...baseDefs};
+      if (componentsChanged) delete copy['anyComponent'];
+      if (functionsChanged) delete copy['anyFunction'];
+      baseDefs = copy;
+    }
+    const unions = this.unions
+      ? {
+          anyComponent: this.unions.anyComponent || componentsChanged,
+          anyFunction: this.unions.anyFunction || functionsChanged,
+        }
+      : undefined;
+    return new Catalog<T, F>(
+      described.id,
+      described.protocolVersion ?? this.protocolVersion,
+      components,
+      functions,
+      {
+        themeSchema: described.themeSchema ?? this.themeSchema,
+        instructions: described.instructions,
+        schemaUri: this.schemaUri,
+        schemaId: described.schemaId,
+        title: described.title,
+        description: described.description,
+        declaredProtocolVersion: this.declaredProtocolVersion,
+        declaresCatalogId: this.declaresCatalogId,
+        declaresComponents: this.declaresComponents,
+        functionsLayout: this.functionsLayout,
+        unions,
+        defs: retainedDefs(
+          baseDefs,
+          [...this.components.values(), ...this.functions.values()],
+          [...components, ...functions],
+          this.extensionFields,
+        ),
+        extensionFields: this.extensionFields,
+        commonTypesUri: this.commonTypesUri,
+        themeLocation: this.themeLocation,
+        defModels: this.defModels,
+      },
+    );
+  }
+
+  private _componentRefMap?: ComponentRefMap;
+
+  /**
+   * Lazily computed component reference map for child reference extraction and topology validation.
+   */
+  get componentRefMap(): ComponentRefMap {
+    if (!this._componentRefMap) {
+      const options = isAtLeastVersion(this.protocolVersion, '1.0')
+        ? V10_CHILD_REF_OPTIONS
+        : isAtLeastVersion(this.protocolVersion, '0.9')
+          ? V09_CHILD_REF_OPTIONS
+          : V08_CHILD_REF_OPTIONS;
+      this._componentRefMap = buildComponentRefMap(this, options);
+    }
+    return this._componentRefMap;
+  }
+
+  /**
+   * Initializes a new `Catalog`.
+   *
+   * @param id Unique identifier for the catalog, usually a URI.
+   * @param protocolVersion Protocol specification version this catalog targets.
+   * @param components Component definitions to register.
+   * @param functions Function definitions to register.
+   * @param themeSchemaOrOptions Optional schema for this catalog's theme
+   *   parameters, or a `CatalogOptions` object.
+   * @param instructions Optional system instructions or usage guidelines. Ignored
+   *   when `themeSchemaOrOptions` is a `CatalogOptions` object that sets them.
+   * @throws {A2uiCatalogError} If `protocolVersion` is empty or not provided,
+   *   or an agent function's JSON Schema has a local `$defs` entry that the
+   *   catalog's `$defs`, or another agent function's, defines differently.
+   */
+  constructor(
+    id: string,
+    protocolVersion: ProtocolVersion | string,
+    components?: ReadonlyArray<T>,
+    functions?: ReadonlyArray<F>,
+    themeSchemaOrOptions?: z.ZodTypeAny | CatalogOptions,
+    instructions?: string,
+  );
+  /**
+   * Initializes a new v0.9 `Catalog` with the pre-1.0 argument order.
+   *
+   * @deprecated Pass the protocol version as the second argument instead.
+   *   Kept so catalogs written against `@a2ui/web_core` 0.9.x keep
+   *   constructing without a `protocolVersion`.
+   * @param id Unique identifier for the catalog, usually a URI.
+   * @param components Component definitions to register.
+   * @param functions Function definitions to register.
+   * @param themeSchemaOrOptions Optional schema for this catalog's theme
+   *   parameters, or a `CatalogOptions` object.
+   * @param instructions Optional system instructions or usage guidelines.
+   */
+  constructor(
+    id: string,
+    components?: ReadonlyArray<T>,
+    functions?: ReadonlyArray<F>,
+    themeSchemaOrOptions?: z.ZodTypeAny | CatalogOptions,
+    instructions?: string,
+  );
+  constructor(
+    id: string,
+    protocolVersionOrComponents?: ProtocolVersion | string | ReadonlyArray<T>,
+    componentsOrFunctions?: ReadonlyArray<T> | ReadonlyArray<F>,
+    functionsOrThemeSchemaOrOptions?: ReadonlyArray<F> | z.ZodTypeAny | CatalogOptions,
+    themeSchemaOrOptionsOrInstructions?: z.ZodTypeAny | CatalogOptions | string,
+    instructions?: string,
+  ) {
+    let protocolVersion: ProtocolVersion | string;
+    let components: ReadonlyArray<T>;
+    let functions: ReadonlyArray<F>;
+    let themeSchemaOrOptions: z.ZodTypeAny | CatalogOptions | undefined;
+    let resolvedInstructions: string | undefined;
+
+    if (typeof protocolVersionOrComponents !== 'string') {
+      // Pre-1.0 (v0.9) signature: `new Catalog(id, components, functions, ...)`.
+      protocolVersion = '0.9';
+      components = protocolVersionOrComponents ?? [];
+      functions = (componentsOrFunctions as ReadonlyArray<F>) ?? [];
+      themeSchemaOrOptions = functionsOrThemeSchemaOrOptions as
+        | z.ZodTypeAny
+        | CatalogOptions
+        | undefined;
+      resolvedInstructions = themeSchemaOrOptionsOrInstructions as string | undefined;
+    } else {
+      protocolVersion = protocolVersionOrComponents;
+      components = (componentsOrFunctions as ReadonlyArray<T>) ?? [];
+      functions = (functionsOrThemeSchemaOrOptions as ReadonlyArray<F> | undefined) ?? [];
+      themeSchemaOrOptions = themeSchemaOrOptionsOrInstructions as
+        | z.ZodTypeAny
+        | CatalogOptions
+        | undefined;
+      resolvedInstructions = instructions;
+    }
+
+    if (!protocolVersion) {
+      throw new A2uiCatalogError('protocolVersion must be provided.');
+    }
+
+    this.id = id;
+    this.protocolVersion = protocolVersion;
+
+    const compMap = new Map<string, T>();
+    for (const comp of components) {
+      compMap.set(comp.name, comp);
+    }
+    this.components = compMap;
+
+    const options: CatalogOptions = isZodSchema(themeSchemaOrOptions)
+      ? {themeSchema: themeSchemaOrOptions}
+      : (themeSchemaOrOptions ?? {});
+    // Frozen, so neither the caller nor a reader of the catalog can change the
+    // fields `toJson` assembles the document from. Values that are already
+    // frozen, such as those `fromJson` produced, are kept without copying.
+    const defs = frozenJson(options.defs);
+
+    if (functions.some(isAgentFunction)) {
+      assertUniqueFunctionNames(this.id, functions);
+    }
+    const funcMap = new Map<string, F>();
+    const agentFuncMap = new Map<string, AgentFunction>();
+    const rendererFuncMap = new Map<string, F>();
+    for (const fn of functions) {
+      if (isAgentFunction(fn)) {
+        const boundFn = bindAgentFunctionDefs(fn, defs);
+        funcMap.set(fn.name, boundFn as unknown as F);
+        agentFuncMap.set(fn.name, boundFn);
+      } else {
+        funcMap.set(fn.name, fn);
+        rendererFuncMap.set(fn.name, fn);
+      }
+    }
+    if (agentFuncMap.size > 0) {
+      if (!isAtLeastVersion(this.protocolVersion, SpecVersion.V1_0)) {
+        throw new A2uiCatalogError(
+          `Catalog '${this.id}' targets protocol version ${this.protocolVersion}, but agent functions need v1.0 or later.`,
+        );
+      }
+      assertAgentFunctionDefsAgree(defs, agentFuncMap.values());
+      for (const [name, agentFn] of agentFuncMap) {
+        assertUax31Identifier(name, `function identifier: '${name}'`);
+        // The keys the Zod schema declares, on every branch and through
+        // wrappers, with the names a JSON Schema `schema` was written with
+        // (including references resolved against local and catalog `$defs`).
+        const argNames = new Set([
+          ...getDeclaredSchemaKeys(agentFn.schema),
+          ...(agentFn.declaredParameterNames ?? []),
+        ]);
+        for (const argName of argNames) {
+          assertUax31Identifier(argName, `argument identifier: '${argName}' in function '${name}'`);
+        }
+      }
+    }
+    this.functions = funcMap;
+    this.agentFunctions = agentFuncMap;
+    this.rendererFunctions = rendererFuncMap;
+
+    this.themeSchema = options.themeSchema;
+    this.instructions = options.instructions ?? resolvedInstructions;
+    this.schemaUri = options.schemaUri;
+    this.schemaId = options.schemaId;
+    this.title = options.title;
+    this.description = options.description;
+    this.declaredProtocolVersion = options.declaredProtocolVersion;
+    this.declaresCatalogId = options.declaresCatalogId ?? true;
+    this.declaresComponents = options.declaresComponents ?? true;
+    this.functionsLayout = options.functionsLayout;
+    this.unions = options.unions ? Object.freeze({...options.unions}) : undefined;
+    this.defs = defs;
+    this.extensionFields = frozenJson(options.extensionFields);
+    this.commonTypesUri = options.commonTypesUri;
+    this.themeLocation = options.themeLocation;
+    this.defModels = options.defModels ? Object.freeze([...options.defModels]) : undefined;
+    this.invoker = createCatalogInvoker(this.id, this.protocolVersion, this.functions, this);
+  }
+
+  /**
+   * Constructs a schema-only Catalog from an authored A2UI catalog document.
+   *
+   * Each entry is a `JsonComponentApi` or `JsonFunctionApi` whose model is
+   * its definition as written, from which its Zod schema is derived on first
+   * use, and the catalog keeps the document-level fields, so `toJson` returns
+   * the document unchanged.
+   *
+   * @param json Raw catalog document or client capabilities inline catalog.
+   * @param protocolVersion Protocol version of the catalog. When given, it
+   *   takes precedence over the `protocolVersion` the document declares: it
+   *   becomes the catalog's `protocolVersion` and selects the version's
+   *   loading rules, while `toJson` still writes the version the document
+   *   declares. When omitted, the document's version applies, and for a
+   *   document that declares none, such as those published before v1.0,
+   *   `DEFAULT_PROTOCOL_VERSION`.
+   * @param catalogId Catalog ID to use instead of the one the document
+   *   declares, or for a document that declares none, such as the v0.8 basic
+   *   catalog. It becomes the catalog's `id`, and replaces the document's own
+   *   `catalogId` in `toJson`; a document that declares none still has none
+   *   in `toJson`.
+   * @returns A new Catalog populated with component and function schemas.
+   * @throws {Error} If the catalog ID is missing or not a string.
+   * @throws {A2uiCatalogError} If a v1.0 catalog has a `$ref` to a document
+   *   other than itself or `common_types.json`, such as another catalog. Such
+   *   a reference is never fetched.
+   */
+  static fromJson(
+    json: Record<string, any>,
+    protocolVersion?: string,
+    catalogId?: string,
+  ): CatalogApi {
+    const {
+      id,
+      protocolVersion: resolvedVersion,
+      components,
+      functions,
+      ...options
+    } = parseCatalogSchema(json, protocolVersion, catalogId);
+    return new Catalog(id, resolvedVersion, components, functions, options);
+  }
+
+  /**
+   * Constructs a schema-only Catalog directly from a raw A2UI catalog schema.
+   *
+   * @deprecated Use `Catalog.fromJson` instead.
+   * @param catalogSchema Raw catalog schema or client capabilities payload object.
+   * @param protocolVersion Protocol version of the catalog, which takes
+   *   precedence over the one the schema declares, as in `fromJson`.
+   * @returns A new Catalog populated with component and function schemas.
+   * @throws {Error} If the catalog ID is missing or not a string.
+   */
+  static fromSchema(catalogSchema: Record<string, any>, protocolVersion?: string): CatalogApi {
+    return Catalog.fromJson(catalogSchema, protocolVersion);
+  }
+}
+
+/**
+ * A catalog whose components and functions carry schemas only.
+ *
+ * What `Catalog.fromJson` produces, and what agents work with: they prompt
+ * and validate against signatures but never execute a function. A renderer
+ * that executes functions needs a catalog of `FunctionImplementation`s instead.
+ */
+export type CatalogApi = Catalog<ComponentApi, FunctionApi>;
+
+/**
+ * Throws if two of `functions` share a name. Checked when the list holds an
+ * agent function, so an agent function can't silently replace another
+ * function, or be replaced by one.
+ */
+function assertUniqueFunctionNames(catalogId: string, functions: ReadonlyArray<FunctionApi>): void {
+  const seen = new Set<string>();
+  for (const fn of functions) {
+    if (seen.has(fn.name)) {
+      throw new A2uiCatalogError(
+        `Catalog '${catalogId}' already has a function named '${fn.name}'.`,
+      );
+    }
+    seen.add(fn.name);
+  }
+}
+
+/**
+ * Throws if an agent function's JSON Schema declares a local `$defs` entry
+ * that the catalog's `$defs`, or another agent function's local `$defs`,
+ * defines differently.
+ *
+ * A `#/$defs/<name>` reference in an agent function's schema resolves
+ * against the catalog's `$defs` merged with the function's own, so a name
+ * defined two ways would mean one thing to the agent and another once the
+ * catalog document is published. Equal definitions (compared as JSON values)
+ * are accepted.
+ */
+function assertAgentFunctionDefsAgree(
+  catalogDefs: Readonly<Record<string, unknown>> | undefined,
+  agentFunctions: Iterable<AgentFunction>,
+): void {
+  // The function, if any, whose local `$defs` first defined each name.
+  const seen = new Map<string, {definition: unknown; owner?: string}>();
+  for (const [name, definition] of Object.entries(catalogDefs ?? {})) {
+    seen.set(name, {definition});
+  }
+  for (const agentFn of agentFunctions) {
+    const localDefs = agentFn.jsonSchema?.['$defs'];
+    if (typeof localDefs !== 'object' || localDefs === null || Array.isArray(localDefs)) {
+      continue;
+    }
+    for (const [defName, definition] of Object.entries(localDefs as Record<string, unknown>)) {
+      const previous = seen.get(defName);
+      if (previous === undefined) {
+        seen.set(defName, {definition, owner: agentFn.name});
+        continue;
+      }
+      if (!jsonValueEquals(previous.definition, definition)) {
+        const other =
+          previous.owner === undefined ? 'the catalog' : `agent function '${previous.owner}'`;
+        throw new A2uiCatalogError(
+          `Agent function '${agentFn.name}' defines $defs '${defName}' differently from ${other}.`,
+        );
+      }
+    }
+  }
+}
+
+/**
+ * Merges `agentFunctions` into `functions`, as `Catalog.copyWith` does.
+ *
+ * An agent function built with `AgentFunction.fromApi` replaces, in place,
+ * the declaration it wraps. Any other agent function is appended.
+ *
+ * @throws {A2uiCatalogError} If an entry is not an `AgentFunction`, a name
+ *   appears twice in `agentFunctions`, an agent function takes the name of
+ *   another function, or a `fromApi` agent function wraps a declaration
+ *   `functions` doesn't have.
+ */
+function mergeAgentFunctions<F extends FunctionApi>(
+  catalogId: string,
+  functions: ReadonlyArray<F>,
+  agentFunctions: ReadonlyArray<AgentFunction> | undefined,
+): F[] {
+  if (agentFunctions === undefined) {
+    return [...functions];
+  }
+  const merged: F[] = [...functions];
+  const indexByName = new Map<string, number>();
+  for (let i = 0; i < merged.length; i++) {
+    indexByName.set(merged[i].name, i);
+  }
+  const seenAgentNames = new Set<string>();
+  for (const agentFn of agentFunctions) {
+    if (!isAgentFunction(agentFn)) {
+      throw new A2uiCatalogError(
+        `Catalog '${catalogId}' agentFunctions entry '${String((agentFn as {name?: unknown})?.name ?? agentFn)}' is not an \`AgentFunction\`.`,
+      );
+    }
+    if (seenAgentNames.has(agentFn.name)) {
+      throw new A2uiCatalogError(
+        `agentFunctions lists '${agentFn.name}' more than once; give each agent function its own name.`,
+      );
+    }
+    seenAgentNames.add(agentFn.name);
+    const existingIndex = indexByName.get(agentFn.name);
+    if (agentFn.declaration !== undefined) {
+      if (existingIndex === undefined) {
+        throw new A2uiCatalogError(
+          `Catalog '${catalogId}' has no function named '${agentFn.name}' for AgentFunction.fromApi to bind; build an agent function the catalog doesn't declare with new AgentFunction(...).`,
+        );
+      }
+      if (merged[existingIndex] !== agentFn.declaration) {
+        throw new A2uiCatalogError(
+          `Agent function '${agentFn.name}' was built with AgentFunction.fromApi from a different declaration than the one in catalog '${catalogId}' (for example, from a reloaded or copied catalog); build it from this catalog's entry: AgentFunction.fromApi(catalog.functions.get('${agentFn.name}')!, handler).`,
+        );
+      }
+      merged[existingIndex] = agentFn as unknown as F;
+    } else if (existingIndex === undefined) {
+      indexByName.set(agentFn.name, merged.length);
+      merged.push(agentFn as unknown as F);
+    } else {
+      throw new A2uiCatalogError(
+        `Catalog '${catalogId}' already has a function named '${agentFn.name}', so an agent function can't use that name: a renderer that implements the other function would run it instead of calling the agent. Give the agent function its own name, or bind a handler to the declared function with AgentFunction.fromApi(catalog.functions.get('${agentFn.name}')!, handler).`,
+      );
+    }
+  }
+  return merged;
+}
+
+function createCatalogInvoker<F extends FunctionApi>(
+  catalogId: string,
+  protocolVersion: ProtocolVersion | string,
+  functions: ReadonlyMap<string, F>,
+  catalog?: Catalog<any, any>,
+): FunctionInvoker {
+  const atLeastV10 = isAtLeastVersion(protocolVersion, SpecVersion.V1_0);
+  return (name, rawArgs, ctx, abortSignal) => {
+    const fn =
+      functions.get(name) ??
+      (atLeastV10 && name === '@index' ? (IndexImplementation as unknown as F) : undefined);
+    const execute = (fn as Partial<FunctionImplementation> | undefined)?.execute;
+
+    if (typeof execute !== 'function') {
+      // From v1.0, a function the renderer does not implement (undeclared, or
+      // declared schema-only) runs on the agent: the fallback routing of
+      // `callAgentFunction`. Reserved `@` system functions never do, and
+      // neither do evaluations that cannot wait for the agent.
+      const surface =
+        atLeastV10 && !name.startsWith('@') && ctx && allowsAgentRouting(ctx)
+          ? ctx.surface
+          : undefined;
+      if (surface?.agentFunctionCaller) {
+        return routeToAgent(surface, catalogId, name, fn, rawArgs, ctx, abortSignal);
+      }
+    }
+
+    if (!fn) {
+      throw new A2uiExpressionError(`Function not found in catalog '${catalogId}': ${name}`, name);
+    }
+    assertRendererCaller(fn);
+    assertUserActivation(fn, ctx);
+    if (typeof execute !== 'function') {
+      throw new A2uiExpressionError(
+        `Function '${name}' in catalog '${catalogId}' is schema-only and has no implementation.`,
+        name,
+      );
+    }
+
+    const callCtx =
+      atLeastV10 && !name.startsWith('@') && catalogId && ctx instanceof DataContext
+        ? withActiveCallCatalogId(ctx, catalogId, catalog)
+        : ctx;
+
+    return whenArgumentsSettle(rawArgs, abortSignal, resolvedArgs => {
+      try {
+        const args = coerceDynamicBooleans(fn.schema, resolvedArgs);
+        const safeArgs = fn.schema.parse(args);
+        return execute.call(fn, safeArgs, callCtx, abortSignal);
+      } catch (e: any) {
+        if (e?.name === 'ZodError' || e instanceof z.ZodError) {
+          throw new A2uiExpressionError(
+            `Validation failed for function '${name}': ${e.message}`,
+            name,
+            e.errors ?? e.issues,
+          );
+        }
+        throw e;
+      }
+    });
+  };
+}
+
+/**
+ * Runs `run` with the settled arguments of a call.
+ *
+ * An argument produced by an asynchronous function arrives as a pending
+ * Promise. `run` waits for every such argument, while fully settled arguments
+ * keep the call synchronous. A failed argument is returned instead of running,
+ * even when the evaluation was aborted meanwhile, so the enclosing call stops.
+ * Otherwise an aborted evaluation resolves to `undefined` without running.
+ *
+ * @param rawArgs The resolved arguments, which may hold pending values.
+ * @param abortSignal Signal that marks the evaluation as stale.
+ * @param run Validates and runs the call with the settled arguments.
+ * @returns The result of `run`, a Promise of it, or the failed argument.
+ */
+function whenArgumentsSettle(
+  rawArgs: unknown,
+  abortSignal: AbortSignal | undefined,
+  run: (resolvedArgs: unknown) => unknown,
+): unknown {
+  const settledArgs = settleDeep(rawArgs);
+  if (!isThenable(settledArgs)) {
+    return findFailedArgument(settledArgs) ?? run(settledArgs);
+  }
+  return Promise.resolve(settledArgs).then(
+    resolvedArgs =>
+      findFailedArgument(resolvedArgs) ?? (abortSignal?.aborted ? undefined : run(resolvedArgs)),
+  );
+}
+
+/**
+ * Sends a call the renderer does not implement to the agent.
+ *
+ * A declared (schema-only) function is refused if it is `agentOnly` or needs
+ * a user gesture the evaluation lacks, and its settled arguments are
+ * validated and parsed against its schema before sending, so the agent
+ * receives what a local implementation would. The call always names the
+ * catalog it resolved to, so the agent never has to know the surface's
+ * default catalog. Action calls bypass the shared-call cache.
+ */
+function routeToAgent(
+  surface: SurfaceModel<any, any>,
+  catalogId: string,
+  name: string,
+  fn: FunctionApi | undefined,
+  rawArgs: unknown,
+  ctx: DataContext,
+  abortSignal: AbortSignal | undefined,
+): unknown {
+  if (fn) {
+    assertRendererCaller(fn);
+    assertUserActivation(fn, ctx);
+  }
+  const bypassCache = Boolean(ctx.isActionExecution);
+  return whenArgumentsSettle(rawArgs, abortSignal, resolvedArgs => {
+    let args = (resolvedArgs ?? {}) as Record<string, unknown>;
+    if (fn) {
+      args = coerceDynamicBooleans(fn.schema, args) as Record<string, unknown>;
+      const parsed = fn.schema.safeParse(args);
+      if (!parsed.success) {
+        throw new A2uiExpressionError(
+          `Validation failed for function '${name}': ${parsed.error.message}`,
+          name,
+          parsed.error.errors,
+        );
+      }
+      args = parsed.data as Record<string, unknown>;
+    }
+    return surface.callAgentFunction({'@call': name, catalogId, args}, {abortSignal, bypassCache});
+  });
+}
+
+/**
+ * Refuses a function the catalog restricts to agent-initiated
+ * `callRendererFunction` calls. The invoker runs the renderer's own calls
+ * (bindings, checks and actions); `RpcHandler` runs agent calls without it.
+ */
+function assertRendererCaller(fn: FunctionApi): void {
+  if (fn.allowedCallers === 'agentOnly') {
+    throw new A2uiExpressionError(
+      `Function '${fn.name}' cannot be called by renderer (allowedCallers is agentOnly).`,
+      fn.name,
+    );
+  }
+}
+
+function assertUserActivation(fn: FunctionApi, ctx: DataContext | undefined): void {
+  if (!fn.requiresUserActivation) return;
+  const isPassive = Boolean(
+    (ctx as {isPassiveEvaluation?: boolean} | undefined)?.isPassiveEvaluation,
+  );
+  const isActivated = Boolean((ctx as {isUserActivated?: boolean} | undefined)?.isUserActivated);
+  const browserUnactivated =
+    !isActivated &&
+    typeof navigator !== 'undefined' &&
+    !(navigator.userActivation?.isActive ?? true);
+  if (isPassive || browserUnactivated) {
+    throw new A2uiExpressionError(
+      `Function '${fn.name}' requires user activation and cannot be evaluated without an active user gesture.`,
+      fn.name,
+    );
+  }
+}

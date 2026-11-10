@@ -40,22 +40,21 @@ public final class SurfaceGroupModel: ObservableObject {
     surfacesMap[vm.surfaceID] = vm
   }
 
-  /// Removes a surface from the group by its ID.
+  /// Removes a surface from the group by its ID and disposes its subscriptions.
   public func removeSurface(id: String) {
-    guard surfacesMap[id] != nil else { return }
-    surfacesMap.removeValue(forKey: id)
+    guard let surface = surfacesMap.removeValue(forKey: id) else { return }
+    surface.dispose()
   }
 
   // MARK: - Surface Lookup
 
-  /// Retrieves a surface by its ID.
-  public func surface(id: String) -> SurfaceViewModel? {
-    surfacesMap[id]
+  /// Accesses a surface by its ID.
+  public subscript(surfaceID: String) -> SurfaceViewModel? {
+    surfacesMap[surfaceID]
   }
 
   /// Returns a snapshot of all active surfaces.
   public func allSurfaces() -> [String: SurfaceViewModel] {
     surfacesMap
   }
-
 }

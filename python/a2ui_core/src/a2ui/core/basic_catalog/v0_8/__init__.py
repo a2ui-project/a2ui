@@ -26,11 +26,14 @@ from .components import (
     ActionItem,
     LabelItem,
     ValueItem,
+    DateTimeInputValueItem,
     SelectionItem,
     OptionItem,
+    SliderValueItem,
     TemplateItem,
     TitleItem,
     ContextItem,
+    ContextValueItem,
     TextComponent,
     ImageComponent,
     IconComponent,
@@ -76,6 +79,8 @@ from ...catalog import Catalog, ModelComponentApi, FunctionImplementation
 
 
 def _basic_catalog_id(protocol_version: str) -> str:
+    if protocol_version == "v0.8":
+        return f"{PROTOCOL_BASE_URL}/v0_8/standard_catalog_definition.json"
     return (
         f"{PROTOCOL_BASE_URL}/{protocol_version.replace('.', '_')}/catalogs/basic/catalog.json"
     )
@@ -89,7 +94,12 @@ class BasicCatalog(Catalog[ModelComponentApi, FunctionImplementation]):
             protocol_version=PROTOCOL_VERSION,
             components=BASIC_COMPONENTS,
             functions=[],
-            theme_schema=Theme.model_json_schema(),
+            theme_model=Theme,
+            schema_dialect=None,
+            declared_protocol_version=None,
+            declares_catalog_id=False,
+            theme_location="styles",
+            union_defs={},
         )
 
 
@@ -104,11 +114,14 @@ __all__ = [
     "ActionItem",
     "LabelItem",
     "ValueItem",
+    "DateTimeInputValueItem",
     "SelectionItem",
     "OptionItem",
+    "SliderValueItem",
     "TemplateItem",
     "TitleItem",
     "ContextItem",
+    "ContextValueItem",
     "TextComponent",
     "ImageComponent",
     "IconComponent",

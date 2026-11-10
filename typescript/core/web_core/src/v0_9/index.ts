@@ -1,0 +1,105 @@
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the 'License');
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an 'AS IS' BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/**
+ * Core rendering and state management logic for A2UI v0.9.
+ *
+ * This module exports the fundamental building blocks for building web-based A2UI renderers,
+ * including the data model, component model, and expression parsing logic.
+ */
+
+export * from '../catalog/function_invoker.js';
+export * from '../catalog/types.js';
+export * from '../common/events.js';
+export {
+  validateMetadata,
+  cloneMetadata,
+  metadataEquals,
+  type A2uiMetadata,
+  type Extensions,
+  type ActionDispatchOptions,
+} from '../common/metadata.js';
+export * from '../processing/message-processor.js';
+export {
+  mapErrorToRendererMessage,
+  extractEnvelopeErrorContext,
+  normalizeJsonPointer,
+  type RendererErrorMessage,
+  type A2uiRendererError,
+  type ValidationFailedErrorBody,
+  type GenericErrorBody,
+  type ErrorEnvelopeContext,
+} from '../processing/message-error-mapper.js';
+export * from '../resolution/index.js';
+export * from './schema/index.js';
+export * from './standard_defs.js';
+export * from '../state/component-model.js';
+export * from '../state/data-model.js';
+export * from '../state/surface-components-model.js';
+export * from '../state/surface-group-model.js';
+export * from '../state/surface-model.js';
+export * from '../errors.js';
+export type {ResolvedChildRef} from '../resolution/index.js';
+export type {DataBindingType, FunctionCallType} from '../types/common-types.js';
+export {MAX_FUNCTION_CALL_ARGS} from '../types/helpers.js';
+export * from './basic_catalog/index.js';
+export {
+  MAX_REGEX_PATTERN_CODE_POINTS,
+  MAX_REGEX_VALUE_CODE_POINTS,
+  RegexSyntaxError,
+  analyzeRegex,
+  checkRegexSafety,
+  parseRegexSubset,
+  type AnchorKind,
+  type CodePointRange,
+  type RegexAnalysisResult,
+  type RegexNode,
+  type RegexRejection,
+} from '../common/regex_subset.js';
+export * from '../validation/integrity-checker.js';
+export {
+  /** @deprecated Import from `@a2ui/web_core/v0_9/basic_catalog` instead. */
+  injectBasicCatalogStyles,
+  /** @deprecated Import from `@a2ui/web_core/v0_9/basic_catalog` instead. */
+  computeColorVariant,
+} from '../universal/basic_catalog/styles/default.js';
+export type {
+  /** @deprecated Import from `@a2ui/web_core/v0_9/basic_catalog` instead. */
+  ColorVariantLightDarkOptions,
+  /** @deprecated Import from `@a2ui/web_core/v0_9/basic_catalog` instead. */
+  ColorVariantHoverOptions,
+} from '../universal/basic_catalog/styles/default.js';
+
+export {
+  type Signal,
+  effect,
+  signal,
+  computed,
+  getValue,
+  peekValue,
+  batchWrite,
+  isSignal,
+  setValue,
+  setSignalImplementation,
+  _PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION,
+  type SignalImplementations,
+} from '../reactivity/signals.js';
+
+import A2uiMessageSchemaRaw from './schemas/server_to_client.json' with {type: 'json'};
+
+export const Schemas = {
+  A2uiMessageSchemaRaw,
+};

@@ -19,13 +19,12 @@ import os
 import unittest
 
 from a2ui.core import Catalog
-from a2ui.schema import A2uiCatalog
-from a2ui.inference_formats.experimental.elemental.parser import ElementalParser
+from a2ui.inference_formats.experimental.elemental import ElementalParser
 
-from a2ui.schema.utils import find_repo_root, get_spec_dir
+from ..repo_paths import find_repo_root
+
 
 REPO_ROOT = find_repo_root(os.path.dirname(__file__)) or ""
-SPEC_DIR = get_spec_dir("v1_0")
 CATALOG_PATH = os.path.join(REPO_ROOT, "catalogs", "basic", "v1", "catalog.json")
 
 
@@ -40,9 +39,9 @@ class TestElementalParser(unittest.TestCase):
         self.catalog = Catalog.from_json(catalog_dict, protocol_version="0.9.1")
 
     def test_decompile_delete_surface(self):
-        decompiler = ElementalParser(self.catalog)
+        decompiler = ElementalParser([self.catalog])
         envelope = {
-            "version": "v1.0",
+            "version": "1.0",
             "deleteSurface": {"surfaceId": "dashboard-surface-1"},
         }
         html_output = decompiler.decompile(envelope)
@@ -51,11 +50,10 @@ class TestElementalParser(unittest.TestCase):
         )
 
     def test_decompile_call_function(self):
-        decompiler = ElementalParser(self.catalog)
+        decompiler = ElementalParser([self.catalog])
         envelope = {
-            "version": "v1.0",
+            "version": "1.0",
             "functionCallId": "call_1",
-            "wantResponse": True,
             "callFunction": {
                 "call": "openUrl",
                 "args": {"url": "https://example.com"},
@@ -64,14 +62,13 @@ class TestElementalParser(unittest.TestCase):
         html_output = decompiler.decompile(envelope)
         self.assertEqual(
             html_output,
-            '<ui-call-function id="call_1" name="openUrl" url="https://example.com"'
-            ' want-response="{true}" />',
+            '<ui-call-function id="call_1" name="openUrl" url="https://example.com" />',
         )
 
     def test_decompile_update_data_model(self):
-        decompiler = ElementalParser(self.catalog)
+        decompiler = ElementalParser([self.catalog])
         envelope = {
-            "version": "v1.0",
+            "version": "1.0",
             "updateDataModel": {
                 "surfaceId": "my-surf",
                 "value": {"foo": "bar", "num": 42},
@@ -79,7 +76,7 @@ class TestElementalParser(unittest.TestCase):
         }
         html_output = decompiler.decompile(envelope)
         expected = (
-            '<body id="my-surf">\n'
+            '<body id="my-surf" update>\n'
             '  <script type="application/json">\n'
             "    {\n"
             '      "foo": "bar",\n'
@@ -90,13 +87,32 @@ class TestElementalParser(unittest.TestCase):
         )
         self.assertEqual(html_output, expected)
 
-    def test_decompile_create_surface_basic(self):
-        decompiler = ElementalParser(self.catalog)
+    def test_decompile_unknown_catalog_raises(self):
+        decompiler = ElementalParser([self.catalog])
         envelope = {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "test-surf",
-                "catalogId": "https://a2ui.org/catalog.json",
+                "catalogId": "https://example.com/unknown_catalog.json",
+                "components": [{"id": "root", "component": "Text", "text": "Hi"}],
+            },
+        }
+        with self.assertRaisesRegex(ValueError, "Unknown catalogId"):
+            decompiler.decompile(envelope)
+
+    def test_decompile_create_surface_basic(self):
+        with open(self.catalog_path, "r", encoding="utf-8") as f:
+            first_dict = json.load(f)
+            second_dict = dict(first_dict)
+        first_catalog = Catalog.from_json(first_dict, protocol_version="1.0")
+        second_dict["catalogId"] = "https://example.com/second_catalog.json"
+        second_catalog = Catalog.from_json(second_dict, protocol_version="1.0")
+        decompiler = ElementalParser([first_catalog, second_catalog])
+        envelope = {
+            "version": "1.0",
+            "createSurface": {
+                "surfaceId": "test-surf",
+                "catalogId": "https://example.com/second_catalog.json",
                 "dataModel": {"title": "Hello World"},
                 "components": [
                     {
@@ -115,24 +131,19 @@ class TestElementalParser(unittest.TestCase):
         }
         html_output = decompiler.decompile(envelope)
         expected = (
-            '<body id="test-surf">\n'
-            '  <link rel="catalog" href="https://a2ui.org/catalog.json">\n'
-            '  <script type="application/json">\n'
-            "    {\n"
-            '      "title": "Hello World"\n'
-            "    }\n"
-            "  </script>\n"
-            '  <ui-card id="comp_0" weight="{4}">\n'
-            '    <ui-text id="comp_1" text="{$/title}" />\n'
-            "  </ui-card>\n"
-            "</body>"
+            '<body id="test-surf">\n  <script type="application/json">\n    {\n    '
+            '  "title": "Hello World"\n    }\n  </script>\n  <ui-card id="comp_0"'
+            ' catalog-id="https://example.com/second_catalog.json" weight="{4}">\n '
+            '   <ui-text id="comp_1"'
+            ' catalog-id="https://example.com/second_catalog.json" text="{$/title}"'
+            " />\n  </ui-card>\n</body>"
         )
         self.assertEqual(html_output, expected)
 
     def test_decompile_omits_default_catalog_link(self):
-        decompiler = ElementalParser(self.catalog)
+        decompiler = ElementalParser([self.catalog])
         envelope = {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "test-surf",
                 "catalogId": (
@@ -171,9 +182,9 @@ class TestElementalParser(unittest.TestCase):
 
     def test_decompile_options_contraction(self):
         # ChoicePicker is the dropdown component in the basic catalog
-        decompiler = ElementalParser(self.catalog)
+        decompiler = ElementalParser([self.catalog])
         envelope = {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "test-surf",
                 "components": [{
@@ -191,9 +202,9 @@ class TestElementalParser(unittest.TestCase):
 
     def test_decompile_complex_slot_property(self):
         # Test script slot using ChoicePicker options (where label and value differ in case)
-        decompiler = ElementalParser(self.catalog)
+        decompiler = ElementalParser([self.catalog])
         envelope = {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "test-surf",
                 "components": [{
@@ -212,9 +223,9 @@ class TestElementalParser(unittest.TestCase):
         self.assertIn('"value": "red"', html_output)
 
     def test_decompile_actions_and_events(self):
-        decompiler = ElementalParser(self.catalog)
+        decompiler = ElementalParser([self.catalog])
         envelope = {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "test-surf",
                 "components": [
@@ -242,9 +253,9 @@ class TestElementalParser(unittest.TestCase):
 
     def test_decompile_checks_with_implicit_value(self):
         # TextField is the input component in the basic catalog
-        decompiler = ElementalParser(self.catalog)
+        decompiler = ElementalParser([self.catalog])
         envelope = {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "test-surf",
                 "components": [{
@@ -265,9 +276,9 @@ class TestElementalParser(unittest.TestCase):
         self.assertIn('checks="{[required()]}"', html_output)
 
     def test_decompile_checks_with_custom_message(self):
-        decompiler = ElementalParser(self.catalog)
+        decompiler = ElementalParser([self.catalog])
         envelope = {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "test-surf",
                 "components": [{
@@ -290,9 +301,9 @@ class TestElementalParser(unittest.TestCase):
         )
 
     def test_decompile_list_with_template(self):
-        decompiler = ElementalParser(self.catalog)
+        decompiler = ElementalParser([self.catalog])
         envelope = {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "test-surf",
                 "components": [
@@ -323,12 +334,9 @@ class TestElementalParser(unittest.TestCase):
         self.assertIn(expected_list, html_output)
 
     def test_decompile_custom_template_property(self):
-        catalog = A2uiCatalog(
-            version="1.0",
-            name="custom_catalog",
-            experiments={"version_1_0"},
-            s2c_schema={},
-            common_types_schema={},
+        catalog = Catalog.from_json(
+            protocol_version="1.0",
+            catalog_id="https://a2ui.org/custom_catalog",
             catalog_schema={
                 "catalogId": "https://a2ui.org/custom_catalog",
                 "components": {
@@ -337,13 +345,17 @@ class TestElementalParser(unittest.TestCase):
                 },
             },
         )
-        decompiler = ElementalParser(catalog)
+        decompiler = ElementalParser([catalog])
         envelope = {
             "version": "1.0",
             "createSurface": {
                 "surfaceId": "test-surf",
                 "components": [
-                    {"id": "list_1", "component": "CustomList", "template": "item_1"},
+                    {
+                        "id": "list_1",
+                        "component": "CustomList",
+                        "template": "item_1",
+                    },
                     {"id": "item_1", "component": "Text", "text": "Hello"},
                 ],
             },
@@ -353,30 +365,27 @@ class TestElementalParser(unittest.TestCase):
         self.assertIn('<ui-text id="item_1"', html_output)
 
     def test_decompile_named_slots(self):
-        catalog = A2uiCatalog(
-            version="1.0",
-            name="custom_catalog",
-            experiments={"version_1_0"},
-            s2c_schema={},
-            common_types_schema={},
+        catalog = Catalog.from_json(
+            protocol_version="1.0",
+            catalog_id="https://a2ui.org/custom_catalog",
             catalog_schema={
                 "catalogId": "https://a2ui.org/custom_catalog",
                 "components": {
                     "CustomCard": {
                         "properties": {
-                            "leading": {"$ref": "#/definitions/ComponentId"},
+                            "leading": {"$ref": "#/$defs/ComponentId"},
                             "trailing": {
                                 "type": "array",
-                                "items": {"$ref": "#/definitions/ComponentId"},
+                                "items": {"$ref": "#/$defs/ComponentId"},
                             },
                         }
                     },
                     "Text": {"properties": {"text": {"type": "string"}}},
                 },
-                "definitions": {"ComponentId": {"type": "string"}},
+                "$defs": {"ComponentId": {"type": "string"}},
             },
         )
-        decompiler = ElementalParser(catalog)
+        decompiler = ElementalParser([catalog])
         envelope = {
             "version": "1.0",
             "createSurface": {
@@ -398,9 +407,9 @@ class TestElementalParser(unittest.TestCase):
         self.assertIn('slot="trailing"', html_output)
 
     def test_decompile_boolean_and_null_attributes(self):
-        decompiler = ElementalParser(self.catalog)
+        decompiler = ElementalParser([self.catalog])
         envelope = {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "test-surf",
                 "components": [{
@@ -418,9 +427,9 @@ class TestElementalParser(unittest.TestCase):
         self.assertIn('placeholder="{null}"', html_output)
 
     def test_decompile_checks_with_positional_args(self):
-        decompiler = ElementalParser(self.catalog)
+        decompiler = ElementalParser([self.catalog])
         envelope = {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "test-surf",
                 "components": [{
@@ -442,9 +451,9 @@ class TestElementalParser(unittest.TestCase):
         self.assertIn('checks="{[required()]}"', html_output)
 
     def test_decompile_dict_expressions_and_function_calls(self):
-        decompiler = ElementalParser(self.catalog)
+        decompiler = ElementalParser([self.catalog])
         envelope = {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
                 "surfaceId": "test-surf",
                 "components": [
@@ -473,25 +482,22 @@ class TestElementalParser(unittest.TestCase):
         self.assertIn('"foo": "bar"', html_output)
 
     def test_decompile_multiple_actions_prefixing(self):
-        catalog = A2uiCatalog(
-            version="1.0",
-            name="custom_catalog",
-            experiments={"version_1_0"},
-            s2c_schema={},
-            common_types_schema={},
+        catalog = Catalog.from_json(
+            protocol_version="1.0",
+            catalog_id="https://a2ui.org/custom_catalog",
             catalog_schema={
                 "catalogId": "https://a2ui.org/custom_catalog",
                 "components": {
                     "MultiActionButton": {
                         "properties": {
-                            "onPress": {"$ref": "#/definitions/Action"},
-                            "ongoing": {"$ref": "#/definitions/Action"},
+                            "onPress": {"$ref": "#/$defs/Action"},
+                            "ongoing": {"$ref": "#/$defs/Action"},
                         }
                     }
                 },
             },
         )
-        decompiler = ElementalParser(catalog)
+        decompiler = ElementalParser([catalog])
         envelope = {
             "version": "1.0",
             "createSurface": {
@@ -518,7 +524,7 @@ class TestElementalParser(unittest.TestCase):
 
     def test_decompile_call_and_dict_expressions(self):
         """Test decompilation of call objects and arbitrary dict expressions in Elemental format."""
-        decompiler = ElementalParser(self.catalog)
+        decompiler = ElementalParser([self.catalog])
         envelope = {
             "version": "1.0",
             "createSurface": {
@@ -540,7 +546,7 @@ class TestElementalParser(unittest.TestCase):
 
     def test_decompile_contracted_options(self):
         """Test decompilation of contractable options list where label equals value."""
-        decompiler = ElementalParser(self.catalog)
+        decompiler = ElementalParser([self.catalog])
         envelope = {
             "version": "1.0",
             "createSurface": {

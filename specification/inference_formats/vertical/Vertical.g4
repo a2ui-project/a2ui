@@ -2,28 +2,28 @@
  * ANTLR4 grammar for the A2UI Vertical language.
  *
  * Defines the syntax and lexical rules for the A2UI Vertical inference format.
- * Compiles flat, non-nested component constructor invocations into independent
- * surfaces within standard A2UI messages.
+ * Compiles flat, non-nested component constructor and standalone function
+ * invocations into standard A2UI messages (v0.9, v0.9.1, and 1.0).
  */
 grammar Vertical;
 
 /**
- * Root entrypoint. A Vertical program is a sequence of zero or more component constructors.
+ * Root entrypoint. A Vertical program is a sequence of zero or more top-level calls.
  */
 program
-    : componentCall* EOF
+    : statement* EOF
     ;
 
 /**
- * Direct component constructor invocation.
+ * Direct component constructor or standalone renderer function invocation.
  * Example: WeatherWidget(city="Seattle", temperature=58)
  */
-componentCall
-    : IDENTIFIER '(' (arg (',' arg)* ','?)? ')'
+statement
+    : IDENTIFIER '(' (arg (',' arg)* ','?)? ')' ';'?
     ;
 
 /**
- * An argument to a component constructor, which can be named or positional.
+ * An argument to a call, which can be named or positional.
  */
 arg
     : namedArg
@@ -34,7 +34,7 @@ arg
  * A named argument (e.g. 'city="Seattle"' or 'city: "Seattle"').
  */
 namedArg
-    : (IDENTIFIER | STRING) ('=' | ':') value
+    : (IDENTIFIER | EVENT | STRING) ('=' | ':') value
     ;
 
 /**
@@ -51,7 +51,10 @@ value
     : literal
     | path
     | event
+    | checkRule
+    | functionCall
     | array
+    | mapLiteral
     ;
 
 /**
@@ -73,10 +76,26 @@ path
 
 /**
  * An action trigger or event instantiation.
- * Example: Event("openDetails", item="123")
+ * Example: Event("openDetails", item="123", userMessage="Opening details")
  */
 event
     : EVENT '(' (arg (',' arg)* ','?)? ')'
+    ;
+
+/**
+ * A validation check rule expression on a checkable input component.
+ * Example: ?required or ?regex("^[0-9]+$", "Digits only")
+ */
+checkRule
+    : '?' IDENTIFIER ('(' (arg (',' arg)* ','?)? ')')?
+    ;
+
+/**
+ * A nested catalog function call expression.
+ * Example: formatString("Hello ${/user/name}") or openUrl("https://example.com")
+ */
+functionCall
+    : IDENTIFIER '(' (arg (',' arg)* ','?)? ')'
     ;
 
 /**
@@ -86,11 +105,18 @@ array
     : '[' (value (',' value)* ','?)? ']'
     ;
 
+/**
+ * Map / object literal of key-value pairs.
+ */
+mapLiteral
+    : '{' (namedArg (',' namedArg)* ','?)? '}'
+    ;
+
 /* --- Lexer Rules --- */
 
 EVENT: 'Event';
 
-PATH: '$' ('/' [a-zA-Z0-9_.~%+-]+)+;
+PATH: '$' ('/' [a-zA-Z0-9_.~%+-]*)* | '$' [a-zA-Z0-9_.~%+-]+ ('/' [a-zA-Z0-9_.~%+-]+)*;
 
 BOOLEAN
     : [tT] [rR] [uU] [eE]
@@ -105,18 +131,20 @@ NULL
 IDENTIFIER: [a-zA-Z_][a-zA-Z0-9_]*;
 
 NUMBER
-    : [+-]? [0-9]+ ('.' [0-9]+)? ([eE] [+-]? [0-9]+)? '%'?
+    : [+-]? ([0-9]+ ('.' [0-9]*)? | '.' [0-9]+) ([eE] [+-]? [0-9]+)? '%'?
     ;
 
 STRING
-    : '"' (~["\\\r\n] | '\\' .)* '"'
-    | '\'' (~['\\\r\n] | '\\' .)* '\''
-    | '"""' .*? '"""'
+    : [rR]? '"""' .*? '"""'
+    | [rR]? '\'\'\'' .*? '\'\'\''
+    | [rR]? '"' (~["\\\r\n] | '\\' .)* '"'
+    | [rR]? '\'' (~['\\\r\n] | '\\' .)* '\''
     ;
 
 COMMENT
     : '#' ~[\r\n]* -> channel(HIDDEN)
     | '//' ~[\r\n]* -> channel(HIDDEN)
+    | '--' ~[\r\n]* -> channel(HIDDEN)
     | '/*' .*? '*/' -> channel(HIDDEN)
     ;
 

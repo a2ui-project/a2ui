@@ -57,9 +57,9 @@ struct RequiredFunctionTests {
     #expect(result == .boolean(true))
   }
 
-  @Test func evaluatesToFalseWhenValueIsEmptyObject() throws {
+  @Test func evaluatesToTrueWhenValueIsEmptyObject() throws {
     let result = try function.evaluate(arguments: ["value": .object([:])], context: context)
-    #expect(result == .boolean(false))
+    #expect(result == .boolean(true))
   }
 
   @Test func evaluatesToTrueWhenValueIsTrue() throws {

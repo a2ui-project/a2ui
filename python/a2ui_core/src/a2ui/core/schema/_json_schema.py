@@ -1,0 +1,620 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Internal JSON schema helpers for the generated common types and catalog models.
+
+Some specification schemas use constructs Pydantic cannot derive from model
+fields: composition (`allOf`/`oneOf`) over other models, a reference to the
+catalog's function union in another document, or an `anyOf` that must not be
+rewritten to `oneOf`. The generated models declare such keywords with these
+helpers, so no specification schema is copied verbatim.
+
+This module is internal to a2ui-core and is not re-exported by any facade.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
+import copy
+import sys
+from typing import Annotated, Any, Final
+
+from pydantic import GetCoreSchemaHandler, GetJsonSchemaHandler, TypeAdapter
+from pydantic.json_schema import JsonSchemaValue
+from pydantic_core import core_schema
+
+# Pydantic rejects `$ref`s it has not registered while it generates a schema,
+# so declared keywords reference other defs through these markers, which
+# `resolve_ref_markers` replaces afterwards: one for the catalog's function
+# union in another document, and one for a def of the same document.
+CATALOG_FUNCTIONS_MARKER: Final[str] = "x-a2ui-catalog-functions"
+CATALOG_FUNCTIONS_REF: Final[str] = "catalog.json#/$defs/anyFunction"
+DEF_REF_MARKER: Final[str] = "x-a2ui-def-ref"
+
+# Marks a union whose `anyOf` is kept, because its branches may overlap.
+KEEP_ANY_OF_MARKER: Final[str] = "x-a2ui-keep-anyOf"
+
+# Carries a specification `title`. Pydantic's own titles are dropped when the
+# schema is cleaned; this one becomes the `title` keyword instead.
+SPEC_TITLE_KEY: Final[str] = "x-a2ui-title"
+
+# Marks the def of a model that stands for a nested object in the
+# specification, for example `ComponentCommonMetadata`. Pydantic emits every
+# model as a `$defs` entry; `inline_marked_defs` puts the object back inline.
+INLINE_DEF_MARKER: Final[str] = "x-a2ui-inline"
+
+# Marks an inlined property schema that corresponds to a catalog-local `$defs`
+# entry (e.g. `#/$defs/Weight`). The property schema stays freestanding in
+# `model_json_schema()`, while `SpecShaper` hoists the marked definition into
+# the catalog's `$defs` and replaces the node with `{"$ref": "#/$defs/<name>"}`.
+CATALOG_DEF_MARKER: Final[str] = "x-a2ui-catalog-def"
+
+# Leading keyword order of an inlined def, as the specification writes them.
+_INLINED_KEYWORD_ORDER: Final[tuple[str, ...]] = (
+    "type",
+    "description",
+    "properties",
+)
+
+# Whether JSON schemas are generated in the specification's shape.
+_SPEC_SCHEMA: ContextVar[bool] = ContextVar("_SPEC_SCHEMA", default=False)
+
+
+@contextmanager
+def spec_schema() -> Iterator[None]:
+    """Generates JSON schemas in the specification's shape within the block.
+
+    The specification composes some definitions with the catalog's function
+    union, which only resolves next to a catalog. By default the models emit
+    the flat shape they validate, which catalogs embed; the published common
+    types schema is generated inside this block.
+    """
+    token = _SPEC_SCHEMA.set(True)
+    try:
+        yield
+    finally:
+        _SPEC_SCHEMA.reset(token)
+
+
+def is_spec_schema() -> bool:
+    """Returns whether JSON schemas are generated in the specification's shape."""
+    return _SPEC_SCHEMA.get()
+
+
+def catalog_functions() -> dict[str, Any]:
+    """Returns the placeholder for a reference to the catalog's function union."""
+    return {CATALOG_FUNCTIONS_MARKER: True}
+
+
+def def_ref(name: str) -> dict[str, Any]:
+    """Returns the placeholder for a `$ref` to a local def or cross-document URI."""
+    return {DEF_REF_MARKER: name}
+
+
+def resolve_ref_markers(node: Any) -> Any:
+    """Replaces the placeholders of `catalog_functions` and `def_ref` with `$ref`s."""
+    if isinstance(node, list):
+        return [resolve_ref_markers(item) for item in node]
+    if not isinstance(node, dict):
+        return node
+    ref: str | None = None
+    if node.get(CATALOG_FUNCTIONS_MARKER) is True:
+        ref = CATALOG_FUNCTIONS_REF
+    elif isinstance(node.get(DEF_REF_MARKER), str):
+        target = node[DEF_REF_MARKER]
+        ref = target if "#/" in target else f"#/$defs/{target}"
+    rest = {
+        k: resolve_ref_markers(v)
+        for k, v in node.items()
+        if k not in (CATALOG_FUNCTIONS_MARKER, DEF_REF_MARKER)
+    }
+    return rest if ref is None else {"$ref": ref, **rest}
+
+
+def inline_marked_defs(document: dict[str, Any]) -> dict[str, Any]:
+    """Inlines the defs marked with `INLINE_DEF_MARKER` at their references.
+
+    Sibling keywords of a `$ref` (e.g. a `description`) take precedence over
+    the def's own keywords. The marked defs are removed from `$defs`.
+
+    Returns:
+        A copy of `document` without marked defs.
+    """
+    defs = document.get("$defs")
+    if not isinstance(defs, dict):
+        return document
+    marked = {
+        name: {k: v for k, v in schema.items() if k != INLINE_DEF_MARKER}
+        for name, schema in defs.items()
+        if isinstance(schema, dict) and schema.get(INLINE_DEF_MARKER) is True
+    }
+    if not marked:
+        return document
+
+    def _is_recursive(def_name: str, node: Any, path: frozenset[str]) -> bool:
+        if isinstance(node, list):
+            return any(_is_recursive(def_name, item, path) for item in node)
+        if isinstance(node, dict):
+            ref = node.get("$ref")
+            if isinstance(ref, str) and ref.startswith("#/$defs/"):
+                target = ref[len("#/$defs/") :]
+                if target == def_name:
+                    return True
+                if target in marked and target not in path:
+                    if _is_recursive(def_name, marked[target], path | {target}):
+                        return True
+            return any(_is_recursive(def_name, v, path) for v in node.values())
+        return False
+
+    recursive = {
+        name
+        for name, schema in marked.items()
+        if _is_recursive(name, schema, frozenset())
+    }
+    for name in recursive:
+        del marked[name]
+
+    def inline(node: Any, visiting: frozenset[str]) -> Any:
+        if isinstance(node, list):
+            return [inline(item, visiting) for item in node]
+        if not isinstance(node, dict):
+            return node
+        ref = node.get("$ref")
+        if isinstance(ref, str) and ref.startswith("#/$defs/"):
+            name = ref[len("#/$defs/") :]
+            if name in marked:
+                if name in visiting:
+                    return node
+                siblings = {k: v for k, v in node.items() if k != "$ref"}
+                merged = {**marked[name], **siblings}
+                ordered = {k: merged[k] for k in _INLINED_KEYWORD_ORDER if k in merged}
+                ordered.update(merged)
+                return inline(copy.deepcopy(ordered), visiting | {name})
+        return {k: inline(v, visiting) for k, v in node.items()}
+
+    result: dict[str, Any] = {
+        k: inline(v, frozenset()) for k, v in document.items() if k != "$defs"
+    }
+    kept = {
+        name: (
+            {k: v for k, v in schema.items() if k != INLINE_DEF_MARKER}
+            if isinstance(schema, dict)
+            else schema
+        )
+        for name, schema in defs.items()
+        if name not in marked
+    }
+    if kept:
+        result["$defs"] = inline(kept, frozenset())
+    return result
+
+
+class JsonSchemaAs:
+    """Annotation that derives a field's JSON schema from another type.
+
+    Validation still uses the annotated type. This lets a field document the
+    specification's precise shape without changing what it accepts. It
+    applies only within `spec_schema()`.
+    """
+
+    def __init__(self, schema_type: Any) -> None:
+        self.schema_type = schema_type
+        self._adapter: TypeAdapter[Any] | None = None
+        self._generating: ContextVar[bool] = ContextVar(
+            f"json_schema_as_{id(self)}", default=False
+        )
+
+    def __get_pydantic_json_schema__(
+        self, schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
+        if not is_spec_schema():
+            return handler(schema)
+        # The schema type may contain the model that owns this field, for
+        # example `FunctionCall` inside `DynamicValue`. Pydantic inlines that
+        # model and only records its definition once it is complete, so the
+        # nested copy would recurse forever. The nested copy gets an empty
+        # schema instead; the outer copy completes afterwards and replaces its
+        # definition, so the published schema is unaffected. The guard needs a
+        # single shared instance, so declare it once at module level.
+        if self._generating.get():
+            return {}
+        # Built on first use, when every model the type refers to is defined.
+        if self._adapter is None:
+            self._adapter = TypeAdapter(self.schema_type)
+        token = self._generating.set(True)
+        try:
+            return handler(self._adapter.core_schema)
+        finally:
+            self._generating.reset(token)
+
+
+class KeepAnyOf:
+    """Annotation marking a union whose JSON schema keeps `anyOf`."""
+
+    def __get_pydantic_json_schema__(
+        self, schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
+        json_schema = handler(schema)
+        json_schema[KEEP_ANY_OF_MARKER] = True
+        return json_schema
+
+
+class CatalogDef:
+    """Annotation marking a type alias that corresponds to a catalog-local `$defs` entry."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+        self._canonical: dict[str, Any] | None = None
+        frame = sys._getframe(1)
+        self._locals: dict[str, Any] = frame.f_locals
+        self._globals: dict[str, Any] = frame.f_globals
+
+    def canonical_schema(
+        self, ref_template: str = "#/$defs/{model}"
+    ) -> dict[str, Any] | None:
+        if self._canonical is not None:
+            return copy.deepcopy(self._canonical)
+        pascal_name = "".join(
+            part[:1].upper() + part[1:]
+            for part in self.name.replace("-", "_").split("_")
+            if part
+        )
+        candidates = (
+            (self.name, pascal_name)
+            if pascal_name and pascal_name != self.name
+            else (self.name,)
+        )
+        alias_tp = None
+        for cand in candidates:
+            alias_tp = self._locals.get(cand)
+            if alias_tp is None:
+                alias_tp = self._globals.get(cand)
+            if alias_tp is not None:
+                break
+        if alias_tp is None:
+            return None
+        raw = TypeAdapter(alias_tp).json_schema(ref_template=ref_template)
+        self._canonical = {
+            k: v for k, v in raw.items() if k not in (CATALOG_DEF_MARKER, "$defs")
+        }
+        return copy.deepcopy(self._canonical)
+
+    def __get_pydantic_json_schema__(
+        self, schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
+        json_schema = handler(schema)
+        json_schema[CATALOG_DEF_MARKER] = self.name
+        return json_schema
+
+
+class _OmitAdditionalProperties:
+    """Annotation that drops the implied `additionalProperties: true`."""
+
+    def __get_pydantic_json_schema__(
+        self, schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
+        json_schema = handler(schema)
+        if json_schema.get("additionalProperties") is True:
+            del json_schema["additionalProperties"]
+        return json_schema
+
+
+# An object with any keys, emitted as a plain `{"type": "object"}`.
+OpenObject = Annotated[dict[str, Any], _OmitAdditionalProperties()]
+
+
+class SchemaKeywords:
+    """JSON schema keywords that a type or model cannot produce itself.
+
+    Use it as an `Annotated` metadata item, or as a model's
+    `json_schema_extra`. On a model, the keywords apply only to the model
+    whose config declares them; subclasses inherit the config but keep their
+    own schema. For example, `ComponentCommon` leaves `additionalProperties`
+    out as the specification does, while catalog components that subclass it
+    stay closed. A `oneOf` of required properties that a model declares is
+    also validated (see `SpecBaseModel`).
+
+    Args:
+        keywords: Keywords to set, for example `unevaluatedProperties`.
+        drop: Keywords to remove first, for example `additionalProperties`
+            where the specification leaves the object open.
+        spec_only: Whether the keywords apply only within `spec_schema()`,
+            because they reference the catalog's function union.
+        replace: Whether the keywords replace the schema except its
+            `description`, for a def that the specification writes as pure
+            composition.
+    """
+
+    def __init__(
+        self,
+        keywords: dict[str, Any] | None = None,
+        *,
+        drop: tuple[str, ...] = (),
+        spec_only: bool = False,
+        replace: bool = False,
+    ) -> None:
+        self.keywords = keywords or {}
+        self.drop = drop
+        self.spec_only = spec_only
+        self.replace = replace
+
+    def declared_by(self, cls: type[Any]) -> bool:
+        """Returns whether `cls` declares these keywords, not a base class."""
+        return not any(
+            getattr(base, "model_config", {}).get("json_schema_extra") is self
+            for base in cls.__mro__[1:]
+        )
+
+    def required_one_of(self) -> list[list[str]] | None:
+        """Returns the property groups of a `oneOf` of required properties.
+
+        For example `FunctionResponse` requires exactly one of `value` and
+        `error`. Returns None if the keywords have no such `oneOf`.
+        """
+        branches = self.keywords.get("oneOf")
+        if not (
+            isinstance(branches, list)
+            and branches
+            and all(isinstance(b, dict) and set(b) == {"required"} for b in branches)
+        ):
+            return None
+        return [list(branch["required"]) for branch in branches]
+
+    def apply(self, schema: dict[str, Any]) -> None:
+        """Applies the keywords to `schema` in place."""
+        if self.spec_only and not is_spec_schema():
+            return
+        keywords = copy.deepcopy(self.keywords)
+        if self.replace:
+            kept = {k: schema[k] for k in ("description",) if k in schema}
+            schema.clear()
+            if "type" in keywords:
+                schema["type"] = keywords["type"]
+            schema.update(kept)
+        for keyword in self.drop:
+            schema.pop(keyword, None)
+        schema.update(keywords)
+
+    def __call__(self, schema: dict[str, Any], cls: type[Any]) -> None:
+        if self.declared_by(cls):
+            self.apply(schema)
+
+    def __get_pydantic_json_schema__(
+        self, schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
+        json_schema = handler(schema)
+        self.apply(handler.resolve_ref_schema(json_schema))
+        return json_schema
+
+
+class ReturnType:
+    """Requires the FunctionCall branch of a dynamic value to return `expected`.
+
+    Validation checks an explicit `returnType` or fills in `expected`, and the
+    JSON schema constrains the FunctionCall reference with a `returnType` const.
+    """
+
+    def __init__(self, expected: str) -> None:
+        self.expected = expected
+
+    def __get_pydantic_core_schema__(
+        self, source: Any, handler: GetCoreSchemaHandler
+    ) -> core_schema.CoreSchema:
+        return core_schema.no_info_after_validator_function(
+            self._validate, handler(source)
+        )
+
+    def __get_pydantic_json_schema__(
+        self, schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
+        return {
+            "allOf": [
+                handler(schema),
+                {"properties": {"returnType": {"const": self.expected}}},
+            ]
+        }
+
+    def _validate(self, call: Any) -> Any:
+        if "return_type" in call.model_fields_set:
+            if call.return_type != self.expected:
+                raise ValueError(
+                    "FunctionCall in Dynamic type must have returnType"
+                    f" '{self.expected}', got '{call.return_type}'"
+                )
+            return call
+        if call.return_type != self.expected:
+            call = call.model_copy()
+            object.__setattr__(call, "return_type", self.expected)
+        return call
+
+
+class SpecAllOf:
+    """Annotation that adds `allOf` members a type cannot express.
+
+    The type's schema becomes the first member of an `allOf` followed by
+    `schemas`, for example an `if`/`then` format rule or additional `required`
+    properties. Enforces any `"required"` constraints during validation.
+    """
+
+    def __init__(self, *schemas: dict[str, Any]) -> None:
+        self.schemas = schemas
+        self._required: tuple[str, ...] = tuple(
+            prop
+            for s in schemas
+            for prop in s.get("required", ())
+            if isinstance(prop, str)
+        )
+
+    def __get_pydantic_core_schema__(
+        self, source: Any, handler: GetCoreSchemaHandler
+    ) -> core_schema.CoreSchema:
+        inner = handler(source)
+        if not self._required:
+            return inner
+        return core_schema.no_info_after_validator_function(
+            self._validate_required, inner
+        )
+
+    def __get_pydantic_json_schema__(
+        self, schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler
+    ) -> JsonSchemaValue:
+        json_schema = handler(schema)
+        return {"allOf": [json_schema, *copy.deepcopy(list(self.schemas))]}
+
+    def _validate_required(self, value: Any) -> Any:
+        model_fields = getattr(type(value), "model_fields", {})
+        alias_to_field = {
+            (info.alias or name): name for name, info in model_fields.items()
+        }
+        for prop in self._required:
+            field_name = alias_to_field.get(prop, prop)
+            if getattr(value, field_name, None) is None:
+                raise ValueError(f"Field '{prop}' is required")
+        return value
+
+
+def is_identifier_key(key: str) -> bool:
+    """Returns whether `key` is a Unicode identifier (UAX #31).
+
+    This is the check that the pattern `^[\\p{XID_Start}_][\\p{XID_Continue}]*$`
+    describes; Python's `re` module cannot compile `\\p{...}` classes.
+    """
+    return key.isidentifier()
+
+
+_ROOT_KEY_ORDER: Final[tuple[str, ...]] = (
+    "$schema",
+    "$id",
+    "protocolVersion",
+    "title",
+    "description",
+    "catalogId",
+    "instructions",
+    "type",
+    "allowedParents",
+    "allowedChildren",
+    "properties",
+    "patternProperties",
+    "required",
+    "enum",
+    "const",
+    "default",
+    "minItems",
+    "maxItems",
+    "items",
+    "allOf",
+    "oneOf",
+    "anyOf",
+    "propertyNames",
+    "not",
+    "$ref",
+    "discriminator",
+    "additionalProperties",
+    "unevaluatedProperties",
+    "components",
+    "functions",
+    "theme",
+    "$defs",
+)
+_SUBSCHEMA_KEY_ORDER: Final[tuple[str, ...]] = (
+    "title",
+    "type",
+    "$ref",
+    "description",
+    "allowedParents",
+    "allowedChildren",
+    "properties",
+    "patternProperties",
+    "required",
+    "enum",
+    "const",
+    "default",
+    "minItems",
+    "maxItems",
+    "items",
+    "allOf",
+    "oneOf",
+    "anyOf",
+    "propertyNames",
+    "not",
+    "discriminator",
+    "additionalProperties",
+    "unevaluatedProperties",
+    "$defs",
+)
+_V08_SUBSCHEMA_KEY_ORDER: Final[tuple[str, ...]] = (
+    "title",
+    "type",
+    "$ref",
+    "description",
+    "additionalProperties",
+    "minItems",
+    "maxItems",
+    "items",
+    "properties",
+    "required",
+    "enum",
+    "const",
+    "default",
+)
+_ROOT_ORDER_MAP: Final[dict[str, int]] = {k: i for i, k in enumerate(_ROOT_KEY_ORDER)}
+_SUBSCHEMA_ORDER_MAP: Final[dict[str, int]] = {
+    k: i for i, k in enumerate(_SUBSCHEMA_KEY_ORDER)
+}
+_V08_SUBSCHEMA_ORDER_MAP: Final[dict[str, int]] = {
+    k: i for i, k in enumerate(_V08_SUBSCHEMA_KEY_ORDER)
+}
+
+
+def order_spec_schema_keys(
+    node: Any,
+    path: str = "$",
+    is_map: bool = False,
+    is_v08: bool | None = None,
+) -> Any:
+    """Orders dictionary keys to match the published specification JSON schemas."""
+    if is_v08 is None:
+        is_v08 = isinstance(node, dict) and "$schema" not in node
+    if isinstance(node, list):
+        return [
+            order_spec_schema_keys(item, f"{path}[{i}]", False, is_v08)
+            for i, item in enumerate(node)
+        ]
+    if isinstance(node, dict):
+        items = [
+            (
+                k,
+                order_spec_schema_keys(
+                    v,
+                    f"{path}.{k}",
+                    k in ("properties", "patternProperties", "$defs")
+                    or (path == "$" and k in ("components", "functions")),
+                    is_v08,
+                ),
+            )
+            for k, v in node.items()
+        ]
+        if not is_map:
+            if is_v08:
+                items.sort(
+                    key=lambda kv: (_V08_SUBSCHEMA_ORDER_MAP.get(kv[0], 999), kv[0])
+                )
+            elif path == "$" or "title" in node:
+                items.sort(key=lambda kv: (_ROOT_ORDER_MAP.get(kv[0], 999), kv[0]))
+            else:
+                items.sort(key=lambda kv: (_SUBSCHEMA_ORDER_MAP.get(kv[0], 999), kv[0]))
+        return dict(items)
+    return node
