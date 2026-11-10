@@ -17,13 +17,13 @@ yarn add @a2ui/lit @a2ui/web_core
 
 ## Protocol Versioning
 
-A2UI supports multiple protocol versions. For new projects, it is recommended to
-use the **v0.9** protocol.
+`@a2ui/lit` supports protocol versions **v1.0**, **v0.9.1**, and **v0.9** (legacy v0.8 is no longer supported).
 
-To use the v0.9 implementation, import from the versioned path:
+Surface rendering primitives (`A2uiSurface`, `A2uiLitElement`, `A2uiController`, `Context`, and `renderA2uiNode`) are exported from `@a2ui/lit`. For v0.9 and v0.9.1 applications, import `basicCatalog` from `@a2ui/lit/v0_9`:
 
 ```typescript
-import {A2uiSurface, basicCatalog} from '@a2ui/lit/v0_9';
+import {A2uiSurface} from '@a2ui/lit';
+import {basicCatalog} from '@a2ui/lit/v0_9';
 ```
 
 ## Quick Start
@@ -172,18 +172,13 @@ You can find the full specification of the basic catalog in the [GitHub reposito
 
 The standard basic catalog components are implemented as framework-agnostic universal Custom Elements in `@a2ui/web_core` ([source code on GitHub](../../core/web_core/src/v0_9/basic_catalog/components)) and re-exported from `@a2ui/lit/v0_9` for backwards compatibility.
 
-## Migration from v0.8
+## Migrating from v0.8 (Removed)
 
-If you are migrating an existing application from v0.8 to v0.9, you can reference the migration of the shell sample in [Pull Request #1105](https://github.com/a2ui-project/a2ui/pull/1105) (commit `a5ad0c328628df6fd8f53aef86f5b3db452ba3a8`).
+The legacy v0.8 adapter (`@a2ui/lit/0.8`, `@a2ui/lit/v0_8`, `@a2ui/lit/ui`, and the `v0_8` root namespace) has been removed. To migrate an existing v0.8 Lit application to v0.9 or v1.0, see the [v0.8 to v0.9 Evolution Guide](../../../specification/v0_9/docs/evolution_guide.md), the [v0.9 to v1.0 Evolution Guide](../../../specification/v1_0/docs/evolution_guide.md), and the shell sample migration in [Pull Request #1105](https://github.com/a2ui-project/a2ui/pull/1105):
 
-Key changes in that migration included:
-
-- **Header Update in `client.ts`**: You must update the `X-A2A-Extensions` header to request the v0.9 protocol: `https://a2ui.org/a2a-extension/a2ui/v0.9`.
-- **Removal of Manual Action Handling in `app.ts`**: In v0.8, applications had to listen for custom action events (like `@a2uiaction`) and manually resolve context paths to build action messages. In v0.9, the `MessageProcessor` and the Generic Binder handle this automatically. You can remove complex event listeners from your templates.
-- **CSS-based Basic Catalog Theming**: The Basic Catalog widgets can now be styled
-  by overriding CSS variables, like `--a2ui-color-primary`.
-
-**We strongly discourage starting new projects with v0.8.**
+- **Extension Header**: Request the target protocol version in `X-A2A-Extensions` (for example, `https://a2ui.org/a2a-extension/a2ui/v0.9` or `https://a2ui.org/a2a-extension/a2ui/v1.0`).
+- **Action Handling via `MessageProcessor`**: Replace manual `@a2uiaction` DOM event listeners with the action handler callback on `MessageProcessor` from `@a2ui/web_core`.
+- **CSS Custom Property Theming**: Replace v0.8 JS theme class maps with `--a2ui-*` CSS custom properties (such as `--a2ui-color-primary`).
 
 ## Security
 

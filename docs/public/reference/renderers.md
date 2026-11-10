@@ -21,7 +21,7 @@ You have a lot of flexibility, to bring custom components to a renderer, or buil
 | **Angular**                  | Web                | ✅ Stable | ✅ Stable | [Code](../../../typescript/renderers/angular) |
 | **Flutter (`a2ui_flutter`)** | Mobile/Desktop/Web | ✅ Alpha  | ✅ Alpha  | [Code](../../../dart/a2ui_flutter)            |
 
-The React, Lit, and Angular renderers also support the deprecated v0.8.
+The React and Angular renderers also support the deprecated v0.8.
 
 ### Mobile
 

@@ -1,5 +1,7 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: Remove the legacy v0.8 adapter, including the `@a2ui/lit/0.8`, `@a2ui/lit/v0_8`, and `@a2ui/lit/ui` subpath exports and the deprecated `v0_8` namespace export on `@a2ui/lit`. Recommended migration: upgrade applications to protocol v0.9 or v1.0 using `@a2ui/lit` (and `@a2ui/lit/v0_9` for the v0.9 basic catalog); see [Migrating from v0.8](./README.md#migrating-from-v08-removed). [#4126](https://github.com/a2ui-project/a2ui/pull/4126)
+
 ## 0.15.0
 
 - **BREAKING CHANGE**: `<a2ui-surface>` renders nothing until its root component arrives, instead of `Loading surface...`. Apps that relied on the built-in text should render their own loading state until the fallback API from [#2013](https://github.com/a2ui-project/a2ui/issues/2013) lands. [#3723](https://github.com/a2ui-project/a2ui/pull/3723)
