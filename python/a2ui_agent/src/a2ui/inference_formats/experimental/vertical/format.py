@@ -60,15 +60,18 @@ class VerticalFormat(InferenceFormat):
             list(allowed_messages) if allowed_messages is not None else None
         )
         self.surface_id = surface_id
-        self._version = version
+        resolved_ver = (
+            normalize_wire_version(version)
+            if version is not None
+            else normalize_wire_version(catalogs_protocol_version(self._catalogs))
+        )
+        self._version = resolved_ver
         self._prompt_generator: VerticalPromptGenerator | None = None
 
     @property
     def version(self) -> str:
         """The target wire protocol version: the override, else the catalogs' version."""
-        if self._version is not None:
-            return normalize_wire_version(self._version)
-        return catalogs_protocol_version(self._catalogs)
+        return self._version
 
     @property
     def catalogs(self) -> list[CatalogApi]:
@@ -128,7 +131,7 @@ class VerticalFormatFactory(InferenceFormatFactory):
             list(allowed_messages) if allowed_messages is not None else None
         )
         self._surface_id = surface_id
-        self._version = version
+        self._version = normalize_wire_version(version) if version is not None else None
 
     @property
     def allowed_messages(self) -> list[str] | None:

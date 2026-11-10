@@ -596,7 +596,7 @@ cases_compiler = get_marked_conformance_cases(
 def test_compiler_conformance(suite, test_case, version):
     assert test_case.get("action") == "compile"
     assert_known_keys(test_case, _COMPILE_CASE_KEYS, "compile case")
-    is_express = test_case.get("args", {}).get("format") in _DSL_FORMATS
+    is_dsl = test_case.get("args", {}).get("format") in _DSL_FORMATS
     inj_id = None
     if version == "v0.9-lowered":
         skip_reason = v09_skip_reason(suite, test_case)
@@ -620,8 +620,8 @@ def test_compiler_conformance(suite, test_case, version):
     if version == "v0.9-lowered":
         compiled = lift_messages(
             compiled,
-            join=is_express,
-            injected_catalog_id=None if is_express else inj_id,
+            join=is_dsl,
+            injected_catalog_id=None if is_dsl else inj_id,
         )
 
     if "expect_present" in test_case:
@@ -645,13 +645,13 @@ def test_decompiler_conformance(suite, test_case, version):
     assert test_case.get("action") == "decompile"
     assert_known_keys(test_case, _DECOMPILE_CASE_KEYS, "decompile case")
     orig_messages = test_case["messages"]
-    is_express = test_case.get("args", {}).get("format") in _DSL_FORMATS
+    is_dsl = test_case.get("args", {}).get("format") in _DSL_FORMATS
     inj_id = None
     if version == "v0.9-lowered":
         skip_reason = v09_skip_reason(suite, test_case)
         if skip_reason:
             pytest.skip(skip_reason)
-        if not is_express and not any(
+        if not is_dsl and not any(
             isinstance(m, dict)
             and isinstance(m.get("createSurface"), dict)
             and "catalogId" in m["createSurface"]
@@ -681,8 +681,8 @@ def test_decompiler_conformance(suite, test_case, version):
         if version == "v0.9-lowered":
             recompiled = lift_messages(
                 recompiled,
-                join=is_express,
-                injected_catalog_id=None if is_express else inj_id,
+                join=is_dsl,
+                injected_catalog_id=None if is_dsl else inj_id,
             )
         return recompiled
 
@@ -760,7 +760,7 @@ cases_response_parser = get_marked_conformance_cases(
 @pytest.mark.parametrize("version", SUITE_VERSIONS)
 @pytest.mark.parametrize("suite, test_case", cases_response_parser)
 def test_response_parser_conformance(suite, test_case, version):
-    is_express = test_case.get("args", {}).get("format") in _DSL_FORMATS
+    is_dsl = test_case.get("args", {}).get("format") in _DSL_FORMATS
     inj_id = None
     if version == "v0.9-lowered":
         skip_reason = v09_skip_reason(suite, test_case)
@@ -824,8 +824,8 @@ def test_response_parser_conformance(suite, test_case, version):
         if version == "v0.9-lowered":
             actual_dicts = lift_parts(
                 actual_dicts,
-                join=is_express,
-                injected_catalog_id=None if is_express else inj_id,
+                join=is_dsl,
+                injected_catalog_id=None if is_dsl else inj_id,
             )
         assert actual_dicts == test_case["expect"]
 
@@ -864,7 +864,7 @@ def test_response_streaming_conformance(suite, test_case, version):
     assert test_case.get("action") == "parse_chunk"
     assert_known_keys(test_case, _PARSE_CHUNK_CASE_KEYS, "parse_chunk case")
     orig_args = test_case.get("args", {})
-    is_express = orig_args.get("format") in _DSL_FORMATS
+    is_dsl = orig_args.get("format") in _DSL_FORMATS
     declares_v1 = case_declares_v1(orig_args)
     inj_id = None
     if version == "v0.9-lowered":
@@ -879,8 +879,8 @@ def test_response_streaming_conformance(suite, test_case, version):
         if version == "v0.9-lowered":
             dicts = lift_parts(
                 dicts,
-                join=is_express,
-                injected_catalog_id=None if is_express else inj_id,
+                join=is_dsl,
+                injected_catalog_id=None if is_dsl else inj_id,
             )
         return dicts
 
@@ -889,7 +889,7 @@ def test_response_streaming_conformance(suite, test_case, version):
     stream = make_parser(
         args,
         buffer_incomplete_components=(
-            version == "v0.9-lowered" and not is_express and declares_v1
+            version == "v0.9-lowered" and not is_dsl and declares_v1
         ),
     ).open_stream(
         wrapped=wrapped,
@@ -993,7 +993,7 @@ def run_format_case(test_case, tmp_path, *, suite: str = "", version: str = "v1.
         or test_case.get("args", {}).get("format")
         or "express"
     )
-    is_express = effective_format in _DSL_FORMATS
+    is_dsl = effective_format in _DSL_FORMATS
     inj_id = None
     if is_lowered:
         skip_reason = v09_skip_reason(suite, test_case)
@@ -1019,8 +1019,8 @@ def run_format_case(test_case, tmp_path, *, suite: str = "", version: str = "v1.
         if is_lowered:
             compiled = lift_messages(
                 compiled,
-                join=is_express,
-                injected_catalog_id=None if is_express else inj_id,
+                join=is_dsl,
+                injected_catalog_id=None if is_dsl else inj_id,
             )
         assert sort_components_by_id(compiled) == sort_components_by_id(
             test_case["expect"]
@@ -1045,8 +1045,8 @@ def run_format_case(test_case, tmp_path, *, suite: str = "", version: str = "v1.
             if is_lowered:
                 recompiled = lift_messages(
                     recompiled,
-                    join=is_express,
-                    injected_catalog_id=None if is_express else inj_id,
+                    join=is_dsl,
+                    injected_catalog_id=None if is_dsl else inj_id,
                 )
             assert sort_components_by_id(recompiled) == sort_components_by_id(
                 orig_messages
@@ -1056,8 +1056,8 @@ def run_format_case(test_case, tmp_path, *, suite: str = "", version: str = "v1.
             if is_lowered:
                 recompiled = lift_messages(
                     recompiled,
-                    join=is_express,
-                    injected_catalog_id=None if is_express else inj_id,
+                    join=is_dsl,
+                    injected_catalog_id=None if is_dsl else inj_id,
                 )
             assert sort_components_by_id(recompiled) == sort_components_by_id(
                 test_case["expect_recompiled"]
@@ -1075,8 +1075,8 @@ def run_format_case(test_case, tmp_path, *, suite: str = "", version: str = "v1.
         if is_lowered:
             actual_dicts = lift_parts(
                 actual_dicts,
-                join=is_express,
-                injected_catalog_id=None if is_express else inj_id,
+                join=is_dsl,
+                injected_catalog_id=None if is_dsl else inj_id,
             )
         assert actual_dicts == test_case["expect"]
 
@@ -1132,7 +1132,7 @@ def run_format_case(test_case, tmp_path, *, suite: str = "", version: str = "v1.
             raw_chunks = args["probe_chunks"]
             chunks = (
                 [lower_text(c) for c in raw_chunks]
-                if is_lowered and not is_express
+                if is_lowered and not is_dsl
                 else raw_chunks
             )
 
@@ -1157,7 +1157,7 @@ def run_format_case(test_case, tmp_path, *, suite: str = "", version: str = "v1.
             test_case,
             tmp_path,
             is_lowered=is_lowered,
-            is_express=is_express,
+            is_dsl=is_dsl,
             inj_id=inj_id,
         )
 
@@ -1262,7 +1262,7 @@ def run_create_processor_case(
     tmp_path,
     *,
     is_lowered: bool = False,
-    is_express: bool = False,
+    is_dsl: bool = False,
     inj_id: str | None = None,
 ):
     from a2ui.processor import A2uiGenerator
@@ -1338,8 +1338,8 @@ def run_create_processor_case(
         if is_lowered:
             actual_dicts = lift_parts(
                 actual_dicts,
-                join=is_express,
-                injected_catalog_id=None if is_express else inj_id,
+                join=is_dsl,
+                injected_catalog_id=None if is_dsl else inj_id,
             )
         assert actual_dicts == expected_parts
 
@@ -1350,7 +1350,7 @@ def run_create_processor_case(
         cat_id = None if '"catalogId"' in raw_input else inj_id
         parse_input = (
             lower_text(raw_input, catalog_id=cat_id)
-            if is_lowered and not is_express
+            if is_lowered and not is_dsl
             else raw_input
         )
         if "expect_error" in parse:
@@ -1365,7 +1365,7 @@ def run_create_processor_case(
             processor,
             streamed,
             is_lowered=is_lowered,
-            is_express=is_express,
+            is_dsl=is_dsl,
             inj_id=inj_id,
         )
 
@@ -1375,7 +1375,7 @@ def _run_then_stream(
     streamed,
     *,
     is_lowered: bool = False,
-    is_express: bool = False,
+    is_dsl: bool = False,
     inj_id: str | None = None,
 ):
     """Feeds `then_stream` steps through a stream the processor opened.
@@ -1394,8 +1394,8 @@ def _run_then_stream(
         if is_lowered:
             actual_dicts = lift_parts(
                 actual_dicts,
-                join=is_express,
-                injected_catalog_id=None if is_express else inj_id,
+                join=is_dsl,
+                injected_catalog_id=None if is_dsl else inj_id,
             )
         assert actual_dicts == expected_parts
 
@@ -1404,7 +1404,7 @@ def _run_then_stream(
         assert_known_keys(step, _THEN_STREAM_STEP_KEYS, "then_stream step")
         chunk = (
             lower_text(step["input"], catalog_id=cat_id)
-            if is_lowered and not is_express
+            if is_lowered and not is_dsl
             else step["input"]
         )
         if "expect_error" in step:

@@ -14,25 +14,23 @@
 
 
 import pytest
+
 from a2ui.core import A2uiValidationError, Catalog
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import ProtocolVersion
+from a2ui.inference_formats import VerticalFormat, VerticalParser
 from a2ui.inference_formats.direct_json import (
     DEFAULT_PROGRESSIVE_KEYS,
     DEFAULT_WORKFLOW_RULES,
     DirectJsonFormat,
     DirectJsonParser,
 )
-from a2ui.utils import resolve_catalogs
-from a2ui.inference_formats.express import ExpressFormat, ExpressParser
 from a2ui.inference_formats.experimental.elemental import (
     ElementalFormat,
     ElementalParser,
 )
-from a2ui.inference_formats import (
-    VerticalFormat,
-    VerticalParser,
-)
+from a2ui.inference_formats.express import ExpressFormat, ExpressParser
+from a2ui.utils import resolve_catalogs
 
 
 @pytest.fixture

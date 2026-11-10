@@ -40,12 +40,14 @@
   [#3568](https://github.com/a2ui-project/a2ui/pull/3568)
 - Add the experimental A2UI Vertical inference format (`VerticalFormat`,
   `VerticalFormatFactory`, `VerticalParser`, and `VerticalResponseStream` in
-  `a2ui.inference_formats`), a flat constructor-based format that compiles each
-  standalone component statement into an independent surface across protocol
-  versions v0.9, v0.9.1, and 1.0 (including multi-catalog component and
-  function resolution, `@path`/`@call` wire keys, `Event(..., userMessage=...)`,
-  `extensions=`, `?check(...)` rules, standalone `callRendererFunction`
-  messages, and incremental streaming).
+  `a2ui.inference_formats`, along with `VerticalParseError` and
+  `VerticalValidationError` in `a2ui.inference_formats.experimental.vertical`),
+  a flat constructor-based format that compiles each standalone component
+  statement into an independent surface across protocol versions v0.9, v0.9.1,
+  and v1.0 (including multi-catalog component and function resolution,
+  `@path`/`@call` wire keys, `Event(..., userMessage=...)`, `extensions=`,
+  `?check(...)` rules, standalone `callRendererFunction` messages, and
+  incremental streaming).
   ([#2550](https://github.com/a2ui-project/a2ui/issues/2550),
   [#2866](https://github.com/a2ui-project/a2ui/pull/2866))
 - `RendererFunctionCalls.call` checks its arguments in a fixed order shared

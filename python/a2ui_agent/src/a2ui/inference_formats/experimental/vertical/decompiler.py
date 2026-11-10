@@ -39,10 +39,15 @@ from a2ui.inference_formats._shared import (
     surface_catalog_id,
 )
 
-from .compiler import VerticalValidationError, normalize_wire_version
+from .compiler import (
+    VerticalValidationError,
+    is_child_slot,
+    is_prop_action_slot,
+    normalize_wire_version,
+)
 
 _RESERVED_WORDS = frozenset({"true", "false", "null", "none"})
-_RESERVED_EVENT_KEYS = frozenset({"name", "userMessage", "context"})
+_RESERVED_EVENT_KEYS = frozenset({"name", "userMessage", "context", "catalogId"})
 
 
 def _is_bare_key(key: str) -> bool:
@@ -184,12 +189,11 @@ class VerticalDecompiler:
         ev_name = str(ev.get("name", ""))
         parts = [_format_string(ev_name)]
         context = ev.get("context")
-        if isinstance(context, Mapping) and context:
-            can_flatten = all(
+        if isinstance(context, Mapping):
+            if context and all(
                 isinstance(k, str) and _is_bare_key(k) and k not in _RESERVED_EVENT_KEYS
                 for k in context
-            )
-            if can_flatten:
+            ):
                 for k, v in context.items():
                     parts.append(
                         f"{k}={self._format_value(v, None, None, surface_cat_id)}"
@@ -233,11 +237,13 @@ class VerticalDecompiler:
             else list(args_map.keys())
         )
 
-        # Omit auto-bound leading `value` when it matches the component's `value`
+        sibling_is_binding = isinstance(
+            sibling_value, Mapping
+        ) and self._is_data_binding(sibling_value)
         skip_value = (
             bool(fn_props)
             and fn_props[0] == "value"
-            and sibling_value is not None
+            and sibling_is_binding
             and args_map.get("value") == sibling_value
         )
 
@@ -255,7 +261,17 @@ class VerticalDecompiler:
                 formatted = self._format_value(
                     args_map[p], p_schema, fn_helper, surface_cat_id
                 )
-                pos_parts.append(formatted)
+                if (
+                    idx == 0
+                    and p == "value"
+                    and not (
+                        isinstance(args_map[p], Mapping)
+                        and self._is_data_binding(args_map[p])
+                    )
+                ):
+                    kw_parts.append(f"value={formatted}")
+                else:
+                    pos_parts.append(formatted)
 
         for k, v in args_map.items():
             if k not in fn_props:
@@ -313,13 +329,6 @@ class VerticalDecompiler:
             ):
                 return self._format_function_call(val["functionCall"], surface_cat_id)
 
-            if (
-                set(val.keys()) == {"event"}
-                and isinstance(val.get("event"), Mapping)
-                and isinstance(val["event"].get("name"), str)
-            ):
-                return self._format_event(val["event"], surface_cat_id)
-
             if self._is_function_call(val):
                 return self._format_function_call(val, surface_cat_id)
 
@@ -337,7 +346,13 @@ class VerticalDecompiler:
                 else None
             )
             inner = ", ".join(
-                self._format_value(item, item_schema, helper, surface_cat_id)
+                self._format_value(
+                    item,
+                    item_schema,
+                    helper,
+                    surface_cat_id,
+                    in_action_slot=is_action_slot(item_schema),
+                )
                 for item in val
             )
             return f"[{inner}]"
@@ -357,23 +372,12 @@ class VerticalDecompiler:
 
         args_parts: list[str] = []
         for k, v in comp.items():
-            if k in (
-                "component",
-                "id",
-                "catalogId",
-                "child",
-                "children",
-                "checks",
-                "metadata",
-            ):
+            if k in ("component", "id", "catalogId", "checks", "metadata"):
+                continue
+            if is_child_slot(comp_helper, comp_type, k):
                 continue
             p_schema = (
                 comp_helper.get_property_schema(comp_type, k)
-                if comp_helper is not None and comp_type in comp_helper.components
-                else None
-            )
-            p_type = (
-                comp_helper.get_property_type(comp_type, k)
                 if comp_helper is not None and comp_type in comp_helper.components
                 else None
             )
@@ -382,9 +386,7 @@ class VerticalDecompiler:
                 p_schema,
                 comp_helper,
                 surface_cat_id,
-                in_action_slot=(
-                    p_type == "Action" or k in ("action", "onClick", "onPress")
-                ),
+                in_action_slot=is_prop_action_slot(comp_helper, comp_type, k),
             )
             args_parts.append(f"{_format_key(k)}={formatted_val}")
 
@@ -479,23 +481,12 @@ class VerticalDecompiler:
                 str(c["id"]): c for c in valid_comps if isinstance(c.get("id"), str)
             }
             root_comp = comp_map.get("root") or valid_comps[0]
-            root_type = root_comp.get("component", "")
             surface_cat = (
                 body.get("catalogId")
                 if isinstance(body.get("catalogId"), str)
                 else item.surface_catalog_id
             )
-
-            # Backward compat: unwrap legacy single-surface Column/List containers
-            if root_type in ("Column", "List") and isinstance(
-                root_comp.get("children"), list
-            ):
-                for child_id in root_comp["children"]:
-                    child_comp = comp_map.get(str(child_id))
-                    if child_comp is not None:
-                        lines.append(self._format_component(child_comp, surface_cat))
-            else:
-                lines.append(self._format_component(root_comp, surface_cat))
+            lines.append(self._format_component(root_comp, surface_cat))
 
         return "\n".join(lines)
 

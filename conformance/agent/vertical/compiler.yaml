@@ -20,7 +20,7 @@
 # - Components within each surface have id "root".
 # - Positional arguments resolve according to positionalIndex and schema property order.
 # - Quoted numbers, booleans, and percentages are coerced to native primitives according to the catalog schema.
-# - Data bindings starting with '$' compile to protocol DataBinding objects (`@path` in 1.0, `path` in v0.9).
+# - Data bindings starting with '$' compile to protocol DataBinding objects (`@path` in v1.0, `path` in v0.9).
 
 - name: test_compile_vertical_single_component
   description: Compiles a single constructor invocation to a createSurface envelope.
@@ -577,3 +577,201 @@
           - id: "root"
             component: "Text"
             text: "First line\nSecond line\t\"Quoted\""
+
+- name: test_compile_vertical_unknown_component_is_a_validation_error
+  description: Rejects an unknown component constructor that is not declared in the active catalog.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'UnknownWidget(title="Hello")'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_vertical_unknown_property_is_a_validation_error
+  description: Rejects an unknown keyword argument not declared on the target component.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'Text("Hello", bogus=3)'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_vertical_duplicate_property_is_a_validation_error
+  description: Rejects a property supplied both positionally and by keyword.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'Text("Hello", text="World")'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_vertical_excess_positional_args_is_a_validation_error
+  description: Rejects positional arguments exceeding the component's non-structural properties.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'Text("Hello", "caption", "extra")'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_vertical_static_property_databinding_is_a_validation_error
+  description: Rejects a $path data binding passed to a static component property.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/event_property_catalog_v1_0.json"
+  input: 'Select(label="Country", event=$/bad/path, options=["AU"])'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_vertical_ambiguous_multi_catalog_component_is_a_validation_error
+  description: Rejects an unqualified component defined in multiple active catalogs without catalogId.
+  action: compile
+  args:
+    format: vertical
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - catalogId: "conformance/dup_text"
+        protocolVersion: "1.0"
+        components:
+          Text:
+            type: object
+            properties:
+              component: {const: "Text"}
+              text: {type: string}
+            required: ["component", "text"]
+        $defs:
+          anyComponent:
+            oneOf: [{$ref: "#/components/Text"}]
+  input: 'Text("Ambiguous")'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_vertical_invalid_extension_key_is_a_validation_error
+  description: Rejects component extensions whose keys are not valid UAX #31 identifiers.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: 'Text("Hello", extensions={"bad-key": 1})'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_vertical_system_function_index_is_a_validation_error
+  description: Rejects @index() system function calls since Vertical has no list templates.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: "Text(@index())"
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_vertical_check_on_non_checkable_component_is_a_validation_error
+  description: Rejects ?check rules on a component whose schema does not declare checks.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/forms_catalog_v1_0.json"
+  input: 'Text("Hello", ?required)'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_vertical_user_message_before_v1_0_is_a_validation_error
+  description: Rejects Event userMessage when targeting A2UI before v1.0.
+  action: compile
+  args:
+    format: vertical
+    catalog:
+      catalogId: "conformance/pre_v1_action"
+      protocolVersion: "0.9"
+      components:
+        ActionCard:
+          type: object
+          properties:
+            component: {const: "ActionCard"}
+            label: {type: string}
+            action: {$ref: "common_types.json#/$defs/Action"}
+          required: ["component", "label"]
+      $defs:
+        anyComponent:
+          oneOf: [{$ref: "#/components/ActionCard"}]
+  input: 'ActionCard(label="Go", action=Event("go", userMessage="Clicked"))'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_vertical_extensions_before_v1_0_is_a_validation_error
+  description: Rejects component extensions when targeting A2UI before v1.0.
+  action: compile
+  args:
+    format: vertical
+    catalog:
+      catalogId: "conformance/pre_v1_ext"
+      protocolVersion: "0.9"
+      components:
+        Note:
+          type: object
+          properties:
+            component: {const: "Note"}
+            text: {type: string}
+          required: ["component", "text"]
+      $defs:
+        anyComponent:
+          oneOf: [{$ref: "#/components/Note"}]
+  input: 'Note(text="Hi", extensions={acme: 1})'
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_vertical_standalone_function_before_v1_0_is_a_validation_error
+  description: Rejects top-level standalone function calls when targeting A2UI before v1.0.
+  action: compile
+  args:
+    format: vertical
+    catalog:
+      catalogId: "conformance/pre_v1_fn"
+      protocolVersion: "0.9"
+      components:
+        Note:
+          type: object
+          properties:
+            component: {const: "Note"}
+            text: {type: string}
+          required: ["component", "text"]
+      functions:
+        ping:
+          type: object
+          properties:
+            call: {const: "ping"}
+            args: {type: object, properties: {}, additionalProperties: false}
+            returnType: {const: "void"}
+          required: ["call", "args"]
+      $defs:
+        anyComponent:
+          oneOf: [{$ref: "#/components/Note"}]
+  input: "ping()"
+  expect_error:
+    category: "ValidationError"
+
+- name: test_compile_vertical_out_of_range_number_is_a_parse_error
+  description: Rejects non-finite numeric literals such as 1e999 with ParseError.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/custom_catalog_v1_0.json"
+  input: "Gauge(value=1e999)"
+  expect_error:
+    category: "ParseError"
+
+- name: test_compile_vertical_malformed_map_literal_is_a_parse_error
+  description: Rejects malformed map entries lacking a key-value separator with ParseError.
+  action: compile
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: "Text(extensions={bad})"
+  expect_error:
+    category: "ParseError"

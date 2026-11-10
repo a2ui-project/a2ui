@@ -103,3 +103,61 @@
                 component: "Text"
                 text: "Parsed successfully"
     - text: "Done!"
+
+- name: test_parse_response_vertical_multiple_blocks_unique_surfaces
+  description: Allocates monotonically increasing surface IDs across multiple <a2ui> blocks in one response.
+  action: parse_response
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    First card:
+    <a2ui>
+    Text("Alpha")
+    </a2ui>
+    Second card:
+    <a2ui>
+    Text("Beta")
+    </a2ui>
+  expect:
+    - text: "First card:"
+    - a2ui:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "default_surface"
+            catalogId: "conformance/simplified"
+            components:
+              - id: "root"
+                component: "Text"
+                text: "Alpha"
+    - text: "Second card:"
+    - a2ui:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "default_surface_1"
+            catalogId: "conformance/simplified"
+            components:
+              - id: "root"
+                component: "Text"
+                text: "Beta"
+
+- name: test_parse_response_vertical_preserves_close_tag_in_string_literal
+  description: Preserves literal </a2ui> text inside string arguments during full parse_response compilation.
+  action: parse_response
+  args:
+    format: vertical
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    <a2ui>
+    Text("</a2ui>")
+    </a2ui>
+  expect:
+    - a2ui:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "default_surface"
+            catalogId: "conformance/simplified"
+            components:
+              - id: "root"
+                component: "Text"
+                text: "</a2ui>"

@@ -15,12 +15,15 @@
 """Prompt generator for the A2UI Vertical inference format.
 
 Compiles component catalog schemas into concise, non-nested component signatures,
-automatically omitting container components that require child components.
+automatically omitting container components that require child components or
+cannot sit directly on a surface root.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+import json
+import re
 from typing import Any, Literal
 
 from a2ui.constants import A2UI_INFERENCE_CLOSE_TAG, A2UI_INFERENCE_OPEN_TAG
@@ -40,21 +43,13 @@ from a2ui.inference_formats._shared import (
 from a2ui.prompt import PromptGenerator
 from a2ui.utils import agent_callable_functions, validate_payload
 
-from .compiler import normalize_wire_version, ordered_component_properties
+from .compiler import (
+    is_child_slot,
+    normalize_wire_version,
+    ordered_component_properties,
+    schema_allows_databinding,
+)
 from .decompiler import VerticalDecompiler
-
-_EVENT_RULE_PRE_V1_0 = (
-    '3. Actions & Events:\n   - Server-side actions: `Event("action_name",'
-    ' param="val")` or `action="action_name"`.\n   - Function actions:'
-    ' `openUrl("https://example.com")`.'
-)
-
-_EVENT_RULE_V1_0 = (
-    '3. Actions & Events:\n   - Server-side actions: `Event("action_name", param="val",'
-    ' userMessage="Optional user text")`.\n     Pass `userMessage=` (a string, `$path`'
-    " binding, or function call) to set the message shown on the user's behalf.\n   -"
-    ' Function actions: `openUrl("https://example.com")`.'
-)
 
 _VERTICAL_HEADER = (
     "# A2UI Vertical Output Contract\n\nYou must output user interfaces using A2UI"
@@ -63,15 +58,15 @@ _VERTICAL_HEADER = (
     " Rules"
 )
 
-_RULE_1_COMPONENTS = (
-    "1. Instantiate one or more standalone components directly:\n  "
+_RULE_COMPONENTS = (
+    "Instantiate one or more standalone components directly:\n  "
     ' ComponentName(param1="value1", param2=42)\n   If outputting multiple components,'
     " write each component on a new line. Each component renders on its own surface in"
     " a vertical sequence."
 )
 
-_RULE_2_SYNTAX = (
-    '2. Syntax:\n   - Use `param="value"` or `param: "value"` for named parameters.\n  '
+_RULE_SYNTAX = (
+    'Syntax:\n   - Use `param="value"` or `param: "value"` for named parameters.\n  '
     " - Positional parameters matching catalog signatures are also supported (e.g."
     ' `Text("Hello")`).\n   - Strings: Double or single quoted (e.g. "Hello").\n   -'
     " Numbers: Integers or decimals (e.g. 42, 3.14).\n   - Booleans: true or false.\n  "
@@ -80,44 +75,31 @@ _RULE_2_SYNTAX = (
     ' `?regex("^[0-9]+$", "Digits only")`.'
 )
 
-_RULE_4_BINDINGS = (
-    "4. Data Bindings:\n"
+_EVENT_RULE_PRE_V1_0 = (
+    'Actions & Events:\n   - Server-side actions: `Event("action_name",'
+    ' param="val")` or `action="action_name"`.\n   - Function actions:'
+    ' `openUrl("https://example.com")`.'
+)
+
+_EVENT_RULE_V1_0 = (
+    'Actions & Events:\n   - Server-side actions: `Event("action_name", param="val",'
+    ' userMessage="Optional user text")`.\n     Pass `userMessage=` (a string, `$path`'
+    " binding, or function call) to set the message shown on the user's behalf.\n   -"
+    ' Function actions: `openUrl("https://example.com")`.'
+)
+
+_RULE_BINDINGS = (
+    "Data Bindings:\n"
     "   - Prefix data model paths with `$/` (e.g. `$/user/name`).\n"
     "   - Arguments marked `(static)` MUST use literal values, never `$` data bindings."
 )
 
-_RULE_5_NO_CONTAINERS = (
-    "5. Do NOT specify surface IDs, component IDs, variable assignments, or container"
+_RULE_NO_CONTAINERS = (
+    "Do NOT specify surface IDs, component IDs, variable assignments, or container"
     " nesting. The runtime automatically manages surfaces and IDs."
 )
 
-VERTICAL_RULES = (
-    f"{_VERTICAL_HEADER}\n\n"
-    f"{_RULE_1_COMPONENTS}\n\n"
-    f"{_RULE_2_SYNTAX}\n\n"
-    f"{_EVENT_RULE_V1_0}\n\n"
-    f"{_RULE_4_BINDINGS}\n\n"
-    f"{_RULE_5_NO_CONTAINERS}"
-)
-
-
-def _schema_allows_databinding(prop_schema: Any) -> bool:
-    """Checks recursively whether a property JSON schema permits dynamic data binding."""
-    if isinstance(prop_schema, Mapping):
-        ref = prop_schema.get("$ref")
-        if isinstance(ref, str) and ("DataBinding" in ref or "Dynamic" in ref):
-            return True
-        props = prop_schema.get("properties")
-        if (
-            isinstance(props, Mapping)
-            and ("path" in props or "@path" in props)
-            and "componentId" not in props
-        ):
-            return True
-        return any(_schema_allows_databinding(v) for v in prop_schema.values())
-    if isinstance(prop_schema, Sequence) and not isinstance(prop_schema, (str, bytes)):
-        return any(_schema_allows_databinding(item) for item in prop_schema)
-    return False
+_JSON_BLOCK_RE = re.compile(r"(?:Example[^\n]*\n)?```json\s*\n(.*?)\n```", re.DOTALL)
 
 
 def _get_schema_enum(prop_schema: Any) -> list[str] | None:
@@ -216,21 +198,79 @@ class VerticalPromptGenerator(PromptGenerator):
     def component_requires_children(
         self, comp_name: str, helper: CatalogSchemaHelper | None = None
     ) -> bool:
-        """Returns True if `comp_name` requires `Child` or `ChildList` properties."""
+        """Returns True if `comp_name` requires children or cannot be a surface root."""
         target_helper = helper or next(iter(self.helpers.values()))
+        comp_schema = target_helper.components.get(comp_name)
+        if isinstance(comp_schema, Mapping):
+            allowed_parents = comp_schema.get("allowedParents")
+            if (
+                isinstance(allowed_parents, list)
+                and allowed_parents
+                and "Surface" not in allowed_parents
+            ):
+                return True
+
         reqs = set(target_helper.get_component_required(comp_name))
         for prop in target_helper.get_component_properties(comp_name):
-            if prop not in reqs:
-                continue
-            p_type = target_helper.get_property_type(comp_name, prop)
-            if prop in ("child", "children") or p_type in ("Child", "ChildList"):
+            if prop in reqs and is_child_slot(target_helper, comp_name, prop):
                 return True
-            p_schema = target_helper.get_property_schema(comp_name, prop)
-            if isinstance(p_schema, Mapping) and isinstance(p_schema.get("$ref"), str):
-                ref = p_schema["$ref"]
-                if "ComponentId" in ref or "Child" in ref or "ChildList" in ref:
-                    return True
         return False
+
+    def _rewrite_catalog_instructions(
+        self, raw_instructions: str, helper: CatalogSchemaHelper
+    ) -> str:
+        """Rewrites standalone JSON examples in catalog instructions to Vertical, pruning nested examples."""
+        decompiler = VerticalDecompiler(self._catalogs, version=self.version)
+
+        def _replace_json(match: re.Match[str]) -> str:
+            try:
+                parsed = json.loads(match.group(1).strip())
+                msgs = [parsed] if isinstance(parsed, dict) else parsed
+                if not isinstance(msgs, list) or not msgs:
+                    return ""
+                comps: list[Mapping[str, Any]] = []
+                for m in msgs:
+                    if not isinstance(m, Mapping):
+                        return ""
+                    for op_k in ("createSurface", "updateComponents"):
+                        body = m.get(op_k)
+                        if isinstance(body, Mapping) and isinstance(
+                            body.get("components"), list
+                        ):
+                            comps.extend(
+                                c for c in body["components"] if isinstance(c, Mapping)
+                            )
+                # Omit multi-component hierarchical examples (e.g. Column/Card trees)
+                if len(comps) > 1 or any(
+                    self.component_requires_children(
+                        str(c.get("component", "")), helper
+                    )
+                    for c in comps
+                ):
+                    return ""
+                normalized = normalize_prompt_example_messages(
+                    msgs,
+                    version=self.version,
+                    default_catalog_id=helper.catalog_model.catalog_id,
+                    default_surface_id=self.surface_id,
+                )
+                dsl = decompiler.decompile(normalized)
+                if not dsl.strip():
+                    return ""
+                return f"```\n{decompiler.wrap_decompiled_blocks([dsl])}\n```"
+            except Exception:
+                return ""
+
+        rewritten = _JSON_BLOCK_RE.sub(_replace_json, raw_instructions)
+        # Drop empty trailing "## Examples" header if all nested examples were pruned
+        rewritten = re.sub(r"\n*## Examples\s*\Z", "", rewritten.strip())
+        # Drop layout-container preamble lines referencing Row/Column/Strict Hierarchy
+        filtered_lines = [
+            line
+            for line in rewritten.splitlines()
+            if "Row and Column" not in line and "Strict Hierarchy:" not in line
+        ]
+        return "\n".join(filtered_lines).strip()
 
     def generate_component_signatures(
         self,
@@ -266,7 +306,7 @@ class VerticalPromptGenerator(PromptGenerator):
                 p_schema = target_helper.get_property_schema(name, p)
 
                 arg_label = f"{p}{opt_suffix}"
-                if p != "checks" and not _schema_allows_databinding(p_schema):
+                if p != "checks" and not schema_allows_databinding(p_schema):
                     arg_label += " (static)"
                 ordered_args.append(arg_label)
 
@@ -340,9 +380,14 @@ class VerticalPromptGenerator(PromptGenerator):
     ) -> str:
         comp_sigs = self.generate_component_signatures(helper=helper)
         func_sigs = self.generate_function_signatures(helper=helper)
-        cat_instructions = (
+        raw_instructions = (
             helper.catalog.get("instructions", "")
             if isinstance(helper.catalog, Mapping)
+            else ""
+        )
+        cat_instructions = (
+            self._rewrite_catalog_instructions(raw_instructions, helper)
+            if isinstance(raw_instructions, str) and raw_instructions.strip()
             else ""
         )
 
@@ -357,8 +402,8 @@ class VerticalPromptGenerator(PromptGenerator):
             )
         if func_sigs:
             parts.append(f"## Function Signatures\n\n{func_sigs}")
-        if isinstance(cat_instructions, str) and cat_instructions.strip():
-            parts.append(f"## Catalog Instructions\n\n{cat_instructions.strip()}")
+        if cat_instructions:
+            parts.append(f"## Catalog Instructions\n\n{cat_instructions}")
         return "\n\n".join(parts)
 
     def generate_base_rules(self) -> str:
@@ -379,27 +424,31 @@ class VerticalPromptGenerator(PromptGenerator):
             allowed & {"callRendererFunction", "CallRendererFunctionMessage"}
         )
 
-        rule_blocks: list[str] = [_VERTICAL_HEADER]
+        numbered_rules: list[str] = []
         if allows_components:
             event_rule = _EVENT_RULE_V1_0 if self._v1 else _EVENT_RULE_PRE_V1_0
-            rule_blocks.extend([
-                _RULE_1_COMPONENTS,
-                _RULE_2_SYNTAX,
+            numbered_rules.extend([
+                _RULE_COMPONENTS,
+                _RULE_SYNTAX,
                 event_rule,
-                _RULE_4_BINDINGS,
-                _RULE_5_NO_CONTAINERS,
+                _RULE_BINDINGS,
+                _RULE_NO_CONTAINERS,
             ])
 
         if self._v1 and allows_renderer_call:
             callable_fns = agent_callable_functions(self._catalogs)
             if callable_fns:
                 formatted = ", ".join(f"`{fn}`" for fn in callable_fns)
-                rule_blocks.append(
-                    "6. Standalone Renderer Function Calls:\n   - Invoke"
+                numbered_rules.append(
+                    "Standalone Renderer Function Calls:\n   - Invoke"
                     f" `{callable_fns[0]}(...)` on its own line to have the renderer"
                     " execute a function directly.\n   - Only these functions may be"
                     f" called standalone: {formatted}."
                 )
+
+        rule_blocks: list[str] = [_VERTICAL_HEADER]
+        for idx, body in enumerate(numbered_rules, start=1):
+            rule_blocks.append(f"{idx}. {body}")
 
         if len(self._catalogs) > 1:
             rule_blocks.append(_multi_catalog_rules(self.helpers))

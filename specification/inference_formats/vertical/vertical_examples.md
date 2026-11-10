@@ -24,7 +24,7 @@ FlightStatusCard(airline="United Airlines", flightNumber="UA 421", origin="SFO",
     "version": "v0.9.1",
     "createSurface": {
       "surfaceId": "main",
-      "catalogId": "https://a2ui.org/catalogs/basic/v1"
+      "catalogId": "https://example.com/catalogs/widgets/v1"
     }
   },
   {
@@ -76,7 +76,7 @@ WeatherWidget(city="Seattle", temperature=58, condition="rainy", high=62, low=50
     "version": "v0.9.1",
     "createSurface": {
       "surfaceId": "main",
-      "catalogId": "https://a2ui.org/catalogs/basic/v1"
+      "catalogId": "https://example.com/catalogs/widgets/v1"
     }
   },
   {
@@ -99,7 +99,7 @@ WeatherWidget(city="Seattle", temperature=58, condition="rainy", high=62, low=50
     "version": "v0.9.1",
     "createSurface": {
       "surfaceId": "main_1",
-      "catalogId": "https://a2ui.org/catalogs/basic/v1"
+      "catalogId": "https://example.com/catalogs/widgets/v1"
     }
   },
   {
@@ -135,7 +135,7 @@ UserProfileCard(name=$/session/user/name, email=$/session/user/email, role="Admi
 </a2ui>
 ```
 
-### Compiled A2UI 1.0 payload:
+### Compiled A2UI v1.0 payload:
 
 ```json
 [
@@ -143,7 +143,7 @@ UserProfileCard(name=$/session/user/name, email=$/session/user/email, role="Admi
     "version": "1.0",
     "createSurface": {
       "surfaceId": "main",
-      "catalogId": "https://a2ui.org/catalogs/basic/v1",
+      "catalogId": "https://example.com/catalogs/widgets/v1",
       "components": [
         {
           "id": "root",

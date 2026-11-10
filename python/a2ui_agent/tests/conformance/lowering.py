@@ -198,6 +198,12 @@ V1_ONLY_CASES: dict[str, str] = {
     "test_vertical_snippet_names_agent_callable_functions_in_v1_0": (
         "Protocol v0.9 function schema does not support allowedCallers."
     ),
+    "test_compile_vertical_invalid_extension_key_is_a_validation_error": (
+        "Surface and component extensions require A2UI v1.0 or later."
+    ),
+    "test_compile_vertical_system_function_index_is_a_validation_error": (
+        _NO_SYSTEM_FUNCTIONS
+    ),
 }
 
 
