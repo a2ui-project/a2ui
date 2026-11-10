@@ -1175,3 +1175,81 @@
           - id: "root"
             component: "Text"
             text: "Hello v0.9.1"
+
+# --- Component metadata (v1.0 only) ---
+
+- name: test_v09_metadata_is_an_ordinary_property
+  description: Tests that a v0.9 component keeps a catalog property named 'metadata' among its properties; v0.9 defines no component metadata.
+  action: process_messages
+  catalogs:
+    - catalogId: meta-cat
+      components:
+        Card:
+          type: object
+          properties:
+            title:
+              type: string
+            metadata:
+              type: object
+              additionalProperties: true
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s_meta"
+        catalogId: "meta-cat"
+    - version: "v0.9"
+      updateComponents:
+        surfaceId: "s_meta"
+        components:
+          - id: "root"
+            component: "Card"
+            title: "Hello"
+            metadata:
+              source: "crm"
+  expect:
+    surfaces:
+      s_meta:
+        exists: true
+        components:
+          - id: "root"
+            component: "Card"
+            title: "Hello"
+            metadata:
+              source: "crm"
+
+- name: test_v09_metadata_with_extensions_stays_a_property
+  description: Tests that a v0.9 'metadata' property shaped like v1.0 metadata is still kept among the component's properties.
+  action: process_messages
+  catalogs:
+    - catalogId: meta-cat
+      components:
+        Card:
+          type: object
+          properties:
+            metadata:
+              type: object
+              additionalProperties: true
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s_meta_ext"
+        catalogId: "meta-cat"
+    - version: "v0.9"
+      updateComponents:
+        surfaceId: "s_meta_ext"
+        components:
+          - id: "root"
+            component: "Card"
+            metadata:
+              extensions:
+                com_example_trace: "t1"
+  expect:
+    surfaces:
+      s_meta_ext:
+        exists: true
+        components:
+          - id: "root"
+            component: "Card"
+            metadata:
+              extensions:
+                com_example_trace: "t1"

@@ -18,7 +18,7 @@ import SwiftUI
 
 /// Displays the active A2UI surface inside a framed viewport along with interactive stream stepper controls.
 public struct SurfacePreviewPane: View {
-  @ObservedObject var viewModel: GalleryViewModel
+  var viewModel: GalleryViewModel
 
   public init(viewModel: GalleryViewModel) {
     self.viewModel = viewModel
@@ -38,43 +38,21 @@ public struct SurfacePreviewPane: View {
       ScrollView {
         VStack(spacing: 16) {
           if let surfaceVM = viewModel.activeSurfaceViewModel {
-            A2UISwiftUI.Surface(
-              viewModel: surfaceVM,
+            ActiveSurfaceCanvas(
+              surfaceViewModel: surfaceVM,
               catalogs: viewModel.catalogs
             )
-            .frame(minWidth: 100, minHeight: 100)
-            .padding()
-
-            if surfaceVM.rootNode == nil {
-              VStack(spacing: 8) {
-                Image(systemName: "rectangle.dashed")
-                  .font(.system(size: 32))
-                  .foregroundStyle(.secondary)
-                Text("Surface Created (Awaiting Component Tree)")
-                  .font(.callout.weight(.medium))
-                  .foregroundStyle(.secondary)
-                Text("Advance the stepper to evaluate component definitions.")
-                  .font(.caption)
-                  .foregroundStyle(.tertiary)
-                  .multilineTextAlignment(.center)
-              }
-              .padding(32)
-            }
           } else {
-            VStack(spacing: 12) {
-              Image(systemName: "arrow.forward.circle.dotted")
-                .font(.system(size: 40))
-                .foregroundStyle(.secondary)
-              Text("Stream Ready")
-                .font(.headline)
-              Text(
-                "Tap 'Advance Step' or 'Play All' above to evaluate the initial createSurface message."
+            ContentUnavailableView(
+              "Stream Ready",
+              systemImage: "arrow.forward.circle.dotted",
+              description: Text(
+                """
+                Tap 'Advance' or 'Play Remaining Steps' above to evaluate \
+                the initial createSurface message.
+                """
               )
-              .font(.subheadline)
-              .foregroundStyle(.secondary)
-              .multilineTextAlignment(.center)
-              .padding(.horizontal)
-            }
+            )
             .padding(.top, 48)
           }
         }
@@ -131,6 +109,29 @@ public struct SurfacePreviewPane: View {
           viewModel.selectedSample == nil
             || viewModel.currentStepIndex >= (viewModel.selectedSample?.rawMessages.count ?? 0))
       }
+    }
+  }
+}
+
+private struct ActiveSurfaceCanvas: View {
+  @ObservedObject var surfaceViewModel: SurfaceViewModel
+  let catalogs: [Catalog<ComponentImplementation>]
+
+  var body: some View {
+    A2UISwiftUI.Surface(
+      viewModel: surfaceViewModel,
+      catalogs: catalogs
+    )
+    .frame(minWidth: 100, minHeight: 100)
+    .padding()
+
+    if surfaceViewModel.rootNode == nil {
+      ContentUnavailableView(
+        "Surface Created (Awaiting Component Tree)",
+        systemImage: "rectangle.dashed",
+        description: Text("Advance the stepper to evaluate component definitions.")
+      )
+      .padding(32)
     }
   }
 }

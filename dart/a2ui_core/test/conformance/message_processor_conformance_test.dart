@@ -760,6 +760,10 @@ void _checkComponents(
     reason: '$reason: component ids',
   );
 
+  final bool metadataIsEnvelope =
+      A2uiProtocolVersion.tryParse(surface.protocolVersion ?? '')
+              ?.isAtLeast(A2uiProtocolVersion.v1_0) ??
+          false;
   for (final entry in expected) {
     final id = entry['id']! as String;
     final ComponentModel? component = surface.componentsModel.get(id);
@@ -773,7 +777,7 @@ void _checkComponents(
             reason: '$reason: $id type');
         return;
       }
-      if (key == 'metadata') {
+      if (key == 'metadata' && metadataIsEnvelope) {
         expect(
           node?.metadata.peek() ?? component!.metadata,
           equals(value),
