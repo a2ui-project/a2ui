@@ -15,7 +15,6 @@
 @preconcurrency import AVFoundation
 import BasicCatalog
 import Observation
-import SwiftUI
 
 /// Observable controller managing native audio playback, scrubbing, and time synchronization.
 @MainActor
@@ -35,10 +34,15 @@ public final class A2UIAudioPlayerModel {
       return min(max(0, value), max(0.1, duration))
     }
     set {
+      guard duration > 0 else { return }
+      let clamped = min(max(0, newValue), duration)
       if isScrubbing {
-        onScrubChange(newValue)
-      } else if abs(newValue - currentTime) > 0.01 {
-        onScrubEnd(newValue)
+        onScrubChange(clamped)
+      } else {
+        let clampedCurrent = min(max(0, currentTime), duration)
+        if abs(clamped - clampedCurrent) > 0.01 {
+          onScrubEnd(clamped)
+        }
       }
     }
   }

@@ -38,27 +38,19 @@ public struct SurfacePreviewPane: View {
       ScrollView {
         VStack(spacing: 16) {
           if let surfaceVM = viewModel.activeSurfaceViewModel {
-            A2UISwiftUI.Surface(
-              viewModel: surfaceVM,
+            ActiveSurfaceCanvas(
+              surfaceViewModel: surfaceVM,
               catalogs: viewModel.catalogs
             )
-            .frame(minWidth: 100, minHeight: 100)
-            .padding()
-
-            if surfaceVM.rootNode == nil {
-              ContentUnavailableView(
-                "Surface Created (Awaiting Component Tree)",
-                systemImage: "rectangle.dashed",
-                description: Text("Advance the stepper to evaluate component definitions.")
-              )
-              .padding(32)
-            }
           } else {
             ContentUnavailableView(
               "Stream Ready",
               systemImage: "arrow.forward.circle.dotted",
               description: Text(
-                "Tap 'Advance' or 'Play Remaining Steps' above to evaluate the initial createSurface message."
+                """
+                Tap 'Advance' or 'Play Remaining Steps' above to evaluate \
+                the initial createSurface message.
+                """
               )
             )
             .padding(.top, 48)
@@ -117,6 +109,29 @@ public struct SurfacePreviewPane: View {
           viewModel.selectedSample == nil
             || viewModel.currentStepIndex >= (viewModel.selectedSample?.rawMessages.count ?? 0))
       }
+    }
+  }
+}
+
+private struct ActiveSurfaceCanvas: View {
+  @ObservedObject var surfaceViewModel: SurfaceViewModel
+  let catalogs: [Catalog<ComponentImplementation>]
+
+  var body: some View {
+    A2UISwiftUI.Surface(
+      viewModel: surfaceViewModel,
+      catalogs: catalogs
+    )
+    .frame(minWidth: 100, minHeight: 100)
+    .padding()
+
+    if surfaceViewModel.rootNode == nil {
+      ContentUnavailableView(
+        "Surface Created (Awaiting Component Tree)",
+        systemImage: "rectangle.dashed",
+        description: Text("Advance the stepper to evaluate component definitions.")
+      )
+      .padding(32)
     }
   }
 }

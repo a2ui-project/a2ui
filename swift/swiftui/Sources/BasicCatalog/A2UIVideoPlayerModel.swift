@@ -14,7 +14,6 @@
 
 import AVFoundation
 import Observation
-import SwiftUI
 
 /// Observable model that owns the `AVPlayer` lifecycle for ``A2UIVideo``.
 @MainActor

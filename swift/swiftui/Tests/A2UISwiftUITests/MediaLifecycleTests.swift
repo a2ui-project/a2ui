@@ -22,6 +22,7 @@ import Observation
 import OrderedJSON
 import SwiftUI
 import Testing
+import os
 
 #if canImport(AppKit)
   import AppKit
@@ -95,6 +96,38 @@ struct MediaLifecycleTests {
     model.cleanUp()
     #expect(model.player == nil)
     #expect(secondPlayer.currentItem == nil)
+  }
+
+  @Test func mediaModelsEmitObservationChangesOnPlayerTransitions() throws {
+    let videoModel = A2UIVideoPlayerModel()
+    let firstURL = try #require(URL(string: "https://example.com/one.mp4"))
+
+    let didFireOnLoad = OSAllocatedUnfairLock(initialState: false)
+    withObservationTracking {
+      _ = videoModel.player
+    } onChange: {
+      didFireOnLoad.withLock { $0 = true }
+    }
+    videoModel.load(url: firstURL)
+    #expect(didFireOnLoad.withLock { $0 })
+
+    let didFireOnSameURL = OSAllocatedUnfairLock(initialState: false)
+    withObservationTracking {
+      _ = videoModel.player
+    } onChange: {
+      didFireOnSameURL.withLock { $0 = true }
+    }
+    videoModel.load(url: firstURL)
+    #expect(!didFireOnSameURL.withLock { $0 })
+
+    let didFireOnCleanUp = OSAllocatedUnfairLock(initialState: false)
+    withObservationTracking {
+      _ = videoModel.player
+    } onChange: {
+      didFireOnCleanUp.withLock { $0 = true }
+    }
+    videoModel.cleanUp()
+    #expect(didFireOnCleanUp.withLock { $0 })
   }
 
   // A2UIVideo is not hosted here: realizing AVKit's VideoPlayer inside a

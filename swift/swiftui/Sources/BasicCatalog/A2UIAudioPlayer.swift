@@ -38,10 +38,10 @@ public struct A2UIAudioPlayer: View {
 
   public init(
     node: Node,
-    model: @autoclosure @escaping () -> A2UIAudioPlayerModel = A2UIAudioPlayerModel()
+    model: A2UIAudioPlayerModel = A2UIAudioPlayerModel()
   ) {
     self.node = node
-    self._model = State(initialValue: model())
+    self._model = State(initialValue: model)
   }
 
   private var urlString: String {

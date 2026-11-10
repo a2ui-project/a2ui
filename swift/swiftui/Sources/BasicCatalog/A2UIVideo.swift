@@ -38,10 +38,10 @@ public struct A2UIVideo: View {
 
   public init(
     node: Node,
-    model: @autoclosure @escaping () -> A2UIVideoPlayerModel = A2UIVideoPlayerModel()
+    model: A2UIVideoPlayerModel = A2UIVideoPlayerModel()
   ) {
     self.node = node
-    self._model = State(initialValue: model())
+    self._model = State(initialValue: model)
   }
 
   private var urlString: String {
