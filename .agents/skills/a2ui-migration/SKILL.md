@@ -117,7 +117,8 @@ When the migration is a pull request to someone else's repository, such as a
 package on pub.dev that depends on `genui`:
 
 1. Read the repository's CI workflows, its task runner (melos scripts,
-   `Taskfile.yml`) and local gate scripts, its agent instructions (`AGENTS.md`, `CLAUDE.md`), its
+   `Taskfile.yml`) and local gate scripts, its agent instructions
+   (`AGENTS.md`, `CLAUDE.md`, `.cursor/rules/` and the like), its
    `CONTRIBUTING.md` (some require a signed CLA before a PR is merged) and
    its commit and PR title conventions first (some repositories check PR
    titles against Conventional Commits; follow the history's language too).
@@ -144,13 +145,13 @@ package on pub.dev that depends on `genui`:
    the packages that disappear between the regenerated locks from the
    committed lock, keep any that another entry still needs, and check that
    `pub get --dry-run` then adds and removes nothing. Do commit a tracked
-   `pubspec.lock` and the plugin
-   registrant entries that dropping a dependency removes (genui pulled in
-   `url_launcher`, `audioplayers` and `video_player_win`), but revert
-   unrelated registrant changes, and never commit generated files that hold
-   local paths (`.dart_tool/`, `.flutter-plugins-dependencies`). In a
-   repository without a complete `.gitignore`, stage files by name rather
-   than with `git add -A`.
+   `pubspec.lock` and the plugin registrant entries that dropping a
+   dependency removes (`genui` pulled in `url_launcher`, `audioplayers` and
+   `video_player_win`), but revert unrelated registrant changes, and never
+   commit generated files that hold local paths (`.dart_tool/`,
+   `.flutter-plugins`, `.flutter-plugins-dependencies`). In a repository
+   without a complete `.gitignore`, stage files by name rather than with
+   `git add -A`.
 5. Keep the package's SDK lower bound even when the new dependencies need a
    newer SDK: in Dart, a higher lower bound raises the language version, and
    `dart format` then reformats every file. Resolution stays correct, since
