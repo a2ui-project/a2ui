@@ -74,20 +74,6 @@ const stories = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/built-with-a2ui/
       <!-- 4. Google Cloud -->
       <li class="ps-brand">
         <a
-          href={`${stories}#gemini-enterprise`}
-          class="ps-brand__inner"
-          aria-label="Google Cloud, Gemini Enterprise: read the story"
-        >
-          <div class="ps-brand__lockup">
-            <TeamLogo team="google-cloud" idPrefix="ps-google-cloud" />
-          </div>
-          <span class="ps-brand__product">Gemini Enterprise</span>
-        </a>
-      </li>
-
-      <!-- 5. Gemini -->
-      <li class="ps-brand">
-        <a
           href={`${stories}#gemini-notebook`}
           class="ps-brand__inner"
           aria-label="Gemini, Gemini Notebook: read the story"
@@ -96,6 +82,18 @@ const stories = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/built-with-a2ui/
             <TeamLogo team="gemini" idPrefix="ps-gemini" />
           </div>
           <span class="ps-brand__product">Gemini Notebook</span>
+        </a>
+      </li>
+      <li class="ps-brand">
+        <a
+          href={`${stories}#gemini-enterprise`}
+          class="ps-brand__inner"
+          aria-label="Google Cloud, Gemini Enterprise: read the story"
+        >
+          <div class="ps-brand__lockup">
+            <TeamLogo team="google-cloud" idPrefix="ps-google-cloud" />
+          </div>
+          <span class="ps-brand__product">Gemini Enterprise</span>
         </a>
       </li>
     </ul>

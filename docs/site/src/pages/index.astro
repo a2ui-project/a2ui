@@ -153,13 +153,13 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
                   >
                 </li>
                 <li>
-                  <a href={`${base}/built-with-a2ui/#gemini-enterprise`} title="Google Cloud: Gemini Enterprise"
-                    ><TeamLogo team="google-cloud" size={18} idPrefix="hero-google-cloud" /></a
+                  <a href={`${base}/built-with-a2ui/#gemini-notebook`} title="Gemini: Gemini Notebook"
+                    ><TeamLogo team="gemini" size={18} idPrefix="hero-gemini" /></a
                   >
                 </li>
                 <li>
-                  <a href={`${base}/built-with-a2ui/#gemini-notebook`} title="Gemini: Gemini Notebook"
-                    ><TeamLogo team="gemini" size={18} idPrefix="hero-gemini" /></a
+                  <a href={`${base}/built-with-a2ui/#gemini-enterprise`} title="Google Cloud: Gemini Enterprise"
+                    ><TeamLogo team="google-cloud" size={18} idPrefix="hero-google-cloud" /></a
                   >
                 </li>
                 <li class="a2-renderers__more">
@@ -590,21 +590,6 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
       .a2-renderers--teams .a2-renderers__list a :global(.team-logo__wordmark) {
         height: 15px;
-      }
-
-      /* Logos stay muted like the renderer marks until hovered */
-      .a2-renderers--teams .a2-renderers__list a :global(.team-logo__mark) {
-        filter: grayscale(1);
-        opacity: 0.75;
-        transition:
-          filter 0.15s ease,
-          opacity 0.15s ease;
-      }
-
-      .a2-renderers--teams .a2-renderers__list a:hover :global(.team-logo__mark),
-      .a2-renderers--teams .a2-renderers__list a:focus-visible :global(.team-logo__mark) {
-        filter: none;
-        opacity: 1;
       }
 
       /* Same label width in both strips so the two rows of logos line up */

@@ -11,13 +11,13 @@
       "height": 832,
       "bytes": 58648
     },
-    "build-with-a2ui/gemini-notebook-cards": {
-      "filename": "build-with-a2ui--gemini-notebook-cards.498faab5.webp",
-      "url": "https://github.com/a2ui-project/a2ui/releases/download/docs-assets/build-with-a2ui--gemini-notebook-cards.498faab5.webp",
-      "sha256": "498faab57d06b335f105ff36e4e0b7e4f533c0ed1b7c0df73c03b8e366d7cf00",
+    "build-with-a2ui/gemini-notebook-slides": {
+      "filename": "build-with-a2ui--gemini-notebook-slides.135b616d.webp",
+      "url": "https://github.com/a2ui-project/a2ui/releases/download/docs-assets/build-with-a2ui--gemini-notebook-slides.135b616d.webp",
+      "sha256": "135b616dd296b34b2f4bcb1edbe689cb52321a54362aef565fad4e2953897f69",
       "width": 1920,
-      "height": 944,
-      "bytes": 67578
+      "height": 771,
+      "bytes": 69642
     },
     "build-with-a2ui/jira-follow-up": {
       "filename": "build-with-a2ui--jira-follow-up.1451f432.webp",
