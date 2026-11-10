@@ -45,8 +45,7 @@
           {
             "id": "heading",
             "component": "Text",
-            "text": "## Your loan",
-            "variant": "h2"
+            "text": "## Your loan"
           },
           {
             "id": "principal_text",

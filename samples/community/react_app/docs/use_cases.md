@@ -74,7 +74,7 @@ $/loan/annualPayment = 30000
 $/loan/selectedYear = 0
 $/loan/selectedYearSummary = "Click a bar to see a year."
 root = Column(children=[heading, principal_text, rate_slider, payment_slider, chart, summary_text, email_button])
-heading = Text(text="## Your loan", variant="h2")
+heading = Text(text="## Your loan")
 principal_text = Text(text=formatString("Principal: ${formatCurrency(value:${/loan/principal}, currency:'USD')}"))
 rate_slider = Slider(label="Interest rate (%)", min=1, max=12, value=$/loan/rate)
 payment_slider = Slider(label="Annual payment (USD)", min=10000, max=60000, value=$/loan/annualPayment)
@@ -221,7 +221,7 @@ estimateTravelTime(stops: list) -> number   # Agent function. Total travel minut
 surface("trip")
 $/trip/stops = [{id: "louvre", name: "Louvre"}, {id: "montmartre", name: "Montmartre"}, {id: "eiffel", name: "Eiffel Tower"}, {id: "notre_dame", name: "Notre-Dame"}]
 root = Column(children=[title, planner, book_button])
-title = Text(text="## Your day in Paris", variant="h2")
+title = Text(text="## Your day in Paris")
 planner = ReactApp(title="Reorder your stops", height=360, dataPaths=["/trip"], functions=["estimateTravelTime"], source=r"""
 import { useState } from "react";
 import { Card, Stack, Text, useData, useFunction } from "a2ui";
@@ -362,7 +362,7 @@ $/sales/points = […]            (monthly totals per region, 48 points)
 $/sales/selection = {}
 $/sales/rows = []
 root = Column(children=[title, explorer, rows_heading, rows])
-title = Text(text="## 2025 sales", variant="h2")
+title = Text(text="## 2025 sales")
 explorer = ReactApp(title="Sales by month", height=380, dataPaths=["/sales"], functions=["querySales"], source=r"""
 import { useEffect, useState } from "react";
 import { Card, Stack, Text, VegaChart, setData, useData, useFunction } from "a2ui";
