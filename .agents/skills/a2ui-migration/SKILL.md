@@ -138,7 +138,9 @@ package on pub.dev that depends on `genui`:
    than with `git add -A`.
 5. Keep the package's SDK lower bound even when the new dependencies need a
    newer SDK: in Dart, a higher lower bound raises the language version, and
-   `dart format` then reformats every file.
+   `dart format` then reformats every file. Resolution stays correct, since
+   pub refuses an SDK older than a dependency needs and names that
+   dependency in the error.
 6. Read the APIs of the published SDK releases (for Dart, in the pub cache),
    not this repository's sources, which may be ahead of the release.
 7. Leave behavior the migration did not have to change as it is, including
