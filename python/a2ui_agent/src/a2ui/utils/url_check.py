@@ -543,10 +543,14 @@ def _pointer_segments(pointer: str) -> list[str]:
     ]
 
 
+def _is_index(segment: str) -> bool:
+    return segment.isascii() and segment.isdigit()
+
+
 def _read_pointer(root: Any, pointer: str) -> Any:
     current = root
     for segment in _pointer_segments(pointer):
-        if isinstance(current, list) and segment.isdigit():
+        if isinstance(current, list) and _is_index(segment):
             index = int(segment)
             current = current[index] if index < len(current) else None
         elif isinstance(current, dict) and segment in current:
@@ -556,23 +560,51 @@ def _read_pointer(root: Any, pointer: str) -> Any:
     return current
 
 
+def _set_child(container: Any, segment: str, value: Any) -> None:
+    if isinstance(container, list):
+        index = int(segment)
+        container.extend([None] * (index + 1 - len(container)))
+        container[index] = value
+    else:
+        container[segment] = value
+
+
+def _get_child(container: Any, segment: str) -> Any:
+    if isinstance(container, list):
+        index = int(segment)
+        return container[index] if index < len(container) else None
+    return container.get(segment)
+
+
 def _apply_data_update(root: Any, pointer: str, value: Any, has_value: bool) -> Any:
-    """Applies an `updateDataModel` to a copy of the data model."""
+    """Applies an `updateDataModel` to a copy of the data model.
+
+    A missing container on the path is created as a list when the next
+    segment indexes into it, and as an object otherwise.
+    """
     segments = _pointer_segments(pointer)
     if not segments:
         return value if has_value else None
-    result = copy.deepcopy(root) if isinstance(root, dict) else {}
+    result = copy.deepcopy(root) if isinstance(root, (dict, list)) else {}
     current = result
-    for segment in segments[:-1]:
-        child = current.get(segment)
-        if not isinstance(child, dict):
-            child = {}
-            current[segment] = child
+    for i, segment in enumerate(segments[:-1]):
+        if isinstance(current, list) and not _is_index(segment):
+            return result
+        child = _get_child(current, segment)
+        if not isinstance(child, (dict, list)):
+            child = [] if _is_index(segments[i + 1]) else {}
+            _set_child(current, segment, child)
         current = child
+    last = segments[-1]
+    if isinstance(current, list) and not _is_index(last):
+        return result
     if has_value:
-        current[segments[-1]] = value
+        _set_child(current, last, value)
+    elif isinstance(current, list):
+        if int(last) < len(current):
+            current[int(last)] = None
     else:
-        current.pop(segments[-1], None)
+        current.pop(last, None)
     return result
 
 

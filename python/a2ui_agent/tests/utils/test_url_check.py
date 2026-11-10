@@ -269,6 +269,31 @@ def test_data_updates_apply_in_order(
     assert len(result.blocked) == expected
 
 
+def test_bindings_read_lists_the_payload_creates_or_updates() -> None:
+    result = check_payload_urls(
+        [_BASIC_V10],
+        [
+            _create(
+                _V10_BASIC_ID,
+                dataModel={"items": [{"url": "https://cdn.example.com/0.png"}]},
+            ),
+            _data("/items/1/url", "https://attacker.example/"),
+            _data("/fresh/0/url", "https://attacker.example/"),
+            _update(
+                {"id": "root", "component": "Image", "url": {"@path": "/items/0/url"}},
+                {
+                    "id": "second",
+                    "component": "Image",
+                    "url": {"@path": "/items/1/url"},
+                },
+                {"id": "fresh", "component": "Image", "url": {"@path": "/fresh/0/url"}},
+            ),
+        ],
+        policy=_CDN_ONLY,
+    )
+    assert [b.component_id for b in result.blocked] == ["second", "fresh"]
+
+
 def test_strip_replaces_blocked_values_in_copies() -> None:
     payload = [
         _create(_V10_BASIC_ID, dataModel={"leak": "https://attacker.example/"}),
