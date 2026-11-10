@@ -1,0 +1,263 @@
+# Step-by-Step Walkthrough
+
+> Run Travel A2UI yourself, with a React web client, a Flutter mobile client or both, then learn how A2UI works from what is on screen, with screenshots and real output.
+
+Canonical URL: https://a2ui.org/quickstart/step-by-step/
+
+Run the app first, then read the second half with it open: every idea there is
+something you can see on screen. The app is [samples/travel-a2ui](https://github.com/a2ui-project/labs/tree/main/samples/travel-a2ui)
+in A2UI Labs: one Python server, a React client for the web and a Flutter client
+for mobile.
+
+## Run it
+
+You need **Python 3.11+**, plus **Node 20+** for the web app and
+**Flutter 3.38+** for the mobile app.
+
+1. Get the code:
+
+   ```bash
+   git clone https://github.com/a2ui-project/labs
+   cd labs/samples/travel-a2ui
+   ```
+
+2. Start the server with both clients:
+
+   ```bash
+   ./scripts/quickstart.sh both
+   ```
+
+   Or `react` for the web app only, or `flutter` for the mobile app only. The
+   script installs the server into `.venv`, builds the clients (Flutter takes
+   about a minute) and starts the server. Its output, trimmed (your versions
+   will differ):
+
+   ```text
+   → Checking what is installed
+     Python 3.11.18
+     node v22.23.4
+   → The Python server
+     installed into .venv
+   → The React client
+   ✓ built in 456ms
+   → The Flutter client
+   ✓ Built build/web
+   → Starting on port 8080
+     React:   http://127.0.0.1:8080
+     Flutter: http://127.0.0.1:8080/flutter/
+     No GEMINI_API_KEY set: paste a key into the app when it asks.
+   ```
+
+3. Open the web app at [http://127.0.0.1:8080](http://127.0.0.1:8080) and the
+   mobile app at [http://127.0.0.1:8080/flutter/](http://127.0.0.1:8080/flutter/).
+
+### The web app
+
+![The React client: flight cards in the conversation, the trip so far beside it](https://github.com/a2ui-project/a2ui/releases/download/docs-assets/quickstart--travel-a2ui--chat.a481b6c8.webp)
+
+You land on a recorded sample trip, no key needed. To talk to the agent, paste
+a free Gemini key from [AI Studio](https://aistudio.google.com/apikey) when the
+app asks (it stays in your browser), then try _"Six days in Madrid in April,
+two of us, around $2,500 all in"_.
+
+### The mobile app
+
+<img
+  src="https://github.com/a2ui-project/a2ui/releases/download/docs-assets/quickstart--travel-a2ui--flutter-trip.8afa2402.webp"
+  width="224"
+  height="485"
+  loading="lazy"
+  decoding="async"
+  alt="The Flutter client in a phone layout, with the trip sheet open"
+  style="display: block; width: 100%; max-width: 14rem; height: auto; margin-inline: auto;"
+/>
+
+Paste your key, then try _"A weekend in Lisbon from JFK in May, two of us"_.
+Here Flutter is built for the web, in a phone layout; the same Dart code can
+target iOS and Android, which this sample does not set up. Ask both apps the
+same thing: the same messages, drawn by two renderers.
+
+## How A2UI works
+
+Five short steps, in the order you meet them on screen: what on the screen is
+A2UI, what the agent is allowed to draw, how the model learns it, what travels
+to the client, and what draws it. For all of it in one picture, see
+[how A2UI fits into this app](/quickstart/#how-a2ui-fits-into-this-app).
+
+### 1. What is A2UI, and what is app code
+
+Not everything on screen is A2UI. Blue is composed by the agent; grey is app
+code, written by you, the builder, and the same on every turn:
+
+![The app with A2UI surfaces outlined in blue (a cost card in the conversation and the trip panel) and app code outlined in grey (the header, the message box and the reply text)](https://github.com/a2ui-project/a2ui/releases/download/docs-assets/quickstart--travel-a2ui--a2ui-vs-app.6cf941df.webp)
+
+- **A2UI, composed by the agent:** the cards in the conversation, the trip
+  panel (the trip sheet in Flutter) and the web client's Home dashboard.
+- **App code:** the header and tabs, the message box, the chat bubbles (the
+  model's words, shown as plain text), the key form, and the Catalog and Wire
+  tabs.
+
+Each blue region is a **surface**: one area of UI the agent controls. A surface
+is made of **components** (a `Text`, a `Button`, a `FlightOption`), and the
+values they show come from the surface's **data model**. When the user taps a
+flight, the agent receives an **action** saying which one.
+
+A rule of thumb for your own app: if it should look the same on every turn,
+build it yourself as app code; if it depends on what the user just asked, let
+the agent compose it.
+
+### 2. The catalog: what the agent may draw
+
+The **catalog** (`catalogs/a2ui-travel/catalog.json`) lists everything the
+agent may use, and it holds two kinds of thing:
+
+- **Components**, and the properties each takes. A2UI's **basic catalog**
+  provides `Text`, `Row`, `Column`, `List`, `Button`, `TextField` and more;
+  this app adds travel components such as `FlightOption`, `HotelCard`,
+  `DateRangePicker` and `PriceSummary`. A component can hold others, so a card
+  is a small arrangement of catalog components.
+- **Functions**, which run in the client. The basic ones format and check
+  values (`formatCurrency`, `formatDate`, `pluralize`, `required`); this app
+  adds `calcNights` and `equals`. A component can show a function's result, so
+  the night count follows the dates the user picks, with no turn to the agent:
+
+  ```text
+  "${calcNights(start: ${/trip/startDate}, end: ${/trip/endDate})} nights"
+  ```
+
+The web client's **Catalog** tab draws every component with the real renderer:
+
+![The Catalog tab: every component the agent may use, drawn by the real renderer](https://github.com/a2ui-project/a2ui/releases/download/docs-assets/quickstart--travel-a2ui--catalog.f3f5e3ff.webp)
+
+The catalog is also the **guardrail**. The server checks every message the
+model writes against it before sending anything, and each client implements
+every component and function in it, so the agent can only ask for what the
+client knows how to draw. The work splits between the model and you, the
+builder:
+
+| The model decides                | You, the builder, decide                           |
+| -------------------------------- | -------------------------------------------------- |
+| Whether to show a card           | Which components and functions exist (the catalog) |
+| Which components, and the layout | The data in them                                   |
+| The wording                      | That every message is checked against the catalog  |
+| What to ask next                 | What a press records                               |
+
+### 3. Skills: teaching the model A2UI
+
+A **skill** is a Markdown file that teaches a model to write A2UI for a
+catalog. This app has two, in `skills/express-modular/`: `a2ui-core` teaches
+the notation, and `a2ui-travel` teaches this catalog. Here is an entry from the
+second:
+
+```text
+• FlightOption(airline, departTime,
+    arriveTime, origin, destination,
+    price, action (static), duration?,
+    stops?, flightNumber?, …)
+  - Description: A single selectable
+    flight itinerary leg. Use one per
+    option when presenting a choice
+    of flights.
+  - airline: Operating carrier,
+    e.g. 'Iberia' or 'Delta'.
+```
+
+Here the skills are generated from the catalog with the A2UI agent SDK's
+`SkillGenerator` (`scripts/build_skills.py`), so when a component changes,
+`npm run generate` updates what the model is taught to match.
+
+### 4. What the model writes, and what the client receives
+
+The model writes **A2UI Express**, a short notation, as its skills taught it.
+`root` comes first, so the card can appear before the rest is written:
+
+```text
+root = Column([head, list])
+head = Text("### Flights to Madrid")
+list = List(_template($/flights, fare))
+fare = FlightOption($airline,
+  $departTime, $arriveTime,
+  $origin, $destination, $price,
+  Event("select_flight", {id: $id}))
+```
+
+On the server, the **A2UI agent SDK** reads the Express as the model streams
+it, turns it into **A2UI messages** and checks each against the catalog. The
+messages are JSON: `createSurface`, `updateComponents`, `updateDataModel` and
+`deleteSurface`. Here is the component list one of these blocks became (trimmed
+to ids and links): each component names its children by id, starting from
+`root`.
+
+```json
+[
+  {"id": "root", "component": "Column", "children": ["head", "list"]},
+  {"id": "head", "component": "Text", "text": "### Flights to Madrid"},
+  {"id": "fare", "component": "FlightOption"},
+  {
+    "id": "list",
+    "component": "List",
+    "children": {"path": "/flights", "componentId": "fare"}
+  }
+]
+```
+
+In the client, a **MessageProcessor** from the A2UI SDK applies the messages:
+it keeps each surface's components and data, fills in bound values, runs
+catalog functions, and sends presses back as actions. React uses
+`@a2ui/web_core`'s (`apps/web/src/surfaces.ts`); Flutter uses `a2ui_core`'s
+(`apps/flutter/lib/chat.dart`).
+
+The web client's **Wire** tab shows both forms of every surface side by side,
+what the model wrote and what the client received:
+
+![The Wire tab: the Express the model wrote, beside the A2UI JSON the client received](https://github.com/a2ui-project/a2ui/releases/download/docs-assets/quickstart--travel-a2ui--wire.4515c08f.webp)
+
+Express is one way for a model to write A2UI, chosen because it is short. A2UI
+itself is the JSON.
+
+### 5. Renderers
+
+A **renderer** implements the catalog's components with native widgets and
+uses a MessageProcessor to apply messages. It holds no app logic.
+
+- **In this app:** React (`@a2ui/react`, `@a2ui/web_core`) in
+  `renderers/react/`, and Flutter (`a2ui_flutter`, `a2ui_core`) in
+  `renderers/flutter/`. The apps around them are `apps/web/` and
+  `apps/flutter/`.
+- **[Maintained by the A2UI project](/concepts/sdks/#renderer-sdk):** Lit
+  (web components), Angular, React, Flutter, SwiftUI, Jetpack Compose and
+  Markdown.
+- **[From the community](/ecosystem/renderers/):** UIKit, React Native,
+  Vue, Lynx, a terminal renderer and more.
+
+The server never knows which client it is talking to. Adding a platform means
+writing a renderer for the same catalog, with no change to the agent.
+
+## Deploy to Cloud Run
+
+Run the quickstart app in your own Google Cloud project: the server and both
+clients on one URL. You need a project with billing enabled.
+
+[![Open in Cloud Shell](https://gstatic.com/cloudssh/images/open-btn.svg)](https://shell.cloud.google.com/cloudshell/editor?cloudshell_git_repo=https://github.com/a2ui-project/labs&cloudshell_git_branch=main&cloudshell_workspace=samples/travel-a2ui&cloudshell_tutorial=docs/cloud-shell.md&show=ide%2Cterminal)
+
+Cloud Shell opens with the sample and a short guide beside the terminal: sign
+in, choose a project, and run one script:
+
+```bash
+./scripts/deploy.sh
+```
+
+It turns on the services the deploy needs, lets the build use them, then builds
+and deploys (about ten minutes the first time) and prints the URL. No key is
+stored on the service: each visitor pastes their own. From your own clone, the
+same script works anywhere the gcloud CLI is signed in; see
+[deploying](https://github.com/a2ui-project/labs/blob/main/samples/travel-a2ui/docs/deploying.md)
+for what it runs.
+
+## Keep going
+
+- [Build your own](https://github.com/a2ui-project/labs/tree/main/samples/travel-a2ui#build-one-of-your-own): what to change to make
+  this app about something other than travel.
+- [A2UI renderers](/concepts/sdks/#renderer-sdk): the official Renderer SDKs and [community renderers](/ecosystem/renderers/).
+- [How A2UI works](/concepts/overview/): the concepts, in depth.
+- [A2UI v1.0 specification](/specification/v1.0-a2ui/).
