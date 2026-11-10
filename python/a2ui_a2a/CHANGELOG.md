@@ -1,5 +1,9 @@
 ## Unreleased
 
+- Add a2a-sdk 0.3 / 1.x dual-compat Part and AgentExtension helpers so the A2A
+  extension can use either generation. Widen `a2a-sdk` to `>=0.3.0,<2`.
+  `get_a2ui_data`, `part_data_as_dict` and `extract_user_action` read parts
+  without reaching into `Part.root`.
 - Add `get_a2ui_messages`, which returns the A2UI messages in an A2A message's
   A2UI parts, and `create_a2ui_parts`, which wraps A2UI messages, such as the
   replies of `RendererToAgentMessageProcessor`, as A2UI parts. Models are

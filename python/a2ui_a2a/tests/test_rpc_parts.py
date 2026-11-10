@@ -16,13 +16,28 @@
 
 from __future__ import annotations
 
-from a2a.types import DataPart, Message, Part, Role, TextPart
+from a2a.types import Message, Role
+
+
+def _user_role():
+    """a2a-sdk 0.3 uses ``Role.user``; 1.x uses ``Role.ROLE_USER``."""
+    if hasattr(Role, "user"):
+        return Role.user
+    return Role.ROLE_USER
+
 
 from a2ui.a2a import (
     A2UI_MIME_TYPE,
     create_a2ui_part,
     create_a2ui_parts,
     get_a2ui_messages,
+)
+from a2ui.a2a._compat import (
+    data_part_dict,
+    is_data_part,
+    make_data_part,
+    make_text_part,
+    part_metadata,
 )
 from a2ui.core.schema.v0_8 import BeginRenderingMessage
 from a2ui.core.schema.v1_0 import AgentFunctionResponseMessage
@@ -50,11 +65,11 @@ ACTION = {
 def test_get_a2ui_messages_reads_each_a2ui_part_of_a_message() -> None:
     message = Message(
         message_id="m1",
-        role=Role.user,
+        role=_user_role(),
         parts=[
-            Part(root=TextPart(text="hello")),
+            make_text_part("hello"),
             create_a2ui_part(CALL),
-            Part(root=DataPart(data={"not": "a2ui"})),
+            make_data_part({"not": "a2ui"}),
             create_a2ui_part(ACTION),
         ],
     )
@@ -64,7 +79,7 @@ def test_get_a2ui_messages_reads_each_a2ui_part_of_a_message() -> None:
 
 def test_get_a2ui_messages_accepts_parts() -> None:
     assert get_a2ui_messages([create_a2ui_part(CALL)]) == [CALL]
-    assert get_a2ui_messages([Part(root=TextPart(text="hello"))]) == []
+    assert get_a2ui_messages([make_text_part("hello")]) == []
     assert get_a2ui_messages([]) == []
 
 
@@ -76,9 +91,9 @@ def test_create_a2ui_parts_keeps_a_null_value() -> None:
 
     (part,) = create_a2ui_parts([reply])
 
-    assert isinstance(part.root, DataPart)
-    assert part.root.metadata == {"mimeType": A2UI_MIME_TYPE}
-    assert part.root.data == {
+    assert is_data_part(part)
+    assert part_metadata(part) == {"mimeType": A2UI_MIME_TYPE}
+    assert data_part_dict(part) == {
         "version": "1.0",
         "agentFunctionResponse": {"functionCallId": "c1", "value": None},
     }
@@ -108,9 +123,9 @@ def test_create_a2ui_parts_writes_the_default_version_of_a_model() -> None:
 
     (part,) = create_a2ui_parts([reply])
 
-    assert isinstance(part.root, DataPart)
-    assert part.root.metadata == {"mimeType": A2UI_MIME_TYPE}
-    assert part.root.data == {
+    assert is_data_part(part)
+    assert part_metadata(part) == {"mimeType": A2UI_MIME_TYPE}
+    assert data_part_dict(part) == {
         "version": "1.0",
         "agentFunctionResponse": {"functionCallId": "c1", "value": 3},
     }
@@ -123,5 +138,5 @@ def test_create_a2ui_parts_leaves_out_the_version_of_a_v0_8_model() -> None:
 
     (part,) = create_a2ui_parts([message])
 
-    assert isinstance(part.root, DataPart)
-    assert part.root.data == {"beginRendering": {"surfaceId": "s1", "root": "r"}}
+    assert is_data_part(part)
+    assert data_part_dict(part) == {"beginRendering": {"surfaceId": "s1", "root": "r"}}

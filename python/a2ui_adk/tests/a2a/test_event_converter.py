@@ -23,6 +23,7 @@ from google.adk.agents.readonly_context import ReadonlyContext
 from google.genai import types as genai_types
 import pytest
 
+from a2ui.a2a._compat import is_text_part, part_metadata, part_text
 from a2ui.adk import A2uiProcessorStore
 from a2ui.adk.a2a import A2uiEventConverter, A2uiPartConverter
 from a2ui.core.basic_catalog import BasicCatalog
@@ -214,9 +215,7 @@ def test_event_converter_streams_partial_events_into_one_stream():
 
         # The final event closes the stream; its aggregated text is dropped.
         parts_final = convert(_event(partial=False), "aggregated ignored")
-        assert [p.root.text for p in parts_final if hasattr(p.root, "text")] == [
-            "<a2ui"
-        ]
+        assert [part_text(p) for p in parts_final if is_text_part(p)] == ["<a2ui"]
         assert converter._streams == {}
 
     # The stream checked and applied the messages to the processor's state.
@@ -377,7 +376,7 @@ def test_event_converter_drops_the_rest_of_a_response_after_a_failed_chunk():
     assert failed == []
     # The rest of the response is not sent as text.
     assert later == []
-    assert [p.root.text for p in final] == ["Sorry."]
+    assert [part_text(p) for p in final] == ["Sorry."]
     assert converter._streams == {}
 
 
@@ -399,7 +398,7 @@ def test_event_converter_does_not_feed_thought_parts_into_stream():
         )
 
     assert len(thought_parts) == 1
-    assert thought_parts[0].root.metadata == {"adk_thought": True}
+    assert part_metadata(thought_parts[0]) == {"adk_thought": True}
     assert converter._streams == {}
 
 
@@ -429,7 +428,7 @@ def test_event_converter_closes_stream_when_final_event_has_no_text_part():
         )
         converter(_event(partial=False), invocation_context)
 
-    assert parts[0].root.text == " <a2ui"
+    assert part_text(parts[0]) == " <a2ui"
     assert converter._streams == {}
 
 
@@ -483,7 +482,7 @@ def test_event_converter_keeps_one_stream_per_branch_of_an_invocation():
         final_a = convert(_event(partial=False, branch="root.a"), "ignored")
 
     # Branch a's final event closes only its own stream.
-    assert [p.root.text for p in final_a] == [" <a2ui"]
+    assert [part_text(p) for p in final_a] == [" <a2ui"]
     assert set(converter._streams) == {("inv-1", "root.b")}
 
 

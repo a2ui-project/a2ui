@@ -37,6 +37,7 @@ members = [
     "personalized-learning-agent",
     "rizzcharts",
 ]
+constraints = [{ name = "a2a-sdk", specifier = ">=0.3.0,<0.4.0" }]
 
 [[package]]
 name = "a2a-sdk"
@@ -72,7 +73,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "a2a-sdk", specifier = ">=0.3.0,<0.4.0" },
+    { name = "a2a-sdk", specifier = ">=0.3.0,<2" },
     { name = "a2ui-agent-sdk", editable = "python/a2ui_agent" },
     { name = "packaging", specifier = ">=23.0" },
 ]
