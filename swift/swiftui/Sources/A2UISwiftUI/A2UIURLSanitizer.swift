@@ -42,6 +42,7 @@ public struct A2UIURLSanitizer: Sendable {
   }
 
   /// Creates a sanitizer bound to a surface's URL security policy.
+  @MainActor
   public init(surface: SurfaceViewModel) {
     self.init { url, context, info in
       surface.sanitizeURL(url, context: context, info: info)

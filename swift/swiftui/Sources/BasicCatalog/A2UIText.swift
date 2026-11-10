@@ -247,14 +247,16 @@ private func attributedMarkdown(
   else {
     return AttributedString(text)
   }
-  for run in attributed.runs {
-    let linkURL: URL? = run.link
+  // Collect the runs first, then edit, so the edits never touch the runs being read.
+  let markdownRuns = attributed.runs.map { run -> (Range<AttributedString.Index>, URL?, URL?) in
+    (run.range, run.link, run.imageURL)
+  }
+  for (range, linkURL, imageURL) in markdownRuns {
     if let linkURL {
-      attributed[run.range].link = links.allowedTarget(for: linkURL)
+      attributed[range].link = links.allowedTarget(for: linkURL)
     }
-    let imageURL: URL? = run.imageURL
     if imageURL != nil {
-      attributed[run.range].imageURL = nil
+      attributed[range].imageURL = nil
     }
   }
   return attributed
