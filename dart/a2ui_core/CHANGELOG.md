@@ -1,5 +1,9 @@
 # [a2ui_core](https://pub.dev/packages/a2ui_core) Changelog
 
+## Unreleased
+
+- Regenerate the v0.9 basic catalog bindings and update documentation paths after moving the pre-1.0 catalogs to `catalogs/` ([#4150](https://github.com/a2ui-project/a2ui/pull/4150)).
+
 ## 0.8.0
 
 - **Breaking:** `PayloadValidator` enforces RFC 3986 scheme-prefixed URI syntax (`^[A-Za-z][A-Za-z0-9+.-]*:\S*$`) on string subschemas with `"format": "uri"` (such as `openUrl.args.url`) without mutating `Catalog.toJson()`, rejecting strings lacking a scheme or containing whitespace ([#4173](https://github.com/a2ui-project/a2ui/issues/4173), [#4187](https://github.com/a2ui-project/a2ui/pull/4187)).

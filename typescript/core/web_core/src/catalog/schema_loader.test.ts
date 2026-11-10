@@ -27,10 +27,7 @@ import {STRICT_VALIDATION} from '../validation/integrity-checker.js';
 import {PayloadValidator} from '../validation/payload-validator.js';
 
 describe('Catalog.fromJson & schema_loader', () => {
-  const basicCatalogPath = resolve(
-    process.cwd(),
-    '../../../specification/v0_9_1/catalogs/basic/catalog.json',
-  );
+  const basicCatalogPath = resolve(process.cwd(), '../../../catalogs/basic/v0_9_1/catalog.json');
   const basicCatalogJson = JSON.parse(readFileSync(basicCatalogPath, 'utf-8'));
 
   it('loads basic catalog successfully and dynamically resolves weight and accessibility', () => {

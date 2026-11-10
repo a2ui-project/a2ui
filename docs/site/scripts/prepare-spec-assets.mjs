@@ -109,6 +109,32 @@ if (fs.existsSync(vegaCatalogV1Src)) {
   copyRecursive(vegaCatalogV1Src, path.join(vegaCatalogV1Dest, 'catalog.json'), {required: false});
 }
 
+// Copy v0.9 / v0.9.1 basic and minimal catalogs so $id URIs resolve cleanly
+for (const verDir of ['v0_9', 'v0_9_1']) {
+  const basicDest = path.join(specDest, `${verDir}/catalogs/basic`);
+  fs.mkdirSync(basicDest, {recursive: true});
+  copyRecursive(
+    path.join(repoRoot, `catalogs/basic/${verDir}/catalog.json`),
+    path.join(basicDest, 'catalog.json'),
+  );
+  copyRecursive(
+    path.join(repoRoot, `catalogs/basic/${verDir}/examples`),
+    path.join(basicDest, 'examples'),
+  );
+}
+{
+  const minimalDest = path.join(specDest, 'v0_9/catalogs/minimal');
+  fs.mkdirSync(minimalDest, {recursive: true});
+  copyRecursive(
+    path.join(repoRoot, 'catalogs/minimal/v0_9/catalog.json'),
+    path.join(minimalDest, 'catalog.json'),
+  );
+  copyRecursive(
+    path.join(repoRoot, 'catalogs/minimal/v0_9/examples'),
+    path.join(minimalDest, 'examples'),
+  );
+}
+
 // Copy v0.9 / v0.9.1 mcp and vegachart catalogs so $id URIs resolve cleanly
 for (const verDir of ['v0_9', 'v0_9_1']) {
   const mcpCatalogV09Dest = path.join(specDest, `${verDir}/catalogs/mcp`);
