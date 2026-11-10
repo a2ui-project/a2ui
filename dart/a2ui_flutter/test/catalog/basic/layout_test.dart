@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:convert';
+
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_flutter/a2ui_flutter.dart';
 import 'package:a2ui_flutter/v0_9/basic_catalog.dart';
@@ -22,6 +24,7 @@ import 'package:json_schema_builder/json_schema_builder.dart';
 
 import '../../support/basic_test_catalog.dart';
 import '../../support/fixture_catalog.dart';
+import '../../support/image_server.dart';
 import '../../support/surface_harness.dart';
 
 /// The width of the default test surface.
@@ -382,8 +385,12 @@ void main() {
         ),
         for (final variant in ['icon', 'avatar'])
           (
-            {'component': 'Image', 'url': 'photo.png', 'variant': variant},
-            find.byType(Icon),
+            {
+              'component': 'Image',
+              'url': 'data:image/png;base64,${base64Encode(widePng)}',
+              'variant': variant,
+            },
+            find.byType(Image),
           ),
       ]) {
         await pumpComponents(tester, [

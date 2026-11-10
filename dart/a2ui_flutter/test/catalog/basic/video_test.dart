@@ -206,15 +206,17 @@ void main() {
       expect(platform.uris, [_url]);
     });
 
-    testWidgets('loads nothing for an empty url or one it cannot play', (
+    testWidgets('loads nothing for an empty, blocked or unplayable url', (
       tester,
     ) async {
       for (final (String url, bool fails) in [
         ('', false),
-        // The URL security policy blocks these, so the player gets no URL.
+        // The policy blocks these, so the player gets no URL at all.
         ('http://[::1', false),
         ('file:///tmp/trailer.mp4', false),
         ('rtsp://example.com/live', false),
+        // The policy allows a data: URL, which can't be streamed.
+        ('data:video/mp4;base64,AAAAIGZ0eXA=', true),
       ]) {
         await pumpComponents(tester, [_video(url)], catalog: _catalog);
 

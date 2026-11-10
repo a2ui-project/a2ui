@@ -12,12 +12,55 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'package:a2ui_core/a2ui_core.dart';
 import 'package:flutter/widgets.dart';
+
+/// Checks a URL in a Text's markdown against the surface's URL security
+/// policy, and returns the URL to use (possibly rewritten), or null when it
+/// is blocked.
+///
+/// Pass link targets as [UrlContext.navigation] and image sources as
+/// [UrlContext.media]. A blocked URL is reported once as a `URL_BLOCKED`
+/// warning on the surface.
+typedef A2uiMarkdownUrlSanitizer =
+    String? Function(String url, UrlContext context);
 
 /// Builds the widget that renders [markdown] with [style] as its base text
 /// style.
+///
+/// A builder that renders links or images passes every link target and image
+/// source through [sanitizeUrl] first, opening or loading only the URL it
+/// returns:
+///
+/// ```dart
+/// Widget markdown(
+///   BuildContext context,
+///   String markdown,
+///   TextStyle style,
+///   A2uiMarkdownUrlSanitizer sanitizeUrl,
+/// ) => MarkdownBody(
+///   data: markdown,
+///   onTapLink: (text, href, title) {
+///     final String? url =
+///         href == null ? null : sanitizeUrl(href, UrlContext.navigation);
+///     if (url != null) launchUrl(Uri.parse(url)).ignore();
+///   },
+///   imageBuilder: (uri, title, alt) {
+///     final String? src = sanitizeUrl('$uri', UrlContext.media);
+///     final Widget altText = Text(alt ?? '');
+///     return src == null
+///         ? altText
+///         : A2uiMediaImage(src, errorBuilder: (_, _, _) => altText);
+///   },
+/// );
+/// ```
 typedef A2uiMarkdownBuilder =
-    Widget Function(BuildContext context, String markdown, TextStyle style);
+    Widget Function(
+      BuildContext context,
+      String markdown,
+      TextStyle style,
+      A2uiMarkdownUrlSanitizer sanitizeUrl,
+    );
 
 /// Renders the markdown of the basic `Text` components below it.
 ///

@@ -428,16 +428,31 @@ class _JsonView extends StatelessWidget {
   );
 }
 
-/// Renders a Text's [markdown] with `flutter_markdown_plus`, in [style], and
-/// opens a tapped link with `url_launcher`.
-Widget _markdown(BuildContext context, String markdown, TextStyle style) =>
-    MarkdownBody(
-      data: markdown,
-      onTapLink: (text, href, title) {
-        final Uri? uri = href == null ? null : Uri.tryParse(href);
-        if (uri != null) launchUrl(uri).ignore();
-      },
-      styleSheet: MarkdownStyleSheet.fromTheme(
-        Theme.of(context),
-      ).copyWith(p: style),
-    );
+/// Renders a Text's [markdown] with `flutter_markdown_plus`, in [style],
+/// opening a tapped link with `url_launcher` and loading an image only when
+/// the surface's URL security policy allows them.
+Widget _markdown(
+  BuildContext context,
+  String markdown,
+  TextStyle style,
+  A2uiMarkdownUrlSanitizer sanitizeUrl,
+) => MarkdownBody(
+  data: markdown,
+  onTapLink: (text, href, title) {
+    final String? url = href == null
+        ? null
+        : sanitizeUrl(href, UrlContext.navigation);
+    final Uri? uri = url == null ? null : Uri.tryParse(url);
+    if (uri != null) launchUrl(uri).ignore();
+  },
+  imageBuilder: (uri, title, alt) {
+    final String? src = sanitizeUrl('$uri', UrlContext.media);
+    final Widget altText = Text(alt ?? '');
+    return src == null
+        ? altText
+        : A2uiMediaImage(src, errorBuilder: (_, _, _) => altText);
+  },
+  styleSheet: MarkdownStyleSheet.fromTheme(
+    Theme.of(context),
+  ).copyWith(p: style),
+);

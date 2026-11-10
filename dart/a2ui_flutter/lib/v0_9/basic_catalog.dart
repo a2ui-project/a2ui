@@ -17,3 +17,4 @@ library;
 
 export '../src/catalog/basic/basic_catalog_v0_9.dart';
 export '../src/catalog/basic/markdown.dart';
+export '../src/catalog/basic/media_image.dart';

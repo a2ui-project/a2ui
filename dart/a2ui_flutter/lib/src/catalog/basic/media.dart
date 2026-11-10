@@ -18,11 +18,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
+import 'media_image.dart';
+
 /// Plays the media at [url] with a play button and a progress bar, below the
 /// video frame when [showVideo] is true.
 class MediaPlayer extends StatefulWidget {
-  /// Creates a player for [url]. A null or empty one loads nothing, and a URL
-  /// that is not `http` or `https` shows a failure.
+  /// Creates a player for [url], a URL the surface's URL security policy
+  /// already allowed. A null or empty one loads nothing, and one that can't
+  /// be parsed or streamed over HTTP, such as a `data:` URL, shows a failure.
   const MediaPlayer({
     super.key,
     required this.url,
@@ -36,8 +39,8 @@ class MediaPlayer extends StatefulWidget {
   /// Whether to show the video frame.
   final bool showVideo;
 
-  /// The URL of an `http` or `https` image the video frame shows until
-  /// playback starts, unless the media fails.
+  /// The URL of an image the video frame shows until playback starts, unless
+  /// the media fails. Like [url], the policy already allowed it.
   final String? posterUrl;
 
   @override
@@ -73,8 +76,15 @@ class _MediaPlayerState extends State<MediaPlayer> {
 
   void _open() {
     final String url = widget.url ?? '';
-    final Uri? uri = url.startsWith('http://') || url.startsWith('https://')
-        ? Uri.tryParse(url)
+    final Uri? parsed = url.isEmpty ? null : Uri.tryParse(url);
+    // The player streams over HTTP, so a `data:` URL the policy allows still
+    // can't be played. A relative URL is left to the platform to resolve.
+    final Uri? uri =
+        parsed != null &&
+            (!parsed.hasScheme ||
+                parsed.isScheme('http') ||
+                parsed.isScheme('https'))
+        ? parsed
         : null;
     _failed = url.isNotEmpty && uri == null;
     _played = false;
@@ -115,9 +125,7 @@ class _MediaPlayerState extends State<MediaPlayer> {
       child: failed ? const Icon(Icons.videocam_off) : null,
     );
     final String poster = widget.posterUrl ?? '';
-    final bool hasPoster =
-        !failed &&
-        (poster.startsWith('http://') || poster.startsWith('https://'));
+    final bool hasPoster = !failed && poster.isNotEmpty;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -128,7 +136,7 @@ class _MediaPlayerState extends State<MediaPlayer> {
             child: started || (ready && !hasPoster)
                 ? VideoPlayer(controller!)
                 : hasPoster
-                ? Image.network(
+                ? A2uiMediaImage(
                     poster,
                     fit: BoxFit.cover,
                     excludeFromSemantics: true,

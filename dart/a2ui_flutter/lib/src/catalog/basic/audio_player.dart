@@ -21,7 +21,8 @@ import '../../component_props.dart';
 import 'media.dart';
 
 /// Builds the basic `AudioPlayer` component: its `description`, if any, above
-/// playback controls for the audio at an `http` or `https` `url`.
+/// playback controls for the audio at `url`, which arrives already checked by
+/// the surface's URL security policy (a blocked one is absent).
 Widget buildAudioPlayer(
   BuildContext context,
   ComponentNode<ComponentImplementation> node,

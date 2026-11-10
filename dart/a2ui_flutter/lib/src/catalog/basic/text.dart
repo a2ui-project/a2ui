@@ -20,12 +20,14 @@ import 'package:flutter/material.dart';
 
 import '../../component_implementation.dart';
 import '../../component_props.dart';
+import '../../surface_scope.dart';
 import 'markdown.dart';
 
 /// Builds the basic `Text` component: `text` in the inherited text style,
 /// with the font size and weight of the style its `variant` names from the
 /// ambient [TextTheme], or, for the `body` variant, through the enclosing
-/// [A2uiMarkdown] when there is one.
+/// [A2uiMarkdown] when there is one, which receives a sanitizer for the URLs
+/// of links and images.
 ///
 /// A Text the [A2uiMarkdown] does not build shows its text without common
 /// Markdown markers: heading and quote markers, link and image syntax,
@@ -52,7 +54,12 @@ Widget buildText(
   TextStyle? style = styleOf(props.string('variant'));
   if (style == null) {
     if (A2uiMarkdown.maybeOf(context) case final A2uiMarkdownBuilder markdown) {
-      return markdown(context, text, DefaultTextStyle.of(context).style);
+      return markdown(
+        context,
+        text,
+        DefaultTextStyle.of(context).style,
+        _markdownUrlSanitizer(context, node),
+      );
     }
   }
   final String line = text.trim();
@@ -67,6 +74,32 @@ Widget buildText(
     style: style == null
         ? null
         : TextStyle(fontSize: style.fontSize, fontWeight: style.fontWeight),
+  );
+}
+
+/// Checks the URLs in [node]'s markdown against the surface's URL security
+/// policy, naming the Text and its `text` property as their source.
+A2uiMarkdownUrlSanitizer _markdownUrlSanitizer(
+  BuildContext context,
+  ComponentNode<ComponentImplementation> node,
+) {
+  const info = UrlCheckInfo(propertyName: 'text');
+  final ComponentContext? componentContext = node.context;
+  if (componentContext != null) {
+    return (url, urlContext) =>
+        componentContext.sanitizeUrl(url, urlContext, info: info);
+  }
+  final SurfaceModel<ComponentImplementation> surface = SurfaceScope.of(
+    context,
+  );
+  return (url, urlContext) => surface.sanitizeUrl(
+    url,
+    urlContext,
+    info: UrlCheckInfo(
+      componentType: node.type,
+      componentId: node.componentId,
+      propertyName: 'text',
+    ),
   );
 }
 
