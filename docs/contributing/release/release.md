@@ -252,9 +252,14 @@ the package. This has two consequences:
 **1. Update the changelog**
 
 Check the notes under `## Unreleased` in
-[swift/CHANGELOG.md](../../../swift/CHANGELOG.md) and choose the next version.
-Open a pull request that replaces `## Unreleased` with an empty `## Unreleased`
-section above `## <version>`, and merge it to `main`.
+[swift/CHANGELOG.md](../../../swift/CHANGELOG.md) and choose the next version:
+breaking changes are listed at the top of `## Unreleased` with a
+`**BREAKING CHANGE**:` prefix. Before `1.0.0`, bump the minor version if any
+`**BREAKING CHANGE**:` entry is present and the patch version otherwise; from
+`1.0.0` onward, bump major for `**BREAKING CHANGE**:` entries, minor for new
+non-breaking features, and patch for fixes only. Open a pull request that
+replaces `## Unreleased` with an empty `## Unreleased` section above
+`## <version>`, and merge it to `main`.
 
 **2. Choose the commit**
 
