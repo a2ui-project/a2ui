@@ -1,0 +1,194 @@
+[
+  {
+    "surfaceUpdate": {
+      "surfaceId": "gallery-product-card",
+      "components": [
+        {
+          "id": "root",
+          "component": {
+            "Card": {
+              "child": "main-column"
+            }
+          }
+        },
+        {
+          "id": "main-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["image", "details"]
+              }
+            }
+          }
+        },
+        {
+          "id": "image",
+          "component": {
+            "Image": {
+              "url": {
+                "path": "/imageUrl"
+              },
+              "fit": "cover"
+            }
+          }
+        },
+        {
+          "id": "details",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["name", "rating-row", "price-row", "actions"]
+              }
+            }
+          }
+        },
+        {
+          "id": "name",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/name"
+              },
+              "usageHint": "h3"
+            }
+          }
+        },
+        {
+          "id": "rating-row",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["stars", "reviews"]
+              },
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "stars",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/stars"
+              },
+              "usageHint": "body"
+            }
+          }
+        },
+        {
+          "id": "reviews",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/reviews"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "price-row",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["price", "original-price"]
+              },
+              "alignment": "start"
+            }
+          }
+        },
+        {
+          "id": "price",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/price"
+              },
+              "usageHint": "h2"
+            }
+          }
+        },
+        {
+          "id": "original-price",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/originalPrice"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "actions",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["add-cart-btn"]
+              }
+            }
+          }
+        },
+        {
+          "id": "add-cart-btn-text",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Add to Cart"
+              }
+            }
+          }
+        },
+        {
+          "id": "add-cart-btn",
+          "component": {
+            "Button": {
+              "child": "add-cart-btn-text",
+              "action": {
+                "name": "addToCart",
+                "context": []
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "gallery-product-card",
+      "contents": [
+        {
+          "key": "imageUrl",
+          "valueString": "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300&h=200&fit=crop"
+        },
+        {
+          "key": "name",
+          "valueString": "Wireless Headphones Pro"
+        },
+        {
+          "key": "stars",
+          "valueString": "\u2605\u2605\u2605\u2605\u2605"
+        },
+        {
+          "key": "reviews",
+          "valueString": "(2,847 reviews)"
+        },
+        {
+          "key": "price",
+          "valueString": "$199.99"
+        },
+        {
+          "key": "originalPrice",
+          "valueString": "$249.99"
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "gallery-product-card",
+      "root": "root"
+    }
+  }
+]
