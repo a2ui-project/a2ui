@@ -134,11 +134,11 @@ void main() {
     // So do the subgroups, which only show the kinds the group has.
     expect(find.byType(ListTile), findsNothing);
     expect(find.text('PRs without issues (0)'), findsNothing);
-    await expand(tester, 'Issues with PRs (1)');
-    await expand(tester, 'Issues without PRs (1)');
+    await expand(tester, 'Issues with open PRs (1)');
+    await expand(tester, 'Issues without open PRs (1)');
     await expand(tester, 'PRs with issues (1)');
-    expect(find.byTooltip('Issue with PRs'), findsOneWidget);
-    expect(find.byTooltip('Issue without PRs'), findsOneWidget);
+    expect(find.byTooltip('Issue with open PRs'), findsOneWidget);
+    expect(find.byTooltip('Issue without open PRs'), findsOneWidget);
     expect(find.byTooltip('PR with issues'), findsOneWidget);
     expect(inList('suggestion'), findsOneWidget);
     expect(inList('no suggestion'), findsNWidgets(2));
@@ -212,7 +212,7 @@ void main() {
     ]);
     expect(find.text('2 items need triage'), findsOneWidget);
     // The list shows the next item, #11, which is in another subgroup.
-    await expand(tester, 'Issues with PRs (1)');
+    await expand(tester, 'Issues with open PRs (1)');
     expect(find.byIcon(Icons.check_circle), findsOneWidget);
     expect(find.text('Issue #11: Docs are unclear'), findsOneWidget);
   });
@@ -463,7 +463,7 @@ void main() {
     expect(find.text('New (1)'), findsOneWidget);
     expect(find.text('Issue #11: Docs are unclear'), findsOneWidget);
     await expand(tester, 'Needs team input (2)');
-    await expand(tester, 'Issues with PRs (1)');
+    await expand(tester, 'Issues with open PRs (1)');
     expect(find.byIcon(Icons.groups), findsOneWidget);
   });
 
@@ -573,7 +573,7 @@ void main() {
     expect(find.text('Select an item.'), findsOneWidget);
 
     await expand(tester, 'New (3)');
-    await expand(tester, 'Issues without PRs (1)');
+    await expand(tester, 'Issues without open PRs (1)');
     await tester.tap(inList('#11 Docs are unclear'));
     await tester.pumpAndSettle();
     expect(controller.selected!.number, 11);
@@ -672,7 +672,7 @@ void main() {
   testWidgets('an item without a suggestion starts empty', (tester) async {
     await pumpApp(tester);
     await expand(tester, 'New (3)');
-    await expand(tester, 'Issues without PRs (1)');
+    await expand(tester, 'Issues without open PRs (1)');
     await tester.tap(inList('#11 Docs are unclear'));
     await tester.pumpAndSettle();
 

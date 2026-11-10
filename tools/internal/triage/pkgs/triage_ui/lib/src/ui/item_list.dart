@@ -35,12 +35,12 @@ Color _shade(BuildContext context, MaterialColor color) =>
   Color shade(MaterialColor color) => _shade(context, color);
   return switch (kind) {
     ItemKind.issueWithPrs => (
-      'Issue with PRs',
+      'Issue with open PRs',
       Icons.adjust,
       shade(Colors.green),
     ),
     ItemKind.issueWithoutPrs => (
-      'Issue without PRs',
+      'Issue without open PRs',
       Icons.radio_button_unchecked,
       shade(Colors.green),
     ),
@@ -160,8 +160,8 @@ class _ItemListState extends State<ItemList> {
     return [
       _GroupHeader(
         '${switch (kind) {
-          ItemKind.issueWithPrs => 'Issues with PRs',
-          ItemKind.issueWithoutPrs => 'Issues without PRs',
+          ItemKind.issueWithPrs => 'Issues with open PRs',
+          ItemKind.issueWithoutPrs => 'Issues without open PRs',
           ItemKind.prWithIssues => 'PRs with issues',
           ItemKind.prWithoutIssues => 'PRs without issues',
         }} (${items.length})',

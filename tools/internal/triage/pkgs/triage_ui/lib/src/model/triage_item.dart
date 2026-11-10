@@ -26,10 +26,12 @@ const String needsTeamInputLabel = 'status: needs-team-input';
 /// The types of items, in the order the list shows them. See
 /// `ui.blueprint.md`.
 enum ItemKind {
-  /// An issue that open pull requests close.
+  /// An issue that open pull requests are linked to close, whoever opened
+  /// them.
   issueWithPrs,
 
-  /// An issue that no open pull request closes.
+  /// An issue that no open pull request is linked to close. Closed and
+  /// merged pull requests do not count.
   issueWithoutPrs,
 
   /// A pull request that closes issues.
