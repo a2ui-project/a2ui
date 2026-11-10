@@ -1,4 +1,6 @@
-# Build delightful, fast, reliable agentic experiences with A2UI
+# A2UI
+
+**Build delightful, fast, reliable agentic experiences**
 
 A2UI (Agent-to-User Interface) is an open-source generative UI framework,
 complete with a protocol optimized for streaming dynamic user interfaces at
