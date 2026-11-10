@@ -636,6 +636,31 @@ class _Component {
     _ => null,
   };
 
+  /// The helper that reads the system function [name], such as `@index`,
+  /// which the protocol defines rather than a catalog, so the call is
+  /// written with no catalog; or, before v1.0, null if the version defines
+  /// no such function.
+  ///
+  /// Throws [A2uiValidationError] from v1.0 if the version defines no system
+  /// function named [name], or the call names a `catalogId`.
+  (CatalogSchemaHelper, String?)? _systemFunction(
+    String name,
+    Map<Object?, Object?> call,
+  ) {
+    final CatalogSchemaHelper helper = decompiler._helpers.values.first;
+    if (!helper.isSystemFunction(name)) {
+      if (!_v1) return null;
+      throw A2uiValidationError("Unknown system function '$name'.");
+    }
+    if (call.containsKey('catalogId')) {
+      throw A2uiValidationError(
+        "System function '$name' is defined by the protocol, not a catalog, "
+        'so it takes no catalogId.',
+      );
+    }
+    return (helper, null);
+  }
+
   /// The function a call that names [name] and, from v1.0, [catalogId]
   /// belongs to, and the catalog to write it with, or, before v1.0, null if
   /// it belongs to no active catalog.
@@ -658,18 +683,19 @@ class _Component {
     }
   }
 
-  /// `name(arguments)` for a call to a catalog function, or null.
+  /// `name(arguments)` for a call to a catalog or system function, or null.
   String? _call(Map<Object?, Object?> value) {
     final Object? name = value[_callKey];
-    final Object? args = value['args'];
+    final bool system = name is String && name.startsWith('@');
+    // A system function's args are optional.
+    final Object? args = value['args'] ?? (system ? const {} : null);
     final bool written = value.keys.every(
       (k) => k == _callKey || k == 'args' || (_v1 && k == 'catalogId'),
     );
     if (name is! String || args is! Map || !written) return null;
-    final (CatalogSchemaHelper, String?)? function = _function(
-      name,
-      value['catalogId'],
-    );
+    final (CatalogSchemaHelper, String?)? function = system
+        ? _systemFunction(name, value)
+        : _function(name, value['catalogId']);
     if (function == null) return null;
     final (CatalogSchemaHelper helper, String? catalogId) = function;
     final List<String> parameters = helper.parameters(name);

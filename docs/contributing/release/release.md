@@ -257,12 +257,11 @@ libraries and the sample app for the iOS Simulator.
 **2. Tag the commit**
 
 ```bash
-git tag swift/v<version> <commit>
 git tag v<version>+swift <commit>
-git push origin swift/v<version> v<version>+swift
+git push origin v<version>+swift
 ```
 
-Create a GitHub release for `swift/v<version>` with the release notes.
+Create a GitHub release for `v<version>+swift` with the release notes.
 
 **3. Check the release**
 

@@ -27,7 +27,7 @@ import {
   BASIC_COMPONENTS as V1_0_BASIC_COMPONENTS,
   BASIC_FUNCTIONS as V1_0_BASIC_FUNCTIONS,
 } from '../../dist/src/catalogs/basic/v1/index.js';
-import {toCanonicalVersion} from '../../dist/src/common/semver.js';
+import {isAtLeastVersion, toCanonicalVersion} from '../../dist/src/common/semver.js';
 import {
   A2uiCatalogError,
   A2uiDataError,
@@ -3428,6 +3428,8 @@ function assertSurfacesMatch(processor, expect) {
         // than the descriptor held in the component model. Template expansions
         // exist only in the resolved tree.
         const resolved = collectResolvedNodes(surface);
+        // Component metadata exists from v1.0; below it `metadata` is a property.
+        const metadataIsEnvelope = isAtLeastVersion(surface.protocolVersion, '1.0');
         try {
           for (const expectedComp of expectedComponents) {
             const node = resolved.nodes.get(expectedComp.id);
@@ -3446,7 +3448,7 @@ function assertSurfacesMatch(processor, expect) {
             const actualProps = node ? (peekValue(node.props) ?? {}) : (comp.properties ?? {});
             for (const [propKey, expectedVal] of Object.entries(expectedComp)) {
               if (propKey === 'id' || propKey === 'component') continue;
-              if (propKey === 'metadata') {
+              if (metadataIsEnvelope && propKey === 'metadata') {
                 const actualMeta = (node ? peekValue(node.metadata) : comp.metadata) ?? null;
                 assert.deepStrictEqual(
                   actualMeta,
