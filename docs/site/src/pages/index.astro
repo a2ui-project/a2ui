@@ -93,11 +93,12 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
                 <p class="a2-lead">
                   A2UI is an open-source generative UI framework that enables
                   agents to select, compose, or build experiences that are
-                  personalized in the moment, native to your brand, and reliable
-                  and secure. Using an agent-optimized protocol, native
-                  renderers, and SDKs for agent frameworks and harnesses, A2UI
-                  achieves low latency, predictability, and visual fidelity
-                  across all screens.
+                  <strong class="a2-lead__prop">personalized in the moment</strong>,
+                  <strong class="a2-lead__prop">native to your brand</strong>, and
+                  <strong class="a2-lead__prop">secure</strong>. Using an
+                  agent-optimized protocol, native renderers, and SDKs for agent
+                  frameworks and harnesses, A2UI achieves low latency,
+                  predictability, and visual fidelity across all screens.
                 </p>
 
                 <div class="a2-hero__actions">
@@ -160,7 +161,7 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
                   >
                 </li>
                 <li>
-                  <a href={`${base}/built-with-a2ui/#gemini-enterprise`} title="Google Cloud: Gemini Enterprise"
+                  <a href={`${base}/built-with-a2ui/#gemini-enterprise`} title="Google Cloud: Inside Gemini"
                     ><TeamLogo team="google-cloud" size={18} idPrefix="hero-google-cloud" /></a
                   >
                 </li>
@@ -468,6 +469,13 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         line-height: 1.65;
         letter-spacing: var(--a2-tracking-body);
         color: var(--a2-text-secondary);
+      }
+
+      /* The three value props read in full-strength text so they stand out
+         from the rest of the lead without looking like links. */
+      .a2-lead__prop {
+        font-weight: 600;
+        color: var(--a2-text);
       }
 
       .a2-hero__actions {
