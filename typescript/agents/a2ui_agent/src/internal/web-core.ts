@@ -114,7 +114,7 @@ export {scrapeSchemaBehavior, validateReservedDirectives} from '@a2ui/web_core/r
 export type {BehaviorNode} from '@a2ui/web_core/resolution';
 
 // ./state
-export {ComponentModel, DataModel, SurfaceModel} from '@a2ui/web_core/state';
+export {ComponentModel, DataModel, MAX_ARRAY_INDEX, SurfaceModel} from '@a2ui/web_core/state';
 
 // ./processing
 export {MessageProcessor} from '@a2ui/web_core/processing';

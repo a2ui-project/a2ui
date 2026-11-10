@@ -422,6 +422,62 @@ describe('checkPayloadUrls', () => {
     ]);
   });
 
+  it('never borrows another schema for a named catalog the agent lacks', () => {
+    const otherId = 'https://example.com/other/catalog.json';
+    const card = {
+      id: 'card',
+      component: 'ProductCard',
+      imageUrl: 'https://attacker.example/i.png',
+      title: 'https://attacker.example/t.png',
+    };
+    const image = {id: 'img', component: 'Image', url: 'https://attacker.example/a'};
+    // The product catalog's marks don't apply to a surface of another catalog.
+    expect(
+      checkPayloadUrls([PRODUCT_CATALOG], [createV10(otherId), updateV10(card)], {
+        policy: CDN_ONLY,
+      }).blocked,
+    ).toEqual([]);
+    // The policy's urlProperties for that catalog ID still apply.
+    const policy = new AllowlistUrlSecurityPolicy({
+      media: ['cdn.example.com'],
+      urlProperties: {[otherId]: {ProductCard: {title: 'media'}}},
+    });
+    expect(
+      checkPayloadUrls([PRODUCT_CATALOG], [createV10(otherId), updateV10(card)], {
+        policy,
+      }).blocked.map(b => [b.catalogId, b.propertyName]),
+    ).toEqual([[otherId, 'title']]);
+    // So does the built-in list of a basic catalog the agent doesn't hold.
+    expect(
+      checkPayloadUrls([PRODUCT_CATALOG], [createV10(BASIC_CATALOG_IDS['1.0']), updateV10(image)], {
+        policy: CDN_ONLY,
+      }).blocked.map(b => [b.catalogId, b.propertyName]),
+    ).toEqual([[BASIC_CATALOG_IDS['1.0'], 'url']]);
+  });
+
+  it('ignores data updates past the maximum list index', () => {
+    const data = (path: string) =>
+      v10({updateDataModel: {surfaceId: 's', path, value: 'https://attacker.example/'}});
+    const result = checkPayloadUrls(
+      [BASIC_V10],
+      [
+        createV10(BASIC_CATALOG_IDS['1.0'], {dataModel: {items: []}}),
+        data('/items/10000/url'),
+        data('/items/1000000000/url'),
+        data('/fresh/1000000000'),
+        updateV10(
+          {id: 'edge', component: 'Image', url: {'@path': '/items/10000/url'}},
+          {id: 'huge', component: 'Image', url: {'@path': '/items/1000000000/url'}},
+          {id: 'fresh', component: 'Image', url: {'@path': '/fresh/1000000000'}},
+        ),
+      ],
+      {policy: CDN_ONLY},
+    );
+    // The renderer rejects the updates past the maximum index, so the bindings to them resolve
+    // to nothing there either.
+    expect(result.blocked.map(b => b.componentId)).toEqual(['edge']);
+  });
+
   it('passes unknown messages and components through unchecked', () => {
     const payload = [
       {version: '1.0', deleteSurface: {surfaceId: 's'}},

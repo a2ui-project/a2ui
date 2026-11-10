@@ -24,6 +24,8 @@ import {
   BASIC_CATALOG_URL_PROPERTIES,
   BehaviorNode,
   CatalogApi,
+  ComponentApi,
+  MAX_ARRAY_INDEX,
   PermissiveUrlSecurityPolicy,
   redactUrl,
   scrapeSchemaBehavior,
@@ -146,7 +148,9 @@ interface StripTarget {
  *
  * Each component is checked against its surface's catalog, from the payload's
  * `createSurface`, or, for a surface the payload only updates, the first catalog that
- * defines the component's type.
+ * defines the component's type. When `catalogs` doesn't hold the catalog `createSurface`
+ * names, no other catalog's schema is used: only the properties that the built-in list or
+ * the policy's `urlProperties` name for that catalog ID are checked.
  *
  * @param catalogs The active catalogs.
  * @param payload One message, or an iterable of messages, as parsed JSON objects. Messages
@@ -234,10 +238,25 @@ export function checkPayloadUrls(
     if (typeof type !== 'string') continue;
     const surface = surfaces.get(entry.surfaceId);
     const catalog = findCatalog(catalogs, surface?.catalogId, type);
-    if (catalog === undefined) continue;
-    const cacheKey = JSON.stringify([catalog.id, type]);
+    let catalogId: string;
+    if (catalog !== undefined) {
+      catalogId = catalog.id;
+    } else if (
+      surface?.catalogId !== undefined &&
+      !catalogs.some(c => c.id === surface.catalogId)
+    ) {
+      // The surface's catalog isn't one the agent holds. Its schema is unknown, so only the
+      // properties the built-in list or the policy's `urlProperties` name for it are checked.
+      catalogId = surface.catalogId;
+    } else {
+      continue;
+    }
+    const cacheKey = JSON.stringify([catalogId, type]);
     if (!behaviorCache.has(cacheKey)) {
-      behaviorCache.set(cacheKey, urlBehaviorOf(catalog, type, policy.urlProperties));
+      behaviorCache.set(
+        cacheKey,
+        urlBehaviorOf(catalogId, catalog?.components.get(type), type, policy.urlProperties),
+      );
     }
     const behavior = behaviorCache.get(cacheKey);
     if (!behavior) continue;
@@ -253,7 +272,7 @@ export function checkPayloadUrls(
       const found = {
         messageIndex: entry.messageIndex,
         surfaceId: entry.surfaceId,
-        catalogId: catalog.id,
+        catalogId,
         componentId,
         componentType: type,
         propertyName,
@@ -318,6 +337,12 @@ function isBasicCatalog(catalogId: string): boolean {
   return Object.hasOwn(BASIC_CATALOG_URL_PROPERTIES, catalogId);
 }
 
+/**
+ * Returns the catalog whose schema describes a component. A surface that names its catalog uses
+ * that catalog only; another catalog that happens to define the same type may mark different
+ * properties as URLs. Without a catalog ID (the surface was created by an earlier payload), the
+ * first catalog defining the type is used.
+ */
 function findCatalog(
   catalogs: CatalogApi[],
   catalogId: string | undefined,
@@ -325,7 +350,7 @@ function findCatalog(
 ): CatalogApi | undefined {
   if (catalogId !== undefined) {
     const named = catalogs.find(c => c.id === catalogId);
-    if (named !== undefined) return named.components.has(componentType) ? named : undefined;
+    return named?.components.has(componentType) ? named : undefined;
   }
   return catalogs.find(c => c.components.has(componentType));
 }
@@ -343,17 +368,17 @@ function lookupUrlProperties(
 /**
  * The behavior tree of a component with the URL contexts the renderer applies: those of the
  * schema, the built-in list where the schema has none, and the host's map, which wins. Like
- * the renderer, the lists mark top-level properties only. Returns `null` when no property of
+ * the renderer, the lists mark top-level properties only. Without the component's API (its
+ * catalog isn't one the agent holds) only the lists apply. Returns `null` when no property of
  * the component holds a URL.
  */
 function urlBehaviorOf(
-  catalog: CatalogApi,
+  catalogId: string,
+  api: ComponentApi | undefined,
   componentType: string,
   urlProperties: UrlPropertyMap | undefined,
 ): Extract<BehaviorNode, {type: 'OBJECT'}> | null {
-  const api = catalog.components.get(componentType);
-  if (api === undefined) return null;
-  const tree = scrapeSchemaBehavior(api.schema);
+  const tree: BehaviorNode = api ? scrapeSchemaBehavior(api.schema) : {type: 'OBJECT', shape: {}};
   const shape: Record<string, BehaviorNode> = tree.type === 'OBJECT' ? {...tree.shape} : {};
   const apply = (property: string, urlContext: UrlContextAnnotation, overrideSchema: boolean) => {
     const node = shape[property] ?? {type: 'STATIC'};
@@ -361,11 +386,11 @@ function urlBehaviorOf(
     if (!overrideSchema && node.urlContext !== undefined) return;
     shape[property] = {...node, urlContext};
   };
-  const builtIn = lookupUrlProperties(BASIC_CATALOG_URL_PROPERTIES, catalog.id, componentType);
+  const builtIn = lookupUrlProperties(BASIC_CATALOG_URL_PROPERTIES, catalogId, componentType);
   for (const [property, urlContext] of Object.entries(builtIn ?? {})) {
     apply(property, urlContext, false);
   }
-  const host = lookupUrlProperties(urlProperties, catalog.id, componentType);
+  const host = lookupUrlProperties(urlProperties, catalogId, componentType);
   for (const [property, urlContext] of Object.entries(host ?? {})) {
     apply(property, urlContext, true);
   }
@@ -458,7 +483,11 @@ function readPointer(root: unknown, pointer: string): unknown {
   return current;
 }
 
-/** Applies an `updateDataModel` to a copy of the data model and returns the result. */
+/**
+ * Applies an `updateDataModel` to a copy of the data model and returns the result. An update with
+ * a list index above `MAX_ARRAY_INDEX` is ignored, as the renderer rejects it, which also keeps a
+ * payload from growing a list to any size it names.
+ */
 function applyDataUpdate(
   root: unknown,
   pointer: string,
@@ -467,6 +496,7 @@ function applyDataUpdate(
 ): unknown {
   const segments = pointerSegments(pointer);
   if (segments.length === 0) return hasValue ? value : undefined;
+  if (segments.some(s => /^\d+$/.test(s) && Number(s) > MAX_ARRAY_INDEX)) return root;
   const result: unknown = isJsonObject(root) || Array.isArray(root) ? structuredClone(root) : {};
   let current = result as JsonObject | unknown[];
   for (let i = 0; i < segments.length - 1; i++) {
