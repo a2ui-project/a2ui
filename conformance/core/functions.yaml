@@ -13,6 +13,7 @@
 # limitations under the License.
 
 - name: test_function_format_date_tr35_tokens
+  features: [F-CORE-19, F-CORE-22]
   description: Verifies formatDate TR35 token expansion (yyyy-MM-dd).
   catalog:
     protocolVersion: "1.0"
@@ -40,6 +41,7 @@
             text: "2026-09-04"
 
 - name: test_function_format_currency_locale_and_symbol
+  features: [F-CORE-19, F-CORE-22]
   description: Verifies formatCurrency with currency symbol, decimals, and grouping separators.
   catalog:
     protocolVersion: "1.0"
@@ -68,6 +70,7 @@
             text: "$1,234.50"
 
 - name: test_function_pluralize_categories
+  features: [F-CORE-19, F-CORE-22]
   description: Verifies pluralize resolving CLDR categories (one, other).
   catalog:
     protocolVersion: "1.0"
@@ -110,6 +113,7 @@
             text: "5 items"
 
 - name: test_function_logical_and_or_not
+  features: [F-CORE-22]
   description: Verifies and, or, and not logical function evaluations.
   catalog:
     protocolVersion: "1.0"
@@ -183,6 +187,7 @@
 
 # --- RequiredFunction (D20) ---
 - name: test_evaluate_function_required_string_valid
+  features: [F-CORE-22]
   description: Verifies required returns true for non-empty string.
   action: evaluate_function
   function: required
@@ -191,6 +196,7 @@
   expect: true
 
 - name: test_evaluate_function_required_string_empty
+  features: [F-CORE-22]
   description: Verifies required returns false for empty string.
   action: evaluate_function
   function: required
@@ -199,6 +205,7 @@
   expect: false
 
 - name: test_evaluate_function_required_null
+  features: [F-CORE-22]
   description: Verifies required returns false for null.
   action: evaluate_function
   function: required
@@ -232,6 +239,7 @@
 
 # --- RegexFunction (D21) ---
 - name: test_evaluate_function_regex_match
+  features: [F-CORE-20, F-CORE-22]
   description: Verifies regex returns true on matching string.
   action: evaluate_function
   function: regex
@@ -241,6 +249,7 @@
   expect: true
 
 - name: test_evaluate_function_regex_mismatch
+  features: [F-CORE-20, F-CORE-22]
   description: Verifies regex returns false on non-matching string.
   action: evaluate_function
   function: regex
@@ -250,6 +259,7 @@
   expect: false
 
 - name: test_evaluate_function_regex_invalid_pattern
+  features: [F-CORE-20, F-CORE-22]
   description: Verifies regex raises ExpressionError on invalid regex pattern (D21).
   action: evaluate_function
   function: regex
@@ -615,6 +625,7 @@
 
 # --- EmailFunction (D22) ---
 - name: test_evaluate_function_email_valid
+  features: [F-CORE-22]
   description: Verifies email returns true on standard email address.
   action: evaluate_function
   function: email
@@ -640,6 +651,7 @@
 
 # --- LengthFunction (D24) ---
 - name: test_evaluate_function_length_string_valid
+  features: [F-CORE-22]
   description: Verifies length returns true when string is within bounds.
   action: evaluate_function
   function: length
@@ -708,6 +720,7 @@
 
 # --- NumericFunction (D23) ---
 - name: test_evaluate_function_numeric_valid_float
+  features: [F-CORE-22]
   description: Verifies numeric returns true for float within bounds.
   action: evaluate_function
   function: numeric
@@ -1273,6 +1286,82 @@
     category: CatalogError
     message: "has no default catalogId"
 
+- name: test_evaluate_function_v10_format_string_template_call_inherits_catalog_without_default
+  description: >-
+    Verifies a function call inside a formatString ${...} template expression inherits the catalogId that formatString itself resolved to. Because ${...} has no syntax for naming a catalogId, a template call such as ${pluralize(...)} runs in formatString's catalog even when the surface has no default catalog.
+  action: evaluate_function
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  surface: {}
+  function: formatString
+  catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+  args:
+    value: "Count: ${pluralize(value: 2, one: 'drop', other: 'drops')}"
+  expect: "Count: drops"
+
+- name: test_evaluate_function_v10_format_string_template_call_inherits_named_catalog_over_default
+  description: >-
+    Verifies a function call inside a formatString ${...} template expression runs in the catalog that formatString names rather than the surface default catalog. The surface default is the conformance custom catalog, which declares no pluralize; formatString names the basic catalog, so ${pluralize(...)} resolves in the basic catalog.
+  action: evaluate_function
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+    - "conformance/test_data/catalogs/custom_catalog_v1_0.json"
+  surface:
+    catalogId: "conformance/custom"
+  function: formatString
+  catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+  args:
+    value: "Count: ${pluralize(value: 2, one: 'drop', other: 'drops')}"
+  expect: "Count: drops"
+
+- name: test_evaluate_function_v10_format_string_template_call_inherits_catalog_nested
+  description: >-
+    Verifies nested function calls at multiple depths inside a formatString ${...} template expression all inherit the catalogId that formatString itself resolved to on a defaultless surface.
+  action: evaluate_function
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  surface: {}
+  function: formatString
+  catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+  args:
+    value: "Count: ${pluralize(value: 1, one: formatNumber(value: 42, grouping: false), other: 'many')} (${not(value: not(value: true))})"
+  expect: "Count: 42 (true)"
+
+- name: test_evaluate_function_v10_format_string_template_call_missing_in_inherited_catalog_errors
+  description: >-
+    Verifies a formatString ${...} template call missing from the inherited catalog fails with an ExpressionError naming the missing function, rather than a CatalogError complaining that the surface has no default catalogId.
+  action: evaluate_function
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  surface: {}
+  function: formatString
+  catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+  args:
+    value: "${noSuchFn()}"
+  expectError:
+    category: ExpressionError
+    message: "noSuchFn"
+
+- name: test_evaluate_function_v10_format_string_index_stays_catalogless_without_default
+  description: >-
+    Verifies ${@index()} inside a formatString call on a defaultless v1.0 surface remains catalogless and fails with the collection-scope ExpressionError at root rather than an error for stamping a catalogId onto @index.
+  action: evaluate_function
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  surface: {}
+  function: formatString
+  catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+  args:
+    value: "${@index()}"
+  expectError:
+    category: ExpressionError
+    message: "@index function can only be evaluated inside a collection template iteration scope."
+
 - name: test_evaluate_function_v09_ignores_call_catalog_id
   description: >-
     Verifies a catalogId on a call is ignored before v1.0. On a v0.9 surface the call runs in the surface catalog, so naming a catalog the client does not have is not an error.
@@ -1340,6 +1429,7 @@
   expect: "1,234"
 
 - name: test_evaluate_function_v10_validation_result_coerced_in_not_operand_on_surface
+  features: [F-CORE-27]
   description: >-
     Verifies a ValidationResult resolved from a nested validation call into not's DynamicBoolean operand is read by its validity when the call runs on a surface.
   action: evaluate_function
@@ -1357,6 +1447,7 @@
   expect: true
 
 - name: test_evaluate_function_v10_validation_result_coerced_in_and_operands_on_surface
+  features: [F-CORE-27]
   description: >-
     Verifies the ValidationResults resolved from nested validation calls into and's DynamicBoolean operands are read by their validity when the call runs on a surface, as in the specification's enable-when-valid example.
   action: evaluate_function
@@ -1390,6 +1481,7 @@
 # renderer refuses it before running it.
 
 - name: test_evaluate_function_v10_agent_only_function_errors
+  features: [F-CORE-34]
   description: >-
     Verifies a v1.0 call on a surface to a function whose allowedCallers is agentOnly fails with an ExpressionError and does not run.
   action: evaluate_function

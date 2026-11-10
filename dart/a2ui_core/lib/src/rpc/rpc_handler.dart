@@ -334,7 +334,7 @@ class RpcHandler {
     }
     final String name = call.call;
     final Catalog<ComponentApi, FunctionImplementation> catalog =
-        _resolveCatalog(call.catalogId, surface);
+        _resolveCatalog(call.catalogId, name, surface);
     if (!isCatalogVersionCompatible(
       catalog.protocolVersion?.jsonValue,
       message.version,
@@ -366,11 +366,15 @@ class RpcHandler {
         RpcErrorCode.invalidFunctionCall,
       );
     }
-    final DataContext dataContext = _dataContextFor(
-      surface,
-      catalog,
-      message.version,
-      execution,
+    final DataContext dataContext = dataContextWithCallCatalog(
+      _dataContextFor(
+        surface,
+        catalog,
+        message.version,
+        execution,
+      ),
+      catalog.id,
+      catalog.invoke,
     );
     final Map<String, dynamic> resolvedArgs;
     try {
@@ -419,16 +423,21 @@ class RpcHandler {
 
   Catalog<ComponentApi, FunctionImplementation> _resolveCatalog(
     String? catalogId,
+    String functionName,
     SurfaceModel<ComponentApi>? surface,
   ) {
     if (catalogId != null) {
       final Catalog<ComponentApi, FunctionImplementation>? fromSurface =
           surface?.availableCatalogs[catalogId];
-      if (fromSurface != null) return fromSurface;
+      if (fromSurface != null &&
+          fromSurface.functions.containsKey(functionName)) {
+        return fromSurface;
+      }
       for (final Catalog<ComponentApi, FunctionImplementation> candidate
           in catalogs) {
         if (candidate.id == catalogId) return candidate;
       }
+      if (fromSurface != null) return fromSurface;
       throw A2uiRpcError(
         'Catalog not found: $catalogId',
         RpcErrorCode.invalidFunctionCall,
@@ -459,8 +468,12 @@ class RpcHandler {
             : A2uiProtocolVersion.tryParseSemVer(
                 surface.protocolVersion!,
               ),
-        invokerForCatalog: (catalogId) =>
-            surface.resolveCatalog(catalogId).invoke,
+        invokerForCatalog: (catalogId) {
+          if (catalogId == catalog.id) {
+            return catalog.invoke;
+          }
+          return surface.resolveCatalog(catalogId).invoke;
+        },
         // No agent caller: an agent-initiated call cannot wait for another
         // call to the agent, so an argument naming a function the renderer
         // does not implement fails, as before fallback routing.

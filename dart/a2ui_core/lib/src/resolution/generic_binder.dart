@@ -578,16 +578,11 @@ class GenericBinder {
       return BehaviorNode(Behavior.dynamic);
     }
 
-    bool hasEvent = schemasToInspect.any(
-      (s) =>
-          s['properties'] != null && (s['properties'] as Map)['event'] != null,
-    );
-    bool hasFunctionCall = schemasToInspect.any(
-      (s) =>
-          s['properties'] != null &&
-          (s['properties'] as Map)['functionCall'] != null,
-    );
-    if (hasEvent || hasFunctionCall) return BehaviorNode(Behavior.action);
+    // A component's own schema, the only one scraped without ancestors, is
+    // never an action.
+    if (ancestors != null && schemasToInspect.any(_isInlineAction)) {
+      return BehaviorNode(Behavior.action);
+    }
 
     final bool atLeastV10 = context.dataContext.atLeastV10;
     bool hasPath = schemasToInspect.any(
@@ -791,4 +786,14 @@ Object? _snapshotBindingValue(Object? value) {
     );
   }
   return value;
+}
+
+/// Whether [schema] declares `event` or `functionCall` as its only property,
+/// like each branch of the spec's `Action`.
+bool _isInlineAction(Map<String, Object?> schema) {
+  final Object? properties = schema['properties'];
+  return properties is Map &&
+      properties.length == 1 &&
+      (properties.containsKey('event') ||
+          properties.containsKey('functionCall'));
 }
