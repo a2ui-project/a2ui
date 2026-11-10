@@ -574,9 +574,8 @@ describe('BASIC_FUNCTIONS', () => {
         for (const input of invalidCases) {
           assert.throws(
             () => invoke('openUrl', {url: input}, context),
-            (err: any) =>
-              err instanceof A2uiExpressionError && err.message.includes('Unsupported URL scheme'),
-            `Expected input "${input}" to throw an Unsupported URL scheme error`,
+            (err: any) => err instanceof A2uiExpressionError && err.code === 'URL_BLOCKED',
+            `Expected input "${input}" to be blocked by the URL baseline`,
           );
         }
 

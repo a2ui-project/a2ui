@@ -154,7 +154,12 @@ export class A2uiBasicTextElement extends BasicCatalogA2uiLitElement<TextSupport
       >`;
     }
 
-    const renderedMarkdown = markdown(text, this.markdownRenderer);
+    // Renderers that support links and images check each URL against the
+    // surface's URL security policy.
+    const renderedMarkdown = markdown(text, this.markdownRenderer, {
+      sanitizeUrl: (url, context) =>
+        this.context?.sanitizeUrl(url, context, {propertyName: 'text'}),
+    });
     return html`<span
       class="a2ui-text a2ui-text-${variant}"
       style=${flexStyle}

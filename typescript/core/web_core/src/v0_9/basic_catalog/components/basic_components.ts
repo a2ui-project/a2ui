@@ -20,6 +20,7 @@ import {z} from 'zod';
 
 import {spec, specDef} from '../../../catalog/spec_annotations.js';
 import {CatalogDocumentOptions, ComponentApi} from '../../../catalog/types.js';
+import {markUrlContext} from '../../../security/url_schema.js';
 import {
   AccessibilityAttributesSchema,
   ActionSchema,
@@ -105,8 +106,13 @@ export const ImageApi = {
         'accessibility': AccessibilityAttributesSchema.describe(
           'REF:#/$defs/AccessibilityAttributes',
         ).optional(),
-        'url': DynamicStringSchema.describe(
-          'REF:#/$defs/DynamicString|The URL of the image to display.',
+        'url': markUrlContext(
+          DynamicStringSchema.describe(
+            'REF:#/$defs/DynamicString|The URL of the image to display.',
+          ),
+          'media',
+          // The published catalog document carries no annotation yet.
+          {inDocument: false},
         ),
         'description': DynamicStringSchema.describe(
           'REF:#/$defs/DynamicString|Accessibility text for the image.',
@@ -225,8 +231,13 @@ export const VideoApi = {
         'accessibility': AccessibilityAttributesSchema.describe(
           'REF:#/$defs/AccessibilityAttributes',
         ).optional(),
-        'url': DynamicStringSchema.describe(
-          'REF:#/$defs/DynamicString|The URL of the video to display.',
+        'url': markUrlContext(
+          DynamicStringSchema.describe(
+            'REF:#/$defs/DynamicString|The URL of the video to display.',
+          ),
+          'media',
+          // The published catalog document carries no annotation yet.
+          {inDocument: false},
         ),
       })
       .strict(),
@@ -243,8 +254,13 @@ export const AudioPlayerApi = {
         'accessibility': AccessibilityAttributesSchema.describe(
           'REF:#/$defs/AccessibilityAttributes',
         ).optional(),
-        'url': DynamicStringSchema.describe(
-          'REF:#/$defs/DynamicString|The URL of the audio to be played.',
+        'url': markUrlContext(
+          DynamicStringSchema.describe(
+            'REF:#/$defs/DynamicString|The URL of the audio to be played.',
+          ),
+          'media',
+          // The published catalog document carries no annotation yet.
+          {inDocument: false},
         ),
         'description': DynamicStringSchema.describe(
           'REF:#/$defs/DynamicString|A description of the audio, such as a title or summary.',

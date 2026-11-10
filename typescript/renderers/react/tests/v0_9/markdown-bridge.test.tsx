@@ -57,7 +57,10 @@ describe('A2uiSurface markdown bridge', () => {
       </MarkdownContext.Provider>,
     );
     expect(await screen.findByText('hello', {selector: 'em'})).toBeInTheDocument();
-    expect(renderMarkdown).toHaveBeenCalledWith('hello', undefined);
+    expect(renderMarkdown).toHaveBeenCalledWith(
+      'hello',
+      expect.objectContaining({sanitizeUrl: expect.any(Function)}),
+    );
   });
 
   it('renders plain text when no renderer is configured anywhere', async () => {

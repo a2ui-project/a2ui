@@ -62,6 +62,17 @@ const HEADER = `/*
 `;
 
 /**
+ * URL contexts of the basic catalog component properties, whose published
+ * catalog documents carry no `x-a2ui-url-context` annotations yet. Keep in
+ * sync with `src/security/basic_catalog_url_properties.ts`.
+ */
+export const BASIC_CATALOG_URL_PROPERTIES = {
+  Image: {url: 'media'},
+  Video: {url: 'media', posterUrl: 'media'},
+  AudioPlayer: {url: 'media'},
+};
+
+/**
  * Escapes a string for single-quoted JS literals.
  */
 export function escapeStr(str) {
@@ -676,6 +687,12 @@ export function generateComponentsFile(version, catalogJson, commonDefs, options
   const commonTypesImportPath = options.commonTypesImportPath || '../../schema/common-types.js';
   const typesImportPath = options.typesImportPath || '../../../catalog/types.js';
   const specImportPath = typesImportPath.replace(/types\.js$/, 'spec_annotations.js');
+  const urlSchemaImportPath = typesImportPath.replace(
+    /catalog\/types\.js$/,
+    'security/url_schema.js',
+  );
+  const urlProperties = options.urlProperties || {};
+  let usesUrlMarks = false;
   const commonTypesUri = options.reproduceDocument ? commonTypesUriOf(catalogJson) : undefined;
   const ctx = {commonDefs, catalogDefs, referencedCatalogDefs, usedImports, commonTypesUri};
   const reproduce = commonTypesUri !== undefined;
@@ -739,7 +756,21 @@ export function generateComponentsFile(version, catalogJson, commonDefs, options
         catalogDefs,
         referencedCatalogDefs,
       );
-      bodyCode += `      '${propName}': ${zodCode},\n`;
+      const urlContext = urlProperties[compName]?.[propName];
+      if (urlContext) {
+        // Mark the URL property on the Zod schema only, so the generated
+        // document still matches the published catalog.
+        usesUrlMarks = true;
+        const optional = zodCode.endsWith('.optional()');
+        const base = optional ? zodCode.slice(0, -'.optional()'.length) : zodCode;
+        const marked =
+          `markUrlContext(\n          ${base},\n          '${urlContext}',\n` +
+          `          // The published catalog document carries no annotation yet.\n` +
+          `          {inDocument: false},\n        )`;
+        bodyCode += `      '${propName}': ${optional ? `${marked}.optional()` : marked},\n`;
+      } else {
+        bodyCode += `      '${propName}': ${zodCode},\n`;
+      }
       if (ownKeys.has(propName) && required.includes(propName)) ownRequired.push(propName);
     }
 
@@ -804,7 +835,7 @@ export function generateComponentsFile(version, catalogJson, commonDefs, options
   out += `import {z} from 'zod';
 
 ${reproduce ? `import {${defsCode ? 'spec, specDef' : 'spec'}} from '${specImportPath}';\n` : ''}import {${reproduce ? 'CatalogDocumentOptions, ' : ''}ComponentApi} from '${typesImportPath}';
-import {
+${usesUrlMarks ? `import {markUrlContext} from '${urlSchemaImportPath}';\n` : ''}import {
   ${Array.from(usedImports).sort().join(',\n  ')},
 } from '${commonTypesImportPath}';
 
@@ -957,6 +988,9 @@ export function generateFunctionsFile(version, catalogJson, commonDefs, options 
  * @param {string} [options.typesImportPath] Relative import path for catalog types.
  * @param {string} [options.specImportPath] Relative import path for spec annotations,
  *     from the functions file.
+ * @param {Record<string, Record<string, string>>} [options.urlProperties] URL contexts
+ *     of component properties, by component and property name, that the catalog
+ *     document doesn't annotate. They are marked on the Zod schemas only.
  */
 export function generateCatalogApi({
   version,
@@ -967,6 +1001,7 @@ export function generateCatalogApi({
   commonTypesImportPath,
   typesImportPath,
   specImportPath,
+  urlProperties,
 }) {
   const commonJson = JSON.parse(readFileSync(commonTypesPath, 'utf8'));
   const catalogJson = JSON.parse(readFileSync(catalogPath, 'utf8'));
@@ -977,6 +1012,7 @@ export function generateCatalogApi({
       commonTypesImportPath,
       typesImportPath,
       reproduceDocument: true,
+      urlProperties,
     });
     writeFileSync(componentsOutPath, componentsTs);
   }

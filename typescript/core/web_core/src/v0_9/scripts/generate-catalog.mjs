@@ -16,7 +16,10 @@
 
 import {join, dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {generateCatalogApi} from '../../../scripts/generate-catalog-schemas.mjs';
+import {
+  BASIC_CATALOG_URL_PROPERTIES,
+  generateCatalogApi,
+} from '../../../scripts/generate-catalog-schemas.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const v09Dir = join(__dirname, '..');
@@ -49,6 +52,7 @@ generateCatalogApi({
   ),
   componentsOutPath: join(v09Dir, 'basic_catalog', 'components', 'basic_components.ts'),
   functionsOutPath: join(v09Dir, 'basic_catalog', 'functions', 'basic_functions_api.ts'),
+  urlProperties: BASIC_CATALOG_URL_PROPERTIES,
 });
 
 console.log('Successfully generated v0.9 Basic Catalog APIs.');

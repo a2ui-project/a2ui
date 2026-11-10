@@ -32,6 +32,7 @@ export * from './errors.js';
 export * from './common/events.js';
 export * from './common/markdown.js';
 export * from './common/sanitize_media_url.js';
+export * from './security/index.js';
 export {
   validateMetadata,
   cloneMetadata,

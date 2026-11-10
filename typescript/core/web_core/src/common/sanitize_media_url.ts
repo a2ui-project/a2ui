@@ -14,37 +14,23 @@
  * limitations under the License.
  */
 
+import {checkUrlBaseline} from '../security/url_security_policy.js';
+
 /**
  * Validates that a media URL uses an allowed `http:`, `https:`, or `data:` scheme
  * (including relative URLs resolved against an `http(s)` base location).
  * Returns the trimmed URL string if valid, or `undefined` if disallowed or invalid.
+ *
+ * Runs the same baseline checks as the URL security policy, which also blocks
+ * `data:image/svg+xml` URLs.
+ *
+ * @deprecated Let the resolver check URL properties (mark them with
+ *   `mediaUrl()`), or call `sanitizeUrl(url, 'media')` on the component's
+ *   context, which also applies the host's `UrlSecurityPolicy`.
  */
 export function sanitizeMediaUrl(urlInput: unknown): string | undefined {
   if (typeof urlInput !== 'string') {
     return undefined;
   }
-  const trimmed = urlInput.trim();
-  if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('\\\\')) {
-    return undefined;
-  }
-
-  const baseHref = 'https://example.invalid/';
-
-  let parsed: URL;
-  try {
-    parsed = new URL(trimmed, baseHref);
-  } catch {
-    return undefined;
-  }
-
-  const isAllowedHttp =
-    (parsed.protocol === 'http:' || parsed.protocol === 'https:') &&
-    (/^https?:\/\//i.test(trimmed) ||
-      (parsed.origin === 'https://example.invalid' &&
-        !/^https?:/i.test(trimmed.replace(/[\t\n\r]/g, ''))));
-  if (parsed.protocol !== 'data:' && !isAllowedHttp) {
-    return undefined;
-  }
-
-  return trimmed;
+  return checkUrlBaseline(urlInput.trim(), 'media');
 }

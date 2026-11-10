@@ -16,7 +16,6 @@
 
 import {html, nothing, css} from 'lit';
 import {styleMap} from 'lit/directives/style-map.js';
-import {sanitizeMediaUrl} from '../../../common/sanitize_media_url.js';
 import {getAccessibilityDescription} from './accessibility.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {ImageSupportedApis} from './supported_apis.js';
@@ -79,7 +78,8 @@ export class A2uiImageElement extends BasicCatalogA2uiLitElement<ImageSupportedA
     const variant = props.variant || 'default';
     const rawFit = props.fit || 'cover';
     const fit = FIT_MAP[rawFit] ?? rawFit;
-    const safeUrl = sanitizeMediaUrl(props.url);
+    // The resolver already passed `url` through the surface's URL security policy.
+    const safeUrl = props.url;
 
     const altText = props.accessibility?.label ?? props.description ?? '';
 

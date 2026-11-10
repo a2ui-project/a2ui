@@ -20,6 +20,7 @@ import {z} from 'zod';
 
 import {spec, specDef} from '../../../../catalog/spec_annotations.js';
 import {CatalogDocumentOptions, ComponentApi} from '../../../../catalog/types.js';
+import {markUrlContext} from '../../../../security/url_schema.js';
 import {
   ActionSchema,
   CheckRuleSchema,
@@ -66,8 +67,13 @@ export const ImageApi = {
   schema: spec(
     z
       .object({
-        'url': DynamicStringSchema.describe(
-          'REF:#/$defs/DynamicString|The URL of the image to display.',
+        'url': markUrlContext(
+          DynamicStringSchema.describe(
+            'REF:#/$defs/DynamicString|The URL of the image to display.',
+          ),
+          'media',
+          // The published catalog document carries no annotation yet.
+          {inDocument: false},
         ),
         'description': DynamicStringSchema.describe(
           'REF:#/$defs/DynamicString|Accessibility text for the image.',
@@ -180,11 +186,21 @@ export const VideoApi = {
   schema: spec(
     z
       .object({
-        'url': DynamicStringSchema.describe(
-          'REF:#/$defs/DynamicString|The URL of the video to display.',
+        'url': markUrlContext(
+          DynamicStringSchema.describe(
+            'REF:#/$defs/DynamicString|The URL of the video to display.',
+          ),
+          'media',
+          // The published catalog document carries no annotation yet.
+          {inDocument: false},
         ),
-        'posterUrl': DynamicStringSchema.describe(
-          'REF:#/$defs/DynamicString|The URL of the poster image to display before the video plays.',
+        'posterUrl': markUrlContext(
+          DynamicStringSchema.describe(
+            'REF:#/$defs/DynamicString|The URL of the poster image to display before the video plays.',
+          ),
+          'media',
+          // The published catalog document carries no annotation yet.
+          {inDocument: false},
         ).optional(),
         'weight': WeightSchema.optional(),
       })
@@ -198,8 +214,13 @@ export const AudioPlayerApi = {
   schema: spec(
     z
       .object({
-        'url': DynamicStringSchema.describe(
-          'REF:#/$defs/DynamicString|The URL of the audio to be played.',
+        'url': markUrlContext(
+          DynamicStringSchema.describe(
+            'REF:#/$defs/DynamicString|The URL of the audio to be played.',
+          ),
+          'media',
+          // The published catalog document carries no annotation yet.
+          {inDocument: false},
         ),
         'description': DynamicStringSchema.describe(
           'REF:#/$defs/DynamicString|A description of the audio, such as a title or summary.',

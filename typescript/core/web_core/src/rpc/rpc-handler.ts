@@ -18,7 +18,7 @@ import {Catalog, FunctionImplementation} from '../catalog/types.js';
 import {DataContext} from '../resolution/data-context.js';
 import {resolveArgumentValue} from '../resolution/data-context-internal.js';
 import {isSignal, getValue} from '../reactivity/signals.js';
-import {SurfaceModel} from '../state/surface-model.js';
+import {SurfaceModel, type SurfaceModelOptions} from '../state/surface-model.js';
 import {FunctionCall} from '../v1_0/schema/common-types.js';
 import {
   CallRendererFunctionMessage,
@@ -52,6 +52,11 @@ export interface RpcHandlerOptions {
   outboundListener?: OutboundMessageListener;
   /** Default timeout in milliseconds for callAgentFunction requests (default: 30000ms). */
   defaultTimeoutMs?: number;
+  /**
+   * Options of the stand-in surface created for a call that arrives without a
+   * surface of its own, such as the processor's URL security policy.
+   */
+  surfaceOptions?: SurfaceModelOptions;
 }
 
 /**
@@ -92,6 +97,7 @@ export class RpcHandler {
   private readonly catalogs: Catalog<any>[];
   private outboundListener?: OutboundMessageListener;
   private readonly defaultTimeoutMs: number;
+  private readonly surfaceOptions?: SurfaceModelOptions;
   private readonly pendingAgentCalls = new Map<string, PendingAgentCall>();
   private isDisposed = false;
 
@@ -121,6 +127,7 @@ export class RpcHandler {
       this.catalogs = options.catalogs ?? [];
       this.outboundListener = options.outboundListener;
       this.defaultTimeoutMs = options.defaultTimeoutMs ?? 30000;
+      this.surfaceOptions = options.surfaceOptions;
     }
   }
 
@@ -525,6 +532,14 @@ export class RpcHandler {
       `_rpc_fallback_${functionCallId || 'default'}`,
       catalog,
       availableCatalogs,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      this.surfaceOptions,
     );
     return new DataContext(fallbackSurface, '/');
   }

@@ -18,6 +18,7 @@ import * as assert from 'node:assert';
 import {describe, it, before, after, beforeEach, afterEach} from 'node:test';
 import {setupTestDom, teardownTestDom, asyncUpdate} from '../../../test/dom-setup.js';
 import {ComponentContext, MessageProcessor, Catalog, SurfaceModel} from '../../../v0_9/index.js';
+import {AllowlistUrlSecurityPolicy} from '../../../security/index.js';
 import {
   type A2uiWebComponentElement,
   registerUniversalElement,
@@ -141,6 +142,51 @@ describe('Text Component', () => {
     assert.strictEqual(strong?.textContent?.trim(), 'Hello static text');
 
     setMarkdownRenderer(undefined);
+  });
+
+  it("passes the markdown renderer a sanitizeUrl that applies the surface's URL policy", async () => {
+    const policy = new AllowlistUrlSecurityPolicy({navigation: ['docs.example.com']});
+    const policyProcessor = new MessageProcessor([basicCatalog], undefined, {
+      urlSecurityPolicy: policy,
+    });
+    policyProcessor.processMessages([
+      {version: 'v0.9', createSurface: {surfaceId: 'policy-surface', catalogId: basicCatalog.id}},
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'policy-surface',
+          components: [{id: 't_links', component: 'Text', text: '[a](x)'}],
+        },
+      },
+    ]);
+    const policySurface = policyProcessor.model.getSurface('policy-surface')!;
+    const warnings: Array<{code: string; propertyName?: unknown; componentId?: unknown}> = [];
+    policySurface.onWarning.subscribe(w => {
+      warnings.push(w as never);
+    });
+    const checked: Array<string | undefined> = [];
+    setMarkdownRenderer(async (text, options) => {
+      checked.push(options?.sanitizeUrl?.('https://docs.example.com/a', 'navigation'));
+      checked.push(options?.sanitizeUrl?.('https://evil.example/?d=secret', 'navigation'));
+      return `<strong>${text}</strong>`;
+    });
+
+    const el = document.createElement('a2ui-basic-text') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+    await asyncUpdate(el, e => {
+      e.context = new ComponentContext(policySurface, 't_links');
+    });
+    await new Promise(r => setTimeout(r, 20));
+
+    assert.deepStrictEqual(checked, ['https://docs.example.com/a', undefined]);
+    assert.strictEqual(warnings.length, 1);
+    assert.strictEqual(warnings[0].code, 'URL_BLOCKED');
+    assert.strictEqual(warnings[0].propertyName, 'text');
+    assert.strictEqual(warnings[0].componentId, 't_links');
+
+    setMarkdownRenderer(undefined);
+    policyProcessor.dispose();
   });
 
   it('should apply caption variant styling structure', async () => {
