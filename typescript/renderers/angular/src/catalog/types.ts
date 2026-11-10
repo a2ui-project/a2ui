@@ -127,6 +127,16 @@ function toAngularComponentImplementation(
     // get a placeholder that reports the missing flag instead of rendering.
     return {...entry, component: UniversalOnlyComponent};
   }
+  if (!isWebComponentImplementation(entry)) {
+    // Attach a lazy Web Component wrapper to plain `{...api, component}` entries so universal
+    // container elements (`a2ui-basic-column`, `a2ui-card`, etc.) can resolve them by `tagName`
+    // via `renderA2uiNode` without requiring callers to wrap with `createComponentImplementation`.
+    // The fields are added to the entry itself so callers keep entry identity (for example
+    // `catalog.components.get('X') === X_IMPL`); only non-extensible entries are copied.
+    const webComponent = toWebComponent(entry);
+    const fields = {tagName: webComponent.tagName, element: webComponent.element};
+    return Object.isExtensible(entry) ? Object.assign(entry, fields) : {...entry, ...fields};
+  }
   return entry;
 }
 

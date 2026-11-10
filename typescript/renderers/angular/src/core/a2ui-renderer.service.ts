@@ -36,6 +36,7 @@ import {
 import {AngularComponentImplementation, AngularCatalog} from '../catalog/types';
 import {
   clearDefaultUniversalInjector,
+  registerSurfaceGroupInjector,
   setDefaultUniversalInjector,
 } from '../catalog/angular_wc_host';
 import {setMarkdownRenderer} from '@a2ui/web_core/universal';
@@ -138,6 +139,7 @@ export class A2uiRendererService implements OnDestroy {
       this._config?.actionHandler,
       this._config?.processorOptions,
     );
+    registerSurfaceGroupInjector(this._messageProcessor.model, this._injector);
   }
 
   /**
@@ -214,6 +216,7 @@ export class A2uiRendererService implements OnDestroy {
   }
 
   ngOnDestroy(): void {
+    registerSurfaceGroupInjector(this._messageProcessor.model, undefined);
     this._messageProcessor.dispose();
     this._messageProcessor.model.dispose();
     clearDefaultUniversalInjector(this._injector);
