@@ -16,7 +16,10 @@
 
 import {join, dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {generateCatalogApi} from '../../../../../scripts/generate-catalog-schemas.mjs';
+import {
+  BASIC_CATALOG_URL_PROPERTIES,
+  generateCatalogApi,
+} from '../../../../../scripts/generate-catalog-schemas.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const v1CatalogDir = join(__dirname, '..');
@@ -33,6 +36,7 @@ generateCatalogApi({
   commonTypesImportPath: '../../../../v1_0/schema/common-types.js',
   typesImportPath: '../../../../catalog/types.js',
   specImportPath: '../../../../catalog/spec_annotations.js',
+  urlProperties: BASIC_CATALOG_URL_PROPERTIES,
 });
 
 console.log('Successfully generated Basic Catalog v1 APIs.');

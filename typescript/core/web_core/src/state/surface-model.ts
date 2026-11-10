@@ -892,7 +892,9 @@ export class SurfaceModel<
     ]);
     if (this.reportedBlockedUrls.has(key)) return;
     if (this.reportedBlockedUrls.size >= MAX_REPORTED_BLOCKED_URLS) {
-      this.reportedBlockedUrls.clear();
+      // Forget the oldest report; a Set iterates in insertion order.
+      const oldest = this.reportedBlockedUrls.values().next().value;
+      if (oldest !== undefined) this.reportedBlockedUrls.delete(oldest);
     }
     this.reportedBlockedUrls.add(key);
     const source = info.propertyName

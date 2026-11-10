@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -152,11 +152,15 @@ function keepRefOnDescribe<T extends z.ZodTypeAny>(schema: T): T {
   const ref = /^REF:([^|]*)/.exec(schema.description ?? '')?.[1];
   if (ref === undefined) return schema;
   const rawDescribe = schema.describe;
-  (schema as {describe: (description: string) => z.ZodTypeAny}).describe = description =>
+  (schema as {describe: (description?: string) => z.ZodTypeAny}).describe = description =>
     keepRefOnDescribe(
       rawDescribe.call(
         schema,
-        description.startsWith('REF:') ? description : `REF:${ref}|${description}`,
+        description === undefined
+          ? `REF:${ref}`
+          : description.startsWith('REF:')
+            ? description
+            : `REF:${ref}|${description}`,
       ),
     );
   return schema;

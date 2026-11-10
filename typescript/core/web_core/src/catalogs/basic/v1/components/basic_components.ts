@@ -18,9 +18,9 @@
 // Generated from specification/ catalogs via scripts/generate-catalog-schemas.mjs
 import {z} from 'zod';
 
-import {markUrlContext} from '../../../../security/url_schema.js';
 import {spec, specDef} from '../../../../catalog/spec_annotations.js';
 import {CatalogDocumentOptions, ComponentApi} from '../../../../catalog/types.js';
+import {markUrlContext} from '../../../../security/url_schema.js';
 import {
   ActionSchema,
   CheckRuleSchema,

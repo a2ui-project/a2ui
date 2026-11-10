@@ -1051,29 +1051,34 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   }
 
   /**
-   * Returns the basic catalog theme's `iconUrl` when the URL security policy
-   * blocks it, or `undefined` when there is none or it is allowed.
+   * Passes the basic catalog theme's `iconUrl` through the URL security
+   * policy. A blocked URL is removed from the theme and returned for
+   * reporting, and a rewritten one (for example, through a media proxy)
+   * replaces the original.
    *
    * @param theme The validated theme.
    * @param catalog The surface's default catalog.
    * @param surfaceId The surface's identifier.
    */
-  private blockedThemeIconUrl(
+  private sanitizeThemeIconUrl(
     theme: unknown,
     catalog: Catalog<T> | undefined,
     surfaceId: string,
-  ): string | undefined {
-    if (!catalog || !BASIC_CATALOG_IDS.has(catalog.id) || !isRecord(theme)) return undefined;
+  ): {theme: unknown; blockedIconUrl?: string} {
+    if (!catalog || !BASIC_CATALOG_IDS.has(catalog.id) || !isRecord(theme)) return {theme};
     const iconUrl = theme['iconUrl'];
-    if (typeof iconUrl !== 'string') return undefined;
+    if (typeof iconUrl !== 'string') return {theme};
     const allowed = applyUrlSecurityPolicy(this.urlSecurityPolicy, iconUrl, 'media', {
       surfaceId,
       catalogId: catalog.id,
       propertyName: 'theme.iconUrl',
     });
-    // The theme is applied as given, so an allowed but rewritten URL can't be
-    // used; it is dropped like a blocked one.
-    return allowed === iconUrl ? undefined : iconUrl;
+    if (allowed === iconUrl) return {theme};
+    if (allowed === undefined) {
+      const {iconUrl: _iconUrl, ...rest} = theme;
+      return {theme: rest, blockedIconUrl: iconUrl};
+    }
+    return {theme: {...theme, iconUrl: allowed}};
   }
 
   private validateSurfaceTheme(
@@ -1149,9 +1154,11 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     }
 
     const validatedTheme = this.validateSurfaceTheme(theme, catalog, surfaceId);
-    const blockedIconUrl = this.blockedThemeIconUrl(validatedTheme, catalog, surfaceId);
-    const surfaceTheme =
-      blockedIconUrl === undefined ? validatedTheme : withoutIconUrl(validatedTheme);
+    const {theme: surfaceTheme, blockedIconUrl} = this.sanitizeThemeIconUrl(
+      validatedTheme,
+      catalog,
+      surfaceId,
+    );
 
     const surfaceVersion = catalog?.protocolVersion ?? msgVersion;
 
@@ -1720,8 +1727,3 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /** Returns a copy of a theme without its `iconUrl`. */
-function withoutIconUrl(theme: unknown): unknown {
-  if (!isRecord(theme)) return theme;
-  const {iconUrl: _iconUrl, ...rest} = theme;
-  return rest;
-}

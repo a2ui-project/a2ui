@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
  */
 
 import * as assert from 'node:assert';
-import {describe, it} from 'node:test';
+import {afterEach, describe, it} from 'node:test';
 
 import {z} from 'zod';
 
@@ -247,6 +247,29 @@ describe('URL security policy plumbing', () => {
       warnings.map(w => [w.code, w.surfaceId, w['propertyName']]),
       [['URL_BLOCKED', 'blocked', 'theme.iconUrl']],
     );
+  });
+
+  it('applies a rewritten basic theme iconUrl', async () => {
+    const processor = new MessageProcessor([v09BasicCatalog], undefined, {
+      urlSecurityPolicy: {
+        sanitizeUrl: url => `https://proxy.example/?u=${encodeURIComponent(url)}`,
+      },
+    });
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        createSurface: {
+          surfaceId: 's',
+          catalogId: v09BasicCatalog.id,
+          theme: {iconUrl: 'https://cdn.example.com/i.png', agentDisplayName: 'A'},
+        },
+      },
+    ] as never);
+    await flush();
+    assert.deepStrictEqual(processor.model.getSurface('s')!.theme, {
+      iconUrl: 'https://proxy.example/?u=https%3A%2F%2Fcdn.example.com%2Fi.png',
+      agentDisplayName: 'A',
+    });
   });
 });
 
@@ -615,28 +638,50 @@ describe('URL security follow-ups', () => {
     assert.ok(!JSON.stringify(warnings).includes('SECRET'), JSON.stringify(warnings));
   });
 
-  it('resolves a relative URL against globalThis.location before the open-URL handler', () => {
+  describe('with a stubbed globalThis.location', () => {
     const g = globalThis as {location?: unknown};
     const original = g.location;
-    const handled: string[] = [];
-    const surface = surfaceWithPolicy(basicCatalog, new PermissiveUrlSecurityPolicy(), url => {
-      handled.push(url);
+
+    afterEach(() => {
+      g.location = original;
     });
-    const ctx = new DataContext(surface, '/');
-    try {
+
+    it('resolves a relative URL against globalThis.location before the open-URL handler', () => {
+      const handled: string[] = [];
+      const surface = surfaceWithPolicy(basicCatalog, new PermissiveUrlSecurityPolicy(), url => {
+        handled.push(url);
+      });
+      const ctx = new DataContext(surface, '/');
       g.location = {href: 'https://host.example/app/page'};
       executeOpenUrl('../help?x=1', ctx);
       executeOpenUrl('mailto:help@example.com', ctx);
       g.location = undefined;
       executeOpenUrl('/help', ctx);
-    } finally {
-      g.location = original;
-    }
-    assert.deepStrictEqual(handled, [
-      'https://host.example/help?x=1',
-      'mailto:help@example.com',
-      '/help',
-    ]);
+      assert.deepStrictEqual(handled, [
+        'https://host.example/help?x=1',
+        'mailto:help@example.com',
+        '/help',
+      ]);
+    });
+  });
+
+  it('forgets the oldest reported URL first once the report memory is full', async () => {
+    const surface = surfaceWithPolicy(basicCatalog, new AllowlistUrlSecurityPolicy({media: []}));
+    const warnings: A2uiWarningPayload[] = [];
+    surface.onWarning.subscribe(w => {
+      warnings.push(w);
+    });
+    // One more distinct URL than the surface remembers.
+    for (let i = 0; i <= 256; i++) surface.sanitizeUrl(`https://evil.example/${i}`, 'media');
+    await flush();
+    assert.strictEqual(warnings.length, 257);
+    // The second URL is still remembered; only the first was forgotten.
+    surface.sanitizeUrl('https://evil.example/1', 'media');
+    await flush();
+    assert.strictEqual(warnings.length, 257);
+    surface.sanitizeUrl('https://evil.example/0', 'media');
+    await flush();
+    assert.strictEqual(warnings.length, 258);
   });
 
   it('types URL props as string | undefined and other props as before', () => {
