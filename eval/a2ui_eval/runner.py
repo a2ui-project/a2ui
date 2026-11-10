@@ -426,7 +426,8 @@ def get_python_strategy(
     """Resolves and instantiates the Python InferenceFormat strategy.
 
     Args:
-        format_name: One of `direct_json`, `express`, `elemental` or `atom`.
+        format_name: One of `direct_json`, `express`, `elemental`, `atom`, or
+            `vertical`.
         version: The protocol version, with or without a `v` prefix.
         catalog_config: A single `CatalogConfig` (its transformed catalog is
             used) or the already-loaded catalogs, in order.

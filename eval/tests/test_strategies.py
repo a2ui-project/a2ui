@@ -924,7 +924,25 @@ async def test_compile_express_with_real_python_runner() -> None:
     assert '"component": "Text"' in state.output.completion
 
 
-@pytest.mark.parametrize("format_name", ["direct_json", "express"])
+@pytest.mark.asyncio
+async def test_compile_vertical_with_real_python_runner() -> None:
+    """End to end Vertical compilation with the real Python runner."""
+    solver = compile_format_payload("vertical", version="1.0")
+    state = _state(
+        {"catalog": str(V1_CATALOG)},
+        completion='<a2ui>\nText("Vertical runner check")\n</a2ui>',
+    )
+    state = await solver(state, _ScriptedGenerate([]))
+    assert state.metadata["pass_at_1"] is True
+    compiled = state.metadata["compiled_messages"]
+    assert isinstance(compiled, list) and len(compiled) == 1
+    assert compiled[0]["createSurface"]["components"][0]["text"] == (
+        "Vertical runner check"
+    )
+    assert '"component": "Text"' in state.output.completion
+
+
+@pytest.mark.parametrize("format_name", ["direct_json", "express", "vertical"])
 def test_format_solver_chain_length(format_name: str) -> None:
     assert len(format_solver(format_name, "1.0")) == 3
     assert len(format_solver(format_name, "1.0", max_validation_retries=1)) == 3

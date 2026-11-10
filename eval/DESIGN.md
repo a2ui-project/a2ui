@@ -29,14 +29,14 @@ To ensure consistency between the evaluation framework and the actual agent impl
 | :---------------- | :------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------- |
 | `InferenceFormat` | Generates the system prompt for the Solver (for example `DirectJsonFormat`).                 | Ensures the model receives the correct schema and catalog definitions without manual hardcoding in eval scripts. |
 | `CatalogConfig`   | Loads catalog schemas and applies component and function pruning transformers.               | Matches the exact pruned catalog surface an agent exposes at runtime.                                            |
-| `Parser`          | Unwraps and compiles A2UI blocks (`unwrap`, `compile`) and checks streaming (`open_stream`). | Extracts and compiles payloads across Direct JSON, Express, Elemental, and Atom formats.                         |
+| `Parser`          | Unwraps and compiles A2UI blocks (`unwrap`, `compile`) and checks streaming (`open_stream`). | Extracts and compiles payloads across Direct JSON, Express, Elemental, Atom, and Vertical formats.               |
 | `RendererState`   | Applies seed and compiled messages (`apply`) and validates surface trees (`check_topology`). | Centralizes Stage 1 schema and topology validation, matching runtime state checks across SDKs.                   |
 
 ### **Isolated Validation Runner (`a2ui_eval/runner.py`)**
 
 `a2ui_eval/runner.py` exposes `generate_prompt` to build format prompts and `parse_and_validate` to parse and validate model completions in a pooled Python worker process, isolating the harness from runaway regexes or parser loops under `DEFAULT_PARSE_TIMEOUT_SEC`.
 
-All format strategies (`direct`, `express`, `elemental`, and `atom`), `skill_mode`, and the `subagent_tool` specialist call `parse_and_validate` with `validate=True` during solver execution. The solver stores the validated messages in `state.metadata["compiled_messages"]`, and the Stage 1 scorer reuses them instead of parsing again.
+All format strategies (`direct`, `express`, `elemental`, `atom`, and `vertical`), `skill_mode`, and the `subagent_tool` specialist call `parse_and_validate` with `validate=True` during solver execution. The solver stores the validated messages in `state.metadata["compiled_messages"]`, and the Stage 1 scorer reuses them instead of parsing again.
 
 ### **Runner Options**
 

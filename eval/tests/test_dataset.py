@@ -429,31 +429,81 @@ def test_standalone_components_datasets_and_catalogs_v091_and_v10() -> None:
     from a2ui_eval.runner import generate_prompt, parse_and_validate
 
     ds_v091 = load_a2ui_dataset(
-        dataset="standalone_components_v0_9_1",
+        dataset="standalone_components",
         version="0.9.1",
         format_name="vertical",
     )
     assert len(ds_v091) == 10
+    for sample in ds_v091:
+        assert sample.metadata is not None
+        assert (
+            sample.metadata["catalog"]
+            == "eval/catalogs/standalone_components/v0_9_1/catalog.json"
+        )
+        assert sample.metadata["tags"] == ["standalone"]
+        assert sample.metadata["assertions"]["required_components"]
+        # Vertical workflow rules omit contradictory surfaceId='main' / id='root' rules
+        assert "surfaceId 'main'" not in sample.metadata["generation_rules"]
+        assert "id: 'root'" not in sample.metadata["generation_rules"]
+        assert "<a2ui>" in sample.metadata["generation_rules"]
+
+    flight_sample = next(
+        s
+        for s in ds_v091
+        if s.metadata and s.metadata["name"] == "flight_status_inquiry"
+    )
+    assert flight_sample.metadata is not None
+    assert flight_sample.metadata["assertions"] == {
+        "required_components": ["FlightStatusCard"],
+        "forbidden_components": ["WeatherWidget"],
+    }
 
     ds_v10 = load_a2ui_dataset(
-        dataset="standalone_components_v1_0",
+        dataset="standalone_components",
         version="1.0",
         format_name="vertical",
     )
     assert len(ds_v10) == 10
+    assert (
+        ds_v10[0].metadata is not None
+        and ds_v10[0].metadata["catalog"]
+        == "eval/catalogs/standalone_components/v1_0/catalog.json"
+    )
 
     sample_completion = (
         '<a2ui>\nFlightStatusCard("UA 421", "United Airlines", "SFO", "JFK",'
         ' status="on_time")\n</a2ui>'
     )
-    v091_cat = str(GIT_ROOT / "eval/catalogs/standalone_components/catalog.json")
-    v10_cat = str(GIT_ROOT / "eval/catalogs/standalone_components/v1/catalog.json")
+    v091_cat = str(GIT_ROOT / "eval/catalogs/standalone_components/v0_9_1/catalog.json")
+    v10_cat = str(GIT_ROOT / "eval/catalogs/standalone_components/v1_0/catalog.json")
 
-    assert "FlightStatusCard(" in generate_prompt("vertical", "0.9.1", v091_cat)
+    prompt_v091 = generate_prompt("vertical", "0.9.1", v091_cat)
+    assert "FlightStatusCard(" in prompt_v091
+    assert "openUrl(url)" in prompt_v091
+    assert "openUrl(url): string" not in prompt_v091
     res_v091 = parse_and_validate(
         "vertical", "0.9.1", v091_cat, "main", sample_completion
     )
     assert len(res_v091["compiled_jsons"]) == 2
+
+    # openUrl declares returnType 'void' (not 'string') in v0_9_1 catalog schema
+    with pytest.raises(ValueError):
+        parse_and_validate(
+            "direct_json",
+            "0.9.1",
+            v091_cat,
+            "main",
+            "<a2ui-json>\n[\n"
+            '  {"version": "v0.9.1", "createSurface": {"surfaceId": "main",'
+            ' "catalogId":'
+            f' {json.dumps("https://example.com/a2ui/eval/standalone_components/v0_9_1/catalog.json")}}},\n'
+            '  {"version": "v0.9.1", "updateComponents": {"surfaceId": "main",'
+            ' "components": [{"id": "root", "component": "FlightStatusCard",'
+            ' "flightNumber": {"call": "openUrl", "args": {"url":'
+            ' "https://example.com"}, "returnType": "string"}, "airline":'
+            ' "United", "origin": "SFO", "destination": "JFK", "status":'
+            ' "on_time"}]}}\n]\n</a2ui-json>',
+        )
 
     assert "FlightStatusCard(" in generate_prompt("vertical", "1.0", v10_cat)
     res_v10 = parse_and_validate("vertical", "1.0", v10_cat, "main", sample_completion)

@@ -1,9 +1,9 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://a2ui.org/specification/v0_9/catalogs/standalone_components/catalog.json",
+  "$id": "https://example.com/a2ui/eval/standalone_components/v0_9_1/catalog.json",
   "title": "A2UI Standalone Components Catalog",
   "description": "Evaluation catalog of 10 standalone widget components for assistant chat cards.",
-  "catalogId": "https://a2ui.org/specification/v0_9/catalogs/standalone_components/catalog.json",
+  "catalogId": "https://example.com/a2ui/eval/standalone_components/v0_9_1/catalog.json",
   "components": {
     "FlightStatusCard": {
       "type": "object",
@@ -506,7 +506,7 @@
           "unevaluatedProperties": false
         },
         "returnType": {
-          "const": "string"
+          "const": "void"
         }
       },
       "required": ["call", "args"],

@@ -81,12 +81,15 @@ uv run main.py --dataset multi_turn_conversation_dataset
 uv run main.py --datasets core_v0_9_1,multi_turn_conversation_dataset
 ```
 
-By default `main.py` runs the production strategies: `direct`, `subagent_tool` and `express`. The experimental formats `elemental` and `atom`, and the `skill_mode` strategy, run only when you name them:
+By default `main.py` runs the production strategies: `direct`, `subagent_tool` and `express`. The experimental formats `elemental`, `atom`, and `vertical`, and the `skill_mode` strategy, run only when you name them:
 
 ```bash
 uv run main.py --dataset multi_turn_conversation_dataset --strategies direct,express,elemental
+uv run main.py --dataset standalone_components --strategies vertical
 uv run main.py --strategies skill_mode
 ```
+
+Because `vertical` is designed for flat, non-nested standalone widgets and prunes layout containers (`Column`, `Row`, `Card`, `Tabs`, `List`), evaluate it on standalone widget datasets such as `standalone_components` rather than hierarchical container datasets.
 
 The `subagent_tool` strategy gives the outer model one tool, `a2ui_specialist`, and a second model call writes the payload. `--subagent-format {direct_json,express}` picks the format the specialist writes in (default `direct_json`).
 
