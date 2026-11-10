@@ -10916,6 +10916,58 @@ Place shared scalar or enum schemas (such as `BadgeTone`) under `$defs` alongsid
 }
 ```
 
+### Accessibility
+
+Accessible custom catalogs divide responsibility between the component schema and the native widget implementation. JSON Schema alone cannot tell whether a control gets its screen reader name from a schema property, visible child text, or fixed native code. Design each component schema around how much its meaning varies across instances.
+
+#### Generic vs. domain-specific components
+
+Generic, reusable controls such as `TextField`, `CheckBox`, and `Slider` need a `label` property in their component schema because their purpose changes per instance. Without a schema `label` property, the agent has no standard field to name what the user is editing or toggling.
+
+Domain-specific components such as `UsernameInput` or `SearchSubmitButton` already have a fixed purpose. Build their default accessible labels directly into the native widget implementation instead of exposing a schema `label` property. Omitting a redundant `label` property saves model tokens and prevents inconsistent model-generated text across screens.
+
+#### Inherited accessibility attributes and renderer mapping
+
+In v1.0, every component inherits the optional `accessibility` object from [`ComponentCommon`](/specification/v1.0/schemas/#common_types.json/$defs/ComponentCommon) at the message envelope level. Do not redeclare `accessibility` or wrap v1.0 component definitions with `ComponentCommon`. In v0.9 and v0.9.1, reference [`ComponentCommon`](/specification/v0.9.1/schemas/#common_types.json/$defs/ComponentCommon) once via `allOf` in each component schema without redeclaring `id` or `accessibility`.
+
+In v0.9, v0.9.1, and v1.0, [`AccessibilityAttributes`](/specification/v1.0/schemas/#common_types.json/$defs/AccessibilityAttributes) provides `label` and `description`, and both accept literal strings, data bindings, or function calls. Version 1.0 also adds `live` (`"off"`, `"polite"`, or `"assertive"`) for live-region announcements and `hidden` for excluding decorative elements from assistive technologies.
+
+Agents can set `accessibility` on any component instance to supply or override assistive text when visual context is missing, such as an icon-only `Button`:
+
+#### v1.0
+
+```json
+{
+  "id": "close_button",
+  "component": "Button",
+  "child": "close_icon",
+  "action": {"event": {"name": "close_dialog"}},
+  "accessibility": {
+    "label": "Close dialog",
+    "description": {"@path": "/dialog/unsavedWarning"}
+  }
+}
+```
+
+#### v0.9.1
+
+```json
+{
+  "id": "close_button",
+  "component": "Button",
+  "child": "close_icon",
+  "action": {"event": {"name": "close_dialog"}},
+  "accessibility": {
+    "label": "Close dialog",
+    "description": {"path": "/dialog/unsavedWarning"}
+  }
+}
+```
+
+Notice that v1.0 data bindings use `@path`, whereas v0.9.1 bindings use `path`.
+
+In your native component implementation, map resolved `AccessibilityAttributes` and visible child text or titles to platform accessibility APIs. Use WAI-ARIA attributes on the web, `Semantics` widgets in Flutter, and `.accessibilityLabel` or `.accessibilityHint` modifiers in SwiftUI. When an instance sets `accessibility.label` or `accessibility.description`, let those values override any label inferred from visible text (see [Catalog-Agnostic Accessibility Requirements](/specification/v1.0-a2ui/#catalog-agnostic-accessibility-requirements)).
+
 ### Schema parity tests in CI
 
 When your backend agent loads `status_catalog.json` and your client defines schemas in code (with Zod, `json_schema_builder`, `JSONSchema`, or `A2uiProperty` and `A2uiSchema`), avoid comparing serialized JSON files as raw strings. Code-built schemas and hand-authored JSON files often differ in key order, `$schema` or `instructions` fields, and localized `#/$defs/...` pointers inside `validationSchema`.
@@ -12982,16 +13034,12 @@ Function calls interpolated inside [`formatString`](#the-formatstring-function) 
 
 ### Catalog-Agnostic Accessibility Requirements
 
-Because JSON Schema cannot inspect arbitrary catalog component property semantics to infer which properties represent visible text labels or which components accept user interaction, accessibility rules are enforced through normative specification requirements and SDK tooling:
+JSON Schema cannot tell which component properties hold visible text labels or accept user interaction, so catalog and renderer implementations enforce accessibility at runtime:
 
 **Catalog and renderer implementations MUST:**
 
 - **Plumb Accessibility Attributes**: Map all relevant A2UI `AccessibilityAttributes` (`label`, `description`, `live`, `hidden`) to the underlying UI framework's accessibility APIs (e.g., WAI-ARIA `aria-label`, `aria-describedby`, `aria-live`, and `aria-hidden` for web renderers; `Semantics` properties for Flutter; `AccessibilityNodeInfo` / `accessibilityLabel` for Android and iOS renderers).
 - **Infer Default Semantics**: Use component types and non-accessibility properties (such as visible titles or text labels) to configure accessibility defaults automatically. When explicit `AccessibilityAttributes` (e.g., `label` or `description`) are provided, they MUST override inferred visual defaults. For example, a button component with a title of `"Submit"` and an explicit `accessibility.label` of `"Send Form"` must be announced by assistive technologies as `"Send Form"`.
-
-**Catalog tooling SHOULD:**
-
-- **Catalog Linter Checks**: Catalog tooling SHOULD warn when a component that accepts an action or user input declares no text-bearing label property (or, in strict mode, no required text-bearing property). A component accepts an action when one of its properties references `common_types.json#/$defs/Action`, and accepts user input when it includes `common_types.json#/$defs/Checkable`. A text-bearing property is a string or `DynamicString` property, a child component reference, or an array of objects that each declare a text-bearing property. Because JSON Schema does not say which property holds the input value, tooling MAY exclude the property it treats as the input value (by convention `value`). This is a heuristic: it cannot prove a label exists, and a warning can be acknowledged per component.
 
 ### The component catalog
 
@@ -14477,7 +14525,7 @@ Version 1.0 differs from 0.9 in the following ways:
 - Standardized the names of core architectural components, renaming "client" to _renderer_ and "server" to _agent_ (e.g., `server_to_client` schemas are renamed to `agent_to_renderer`), because A2UI is sometimes generated on clients, and rendering sometimes happens on servers, making those terms ambiguous.
 - Catalogs can now define composition constraints (`allowedParents` and `allowedChildren`) on component definitions, using `"Surface"` as the canonical root component type. Because JSON Schema cannot natively restrict child component types across a flat adjacency list of ID references, these rules allow catalogs to declare valid parent-child relationships without altering the wire format.
 - `CheckRule` in `common_types.json` supports dynamic structured validation result objects (`ValidationResult`) returned directly by function evaluations or data bindings (containing `valid`, `code`, `message`, and `severity`) as well as booleans (coerced to `ValidationResult`), and `message` on `CheckRule` is made optional as a fallback error message. Conversely, `DynamicBoolean` coerces a `ValidationResult` object to its `valid` boolean property.
-- Enhanced `AccessibilityAttributes` in `common_types.json` by adding WAI-ARIA `live` region support (`"off"`, `"polite"`, `"assertive"`) and `hidden` (`DynamicBoolean`) alongside the existing `label` (`DynamicString`) and `description` (`DynamicString`) properties, while setting `"additionalProperties": false`. Established normative specification prose requiring catalog and renderer implementations to plumb accessibility attributes, infer default screen reader semantics from visible text properties, and enforce SDK linter checks.
+- Enhanced `AccessibilityAttributes` in `common_types.json` by adding WAI-ARIA `live` region support (`"off"`, `"polite"`, `"assertive"`) and `hidden` (`DynamicBoolean`) alongside the existing `label` (`DynamicString`) and `description` (`DynamicString`) properties, while setting `"additionalProperties": false`. Established normative specification prose requiring catalog and renderer implementations to plumb accessibility attributes and infer default screen reader semantics from visible text properties.
 
 ## 2. Changes
 
