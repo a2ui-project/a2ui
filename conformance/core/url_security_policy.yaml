@@ -21,6 +21,7 @@
 # ==============================================================================
 
 - name: baseline_media_allows_http_data_and_relative_urls
+  features: [F-CORE-46]
   description: >-
     The permissive policy passes http(s) URLs with a host, raster image, audio
     and video data: URLs, and relative paths as media, and returns each one unchanged.
@@ -59,6 +60,7 @@
       expect: "../images/a.png?v=2"
 
 - name: baseline_media_rejects_svg_and_non_media_data_urls
+  features: [F-CORE-46]
   description: >-
     SVG data: URLs can carry script and links, so the baseline blocks them for media
     unless the policy opts in. data: URLs that aren't images, audio or video are blocked.
@@ -85,6 +87,7 @@
       expect: null
 
 - name: baseline_svg_data_urls_opt_in
+  features: [F-CORE-46]
   description: >-
     allowSvgDataUrls lets SVG data: URLs through as media. They stay blocked in the
     other contexts, where data: URLs never pass.
@@ -102,6 +105,7 @@
       expect: null
 
 - name: baseline_rejects_script_and_other_schemes
+  features: [F-CORE-46]
   description: >-
     Script schemes are blocked in every context regardless of letter case, and schemes
     outside the per-context lists are blocked too.
@@ -137,6 +141,7 @@
       expect: null
 
 - name: baseline_rejects_whitespace_and_control_characters
+  features: [F-CORE-46]
   description: >-
     URL parsers drop or trim tabs, newlines, spaces and other control characters, so a
     URL that contains any of them is blocked instead of being cleaned up.
@@ -175,6 +180,7 @@
       expect: null
 
 - name: baseline_rejects_backslashes_and_hostless_http
+  features: [F-CORE-46]
   description: >-
     Browsers read a backslash as a slash and accept http(s) URLs without the two
     slashes, so both are blocked, as are protocol-relative URLs and empty hosts.
@@ -216,6 +222,7 @@
       expect: null
 
 - name: baseline_navigation_schemes
+  features: [F-CORE-46]
   description: >-
     Navigation allows http(s) URLs with a host, mailto:, tel: and relative URLs.
     mailto: and tel: are blocked in the other contexts, and data: URLs are blocked here.
@@ -248,6 +255,7 @@
       expect: null
 
 - name: baseline_iframe_schemes
+  features: [F-CORE-46]
   description: >-
     Iframes allow only http(s) URLs with a host. Relative URLs, data: URLs and
     host-less schemes are blocked.
@@ -275,6 +283,7 @@
 # ==============================================================================
 
 - name: allowlist_exact_host
+  features: [F-CORE-46]
   description: >-
     An exact entry matches only that hostname, compared without regard to case and
     on any port. Look-alike hosts, subdomains and userinfo tricks don't match.
@@ -313,6 +322,7 @@
       expect: "https://any.example.org/app"
 
 - name: allowlist_wildcard_matches_subdomains_only
+  features: [F-CORE-46]
   description: >-
     A *.example.com entry matches subdomains at any depth but not example.com itself,
     and not hosts that merely end in or contain the same characters.
@@ -344,6 +354,7 @@
       expect: null
 
 - name: allowlist_entries_with_ports
+  features: [F-CORE-46]
   description: >-
     An entry with a port matches only that host and port. An entry without a port
     matches the hostname on any port.
@@ -369,6 +380,7 @@
       expect: "https://cdn.example.com:444/a.png"
 
 - name: allowlist_blocks_relative_urls_once_a_list_is_set
+  features: [F-CORE-46]
   description: >-
     A context with a host list blocks relative URLs unless allowRelative names it.
     Contexts without a list keep the baseline, which allows relative media and
@@ -387,6 +399,7 @@
       expect: null
 
 - name: allowlist_relative_urls_opt_in
+  features: [F-CORE-46]
   description: allowRelative keeps relative URLs for the contexts it names and no others.
   action: url_policy_check
   policy:
@@ -403,6 +416,7 @@
       expect: null
 
 - name: allowlist_relative_urls_without_a_list
+  features: [F-CORE-46]
   description: A context without a host list keeps the baseline rule for relative URLs.
   action: url_policy_check
   policy:
@@ -420,6 +434,7 @@
       expect: null
 
 - name: allowlist_empty_list_blocks_every_host
+  features: [F-CORE-46]
   description: An empty list sets a host list that matches nothing.
   action: url_policy_check
   policy:
@@ -434,6 +449,7 @@
       expect: "https://apps.example.com/page"
 
 - name: allowlist_hostless_schemes_skip_host_lists
+  features: [F-CORE-46]
   description: >-
     data:, mailto: and tel: URLs have no host, so host lists don't apply to them.
     They still pass only in the contexts the baseline allows.
@@ -460,6 +476,7 @@
       expect: null
 
 - name: allowlist_never_widens_the_baseline
+  features: [F-CORE-46]
   description: >-
     A URL the baseline blocks stays blocked when its host is on the list, and SVG
     data: URLs stay blocked unless the policy opts in.
@@ -483,6 +500,7 @@
       expect: null
 
 - name: allowlist_rewrite_proxies_allowed_media
+  features: [F-CORE-46]
   description: >-
     The rewrite runs after the host check, only on allowed URLs and only for the
     context it is set for. A prefix rewrite leaves data: and relative URLs unchanged.
@@ -511,6 +529,7 @@
       expect: "https://example.com/page"
 
 - name: allowlist_rewrite_without_a_host_list
+  features: [F-CORE-46]
   description: A rewrite without a host list proxies every http(s) URL the baseline allows.
   action: url_policy_check
   policy:
@@ -526,6 +545,7 @@
       expect: null
 
 - name: allowlist_rewrite_output_is_checked_by_the_baseline
+  features: [F-CORE-46]
   description: >-
     The baseline runs again on the rewritten URL, so a rewrite can never produce a
     URL the baseline blocks.
@@ -545,6 +565,7 @@
 # ==============================================================================
 
 - name: resolution_basic_catalog_media_props
+  features: [F-CORE-46]
   description: >-
     The basic catalog's Image.url, Video.url, Video.posterUrl and AudioPlayer.url go
     through the policy as media. Blocked values resolve to no value.
@@ -579,6 +600,7 @@
       audio: {url: null}
 
 - name: resolution_permissive_default_runs_the_baseline
+  features: [F-CORE-46]
   description: >-
     The permissive policy allows any host but still blocks what the baseline blocks.
   action: url_policy_resolution
@@ -605,6 +627,7 @@
       svg: {url: null}
 
 - name: resolution_data_bound_url_is_checked_on_every_change
+  features: [F-CORE-46]
   description: >-
     A URL bound to the data model is checked after it resolves and again each time
     the bound value changes.
@@ -647,6 +670,7 @@
           root: {url: "https://cdn.example.com/b.png"}
 
 - name: resolution_format_string_url_is_checked_after_it_resolves
+  features: [F-CORE-46]
   description: >-
     A URL built with formatString is checked as the final string, so data model
     values interpolated into an attacker's host are caught.
@@ -682,6 +706,7 @@
       exfil: {url: null}
 
 - name: resolution_custom_catalog_annotations
+  features: [F-CORE-46]
   description: >-
     Props a custom catalog marks with x-a2ui-url-context go through the policy in
     their context, including props nested in arrays of objects. Props marked none and
@@ -755,6 +780,7 @@
           - {imageUrl: null, caption: Second}
 
 - name: resolution_rewritten_url_is_checked_once
+  features: [F-CORE-46]
   description: >-
     The component receives the rewritten URL. It isn't checked a second time, so the
     proxy host doesn't have to be on the media list.
@@ -778,6 +804,7 @@
       root: {url: "https://proxy.example.com/?u=https%3A%2F%2Fcdn.other.com%2Fa.png"}
 
 - name: resolution_open_url_checks_the_policy_before_the_host_handler
+  features: [F-CORE-46]
   description: >-
     openUrl checks its URL as navigation first. A blocked URL fails with URL_BLOCKED
     and never reaches the host's open-URL handler; an allowed URL does.
@@ -825,6 +852,7 @@
         errors: []
 
 - name: resolution_open_url_runs_the_baseline_under_the_default_policy
+  features: [F-CORE-46]
   description: >-
     With the permissive policy, openUrl still blocks URLs the baseline rejects for
     navigation.

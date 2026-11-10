@@ -73,7 +73,7 @@ def test_real_registry_validates_against_schema_and_resolves_anchors() -> None:
     jsonschema.Draft202012Validator(schema).validate(raw_features)
 
     features = cfc.load_registry(FEATURES_YAML_PATH)
-    assert len(features) == 146
+    assert len(features) == 147
 
     for feature in features:
         assert cfc.resolve_anchor(
