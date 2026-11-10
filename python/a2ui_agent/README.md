@@ -66,6 +66,27 @@ The following directories contain the base protocol logic, parsing, and schema o
   one payload the way a renderer holding the catalogs would, on a short-lived
   `RendererState`, and raises `A2uiValidationError` if the renderer would
   reject it.
+- **`url_check.py`**: `check_payload_urls` checks a payload's URLs against a
+  URL security policy before the agent sends it, as an optional earlier line
+  than the renderer's own check. It finds URL properties from the catalogs'
+  `x-a2ui-url-context` marks, the basic catalogs' built-in list, and the
+  policy's `url_properties` map, and checks literal values and data bindings
+  to values the same payload sets. It can't resolve function calls such as
+  `formatString`, relative bindings inside list templates, or data set by
+  earlier payloads; the renderer still checks those. With
+  `on_blocked="strip"`, each blocked value becomes an empty string, which the
+  renderer treats as unset:
+
+  ```python
+  from a2ui.core import AllowlistUrlSecurityPolicy
+  from a2ui.utils import check_payload_urls
+
+  policy = AllowlistUrlSecurityPolicy(media=["cdn.example.com"])
+  result = check_payload_urls(catalogs, messages, policy=policy, on_blocked="strip")
+  for url in result.blocked:
+      logger.warning("Blocked %s in %s", url.redacted_url, url.property_name)
+  send(result.messages)
+  ```
 
 ### Parser (`src/a2ui/parser`)
 

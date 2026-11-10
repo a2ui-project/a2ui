@@ -1,5 +1,16 @@
 ## Unreleased
 
+- Add `check_payload_urls(catalogs, payload, *, policy=None, on_blocked="report")`
+  in `a2ui.utils`, an optional check of a payload's URLs against a URL
+  security policy before the agent sends it. It finds URL properties from the
+  catalogs' `x-a2ui-url-context` marks, the basic catalogs' built-in list,
+  and the policy's `url_properties` map; checks literal values, absolute data
+  bindings to values the payload sets, and the basic catalogs'
+  `theme.iconUrl`; and returns a `PayloadUrlCheckResult` with the messages to
+  send and each `BlockedPayloadUrl` (with a redacted URL). With
+  `on_blocked="strip"`, the messages are copies with each blocked value
+  replaced by an empty string, which the renderer resolves to unset.
+  [#4045](https://github.com/a2ui-project/a2ui/issues/4045)
 - **BREAKING CHANGE**: (v1_0) `validate_payload` and `RendererState.apply`
   check each `callRendererFunction` against the catalogs instead of running
   it, and reject one the renderer would refuse: a surface that doesn't exist
