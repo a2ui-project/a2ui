@@ -27,8 +27,7 @@ import dynamic from 'next/dynamic';
 import {useMemo} from 'react';
 
 import type {A2UIComponent, SpecVersion} from '@/types/widget';
-
-import {normalizeV08Surface, type V09Component} from './v08-to-v09';
+import {normalizeV08Surface} from './v08-to-v09';
 
 const V09Viewer = dynamic(() => import('./v09Viewer').then(m => ({default: m.V09Viewer})), {
   ssr: false,
@@ -43,33 +42,11 @@ export interface A2UIViewerProps {
   className?: string;
 }
 
-function hasV08Envelope(components: A2UIComponent[]): boolean {
-  return components.some(
-    comp =>
-      !Array.isArray(comp['component']) &&
-      typeof comp['component'] === 'object' &&
-      comp['component'] !== null,
+export function A2UIViewer({root, components, data, onAction, className}: A2UIViewerProps) {
+  const normalized = useMemo(
+    () => normalizeV08Surface({root, components, data}),
+    [root, components, data],
   );
-}
-
-export function A2UIViewer({
-  specVersion = '0.8',
-  root,
-  components,
-  data,
-  onAction,
-  className,
-}: A2UIViewerProps) {
-  const normalized = useMemo(() => {
-    if (specVersion === '0.9' && !hasV08Envelope(components)) {
-      return {
-        root,
-        components: components as V09Component[],
-        data,
-      };
-    }
-    return normalizeV08Surface({root, components, data});
-  }, [specVersion, root, components, data]);
 
   return (
     <V09Viewer

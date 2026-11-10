@@ -24979,6 +24979,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "widget-builder@workspace:tools/composer"
   dependencies:
+    "@a2ui/markdown-it": "workspace:*"
     "@a2ui/react": "workspace:*"
     "@a2ui/web_core": "workspace:*"
     "@copilotkit/react-core": "npm:^1.59.5"

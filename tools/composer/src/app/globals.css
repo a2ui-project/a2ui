@@ -68,6 +68,7 @@
 }
 
 :root {
+  color-scheme: light;
   --a2ui-card-bg: #ffffff;
   --radius: 0.625rem;
   --background: oklch(1 0 0);
@@ -109,6 +110,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
@@ -149,6 +151,10 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+a2ui-card {
+  --a2ui-card-background: var(--a2ui-card-bg);
 }
 
 /* Material Symbols class for v0.9 renderer.

@@ -20,6 +20,7 @@
     "format:check": "prettier --check ."
   },
   "dependencies": {
+    "@a2ui/markdown-it": "workspace:*",
     "@a2ui/react": "workspace:*",
     "@a2ui/web_core": "workspace:*",
     "@copilotkit/react-core": "^1.59.5",
@@ -81,6 +82,7 @@
       "command": "node scripts/sync-gallery.mjs && next build --webpack",
       "dependencies": [
         "../../typescript/core/web_core:build",
+        "../../typescript/renderers/markdown-it:build",
         "../../typescript/renderers/react:build"
       ],
       "files": [

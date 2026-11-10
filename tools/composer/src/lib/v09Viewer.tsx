@@ -22,13 +22,13 @@
  */
 'use client';
 
-import {useEffect, useMemo} from 'react';
-
-import {A2uiSurface, type ReactCatalogComponent} from '@a2ui/react';
+import {renderMarkdown} from '@a2ui/markdown-it';
+import {A2uiSurface, MarkdownContext, type ReactCatalogComponent} from '@a2ui/react';
 import {type A2uiMessage, MessageProcessor, RELAXED_VALIDATION} from '@a2ui/web_core/v0_9';
 import {basicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
+import {useEffect, useMemo} from 'react';
 
-import {remapRootComponent, type V09Component} from './v08-to-v09';
+import {EMPTY_DATA, remapRootComponent, type V09Component} from './v08-to-v09';
 
 const CATALOG_ID = 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json';
 const SURFACE_ID = 'v09-preview';
@@ -41,7 +41,13 @@ export interface V09ViewerProps {
   className?: string;
 }
 
-export function V09Viewer({root, components, data = {}, onAction, className}: V09ViewerProps) {
+export function V09Viewer({
+  root,
+  components,
+  data = EMPTY_DATA,
+  onAction,
+  className,
+}: V09ViewerProps) {
   const surface = useMemo(() => {
     const processor = new MessageProcessor<ReactCatalogComponent>([basicCatalog], undefined, {
       validationConfig: RELAXED_VALIDATION,
@@ -66,7 +72,7 @@ export function V09Viewer({root, components, data = {}, onAction, className}: V0
       },
     ];
 
-    if (data && Object.keys(data).length > 0) {
+    if (Object.keys(data).length > 0) {
       messages.push({
         version: 'v0.9',
         updateDataModel: {
@@ -96,13 +102,15 @@ export function V09Viewer({root, components, data = {}, onAction, className}: V0
     return <div style={{color: 'gray', padding: '8px'}}>No surface created</div>;
   }
 
+  const content = (
+    <MarkdownContext.Provider value={renderMarkdown}>
+      <A2uiSurface surface={surface} />
+    </MarkdownContext.Provider>
+  );
+
   if (className) {
-    return (
-      <div className={className}>
-        <A2uiSurface surface={surface} />
-      </div>
-    );
+    return <div className={className}>{content}</div>;
   }
 
-  return <A2uiSurface surface={surface} />;
+  return content;
 }
