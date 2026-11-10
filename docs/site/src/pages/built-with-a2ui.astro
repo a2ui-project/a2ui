@@ -17,6 +17,7 @@
 import '../styles/tokens.css';
 
 import assetsManifest from '../../assets-manifest.json';
+import CopilotKitLogo from '../components/CopilotKitLogo.astro';
 import ProductionShowcase from '../components/ProductionShowcase.astro';
 import StarlightHeader from '../components/StarlightHeader.astro';
 
@@ -117,7 +118,7 @@ const stories: Story[] = [
     links: [
       {
         label: 'AI agents in Jira',
-        href: 'https://support.atlassian.com/jira-software-cloud/docs/work-with-ai-agents-in-jira/',
+        href: 'https://www.atlassian.com/software/jira/dev',
       },
     ],
   },
@@ -298,6 +299,41 @@ const stories: Story[] = [
           </div>
         </div>
       </section>
+
+      <!-- Closing: the same three next steps as the homepage hero -->
+      <section class="b-closing" aria-labelledby="b-closing-title">
+        <div class="a2-wrap b-closing__inner">
+          <h2 class="b-closing__title" id="b-closing-title">
+            Build your own with <span class="b-closing__hi">A2UI.</span>
+          </h2>
+          <div class="b-closing__btns">
+            <a href={`${base}/quickstart/`} class="b-btn b-btn--primary">
+              <span>Run in 5 Minutes</span>
+              <span aria-hidden="true">→</span>
+            </a>
+            <a
+              href="https://go.copilotkit.ai/a2ui-playground"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="b-btn b-btn--ghost"
+            >
+              <span class="b-closing__ck"><CopilotKitLogo idPrefix="built-ck" size={14} /></span>
+              <span>Playground</span>
+              <span aria-hidden="true">↗</span>
+            </a>
+            <button
+              type="button"
+              class="b-btn b-cmd"
+              data-copy="npx skills add a2ui-project/a2ui"
+              aria-label="Copy command to install A2UI agent skills: npx skills add a2ui-project/a2ui"
+            >
+              <span class="b-cmd__sig" aria-hidden="true">$</span>
+              <span>npx skills add a2ui-project/a2ui</span>
+              <span class="b-cmd__act" data-copy-label>COPY</span>
+            </button>
+          </div>
+        </div>
+      </section>
     </main>
 
     <footer class="a2-footer">
@@ -320,6 +356,26 @@ const stories: Story[] = [
         </nav>
       </div>
     </footer>
+
+    <script>
+      const copyButton = document.querySelector<HTMLButtonElement>('.b-cmd');
+      const copyLabel = copyButton?.querySelector<HTMLElement>('[data-copy-label]');
+      let reset: ReturnType<typeof setTimeout> | undefined;
+      copyButton?.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(copyButton.dataset.copy ?? '');
+          if (copyLabel) copyLabel.textContent = 'COPIED ✓';
+          copyButton.classList.add('is-copied');
+          clearTimeout(reset);
+          reset = setTimeout(() => {
+            if (copyLabel) copyLabel.textContent = 'COPY';
+            copyButton.classList.remove('is-copied');
+          }, 1800);
+        } catch {
+          // Clipboard access can be blocked; the command stays visible to copy by hand.
+        }
+      });
+    </script>
 
     <style>
       :global(*, *::before, *::after) {
@@ -634,6 +690,143 @@ const stories: Story[] = [
         outline-offset: 2px;
       }
 
+      .b-closing {
+        padding: 112px 0 120px;
+        color: #ffffff;
+        background-color: #062e6f;
+        background-image:
+          linear-gradient(135deg, rgba(27, 110, 243, 0.34), transparent 60%),
+          radial-gradient(rgba(168, 199, 250, 0.22) 1px, transparent 1px);
+        background-size:
+          100% 100%,
+          16px 16px;
+        border-top: 1px solid rgba(168, 199, 250, 0.3);
+      }
+
+      @media (max-width: 720px) {
+        .b-closing {
+          padding: 80px 0 88px;
+        }
+      }
+
+      .b-closing__inner {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 36px;
+        text-align: center;
+      }
+
+      .b-closing__title {
+        margin: 0;
+        font-family: var(--a2-font-display);
+        font-size: clamp(2rem, 4vw, 3.2rem);
+        font-weight: 700;
+        line-height: 1.06;
+        letter-spacing: var(--a2-tracking-h2);
+        text-wrap: balance;
+        color: #ffffff;
+      }
+
+      .b-closing__hi {
+        color: #a8c7fa;
+      }
+
+      .b-closing__btns {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 12px;
+      }
+
+      .b-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        height: 44px;
+        padding: 0 20px;
+        border-radius: 3px;
+        font-family: var(--a2-font-sans);
+        font-size: 13.5px;
+        font-weight: 600;
+        text-decoration: none;
+        cursor: pointer;
+        transition:
+          border-color 0.15s ease,
+          transform 0.15s ease;
+      }
+
+      .b-btn--primary {
+        background: #ffffff;
+        color: #062e6f;
+        border: 1px solid #ffffff;
+      }
+
+      .b-btn--primary:hover {
+        transform: translateY(-1px);
+      }
+
+      .b-btn--ghost,
+      .b-cmd {
+        background: transparent;
+        color: #ffffff;
+        border: 1px solid rgba(255, 255, 255, 0.4);
+      }
+
+      .b-btn--ghost:hover,
+      .b-cmd:hover {
+        border-color: #ffffff;
+      }
+
+      /* The kite is dark blue, so it sits on a white disc on the blue field */
+      .b-closing__ck {
+        display: inline-flex;
+        padding: 3px;
+        border-radius: 999px;
+        background: #ffffff;
+      }
+
+      .b-cmd {
+        padding: 0 14px;
+        font-family: var(--a2-font-mono);
+        font-size: 12.5px;
+        font-weight: 400;
+      }
+
+      @media (max-width: 420px) {
+        .b-cmd {
+          font-size: 11px;
+        }
+      }
+
+      .b-cmd span {
+        white-space: nowrap;
+      }
+
+      .b-cmd__sig {
+        color: #a8c7fa;
+        user-select: none;
+      }
+
+      .b-cmd__act {
+        padding-left: 10px;
+        border-left: 1px solid rgba(255, 255, 255, 0.3);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        color: rgba(255, 255, 255, 0.75);
+      }
+
+      .b-cmd.is-copied {
+        border-color: #a8c7fa;
+      }
+
+      .b-btn:focus-visible {
+        outline: 2px solid #a8c7fa;
+        outline-offset: 2px;
+      }
+
       .a2-footer {
         border-top: 1px solid var(--a2-border-strong);
         padding: 40px 0 56px;
@@ -681,8 +874,13 @@ const stories: Story[] = [
           scroll-behavior: auto;
         }
 
-        .b-docs a {
+        .b-docs a,
+        .b-btn {
           transition: none;
+        }
+
+        .b-btn--primary:hover {
+          transform: none;
         }
       }
     </style>
