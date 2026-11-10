@@ -1,5 +1,13 @@
 # [a2ui_agent](https://pub.dev/packages/a2ui_agent) Changelog
 
+## Unreleased
+
+- The Express decompiler writes every multi-line string as a raw
+  triple-quoted string (`r"""..."""`), so code in prompt examples reads as
+  written. A value that contains `"""` or ends in `"` is written as an escaped
+  triple-quoted string instead. The Express prompt tells the model to write
+  code and long multi-line text as an inline raw triple-quoted string.
+
 ## 0.2.0
 
 - **Breaking:** Requires `a2ui_core` `^0.6.0`, whose types this library

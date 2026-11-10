@@ -19,6 +19,7 @@ tailored for prompt tokens compression.
 """
 
 import math
+import re
 from collections.abc import Sequence
 from typing import Any, Literal
 
@@ -235,15 +236,15 @@ def _decompile_string(val: str) -> str:
     has_quote = '"' in val
     has_backslash = "\\" in val
 
-    # 1. Use triple-quotes for multi-line
-    if has_newline and not val.endswith('"'):
-        if '"""' not in val:
-            # Use raw triple quotes if there are backslashes but no tabs
-            if has_backslash and not has_tab:
-                return f'r"""{val}"""'
-            # Otherwise standard triple quotes
-            escaped = val.replace("\\", "\\\\").replace("\t", "\\t")
-            return f'"""{escaped}"""'
+    # 1. Multi-line strings are raw triple-quoted, so code reads as written. A
+    # raw string ends at the first `"""`, so a value that contains one or ends
+    # in `"` is escaped instead: every `"` that starts a `""` pair or ends the
+    # value is written `\"`.
+    if has_newline:
+        if '"""' not in val and not val.endswith('"'):
+            return f'r"""{val}"""'
+        escaped = re.sub(r'"(?="|\Z)', r'\\"', val.replace("\\", "\\\\"))
+        return f'"""{escaped}"""'
 
     # 2. Use single-line raw string if it has backslashes but no quotes/tabs/newlines
     if has_backslash and not has_newline and not has_tab and not has_quote:

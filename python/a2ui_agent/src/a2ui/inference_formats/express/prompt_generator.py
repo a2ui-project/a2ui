@@ -87,6 +87,10 @@ The host compiler will compile your A2UI Express output into the correct JSON en
 3. Primitives:
    - Strings: Quoted with `"` or `"""`. Support for `\n`, `\t`, `\\`, and `\"` escapes.
      Raw Strings: Prefaced by `r` (e.g., `r"..."` or `r"""..."""`), with no escape processing.
+     For code or long multi-line text, write a raw triple-quoted string inline as the argument. Nothing inside it is escaped, and it must never contain `"""` or end with `"`:
+     snippet = ComponentA(r"""if (ok) {
+       log("saved\n");
+     }""")
    - Numbers: write as integers or decimals, e.g., 42
    - Booleans: write true or false
    - Null values: write null
