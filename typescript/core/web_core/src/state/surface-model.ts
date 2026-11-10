@@ -31,6 +31,29 @@ import {findFailedArgument, isThenable, settleDeep} from '../common/settle_deep.
 import {A2uiExpressionError, A2uiRpcError, RpcErrorCode} from '../errors.js';
 import {computed, getValue, peekValue, setValue, signal, Signal} from '../reactivity/signals.js';
 import {resolveSurfaceCatalog} from './resolve-surface-catalog.js';
+import {
+  applyUrlSecurityPolicy,
+  DEFAULT_URL_SECURITY_POLICY,
+  type UrlCheckInfo,
+  type UrlContext,
+  type UrlSecurityPolicy,
+} from '../security/url_security_policy.js';
+
+/**
+ * Opens a URL that the URL security policy allowed, in place of the default
+ * `window.open`. Hosts use it to ask for confirmation, open an in-app browser,
+ * or route links themselves.
+ *
+ * It only ever receives URLs the policy allowed (and possibly rewrote), so it
+ * is for presentation, not for security decisions.
+ *
+ * @param url The allowed URL, as the policy returned it.
+ * @param info Where the URL comes from, such as `{functionName: 'openUrl'}`.
+ */
+export type OpenUrlHandler = (url: string, info: UrlCheckInfo) => void | Promise<void>;
+
+/** The most blocked URLs a surface remembers to report each only once. */
+const MAX_REPORTED_BLOCKED_URLS = 256;
 
 /**
  * Normalizes a protocol version to the canonical wire form (`'1.0'` for 1.0+,
@@ -96,8 +119,8 @@ export interface A2uiErrorPayload {
  * physically exist in the active DataModel).
  */
 export interface A2uiWarningPayload {
-  /** Machine-readable warning code (e.g. `'MISSING_DATA_BINDING'`). */
-  code: 'MISSING_DATA_BINDING' | (string & {});
+  /** Machine-readable warning code (e.g. `'MISSING_DATA_BINDING'`, `'URL_BLOCKED'`). */
+  code: 'MISSING_DATA_BINDING' | 'URL_BLOCKED' | (string & {});
   /** Absolute JSON pointer path associated with the warning, if applicable. */
   path?: string;
   /** Human-readable explanation of the warning condition. */
@@ -216,6 +239,27 @@ export class SurfaceModel<
 
   private _agentFunctionCaller?: AgentFunctionCaller;
 
+  /**
+   * Decides which URLs components and functions on this surface may load,
+   * open, or embed. `MessageProcessor` sets it from
+   * `MessageProcessorOptions.urlSecurityPolicy`; a surface created without a
+   * processor uses `PermissiveUrlSecurityPolicy` until one is set.
+   *
+   * Components and functions don't read it directly: they call
+   * `sanitizeUrl` on the context they receive, and the resolver filters
+   * properties annotated as URLs.
+   */
+  urlSecurityPolicy: UrlSecurityPolicy = DEFAULT_URL_SECURITY_POLICY;
+
+  /**
+   * Opens URLs that `openUrl` (or another function) was allowed to open, in
+   * place of `window.open`. `MessageProcessor` sets it from
+   * `MessageProcessorOptions.openUrlHandler`.
+   */
+  openUrlHandler?: OpenUrlHandler;
+
+  /** Keys of blocked URLs already reported, to warn about each only once. */
+  private readonly reportedBlockedUrls = new Set<string>();
   /**
    * Sends calls to functions the renderer does not implement to the agent.
    *
@@ -794,6 +838,56 @@ export class SurfaceModel<
   }
 
   /**
+   * Checks a URL against the built-in baseline and this surface's
+   * {@link urlSecurityPolicy}.
+   *
+   * A blocked URL is reported once as a `URL_BLOCKED` warning on
+   * {@link onWarning}, carrying the URL, its context, and `info`.
+   *
+   * Components and functions usually call `sanitizeUrl` on their
+   * `ComponentContext` or `DataContext`, which fill in `info`.
+   *
+   * @param url The URL to check.
+   * @param context How the URL is used.
+   * @param info Where the URL comes from. The surface ID is filled in.
+   * @returns The URL to use, possibly rewritten, or `undefined` when blocked.
+   */
+  sanitizeUrl(url: string, context: UrlContext, info?: UrlCheckInfo): string | undefined {
+    const fullInfo: UrlCheckInfo = {...info, surfaceId: this.id};
+    const result = applyUrlSecurityPolicy(this.urlSecurityPolicy, url, context, fullInfo);
+    if (result === undefined) this.reportBlockedUrl(url, context, fullInfo);
+    return result;
+  }
+
+  private reportBlockedUrl(url: string, context: UrlContext, info: UrlCheckInfo): void {
+    if (this.isDisposed) return;
+    const key = JSON.stringify([
+      url,
+      context,
+      info.componentId,
+      info.propertyName,
+      info.functionName,
+    ]);
+    if (this.reportedBlockedUrls.has(key)) return;
+    if (this.reportedBlockedUrls.size >= MAX_REPORTED_BLOCKED_URLS) {
+      this.reportedBlockedUrls.clear();
+    }
+    this.reportedBlockedUrls.add(key);
+    const source = info.propertyName
+      ? `property '${info.propertyName}'${info.componentId ? ` of '${info.componentId}'` : ''}`
+      : info.functionName
+        ? `function '${info.functionName}'`
+        : 'a component';
+    void this.dispatchWarning({
+      ...info,
+      code: 'URL_BLOCKED',
+      message: `The URL security policy blocked a ${context} URL in ${source}.`,
+      url,
+      context,
+    });
+  }
+
+  /**
    * Disposes the surface, data model, components, and event emitters.
    */
   dispose(): void {
@@ -801,6 +895,7 @@ export class SurfaceModel<
     this._agentFunctionCaller = undefined;
     this.inFlightAgentCalls.clear();
     this.settledAgentCalls.clear();
+    this.reportedBlockedUrls.clear();
     this.dataModel.dispose();
     this.componentsModel.dispose();
     this._onAction.dispose();

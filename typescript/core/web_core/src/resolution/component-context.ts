@@ -21,6 +21,7 @@ import type {SurfaceComponentsModel} from '../state/surface-components-model.js'
 import type {ComponentApi} from '../catalog/types.js';
 import type {A2uiMetadata} from '../common/metadata.js';
 import type {Action} from '../types/common-types.js';
+import type {UrlCheckInfo, UrlContext} from '../security/url_security_policy.js';
 import {A2uiStateError} from '../errors.js';
 
 /**
@@ -85,5 +86,33 @@ export class ComponentContext {
    */
   dispatchAction(action: Action | Record<string, unknown>, metadata?: A2uiMetadata): Promise<void> {
     return this._actionDispatcher(action, metadata);
+  }
+
+  /**
+   * Checks a URL the component is about to load, open, or embed against the
+   * surface's URL security policy, for URLs that don't come from a property
+   * annotated as a URL (those arrive already checked).
+   *
+   * Fills in the surface ID, catalog ID, component type, and component ID.
+   *
+   * @example
+   * ```ts
+   * const src = context.sanitizeUrl(`${props.baseUrl}/tile.png`, 'media', {
+   *   propertyName: 'baseUrl',
+   * });
+   * ```
+   *
+   * @param url The URL to check.
+   * @param context How the URL is used: `'media'`, `'navigation'`, or `'iframe'`.
+   * @param info Optional details, such as the property the URL came from.
+   * @returns The URL to use, possibly rewritten, or `undefined` when blocked.
+   */
+  sanitizeUrl(url: string, context: UrlContext, info?: UrlCheckInfo): string | undefined {
+    return this.dataContext.sanitizeUrl(url, context, {
+      catalogId: this.componentModel.catalog?.id,
+      componentType: this.componentModel.type,
+      componentId: this.componentModel.id,
+      ...info,
+    });
   }
 }

@@ -16,7 +16,7 @@
  */
 
 import type {z} from 'zod';
-import {zodToJsonSchema} from 'zod-to-json-schema';
+import {zodToJsonSchema, type PostProcessCallback} from 'zod-to-json-schema';
 
 import {isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
 import {isAgentFunction} from './agent_function_brand.js';
@@ -31,6 +31,7 @@ import {
   SpecShaper,
 } from './spec_shape.js';
 import type {CatalogUnions, ComponentApi, FunctionApi} from './types.js';
+import {URL_CONTEXT_KEYWORD} from '../security/url_schema.js';
 
 /** Names of the union definitions a catalog computes from its entries. */
 export const UNION_DEF_NAMES: ReadonlySet<string> = new Set(['anyComponent', 'anyFunction']);
@@ -252,6 +253,7 @@ function rewriteRefMarkers(
     const ref = pipeIndex === -1 ? content : content.substring(0, pipeIndex);
     const desc = pipeIndex === -1 ? '' : content.substring(pipeIndex + 1);
     const savedDefault = node.default;
+    const savedUrlContext = node[URL_CONTEXT_KEYWORD];
     for (const key of Object.keys(node)) delete node[key];
     // The first segment names the definition; a deeper pointer into it, such as
     // `/oneOf/0`, is kept whole.
@@ -263,6 +265,7 @@ function rewriteRefMarkers(
         : ref.startsWith('#') && localDefs.has(defName)
           ? ref
           : `${commonTypesUri}#/$defs/${pointer}`;
+    if (savedUrlContext !== undefined) node[URL_CONTEXT_KEYWORD] = savedUrlContext;
     if (savedDefault !== undefined) node.default = savedDefault;
     if (desc) node.description = desc;
     return;
@@ -275,6 +278,21 @@ function rewriteRefMarkers(
   delete node.$schema;
   for (const value of Object.values(node)) rewriteRefMarkers(value, localDefs, commonTypesUri);
 }
+
+/**
+ * Writes the URL context of a schema marked with `mediaUrl()` and its kin as
+ * `x-a2ui-url-context` beside the schema's other keywords.
+ */
+const withUrlContextKeyword: PostProcessCallback = (jsonSchema, def) => {
+  const urlContext =
+    (def as {a2uiUrlContext?: unknown; a2uiUrlContextInDocument?: boolean})
+      .a2uiUrlContextInDocument === false
+      ? undefined
+      : (def as {a2uiUrlContext?: unknown}).a2uiUrlContext;
+  return jsonSchema && urlContext !== undefined
+    ? {...jsonSchema, [URL_CONTEXT_KEYWORD]: urlContext}
+    : jsonSchema;
+};
 
 /**
  * Converts a Zod schema into an unbundled JSON Schema object.
@@ -291,6 +309,7 @@ function zodToUnbundledJson(
     target: 'jsonSchema2019-09',
     $refStrategy: 'none',
     override: exclusiveUnionOverride,
+    postProcess: withUrlContextKeyword,
   }) as JsonObject;
   delete json.definitions;
   delete json.$defs;

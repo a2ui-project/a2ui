@@ -152,6 +152,30 @@ export class A2uiExpressionError extends A2uiError {
 }
 
 /**
+ * Error thrown when the URL security policy blocks a URL that a function was
+ * asked to open or fetch, such as the URL of `openUrl`. Surfaces report it with
+ * the code `URL_BLOCKED`.
+ *
+ * It extends `A2uiExpressionError`, so code that catches expression errors
+ * keeps catching it.
+ */
+export class A2uiUrlBlockedError extends A2uiExpressionError {
+  /** Always `'URL_BLOCKED'`. */
+  public override readonly code: string = 'URL_BLOCKED';
+
+  /**
+   * Initializes a new `A2uiUrlBlockedError` instance.
+   *
+   * @param message Error description.
+   * @param functionName Name of the function whose URL was blocked.
+   * @param context Optional error context metadata.
+   */
+  constructor(message: string, functionName?: string, context?: A2uiErrorContext) {
+    super(message, functionName, undefined, context);
+  }
+}
+
+/**
  * Error thrown for structural issues in the UI tree (missing surfaces, duplicate components).
  */
 export class A2uiStateError extends A2uiError {

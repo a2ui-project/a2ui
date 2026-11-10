@@ -52,6 +52,12 @@ export interface RpcHandlerOptions {
   outboundListener?: OutboundMessageListener;
   /** Default timeout in milliseconds for callAgentFunction requests (default: 30000ms). */
   defaultTimeoutMs?: number;
+  /**
+   * Configures the stand-in surface created for a call that arrives without
+   * a surface of its own, for example to give it the processor's URL
+   * security policy.
+   */
+  configureSurface?: (surface: SurfaceModel<any, any>) => void;
 }
 
 /**
@@ -92,6 +98,7 @@ export class RpcHandler {
   private readonly catalogs: Catalog<any>[];
   private outboundListener?: OutboundMessageListener;
   private readonly defaultTimeoutMs: number;
+  private readonly configureSurface?: (surface: SurfaceModel<any, any>) => void;
   private readonly pendingAgentCalls = new Map<string, PendingAgentCall>();
   private isDisposed = false;
 
@@ -121,6 +128,7 @@ export class RpcHandler {
       this.catalogs = options.catalogs ?? [];
       this.outboundListener = options.outboundListener;
       this.defaultTimeoutMs = options.defaultTimeoutMs ?? 30000;
+      this.configureSurface = options.configureSurface;
     }
   }
 
@@ -526,6 +534,7 @@ export class RpcHandler {
       catalog,
       availableCatalogs,
     );
+    this.configureSurface?.(fallbackSurface);
     return new DataContext(fallbackSurface, '/');
   }
 

@@ -15,7 +15,6 @@
  */
 
 import {html, nothing, css} from 'lit';
-import {sanitizeMediaUrl} from '../../../common/sanitize_media_url.js';
 import {getAccessibilityDescription, getAccessibilityLabel} from './accessibility.js';
 import {BasicCatalogA2uiLitElement} from './basic-catalog-a2ui-lit-element.js';
 import type {VideoSupportedApis} from './supported_apis.js';
@@ -48,8 +47,9 @@ export class A2uiVideoElement extends BasicCatalogA2uiLitElement<VideoSupportedA
     const props = this.controller.props;
     if (!props) return nothing;
 
-    const safeUrl = sanitizeMediaUrl(props.url);
-    const safePosterUrl = 'posterUrl' in props ? sanitizeMediaUrl(props.posterUrl) : undefined;
+    // The resolver already passed `url` through the surface's URL security policy.
+    const safeUrl = props.url;
+    const safePosterUrl = 'posterUrl' in props ? props.posterUrl : undefined;
 
     return html`
       <div class="a2ui-video-container">

@@ -25,9 +25,10 @@ import {ExpressionParser} from '../expressions/expression_parser.js';
 import {computed, isSignal, getValue, Signal} from '../reactivity/signals.js';
 import {createFunctionImplementation, FunctionImplementation} from '../catalog/types.js';
 import {coerceDynamicBoolean} from '../catalog/validation_result_coercion.js';
-import {A2uiExpressionError} from '../errors.js';
+import {A2uiExpressionError, A2uiUrlBlockedError} from '../errors.js';
 import {DataContext} from '../resolution/data-context.js';
 import {withoutAgentRouting} from '../resolution/data-context-internal.js';
+import {checkUrlBaseline} from '../security/url_security_policy.js';
 import {isAtLeastVersion} from './semver.js';
 import {MAX_REGEX_VALUE_CODE_POINTS, analyzeRegex, countCodePoints} from './regex_subset.js';
 
@@ -612,32 +613,54 @@ export function executePluralize(
   return String(forms[category] ?? forms['other'] ?? '');
 }
 
-/** Opens a specified URL in a new browser tab. */
-export function executeOpenUrl(urlInput: unknown): void {
+/**
+ * Opens a URL after the URL security policy allows it as `navigation`.
+ *
+ * The URL goes to the surface's `openUrlHandler` when the host set one, and
+ * otherwise opens in a new browser tab.
+ *
+ * @param urlInput The URL to open.
+ * @param context The context the function runs in, which supplies the
+ *   surface's URL security policy and open-URL handler. Without one the
+ *   default permissive policy applies and the URL opens in a new tab.
+ * @throws {A2uiUrlBlockedError} If the policy blocks the URL.
+ */
+export function executeOpenUrl(urlInput: unknown, context?: DataContext): void {
   const target = typeof urlInput === 'string' ? urlInput : undefined;
-  if (!target || typeof window === 'undefined' || typeof window['open'] !== 'function') return;
+  if (!target) return;
 
+  const info = {functionName: 'openUrl'};
+  const allowed =
+    typeof context?.sanitizeUrl === 'function'
+      ? context.sanitizeUrl(target, 'navigation', info)
+      : checkUrlBaseline(target, 'navigation');
+  if (allowed === undefined) {
+    throw new A2uiUrlBlockedError(
+      'The URL security policy blocked the URL passed to openUrl.',
+      'openUrl',
+      {surfaceId: context?.surface?.id},
+    );
+  }
+
+  const handler = context?.surface?.openUrlHandler;
+  if (handler) {
+    void Promise.resolve(handler(allowed, {...info, surfaceId: context?.surface?.id})).catch(
+      () => {},
+    );
+    return;
+  }
+
+  if (typeof window === 'undefined' || typeof window['open'] !== 'function') return;
   const baseHref =
-    typeof window !== 'undefined' && typeof window.location !== 'undefined' && window.location.href
+    typeof window.location !== 'undefined' && window.location.href
       ? window.location.href
       : undefined;
-
   let url: URL;
   try {
-    url = baseHref ? new URL(target, baseHref) : new URL(target);
+    url = baseHref ? new URL(allowed, baseHref) : new URL(allowed);
   } catch (e) {
-    throw new A2uiExpressionError(`Invalid URL specified: ${target}`, 'openUrl', e);
+    throw new A2uiExpressionError(`Invalid URL specified: ${allowed}`, 'openUrl', e);
   }
-
-  if (
-    url.protocol !== 'https:' &&
-    url.protocol !== 'http:' &&
-    url.protocol !== 'mailto:' &&
-    url.protocol !== 'tel:'
-  ) {
-    throw new A2uiExpressionError(`Unsupported URL scheme: ${url.protocol}`, 'openUrl');
-  }
-
   window.open(url.href, '_blank', 'noopener,noreferrer');
 }
 
@@ -721,5 +744,5 @@ export function createPluralizeImplementation(api: any, locale?: string): Functi
 }
 
 export function createOpenUrlImplementation(api: any): FunctionImplementation {
-  return createFunctionImplementation(api, args => executeOpenUrl(args.url));
+  return createFunctionImplementation(api, (args, context) => executeOpenUrl(args.url, context));
 }

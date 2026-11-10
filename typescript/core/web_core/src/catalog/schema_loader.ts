@@ -20,6 +20,11 @@ import {validateMetadata} from '../common/metadata.js';
 import {isAtLeastVersion} from '../common/semver.js';
 import {assertUax31Identifier} from '../common/uax31.js';
 import {A2uiCatalogError} from '../errors.js';
+import {
+  isUrlContextAnnotation,
+  markUrlContext,
+  URL_CONTEXT_KEYWORD,
+} from '../security/url_schema.js';
 import {CommonSchemas, ComponentCommonSchema} from '../types/common-types.js';
 import {exclusiveUnion} from './exclusive_union.js';
 import {JsonComponentApi, JsonFunctionApi} from './json_entries.js';
@@ -416,6 +421,26 @@ function convertAllOfPropertyToZod(
  * @returns Runtime Zod schema enforcing the declared JSON Schema constraints.
  */
 function convertPropertyToZod(
+  propSchema: Record<string, unknown>,
+  rootDoc?: Record<string, unknown>,
+  visitedPointers = new Set<string>(),
+  defCache = new Map<string, z.ZodTypeAny>(),
+): z.ZodTypeAny {
+  const result = convertPropertyShapeToZod(propSchema, rootDoc, visitedPointers, defCache);
+  const urlContext =
+    propSchema && typeof propSchema === 'object' ? propSchema[URL_CONTEXT_KEYWORD] : undefined;
+  // Marks a copy, since `result` may be a shared common type or a cached
+  // definition.
+  return isUrlContextAnnotation(urlContext)
+    ? markUrlContext(result.describe(result.description as string), urlContext)
+    : result;
+}
+
+/**
+ * Converts a JSON Schema property definition into a runtime Zod schema,
+ * ignoring its `x-a2ui-url-context` annotation. See {@link convertPropertyToZod}.
+ */
+function convertPropertyShapeToZod(
   propSchema: Record<string, unknown>,
   rootDoc?: Record<string, unknown>,
   visitedPointers = new Set<string>(),

@@ -32,6 +32,7 @@ import {
   A2uiCatalogError,
   A2uiExpressionError,
   A2uiRpcError,
+  A2uiUrlBlockedError,
   A2uiValidationError,
   RpcErrorCode,
 } from '../errors.js';
@@ -49,6 +50,12 @@ import {
 import {FunctionInvoker} from '../catalog/function_invoker.js';
 import {resolveSurfaceCatalog} from '../state/resolve-surface-catalog.js';
 import {SurfaceModel} from '../state/surface-model.js';
+import {
+  applyUrlSecurityPolicy,
+  DEFAULT_URL_SECURITY_POLICY,
+  type UrlCheckInfo,
+  type UrlContext,
+} from '../security/url_security_policy.js';
 
 import {Catalog, CatalogInterface} from '../catalog/types.js';
 import {SpecVersion} from '../spec_versions.js';
@@ -477,6 +484,34 @@ export class DataContext {
   /** Active iteration index if inside a collection template scope, or `undefined`. */
   get index(): number | undefined {
     return this.getIndex();
+  }
+
+  /**
+   * Checks a URL that a function or component is about to open, load, or
+   * embed against the surface's URL security policy.
+   *
+   * Function implementations call it on the `DataContext` they receive. A
+   * context without a surface applies the default permissive policy.
+   *
+   * @example
+   * ```ts
+   * createFunctionImplementation(ShareApi, (args, context) => {
+   *   const url = context.sanitizeUrl(args.url, 'navigation', {functionName: 'share'});
+   *   if (url !== undefined) navigator.share({url});
+   * });
+   * ```
+   *
+   * @param url The URL to check.
+   * @param context How the URL is used: `'media'`, `'navigation'`, or `'iframe'`.
+   * @param info Where the URL comes from, such as the function name. The
+   *   surface ID is filled in.
+   * @returns The URL to use, possibly rewritten, or `undefined` when blocked.
+   */
+  sanitizeUrl(url: string, context: UrlContext, info?: UrlCheckInfo): string | undefined {
+    // Surface-like objects that predate the policy fall back to the default.
+    return typeof this.surface?.sanitizeUrl === 'function'
+      ? this.surface.sanitizeUrl(url, context, info)
+      : applyUrlSecurityPolicy(DEFAULT_URL_SECURITY_POLICY, url, context, info);
   }
 
   /**
@@ -1613,6 +1648,14 @@ export class DataContext {
   private dispatchExpressionError(e: unknown, name: string): void {
     if (!this.surface || this.surface.disposed) return;
     if (isCancellation(e)) return;
+    if (e instanceof A2uiUrlBlockedError) {
+      this.surface.dispatchError({
+        code: 'URL_BLOCKED',
+        message: e.message,
+        expression: e.expression ?? name,
+      });
+      return;
+    }
     if (
       e instanceof z.ZodError ||
       (typeof e === 'object' && e !== null && (e as {name?: string}).name === 'ZodError')

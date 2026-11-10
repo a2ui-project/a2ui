@@ -15,7 +15,13 @@
  */
 
 import {zodToJsonSchema} from 'zod-to-json-schema';
-import {SurfaceModel, ActionListener} from '../state/surface-model.js';
+import {SurfaceModel, ActionListener, type OpenUrlHandler} from '../state/surface-model.js';
+import {BASIC_CATALOG_IDS} from '../security/basic_catalog_url_properties.js';
+import {
+  applyUrlSecurityPolicy,
+  DEFAULT_URL_SECURITY_POLICY,
+  type UrlSecurityPolicy,
+} from '../security/url_security_policy.js';
 import {Catalog, ComponentApi} from '../catalog/types.js';
 import {exclusiveUnionOverride} from '../catalog/exclusive_union.js';
 import {cleanSchemaNode} from '../catalog/schema_generator.js';
@@ -184,6 +190,19 @@ export interface MessageProcessorOptions {
    * 256), evicting the oldest first. Must be a positive integer.
    */
   maxAgentCallCacheEntries?: number;
+  /**
+   * Decides which URLs components and functions may load, open, or embed on
+   * every surface this processor creates. Defaults to
+   * `PermissiveUrlSecurityPolicy`, which applies only the built-in baseline
+   * checks.
+   */
+  urlSecurityPolicy?: UrlSecurityPolicy;
+  /**
+   * Opens URLs that `openUrl` was allowed to open, in place of `window.open`,
+   * for example after asking the user to confirm. It only ever receives URLs
+   * the URL security policy allowed.
+   */
+  openUrlHandler?: OpenUrlHandler;
 }
 
 import {formatZodIssue} from './format-zod-issue.js';
@@ -214,6 +233,10 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   private readonly maxAgentCallCacheEntries?: number;
   /** Whether outbound messages, and so `callAgentFunction`, can reach the agent. */
   private readonly hasOutboundListener: boolean;
+  /** The URL security policy of the surfaces this processor creates. */
+  private readonly urlSecurityPolicy: UrlSecurityPolicy;
+  /** The open-URL handler of the surfaces this processor creates. */
+  private readonly openUrlHandler?: OpenUrlHandler;
   /**
    * What the last check of each surface's components found, under a config
    * that defers the reference and reachability checks, with the number of
@@ -248,10 +271,13 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     this.defaultVersion = options?.version;
     this.errorHandler = options?.errorHandler;
     this.reportErrorsOnly = options?.reportErrorsOnly ?? false;
+    this.urlSecurityPolicy = options?.urlSecurityPolicy ?? DEFAULT_URL_SECURITY_POLICY;
+    this.openUrlHandler = options?.openUrlHandler;
     this.rpc = new RpcHandler({
       catalogs: this.registeredCatalogs,
       outboundListener: options?.outboundListener,
       defaultTimeoutMs: options?.defaultTimeoutMs,
+      configureSurface: surface => this.configureUrlSecurity(surface),
     });
     this.hasOutboundListener = Boolean(options?.outboundListener);
     this.validationConfig = options?.validationConfig
@@ -943,21 +969,20 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     if (targetCatalog) {
       availableCatalogs.set(targetCatalog.id, targetCatalog);
     }
-    return new DataContext(
-      new SurfaceModel(
-        fallbackSurfaceId,
-        targetCatalog,
-        availableCatalogs,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        this.maxAgentCallCacheEntries,
-      ),
-      '/',
+    const fallbackSurface = new SurfaceModel(
+      fallbackSurfaceId,
+      targetCatalog,
+      availableCatalogs,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      this.maxAgentCallCacheEntries,
     );
+    this.configureUrlSecurity(fallbackSurface);
+    return new DataContext(fallbackSurface, '/');
   }
 
   /**
@@ -1015,6 +1040,42 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
 
     this.withValidationConfig(context, () => this.applyStateOperation(op));
     return null;
+  }
+
+  /**
+   * Gives a surface this processor's URL security policy and open-URL handler.
+   *
+   * @param surface The surface to configure.
+   */
+  private configureUrlSecurity(surface: SurfaceModel<any, any>): void {
+    surface.urlSecurityPolicy = this.urlSecurityPolicy;
+    surface.openUrlHandler = this.openUrlHandler;
+  }
+
+  /**
+   * Returns the basic catalog theme's `iconUrl` when the URL security policy
+   * blocks it, or `undefined` when there is none or it is allowed.
+   *
+   * @param theme The validated theme.
+   * @param catalog The surface's default catalog.
+   * @param surfaceId The surface's identifier.
+   */
+  private blockedThemeIconUrl(
+    theme: unknown,
+    catalog: Catalog<T> | undefined,
+    surfaceId: string,
+  ): string | undefined {
+    if (!catalog || !BASIC_CATALOG_IDS.has(catalog.id) || !isRecord(theme)) return undefined;
+    const iconUrl = theme['iconUrl'];
+    if (typeof iconUrl !== 'string') return undefined;
+    const allowed = applyUrlSecurityPolicy(this.urlSecurityPolicy, iconUrl, 'media', {
+      surfaceId,
+      catalogId: catalog.id,
+      propertyName: 'theme.iconUrl',
+    });
+    // The theme is applied as given, so an allowed but rewritten URL can't be
+    // used; it is dropped like a blocked one.
+    return allowed === iconUrl ? undefined : iconUrl;
   }
 
   private validateSurfaceTheme(
@@ -1090,6 +1151,9 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     }
 
     const validatedTheme = this.validateSurfaceTheme(theme, catalog, surfaceId);
+    const blockedIconUrl = this.blockedThemeIconUrl(validatedTheme, catalog, surfaceId);
+    const surfaceTheme =
+      blockedIconUrl === undefined ? validatedTheme : withoutIconUrl(validatedTheme);
 
     const surfaceVersion = catalog?.protocolVersion ?? msgVersion;
 
@@ -1106,7 +1170,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       surfaceId,
       catalog,
       availableCatalogs,
-      validatedTheme,
+      surfaceTheme,
       sendDataModel ?? false,
       undefined,
       op.rootId ?? 'root',
@@ -1130,7 +1194,15 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
               ),
             );
     }
+    this.configureUrlSecurity(surface);
     this.model.addSurface(surface);
+    if (blockedIconUrl !== undefined) {
+      // Reports the blocked URL on the new surface's warning stream.
+      surface.sanitizeUrl(blockedIconUrl, 'media', {
+        catalogId: catalog?.id,
+        propertyName: 'theme.iconUrl',
+      });
+    }
 
     try {
       if (dataModel) {
@@ -1643,4 +1715,15 @@ function withStrictDefaults(config: ValidationConfig): ValidationConfig {
     allowUnknownElements: false,
     ...config,
   };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** Returns a copy of a theme without its `iconUrl`. */
+function withoutIconUrl(theme: unknown): unknown {
+  if (!isRecord(theme)) return theme;
+  const {iconUrl: _iconUrl, ...rest} = theme;
+  return rest;
 }

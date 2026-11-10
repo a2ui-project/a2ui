@@ -15,7 +15,6 @@
  */
 
 import {html, nothing, css} from 'lit';
-import {sanitizeMediaUrl} from '../../../common/sanitize_media_url.js';
 import {
   getAccessibilityDescription,
   getAccessibilityLabel,
@@ -54,7 +53,8 @@ export class A2uiAudioPlayerElement extends BasicCatalogA2uiLitElement<AudioPlay
     const props = this.controller.props;
     if (!props) return nothing;
 
-    const safeUrl = sanitizeMediaUrl(props.url);
+    // The resolver already passed `url` through the surface's URL security policy.
+    const safeUrl = props.url;
     const descId = `${this.domId}-desc`;
     const hasVisibleDescription = hasAttributeValue(props.description);
     const a11yLabel = getAccessibilityLabel(props.accessibility);

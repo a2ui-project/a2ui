@@ -37,6 +37,7 @@ import {V09_STANDARD_DEFS} from '../v0_9/standard_defs.js';
 import {V10_STANDARD_DEFS} from '../v1_0/standard_defs.js';
 import {exclusiveUnionOverride} from './exclusive_union.js';
 import {getSpecAnnotation, type SpecAnnotation, type SpecMixin} from './spec_annotations.js';
+import {URL_CONTEXT_KEYWORD, urlContextOf} from '../security/url_schema.js';
 
 type JsonObject = Record<string, unknown>;
 
@@ -570,6 +571,8 @@ export class SpecShaper {
       core = this.coreJson(coreSchema(schema), annotation, catalogDefs);
     }
     if (effectiveAnnotation.keywords) Object.assign(core, copyJson(effectiveAnnotation.keywords));
+    const urlContext = urlContextOf(schema, true);
+    if (urlContext !== undefined) core[URL_CONTEXT_KEYWORD] = urlContext;
     const result: JsonObject = effectiveAnnotation.allOf
       ? {allOf: [core, ...effectiveAnnotation.allOf.map(s => copyJson(s))]}
       : core;

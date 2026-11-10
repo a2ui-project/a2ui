@@ -37,6 +37,13 @@ import {resolveSignalKeepingPending} from './data-context-internal.js';
 import {isAtLeastVersion} from '../common/semver.js';
 import {findFailedArgument, isThenable, settleDeep} from '../common/settle_deep.js';
 import {effect, getValue, peekValue} from '../reactivity/signals.js';
+import {BUILT_IN_URL_PROPERTIES} from '../security/basic_catalog_url_properties.js';
+import {urlContextOf} from '../security/url_schema.js';
+import type {
+  UrlContext,
+  UrlContextAnnotation,
+  UrlPropertyMap,
+} from '../security/url_security_policy.js';
 
 /** The outcome of one check rule. */
 interface CheckRuleResult {
@@ -67,13 +74,17 @@ interface CheckRuleResult {
  * - STATIC: A primitive value that requires no reactive subscription or
  *   resolution.
  * - OBJECT / ARRAY: Recursive traversal nodes for complex nested schemas.
+ *
+ * A DYNAMIC or STATIC node may carry the `urlContext` its schema declares
+ * (see `mediaUrl()`), in which case the binder passes every resolved value
+ * through the surface's URL security policy.
  */
 export type BehaviorNode =
-  | {type: 'DYNAMIC'; isBoolean?: boolean}
+  | {type: 'DYNAMIC'; isBoolean?: boolean; urlContext?: UrlContextAnnotation}
   | {type: 'ACTION'}
   | {type: 'STRUCTURAL'}
   | {type: 'CHECKABLE'}
-  | {type: 'STATIC'}
+  | {type: 'STATIC'; urlContext?: UrlContextAnnotation}
   | {type: 'OBJECT'; shape: Record<string, BehaviorNode>}
   | {type: 'ARRAY'; element: BehaviorNode};
 
@@ -281,6 +292,14 @@ function scrapeObjectShape(objShape: Record<string, z.ZodTypeAny>): Record<strin
  * @returns Behavior node representing runtime handling for the schema.
  */
 function getFieldBehavior(type: z.ZodTypeAny): BehaviorNode {
+  const behavior = getFieldBehaviorIgnoringUrl(type);
+  const urlContext = urlContextOf(type);
+  return urlContext !== undefined && (behavior.type === 'DYNAMIC' || behavior.type === 'STATIC')
+    ? {...behavior, urlContext}
+    : behavior;
+}
+
+function getFieldBehaviorIgnoringUrl(type: z.ZodTypeAny): BehaviorNode {
   const defName = getRefDefName(type);
 
   if (isCheckableField(type)) {
@@ -539,6 +558,7 @@ export class GenericBinder<T> {
     if (this.behaviorTree.type !== 'OBJECT') {
       this.behaviorTree = {type: 'OBJECT', shape: {}};
     }
+    this.behaviorTree = withUrlPropertyOverrides(this.behaviorTree, context);
 
     this.resolveInitialProps();
   }
@@ -586,8 +606,13 @@ export class GenericBinder<T> {
     path: string[],
     isSync: boolean,
     isBoolean?: boolean,
+    urlContext?: UrlContextAnnotation,
   ): unknown {
-    const coerce = isBoolean ? coerceDynamicBoolean : (v: unknown) => v;
+    const coerce = isBoolean
+      ? coerceDynamicBoolean
+      : isUrlContext(urlContext)
+        ? (v: unknown) => this.filterUrl(v, path, urlContext)
+        : (v: unknown) => v;
     const bound = this.context.dataContext.subscribeDynamicValue(value, newVal => {
       this.updateDeepValue(path, coerce(newVal));
       this.notify();
@@ -599,6 +624,23 @@ export class GenericBinder<T> {
       bound.unsubscribe();
     }
     return coerce(bound.value);
+  }
+
+  /**
+   * Passes a resolved value of a URL property through the surface's URL
+   * security policy. Components receive the result and don't check it again,
+   * which keeps a rewritten URL (such as a proxy URL) from being checked
+   * against the allowlist a second time.
+   *
+   * @param value The resolved value.
+   * @param path Path of the property within the component's props.
+   * @param urlContext How the component uses the URL.
+   * @returns The URL to use, or `undefined` when it is blocked or not a string.
+   */
+  private filterUrl(value: unknown, path: string[], urlContext: UrlContext): unknown {
+    if (value === undefined || value === null) return value;
+    if (typeof value !== 'string') return undefined;
+    return this.context.sanitizeUrl(value, urlContext, {propertyName: propertyNameOf(path)});
   }
 
   /**
@@ -995,7 +1037,7 @@ export class GenericBinder<T> {
 
     switch (behavior.type) {
       case 'DYNAMIC':
-        return this.bindDynamicValue(value, path, isSync, behavior.isBoolean);
+        return this.bindDynamicValue(value, path, isSync, behavior.isBoolean, behavior.urlContext);
 
       case 'ACTION':
         return this.bindAction(value, path);
@@ -1007,7 +1049,9 @@ export class GenericBinder<T> {
         return this.bindCheckable(value, path, isSync, parentTarget);
 
       case 'STATIC':
-        return value;
+        return isUrlContext(behavior.urlContext)
+          ? this.filterUrl(value, path, behavior.urlContext)
+          : value;
 
       case 'ARRAY':
         if (!Array.isArray(value)) return value;
@@ -1090,6 +1134,77 @@ export class GenericBinder<T> {
   get snapshot() {
     return this.currentProps as T;
   }
+}
+
+/** Whether an annotation names a URL context, as opposed to `'none'` or nothing. */
+function isUrlContext(annotation: UrlContextAnnotation | undefined): annotation is UrlContext {
+  return annotation !== undefined && annotation !== 'none';
+}
+
+/**
+ * Writes a property path as `UrlCheckInfo.propertyName` does: dotted, with
+ * `[]` for list items, such as `items[].imageUrl`.
+ */
+function propertyNameOf(path: readonly string[]): string {
+  let name = '';
+  for (const segment of path) {
+    if (/^\d+$/.test(segment)) name += '[]';
+    else name += name ? `.${segment}` : segment;
+  }
+  return name;
+}
+
+/**
+ * Applies the URL properties listed for a component outside its schema: the
+ * built-in list for the basic catalogs, where the schema says nothing, and
+ * then the host's `UrlSecurityPolicy.urlProperties`, which wins over the
+ * schema. Only top-level properties resolved as values (DYNAMIC or STATIC)
+ * can be marked.
+ *
+ * @param tree The component's behavior tree.
+ * @param context The component's context.
+ * @returns `tree` itself when nothing applies, or an updated copy.
+ */
+function withUrlPropertyOverrides(
+  tree: Extract<BehaviorNode, {type: 'OBJECT'}>,
+  context: ComponentContext,
+): Extract<BehaviorNode, {type: 'OBJECT'}> {
+  const catalogId = context.componentModel.catalog?.id;
+  if (catalogId === undefined) return tree;
+  const type = context.componentModel.type;
+  const builtIn = lookupUrlProperties(BUILT_IN_URL_PROPERTIES, catalogId, type);
+  const host = lookupUrlProperties(
+    context.dataContext.surface?.urlSecurityPolicy?.urlProperties,
+    catalogId,
+    type,
+  );
+  if (!builtIn && !host) return tree;
+
+  let shape: Record<string, BehaviorNode> | undefined;
+  const apply = (property: string, urlContext: UrlContextAnnotation, overrideSchema: boolean) => {
+    const node = (shape ?? tree.shape)[property] ?? {type: 'STATIC'};
+    if (node.type !== 'DYNAMIC' && node.type !== 'STATIC') return;
+    if (!overrideSchema && node.urlContext !== undefined) return;
+    shape ??= {...tree.shape};
+    shape[property] = {...node, urlContext};
+  };
+  for (const [property, urlContext] of Object.entries(builtIn ?? {})) {
+    apply(property, urlContext, false);
+  }
+  for (const [property, urlContext] of Object.entries(host ?? {})) {
+    apply(property, urlContext, true);
+  }
+  return shape ? {type: 'OBJECT', shape} : tree;
+}
+
+function lookupUrlProperties(
+  map: UrlPropertyMap | undefined,
+  catalogId: string,
+  componentType: string,
+): Readonly<Record<string, UrlContextAnnotation>> | undefined {
+  return map && Object.hasOwn(map, catalogId) && Object.hasOwn(map[catalogId], componentType)
+    ? map[catalogId][componentType]
+    : undefined;
 }
 
 /**
