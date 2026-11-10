@@ -896,13 +896,38 @@ void main() {
 
       // Concurrent async `handleCallRendererFunction` calls across two catalogs
       // on a shared surface (and surface-less) keep their own catalog scopes.
+      // Completer gates hold all four calls in flight without wall-clock
+      // timers; releasing B while A stays suspended checks that A's scope
+      // survives, and `Future.any` fails fast if a call settles early.
+      final gateA = Completer<void>();
+      final gateB = Completer<void>();
+      final allEntered = Completer<void>();
+      var enteredA = 0;
+      var enteredB = 0;
+      void markEntered({required bool isA}) {
+        if (isA) {
+          enteredA++;
+        } else {
+          enteredB++;
+        }
+        if (enteredA + enteredB == 4 && !allEntered.isCompleted) {
+          allEntered.complete();
+        }
+      }
+
+      addTearDown(() {
+        if (!gateA.isCompleted) gateA.complete();
+        if (!gateB.isCompleted) gateB.complete();
+      });
+
       final Catalog<ComponentApi, FunctionImplementation> asyncCatA = _catalog(
         'async-cat-a',
         [
           _Fn(
             'asyncFormat',
             (args, ctx) async {
-              await Future<void>.delayed(const Duration(milliseconds: 5));
+              markEntered(isA: true);
+              await gateA.future;
               final Object? res = fs.execute(args, ctx);
               return res is ReadonlySignal ? res.value : res;
             },
@@ -921,7 +946,8 @@ void main() {
           _Fn(
             'asyncFormat',
             (args, ctx) async {
-              await Future<void>.delayed(const Duration(milliseconds: 1));
+              markEntered(isA: false);
+              await gateB.future;
               final Object? res = fs.execute(args, ctx);
               return res is ReadonlySignal ? res.value : res;
             },
@@ -934,57 +960,90 @@ void main() {
           ),
         ],
       );
+      final concurrentSent = <RendererToAgentMessage>[];
       final concurrentHandler = RpcHandler(
         catalogs: [catalog, asyncCatA, asyncCatB],
-        outboundListener: sent.add,
+        outboundListener: concurrentSent.add,
       );
       addTearDown(concurrentHandler.dispose);
-      final List<A2uiFunctionResponse> concurrentRes = await Future.wait([
-        run(
-          concurrentHandler,
-          _inbound(
-            'asyncFormat',
-            catalogId: 'async-cat-a',
-            id: 'conc-1',
-            args: {'value': r'Surface:${tag()}'},
-          ),
-          withSurface: true,
+      final Future<RendererFunctionResponseMessage> call1 =
+          concurrentHandler.handleCallRendererFunction(
+        _inbound(
+          'asyncFormat',
+          catalogId: 'async-cat-a',
+          id: 'conc-1',
+          args: {'value': r'Surface:${tag()}'},
         ),
-        run(
-          concurrentHandler,
-          _inbound(
-            'asyncFormat',
-            catalogId: 'async-cat-b',
-            id: 'conc-2',
-            args: {'value': r'Surface:${tag()}'},
-          ),
-          withSurface: true,
+        surface: surface,
+      );
+      final Future<RendererFunctionResponseMessage> call2 =
+          concurrentHandler.handleCallRendererFunction(
+        _inbound(
+          'asyncFormat',
+          catalogId: 'async-cat-b',
+          id: 'conc-2',
+          args: {'value': r'Surface:${tag()}'},
         ),
-        run(
-          concurrentHandler,
-          _inbound(
-            'asyncFormat',
-            catalogId: 'async-cat-a',
-            id: 'conc-3',
-            args: {'value': r'Headless:${tag()}'},
-          ),
-          withSurface: false,
+        surface: surface,
+      );
+      final Future<RendererFunctionResponseMessage> call3 =
+          concurrentHandler.handleCallRendererFunction(
+        _inbound(
+          'asyncFormat',
+          catalogId: 'async-cat-a',
+          id: 'conc-3',
+          args: {'value': r'Headless:${tag()}'},
         ),
-        run(
-          concurrentHandler,
-          _inbound(
-            'asyncFormat',
-            catalogId: 'async-cat-b',
-            id: 'conc-4',
-            args: {'value': r'Headless:${tag()}'},
-          ),
-          withSurface: false,
+      );
+      final Future<RendererFunctionResponseMessage> call4 =
+          concurrentHandler.handleCallRendererFunction(
+        _inbound(
+          'asyncFormat',
+          catalogId: 'async-cat-b',
+          id: 'conc-4',
+          args: {'value': r'Headless:${tag()}'},
         ),
-      ]);
-      expect(concurrentRes[0].value, 'Surface:A');
-      expect(concurrentRes[1].value, 'Surface:B');
-      expect(concurrentRes[2].value, 'Headless:A');
-      expect(concurrentRes[3].value, 'Headless:B');
+      );
+
+      await Future.any<Object?>(
+          [allEntered.future, call1, call2, call3, call4]);
+      expect(enteredA, 2);
+      expect(enteredB, 2);
+      expect(concurrentSent, isEmpty);
+
+      gateB.complete();
+      final List<RendererFunctionResponseMessage> bResponses =
+          await Future.wait([call2, call4]);
+      expect(concurrentSent, hasLength(2));
+
+      gateA.complete();
+      final List<RendererFunctionResponseMessage> aResponses =
+          await Future.wait([call1, call3]);
+
+      void expectConcurrentValue(
+        RendererFunctionResponseMessage message,
+        String expectedId,
+        String expectedValue,
+      ) {
+        expect(message.version, '1.0');
+        expect(message.response.functionCallId, expectedId);
+        expect(message.response.error, isNull);
+        expect(message.response.value, expectedValue);
+      }
+
+      expectConcurrentValue(aResponses[0], 'conc-1', 'Surface:A');
+      expectConcurrentValue(bResponses[0], 'conc-2', 'Surface:B');
+      expectConcurrentValue(aResponses[1], 'conc-3', 'Headless:A');
+      expectConcurrentValue(bResponses[1], 'conc-4', 'Headless:B');
+      expect(concurrentSent, hasLength(4));
+      expect(
+        concurrentSent.sublist(0, 2),
+        unorderedMatches([same(bResponses[0]), same(bResponses[1])]),
+      );
+      expect(
+        concurrentSent.sublist(2, 4),
+        unorderedMatches([same(aResponses[0]), same(aResponses[1])]),
+      );
     });
   });
 }
