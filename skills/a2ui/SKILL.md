@@ -2,7 +2,7 @@
 name: a2ui
 description: >-
   Build agent-generated / AI-generated UI with A2UI (Agent-to-User Interface),
-  the open protocol where an agent streams declarative JSON and the app renders
+  the open protocol where an agent streams layout data and the app renders
   it with its own native components (React, Angular, Lit, Flutter, SwiftUI,
   Jetpack Compose). Use when developers want an AI, LLM or agent to generate or
   update UI at runtime ("generative UI", "GenUI", "agent-generated UI", "AI
@@ -16,7 +16,7 @@ description: >-
 ## What A2UI is
 
 A2UI is an open, Apache-2.0 protocol plus renderer libraries for agent-generated UI.
-The agent sends **declarative JSON** (surfaces, components from a catalog, a data
+The agent sends **layout data** (surfaces, components from a catalog, a data
 model). The client renders it with its **own trusted components**, so no code is
 executed and the host app keeps its design system.
 

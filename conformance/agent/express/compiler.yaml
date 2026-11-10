@@ -119,6 +119,7 @@
 # surface that the block updates without creating is assumed to exist.
 
 - name: test_compile_express_minimal_root
+  features: [F-AGT-21, F-AGT-24]
   description: A block that assigns root compiles to one createSurface carrying that component.
   action: compile
   args:
@@ -136,6 +137,7 @@
             text: "Hello"
 
 - name: test_compile_express_unicode_identifier
+  features: [F-AGT-24]
   description: A variable name that is a UAX 31 Unicode identifier lexes and compiles to a component with that id.
   action: compile
   args:
@@ -158,6 +160,7 @@
             text: "x"
 
 - name: test_compile_express_nesting_by_variable_reference
+  features: [F-AGT-21]
   description: A child named by variable becomes a component id in the parent and a component of its own.
   action: compile
   args:
@@ -180,6 +183,7 @@
             text: "Hello"
 
 - name: test_compile_express_inline_nesting
+  features: [F-AGT-21]
   description: A component written inline is hoisted out after its parent and takes an id built from the parent and the property it fills.
   action: compile
   args:
@@ -200,6 +204,7 @@
             text: "Hello"
 
 - name: test_compile_express_keyword_and_positional_arguments_mixed
+  features: [F-AGT-21, F-AGT-52]
   description: A keyword argument names its property and can follow a positional one.
   action: compile
   args:
@@ -218,6 +223,7 @@
             variant: "caption"
 
 - name: test_compile_express_placeholder_skips_an_optional_argument
+  features: [F-AGT-52]
   description: An underscore leaves the property it stands in for out of the compiled component.
   action: compile
   args:
@@ -236,6 +242,7 @@
             placeholder: "you@example.com"
 
 - name: test_compile_express_raw_string_literal
+  features: [F-AGT-24]
   description: A raw string keeps its backslashes, because no escape is processed inside one.
   action: compile
   args:
@@ -320,6 +327,260 @@
             text:
               "@path": "label"
 
+- name: test_compile_express_index_system_function
+  description: From v1.0, `@index()` calls the protocol's `@index` system function, which no catalog defines. It compiles to a call with no args when it is given none.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Column(_template($/items, itemRow))
+    itemRow = Text(@index())
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Column"
+            children:
+              componentId: "itemRow"
+              path: "/items"
+          - id: "itemRow"
+            component: "Text"
+            text:
+              "@call": "@index"
+
+- name: test_compile_express_index_system_function_positional_offset
+  description: A system function takes positional arguments in the order its common types definition declares them, the same as a catalog function, so `@index(1)` passes `offset`.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Column(_template($/items, itemRow))
+    itemRow = Text(@index(1))
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Column"
+            children:
+              componentId: "itemRow"
+              path: "/items"
+          - id: "itemRow"
+            component: "Text"
+            text:
+              "@call": "@index"
+              args:
+                offset: 1
+
+- name: test_compile_express_index_system_function_named_offset
+  description: A system function takes named arguments too, so `@index(offset=1)` compiles the same as `@index(1)`.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Column(_template($/items, itemRow))
+    itemRow = Text(@index(offset=1))
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Column"
+            children:
+              componentId: "itemRow"
+              path: "/items"
+          - id: "itemRow"
+            component: "Text"
+            text:
+              "@call": "@index"
+              args:
+                offset: 1
+
+- name: test_compile_express_index_system_function_with_several_catalogs_names_no_catalog
+  description: With several catalogs, components and catalog function calls carry a catalogId, but a system function call never does, since no catalog defines it.
+  action: compile
+  args:
+    format: express
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |-
+    root = Column(_template($/items, itemRow))
+    itemRow = Text(@index(offset=1))
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        components:
+          - id: "root"
+            component: "Column"
+            catalogId: "conformance/simplified"
+            children:
+              componentId: "itemRow"
+              path: "/items"
+          - id: "itemRow"
+            component: "Text"
+            catalogId: "conformance/simplified"
+            text:
+              "@call": "@index"
+              args:
+                offset: 1
+
+- name: test_compile_express_system_function_with_catalog_id_is_a_validation_error
+  description: A system function is defined by the protocol, not a catalog, so a catalogId argument on it is a validation error.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Column(_template($/items, itemRow))
+    itemRow = Text(@index(catalogId="conformance/simplified"))
+  expect_error:
+    category: "ValidationError"
+    message: "catalogId"
+
+- name: test_compile_express_variable_holding_a_system_function_call_is_inlined
+  description: A variable that holds a system function call is a function call, not a component, so it is inlined wherever it is named, the same as a variable holding a catalog function call.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Column(_template($/items, itemRow))
+    n = @index(offset=1)
+    itemRow = Text(n)
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Column"
+            children:
+              componentId: "itemRow"
+              path: "/items"
+          - id: "itemRow"
+            component: "Text"
+            text:
+              "@call": "@index"
+              args:
+                offset: 1
+
+- name: test_compile_express_variable_holding_a_system_function_call_with_catalog_id_is_a_validation_error
+  description: A system function call held in a variable is checked like one written in place, so a catalogId argument on it is a validation error rather than an unknown component.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Column(_template($/items, itemRow))
+    n = @index(catalogId="conformance/simplified")
+    itemRow = Text(n)
+  expect_error:
+    category: "ValidationError"
+    message: "catalogId"
+
+- name: test_compile_express_unreferenced_variable_holding_a_system_function_call_with_catalog_id_is_a_validation_error
+  description: A system function call held in a variable is checked where the variable is defined, so a catalogId argument on it is a validation error even when nothing names the variable.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Text("hi")
+    n = @index(catalogId="conformance/simplified")
+  expect_error:
+    category: "ValidationError"
+    message: "catalogId"
+
+- name: test_compile_express_unreferenced_variable_holding_an_unknown_system_function_is_a_validation_error
+  description: An unknown system function held in a variable is a validation error even when nothing names the variable.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Text("hi")
+    n = @position()
+  expect_error:
+    category: "ValidationError"
+    message: "Unknown system function"
+
+- name: test_compile_express_root_holding_an_unknown_system_function_is_a_validation_error
+  description: A root variable that holds an unknown system function is a validation error about the function, not a missing root.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = @position()
+  expect_error:
+    category: "ValidationError"
+    message: "Unknown system function"
+
+- name: test_compile_express_unreferenced_variable_holding_a_system_function_before_v1_0_is_a_validation_error
+  description: Before v1.0 the protocol defines no system functions, so a variable holding `@index()` is a validation error even when nothing names it.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/streaming_catalog_v0_9.json"
+  input: |-
+    root = Text("hi")
+    n = @index()
+  expect_error:
+    category: "ValidationError"
+    message: "Unknown system function"
+
+- name: test_compile_express_unknown_system_function_is_a_validation_error
+  description: A name starting with `@` that the protocol does not define as a system function is a validation error.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Column(_template($/items, itemRow))
+    itemRow = Text(@position())
+  expect_error:
+    category: "ValidationError"
+    message: "Unknown system function"
+
+- name: test_compile_express_standalone_system_function_call_is_a_validation_error
+  description: A standalone call compiles to a callRendererFunction, which names a catalog function, so a system function written as a statement of its own is a validation error rather than a renderer call stamped with a catalog id.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Text("a")
+    @index()
+  expect_error:
+    category: "ValidationError"
+    message: "standalone"
+
+- name: test_compile_express_index_system_function_before_v1_0_is_a_validation_error
+  description: Before v1.0 the protocol defines no system functions, so `@index()` is a validation error.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/streaming_catalog_v0_9.json"
+  input: |-
+    root = List(_template($/items, itemRow))
+    itemRow = Text(@index())
+  expect_error:
+    category: "ValidationError"
+    message: "Unknown system function"
+
 - name: test_compile_express_absolute_data_binding_path
   description: A path argument binds the property to the data model rather than setting a literal.
   action: compile
@@ -339,6 +600,7 @@
               "@path": "/user/name"
 
 - name: test_compile_express_nested_function_call
+  features: [F-AGT-53]
   description: A catalog function called in a property slot compiles to that function call, which is how text is interpolated.
   action: compile
   args:
@@ -412,6 +674,7 @@
                 message: "Must be five digits"
 
 - name: test_compile_express_event_action
+  features: [F-AGT-21]
   description: An Event compiles to the action shape the catalog declares.
   action: compile
   args:
@@ -710,6 +973,7 @@
                       url: "https://a2ui.org"
 
 - name: test_compile_express_data_model_assignment
+  features: [F-AGT-23]
   description: A data path assignment beside a root fills the surface's initial data model.
   action: compile
   args:
@@ -732,6 +996,7 @@
           title: "Hello"
 
 - name: test_compile_express_data_model_only_block
+  features: [F-AGT-23]
   description: A block of nothing but data path assignments updates each assigned path in the data model rather than creating a surface or replacing the root data model.
   action: compile
   args:
@@ -753,6 +1018,7 @@
         value: "Enable notifications"
 
 - name: test_compile_express_root_data_model_replacement
+  features: [F-AGT-23]
   description: Assigning a map literal directly to $/ in a non-create block emits an updateDataModel targeting path "/" to replace the entire root data model.
   action: compile
   args:
@@ -770,6 +1036,7 @@
           title: "Enable notifications"
 
 - name: test_compile_express_data_model_update_array_element_paths
+  features: [F-AGT-23]
   description: A non-create scope with multiple data path assignments, including an array element sub-path, emits one updateDataModel per assigned path in statement order.
   action: compile
   args:
@@ -792,6 +1059,7 @@
         value: "Ready"
 
 - name: test_compile_express_create_surface_array_override_in_scope
+  features: [F-AGT-51]
   description: In a createSurface scope, assigning a sub-path under an already-assigned array mutates that array element in place rather than overwriting the array with a map.
   action: compile
   args:
@@ -819,6 +1087,7 @@
               state: "Open"
 
 - name: test_compile_express_create_surface_numeric_path_autovivifies_list
+  features: [F-AGT-51]
   description: In a createSurface scope, a numeric segment in a data path assignment auto-vivifies a list when the parent key is not yet defined.
   action: compile
   args:
@@ -842,6 +1111,7 @@
             - name: "Ada"
 
 - name: test_compile_express_surface_targeting
+  features: [F-AGT-51]
   description: A surface line names the surface the block is for, in place of the default id.
   action: compile
   args:
@@ -861,6 +1131,7 @@
             text: "Hello"
 
 - name: test_compile_express_surface_targeting_names_a_catalog
+  features: [F-AGT-51]
   description: With multiple active catalogs, a component resolves against the catalog that defines it and carries its catalogId while createSurface omits catalogId.
   action: compile
   args:
@@ -935,6 +1206,7 @@
             text: "Two"
 
 - name: test_compile_express_standalone_function_call
+  features: [F-AGT-53]
   description: A call written as a statement of its own asks the renderer to run a function, and compiles to callRendererFunction with the surface's catalog on the call. The function must be one the agent may call, which agent_functions_catalog_v1_0.json declares. The Express proposal shows this message with functionCallId and callFunction at the top level, which the v1.0 envelope rejects.
   action: compile
   args:
@@ -952,6 +1224,7 @@
             message: "Saved"
 
 - name: test_compile_express_function_call_action
+  features: [F-AGT-53]
   description: A function call in an action slot is the local branch of Action, which is how a control does something in the renderer rather than send the agent an event.
   action: compile
   args:
@@ -1082,6 +1355,7 @@
             text: "width=100"
 
 - name: test_compile_express_comments_are_ignored
+  features: [F-AGT-24]
   description: The grammar skips all three comment forms, so a model that annotates what it is building compiles to the same messages as one that does not.
   action: compile
   args:
@@ -1104,6 +1378,7 @@
             text: "Hello"
 
 - name: test_compile_express_semicolons_and_trailing_commas
+  features: [F-AGT-24]
   description: Semicolons are skipped like whitespace, so several statements may share a line, and a trailing comma closes an array without adding an element to it.
   action: compile
   args:
@@ -1246,6 +1521,7 @@
     category: "ParseError"
 
 - name: test_compile_express_syntax_error_is_a_parse_error
+  features: [F-AGT-24]
   description: A statement the grammar cannot read is a parse error.
   action: compile
   args:
@@ -1256,6 +1532,7 @@
     category: "ParseError"
 
 - name: test_compile_express_unknown_component_is_a_validation_error
+  features: [F-AGT-63]
   description: A block that parses but names a component the catalog does not declare is a validation error.
   action: compile
   args:
@@ -1266,6 +1543,7 @@
     category: "ValidationError"
 
 - name: test_compile_express_undeclared_property_is_a_validation_error
+  features: [F-AGT-63]
   description: A keyword argument naming a property the component does not declare is a validation error.
   action: compile
   args:
@@ -1276,6 +1554,7 @@
     category: "ValidationError"
 
 - name: test_compile_express_missing_required_property_is_a_validation_error
+  features: [F-AGT-63]
   description: A component left without a property its catalog requires is a validation error. Nothing in the notation marks an argument list as short, so an implementation that only checked the arguments it was given would emit the invalid component instead.
   action: compile
   args:
@@ -1308,6 +1587,7 @@
     category: "ValidationError"
 
 - name: test_compile_express_unknown_function_is_a_validation_error
+  features: [F-AGT-63]
   description: A call the catalog does not declare is a validation error, on the same footing as a component it does not declare. A compiler that fell back to emitting the call verbatim would hand the renderer something it cannot run.
   action: compile
   args:
@@ -1333,7 +1613,7 @@
   args:
     format: express
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
-  input: 'root = @Text("Hello")'
+  input: 'root = ^Text("Hello")'
   expect_error:
     category: "ParseError"
 
@@ -1663,6 +1943,7 @@
     category: "ParseError"
 
 - name: test_compile_express_positional_number_skips_optional_enums_to_weight
+  features: [F-AGT-52]
   description: A trailing numeric positional argument skips optional enum properties when exactly one later property accepts numbers.
   action: compile
   args:
@@ -1687,6 +1968,7 @@
             weight: 1
 
 - name: test_compile_express_positional_number_does_not_skip_non_enum_optional_property
+  features: [F-AGT-52]
   description: A numeric positional argument at an optional string property that is not an enum does not skip ahead to weight and fails validation.
   action: compile
   args:
