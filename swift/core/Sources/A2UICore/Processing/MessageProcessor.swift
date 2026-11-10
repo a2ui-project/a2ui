@@ -1614,15 +1614,21 @@ public final class MessageProcessor: ObservableObject {
       let componentCatalogID =
         componentDict["catalogId"]?.stringValue ?? surface.defaultCatalogID
 
+      // Component metadata exists from v1.0; before that, `metadata` is an ordinary property.
+      let hasMetadata = surface.protocolVersion.isAtLeastV10
       var props: [String: JSONValue] = [:]
       for (key, val) in componentDict
-      where key != "id" && key != "component" && key != "catalogId" && key != "metadata" {
+      where key != "id" && key != "component" && key != "catalogId"
+        && !(hasMetadata && key == "metadata")
+      {
         props[key] = val
       }
-      let metadata = try? MetadataValidator.validate(
-        componentDict["metadata"],
-        pathPrefix: "components.\(id).metadata"
-      )
+      let metadata =
+        hasMetadata
+        ? try? MetadataValidator.validate(
+          componentDict["metadata"],
+          pathPrefix: "components.\(id).metadata"
+        ) : nil
 
       let existing = surface.componentsModel.get(id)
       if let existing, existing.type != type || existing.catalogID != componentCatalogID {
