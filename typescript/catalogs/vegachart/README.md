@@ -84,6 +84,21 @@ that:
   each subplot of a faceted chart from its data (`autosize: pad`);
 - rewrites temporal axes formatted with `%b` but no `%Y` to `%b %Y`.
 
+### URL security policy
+
+Every URL in a spec goes through a Vega loader that applies the surface's URL
+security policy (`urlSecurityPolicy` on the `MessageProcessor`) before Vega
+fetches or opens it: `data.url` and image marks are checked as `media`, and the
+`href` channel as `navigation`. A blocked URL is never requested or opened, and
+a URL the policy rewrites (for example through a media proxy) is used in place
+of the original. The built-in baseline checks always apply, so protocol-relative
+URLs (`//host/data.csv`) and `data:` URLs that aren't images, audio or video are
+blocked even without a policy. A standalone element with no component context
+applies only the baseline checks.
+
+The loader is passed to the embed function as `options.loader`. A custom embed
+function must pass it on to Vega for the policy to apply.
+
 ### Custom embed function
 
 `A2uiVegaChartElement.defaultEmbedFn` is the function used to render; it

@@ -32,6 +32,11 @@ export {
   type VegaEmbedOptions,
   type VegaEmbedResult,
 } from './components/vegaChart.js';
+export type {
+  VegaLoaderLike,
+  VegaSanitizedUrl,
+  VegaSanitizeOptions,
+} from './components/url_policy_loader.js';
 export {A2uiVegaChart, VEGACHART_CATALOG_ID, VegaChartApi, vegachartCatalog} from './v0_9/index.js';
 export {
   A2uiVegaChartV1,

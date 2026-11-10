@@ -26,6 +26,7 @@
  * and `ui/notifications/data-model-change`.
  */
 
+import type {UrlContext} from '@a2ui/web_core';
 import {
   AppBridge,
   PostMessageTransport,
@@ -135,9 +136,16 @@ export interface McpAppBridgeOptions {
   readonly callTool?: (name: string, args: Record<string, unknown>) => Promise<CallToolResult>;
   /**
    * Optional handler for `ui/open-link` requests after the URL scheme (`http:` or `https:`) is
-   * validated. Defaults to opening the URL in a new tab with `noopener,noreferrer`.
+   * validated and `sanitizeUrl` allowed the URL. Defaults to opening the URL in a new tab with
+   * `noopener,noreferrer`.
    */
   readonly openLink?: (url: string) => void | Promise<void>;
+  /**
+   * Checks a URL against the surface's URL security policy, usually the component context's
+   * `sanitizeUrl`. `ui/open-link` URLs are checked as `navigation`: a blocked URL fails the request
+   * and a rewritten one is opened instead of the original. Without it, only the scheme is checked.
+   */
+  readonly sanitizeUrl?: (url: string, context: UrlContext) => string | undefined;
 }
 
 function subpathHasForbiddenSegment(subpath: string | undefined): boolean {
@@ -490,10 +498,17 @@ export class McpAppBridge {
       console.warn(`${LOG_PREFIX} Disallowed URL protocol in ui/open-link:`, parsed.protocol);
       return {isError: true};
     }
+    const href = this.options.sanitizeUrl
+      ? this.options.sanitizeUrl(parsed.href, 'navigation')
+      : parsed.href;
+    if (href === undefined) {
+      console.warn(`${LOG_PREFIX} ui/open-link URL blocked by the URL security policy`);
+      return {isError: true};
+    }
     if (this.options.openLink) {
-      await this.options.openLink(parsed.href);
+      await this.options.openLink(href);
     } else if (typeof window !== 'undefined' && typeof window.open === 'function') {
-      window.open(parsed.href, '_blank', 'noopener,noreferrer');
+      window.open(href, '_blank', 'noopener,noreferrer');
     }
     return {};
   }

@@ -30,6 +30,7 @@ import {
   type A2uiWebComponentElement,
   type ActionPayload,
   type AgentToRendererMessage,
+  type MessageProcessorOptions,
   type SurfaceModel,
   type WebComponentImplementation,
 } from '@a2ui/web_core/v1_0';
@@ -192,13 +193,18 @@ export class FrameTestHarness {
     readonly surfaceId: string,
     messages: readonly AgentToRendererMessage[],
     catalogs: ReadonlyArray<Catalog<WebComponentImplementation>> = EXAMPLE_CATALOGS,
+    processorOptions?: MessageProcessorOptions,
   ) {
     this.container = document.createElement('div');
     this.container.style.width = '600px';
     document.body.appendChild(this.container);
-    this.processor = new MessageProcessor<WebComponentImplementation>([...catalogs], action => {
-      this.actions.push(action);
-    });
+    this.processor = new MessageProcessor<WebComponentImplementation>(
+      [...catalogs],
+      action => {
+        this.actions.push(action);
+      },
+      processorOptions,
+    );
     this.processor.processMessages([...messages]);
     const surface = this.processor.model.getSurface(surfaceId);
     if (!surface) {

@@ -19,6 +19,7 @@ import {FakeResizeObserver, latestResizeObserver, mockRect, settle} from '../tes
 import * as assert from 'node:assert';
 import {afterEach, beforeEach, describe, it} from 'node:test';
 
+import {AllowlistUrlSecurityPolicy, type A2uiWarningPayload} from '@a2ui/web_core';
 import {
   ComponentContext,
   ComponentModel,
@@ -27,12 +28,15 @@ import {
 } from '@a2ui/web_core/v1_0';
 
 import {A2uiVegaChart, vegachartCatalog} from '../v0_9/index.js';
+import {vegachartV1Catalog} from '../v1/index.js';
+import {BLOCKED_CHART_URL_MESSAGE} from './url_policy_loader.js';
 import {
   A2uiVegaChartElement,
   DEFAULT_HEIGHT,
   FALLBACK_WIDTH_PX,
   transformSpec,
   type VegaEmbedFn,
+  type VegaEmbedOptions,
 } from './vegaChart.js';
 
 registerUniversalElement(A2uiVegaChart);
@@ -403,5 +407,122 @@ describe('A2uiVegaChartElement', () => {
 
     el.remove();
     assert.strictEqual(secondFinalized, true, 'disconnect finalizes the active view');
+  });
+
+  describe('URL security policy', () => {
+    const policy = new AllowlistUrlSecurityPolicy({
+      media: ['cdn.example.com'],
+      navigation: ['docs.example.com'],
+      rewrite: {
+        media: url =>
+          url.includes('/proxied/')
+            ? `https://cdn.example.com/p?u=${encodeURIComponent(url)}`
+            : url,
+      },
+    });
+
+    /** Mounts a chart bound to a surface of `catalog` that uses `policy`; returns the embed options. */
+    async function mountOnSurface(catalog: typeof vegachartCatalog | typeof vegachartV1Catalog) {
+      const embedOptions: VegaEmbedOptions[] = [];
+      const surface = new SurfaceModel(
+        'surface-1',
+        catalog as typeof vegachartCatalog,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        {urlSecurityPolicy: policy},
+      );
+      const warnings: A2uiWarningPayload[] = [];
+      surface.onWarning.subscribe(warning => {
+        warnings.push(warning);
+      });
+      surface.componentsModel.addComponent(
+        new ComponentModel(
+          'chart-1',
+          'VegaChart',
+          {spec: {mark: 'point', data: {url: 'https://cdn.example.com/data.csv'}}},
+          catalog as typeof vegachartCatalog,
+        ),
+      );
+      const el = new A2uiVegaChartElement();
+      el.embedFn = async (_el, _spec, options) => {
+        embedOptions.push(options!);
+        return {};
+      };
+      el.context = new ComponentContext(surface, 'chart-1');
+      host.appendChild(el);
+      await el.updateComplete;
+      const container = el.querySelector<HTMLElement>('#chart-container')!;
+      mockRect(container, 500, 290);
+      latestResizeObserver()?.trigger(500, 290);
+      await settle();
+      assert.strictEqual(embedOptions.length, 1);
+      return {loader: embedOptions[0].loader!, warnings};
+    }
+
+    for (const [label, catalog] of [
+      ['v0.9', vegachartCatalog],
+      ['v1.0', vegachartV1Catalog],
+    ] as const) {
+      it(`(${label}) passes Vega a loader that applies the surface policy`, async () => {
+        const {loader, warnings} = await mountOnSurface(catalog);
+
+        const data = await loader.sanitize('https://cdn.example.com/data.csv', {context: 'data'});
+        assert.strictEqual(data.href, 'https://cdn.example.com/data.csv');
+        const link = await loader.sanitize('https://docs.example.com/page', {context: 'href'});
+        assert.strictEqual(link.href, 'https://docs.example.com/page');
+
+        await assert.rejects(
+          loader.sanitize('https://evil.example/pixel.png', {context: 'image'}),
+          new RegExp(BLOCKED_CHART_URL_MESSAGE),
+        );
+        await assert.rejects(
+          loader.sanitize('https://cdn.example.com/page', {context: 'href'}),
+          'media hosts are not navigation hosts',
+        );
+        await assert.rejects(loader.load('https://evil.example/data.csv', {context: 'dataflow'}));
+
+        assert.ok(warnings.length > 0, 'blocked URLs are reported on the surface');
+        for (const warning of warnings) {
+          assert.strictEqual(warning.code, 'URL_BLOCKED');
+          assert.ok(!JSON.stringify(warning).includes('pixel.png'), 'reports are redacted');
+        }
+      });
+    }
+
+    it('uses a URL the policy rewrites', async () => {
+      const {loader} = await mountOnSurface(vegachartV1Catalog);
+      const result = await loader.sanitize('https://cdn.example.com/proxied/a.png', {
+        context: 'image',
+      });
+      assert.strictEqual(
+        result.href,
+        `https://cdn.example.com/p?u=${encodeURIComponent('https://cdn.example.com/proxied/a.png')}`,
+      );
+    });
+
+    it('applies the baseline checks to a standalone chart', async () => {
+      const options: VegaEmbedOptions[] = [];
+      const {container} = await mount({mark: 'bar'}, async (_el, _spec, embedOptions) => {
+        options.push(embedOptions!);
+        return {};
+      });
+      mockRect(container, 500, 290);
+      latestResizeObserver()?.trigger(500, 290);
+      await settle();
+      const loader = options[0].loader!;
+
+      const href = await loader.sanitize('https://any.example/page', {context: 'href'});
+      assert.strictEqual(href.href, 'https://any.example/page');
+      const image = await loader.sanitize('images/logo.png', {context: 'image'});
+      assert.strictEqual(image.href, 'images/logo.png');
+      await assert.rejects(loader.sanitize('javascript:alert(1)', {context: 'href'}));
+      await assert.rejects(loader.sanitize('data:image/svg+xml,<svg/>', {context: 'image'}));
+    });
   });
 });

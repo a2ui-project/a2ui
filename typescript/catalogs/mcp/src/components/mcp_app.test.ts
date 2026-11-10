@@ -20,6 +20,7 @@
  * `tests/` exercise the real proxy and a real application built on the App SDK.
  */
 
+import {AllowlistUrlSecurityPolicy, type A2uiWarningPayload} from '@a2ui/web_core';
 import {ErrorCode} from '@modelcontextprotocol/sdk/types.js';
 import {PROXY_READY_NOTIFICATION, RESOURCE_READY_NOTIFICATION} from '../shared/sandbox/sandbox.js';
 import {
@@ -486,5 +487,62 @@ describe('McpApp', () => {
       clipboardWrite: {},
       camera: {},
     });
+  });
+
+  it('caps the csp domain lists by the surface URL security policy', async () => {
+    harness.dispose();
+    harness = new FrameTestHarness(SURFACE_ID, parseExampleMessages(example), undefined, {
+      urlSecurityPolicy: new AllowlistUrlSecurityPolicy({
+        media: ['api.example.com', '*.cdn.example.com'],
+        iframe: ['embed.example.com'],
+        navigation: ['docs.example.com'],
+      }),
+    });
+    const warnings: A2uiWarningPayload[] = [];
+    harness.surface.onWarning.subscribe(warning => {
+      warnings.push(warning);
+    });
+    harness.updateComponent({
+      ...exampleComponent(),
+      csp: {
+        connectDomains: [
+          'https://api.example.com',
+          'wss://api.example.com',
+          'https://evil.example',
+        ],
+        resourceDomains: ['https://*.cdn.example.com', '*.example.com', 'https:', 'data:'],
+        frameDomains: ['https://embed.example.com', 'https://api.example.com'],
+        baseUriDomains: ['https://docs.example.com', 'https://embed.example.com'],
+      },
+    });
+    const {frame, inbox: messages} = await renderExample();
+    notify(frame, PROXY_READY_NOTIFICATION, {});
+
+    const ready = await messages.next(RESOURCE_READY_NOTIFICATION);
+    expect(ready.params!['csp']).toEqual({
+      connectDomains: ['https://api.example.com', 'wss://api.example.com'],
+      resourceDomains: ['https://*.cdn.example.com', 'data:'],
+      frameDomains: ['https://embed.example.com'],
+      baseUriDomains: ['https://docs.example.com'],
+    });
+    expect(warnings.length).toBeGreaterThan(0);
+    for (const warning of warnings) {
+      expect(warning.code).toBe('URL_BLOCKED');
+    }
+  });
+
+  it('keeps every csp domain under the default policy', async () => {
+    const csp = {
+      connectDomains: ['https://api.example.com', 'wss://*.example.com', 'http://localhost:*'],
+      resourceDomains: ['cdn.example.com', 'https:', 'blob:'],
+      frameDomains: ['https://embed.example.com'],
+      baseUriDomains: ['https://docs.example.com/base/'],
+    };
+    harness.updateComponent({...exampleComponent(), csp});
+    const {frame, inbox: messages} = await renderExample();
+    notify(frame, PROXY_READY_NOTIFICATION, {});
+
+    const ready = await messages.next(RESOURCE_READY_NOTIFICATION);
+    expect(ready.params!['csp']).toEqual(csp);
   });
 });

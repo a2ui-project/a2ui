@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import {PermissiveUrlSecurityPolicy, type UrlContext} from '@a2ui/web_core';
 import {
   AccessibilityAttributesSchema,
   DynamicStringSchema,
@@ -36,6 +37,7 @@ import {
   SandboxedFrameElement,
 } from '../shared/sandbox/sandboxed_frame_element.js';
 import {McpAppBridge} from './mcp_app_bridge.js';
+import {capCspByUrlPolicy} from './mcp_app_csp.js';
 
 /** Prefix of an `htmlContent` value that was `encodeURIComponent`-encoded for transport. */
 export const URL_ENCODED_PREFIX = 'url_encoded:';
@@ -45,6 +47,8 @@ export const URL_ENCODED_PREFIX = 'url_encoded:';
  * host grants. Form submission, modal dialogs and same-origin access stay denied.
  */
 export const MCP_APP_INNER_SANDBOX = 'allow-scripts';
+
+const DEFAULT_URL_POLICY = new PermissiveUrlSecurityPolicy();
 
 /** Accessible name of the frame when the component sets neither `accessibility.label` nor `title`. */
 export const DEFAULT_MCP_APP_TITLE = 'MCP App';
@@ -169,9 +173,21 @@ class McpAppElement extends SandboxedFrameElement<typeof McpAppApi> {
     return {
       html,
       sandbox: MCP_APP_INNER_SANDBOX,
-      ...(csp !== undefined ? {csp} : {}),
+      ...(csp !== undefined
+        ? {csp: capCspByUrlPolicy(csp, (url, context) => this.sanitizeUrl(url, context, 'csp'))}
+        : {}),
       ...(sandboxPermissions !== undefined ? {permissions: sandboxPermissions} : {}),
     };
+  }
+
+  /**
+   * Checks a URL against the surface's URL security policy. An element without a component
+   * context falls back to the default policy.
+   */
+  private sanitizeUrl(url: string, context: UrlContext, propertyName?: string): string | undefined {
+    return this.context
+      ? this.context.sanitizeUrl(url, context, propertyName ? {propertyName} : undefined)
+      : DEFAULT_URL_POLICY.sanitizeUrl(url, context);
   }
 
   /** The component has no `height` property; the element keeps its default height until the app asks for one. */
@@ -227,6 +243,7 @@ class McpAppElement extends SandboxedFrameElement<typeof McpAppApi> {
         };
       },
       callTool: this.resolveCallTool(),
+      sanitizeUrl: (url, context) => this.sanitizeUrl(url, context),
       onSizeChange: (width, height) => {
         this.requestFrameSize(width, height);
       },

@@ -403,8 +403,29 @@ For each `McpApp`, the host:
 - answers `ui/initialize` with its capabilities (`openLinks`, `logging`, `serverTools`), its name and version (`DEFAULT_MCP_APP_HOST_INFO`), and the host context (`theme`, `displayMode`, `availableDisplayModes`, `locale`, `timeZone`, `platform`, `containerDimensions`), then sends `ui/notifications/host-context-changed` when the frame is resized or the color scheme changes;
 - sends one `ui/notifications/data-model-update` per key of `data.paths` once the app reports `ui/notifications/initialized`, plus standard `ui/notifications/tool-input` and `ui/notifications/tool-result` notifications when `toolInput` or `toolResult` is bound, and updates whenever bound values change;
 - writes `ui/notifications/data-model-change` notifications and `ui/update-model-context` requests (`structuredContent` and/or `content`) to the bound paths without echoing them back;
-- executes allowed `tools/call` requests via `callTool` / `callMcpTool` (or dispatches them as A2UI actions), runs allowed `ui/requests/function-call` requests through the surface catalog, validates and opens `http:`/`https:` URLs for `ui/open-link`, dispatches `ui/message` as an `a2ui.mcpAppMessage` action, answers `ui/request-display-mode` with `{mode: 'inline'}`, and applies `ui/notifications/size-changed` to the frame;
+- executes allowed `tools/call` requests via `callTool` / `callMcpTool` (or dispatches them as A2UI actions), runs allowed `ui/requests/function-call` requests through the surface catalog, validates `http:`/`https:` URLs for `ui/open-link`, checks them as `navigation` against the surface's URL security policy, and opens the URL the policy returns, dispatches `ui/message` as an `a2ui.mcpAppMessage` action, answers `ui/request-display-mode` with `{mode: 'inline'}`, and applies `ui/notifications/size-changed` to the frame;
 - logs `notifications/message` to the console.
+
+### URL security policy
+
+The `csp` lists come from the MCP server. When the host sets a URL security policy (`urlSecurityPolicy` on the `MessageProcessor`), the policy caps them: every source in the lists is checked through the component's `sanitizeUrl` before the CSP is built, and sources the policy doesn't allow are removed. The app's CSP is the overlap of what it asks for and what the host allows.
+
+| List              | Checked as   |
+| :---------------- | :----------- |
+| `connectDomains`  | `media`      |
+| `resourceDomains` | `media`      |
+| `frameDomains`    | `iframe`     |
+| `baseUriDomains`  | `navigation` |
+
+Each CSP source is checked as a URL:
+
+1. A host source is checked with its scheme, host, port and path (`/` when it has none). A source without a scheme is checked as `https`, and `ws:`/`wss:` as `http:`/`https:`.
+2. A wildcard stays in the host: `https://*.example.com` is checked as `https://*.example.com/`. An `AllowlistUrlSecurityPolicy` only allows it when a wildcard entry covers it (`*.example.com`), not for an exact host such as `cdn.example.com`. `*` and scheme sources such as `https:` are checked as `https://*/`, which only a policy that allows every host passes.
+3. A port wildcard (`:*`) passes only when the policy allows both the default port and another port.
+4. `data:` and `blob:` load nothing from a server and are kept as declared.
+5. A source the policy rewrites to another scheme or host, for example to route it through a proxy, is removed, because the app would still connect to the original host.
+
+Sources that can't be mapped to a URL (`'self'`, other schemes) are removed. Without a policy, every source that passes the built-in baseline checks is kept.
 
 Every payload from the app is checked for prototype pollution keys, nesting depth and size before it is used. Anything that fails is rejected with a JSON-RPC error (requests) or dropped with a `console.warn` (notifications). Property changes are applied live: a new `htmlContent` reloads the app and connects a fresh bridge, and the allowlists are read on every request.
 
