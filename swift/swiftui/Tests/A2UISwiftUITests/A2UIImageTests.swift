@@ -13,11 +13,7 @@
 // limitations under the License.
 
 import A2UICore
-import A2UISwiftUI
-import BasicCatalog
 import BasicCatalogSwiftUI
-import Foundation
-import OrderedJSON
 import SwiftUI
 import Testing
 
@@ -102,7 +98,68 @@ struct A2UIImageTests {
       Self.size(of: fit.apply(to: image), proposing: CGSize(width: 100, height: 100)) == expected)
   }
 
+  // MARK: - Variant sizing
+
+  /// A 400x100 banner in a 300-point column: the header crops it to the column's width.
+  @Test(arguments: [A2UIImage.Fit.cover, .none, .fill])
+  func headerKeepsWideImageInProposedWidth(fit: A2UIImage.Fit) {
+    let view = Self.imageView(variant: "header", fit: fit)
+    let wide = Self.solidImage(width: 400, height: 100)
+    #expect(
+      Self.size(
+        of: VStack { view.applyVariantSizing(image: wide) },
+        proposing: CGSize(width: 300, height: 500)
+      ) == CGSize(width: 300, height: 200))
+  }
+
+  /// A 20x10 image in a 300-point column keeps its intrinsic height, as an `<img>` with
+  /// `max-width: 100%; height: auto` does.
+  @Test(arguments: A2UIImage.Fit.allCases)
+  func mediumFeatureDoesNotInflateSmallImageHeight(fit: A2UIImage.Fit) {
+    let view = Self.imageView(variant: "mediumFeature", fit: fit)
+    let small = Self.solidImage(width: 20, height: 10)
+    #expect(
+      Self.size(
+        of: view.applyVariantSizing(image: small).fixedSize(horizontal: false, vertical: true),
+        proposing: CGSize(width: 300, height: 500)
+      ) == CGSize(width: 300, height: 10))
+  }
+
+  /// A 400x200 image in a 300-point column with an open height, as in a scroll view: it shrinks
+  /// to the column's width and keeps its aspect ratio, even with the default `fill`.
+  @Test(arguments: A2UIImage.Fit.allCases)
+  func mediumFeatureShrinksLargeImageKeepingAspectRatio(fit: A2UIImage.Fit) {
+    let view = Self.imageView(variant: "mediumFeature", fit: fit)
+    let large = Self.solidImage(width: 400, height: 200)
+    #expect(
+      Self.size(
+        of: view.applyVariantSizing(image: large).fixedSize(horizontal: false, vertical: true),
+        proposing: CGSize(width: 300, height: 500)
+      ) == CGSize(width: 300, height: 150))
+  }
+
+  /// A 200x800 image in a 300-point column: `largeFeature` caps its height at 400 points.
+  @Test(arguments: A2UIImage.Fit.allCases)
+  func largeFeatureCapsTallImageHeight(fit: A2UIImage.Fit) {
+    let view = Self.imageView(variant: "largeFeature", fit: fit)
+    let tall = Self.solidImage(width: 200, height: 800)
+    #expect(
+      Self.size(
+        of: view.applyVariantSizing(image: tall).fixedSize(horizontal: false, vertical: true),
+        proposing: CGSize(width: 300, height: 1000)
+      ) == CGSize(width: 300, height: 400))
+  }
+
   // MARK: - Helpers
+
+  private static func imageView(variant: String, fit: A2UIImage.Fit) -> A2UIImage {
+    A2UIImage(
+      node: Node(
+        id: "img", type: "Image",
+        properties: [
+          "url": "https://example.com/a.png", "variant": variant, "fit": fit.rawValue,
+        ]))
+  }
 
   private static func solidImage(width: CGFloat, height: CGFloat) -> Image {
     Image(size: CGSize(width: width, height: height)) { context in

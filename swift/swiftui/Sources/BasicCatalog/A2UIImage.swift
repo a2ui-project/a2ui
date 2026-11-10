@@ -46,7 +46,7 @@ public struct A2UIImage: View {
   }
 
   /// How the image is resized to fit its frame, resolved from the `fit` and `variant` properties.
-  public var fit: Fit {
+  package var fit: Fit {
     Fit(property: node.string(for: "fit"), variant: variant)
   }
 
@@ -84,8 +84,9 @@ public struct A2UIImage: View {
     }
   }
 
+  /// Sizes a loaded `image` for the node's `variant`.
   @ViewBuilder
-  private func applyVariantSizing(image: Image) -> some View {
+  package func applyVariantSizing(image: Image) -> some View {
     switch variant {
     case "icon":
       fit.apply(to: image)
@@ -107,9 +108,9 @@ public struct A2UIImage: View {
         .frame(maxHeight: 400)
 
     case "header":
-      fit.apply(to: image)
-        .frame(maxWidth: .infinity)
+      Color.clear
         .frame(height: 200)
+        .overlay { fit.apply(to: image) }
         .clipped()
 
     default:  // mediumFeature
@@ -118,15 +119,14 @@ public struct A2UIImage: View {
     }
   }
 
-  /// Lays the image out in a frame with the image's own aspect ratio, as a web `<img>` with an
-  /// automatic height is, then fits the image into that frame.
+  /// Lays the image out in a frame with the image's own aspect ratio, as a web `<img>` with
+  /// `max-width: 100%; height: auto` is, then fits the image into that frame.
   ///
-  /// Without this, `fill` would stretch the image to the full width at its intrinsic height
-  /// whenever the parent leaves the height open, as a scroll view does.
+  /// The frame is the image's intrinsic size, scaled down when that doesn't fit the proposal, so a
+  /// small image isn't scaled up. Without this, `fill` would stretch the image to the full width at
+  /// its intrinsic height whenever the parent leaves the height open, as a scroll view does.
   private func aspectBox(image: Image) -> some View {
-    image
-      .resizable()
-      .aspectRatio(contentMode: .fit)
+    Fit.scaleDown.apply(to: image)
       .hidden()
       .overlay { fit.apply(to: image) }
       .clipped()
@@ -148,7 +148,7 @@ public struct A2UIImage: View {
 
 extension A2UIImage {
   /// The Basic Catalog `fit` values, with the semantics of CSS `object-fit`.
-  public enum Fit: String, CaseIterable, Sendable {
+  package enum Fit: String, CaseIterable, Sendable {
     /// Scales the image to fit inside the frame, keeping its aspect ratio.
     case contain
     /// Scales the image to cover the frame, keeping its aspect ratio. The overflow is clipped.
@@ -165,14 +165,17 @@ extension A2UIImage {
     /// A missing or unknown value falls back to the catalog default, `fill`. The `avatar` and
     /// `header` variants fall back to `cover` instead, so a photo keeps its proportions in a frame
     /// of fixed shape.
-    public init(property: String?, variant: String) {
-      if let property, let fit = Fit(rawValue: property) {
-        self = fit
-      } else if variant == "avatar" || variant == "header" {
-        self = .cover
-      } else {
-        self = .fill
+    package init(property: String?, variant: String) {
+      guard let property, let fit = Fit(rawValue: property) else {
+        switch variant {
+        case "avatar", "header":
+          self = .cover
+        default:
+          self = .fill
+        }
+        return
       }
+      self = fit
     }
 
     /// Sizes `image` for the frame its parent proposes.
@@ -180,7 +183,7 @@ extension A2UIImage {
     /// The parent sets the frame and clips anything that overflows it, so `cover` and `none` can
     /// report a size larger than the proposal.
     @ViewBuilder
-    public func apply(to image: Image) -> some View {
+    package func apply(to image: Image) -> some View {
       switch self {
       case .contain:
         image.resizable().aspectRatio(contentMode: .fit)
