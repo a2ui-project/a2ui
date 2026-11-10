@@ -18,10 +18,9 @@ import 'label_colors.dart';
 
 /// A field that holds a list of names, such as labels or logins, as chips.
 ///
-/// The triager adds a name by typing it and pressing Enter, by picking one
-/// of [options] as they type, or by checking it in the dropdown of
-/// [options]. They remove a name with its chip's delete button, or by
-/// unchecking it in the dropdown.
+/// The triager adds a name by checking it in the dropdown of [options],
+/// which opens from the arrow after the chips. They remove a name with its
+/// chip's delete button, or by unchecking it in the dropdown.
 class ChipListField extends StatefulWidget {
   const ChipListField({
     super.key,
@@ -48,8 +47,7 @@ class ChipListField extends StatefulWidget {
   /// labels to add".
   final String chooseTooltip;
 
-  /// The names to suggest as the triager types, and to show in the
-  /// dropdown.
+  /// The names to show in the dropdown.
   final List<String> options;
 
   @override
@@ -60,9 +58,6 @@ class ChipListField extends StatefulWidget {
 const int _searchThreshold = 7;
 
 class _ChipListFieldState extends State<ChipListField> {
-  final TextEditingController _text = TextEditingController();
-  final FocusNode _focus = FocusNode();
-
   /// The text in the dropdown's search field.
   final TextEditingController _search = TextEditingController();
 
@@ -75,13 +70,6 @@ class _ChipListFieldState extends State<ChipListField> {
   void initState() {
     super.initState();
     _search.addListener(() => setState(() {}));
-  }
-
-  void _add(String value) {
-    final String name = value.trim();
-    _text.clear();
-    if (name.isEmpty || widget.values.contains(name)) return;
-    widget.onChanged([...widget.values, name]);
   }
 
   void _toggle(String name, {required bool checked}) => widget.onChanged(
@@ -106,15 +94,14 @@ class _ChipListFieldState extends State<ChipListField> {
   @override
   void dispose() {
     _search.dispose();
-    _text.dispose();
-    _focus.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // The options, and the values that are not among them, such as names
-    // that the triager typed, so that they can be unchecked too.
+    // The options, and the values that are not among them, such as labels
+    // that the advisor suggested and the repository does not have, so that
+    // they can be unchecked too.
     final List<String> all = [
       for (final v in widget.values)
         if (!widget.options.contains(v)) v,
@@ -145,57 +132,6 @@ class _ChipListFieldState extends State<ChipListField> {
         children: [
           for (final String value in widget.values)
             _chip(value, widget.colorsOf?.call(value)),
-          SizedBox(
-            width: 240,
-            child: RawAutocomplete<String>(
-              textEditingController: _text,
-              focusNode: _focus,
-              optionsBuilder: (TextEditingValue typed) {
-                final String query = typed.text.trim().toLowerCase();
-                if (query.isEmpty) return const [];
-                return widget.options.where(
-                  (String o) =>
-                      !widget.values.contains(o) &&
-                      o.toLowerCase().contains(query),
-                );
-              },
-              onSelected: _add,
-              fieldViewBuilder: (context, controller, focusNode, _) =>
-                  TextField(
-                    controller: controller,
-                    focusNode: focusNode,
-                    decoration: const InputDecoration.collapsed(hintText: null),
-                    onSubmitted: (String text) {
-                      _add(text);
-                      focusNode.requestFocus();
-                    },
-                  ),
-              optionsViewBuilder: (context, onSelected, options) => Align(
-                alignment: Alignment.topLeft,
-                child: Material(
-                  elevation: 4,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      maxHeight: 240,
-                      maxWidth: 320,
-                    ),
-                    child: ListView(
-                      padding: EdgeInsets.zero,
-                      shrinkWrap: true,
-                      children: [
-                        for (final String option in options)
-                          ListTile(
-                            dense: true,
-                            title: Text(option),
-                            onTap: () => onSelected(option),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
           MenuAnchor(
             onOpen: () => setState(() => _checkedOnOpen = {...widget.values}),
             onClose: _search.clear,

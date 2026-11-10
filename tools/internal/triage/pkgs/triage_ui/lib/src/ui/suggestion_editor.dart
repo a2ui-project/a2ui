@@ -271,41 +271,43 @@ class _TeamInputDialogState extends State<_TeamInputDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: Text('Send ${widget.item.name} to the team?'),
-    content: SizedBox(
-      width: 560,
-      child: TextField(
-        controller: _comment,
-        autofocus: true,
-        minLines: 3,
-        maxLines: 10,
-        decoration: const InputDecoration(
-          labelText: 'Comment for the team',
-          helperText:
-              'Optional. Posted from your account. The suggestion is not '
-              'applied.',
-          border: OutlineInputBorder(),
-          alignLabelWithHint: true,
+  Widget build(BuildContext context) => SelectionArea(
+    child: AlertDialog(
+      title: Text('Send ${widget.item.name} to the team?'),
+      content: SizedBox(
+        width: 560,
+        child: TextField(
+          controller: _comment,
+          autofocus: true,
+          minLines: 3,
+          maxLines: 10,
+          decoration: const InputDecoration(
+            labelText: 'Comment for the team',
+            helperText:
+                'Optional. Posted from your account. The suggestion is not '
+                'applied.',
+            border: OutlineInputBorder(),
+            alignLabelWithHint: true,
+          ),
         ),
       ),
+      actions: [
+        Tooltip(
+          message: 'Change nothing on GitHub',
+          child: TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+        ),
+        Tooltip(
+          message: 'Add the label, and post the comment if there is one',
+          child: FilledButton(
+            onPressed: () => Navigator.pop(context, _comment.text.trim()),
+            child: const Text('Add "$needsTeamInputLabel"'),
+          ),
+        ),
+      ],
     ),
-    actions: [
-      Tooltip(
-        message: 'Change nothing on GitHub',
-        child: TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-      ),
-      Tooltip(
-        message: 'Add the label, and post the comment if there is one',
-        child: FilledButton(
-          onPressed: () => Navigator.pop(context, _comment.text.trim()),
-          child: const Text('Add "$needsTeamInputLabel"'),
-        ),
-      ),
-    ],
   );
 }
 
@@ -321,7 +323,7 @@ class _Text extends StatelessWidget {
     spacing: 4,
     children: [
       Text(title, style: Theme.of(context).textTheme.titleSmall),
-      SelectableText(text),
+      Text(text),
     ],
   );
 }

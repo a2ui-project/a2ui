@@ -68,116 +68,119 @@ class _TriagePageState extends State<TriagePage> {
     final TriageController controller = TriageScope.of(context);
     final String? error = controller.error;
     final int remaining = controller.remaining;
-    return Scaffold(
-      appBar: AppBar(
-        leading: MenuAnchor(
-          builder: (context, menu, _) => IconButton(
-            icon: const Icon(Icons.menu),
-            tooltip: 'Menu',
-            onPressed: () => menu.isOpen ? menu.close() : menu.open(),
-          ),
-          menuChildren: [
-            Tooltip(
-              message:
-                  'Load the items from GitHub again. Your edits are kept, '
-                  'except for items that changed on GitHub.',
-              child: MenuItemButton(
-                leadingIcon: const Icon(Icons.refresh),
-                onPressed: controller.isConnected && !controller.loading
-                    ? controller.refresh
-                    : null,
-                child: const Text('Refresh'),
-              ),
+    // Every text on the page can be selected and copied.
+    return SelectionArea(
+      child: Scaffold(
+        appBar: AppBar(
+          leading: MenuAnchor(
+            builder: (context, menu, _) => IconButton(
+              icon: const Icon(Icons.menu),
+              tooltip: 'Menu',
+              onPressed: () => menu.isOpen ? menu.close() : menu.open(),
             ),
-            Tooltip(
-              message:
-                  'Show what you did in this session, to share with the '
-                  'team',
-              child: MenuItemButton(
-                leadingIcon: const Icon(Icons.summarize_outlined),
-                onPressed: () => showSessionReport(context, controller),
-                child: const Text('Session report'),
+            menuChildren: [
+              Tooltip(
+                message:
+                    'Load the items from GitHub again. Your edits are kept, '
+                    'except for items that changed on GitHub.',
+                child: MenuItemButton(
+                  leadingIcon: const Icon(Icons.refresh),
+                  onPressed: controller.isConnected && !controller.loading
+                      ? controller.refresh
+                      : null,
+                  child: const Text('Refresh'),
+                ),
               ),
+              Tooltip(
+                message:
+                    'Show what you did in this session, to share with the '
+                    'team',
+                child: MenuItemButton(
+                  leadingIcon: const Icon(Icons.summarize_outlined),
+                  onPressed: () => showSessionReport(context, controller),
+                  child: const Text('Session report'),
+                ),
+              ),
+            ],
+          ),
+          title: const Text('A2UI triage'),
+          actions: [
+            if (controller.isConnected)
+              Padding(
+                padding: const EdgeInsets.only(right: 24),
+                child: Text(
+                  '$remaining ${remaining == 1 ? 'item needs' : 'items need'} '
+                  'triage',
+                ),
+              ),
+          ],
+          bottom: controller.loading
+              ? const PreferredSize(
+                  preferredSize: Size.fromHeight(4),
+                  child: LinearProgressIndicator(),
+                )
+              : null,
+        ),
+        body: Column(
+          children: [
+            if (error != null && controller.isConnected)
+              MaterialBanner(
+                content: Text(error),
+                actions: [
+                  Tooltip(
+                    message: 'Hide this message',
+                    child: TextButton(
+                      onPressed: controller.dismissError,
+                      child: const Text('Dismiss'),
+                    ),
+                  ),
+                ],
+              ),
+            Expanded(
+              child: controller.isConnected
+                  ? LayoutBuilder(
+                      builder: (context, constraints) {
+                        final double width = _listWidth.clamp(
+                          _minColumnWidth,
+                          (constraints.maxWidth - _minColumnWidth).clamp(
+                            _minColumnWidth,
+                            double.infinity,
+                          ),
+                        );
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            SizedBox(width: width, child: const ItemList()),
+                            _ColumnDivider(
+                              onDrag: (double delta) =>
+                                  setState(() => _listWidth = width + delta),
+                            ),
+                            const Expanded(child: ItemDetails()),
+                          ],
+                        );
+                      },
+                    )
+                  : Center(
+                      child: controller.loading
+                          ? const Text('Loading the items from GitHub...')
+                          : Column(
+                              mainAxisSize: MainAxisSize.min,
+                              spacing: 16,
+                              children: [
+                                Text(error ?? ''),
+                                Tooltip(
+                                  message: 'Connect to GitHub again',
+                                  child: FilledButton(
+                                    onPressed: controller.start,
+                                    child: const Text('Try again'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                    ),
             ),
           ],
         ),
-        title: const Text('A2UI triage'),
-        actions: [
-          if (controller.isConnected)
-            Padding(
-              padding: const EdgeInsets.only(right: 24),
-              child: Text(
-                '$remaining ${remaining == 1 ? 'item needs' : 'items need'} '
-                'triage',
-              ),
-            ),
-        ],
-        bottom: controller.loading
-            ? const PreferredSize(
-                preferredSize: Size.fromHeight(4),
-                child: LinearProgressIndicator(),
-              )
-            : null,
-      ),
-      body: Column(
-        children: [
-          if (error != null && controller.isConnected)
-            MaterialBanner(
-              content: Text(error),
-              actions: [
-                Tooltip(
-                  message: 'Hide this message',
-                  child: TextButton(
-                    onPressed: controller.dismissError,
-                    child: const Text('Dismiss'),
-                  ),
-                ),
-              ],
-            ),
-          Expanded(
-            child: controller.isConnected
-                ? LayoutBuilder(
-                    builder: (context, constraints) {
-                      final double width = _listWidth.clamp(
-                        _minColumnWidth,
-                        (constraints.maxWidth - _minColumnWidth).clamp(
-                          _minColumnWidth,
-                          double.infinity,
-                        ),
-                      );
-                      return Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          SizedBox(width: width, child: const ItemList()),
-                          _ColumnDivider(
-                            onDrag: (double delta) =>
-                                setState(() => _listWidth = width + delta),
-                          ),
-                          const Expanded(child: ItemDetails()),
-                        ],
-                      );
-                    },
-                  )
-                : Center(
-                    child: controller.loading
-                        ? const Text('Loading the items from GitHub...')
-                        : Column(
-                            mainAxisSize: MainAxisSize.min,
-                            spacing: 16,
-                            children: [
-                              Text(error ?? ''),
-                              Tooltip(
-                                message: 'Connect to GitHub again',
-                                child: FilledButton(
-                                  onPressed: controller.start,
-                                  child: const Text('Try again'),
-                                ),
-                              ),
-                            ],
-                          ),
-                  ),
-          ),
-        ],
       ),
     );
   }

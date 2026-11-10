@@ -137,6 +137,20 @@ void main() {
     expect(find.widgetWithText(ActionChip, 'Issue #1234'), findsOneWidget);
     expect(find.widgetWithText(ActionChip, 'Fixed by PR #20'), findsOneWidget);
 
+    // The item's age and author, on rows of their own.
+    expect(find.textContaining(RegExp(r'^Age: \d+ days\.$')), findsWidgets);
+    expect(find.text('Author: author10.'), findsOneWidget);
+    // The texts can be selected.
+    expect(find.byType(SelectionArea), findsOneWidget);
+    // The label and assignee fields have no text box, only the dropdown.
+    expect(
+      find.descendant(
+        of: find.byType(ChipListField),
+        matching: find.byType(TextField),
+      ),
+      findsNothing,
+    );
+
     // The linked PR needs triage too, so it is shown below the issue.
     expect(find.text('Linked PR that needs triage'), findsOneWidget);
     expect(find.text('PR #20: Fix the Row crash'), findsOneWidget);
@@ -149,17 +163,11 @@ void main() {
 
     await tester.tap(find.byTooltip('Remove P1'));
     await tester.pump();
-    await tester.enterText(
-      find
-          .descendant(
-            of: find.byType(ChipListField).first,
-            matching: find.byType(TextField),
-          )
-          .first,
-      'P2',
-    );
-    await tester.testTextInput.receiveAction(TextInputAction.done);
-    await tester.pump();
+    await tester.tap(find.byTooltip('Choose labels to add').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(MenuItemButton, 'P2'));
+    await tester.tapAt(Offset.zero);
+    await tester.pumpAndSettle();
 
     await tester.tap(find.widgetWithText(FilledButton, 'Apply').first);
     await tester.pump();

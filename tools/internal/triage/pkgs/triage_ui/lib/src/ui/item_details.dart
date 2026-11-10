@@ -88,10 +88,8 @@ class ItemCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               spacing: 4,
               children: [
-                Text(
-                  'Opened ${ago(item.createdAt)} by '
-                  '${item.author ?? 'a deleted account'}.',
-                ),
+                Text('Age: ${age(item.createdAt)}.'),
+                Text('Author: ${item.author ?? 'a deleted account'}.'),
                 Wrap(
                   spacing: 6,
                   runSpacing: 4,

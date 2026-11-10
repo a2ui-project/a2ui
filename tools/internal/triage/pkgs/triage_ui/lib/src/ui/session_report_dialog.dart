@@ -35,60 +35,64 @@ Future<bool> showSessionReport(
 
   final bool? close = await showDialog<bool>(
     context: context,
-    builder: (context) => AlertDialog(
-      title: Text(
-        closing ? 'Copy the session report before closing?' : 'Session report',
-      ),
-      content: SizedBox(
-        width: 640,
-        child: SingleChildScrollView(
-          child: SelectableText(
-            report,
-            style: const TextStyle(fontFamily: 'Menlo', fontSize: 13),
+    builder: (context) => SelectionArea(
+      child: AlertDialog(
+        title: Text(
+          closing
+              ? 'Copy the session report before closing?'
+              : 'Session report',
+        ),
+        content: SizedBox(
+          width: 640,
+          child: SingleChildScrollView(
+            child: Text(
+              report,
+              style: const TextStyle(fontFamily: 'Menlo', fontSize: 13),
+            ),
           ),
         ),
+        actions: closing
+            ? [
+                Tooltip(
+                  message: 'Close the triage UI without copying the report',
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text('Close'),
+                  ),
+                ),
+                Tooltip(
+                  message:
+                      'Copy the report to the clipboard, then close the '
+                      'triage UI',
+                  child: FilledButton(
+                    onPressed: () async {
+                      await copy();
+                      if (context.mounted) Navigator.pop(context, true);
+                    },
+                    child: const Text('Copy and close'),
+                  ),
+                ),
+              ]
+            : [
+                Tooltip(
+                  message: 'Close the report',
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Close'),
+                  ),
+                ),
+                Tooltip(
+                  message: 'Copy the report to the clipboard',
+                  child: FilledButton(
+                    onPressed: () async {
+                      await copy();
+                      if (context.mounted) Navigator.pop(context);
+                    },
+                    child: const Text('Copy'),
+                  ),
+                ),
+              ],
       ),
-      actions: closing
-          ? [
-              Tooltip(
-                message: 'Close the triage UI without copying the report',
-                child: TextButton(
-                  onPressed: () => Navigator.pop(context, true),
-                  child: const Text('Close'),
-                ),
-              ),
-              Tooltip(
-                message:
-                    'Copy the report to the clipboard, then close the '
-                    'triage UI',
-                child: FilledButton(
-                  onPressed: () async {
-                    await copy();
-                    if (context.mounted) Navigator.pop(context, true);
-                  },
-                  child: const Text('Copy and close'),
-                ),
-              ),
-            ]
-          : [
-              Tooltip(
-                message: 'Close the report',
-                child: TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Close'),
-                ),
-              ),
-              Tooltip(
-                message: 'Copy the report to the clipboard',
-                child: FilledButton(
-                  onPressed: () async {
-                    await copy();
-                    if (context.mounted) Navigator.pop(context);
-                  },
-                  child: const Text('Copy'),
-                ),
-              ),
-            ],
     ),
   );
   return close ?? false;
