@@ -516,6 +516,23 @@ void main() {
     expect(controller.selected!.number, 11);
   });
 
+  testWidgets('says which related items are closed', (tester) async {
+    // The suggestion names issue #1234 as related.
+    github.items[1234] = itemNode(1234, state: 'CLOSED', labels: []);
+    await pumpApp(tester);
+    // Loads #1234, which is not in the queue.
+    await settle(
+      tester,
+      () => Future<void>.delayed(const Duration(milliseconds: 10)),
+    );
+
+    expect(
+      find.widgetWithText(ActionChip, 'Issue #1234 (closed)'),
+      findsOneWidget,
+    );
+    expect(find.widgetWithText(ActionChip, 'Fixed by PR #20'), findsOneWidget);
+  });
+
   testWidgets('copies links with the button to their right', (tester) async {
     await pumpApp(tester);
 

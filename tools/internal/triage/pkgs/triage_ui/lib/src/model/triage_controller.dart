@@ -150,11 +150,25 @@ class TriageController extends ChangeNotifier {
         i,
   ];
 
-  /// The linked items that are neither in the queue nor opened by URL,
-  /// loaded by [loadLinked].
+  /// The linked and related items that are neither in the queue nor opened
+  /// by URL, loaded by [loadLinked] and [isClosed].
   final Map<int, TriageItem> _linked = {};
 
-  /// The fetches of the linked items that [loadLinked] started, by number.
+  /// Whether the item with [number] is closed, or null until it is known.
+  ///
+  /// An item that is not loaded is loaded in the background, and the
+  /// controller notifies its listeners once it is.
+  bool? isClosed(int number) {
+    if (item(number) ?? _linked[number] case final TriageItem i) {
+      return !i.isOpen;
+    }
+    if (_service != null) {
+      unawaited(_linkedFetches.putIfAbsent(number, () => _fetch(number)));
+    }
+    return null;
+  }
+
+  /// The fetches that [loadLinked] and [isClosed] started, by number.
   final Map<int, Future<void>> _linkedFetches = {};
 
   /// [item] and all the items linked to it, whether or not they need

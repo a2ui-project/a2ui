@@ -331,16 +331,24 @@ class _RelatedItems extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final TriageController controller = TriageScope.of(context);
     final int? duplicateOf = draft.toSuggestion().duplicateOf;
+    // "(closed)" once the item is known to be closed or merged.
+    String closed(int n) => controller.isClosed(n) ?? false ? ' (closed)' : '';
     final links = <(String, String)>[
       for (final int n in item.linkedItems)
         item.isPullRequest
-            ? ('Fixes issue #$n', issueUrl(n))
-            : ('Fixed by PR #$n', pullRequestUrl(n)),
+            ? ('Fixes issue #$n${closed(n)}', issueUrl(n))
+            : ('Fixed by PR #$n${closed(n)}', pullRequestUrl(n)),
       if (duplicateOf != null)
-        ('Duplicate of #$duplicateOf', issueUrl(duplicateOf)),
-      for (final int n in draft.relatedIssues) ('Issue #$n', issueUrl(n)),
-      for (final int n in draft.relatedPrs) ('PR #$n', pullRequestUrl(n)),
+        (
+          'Duplicate of #$duplicateOf${closed(duplicateOf)}',
+          issueUrl(duplicateOf),
+        ),
+      for (final int n in draft.relatedIssues)
+        ('Issue #$n${closed(n)}', issueUrl(n)),
+      for (final int n in draft.relatedPrs)
+        ('PR #$n${closed(n)}', pullRequestUrl(n)),
     ];
     if (links.isEmpty) return const SizedBox.shrink();
     return Column(
