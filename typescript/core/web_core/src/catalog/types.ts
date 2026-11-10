@@ -25,6 +25,7 @@ import {A2uiMetadata, jsonValueEquals} from '../common/metadata.js';
 import {isAtLeastVersion} from '../common/semver.js';
 import {findFailedArgument, isThenable, settleDeep} from '../common/settle_deep.js';
 import {assertUax31Identifier} from '../common/uax31.js';
+import {warnAboutUrlAnnotations} from '../security/url_annotation_check.js';
 import {SpecVersion} from '../spec_versions.js';
 import {AgentFunction, bindAgentFunctionDefs, isAgentFunction} from './agent_function.js';
 import {getDeclaredSchemaKeys, isZodSchema, parseCatalogSchema} from './schema_loader.js';
@@ -1020,6 +1021,7 @@ export class Catalog<
       functions,
       ...options
     } = parseCatalogSchema(json, protocolVersion, catalogId);
+    if (isAtLeastVersion(resolvedVersion, '0.9')) warnAboutUrlAnnotations(json, id);
     return new Catalog(id, resolvedVersion, components, functions, options);
   }
 
