@@ -1645,6 +1645,17 @@ Place shared scalar or enum schemas (such as `BadgeTone`) under `$defs` alongsid
   </TabItem>
 </Tabs>
 
+### URL properties
+
+Mark every component property that holds a URL the renderer loads, opens, or embeds with `"x-a2ui-url-context"` (`"media"`, `"navigation"`, or `"iframe"`) next to its type, so the host's URL security policy checks it before your widget sees it. Agents don't send the keyword, so payloads stay the same. A custom widget or function that builds a URL itself, or opens one passed as an argument, checks it with `sanitizeUrl` on its context. See [How to Restrict URLs with a URL Security Policy](../url-security/) for the full rules and the SDKs that support them.
+
+```json
+"imageUrl": {
+  "$ref": "common_types.json#/$defs/DynamicString",
+  "x-a2ui-url-context": "media"
+}
+```
+
 ### Schema parity tests in CI
 
 When your backend agent loads `status_catalog.json` and your client defines schemas in code (with Zod, `json_schema_builder`, `JSONSchema`, or `A2uiProperty` and `A2uiSchema`), avoid comparing serialized JSON files as raw strings. Code-built schemas and hand-authored JSON files often differ in key order, `$schema` or `instructions` fields, and localized `#/$defs/...` pointers inside `validationSchema`.
