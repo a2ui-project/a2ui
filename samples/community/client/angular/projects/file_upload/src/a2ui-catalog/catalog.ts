@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+import {z} from 'zod';
+
+import {BASIC_COMPONENTS, BASIC_FUNCTIONS} from '@a2ui/angular/v0_9';
 import {
   ActionSchema,
   Catalog,
@@ -22,9 +25,7 @@ import {
   DynamicNumberSchema,
   DynamicStringSchema,
 } from '@a2ui/web_core/v0_9';
-import {BASIC_COMPONENTS, BASIC_FUNCTIONS} from '@a2ui/angular/v0_9';
-import {z} from 'zod';
-import {FileUploadComponent} from '../components/file-upload/file-upload';
+import {FileReferenceSchema, FileUploadComponent} from '../components/file-upload/file-upload';
 
 /**
  * The composite catalog of the sample: the basic catalog plus `FileUpload`.
@@ -52,10 +53,14 @@ const FileUploadSchema = z
     multiple: z
       .boolean()
       .optional()
-      .describe('Whether the user may upload more than one file. Defaults to false.'),
-    value: DataBindingSchema.describe(
-      'The data model path where the renderer writes the uploaded files, as an array of FileReference objects ({fileId, fileName, fileSize, mimeType}).',
-    ),
+      .describe(
+        'Whether the user may upload more than one file. When true, newly uploaded files are appended to the current list; when false, picking a new file replaces the previous one.',
+      ),
+    value: z
+      .union([z.array(FileReferenceSchema), DataBindingSchema])
+      .describe(
+        'The uploaded files, bound to a data model path where the renderer writes an array of FileReference objects ({fileId, fileName, fileSize, mimeType}).',
+      ),
     action: ActionSchema.optional().describe(
       'Optional action dispatched each time value changes: after a successful upload and after the user removes a file.',
     ),

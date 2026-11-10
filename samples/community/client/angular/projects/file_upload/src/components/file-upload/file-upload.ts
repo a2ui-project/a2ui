@@ -14,16 +14,18 @@
  * limitations under the License.
  */
 
-import {CatalogComponent, A2uiRendererService} from '@a2ui/angular/v0_9';
-import {DataContext} from '@a2ui/web_core/v0_9';
 import {
   ChangeDetectionStrategy,
   Component,
   computed,
   inject,
-  signal,
   InjectionToken,
+  signal,
 } from '@angular/core';
+import {z} from 'zod';
+
+import {A2uiRendererService, CatalogComponent} from '@a2ui/angular/v0_9';
+import {DataContext} from '@a2ui/web_core/v0_9';
 
 export interface FileUploadConfig {
   onUploadFile?: (file: File, onProgress: (percent: number) => void) => Promise<string>;
@@ -45,17 +47,25 @@ export enum UploadState {
 }
 
 /**
+ * Zod schema for a pointer to an uploaded file, matching `FileReference` in
+ * the A2UI File Upload catalog (`catalogs/file_upload/catalog.json`).
+ * Keys are quoted to prevent property renaming under Closure-style minifiers.
+ */
+export const FileReferenceSchema = z
+  .object({
+    'fileId': z.string(),
+    'fileName': z.string(),
+    'fileSize': z.number().int(),
+    'mimeType': z.string(),
+    'inlineData': z.string().optional(),
+  })
+  .strict();
+
+/**
  * A pointer to an uploaded file, as written to the data model path bound to
  * `value`. Same shape as `FileReference` in the A2UI File Upload catalog.
  */
-export interface FileReference {
-  fileId: string;
-  fileName: string;
-  fileSize: number;
-  mimeType: string;
-  /** Data URI of the content; only present for `inline://` pointers. */
-  inlineData?: string;
-}
+export type FileReference = z.infer<typeof FileReferenceSchema>;
 
 @Component({
   selector: 'a2ui-file-upload',
@@ -83,7 +93,11 @@ export class FileUploadComponent extends CatalogComponent<any> {
   readonly uploadState = signal<UploadState>(UploadState.IDLE);
   readonly progress = signal<number>(0);
   readonly errorMessage = signal<string>('');
-  readonly uploadedFiles = signal<FileReference[]>([]);
+  private readonly localFiles = signal<FileReference[]>([]);
+  readonly uploadedFiles = computed<FileReference[]>(() => {
+    const bound = this.props()['value']?.value();
+    return Array.isArray(bound) ? bound : this.localFiles();
+  });
 
   get isIocMode(): boolean {
     return !!this.config.onUploadFile;
@@ -133,9 +147,13 @@ export class FileUploadComponent extends CatalogComponent<any> {
     // Fake an initial progress of 15% for immediate UX feedback
     this.progress.set(15);
 
-    // A new batch replaces the previous one, so clear the bound value first;
-    // checks such as `required` on that path then hold until the upload completes.
-    this.props()['value']?.onUpdate([]);
+    const isMultiple = this.multiple();
+    const priorFiles = this.uploadedFiles();
+    if (!isMultiple) {
+      // Single-file mode replaces the previous value; clear while in flight so
+      // checks such as `required` on that path hold until the upload completes.
+      this.props()['value']?.onUpdate([]);
+    }
 
     try {
       const uploaded: FileReference[] = [];
@@ -144,12 +162,16 @@ export class FileUploadComponent extends CatalogComponent<any> {
         uploaded.push(await this.uploadSingleFile(files[i], i, files.length));
       }
 
-      this.uploadedFiles.set(uploaded);
+      const nextFiles = isMultiple ? [...priorFiles, ...uploaded] : uploaded;
+      this.localFiles.set(nextFiles);
       this.uploadState.set(UploadState.SUCCESS);
       this.progress.set(100);
 
-      await this.publishValue(uploaded);
+      await this.publishValue(nextFiles);
     } catch (err) {
+      if (!isMultiple && priorFiles.length > 0) {
+        this.props()['value']?.onUpdate(priorFiles);
+      }
       this.uploadState.set(UploadState.ERROR);
       this.errorMessage.set(err instanceof Error ? err.message : 'Upload failed');
     }
@@ -162,12 +184,13 @@ export class FileUploadComponent extends CatalogComponent<any> {
   ): Promise<FileReference> {
     let pointerUri: string;
     let inlineData: string | undefined = undefined;
+    const maxInlineSize = this.config.maxInlineSize ?? DEFAULT_MAX_INLINE_SIZE;
 
     if (this.config.onUploadFile) {
       pointerUri = await this.config.onUploadFile(file, percent => {
         this.progress.set(Math.round((index * 100 + percent) / totalFiles));
       });
-    } else if (file.size <= (this.config.maxInlineSize || DEFAULT_MAX_INLINE_SIZE)) {
+    } else if (maxInlineSize > 0 && file.size <= maxInlineSize) {
       inlineData = await this.encodeAsDataUri(file);
       const uuid = crypto.randomUUID
         ? crypto.randomUUID()
@@ -224,9 +247,9 @@ export class FileUploadComponent extends CatalogComponent<any> {
   async removeFile(index: number) {
     const files = [...this.uploadedFiles()];
     const removed = files.splice(index, 1)[0];
-    this.uploadedFiles.set(files);
+    this.localFiles.set(files);
 
-    if (this.config.onRemoveFile) {
+    if (this.config.onRemoveFile && removed && !removed.fileId.startsWith(INLINE_URI_PREFIX)) {
       this.config.onRemoveFile(removed.fileId);
     }
 

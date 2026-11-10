@@ -80,7 +80,7 @@ export class A2aServiceImpl implements A2aService {
                 continue;
               }
               for (const uploadedFile of value) {
-                if (!uploadedFile?.inlineData || !uploadedFile.fileId) {
+                if (!uploadedFile || !uploadedFile.inlineData || !uploadedFile.fileId) {
                   continue;
                 }
 
@@ -222,40 +222,5 @@ export class A2aServiceImpl implements A2aService {
       title: 'Agent Inference & UI Stream',
       detail: data,
     });
-
-    // Intercept data model update to show Steps 4 and 5
-    let parts: any[] = [];
-    if (data.result && (data.result as any).parts) {
-      parts = (data.result as any).parts;
-    } else if (data.result && (data.result as any).history?.length) {
-      parts = (data.result as any).history[(data.result as any).history.length - 1].parts || [];
-    }
-
-    if (parts) {
-      for (const p of parts) {
-        if ('a2ui' in p && Array.isArray(p.a2ui)) {
-          for (const msg of p.a2ui) {
-            if (
-              msg.updateDataModel &&
-              (msg.updateDataModel.path === '/uploaded_file' ||
-                msg.updateDataModel.path === '/uploaded_files')
-            ) {
-              this.telemetry.log({
-                card: 'websocket',
-                title: 'Step 4: Agent responds with datamodel update to hydrate',
-                detail: {payload: msg.updateDataModel},
-              });
-              setTimeout(() => {
-                this.telemetry.log({
-                  card: 'resolver',
-                  title: 'Step 5: The button is hydrated with a new ID',
-                  detail: {newId: msg.updateDataModel.value?.fileId},
-                });
-              }, 500); // slight delay to represent hydration time
-            }
-          }
-        }
-      }
-    }
   }
 }

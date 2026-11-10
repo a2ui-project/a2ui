@@ -190,17 +190,20 @@ describe('FileUploadComponent', () => {
   it('should remove a file, call onRemoveFile and write the remaining files to the value', fakeAsync(() => {
     mockConfig.onRemoveFile = jasmine.createSpy('onRemoveFile');
 
-    component.uploadedFiles.set([
-      {fileId: 'test-uri', fileName: 'test.txt', fileSize: 10, mimeType: 'text/plain'},
-    ]);
+    fixture.componentRef.setInput('props', {
+      value: bound(
+        [{fileId: 'test-uri', fileName: 'test.txt', fileSize: 10, mimeType: 'text/plain'}],
+        onValueUpdate,
+      ),
+    });
+    fixture.detectChanges();
     component.uploadState.set(UploadState.SUCCESS);
 
     component.removeFile(0);
     tick();
 
-    expect(component.uploadedFiles().length).toBe(0);
     expect(mockConfig.onRemoveFile).toHaveBeenCalledWith('test-uri');
-    expect(component.uploadState()).toBe('idle');
+    expect(component.uploadState()).toBe(UploadState.IDLE);
     expect(onValueUpdate).toHaveBeenCalledWith([]);
   }));
 

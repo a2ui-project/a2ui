@@ -143,12 +143,22 @@
             },
             "multiple": {
               "type": "boolean",
-              "description": "Whether the user may upload more than one file. When false, picking a new file replaces the previous one.",
+              "description": "Whether the user may upload more than one file. When true, newly uploaded files are appended to the current list; when false, picking a new file replaces the previous one.",
               "default": false
             },
             "value": {
-              "$ref": "common_types.json#/$defs/DataBinding",
-              "description": "The data model path where the renderer writes the uploaded files, as an array of FileReference objects (see `$defs/FileReference`). The array is replaced after every upload and removal, and is empty until the first upload completes. Read it from a Button action context with a path to the same location, e.g. {\"files\": {\"path\": \"/uploaded_files\"}}."
+              "description": "The uploaded files, bound to a data model path (e.g. {\"path\": \"/uploaded_files\"}) where the renderer writes an array of FileReference objects. The array is replaced after every upload and removal, and is empty until the first upload completes. Read it from a Button action context with a path to the same location, e.g. {\"files\": {\"path\": \"/uploaded_files\"}}.",
+              "oneOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/FileReference"
+                  }
+                },
+                {
+                  "$ref": "common_types.json#/$defs/DataBinding"
+                }
+              ]
             },
             "action": {
               "$ref": "common_types.json#/$defs/Action",

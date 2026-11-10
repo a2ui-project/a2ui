@@ -162,6 +162,27 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@a2ui/catalog-file-upload@workspace:typescript/catalogs/file_upload":
+  version: 0.0.0-use.local
+  resolution: "@a2ui/catalog-file-upload@workspace:typescript/catalogs/file_upload"
+  dependencies:
+    "@a2ui/web_core": "workspace:*"
+    "@types/jsdom": "npm:^28.0.3"
+    "@types/node": "npm:^25.9.3"
+    eslint: "npm:^10.4.1"
+    jsdom: "npm:^29.1.1"
+    lit: "npm:^3.3.3"
+    prettier: "npm:^3.8.4"
+    tsx: "npm:^4.22.4"
+    typescript: "npm:5.9.3"
+    wireit: "npm:^0.15.0-pre.2"
+    zod: "npm:^3.25.76"
+  peerDependencies:
+    "@a2ui/web_core": "workspace:*"
+    lit: ^3.3.3
+  languageName: unknown
+  linkType: soft
+
 "@a2ui/catalog-mcp@workspace:*, @a2ui/catalog-mcp@workspace:typescript/catalogs/mcp":
   version: 0.0.0-use.local
   resolution: "@a2ui/catalog-mcp@workspace:typescript/catalogs/mcp"
