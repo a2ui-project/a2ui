@@ -75,15 +75,15 @@ const Map<String, String> unsupportedAgentSuites = {
   'agent/skill.yaml':
       'a2ui_agent for Dart does not implement the skill generation API.',
   'agent/vertical/compiler.yaml':
-      'Vertical is experimental and Python-only.',
+      'Vertical format is experimental and implemented in Python only.',
   'agent/vertical/decompiler.yaml':
-      'Vertical is experimental and Python-only.',
+      'Vertical format is experimental and implemented in Python only.',
   'agent/vertical/prompt_generator.yaml':
-      'Vertical is experimental and Python-only.',
+      'Vertical format is experimental and implemented in Python only.',
   'agent/vertical/response_parser.yaml':
-      'Vertical is experimental and Python-only.',
+      'Vertical format is experimental and implemented in Python only.',
   'agent/vertical/response_streaming.yaml':
-      'Vertical is experimental and Python-only.',
+      'Vertical format is experimental and implemented in Python only.',
 };
 
 Set<String> _discoverAgentSuites() {
