@@ -20,6 +20,7 @@ catalogs (and stamped with their catalogId when several are active), the
 protocol version, and multi-catalog prompt rules.
 """
 
+import sys
 from typing import Any
 
 import pytest
@@ -847,6 +848,67 @@ def test_standalone_call_resolves_by_name(parser: ExpressParser) -> None:
     }
 
 
+# --- System functions of the target version ---
+
+_INDEX_DSL = "root = Column(_template($/items, row))\nrow = Text(@index())"
+
+
+def _row_text(messages: list[Any]) -> Any:
+    components = [
+        c
+        for m in to_message_dicts(messages)
+        for body in m.values()
+        if isinstance(body, dict)
+        for c in body.get("components", [])
+    ]
+    return next(c for c in components if c["id"] == "row")["text"]
+
+
+def test_version_override_reads_the_target_versions_system_functions() -> None:
+    with pytest.raises(
+        ExpressValidationError, match="in A2UI v0.9. System functions: none"
+    ):
+        ExpressCompiler([_primary()], version="v0.9").compile(_INDEX_DSL)
+
+    v1_compiler = ExpressCompiler([_primary(version="v0.9")], version="1.0")
+    assert _row_text(v1_compiler.compile(_INDEX_DSL)) == {"@call": "@index"}
+
+
+def test_per_call_version_reads_the_target_versions_system_functions() -> None:
+    compiler = ExpressCompiler([_primary()])
+    with pytest.raises(
+        ExpressValidationError, match="in A2UI v0.9. System functions: none"
+    ):
+        compiler.compile(_INDEX_DSL, version="v0.9")
+    assert _row_text(compiler.compile(_INDEX_DSL)) == {"@call": "@index"}
+
+
+def test_prompt_rules_list_system_functions_of_the_target_version() -> None:
+    rules_v09 = ExpressFormat([_primary()], version="v0.9").prompt_generator
+    assert "## System Functions" not in rules_v09.generate_base_rules()
+    messages = to_message_models([{
+        "version": "1.0",
+        "createSurface": {
+            "surfaceId": "main",
+            "catalogId": PRIMARY,
+            "components": [
+                {
+                    "id": "root",
+                    "component": "Column",
+                    "children": {"path": "/items", "componentId": "row"},
+                },
+                {"id": "row", "component": "Text", "text": {"@call": "@index"}},
+            ],
+        },
+    }])
+    fmt_v1 = ExpressFormat(
+        [_primary(version="v0.9")], examples=[messages], version="1.0"
+    )
+    assert "• @index(offset?)" in fmt_v1.prompt_generator.generate_base_rules()
+    assert "row = Text(@index())" in fmt_v1.prompt_generator.generate()
+    assert "row = Text(@index())" in fmt_v1.create_parser().decompile(messages)
+
+
 # --- Prompt rules ---
 
 
@@ -855,11 +917,72 @@ def test_single_catalog_prompt_rules_are_the_base_rules() -> None:
     rules = fmt.prompt_generator.generate_base_rules()
     # Rule 15's example names a component of the catalog. `_primary` has no
     # component with a single child reference, so it names the first one.
-    assert rules == EXPRESS_RULES.replace(
-        "root = ComponentA(...)", "root = Column(...)"
-    )
+    # From v1.0 the rules end with the protocol's system functions.
+    base, _, system_functions = rules.partition("\n\n## System Functions\n\n")
+    assert base == EXPRESS_RULES.replace("root = ComponentA(...)", "root = Column(...)")
+    assert "• @index(offset?)" in system_functions
     assert "surface(" in rules
+    assert "`Event(name, context?, userMessage=...)`" in rules
+    assert "userMessage=" in rules
     assert "Multiple Catalogs" not in rules
+
+
+@pytest.mark.parametrize("version", ["v0.9", "v0.9.1"])
+def test_pre_v1_0_prompt_rules_omit_event_user_message(version: str) -> None:
+    fmt = ExpressFormat([_primary(version=version)])
+    rules = fmt.prompt_generator.generate_base_rules()
+    assert (
+        "8. Action events: represent server-side actions using the Event helper:\n"
+        '   Event("save_deal", {rep: $/form/rep})'
+    ) in rules
+    assert "userMessage=" not in rules
+
+    filtered = fmt.prompt_generator.generate_base_rules(
+        allowed_messages=["updateComponents"]
+    )
+    assert (
+        "7. Action events: represent server-side actions using the Event helper:\n"
+        '   Event("save_deal", {rep: $/form/rep})'
+    ) in filtered
+    assert "userMessage=" not in filtered
+
+
+def test_prompt_rules_normalize_crlf_line_endings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    generator = ExpressFormat([_primary()]).prompt_generator
+    module = sys.modules[type(generator).__module__]
+    monkeypatch.setattr(module, "EXPRESS_RULES", EXPRESS_RULES.replace("\n", "\r\n"))
+    monkeypatch.setattr(
+        module,
+        "_EXPRESS_RULES_PRE_V1_0",
+        module._EXPRESS_RULES_PRE_V1_0.replace("\n", "\r\n"),
+    )
+    fmt_v09 = ExpressFormat([_primary(version="v0.9.1")])
+    rules_v09 = fmt_v09.prompt_generator.generate_base_rules()
+    assert "\r\n" not in rules_v09
+    assert (
+        "8. Action events: represent server-side actions using the Event helper:\n"
+        '   Event("save_deal", {rep: $/form/rep})'
+    ) in rules_v09
+    assert "userMessage=" not in rules_v09
+
+    filtered_v09 = fmt_v09.prompt_generator.generate_base_rules(
+        allowed_messages=["updateComponents"]
+    )
+    assert "\r\n" not in filtered_v09
+    assert (
+        "7. Action events: represent server-side actions using the Event helper:\n"
+        '   Event("save_deal", {rep: $/form/rep})'
+    ) in filtered_v09
+    assert "userMessage=" not in filtered_v09
+
+    fmt_v10 = ExpressFormat([_primary(version="1.0")])
+    filtered_v10 = fmt_v10.prompt_generator.generate_base_rules(
+        allowed_messages=["updateComponents"]
+    )
+    assert "\r\n" not in filtered_v10
+    assert "`Event(name, context?, userMessage=...)`" in filtered_v10
 
 
 def test_multi_catalog_prompt_rules_explain_catalog_selection() -> None:

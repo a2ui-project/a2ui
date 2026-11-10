@@ -87,18 +87,25 @@ class ValidationResult {
       };
 
   /// Coerces the evaluated result of a check `condition` into a normalized
-  /// [ValidationResult], using [fallbackMessage] when no message is supplied by
-  /// the function result.
+  /// [ValidationResult], preferring [explicitMessage] when supplied on a
+  /// failing check rule and falling back to [fallbackMessage] when no message
+  /// is supplied by the function result.
   factory ValidationResult.fromEvaluation(
     Object? value, {
+    String? explicitMessage,
     String fallbackMessage = 'Validation failed',
   }) {
+    final bool hasExplicitMessage =
+        explicitMessage != null && explicitMessage.isNotEmpty;
     if (value is ValidationResult) {
       final bool isValid = validityOf(value)!;
       final bool hasCustomMessage =
           value.message != null && value.message!.isNotEmpty;
-      final String? resolvedMessage =
-          hasCustomMessage ? value.message : (isValid ? null : fallbackMessage);
+      final String? resolvedMessage = isValid
+          ? (hasCustomMessage ? value.message : null)
+          : (hasExplicitMessage
+              ? explicitMessage
+              : (hasCustomMessage ? value.message : fallbackMessage));
       final String? resolvedSeverity =
           (value.severity == 'warning' || value.severity == 'info')
               ? value.severity!
@@ -115,10 +122,13 @@ class ValidationResult {
       final bool isValid = validityOf(value)!;
       final Object? rawMessage = value['message'];
       final customMessage = rawMessage?.toString();
-      final String? resolvedMessage =
-          (customMessage != null && customMessage.isNotEmpty)
-              ? customMessage
-              : (isValid ? null : fallbackMessage);
+      final bool hasCustomMessage =
+          customMessage != null && customMessage.isNotEmpty;
+      final String? resolvedMessage = isValid
+          ? (hasCustomMessage ? customMessage : null)
+          : (hasExplicitMessage
+              ? explicitMessage
+              : (hasCustomMessage ? customMessage : fallbackMessage));
       final String? code =
           value['code'] is String ? value['code'] as String : null;
       final Object? rawSeverity = value['severity'];
@@ -137,7 +147,9 @@ class ValidationResult {
     final isValid = value == true;
     return ValidationResult(
       valid: isValid,
-      message: isValid ? null : fallbackMessage,
+      message: isValid
+          ? null
+          : (hasExplicitMessage ? explicitMessage : fallbackMessage),
       severity: isValid ? null : 'error',
     );
   }
@@ -167,3 +179,22 @@ class ValidationResult {
       'ValidationResult(valid: $valid, message: $message, code: $code, '
       'severity: $severity)';
 }
+
+/// Coerces a resolved `DynamicBoolean` value to a `bool`.
+///
+/// - A `bool` is returned unchanged.
+/// - A [ValidationResult], or a map with a boolean `valid` entry, coerces to
+///   its `valid` boolean.
+/// - A `String` coerces to `true` only when it equals `'true'`
+///   case-insensitively; `'false'` and all other strings coerce to `false`.
+/// - A `num` coerces to `value != 0` (`NaN` coerces to `false`).
+/// - `null`, any other map, or any list coerces to `false`.
+bool coerceDynamicBoolean(Object? value) => switch (value) {
+      final bool b => b,
+      ValidationResult(:final valid) => valid,
+      final Map<Object?, Object?> map when map['valid'] is bool =>
+        map['valid']! as bool,
+      final String s => s.toLowerCase() == 'true',
+      final num n => n != 0 && !n.isNaN,
+      _ => false,
+    };

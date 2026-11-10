@@ -16,6 +16,7 @@
 
 import {z} from 'zod';
 
+import {validateMetadata} from '../common/metadata.js';
 import {isAtLeastVersion} from '../common/semver.js';
 import {assertUax31Identifier} from '../common/uax31.js';
 import {A2uiCatalogError} from '../errors.js';
@@ -167,9 +168,17 @@ function finalizePropertyZod(
       new Set(visitedPointers),
       defCache,
     );
-    result = result.refine(val => !notSchema.safeParse(val).success, {
-      message: 'Value matched prohibited "not" schema',
-    });
+    // Checks the value as written, before `baseZod` fills in the defaults of
+    // its properties, which `not` must not see.
+    result = z.preprocess((val, ctx) => {
+      if (notSchema.safeParse(val).success) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Value matched prohibited "not" schema',
+        });
+      }
+      return val;
+    }, result);
   }
   if (propSchema.default !== undefined) {
     result = result.default(propSchema.default);
@@ -365,7 +374,19 @@ function convertAllOfPropertyToZod(
             s.kind === 'json' &&
             (s.schema.additionalProperties === false || s.schema.unevaluatedProperties === false),
         );
-      const obj = forbidExtra ? baseObj.strict() : baseObj.passthrough();
+      const obj = closeObjectSchema(
+        baseObj,
+        [
+          propSchema,
+          ...subSchemas.flatMap(s =>
+            s.kind === 'json' && s.schema !== propSchema ? [s.schema] : [],
+          ),
+        ],
+        forbidExtra,
+        rootDoc,
+        visitedPointers,
+        defCache,
+      );
       return finalizePropertyZod(obj, propSchema, rootDoc, visitedPointers, defCache);
     }
   }
@@ -517,14 +538,16 @@ function convertPropertyToZod(
       // reference nested inside an array item is invisible to the reference map,
       // so the component graph would look as if it had no children there.
       const props = propSchema.properties;
+      const hasPatterns =
+        typeof propSchema.patternProperties === 'object' && propSchema.patternProperties !== null;
       let obj: z.ZodTypeAny;
-      if (typeof props === 'object' && props !== null) {
+      if ((typeof props === 'object' && props !== null) || hasPatterns) {
         const required = Array.isArray(propSchema.required)
           ? new Set(propSchema.required.filter((r): r is string => typeof r === 'string'))
           : new Set<string>();
         const baseObj = z.object(
           convertPropertiesToShape(
-            props as Record<string, unknown>,
+            (props ?? {}) as Record<string, unknown>,
             required,
             false,
             rootDoc,
@@ -534,7 +557,14 @@ function convertPropertyToZod(
         );
         const forbidExtra =
           propSchema.additionalProperties === false || propSchema.unevaluatedProperties === false;
-        obj = forbidExtra ? baseObj.strict() : baseObj.passthrough();
+        obj = closeObjectSchema(
+          baseObj,
+          [propSchema],
+          forbidExtra,
+          rootDoc,
+          visitedPointers,
+          defCache,
+        );
       } else {
         obj = z.record(z.unknown());
       }
@@ -594,16 +624,107 @@ function convertPropertiesToShape(
       defCache,
     );
     if (!requiredSet.has(propName)) {
-      shape[propName] = zodField.optional();
-    } else if (zodField.safeParse(undefined).success) {
-      // A schema that accepts any value, such as `{}`, also accepts a missing
-      // key, which `required` rules out.
-      shape[propName] = zodField.refine(value => value !== undefined, {message: 'Required'});
+      // A property with a `default` already accepts a missing value, and
+      // `optional()` would skip the default. Leaving it unwrapped applies the
+      // default on parse, as a `.default()` in a catalog defined in code does.
+      shape[propName] = zodField instanceof z.ZodDefault ? zodField : zodField.optional();
+      continue;
+    }
+    if (zodField.safeParse(undefined).success) {
+      // A required property must be present. A schema that accepts any value,
+      // such as `{}`, also accepts a missing key, and a `default` would stand
+      // in for one, so a missing key is rejected before either applies.
+      shape[propName] = z.preprocess((value, ctx) => {
+        if (value === undefined) {
+          ctx.addIssue({code: z.ZodIssueCode.custom, message: 'Required'});
+        }
+        return value;
+      }, zodField);
     } else {
       shape[propName] = zodField;
     }
   }
   return shape;
+}
+
+/**
+ * Closes or opens a converted object schema, honoring the `patternProperties`
+ * of the JSON Schema pieces it was built from.
+ *
+ * Without `patternProperties` this is `.strict()` or `.passthrough()`. With
+ * them, a key the object doesn't declare is checked against the schema of
+ * every pattern it matches, and when `forbidExtra` is set, a key that matches
+ * no pattern is rejected, as `additionalProperties: false` rejects it.
+ *
+ * @param obj The object schema of the declared properties.
+ * @param pieces The JSON Schema pieces whose `patternProperties` apply.
+ * @param forbidExtra Whether keys that are neither declared nor matched are rejected.
+ * @param rootDoc Optional root schema document for reference resolution.
+ * @param visitedPointers Set of reference pointers currently on the resolution stack.
+ * @param defCache Cache mapping reference strings to resolved Zod schemas.
+ * @returns The object schema, wrapped in a refinement when patterns apply.
+ */
+function closeObjectSchema(
+  obj: z.AnyZodObject,
+  pieces: ReadonlyArray<Record<string, unknown>>,
+  forbidExtra: boolean,
+  rootDoc?: Record<string, unknown>,
+  visitedPointers?: Set<string>,
+  defCache = new Map<string, z.ZodTypeAny>(),
+): z.ZodTypeAny {
+  const patterns: Array<{regex: RegExp; schema: z.ZodTypeAny}> = [];
+  for (const piece of new Set(pieces)) {
+    const raw = piece.patternProperties;
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+    for (const [pattern, patternSchema] of Object.entries(raw as Record<string, unknown>)) {
+      let regex: RegExp;
+      try {
+        regex = new RegExp(pattern, 'u');
+      } catch {
+        continue;
+      }
+      patterns.push({
+        regex,
+        schema: convertPropertyToZod(
+          typeof patternSchema === 'object' && patternSchema !== null
+            ? (patternSchema as Record<string, unknown>)
+            : {},
+          rootDoc,
+          visitedPointers ? new Set(visitedPointers) : new Set<string>(),
+          defCache,
+        ),
+      });
+    }
+  }
+  if (patterns.length === 0) {
+    return forbidExtra ? obj.strict() : obj.passthrough();
+  }
+  const declared = new Set(Object.keys(obj.shape));
+  return obj.passthrough().superRefine((value, ctx) => {
+    const unrecognized: string[] = [];
+    for (const [key, entry] of Object.entries(value)) {
+      if (declared.has(key)) continue;
+      let matched = false;
+      for (const {regex, schema} of patterns) {
+        if (!regex.test(key)) continue;
+        matched = true;
+        const result = schema.safeParse(entry);
+        if (!result.success) {
+          for (const issue of result.error.issues) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: issue.message,
+              path: [key, ...issue.path],
+            });
+          }
+        }
+      }
+      if (!matched && forbidExtra) unrecognized.push(key);
+    }
+    if (unrecognized.length > 0) {
+      ctx.addIssue({code: z.ZodIssueCode.unrecognized_keys, keys: unrecognized});
+    }
+  });
 }
 
 /**
@@ -865,6 +986,7 @@ function collectArgSubSchemas(
   if (
     schema.properties ||
     schema.required ||
+    schema.patternProperties ||
     schema.additionalProperties !== undefined ||
     schema.unevaluatedProperties !== undefined
   ) {
@@ -878,19 +1000,20 @@ function collectArgSubSchemas(
  * Converts a function argument JSON schema definition into a Zod object schema.
  *
  * Maps function argument schemas to object properties, requiring fields listed in
- * `required` and applying strictness or passthrough based on `additionalProperties`
- * and reference resolution.
+ * `required` and applying strictness or passthrough based on `additionalProperties`,
+ * `patternProperties` and reference resolution.
  *
  * @param rawSchema Raw function arguments schema.
  * @param rootDoc Optional root schema document for reference resolution.
  * @param defCache Cache mapping reference strings to resolved Zod schemas.
- * @returns Zod object schema validating function arguments.
+ * @returns Zod object schema validating function arguments, wrapped in a
+ *     refinement when `patternProperties` apply.
  */
-function convertFunctionArgsJsonSchemaToZod(
+export function convertFunctionArgsJsonSchemaToZod(
   rawSchema: Record<string, unknown>,
   rootDoc?: Record<string, unknown>,
   defCache = new Map<string, z.ZodTypeAny>(),
-): z.ZodObject<z.ZodRawShape> {
+): z.ZodTypeAny {
   const collected = collectArgSubSchemas(rawSchema, rootDoc);
   const requiredSet = new Set<string>();
   for (const s of collected.schemas) {
@@ -923,13 +1046,93 @@ function convertFunctionArgsJsonSchemaToZod(
     collected.hasUnresolvable ||
     collected.schemas.some(isExplicitlyOpen) ||
     isExplicitlyOpen(rawSchema);
-  return allowExtra ? obj.passthrough() : obj.strict();
+  return closeObjectSchema(
+    obj,
+    [rawSchema, ...collected.schemas.filter(s => s !== rawSchema)],
+    !allowExtra,
+    rootDoc,
+    undefined,
+    defCache,
+  );
 }
 
 /**
- * Extracts declared parameter names from a function's argument schema.
+ * Whether a value is a Zod schema. Checked structurally so schemas built with
+ * another copy of Zod are recognized.
  */
-function functionParameterNames(schema: unknown, rootDoc?: Record<string, unknown>): string[] {
+export function isZodSchema(value: unknown): value is z.ZodTypeAny {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as {safeParse?: unknown}).safeParse === 'function'
+  );
+}
+
+/**
+ * Collects every object property key a Zod schema declares.
+ *
+ * Unlike `getKnownSchemaKeys`, which answers which keys an object may have, it
+ * also collects the keys of an open (`.passthrough()`) object, and of every
+ * branch of a union. It traverses `ZodEffects`, `ZodOptional`, `ZodNullable`,
+ * `ZodDefault`, `ZodCatch`, `ZodIntersection`, `ZodUnion`,
+ * `ZodDiscriminatedUnion`, `ZodPipeline`, `ZodReadonly` and `ZodBranded`.
+ *
+ * @param schema Zod schema to inspect.
+ * @returns The declared property names; empty when the schema declares none.
+ */
+export function getDeclaredSchemaKeys(schema: z.ZodTypeAny): Set<string> {
+  const keys = new Set<string>();
+  const visit = (node: any): void => {
+    const def = node?._def;
+    switch (def?.typeName) {
+      case 'ZodObject': {
+        const shape = typeof node.shape === 'function' ? node.shape() : node.shape;
+        if (shape && typeof shape === 'object') {
+          for (const key of Object.keys(shape)) keys.add(key);
+        }
+        return;
+      }
+      case 'ZodEffects':
+        visit(def.schema);
+        return;
+      case 'ZodOptional':
+      case 'ZodNullable':
+      case 'ZodDefault':
+      case 'ZodCatch':
+      case 'ZodReadonly':
+        visit(def.innerType);
+        return;
+      case 'ZodBranded':
+        visit(def.type);
+        return;
+      case 'ZodPipeline':
+        visit(def.in);
+        visit(def.out);
+        return;
+      case 'ZodIntersection':
+        visit(def.left);
+        visit(def.right);
+        return;
+      case 'ZodUnion':
+      case 'ZodDiscriminatedUnion':
+        for (const option of def.options) visit(option);
+        return;
+      default:
+        return;
+    }
+  };
+  visit(schema);
+  return keys;
+}
+
+/**
+ * Extracts declared parameter names from a function's argument schema,
+ * including those of `allOf`, `anyOf` and `oneOf` members and `$ref` targets.
+ */
+export function functionParameterNames(
+  schema: unknown,
+  rootDoc?: Record<string, unknown>,
+): string[] {
   if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
     return [];
   }
@@ -957,9 +1160,11 @@ function functionParameterNames(schema: unknown, rootDoc?: Record<string, unknow
     ) {
       names.push(...Object.keys(n.properties as Record<string, unknown>));
     }
-    if (Array.isArray(n.allOf)) {
-      for (const member of n.allOf) {
-        extractProperties(member);
+    for (const combinator of [n.allOf, n.anyOf, n.oneOf]) {
+      if (Array.isArray(combinator)) {
+        for (const member of combinator) {
+          extractProperties(member);
+        }
       }
     }
   };
@@ -970,6 +1175,8 @@ function functionParameterNames(schema: unknown, rootDoc?: Record<string, unknow
       s.properties !== null &&
       !Array.isArray(s.properties)) ||
     Array.isArray(s.allOf) ||
+    Array.isArray(s.anyOf) ||
+    Array.isArray(s.oneOf) ||
     typeof s.$ref === 'string'
   ) {
     extractProperties(s);
@@ -1015,25 +1222,42 @@ function parseFunctionDefinitions(
     }
   };
 
+  /**
+   * Rejects requiresUserActivation=true with callers other than rendererOnly.
+   * The rule exists only in the v1.0 catalog_definition.json.
+   */
+  const assertUserActivationCallers = (entry: FunctionApi): void => {
+    if (!atLeastV10) return;
+    if (
+      entry.requiresUserActivation === true &&
+      entry.allowedCallers !== undefined &&
+      entry.allowedCallers !== 'rendererOnly'
+    ) {
+      throw new A2uiCatalogError(
+        `Function '${entry.name}' declares requiresUserActivation=true with allowedCallers='${entry.allowedCallers}'; requiresUserActivation=true requires allowedCallers='rendererOnly'.`,
+      );
+    }
+  };
+
   if (Array.isArray(rawFunctions)) {
     for (const fn of rawFunctions) {
       if (fn && typeof fn === 'object' && typeof fn.name === 'string') {
         const paramNames = functionParameterNames(fn.parameters, rootDoc);
         assertFunctionIdentifiers(fn.name, paramNames);
+        const entry = new JsonFunctionApi(fn.name, fn as Record<string, unknown>, definition =>
+          definition['parameters'] && typeof definition['parameters'] === 'object'
+            ? convertFunctionArgsJsonSchemaToZod(
+                definition['parameters'] as Record<string, unknown>,
+                rootDoc,
+                defCache,
+              )
+            : z.record(z.unknown()),
+        );
+        assertUserActivationCallers(entry);
         if (permittedNames && !permittedNames.has(fn.name)) {
           continue;
         }
-        result.push(
-          new JsonFunctionApi(fn.name, fn as Record<string, unknown>, definition =>
-            definition['parameters'] && typeof definition['parameters'] === 'object'
-              ? convertFunctionArgsJsonSchemaToZod(
-                  definition['parameters'] as Record<string, unknown>,
-                  rootDoc,
-                  defCache,
-                )
-              : z.record(z.unknown()),
-          ),
-        );
+        result.push(entry);
       }
     }
     return result;
@@ -1045,18 +1269,18 @@ function parseFunctionDefinitions(
       const argsSchema = functionArgsSchema(rawDefn);
       const paramNames = functionParameterNames(argsSchema, rootDoc);
       assertFunctionIdentifiers(name, paramNames);
+      if (!defn || typeof defn !== 'object') continue;
+      const entry = new JsonFunctionApi(name, defn as Record<string, unknown>, definition => {
+        const argsSchema = functionArgsSchema(definition);
+        return argsSchema
+          ? convertFunctionArgsJsonSchemaToZod(argsSchema, rootDoc, defCache)
+          : z.record(z.unknown());
+      });
+      assertUserActivationCallers(entry);
       if (permittedNames && !permittedNames.has(name)) {
         continue;
       }
-      if (!defn || typeof defn !== 'object') continue;
-      result.push(
-        new JsonFunctionApi(name, defn as Record<string, unknown>, definition => {
-          const argsSchema = functionArgsSchema(definition);
-          return argsSchema
-            ? convertFunctionArgsJsonSchemaToZod(argsSchema, rootDoc, defCache)
-            : z.record(z.unknown());
-        }),
-      );
+      result.push(entry);
     }
   }
 
@@ -1074,13 +1298,31 @@ function parseFunctionDefinitions(
 function functionArgsSchema(
   d: Readonly<Record<string, unknown>>,
 ): Record<string, unknown> | undefined {
-  const props =
+  let props =
     d.properties &&
     typeof d.properties === 'object' &&
     d.properties !== null &&
     !Array.isArray(d.properties)
       ? (d.properties as Record<string, unknown>)
       : undefined;
+  if (!props?.args && Array.isArray(d.allOf)) {
+    for (const member of d.allOf) {
+      if (
+        member &&
+        typeof member === 'object' &&
+        !Array.isArray(member) &&
+        (member as Record<string, unknown>).properties &&
+        typeof (member as Record<string, unknown>).properties === 'object' &&
+        (member as Record<string, unknown>).properties !== null &&
+        !Array.isArray((member as Record<string, unknown>).properties)
+      ) {
+        props = {
+          ...props,
+          ...((member as Record<string, unknown>).properties as Record<string, unknown>),
+        };
+      }
+    }
+  }
   let argsSchema = props?.args ?? d.args ?? d.parameters;
   if (!argsSchema && props && !('call' in props) && !('@call' in props) && !('function' in props)) {
     argsSchema = d;
@@ -1153,6 +1395,14 @@ function parseCatalogComponents(
             propName,
             `property identifier: '${propName}' in component '${name}'`,
           );
+        }
+      }
+      const rawMeta = rawComp.metadata;
+      if (rawMeta !== undefined) {
+        try {
+          validateMetadata(rawMeta);
+        } catch (err) {
+          throw new A2uiCatalogError(err instanceof Error ? err.message : String(err));
         }
       }
     }

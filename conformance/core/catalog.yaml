@@ -51,6 +51,7 @@
 # ------------------------------------------------------------------------------
 
 - name: test_v08_basic_catalog_from_json
+  features: [F-CORE-08]
   description: Tests that loading the published v0.8 basic catalog with fromJson yields a catalog equivalent to the SDK's own v0.8 basic catalog implementation. The v0.8 document has no $ref, so there is no self-contained check.
   action: from_json
   protocolVersion: "v0.8"
@@ -60,6 +61,7 @@
     matchesBuiltinCatalog: true
 
 - name: test_v09_basic_catalog_from_json
+  features: [F-CORE-08]
   description: Tests that the published v0.9 basic catalog loads with fromJson into a catalog equivalent to the SDK's own v0.9 basic catalog implementation, with its common_types references localised so every $ref resolves within the resolved catalog schema.
   action: from_json
   protocolVersion: "v0.9"
@@ -69,6 +71,7 @@
     matchesBuiltinCatalog: true
 
 - name: test_v10_basic_catalog_from_json
+  features: [F-CORE-08, F-CORE-35]
   description: Tests that the published v1 basic catalog loads with fromJson into a catalog equivalent to the SDK's own v1 basic catalog implementation, with its common_types references localised so every $ref resolves within the resolved catalog schema.
   action: from_json
   protocolVersion: "1.0"
@@ -82,6 +85,7 @@
 # ------------------------------------------------------------------------------
 
 - name: test_catalog_from_json_missing_catalog_id_error
+  features: [F-CORE-08]
   description: Tests that Catalog.from_json raises CatalogError when catalogId is missing.
   action: from_json
   catalog:
@@ -92,6 +96,7 @@
     message: "catalog_id must be provided or exist in catalog schema"
 
 - name: test_catalog_from_json_override_catalog_id
+  features: [F-CORE-08]
   description: Tests overriding catalogId during Catalog.from_json.
   action: from_json
   catalogId: "https://a2ui.org/catalogs/overridden"
@@ -107,6 +112,7 @@
         type: object
 
 - name: test_v10_catalog_from_json_v1_0_attributes
+  features: [F-CORE-35, F-CORE-37]
   description: Tests parsing allowedParents, allowedChildren, allowedCallers, and requiresUserActivation in a v1.0 catalog schema.
   action: from_json
   catalog:
@@ -138,7 +144,96 @@
         allowedCallers: agentOnly
         requiresUserActivation: false
 
+- name: test_v10_catalog_from_json_user_activation_agent_only_error
+  features: [F-CORE-37]
+  description: Tests that a v1.0 catalog function with requiresUserActivation set to true and allowedCallers set to agentOnly raises CatalogError.
+  action: from_json
+  catalog:
+    protocolVersion: "1.0"
+    catalogId: "https://a2ui.org/catalogs/v10/user_activation_agent_only"
+    functions:
+      openUrl:
+        returnType: void
+        allowedCallers: agentOnly
+        requiresUserActivation: true
+  expectError:
+    category: "CatalogError"
+    message: "requiresUserActivation"
+
+- name: test_v10_catalog_from_json_user_activation_renderer_or_agent_error
+  features: [F-CORE-37]
+  description: Tests that a v1.0 catalog function with requiresUserActivation set to true and allowedCallers set to rendererOrAgent raises CatalogError.
+  action: from_json
+  catalog:
+    protocolVersion: "1.0"
+    catalogId: "https://a2ui.org/catalogs/v10/user_activation_renderer_or_agent"
+    functions:
+      openUrl:
+        returnType: void
+        allowedCallers: rendererOrAgent
+        requiresUserActivation: true
+  expectError:
+    category: "CatalogError"
+    message: "requiresUserActivation"
+
+- name: test_v10_catalog_from_json_user_activation_renderer_only
+  features: [F-CORE-37]
+  description: Tests that a v1.0 catalog function with requiresUserActivation set to true is accepted when allowedCallers is rendererOnly or omitted.
+  action: from_json
+  catalog:
+    protocolVersion: "1.0"
+    catalogId: "https://a2ui.org/catalogs/v10/user_activation_renderer_only"
+    functions:
+      openUrl:
+        returnType: void
+        allowedCallers: rendererOnly
+        requiresUserActivation: true
+      copyToClipboard:
+        returnType: void
+        requiresUserActivation: true
+  expect:
+    catalogId: "https://a2ui.org/catalogs/v10/user_activation_renderer_only"
+    functions: [openUrl, copyToClipboard]
+
+- name: test_v10_catalog_from_json_user_activation_error_in_function_left_out_of_union
+  features: [F-CORE-37]
+  description: Tests that a v1.0 catalog function with requiresUserActivation set to true and allowedCallers set to agentOnly raises CatalogError even when $defs.anyFunction leaves the function out.
+  action: from_json
+  catalog:
+    protocolVersion: "1.0"
+    catalogId: "https://a2ui.org/catalogs/v10/user_activation_left_out_of_union"
+    functions:
+      good:
+        returnType: void
+      bad:
+        returnType: void
+        allowedCallers: agentOnly
+        requiresUserActivation: true
+    $defs:
+      anyFunction:
+        oneOf: [{$ref: "#/functions/good"}]
+  expectError:
+    category: "CatalogError"
+    message: "requiresUserActivation"
+
+- name: test_v09_catalog_from_json_user_activation_agent_only_loads
+  features: [F-CORE-37]
+  description: Tests that a v0.9 catalog function with requiresUserActivation set to true and allowedCallers set to agentOnly loads, because only the v1.0 catalog_definition.json restricts that pair.
+  action: from_json
+  catalog:
+    protocolVersion: "v0.9"
+    catalogId: "https://a2ui.org/catalogs/v09/user_activation_agent_only"
+    functions:
+      openUrl:
+        returnType: void
+        allowedCallers: agentOnly
+        requiresUserActivation: true
+  expect:
+    catalogId: "https://a2ui.org/catalogs/v09/user_activation_agent_only"
+    functions: [openUrl]
+
 - name: test_v10_catalog_from_json_uax31_validation
+  features: [F-CORE-09]
   description: Tests parsing valid UAX#31 component and function identifiers in a v1.0 catalog.
   action: from_json
   catalog:
@@ -173,6 +268,7 @@
     category: "CatalogError"
 
 - name: test_v10_catalog_from_json_invalid_uax31_identifier_error
+  features: [F-CORE-09]
   description: Tests that invalid UAX#31 component identifier with hyphen raises CatalogError under v1.0.
   action: from_json
   catalog:
@@ -205,6 +301,7 @@
     message: "Unsupported external $ref"
 
 - name: test_v10_catalog_from_json_rejects_absolute_uri_ref
+  features: [F-CORE-44]
   description: Tests that a v1.0 catalog property that references another catalog by absolute URI raises CatalogError when loaded, without fetching the URI.
   action: from_json
   catalog:
@@ -246,6 +343,7 @@
     message: "Unsupported external $ref"
 
 - name: test_v10_catalog_from_json_accepts_local_and_common_types_refs
+  features: [F-CORE-44]
   description: Tests that local references and common_types.json references, in relative or absolute form, remain valid $ref targets in a v1.0 catalog.
   action: from_json
   catalog:
@@ -449,6 +547,7 @@
             bogus: 1
 
 - name: test_v09_published_minimal_catalog_is_self_contained
+  features: [F-CORE-44]
   description: Tests that the published v0.9 minimal catalog loads with its common_types references localised, so every $ref resolves within the resolved catalog schema.
   action: from_json
   protocolVersion: "v0.9"
@@ -496,6 +595,7 @@
             bogus: 1
 
 - name: test_v091_published_basic_catalog_is_self_contained
+  features: [F-CORE-44]
   description: Tests that the published v0.9.1 basic catalog loads with its common_types references localised, so every $ref resolves within the resolved catalog schema.
   action: from_json
   protocolVersion: "v0.9.1"
@@ -581,7 +681,24 @@
             args: {url: "https://example.com"}
             bogus: 1
 
+- name: test_v10_published_basic_catalog_requires_text_field_value
+  description: Tests that the published v1.0 basic catalog accepts a TextField that binds its value to a data path, and rejects a TextField without a value.
+  action: from_json
+  protocolVersion: "1.0"
+  catalogPath: "catalogs/basic/v1/catalog.json"
+  expect:
+    validComponents:
+      - id: email
+        component: TextField
+        label: Email
+        value: {"@path": "/formData/email"}
+    invalidComponents:
+      - id: email
+        component: TextField
+        label: Email
+
 - name: test_v10_published_mcp_catalog_is_self_contained
+  features: [F-CORE-44]
   description: Tests that the published v1.0 MCP catalog loads with its common_types references localised, so every $ref resolves within the resolved catalog schema.
   action: from_json
   protocolVersion: "1.0"
@@ -891,6 +1008,12 @@
   protocolVersion: "v0.9"
   catalogPath: "catalogs/mcp/catalog.json"
 
+- name: test_v10_mcp_catalog_round_trip
+  description: Tests that the published v1 MCP catalog round-trips with its McpApp component, its functions, their common_types.json references and its $defs unions intact.
+  action: round_trip
+  protocolVersion: "1.0"
+  catalogPath: "catalogs/mcp/v1/catalog.json"
+
 - name: test_v10_custom_catalog_round_trip_function_metadata
   description: Tests that function descriptions, return types, allowedCallers and requiresUserActivation round-trip in the v1.0 function shape. The basic catalogs declare no allowedCallers.
   action: round_trip
@@ -1073,6 +1196,7 @@
 # teach a model to write messages for the wrong catalog.
 
 - name: test_v10_catalog_derive_keeps_named_entries
+  features: [F-CORE-37]
   description: A name keeps the source catalog's entry of that name, and the entries the lists leave out are not in the derived catalog.
   action: derive
   catalogPath: "conformance/test_data/catalogs/derive_source_catalog_v1_0.json"
@@ -1096,6 +1220,7 @@
     functions: [upper]
 
 - name: test_v10_catalog_derive_adds_and_replaces_entries
+  features: [F-CORE-37]
   description: A new entry is added to the derived catalog, and a new entry with the name of one of the source's entries replaces it.
   action: derive
   catalogPath: "conformance/test_data/catalogs/derive_source_catalog_v1_0.json"
@@ -1225,3 +1350,36 @@
         type: object
         properties:
           url: {type: string}
+
+# ------------------------------------------------------------------------------
+# 1e. Component definition metadata (v1.0 ComponentDefinition.metadata)
+# ------------------------------------------------------------------------------
+
+- name: test_v10_catalog_from_json_component_metadata
+  description: Tests that a v1.0 catalog whose component definitions carry metadata.extensions exposes each component's envelope on the loaded ComponentApi, and reports none for components that define no metadata.
+  action: from_json
+  protocolVersion: "1.0"
+  catalogPath: "conformance/test_data/catalogs/component_metadata_catalog_v1_0.json"
+  expect:
+    catalogId: "conformance/component-metadata"
+    components: [Text, Button, Card, Column]
+    componentMetadata:
+      Text: {extensions: {com_example_telemetry: {track: true}, a2ui_experimental: preview}}
+      Button: {extensions: {com_example_policy: interactive}}
+      Card: null
+      Column: null
+
+- name: test_v10_catalog_from_json_component_metadata_invalid_uax31_key_error
+  features: [F-CORE-09]
+  description: Tests that a v1.0 catalog whose component metadata.extensions has a key that is not a UAX 31 identifier is rejected at load.
+  action: from_json
+  protocolVersion: "1.0"
+  catalogPath: "conformance/test_data/catalogs/component_metadata_invalid_key_catalog_v1_0.json"
+  expectError:
+    category: "ValidationError"
+
+- name: test_v10_component_metadata_catalog_round_trip
+  description: Tests that ComponentDefinition.metadata envelopes survive fromJson followed by toJson unchanged.
+  action: round_trip
+  protocolVersion: "1.0"
+  catalogPath: "conformance/test_data/catalogs/component_metadata_catalog_v1_0.json"

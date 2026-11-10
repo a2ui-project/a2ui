@@ -99,6 +99,20 @@
       }
     },
     {
+      "description": "Invalid: createSurface carries a pre-v1.0 theme property",
+      "valid": false,
+      "data": {
+        "version": "1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+          "theme": {
+            "primaryColor": "#00f"
+          }
+        }
+      }
+    },
+    {
       "description": "Invalid: components is a string instead of an array",
       "valid": false,
       "data": {

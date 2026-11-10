@@ -16,11 +16,14 @@ import 'package:meta/meta.dart';
 
 import '../primitives/errors.dart';
 import '../primitives/event_notifier.dart';
+import '../primitives/reactivity.dart';
+import '../primitives/uax31.dart';
 import '../validation/component_graph.dart';
 import '../validation/component_refs.dart';
 import '../validation/validation_config.dart';
 import 'catalog.dart';
 import 'component_graph_bound.dart';
+import 'metadata.dart';
 
 /// Represents the state model for an individual UI component.
 ///
@@ -39,24 +42,55 @@ class ComponentModel {
   final String? catalog;
 
   /// The `metadata` this component carries, or null when it carries none.
-  ///
-  /// Updated with [properties], before [onUpdated] fires, so a listener sees
-  /// both from the same message.
-  Map<String, Object?>? metadata;
+  Map<String, Object?>? get metadata => _metadata.peek();
 
+  /// Replaces the component's metadata envelope.
+  ///
+  /// Validates UAX #31 extension keys, stores a deep unmodifiable copy, and
+  /// notifies [onMetadataChanged] only when the metadata changes by deep
+  /// structural equality. Does not fire [onUpdated].
+  set metadata(Map<String, Object?>? next) {
+    validateMetadata(next);
+    final Map<String, Object?>? cloned = cloneMetadata(next);
+    if (sameMetadata(_metadata.peek(), cloned)) return;
+    _metadata.value = cloned;
+    _onMetadataChanged.emit(cloned);
+  }
+
+  /// Read-only view of the `extensions` dictionary inside [metadata], if any.
+  Map<String, Object?>? get extensions =>
+      switch (_metadata.peek()?['extensions']) {
+        final Map<String, Object?> ext => ext,
+        _ => null,
+      };
+
+  /// Package-internal metadata signal used by `NodeResolver` to project
+  /// `ComponentNode.metadata` synchronously inside signal batches.
+  @internal
+  ReadonlySignal<Map<String, Object?>?> get metadataSignal => _metadata;
+
+  late final Signal<Map<String, Object?>?> _metadata;
   Map<String, dynamic> _properties;
   final _onUpdated = EventNotifier<ComponentModel>();
+  final _onMetadataChanged = EventNotifier<Map<String, Object?>?>();
 
   /// Fires whenever the component's properties are updated.
   EventSource<ComponentModel> get onUpdated => _onUpdated;
+
+  /// Fires whenever the component's metadata is updated.
+  EventSource<Map<String, Object?>?> get onMetadataChanged =>
+      _onMetadataChanged;
 
   ComponentModel(
     this.id,
     this.type,
     Map<String, dynamic> initialProperties, {
     this.catalog,
-    this.metadata,
-  }) : _properties = Map.from(initialProperties);
+    Map<String, Object?>? metadata,
+  }) : _properties = Map.from(initialProperties) {
+    validateMetadata(metadata);
+    _metadata = signal(cloneMetadata(metadata));
+  }
 
   /// The current properties of the component.
   Map<String, dynamic> get properties => _properties;
@@ -66,9 +100,85 @@ class ComponentModel {
     _onUpdated.emit(this);
   }
 
+  /// Atomically updates both [properties] and [metadata] before emitting
+  /// [onUpdated] and [onMetadataChanged] so synchronous listeners never observe
+  /// torn state.
+  void applyUpdate(
+    Map<String, dynamic> newProperties,
+    Map<String, Object?>? newMetadata,
+  ) {
+    validateMetadata(newMetadata);
+    final Map<String, Object?>? nextMeta = cloneMetadata(newMetadata);
+    final bool propsChanged = !sameJsonValue(_properties, newProperties);
+    final bool metaChanged = !sameMetadata(_metadata.peek(), nextMeta);
+    if (propsChanged) {
+      _properties = Map.from(newProperties);
+    }
+    if (metaChanged) {
+      _metadata.value = nextMeta;
+    }
+    if (propsChanged) {
+      _onUpdated.emit(this);
+    }
+    if (metaChanged) {
+      _onMetadataChanged.emit(nextMeta);
+    }
+  }
+
+  /// Sets a single extension entry at `metadata['extensions'][key]`.
+  ///
+  /// Passing `null` for [value] stores a JSON `null` under [key]. Use
+  /// [removeExtension] to delete an extension key.
+  void setExtension(String key, Object? value) {
+    if (!isValidUax31Identifier(key)) {
+      throw A2uiValidationError(
+        "Invalid metadata extension key '$key': must be a valid "
+        'UAX #31 identifier.',
+      );
+    }
+    final Map<String, Object?> current = _metadata.peek() ?? const {};
+    final Map<String, Object?> currentExt = switch (current['extensions']) {
+      final Map<String, Object?> ext => ext,
+      _ => const {},
+    };
+    if (currentExt.containsKey(key) && sameJsonValue(currentExt[key], value)) {
+      return;
+    }
+    final nextExt = <String, Object?>{...currentExt, key: value};
+    final nextMeta = <String, Object?>{...current, 'extensions': nextExt};
+    final Map<String, Object?>? cloned = cloneMetadata(nextMeta);
+    _metadata.value = cloned;
+    _onMetadataChanged.emit(cloned);
+  }
+
+  /// Removes an extension entry at `metadata['extensions'][key]`.
+  ///
+  /// When the last extension key is removed and no other keys exist on
+  /// [metadata], resets [metadata] to `null`.
+  void removeExtension(String key) {
+    final Map<String, Object?>? current = _metadata.peek();
+    if (current == null) return;
+    final Object? rawExt = current['extensions'];
+    if (rawExt is! Map<String, Object?> || !rawExt.containsKey(key)) {
+      return;
+    }
+    final nextExt = Map<String, Object?>.of(rawExt)..remove(key);
+    final otherKeys = Map<String, Object?>.of(current)..remove('extensions');
+    final Map<String, Object?>? nextMeta;
+    if (nextExt.isEmpty) {
+      nextMeta = otherKeys.isEmpty ? null : otherKeys;
+    } else {
+      nextMeta = <String, Object?>{...otherKeys, 'extensions': nextExt};
+    }
+    final Map<String, Object?>? cloned = cloneMetadata(nextMeta);
+    _metadata.value = cloned;
+    _onMetadataChanged.emit(cloned);
+  }
+
   /// Disposes of the component and its resources.
   void dispose() {
     _onUpdated.dispose();
+    _onMetadataChanged.dispose();
   }
 
   /// Returns the component as the message that would create it.

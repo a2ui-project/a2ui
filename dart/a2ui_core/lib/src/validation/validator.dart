@@ -283,6 +283,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       '',
       componentId: id,
       componentCatalogId: component['catalogId'],
+      rendererCall: true,
     );
 
     if (schema == null) return;
@@ -290,7 +291,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     _throwOnErrors(
       Schema.fromMap(
         _withoutEnvelopeRequirements(schema.value, envelopeKeys, target),
-      ).validateSync(target),
+      ).validateSync(target, strictFormat: true),
       "Component '$id' does not match the '$type' schema in catalog "
       "'${catalog.id}'",
     );
@@ -308,6 +309,10 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     if (type is! String) {
       _throwDetail('/component', 'missing_field',
           "Component '$id' does not name a component type.");
+    }
+    if (_v1 && !isValidUax31Identifier(type)) {
+      _throwDetail('/component', 'invalid_value',
+          "Component type '$type' must be a valid UAX #31 identifier");
     }
     final Object? rawCatalogId = component['catalogId'];
     if (rawCatalogId != null && rawCatalogId is! String) {
@@ -357,10 +362,11 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
           '/$key',
           componentId: id,
           componentCatalogId: component['catalogId'],
+          rendererCall: true,
         );
       }
       _throwOnErrors(
-        _resolvedEnvelopeSchemas[key]!.validateSync(value),
+        _resolvedEnvelopeSchemas[key]!.validateSync(value, strictFormat: true),
         "Component '$id' has an invalid '$key'",
         path: '/$key',
       );
@@ -402,12 +408,20 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   /// [ValidationConfig.allowUnknownElements]; from v1.0 a renderer that
   /// allows it forwards the call to the agent.
   ///
+  /// From v1.0 a call nested in [args] that names no `catalogId` runs in the
+  /// default catalog of the surface it is evaluated on. [catalogIsDefault]
+  /// says whether [catalog] is that default, as it is for a call evaluated
+  /// with no surface. When it is not, the arguments of such calls are left
+  /// to the caller, which checks them against the catalog they run in, as
+  /// for the calls nested in a component that names another catalog.
+  ///
   /// Throws [A2uiValidationError] if the call breaks any of those rules or the
   /// arguments do not match the function's schema.
   void validateFunction(
     String name,
     Map<String, Object?> args, {
     String path = '',
+    bool catalogIsDefault = true,
   }) {
     args = _jsonMap(args);
     if (_v1) {
@@ -420,6 +434,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
         path.isEmpty
             ? '/args/${_escape(arg.key)}'
             : '$path/args/${_escape(arg.key)}',
+        componentCatalogId: catalogIsDefault ? null : catalog.id,
       );
     }
     _checkArgs(name, args, path: path);
@@ -432,17 +447,25 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
   /// [validateComponent] and checks each nested call against the catalog it
   /// resolves to, as `MessageProcessor` does, and an agent reading a payload
   /// that names catalogs per call. [componentId] names the component the call
-  /// is nested in, for the error message.
+  /// is nested in, for the error message. A call nested in a component is a
+  /// renderer call, so with a [componentId] the function may not be
+  /// [AllowedCallers.agentOnly] from v1.0.
   ///
-  /// Throws [A2uiValidationError] if the catalog declares no such function or
-  /// the arguments do not match its schema.
+  /// Throws [A2uiValidationError] if the catalog declares no such function,
+  /// the renderer may not call it, or the arguments do not match its schema.
   void validateFunctionArgs(
     String name,
     Map<String, Object?> args, {
     Object? componentId,
     String? path,
   }) =>
-      _checkArgs(name, _jsonMap(args), componentId: componentId, path: path);
+      _checkArgs(
+        name,
+        _jsonMap(args),
+        componentId: componentId,
+        path: path,
+        rendererCall: componentId != null,
+      );
 
   /// Rejects a field of [call], a v1.0 function call of [catalog], that
   /// `FunctionCall` does not evaluate: one other than `@call`, `catalogId`,
@@ -475,11 +498,19 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
 
   static const Set<String> _functionCallKeys = {'@call', 'catalogId', 'args'};
 
+  /// Checks one call's arguments against [catalog]'s schema for [name].
+  ///
+  /// With [rendererCall], the call is one the renderer makes, such as a call
+  /// held in a component (a property binding, a check or an action), so from
+  /// v1.0 the function may not be [AllowedCallers.agentOnly];
+  /// `Catalog.invoke` refuses such a call with the same message when it is
+  /// evaluated.
   void _checkArgs(
     String name,
     Map<String, Object?> args, {
     Object? componentId,
     String? path,
+    bool rendererCall = false,
   }) {
     final where = componentId == null ? '' : "In component '$componentId': ";
     final Schema? schema = _resolvedFunctionSchemas[name];
@@ -501,8 +532,30 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
         ],
       );
     }
+    // `allowedCallers` is a v1.0 feature: a v0.9 catalog's renderer calls
+    // are not restricted by it.
+    if (_v1 &&
+        rendererCall &&
+        catalog.functions[name]?.allowedCallers == AllowedCallers.agentOnly) {
+      final msg = '$where${rendererMayNotCall(name)}';
+      throw A2uiValidationError(
+        msg,
+        path: path,
+        errors: [
+          if (path != null && path.isNotEmpty)
+            A2uiErrorDetail(
+              path: path,
+              code: 'invalid_function_call',
+              message: msg,
+            ),
+        ],
+      );
+    }
 
-    final List<ValidationError> errors = schema.validateSync(args);
+    final List<ValidationError> errors = schema.validateSync(
+      args,
+      strictFormat: true,
+    );
     if (errors.isNotEmpty) {
       final argsPrefix =
           (path != null && path.isNotEmpty) ? '$path/args' : '/args';
@@ -532,7 +585,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     if (schema == null || theme == null) return;
 
     _throwOnErrors(
-      schema.validateSync(theme),
+      schema.validateSync(theme, strictFormat: true),
       "Theme does not match the theme schema in catalog '${catalog.id}'",
       path: '/theme',
     );
@@ -588,6 +641,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     String path, {
     Object? componentId,
     Object? componentCatalogId,
+    bool rendererCall = false,
   }) {
     if (value is List) {
       for (var i = 0; i < value.length; i++) {
@@ -596,6 +650,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
           '$path/$i',
           componentId: componentId,
           componentCatalogId: componentCatalogId,
+          rendererCall: rendererCall,
         );
       }
       return;
@@ -644,15 +699,28 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
           '$path/args/${_escape(arg.key)}',
           componentId: componentId,
           componentCatalogId: componentCatalogId,
+          rendererCall: rendererCall,
         );
       }
 
       if (_v1) {
         if (runsInThisCatalog && !name.startsWith('@')) {
-          _checkArgs(name, args, componentId: componentId, path: path);
+          _checkArgs(
+            name,
+            args,
+            componentId: componentId,
+            path: path,
+            rendererCall: rendererCall,
+          );
         }
       } else {
-        _checkArgs(name, args, componentId: componentId, path: path);
+        _checkArgs(
+          name,
+          args,
+          componentId: componentId,
+          path: path,
+          rendererCall: rendererCall,
+        );
       }
       return;
     }
@@ -663,6 +731,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
         '$path/${_escape(entry.key)}',
         componentId: componentId,
         componentCatalogId: componentCatalogId,
+        rendererCall: rendererCall,
       );
     }
   }

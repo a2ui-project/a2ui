@@ -190,8 +190,15 @@ class ExpressDecompiler {
     if (message.sendDataModel) {
       throw _noNotation("'sendDataModel' of surface '$surfaceId'");
     }
+    Map<Object?, Object?>? extensions;
     if (message.metadata != null) {
-      throw _noNotation("The metadata of surface '$surfaceId'");
+      if (_v1 &&
+          message.metadata!.length == 1 &&
+          message.metadata!['extensions'] is Map) {
+        extensions = message.metadata!['extensions']! as Map<Object?, Object?>;
+      } else {
+        throw _noNotation("The metadata of surface '$surfaceId'");
+      }
     }
     if (components == null || !components.any((c) => c['id'] == 'root')) {
       throw A2uiValidationError(
@@ -201,7 +208,7 @@ class ExpressDecompiler {
       );
     }
     return [
-      _surfaceLine(surfaceId, surface.catalogId),
+      _surfaceLine(surfaceId, surface.catalogId, extensions: extensions),
       if (data != null) ..._dataLines(data),
       ..._componentLines(components, surface),
     ].join('\n');
@@ -365,10 +372,20 @@ class ExpressDecompiler {
   /// The `surface(...)` line, which names the surface's catalog before v1.0
   /// when it is not the default. From v1.0 a surface of a single catalog has
   /// that catalog, and one of several names none.
-  String _surfaceLine(String surfaceId, String? catalogId) =>
-      _v1 || catalogId == catalogs.first.id
-      ? 'surface(${_string(surfaceId)})'
-      : 'surface(${_string(surfaceId)}, ${_string(catalogId!)})';
+  String _surfaceLine(
+    String surfaceId,
+    String? catalogId, {
+    Map<Object?, Object?>? extensions,
+  }) {
+    final args = <String>[_string(surfaceId)];
+    if (!_v1 && catalogId != catalogs.first.id) {
+      args.add(_string(catalogId!));
+    }
+    if (extensions != null) {
+      args.add('extensions=${_literal(extensions)}');
+    }
+    return 'surface(${args.join(', ')})';
+  }
 
   /// One assignment per leaf of [model], since the compiler builds nested
   /// maps back up from the paths on surface creation.
@@ -492,9 +509,20 @@ class _Component {
     );
     _helper = helper;
     final List<String> properties = helper.properties(type);
+    Map<Object?, Object?>? compExtensions;
+    if (_v1 && json.containsKey('metadata')) {
+      final Object? rawMeta = json['metadata'];
+      if (rawMeta is Map &&
+          rawMeta.length == 1 &&
+          rawMeta['extensions'] is Map) {
+        compExtensions = rawMeta['extensions']! as Map<Object?, Object?>;
+      } else {
+        throw _noNotation("The metadata of component '$id'");
+      }
+    }
     for (final String key in json.keys) {
       if (key == 'id' || key == 'component' || key == 'checks') continue;
-      if (_v1 && key == 'catalogId') continue;
+      if (_v1 && (key == 'catalogId' || key == 'metadata')) continue;
       if (!properties.contains(key)) {
         throw A2uiValidationError(
           "Property '$key' of component '$id' has no Express notation: an "
@@ -526,6 +554,9 @@ class _Component {
     if (json['checks'] case final Object checks) arguments.add(_checks(checks));
     if (catalogId != null) arguments.add('catalogId=${_string(catalogId)}');
     if (varName != id) arguments.add('id=${_string(id)}');
+    if (compExtensions != null) {
+      arguments.add('extensions=${_value(compExtensions, null)}');
+    }
     return '$varName = $type(${arguments.join(', ')})';
   }
 
@@ -605,6 +636,31 @@ class _Component {
     _ => null,
   };
 
+  /// The helper that reads the system function [name], such as `@index`,
+  /// which the protocol defines rather than a catalog, so the call is
+  /// written with no catalog; or, before v1.0, null if the version defines
+  /// no such function.
+  ///
+  /// Throws [A2uiValidationError] from v1.0 if the version defines no system
+  /// function named [name], or the call names a `catalogId`.
+  (CatalogSchemaHelper, String?)? _systemFunction(
+    String name,
+    Map<Object?, Object?> call,
+  ) {
+    final CatalogSchemaHelper helper = decompiler._helpers.values.first;
+    if (!helper.isSystemFunction(name)) {
+      if (!_v1) return null;
+      throw A2uiValidationError("Unknown system function '$name'.");
+    }
+    if (call.containsKey('catalogId')) {
+      throw A2uiValidationError(
+        "System function '$name' is defined by the protocol, not a catalog, "
+        'so it takes no catalogId.',
+      );
+    }
+    return (helper, null);
+  }
+
   /// The function a call that names [name] and, from v1.0, [catalogId]
   /// belongs to, and the catalog to write it with, or, before v1.0, null if
   /// it belongs to no active catalog.
@@ -627,18 +683,19 @@ class _Component {
     }
   }
 
-  /// `name(arguments)` for a call to a catalog function, or null.
+  /// `name(arguments)` for a call to a catalog or system function, or null.
   String? _call(Map<Object?, Object?> value) {
     final Object? name = value[_callKey];
-    final Object? args = value['args'];
+    final bool system = name is String && name.startsWith('@');
+    // A system function's args are optional.
+    final Object? args = value['args'] ?? (system ? const {} : null);
     final bool written = value.keys.every(
       (k) => k == _callKey || k == 'args' || (_v1 && k == 'catalogId'),
     );
     if (name is! String || args is! Map || !written) return null;
-    final (CatalogSchemaHelper, String?)? function = _function(
-      name,
-      value['catalogId'],
-    );
+    final (CatalogSchemaHelper, String?)? function = system
+        ? _systemFunction(name, value)
+        : _function(name, value['catalogId']);
     if (function == null) return null;
     final (CatalogSchemaHelper helper, String? catalogId) = function;
     final List<String> parameters = helper.parameters(name);

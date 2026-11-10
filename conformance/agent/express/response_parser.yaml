@@ -68,12 +68,8 @@
 # The direct JSON counterpart of this suite is
 # `agent/direct_json/response_parser.yaml`. The two are deliberately parallel:
 # a rule that holds for both formats has a case in each, written against that
-# format's own notation. Streaming is the exception. There is no Express
-# streaming suite, because the Express parser does not implement `parse_chunk`:
-# an Express block resolves references across its whole body, so a partial
-# block names components that are not yet defined. An Express agent buffers a
-# response and parses it whole, through the cases here. If Express does gain
-# streaming, its suite belongs beside
+# format's own notation. Incremental streaming across chunks is covered in
+# `agent/express/response_streaming.yaml`, alongside
 # `agent/direct_json/response_streaming.yaml`.
 #
 # The catalogs under test live in `args`, and every case here is written against
@@ -83,6 +79,7 @@
 # --- Unwrapping a response ---
 
 - name: test_unwrap_express_text_between_blocks
+  features: [F-AGT-07, F-AGT-21]
   description: Express blocks sit between a2ui tags and are ordered against the text the same way.
   action: unwrap
   args:
@@ -494,6 +491,7 @@
   expect_output: ""
 
 - name: test_wrap_express_restores_tags_and_order
+  features: [F-AGT-07]
   description: Express parts are written back inside a2ui tags, in order.
   action: wrap
   args:
@@ -542,6 +540,7 @@
 # --- Parsing a whole response ---
 
 - name: test_parse_response_express_two_blocks
+  features: [F-AGT-07, F-AGT-21]
   description: Two Express blocks in one response compile separately and keep their place against the text.
   action: parse_response
   args:
@@ -594,6 +593,7 @@
                 text: "Hello"
 
 - name: test_parse_response_express_validation_failure_surfaces
+  features: [F-AGT-09, F-AGT-63]
   description: An Express block naming a component the catalog does not declare fails the parse as a validation error.
   action: parse_response
   args:

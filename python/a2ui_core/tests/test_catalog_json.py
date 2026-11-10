@@ -821,8 +821,8 @@ def test_function_without_a_schema_takes_any_args(version: str) -> None:
 def test_catalog_schema_is_a_deprecated_alias() -> None:
     catalog = v1_0.BasicCatalog()
     with pytest.warns(DeprecationWarning, match="validation_schema"):
-        legacy = catalog.catalog_schema
-    assert legacy == catalog.validation_schema
+        old_schema = catalog.catalog_schema
+    assert old_schema == catalog.validation_schema
 
 
 def test_v10_renderer_capabilities_inline_catalogs_use_to_json() -> None:
@@ -850,6 +850,68 @@ def test_v10_renderer_capabilities_inline_a_function_without_a_schema() -> None:
 
     assert inline == [catalog.to_json()]
     _catalog_definition_validator().validate(inline[0])
+
+
+def _v10_inline_catalog(catalog: Any) -> dict[str, Any]:
+    caps = MessageProcessor([catalog]).get_renderer_capabilities(
+        CapabilitiesOptions(versions=["1.0"], include_inline_catalogs=True)
+    )
+    return caps["1.0"]["inlineCatalogs"][0]
+
+
+def test_v10_renderer_capabilities_strip_the_v_prefix_from_protocol_version() -> None:
+    catalog = Catalog.from_json(
+        {"catalogId": "c", "protocolVersion": "v1.0", "components": {}}
+    )
+
+    inline = _v10_inline_catalog(catalog)
+
+    assert inline["protocolVersion"] == "1.0"
+    # The catalog's own document keeps the version as written.
+    assert catalog.to_json()["protocolVersion"] == "v1.0"
+
+
+def test_v10_renderer_capabilities_fill_in_an_undeclared_protocol_version() -> None:
+    catalog = Catalog.from_json({"catalogId": "c"}, protocol_version="v1.0")
+
+    assert _v10_inline_catalog(catalog)["protocolVersion"] == "1.0"
+
+
+def test_v10_renderer_capabilities_treat_a_blank_protocol_version_as_undeclared() -> (
+    None
+):
+    catalog = Catalog.from_json(
+        {"catalogId": "c", "protocolVersion": "   "}, protocol_version="1.0"
+    )
+
+    assert _v10_inline_catalog(catalog)["protocolVersion"] == "1.0"
+
+
+def test_v10_renderer_capabilities_use_the_catalog_id_override() -> None:
+    catalog = Catalog.from_json(
+        {"catalogId": "from-document", "protocolVersion": "1.0"},
+        catalog_id="override",
+    )
+
+    assert _v10_inline_catalog(catalog)["catalogId"] == "override"
+
+
+def test_v10_renderer_capabilities_leave_the_to_json_document_unchanged() -> None:
+    document = {"catalogId": "from-document", "protocolVersion": "v1.0"}
+
+    class SharedDocumentCatalog(Catalog):
+        """A catalog whose `to_json` hands out the same dict on each call."""
+
+        def to_json(self) -> dict[str, Any]:
+            return document
+
+    catalog = SharedDocumentCatalog(catalog_id="override", protocol_version="1.0")
+
+    inline = _v10_inline_catalog(catalog)
+
+    assert inline["catalogId"] == "override"
+    assert inline["protocolVersion"] == "1.0"
+    assert document == {"catalogId": "from-document", "protocolVersion": "v1.0"}
 
 
 def test_validation_schema_emits_a_declared_protocol_version_bare() -> None:

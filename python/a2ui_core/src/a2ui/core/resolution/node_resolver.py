@@ -90,6 +90,7 @@ class _NodeRecord:
     component_model: ComponentModel | None = None
     binder: GenericBinder | None = None
     binder_sub: Subscription | None = None
+    metadata_sub: Subscription | None = None
     last_binder_props: dict[str, Any] | None = None
     child_edges: dict[str, MutableComponentNode] = field(default_factory=dict)
 
@@ -521,8 +522,9 @@ class NodeResolver:
             props={},
             state="unknown-type",
             parent=parent,
+            metadata=model.metadata,
         )
-        self._register_node(
+        record = self._register_node(
             node,
             edge_key=edge_key,
             parent=parent,
@@ -530,6 +532,7 @@ class NodeResolver:
             ref_spec=ComponentRefSpec(),
             component_model=model,
         )
+        record.metadata_sub = model.on_metadata_changed.subscribe(node.set_metadata)
         return node
 
     def _create_resolved_node(
@@ -558,6 +561,7 @@ class NodeResolver:
             context=context,
             state="resolved",
             parent=parent,
+            metadata=model.metadata,
         )
         record = self._register_node(
             node,
@@ -575,6 +579,7 @@ class NodeResolver:
             self._materialize(record)
 
         record.binder_sub = binder.subscribe(on_binder_update)
+        record.metadata_sub = model.on_metadata_changed.subscribe(node.set_metadata)
         return node
 
     def _is_cyclic(
@@ -887,6 +892,9 @@ class NodeResolver:
         for child in list(record.child_edges.values()):
             self._dispose_node(child)
         record.child_edges.clear()
+        if record.metadata_sub is not None:
+            record.metadata_sub.unsubscribe()
+            record.metadata_sub = None
         if record.binder_sub is not None:
             record.binder_sub.unsubscribe()
             record.binder_sub = None

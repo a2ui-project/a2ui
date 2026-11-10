@@ -86,23 +86,49 @@ void main() {
     });
 
     test('parses both fields from a document and round-trips them', () {
-      final CatalogApi catalog = Catalog.fromJson(_document({
-        'type': 'object',
-        'returnType': 'void',
-        'allowedCallers': 'rendererOrAgent',
-        'requiresUserActivation': true,
-        'properties': {
-          '@call': {'const': 'fn'},
+      final CatalogApi catalog = Catalog.fromJson({
+        'catalogId': 'cat',
+        'protocolVersion': '1.0',
+        'components': <String, Object?>{},
+        'functions': {
+          'fn': {
+            'type': 'object',
+            'returnType': 'void',
+            'allowedCallers': 'rendererOrAgent',
+            'requiresUserActivation': false,
+            'properties': {
+              '@call': {'const': 'fn'},
+            },
+          },
+          'activated': {
+            'type': 'object',
+            'returnType': 'void',
+            'allowedCallers': 'rendererOnly',
+            'requiresUserActivation': true,
+            'properties': {
+              '@call': {'const': 'activated'},
+            },
+          },
         },
-      }));
+      });
       final FunctionApi fn = catalog.functions['fn']!;
       expect(fn.allowedCallers, AllowedCallers.rendererOrAgent);
-      expect(fn.requiresUserActivation, isTrue);
+      expect(fn.requiresUserActivation, isFalse);
+      final FunctionApi activated = catalog.functions['activated']!;
+      expect(activated.allowedCallers, AllowedCallers.rendererOnly);
+      expect(activated.requiresUserActivation, isTrue);
 
       final CatalogApi again = Catalog.fromJson(catalog.validationSchema);
-      expect(again.functions['fn']!.allowedCallers,
-          AllowedCallers.rendererOrAgent);
-      expect(again.functions['fn']!.requiresUserActivation, isTrue);
+      expect(
+        again.functions['fn']!.allowedCallers,
+        AllowedCallers.rendererOrAgent,
+      );
+      expect(again.functions['fn']!.requiresUserActivation, isFalse);
+      expect(
+        again.functions['activated']!.allowedCallers,
+        AllowedCallers.rendererOnly,
+      );
+      expect(again.functions['activated']!.requiresUserActivation, isTrue);
     });
 
     test('parses both fields from the inline list form', () {
@@ -115,12 +141,23 @@ void main() {
             'name': 'fn',
             'returnType': 'any',
             'allowedCallers': 'agentOnly',
+            'requiresUserActivation': false,
+          },
+          {
+            'name': 'activated',
+            'returnType': 'void',
+            'allowedCallers': 'rendererOnly',
             'requiresUserActivation': true,
           },
         ],
       });
       expect(catalog.functions['fn']!.allowedCallers, AllowedCallers.agentOnly);
-      expect(catalog.functions['fn']!.requiresUserActivation, isTrue);
+      expect(catalog.functions['fn']!.requiresUserActivation, isFalse);
+      expect(
+        catalog.functions['activated']!.allowedCallers,
+        AllowedCallers.rendererOnly,
+      );
+      expect(catalog.functions['activated']!.requiresUserActivation, isTrue);
     });
 
     test('rejects wrong types', () {
@@ -148,18 +185,54 @@ void main() {
         })),
         throwsA(isA<A2uiCatalogError>()),
       );
+      expect(
+        () => Catalog.fromJson(_document({
+          'type': 'object',
+          'returnType': 'void',
+          'allowedCallers': 'agentOnly',
+          'requiresUserActivation': true,
+        })),
+        throwsA(isA<A2uiCatalogError>()),
+      );
+      expect(
+        () => Catalog.fromJson(_document({
+          'type': 'object',
+          'returnType': 'void',
+          'allowedCallers': 'rendererOrAgent',
+          'requiresUserActivation': true,
+        })),
+        throwsA(isA<A2uiCatalogError>()),
+      );
     });
 
     test('copyWith keeps the fields', () {
-      final CatalogApi catalog = Catalog.fromJson(_document({
-        'type': 'object',
-        'returnType': 'void',
-        'allowedCallers': 'agentOnly',
-        'requiresUserActivation': true,
-      }));
+      final CatalogApi catalog = Catalog.fromJson({
+        'catalogId': 'cat',
+        'protocolVersion': '1.0',
+        'components': <String, Object?>{},
+        'functions': {
+          'fn': {
+            'type': 'object',
+            'returnType': 'void',
+            'allowedCallers': 'agentOnly',
+            'requiresUserActivation': false,
+          },
+          'activated': {
+            'type': 'object',
+            'returnType': 'void',
+            'allowedCallers': 'rendererOnly',
+            'requiresUserActivation': true,
+          },
+        },
+      });
       final CatalogApi copy = catalog.copyWith();
       expect(copy.functions['fn']!.allowedCallers, AllowedCallers.agentOnly);
-      expect(copy.functions['fn']!.requiresUserActivation, isTrue);
+      expect(copy.functions['fn']!.requiresUserActivation, isFalse);
+      expect(
+        copy.functions['activated']!.allowedCallers,
+        AllowedCallers.rendererOnly,
+      );
+      expect(copy.functions['activated']!.requiresUserActivation, isTrue);
     });
   });
 

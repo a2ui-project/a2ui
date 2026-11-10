@@ -35,17 +35,56 @@ public struct ComponentModel: Sendable, Equatable {
   /// JSON payload, which are promoted to top-level fields.
   public var properties: [String: JSONValue]
 
+  /// Optional metadata envelope (`["extensions": .object(...)]`) attached to the component.
+  public private(set) var metadata: [String: JSONValue]?
+
+  /// Convenience accessor returning `metadata["extensions"]` as a dictionary, or `nil`.
+  public var extensions: [String: JSONValue]? {
+    MetadataValidator.extensions(from: metadata)
+  }
+
   /// Creates a new component model.
   ///
   /// - Parameters:
   ///   - id: The unique identifier for this component.
   ///   - type: The component type name.
   ///   - catalogID: Optional catalog identifier overriding surface default.
-  ///   - properties: The raw properties (excluding `id`, `component`, and `catalogId`).
-  public init(id: String, type: String, catalogID: String? = nil, properties: [String: JSONValue]) {
+  ///   - properties: The raw properties (excluding `id`, `component`, `catalogId`, and `metadata`).
+  ///   - metadata: Optional metadata dictionary.
+  public init(
+    id: String,
+    type: String,
+    catalogID: String? = nil,
+    properties: [String: JSONValue],
+    metadata: [String: JSONValue]? = nil
+  ) {
     self.id = id
     self.type = type
     self.catalogID = catalogID
     self.properties = properties
+    self.metadata = metadata
+  }
+
+  /// Replaces the component's metadata dictionary after validating UAX #31 extension keys.
+  public mutating func setMetadata(_ metadata: [String: JSONValue]?) throws {
+    self.metadata = try MetadataValidator.validate(
+      metadata,
+      pathPrefix: "components.\(id).metadata"
+    )
+  }
+
+  /// Sets a single extension key inside the component's metadata envelope.
+  public mutating func setExtension(_ key: String, value: JSONValue) throws {
+    self.metadata = try MetadataValidator.settingExtension(
+      key,
+      value: value,
+      in: metadata,
+      pathPrefix: "components.\(id).metadata"
+    )
+  }
+
+  /// Removes a single extension key from the component's metadata envelope.
+  public mutating func removeExtension(_ key: String) {
+    self.metadata = MetadataValidator.removingExtension(key, from: metadata)
   }
 }

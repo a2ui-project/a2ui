@@ -27,7 +27,6 @@ from a2ui.inference_formats.direct_json.decompiler import DirectJsonDecompiler
 from a2ui.inference_formats.direct_json.schema_prompt import (
     catalog_schema_prompt,
     protocol_schema_prompt,
-    schema_to_prompt,
 )
 from a2ui.prompt import PromptGenerator
 from a2ui.utils import validate_payload
@@ -132,14 +131,3 @@ class DirectJsonPromptGenerator(PromptGenerator):
             decompiled = self._decompiler.decompile(turn)
             blocks.append(f"<a2ui-json>\n{decompiled}\n</a2ui-json>")
         return "\n\n".join(blocks)
-
-    def generate(self) -> str:
-        """Assembles the prompt snippet for the Direct JSON format."""
-        parts: list[str] = [f"## Workflow Description:\n{DEFAULT_WORKFLOW_RULES}"]
-        parts.append(
-            schema_to_prompt(self._catalogs, allowed_messages=self._allowed_messages)
-        )
-        examples_str = self.generate_examples()
-        if examples_str:
-            parts.append(f"### Examples:\n{examples_str}")
-        return "\n\n".join(parts)

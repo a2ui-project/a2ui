@@ -236,10 +236,22 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
         self.assertEqual(ctx.exception.fn_name, "openUrl")
         self.assertEqual(ctx.exception.param_name, "url")
 
-        # 5. Missing root definition
+        # 5. Nothing to compile at all
         with self.assertRaises(ExpressUndefinedRootError) as ctx:
-            compiler.compile('some_var = Text("Hello")')
+            compiler.compile("")
         self.assertEqual(ctx.exception.root_target, "root")
+
+    def test_components_without_root_update_the_default_surface(self):
+        """A block that defines components but no root updates the surface rather than failing."""
+        compiler = ExpressCompiler([self.catalog])
+        messages = to_message_dicts(compiler.compile('some_var = Text("Hello")'))
+        self.assertEqual(len(messages), 1)
+        update = messages[0]["updateComponents"]
+        self.assertEqual(update["surfaceId"], "default_surface")
+        self.assertEqual(
+            update["components"],
+            [{"id": "some_var", "component": "Text", "text": "Hello"}],
+        )
 
     def test_line_wrapped_identifiers_and_strings(self):
         """Verifies stray newlines inside identifiers, paths, and single-line strings are repaired."""
@@ -320,6 +332,54 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
         # A2uiParseError).
         with self.assertRaises(SyntaxError):
             compiler.compile('root = Column([t], weight=.)\nt = Text("Hi")')
+
+    def test_v10_surface_and_component_extensions(self):
+        """Verifies reserved `extensions=` keyword argument on surface(...) and component calls in v1.0."""
+        compiler = ExpressCompiler([self.catalog], version="1.0")
+        dsl = (
+            'surface("main", extensions={surfaceTheme: "dark"})\n'
+            'root = Text("Hello", extensions={badge: 1, tag: "info"})'
+        )
+        messages = to_message_dicts(compiler.compile(dsl))
+        self.assertEqual(len(messages), 1)
+        cs = messages[0]["createSurface"]
+        self.assertEqual(cs["metadata"], {"extensions": {"surfaceTheme": "dark"}})
+        self.assertEqual(
+            cs["components"][0]["metadata"],
+            {"extensions": {"badge": 1, "tag": "info"}},
+        )
+
+        with self.assertRaises(ExpressValidationError):
+            compiler.compile('root = Text("Hi", extensions={"bad-key": 1})')
+
+        with self.assertRaises(ExpressValidationError):
+            compiler.compile(
+                'surface("main", extensions={"bad-key": 1})\nroot = Text("Hi")'
+            )
+
+        with self.assertRaises(ExpressValidationError):
+            compiler.compile('root = Text("Hi", extensions={a: 1})', version="v0.9")
+
+        # Variable reference in surface(extensions=ext) resolves cleanly
+        dsl_var = (
+            'surface("main", extensions=ext)\n'
+            'ext = {surfaceTheme: "dark"}\n'
+            'root = Text("Hello")'
+        )
+        msg_var = to_message_dicts(compiler.compile(dsl_var))
+        self.assertEqual(
+            msg_var[0]["createSurface"]["metadata"],
+            {"extensions": {"surfaceTheme": "dark"}},
+        )
+
+        # extensions= on update scopes raises ExpressValidationError instead of silently dropping
+        with self.assertRaises(ExpressValidationError):
+            compiler.compile(
+                'surface("main", update=true, extensions={a: 1})\nc1 = Text("Hi")'
+            )
+
+        with self.assertRaises(ExpressValidationError):
+            compiler.compile('surface("main", extensions={a: 1})\nc1 = Text("Hi")')
 
 
 def _links_catalog(protocol_version: str) -> Catalog:

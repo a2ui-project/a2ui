@@ -13,6 +13,7 @@
 # limitations under the License.
 
 - name: test_composition_surface_implicit_parent_container
+  features: [F-CORE-11, F-CORE-12]
   description: Verifies root components treating Surface as canonical parent container when allowedParents includes Surface.
   catalog:
     protocolVersion: "1.0"
@@ -43,6 +44,7 @@
             text: "Hello World"
 
 - name: test_composition_unallowed_parent_error
+  features: [F-CORE-12]
   description: Verifies validation error thrown when component is placed under an unallowed parent component type.
   catalog:
     catalogId: "custom"
@@ -73,9 +75,60 @@
   expectError:
     category: "ValidationError"
     code: "UNALLOWED_PARENT"
+    surfaceId: "s1"
+    path: "/components/1"
     message: "Component 'invalid_header' (ColumnHeader) cannot be placed under parent 'root' (Row). Allowed parents: ['Column']."
+    details:
+      - path: "/components/1"
+        code: "UNALLOWED_PARENT"
+        surfaceId: "s1"
+    rendererError:
+      version: "1.0"
+      error:
+        code: "UNALLOWED_PARENT"
+        surfaceId: "s1"
+        path: "/components/1"
+        message: "Component 'invalid_header' (ColumnHeader) cannot be placed under parent 'root' (Row). Allowed parents: ['Column']."
+
+- name: test_composition_unallowed_parent_root_error
+  description: Verifies validation error thrown when root component does not allow Surface as its implicit parent.
+  catalog:
+    protocolVersion: "1.0"
+    catalogSchema:
+      catalogId: "custom"
+      components:
+        ColumnHeader:
+          allowedParents: ["Column"]
+  action: validate
+  steps:
+    - payload:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "s1"
+            catalogId: "custom"
+            components:
+              - id: root
+                component: ColumnHeader
+  expectError:
+    category: "ValidationError"
+    code: "UNALLOWED_PARENT"
+    surfaceId: "s1"
+    path: "/components/0"
+    message: "Component 'root' (ColumnHeader) cannot be placed under parent 'Surface' (Surface). Allowed parents: ['Column']."
+    details:
+      - path: "/components/0"
+        code: "UNALLOWED_PARENT"
+        surfaceId: "s1"
+    rendererError:
+      version: "1.0"
+      error:
+        code: "UNALLOWED_PARENT"
+        surfaceId: "s1"
+        path: "/components/0"
+        message: "Component 'root' (ColumnHeader) cannot be placed under parent 'Surface' (Surface). Allowed parents: ['Column']."
 
 - name: test_composition_unallowed_child_error
+  features: [F-CORE-12]
   description: Verifies validation error thrown when container contains an unallowed child component type.
   catalog:
     catalogId: "custom"
@@ -106,7 +159,20 @@
   expectError:
     category: "ValidationError"
     code: "UNALLOWED_CHILD"
+    surfaceId: "s1"
+    path: "/components/0/children/0"
     message: "Container 'root' (RestrictedBox) cannot contain child 'v1' (Video). Allowed children: ['Text', 'Button']."
+    details:
+      - path: "/components/0/children/0"
+        code: "UNALLOWED_CHILD"
+        surfaceId: "s1"
+    rendererError:
+      version: "1.0"
+      error:
+        code: "UNALLOWED_CHILD"
+        surfaceId: "s1"
+        path: "/components/0/children/0"
+        message: "Container 'root' (RestrictedBox) cannot contain child 'v1' (Video). Allowed children: ['Text', 'Button']."
 
 # Each case sets the validation flags it relies on in `validationConfig`; a
 # flag it leaves out is false. The cases below share their catalogs and, where
@@ -244,6 +310,7 @@
         message: "Component 'root' (Card) cannot be placed under parent 'Surface' (Surface). Allowed parents: ['Box']."
 
 - name: test_composition_multiple_parents_disallowed_first
+  features: [F-CORE-12]
   description: >-
     Every parent of a component is checked against its allowedParents. Here the
     disallowed parent comes first in surface order.

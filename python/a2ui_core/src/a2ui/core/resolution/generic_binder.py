@@ -21,10 +21,15 @@ from functools import cache
 from typing import Any, Callable, Final
 
 from ..common import Subscription
-from ..schema._dynamic_types import dynamic_literal_kinds
+from ..schema._dynamic_types import (
+    dynamic_literal_kinds,
+    is_function_call_branch,
+    is_ref,
+)
 from ..schema.common_types_schema import get_all_dynamic_type_names
 from ..schema.v1_0 import ValidationResult
 from .component_context import ComponentContext
+from .validation_result_coercion import coerce_dynamic_boolean
 
 
 class BehaviorType(str, Enum):
@@ -46,6 +51,7 @@ class BehaviorNode:
     type: BehaviorType
     shape: dict[str, BehaviorNode] | None = None
     element: BehaviorNode | None = None
+    is_boolean: bool = False
 
 
 CHECKABLE_REF_NAMES: Final[frozenset[str]] = frozenset({"Checkable", "CheckRule"})
@@ -177,17 +183,34 @@ def _classify_combiners(
     branches = (one_of if isinstance(one_of, list) else []) + (
         any_of if isinstance(any_of, list) else []
     )
+    localized_branches = _localize_branch_refs(branches)
+    literal_branches = [
+        branch
+        for branch in localized_branches
+        if isinstance(branch, dict)
+        and not is_ref(branch, "DataBinding")
+        and not is_function_call_branch(branch)
+        and branch.get("type") != "null"
+    ]
+    is_boolean_union = bool(literal_branches) and all(
+        branch.get("type") == "boolean" for branch in literal_branches
+    )
     for branch in branches:
         if isinstance(branch, dict):
             node = classify_schema_behavior(branch, defs)
             if node.type in _SPECIAL_BEHAVIORS:
+                if (
+                    node.type == BehaviorType.DYNAMIC
+                    and is_boolean_union
+                    and not node.is_boolean
+                ):
+                    return BehaviorNode(BehaviorType.DYNAMIC, is_boolean=True)
                 return node
 
     all_of = schema.get("allOf")
     if isinstance(all_of, list):
         return _classify_all_of(schema, defs, all_of)
 
-    return None
     return None
 
 
@@ -252,11 +275,15 @@ def classify_schema_behavior(
         if ref_name in STRUCTURAL_REF_NAMES:
             return BehaviorNode(BehaviorType.STRUCTURAL)
         if ref_name in _dynamic_ref_names():
-            return BehaviorNode(BehaviorType.DYNAMIC)
+            return BehaviorNode(
+                BehaviorType.DYNAMIC, is_boolean=(ref_name == "DynamicBoolean")
+            )
         # A catalog-defined dynamic def (e.g. `DynamicDate`) is recognized by
         # the shape of the def it references.
         if "$defs/" in ref and _is_dynamic_def(defs.get(ref_name)):
-            return BehaviorNode(BehaviorType.DYNAMIC)
+            return BehaviorNode(
+                BehaviorType.DYNAMIC, is_boolean=(ref_name == "DynamicBoolean")
+            )
 
     combiner = _classify_combiners(schema, defs)
     if combiner is not None:
@@ -307,7 +334,9 @@ def _classify_value_fallback(
         else:
             if "path" in val or "call" in val:
                 return BehaviorNode(BehaviorType.DYNAMIC)
-        if "event" in val or "functionCall" in val:
+        # Like each branch of the spec's `Action`, an inline action has `event`
+        # or `functionCall` as its only key.
+        if len(val) == 1 and ("event" in val or "functionCall" in val):
             return BehaviorNode(BehaviorType.ACTION)
         shape = {
             k: _classify_value_fallback(k, v, at_least_v10=at_least_v10)
@@ -348,7 +377,7 @@ class GenericBinder:
         self.listeners: set[Callable[[dict[str, Any]], None]] = set()
         self.current_props: dict[str, Any] = {}
         self.comp_unsub: Callable[[], None] | None = None
-        self._action_closures: dict[str, tuple[Any, Callable[[], Any]]] = {}
+        self._action_closures: dict[str, tuple[Any, Callable[..., Any]]] = {}
 
         resolved_schema = schema
         cat = context.component_model.catalog
@@ -378,9 +407,19 @@ class GenericBinder:
         sub = self.context.component_model.on_updated.subscribe(
             lambda _: self._rebuild_all_bindings()
         )
-        self.comp_unsub = lambda: sub.unsubscribe()
+        self.comp_unsub = sub.unsubscribe
 
         self._rebuild_all_bindings()
+
+    @property
+    def metadata(self) -> dict[str, Any] | None:
+        """Returns the component's metadata object (defensive copy), or None."""
+        return self.context.metadata
+
+    @property
+    def extensions(self) -> dict[str, Any] | None:
+        """Returns the component's metadata extensions dictionary (defensive copy), or None."""
+        return self.context.extensions
 
     @property
     def snapshot(self) -> dict[str, Any]:
@@ -437,7 +476,9 @@ class GenericBinder:
             ) or (
                 raw_val is not None
                 and _classify_value_fallback(
-                    k, raw_val, at_least_v10=self.context.data_context.at_least_v10
+                    k,
+                    raw_val,
+                    at_least_v10=self.context.data_context.at_least_v10,
                 ).type
                 == BehaviorType.DYNAMIC
             )
@@ -469,11 +510,15 @@ class GenericBinder:
         path: list[str],
         is_sync: bool,
     ) -> Any:
-        if value is None:
+        if value is None and not (
+            behavior.type == BehaviorType.DYNAMIC and behavior.is_boolean
+        ):
             return None
 
         if behavior.type == BehaviorType.DYNAMIC:
-            return self._bind_dynamic_value(value, path, is_sync)
+            return self._bind_dynamic_value(
+                value, path, is_sync, is_boolean=behavior.is_boolean
+            )
 
         if behavior.type == BehaviorType.ACTION:
             return self._bind_action(value, path)
@@ -581,9 +626,18 @@ class GenericBinder:
         elif isinstance(curr, dict):
             curr[last] = new_value
 
-    def _bind_dynamic_value(self, value: Any, path: list[str], is_sync: bool) -> Any:
+    def _bind_dynamic_value(
+        self,
+        value: Any,
+        path: list[str],
+        is_sync: bool,
+        *,
+        is_boolean: bool = False,
+    ) -> Any:
+        coerce = coerce_dynamic_boolean if is_boolean else (lambda v: v)
+
         def on_change(new_val: Any) -> None:
-            self._update_deep_value(path, new_val)
+            self._update_deep_value(path, coerce(new_val))
             self._notify()
 
         bound = self.context.data_context.subscribe_dynamic_value(value, on_change)
@@ -591,15 +645,15 @@ class GenericBinder:
             self.data_listeners.append(bound)
         else:
             bound.unsubscribe()
-        return bound.value
+        return coerce(bound.value)
 
-    def _bind_action(self, value: Any, path: list[str]) -> Callable[[], Any]:
+    def _bind_action(self, value: Any, path: list[str]) -> Callable[..., Any]:
         cache_key = "/".join(path)
         cached = self._action_closures.get(cache_key)
         if cached is not None and cached[0] == value:
             return cached[1]
 
-        def closure() -> Any:
+        def closure(metadata: dict[str, Any] | None = None) -> Any:
             if isinstance(value, dict):
                 fc = (
                     value["functionCall"]
@@ -608,9 +662,16 @@ class GenericBinder:
                 )
                 call_name = fc.get("@call") or fc.get("call")
                 if isinstance(call_name, str):
-                    return self.context.data_context.resolve_dynamic_value(fc)
+                    # Runs as an action: a local function that raises is an
+                    # EXECUTION_ERROR, and user activation applies. The
+                    # closure returns the result's current value, None while
+                    # an agent function's answer is pending.
+                    result = self.context.data_context.resolve_action(value)
+                    if hasattr(result, "subscribe") and callable(result.subscribe):
+                        return result.peek() if hasattr(result, "peek") else None
+                    return result
             resolved = self.context.data_context.resolve_action(value)
-            return self.context.dispatch_action(resolved)
+            return self.context.dispatch_action(resolved, metadata=metadata)
 
         self._action_closures[cache_key] = (value, closure)
         return closure
@@ -656,9 +717,11 @@ class GenericBinder:
 
     @staticmethod
     def _compute_validation_summary(
-        rule_results: list[dict[str, Any]],
+        rule_results: list[dict[str, Any] | None],
     ) -> tuple[bool, list[str], list[dict[str, Any]], dict[str, Any]]:
-        failed_rules = [r for r in rule_results if not r["valid"]]
+        # A rule whose condition waits for an agent call (None) does not
+        # fail while it is pending.
+        failed_rules = [r for r in rule_results if r is not None and not r["valid"]]
         error_rules = [r for r in failed_rules if r.get("severity", "error") == "error"]
         is_valid = len(error_rules) == 0
         validation_errors = [r["message"] for r in error_rules if r.get("message")]
@@ -666,7 +729,12 @@ class GenericBinder:
             {k: v for k, v in r.items() if k != "_is_obj"} for r in failed_rules
         ]
         if not failed_rules:
-            return is_valid, validation_errors, validation_results, {"valid": True}
+            return (
+                is_valid,
+                validation_errors,
+                validation_results,
+                {"valid": True},
+            )
         first_res = {k: v for k, v in failed_rules[0].items() if k != "_is_obj"}
         if not failed_rules[0].get("_is_obj"):
             first_res.pop("severity", None)
@@ -680,7 +748,7 @@ class GenericBinder:
         is_sync: bool,
     ) -> Any:
         rules = value if isinstance(value, list) else []
-        rule_results: list[dict[str, Any]] = [
+        rule_results: list[dict[str, Any] | None] = [
             {"valid": True, "message": "", "severity": "error"} for _ in rules
         ]
         parent_path = path[:-1]
@@ -711,33 +779,58 @@ class GenericBinder:
 
         for idx, rule in enumerate(rules):
             condition = rule
-            explicit_msg: str | None = None
+            rule_msg: str | None = None
             if isinstance(rule, dict):
                 condition = rule.get("condition", rule)
                 if isinstance(rule.get("message"), str):
-                    explicit_msg = rule["message"]
+                    rule_msg = rule["message"]
 
-            rule_results[idx]["message"] = explicit_msg or "Validation failed"
+            # An explicit rule message overrides the message a condition
+            # function returns. A path-bound check reads a result the agent or
+            # application wrote, whose message carries the finding, so there
+            # the rule message is only the fallback.
+            explicit_msg = None if self._is_path_bound(condition) else rule_msg
+            fallback_msg = rule_msg or "Validation failed"
 
-            def make_on_change(i: int, exp_msg: str | None) -> Callable[[Any], None]:
-                def on_change(new_val: Any) -> None:
-                    rule_results[i] = self._process_rule_val(new_val, exp_msg)
+            def rule_result(
+                state: Any, exp_msg: str | None, fb_msg: str
+            ) -> dict[str, Any] | None:
+                # A condition waiting for an agent call has no result yet.
+                # Once the call settles the rule is evaluated; a call that
+                # failed leaves the condition None, which fails the rule.
+                if state.pending:
+                    return None
+                return self._process_rule_val(state.value, exp_msg, fb_msg)
+
+            def make_on_state(
+                i: int, exp_msg: str | None, fb_msg: str
+            ) -> Callable[[Any, bool], None]:
+                def on_state(state: Any, _value_changed: bool) -> None:
+                    rule_results[i] = rule_result(state, exp_msg, fb_msg)
                     _apply_validation_state(reactive=True)
 
-                return on_change
+                return on_state
 
-            bound = self.context.data_context.subscribe_dynamic_value(
-                condition, make_on_change(idx, explicit_msg)
+            bound = self.context.data_context.subscribe_dynamic_state(
+                condition, make_on_state(idx, explicit_msg, fallback_msg)
             )
             if not is_sync:
                 self.data_listeners.append(bound)
             else:
                 bound.unsubscribe()
 
-            rule_results[idx] = self._process_rule_val(bound.value, explicit_msg)
+            rule_results[idx] = rule_result(bound.value, explicit_msg, fallback_msg)
 
         _apply_validation_state(reactive=False)
         return value
+
+    def _is_path_bound(self, condition: Any) -> bool:
+        """Whether a check condition is a data binding rather than a call."""
+        if not isinstance(condition, dict):
+            return False
+        if self.context.data_context.at_least_v10:
+            return isinstance(condition.get("@path"), str) and "@call" not in condition
+        return isinstance(condition.get("path"), str) and "call" not in condition
 
     def _notify(self) -> None:
         for listener in list(self.listeners):

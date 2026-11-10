@@ -17,7 +17,7 @@ import OrderedJSON
 
 /// Validates component graph topology, hierarchy completeness, and structural cycles.
 public enum GraphTopologyValidator {
-  private static let maxGlobalDepth = 50
+  static let maxGlobalDepth = 50
 
   public typealias Reference = (referenceID: String, field: String)
   public typealias AdjacencyMap = [String: [Reference]]
@@ -41,6 +41,7 @@ public enum GraphTopologyValidator {
   ) throws {
     let (allComponentIDs, adjacencyList) = try buildAdjacencyMap(
       from: components,
+      config: config,
       catalogs: catalogs,
       defaultCatalogID: defaultCatalogID
     )
@@ -71,7 +72,7 @@ public enum GraphTopologyValidator {
     }
   }
 
-  private static func lookupComponentAPI(
+  static func lookupComponentAPI(
     type: String,
     catalogID: String?,
     catalogs: [String: AnyCatalog]?,
@@ -234,6 +235,7 @@ public enum GraphTopologyValidator {
 
   private static func buildAdjacencyMap(
     from components: [[String: JSONValue]],
+    config: ValidationConfig,
     catalogs: [String: AnyCatalog]?,
     defaultCatalogID: String?
   ) throws -> (allIDs: Set<String>, adjacencyList: AdjacencyMap) {
@@ -264,7 +266,7 @@ public enum GraphTopologyValidator {
 
       let references = extractReferences(from: component, schema: componentSchema)
       for reference in references {
-        if reference.referenceID == componentID {
+        if reference.referenceID == componentID, !config.allowCyclicReferences {
           throw A2UIRecursionError(
             """
             Self-reference detected: Component '\(componentID)' \
@@ -327,6 +329,7 @@ public enum GraphTopologyValidator {
           depth: 0,
           allIDs: allIDs,
           adjacencyList: adjacencyList,
+          allowsCycles: config.allowCyclicReferences,
           visited: &visited,
           recursionStack: &recursionStack
         )
@@ -340,6 +343,7 @@ public enum GraphTopologyValidator {
       depth: 0,
       allIDs: allIDs,
       adjacencyList: adjacencyList,
+      allowsCycles: config.allowCyclicReferences,
       visited: &visited,
       recursionStack: &recursionStack
     )
@@ -356,6 +360,7 @@ public enum GraphTopologyValidator {
     depth: Int,
     allIDs: Set<String>,
     adjacencyList: AdjacencyMap,
+    allowsCycles: Bool,
     visited: inout Set<String>,
     recursionStack: inout Set<String>
   ) throws {
@@ -376,11 +381,12 @@ public enum GraphTopologyValidator {
             depth: depth + 1,
             allIDs: allIDs,
             adjacencyList: adjacencyList,
+            allowsCycles: allowsCycles,
             visited: &visited,
             recursionStack: &recursionStack
           )
         }
-      } else if recursionStack.contains(neighbor) {
+      } else if !allowsCycles, recursionStack.contains(neighbor) {
         throw A2UIRecursionError(
           "Circular component reference (Circular reference detected) involving component '\(neighbor)'"
         )

@@ -98,7 +98,7 @@ a2ui_agent/
 
 The Agent SDK uses `a2ui.core.Catalog` directly as the canonical model representing component definitions, function signatures, and theme schemas.
 
-An agent describes and validates functions but never runs them, so every catalog it loads, negotiates, prompts with, or validates against is a [`CatalogApi`](a2ui_core.blueprint.md#catalogapi), the core name for `Catalog[ComponentApi, FunctionApi]`. Catalog transformers are the exception: they stay generic over the component and function types, so the same rules can also prune a catalog that carries implementations.
+An agent describes and validates renderer functions without running them, so every catalog it loads, negotiates, prompts with, or validates against is a [`CatalogApi`](a2ui_core.blueprint.md#catalogapi), the core name for `Catalog[ComponentApi, FunctionApi]` (whose `functions` may include `AgentFunction` entries with agent-side handlers when the optional [`agent_functions`](../features/agent_functions.blueprint.md) feature is implemented). Catalog transformers are the exception: they stay generic over the component and function types, so the same rules can also prune a catalog that carries implementations.
 
 #### `CatalogTransformer`
 
@@ -161,23 +161,71 @@ class FunctionPruningTransformer(CatalogTransformer):
 
 #### `PromptGenerator`
 
-Abstract base interface for constructing system prompt instruction snippets across inference formats.
+Abstract base class for constructing system prompt instruction snippets across inference formats.
 
-The interface is `generate()` alone. Application code gets a prompt generator from `InferenceFormat.prompt_generator` and only renders it, so what a generator is built from (catalogs, examples, format-specific options) belongs to each format's constructor rather than to the shared interface.
+Application code gets a prompt generator from `InferenceFormat.prompt_generator` and renders it with `generate()`. What a generator is built from (catalogs, examples, format-specific options) belongs to each format's constructor rather than to the shared interface.
+
+A format implements the abstract `catalogs` property and three hooks, and never overrides `generate()`:
+
+- `generate_base_rules()`: what every catalog shares, rendered once: the syntax contract, grammar and sentinel tags, plus any protocol schemas the format shows the model (Direct JSON's agent-to-renderer and common types schemas).
+- `generate_catalog_instructions(include_schema, catalog)`: the component and function signatures or schemas of one catalog, or of every catalog in `catalogs` when `catalog` is omitted.
+- `generate_examples(catalog, validate)`: the formatted example turns for one catalog, or for every catalog when `catalog` is omitted.
+
+`generate()` is final and returns `assemble_instructions(self)`, the same function `SkillGenerator` builds a monolithic skill's body with, so a prompt snippet and a monolithic skill for the same catalogs have the same body. The per-format generator classes are not part of the public API: callers reach them through `InferenceFormat.prompt_generator`, and a third-party format subclasses `PromptGenerator` directly.
 
 Every format's generator renders the prompt example turns it is given in the order given. Each turn is the list of `AgentToRendererMessage` objects making it up. An example carries no label of its own: what the model learns from it is the payload, so a description would be the prompt author's prose rather than part of the contract.
 
+A generator lists only agent-callable functions as `callRendererFunction` targets (see [Agent-callable functions](#agent-callable-functions)).
+
 ```python
+EXAMPLES_HEADING = "### Examples:\n\n"
+
 class PromptGenerator(ABC):
     """Abstract base class for format-specific prompt generators."""
 
+    @property
     @abstractmethod
+    def catalogs(self) -> list[CatalogApi]:
+        """The catalogs the generator describes, in order."""
+
+    def generate_base_rules(self) -> str:
+        """Renders what every catalog shares: syntax rules, sentinel tags, shared schemas."""
+        return ""
+
+    def generate_catalog_instructions(
+        self, include_schema: bool = True, catalog: CatalogApi | None = None
+    ) -> str:
+        """Renders one catalog's signatures or schemas, or every catalog's when omitted."""
+        return ""
+
+    def generate_examples(
+        self, catalog: CatalogApi | None = None, validate: bool = False
+    ) -> str:
+        """Renders one catalog's example turns, or every catalog's when omitted."""
+        return ""
+
+    @final
     def generate(self) -> str:
-        """
-        Renders format-specific system prompt instructions and catalog schemas.
-        The caller (Agent / Framework) prepends role/workflow preambles and appends suffixes.
-        """
-        pass
+        """Renders the prompt snippet. The caller adds its own role and workflow text."""
+        return assemble_instructions(self)
+
+
+def assemble_instructions(
+    generator: PromptGenerator, catalogs: Sequence[CatalogApi] | None = None
+) -> str:
+    """Joins the hooks' output for some catalogs (default: the generator's own).
+
+    The text is the base rules, then the catalog instructions, then the examples
+    under EXAMPLES_HEADING, separated by blank lines; sections that render nothing
+    are left out.
+
+    - For the generator's own catalogs, the catalog instructions and examples come
+      from one call each with no catalog, so a format can render what its catalogs
+      share once. The result is cached per generator, which is treated as
+      immutable once built.
+    - For any other catalogs, each catalog's instructions and examples are rendered
+      on their own and joined, and examples a catalog repeats are added once.
+    """
 ```
 
 ---
@@ -342,11 +390,10 @@ class Parser(ABC):
     def supports_streaming(self) -> bool:
         """Whether this parser can read a response incrementally through open_stream.
 
-        A format can only stream if a partial block already means something. Direct JSON
-        can, because an unfinished object can be healed and re-read as it grows. Express
-        cannot: its notation resolves references across the whole block, so a block is
-        read once it is closed and not before. A parser that returns False here buffers
-        the response and is parsed whole through parse_response.
+        Direct JSON and Express both stream incrementally: Direct JSON heals partial JSON
+        objects as they arrive, and Express compiles complete top-level statements and
+        heals progressive string literals as chunks arrive. A parser that returns False
+        here buffers the response and is parsed whole through parse_response.
         """
         return False
 
@@ -473,6 +520,10 @@ and its implementation matrix.
 A stateless check sees one outbound payload at a time, the agent-to-renderer messages the agent is about to send, with nothing else to compare it against. When that payload updates a surface it did not itself create, it carries no component tree, so a reference to a component the agent sent in an earlier payload cannot be resolved and is accepted.
 
 An agent that keeps one `MessageProcessor` across a session and runs its own outbound messages through it holds that tree. References then resolve against the components the surface already has, and cycles are found across the whole surface instead of one payload at a time. The renderer runs these same checks when the payload arrives, so an agent that runs them first catches a bad payload before sending it rather than after.
+
+#### Agent-callable functions
+
+A function is agent-callable when its catalog `allowedCallers` is `"agentOnly"` or `"rendererOrAgent"` (default `"rendererOnly"`). Prompt generators MUST list only agent-callable functions as targets of `callRendererFunction`. Parsers and `ResponseStream`, or the core `MessageProcessor` they delegate to, MUST reject a `callRendererFunction` that names a function that is not agent-callable in the negotiated catalogs with `A2uiValidationError`. `catalog_definition.json` already forbids `requiresUserActivation: true` on agent-callable functions; an SDK MAY also exclude activation-gated functions as a safeguard, as Dart does in [`prompt_generator.dart`](../../dart/a2ui_agent/lib/src/inference_formats/express/prompt_generator.dart).
 
 ---
 
@@ -780,6 +831,19 @@ def resolve_catalogs(
     pass
 ```
 
+#### `read_renderer_capabilities`
+
+`read_renderer_capabilities(metadata, version)` (TypeScript and Dart `readRendererCapabilities`) is transport-neutral. It returns the capabilities object under the version's key (`a2uiClientCapabilities` for v0.8 and v0.9, `a2uiRendererCapabilities` for v1.0, and the bare v0.8 entry), returns `None` when the key is absent (A2UI is off for the turn), ignores another version's key, and raises `A2uiCatalogError` for a non-mapping value or a malformed entry for that version.
+
+```python
+def read_renderer_capabilities(
+    metadata: Optional[Mapping[str, Any]],
+    version: ProtocolVersion = ProtocolVersion.V1_0,
+) -> Optional[A2uiRendererCapabilities]:
+    """Reads and validates renderer capabilities for the given protocol version from a transport metadata mapping."""
+    pass
+```
+
 ---
 
 ## 4. Inference Format Strategy Implementations
@@ -888,12 +952,26 @@ class DirectJsonPromptGenerator(PromptGenerator):
         self.examples = examples
         self.allowed_messages = allowed_messages
 
-    def generate(self) -> str:
-        """Renders system instructions containing pruned JSON schemas inside <a2ui_schema> tags and <a2ui-json> output instructions.
+    def generate_base_rules(self) -> str:
+        """Renders the <a2ui-json> output rules, then a schema block with the protocol schemas.
 
-        Returns:
-            Formatted system prompt instruction snippet string.
+        The protocol schemas are the agent-to-renderer schema (pruned to
+        `allowed_messages`) and the common types schema (pruned to what the
+        catalogs and that schema use). They belong to the base rules, so text that
+        combines several catalogs' instructions holds them once.
         """
+        pass
+
+    def generate_catalog_instructions(
+        self, include_schema: bool = True, catalog: Optional[CatalogApi] = None
+    ) -> str:
+        """Renders one schema block per catalog, each holding only that catalog's schema."""
+        pass
+
+    def generate_examples(
+        self, catalog: Optional[CatalogApi] = None, validate: bool = False
+    ) -> str:
+        """Renders each example turn as JSON inside <a2ui-json> tags."""
         pass
 
 class DirectJsonParser(Parser):
@@ -963,26 +1041,46 @@ Compact functional DSL format designed to reduce output token consumption, enclo
 The Express format package under `a2ui/inference_formats/express/` contains:
 
 - `format`: `ExpressFormatFactory` (subclassing `InferenceFormatFactory`) and `ExpressFormat` (subclassing `InferenceFormat`).
-- `prompt_generator`: `ExpressPromptGenerator` (subclassing `PromptGenerator`), rendering compact positional signatures for catalog components and functions into prompt instructions.
-- `compiler`: `ExpressCompiler`, lexing and parsing the DSL expressions found between `<a2ui>` tags into standard `AgentToRendererMessage` list structures.
+- `prompt_generator`: `ExpressPromptGenerator` (subclassing `PromptGenerator`, internal to the package and reached through `ExpressFormat.prompt_generator`), rendering compact positional signatures for catalog components and functions into prompt instructions.
+- `compiler`: `ExpressCompiler`, lexing and parsing the DSL expressions found between `<a2ui>` tags into standard `AgentToRendererMessage` list structures, both in single-shot mode and incrementally across streaming chunks.
 - `decompiler`: `ExpressDecompiler`, converting `AgentToRendererMessage` payload lists back into Express DSL string format.
-- `parser`: `ExpressParser` (subclassing `Parser`), delegating compilation and decompilation to `ExpressCompiler` and `ExpressDecompiler`.
+- `parser`: `ExpressParser` (subclassing `Parser`), delegating compilation and decompilation to `ExpressCompiler` and `ExpressDecompiler`, and opening `ExpressResponseStream` sessions via `open_stream()`.
+- `response_stream`: `ExpressResponseStream` (subclassing `ResponseStream`), incrementally unwrapping `<a2ui>` blocks, scanning statement boundaries, healing progressive string properties, and emitting delta surface messages.
 
 ```python
+DEFAULT_EXPRESS_PROGRESSIVE_KEYS: frozenset[str] = frozenset({"text"})
+
 class ExpressFormatFactory(InferenceFormatFactory):
     """Factory for instantiating ExpressFormat strategies bound to active catalogs."""
 
-    def __init__(self, allowed_messages: Optional[Sequence[str]] = None):
+    def __init__(
+        self,
+        allowed_messages: Optional[Sequence[str]] = None,
+        progressive_keys: Optional[Set[str]] = DEFAULT_EXPRESS_PROGRESSIVE_KEYS,
+    ):
         """Initializes ExpressFormatFactory.
 
         Args:
             allowed_messages: Optional list of allowed payload envelope names. The
                 prompt teaches only the statements that compile to them.
+            progressive_keys: String property keys whose partial values are healed
+                while streaming (defaults to {"text"}).
         """
         self.allowed_messages = allowed_messages
+        self.progressive_keys = progressive_keys
 ```
 
-Express does not stream. `ExpressParser.supports_streaming` is False and it does not implement `open_stream`: an Express block resolves references across its whole body, so a partial block names components that are not yet defined and cannot be compiled into anything. An agent using Express buffers the response and parses it whole.
+#### Incremental Streaming (`ExpressResponseStream`)
+
+`ExpressFormat.supports_streaming` and `ExpressParser.supports_streaming` are `True`. Calling `ExpressParser.open_stream(wrapped=True, state=None)` returns an `ExpressResponseStream` that processes incoming token chunks under five rules:
+
+1. **Statement-Level Boundary Scanning**: Inside an `<a2ui>` block, complete statements (assignments, `surface(...)`, `deleteSurface(...)`, and standalone function calls) are split at top-level statement boundaries outside strings, comments, and nested delimiters, and compiled as soon as they arrive.
+2. **Progressive String Healing (`progressive_keys`)**: When the trailing incomplete fragment of an open `<a2ui>` block is inside an unclosed string literal for a component argument whose property name is in `progressive_keys` (such as `Text("partial...` or `Text(text="partial...`), or for a data path assignment whose last segment is in `progressive_keys` (such as `$/text = "partial...` or `$/items/0/text = "partial...`), the stream heals the unclosed string literal and parentheses on a scratch copy and emits the updated component or data path value immediately. The healed value is always a string prefix of the final value, and the full value replaces it when the string closes. Any other data path assignment waits for its statement to complete, as a Direct JSON value under a key outside `progressive_keys` does. URL prefixes (`http://`, `https://`, `data:`) are never closed early.
+3. **Pre-`root` Gating on New Surfaces**: For a surface not yet present in `RendererState` (and without `update=true`), `$/path` assignments and bottom-up child component definitions appearing before `root = ...` are compiled into the scope session and held until `root = ...` arrives, then flushed together with `root` in the initial surface creation batch.
+4. **Hybrid v1.0 Envelope & Delta Updates**: When an `<a2ui>` block opens and closes within a single `feed()` call, it emits the single-shot `createSurface(components, dataModel)` message. When a block spans multiple chunks, the first ready batch on a new surface emits `createSurface` (or in v0.9: `[createSurface, updateComponents, updateDataModel(path="/", value=...)]` in that chunk's `A2uiPart`), and subsequent chunks emit delta `updateComponents` (containing only newly compiled or mutated components) and per-path `updateDataModel` messages.
+5. **Forward Component References vs. Value Variables**: Forward component ID references in `ComponentId` and `ChildList` slots emit immediately using the variable name as the provisional ID (re-emitting the parent component if the referenced child later declares an explicit `id="..."`). Components that reference an undefined value variable (`Event`, function call, `_template`, check, map, or primitive) wait until that variable is defined. At `</a2ui>`, any still-undefined reference or broken topology raises `A2uiCompilationValidationError` inside a `RendererState` transaction. Unlike one-shot `parse_response`, which checks topology after all blocks in the response have been applied and can recover a single block whose opening `<a2ui>` tag was omitted, `open_stream` requires the opening `<a2ui>` sentinel tag in `wrapped=True` mode, strips Markdown fences and inline backticks placed either inside or immediately outside `<a2ui>` and `</a2ui>`, and checks surface topology as each block closes.
+
+For protocol v1.0 and later, `surface(...)` and every component call accept one reserved keyword argument, `extensions=`, that compiles to the envelope's `metadata: {extensions: ...}` container (`createSurface.metadata` or `ComponentCommon.metadata`). The compiler validates each key as a UAX #31 identifier and rejects the block otherwise, and the decompiler emits `extensions=` back for any envelope that carries `metadata.extensions`. The keyword is catalog-agnostic and is never listed in the default prompt instructions, so an agent that does not use extensions spends no prompt tokens on it. There is no `metadata=` keyword: the v1.0 common envelope already appears as a `metadata` property on every component schema, so a `metadata=` keyword would be ambiguous between the property and the envelope.
 
 #### Data Model Compilation and Decompilation
 
@@ -1043,11 +1141,12 @@ The suites covering this document live under `conformance/agent/`:
 | `<format>/decompiler.yaml`            | `Parser.decompile`: how messages are written back into that format                              |
 | `<format>/response_parser.yaml`       | `Parser.wrap`, `unwrap` and `parse_response`: where a payload begins and ends                   |
 | `<format>/prompt_generator.yaml`      | `PromptGenerator.generate`: what the system prompt snippet has to tell the model                |
-| `direct_json/response_streaming.yaml` | `Parser.open_stream` and `ResponseStream`, for the one format that streams                      |
+| `direct_json/response_streaming.yaml` | `Parser.open_stream` and `ResponseStream`, for incremental Direct JSON streaming                |
+| `express/response_streaming.yaml`     | `Parser.open_stream` and `ResponseStream`, for incremental Express DSL streaming                |
 | `catalog_provider.yaml`               | `CatalogProvider.load` and the checks it makes on a document                                    |
 | `request_processor.yaml`              | `InferenceFormatFactory.create_format`, `A2uiGenerator.create_processor` and `resolve_catalogs` |
 
-There is no `express/response_streaming.yaml`, because Express does not stream. Suites under `conformance/agent/legacy/` describe the earlier interface still implemented by `python/a2ui_agent` and `kotlin/agent_sdk_legacy`, and stay until those SDKs move to the interface above.
+Suites under `conformance/agent/legacy/` describe the earlier interface of `kotlin/agent_sdk_legacy`, which runs them. `python/a2ui_agent` implements the current interface above and runs none of them. The TypeScript agent harness runs the subset of `legacy/parser.yaml` and `legacy/inference_format.yaml` that the current suites do not supersede ([`loader.ts`](../../typescript/agents/a2ui_agent/tests/conformance/loader.ts)).
 
 Where a suite fixes something this document leaves open, the decision is stated in that suite's header rather than left for a reader to infer from the cases.
 

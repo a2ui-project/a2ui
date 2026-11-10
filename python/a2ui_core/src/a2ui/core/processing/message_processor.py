@@ -28,7 +28,14 @@ T = TypeVar("T")
 from ..common import is_at_least_version, to_protocol_version
 from ..common.events import EventSource
 from .adapters import is_catalog_version_compatible
-from ..state import SurfaceGroupModel, SurfaceModel, ComponentModel
+from ..state import (
+    AgentFunctionCall,
+    AgentFunctionCaller,
+    ComponentModel,
+    SurfaceGroupModel,
+    SurfaceModel,
+)
+from ..state.surface_model import _check_max_agent_call_cache_entries
 from ..state.validation_helpers import RELAXED_PATH_PATTERN
 from ..validation import (
     PayloadValidator,
@@ -36,6 +43,7 @@ from ..validation import (
     STRICT_VALIDATION,
 )
 from ..validation.payload_validator import (
+    check_renderer_may_call,
     nested_call_runs_in_catalog,
     rebase_function_error_details,
 )
@@ -103,6 +111,8 @@ class MessageProcessorOptions:
         default_timeout_ms: Default timeout in milliseconds for async RPC calls.
         error_handler: Optional callback invoked when a processing error is mapped.
         report_errors_only: When True, process_messages suppresses raising A2uiError after reporting.
+        max_agent_call_cache_entries: The most settled agent function call
+            answers each surface keeps (evicting the oldest first).
     """
 
     validation_config: ValidationConfig | None = None
@@ -110,6 +120,7 @@ class MessageProcessorOptions:
     default_timeout_ms: float = 30000.0
     error_handler: Callable[[dict[str, Any]], None] | None = None
     report_errors_only: bool = False
+    max_agent_call_cache_entries: int = 256
 
 
 @dataclass
@@ -191,7 +202,9 @@ class MessageProcessor:
             options: Optional configuration options including validation rules.
 
         Raises:
-            ValueError: If catalogs is empty or None.
+            ValueError: If catalogs is empty or None, or
+                `options.max_agent_call_cache_entries` isn't a positive
+                integer.
         """
         if not catalogs:
             raise ValueError("At least one catalog must be provided.")
@@ -202,11 +215,15 @@ class MessageProcessor:
         self.outbound_listener = opts.outbound_listener
         self.error_handler = opts.error_handler
         self.report_errors_only = opts.report_errors_only
+        self.max_agent_call_cache_entries = _check_max_agent_call_cache_entries(
+            opts.max_agent_call_cache_entries
+        )
         self.rpc = RpcHandler(
             catalogs=catalogs,
             outbound_listener=opts.outbound_listener,
             default_timeout_ms=opts.default_timeout_ms,
         )
+        self.model.on_surface_deleted.subscribe(self.rpc.cancel_surface_calls)
         if action_handler:
             self.model.on_action.subscribe(action_handler)
         if self.error_handler:
@@ -342,13 +359,43 @@ class MessageProcessor:
         """Resolves a catalog by catalog_id, or returns None if catalog_id is None or not found."""
         return self.rpc.resolve_catalog(catalog_id)
 
+    def _agent_function_caller(
+        self, surface: SurfaceModel, version: str
+    ) -> AgentFunctionCaller:
+        """Builds the caller that sends a surface's agent function calls.
+
+        Each call is dispatched as a `callAgentFunction` message through the
+        processor's `RpcHandler`, naming the catalog the call resolved to.
+        A call made after the surface was deleted, such as one from an action
+        that resumes later, is not sent: it fails with `CANCELLED`.
+        """
+        surface_id = surface.id
+
+        def _call(call: AgentFunctionCall) -> asyncio.Future[Any]:
+            if self.model.get_surface(surface_id) is not surface:
+                raise A2uiRpcError(
+                    f"Pending calls for surface '{surface_id}' were cancelled.",
+                    code=RpcErrorCode.CANCELLED.value,
+                )
+            return self.rpc.call_agent_function(
+                surface_id,
+                FunctionCall(  # type: ignore[call-arg]
+                    call=call.call,
+                    catalogId=call.catalog_id,
+                    args=call.args,
+                ),
+                CallOptions(version=version),
+            )
+
+        return _call
+
     @classmethod
-    def _generate_legacy_inline_catalog(
+    def _generate_v09_inline_catalog(
         cls,
         catalog: Any,
         component_envelope_ref: str = "common_types.json#/$defs/ComponentCommon",
     ) -> dict[str, Any]:
-        """Generates a legacy (< 1.0) inline catalog dictionary."""
+        """Generates a pre-1.0 inline catalog dictionary."""
         components: dict[str, Any] = {}
         raw_components = getattr(catalog, "components", {}) or {}
         resolve_component = getattr(catalog, "resolved_component_schema", None)
@@ -436,6 +483,49 @@ class MessageProcessor:
             result["theme"] = theme
         return result
 
+    @classmethod
+    def _generate_inline_catalog(cls, catalog: Any) -> dict[str, Any] | None:
+        """Generates a v1.0 inline catalog from the catalog's `to_json` document.
+
+        The document gets the `catalogId` and the bare semantic version
+        `protocolVersion` (`1.0`, not `v1.0`) that `catalog_definition.json`
+        expects, even when the source document did not declare them, since an
+        undeclared `protocolVersion` reads as `0.9`. Matches web_core.
+
+        Returns:
+            The inline catalog, or None if the catalog has no `to_json` or it
+            does not return a mapping.
+        """
+        to_json = getattr(catalog, "to_json", None)
+        if not callable(to_json):
+            return None
+        raw_document = to_json()
+        if not isinstance(raw_document, Mapping):
+            return None
+        # A shallow copy, so a catalog that hands out its own dict keeps it.
+        document = dict(raw_document)
+        catalog_id = getattr(catalog, "catalog_id", None)
+        if catalog_id is not None and not callable(catalog_id):
+            document["catalogId"] = catalog_id
+        version = document.get("protocolVersion")
+        if not isinstance(version, str) or not version.strip():
+            version = None
+            raw_version = getattr(catalog, "protocol_version", None)
+            if raw_version is not None and not callable(raw_version):
+                try:
+                    version = to_protocol_version(raw_version).value
+                except (TypeError, ValueError):
+                    version = str(raw_version)
+        if version is not None:
+            version = version.strip()
+            if version[:1] in ("v", "V") and version[1:2].isdigit():
+                version = version[1:]
+        if version:
+            document["protocolVersion"] = version
+        else:
+            document.pop("protocolVersion", None)
+        return document
+
     def get_renderer_capabilities(
         self,
         options: CapabilitiesOptions,
@@ -476,12 +566,12 @@ class MessageProcessor:
                 inline_catalogs: list[dict[str, Any]] = []
                 for c in self.catalogs:
                     if is_at_least_version(ver_str, ProtocolVersion.V1_0):
-                        to_json = getattr(c, "to_json", None)
-                        if callable(to_json):
-                            inline_catalogs.append(to_json())
+                        inline = self._generate_inline_catalog(c)
+                        if inline is not None:
+                            inline_catalogs.append(inline)
                     else:
                         inline_catalogs.append(
-                            self._generate_legacy_inline_catalog(c, envelope_ref)
+                            self._generate_v09_inline_catalog(c, envelope_ref)
                         )
                 version_caps["inlineCatalogs"] = inline_catalogs
             capabilities[ver_str] = version_caps
@@ -552,6 +642,8 @@ class MessageProcessor:
             if isinstance(op, InternalCreateSurfaceOp):
                 self._process_create_surface_op(op)
             elif isinstance(op, InternalDeleteSurfaceOp):
+                # Deleting the surface cancels its pending agent calls, through
+                # the on_surface_deleted subscription.
                 self.model.delete_surface(op.surface_id)
             elif isinstance(op, InternalUpdateComponentsOp):
                 self._process_update_components_op(op)
@@ -589,6 +681,7 @@ class MessageProcessor:
             surface_id=f"_rpc_fallback_{op.function_call_id or 'default'}",
             default_catalog=target_catalog,
             available_catalogs=available_catalogs,
+            max_agent_call_cache_entries=self.max_agent_call_cache_entries,
         )
         return DataContext(surface=fallback_surface, path="/")
 
@@ -670,7 +763,8 @@ class MessageProcessor:
                     f"Catalog not found: {catalog_id}", surface_id=surface_id
                 )
             raise A2uiCatalogError(
-                "No default catalog available for surface.", surface_id=surface_id
+                "No default catalog available for surface.",
+                surface_id=surface_id,
             )
 
         if self.model.get_surface(surface_id):
@@ -715,24 +809,57 @@ class MessageProcessor:
             theme=theme,
             send_data_model=send_data_model,
             protocol_version=surface_proto_ver,
+            metadata=op.metadata,
+            max_agent_call_cache_entries=self.max_agent_call_cache_entries,
         )
         if op.root:
             new_surface.root_id = op.root
+        # From v1.0, a function the renderer does not implement runs on the
+        # agent. Without an outbound listener there is no way to reach it, so
+        # such calls keep failing locally.
+        if (
+            self.rpc.outbound_listener is not None
+            and surface_proto_ver
+            and is_at_least_version(surface_proto_ver, ProtocolVersion.V1_0)
+        ):
+            new_surface.agent_function_caller = self._agent_function_caller(
+                new_surface, _version_label(surface_proto_ver)
+            )
         self.model.add_surface(new_surface)
 
-        if op.data_model is not None:
-            self._process_update_data_model_op(
-                InternalUpdateDataModelOp(
-                    surface_id=surface_id, path="/", value=op.data_model
-                )
-            )
+        try:
+            if op.data_model is not None:
+                for key, value in op.data_model.items():
+                    escaped_key = key.replace("~", "~0").replace("/", "~1")
+                    path = f"/{escaped_key}"
+                    try:
+                        if key == "":
+                            current_root = dict(new_surface.data_model.get("/") or {})
+                            if value is None and is_at_least_version(
+                                surface_proto_ver, ProtocolVersion.V1_0
+                            ):
+                                current_root.pop("", None)
+                            else:
+                                current_root[""] = value
+                            new_surface.data_model.set("/", current_root)
+                        else:
+                            new_surface.data_model.set(path, value)
+                    except A2uiError as err:
+                        if err.path is None:
+                            err.path = path
+                        if err.surface_id is None:
+                            err.surface_id = surface_id
+                        raise
 
-        if op.components is not None:
-            self._process_update_components_op(
-                InternalUpdateComponentsOp(
-                    surface_id=surface_id, components=op.components
+            if op.components is not None:
+                self._process_update_components_op(
+                    InternalUpdateComponentsOp(
+                        surface_id=surface_id, components=op.components
+                    )
                 )
-            )
+        except Exception:
+            self.model.delete_surface(surface_id)
+            raise
 
     def _process_update_components_op(self, op: InternalUpdateComponentsOp) -> None:
         """Processes an updateComponents operation, validating catalog and component consistency."""
@@ -740,7 +867,8 @@ class MessageProcessor:
         surface = self.model.get_surface(surface_id)
         if not surface:
             raise A2uiIntegrityError(
-                f"Surface not found for message: {surface_id}", surface_id=surface_id
+                f"Surface not found for message: {surface_id}",
+                surface_id=surface_id,
             )
 
         components = op.components
@@ -760,9 +888,11 @@ class MessageProcessor:
             comp_dict = (
                 comp
                 if isinstance(comp, dict)
-                else comp.model_dump(by_alias=True, exclude_none=True)
-                if hasattr(comp, "model_dump")
-                else cast(dict[str, Any], comp)
+                else (
+                    comp.model_dump(by_alias=True, exclude_none=True)
+                    if hasattr(comp, "model_dump")
+                    else cast(dict[str, Any], comp)
+                )
             )
             c_id = comp_dict.get("id")
             if not c_id:
@@ -830,7 +960,8 @@ class MessageProcessor:
                 comp_catalog = self._resolve_catalog(comp_cat_id)
                 if not comp_catalog:
                     raise A2uiCatalogError(
-                        f"Catalog not found: {comp_cat_id}", surface_id=surface_id
+                        f"Catalog not found: {comp_cat_id}",
+                        surface_id=surface_id,
                     )
                 comp_ver = getattr(comp_catalog, "protocol_version", None)
                 surface_ver = surface.protocol_version
@@ -863,13 +994,17 @@ class MessageProcessor:
                     surface_id=surface_id,
                 )
 
+            raw_metadata = comp_dict.get("metadata") if surface_at_least_v10 else None
             properties = {
                 k: v
                 for k, v in comp_dict.items()
                 if k not in ("id", "component", "catalogId")
+                and not (surface_at_least_v10 and k == "metadata")
             }
 
-            new_comp = ComponentModel(c_id, c_type, comp_catalog, properties)
+            new_comp = ComponentModel(
+                c_id, c_type, comp_catalog, properties, metadata=raw_metadata
+            )
             new_component_models.append(new_comp)
 
         # Catalog resolution errors are raised at once. Argument errors from
@@ -909,7 +1044,7 @@ class MessageProcessor:
                 ):
                     surface.components_model.replace_component(new_comp)
                 else:
-                    existing.properties = new_comp.properties
+                    existing.apply_update(new_comp.properties, new_comp.metadata)
             else:
                 surface.components_model.add_component(new_comp)
         surface.components_model.components_update_applied(new_component_models)
@@ -1014,7 +1149,10 @@ class MessageProcessor:
         errors: list[A2uiErrorDetail],
         summaries: list[str],
     ) -> None:
-        """Resolves one nested call's catalog and checks its arguments.
+        """Resolves one nested call's catalog and checks the call.
+
+        The call is a renderer call, so it may not call an `agentOnly`
+        function, and its arguments must match the function's definition.
 
         Appends errors to `errors`, with paths rooted at the call's location
         in the component, and a line describing them to `summaries`. An empty
@@ -1067,6 +1205,7 @@ class MessageProcessor:
             # catalog.
             return
         try:
+            check_renderer_may_call(catalog, name)
             PayloadValidator(catalog, config=self.validation_config).validate_function(
                 name, call.get("args")
             )
@@ -1082,7 +1221,8 @@ class MessageProcessor:
         surface = self.model.get_surface(surface_id)
         if not surface:
             raise A2uiIntegrityError(
-                f"Surface not found for message: {surface_id}", surface_id=surface_id
+                f"Surface not found for message: {surface_id}",
+                surface_id=surface_id,
             )
 
         if (
@@ -1121,3 +1261,8 @@ class MessageProcessor:
             if err.surface_id is None:
                 err.surface_id = surface_id
             raise
+
+    def dispose(self) -> None:
+        """Disposes of all active surfaces and cancels pending RPC calls."""
+        self.model.dispose()
+        self.rpc.dispose()

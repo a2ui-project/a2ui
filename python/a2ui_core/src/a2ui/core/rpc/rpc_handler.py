@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from typing import Any, TypeVar, Union, cast
 
 from ..catalog import CatalogApi
+from ..common.event_loop import get_or_create_event_loop
 from ..exceptions import A2uiRpcError, RpcErrorCode
 from ..processing.adapters import is_catalog_version_compatible
 from ..resolution.data_context import DataContext
@@ -42,6 +43,10 @@ T = TypeVar("T")
 
 OutboundListener = Callable[[dict[str, Any]], Union[None, Awaitable[None]]]
 
+# The response message when a nested argument of an agent-initiated call
+# fails with an error that has no message of its own.
+_UNRESOLVED_ARGUMENT_MESSAGE = "An argument of the function call could not be resolved."
+
 
 @dataclass
 class _PendingAgentCall:
@@ -49,6 +54,7 @@ class _PendingAgentCall:
 
     resolve: Callable[[Any], None]
     reject: Callable[[BaseException], None]
+    surface_id: str = ""
 
 
 @dataclass
@@ -124,10 +130,15 @@ class RpcHandler:
         return self._is_disposed
 
     def dispose(self, reason: str = "RpcHandler has been disposed.") -> None:
-        """Cancels all pending outbound RPC calls and marks the instance disposed."""
+        """Cancels all pending outbound RPC calls and marks the instance disposed.
+
+        Pending calls fail with `CANCELLED`, later calls with `DISPOSED`, and
+        the outbound listener is removed.
+        """
         if self._is_disposed:
             return
         self._is_disposed = True
+        self.outbound_listener = None
 
         for call_id, pending in list(self._pending_agent_calls.items()):
             pending.reject(
@@ -138,6 +149,21 @@ class RpcHandler:
                 )
             )
         self._pending_agent_calls.clear()
+
+    def cancel_surface_calls(self, surface_id: str | None = None) -> None:
+        """Cancels pending outbound RPC calls for the given surface, or all surfaces if None."""
+        for call_id, pending in list(self._pending_agent_calls.items()):
+            if surface_id is None or pending.surface_id == surface_id:
+                self._pending_agent_calls.pop(call_id, None)
+                pending.reject(
+                    A2uiRpcError(
+                        f"Pending calls for surface '{surface_id}' were cancelled."
+                        if surface_id is not None
+                        else f"Call '{call_id}' was cancelled.",
+                        function_call_id=call_id,
+                        code=RpcErrorCode.CANCELLED.value,
+                    )
+                )
 
     def resolve_catalog(self, catalog_id: str | None = None) -> CatalogApi | None:
         """Looks up a catalog by catalog_id, applying no default.
@@ -358,19 +384,21 @@ class RpcHandler:
                     and err.get("code") in ("EXPRESSION_ERROR", "EXECUTION_ERROR")
                 ):
                     expression_error = str(
-                        err.get("message")
-                        or "An error occurred during function execution."
+                        err.get("message") or _UNRESOLVED_ARGUMENT_MESSAGE
                     )
 
             error_sub = on_error.subscribe(_on_expr_err)
 
         resolved_args = args
         try:
-            resolved_args = {
-                k: context.resolve_dynamic_value(v) for k, v in args.items()
-            }
+            # An agent's arguments never route back to the agent, nor read
+            # its cached answers: an unimplemented function fails here.
+            resolve = getattr(
+                context, "resolve_without_agent", context.resolve_dynamic_value
+            )
+            resolved_args = {k: resolve(v) for k, v in args.items()}
         except Exception as e:
-            expression_error = str(e) or "An error occurred during function execution."
+            expression_error = str(e) or _UNRESOLVED_ARGUMENT_MESSAGE
         finally:
             if error_sub is not None and hasattr(error_sub, "unsubscribe"):
                 error_sub.unsubscribe()
@@ -797,15 +825,7 @@ class RpcHandler:
 
     def _get_or_create_loop(self) -> asyncio.AbstractEventLoop:
         """Retrieves or creates an event loop safely."""
-        try:
-            return asyncio.get_running_loop()
-        except RuntimeError:
-            try:
-                return asyncio.get_event_loop_policy().get_event_loop()
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                return loop
+        return get_or_create_event_loop()
 
     def _create_timeout_timer(
         self,
@@ -837,6 +857,7 @@ class RpcHandler:
         call_id: str,
         future: asyncio.Future[Any],
         timer_handle: asyncio.TimerHandle | None,
+        surface_id: str = "",
     ) -> _PendingAgentCall:
         """Creates and registers a _PendingAgentCall with done callback cleanup."""
 
@@ -865,7 +886,9 @@ class RpcHandler:
                 except (asyncio.InvalidStateError, Exception):
                     pass
 
-        pending = _PendingAgentCall(resolve=resolve, reject=reject)
+        pending = _PendingAgentCall(
+            resolve=resolve, reject=reject, surface_id=surface_id
+        )
         self._pending_agent_calls[call_id] = pending
         return pending
 
@@ -941,7 +964,9 @@ class RpcHandler:
         timer_handle = self._create_timeout_timer(
             call_id, call.call, effective_timeout, loop
         )
-        pending = self._register_pending_call(call_id, future, timer_handle)
+        pending = self._register_pending_call(
+            call_id, future, timer_handle, surface_id=surface_id
+        )
         self._send_outbound_message(outbound_msg, call_id, pending, loop)
         return future
 

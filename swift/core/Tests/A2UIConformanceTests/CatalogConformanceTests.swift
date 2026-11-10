@@ -27,22 +27,59 @@ private struct LoadedCatalogInfo {
   let resolvedProtocolVersion: String
 }
 
-/// Runs the shared `conformance/core/catalog.yaml` suite.
+/// Runs the shared `conformance/core/catalog.yaml` suite (non-`derive` actions).
 struct CatalogConformanceTests {
-  @Test func catalogConformance() throws {
-    let rawYAML = try ConformanceTestHelper.loadYAML(filename: "core/catalog.yaml")
-    let cases = (rawYAML as? [[String: Any]]) ?? []
-    #expect(!cases.isEmpty, "core/catalog.yaml should hold test cases")
+  static let supportedActions: Set<String> = [
+    "from_json",
+    "round_trip",
+    "to_json",
+    "validation_schema",
+  ]
 
-    var executed = 0
-    for testCase in cases {
-      let version = testCase["protocolVersion"] as? String
-      if version == "v0.8" { continue }
-      let action = testCase["action"] as? String ?? "from_json"
+  private static let knownCaseKeys: Set<String> = [
+    "action",
+    "builtinCatalog",
+    "catalog",
+    "catalogId",
+    "catalogPath",
+    "expect",
+    "expectError",
+    "expectFile",
+    "protocolVersion",
+  ]
+
+  private static let knownFromJSONExpectKeys: Set<String> = [
+    "catalogId",
+    "componentMetadata",
+    "components",
+    "functions",
+    "invalidComponents",
+    "matchesBuiltinCatalog",
+    "protocolVersion",
+    "selfContained",
+    "validComponents",
+  ]
+
+  private static let knownExpectErrorKeys: Set<String> = [
+    "category",
+    "message",
+  ]
+
+  @Test(arguments: ConformanceTestHelper.cases("core/catalog.yaml", actions: Self.supportedActions))
+  func catalogConformance(_ conformanceCase: ConformanceCase) throws {
+    let testCase = conformanceCase.rawDictionary
+    let version = testCase["protocolVersion"] as? String
+    let skippedReason =
+      version == "v0.8" ? "protocol version v0.8 is not supported by A2UICore" : nil
+    try ConformanceManifest.run(conformanceCase, skippedReason: skippedReason) {
+      try ConformanceTestHelper.assertKnownKeys(
+        testCase,
+        Self.knownCaseKeys,
+        "catalog.yaml case '\(conformanceCase.name)'"
+      )
+      let action = testCase["action"] as? String ?? ""
       try dispatchCatalogCase(testCase, action: action)
-      executed += 1
     }
-    #expect(executed > 0, "Should execute catalog conformance cases")
   }
 
   private func dispatchCatalogCase(_ testCase: [String: Any], action: String) throws {
@@ -56,7 +93,7 @@ struct CatalogConformanceTests {
     case "validation_schema":
       try runValidationSchemaCase(testCase)
     default:
-      break
+      throw UnknownConformanceKeyError("Unknown catalog.yaml action '\(action)'")
     }
   }
 
@@ -64,6 +101,14 @@ struct CatalogConformanceTests {
 
   private func runFromJSONCase(_ testCase: [String: Any]) throws {
     let name = testCase["name"] as? String ?? "<unnamed>"
+    if let errDict = (testCase["expectError"] ?? testCase["expect_error"]) as? [String: Any] {
+      try ConformanceTestHelper.assertKnownKeys(
+        errDict,
+        Self.knownExpectErrorKeys,
+        "catalog.yaml expectError in '\(name)'",
+        allowMetadata: false
+      )
+    }
     let expectError = ConformanceTestHelper.parseExpectError(
       testCase["expectError"] ?? testCase["expect_error"]
     )
@@ -73,6 +118,12 @@ struct CatalogConformanceTests {
     }
     let loaded = try loadCatalogFromTestCase(testCase)
     if let expect = testCase["expect"] as? [String: Any] {
+      try ConformanceTestHelper.assertKnownKeys(
+        expect,
+        Self.knownFromJSONExpectKeys,
+        "catalog.yaml expect in '\(name)'",
+        allowMetadata: false
+      )
       try assertFromJSONExpectations(loaded, expect: expect, caseName: name)
     }
   }
@@ -92,8 +143,19 @@ struct CatalogConformanceTests {
           "[\(caseName)] Expected message containing '\(expectedMessage)', got '\(error.message)'"
         )
       }
+    } catch let error as A2UIValidationError {
+      #expect(
+        expectError.category == nil || expectError.category == "ValidationError",
+        "[\(caseName)] Unexpected ValidationError for \(String(describing: expectError.category))"
+      )
+      if let expectedMessage = expectError.message, !expectedMessage.isEmpty {
+        #expect(
+          ConformanceTestHelper.messageMatches(error.message, expected: expectedMessage),
+          "[\(caseName)] Expected message containing '\(expectedMessage)', got '\(error.message)'"
+        )
+      }
     } catch {
-      Issue.record("[\(caseName)] Expected A2UICatalogError, got \(error)")
+      Issue.record("[\(caseName)] Expected A2UICatalogError or A2UIValidationError, got \(error)")
     }
   }
 
@@ -215,6 +277,9 @@ struct CatalogConformanceTests {
     guard UnicodeIdentifierValidator.isValidIdentifier(name) else {
       throw A2UICatalogError("Invalid UAX #31 component identifier: '\(name)'")
     }
+    if let rawMeta = definition["metadata"] {
+      _ = try MetadataValidator.validate(rawMeta, pathPrefix: "components.\(name).metadata")
+    }
     guard let props = definition["properties"]?.objectValue else { return }
     for propName in props.keys where !UnicodeIdentifierValidator.isValidIdentifier(propName) {
       throw A2UICatalogError(
@@ -256,7 +321,10 @@ struct CatalogConformanceTests {
     if let obj = node.objectValue {
       if let ref = obj["$ref"]?.stringValue, !isSupportedV10Ref(ref) {
         throw A2UICatalogError(
-          "Unsupported external $ref '\(ref)' at \(pointer)/$ref: a v1.0 catalog may only reference its own components and functions (#/...) or common_types.json."
+          """
+          Unsupported external $ref '\(ref)' at \(pointer)/$ref: a v1.0 catalog may only \
+          reference its own components and functions (#/...) or common_types.json.
+          """
         )
       }
       for (key, value) in obj {
@@ -309,6 +377,18 @@ struct CatalogConformanceTests {
       allowedNames: allowedFuncNames,
       context: context
     )
+    if A2UIProtocolVersion(rawValue: protocolVersion)?.isAtLeastV10 == true {
+      // The v1.0 caller rule covers every declared function, including one that
+      // `$defs.anyFunction` leaves out, as `fromJson` checks it in the other SDKs.
+      let declaredFunctions = buildCatalogFunctions(
+        rawSchema: rawSchema,
+        allowedNames: nil,
+        context: context
+      )
+      for function in declaredFunctions {
+        try function.api.validateCallerConstraints()
+      }
+    }
     return Catalog(
       id: catalogID,
       protocolVersion: protocolVersion,
@@ -401,10 +481,10 @@ struct CatalogConformanceTests {
     }
     let parents = schemaValue["allowedParents"]?.arrayValue?.compactMap(\.stringValue)
     let children = schemaValue["allowedChildren"]?.arrayValue?.compactMap(\.stringValue)
-    var meta: [String: JSONValue]?
-    if let desc = schemaValue["description"] {
-      meta = ["description": desc]
-    }
+    let meta = try? MetadataValidator.validate(
+      schemaValue["metadata"],
+      pathPrefix: "components.\(name).metadata"
+    )
     return AnyComponentAPI(
       name: name,
       schema: schema,
@@ -477,7 +557,8 @@ struct CatalogConformanceTests {
     if let expectedVersion = expect["protocolVersion"] as? String {
       let normalizedExpected = expectedVersion == "v1.0" ? "1.0" : expectedVersion
       #expect(
-        loaded.resolvedProtocolVersion == normalizedExpected || loaded.resolvedProtocolVersion == expectedVersion,
+        loaded.resolvedProtocolVersion == normalizedExpected
+          || loaded.resolvedProtocolVersion == expectedVersion,
         "[\(caseName)] protocolVersion mismatch"
       )
     }
@@ -492,6 +573,9 @@ struct CatalogConformanceTests {
     }
     if let rawComponents = expect["components"] {
       assertExpectedComponents(rawComponents, catalog: loaded.catalog, caseName: caseName)
+    }
+    if let expCompMeta = expect["componentMetadata"] as? [String: Any] {
+      assertExpectedComponentMetadata(expCompMeta, catalog: loaded.catalog, caseName: caseName)
     }
     if let rawFunctions = expect["functions"] {
       assertExpectedFunctions(rawFunctions, catalog: loaded.catalog, caseName: caseName)
@@ -527,7 +611,10 @@ struct CatalogConformanceTests {
     if let expectedNames = rawExpected as? [String] {
       #expect(
         Set(catalog.components.keys) == Set(expectedNames),
-        "[\(caseName)] Expected component names \(expectedNames), got \(Array(catalog.components.keys))"
+        """
+        [\(caseName)] Expected component names \(expectedNames), \
+        got \(Array(catalog.components.keys))
+        """
       )
       return
     }
@@ -551,16 +638,46 @@ struct CatalogConformanceTests {
     caseName: String
   ) {
     if let expParents = spec["allowedParents"] as? [String] {
-      #expect(comp.allowedParents == expParents, "[\(caseName)] \(comp.name) allowedParents mismatch")
+      #expect(
+        comp.allowedParents == expParents, "[\(caseName)] \(comp.name) allowedParents mismatch")
     }
     if let expChildren = spec["allowedChildren"] as? [String] {
-      #expect(comp.allowedChildren == expChildren, "[\(caseName)] \(comp.name) allowedChildren mismatch")
+      #expect(
+        comp.allowedChildren == expChildren, "[\(caseName)] \(comp.name) allowedChildren mismatch")
     }
     if let expDesc = spec["description"] as? String {
+      let actualDesc =
+        comp.schema.jsonValue["description"]?.stringValue
+        ?? comp.metadata?["description"]?.stringValue
       #expect(
-        comp.metadata?["description"]?.stringValue == expDesc,
+        actualDesc == expDesc,
         "[\(caseName)] \(comp.name) description mismatch"
       )
+    }
+  }
+
+  private func assertExpectedComponentMetadata(
+    _ expectedMetadata: [String: Any],
+    catalog: AnyCatalog,
+    caseName: String
+  ) {
+    for (compName, rawMeta) in expectedMetadata {
+      guard let comp = catalog.components[compName] else {
+        Issue.record("[\(caseName)] Missing component '\(compName)' for componentMetadata check")
+        continue
+      }
+      if rawMeta is NSNull {
+        #expect(comp.metadata == nil, "[\(caseName)] Expected nil metadata for '\(compName)'")
+      } else {
+        let expectedDict = try? MetadataValidator.validate(
+          ConformanceTestHelper.toJSONValue(rawMeta),
+          pathPrefix: "components.\(compName).metadata"
+        )
+        #expect(
+          MetadataValidator.areEqual(comp.metadata, expectedDict),
+          "[\(caseName)] componentMetadata mismatch for '\(compName)'"
+        )
+      }
     }
   }
 
@@ -631,7 +748,9 @@ struct CatalogConformanceTests {
     if let invalidComps = expect["invalidComponents"] as? [[String: Any]] {
       for comp in invalidComps {
         let jsonComp = ConformanceTestHelper.toJSONValue(comp)
-        #expect(throws: (any Error).self, "[\(caseName)] Expected component \(comp) to fail validation") {
+        #expect(
+          throws: (any Error).self, "[\(caseName)] Expected component \(comp) to fail validation"
+        ) {
           try validator.validateComponent(jsonComp)
         }
       }

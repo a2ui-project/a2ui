@@ -46,6 +46,32 @@ class _TestActionFunction extends FunctionImplementation {
   }
 }
 
+const Map<String, Set<String>> _knownKeys = {
+  'case:dispatch_action': {
+    ...caseMetadataKeys,
+    'actionPayload',
+    'dataModel',
+    'expectDataModel',
+    'expectDispatched',
+    'expectError',
+    'metadata',
+    'protocolVersion',
+    'scope',
+    'sourceComponentId',
+    'surfaceId',
+    'userActivation',
+  },
+  'expectDispatched': {
+    'context',
+    'metadata',
+    'name',
+    'sourceComponentId',
+    'surfaceId',
+    'timestampIso8601',
+    'userMessage',
+  },
+};
+
 /// Runs the shared `conformance/core/actions.yaml` suite against
 /// [DataContext] and [SurfaceModel].
 void main() {
@@ -56,11 +82,11 @@ void main() {
   group('conformance core/actions.yaml', () {
     test('suite is not empty', () => expect(cases, isNotEmpty));
 
-    for (final testCase in cases) {
-      test(testCase['name']! as String, () async {
-        await _runCase(testCase);
-      });
-    }
+    runConformanceSuite(
+      cases,
+      _runCase,
+      suite: 'core/actions.yaml',
+    );
   });
 }
 
@@ -68,6 +94,11 @@ Future<void> _runCase(Map<String, Object?> testCase) async {
   final String action = testCase['action'] as String? ?? 'dispatch_action';
   switch (action) {
     case 'dispatch_action':
+      assertKnownKeys(
+        testCase,
+        _knownKeys['case:dispatch_action']!,
+        'case:dispatch_action',
+      );
       await _runDispatchActionCase(testCase);
     default:
       throw StateError('Unsupported action: $action');
@@ -91,7 +122,34 @@ Future<void> _runDispatchActionCase(Map<String, Object?> testCase) async {
       testCase['sourceComponentId'] as String? ?? 'test_component';
   final Object? rawAction =
       testCase['actionPayload'] ?? testCase['action_data'];
-  await _executeActionPayload(surface, context, rawAction, sourceComponentId);
+  final Map<String, Object?>? dispatchMetadata =
+      (testCase['metadata'] as Map?)?.cast<String, Object?>();
+  final expectError = testCase['expectError'] as Map<String, Object?>?;
+  if (expectError != null) {
+    assertKnownKeys(expectError, knownExpectErrorKeys, 'expectError');
+  }
+  if (expectError != null && expectError['category'] == 'ValidationError') {
+    await expectLater(
+      () => _executeActionPayload(
+        surface,
+        context,
+        rawAction,
+        sourceComponentId,
+        metadata: dispatchMetadata,
+      ),
+      throwsA(isA<A2uiValidationError>()),
+    );
+    expect(dispatched, isNull);
+    return;
+  }
+
+  await _executeActionPayload(
+    surface,
+    context,
+    rawAction,
+    sourceComponentId,
+    metadata: dispatchMetadata,
+  );
 
   _assertDispatchedAction(testCase, dispatched);
   _assertDispatchedError(testCase, dispatchedError);
@@ -149,8 +207,9 @@ Future<void> _executeActionPayload(
   SurfaceModel<ComponentApi> surface,
   DataContext context,
   Object? rawAction,
-  String sourceComponentId,
-) async {
+  String sourceComponentId, {
+  Map<String, Object?>? metadata,
+}) async {
   if (rawAction is Map &&
       (rawAction['functionCall'] is Map || context.isFunctionCall(rawAction))) {
     final fc = rawAction['functionCall'] is Map
@@ -184,7 +243,11 @@ Future<void> _executeActionPayload(
       ),
     );
   } else {
-    await surface.dispatchAction(resolvedAction, sourceComponentId);
+    await surface.dispatchAction(
+      resolvedAction,
+      sourceComponentId,
+      metadata: metadata,
+    );
   }
 }
 
@@ -199,6 +262,8 @@ void _assertDispatchedAction(
   final expected = (testCase['expectDispatched'] ?? testCase['expected'])
       as Map<String, Object?>?;
   if (expected == null) return;
+  assertKnownKeys(
+      expected, _knownKeys['expectDispatched']!, 'expectDispatched');
   expect(dispatched, isNotNull);
   expect(dispatched!.name, equals(expected['name']));
   if (expected.containsKey('surfaceId')) {
@@ -215,6 +280,9 @@ void _assertDispatchedAction(
   }
   if (expected.containsKey('userMessage')) {
     expect(dispatched.userMessage, equals(expected['userMessage']));
+  }
+  if (expected.containsKey('metadata')) {
+    expect(dispatched.metadata, equals(expected['metadata']));
   }
 }
 

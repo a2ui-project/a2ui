@@ -262,7 +262,7 @@ class TextField(ComponentBuilderNode):
 
     component: Literal["TextField"] = "TextField"
     label: str | DataBinding | FunctionCall
-    value: Optional[str | DataBinding | FunctionCall] = None
+    value: str | DataBinding | FunctionCall
     placeholder: Optional[str | DataBinding | FunctionCall] = None
     variant: Optional[TextFieldVariant] = "shortText"
     weight: Optional[float] = None

@@ -475,7 +475,6 @@ void main() {
                 'result': {'path': '/r2'},
               },
             },
-            'message': 'Fallback 2',
           },
           {
             'condition': {
@@ -484,7 +483,6 @@ void main() {
                 'result': {'path': '/r3'},
               },
             },
-            'message': 'Fallback 3',
           },
           {
             'condition': {
@@ -493,7 +491,6 @@ void main() {
                 'result': {'path': '/r4'},
               },
             },
-            'message': 'Fallback 4',
           },
           {
             'condition': {
@@ -503,6 +500,19 @@ void main() {
               },
             },
             'message': 'Fallback 5',
+          },
+          {
+            'condition': {
+              'call': 'checkResult',
+              'args': {
+                'result': {'path': '/r2'},
+              },
+            },
+            'message': 'Explicit rule override',
+          },
+          {
+            'condition': {'path': '/r2'},
+            'message': 'Path fallback ignored when message present',
           },
         ],
       });
@@ -515,6 +525,8 @@ void main() {
       expect(binder.resolvedProps.value['validationErrors'], [
         'Function error message',
         'Fallback 5',
+        'Explicit rule override',
+        'Function error message',
       ]);
       expect(binder.resolvedProps.value['validationResults'], [
         const ValidationResult(
@@ -538,6 +550,18 @@ void main() {
         const ValidationResult(
           valid: false,
           message: 'Fallback 5',
+          severity: 'error',
+        ),
+        const ValidationResult(
+          valid: false,
+          message: 'Explicit rule override',
+          code: 'ERR_CUSTOM',
+          severity: 'error',
+        ),
+        const ValidationResult(
+          valid: false,
+          message: 'Function error message',
+          code: 'ERR_CUSTOM',
           severity: 'error',
         ),
       ]);
@@ -946,6 +970,104 @@ void main() {
       expect(actions, hasLength(1));
       expect(actions.single.name, 'bound_submit');
       expect(actions.single.context, {'from': 'binding'});
+    });
+
+    group('inline actions', () {
+      Map<String, dynamic> bind(
+        Map<String, Schema> properties,
+        Map<String, dynamic> props,
+      ) {
+        final comp = ComponentModel('c1', 'Select', props);
+        surface.componentsModel.addComponent(comp);
+        final binder = GenericBinder(
+          ComponentContext(surface, comp),
+          Schema.object(properties: properties),
+        );
+        return binder.resolvedProps.value;
+      }
+
+      test('keeps top-level event and functionCall strings as literals', () {
+        final Map<String, dynamic> props = bind(
+          {
+            'label': Schema.string(),
+            'event': Schema.string(),
+            'functionCall': Schema.string(),
+          },
+          {'label': 'Pick', 'event': 'picked', 'functionCall': 'pick'},
+        );
+
+        expect(props['label'], 'Pick');
+        expect(props['event'], 'picked');
+        expect(props['functionCall'], 'pick');
+      });
+
+      test('does not bind a component whose only property is event', () {
+        final Map<String, dynamic> props = bind(
+          {'event': Schema.string()},
+          {'event': 'picked'},
+        );
+
+        expect(props['event'], 'picked');
+      });
+
+      test('keeps list items that declare event as plain maps', () {
+        final Map<String, dynamic> props = bind(
+          {
+            'options': Schema.list(
+              items: Schema.object(
+                properties: {
+                  'label': Schema.string(),
+                  'event': Schema.string(),
+                },
+              ),
+            ),
+          },
+          {
+            'options': [
+              {'label': 'Red', 'event': 'red'},
+              {'label': 'Blue', 'event': 'blue'},
+            ],
+          },
+        );
+
+        expect(props['options'], [
+          {'label': 'Red', 'event': 'red'},
+          {'label': 'Blue', 'event': 'blue'},
+        ]);
+      });
+
+      test('binds a schema whose only property is event or functionCall',
+          () async {
+        final actions = <A2uiRendererAction>[];
+        surface.onAction.subscribe(actions.add);
+
+        final Map<String, dynamic> props = bind(
+          {
+            'onPick': Schema.object(
+              properties: {
+                'event': Schema.object(properties: {'name': Schema.string()}),
+              },
+            ),
+            'onRun': Schema.object(
+              properties: {'functionCall': Schema.object()},
+            ),
+          },
+          {
+            'onPick': {
+              'event': {'name': 'picked'},
+            },
+            'onRun': {
+              'functionCall': {'call': 'capitalize'},
+            },
+          },
+        );
+
+        expect(props['onRun'], isA<Future<void> Function()>());
+        final Object? onPick = props['onPick'];
+        expect(onPick, isA<Future<void> Function()>());
+        await (onPick as Future<void> Function())();
+        expect(actions.single.name, 'picked');
+      });
     });
   });
 }

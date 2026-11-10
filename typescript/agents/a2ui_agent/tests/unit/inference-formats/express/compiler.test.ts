@@ -336,16 +336,16 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
   describe('3. Specific error cases (§Wave 2a item 3)', () => {
     it('throws ExpressSyntaxError on lexer error', () => {
       const compiler = new ExpressCompiler([simplifiedCatalog], '1.0');
-      expect(() => compiler.compile('root = @Text("Hello")')).toThrow(ExpressSyntaxError);
+      expect(() => compiler.compile('root = ^Text("Hello")')).toThrow(ExpressSyntaxError);
       try {
-        compiler.compile('root = @Text("Hello")');
+        compiler.compile('root = ^Text("Hello")');
       } catch (err: unknown) {
         expect(err).toBeInstanceOf(ExpressSyntaxError);
         const synErr = err as ExpressSyntaxError;
         expect(synErr.isLexer).toBe(true);
         expect(synErr.line).toBe(1);
         expect(synErr.column).toBe(7);
-        expect(synErr.message).toContain("token recognition error at: '@'");
+        expect(synErr.message).toContain("token recognition error at: '^'");
       }
     });
 
@@ -460,9 +460,9 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
 
     it('does not resolve a name inherited from Object.prototype as a variable', () => {
       const compiler = new ExpressCompiler([basicCatalogV10], '1.0');
-      expect(createSurfaceComponents(compiler.compile('root = Text(toString)'))).toEqual([
-        {id: 'root', component: 'Text', text: 'toString'},
-      ]);
+      expect(() => compiler.compile('root = Text(toString)')).toThrow(
+        "Variable 'toString' is not assigned in surface.",
+      );
     });
 
     it('does not bind checks to a map literal shaped like a data binding', () => {
@@ -833,6 +833,14 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       expect(() => new ExpressCompiler(basicCatalogV09, '1.0')).toThrow(A2uiCatalogError);
     });
 
+    it('names a per-call version in a system function error', () => {
+      const compiler = new ExpressCompiler(basicCatalogV09);
+      const dsl = 'root = List(_template($/items, itemRow))\nitemRow = Text(@index())';
+      expect(() => compiler.compile(dsl, 's', true, 'v0.9.1')).toThrow(
+        /Unknown system function '@index' in A2UI v0\.9\.1\. System functions: none\./,
+      );
+    });
+
     it('rejects a per-call v1.0 version for a v0.9 catalog', () => {
       const compiler = new ExpressCompiler(basicCatalogV09);
       expect(() => compiler.compile('root = Text("Hi")', 's', true, '1.0')).toThrow(
@@ -1183,7 +1191,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
     it('decompiles against a catalog defined in code', () => {
       const codeDefined = codeDefinedBasicCatalogV10 as unknown as CatalogApi;
       const messages = new ExpressCompiler([codeDefined], '1.0').compile(columnSource);
-      const dsl = new ExpressDecompiler([codeDefined], '1.0').decompile(messages[0]);
+      const dsl = new ExpressDecompiler([codeDefined], '1.0').decompile(messages);
       expect(new ExpressCompiler([codeDefined], '1.0').compile(dsl)).toEqual(messages);
     });
 
@@ -1226,6 +1234,71 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       const messages = new ExpressCompiler([catalog], '1.0').compile('root = Label("hi")');
       expect(createSurfaceComponents(messages)).toEqual([
         {id: 'root', component: 'Label', text: 'hi'},
+      ]);
+    });
+  });
+
+  describe('v1.0 extensions= keyword argument on surface(...) and components', () => {
+    it('compiles extensions= on surface(...) and component calls into metadata.extensions', () => {
+      const compiler = new ExpressCompiler([basicCatalogV10], '1.0');
+      const messages = compiler.compile(
+        'surface("s1", extensions={agui: {sessionId: "abc"}})\n' +
+          'root = Text("Hello", extensions={trace: {spanId: "1"}})',
+      );
+      expect(messages).toEqual([
+        {
+          version: '1.0',
+          createSurface: {
+            surfaceId: 's1',
+            catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+            metadata: {extensions: {agui: {sessionId: 'abc'}}},
+            components: [
+              {
+                id: 'root',
+                component: 'Text',
+                text: 'Hello',
+                metadata: {extensions: {trace: {spanId: '1'}}},
+              },
+            ],
+          },
+        },
+      ]);
+    });
+
+    it('rejects non-UAX 31 extension keys on surface(...) and component calls', () => {
+      const compiler = new ExpressCompiler([basicCatalogV10], '1.0');
+      expect(() =>
+        compiler.compile('surface("s1", extensions={"bad-key": 1})\nroot = Text("Hi")'),
+      ).toThrow(ExpressValidationError);
+      expect(() => compiler.compile('root = Text("Hi", extensions={"bad-key": 1})')).toThrow(
+        ExpressValidationError,
+      );
+    });
+
+    it('treats extensions= as a component property when declared in the component schema', () => {
+      const customExtCatalog = catalogFromTestDocument({
+        $schema: 'https://json-schema.org/draft/2020-12/schema',
+        catalogId: 'test/ext_prop',
+        protocolVersion: '1.0',
+        components: {
+          FilePicker: {
+            type: 'object',
+            properties: {
+              component: {const: 'FilePicker'},
+              extensions: {type: 'array', items: {type: 'string'}},
+            },
+            required: ['component', 'extensions'],
+          },
+        },
+      });
+      const compiler = new ExpressCompiler([customExtCatalog], '1.0');
+      const messages = compiler.compile('root = FilePicker(extensions=[".png", ".jpg"])');
+      expect(createSurfaceComponents(messages)).toEqual([
+        {
+          id: 'root',
+          component: 'FilePicker',
+          extensions: ['.png', '.jpg'],
+        },
       ]);
     });
   });

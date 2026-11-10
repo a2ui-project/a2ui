@@ -54,6 +54,13 @@ export class A2uiSurface extends LitElement {
   private unsubscribe?: () => void;
 
   /**
+   * Returns the currently resolved root component node for this surface, if any.
+   */
+  get rootNode(): ComponentNode<LitComponentApi> | undefined {
+    return this._rootNode;
+  }
+
+  /**
    * Renders into the element's direct children (Light DOM) instead of a ShadowRoot
    * so host stylesheets can target components inside the surface.
    */
