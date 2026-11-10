@@ -131,6 +131,8 @@ a2ui-mcp-app {
 
 ---
 
+<span id="samples"></span>
+
 ## Quick start: run the Kanban showcase
 
 The fastest way to see an MCP App working inside an A2UI v1.0 surface is to run the Kanban board showcase ([`samples/community/mcp/a2ui-kanban/`](https://github.com/a2ui-project/a2ui/blob/main/samples/community/mcp/a2ui-kanban/README.md)). It connects three local processes: an MCP server that provides a drag-and-drop board widget (`ui://kanban/board`), a Python agent, and a Lit chat app built with `basicCatalog` and `mcpCatalog`.

@@ -587,6 +587,8 @@ A2UI publishes a basic catalog with 18 general-purpose components and 14 functio
 
 You do not have to use the basic catalog. You can adopt it as is, restyle its components to match your design system, combine it with domain-specific catalogs on the same surface, or replace it altogether.
 
+<span id="a2ui-catalog-negotiation"></span>
+
 ## Catalog negotiation and multi-catalog surfaces
 
 When a session starts, the renderer sends `supportedCatalogIds` to list the catalogs it supports. When creating a surface, the agent picks from that list (or sends no UI if none match).
