@@ -348,14 +348,22 @@ class _RelatedItems extends StatelessWidget {
       children: [
         Text('Related items', style: Theme.of(context).textTheme.titleSmall),
         Wrap(
-          spacing: 8,
+          spacing: 12,
           runSpacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             for (final (String text, String url) in links)
-              ActionChip(
-                label: Text(text),
-                tooltip: url,
-                onPressed: () => openUrl(url),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                spacing: 2,
+                children: [
+                  ActionChip(
+                    label: Text(text),
+                    tooltip: url,
+                    onPressed: () => openUrl(url),
+                  ),
+                  CopyLinkButton(url),
+                ],
               ),
           ],
         ),

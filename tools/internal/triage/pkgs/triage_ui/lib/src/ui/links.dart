@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../github/triage_service.dart';
@@ -29,7 +30,37 @@ String pullRequestUrl(int number) => '$_repositoryUrl/pull/$number';
 /// Opens [url] in the browser.
 Future<void> openUrl(String url) => launchUrl(Uri.parse(url));
 
-/// Text that opens [url] in the browser when clicked.
+/// A small button that copies [url] to the clipboard, for the right of a
+/// link.
+class CopyLinkButton extends StatelessWidget {
+  const CopyLinkButton(this.url, {super.key});
+
+  final String url;
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+    icon: const Icon(Icons.copy, size: 14),
+    tooltip: 'Copy link',
+    visualDensity: VisualDensity.compact,
+    padding: EdgeInsets.zero,
+    constraints: const BoxConstraints.tightFor(width: 24, height: 24),
+    onPressed: () async {
+      await Clipboard.setData(ClipboardData(text: url));
+      if (!context.mounted) return;
+      ScaffoldMessenger.maybeOf(context)
+        ?..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('Copied $url'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+    },
+  );
+}
+
+/// Text that opens [url] in the browser when clicked, followed by a
+/// [CopyLinkButton].
 class LinkText extends StatelessWidget {
   const LinkText(this.text, {super.key, required this.url, this.style});
 
@@ -40,24 +71,32 @@ class LinkText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    return Tooltip(
-      message: url,
-      child: InkWell(
-        onTap: () => openUrl(url),
-        child: Text(
-          text,
-          style: (style ?? theme.textTheme.bodyMedium)?.copyWith(
-            color: theme.colorScheme.primary,
-            decoration: TextDecoration.underline,
-            decorationColor: theme.colorScheme.primary,
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      spacing: 4,
+      children: [
+        Flexible(
+          child: Tooltip(
+            message: url,
+            child: InkWell(
+              onTap: () => openUrl(url),
+              child: Text(
+                text,
+                style: (style ?? theme.textTheme.bodyMedium)?.copyWith(
+                  color: theme.colorScheme.primary,
+                  decoration: TextDecoration.underline,
+                  decorationColor: theme.colorScheme.primary,
+                ),
+              ),
+            ),
           ),
         ),
-      ),
+        CopyLinkButton(url),
+      ],
     );
   }
 }
 
-/// How long ago [time] was, such as "3 days ago".
 /// How long ago [time] was, as an age: "less than a day", "1 day" or
 /// "32 days".
 String age(DateTime time, {DateTime? now}) {
@@ -69,6 +108,7 @@ String age(DateTime time, {DateTime? now}) {
   };
 }
 
+/// How long ago [time] was, such as "3 days ago".
 String ago(DateTime time, {DateTime? now}) {
   final int days = (now ?? DateTime.now()).difference(time).inDays;
   return switch (days) {

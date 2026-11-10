@@ -516,6 +516,33 @@ void main() {
     expect(controller.selected!.number, 11);
   });
 
+  testWidgets('copies links with the button to their right', (tester) async {
+    await pumpApp(tester);
+
+    Finder copyNextTo(Finder link) => find.descendant(
+      of: find.ancestor(of: link, matching: find.byType(Row)).first,
+      matching: find.byTooltip('Copy link'),
+    );
+
+    await tester.tap(
+      copyNextTo(find.widgetWithText(ActionChip, 'Fixed by PR #20')),
+    );
+    await tester.pump();
+    expect(clipboard.last, 'https://github.com/a2ui-project/a2ui/pull/20');
+    expect(
+      find.text('Copied https://github.com/a2ui-project/a2ui/pull/20'),
+      findsOneWidget,
+    );
+
+    await tester.tap(
+      copyNextTo(
+        find.text('Issue #10: Flutter renderer crashes on an empty Row'),
+      ),
+    );
+    await tester.pump();
+    expect(clipboard.last, 'https://github.com/a2ui-project/a2ui/issues/10');
+  });
+
   testWidgets('starts with nothing selected, and a second click on an item '
       'deselects it', (tester) async {
     await pumpApp(tester, selectFirst: false);
