@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.11.0 (2026-11-10)
+
 - **BREAKING CHANGE**: (v1_0) `validate_payload` and `RendererState.apply`
   check each `callRendererFunction` against the catalogs instead of running
   it, and reject one the renderer would refuse: a surface that doesn't exist
