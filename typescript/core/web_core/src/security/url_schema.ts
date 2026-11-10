@@ -21,6 +21,41 @@ import type {UrlContext, UrlContextAnnotation} from './url_security_policy.js';
 /** The catalog JSON Schema keyword that marks a property as a URL. */
 export const URL_CONTEXT_KEYWORD = 'x-a2ui-url-context';
 
+declare const URL_BRAND: unique symbol;
+
+/**
+ * A string that a property marked as a URL holds. Any string can be assigned
+ * to it; the brand only tells `ResolveA2uiProp` that the resolved value is
+ * checked by the URL security policy and so may be `undefined`.
+ */
+export type UrlString = string & {readonly [URL_BRAND]?: 'url'};
+
+/** Replaces the string branch of a value type with {@link UrlString}. */
+export type UrlValue<V> = V extends string ? UrlString : V;
+
+/**
+ * The type of a schema marked as a URL: it validates as `T` does, and its
+ * string branch is a {@link UrlString}, so the resolved prop is typed
+ * `string | undefined`.
+ */
+export type UrlSchema<T extends z.ZodTypeAny> = z.ZodType<
+  UrlValue<z.output<T>>,
+  T['_def'],
+  UrlValue<z.input<T>>
+>;
+
+/**
+ * Whether a prop type is that of a property marked as a URL (its string
+ * branch is a {@link UrlString}).
+ */
+export type IsUrlProp<T> = 0 extends 1 & T
+  ? false // `any`, as the v1.0 `FunctionCall` schema infers.
+  : [Extract<NonNullable<T>, string>] extends [never]
+    ? false
+    : typeof URL_BRAND extends keyof Extract<NonNullable<T>, string>
+      ? true
+      : false;
+
 /** How a Zod schema carries its URL context in `_def`. */
 interface UrlContextDef {
   a2uiUrlContext?: UrlContextAnnotation;
@@ -52,9 +87,19 @@ export function isUrlContextAnnotation(value: unknown): value is UrlContextAnnot
  */
 export function markUrlContext<T extends z.ZodTypeAny>(
   schema: T,
+  context: UrlContext,
+  options?: {inDocument?: boolean},
+): UrlSchema<T>;
+export function markUrlContext<T extends z.ZodTypeAny>(
+  schema: T,
+  context: UrlContextAnnotation,
+  options?: {inDocument?: boolean},
+): z.ZodTypeAny;
+export function markUrlContext<T extends z.ZodTypeAny>(
+  schema: T,
   context: UrlContextAnnotation,
   options: {inDocument?: boolean} = {},
-): T {
+): z.ZodTypeAny {
   const def = schema._def as UrlContextDef;
   def.a2uiUrlContext = context;
   if (options.inDocument === false) def.a2uiUrlContextInDocument = false;
@@ -117,7 +162,11 @@ function keepRefOnDescribe<T extends z.ZodTypeAny>(schema: T): T {
   return schema;
 }
 
-function urlSchema<T extends z.ZodTypeAny>(context: UrlContext, base: T, description?: string): T {
+function urlSchema<T extends z.ZodTypeAny>(
+  context: UrlContext,
+  base: T,
+  description?: string,
+): UrlSchema<T> {
   const copy = base.describe(
     description === undefined
       ? (base.description as string)
@@ -157,7 +206,7 @@ function urlSchema<T extends z.ZodTypeAny>(context: UrlContext, base: T, descrip
 export function mediaUrl<T extends z.ZodTypeAny = typeof DynamicStringSchema>(
   description?: string,
   base?: T,
-): T {
+): UrlSchema<T> {
   return urlSchema('media', base ?? (DynamicStringSchema as unknown as T), description);
 }
 
@@ -172,7 +221,7 @@ export function mediaUrl<T extends z.ZodTypeAny = typeof DynamicStringSchema>(
 export function navigationUrl<T extends z.ZodTypeAny = typeof DynamicStringSchema>(
   description?: string,
   base?: T,
-): T {
+): UrlSchema<T> {
   return urlSchema('navigation', base ?? (DynamicStringSchema as unknown as T), description);
 }
 
@@ -187,6 +236,6 @@ export function navigationUrl<T extends z.ZodTypeAny = typeof DynamicStringSchem
 export function iframeUrl<T extends z.ZodTypeAny = typeof DynamicStringSchema>(
   description?: string,
   base?: T,
-): T {
+): UrlSchema<T> {
   return urlSchema('iframe', base ?? (DynamicStringSchema as unknown as T), description);
 }

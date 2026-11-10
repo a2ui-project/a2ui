@@ -39,8 +39,10 @@ import {
   type ComponentApi,
   type UrlCheckInfo,
   type UrlContext,
+  type ResolveA2uiProps,
   type UrlSecurityPolicy,
 } from '../index.js';
+import {ImageApi as v1ImageApi} from '../catalogs/basic/v1/components/basic_components.js';
 import {basicCatalog as v09BasicCatalog} from '../v0_9/basic_catalog/catalog.js';
 import {executeOpenUrl} from '../common/basic_functions.js';
 
@@ -116,6 +118,26 @@ function bind(surface: SurfaceModel<any>, componentId: string) {
 
 const flush = () => new Promise(resolve => setTimeout(resolve, 0));
 
+function surfaceWithPolicy(
+  catalog: Catalog<any>,
+  urlSecurityPolicy: UrlSecurityPolicy,
+  openUrlHandler?: (url: string, info: UrlCheckInfo) => void,
+) {
+  return new SurfaceModel(
+    's',
+    catalog,
+    undefined,
+    undefined,
+    false,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    {urlSecurityPolicy, openUrlHandler},
+  );
+}
+
 describe('URL security policy plumbing', () => {
   it('gives every surface the processor policy and handler', () => {
     const policy = new RecordingPolicy();
@@ -181,7 +203,8 @@ describe('URL security policy plumbing', () => {
     await flush();
     assert.strictEqual(warnings.length, 1);
     assert.strictEqual(warnings[0].code, 'URL_BLOCKED');
-    assert.strictEqual(warnings[0]['url'], 'https://evil.example/a.png');
+    assert.strictEqual(warnings[0]['redactedUrl'], 'https://evil.example');
+    assert.strictEqual(warnings[0]['url'], undefined);
     assert.strictEqual(warnings[0]['componentId'], 'root');
     assert.strictEqual(warnings[0].surfaceId, 's1');
   });
@@ -421,18 +444,26 @@ describe('URL property resolution', () => {
   });
 
   it('works on a standalone surface built without a processor', () => {
-    const surface = new SurfaceModel('s', customCatalog);
-    surface.componentsModel.addComponent(
-      new ComponentModel(
-        'c',
-        'ProductCard',
-        {imageUrl: 'https://evil.example/a.png'},
+    const withComponent = (surface: SurfaceModel<any>) => {
+      surface.componentsModel.addComponent(
+        new ComponentModel(
+          'c',
+          'ProductCard',
+          {imageUrl: 'https://evil.example/a.png'},
+          customCatalog,
+        ),
+      );
+      return surface;
+    };
+    const permissive = withComponent(new SurfaceModel('s', customCatalog));
+    assert.strictEqual(bind(permissive, 'c').snapshot.imageUrl, 'https://evil.example/a.png');
+    const strict = withComponent(
+      surfaceWithPolicy(
         customCatalog,
+        new AllowlistUrlSecurityPolicy({media: ['cdn.example.com']}),
       ),
     );
-    assert.strictEqual(bind(surface, 'c').snapshot.imageUrl, 'https://evil.example/a.png');
-    surface.urlSecurityPolicy = new AllowlistUrlSecurityPolicy({media: ['cdn.example.com']});
-    assert.strictEqual(bind(surface, 'c').snapshot.imageUrl, undefined);
+    assert.strictEqual(bind(strict, 'c').snapshot.imageUrl, undefined);
   });
 });
 
@@ -524,8 +555,10 @@ describe('openUrl and the URL security policy', () => {
 
   it('throws URL_BLOCKED from executeOpenUrl', () => {
     withWindow(opened => {
-      const surface = new SurfaceModel('s', basicCatalog);
-      surface.urlSecurityPolicy = new AllowlistUrlSecurityPolicy({navigation: []});
+      const surface = surfaceWithPolicy(
+        basicCatalog,
+        new AllowlistUrlSecurityPolicy({navigation: []}),
+      );
       assert.throws(
         () => executeOpenUrl('https://example.com/', new DataContext(surface, '/')),
         (err: unknown) => err instanceof A2uiExpressionError && err.code === 'URL_BLOCKED',
@@ -545,11 +578,77 @@ describe('openUrl and the URL security policy', () => {
       const url = context.sanitizeUrl(args.url, 'navigation', {functionName: 'share'});
       if (url !== undefined) shared.push(url);
     });
-    const surface = new SurfaceModel('s', basicCatalog);
-    surface.urlSecurityPolicy = new AllowlistUrlSecurityPolicy({navigation: ['*.example.com']});
+    const surface = surfaceWithPolicy(
+      basicCatalog,
+      new AllowlistUrlSecurityPolicy({navigation: ['*.example.com']}),
+    );
     const ctx = new DataContext(surface, '/');
     share.execute({url: 'https://a.example.com/'}, ctx);
     share.execute({url: 'https://evil.example/'}, ctx);
     assert.deepStrictEqual(shared, ['https://a.example.com/']);
+  });
+});
+
+describe('URL security follow-ups', () => {
+  it('reports only a redacted form of a blocked URL', async () => {
+    const surface = surfaceWithPolicy(basicCatalog, new AllowlistUrlSecurityPolicy({media: []}));
+    const warnings: A2uiWarningPayload[] = [];
+    surface.onWarning.subscribe(w => {
+      warnings.push(w);
+    });
+    const cases: Array<[string, UrlContext, string]> = [
+      ['https://evil.example:8443/c?d=SECRET#SECRET', 'media', 'https://evil.example:8443'],
+      ['https://user:SECRET@evil.example/x', 'media', 'https://evil.example'],
+      ['data:image/svg+xml;base64,SECRET', 'media', 'data:image/svg+xml'],
+      ['data:,SECRET', 'media', 'data:'],
+      ['javascript:alert("SECRET")', 'navigation', 'javascript:'],
+      ['/SECRET/path', 'iframe', 'relative'],
+      ['https:SECRET.example', 'media', 'https:'],
+      ['mailto:SECRET@example.com', 'media', 'mailto:'],
+    ];
+    for (const [url, context] of cases) surface.sanitizeUrl(url, context);
+    await flush();
+    assert.deepStrictEqual(
+      warnings.map(w => w['redactedUrl']),
+      cases.map(c => c[2]),
+    );
+    assert.ok(!JSON.stringify(warnings).includes('SECRET'), JSON.stringify(warnings));
+  });
+
+  it('resolves a relative URL against globalThis.location before the open-URL handler', () => {
+    const g = globalThis as {location?: unknown};
+    const original = g.location;
+    const handled: string[] = [];
+    const surface = surfaceWithPolicy(basicCatalog, new PermissiveUrlSecurityPolicy(), url => {
+      handled.push(url);
+    });
+    const ctx = new DataContext(surface, '/');
+    try {
+      g.location = {href: 'https://host.example/app/page'};
+      executeOpenUrl('../help?x=1', ctx);
+      executeOpenUrl('mailto:help@example.com', ctx);
+      g.location = undefined;
+      executeOpenUrl('/help', ctx);
+    } finally {
+      g.location = original;
+    }
+    assert.deepStrictEqual(handled, [
+      'https://host.example/help?x=1',
+      'mailto:help@example.com',
+      '/help',
+    ]);
+  });
+
+  it('types URL props as string | undefined and other props as before', () => {
+    type Props = ResolveA2uiProps<z.infer<typeof ProductCardApi.schema>>;
+    const url: Props['imageUrl'] = undefined;
+    const title: Props['title'] = 'x';
+    // @ts-expect-error A required prop that is not a URL still resolves to a string.
+    const required: ResolveA2uiProps<{label: string}>['label'] = undefined;
+    type ImageProps = ResolveA2uiProps<z.infer<typeof v1ImageApi.schema>>;
+    const imageUrl: ImageProps['url'] = undefined;
+    // Payloads still take plain strings.
+    const payload: z.input<typeof ProductCardApi.schema> = {imageUrl: 'https://cdn.example.com/a'};
+    assert.ok([url, title, required, imageUrl, payload]);
   });
 });

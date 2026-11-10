@@ -644,9 +644,9 @@ export function executeOpenUrl(urlInput: unknown, context?: DataContext): void {
 
   const handler = context?.surface?.openUrlHandler;
   if (handler) {
-    void Promise.resolve(handler(allowed, {...info, surfaceId: context?.surface?.id})).catch(
-      () => {},
-    );
+    void Promise.resolve(
+      handler(resolveAgainstLocation(allowed), {...info, surfaceId: context?.surface?.id}),
+    ).catch(() => {});
     return;
   }
 
@@ -662,6 +662,21 @@ export function executeOpenUrl(urlInput: unknown, context?: DataContext): void {
     throw new A2uiExpressionError(`Invalid URL specified: ${allowed}`, 'openUrl', e);
   }
   window.open(url.href, '_blank', 'noopener,noreferrer');
+}
+
+/**
+ * Resolves a URL against `globalThis.location` where it exists, as a browser
+ * resolves a link, and returns it unchanged elsewhere or if it can't be
+ * resolved.
+ */
+function resolveAgainstLocation(url: string): string {
+  const base = (globalThis as {location?: {href?: unknown}}).location?.href;
+  if (typeof base !== 'string' || !base) return url;
+  try {
+    return new URL(url, base).href;
+  } catch {
+    return url;
+  }
 }
 
 // ---------------------------------------------------------------------------

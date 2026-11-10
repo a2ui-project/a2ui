@@ -15,7 +15,12 @@
  */
 
 import {zodToJsonSchema} from 'zod-to-json-schema';
-import {SurfaceModel, ActionListener, type OpenUrlHandler} from '../state/surface-model.js';
+import {
+  SurfaceModel,
+  ActionListener,
+  type OpenUrlHandler,
+  type SurfaceModelOptions,
+} from '../state/surface-model.js';
 import {BASIC_CATALOG_IDS} from '../security/basic_catalog_url_properties.js';
 import {
   applyUrlSecurityPolicy,
@@ -235,8 +240,8 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   private readonly hasOutboundListener: boolean;
   /** The URL security policy of the surfaces this processor creates. */
   private readonly urlSecurityPolicy: UrlSecurityPolicy;
-  /** The open-URL handler of the surfaces this processor creates. */
-  private readonly openUrlHandler?: OpenUrlHandler;
+  /** The URL security options of the surfaces this processor creates. */
+  private readonly surfaceOptions: SurfaceModelOptions;
   /**
    * What the last check of each surface's components found, under a config
    * that defers the reference and reachability checks, with the number of
@@ -272,12 +277,15 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     this.errorHandler = options?.errorHandler;
     this.reportErrorsOnly = options?.reportErrorsOnly ?? false;
     this.urlSecurityPolicy = options?.urlSecurityPolicy ?? DEFAULT_URL_SECURITY_POLICY;
-    this.openUrlHandler = options?.openUrlHandler;
+    this.surfaceOptions = {
+      urlSecurityPolicy: this.urlSecurityPolicy,
+      openUrlHandler: options?.openUrlHandler,
+    };
     this.rpc = new RpcHandler({
       catalogs: this.registeredCatalogs,
       outboundListener: options?.outboundListener,
       defaultTimeoutMs: options?.defaultTimeoutMs,
-      configureSurface: surface => this.configureUrlSecurity(surface),
+      surfaceOptions: this.surfaceOptions,
     });
     this.hasOutboundListener = Boolean(options?.outboundListener);
     this.validationConfig = options?.validationConfig
@@ -980,8 +988,8 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       undefined,
       undefined,
       this.maxAgentCallCacheEntries,
+      this.surfaceOptions,
     );
-    this.configureUrlSecurity(fallbackSurface);
     return new DataContext(fallbackSurface, '/');
   }
 
@@ -1040,16 +1048,6 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
 
     this.withValidationConfig(context, () => this.applyStateOperation(op));
     return null;
-  }
-
-  /**
-   * Gives a surface this processor's URL security policy and open-URL handler.
-   *
-   * @param surface The surface to configure.
-   */
-  private configureUrlSecurity(surface: SurfaceModel<any, any>): void {
-    surface.urlSecurityPolicy = this.urlSecurityPolicy;
-    surface.openUrlHandler = this.openUrlHandler;
   }
 
   /**
@@ -1177,6 +1175,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       op.metadata,
       surfaceVersion,
       this.maxAgentCallCacheEntries,
+      this.surfaceOptions,
     );
     // From v1.0, a function the renderer does not implement runs on the agent.
     // Without an outbound listener there is no way to reach it, so such calls
@@ -1194,7 +1193,6 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
               ),
             );
     }
-    this.configureUrlSecurity(surface);
     this.model.addSurface(surface);
     if (blockedIconUrl !== undefined) {
       // Reports the blocked URL on the new surface's warning stream.

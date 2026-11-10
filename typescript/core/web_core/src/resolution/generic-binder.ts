@@ -38,7 +38,7 @@ import {isAtLeastVersion} from '../common/semver.js';
 import {findFailedArgument, isThenable, settleDeep} from '../common/settle_deep.js';
 import {effect, getValue, peekValue} from '../reactivity/signals.js';
 import {BUILT_IN_URL_PROPERTIES} from '../security/basic_catalog_url_properties.js';
-import {urlContextOf} from '../security/url_schema.js';
+import {urlContextOf, type IsUrlProp} from '../security/url_schema.js';
 import type {
   UrlContext,
   UrlContextAnnotation,
@@ -418,11 +418,17 @@ export interface ResolvedChildRef {
 /**
  * Maps raw Zod inferred types to their resolved runtime equivalents.
  *
+ * A property marked as a URL (see `mediaUrl()`) resolves to `string | undefined`,
+ * since the URL security policy may block its value.
+ *
  * For example, an `Action` object becomes a callable `() => Promise<void>` function. The
  * binder walks lists and objects, so an action, binding or child list inside them resolves
  * too, as at the top level.
  */
-export type ResolveA2uiProp<T> = [NonNullable<T>] extends [ActionLike]
+export type ResolveA2uiProp<T> =
+  IsUrlProp<T> extends true ? string | undefined : ResolveNonUrlProp<T>;
+
+type ResolveNonUrlProp<T> = [NonNullable<T>] extends [ActionLike]
   ? HasStringIndex<NonNullable<T>> extends true
     ? Exclude<T, DynamicTypes>
     : ((options?: ActionDispatchOptions) => Promise<void>) | Extract<T, undefined>

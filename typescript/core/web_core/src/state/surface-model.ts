@@ -34,6 +34,7 @@ import {resolveSurfaceCatalog} from './resolve-surface-catalog.js';
 import {
   applyUrlSecurityPolicy,
   DEFAULT_URL_SECURITY_POLICY,
+  redactUrl,
   type UrlCheckInfo,
   type UrlContext,
   type UrlSecurityPolicy,
@@ -45,12 +46,26 @@ import {
  * or route links themselves.
  *
  * It only ever receives URLs the policy allowed (and possibly rewrote), so it
- * is for presentation, not for security decisions.
+ * is for presentation, not for security decisions. Where `globalThis.location`
+ * exists (in browsers), a relative URL is resolved against it first, so the
+ * handler gets an absolute URL; elsewhere the URL is passed as the policy
+ * returned it.
  *
- * @param url The allowed URL, as the policy returned it.
+ * @param url The allowed URL.
  * @param info Where the URL comes from, such as `{functionName: 'openUrl'}`.
  */
 export type OpenUrlHandler = (url: string, info: UrlCheckInfo) => void | Promise<void>;
+
+/** Options of a {@link SurfaceModel}, set once at construction. */
+export interface SurfaceModelOptions {
+  /**
+   * Decides which URLs components and functions on the surface may load,
+   * open, or embed. Defaults to `PermissiveUrlSecurityPolicy`.
+   */
+  readonly urlSecurityPolicy?: UrlSecurityPolicy;
+  /** Opens URLs that `openUrl` was allowed to open, in place of `window.open`. */
+  readonly openUrlHandler?: OpenUrlHandler;
+}
 
 /** The most blocked URLs a surface remembers to report each only once. */
 const MAX_REPORTED_BLOCKED_URLS = 256;
@@ -241,22 +256,21 @@ export class SurfaceModel<
 
   /**
    * Decides which URLs components and functions on this surface may load,
-   * open, or embed. `MessageProcessor` sets it from
-   * `MessageProcessorOptions.urlSecurityPolicy`; a surface created without a
-   * processor uses `PermissiveUrlSecurityPolicy` until one is set.
+   * open, or embed. Set once at construction: `MessageProcessor` passes
+   * `MessageProcessorOptions.urlSecurityPolicy`, and a surface created without
+   * one uses `PermissiveUrlSecurityPolicy`.
    *
    * Components and functions don't read it directly: they call
    * `sanitizeUrl` on the context they receive, and the resolver filters
    * properties annotated as URLs.
    */
-  urlSecurityPolicy: UrlSecurityPolicy = DEFAULT_URL_SECURITY_POLICY;
+  readonly urlSecurityPolicy: UrlSecurityPolicy;
 
   /**
-   * Opens URLs that `openUrl` (or another function) was allowed to open, in
-   * place of `window.open`. `MessageProcessor` sets it from
-   * `MessageProcessorOptions.openUrlHandler`.
+   * Opens URLs that `openUrl` was allowed to open, in place of `window.open`.
+   * Set once at construction from `MessageProcessorOptions.openUrlHandler`.
    */
-  openUrlHandler?: OpenUrlHandler;
+  readonly openUrlHandler?: OpenUrlHandler;
 
   /** Keys of blocked URLs already reported, to warn about each only once. */
   private readonly reportedBlockedUrls = new Set<string>();
@@ -357,6 +371,7 @@ export class SurfaceModel<
    *   explicitly.
    * @param maxAgentCallCacheEntries The most settled agent function answers
    *   to cache (256 by default). See {@link maxAgentCallCacheEntries}.
+   * @param options The surface's URL security policy and open-URL handler.
    * @throws {RangeError} If `maxAgentCallCacheEntries` isn't a positive integer.
    */
   constructor(
@@ -370,6 +385,7 @@ export class SurfaceModel<
     metadata?: A2uiMetadata,
     protocolVersion?: string,
     maxAgentCallCacheEntries?: number,
+    options?: SurfaceModelOptions,
   );
   /**
    * Initializes a new `SurfaceModel` with the pre-1.0 argument order.
@@ -404,7 +420,10 @@ export class SurfaceModel<
     metadata?: A2uiMetadata,
     protocolVersion?: string,
     maxAgentCallCacheEntries?: number,
+    options?: SurfaceModelOptions,
   ) {
+    this.urlSecurityPolicy = options?.urlSecurityPolicy ?? DEFAULT_URL_SECURITY_POLICY;
+    this.openUrlHandler = options?.openUrlHandler;
     if (maxAgentCallCacheEntries !== undefined) {
       assertMaxAgentCallCacheEntries(maxAgentCallCacheEntries);
       this._maxAgentCallCacheEntries = maxAgentCallCacheEntries;
@@ -842,7 +861,10 @@ export class SurfaceModel<
    * {@link urlSecurityPolicy}.
    *
    * A blocked URL is reported once as a `URL_BLOCKED` warning on
-   * {@link onWarning}, carrying the URL, its context, and `info`.
+   * {@link onWarning}, carrying a redacted form of the URL (`redactedUrl`:
+   * scheme and host, the media type of a `data:` URL, or only the scheme),
+   * its context, and `info`. The full URL is never reported, since its path
+   * or query may hold the data being exfiltrated.
    *
    * Components and functions usually call `sanitizeUrl` on their
    * `ComponentContext` or `DataContext`, which fill in `info`.
@@ -878,11 +900,14 @@ export class SurfaceModel<
       : info.functionName
         ? `function '${info.functionName}'`
         : 'a component';
+    // The full URL may carry the data being exfiltrated in its path or query,
+    // so only a redacted form leaves the surface.
+    const redactedUrl = redactUrl(url);
     void this.dispatchWarning({
       ...info,
       code: 'URL_BLOCKED',
-      message: `The URL security policy blocked a ${context} URL in ${source}.`,
-      url,
+      message: `The URL security policy blocked a ${context} URL (${redactedUrl}) in ${source}.`,
+      redactedUrl,
       context,
     });
   }

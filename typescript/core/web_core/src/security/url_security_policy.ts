@@ -268,3 +268,34 @@ export function applyUrlSecurityPolicy(
   if (typeof result !== 'string') return undefined;
   return result === url ? result : checkUrlBaseline(result, context, allowSvg);
 }
+
+/**
+ * Returns a form of a URL that is safe to log: `scheme://host[:port]` for a
+ * URL with a host, `data:<media type>` for a `data:` URL, `relative` for a
+ * relative URL, and `<scheme>:` otherwise. The path, query, fragment, user
+ * info, and `data:` payload, any of which may carry exfiltrated data, are
+ * dropped.
+ *
+ * Package-internal.
+ *
+ * @param url The URL to redact.
+ */
+export function redactUrl(url: string): string {
+  const scheme = SCHEME.exec(url)?.[1]?.toLowerCase();
+  if (scheme === undefined) return 'relative';
+  if (scheme === 'data') {
+    const mediaType = /^data:([a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+)/i.exec(url)?.[1];
+    return mediaType ? `data:${mediaType.toLowerCase()}` : 'data:';
+  }
+  // Without `//` (as in `https:evil.example`) the parser would still find a
+  // host, but the baseline treats such a URL as having none.
+  if ((scheme === 'http' || scheme === 'https') && HTTP_WITH_AUTHORITY.test(url)) {
+    try {
+      const parsed = new URL(url);
+      if (parsed.host) return `${parsed.protocol}//${parsed.host}`;
+    } catch {
+      // Falls through to the scheme alone.
+    }
+  }
+  return `${scheme}:`;
+}

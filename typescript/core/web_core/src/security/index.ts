@@ -34,4 +34,12 @@ export {
   type AllowlistUrlSecurityPolicyOptions,
   type UrlRewriteHook,
 } from './allowlist_url_security_policy.js';
-export {URL_CONTEXT_KEYWORD, iframeUrl, mediaUrl, navigationUrl} from './url_schema.js';
+export {
+  URL_CONTEXT_KEYWORD,
+  iframeUrl,
+  mediaUrl,
+  navigationUrl,
+  type UrlSchema,
+  type UrlString,
+  type UrlValue,
+} from './url_schema.js';
