@@ -438,6 +438,73 @@ def test_update_only_surface_uses_the_first_catalog_with_the_type() -> None:
     ]
 
 
+def test_a_named_catalog_the_agent_lacks_never_borrows_another_schema() -> None:
+    other_id = "https://example.com/other/catalog.json"
+    card = {
+        "id": "card",
+        "component": "ProductCard",
+        "imageUrl": "https://attacker.example/i.png",
+        "title": "https://attacker.example/t.png",
+    }
+    image = {"id": "img", "component": "Image", "url": "https://attacker.example/a"}
+    # The product catalog's marks don't apply to a surface of another catalog.
+    result = check_payload_urls(
+        [_PRODUCT], [_create(other_id), _update(card)], policy=_CDN_ONLY
+    )
+    assert result.blocked == []
+    # The policy's `url_properties` for that catalog ID still apply.
+    policy = AllowlistUrlSecurityPolicy(
+        media=["cdn.example.com"],
+        url_properties={other_id: {"ProductCard": {"title": "media"}}},
+    )
+    result = check_payload_urls(
+        [_PRODUCT], [_create(other_id), _update(card)], policy=policy
+    )
+    assert [(b.catalog_id, b.property_name) for b in result.blocked] == [
+        (other_id, "title")
+    ]
+    # So does the built-in list of a basic catalog the agent doesn't hold.
+    result = check_payload_urls(
+        [_PRODUCT], [_create(_V10_BASIC_ID), _update(image)], policy=_CDN_ONLY
+    )
+    assert [(b.catalog_id, b.property_name) for b in result.blocked] == [
+        (_V10_BASIC_ID, "url")
+    ]
+
+
+def test_data_updates_past_the_maximum_list_index_are_ignored() -> None:
+    result = check_payload_urls(
+        [_BASIC_V10],
+        [
+            _create(_V10_BASIC_ID, dataModel={"items": []}),
+            _data("/items/10000/url", "https://attacker.example/edge"),
+            _data("/items/1000000000/url", "https://attacker.example/huge"),
+            _data("/fresh/1000000000", "https://attacker.example/huge"),
+            _update(
+                {
+                    "id": "edge",
+                    "component": "Image",
+                    "url": {"@path": "/items/10000/url"},
+                },
+                {
+                    "id": "huge",
+                    "component": "Image",
+                    "url": {"@path": "/items/1000000000/url"},
+                },
+                {
+                    "id": "fresh",
+                    "component": "Image",
+                    "url": {"@path": "/fresh/1000000000"},
+                },
+            ),
+        ],
+        policy=_CDN_ONLY,
+    )
+    # The renderer rejects the updates past the maximum index, so the
+    # bindings to them resolve to nothing there either.
+    assert [b.component_id for b in result.blocked] == ["edge"]
+
+
 def test_unknown_messages_and_components_pass_through() -> None:
     payload = [
         _v10({"deleteSurface": {"surfaceId": "s"}}),

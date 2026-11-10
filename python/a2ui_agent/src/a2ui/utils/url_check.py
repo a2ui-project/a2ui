@@ -37,6 +37,10 @@ from a2ui.core import (
 
 _Path = tuple[str | int, ...]
 
+# The renderer's data model rejects a list index above this (`MAX_ARRAY_INDEX`
+# in its data model), so an update that uses one never reaches the surface.
+_MAX_ARRAY_INDEX = 10_000
+
 
 @dataclass(frozen=True)
 class BlockedPayloadUrl:
@@ -137,7 +141,10 @@ def check_payload_urls(
 
     Each component is checked against its surface's catalog, from the
     payload's `createSurface`, or, for a surface the payload only updates, the
-    first catalog that defines the component's type.
+    first catalog that defines the component's type. When `catalogs` doesn't
+    hold the catalog `createSurface` names, no other catalog's schema is used:
+    only the properties that the built-in list or the policy's
+    `url_properties` name for that catalog ID are checked.
 
     Args:
         catalogs: The active catalogs.
@@ -259,11 +266,26 @@ def check_payload_urls(
             continue
         surface = surfaces.get(entry.surface_id) or _PayloadSurface()
         catalog = _find_catalog(catalogs, surface.catalog_id, component_type)
-        if catalog is None:
+        schema: Any
+        defs: Mapping[str, Any]
+        if catalog is not None:
+            component_catalog_id = catalog.id
+            schema = catalog.resolved_component_schema(component_type)
+            defs = _validation_defs(catalog)
+        elif surface.catalog_id is not None and all(
+            c.id != surface.catalog_id for c in catalogs
+        ):
+            # The surface's catalog isn't one the agent holds. Its schema is
+            # unknown, so only the properties the built-in list or the
+            # policy's `url_properties` name for that catalog are checked.
+            component_catalog_id, schema, defs = surface.catalog_id, None, {}
+        else:
             continue
         component_id = entry.component.get("id")
         overrides = _url_property_overrides(
-            catalog.id, component_type, getattr(active_policy, "url_properties", None)
+            component_catalog_id,
+            component_type,
+            getattr(active_policy, "url_properties", None),
         )
 
         def visit(
@@ -273,7 +295,7 @@ def check_payload_urls(
             *,
             entry: _PayloadComponent = entry,
             surface: _PayloadSurface = surface,
-            catalog_id: str = catalog.id,
+            component_catalog_id: str = component_catalog_id,
             component_type: str = component_type,
             component_id: Any = component_id,
         ) -> None:
@@ -282,7 +304,7 @@ def check_payload_urls(
                 entry.message_index,
                 entry.surface_id,
                 _property_name_of(path),
-                catalog_id=catalog_id,
+                catalog_id=component_catalog_id,
                 component_type=component_type,
                 component_id=component_id if isinstance(component_id, str) else None,
                 data_path=data_path,
@@ -295,8 +317,8 @@ def check_payload_urls(
             check(resolved, context, found, entry.base_path + path)
 
         _walk_component(
-            catalog,
-            catalog.resolved_component_schema(component_type),
+            defs,
+            schema,
             entry.component,
             overrides,
             visit,
@@ -368,10 +390,18 @@ def _collect_components(
 def _find_catalog(
     catalogs: Sequence[CatalogApi], catalog_id: str | None, component_type: str
 ) -> CatalogApi | None:
+    """Returns the catalog whose schema describes a component.
+
+    A surface that names its catalog uses that catalog only; another catalog
+    that happens to define the same type may mark different properties as
+    URLs. Without a catalog ID (the surface was created by an earlier
+    payload), the first catalog defining the type is used.
+    """
     if catalog_id is not None:
         for catalog in catalogs:
             if catalog.id == catalog_id:
                 return catalog if catalog.get_component(component_type) else None
+        return None
     for catalog in catalogs:
         if catalog.get_component(component_type) is not None:
             return catalog
@@ -405,7 +435,7 @@ def _url_property_overrides(
 
 
 def _walk_component(
-    catalog: CatalogApi,
+    defs: Mapping[str, Any],
     schema: Any,
     component: dict[str, Any],
     overrides: tuple[
@@ -414,7 +444,6 @@ def _walk_component(
     visit: Callable[[Any, UrlContext, _Path], None],
 ) -> None:
     """Calls `visit` with each value of the component that holds a URL."""
-    defs = _validation_defs(catalog)
     built_in, host = overrides
     visited: set[_Path] = set()
 
@@ -580,11 +609,15 @@ def _apply_data_update(root: Any, pointer: str, value: Any, has_value: bool) -> 
     """Applies an `updateDataModel` to a copy of the data model.
 
     A missing container on the path is created as a list when the next
-    segment indexes into it, and as an object otherwise.
+    segment indexes into it, and as an object otherwise. An update with a
+    list index above `_MAX_ARRAY_INDEX` is ignored, as the renderer rejects
+    it, which also keeps a payload from growing a list to any size it names.
     """
     segments = _pointer_segments(pointer)
     if not segments:
         return value if has_value else None
+    if any(_is_index(s) and int(s) > _MAX_ARRAY_INDEX for s in segments):
+        return root
     result = copy.deepcopy(root) if isinstance(root, (dict, list)) else {}
     current = result
     for i, segment in enumerate(segments[:-1]):
