@@ -1,5 +1,53 @@
 # [a2ui_core](https://pub.dev/packages/a2ui_core) Changelog
 
+## Unreleased
+
+- **Breaking:** `openUrl` checks its URL with the shared URL baseline as a
+  `navigation` URL. A URL with a space, control character or backslash
+  anywhere (including surrounding whitespace, which used to be trimmed), or
+  an `http(s)` URL without `//` and a host, such as `https:evil.example`, is
+  blocked and fails with an `A2uiUrlBlockedError` (code `URL_BLOCKED`), which
+  a binder reports with that code instead of `EXPRESSION_ERROR`. A relative
+  URL is no longer rejected: it reaches the open-URL handler as a relative
+  `Uri`. To migrate, send URLs without surrounding whitespace, and resolve or
+  refuse relative URLs in the handler if the host can't open them
+  ([#4045](https://github.com/a2ui-project/a2ui/issues/4045)).
+- Add a URL security policy
+  ([proposal](https://github.com/a2ui-project/a2ui/blob/main/specification/proposals/url_security_policy.md))
+  that decides which URLs components and functions may load, open, or embed
+  ([#4045](https://github.com/a2ui-project/a2ui/issues/4045)).
+  - Export `UrlSecurityPolicy`, `UrlContext` (`media`, `navigation`,
+    `iframe`), `UrlCheckInfo`, `PermissiveUrlSecurityPolicy` (the default),
+    and `AllowlistUrlSecurityPolicy` (per-context host lists with `*.`
+    subdomain wildcards, relative URL opt-in, rewrite hooks, and a
+    `urlProperties` map for catalogs the host can't edit). Every policy runs
+    behind a built-in baseline that blocks script and other unlisted schemes,
+    `data:` URLs other than raster image, audio and video media, and URLs a
+    parser could read as a different host.
+  - Add `urlSecurityPolicy` and `openUrlHandler` to `MessageProcessor`, which
+    passes both to every surface it creates (`SurfaceModel.urlSecurityPolicy`
+    and `SurfaceModel.openUrlHandler`) and to `RpcHandler` for calls that
+    target no surface. `openUrl` hands allowed URLs to `openUrlHandler` when
+    it is set, and otherwise to the callback the basic catalog was built
+    with.
+  - Add `sanitizeUrl(url, context, info: ...)` to `SurfaceModel`,
+    `DataContext`, and `ComponentContext` for URLs a component or function
+    builds itself, and `urlSanitizer` and `openUrlHandler` to the
+    `DataContext` constructor. A blocked URL is reported once as a
+    `URL_BLOCKED` warning on `SurfaceModel.onWarning`, whose new
+    `A2uiWarning.details` carry a redacted form of the URL (`redactedUrl`)
+    and never the full URL.
+  - Add `UrlSchema.media()`, `UrlSchema.navigation()`, and
+    `UrlSchema.iframe()`, which mark a catalog property with
+    `"x-a2ui-url-context"` (`urlContextKeyword`); `Catalog.toJson()` keeps the
+    annotation. `GenericBinder` (and so `NodeResolver`) passes every resolved
+    value of a marked property, including data-bound, `formatString`, and
+    nested values, through the policy, and a blocked value resolves to null.
+    The basic catalogs' `Image.url`, `Video.url`, `Video.posterUrl`, and
+    `AudioPlayer.url`, and the v0.9 basic theme's `iconUrl`, are checked as
+    `media` without changing the published catalog documents. A blocked theme
+    `iconUrl` is removed from the theme, and a rewritten one replaces it.
+
 ## 0.6.0
 
 - Rename `Catalog.toLegacyInlineCatalog()` to `Catalog.toV09InlineCatalog()`.

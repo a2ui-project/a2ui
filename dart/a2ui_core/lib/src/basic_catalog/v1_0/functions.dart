@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import '../../core/validation_result.dart';
+import '../../security/url_security_policy.dart';
 import '../function_support.dart';
 import '../locale_formatting.dart';
 

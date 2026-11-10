@@ -19,6 +19,7 @@ import '../core/catalog.dart';
 import '../core/validation_result.dart';
 import '../primitives/cancellation.dart';
 import '../resolution/data_context.dart';
+import '../security/url_security_policy.dart';
 import 'function_support.dart';
 import 'locale_formatting.dart';
 import 'v0_9/catalog.g.dart';
@@ -26,7 +27,7 @@ import 'v0_9/functions.dart';
 import 'v1_0/catalog.g.dart';
 import 'v1_0/functions.dart';
 
-export 'function_support.dart' show OpenUrlCallback;
+export '../security/url_security_policy.dart' show OpenUrlCallback;
 
 /// The A2UI basic catalog, with evaluable functions, for each protocol
 /// version.
@@ -44,9 +45,11 @@ export 'function_support.dart' show OpenUrlCallback;
 /// `or` and `not`.
 ///
 /// Formatting follows the BCP 47 `locale` tag, `en-US` by default; an
-/// unknown tag falls back to `en-US`. `openUrl` passes validated URLs to
-/// the `openUrl` callback and fails without one, which a binder reports as
-/// an `EXECUTION_ERROR`.
+/// unknown tag falls back to `en-US`. `openUrl` checks its URL against the
+/// surface's URL security policy as `navigation`, and passes an allowed URL
+/// to the processor's `openUrlHandler` or, without one, to the `openUrl`
+/// callback. A blocked URL fails with `URL_BLOCKED`; a missing handler fails,
+/// which a binder reports as an `EXECUTION_ERROR`.
 abstract final class BasicCatalog {
   /// The id of the v0.9 basic catalog.
   static const String v0_9Id =

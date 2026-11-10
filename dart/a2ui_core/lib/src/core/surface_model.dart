@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import 'dart:async';
+import 'dart:convert';
 
 import '../primitives/errors.dart';
 import '../primitives/event_notifier.dart';
@@ -20,6 +21,7 @@ import '../primitives/reactivity.dart';
 import '../primitives/semver.dart';
 import '../primitives/uax31.dart';
 import '../resolution/data_context.dart' show disposeSurfaceAgentCalls;
+import '../security/url_security_policy.dart';
 import 'catalog.dart';
 import 'common.dart';
 import 'component_model.dart';
@@ -42,11 +44,18 @@ class A2uiWarning {
   /// it.
   final String? surfaceId;
 
+  /// Further machine-readable detail, if any. A `URL_BLOCKED` warning carries
+  /// `redactedUrl` (the scheme and host, a `data:` media type, or the scheme
+  /// alone, never the full URL), `context`, and the [UrlCheckInfo] fields
+  /// that are known.
+  final Map<String, Object?>? details;
+
   const A2uiWarning({
     required this.code,
     required this.message,
     this.path,
     this.surfaceId,
+    this.details,
   });
 
   @override
@@ -155,6 +164,25 @@ class SurfaceModel<T extends ComponentApi> {
   /// still waiting for an answer don't count.
   final int maxAgentCallCacheEntries;
 
+  /// Decides which URLs components and functions on this surface may load,
+  /// open, or embed. Set once at construction: `MessageProcessor` passes its
+  /// `urlSecurityPolicy`, and a surface created without one uses
+  /// [PermissiveUrlSecurityPolicy].
+  ///
+  /// Components and functions don't read it directly: they call
+  /// `sanitizeUrl` on the context they receive, and the resolver filters
+  /// properties annotated as URLs.
+  final UrlSecurityPolicy urlSecurityPolicy;
+
+  /// Opens the URLs `openUrl` was allowed to open, in place of the callback
+  /// the basic catalog was built with. Set once at construction from
+  /// `MessageProcessor`'s `openUrlHandler`.
+  final OpenUrlCallback? openUrlHandler;
+
+  /// Keys of blocked URLs already reported, oldest first, so each is
+  /// reported once.
+  final Set<String> _reportedBlockedUrls = <String>{};
+
   final _onAction = EventNotifier<A2uiRendererAction>();
   final _onError = EventNotifier<A2uiRendererError>();
   final _onWarning = EventNotifier<A2uiWarning>();
@@ -193,6 +221,9 @@ class SurfaceModel<T extends ComponentApi> {
   /// when a catalog's [Catalog.protocolVersion] is incompatible with
   /// [protocolVersion]: one surface cannot mix protocol versions. Throws
   /// [ArgumentError] when [maxAgentCallCacheEntries] is less than 1.
+  ///
+  /// [urlSecurityPolicy] and [openUrlHandler] apply to every component and
+  /// function on the surface; see [sanitizeUrl].
   SurfaceModel(
     this.id, {
     this.defaultCatalog,
@@ -204,6 +235,8 @@ class SurfaceModel<T extends ComponentApi> {
     Map<String, Object?>? metadata,
     AgentFunctionCaller? callAgentFunction,
     this.maxAgentCallCacheEntries = 256,
+    this.urlSecurityPolicy = defaultUrlSecurityPolicy,
+    this.openUrlHandler,
   })  : _callAgentFunction = callAgentFunction,
         availableCatalogs = Map.unmodifiable(
           _indexCatalogs(
@@ -446,13 +479,81 @@ class SurfaceModel<T extends ComponentApi> {
       message: warning.message,
       path: warning.path,
       surfaceId: id,
+      details: warning.details,
     );
     scheduleMicrotask(() => _onWarning.emit(stamped));
   }
 
+  /// Checks [url] against the built-in baseline and [urlSecurityPolicy],
+  /// and returns the URL to use (possibly rewritten), or null when it is
+  /// blocked.
+  ///
+  /// A blocked URL is reported once as a `URL_BLOCKED` warning on
+  /// [onWarning], whose [A2uiWarning.details] carry a redacted form of the
+  /// URL (`redactedUrl`), its `context`, and the known [info] fields. The
+  /// full URL is never reported, since its path or query may hold the data
+  /// being exfiltrated.
+  ///
+  /// Components and functions usually call `sanitizeUrl` on their
+  /// `ComponentContext` or `DataContext`, which fill in [info]. This surface
+  /// fills in its own ID.
+  String? sanitizeUrl(String url, UrlContext context, {UrlCheckInfo? info}) {
+    final UrlCheckInfo fullInfo =
+        (info ?? const UrlCheckInfo()).merge(UrlCheckInfo(surfaceId: id));
+    final String? result = applyUrlSecurityPolicy(
+      urlSecurityPolicy,
+      url,
+      context,
+      info: fullInfo,
+    );
+    if (result == null) _reportBlockedUrl(url, context, fullInfo);
+    return result;
+  }
+
+  void _reportBlockedUrl(String url, UrlContext context, UrlCheckInfo info) {
+    if (_disposed) return;
+    final String key = jsonEncode([
+      url,
+      context.jsonValue,
+      info.componentId,
+      info.propertyName,
+      info.functionName,
+    ]);
+    if (!_reportedBlockedUrls.add(key)) return;
+    if (_reportedBlockedUrls.length > _maxReportedBlockedUrls) {
+      // Forgets the oldest report; a set iterates in insertion order.
+      _reportedBlockedUrls.remove(_reportedBlockedUrls.first);
+    }
+    final source = info.propertyName != null
+        ? "property '${info.propertyName}'"
+            "${info.componentId != null ? " of '${info.componentId}'" : ''}"
+        : info.functionName != null
+            ? "function '${info.functionName}'"
+            : 'a component';
+    // The full URL may carry the data being exfiltrated in its path or
+    // query, so only a redacted form leaves the surface.
+    final String redactedUrl = redactUrl(url);
+    dispatchWarning(
+      A2uiWarning(
+        code: 'URL_BLOCKED',
+        message: 'The URL security policy blocked a ${context.jsonValue} URL '
+            '($redactedUrl) in $source.',
+        details: {
+          ...info.toJson(),
+          'redactedUrl': redactedUrl,
+          'context': context.jsonValue,
+        },
+      ),
+    );
+  }
+
+  /// The most blocked URLs a surface remembers, to report each only once.
+  static const int _maxReportedBlockedUrls = 256;
+
   /// Disposes of the surface and its resources.
   void dispose() {
     _disposed = true;
+    _reportedBlockedUrls.clear();
     disposeSurfaceAgentCalls(this);
     dataModel.dispose();
     componentsModel.dispose();

@@ -26,6 +26,7 @@ import '../core/validation_result.dart';
 import '../primitives/errors.dart';
 import '../primitives/protocol_version.dart';
 import '../primitives/reactivity.dart';
+import '../security/url_security_policy.dart';
 import '../validation/component_graph.dart' show maxFunctionCallArgs;
 import '../validation/schema_resolution.dart';
 import 'validation_result_coercion.dart';
@@ -105,6 +106,12 @@ class DataContext {
   final _AgentCallCache _agentCalls;
   final String path;
   final A2uiProtocolVersion? protocolVersion;
+  final UrlSanitizer? _urlSanitizer;
+
+  /// Opens the URLs `openUrl` was allowed to open, in place of the callback
+  /// the basic catalog was built with. A context bound to a surface takes
+  /// the surface's [SurfaceModel.openUrlHandler].
+  final OpenUrlCallback? openUrlHandler;
 
   /// The context this one was derived from, or null for a root context.
   final DataContext? parent;
@@ -146,6 +153,10 @@ class DataContext {
   /// chain of contexts sharing a root, when a data binding names a path that
   /// does not exist; it defaults to [parent]'s reporter. A context with a
   /// [parent] also shares its pending agent calls.
+  ///
+  /// [urlSanitizer] checks the URLs [sanitizeUrl] is given, and
+  /// [openUrlHandler] opens the URLs `openUrl` allows; both default to
+  /// [parent]'s.
   DataContext(
     this.dataModel,
     FunctionInvoker invoke,
@@ -158,7 +169,11 @@ class DataContext {
     MissingDataReporter? onMissingData,
     this.isUserActivated = false,
     AgentFunctionCaller? callAgentFunction,
+    UrlSanitizer? urlSanitizer,
+    OpenUrlCallback? openUrlHandler,
   })  : _invoke = invoke,
+        _urlSanitizer = urlSanitizer ?? parent?._urlSanitizer,
+        openUrlHandler = openUrlHandler ?? parent?.openUrlHandler,
         _onError = onError,
         _invokerForCatalog = invokerForCatalog,
         _explicitIndex = index,
@@ -177,11 +192,14 @@ class DataContext {
     required this.isUserActivated,
     required AgentFunctionCaller? callAgentFunction,
     required _AgentCallCache agentCalls,
+    required UrlSanitizer? urlSanitizer,
+    required this.openUrlHandler,
     this.parent,
     int? index,
     MissingDataReporter? onMissingData,
     Set<String>? warnedPaths,
-  })  : _onError = onError,
+  })  : _urlSanitizer = urlSanitizer,
+        _onError = onError,
         _invokerForCatalog = invokerForCatalog,
         _callAgentFunction = callAgentFunction,
         _agentCalls = agentCalls,
@@ -219,6 +237,35 @@ class DataContext {
   /// Alias for [atLeastV10] indicating whether this context uses `@`-prefixed
   /// directives (`@path`, `@call`, `@index`, and `@@` escaping).
   bool get usesDirectives => atLeastV10;
+
+  /// Checks a URL that a function or component is about to open, load, or
+  /// embed against the URL security policy, and returns the URL to use
+  /// (possibly rewritten), or null when it is blocked.
+  ///
+  /// Function implementations call it on the [DataContext] they receive. A
+  /// context bound to a surface applies the surface's policy and reports a
+  /// blocked URL as a `URL_BLOCKED` warning; a context built without a
+  /// `urlSanitizer` applies [PermissiveUrlSecurityPolicy].
+  ///
+  /// ```dart
+  /// final String? url = context.sanitizeUrl(
+  ///   args['url'] as String,
+  ///   UrlContext.navigation,
+  ///   info: const UrlCheckInfo(functionName: 'share'),
+  /// );
+  /// if (url != null) share(url);
+  /// ```
+  String? sanitizeUrl(String url, UrlContext context, {UrlCheckInfo? info}) {
+    final UrlSanitizer? sanitizer = _urlSanitizer;
+    return sanitizer == null
+        ? applyUrlSecurityPolicy(
+            defaultUrlSecurityPolicy,
+            url,
+            context,
+            info: info,
+          )
+        : sanitizer(url, context, info: info);
+  }
 
   /// Returns a data-binding map for [path] using the key required by the
   /// active protocol version (`{'@path': path}` in v1.0+, `{'path': path}` in
@@ -850,6 +897,9 @@ class DataContext {
     if (onError == null) return;
     onError(
       switch (error) {
+        // A blocked URL keeps its own code, so a host can tell it apart from
+        // a function that failed.
+        _ExecutionFailure(error: final A2uiUrlBlockedError cause) => cause,
         _ExecutionFailure(error: final Object cause) => A2uiExpressionError(
             "Function '$name' failed: "
             '${cause is A2uiError ? cause.message : cause}',
@@ -1076,6 +1126,8 @@ class DataContext {
       isUserActivated: isUserActivated,
       callAgentFunction: null,
       agentCalls: _agentCalls,
+      urlSanitizer: _urlSanitizer,
+      openUrlHandler: openUrlHandler,
       parent: parent,
       index: _explicitIndex,
       onMissingData: _onMissingData,
@@ -1506,6 +1558,8 @@ class DataContext {
         isUserActivated: true,
         callAgentFunction: _callAgentFunction,
         agentCalls: _agentCalls,
+        urlSanitizer: _urlSanitizer,
+        openUrlHandler: openUrlHandler,
         parent: parent,
         index: _explicitIndex,
         onMissingData: _onMissingData,
@@ -1526,6 +1580,8 @@ class DataContext {
       isUserActivated: isUserActivated,
       callAgentFunction: _callAgentFunction,
       agentCalls: _agentCalls,
+      urlSanitizer: _urlSanitizer,
+      openUrlHandler: openUrlHandler,
       parent: this,
       index: index,
     );
@@ -1887,6 +1943,8 @@ DataContext dataContextWithoutAgentCalls(DataContext context) =>
       isUserActivated: context.isUserActivated,
       callAgentFunction: null,
       agentCalls: _AgentCallCache(),
+      urlSanitizer: context._urlSanitizer,
+      openUrlHandler: context.openUrlHandler,
       parent: context.parent,
       index: context._explicitIndex,
       onMissingData: context._onMissingData,
@@ -1925,6 +1983,8 @@ DataContext createSurfaceDataContext(
         defaultCatalogId: surface.defaultCatalog?.id,
         maxEntries: surface.maxAgentCallCacheEntries,
       ),
+      urlSanitizer: surface.sanitizeUrl,
+      openUrlHandler: surface.openUrlHandler,
       parent: parentDataContext,
       index: index,
       onMissingData: onMissingData ??

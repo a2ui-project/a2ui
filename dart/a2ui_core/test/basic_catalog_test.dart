@@ -942,17 +942,34 @@ void main() {
       expect(opened, [Uri.parse('https://example.com/a')]);
     });
 
-    test('rejects disallowed and relative URLs', () {
+    test('rejects URLs the baseline blocks with URL_BLOCKED', () {
       final opened = <Uri>[];
       final _RendererCatalog catalog = BasicCatalog.v0_9(openUrl: opened.add);
-      for (final url in ['javascript:alert(1)', 'file:///etc/passwd', 'a/b']) {
+      for (final url in [
+        'javascript:alert(1)',
+        'file:///etc/passwd',
+        'https:evil.example',
+        ' https://example.com',
+        '//evil.example/page',
+      ]) {
         expect(
           () => _call(catalog, 'openUrl', {'url': url}),
-          throwsA(isA<A2uiExpressionError>()),
+          throwsA(
+            isA<A2uiUrlBlockedError>()
+                .having((e) => e.code, 'code', 'URL_BLOCKED')
+                .having((e) => e.message, 'message', isNot(contains(url))),
+          ),
           reason: url,
         );
       }
       expect(opened, isEmpty);
+    });
+
+    test('passes a relative URL as the policy returned it', () {
+      final opened = <Uri>[];
+      final _RendererCatalog catalog = BasicCatalog.v1_0(openUrl: opened.add);
+      _call(catalog, 'openUrl', {'url': '/help'});
+      expect(opened, [Uri.parse('/help')]);
     });
 
     test('ignores an empty URL', () {

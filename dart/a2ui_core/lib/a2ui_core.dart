@@ -88,6 +88,17 @@ export 'src/resolution/generic_binder.dart';
 export 'src/resolution/node_resolver.dart';
 export 'src/resolution/resolved_binding.dart';
 export 'src/rpc/rpc_handler.dart';
+export 'src/security/allowlist_url_security_policy.dart';
+export 'src/security/url_schema.dart' show UrlSchema, urlContextKeyword;
+export 'src/security/url_security_policy.dart'
+    show
+        OpenUrlCallback,
+        PermissiveUrlSecurityPolicy,
+        UrlCheckInfo,
+        UrlContext,
+        UrlPropertyMap,
+        UrlSanitizer,
+        UrlSecurityPolicy;
 // Payload validation.
 export 'src/validation/component_graph.dart'
     show checkDuplicateComponentIds, checkPathsAndRecursion;
