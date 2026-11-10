@@ -516,9 +516,12 @@ void main() {
     expect(controller.selected!.number, 11);
   });
 
-  testWidgets('says which related items are closed', (tester) async {
-    // The suggestion names issue #1234 as related.
-    github.items[1234] = itemNode(1234, state: 'CLOSED', labels: []);
+  testWidgets('says which related items are closed or merged', (tester) async {
+    // The suggestion names issue #1234 as related, and the issue is linked
+    // to PR #20, which this test merges.
+    github
+      ..items[1234] = itemNode(1234, state: 'CLOSED', labels: [])
+      ..items[20]!['state'] = 'MERGED';
     await pumpApp(tester);
     // Loads #1234, which is not in the queue.
     await settle(
@@ -530,7 +533,10 @@ void main() {
       find.widgetWithText(ActionChip, 'Issue #1234 (closed)'),
       findsOneWidget,
     );
-    expect(find.widgetWithText(ActionChip, 'Fixed by PR #20'), findsOneWidget);
+    expect(
+      find.widgetWithText(ActionChip, 'Fixed by PR #20 (merged)'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('copies links with the button to their right', (tester) async {

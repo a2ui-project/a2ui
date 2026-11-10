@@ -66,6 +66,7 @@ final class TriageItem {
     required this.url,
     required this.isPullRequest,
     required this.isOpen,
+    this.isMerged = false,
     required this.createdAt,
     required this.updatedAt,
     this.author,
@@ -121,6 +122,7 @@ final class TriageItem {
       url: node['url']! as String,
       isPullRequest: isPullRequest,
       isOpen: node['state'] == 'OPEN',
+      isMerged: node['state'] == 'MERGED',
       createdAt: dateOf(node['createdAt'])!,
       updatedAt: dateOf(node['updatedAt'])!,
       author: loginOf(node['author']),
@@ -158,6 +160,9 @@ final class TriageItem {
   final String url;
   final bool isPullRequest;
   final bool isOpen;
+
+  /// Whether the item is a merged pull request.
+  final bool isMerged;
   final DateTime createdAt;
 
   /// When anything about the item last changed on GitHub.

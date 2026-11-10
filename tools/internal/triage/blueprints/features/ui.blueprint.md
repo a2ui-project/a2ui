@@ -68,7 +68,7 @@ The `summary` and the `suggestion` are shown as text. The triager can change the
 2. The triager checks the labels, people and milestone to add in a dropdown: the repository's labels, the people who can be assigned, and its open milestones. An item has at most one milestone, so checking one in its dropdown unchecks the other. The dropdown lists the checked options first. A dropdown with more than 7 options has a search field at the top.
 3. The fields that remove things list what the item has, its labels, assignees and milestone, each with a checkbox. A checked one is grayed out. A field is not shown when the item has nothing of its kind.
 
-Labels have their colors from the repository, as on GitHub. The related issues and PRs are links, and the link to a closed or merged item says "(closed)". Every link, and every button that opens a link, has a small **Copy link** button on its right.
+Labels have their colors from the repository, as on GitHub. The related issues and PRs are links, and the link to a closed item says "(closed)", or "(merged)" for a merged PR. Every link, and every button that opens a link, has a small **Copy link** button on its right.
 
 The buttons below the tabs:
 

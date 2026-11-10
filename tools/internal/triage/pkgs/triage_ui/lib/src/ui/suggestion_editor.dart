@@ -333,8 +333,11 @@ class _RelatedItems extends StatelessWidget {
   Widget build(BuildContext context) {
     final TriageController controller = TriageScope.of(context);
     final int? duplicateOf = draft.toSuggestion().duplicateOf;
-    // "(closed)" once the item is known to be closed or merged.
-    String closed(int n) => controller.isClosed(n) ?? false ? ' (closed)' : '';
+    // "(closed)" or "(merged)" once the item is known to be.
+    String closed(int n) => switch (controller.closedAs(n)) {
+      final String state => ' ($state)',
+      null => '',
+    };
     final links = <(String, String)>[
       for (final int n in item.linkedItems)
         item.isPullRequest
