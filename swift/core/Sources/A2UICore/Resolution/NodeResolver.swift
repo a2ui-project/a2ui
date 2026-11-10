@@ -36,6 +36,13 @@ public final class NodeResolver: Sendable {
   public weak var actionHandler: (any ActionHandling)?
   public let protocolVersion: A2UIProtocolVersion?
 
+  /// The policy that every URL resolved or checked on this resolver goes through.
+  ///
+  /// Properties a catalog marks with `x-a2ui-url-context` (see ``URLSchema``), the basic catalog
+  /// media properties, and the properties listed in ``URLSecurityPolicy/urlProperties`` resolve
+  /// to the URL the policy returns, or to `null` when it blocks the URL.
+  public let urlSecurityPolicy: any URLSecurityPolicy
+
   private struct CachedComponentSchema {
     let propertiesSchema: [String: JSONValue]
     let classifiedTypes: [String: PropertyType]
@@ -165,6 +172,30 @@ public final class NodeResolver: Sendable {
   private var dirtyAgentCalls: Set<AgentFunctionCall> = []
   private var isDisposed = false
   private let agentCallSettledSubject = PassthroughSubject<Void, Never>()
+  private let urlBlockedSubject = PassthroughSubject<URLBlockedWarning, Never>()
+  /// Where the URLs of the node being resolved come from: the surface, catalog, component type
+  /// and component identifier. The resolver adds the property name.
+  private var currentURLCheckInfo: URLCheckInfo?
+  /// The blocked URLs already reported, so each is reported once, oldest first.
+  private var reportedBlockedURLs: Set<BlockedURLKey> = []
+  private var reportedBlockedURLOrder: [BlockedURLKey] = []
+  /// The most blocked URLs remembered as reported. Past it, the oldest is forgotten.
+  private static let maxReportedBlockedURLs = 256
+
+  /// Identifies a blocked URL by where it appears, to report it once.
+  private struct BlockedURLKey: Hashable {
+    let url: String
+    let context: URLContext
+    let componentID: String?
+    let propertyName: String?
+    let functionName: String?
+  }
+
+  /// Publishes a ``URLBlockedWarning`` the first time the URL security policy blocks a URL in a
+  /// given place on this resolver: a component property or a function.
+  public var urlBlockedPublisher: AnyPublisher<URLBlockedWarning, Never> {
+    urlBlockedSubject.eraseToAnyPublisher()
+  }
 
   /// Publishes when a call that a resolved node makes settles, so that the tree should be
   /// resolved again to pick up the result or the failure. ``SurfaceViewModel`` rebuilds its tree.
@@ -215,9 +246,11 @@ public final class NodeResolver: Sendable {
     componentsModel: SurfaceComponentsModel? = nil,
     dataModel: DataModel? = nil,
     actionHandler: (any ActionHandling)? = nil,
-    protocolVersion: A2UIProtocolVersion? = nil
+    protocolVersion: A2UIProtocolVersion? = nil,
+    urlSecurityPolicy: (any URLSecurityPolicy)? = nil
   ) {
     self.surfaceID = surfaceID
+    self.urlSecurityPolicy = urlSecurityPolicy ?? PermissiveURLSecurityPolicy()
     let compatibleCatalogs = catalogs.filterCompatible(with: protocolVersion)
     self.catalogs = compatibleCatalogs
     self.defaultCatalogID = compatibleCatalogs.resolveDefaultCatalogID(
@@ -262,7 +295,8 @@ public final class NodeResolver: Sendable {
       componentsModel: surface.componentsModel,
       dataModel: surface.dataModel,
       actionHandler: actionHandler ?? surface.actionHandler,
-      protocolVersion: protocolVersion ?? surface.nodeResolver.protocolVersion
+      protocolVersion: protocolVersion ?? surface.nodeResolver.protocolVersion,
+      urlSecurityPolicy: surface.urlSecurityPolicy
     )
   }
 
@@ -273,7 +307,8 @@ public final class NodeResolver: Sendable {
     componentsModel: SurfaceComponentsModel? = nil,
     dataModel: DataModel? = nil,
     actionHandler: (any ActionHandling)? = nil,
-    protocolVersion: A2UIProtocolVersion? = nil
+    protocolVersion: A2UIProtocolVersion? = nil,
+    urlSecurityPolicy: (any URLSecurityPolicy)? = nil
   ) {
     let anyCatalogs = catalogs.map { $0.eraseToAnyCatalog() }
     let dict = Dictionary(anyCatalogs.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
@@ -284,7 +319,8 @@ public final class NodeResolver: Sendable {
       componentsModel: componentsModel,
       dataModel: dataModel,
       actionHandler: actionHandler,
-      protocolVersion: protocolVersion
+      protocolVersion: protocolVersion,
+      urlSecurityPolicy: urlSecurityPolicy
     )
   }
 
@@ -969,6 +1005,8 @@ public final class NodeResolver: Sendable {
     closersByCyclicTargetNodeKey.removeAll()
     replacedNodesInCurrentPass.removeAll()
     isTrackingNodeReplacements = false
+    reportedBlockedURLs.removeAll()
+    reportedBlockedURLOrder.removeAll()
   }
 
   private func cachedSchema(
@@ -1058,6 +1096,7 @@ public final class NodeResolver: Sendable {
     let previousAgentCalls = currentNodeAgentCalls
     let previousCyclicKeys = currentNodeCyclicKeys
     let previousCyclicTargetNodeKeys = currentNodeCyclicTargetNodeKeys
+    let previousURLCheckInfo = currentURLCheckInfo
     currentComponentID = nodeKey
     currentNodeReadValues = [:]
     currentNodeTemplateCounts = [:]
@@ -1074,11 +1113,18 @@ public final class NodeResolver: Sendable {
       currentNodeAgentCalls = previousAgentCalls
       currentNodeCyclicKeys = previousCyclicKeys
       currentNodeCyclicTargetNodeKeys = previousCyclicTargetNodeKeys
+      currentURLCheckInfo = previousURLCheckInfo
     }
 
     let type = component.type
     let effectiveCatalogID = component.catalogID ?? defaultCatalogID
     let targetCatalog = getCatalog(id: effectiveCatalogID)
+    currentURLCheckInfo = URLCheckInfo(
+      surfaceID: surfaceID,
+      catalogID: targetCatalog?.id ?? effectiveCatalogID,
+      componentType: type,
+      componentID: definitionID
+    )
     let isRegisteredType = targetCatalog?.components[type] != nil
     let nodeState: NodeState = isRegisteredType ? .resolved : .unknownType
     if !isRegisteredType {
@@ -1133,7 +1179,13 @@ public final class NodeResolver: Sendable {
         components: components,
         data: data,
         checks: componentChecks,
-        recurseIntoChildren: recurseIntoChildren
+        recurseIntoChildren: recurseIntoChildren,
+        urlContext: urlContext(
+          ofProperty: key,
+          schema: propSchema,
+          componentType: type,
+          catalogID: targetCatalog?.id ?? effectiveCatalogID
+        )
       ) {
         resolvedProperties[key] = resolvedVal
       }
@@ -1429,28 +1481,30 @@ public final class NodeResolver: Sendable {
     components: [String: ComponentModel],
     data: JSONValue,
     checks: [ResolvedCheck] = [],
-    recurseIntoChildren: Bool = true
+    recurseIntoChildren: Bool = true,
+    urlContext: URLContext? = nil
   ) -> (any Resolved)? {
     let previousPropertyPath = currentPropertyPath
     currentPropertyPath = propertyKey
     defer {
       currentPropertyPath = previousPropertyPath
     }
+    let resolved: (any Resolved)?
     switch type {
     case .dynamicBoolean:
-      return resolveDynamicBoolean(value, basePath: basePath, index: index, data: data)
+      resolved = resolveDynamicBoolean(value, basePath: basePath, index: index, data: data)
     case .dynamicString:
-      return resolveDynamicString(value, basePath: basePath, index: index, data: data)
+      resolved = resolveDynamicString(value, basePath: basePath, index: index, data: data)
     case .dynamicNumber:
-      return resolveDynamicNumber(value, basePath: basePath, index: index, data: data)
+      resolved = resolveDynamicNumber(value, basePath: basePath, index: index, data: data)
     case .dynamicValue:
-      return resolveDynamicValueBinding(value, basePath: basePath, index: index, data: data)
+      resolved = resolveDynamicValueBinding(value, basePath: basePath, index: index, data: data)
     case .dynamicStringList:
-      return resolveDynamicStringList(value, basePath: basePath, index: index, data: data)
+      resolved = resolveDynamicStringList(value, basePath: basePath, index: index, data: data)
     case .checks:
-      return resolveChecks(value, basePath: basePath, index: index, data: data)
+      resolved = resolveChecks(value, basePath: basePath, index: index, data: data)
     case .action:
-      return resolveAction(
+      resolved = resolveAction(
         value,
         checks: checks,
         basePath: basePath,
@@ -1459,7 +1513,7 @@ public final class NodeResolver: Sendable {
         data: data
       )
     case .childList:
-      return resolveChildList(
+      resolved = resolveChildList(
         value,
         basePath: basePath,
         index: index,
@@ -1472,7 +1526,7 @@ public final class NodeResolver: Sendable {
         recurseIntoChildren: recurseIntoChildren
       )
     case .componentID:
-      return resolveComponentIDProperty(
+      resolved = resolveComponentIDProperty(
         value: value,
         slotLocation: slotLocation,
         basePath: basePath,
@@ -1484,11 +1538,11 @@ public final class NodeResolver: Sendable {
         recurseIntoChildren: recurseIntoChildren
       )
     case .number:
-      return value.doubleValue
+      resolved = value.doubleValue
     case .integer:
-      return value.intValue
+      resolved = value.intValue
     case .standard:
-      return resolveStandardProperty(
+      resolved = resolveStandardProperty(
         value: value,
         schema: schema,
         basePath: basePath,
@@ -1504,6 +1558,8 @@ public final class NodeResolver: Sendable {
         recurseIntoChildren: recurseIntoChildren
       )
     }
+    guard let urlContext else { return resolved }
+    return filterURL(resolved, context: urlContext, propertyPath: propertyKey)
   }
 
   private func resolveComponentIDProperty(
@@ -1629,7 +1685,8 @@ public final class NodeResolver: Sendable {
         components: components,
         data: data,
         checks: checks,
-        recurseIntoChildren: recurseIntoChildren
+        recurseIntoChildren: recurseIntoChildren,
+        urlContext: URLSchema.annotation(of: itemsSchema)?.urlContext
       ) {
         resolvedArray.append(resolved)
       } else if item == .null {
@@ -1676,7 +1733,8 @@ public final class NodeResolver: Sendable {
         components: components,
         data: data,
         checks: checks,
-        recurseIntoChildren: recurseIntoChildren
+        recurseIntoChildren: recurseIntoChildren,
+        urlContext: URLSchema.annotation(of: nestedPropSchema)?.urlContext
       ) {
         resolvedObject[key] = resolvedValue
       }
@@ -2719,6 +2777,9 @@ extension NodeResolver: FunctionHandler {
       error = executionError.underlying
       code = "EXECUTION_ERROR"
     }
+    if error is URLBlockedError {
+      code = URLBlockedError.code
+    }
     if let functionError = error as? FunctionError, functionError.rpcCode == "CANCELLED" {
       return
     }
@@ -2830,5 +2891,150 @@ extension NodeResolver {
       }
     }
     actionHandler?.handle(error: error, from: surfaceID)
+  }
+}
+
+// MARK: - URL Security
+
+extension NodeResolver {
+  /// Checks a URL against ``urlSecurityPolicy``: the baseline, the policy, and the baseline again
+  /// on a rewritten URL.
+  ///
+  /// A blocked URL is published once on ``urlBlockedPublisher`` as a ``URLBlockedWarning``,
+  /// which carries a redacted form of the URL and never the full URL.
+  ///
+  /// - Parameters:
+  ///   - url: The URL to check.
+  ///   - context: How the URL is used.
+  ///   - info: Where the URL comes from. The surface identifier is filled in.
+  /// - Returns: The URL to use, possibly rewritten, or `nil` when it is blocked.
+  public func sanitizeURL(_ url: String, context: URLContext, info: URLCheckInfo?) -> String? {
+    var fullInfo = info ?? URLCheckInfo()
+    fullInfo.surfaceID = surfaceID
+    let result = URLPolicyEvaluator.apply(
+      urlSecurityPolicy, to: url, context: context, info: fullInfo)
+    if result == nil {
+      reportBlockedURL(url, context: context, info: fullInfo)
+    }
+    return result
+  }
+
+  /// Returns the URL context of a component property: the host's
+  /// ``URLSecurityPolicy/urlProperties`` entry, else the schema's `x-a2ui-url-context`
+  /// annotation, else the basic catalog's built-in list. Returns `nil` for a property that is
+  /// not a URL or is marked `none`.
+  private func urlContext(
+    ofProperty property: String,
+    schema: JSONValue,
+    componentType: String,
+    catalogID: String?
+  ) -> URLContext? {
+    if let catalogID,
+      let hostAnnotation = urlSecurityPolicy.urlProperties?[catalogID]?[componentType]?[property]
+    {
+      return hostAnnotation.urlContext
+    }
+    let annotation =
+      URLSchema.annotation(of: schema)
+      ?? BasicCatalogURLProperties.annotation(
+        catalogID: catalogID, componentType: componentType, property: property)
+    return annotation?.urlContext
+  }
+
+  /// Passes a resolved value of a URL property through ``sanitizeURL(_:context:info:)``.
+  ///
+  /// A string value becomes the URL the policy returns. A blocked value, or a value that is not
+  /// a string, becomes `JSONValue.null`, so the component sees no URL and makes no request. The
+  /// component doesn't check the result again, which keeps a rewritten URL (such as a proxy
+  /// URL) from being checked against the allowlist a second time.
+  private func filterURL(
+    _ resolved: (any Resolved)?,
+    context: URLContext,
+    propertyPath: String
+  ) -> (any Resolved)? {
+    guard let resolved else { return nil }
+    var info = currentURLCheckInfo ?? URLCheckInfo(surfaceID: surfaceID)
+    info.propertyName = Self.urlPropertyName(fromPath: propertyPath)
+    let sanitize = { (url: String) in self.sanitizeURL(url, context: context, info: info) }
+    switch resolved {
+    case let binding as DataBinding<String>:
+      guard let value = binding.value else { return binding }
+      guard let allowed = sanitize(value) else { return JSONValue.null }
+      guard allowed != value else { return binding }
+      return DataBinding<String>(identity: binding.identity, value: allowed) { binding.set($0) }
+    case let string as String:
+      guard let allowed = sanitize(string) else { return JSONValue.null }
+      return allowed
+    case let binding as DataBinding<JSONValue>:
+      guard let value = binding.value, value != .null else { return binding }
+      guard let string = value.stringValue, let allowed = sanitize(string) else {
+        return JSONValue.null
+      }
+      guard allowed != string else { return binding }
+      return DataBinding<JSONValue>(identity: binding.identity, value: .string(allowed)) {
+        binding.set($0)
+      }
+    case let json as JSONValue:
+      guard json != .null else { return json }
+      guard let string = json.stringValue, let allowed = sanitize(string) else {
+        return JSONValue.null
+      }
+      return JSONValue.string(allowed)
+    default:
+      return JSONValue.null
+    }
+  }
+
+  /// Writes a resolver property path as ``URLCheckInfo/propertyName`` does: dotted, with `[]`
+  /// for list items, such as `items[].imageUrl` for `items/0/imageUrl`.
+  private static func urlPropertyName(fromPath path: String) -> String {
+    var name = ""
+    for segment in path.split(separator: "/", omittingEmptySubsequences: false) {
+      if !segment.isEmpty, segment.allSatisfy({ $0.isASCII && $0.isNumber }) {
+        name += "[]"
+      } else {
+        name += name.isEmpty ? String(segment) : ".\(segment)"
+      }
+    }
+    return name
+  }
+
+  /// Publishes a warning for a blocked URL, unless the same URL in the same place was reported
+  /// already.
+  private func reportBlockedURL(_ url: String, context: URLContext, info: URLCheckInfo) {
+    guard !isDisposed else { return }
+    let key = BlockedURLKey(
+      url: url,
+      context: context,
+      componentID: info.componentID,
+      propertyName: info.propertyName,
+      functionName: info.functionName
+    )
+    guard reportedBlockedURLs.insert(key).inserted else { return }
+    reportedBlockedURLOrder.append(key)
+    if reportedBlockedURLOrder.count > Self.maxReportedBlockedURLs {
+      reportedBlockedURLs.remove(reportedBlockedURLOrder.removeFirst())
+    }
+    let source: String
+    if let propertyName = info.propertyName {
+      source = "property '\(propertyName)'" + (info.componentID.map { " of '\($0)'" } ?? "")
+    } else if let functionName = info.functionName {
+      source = "function '\(functionName)'"
+    } else {
+      source = "a component"
+    }
+    // The full URL may carry the data being exfiltrated in its path or query, so only a
+    // redacted form leaves the resolver.
+    let redactedURL = URLBaseline.redact(url)
+    urlBlockedSubject.send(
+      URLBlockedWarning(
+        surfaceID: surfaceID,
+        context: context,
+        redactedURL: redactedURL,
+        info: info,
+        message: "The URL security policy blocked a \(context.rawValue) URL (\(redactedURL)) "
+          + "in \(source)."
+      )
+    )
   }
 }

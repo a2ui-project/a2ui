@@ -201,7 +201,7 @@ struct OpenURLFunctionTests {
       version: version, openURLHandler: handler)
     let function = try #require(catalog.functions["openUrl"])
 
-    #expect(throws: FunctionError.self) {
+    #expect(throws: URLBlockedError.self) {
       try function.evaluate(
         arguments: ["url": .string("javascript:alert('xss')")], context: context)
     }
@@ -239,7 +239,7 @@ struct OpenURLFunctionTests {
   @Test func throwsErrorWhenUsingJavascriptScheme() {
     let function = OpenURLFunction()
 
-    #expect(throws: FunctionError.self) {
+    #expect(throws: URLBlockedError.self) {
       try function.evaluate(
         arguments: ["url": .string("javascript:alert('xss')")],
         context: context
@@ -250,7 +250,7 @@ struct OpenURLFunctionTests {
   @Test func throwsErrorWhenUsingDataScheme() {
     let function = OpenURLFunction()
 
-    #expect(throws: FunctionError.self) {
+    #expect(throws: URLBlockedError.self) {
       try function.evaluate(
         arguments: ["url": .string("data:text/html,<h1>hello</h1>")],
         context: context

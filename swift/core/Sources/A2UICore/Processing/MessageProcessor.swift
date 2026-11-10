@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import Combine
 import Foundation
 import JSONSchema
 import OrderedCollections
@@ -45,6 +46,21 @@ public final class MessageProcessor: ObservableObject {
   /// The validation configuration controlling strictness.
   public let validationConfig: ValidationConfig
 
+  /// The policy that decides which URLs the surfaces of this processor may load, open, or embed.
+  ///
+  /// Every surface the processor creates uses it (see ``SurfaceViewModel/urlSecurityPolicy``).
+  /// Defaults to ``PermissiveURLSecurityPolicy``.
+  public let urlSecurityPolicy: any URLSecurityPolicy
+
+  /// Publishes the ``URLBlockedWarning``s of every surface of this processor.
+  public var urlBlockedPublisher: AnyPublisher<URLBlockedWarning, Never> {
+    urlBlockedSubject.eraseToAnyPublisher()
+  }
+
+  private let urlBlockedSubject = PassthroughSubject<URLBlockedWarning, Never>()
+  /// Forwards each surface's warnings to `urlBlockedSubject`, by surface identifier.
+  private var urlBlockedCancellables: [String: AnyCancellable] = [:]
+
   private struct ValidatorCacheKey: Hashable {
     let catalogID: String
     let config: ValidationConfig
@@ -69,11 +85,14 @@ public final class MessageProcessor: ObservableObject {
   ///   - actionHandler: An optional handler for client-side actions and errors.
   ///   - validationConfig: The validation configuration controlling strictness.
   ///     Defaults to `.relaxed` for streaming updates.
+  ///   - urlSecurityPolicy: The policy that decides which URLs surfaces may load, open, or
+  ///     embed. Defaults to ``PermissiveURLSecurityPolicy``.
   ///   - adapterFactory: Optional version adapter factory. Defaults to `.shared`.
   public init(
     catalogs: [any CatalogProtocol],
     actionHandler: (any ActionHandling)? = nil,
     validationConfig: ValidationConfig = .relaxed,
+    urlSecurityPolicy: (any URLSecurityPolicy)? = nil,
     adapterFactory: VersionAdapterFactory = .shared
   ) {
     let anyCatalogs = catalogs.map { $0.eraseToAnyCatalog() }
@@ -88,11 +107,14 @@ public final class MessageProcessor: ObservableObject {
     self.registeredCatalogs = uniqueCatalogs
     self.catalogs = catalogMap
     self.validationConfig = validationConfig
+    let urlSecurityPolicy = urlSecurityPolicy ?? PermissiveURLSecurityPolicy()
+    self.urlSecurityPolicy = urlSecurityPolicy
     self.actionHandler = actionHandler
     self.surfaceGroupModel = SurfaceGroupModel()
     self.rpcHandler = RPCHandler()
     self.adapterFactory = adapterFactory
     self.actionForwarder.processor = self
+    self.rpcHandler.urlSecurityPolicy = urlSecurityPolicy
   }
 
   /// Creates a new message processor with a single catalog.
@@ -102,12 +124,20 @@ public final class MessageProcessor: ObservableObject {
   ///   - actionHandler: An optional handler for client-side actions and errors.
   ///   - validationConfig: The validation configuration controlling strictness.
   ///     Defaults to `.relaxed` for streaming updates.
+  ///   - urlSecurityPolicy: The policy that decides which URLs surfaces may load, open, or
+  ///     embed. Defaults to ``PermissiveURLSecurityPolicy``.
   public convenience init(
     catalog: any CatalogProtocol,
     actionHandler: (any ActionHandling)? = nil,
-    validationConfig: ValidationConfig = .relaxed
+    validationConfig: ValidationConfig = .relaxed,
+    urlSecurityPolicy: (any URLSecurityPolicy)? = nil
   ) {
-    self.init(catalogs: [catalog], actionHandler: actionHandler, validationConfig: validationConfig)
+    self.init(
+      catalogs: [catalog],
+      actionHandler: actionHandler,
+      validationConfig: validationConfig,
+      urlSecurityPolicy: urlSecurityPolicy
+    )
   }
 
   /// Returns the aggregated data model for active surfaces with `sendDataModel` enabled.
@@ -876,16 +906,19 @@ public final class MessageProcessor: ObservableObject {
     if let targetCatalog {
       try validateSurfaceTheme(op.theme, surfaceID: op.surfaceID, against: targetCatalog)
     }
+    let (theme, blockedIconURL) = sanitizeThemeIconURL(
+      op.theme, catalog: targetCatalog, surfaceID: op.surfaceID)
 
     let vm = SurfaceViewModel(
       surfaceID: op.surfaceID,
       catalogs: catalogs,
       defaultCatalogID: op.catalogID,
-      theme: op.theme,
+      theme: theme,
       metadata: op.metadata,
       actionHandler: actionForwarder,
       sendDataModel: op.sendDataModel,
-      protocolVersion: op.version ?? targetCatalog?.a2uiProtocolVersion
+      protocolVersion: op.version ?? targetCatalog?.a2uiProtocolVersion,
+      urlSecurityPolicy: urlSecurityPolicy
     )
     installAgentFunctionCaller(on: vm)
 
@@ -893,7 +926,19 @@ public final class MessageProcessor: ObservableObject {
       try validateComponentsBatch(components, on: vm)
     }
 
+    urlBlockedCancellables[op.surfaceID] = vm.urlBlockedPublisher
+      .sink { [weak self] warning in
+        self?.urlBlockedSubject.send(warning)
+      }
     surfaceGroupModel.addSurface(vm)
+    if let blockedIconURL {
+      // Reports the blocked URL on the new surface's warning stream.
+      _ = vm.sanitizeURL(
+        blockedIconURL,
+        context: .media,
+        info: URLCheckInfo(catalogID: targetCatalog?.id, propertyName: "theme.iconUrl")
+      )
+    }
 
     do {
       if let dataModel = op.dataModel {
@@ -921,8 +966,37 @@ public final class MessageProcessor: ObservableObject {
       }
     } catch {
       surfaceGroupModel.removeSurface(id: op.surfaceID)
+      urlBlockedCancellables[op.surfaceID] = nil
       throw error
     }
+  }
+
+  /// Passes the basic catalog theme's `iconUrl` through ``urlSecurityPolicy`` as media.
+  ///
+  /// A blocked URL is removed from the theme and returned for reporting, and a rewritten one
+  /// (for example, through a media proxy) replaces the original.
+  private func sanitizeThemeIconURL(
+    _ theme: [String: JSONValue]?,
+    catalog: AnyCatalog?,
+    surfaceID: String
+  ) -> (theme: [String: JSONValue]?, blockedIconURL: String?) {
+    guard var theme, let catalog, BasicCatalogURLProperties.catalogIDs.contains(catalog.id),
+      let iconURL = theme["iconUrl"]?.stringValue
+    else {
+      return (theme, nil)
+    }
+    let allowed = URLPolicyEvaluator.apply(
+      urlSecurityPolicy,
+      to: iconURL,
+      context: .media,
+      info: URLCheckInfo(surfaceID: surfaceID, catalogID: catalog.id, propertyName: "theme.iconUrl")
+    )
+    guard let allowed else {
+      theme.removeValue(forKey: "iconUrl")
+      return (theme, iconURL)
+    }
+    theme["iconUrl"] = .string(allowed)
+    return (theme, nil)
   }
 
   private func processCallRendererFunctionOp(_ op: InternalCallRendererFunctionOp) throws {
@@ -1116,6 +1190,7 @@ public final class MessageProcessor: ObservableObject {
     }
     graphBounds[op.surfaceID] = nil
     surfaceGroupModel.removeSurface(id: op.surfaceID)
+    urlBlockedCancellables[op.surfaceID] = nil
     rpcHandler.cancelPendingCalls(forSurfaceID: op.surfaceID)
   }
 
@@ -1646,6 +1721,7 @@ public final class MessageProcessor: ObservableObject {
     for surfaceID in Array(surfaceGroupModel.surfacesMap.keys) {
       surfaceGroupModel.removeSurface(id: surfaceID)
     }
+    urlBlockedCancellables.removeAll()
     rpcHandler.disposeAllPendingCalls()
   }
 
