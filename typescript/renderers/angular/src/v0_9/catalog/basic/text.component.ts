@@ -16,6 +16,7 @@
 
 import {Component, computed, ChangeDetectionStrategy, inject, signal, effect} from '@angular/core';
 import {MarkdownRenderer} from '@a2ui/angular';
+import type {UrlContext} from '@a2ui/web_core';
 import {BasicCatalogComponent} from './basic-catalog-component';
 import {TextApi} from '@a2ui/web_core/v0_9/basic_catalog';
 
@@ -154,6 +155,21 @@ export class TextComponent extends BasicCatalogComponent<typeof TextApi> {
   });
 
   resolvedText = signal<string>('');
+
+  /**
+   * Checks the URLs of Markdown links and images (when the Markdown renderer
+   * renders them) against the surface's URL security policy.
+   */
+  private readonly sanitizeMarkdownUrl = (url: string, context: UrlContext) => {
+    const surface = this.surface();
+    return surface
+      ? surface.sanitizeUrl(url, context, {
+          componentType: 'Text',
+          componentId: this.componentId(),
+          propertyName: 'text',
+        })
+      : undefined;
+  };
   private renderRequestId = 0;
 
   constructor() {
@@ -164,7 +180,7 @@ export class TextComponent extends BasicCatalogComponent<typeof TextApi> {
       }
       const text = this.text();
       const requestId = ++this.renderRequestId;
-      this.markdownRenderer.render(text).then(rendered => {
+      this.markdownRenderer.render(text, {sanitizeUrl: this.sanitizeMarkdownUrl}).then(rendered => {
         if (requestId === this.renderRequestId) {
           this.resolvedText.set(rendered);
         }

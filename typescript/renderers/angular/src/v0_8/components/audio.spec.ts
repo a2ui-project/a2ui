@@ -80,4 +80,12 @@ describe('AudioPlayer Component', () => {
     const audioEl = fixture.nativeElement.querySelector('audio');
     expect(audioEl.style.backgroundColor).toBe('red');
   });
+
+  it('should leave out src for a URL the baseline rejects', () => {
+    fixture.componentRef.setInput('url', {literalString: 'https:attacker.example/a.mp3'});
+    fixture.detectChanges();
+
+    const audioEl = fixture.nativeElement.querySelector('audio');
+    expect(audioEl.hasAttribute('src')).toBeFalse();
+  });
 });

@@ -39,7 +39,7 @@ import {ImageApi} from '@a2ui/web_core/v0_9/basic_catalog';
   template: `
     <img
       a2uiAccessibilityTarget
-      [src]="url()"
+      [attr.src]="url() || null"
       [alt]="description()"
       [style.object-fit]="fit()"
       [class]="'a2ui-image ' + variant()"

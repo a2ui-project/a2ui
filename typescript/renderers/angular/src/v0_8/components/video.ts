@@ -16,6 +16,7 @@
 
 import {ChangeDetectionStrategy, Component, computed, input} from '@angular/core';
 import {DynamicComponent} from '../rendering/dynamic-component';
+import {checkMediaUrl} from './media-url';
 import type {StringValue, VideoNode} from '../types';
 
 @Component({
@@ -47,5 +48,5 @@ import type {StringValue, VideoNode} from '../types';
 })
 export class Video extends DynamicComponent<VideoNode> {
   readonly url = input.required<StringValue | null>();
-  protected readonly resolvedUrl = computed(() => this.resolvePrimitive(this.url()));
+  protected readonly resolvedUrl = computed(() => checkMediaUrl(this.resolvePrimitive(this.url())));
 }

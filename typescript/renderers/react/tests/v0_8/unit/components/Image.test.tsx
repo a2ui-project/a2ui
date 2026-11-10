@@ -328,4 +328,51 @@ describe('Image Component', () => {
       expect(section?.children[0]?.tagName).toBe('IMG');
     });
   });
+
+  describe('URL checks', () => {
+    it.each([
+      'javascript:alert(1)',
+      'https:attacker.example/a.png',
+      '//attacker.example/a.png',
+      'data:image/svg+xml;base64,PHN2Zz4=',
+    ])('should not render an img for a URL the baseline rejects: %s', url => {
+      const messages = createSimpleMessages('img-1', 'Image', {url: {literalString: url}});
+
+      const {container} = render(
+        <TestWrapper>
+          <TestRenderer messages={messages} />
+        </TestWrapper>,
+      );
+
+      expect(container.querySelector('img')).toBeNull();
+    });
+
+    it('should not render a video or iframe for a URL the baseline rejects', () => {
+      const messages = createSimpleMessages('video-1', 'Video', {
+        url: {literalString: 'javascript:alert(1)//youtube.com/watch?v=abc'},
+      });
+
+      const {container} = render(
+        <TestWrapper>
+          <TestRenderer messages={messages} />
+        </TestWrapper>,
+      );
+
+      expect(container.querySelector('video, iframe')).toBeNull();
+    });
+
+    it('should not render an audio element for a URL the baseline rejects', () => {
+      const messages = createSimpleMessages('audio-1', 'AudioPlayer', {
+        url: {literalString: 'https:attacker.example/a.mp3'},
+      });
+
+      const {container} = render(
+        <TestWrapper>
+          <TestRenderer messages={messages} />
+        </TestWrapper>,
+      );
+
+      expect(container.querySelector('audio')).toBeNull();
+    });
+  });
 });

@@ -18,7 +18,7 @@ import {memo} from 'react';
 import type * as Types from '@a2ui/web_core/types/types';
 import type {A2UIComponentProps} from '../../types';
 import {useA2UIComponent} from '../../hooks/useA2UIComponent';
-import {classMapToString, stylesToObject, mergeClassMaps} from '../../lib/utils';
+import {checkMediaUrl, classMapToString, mergeClassMaps, stylesToObject} from '../../lib/utils';
 
 type UsageHint = 'icon' | 'avatar' | 'smallFeature' | 'mediumFeature' | 'largeFeature' | 'header';
 type FitMode = 'contain' | 'cover' | 'fill' | 'none' | 'scale-down';
@@ -33,7 +33,7 @@ export const Image = memo(function Image({node, surfaceId}: A2UIComponentProps<T
   const {theme, resolveString} = useA2UIComponent(node, surfaceId);
   const props = node.properties;
 
-  const url = resolveString(props.url);
+  const url = checkMediaUrl(resolveString(props.url));
   const altText = resolveString(
     (props as Record<string, unknown>).altText as Types.StringValue | undefined,
   );

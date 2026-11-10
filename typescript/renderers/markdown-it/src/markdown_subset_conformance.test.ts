@@ -46,12 +46,7 @@ interface ManifestRecord {
   reason?: string;
 }
 
-const KNOWN_GAPS: Record<string, string> = {
-  link_rendered_as_text_without_target:
-    'markdown-it currently renders links as HTML anchor elements',
-  image_syntax_not_rendered_as_image:
-    'markdown-it currently renders image syntax as an img element rather than alt text',
-};
+const KNOWN_GAPS: Record<string, string> = {};
 
 function writeManifestRecord(rec: ManifestRecord): void {
   const manifestDir = process.env.A2UI_CONFORMANCE_MANIFEST_DIR;

@@ -15,6 +15,7 @@
  */
 
 import {TestBed} from '@angular/core/testing';
+import {AllowlistUrlSecurityPolicy, type UrlSecurityPolicy} from '@a2ui/web_core';
 import {ComponentBinder} from './component-binder.service';
 import {
   Catalog,
@@ -53,6 +54,23 @@ function createComponentContext({
   const context = new ComponentContext(surface, componentId);
 
   return {context, surface};
+}
+
+/** Creates a surface on the v0.9 basic catalog with a URL security policy. */
+function createSurfaceWithPolicy(urlSecurityPolicy: UrlSecurityPolicy): SurfaceModel {
+  return new SurfaceModel(
+    'url-surface',
+    basicCatalog,
+    undefined,
+    undefined,
+    false,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    {urlSecurityPolicy},
+  );
 }
 
 describe('ComponentBinder', () => {
@@ -575,6 +593,66 @@ describe('ComponentBinder', () => {
 
       binder.unbind(bound);
       expect(unsubscribedCount).toBeGreaterThan(0);
+    });
+  });
+
+  describe('URL properties', () => {
+    const policy = new AllowlistUrlSecurityPolicy({media: ['cdn.example.com']});
+
+    it('filters URL properties on the deprecated bind(context) path', () => {
+      const surface = createSurfaceWithPolicy(policy);
+      surface.dataModel.set('/photo', 'https://attacker.example/?d=secret');
+      surface.componentsModel.addComponent(
+        new ComponentModel(
+          'allowed',
+          'Image',
+          {url: 'https://cdn.example.com/a.png'},
+          basicCatalog,
+        ),
+      );
+      surface.componentsModel.addComponent(
+        new ComponentModel('bound', 'Image', {url: {path: '/photo'}}, basicCatalog),
+      );
+
+      const allowed = binder.bind(new ComponentContext(surface, 'allowed'));
+      const bound = binder.bind(new ComponentContext(surface, 'bound'));
+
+      expect(allowed['url'].value()).toBe('https://cdn.example.com/a.png');
+      expect(bound['url'].value()).toBeUndefined();
+
+      surface.dataModel.set('/photo', 'https://cdn.example.com/b.png');
+      expect(bound['url'].value()).toBe('https://cdn.example.com/b.png');
+      binder.unbind(allowed);
+      binder.unbind(bound);
+    });
+
+    it('leaves properties that are not URLs unfiltered on the bind(context) path', () => {
+      const surface = createSurfaceWithPolicy(policy);
+      surface.componentsModel.addComponent(
+        new ComponentModel(
+          'img',
+          'Image',
+          {url: 'https://cdn.example.com/a.png', description: 'https://attacker.example/'},
+          basicCatalog,
+        ),
+      );
+
+      const bound = binder.bind(new ComponentContext(surface, 'img'));
+
+      expect(bound['description'].value()).toBe('https://attacker.example/');
+    });
+
+    it('receives filtered URL properties on the bindNode path', () => {
+      const surface = createSurfaceWithPolicy(policy);
+      surface.componentsModel.addComponent(
+        new ComponentModel('root', 'Image', {url: 'https://attacker.example/a.png'}, basicCatalog),
+      );
+
+      const resolver = new NodeResolver(surface, basicCatalog);
+      const bound = binder.bindNode(getValue(resolver.rootNode)!);
+
+      expect(bound['url'].value()).toBeUndefined();
+      resolver.dispose();
     });
   });
 });

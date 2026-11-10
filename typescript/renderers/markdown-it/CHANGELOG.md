@@ -1,5 +1,8 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: `renderMarkdown` follows the A2UI Markdown subset: links render as their text and images as their alt text, instead of `<a>` and `<img>` elements. Recommended migration: to keep links or images, register `createMarkdownRenderer({allowLinks: true, allowImages: true})` instead; their URLs then go through `MarkdownRendererOptions.sanitizeUrl` (`navigation` for links, `media` for images), which A2UI `Text` components fill in with the surface's URL security policy. [#4115](https://github.com/a2ui-project/a2ui/pull/4115)
+- Add `createMarkdownRenderer(options?)` and `MarkdownItRendererOptions` (`allowLinks`, `allowImages`). A blocked link renders as its text and a blocked image as its alt text; without a `sanitizeUrl`, the built-in URL baseline checks apply. [#4115](https://github.com/a2ui-project/a2ui/pull/4115)
+
 ## 0.2.2
 
 - Bump dependencies for compatibility with `@a2ui/web_core: ^0.14.0`.

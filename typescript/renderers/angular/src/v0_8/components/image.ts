@@ -19,6 +19,7 @@ import * as Primitives from '@a2ui/web_core/types/primitives';
 import * as Styles from '@a2ui/web_core/styles/index';
 import type {ImageNode, ResolvedImage} from '../types';
 import {DynamicComponent} from '../rendering/dynamic-component';
+import {checkMediaUrl} from './media-url';
 
 @Component({
   selector: 'a2ui-image',
@@ -55,7 +56,7 @@ export class Image extends DynamicComponent<ImageNode> {
   readonly fit = input<ResolvedImage['fit'] | null>(null);
   readonly altText = input<Primitives.StringValue | null>(null);
 
-  protected readonly resolvedUrl = computed(() => this.resolvePrimitive(this.url()));
+  protected readonly resolvedUrl = computed(() => checkMediaUrl(this.resolvePrimitive(this.url())));
   protected readonly resolvedAltText = computed(() => this.resolvePrimitive(this.altText()) || '');
 
   protected classes = computed(() => {

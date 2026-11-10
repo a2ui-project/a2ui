@@ -18,7 +18,7 @@ import {memo} from 'react';
 import type * as Types from '@a2ui/web_core/types/types';
 import type {A2UIComponentProps} from '../../types';
 import {useA2UIComponent} from '../../hooks/useA2UIComponent';
-import {classMapToString, stylesToObject} from '../../lib/utils';
+import {checkMediaUrl, classMapToString, stylesToObject} from '../../lib/utils';
 
 /**
  * AudioPlayer component - renders an audio player with optional description.
@@ -30,7 +30,7 @@ export const AudioPlayer = memo(function AudioPlayer({
   const {theme, resolveString} = useA2UIComponent(node, surfaceId);
   const props = node.properties;
 
-  const url = resolveString(props.url);
+  const url = checkMediaUrl(resolveString(props.url));
   const description = resolveString(props.description ?? null);
 
   if (!url) {

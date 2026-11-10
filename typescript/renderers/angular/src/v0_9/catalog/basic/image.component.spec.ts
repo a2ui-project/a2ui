@@ -114,4 +114,14 @@ describe('ImageComponent', () => {
     const img = fixture.nativeElement.querySelector('img') as HTMLImageElement;
     expect(img.style.objectFit).toBe('scale-down');
   });
+
+  it('should leave out src when the URL is absent, as when the URL policy blocks it', () => {
+    setComponentProps(fixture, {
+      ...defaultProps,
+      url: createBoundProperty(undefined),
+    });
+    fixture.detectChanges();
+    const img = fixture.nativeElement.querySelector('img') as HTMLImageElement;
+    expect(img.hasAttribute('src')).toBeFalse();
+  });
 });
