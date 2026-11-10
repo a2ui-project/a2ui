@@ -63,6 +63,5 @@ export default defineConfig([
     sourcemap: true,
     clean: false,
     treeshake: true,
-    external: ['@a2ui/lit'],
   },
 ]);
