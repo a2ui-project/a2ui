@@ -8,17 +8,17 @@ The traces describe the intended behavior of the prototype. Code and payloads ar
 
 Every trace refers to the same checkpoints. The demo measures them and shows them in its Performance tab.
 
-| Id | Checkpoint | Measured at |
-| --- | --- | --- |
-| T0 | Request sent | Client, when the user submits the prompt. |
-| T1 | First token | Agent, first chunk from the model stream. |
-| T2 | First A2UI message | Client, first SSE frame with an A2UI message. |
-| T3 | Native components painted | Client, after the first `updateComponents` renders. |
-| T4 | ReactApp source complete | Agent, when the Express stream closes the `r"""` string and the `ReactApp` component is emitted. |
-| T5 | Iframe ready | Client, when the sandbox proxy reports ready to the `ReactApp` element. |
-| T6 | Initialized | App frame, `reactApp/initialize` response received. |
-| T7 | `ui/rendered` | Client, when the `ui/rendered` notification arrives. |
-| T8 | Stream complete | Client, end of the SSE response. |
+| Id  | Checkpoint                | Measured at                                                                                      |
+| --- | ------------------------- | ------------------------------------------------------------------------------------------------ |
+| T0  | Request sent              | Client, when the user submits the prompt.                                                        |
+| T1  | First token               | Agent, first chunk from the model stream.                                                        |
+| T2  | First A2UI message        | Client, first SSE frame with an A2UI message.                                                    |
+| T3  | Native components painted | Client, after the first `updateComponents` renders.                                              |
+| T4  | ReactApp source complete  | Agent, when the Express stream closes the `r"""` string and the `ReactApp` component is emitted. |
+| T5  | Iframe ready              | Client, when the sandbox proxy reports ready to the `ReactApp` element.                          |
+| T6  | Initialized               | App frame, `reactApp/initialize` response received.                                              |
+| T7  | `ui/rendered`             | Client, when the `ui/rendered` notification arrives.                                             |
+| T8  | Stream complete           | Client, end of the SSE response.                                                                 |
 
 Native components render while the app's source is still streaming (T3 is before T4); the `ReactApp` shows a "writing app…" placeholder until its component arrives. The fixture test in `typescript/react_app/e2e` measures T5 to T7 for a hard-coded app.
 

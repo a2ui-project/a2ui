@@ -1,0 +1,50 @@
+{
+  "name": "@a2ui-labs/react-app-runtime",
+  "version": "0.1.0",
+  "description": "Runtime of A2UI ReactApp frames: React 19, the `a2ui` bridge module, in-browser TSX transpilation, theming, primitives and VegaChart, built into content-hashed ES modules with an import map.",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/node/index.d.ts",
+      "default": "./dist/node/index.js"
+    },
+    "./a2ui.d.ts": "./src/a2ui.d.ts",
+    "./manifest.json": "./dist/v1/manifest.json"
+  },
+  "files": [
+    "dist",
+    "src/a2ui.d.ts"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.node.json && node scripts/build.mjs",
+    "test": "tsc -p tsconfig.json --noEmit && vitest run",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "sucrase": "^3.35.1",
+    "vega": "^5.30.0",
+    "vega-embed": "^6.26.0",
+    "vega-lite": "^5.21.0"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "^25.9.3",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "esbuild": "^0.28.1",
+    "eslint": "^10.4.1",
+    "gts": "^7.0.0",
+    "jsdom": "^29.1.1",
+    "prettier": "^3.8.4",
+    "typescript": "5.9.3",
+    "vitest": "^4.1.8"
+  }
+}

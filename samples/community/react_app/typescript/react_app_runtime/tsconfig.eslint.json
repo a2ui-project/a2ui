@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  /* Covers every TypeScript file of the package for ESLint's typed rules, including the Node entry
+     point, its tests and the vitest config. */
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "*.ts"]
+}

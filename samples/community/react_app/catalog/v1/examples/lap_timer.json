@@ -28,11 +28,7 @@
           {
             "id": "root",
             "component": "Column",
-            "children": [
-              "stopwatch",
-              "laps_heading",
-              "laps"
-            ]
+            "children": ["stopwatch", "laps_heading", "laps"]
           },
           {
             "id": "stopwatch",
@@ -40,9 +36,7 @@
             "catalogId": "https://a2ui.org/labs/react_app/v1/catalog.json",
             "title": "Stopwatch",
             "height": 200,
-            "dataPaths": [
-              "/timer/laps"
-            ],
+            "dataPaths": ["/timer/laps"],
             "source": "import { useEffect, useState } from \"react\";\nimport { Button, Card, Stack, Text, useData } from \"a2ui\";\n\nfunction format(ms: number) {\n  const s = Math.floor(ms / 1000);\n  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, \"0\")}.${Math.floor((ms % 1000) / 100)}`;\n}\n\nexport default function App() {\n  const [, setLaps] = useData<{ time: string }[]>(\"/timer/laps\", []);\n  const [startedAt, setStartedAt] = useState<number | null>(null);\n  const [elapsed, setElapsed] = useState(0);\n\n  useEffect(() => {\n    if (startedAt === null) return;\n    const id = setInterval(() => setElapsed(Date.now() - startedAt), 100);\n    return () => clearInterval(id);\n  }, [startedAt]);\n\n  return (\n    <Card>\n      <Stack gap={3} align=\"center\">\n        <Text variant=\"h1\" style={{ fontVariantNumeric: \"tabular-nums\" }}>{format(elapsed)}</Text>\n        <Stack direction=\"horizontal\" gap={2}>\n          <Button variant=\"primary\" onClick={() => setStartedAt(startedAt === null ? Date.now() - elapsed : null)}>\n            {startedAt === null ? \"Start\" : \"Stop\"}\n          </Button>\n          <Button disabled={startedAt === null} onClick={() => setLaps((previous) => [...previous, { time: format(elapsed) }])}>\n            Lap\n          </Button>\n        </Stack>\n      </Stack>\n    </Card>\n  );\n}\n"
           },
           {

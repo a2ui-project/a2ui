@@ -1,0 +1,7 @@
+# Copied at build time from typescript/catalogs/shared and catalog/v1 (see scripts/copy-shared.mjs).
+src/shared/
+src/catalog.json
+dist/
+e2e/.generated/
+test-results/
+playwright-report/

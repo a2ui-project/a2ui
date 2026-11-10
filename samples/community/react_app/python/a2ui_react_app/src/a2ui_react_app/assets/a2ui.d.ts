@@ -31,12 +31,7 @@ declare module 'a2ui' {
 
   /** A value that survives JSON serialization. Everything sent to the surface must be one. */
   export type JsonValue =
-    | string
-    | number
-    | boolean
-    | null
-    | JsonValue[]
-    | {[key: string]: JsonValue};
+    string | number | boolean | null | JsonValue[] | {[key: string]: JsonValue};
 
   // ---------------------------------------------------------------------------------------------
   // Data model

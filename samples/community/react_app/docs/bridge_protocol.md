@@ -32,10 +32,10 @@ sequenceDiagram
 ```
 
 1. The host builds the **app document**, a complete HTML document with:
-   1. an import map that maps the module names in section 9 to the runtime's content-hashed files,
-   2. the runtime stylesheet (`a2ui-lite.css`),
-   3. a `<script type="application/json" id="a2ui-react-app-config">` holding `{"source": string, "compiled"?: string, "title"?: string}`, with every `<` written as `\u003c`,
-   4. an inline module script that imports the runtime entry and starts it.
+    1. an import map that maps the module names in section 9 to the runtime's content-hashed files,
+    2. the runtime stylesheet (`a2ui-lite.css`),
+    3. a `<script type="application/json" id="a2ui-react-app-config">` holding `{"source": string, "compiled"?: string, "title"?: string}`, with every `<` written as `\u003c`,
+    4. an inline module script that imports the runtime entry and starts it.
 2. The host sends the document as the `html` of the sandbox resource, with `sandbox: "allow-scripts"` and `csp.resourceDomains` set to the origin that serves the runtime. The proxy adds a CSP meta tag whose `script-src`, `style-src` and `font-src` allow that origin; `connect-src` and `frame-src` stay `'none'`.
 3. A change of `source` or `compiled` changes the document, so the frame reloads and a new bridge session starts. Other property changes (`dataPaths`, `functions`, `title`, `height`) apply to the running session.
 4. Once loaded, the runtime MUST send `reactApp/initialize` before any other request. The host MUST answer every other request that arrives before `reactApp/initialize` with error `-32002`.
@@ -50,21 +50,21 @@ All `params` and `result` values are JSON objects. Paths are JSON pointers: an a
 
 Params:
 
-| Field | Type | Meaning |
-| --- | --- | --- |
-| `protocolVersion` | `"1"` | Bridge protocol version the runtime speaks. |
-| `runtimeVersion` | string | Version of the runtime package. |
-| `paths` | string[] | Paths the app will read during its first render. The runtime finds them by scanning the source for string literals passed to `useData`, `getData` and `subscribe`. |
+| Field             | Type     | Meaning                                                                                                                                                            |
+| ----------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `protocolVersion` | `"1"`    | Bridge protocol version the runtime speaks.                                                                                                                        |
+| `runtimeVersion`  | string   | Version of the runtime package.                                                                                                                                    |
+| `paths`           | string[] | Paths the app will read during its first render. The runtime finds them by scanning the source for string literals passed to `useData`, `getData` and `subscribe`. |
 
 Result:
 
-| Field | Type | Meaning |
-| --- | --- | --- |
-| `protocolVersion` | `"1"` | Bridge protocol version the host speaks. |
-| `theme` | `{colorScheme, cssVars}` | `colorScheme` is `"light"` or `"dark"`; `cssVars` maps each `--a2ui-*` custom property name to its computed value on the host element. |
-| `containerSize` | `{width, height}` | Size of the frame in CSS pixels. |
-| `dataSnapshot` | `{[path]: value}` | Current value of every requested path the allowlist permits. A path with no value is omitted. |
-| `deniedPaths` | string[] | Requested paths the allowlist refused. |
+| Field             | Type                     | Meaning                                                                                                                                |
+| ----------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `protocolVersion` | `"1"`                    | Bridge protocol version the host speaks.                                                                                               |
+| `theme`           | `{colorScheme, cssVars}` | `colorScheme` is `"light"` or `"dark"`; `cssVars` maps each `--a2ui-*` custom property name to its computed value on the host element. |
+| `containerSize`   | `{width, height}`        | Size of the frame in CSS pixels.                                                                                                       |
+| `dataSnapshot`    | `{[path]: value}`        | Current value of every requested path the allowlist permits. A path with no value is omitted.                                          |
+| `deniedPaths`     | string[]                 | Requested paths the allowlist refused.                                                                                                 |
 
 The host MUST subscribe to every path in `dataSnapshot` as if the app had sent `data/subscribe`, so changes made between the snapshot and the app's first render reach the app. The runtime MUST seed its store with `dataSnapshot` before the first render, so `useData` returns real values on the first paint.
 
@@ -95,7 +95,7 @@ Params `{path, value}`; `value` is absent when the path no longer holds anything
 
 Params `{name, args}`; `args` is an object of named arguments. Result `{value}`.
 
-1. The host invokes the function through `ComponentContextFrameHost.invokeFunction`: the component's own catalog when it declares `name`, otherwise the surface's default catalog invoker. On a v1.0 surface whose message processor has an outbound listener, a function the renderer does not implement locally (undeclared, or declared schema-only) is routed to the agent with a `callAgentFunction` RPC. The host doesn't need to know which kind it is.
+1. The host invokes the function with the invoker of the first catalog that declares `name`: the component's own catalog, then the surface's default catalog, then every catalog available to the surface. A name no catalog declares goes to the default catalog's invoker (or the component catalog's, on a surface without a default). This differs from the shared `ComponentContextFrameHost`, which only tries the component's catalog and the default, and so fails on the surfaces without a default catalog that the Express compiler creates for several catalogs. On a v1.0 surface whose message processor has an outbound listener, a function the renderer does not implement locally (undeclared, or declared schema-only) is routed to the agent with a `callAgentFunction` RPC. The host doesn't need to know which kind it is.
 2. The host MUST await a promise result. A signal result is read once.
 3. A function that throws, rejects or is refused (for example `allowedCallers: agentOnly`, invalid arguments) results in error `-32010` with the error message.
 4. The runtime's default timeout for this method is 30 seconds (the default timeout of `callAgentFunction` in web_core), and callers MAY change it per call.
@@ -108,13 +108,13 @@ Params `{name, context}`. The host dispatches an A2UI `event` action of the comp
 
 Params `{timings}`, where every timing is in milliseconds since the app document's time origin (`performance.timeOrigin` of the inner frame):
 
-| Field | Meaning |
-| --- | --- |
-| `runtimeReady` | The runtime module started. |
-| `initialized` | The initialize response arrived. |
-| `compiled` | The source was transpiled and imported (or `compiled` was imported). |
-| `rendered` | The first commit painted (measured after two animation frames). |
-| `transpileMs` | Time spent in Sucrase; `0` when `compiled` was used. |
+| Field          | Meaning                                                              |
+| -------------- | -------------------------------------------------------------------- |
+| `runtimeReady` | The runtime module started.                                          |
+| `initialized`  | The initialize response arrived.                                     |
+| `compiled`     | The source was transpiled and imported (or `compiled` was imported). |
+| `rendered`     | The first commit painted (measured after two animation frames).      |
+| `transpileMs`  | Time spent in Sucrase; `0` when `compiled` was used.                 |
 
 The host records its own clock at the proxy's ready message and at `ui/rendered`, and reports the difference as the frame's time to first render.
 
@@ -153,8 +153,9 @@ Params `{colorScheme, cssVars}`, same shape as `theme` in section 3.1. The host 
 1. Requests are independent; the host MAY answer them out of order (a slow agent function doesn't hold back a `data/set`).
 2. The runtime updates its own store before sending `data/set` (optimistic write), so `useData` re-renders at once.
 3. While a path has writes in flight, the runtime MUST ignore `data/changed` for it. When the last in-flight write for a path is acknowledged, the runtime sets the path to the `value` of that response. Since the host applies writes in arrival order, this value is the data model's state after the app's last write, including any change the host made in between.
-4. If a `data/set` fails, the runtime restores the path to the value it had before the first write of the failed batch and reports `ui/error` with phase `bridge`.
-5. `useFunction` gives every call a sequence number and only keeps the result of the latest one, so an older response that arrives late never replaces a newer one.
+4. If the last in-flight write for a path fails, the runtime re-reads the path with `data/get` (the data model may hold an earlier write or a host change) and reports `ui/error` with phase `bridge`.
+5. A `data/get` or `data/subscribe` answer for a path that the app wrote after sending the request is dropped, so a slow read never undoes a newer write.
+6. `useFunction` gives every call a sequence number and only keeps the result of the latest one, so an older response that arrives late never replaces a newer one.
 
 ## 6. Timeouts
 
@@ -166,19 +167,19 @@ Params `{colorScheme, cssVars}`, same shape as `theme` in section 3.1. The host 
 
 Errors use the JSON-RPC `error` member: `{code, message, data?}`.
 
-| Code | Name | When |
-| --- | --- | --- |
-| `-32600` | Invalid request | The message isn't a valid JSON-RPC request. |
-| `-32601` | Method not found | Unknown method. |
-| `-32602` | Invalid params | Missing or mistyped params, or a protocol version mismatch. |
-| `-32603` | Internal error | Unexpected host failure. |
-| `-32001` | Payload rejected | The message breaks the limits of section 8. |
-| `-32002` | Not initialized | A request other than `reactApp/initialize` arrived first. |
-| `-32010` | Function failed | The function threw, rejected or was refused by the invoker. `data.name` is the function name. |
-| `-32011` | Path not allowed | The path is outside `dataPaths`. `data.path` is the path. |
-| `-32012` | Function not allowed | The function is outside `functions`. `data.name` is the function name. |
-| `-32013` | Timeout | Runtime-side only: no response in time. |
-| `-32014` | Action failed | The action dispatch rejected. |
+| Code     | Name                 | When                                                                                          |
+| -------- | -------------------- | --------------------------------------------------------------------------------------------- |
+| `-32600` | Invalid request      | The message isn't a valid JSON-RPC request.                                                   |
+| `-32601` | Method not found     | Unknown method.                                                                               |
+| `-32602` | Invalid params       | Missing or mistyped params, or a protocol version mismatch.                                   |
+| `-32603` | Internal error       | Unexpected host failure.                                                                      |
+| `-32001` | Payload rejected     | The message breaks the limits of section 8.                                                   |
+| `-32002` | Not initialized      | A request other than `reactApp/initialize` arrived first.                                     |
+| `-32010` | Function failed      | The function threw, rejected or was refused by the invoker. `data.name` is the function name. |
+| `-32011` | Path not allowed     | The path is outside `dataPaths`. `data.path` is the path.                                     |
+| `-32012` | Function not allowed | The function is outside `functions`. `data.name` is the function name.                        |
+| `-32013` | Timeout              | Runtime-side only: no response in time.                                                       |
+| `-32014` | Action failed        | The action dispatch rejected.                                                                 |
 
 The runtime turns an error response into a rejected promise with an `Error` whose `message` is the error message and whose `code` property is the code.
 
@@ -193,14 +194,14 @@ The runtime turns an error response into a rejected promise with an `Error` whos
 
 The import map of the app document maps these names. Any other bare import fails to resolve, and the runtime reports it as a `load` error.
 
-| Module | Contents |
-| --- | --- |
-| `react` | React 19. |
-| `react/jsx-runtime` | Used by the transpiled JSX; apps don't import it directly. |
-| `react-dom`, `react-dom/client` | React DOM 19; apps rarely need them, since the runtime mounts `App`. |
-| `a2ui` | The bridge API and primitives, typed by [`a2ui.d.ts`](../typescript/react_app_runtime/src/a2ui.d.ts). |
+| Module                          | Contents                                                                                              |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `react`                         | React 19.                                                                                             |
+| `react/jsx-runtime`             | Used by the transpiled JSX; apps don't import it directly.                                            |
+| `react-dom`, `react-dom/client` | React DOM 19; apps rarely need them, since the runtime mounts `App`.                                  |
+| `a2ui`                          | The bridge API and primitives, typed by [`a2ui.d.ts`](../typescript/react_app_runtime/src/a2ui.d.ts). |
 
-`vega-embed`, `vega` and `vega-lite` are also mapped, but only `VegaChart` uses them, and they load on its first render.
+The runtime itself is the `a2ui-runtime` entry. Sucrase and `vega-embed` (with Vega and Vega-Lite) are chunks of the runtime build rather than import map entries: Sucrase loads only when the app arrives without `compiled`, and Vega on the first `VegaChart` render.
 
 ## 10. Versioning
 

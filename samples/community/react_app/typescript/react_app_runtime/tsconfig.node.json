@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  /* Emits the Node entry point (runtime directory, manifest type, request handler) to dist/node. */
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["es2023"],
+    "types": ["node"],
+    "rootDir": "src/node",
+    "outDir": "dist/node",
+    "declaration": true,
+    "strict": true,
+    "noImplicitOverride": true,
+    "noUnusedParameters": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src/node/**/*.ts"],
+  "exclude": ["src/node/**/*.test.ts"]
+}
