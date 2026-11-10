@@ -384,6 +384,7 @@ starlight-tabs:where(.astro-esqgolmp){display:block}.tablist-wrapper:where(.astr
 <div class="a2-callout__title">Important</div>
 <p>There is <strong>no fallback</strong> to the list of catalogs declared in <code dir="auto">rendererCapabilities</code> (even if the renderer only advertises a single supported catalog). Every component and function call must resolve through either its explicit <code dir="auto">catalogId</code> or the surface default <code dir="auto">catalogId</code>.</p>
 </div>
+<p>Function calls interpolated inside <a href="#the-formatstring-function"><code dir="auto">formatString</code></a> <code dir="auto">${...}</code> expressions have no syntax for naming a <code dir="auto">catalogId</code>. Non-system function calls inside <code dir="auto">${...}</code> resolve against the catalog that the enclosing <code dir="auto">formatString</code> call resolved to (even when the surface defines a different default <code dir="auto">catalogId</code>), while <code dir="auto">@</code>-prefixed system functions such as <code dir="auto">@index</code> remain catalogless.</p>
 <h3 id="catalog-agnostic-accessibility-requirements">Catalog-Agnostic Accessibility Requirements</h3>
 <p>Because JSON Schema cannot inspect arbitrary catalog component property semantics to infer which properties represent visible text labels or which components accept user interaction, accessibility rules are enforced through normative specification requirements and SDK tooling:</p>
 <p><strong>Catalog and renderer implementations MUST:</strong></p>
@@ -994,6 +995,7 @@ This enables route-dispatch matching via the <code dir="auto">discriminator</cod
 <li><code dir="auto">${formatDate(value:${/currentDate}, format:'yyyy-MM-dd')}</code>: A function with named arguments.</li>
 </ul>
 <p>Arguments can be <strong>Literals</strong> (quoted strings, numbers, or booleans), or <strong>Nested Expressions</strong>.</p>
+<p>Because <code dir="auto">${...}</code> syntax cannot specify a <code dir="auto">catalogId</code>, non-system function calls inside <code dir="auto">${...}</code> (including nested calls inside their arguments) resolve against the catalog that the enclosing <code dir="auto">formatString</code> call resolved to, even if the surface declares a different default <code dir="auto">catalogId</code>. Reserved <code dir="auto">@</code>-prefixed system functions (such as <code dir="auto">${@index()}</code>) belong to no catalog and remain catalogless.</p>
 <h4 id="formatstring-nested-interpolation"><code dir="auto">formatString</code> nested interpolation</h4>
 <p>Expressions can be nested using additional <code dir="auto">${...}</code> wrappers inside an outer expression to make bindings explicit or to chain function calls.</p>
 <ul>
