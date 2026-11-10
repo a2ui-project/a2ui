@@ -56,6 +56,8 @@ parts = parser.parse_response(
 )
 
 # 4. Or read a streamed LLM response incrementally
+# (Pass a persistent `state = RendererState([catalog])` across turns if the
+# client renderer retains surfaces across turns rather than per-turn bubbles.)
 stream = parser.open_stream()
 for chunk in chunks:
     emitted_parts = stream.feed(chunk)

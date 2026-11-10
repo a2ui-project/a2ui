@@ -42,9 +42,7 @@ from a2ui.utils import RendererState
 
 from .compiler import (
     VerticalCompiler,
-    get_state_call_offset,
     is_line_comment_start,
-    set_state_call_offset,
     split_complete_statements,
 )
 
@@ -52,6 +50,7 @@ if TYPE_CHECKING:
     from .parser import VerticalParser
 
 PartT = TypeVar("PartT", bound=StreamPart, covariant=True)
+_CALL_OFFSET_ATTR = "_vertical_call_offset"
 
 _OPEN_TAG_RE = re.compile(r"<(?P<tag>a2ui-vertical|a2ui)(?:\s[^>]*)?>", re.IGNORECASE)
 _OPEN_TAG_START_RE = re.compile(r"<(?:a2ui-vertical|a2ui)\s[^>]*$", re.IGNORECASE)
@@ -228,7 +227,7 @@ class VerticalResponseStream(ResponseStream[PartT], Generic[PartT]):
         self._scan_pos = 0
         self._consumed_len = 0
         self._surface_offset = 0
-        self._call_offset = get_state_call_offset(self._state)
+        self._call_offset = int(getattr(self._state, _CALL_OFFSET_ATTR, 0))
         self._touched: dict[str, None] = {}
 
     def _reset_block(self) -> None:
@@ -445,7 +444,7 @@ class VerticalResponseStream(ResponseStream[PartT], Generic[PartT]):
                 if block_touched:
                     self._state.check_topology(block_touched)
             self._call_offset = next_call_offset
-            set_state_call_offset(self._state, self._call_offset)
+            setattr(self._state, _CALL_OFFSET_ATTR, self._call_offset)
             self._touched.update(dict.fromkeys(block_touched))
             models = to_message_models(raw_msgs)
             parts.append(A2uiPart(a2ui=models))

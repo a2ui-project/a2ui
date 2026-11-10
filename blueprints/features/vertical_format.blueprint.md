@@ -102,14 +102,18 @@ ComponentName(arg1, arg2, key1=val1, key2=val2)
 
 ## **4. SDK Interface Contract**
 
-Each client language SDK implementing Vertical format must expose:
+Each client language SDK implementing Vertical format must expose the following public types:
 
 1. `VerticalFormat(catalogs, examples, allowed_messages, surface_id, version)` and `VerticalFormatFactory`: Concrete strategy and factory implementing `InferenceFormat` / `InferenceFormatFactory`.
-2. `VerticalParser(catalogs, surface_id, version)`: Stateless parser implementing `Parser` (`compile`, `decompile`, `wrap`, `unwrap`, `parse_response`, `open_stream`).
-3. `VerticalCompiler(catalogs, surface_id, version)`: Permissive compiler handling statement splitting, healing, multi-catalog resolution, and schema coercion.
-4. `VerticalDecompiler(catalogs, version)`: Converts wire JSON messages back to canonical Vertical syntax.
-5. `VerticalPromptGenerator`: Implements `PromptGenerator` hooks (`catalogs`, `generate_base_rules`, `generate_catalog_instructions`, `generate_examples`) with container child-pruning.
-6. `VerticalResponseStream`: Real-time chunk tokenizer and `ResponseStream` implementation.
+2. `VerticalParser(catalogs, surface_id, version)`: Parser implementing `Parser` (`compile`, `decompile`, `wrap`, `unwrap`, `parse_response`, `open_stream`).
+3. `VerticalResponseStream`: Real-time chunk tokenizer and `ResponseStream` implementation.
+4. `VerticalParseError` and `VerticalValidationError`: Typed format error subclasses inheriting from `A2uiParseError` and `A2uiValidationError`.
+
+Internal implementation modules accessed through `VerticalFormat` (`format.prompt_generator`) and `VerticalParser`:
+
+- `VerticalCompiler`: Compiler handling statement splitting, non-normative recovery, multi-catalog resolution, and schema coercion.
+- `VerticalDecompiler`: Converts wire JSON messages back to canonical Vertical syntax.
+- `VerticalPromptGenerator`: Implements `PromptGenerator` hooks (`catalogs`, `generate_base_rules`, `generate_catalog_instructions`, `generate_examples`) with container child-pruning.
 
 ---
 

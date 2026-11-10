@@ -16,8 +16,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from contextvars import ContextVar
+from collections.abc import Mapping, Sequence, Set as AbstractSet
 import re
 from typing import Any, Literal, overload
 
@@ -27,6 +26,7 @@ from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_formats._shared import check_mixed_catalogs, to_message_models
 from a2ui.parser import (
     A2uiCompilationError,
+    A2uiPart,
     BlockLexer,
     Parser,
     RawA2uiPart,
@@ -38,27 +38,27 @@ from a2ui.parser import (
 from a2ui.utils import RendererState
 from a2ui.utils._experimental import experimental
 
-from .compiler import (
-    VerticalCompiler,
-    get_state_call_offset,
-    normalize_wire_version,
-    set_state_call_offset,
-)
+from .compiler import VerticalCompiler, normalize_wire_version
 from .decompiler import VerticalDecompiler
 from .streaming import VerticalResponseStream
 
 _OPEN_SENTINEL_RE = re.compile(r"<(?:a2ui-vertical|a2ui)(?:\s[^>]*)?>", re.IGNORECASE)
 _CLOSE_SENTINEL_RE = re.compile(r"</(?:a2ui-vertical|a2ui)\s*>", re.IGNORECASE)
 VERTICAL_PAYLOAD_START_RE = re.compile(r"^[ \t]*[A-Z][\w]*\s*\(", re.MULTILINE)
-
-_IN_FLIGHT_CALL_OFFSET: ContextVar[int | None] = ContextVar(
-    "_IN_FLIGHT_CALL_OFFSET", default=None
-)
+_CALL_OFFSET_ATTR = "_vertical_call_offset"
 
 
 @experimental
 class VerticalParser(Parser):
-    """Stateless parser, compiler, decompiler, and stream factory for A2UI Vertical."""
+    """Parser, compiler, decompiler, and stream factory for A2UI Vertical.
+
+    In single-turn or bubble-scoped chat mode (`state=None`), each response
+    allocates surfaces starting from `surface_id` (`main`, `main_1`, ...).
+    When a single client renderer retains surfaces across multiple turns, pass
+    a persistent `RendererState` (`state=...`) to `parse_response` or
+    `open_stream` so surface and `functionCallId` counters advance monotonically
+    without colliding with earlier turns.
+    """
 
     def __init__(
         self,
@@ -160,44 +160,78 @@ class VerticalParser(Parser):
         state: RendererState | None = None,
     ) -> list[ResponsePart]:
         """Parses a complete LLM response, allocating unique surface and call IDs across blocks and turns."""
-        target = state if state is not None else self._empty_state()
-        token = _IN_FLIGHT_CALL_OFFSET.set(get_state_call_offset(target))
-        try:
-            parts = super().parse_response(content, wrapped=wrapped, state=target)
-            final_offset = _IN_FLIGHT_CALL_OFFSET.get()
-            if state is not None and final_offset is not None:
-                set_state_call_offset(state, final_offset)
-            return parts
-        finally:
-            _IN_FLIGHT_CALL_OFFSET.reset(token)
+        target = state if state is not None else RendererState(self._catalogs)
+        response_parts: list[ResponsePart] = []
+        touched: dict[str, None] = {}
+        incomplete: set[str] = set()
+        call_offset = int(getattr(target, _CALL_OFFSET_ATTR, 0))
 
-    def _apply_block(
-        self, format_content: str, is_final: bool, state: RendererState
-    ) -> tuple[list[AgentToRendererMessage], list[str]]:
-        active_call_offset = _IN_FLIGHT_CALL_OFFSET.get()
-        if active_call_offset is None:
-            active_call_offset = get_state_call_offset(state)
-        try:
-            raw_msgs, _, next_call_offset = self._compiler.compile_dicts(
-                format_content,
-                surface_id=self.surface_id,
-                is_final=is_final,
-                version=self.version,
-                existing_surface_ids=set(state.surface_ids),
-                call_offset=active_call_offset,
-            )
-        except A2uiError:
-            raise
-        except Exception as e:
-            raise A2uiCompilationError(
-                f"Failed to compile A2UI Vertical block: {e}", format_content
-            ) from e
-        touched = state.apply(raw_msgs)
-        _IN_FLIGHT_CALL_OFFSET.set(next_call_offset)
-        return to_message_models(raw_msgs), touched
+        with target.transaction():
+            try:
+                raw_parts = (
+                    self.unwrap(content)
+                    if wrapped
+                    else [
+                        RawResponsePart(
+                            part=RawA2uiPart(a2ui_raw=content), is_final=True
+                        )
+                    ]
+                )
+                for raw_part in raw_parts:
+                    if isinstance(raw_part.part, TextPart):
+                        response_parts.append(raw_part.part)
+                    elif isinstance(raw_part.part, RawA2uiPart):
+                        try:
+                            raw_msgs, _, call_offset = self._compiler.compile_dicts(
+                                raw_part.part.a2ui_raw,
+                                surface_id=self.surface_id,
+                                is_final=raw_part.is_final,
+                                version=self.version,
+                                existing_surface_ids=set(target.surface_ids),
+                                call_offset=call_offset,
+                            )
+                        except A2uiError:
+                            raise
+                        except Exception as e:
+                            raise A2uiCompilationError(
+                                f"Failed to compile A2UI Vertical block: {e}",
+                                raw_part.part.a2ui_raw,
+                            ) from e
+                        block_touched = target.apply(raw_msgs)
+                        response_parts.append(
+                            A2uiPart(a2ui=to_message_models(raw_msgs))
+                        )
+                        touched.update(dict.fromkeys(block_touched))
+                        if not raw_part.is_final:
+                            incomplete.update(block_touched)
+            except A2uiError as e:
+                setattr(e, "partial_results", response_parts)
+                raise
+
+            try:
+                complete = [s for s in touched if s not in incomplete]
+                if complete:
+                    target.check_topology(complete)
+            except A2uiError as e:
+                setattr(
+                    e,
+                    "partial_results",
+                    [p for p in response_parts if isinstance(p, TextPart)],
+                )
+                raise
+
+            target.mark_checked(incomplete)
+
+        setattr(target, _CALL_OFFSET_ATTR, call_offset)
+        return response_parts
 
     def compile(
-        self, format_content: str, *, is_final: bool = True
+        self,
+        format_content: str,
+        *,
+        is_final: bool = True,
+        existing_surface_ids: AbstractSet[str] = frozenset(),
+        call_offset: int = 0,
     ) -> Sequence[AgentToRendererMessage | Mapping[str, Any]]:
         """Compiles a single raw Vertical block into A2UI messages."""
         try:
@@ -206,6 +240,8 @@ class VerticalParser(Parser):
                 surface_id=self.surface_id,
                 is_final=is_final,
                 version=self.version,
+                existing_surface_ids=existing_surface_ids,
+                call_offset=call_offset,
             )
         except A2uiError:
             raise
