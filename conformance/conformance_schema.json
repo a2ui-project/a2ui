@@ -31,6 +31,8 @@
       {"$ref": "#/$defs/CreateProcessorTest"},
       {"$ref": "#/$defs/EvaluateFunctionTest"},
       {"$ref": "#/$defs/DispatchActionTest"},
+      {"$ref": "#/$defs/UrlPolicyCheckTest"},
+      {"$ref": "#/$defs/UrlPolicyResolutionTest"},
       {"$ref": "#/$defs/RouteAgentFunctionTest"},
       {"$ref": "#/$defs/DeriveTest"},
       {"$ref": "#/$defs/RenderSurfaceTest"},
@@ -862,6 +864,186 @@
         "surface": ["protocolVersion", "catalogPaths"],
         "catalogId": ["surface"]
       },
+      "additionalProperties": false
+    },
+    "UrlContext": {
+      "enum": ["media", "navigation", "iframe"],
+      "description": "How a renderer uses a URL: loaded automatically (media), opened on a user action (navigation), or embedded (iframe)."
+    },
+    "UrlHostList": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Allowed hosts for one context. An entry is a hostname (compared on any port), host:port, or *.example.com (subdomains at any depth, not the apex). Setting the list, even to [], blocks relative URLs for that context unless allowRelative names it."
+    },
+    "UrlSecurityPolicyConfig": {
+      "type": "object",
+      "description": "The URL security policy a url_policy_check or url_policy_resolution case runs under. Every policy runs the built-in baseline first.",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "enum": ["permissive", "allowlist"],
+          "description": "permissive allows every URL the baseline allows. allowlist adds per-context host lists and optional rewrites."
+        },
+        "allowSvgDataUrls": {
+          "type": "boolean",
+          "description": "Lets data:image/svg+xml URLs through as media. Defaults to false."
+        },
+        "media": {"$ref": "#/$defs/UrlHostList"},
+        "navigation": {"$ref": "#/$defs/UrlHostList"},
+        "iframe": {"$ref": "#/$defs/UrlHostList"},
+        "allowRelative": {
+          "type": "array",
+          "items": {"enum": ["media", "navigation"]},
+          "uniqueItems": true,
+          "description": "Contexts that keep relative URLs even though they have a host list."
+        },
+        "rewrite": {
+          "type": "object",
+          "description": "Per-context rewrite applied after the host check. The rewritten URL is checked by the baseline again.",
+          "propertyNames": {"$ref": "#/$defs/UrlContext"},
+          "additionalProperties": {
+            "type": "object",
+            "required": ["prefix"],
+            "properties": {
+              "prefix": {
+                "type": "string",
+                "description": "An allowed absolute http(s) URL becomes prefix + the URL percent-encoded as by JavaScript encodeURIComponent. Other allowed URLs are unchanged."
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "if": {"properties": {"type": {"const": "permissive"}}},
+      "then": {
+        "properties": {
+          "type": true,
+          "allowSvgDataUrls": true
+        },
+        "additionalProperties": false
+      },
+      "additionalProperties": false
+    },
+    "UrlPolicyCheckTest": {
+      "type": "object",
+      "description": "Checks URLs directly against a URL security policy.",
+      "required": ["name", "action", "policy", "steps"],
+      "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "action": {"const": "url_policy_check"},
+        "policy": {"$ref": "#/$defs/UrlSecurityPolicyConfig"},
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["url", "context", "expect"],
+            "properties": {
+              "url": {"type": "string", "description": "The URL passed to the policy."},
+              "context": {"$ref": "#/$defs/UrlContext"},
+              "expect": {
+                "type": ["string", "null"],
+                "description": "The URL the policy returns (the input unchanged, or its rewrite), or null when the URL is blocked."
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "UrlPolicyResolutionExpect": {
+      "type": "object",
+      "properties": {
+        "components": {
+          "type": "object",
+          "description": "Component ID to the resolved props to check. Only named props are checked, each compared in full. An expected null, at any depth, matches an absent key or a null value.",
+          "additionalProperties": {"type": "object"}
+        },
+        "openedUrls": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "The exact URLs that reached the host's open-URL handler during the step. Only in dispatchAction steps; defaults to []."
+        },
+        "errors": {
+          "type": "array",
+          "description": "The exact surface errors reported during the step. Each entry checks only the keys it names; message is a regular expression. Only in dispatchAction steps; defaults to [].",
+          "items": {
+            "type": "object",
+            "required": ["code"],
+            "properties": {
+              "code": {"type": "string"},
+              "surfaceId": {"type": "string"},
+              "message": {"type": "string"}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "UrlPolicyResolutionTest": {
+      "type": "object",
+      "description": "Processes v1.0 messages under a URL security policy and checks how URL props resolve and how openUrl behaves.",
+      "required": ["name", "action", "protocolVersion", "policy", "messages", "expect"],
+      "properties": {
+        "features": {"$ref": "#/$defs/FeatureTags"},
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "action": {"const": "url_policy_resolution"},
+        "protocolVersion": {"const": "1.0"},
+        "catalogPaths": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Catalog JSON paths relative to the repository root. The basic catalog's URL props are media until the published catalog carries x-a2ui-url-context."
+        },
+        "catalogs": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/Catalog"},
+          "description": "Inline catalog documents. Their component props may carry x-a2ui-url-context."
+        },
+        "policy": {"$ref": "#/$defs/UrlSecurityPolicyConfig"},
+        "messages": {
+          "type": "array",
+          "items": {"type": "object"},
+          "description": "v1.0 messages processed in order before the first expectation."
+        },
+        "expect": {"$ref": "#/$defs/UrlPolicyResolutionExpect"},
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["expect"],
+            "properties": {
+              "messages": {
+                "type": "array",
+                "items": {"type": "object"},
+                "description": "v1.0 messages to process."
+              },
+              "dispatchAction": {
+                "type": "object",
+                "description": "Dispatches the action prop of a component, as a user would.",
+                "required": ["surfaceId", "componentId"],
+                "properties": {
+                  "surfaceId": {"type": "string"},
+                  "componentId": {"type": "string"},
+                  "userActivation": {
+                    "type": "boolean",
+                    "description": "Whether a user gesture triggered the action. Defaults to true."
+                  }
+                },
+                "additionalProperties": false
+              },
+              "expect": {"$ref": "#/$defs/UrlPolicyResolutionExpect"}
+            },
+            "oneOf": [{"required": ["messages"]}, {"required": ["dispatchAction"]}],
+            "additionalProperties": false
+          }
+        }
+      },
+      "anyOf": [{"required": ["catalogPaths"]}, {"required": ["catalogs"]}],
       "additionalProperties": false
     },
     "DispatchActionTest": {
