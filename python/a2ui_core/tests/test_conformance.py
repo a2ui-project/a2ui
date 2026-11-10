@@ -77,6 +77,24 @@ except ImportError:
     UnknownConformanceKeyError = _nr_mod.UnknownConformanceKeyError
     run_node_resolution_case = _nr_mod.run_node_resolution_case
 
+try:
+    from .url_security_policy_runner import (
+        run_url_policy_check_case,
+        run_url_policy_resolution_case,
+    )
+except ImportError:
+    import importlib.util as _importlib_util
+
+    _usp_spec = _importlib_util.spec_from_file_location(
+        "url_security_policy_runner",
+        os.path.join(os.path.dirname(__file__), "url_security_policy_runner.py"),
+    )
+    assert _usp_spec and _usp_spec.loader
+    _usp_mod = _importlib_util.module_from_spec(_usp_spec)
+    _usp_spec.loader.exec_module(_usp_mod)
+    run_url_policy_check_case = _usp_mod.run_url_policy_check_case
+    run_url_policy_resolution_case = _usp_mod.run_url_policy_resolution_case
+
 CATEGORY_TO_EXCEPTION = {
     "ParseError": (A2uiParseError, A2uiExpressionError),
     "ValidationError": (A2uiValidationError,),
@@ -107,7 +125,6 @@ UNRUNNABLE_SUITES: dict[str, str] = {
         " not have access to. Pending v1.0 catalogs for those renderers."
     ),
     "core/adapter_conformance.yaml": "UI framework adapter suite",
-    "core/url_security_policy.yaml": "URL security policy not implemented yet (#4045)",
 }
 
 # Individual `<suite>#<case>` entries that use an optional feature or key the
@@ -903,6 +920,10 @@ def test_unsupported_and_expected_failures_are_used() -> None:
 
 def _validate_resolve_nodes_case(case: dict[str, Any]) -> None:
     run_node_resolution_case(case, Path(CONFORMANCE_ROOT))
+
+
+def _validate_url_policy_resolution_case(case: dict[str, Any]) -> None:
+    run_url_policy_resolution_case(case, Path(CONFORMANCE_ROOT))
 
 
 def _dispatch_conformance_action(
@@ -4027,6 +4048,8 @@ _ACTION_HANDLERS: dict[str, Callable[[dict[str, Any]], None]] = {
     "route_agent_function": validate_route_agent_function_case,
     "select_catalog": validate_select_catalog_case,
     "to_json": validate_to_json_case,
+    "url_policy_check": run_url_policy_check_case,
+    "url_policy_resolution": _validate_url_policy_resolution_case,
     "validate": validate_pure_validation_case,
     "validate_common_type": validate_common_type_case,
     "validation_schema": validate_validation_schema_case,

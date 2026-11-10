@@ -15,9 +15,9 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
-from functools import cache
+from functools import cache, partial
 from typing import Any, Callable, Final
 
 from ..common import Subscription
@@ -28,6 +28,14 @@ from ..schema._dynamic_types import (
 )
 from ..schema.common_types_schema import get_all_dynamic_type_names
 from ..schema.v1_0 import ValidationResult
+from ..security._basic_catalog_url_properties import builtin_url_properties
+from ..security.url_schema import url_context_of
+from ..security.url_security_policy import (
+    UrlCheckInfo,
+    UrlContext,
+    UrlContextAnnotation,
+    is_url_context_annotation,
+)
 from .component_context import ComponentContext
 from .validation_result_coercion import coerce_dynamic_boolean
 
@@ -46,12 +54,18 @@ class BehaviorType(str, Enum):
 
 @dataclass(frozen=True)
 class BehaviorNode:
-    """Represents a classification node in the schema behavior tree."""
+    """Represents a classification node in the schema behavior tree.
+
+    A DYNAMIC or STATIC node may carry the `url_context` its schema declares
+    with `x-a2ui-url-context`, in which case the binder passes every resolved
+    value through the surface's URL security policy.
+    """
 
     type: BehaviorType
     shape: dict[str, BehaviorNode] | None = None
     element: BehaviorNode | None = None
     is_boolean: bool = False
+    url_context: UrlContextAnnotation | None = None
 
 
 CHECKABLE_REF_NAMES: Final[frozenset[str]] = frozenset({"Checkable", "CheckRule"})
@@ -123,6 +137,12 @@ _SPECIAL_BEHAVIORS: Final[frozenset[BehaviorType]] = frozenset({
     BehaviorType.ACTION,
     BehaviorType.STRUCTURAL,
     BehaviorType.DYNAMIC,
+})
+
+# The behaviors whose values the URL security policy can filter.
+_URL_BEHAVIORS: Final[frozenset[BehaviorType]] = frozenset({
+    BehaviorType.DYNAMIC,
+    BehaviorType.STATIC,
 })
 
 
@@ -254,11 +274,25 @@ def classify_schema_behavior(
 ) -> BehaviorNode:
     """Classifies a JSON Schema dictionary into a runtime BehaviorNode.
 
+    A value node (DYNAMIC or STATIC) whose schema declares
+    `x-a2ui-url-context` carries that context.
+
     Args:
         schema: The schema to classify.
         defs: The `$defs` that `$ref`s resolve against. Defaults to the
             schema's own `$defs`.
     """
+    node = _classify_schema_shape(schema, defs)
+    url_context = url_context_of(schema)
+    if url_context is not None and node.type in _URL_BEHAVIORS:
+        return replace(node, url_context=url_context)
+    return node
+
+
+def _classify_schema_shape(
+    schema: Any, defs: Mapping[str, Any] | None = None
+) -> BehaviorNode:
+    """Classifies a schema, ignoring its `x-a2ui-url-context` annotation."""
     if not isinstance(schema, dict):
         return BehaviorNode(BehaviorType.STATIC)
     if defs is None:
@@ -403,6 +437,7 @@ class GenericBinder:
         )
         if self.behavior_tree.type != BehaviorType.OBJECT:
             self.behavior_tree = BehaviorNode(BehaviorType.OBJECT, shape={})
+        self.behavior_tree = _with_url_property_overrides(self.behavior_tree, context)
 
         sub = self.context.component_model.on_updated.subscribe(
             lambda _: self._rebuild_all_bindings()
@@ -454,6 +489,18 @@ class GenericBinder:
             child_behavior = shape.get(k) or _classify_value_fallback(
                 k, v, at_least_v10=self.context.data_context.at_least_v10
             )
+            if (
+                child_behavior.type == BehaviorType.STATIC
+                and child_behavior.url_context is not None
+            ):
+                # A URL property listed outside the schema may still be bound.
+                fallback = _classify_value_fallback(
+                    k, v, at_least_v10=self.context.data_context.at_least_v10
+                )
+                if fallback.type == BehaviorType.DYNAMIC:
+                    child_behavior = replace(
+                        fallback, url_context=child_behavior.url_context
+                    )
             result[k] = self._resolve_and_bind(
                 v, child_behavior, result, k, [*path, k], is_sync
             )
@@ -517,7 +564,11 @@ class GenericBinder:
 
         if behavior.type == BehaviorType.DYNAMIC:
             return self._bind_dynamic_value(
-                value, path, is_sync, is_boolean=behavior.is_boolean
+                value,
+                path,
+                is_sync,
+                is_boolean=behavior.is_boolean,
+                url_context=behavior.url_context,
             )
 
         if behavior.type == BehaviorType.ACTION:
@@ -538,6 +589,10 @@ class GenericBinder:
 
         if behavior.type == BehaviorType.OBJECT and isinstance(value, dict):
             return self._bind_object(value, behavior.shape or {}, path, is_sync)
+
+        static_url_context = _active_url_context(behavior.url_context)
+        if behavior.type == BehaviorType.STATIC and static_url_context is not None:
+            return self._filter_url(value, path, static_url_context)
 
         return value
 
@@ -633,8 +688,18 @@ class GenericBinder:
         is_sync: bool,
         *,
         is_boolean: bool = False,
+        url_context: UrlContextAnnotation | None = None,
     ) -> Any:
-        coerce = coerce_dynamic_boolean if is_boolean else (lambda v: v)
+        coerce: Callable[[Any], Any]
+        active_url_context = _active_url_context(url_context)
+        if is_boolean:
+            coerce = coerce_dynamic_boolean
+        elif active_url_context is not None:
+            coerce = partial(
+                self._filter_url, path=path, url_context=active_url_context
+            )
+        else:
+            coerce = _identity
 
         def on_change(new_val: Any) -> None:
             self._update_deep_value(path, coerce(new_val))
@@ -646,6 +711,29 @@ class GenericBinder:
         else:
             bound.unsubscribe()
         return coerce(bound.value)
+
+    def _filter_url(self, value: Any, path: list[str], url_context: UrlContext) -> Any:
+        """Passes a resolved value of a URL property through the URL policy.
+
+        Components receive the result and don't check it again, which keeps
+        a rewritten URL (such as a proxy URL) from being checked against the
+        allowlist a second time.
+
+        Args:
+            value: The resolved value.
+            path: Path of the property within the component's props.
+            url_context: How the component uses the URL.
+
+        Returns:
+            The URL to use, or None when it is blocked or not a string.
+        """
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            return None
+        return self.context.sanitize_url(
+            value, url_context, UrlCheckInfo(property_name=_property_name_of(path))
+        )
 
     def _bind_action(self, value: Any, path: list[str]) -> Callable[..., Any]:
         cache_key = "/".join(path)
@@ -855,3 +943,87 @@ class GenericBinder:
         self.data_listeners = []
         self.listeners.clear()
         self._action_closures.clear()
+
+
+def _identity(value: Any) -> Any:
+    return value
+
+
+def _active_url_context(
+    annotation: UrlContextAnnotation | None,
+) -> UrlContext | None:
+    """Returns the URL context an annotation names, or None for `none` or nothing."""
+    if annotation is None or annotation == "none":
+        return None
+    return annotation
+
+
+def _property_name_of(path: list[str]) -> str:
+    """Writes a property path as `UrlCheckInfo.property_name` does.
+
+    The path is dotted, with `[]` for list items, such as `items[].imageUrl`.
+    """
+    name = ""
+    for segment in path:
+        if segment.isdigit():
+            name += "[]"
+        else:
+            name += f".{segment}" if name else segment
+    return name
+
+
+def _lookup_url_properties(
+    url_properties: Any, catalog_id: str | None, component_type: str
+) -> Mapping[str, UrlContextAnnotation] | None:
+    if not isinstance(url_properties, Mapping) or catalog_id is None:
+        return None
+    by_component = url_properties.get(catalog_id)
+    if not isinstance(by_component, Mapping):
+        return None
+    properties = by_component.get(component_type)
+    return properties if isinstance(properties, Mapping) else None
+
+
+def _with_url_property_overrides(
+    tree: BehaviorNode, context: ComponentContext
+) -> BehaviorNode:
+    """Applies the URL properties listed for a component outside its schema.
+
+    First the built-in list for the basic catalogs, where the schema says
+    nothing, then the host's `UrlSecurityPolicy.url_properties`, which wins
+    over the schema. Only top-level properties resolved as values (DYNAMIC or
+    STATIC) can be marked.
+
+    Returns:
+        `tree` itself when nothing applies, or an updated copy.
+    """
+    model = context.component_model
+    catalog = model.catalog
+    catalog_id = getattr(catalog, "catalog_id", None)
+    get_component = getattr(catalog, "get_component", None)
+    component_api = get_component(model.type) if callable(get_component) else None
+    builtin = builtin_url_properties(catalog_id, model.type, component_api)
+    policy = getattr(context.data_context.surface, "url_security_policy", None)
+    host = _lookup_url_properties(
+        getattr(policy, "url_properties", None), catalog_id, model.type
+    )
+    if not builtin and not host:
+        return tree
+
+    shape = dict(tree.shape or {})
+
+    def apply(prop: str, url_context: Any, override_schema: bool) -> None:
+        node = shape.get(prop) or BehaviorNode(BehaviorType.STATIC)
+        if node.type not in _URL_BEHAVIORS:
+            return
+        if not override_schema and node.url_context is not None:
+            return
+        if not is_url_context_annotation(url_context):
+            return
+        shape[prop] = replace(node, url_context=url_context)
+
+    for prop, url_context in (builtin or {}).items():
+        apply(prop, url_context, False)
+    for prop, url_context in (host or {}).items():
+        apply(prop, url_context, True)
+    return replace(tree, shape=shape)

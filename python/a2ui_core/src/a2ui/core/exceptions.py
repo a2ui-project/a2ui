@@ -168,6 +168,17 @@ class A2uiExpressionError(A2uiError):
         self.expression = expression
 
 
+class A2uiUrlBlockedError(A2uiExpressionError):
+    """Raised when the URL security policy blocks a URL a function was given.
+
+    For example, the URL of `openUrl`. Surfaces report it with the error code
+    `URL_BLOCKED`. It extends `A2uiExpressionError`, so code that catches
+    expression errors keeps catching it.
+    """
+
+    DEFAULT_CODE = "URL_BLOCKED"
+
+
 class RpcErrorCode(str, enum.Enum):
     """RPC error codes matching A2UI protocol specification."""
 

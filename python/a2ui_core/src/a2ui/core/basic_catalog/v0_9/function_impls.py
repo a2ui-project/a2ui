@@ -17,7 +17,6 @@ import json
 import math
 import re
 from typing import Any
-from urllib.parse import urlparse
 
 from ...resolution.data_context import DataContext
 from ...resolution.validation_result_coercion import coerce_dynamic_boolean
@@ -46,6 +45,7 @@ from .function_apis import (
 )
 
 from ...expressions.expression_parser import ExpressionParser
+from .._open_url import execute_open_url
 from ..locale_formatting import apply_currency_spacing, get_locale
 from babel.numbers import format_decimal, format_currency, get_currency_symbol
 import re as _re
@@ -387,24 +387,14 @@ def create_pluralize_implementation(
 PluralizeImplementation = create_pluralize_implementation(None)
 
 
-_ALLOWED_URL_SCHEMES = ("http:", "https:", "mailto:", "tel:")
-
-
 # Actions
 def _open_url_execute(
     args: dict[str, Any],
     context: Any = None,
     abort_signal: Any | None = None,
 ) -> None:
-    url = args.get("url")
-    if not isinstance(url, str) or not url.strip():
-        return None
-
-    parsed = urlparse(url)
-    scheme = f"{parsed.scheme.lower()}:"
-    if scheme not in _ALLOWED_URL_SCHEMES:
-        raise A2uiExpressionError(f"Unsupported URL scheme: {parsed.scheme}")
-    return None
+    del abort_signal  # Unused.
+    return execute_open_url(args, context)
 
 
 OpenUrlImplementation = create_function_implementation(OpenUrlApi, _open_url_execute)

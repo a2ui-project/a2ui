@@ -451,7 +451,8 @@
     URL-annotated property filtering)
   specAnchor: specification/proposals/url_security_policy.md
   blueprintAnchor: blueprints/modules/a2ui_core.blueprint.md
-  claimedBy: []
+  claimedBy:
+    - python-core
 - id: F-AGT-01
   title: CatalogTransformer base pipeline and sequential chaining
   specAnchor: specification/v1_0/docs/sdks_spec.md#inference-sdk-a2ui_inference-a2uiinference
