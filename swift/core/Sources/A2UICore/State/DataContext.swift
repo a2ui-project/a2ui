@@ -130,6 +130,40 @@ public final class DataContext {
     key.hasPrefix("@@") ? String(key.dropFirst()) : key
   }
 
+  /// Checks a URL that a function or component is about to open, load, or embed against the
+  /// surface's URL security policy.
+  ///
+  /// Function implementations call it on the `DataContext` they receive. A blocked URL is
+  /// reported once as a ``URLBlockedWarning`` on the surface. A context without a function
+  /// handler applies ``PermissiveURLSecurityPolicy``, which runs the baseline checks only.
+  ///
+  /// ```swift
+  /// func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
+  ///   let info = URLCheckInfo(functionName: "share")
+  ///   guard let url = context.sanitizeURL(target, context: .navigation, info: info) else {
+  ///     throw URLBlockedError("The URL security policy blocked the URL.", functionName: "share")
+  ///   }
+  ///   // ...
+  /// }
+  /// ```
+  ///
+  /// - Parameters:
+  ///   - url: The URL to check.
+  ///   - context: How the URL is used.
+  ///   - info: Where the URL comes from, such as the function name.
+  /// - Returns: The URL to use, possibly rewritten, or `nil` when it is blocked.
+  public func sanitizeURL(
+    _ url: String,
+    context: URLContext,
+    info: URLCheckInfo? = nil
+  ) -> String? {
+    guard let functionHandler else {
+      return URLPolicyEvaluator.apply(
+        PermissiveURLSecurityPolicy(), to: url, context: context, info: info)
+    }
+    return functionHandler.sanitizeURL(url, context: context, info: info)
+  }
+
   /// Resolves a dynamic value to its current literal `JSONValue`.
   ///
   /// Recursively evaluates data bindings (`path` / `@path`), function calls

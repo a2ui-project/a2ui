@@ -136,7 +136,8 @@ public final class SurfaceViewModel: ObservableObject {
     metadata: [String: JSONValue]? = nil,
     actionHandler: (any ActionHandling)? = nil,
     sendDataModel: Bool = false,
-    protocolVersion: A2UIProtocolVersion? = nil
+    protocolVersion: A2UIProtocolVersion? = nil,
+    urlSecurityPolicy: (any URLSecurityPolicy)? = nil
   ) {
     self.surfaceID = surfaceID
     let compatibleCatalogs = catalogs.filterCompatible(with: protocolVersion)
@@ -164,7 +165,8 @@ public final class SurfaceViewModel: ObservableObject {
       componentsModel: self.componentsModel,
       dataModel: self.dataModel,
       actionHandler: actionHandler,
-      protocolVersion: explicitVersion
+      protocolVersion: explicitVersion,
+      urlSecurityPolicy: urlSecurityPolicy
     )
 
     setUpSubscriptions()
@@ -178,7 +180,8 @@ public final class SurfaceViewModel: ObservableObject {
     metadata: [String: JSONValue]? = nil,
     actionHandler: (any ActionHandling)? = nil,
     sendDataModel: Bool = false,
-    protocolVersion: A2UIProtocolVersion? = nil
+    protocolVersion: A2UIProtocolVersion? = nil,
+    urlSecurityPolicy: (any URLSecurityPolicy)? = nil
   ) {
     let anyCatalogs = catalogs.map { $0.eraseToAnyCatalog() }
     let dict = Dictionary(anyCatalogs.map { ($0.id, $0) }, uniquingKeysWith: { _, last in last })
@@ -190,7 +193,8 @@ public final class SurfaceViewModel: ObservableObject {
       metadata: metadata,
       actionHandler: actionHandler,
       sendDataModel: sendDataModel,
-      protocolVersion: protocolVersion
+      protocolVersion: protocolVersion,
+      urlSecurityPolicy: urlSecurityPolicy
     )
   }
 
@@ -201,7 +205,8 @@ public final class SurfaceViewModel: ObservableObject {
     metadata: [String: JSONValue]? = nil,
     actionHandler: (any ActionHandling)? = nil,
     sendDataModel: Bool = false,
-    protocolVersion: A2UIProtocolVersion? = nil
+    protocolVersion: A2UIProtocolVersion? = nil,
+    urlSecurityPolicy: (any URLSecurityPolicy)? = nil
   ) {
     let anyCatalog = catalog.eraseToAnyCatalog()
     self.init(
@@ -212,8 +217,23 @@ public final class SurfaceViewModel: ObservableObject {
       metadata: metadata,
       actionHandler: actionHandler,
       sendDataModel: sendDataModel,
-      protocolVersion: protocolVersion
+      protocolVersion: protocolVersion,
+      urlSecurityPolicy: urlSecurityPolicy
     )
+  }
+
+  /// The policy that every URL resolved or checked on this surface goes through.
+  ///
+  /// ``MessageProcessor`` passes its own policy to every surface it creates. Without one, the
+  /// surface uses ``PermissiveURLSecurityPolicy``.
+  public var urlSecurityPolicy: any URLSecurityPolicy {
+    nodeResolver.urlSecurityPolicy
+  }
+
+  /// Publishes a ``URLBlockedWarning`` the first time the URL security policy blocks a URL in a
+  /// given place on this surface: a component property or a function.
+  public var urlBlockedPublisher: AnyPublisher<URLBlockedWarning, Never> {
+    nodeResolver.urlBlockedPublisher
   }
 
   /// Resolves a catalog by ID, falling back to the surface default catalog if nil.
@@ -509,6 +529,25 @@ extension SurfaceViewModel: FunctionHandler {
 
   public func agentFunctionCatalogID(forCallCatalogID catalogID: String?) -> String? {
     nodeResolver.agentFunctionCatalogID(forCallCatalogID: catalogID)
+  }
+
+  /// Checks a URL a component or function is about to load, open, or embed against
+  /// ``urlSecurityPolicy``, for URLs that don't come from a property marked as a URL (those
+  /// resolve already checked).
+  ///
+  /// A blocked URL is published once on ``urlBlockedPublisher``, redacted.
+  ///
+  /// - Parameters:
+  ///   - url: The URL to check.
+  ///   - context: How the URL is used.
+  ///   - info: Where the URL comes from. The surface identifier is filled in.
+  /// - Returns: The URL to use, possibly rewritten, or `nil` when it is blocked.
+  public func sanitizeURL(
+    _ url: String,
+    context: URLContext,
+    info: URLCheckInfo? = nil
+  ) -> String? {
+    nodeResolver.sanitizeURL(url, context: context, info: info)
   }
 
   /// Returns the agent's answer to `call` if the surface already has it, for a one-shot

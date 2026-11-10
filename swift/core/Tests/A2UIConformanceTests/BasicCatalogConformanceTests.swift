@@ -228,7 +228,8 @@ struct BasicCatalogConformanceTests {
     do {
       _ = try fn.evaluate(arguments: args, context: context)
       Issue.record("\(name): expected error but succeeded")
-    } catch is FunctionError {
+    } catch is FunctionError, is URLBlockedError {
+      // A blocked URL is an expression error, as `A2uiUrlBlockedError` is in web_core.
       if let expectedCategory = expectError["category"] as? String {
         #expect(
           expectedCategory == "ExpressionError" || expectedCategory == "ValidationError",

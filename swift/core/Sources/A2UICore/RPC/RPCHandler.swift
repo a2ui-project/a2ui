@@ -40,6 +40,11 @@ public final class RPCHandler {
   /// calls and answers inbound calls with `DISPOSED`.
   public private(set) var isDisposed = false
 
+  /// The URL security policy applied to an inbound call that arrives without a surface of its
+  /// own. ``MessageProcessor`` sets its policy here. A call on a surface uses the surface's
+  /// policy.
+  public var urlSecurityPolicy: any URLSecurityPolicy = PermissiveURLSecurityPolicy()
+
   public init() {}
 
   // MARK: - Incoming Calls (Agent -> Renderer)
@@ -164,7 +169,10 @@ public final class RPCHandler {
     }
 
     let rawArgs = message.callFunction.args ?? [:]
-    let fallbackHandler = DummyContextFunctionHandler(catalogs: catalogs)
+    let fallbackHandler = DummyContextFunctionHandler(
+      catalogs: catalogs,
+      urlSecurityPolicy: urlSecurityPolicy
+    )
     let argHandler = RPCArgumentFunctionHandler(
       delegate: dataContext?.functionHandler,
       fallback: fallbackHandler
@@ -422,13 +430,26 @@ private final class RPCArgumentFunctionHandler: FunctionHandler {
       try fallback.validateFunctionCatalog(id: catalogID, functionName: functionName)
     }
   }
+
+  func sanitizeURL(_ url: String, context: URLContext, info: URLCheckInfo?) -> String? {
+    if let delegate {
+      return delegate.sanitizeURL(url, context: context, info: info)
+    }
+    return fallback.sanitizeURL(url, context: context, info: info)
+  }
 }
 
 private final class DummyContextFunctionHandler: FunctionHandler {
   private let catalogs: [String: AnyCatalog]
+  private let urlSecurityPolicy: any URLSecurityPolicy
 
-  init(catalogs: [String: AnyCatalog]) {
+  init(catalogs: [String: AnyCatalog], urlSecurityPolicy: any URLSecurityPolicy) {
     self.catalogs = catalogs
+    self.urlSecurityPolicy = urlSecurityPolicy
+  }
+
+  func sanitizeURL(_ url: String, context: URLContext, info: URLCheckInfo?) -> String? {
+    URLPolicyEvaluator.apply(urlSecurityPolicy, to: url, context: context, info: info)
   }
 
   func function(named name: String, catalogID: String?) -> (any FunctionImplementation)? {

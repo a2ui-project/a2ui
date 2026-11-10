@@ -22,8 +22,15 @@ public protocol OpenURLHandler: AnyObject, Sendable {
   func open(_ url: URL)
 }
 
-/// Opens a URL using a registered handler, ensuring it has an `http`, `https`, `mailto` or `tel`
-/// scheme.
+/// Opens a URL using a registered handler, once the surface's URL security policy allows it.
+///
+/// The URL is checked as ``URLContext/navigation`` against the policy of the surface the
+/// function runs on (see ``DataContext/sanitizeURL(_:context:info:)``). The baseline allows only
+/// `http(s)` URLs with a host, `mailto:`, `tel:`, and relative URLs, so `javascript:` and `data:`
+/// URLs never open. A blocked URL fails with ``URLBlockedError`` (reported as `URL_BLOCKED`) and
+/// never reaches the handler. The handler only sees allowed URLs, possibly rewritten by the
+/// policy and resolved against `baseURL`; it is the place for presentation, such as a
+/// confirmation, not for security decisions.
 ///
 /// The handler is held weakly, so the function never keeps it alive. Keep a strong reference to it
 /// outside the catalog, for example in the view model that owns the `MessageProcessor`, or the
@@ -66,37 +73,40 @@ public final class OpenURLFunction: FunctionImplementation, @unchecked Sendable 
     )
   }
 
-  /// Evaluates the openUrl function by resolving the URL and invoking the handler.
-  ///
-  /// The resolved URL is checked against a strict allowlist of schemes (`http`, `https`,
-  /// `mailto` and `tel`) to prevent security issues such as XSS via `javascript:` or `data:`.
+  /// Evaluates the openUrl function by checking the URL against the URL security policy and
+  /// passing the allowed URL to the handler.
   ///
   /// - Parameters:
   ///   - arguments: The dictionary of arguments provided to the function.
-  ///   - context: The current data context.
+  ///   - context: The current data context, which supplies the surface's URL security policy.
   /// - Returns: `JSONValue.null`, since this function is executed purely for its side effects.
-  /// - Throws: `FunctionError.securityConstraintViolation` if the scheme is not allowed.
+  /// - Throws: ``URLBlockedError`` if the policy blocks the URL, or `FunctionError` if the
+  ///   argument is missing or the URL can't be resolved to an absolute URL.
   public func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     guard let urlString = arguments["url"]?.stringValue else {
       throw FunctionError.missingArgument("url")
     }
 
-    guard let url = URL(string: urlString, relativeTo: baseURL) else {
+    let info = URLCheckInfo(functionName: api.name)
+    guard let allowed = context.sanitizeURL(urlString, context: .navigation, info: info) else {
+      throw URLBlockedError(
+        "The URL security policy blocked the URL passed to openUrl.",
+        functionName: api.name
+      )
+    }
+
+    guard let url = URL(string: allowed, relativeTo: baseURL) else {
       throw FunctionError.invalidArgumentType(
         expected: "valid URL string", actual: "invalid format")
     }
 
-    // Resolve relative paths
+    // A relative URL needs a base URL to open.
     let resolvedURL = url.absoluteURL
-
-    // Enforce scheme allowlist (prevent javascript:, data:, etc.)
-    let scheme = resolvedURL.scheme?.lowercased()
-    guard scheme == "https" || scheme == "http" || scheme == "mailto" || scheme == "tel" else {
-      throw FunctionError.securityConstraintViolation(
-        "URL scheme must be http, https, mailto, or tel. Found: \(scheme ?? "none")")
+    guard resolvedURL.scheme != nil else {
+      throw FunctionError.invalidArgumentType(
+        expected: "absolute URL, or a relative URL with a base URL", actual: "relative URL")
     }
 
-    // Delegate to the handler
     handler?.open(resolvedURL)
 
     return .null

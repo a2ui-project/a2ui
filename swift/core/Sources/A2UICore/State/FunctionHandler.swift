@@ -52,6 +52,18 @@ public protocol FunctionHandler: AnyObject, Sendable {
   /// - Returns: The agent's result, or `nil` while the call awaits it or after it failed. A
   ///   function call that takes the value as an argument then doesn't run.
   func agentFunctionValue(for call: AgentFunctionCall) -> JSONValue?
+
+  /// Checks a URL against the URL security policy of the surface this handler belongs to.
+  ///
+  /// ``DataContext/sanitizeURL(_:context:info:)`` calls this. The default implementation applies
+  /// ``PermissiveURLSecurityPolicy``, which runs the built-in ``URLBaseline`` checks only.
+  ///
+  /// - Parameters:
+  ///   - url: The URL to check.
+  ///   - context: How the URL is used.
+  ///   - info: Where the URL comes from, when known.
+  /// - Returns: The URL to use, possibly rewritten, or `nil` when it is blocked.
+  func sanitizeURL(_ url: String, context: URLContext, info: URLCheckInfo?) -> String?
 }
 
 extension FunctionHandler {
@@ -65,5 +77,9 @@ extension FunctionHandler {
 
   public func agentFunctionValue(for call: AgentFunctionCall) -> JSONValue? {
     nil
+  }
+
+  public func sanitizeURL(_ url: String, context: URLContext, info: URLCheckInfo?) -> String? {
+    URLPolicyEvaluator.apply(PermissiveURLSecurityPolicy(), to: url, context: context, info: info)
   }
 }
