@@ -579,17 +579,34 @@ def test_coercion_with_standalone_eval_catalog():
         pytest.skip(f"Standalone catalog not found at {catalog_path}")
 
     cat_data = json.loads(catalog_path.read_text(encoding="utf-8"))
-    catalog = Catalog.from_json(cat_data, protocol_version="1.0")
-    fmt = VerticalFormat([catalog], surface_id="main", version="1.0")
+    catalog = Catalog.from_json(cat_data, protocol_version="0.9.1")
+    fmt = VerticalFormat([catalog], surface_id="main", version="v0.9.1")
 
     raw = (
         '<a2ui>\nWeatherWidget(city="Seattle", temperature="58", condition="rainy",'
         ' high="62", low="50", humidity="82", unit="fahrenheit")\n</a2ui>'
     )
     msgs = to_message_dicts(fmt.create_parser().compile(raw))
-    w_comp = msgs[0]["createSurface"]["components"][0]
+    w_comp = msgs[1]["updateComponents"]["components"][0]
     assert w_comp["temperature"] == 58
     assert isinstance(w_comp["temperature"], int)
     assert w_comp["high"] == 62
     assert w_comp["low"] == 50
     assert w_comp["humidity"] == 82
+
+    v1_catalog_path = (
+        repo_root
+        / "eval"
+        / "catalogs"
+        / "standalone_components"
+        / "v1"
+        / "catalog.json"
+    )
+    if v1_catalog_path.exists():
+        v1_data = json.loads(v1_catalog_path.read_text(encoding="utf-8"))
+        v1_cat = Catalog.from_json(v1_data, protocol_version="1.0")
+        v1_fmt = VerticalFormat([v1_cat], surface_id="main", version="1.0")
+        v1_msgs = to_message_dicts(v1_fmt.create_parser().compile(raw))
+        v1_comp = v1_msgs[0]["createSurface"]["components"][0]
+        assert v1_comp["temperature"] == 58
+        assert isinstance(v1_comp["temperature"], int)
