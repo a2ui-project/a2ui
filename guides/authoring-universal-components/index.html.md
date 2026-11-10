@@ -163,8 +163,11 @@ const analyticsCatalog = new Catalog(
   BASIC_FUNCTIONS,
 );
 
-export const processor = new MessageProcessor([analyticsCatalog], action => {
-  console.log('Action:', action);
+export const processor = new MessageProcessor([analyticsCatalog], undefined, {
+  outboundListener: message => {
+    console.log('Outbound:', message);
+  },
+  unifiedOutbound: true,
 });
 
 processor.onSurfaceCreated(surface => {
@@ -191,7 +194,11 @@ const analyticsCatalog = new Catalog<ReactCatalogComponent>(
 export function App() {
   const [surface, setSurface] = useState<SurfaceModel<ReactCatalogComponent>>();
   const processor = useMemo(
-    () => new MessageProcessor([analyticsCatalog], action => console.log('Action:', action)),
+    () =>
+      new MessageProcessor([analyticsCatalog], undefined, {
+        outboundListener: message => console.log('Outbound:', message),
+        unifiedOutbound: true,
+      }),
     [],
   );
 
@@ -228,7 +235,10 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideA2UI({
       catalogs: [analyticsCatalog],
-      actionHandler: action => console.log('Action:', action),
+      processorOptions: {
+        outboundListener: message => console.log('Outbound:', message),
+        unifiedOutbound: true,
+      },
     }),
   ],
 };
