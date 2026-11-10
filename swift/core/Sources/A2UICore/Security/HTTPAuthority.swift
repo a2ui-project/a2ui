@@ -112,6 +112,8 @@ struct HTTPAuthority: Equatable, Sendable {
       guard portBytes.allSatisfy({ (UInt8(ascii: "0")...UInt8(ascii: "9")).contains($0) }) else {
         return nil
       }
+      // Leading zeros are allowed in any number, as in the WHATWG URL parser. Dropping them is
+      // a single pass over the slice, and the digit cap below keeps the value from overflowing.
       let significant = portBytes.drop { $0 == UInt8(ascii: "0") }
       guard significant.count <= 5 else { return nil }
       let value = significant.reduce(0) { $0 * 10 + Int($1 - UInt8(ascii: "0")) }

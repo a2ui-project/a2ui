@@ -87,6 +87,17 @@ struct URLSecurityPolicyTests {
     }
   }
 
+  @Test func allowlistPortIgnoresLeadingZeros() throws {
+    // Like the WHATWG URL parser, Python's `urlsplit` and Dart's `Uri`, any number of leading
+    // zeros is accepted and only the value is compared.
+    let policy = try AllowlistURLSecurityPolicy(media: ["localhost:8080"])
+    let zeros = String(repeating: "0", count: 300)
+    for url in ["http://localhost:0008080/a.png", "http://localhost:\(zeros)8080/a.png"] {
+      #expect(policy.sanitizeURL(url, context: .media, info: nil) == url)
+    }
+    #expect(policy.sanitizeURL("http://localhost:008081/a.png", context: .media, info: nil) == nil)
+  }
+
   @Test func blockedURLIsReportedOnceAndRedacted() throws {
     let processor = MessageProcessor(
       catalogs: [BasicCatalog.makeCatalog(version: .v10)],
