@@ -90,7 +90,7 @@ interface NormalizedAgentCall {
  */
 export class RpcHandler {
   private readonly catalogs: Catalog<any>[];
-  private readonly outboundListener?: OutboundMessageListener;
+  private outboundListener?: OutboundMessageListener;
   private readonly defaultTimeoutMs: number;
   private readonly pendingAgentCalls = new Map<string, PendingAgentCall>();
   private isDisposed = false;
@@ -372,15 +372,21 @@ export class RpcHandler {
   }
 
   /**
-   * Disposes the RPC handler and cancels all pending agent function calls with a `CANCELLED` error.
+   * Disposes the RPC handler: cancels all pending agent function calls with a
+   * `CANCELLED` error, rejects later calls with `DISPOSED`, and removes the
+   * outbound listener.
+   *
+   * @param reason Optional reason, added to the `CANCELLED` error messages.
    */
-  dispose(): void {
+  dispose(reason?: string): void {
     if (this.isDisposed) return;
     this.isDisposed = true;
+    this.outboundListener = undefined;
+    const suffix = reason !== undefined && reason.length > 0 ? `: ${reason}` : '.';
     for (const [id, pending] of Array.from(this.pendingAgentCalls.entries())) {
       pending.reject(
         new A2uiRpcError(
-          `RpcHandler disposed while call '${id}' was pending.`,
+          `RpcHandler disposed while call '${id}' was pending${suffix}`,
           RpcErrorCode.CANCELLED,
           id,
         ),
@@ -783,8 +789,8 @@ export class RpcHandler {
   ): void {
     // callAgentFunction only exists in v1.0, whose FunctionCall names the function with
     // '@call'. Rewrite a v0.9-style `call` key so the outbound message is valid on the wire.
-    const {call: legacyCallName, '@call': callName, ...rest} = call as Record<string, unknown>;
-    const callFunction = {'@call': callName ?? legacyCallName, ...rest} as FunctionCall;
+    const {call: unprefixedCallName, '@call': callName, ...rest} = call as Record<string, unknown>;
+    const callFunction = {'@call': callName ?? unprefixedCallName, ...rest} as FunctionCall;
     const outboundMsg: CallAgentFunctionMessage = {
       version: (version || '1.0') as CallAgentFunctionMessage['version'],
       callAgentFunction: {

@@ -292,6 +292,96 @@ describe('SurfaceModel', () => {
 
   describe('callAgentFunction', () => {
     const call = {'@call': 'fetchRate', 'catalogId': 'test-catalog', 'args': {base: 'EUR'}};
+    const callFor = (base: string) => ({...call, args: {base}});
+
+    /** Installs a caller that counts its calls per `base`. */
+    function countingCaller(target: SurfaceModel<ComponentApi>): Map<string, number> {
+      const counts = new Map<string, number>();
+      target.agentFunctionCaller = async c => {
+        const base = (c.args as {base: string}).base;
+        counts.set(base, (counts.get(base) ?? 0) + 1);
+        return base;
+      };
+      return counts;
+    }
+
+    it('caches 256 answers by default and evicts the oldest first, even after a hit', async () => {
+      assert.strictEqual(surface.maxAgentCallCacheEntries, 256);
+      surface.maxAgentCallCacheEntries = 2;
+      const counts = countingCaller(surface);
+
+      await surface.callAgentFunction(callFor('A'));
+      await surface.callAgentFunction(callFor('B'));
+      // A hit on A doesn't refresh it: it's still the oldest.
+      assert.strictEqual(await surface.callAgentFunction(callFor('A')), 'A');
+      assert.strictEqual(counts.get('A'), 1);
+      await surface.callAgentFunction(callFor('C'));
+
+      await surface.callAgentFunction(callFor('B'));
+      await surface.callAgentFunction(callFor('C'));
+      assert.strictEqual(counts.get('B'), 1, 'B is still cached');
+      assert.strictEqual(counts.get('C'), 1, 'C is cached');
+      await surface.callAgentFunction(callFor('A'));
+      assert.strictEqual(counts.get('A'), 2, 'A was evicted first');
+    });
+
+    it('takes maxAgentCallCacheEntries in the constructor, and lowering it evicts the oldest', async () => {
+      const bounded = new SurfaceModel<ComponentApi>(
+        'surface-3',
+        catalog,
+        new Map(),
+        {},
+        false,
+        undefined,
+        'root',
+        undefined,
+        undefined,
+        2,
+      );
+      assert.strictEqual(bounded.maxAgentCallCacheEntries, 2);
+      const counts = countingCaller(bounded);
+      await bounded.callAgentFunction(callFor('A'));
+      await bounded.callAgentFunction(callFor('B'));
+
+      bounded.maxAgentCallCacheEntries = 1;
+      await bounded.callAgentFunction(callFor('B'));
+      await bounded.callAgentFunction(callFor('A'));
+      assert.deepStrictEqual(
+        [counts.get('A'), counts.get('B')],
+        [2, 1],
+        'A, the oldest, was evicted; B stayed',
+      );
+    });
+
+    it('rejects a maxAgentCallCacheEntries that is not a positive integer', () => {
+      for (const value of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+        assert.throws(
+          () => {
+            surface.maxAgentCallCacheEntries = value;
+          },
+          RangeError,
+          String(value),
+        );
+        assert.throws(
+          () =>
+            new SurfaceModel(
+              's',
+              catalog,
+              new Map(),
+              {},
+              false,
+              undefined,
+              'root',
+              undefined,
+              undefined,
+              value,
+            ),
+          RangeError,
+          String(value),
+        );
+      }
+      assert.strictEqual(surface.maxAgentCallCacheEntries, 256);
+    });
 
     it('does not cache an answer that arrives after the caller was replaced', async () => {
       let resolveOld!: (v: unknown) => void;
@@ -347,25 +437,25 @@ describe('SurfaceModel', () => {
 
   it('takes a plain object in the 3rd argument as the theme of a pre-1.0 caller', () => {
     const v09Catalog = new Catalog<ComponentApi>('v09-catalog', '0.9', []);
-    const legacy = new SurfaceModel('surface-legacy', v09Catalog, {primaryColor: 'red'});
-    assert.deepStrictEqual(legacy.theme, {primaryColor: 'red'});
-    assert.strictEqual(legacy.sendDataModel, false);
-    assert.strictEqual(legacy.availableCatalogs.get(v09Catalog.id), v09Catalog);
+    const v09Surface = new SurfaceModel('surface-v09', v09Catalog, {primaryColor: 'red'});
+    assert.deepStrictEqual(v09Surface.theme, {primaryColor: 'red'});
+    assert.strictEqual(v09Surface.sendDataModel, false);
+    assert.strictEqual(v09Surface.availableCatalogs.get(v09Catalog.id), v09Catalog);
   });
 
   it('shifts sendDataModel and dataModel along with the pre-1.0 theme', () => {
     const v09Catalog = new Catalog<ComponentApi>('v09-catalog', '0.9', []);
     const customData = new DataModel({custom: 'data'});
-    const legacy = new SurfaceModel(
-      'surface-legacy',
+    const v09Surface = new SurfaceModel(
+      'surface-v09',
       v09Catalog,
       {primaryColor: 'red'},
       true,
       customData,
     );
-    assert.deepStrictEqual(legacy.theme, {primaryColor: 'red'});
-    assert.strictEqual(legacy.sendDataModel, true);
-    assert.strictEqual(legacy.dataModel, customData);
+    assert.deepStrictEqual(v09Surface.theme, {primaryColor: 'red'});
+    assert.strictEqual(v09Surface.sendDataModel, true);
+    assert.strictEqual(v09Surface.dataModel, customData);
   });
 
   it('throws TypeError if 3rd argument is neither a Map, a theme object, nor undefined/null', () => {

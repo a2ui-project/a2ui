@@ -291,6 +291,7 @@ export const V10_STANDARD_DEFS: Record<string, unknown> = {
     },
     'required': ['@call'],
     'unevaluatedProperties': false,
+    'returnType': 'number',
   },
   'FunctionCall': {
     'type': 'object',

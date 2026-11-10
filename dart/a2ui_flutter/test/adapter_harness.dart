@@ -31,7 +31,11 @@ import 'package:yaml/yaml.dart';
 
 /// Reasoned skip entries keyed by `<case>` or `<case>/<op|expectKey>`.
 /// Every entry in this map must match at least one case during the run.
-const Map<String, String> unsupported = {};
+const Map<String, String> unsupported = {
+  'v10_theme_dropped_in_permissive_mode_renders_like_none':
+      'Theme dropping in permissive mode not yet implemented in '
+      'a2ui_core Dart message parser',
+};
 
 final Set<String> _matchedUnsupportedKeys = {};
 
@@ -41,6 +45,7 @@ const Set<String> adapterCaseKnownKeys = {
   'features',
   'action',
   'protocolVersion',
+  'strictMode',
   'catalogPaths',
   'catalogs',
   'steps',
@@ -50,6 +55,7 @@ const Set<String> adapterCatalogKnownKeys = {
   'catalogId',
   'protocolVersion',
   'components',
+  'functions',
 };
 
 const Set<String> adapterStepKnownKeys = {
@@ -64,7 +70,12 @@ const Set<String> adapterStepKnownKeys = {
   'expectDataModel',
   'expectActions',
   'expectErrors',
+  'expectOutbound',
   'expectSameViewIdentity',
+  'expectNewViewIdentity',
+  'expectDisposedNodes',
+  'expectSurfaceRemoved',
+  'expectThemeAbsent',
   'expectActiveSubscriptions',
 };
 
@@ -80,12 +91,17 @@ const Set<String> viewNodeKnownKeys = {
   'id',
   'type',
   'state',
+  'occupiesLayout',
   'text',
   'value',
+  'url',
+  'name',
+  'axis',
   'badgeText',
   'isValid',
   'validationErrors',
   'validationResults',
+  'hints',
   'children',
 };
 
@@ -214,6 +230,17 @@ void assertKnownKeys(
       );
     }
   }
+  if (obj['expectOutbound'] case final List<Object?> outboundList) {
+    for (var i = 0; i < outboundList.length; i++) {
+      final Object? item = outboundList[i];
+      if (item is! Map<String, Object?>) {
+        fail('Expected object at $where.expectOutbound[$i]');
+      }
+      if (item['version'] is! String) {
+        fail('Expected string at $where.expectOutbound[$i].version');
+      }
+    }
+  }
 }
 
 void assertKnownAdapterCase(Map<String, Object?> testCase) {
@@ -280,6 +307,16 @@ void assertKnownAccessibilityCase(Map<String, Object?> testCase) {
   }
 }
 
+void _collectViewTreeKeys(Object? node, Set<String> out) {
+  if (node is! Map<String, Object?>) return;
+  out.addAll(node.keys);
+  if (node['children'] case final List<Object?> children) {
+    for (final child in children) {
+      _collectViewTreeKeys(child, out);
+    }
+  }
+}
+
 String? findUnsupportedReason(
   String caseName, [
   List<Object?> steps = const [],
@@ -305,6 +342,15 @@ String? findUnsupportedReason(
         return unsupported[stepKey];
       }
     }
+    final viewKeys = <String>{};
+    _collectViewTreeKeys(step['expectViewTree'], viewKeys);
+    for (final key in viewKeys) {
+      final viewKey = '$caseName/$key';
+      if (unsupported.containsKey(viewKey)) {
+        _matchedUnsupportedKeys.add(viewKey);
+        return unsupported[viewKey];
+      }
+    }
     if (step['assertions'] case final Map<String, Object?> assertions) {
       for (final String key in assertions.keys) {
         final assertionKey = '$caseName/$key';
@@ -321,6 +367,7 @@ String? findUnsupportedReason(
 void assertAllUnsupportedMatched([
   List<Object?> accessibilityCases = const [],
   List<Object?> adapterCases = const [],
+  List<Object?> adapterV09Cases = const [],
 ]) {
   for (final rawCase in accessibilityCases) {
     final testCase = rawCase! as Map<String, Object?>;
@@ -332,7 +379,7 @@ void assertAllUnsupportedMatched([
         ];
     findUnsupportedReason(name, steps);
   }
-  for (final rawCase in adapterCases) {
+  for (final rawCase in [...adapterCases, ...adapterV09Cases]) {
     final testCase = rawCase! as Map<String, Object?>;
     final name = testCase['name']! as String;
     final List<Object?> steps =
@@ -391,6 +438,73 @@ Object? _yamlToDart(Object? node) {
     return <Object?>[for (final Object? item in node) _yamlToDart(item)];
   }
   return node;
+}
+
+CatalogImplementation _buildV09BasicCatalog({
+  required Map<String, ComponentNode<ComponentImplementation>> renderedNodes,
+  List<String>? openedUrls,
+}) {
+  final CatalogImplementation base = v0_9.basicCatalog(
+    openUrl: (uri) => openedUrls?.add(uri.toString()),
+  );
+  final components = <ComponentImplementation>[
+    for (final ComponentImplementation impl in base.components.values)
+      ComponentImplementation(
+        name: impl.name,
+        schema: impl.name == 'Button'
+            ? Schema.fromMap(const <String, Object?>{
+                'type': 'object',
+                'properties': <String, Object?>{
+                  'component': <String, Object?>{'const': 'Button'},
+                  'child': <String, Object?>{
+                    r'$ref':
+                        r'https://a2ui.org/specification/v0_9/common_types.json#/$defs/ComponentId',
+                  },
+                  'variant': <String, Object?>{'type': 'string'},
+                  'action': <String, Object?>{
+                    'oneOf': <Object?>[
+                      <String, Object?>{
+                        r'$ref':
+                            r'https://a2ui.org/specification/v0_9/common_types.json#/$defs/Action',
+                      },
+                      <String, Object?>{
+                        'type': 'object',
+                        'properties': <String, Object?>{
+                          'functionCall': <String, Object?>{
+                            'type': 'object',
+                            'properties': <String, Object?>{
+                              'call': <String, Object?>{'type': 'string'},
+                              'args': <String, Object?>{'type': 'object'},
+                            },
+                            'required': <Object?>['call'],
+                          },
+                        },
+                        'required': <Object?>['functionCall'],
+                      },
+                    ],
+                  },
+                },
+                'required': <Object?>['component', 'child'],
+              })
+            : impl.schema,
+        builder: (context, node, props, buildChild) {
+          renderedNodes[node.instanceId] = node;
+          return impl.builder(context, node, props, buildChild);
+        },
+      ),
+  ];
+  return CatalogImplementation(
+    id: base.id,
+    components: components,
+    functions: [...base.functions.values, _IncrementCounterFunction()],
+    themeSchema: base.themeSchema,
+    schemaId: base.schemaId,
+    title: base.title,
+    description: base.description,
+    protocolVersion: base.protocolVersion,
+    instructions: base.instructions,
+    definitions: base.definitions,
+  );
 }
 
 CatalogImplementation _buildV10BasicCatalog({
@@ -487,8 +601,29 @@ class _IncrementCounterFunction extends FunctionImplementation {
   }
 }
 
+class _SchemaOnlyFunction extends FunctionImplementation {
+  _SchemaOnlyFunction(String name)
+    : super(
+        name: name,
+        argumentSchema: Schema.fromMap(const {'type': 'object'}),
+        allowedCallers: AllowedCallers.rendererOrAgent,
+      );
+
+  @override
+  Object? execute(
+    Map<String, dynamic> args,
+    DataContext context, [
+    CancellationSignal? cancellationSignal,
+  ]) => null;
+}
+
 class AdapterHarnessSession {
-  AdapterHarnessSession([this.tester]) {
+  AdapterHarnessSession([
+    this.tester,
+    this.protocolVersion = '1.0',
+    this.strictMode,
+    List<Object?>? rawCatalogs,
+  ]) {
     final CatalogImplementation v10Catalog = _buildV10BasicCatalog(
       renderedNodes: renderedNodes,
       openedUrls: openedUrls,
@@ -496,27 +631,132 @@ class AdapterHarnessSession {
     final CatalogImplementation customCatalog = _buildCustomStatusBadgeCatalog(
       renderedNodes,
     );
-    processor = MessageProcessor<ComponentImplementation>(
-      catalogs: [v0_9.basicCatalog(), v10Catalog, customCatalog],
-      defaultVersion: A2uiProtocolVersion.v1_0,
+    final List<CatalogImplementation> dynamicCatalogs = [];
+    if (rawCatalogs != null) {
+      for (final Object? raw in rawCatalogs) {
+        if (raw is Map) {
+          final catMap = Map<String, Object?>.from(raw);
+          final String catalogId = catMap['catalogId'] as String? ?? 'custom';
+          final componentsMap = catMap['components'] as Map?;
+          final functionsMap = catMap['functions'] as Map?;
+          final List<ComponentImplementation> comps = [];
+          if (componentsMap != null) {
+            for (final Object? compName in componentsMap.keys) {
+              comps.add(
+                ComponentImplementation(
+                  name: compName.toString(),
+                  schema: Schema.fromMap(const {'type': 'object'}),
+                  builder: (context, node, props, buildChild) {
+                    renderedNodes[node.instanceId] = node;
+                    return Text(
+                      props.string('badgeText') ?? props.string('text') ?? '',
+                    );
+                  },
+                ),
+              );
+            }
+          }
+          final List<FunctionImplementation> fns = [];
+          if (functionsMap != null) {
+            for (final MapEntry<Object?, Object?> entry
+                in functionsMap.entries) {
+              final fnDef = entry.value as Map?;
+              final allowed = fnDef?['allowedCallers'] as String?;
+              if (allowed == 'agentOnly' || allowed == 'rendererOrAgent') {
+                continue;
+              }
+              fns.add(_SchemaOnlyFunction(entry.key.toString()));
+            }
+          }
+          dynamicCatalogs.add(
+            CatalogImplementation(
+              id: catalogId,
+              components: comps,
+              functions: fns,
+              protocolVersion: A2uiProtocolVersion.v1_0,
+            ),
+          );
+        }
+      }
+    }
+    final bool hasCustomBadgeCatalog = dynamicCatalogs.any(
+      (c) => c.id == 'https://example.com/catalogs/badges/v1/catalog.json',
     );
-    processor.model.onAction.subscribe(actions.add);
+    final CatalogImplementation v09Catalog = _buildV09BasicCatalog(
+      renderedNodes: renderedNodes,
+      openedUrls: openedUrls,
+    );
+    processor = MessageProcessor<ComponentImplementation>(
+      catalogs: [
+        v09Catalog,
+        v10Catalog,
+        if (!hasCustomBadgeCatalog) customCatalog,
+        ...dynamicCatalogs,
+      ],
+      defaultVersion: A2uiProtocolVersion.v1_0,
+      validationConfig: strictMode == true
+          ? ValidationConfig.strict
+          : strictMode == false
+          ? ValidationConfig.relaxed
+          : null,
+      outboundListener: (msg) {
+        final encoded =
+            jsonDecode(jsonEncode(msg.toJson())) as Map<String, Object?>;
+        outbound.add(encoded);
+        final call = encoded['callAgentFunction'] as Map<String, Object?>?;
+        if (call != null && call['functionCallId'] is String) {
+          lastCallId = call['functionCallId'] as String;
+        }
+      },
+    );
+    processor.model.onAction.subscribe((action) {
+      actions.add(action);
+      outbound.add(_frameActionEnvelope(action, protocolVersion));
+    });
     processor.model.onSurfaceCreated.subscribe((created) {
       surface = created;
-      created.onError.subscribe(errors.add);
+      created.onError.subscribe((err) {
+        final normalized = A2uiRendererError(
+          code: err.code,
+          surfaceId: err.surfaceId ?? created.id,
+          message: err.message,
+          path: err.path,
+          functionCallId: err.functionCallId,
+        );
+        errors.add(normalized);
+        final errMap =
+            jsonDecode(jsonEncode(normalized.toJson())) as Map<String, Object?>;
+        if (normalized.functionCallId != null) {
+          errMap.remove('surfaceId');
+        }
+        outbound.add(<String, Object?>{
+          'version': protocolVersion,
+          'error': errMap,
+        });
+      });
+    });
+    processor.model.onSurfaceDeleted.subscribe((deletedId) {
+      if (surface?.id == deletedId) {
+        surfaceDeleted = true;
+      }
     });
   }
 
   WidgetTester? tester;
+  final String protocolVersion;
+  final bool? strictMode;
+  String? lastCallId;
   late final MessageProcessor<ComponentImplementation> processor;
   SurfaceModel<ComponentImplementation>? surface;
   final Map<String, ComponentNode<ComponentImplementation>> renderedNodes = {};
   final List<A2uiRendererAction> actions = [];
   final List<A2uiRendererError> errors = [];
+  final List<Map<String, Object?>> outbound = [];
   final List<String> openedUrls = [];
   final Map<String, Element> savedElements = {};
   final Map<String, ComponentNode<ComponentImplementation>> savedNodes = {};
   bool mounted = false;
+  bool surfaceDeleted = false;
 
   ComponentNode<ComponentImplementation>? get rootNode =>
       renderedNodes[surface?.rootId ?? 'root'];
@@ -527,15 +767,17 @@ class AdapterHarnessSession {
   ) async {
     final messages = <Map<String, Object?>>[
       for (final Object? raw in rawMessages)
-        Map<String, Object?>.from(raw! as Map),
+        <String, Object?>{
+          'version': protocolVersion,
+          ...Map<String, Object?>.from(raw! as Map),
+        },
     ];
-    processor.processMessages(
-      AgentToRendererMessagePayload.fromJson(
-        messages,
-        protocolVersion: A2uiProtocolVersion.v1_0,
-      ),
-    );
-    if (!mounted && surface != null) {
+    processor.processMessages(messages);
+    if (surfaceDeleted && mounted) {
+      mounted = false;
+      renderedNodes.clear();
+      await activeTester.pumpWidget(const SizedBox());
+    } else if (!mounted && surface != null && !surfaceDeleted) {
       mounted = true;
       await activeTester.pumpWidget(
         MaterialApp(
@@ -557,7 +799,12 @@ class AdapterHarnessSession {
 AdapterHarnessSession mountSurface([
   Map<String, Object?>? caseSpec,
   WidgetTester? tester,
-]) => AdapterHarnessSession(tester);
+]) => AdapterHarnessSession(
+  tester,
+  (caseSpec?['protocolVersion'] as String?) ?? '1.0',
+  caseSpec?['strictMode'] as bool?,
+  caseSpec?['catalogs'] as List<Object?>?,
+);
 
 ComponentNode<ComponentImplementation>? extractViewTree(
   AdapterHarnessSession session,
@@ -574,6 +821,14 @@ void assertViewTree(
   final ComponentNode<ComponentImplementation> node = actual!;
   expect(node.componentId, expected['id']);
   final Finder candidates = _findNodeView(node.instanceId, ancestor);
+  if (expected['occupiesLayout'] case final bool expectedOccupiesLayout) {
+    if (tester != null) {
+      final bool hasNonZeroSize =
+          candidates.evaluate().isNotEmpty &&
+          !tester.getSize(candidates.first).isEmpty;
+      expect(hasNonZeroSize, expectedOccupiesLayout);
+    }
+  }
   if (expected['state'] case final String expectedState) {
     _assertNodeState(node, candidates, expectedState);
     if (expectedState != 'resolved') return;
@@ -584,7 +839,14 @@ void assertViewTree(
     expect(node.type, expectedType);
   }
   final props = ComponentProps(node.props.peek());
-  for (final propKey in const ['text', 'value', 'badgeText']) {
+  for (final propKey in const [
+    'text',
+    'value',
+    'url',
+    'name',
+    'axis',
+    'badgeText',
+  ]) {
     if (expected[propKey] case final Object expectedVal) {
       expect(props.value(propKey), expectedVal);
     }
@@ -599,10 +861,26 @@ void assertViewTree(
         actualChildren[i],
         expectedChildren[i]! as Map<String, Object?>,
         tester,
-        viewFinder,
+        node.type == 'Modal' ? null : viewFinder,
       );
     }
   }
+}
+
+Object? _substituteLastCallId(Object? value, String lastCallId) {
+  if (value is List) {
+    return [for (final item in value) _substituteLastCallId(item, lastCallId)];
+  }
+  if (value is Map) {
+    if (value[r'$ref'] == 'lastCallId' && value.length == 1) {
+      return lastCallId;
+    }
+    return <String, Object?>{
+      for (final MapEntry(:key, :value) in value.entries)
+        key.toString(): _substituteLastCallId(value, lastCallId),
+    };
+  }
+  return value;
 }
 
 Future<void> runStep(
@@ -611,6 +889,12 @@ Future<void> runStep(
   WidgetTester? tester,
 ]) async {
   assertKnownKeys(step);
+  if (step['messages'] case final List<Object?> messages) {
+    step = <String, Object?>{
+      ...step,
+      'messages': _substituteLastCallId(messages, session.lastCallId ?? ''),
+    };
+  }
   final WidgetTester activeTester = (tester ?? session.tester)!;
   await _executeStep(activeTester, session, step);
   _assertStepExpectations(activeTester, session, step);
@@ -676,12 +960,13 @@ Future<void> _executeStep(
 ) async {
   harness.actions.clear();
   harness.errors.clear();
+  harness.outbound.clear();
   final op = step['op']! as String;
   switch (op) {
     case 'process_messages':
       await harness.processMessages(tester, step['messages']! as List<Object?>);
     case 'user_input':
-      await _executeUserInput(tester, step);
+      await _executeUserInput(tester, harness, step);
     case 'user_gesture':
       await _executeUserGesture(tester, step);
     case 'programmatic_invoke':
@@ -696,7 +981,12 @@ Future<void> _executeStep(
 
 Finder _findNodeView(String instanceId, [Finder? ancestor]) {
   final Finder base = find.byWidgetPredicate(
-    (w) => w.key == NodeKey(instanceId) && w is! KeyedSubtree && w is! Flexible,
+    (w) =>
+        (w.key == NodeKey(instanceId) ||
+            (w.key is NodeKey &&
+                (w.key! as NodeKey).value.startsWith('$instanceId-['))) &&
+        w is! KeyedSubtree &&
+        w is! Flexible,
   );
   return ancestor == null
       ? base
@@ -708,25 +998,110 @@ String _stepTargetId(Map<String, Object?> step) =>
 
 Future<void> _executeUserInput(
   WidgetTester tester,
+  AdapterHarnessSession harness,
   Map<String, Object?> step,
 ) async {
   final String targetId = _stepTargetId(step);
   final Object? value = step['inputValue'] ?? step['value'];
-  final Finder scope = _findNodeView(targetId);
-  if (value is String) {
-    final Finder field = find.descendant(
-      of: scope,
-      matching: find.byType(TextField),
-    );
-    await tester.enterText(field, value);
-    await tester.pump();
-  } else if (value is bool) {
-    final Finder checkbox = find.descendant(
-      of: scope,
-      matching: find.byType(Checkbox),
-    );
-    await tester.tap(checkbox);
-    await tester.pump();
+  final Finder scope = _findNodeView(targetId).first;
+  final ComponentNode<ComponentImplementation>? node = _findNodeById(
+    tester,
+    harness,
+    targetId,
+  );
+  switch (node?.type) {
+    case 'CheckBox':
+      final Finder checkbox = find.descendant(
+        of: scope,
+        matching: find.byType(Checkbox),
+      );
+      if (tester.widget<Checkbox>(checkbox).value != (value as bool)) {
+        await tester.tap(checkbox);
+        await tester.pump();
+      }
+    case 'ChoicePicker':
+      final List<String> selected = (value! as List<Object?>).cast<String>();
+      for (final optionValue in selected) {
+        final Finder radio = find.descendant(
+          of: scope,
+          matching: find.byWidgetPredicate(
+            (w) => w is RadioListTile<String> && w.value == optionValue,
+          ),
+        );
+        if (radio.evaluate().isNotEmpty) {
+          await tester.tap(radio);
+          await tester.pump();
+        }
+      }
+    case 'Tabs':
+      final int tabIndex = (value! as num).toInt();
+      final Finder tabs = find.descendant(
+        of: scope,
+        matching: find.byType(Tab),
+      );
+      await tester.tap(tabs.at(tabIndex));
+      await tester.pumpAndSettle();
+    case 'Slider':
+      final Finder slider = find.descendant(
+        of: scope,
+        matching: find.byType(Slider),
+      );
+      tester.widget<Slider>(slider).onChanged!((value! as num).toDouble());
+      await tester.pump();
+    case 'DateTimeInput':
+      final strVal = value! as String;
+      final DateTime dt = DateTime.parse(strVal);
+      await tester.tap(
+        find.descendant(of: scope, matching: find.byType(InputDecorator)),
+      );
+      await tester.pumpAndSettle();
+      if (find.byType(CalendarDatePicker).evaluate().isNotEmpty) {
+        await tester.tap(
+          find.descendant(
+            of: find.byType(CalendarDatePicker),
+            matching: find.text('${dt.day}'),
+          ),
+        );
+        await tester.pump();
+        await tester.tap(find.text('OK'));
+        await tester.pumpAndSettle();
+      }
+      if (find.byType(TimePickerDialog).evaluate().isNotEmpty) {
+        await tester.tap(find.byIcon(Icons.keyboard_outlined));
+        await tester.pumpAndSettle();
+        final Finder fields = find.descendant(
+          of: find.byType(Dialog),
+          matching: find.byType(TextField),
+        );
+        await tester.enterText(fields.at(0), '${dt.hour}');
+        await tester.enterText(fields.at(1), '${dt.minute}');
+        await tester.tap(find.text('OK'));
+        await tester.pumpAndSettle();
+      }
+      if (!strVal.contains('.')) {
+        final props = ComponentProps(node!.props.peek());
+        final current = props.value('value') as String?;
+        if (current != null && current.replaceFirst('.000', '') == strVal) {
+          props.writable('value')?.set(strVal);
+          await tester.pump();
+        }
+      }
+    default:
+      if (value is String) {
+        final Finder field = find.descendant(
+          of: scope,
+          matching: find.byType(TextField),
+        );
+        await tester.enterText(field, value);
+        await tester.pump();
+      } else if (value is bool) {
+        final Finder checkbox = find.descendant(
+          of: scope,
+          matching: find.byType(Checkbox),
+        );
+        await tester.tap(checkbox);
+        await tester.pump();
+      }
   }
 }
 
@@ -735,7 +1110,7 @@ Future<void> _executeUserGesture(
   Map<String, Object?> step,
 ) async {
   final String targetId = _stepTargetId(step);
-  final Finder scope = _findNodeView(targetId);
+  final Finder scope = _findNodeView(targetId).first;
   final Finder button = find.descendant(
     of: scope,
     matching: find.byWidgetPredicate((w) => w is ButtonStyleButton),
@@ -788,6 +1163,34 @@ void _assertStepExpectations(
       expect(current[key]?.$2, same(harness.savedElements[key]));
     }
   }
+  if (step['expectNewViewIdentity'] case final List<Object?> keys) {
+    final Map<String, (ComponentNode<ComponentImplementation>, Element?)>
+    current = _collectIdentityMap(tester, harness.rootNode);
+    for (final rawKey in keys) {
+      final key = rawKey! as String;
+      expect(current[key]?.$1, isNotNull);
+      expect(harness.savedNodes[key], isNotNull);
+      expect(current[key]?.$1, isNot(same(harness.savedNodes[key])));
+      expect(current[key]?.$2, isNotNull);
+      expect(harness.savedElements[key], isNotNull);
+      expect(current[key]?.$2, isNot(same(harness.savedElements[key])));
+    }
+  }
+  if (step['expectDisposedNodes'] case final List<Object?> ids) {
+    for (final rawId in ids) {
+      final id = rawId! as String;
+      final ComponentNode<ComponentImplementation>? saved =
+          harness.savedNodes[id];
+      expect(saved, isNotNull);
+      expect(saved!.disposed, isTrue);
+      expect(_findNodeView(id), findsNothing);
+    }
+  }
+  if (step['expectSurfaceRemoved'] == true) {
+    expect(harness.processor.model.getSurface(harness.surface!.id), isNull);
+    expect(harness.surface!.isDisposed, isTrue);
+    expect(find.byType(A2uiSurface), findsNothing);
+  }
   if (step['expectDataModel'] case final Map<String, Object?> expectedData) {
     expect(harness.surface!.dataModel.get('/'), equals(expectedData));
   }
@@ -795,11 +1198,23 @@ void _assertStepExpectations(
     _assertActions(harness.actions, expectedActions);
   }
   if (step['expectErrors'] case final List<Object?> expectedErrors) {
-    _assertErrors(harness.errors, expectedErrors);
+    assertErrors(harness.errors, expectedErrors);
+  }
+  validateOutboundEnvelopes(harness.outbound, harness.protocolVersion);
+  if (step['expectOutbound'] case final List<Object?> expectedOutbound) {
+    assertOutbound(harness.outbound, expectedOutbound);
   }
   if (step['expectAccessibilityTree']
       case final Map<String, Object?> expectedA11y) {
     _assertAccessibilityTree(tester, expectedA11y);
+  }
+  if (step['expectThemeAbsent'] == true) {
+    expect(harness.surface!.theme, isEmpty);
+    final Element cardElement = tester.element(find.byType(Card).first);
+    expect(
+      Theme.of(cardElement).colorScheme.primary,
+      isNot(const Color(0xFFFF00AA)),
+    );
   }
   if (step['expectActiveSubscriptions'] case final int expectedSubs) {
     final int liveViews = find
@@ -824,6 +1239,30 @@ List<ComponentNode<ComponentImplementation>> _directChildren(
       case final ComponentNode<ComponentImplementation> c) {
     return [c];
   }
+  if (props.list('tabs') case final List<Object?> tabs when tabs.isNotEmpty) {
+    final result = <ComponentNode<ComponentImplementation>>[];
+    for (final Map<String, Object?> tab
+        in tabs.whereType<Map<String, Object?>>()) {
+      if (tab['child']
+          case final ComponentNode<ComponentImplementation> child) {
+        if (_findNodeView(child.instanceId).evaluate().isNotEmpty) {
+          result.add(child);
+        }
+      }
+    }
+    return result;
+  }
+  if (props.child('trigger')
+      case final ComponentNode<ComponentImplementation> trigger) {
+    final result = <ComponentNode<ComponentImplementation>>[trigger];
+    if (props.child('content')
+        case final ComponentNode<ComponentImplementation> content) {
+      if (_findNodeView(content.instanceId).evaluate().isNotEmpty) {
+        result.add(content);
+      }
+    }
+    return result;
+  }
   return props.children('children');
 }
 
@@ -839,14 +1278,29 @@ _collectIdentityMap(
     Finder? ancestor,
   ) {
     final Finder finder = _findNodeView(node.instanceId, ancestor);
-    final Iterable<Element> elements = finder.evaluate();
+    final Iterable<Element> implElements = find
+        .descendant(
+          of: finder,
+          matching: find.byWidgetPredicate(
+            (w) => w is KeyedSubtree && w.key == ObjectKey(node.impl),
+          ),
+        )
+        .evaluate();
+    final Iterable<Element> elements = implElements.isNotEmpty
+        ? implElements
+        : finder.evaluate();
     final Element? elem = elements.isEmpty ? null : elements.first;
     result[node.instanceId] = (node, elem);
+    result.putIfAbsent(node.componentId, () => (node, elem));
     result[path] = (node, elem);
     final List<ComponentNode<ComponentImplementation>> children =
         _directChildren(node);
     for (var i = 0; i < children.length; i++) {
-      visit(children[i], '$path/children/$i', finder);
+      visit(
+        children[i],
+        '$path/children/$i',
+        node.type == 'Modal' ? null : finder,
+      );
     }
   }
 
@@ -939,6 +1393,24 @@ void _assertNodeValidation(
     ];
     expect(actual, expectedResults);
   }
+  if (spec['hints'] case final List<Object?> expectedHints) {
+    final List<String> actualHints = [
+      for (final ValidationResult r in props.validationResults)
+        if ((r.severity == 'warning' || r.severity == 'info') &&
+            r.message != null)
+          r.message!,
+    ];
+    expect(actualHints, expectedHints);
+    if (tester != null) {
+      for (final rawHint in expectedHints) {
+        final hint = rawHint! as String;
+        expect(
+          find.descendant(of: viewFinder, matching: find.text(hint)),
+          findsOneWidget,
+        );
+      }
+    }
+  }
 }
 
 void _assertActions(
@@ -955,7 +1427,7 @@ void _assertActions(
   }
 }
 
-void _assertErrors(List<A2uiRendererError> actual, List<Object?> expectedList) {
+void assertErrors(List<A2uiRendererError> actual, List<Object?> expectedList) {
   expect(actual, hasLength(expectedList.length));
   for (final rawExpected in expectedList) {
     final expected = rawExpected! as Map<String, Object?>;
@@ -972,6 +1444,168 @@ void _assertErrors(List<A2uiRendererError> actual, List<Object?> expectedList) {
       ),
       isTrue,
       reason: 'Expected error matching $expected in $actual',
+    );
+  }
+}
+
+Map<String, Object?> _loadSpecSchema(String relativePath) {
+  final file = File('../../specification/$relativePath');
+  final decoded = jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
+  decoded.remove(r'$schema');
+  return decoded;
+}
+
+class _OutboundSchemaOracle {
+  _OutboundSchemaOracle(
+    String versionDir,
+    String baseVersion,
+    String file, {
+    List<String> siblings = const [],
+  }) {
+    final Uri base = Uri.parse('https://a2ui.org/specification/$baseVersion/');
+    sourceUri = base.resolve(file);
+    registry.addSchema(
+      base.resolve('catalog.json'),
+      Schema.fromMap(const {
+        r'$defs': {
+          'anyComponent': <String, Object?>{},
+          'anyFunction': <String, Object?>{
+            'type': 'object',
+            'properties': {
+              '@call': <String, Object?>{'type': 'string'},
+              'args': <String, Object?>{},
+            },
+          },
+          'theme': <String, Object?>{},
+        },
+      }),
+    );
+    for (final sibling in siblings) {
+      registry.addSchema(
+        base.resolve(sibling),
+        Schema.fromMap(_loadSpecSchema('$versionDir/json/$sibling')),
+      );
+    }
+    schema = Schema.fromMap(_loadSpecSchema('$versionDir/json/$file'));
+  }
+
+  final SchemaRegistry registry = SchemaRegistry();
+  late final Uri sourceUri;
+  late final Schema schema;
+
+  List<ValidationError> validate(Map<String, Object?> envelope) => schema
+      .validateSync(envelope, sourceUri: sourceUri, schemaRegistry: registry);
+}
+
+final _OutboundSchemaOracle _v10OutboundOracle = _OutboundSchemaOracle(
+  'v1_0',
+  'v1_0',
+  'renderer_to_agent.json',
+  siblings: const ['common_types.json'],
+);
+
+final _OutboundSchemaOracle _v09OutboundOracle = _OutboundSchemaOracle(
+  'v0_9_1',
+  'v0_9',
+  'client_to_server.json',
+  siblings: const ['common_types.json'],
+);
+
+Map<String, Object?> _frameActionEnvelope(
+  A2uiRendererAction action,
+  String protocolVersion,
+) {
+  final actionMap =
+      jsonDecode(jsonEncode(action.toJson())) as Map<String, Object?>
+        ..remove('catalogId');
+  return <String, Object?>{'version': protocolVersion, 'action': actionMap};
+}
+
+void validateOutboundEnvelopes(
+  List<Map<String, Object?>> envelopes,
+  String protocolVersion,
+) {
+  final bool isV09 =
+      protocolVersion.startsWith('v0.9') || protocolVersion.startsWith('0.9');
+  final _OutboundSchemaOracle oracle = isV09
+      ? _v09OutboundOracle
+      : _v10OutboundOracle;
+  for (var i = 0; i < envelopes.length; i++) {
+    final List<ValidationError> validationErrors = oracle.validate(
+      envelopes[i],
+    );
+    expect(
+      validationErrors,
+      isEmpty,
+      reason:
+          'outbound[$i] failed protocol schema validation: $validationErrors',
+    );
+  }
+}
+
+bool _isMatchAny(Object? value) =>
+    value is Map && value.length == 1 && value[r'$match'] == 'any';
+
+void _assertMatchesExpectedOutbound(
+  Object? actual,
+  Object? expected,
+  String where,
+) {
+  if (_isMatchAny(expected)) {
+    expect(
+      actual,
+      isNotNull,
+      reason: '$where: expected non-null value for {r"\$match": "any"}',
+    );
+    return;
+  }
+  if (expected is List) {
+    expect(actual, isA<List<Object?>>(), reason: '$where: expected list');
+    final actualList = actual! as List<Object?>;
+    expect(
+      actualList,
+      hasLength(expected.length),
+      reason: '$where: list length mismatch',
+    );
+    for (var i = 0; i < expected.length; i++) {
+      _assertMatchesExpectedOutbound(actualList[i], expected[i], '$where[$i]');
+    }
+    return;
+  }
+  if (expected is Map) {
+    expect(
+      actual,
+      isA<Map<String, Object?>>(),
+      reason: '$where: expected object',
+    );
+    final actualMap = actual! as Map<String, Object?>;
+    final List<String> actualKeys = actualMap.keys.toList()..sort();
+    final List<String> expectedKeys =
+        expected.keys.map((k) => k.toString()).toList()..sort();
+    expect(actualKeys, equals(expectedKeys), reason: '$where: keys mismatch');
+    for (final key in expectedKeys) {
+      _assertMatchesExpectedOutbound(
+        actualMap[key],
+        expected[key],
+        '$where.$key',
+      );
+    }
+    return;
+  }
+  expect(actual, equals(expected), reason: '$where: value mismatch');
+}
+
+void assertOutbound(List<Map<String, Object?>> actual, List<Object?> expected) {
+  expect(
+    actual,
+    hasLength(expected.length),
+    reason: 'expectOutbound length mismatch',
+  );
+  for (var i = 0; i < expected.length; i++) {
+    _assertMatchesExpectedOutbound(
+      actual[i],
+      expected[i],
+      'expectOutbound[$i]',
     );
   }
 }

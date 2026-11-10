@@ -22,7 +22,12 @@ import {gfmFromMarkdown} from 'mdast-util-gfm';
 import {gfm} from 'micromark-extension-gfm';
 import {visit} from 'unist-util-visit';
 
-import {findRepoRoot, resolveSchemaExplorerUrl, SPEC_DOC_ROUTES} from '../lib/spec-schemas.mjs';
+import {
+  findRepoRoot,
+  normalizeBasePrefix,
+  resolveSchemaExplorerUrl,
+  SPEC_DOC_ROUTES,
+} from '../lib/spec-schemas.mjs';
 
 const repoRoot = findRepoRoot();
 const contentDocsRoot = path.join(repoRoot, 'docs/site/src/content/docs');
@@ -81,9 +86,6 @@ function resolveContentDocSlug(absDocPath) {
  */
 function normalizeSpecAnchor(targetSlug, rawAnchor) {
   if (!rawAnchor) return '';
-  if (targetSlug === 'specification/v0.8-a2ui' && rawAnchor === 'catalog-negotiation') {
-    return '#21-catalog-negotiation';
-  }
   return `#${rawAnchor}`;
 }
 
@@ -126,18 +128,22 @@ function cleanIncludedSpecMarkdown(markdown) {
  * Resolves a Markdown link or image URL relative to `originFilePath` (either the wrapper `.md`
  * file or the included `specification/...` / `catalogs/...` file on disk).
  */
-export function resolveAstUrl(rawTarget, originFilePath) {
-  if (!rawTarget || /^(?:https?:|mailto:|tel:|#)/.test(rawTarget)) {
+export function resolveAstUrl(rawTarget, originFilePath, options = {}) {
+  if (!rawTarget || /^(?:[a-zA-Z][a-zA-Z0-9+.-]+:|\/\/|#)/.test(rawTarget)) {
     return rawTarget;
   }
 
   const githubBaseUrl = 'https://github.com/a2ui-project/a2ui/blob/main';
-  const basePrefix = (process.env.ASTRO_BASE || '').replace(/\/$/, '');
+  const basePrefix = normalizeBasePrefix(options.base ?? process.env.ASTRO_BASE ?? '');
 
   const hashIdx = rawTarget.indexOf('#');
-  const rawBase = hashIdx === -1 ? rawTarget : rawTarget.slice(0, hashIdx);
+  const withoutHash = hashIdx === -1 ? rawTarget : rawTarget.slice(0, hashIdx);
   const rawAnchor = hashIdx === -1 ? '' : rawTarget.slice(hashIdx + 1);
   const anchor = rawAnchor ? `#${rawAnchor}` : '';
+
+  const queryIdx = withoutHash.indexOf('?');
+  const rawBase = queryIdx === -1 ? withoutHash : withoutHash.slice(0, queryIdx);
+  const search = queryIdx === -1 ? '' : withoutHash.slice(queryIdx);
 
   if (!rawBase) {
     return rawTarget;
@@ -145,8 +151,8 @@ export function resolveAstUrl(rawTarget, originFilePath) {
 
   // Handle already root-relative site paths by prepending ASTRO_BASE when configured
   if (rawBase.startsWith('/')) {
-    if (basePrefix && !rawBase.startsWith(`${basePrefix}/`)) {
-      return `${basePrefix}${rawBase}${anchor}`;
+    if (basePrefix && rawBase !== basePrefix && !rawBase.startsWith(`${basePrefix}/`)) {
+      return `${basePrefix}${rawBase}${search}${anchor}`;
     }
     return rawTarget;
   }
@@ -154,6 +160,51 @@ export function resolveAstUrl(rawTarget, originFilePath) {
   const originDir = originFilePath ? path.dirname(originFilePath) : process.cwd();
   const resolvedAbs = path.resolve(originDir, rawBase);
   const relToRepo = path.relative(repoRoot, resolvedAbs).replace(/\\/g, '/');
+  const originRelToRepo = originFilePath
+    ? path.relative(repoRoot, originFilePath).replace(/\\/g, '/')
+    : '';
+  const originIsContentDoc = originRelToRepo.startsWith('docs/site/src/content/docs/');
+
+  if (originIsContentDoc) {
+    // 1a. Explicit file links inside `src/content/docs/` (e.g. `./v1.0-schemas.mdx`);
+    // preserve colocated non-Markdown assets (e.g. `./diagram.png`) for Astro's image pipeline.
+    if (
+      relToRepo.startsWith('docs/site/src/content/docs/') &&
+      fs.existsSync(resolvedAbs) &&
+      fs.statSync(resolvedAbs).isFile()
+    ) {
+      if (!/\.(?:md|mdx)$/i.test(resolvedAbs)) {
+        return rawTarget;
+      }
+      const slug = resolveContentDocSlug(resolvedAbs);
+      return slug ? `${basePrefix}/${slug}/${search}${anchor}` : `${basePrefix}/${search}${anchor}`;
+    }
+
+    // 1b. Relative asset imports inside `docs/site/src/` (e.g. `../../assets/*.svg`)
+    if (
+      relToRepo.startsWith('docs/site/src/') &&
+      !relToRepo.startsWith('docs/site/src/content/docs/') &&
+      fs.existsSync(resolvedAbs)
+    ) {
+      return rawTarget;
+    }
+
+    // 1c. URL-relative site links authored relative to the page's rendered Starlight route
+    // (e.g. `../overview/` from `concepts/glossary.mdx`, served at `/concepts/glossary/`).
+    const targetsRepoSourceOutsideSite =
+      !relToRepo.startsWith('docs/site/') &&
+      !relToRepo.startsWith('..') &&
+      (Boolean(SPEC_DOC_ROUTES[relToRepo]) ||
+        relToRepo.endsWith('.json') ||
+        fs.existsSync(resolvedAbs));
+
+    if (!targetsRepoSourceOutsideSite) {
+      const originSlug = resolveContentDocSlug(originFilePath);
+      const pageUrlBase = originSlug ? `https://a2ui.org/${originSlug}/` : 'https://a2ui.org/';
+      const resolvedUrl = new URL(`${rawBase}${search}`, pageUrlBase);
+      return `${basePrefix}${resolvedUrl.pathname}${resolvedUrl.search}${anchor}`;
+    }
+  }
 
   if (relToRepo.startsWith('..')) {
     return rawTarget;
@@ -162,7 +213,7 @@ export function resolveAstUrl(rawTarget, originFilePath) {
   // 1. Canonical included specification / catalog Markdown files
   if (SPEC_DOC_ROUTES[relToRepo]) {
     const slug = SPEC_DOC_ROUTES[relToRepo];
-    return `${basePrefix}/${slug}/${normalizeSpecAnchor(slug, rawAnchor)}`;
+    return `${basePrefix}/${slug}/${search}${normalizeSpecAnchor(slug, rawAnchor)}`;
   }
 
   // 2. Canonical JSON Schemas -> human-browsable JSON Schemas page permalinks
@@ -175,8 +226,15 @@ export function resolveAstUrl(rawTarget, originFilePath) {
 
   // 3. Links to Starlight content docs (`docs/site/src/content/docs/...`)
   if (relToRepo.startsWith('docs/site/src/content/docs/')) {
+    if (
+      fs.existsSync(resolvedAbs) &&
+      fs.statSync(resolvedAbs).isFile() &&
+      !/\.(?:md|mdx)$/i.test(resolvedAbs)
+    ) {
+      return rawTarget;
+    }
     const slug = resolveContentDocSlug(resolvedAbs);
-    return `${basePrefix}/${slug}/${anchor}`;
+    return slug ? `${basePrefix}/${slug}/${search}${anchor}` : `${basePrefix}/${search}${anchor}`;
   }
 
   // Preserve relative imports/images inside docs/site/src/ (e.g. ../../assets/*.svg) for Astro's remarkCollectImages
@@ -190,15 +248,15 @@ export function resolveAstUrl(rawTarget, originFilePath) {
   // 4. Links to legacy `docs/public/...` pages or assets
   if (relToRepo.startsWith('docs/public/assets/')) {
     const assetRel = relToRepo.slice('docs/public/assets/'.length);
-    return `${basePrefix}/assets/${assetRel}${anchor}`;
+    return `${basePrefix}/assets/${assetRel}${search}${anchor}`;
   }
   if (relToRepo.startsWith('docs/public/')) {
     const publicRel = relToRepo.slice('docs/public/'.length);
-    return `${resolveLegacyPublicDocRoute(publicRel, basePrefix)}${anchor}`;
+    return `${resolveLegacyPublicDocRoute(publicRel, basePrefix)}${search}${anchor}`;
   }
 
   // 5. Fallback for any other repository source file (e.g. Python SDKs, v0.9 archived docs, tests)
-  return `${githubBaseUrl}/${relToRepo}${anchor}`;
+  return `${githubBaseUrl}/${relToRepo}${search}${anchor}`;
 }
 
 /**
@@ -207,7 +265,7 @@ export function resolveAstUrl(rawTarget, originFilePath) {
  * without touching inline code or fenced code blocks.
  */
 function transformMarkdownAst(tree, originFilePath) {
-  const basePrefix = (process.env.ASTRO_BASE || '').replace(/\/$/, '');
+  const basePrefix = normalizeBasePrefix(process.env.ASTRO_BASE);
 
   visit(tree, node => {
     if (node.type === 'link' || node.type === 'image' || node.type === 'definition') {

@@ -1010,7 +1010,7 @@ class ExpressScopeSession:
                     "surface() extensions require a surface-creating scope with a"
                     " root component."
                 )
-            if compiled_data and not compiled_components:
+            if compiled_components or compiled_data:
                 return self._compile_incremental_updates(
                     scope,
                     state,
@@ -1071,7 +1071,8 @@ class ExpressScopeSession:
         messages: list[dict[str, Any]] = []
         if delta_components:
             if (
-                not scope.has_surface_directive
+                not is_final
+                and not scope.has_surface_directive
                 and not state.surface_created
                 and not surface_exists
             ):
@@ -1293,8 +1294,11 @@ class ExpressCompiler:
                 they target a version before v1.0.
         """
         self._catalogs = check_mixed_catalogs(catalogs)
-        self.helpers = build_catalog_helpers(self._catalogs)
         self.version = version or catalogs_protocol_version(self._catalogs)
+        # The helpers read the common types and system functions of the
+        # target version, which a `version=` override can change.
+        self.helpers = build_catalog_helpers(self._catalogs, self.version)
+        self._system_function_helpers: dict[str, CatalogSchemaHelper] = {}
 
     @property
     def catalogs(self) -> list[CatalogApi]:
@@ -1334,12 +1338,18 @@ class ExpressCompiler:
     def _defines_function(self, name: str, catalog_id: Any) -> bool:
         """Checks whether a call names a function.
 
+        A name starting with `@` is always a function call: no component can
+        have one, and a call to a system function, which no catalog defines,
+        is checked when it is compiled.
+
         Args:
             name: The called name.
             catalog_id: The `catalogId` written on the call, or None when it
                 has none, in which case every catalog is searched. A
                 `catalogId` that names no active catalog defines nothing.
         """
+        if name.startswith("@"):
+            return True
         if catalog_id is not None:
             if isinstance(catalog_id, str) and catalog_id in self.helpers:
                 return name in self.helpers[catalog_id].functions
@@ -1694,8 +1704,8 @@ class ExpressCompiler:
                 if data_updates:
                     return data_updates
                 raise ExpressUndefinedRootError("root")
-            if not scope.has_surface_directive:
-                raise ExpressUndefinedRootError("root")
+            # Components without a root update a surface the renderer already
+            # shows, whether or not a `surface(...)` line named it.
             return [
                 {
                     "version": ctx.version,
@@ -1876,6 +1886,12 @@ class ExpressCompiler:
                 )
             function_call_id = explicit_id
             node = replace(node, kwargs=kwargs)
+        if node.name.startswith("@"):
+            raise ExpressValidationError(
+                f"System function '{node.name}' cannot be called as a standalone"
+                " statement, since a renderer function call names a catalog"
+                " function."
+            )
         raw_syms = unit.scope.raw_symbols if unit.scope else {}
         compiled_val = self._compile_value(node, raw_syms, ctx)
         if not isinstance(compiled_val, dict) or ctx.call_key not in compiled_val:
@@ -1923,6 +1939,13 @@ class ExpressCompiler:
         comp_name = ast.name
         args = ast.args
         kwargs = dict(ast.kwargs)
+
+        if comp_name.startswith("@"):
+            # A variable holding a system function call is inlined wherever it
+            # is named, but the call is checked here so that one nothing names
+            # is rejected too.
+            self._system_function_helper(comp_name, kwargs, ctx)
+            return None
 
         comp_cat_id = kwargs.pop("catalogId", None)
         # A variable holding a function call, an Event or a template is inlined
@@ -2099,6 +2122,12 @@ class ExpressCompiler:
             # a binding is data.
             if prop_name == "value" and _resolves_to_path(arg, raw_symbols):
                 sibling_value_path = mapped_val
+
+        if raw_checks and "checks" not in properties:
+            raise ExpressValidationError(
+                f"Component '{comp_name}' does not declare a 'checks' property,"
+                " so it cannot take checks."
+            )
 
         # Checks bind the component's own value implicitly.
         ctx.active_value_path = sibling_value_path
@@ -2495,6 +2524,11 @@ class ExpressCompiler:
         if fn_name == "Event":
             return self._compile_event_call(val, raw_symbols, ctx)
 
+        if fn_name.startswith("@"):
+            return self._compile_system_call(
+                fn_name, fn_args, raw_kwargs, raw_symbols, ctx, is_action
+            )
+
         call_cat_id = raw_kwargs.pop("catalogId", None)
         if self._defines_component(fn_name, call_cat_id):
             if parent_id and parent_prop:
@@ -2527,9 +2561,96 @@ class ExpressCompiler:
         call_helper, write_cat_id = self._resolve(
             "function", fn_name, call_cat_id, ctx, f"Call '{fn_name}'", "function"
         )
+        compiled_args = self._compile_call_args(
+            call_helper, fn_name, fn_args, raw_kwargs, raw_symbols, ctx, is_action
+        )
 
-        fn_props = call_helper.get_function_properties(fn_name)
-        compiled_args = {}
+        res_expr: dict[str, Any] = {ctx.call_key: fn_name}
+        if write_cat_id is not None:
+            res_expr["catalogId"] = write_cat_id
+        res_expr["args"] = compiled_args
+
+        # Wrap in functionCall only if inside an action field
+        if is_action:
+            return {"functionCall": res_expr}
+        return res_expr
+
+    def _compile_system_call(
+        self,
+        fn_name: str,
+        fn_args: list[Any],
+        raw_kwargs: dict[str, Any],
+        raw_symbols: dict[str, Any],
+        ctx: _CompileContext,
+        is_action: bool,
+    ) -> dict[str, Any]:
+        """Compiles a call to a system function, such as `@index(offset=1)`.
+
+        A system function is defined by the protocol, not a catalog, so it is
+        looked up in the protocol version's common types before any catalog,
+        and the compiled call never carries a `catalogId`. An empty argument
+        list is left out, since a system function's `args` are optional.
+
+        Raises:
+            ExpressValidationError: If the target version defines no system
+                function of that name, or the call names a `catalogId`.
+        """
+        helper = self._system_function_helper(fn_name, raw_kwargs, ctx)
+        compiled_args = self._compile_call_args(
+            helper, fn_name, fn_args, raw_kwargs, raw_symbols, ctx, is_action
+        )
+        res_expr: dict[str, Any] = {ctx.call_key: fn_name}
+        if compiled_args:
+            res_expr["args"] = compiled_args
+        if is_action:
+            return {"functionCall": res_expr}
+        return res_expr
+
+    def _system_function_helper(
+        self, fn_name: str, raw_kwargs: dict[str, Any], ctx: _CompileContext
+    ) -> CatalogSchemaHelper:
+        """Checks a system function call and returns the helper that reads it.
+
+        The helper reads the system functions of the compilation's target
+        version, which `compile(..., version=...)` can set apart from the
+        compiler's own version.
+
+        Raises:
+            ExpressValidationError: If the target version defines no system
+                function of that name, or the call names a `catalogId`.
+        """
+        if ctx.version == self.version:
+            helper = next(iter(self.helpers.values()))
+        elif ctx.version in self._system_function_helpers:
+            helper = self._system_function_helpers[ctx.version]
+        else:
+            helper = CatalogSchemaHelper(self._catalogs[0], ctx.version)
+            self._system_function_helpers[ctx.version] = helper
+        if fn_name not in helper.system_functions:
+            raise ExpressValidationError(
+                f"Unknown system function '{fn_name}' in A2UI {ctx.version}. System"
+                f" functions: {', '.join(sorted(helper.system_functions)) or 'none'}."
+            )
+        if "catalogId" in raw_kwargs:
+            raise ExpressValidationError(
+                f"System function '{fn_name}' is defined by the protocol, not a"
+                " catalog, so it takes no catalogId."
+            )
+        return helper
+
+    def _compile_call_args(
+        self,
+        helper: CatalogSchemaHelper,
+        fn_name: str,
+        fn_args: list[Any],
+        raw_kwargs: dict[str, Any],
+        raw_symbols: dict[str, Any],
+        ctx: _CompileContext,
+        is_action: bool,
+    ) -> dict[str, Any]:
+        """Maps a function call's positional and keyword arguments to its parameters."""
+        fn_props = helper.get_function_properties(fn_name)
+        compiled_args: dict[str, Any] = {}
         for idx, arg in enumerate(fn_args):
             if idx >= len(fn_props):
                 continue
@@ -2549,13 +2670,4 @@ class ExpressCompiler:
             val_item = self._compile_value(v, raw_symbols, ctx, is_action)
             if val_item is not None:
                 compiled_args[k] = val_item
-
-        res_expr: dict[str, Any] = {ctx.call_key: fn_name}
-        if write_cat_id is not None:
-            res_expr["catalogId"] = write_cat_id
-        res_expr["args"] = compiled_args
-
-        # Wrap in functionCall only if inside an action field
-        if is_action:
-            return {"functionCall": res_expr}
-        return res_expr
+        return compiled_args
