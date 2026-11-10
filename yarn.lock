@@ -223,7 +223,6 @@ __metadata:
     "@a2ui/lit": "workspace:*"
     "@a2ui/markdown-it": "workspace:*"
     "@a2ui/web_core": "workspace:*"
-    "@lit-labs/signals": "npm:^0.3.0"
     "@lit/context": "npm:^1.1.6"
     "@types/jasmine": "npm:^6.0.0"
     esbuild: "npm:^0.28.1"
@@ -266,7 +265,6 @@ __metadata:
   resolution: "@a2ui/lit@workspace:typescript/renderers/lit"
   dependencies:
     "@a2ui/web_core": "workspace:*"
-    "@lit-labs/signals": "npm:^0.3.0"
     "@lit/context": "npm:^1.1.6"
     "@types/jsdom": "npm:^28.0.3"
     "@types/node": "npm:^25.9.3"
@@ -276,7 +274,6 @@ __metadata:
     jsdom: "npm:^29.1.1"
     lit: "npm:^3.3.3"
     prettier: "npm:^3.8.4"
-    signal-utils: "npm:^0.21.1"
     typescript: "npm:5.9.3"
     wireit: "npm:^0.15.0-pre.2"
     zod: "npm:^3.25.76"
@@ -22081,15 +22078,6 @@ __metadata:
   version: 0.2.2
   resolution: "signal-polyfill@npm:0.2.2"
   checksum: 10c0/485b0e66d93961454af32e7fbff88130138dffcbf7bce35e5c873d760ceb9ce33a125dd63cc59454c739c43246980515b1162cbe0ebc975a974ee036fb58d18a
-  languageName: node
-  linkType: hard
-
-"signal-utils@npm:^0.21.1":
-  version: 0.21.1
-  resolution: "signal-utils@npm:0.21.1"
-  peerDependencies:
-    signal-polyfill: ^0.2.0
-  checksum: 10c0/e42ea9b4af0b6054eb4e4f7dd97d9fb2c115fba34c024e4ebbf2879785b8e61c1d6562ccddeef185bbd64f80f985b38a3631e35bfdfd317dcd42224c05aed587
   languageName: node
   linkType: hard
 
