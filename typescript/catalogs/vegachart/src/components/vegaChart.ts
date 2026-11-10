@@ -18,10 +18,16 @@
 import {css, html, LitElement, type PropertyValues} from 'lit';
 import {property} from 'lit/decorators.js';
 
+import {PermissiveUrlSecurityPolicy, type UrlContext} from '@a2ui/web_core';
 import {A2uiLitElement} from '@a2ui/web_core/v1_0';
 
 import type {VegaChartApi} from '../v0_9/index.js';
 import type {VegaChartV1Api} from '../v1/index.js';
+import {
+  createUrlPolicyLoader,
+  type VegaBaseLoader,
+  type VegaLoaderLike,
+} from './url_policy_loader.js';
 
 /** Default chart height in pixels when `height` is not specified. */
 export const DEFAULT_HEIGHT = 290;
@@ -86,6 +92,11 @@ export interface VegaEmbedResult {
 export interface VegaEmbedOptions {
   actions?: boolean | Record<string, boolean>;
   renderer?: 'canvas' | 'svg';
+  /**
+   * Vega loader that checks every URL in the spec (data, images, and `href`
+   * links) against the surface's URL security policy.
+   */
+  loader?: VegaLoaderLike;
   [key: string]: unknown;
 }
 
@@ -111,6 +122,13 @@ async function defaultVegaEmbed(
   const embedFn = mod.default ?? mod.embed ?? (mod as unknown as VegaEmbedFn);
   return embedFn(el, chartSpec, options);
 }
+
+async function defaultVegaLoader(): Promise<VegaBaseLoader> {
+  const vega = (await import('vega')) as unknown as {loader: () => VegaBaseLoader};
+  return vega.loader();
+}
+
+const DEFAULT_URL_POLICY = new PermissiveUrlSecurityPolicy();
 
 function isPlainObject(val: unknown): val is Record<string, unknown> {
   return typeof val === 'object' && val !== null && !Array.isArray(val);
@@ -657,8 +675,15 @@ export class A2uiVegaChartElement extends A2uiLitElement<
       wrapper.style.height = '100%';
       container.appendChild(wrapper);
 
+      const loader = createUrlPolicyLoader(defaultVegaLoader(), (url, context) =>
+        this.sanitizeChartUrl(url, context),
+      );
       const embed = this.embedFn ?? A2uiVegaChartElement.defaultEmbedFn;
-      const result = await embed(wrapper, transformedSpec, {actions: false, renderer: 'svg'});
+      const result = await embed(wrapper, transformedSpec, {
+        actions: false,
+        renderer: 'svg',
+        loader,
+      });
 
       if (abortController.signal.aborted) {
         result?.finalize?.();
@@ -681,6 +706,16 @@ export class A2uiVegaChartElement extends A2uiLitElement<
         console.error('A2uiVegaChart Error:', e);
       }
     }
+  }
+
+  /**
+   * Checks a URL from the spec against the surface's URL security policy. A
+   * standalone element has no component context and uses the default policy.
+   */
+  private sanitizeChartUrl(url: string, context: UrlContext): string | undefined {
+    return this.context
+      ? this.context.sanitizeUrl(url, context, {propertyName: 'spec'})
+      : DEFAULT_URL_POLICY.sanitizeUrl(url, context);
   }
 
   private resolveAccessibleLabel(vegaSpec: Record<string, unknown>): string {

@@ -520,6 +520,47 @@ describe('McpAppBridge', () => {
       expect(openSpy.calls.count()).toBe(1);
     });
 
+    it('checks ui/open-link URLs as navigation with sanitizeUrl and opens the result', async () => {
+      const openSpy = spyOn(window, 'open');
+      const checks: Array<[string, string]> = [];
+      bridge.dispose();
+      [hostTransport, appTransport] = linkTransports();
+      bridge = new McpAppBridge({
+        frame,
+        host,
+        getProps: () => props,
+        transport: hostTransport,
+        sanitizeUrl: (url, context) => {
+          checks.push([url, context]);
+          if (url.startsWith('https://docs.example.com/')) return url;
+          if (url.startsWith('https://proxied.example.com/')) {
+            return `https://docs.example.com/out?u=${encodeURIComponent(url)}`;
+          }
+          return undefined;
+        },
+      });
+      bridge.start();
+      const {app} = await connectApp();
+
+      expect(await app.openLink({url: 'https://docs.example.com/a'})).toEqual({});
+      expect(await app.openLink({url: 'https://proxied.example.com/b'})).toEqual({});
+      expect(await app.openLink({url: 'https://evil.example/c'})).toEqual({isError: true});
+
+      expect(checks).toEqual([
+        ['https://docs.example.com/a', 'navigation'],
+        ['https://proxied.example.com/b', 'navigation'],
+        ['https://evil.example/c', 'navigation'],
+      ]);
+      expect(openSpy.calls.allArgs()).toEqual([
+        ['https://docs.example.com/a', '_blank', 'noopener,noreferrer'],
+        [
+          `https://docs.example.com/out?u=${encodeURIComponent('https://proxied.example.com/b')}`,
+          '_blank',
+          'noopener,noreferrer',
+        ],
+      ]);
+    });
+
     it('dispatches ui/message as an a2ui.mcpAppMessage action', async () => {
       const {app} = await connectApp();
 
