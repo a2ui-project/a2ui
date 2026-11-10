@@ -40,7 +40,7 @@ import '../resolution/data_context.dart';
 /// A listener may return a `Future`. For an outbound call, a listener that
 /// throws or whose future fails fails the call with that error. For a
 /// response, action, or error, a listener failure is ignored: the response is
-/// still returned to the processor that asked for it.
+/// still returned to the processor that asked for it when answering a call.
 typedef OutboundMessageListener = FutureOr<void> Function(
   RendererToAgentMessage message,
 );

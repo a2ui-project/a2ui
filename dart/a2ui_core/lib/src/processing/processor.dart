@@ -233,11 +233,11 @@ class MessageProcessor<T extends ComponentApi> {
         "processor defaults to '${defaultVersion.jsonValue}'.",
       );
     }
-    if (onAction != null) {
-      model.onAction.subscribe(onAction);
-    }
     if (unifiedOutbound) {
       model.onAction.subscribe(_forwardAction);
+    }
+    if (onAction != null) {
+      model.onAction.subscribe(onAction);
     }
     if (onError != null) {
       model.onError.subscribe(onError);

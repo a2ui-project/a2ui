@@ -1890,8 +1890,8 @@ void main() {
       );
       expect((v09Outbound.single as ActionMessage).version, 'v0.9');
 
-      // When onAction removes the surface before _forwardAction runs,
-      // model.getSurface returns null and _fallbackWireVersion is used.
+      // _forwardAction is subscribed before onAction, so when onAction removes
+      // the surface, _forwardAction still resolves the surface protocolVersion.
       mixedProcessor.processMessages({
         'version': '1.0',
         'createSurface': {
@@ -1905,20 +1905,23 @@ void main() {
         {'name': 'close', 'context': <String, Object?>{}},
         'c2',
       );
+      expect(mixedProcessor.model.getSurface('deleted-on-action'), isNull);
       expect(v09Outbound, hasLength(2));
-      expect((v09Outbound.last as ActionMessage).version, 'v0.9');
+      expect((v09Outbound.last as ActionMessage).version, '1.0');
     });
 
     test(
         'swallows synchronous throws and rejected futures from '
         'outboundListener without breaking onAction subscribers', () async {
       var mode = 'throw';
+      var listenerCalls = 0;
       final onActionCalls = <A2uiRendererAction>[];
       final laterSubscriberCalls = <A2uiRendererAction>[];
       final processor = MessageProcessor<ComponentApi>(
         catalogs: [v10Catalog],
         onAction: onActionCalls.add,
         outboundListener: (_) {
+          listenerCalls++;
           if (mode == 'throw') {
             throw StateError('sync listener failure');
           }
@@ -1955,6 +1958,7 @@ void main() {
       );
       await Future<void>.delayed(Duration.zero);
 
+      expect(listenerCalls, 3);
       expect(
         onActionCalls.map((a) => a.name),
         ['first', 'second', 'third'],

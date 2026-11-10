@@ -190,7 +190,9 @@ processor.dispose();
   `rendererFunctionResponse` answering each `callRendererFunction`, and each
   `callAgentFunction` the processor makes. Subscribe to
   `processor.model.onError` (or `surface.onError`) to report runtime expression
-  and action errors.
+  and action errors (and ignore `ErrorMessage` in `outboundListener` if you
+  forward `onError` to the agent, since `processMessages` errors are emitted to
+  both).
 - Key each surface's widget by `ObjectKey(surface)`, and remove it when the
   surface is deleted.
 - Error listeners may call `setState` directly.

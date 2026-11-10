@@ -65,7 +65,10 @@ graph TD
 Pass `outboundListener` with `unifiedOutbound: true` to receive every
 renderer-to-agent message (`ActionMessage`, `ErrorMessage`,
 `CallAgentFunctionMessage`, and `RendererFunctionResponseMessage`) through one
-callback:
+callback (`ErrorMessage`s from `processMessages`, `CallAgentFunctionMessage`s,
+and `RendererFunctionResponseMessage`s are forwarded regardless of
+`unifiedOutbound`, while runtime surface errors are emitted on
+`processor.model.onError`):
 
 ```dart
 import 'package:a2ui_core/a2ui_core.dart';
