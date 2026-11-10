@@ -43,9 +43,29 @@ const RESERVED_PLAIN_KEYS =
   'v0.9 reserves the plain path and call keys for data bindings and function calls, so a map literal that uses them runs as written in v1.0 only.';
 const NO_USER_MESSAGE =
   'The v0.9 Action has no userMessage field, so an event carrying one runs as written in v1.0 only.';
+const NO_SYSTEM_FUNCTIONS =
+  'v0.9 defines no system functions, so a call to @index runs as written in v1.0 only.';
 
 export const V1_ONLY_CASES: Readonly<Record<string, string>> = {
   // Express cases
+  test_compile_express_index_system_function: NO_SYSTEM_FUNCTIONS,
+  test_compile_express_index_system_function_positional_offset: NO_SYSTEM_FUNCTIONS,
+  test_compile_express_index_system_function_named_offset: NO_SYSTEM_FUNCTIONS,
+  test_decompile_express_index_system_function: NO_SYSTEM_FUNCTIONS,
+  test_express_snippet_lists_system_functions_from_v1_0: NO_SYSTEM_FUNCTIONS,
+  test_compile_express_system_function_with_catalog_id_is_a_validation_error: NO_SYSTEM_FUNCTIONS,
+  test_compile_express_unknown_system_function_is_a_validation_error: NO_SYSTEM_FUNCTIONS,
+  test_compile_express_unreferenced_variable_holding_a_system_function_call_with_catalog_id_is_a_validation_error:
+    NO_SYSTEM_FUNCTIONS,
+  test_compile_express_unreferenced_variable_holding_an_unknown_system_function_is_a_validation_error:
+    NO_SYSTEM_FUNCTIONS,
+  test_compile_express_root_holding_an_unknown_system_function_is_a_validation_error:
+    NO_SYSTEM_FUNCTIONS,
+  test_compile_express_variable_holding_a_system_function_call_is_inlined: NO_SYSTEM_FUNCTIONS,
+  test_compile_express_variable_holding_a_system_function_call_with_catalog_id_is_a_validation_error:
+    NO_SYSTEM_FUNCTIONS,
+  test_decompile_express_system_function_with_catalog_id_is_a_validation_error: NO_SYSTEM_FUNCTIONS,
+  test_decompile_express_unknown_system_function_is_a_validation_error: NO_SYSTEM_FUNCTIONS,
   test_compile_express_event_user_message: NO_USER_MESSAGE,
   test_compile_express_event_user_message_binding_with_context: NO_USER_MESSAGE,
   test_decompile_express_event_action_with_user_message: NO_USER_MESSAGE,

@@ -34,6 +34,18 @@ class CatalogSchemaHelper {
 
   bool isFunction(String name) => catalog.functions.containsKey(name);
 
+  /// The system functions the catalog's protocol version defines, such as
+  /// `@index` from v1.0, keyed by name. See [systemFunctionSchemas].
+  late final Map<String, Map<String, Object?>> systemFunctions =
+      systemFunctionSchemas(
+        PayloadValidator.commonTypesFor(
+          catalog.protocolVersion ?? A2uiProtocolVersion.v0_9,
+        ),
+      );
+
+  /// Whether [name] is a system function of the catalog's protocol version.
+  bool isSystemFunction(String name) => systemFunctions.containsKey(name);
+
   /// The properties a positional argument can fill, in schema order.
   ///
   /// Specific component properties come first, followed by common mixin
@@ -189,6 +201,28 @@ class CatalogSchemaHelper {
     return null;
   }
 
+  /// The description of a catalog or system function, if it has one.
+  String? functionDescription(String function) {
+    if (catalog.functions[function] case final FunctionApi api) {
+      return api.description;
+    }
+    return switch (systemFunctions[function]?['description']) {
+      final String description => description,
+      _ => null,
+    };
+  }
+
+  /// The `args` schema of a catalog or system function.
+  Map<String, Object?> _argumentSchema(String function) {
+    if (catalog.functions[function] case final FunctionApi api) {
+      return api.argumentSchema.value;
+    }
+    return switch (_properties(systemFunctions[function]!)['args']) {
+      final Map<Object?, Object?> args => args.cast<String, Object?>(),
+      _ => const {},
+    };
+  }
+
   /// The function's parameters, in schema order.
   List<String> parameters(String function) => [
     ..._parameterSchemas(function).keys,
@@ -197,9 +231,7 @@ class CatalogSchemaHelper {
   /// The parameters the function requires.
   List<String> requiredParameters(String function) => [
     for (final Object? name
-        in catalog.functions[function]!.argumentSchema['required']
-                as List<Object?>? ??
-            const [])
+        in _argumentSchema(function)['required'] as List<Object?>? ?? const [])
       name! as String,
   ];
 
@@ -208,8 +240,7 @@ class CatalogSchemaHelper {
       _parameterSchemas(function)[parameter];
 
   Map<String, Map<String, Object?>> _parameterSchemas(String function) {
-    final Object? properties =
-        catalog.functions[function]!.argumentSchema['properties'];
+    final Object? properties = _argumentSchema(function)['properties'];
     if (properties is! Map) return const {};
     return {
       for (final MapEntry<Object?, Object?> entry in properties.entries)
@@ -274,6 +305,25 @@ class _ComponentSignature {
     required this.isCheckable,
   });
 }
+
+/// The system functions that a common types schema defines, keyed by name.
+///
+/// A system function is defined by the protocol rather than by a catalog: it
+/// is a common types `$defs` entry whose `@call` property is a constant name
+/// starting with `@`, such as `@index` from v1.0. It has the same shape as a
+/// catalog function, so the same code reads its arguments. A version that
+/// defines none, such as v0.9, gives an empty map.
+Map<String, Map<String, Object?>> systemFunctionSchemas(
+  Map<String, Object?> commonTypes,
+) => {
+  if (commonTypes[r'$defs'] case final Map<Object?, Object?> defs)
+    for (final Object? schema in defs.values)
+      if (schema is Map)
+        if (_properties(schema.cast<String, Object?>())['@call'] case {
+          'const': final String name,
+        } when name.startsWith('@'))
+          name: schema.cast<String, Object?>(),
+};
 
 /// [schema] and the members of its `allOf`, in order.
 List<Map<String, Object?>> _subschemas(Map<String, Object?> schema) => [

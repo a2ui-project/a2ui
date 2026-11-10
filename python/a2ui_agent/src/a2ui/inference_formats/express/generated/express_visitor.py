@@ -59,6 +59,11 @@ class ExpressVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by ExpressParser#function_name.
+    def visitFunction_name(self, ctx:ExpressParser.Function_nameContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by ExpressParser#arg.
     def visitArg(self, ctx:ExpressParser.ArgContext):
         return self.visitChildren(ctx)

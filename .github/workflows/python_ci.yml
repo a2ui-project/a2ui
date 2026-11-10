@@ -135,6 +135,10 @@ jobs:
             --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
             --corpus agent \
             --harness python-agent
+          uv run --project conformance python conformance/scripts/check_executed_cases.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --corpus e2e \
+            --harness python-agent
       - name: Verify Conformance Feature Coverage
         run: |
           uv run --project conformance python conformance/scripts/check_feature_coverage.py --static
