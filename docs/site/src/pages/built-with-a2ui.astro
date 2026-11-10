@@ -123,6 +123,22 @@ const stories: Story[] = [
     ],
   },
   {
+    id: 'gemini-notebook',
+    team: 'Gemini',
+    product: 'Gemini Notebook',
+    title: 'Gemini Notebook uses A2UI cards to confirm what you want before it creates a slide deck.',
+    body: [
+      'Ask Gemini Notebook for a slide deck and it replies with a card that asks two things: presenter slides or a detailed deck, and which topics to focus on. A review card follows with the format, focus and visual style, which you can edit before it generates.',
+      'The same cards guide Video Overviews on the web and on mobile.',
+    ],
+    image: {
+      asset: releaseAsset('build-with-a2ui/gemini-notebook-slides'),
+      alt: 'Two Gemini Notebook cards for a slide deck: an options card to pick presenter slides or a detailed deck and the topics to focus on, and a review card to check the format, length, language, slide focus and visual style before generating.',
+      caption: 'The options card (left) and the review card (right) in Gemini Notebook.',
+    },
+    links: [],
+  },
+  {
     id: 'gemini-enterprise',
     team: 'Google Cloud',
     product: 'Gemini Enterprise',
@@ -153,22 +169,6 @@ const stories: Story[] = [
         href: 'https://docs.cloud.google.com/gemini/enterprise/docs/a2ui-agents/tutorial-host-agent-cloud-run',
       },
     ],
-    links: [],
-  },
-  {
-    id: 'gemini-notebook',
-    team: 'Gemini',
-    product: 'Gemini Notebook',
-    title: 'Gemini Notebook uses A2UI cards to confirm what you want before it creates a slide deck.',
-    body: [
-      'Ask Gemini Notebook for a slide deck and it replies with a card that asks two things: presenter slides or a detailed deck, and which topics to focus on. A review card follows with the format, focus and visual style, which you can edit before it generates.',
-      'The same cards guide Video Overviews on the web and on mobile.',
-    ],
-    image: {
-      asset: releaseAsset('build-with-a2ui/gemini-notebook-slides'),
-      alt: 'Two Gemini Notebook cards for a slide deck: an options card to pick presenter slides or a detailed deck and the topics to focus on, and a review card to check the format, length, language, slide focus and visual style before generating.',
-      caption: 'The options card (left) and the review card (right) in Gemini Notebook.',
-    },
     links: [],
   },
 ];

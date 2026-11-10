@@ -133,43 +133,6 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
               </div>
             </div>
 
-            <!-- Team strip: products shipping A2UI, each linking to its story -->
-            <div class="a2-renderers a2-renderers--teams">
-              <span class="a2-renderers__lbl">SHIPPING IN</span>
-              <ul class="a2-renderers__list" aria-label="Teams shipping A2UI">
-                <li>
-                  <a href={`${base}/built-with-a2ui/#alation`} title="Alation: Alation AIOS"
-                    ><TeamLogo team="alation" size={18} idPrefix="hero-alation" /></a
-                  >
-                </li>
-                <li>
-                  <a href={`${base}/built-with-a2ui/#bytedance`} title="ByteDance: Lynx"
-                    ><TeamLogo team="bytedance" size={18} idPrefix="hero-bytedance" /></a
-                  >
-                </li>
-                <li>
-                  <a href={`${base}/built-with-a2ui/#atlassian`} title="Atlassian: Jira"
-                    ><TeamLogo team="atlassian" size={18} idPrefix="hero-atlassian" /></a
-                  >
-                </li>
-                <li>
-                  <a href={`${base}/built-with-a2ui/#gemini-enterprise`} title="Google Cloud: Gemini Enterprise"
-                    ><TeamLogo team="google-cloud" size={18} idPrefix="hero-google-cloud" /></a
-                  >
-                </li>
-                <li>
-                  <a href={`${base}/built-with-a2ui/#gemini-notebook`} title="Gemini: Gemini Notebook"
-                    ><TeamLogo team="gemini" size={18} idPrefix="hero-gemini" /></a
-                  >
-                </li>
-                <li class="a2-renderers__more">
-                  <a href={`${base}/built-with-a2ui/`}
-                    ><span>See what they built</span><span aria-hidden="true">→</span></a
-                  >
-                </li>
-              </ul>
-            </div>
-
             <!-- Renderer strip: the same stream renders natively in each of these -->
             <div class="a2-renderers">
               <span class="a2-renderers__lbl">RENDERS NATIVELY IN</span>
@@ -214,6 +177,54 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
               </ul>
             </div>
           </div>
+        </div>
+      </section>
+
+      <!-- =================================================================
+           TEAMS SHIPPING A2UI — each logo links to its story
+           ================================================================= -->
+      <section class="a2-teams" aria-labelledby="a2-teams-title">
+        <div class="a2-wrap">
+          <div class="a2-teams__head">
+            <h2 class="a2-teams__title" id="a2-teams-title">
+              Shipping in production at Google and across the industry
+            </h2>
+            <a href={`${base}/built-with-a2ui/`} class="a2-teams__more"
+              ><span>See what they built</span><span aria-hidden="true">→</span></a
+            >
+          </div>
+          <ul class="a2-teams__list">
+            <li>
+              <a href={`${base}/built-with-a2ui/#alation`} class="a2-teams__item" aria-label="Alation, Alation AIOS: read the story">
+                <TeamLogo team="alation" size={24} idPrefix="home-alation" />
+                <span class="a2-teams__product">Alation AIOS</span>
+              </a>
+            </li>
+            <li>
+              <a href={`${base}/built-with-a2ui/#bytedance`} class="a2-teams__item" aria-label="ByteDance, Lynx: read the story">
+                <TeamLogo team="bytedance" size={24} idPrefix="home-bytedance" />
+                <span class="a2-teams__product">Lynx</span>
+              </a>
+            </li>
+            <li>
+              <a href={`${base}/built-with-a2ui/#atlassian`} class="a2-teams__item" aria-label="Atlassian, Jira: read the story">
+                <TeamLogo team="atlassian" size={24} idPrefix="home-atlassian" />
+                <span class="a2-teams__product">Jira</span>
+              </a>
+            </li>
+            <li>
+              <a href={`${base}/built-with-a2ui/#gemini-notebook`} class="a2-teams__item" aria-label="Gemini, Gemini Notebook: read the story">
+                <TeamLogo team="gemini" size={24} idPrefix="home-gemini" />
+                <span class="a2-teams__product">Gemini Notebook</span>
+              </a>
+            </li>
+            <li>
+              <a href={`${base}/built-with-a2ui/#gemini-enterprise`} class="a2-teams__item" aria-label="Google Cloud, Gemini Enterprise: read the story">
+                <TeamLogo team="google-cloud" size={24} idPrefix="home-google-cloud" />
+                <span class="a2-teams__product">Gemini Enterprise</span>
+              </a>
+            </li>
+          </ul>
         </div>
       </section>
 
@@ -572,48 +583,6 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         border-top: 1px solid var(--a2-border);
       }
 
-      /* The team strip sits directly above the renderer strip and shares its style */
-      .a2-renderers--teams + .a2-renderers {
-        margin-top: 0;
-        padding-top: 14px;
-        border-top: 0;
-      }
-
-      .a2-renderers--teams {
-        padding-bottom: 14px;
-        border-bottom: 1px dashed var(--a2-border);
-      }
-
-      .a2-renderers--teams .a2-renderers__list a :global(.team-logo__name) {
-        font-weight: 600;
-      }
-
-      .a2-renderers--teams .a2-renderers__list a :global(.team-logo__wordmark) {
-        height: 15px;
-      }
-
-      /* Logos stay muted like the renderer marks until hovered */
-      .a2-renderers--teams .a2-renderers__list a :global(.team-logo__mark) {
-        filter: grayscale(1);
-        opacity: 0.75;
-        transition:
-          filter 0.15s ease,
-          opacity 0.15s ease;
-      }
-
-      .a2-renderers--teams .a2-renderers__list a:hover :global(.team-logo__mark),
-      .a2-renderers--teams .a2-renderers__list a:focus-visible :global(.team-logo__mark) {
-        filter: none;
-        opacity: 1;
-      }
-
-      /* Same label width in both strips so the two rows of logos line up */
-      @media (min-width: 720px) {
-        .a2-renderers__lbl {
-          min-width: 9.5rem;
-        }
-      }
-
       .a2-renderers__lbl {
         font-family: var(--a2-font-mono);
         font-size: 10.5px;
@@ -771,6 +740,165 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
         font-family: var(--a2-font-mono);
         font-size: 13px;
         color: var(--a2-accent-strong);
+      }
+
+      /* =======================================================================
+     TEAMS SHIPPING A2UI (band under the hero)
+     ======================================================================= */
+      .a2-teams {
+        padding: 40px 0 48px;
+        border-top: 1px solid var(--a2-border);
+        background: var(--a2-bg);
+      }
+
+      .a2-teams__head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 8px 24px;
+        margin-bottom: 20px;
+      }
+
+      .a2-teams__title {
+        margin: 0;
+        font-family: var(--a2-font-mono);
+        font-size: 11.5px;
+        font-weight: 600;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--a2-text-muted);
+      }
+
+      .a2-teams__more {
+        display: inline-flex;
+        gap: 7px;
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--a2-accent-strong);
+        text-decoration: none;
+      }
+
+      .a2-teams__more:hover {
+        color: var(--a2-accent);
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+
+      .a2-teams__list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        border: 1px solid var(--a2-border-strong);
+        border-radius: 8px;
+        background: var(--a2-surface);
+        overflow: hidden;
+      }
+
+      .a2-teams__list li + li {
+        border-left: 1px solid var(--a2-border);
+      }
+
+      .a2-teams__item {
+        height: 100%;
+        min-height: 104px;
+        padding: 24px 12px 20px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        color: var(--a2-text);
+        text-decoration: none;
+        transition: background-color 0.15s ease;
+      }
+
+      .a2-teams__item:hover,
+      .a2-teams__item:focus-visible {
+        background: var(--a2-surface-raised);
+      }
+
+      .a2-teams__item:focus-visible {
+        outline: 2px solid var(--a2-accent);
+        outline-offset: -2px;
+      }
+
+      .a2-teams__item :global(.team-logo) {
+        gap: 9px;
+      }
+
+      .a2-teams__item :global(.team-logo__name) {
+        font-family: var(--a2-font-display);
+        font-size: 19px;
+        font-weight: 680;
+        letter-spacing: -0.025em;
+      }
+
+      .a2-teams__product {
+        font-family: var(--a2-font-mono);
+        font-size: 11.5px;
+        color: var(--a2-text-muted);
+        transition: color 0.15s ease;
+      }
+
+      .a2-teams__item:hover .a2-teams__product,
+      .a2-teams__item:focus-visible .a2-teams__product {
+        color: var(--a2-accent);
+      }
+
+      @media (max-width: 960px) {
+        .a2-teams__list {
+          grid-template-columns: repeat(6, minmax(0, 1fr));
+        }
+
+        .a2-teams__list li {
+          grid-column: span 2;
+        }
+
+        .a2-teams__list li:nth-child(n + 4) {
+          grid-column: span 3;
+          border-top: 1px solid var(--a2-border);
+        }
+
+        .a2-teams__list li:nth-child(4) {
+          border-left: 0;
+        }
+      }
+
+      @media (max-width: 560px) {
+        .a2-teams__list {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .a2-teams__list li,
+        .a2-teams__list li:nth-child(n + 4) {
+          grid-column: span 1;
+          border-left: 0;
+          border-top: 0;
+        }
+
+        .a2-teams__list li:nth-child(even) {
+          border-left: 1px solid var(--a2-border);
+        }
+
+        .a2-teams__list li:nth-child(n + 3) {
+          border-top: 1px solid var(--a2-border);
+        }
+
+        .a2-teams__list li:last-child {
+          grid-column: 1 / -1;
+        }
+
+        .a2-teams__item {
+          min-height: 92px;
+          padding: 20px 10px 16px;
+        }
+
+        .a2-teams__item :global(.team-logo__name) {
+          font-size: 17px;
+        }
       }
 
       /* =======================================================================
