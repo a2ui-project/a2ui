@@ -77,7 +77,7 @@ interface ResolutionCase {
 }
 
 const KNOWN_KEYS = {
-  check: new Set(['name', 'description', 'action', 'policy', 'steps']),
+  check: new Set(['name', 'description', 'features', 'action', 'policy', 'steps']),
   checkStep: new Set(['url', 'context', 'expect']),
   policy: new Set([
     'type',
@@ -91,6 +91,7 @@ const KNOWN_KEYS = {
   resolution: new Set([
     'name',
     'description',
+    'features',
     'action',
     'protocolVersion',
     'catalogPaths',

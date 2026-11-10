@@ -163,7 +163,10 @@ function normalizeHostEntry(entry: unknown): string | undefined {
   }
   const hostname = stripTrailingDot(parsed.hostname);
   if (!hostname) return undefined;
-  return parsed.port ? `${hostname}:${parsed.port}` : hostname;
+  // `URL.port` is empty when the entry names the parser's default port (443
+  // for the `https:` used here), but the entry still limits the port.
+  const port = parsed.port || (/:\d+$/.test(entry) ? '443' : '');
+  return port ? `${hostname}:${port}` : hostname;
 }
 
 function stripTrailingDot(host: string): string {

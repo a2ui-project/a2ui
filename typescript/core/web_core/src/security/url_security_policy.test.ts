@@ -148,6 +148,19 @@ describe('AllowlistUrlSecurityPolicy', () => {
     assert.strictEqual(policy.sanitizeUrl('http://localhost/a.png', 'media'), undefined);
   });
 
+  it("keeps an entry's port when it is the default port of https", () => {
+    const secure = new AllowlistUrlSecurityPolicy({media: ['cdn.example.com:443', '[::1]:443']});
+    assert.ok(secure.sanitizeUrl('https://cdn.example.com/a.png', 'media'));
+    assert.ok(secure.sanitizeUrl('https://cdn.example.com:443/a.png', 'media'));
+    assert.ok(secure.sanitizeUrl('https://[::1]/a.png', 'media'));
+    assert.strictEqual(secure.sanitizeUrl('http://cdn.example.com/a.png', 'media'), undefined);
+    assert.strictEqual(
+      secure.sanitizeUrl('https://cdn.example.com:8443/a.png', 'media'),
+      undefined,
+    );
+    assert.strictEqual(secure.sanitizeUrl('http://[::1]/a.png', 'media'), undefined);
+  });
+
   it('ignores userinfo that looks like an allowed host', () => {
     assert.strictEqual(
       policy.sanitizeUrl('https://cdn.example.com@evil.example/a.png', 'media'),
