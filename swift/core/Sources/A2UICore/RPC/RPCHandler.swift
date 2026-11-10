@@ -167,7 +167,8 @@ public final class RPCHandler {
     let fallbackHandler = DummyContextFunctionHandler(catalogs: catalogs)
     let argHandler = RPCArgumentFunctionHandler(
       delegate: dataContext?.functionHandler,
-      fallback: fallbackHandler
+      fallback: fallbackHandler,
+      standaloneCatalog: catalog
     )
     let argResolutionContext = DataContext(
       dataModel: dataContext?.dataModel ?? DataModel(),
@@ -177,15 +178,24 @@ public final class RPCHandler {
       index: dataContext?.index,
       isUserActivated: userActivationPresent
     )
-    let effectiveContext =
-      dataContext
-      ?? DataContext(
-        dataModel: argResolutionContext.dataModel,
-        path: "",
-        functionHandler: argHandler,
-        protocolVersion: message.version,
-        isUserActivated: userActivationPresent
-      )
+    argResolutionContext.activeFunctionCatalogID = catalog.id
+    // `RPCArgumentFunctionHandler` intentionally omits `agentFunctionCatalogID` and
+    // `agentFunctionValue`: an agent-initiated `callRendererFunction` cannot wait on another
+    // outbound call back to the agent, so any unimplemented nested call fails locally.
+    let executionHandler = RPCArgumentFunctionHandler(
+      delegate: dataContext?.functionHandler,
+      fallback: fallbackHandler,
+      standaloneCatalog: catalog
+    )
+    let effectiveContext = DataContext(
+      dataModel: argResolutionContext.dataModel,
+      path: dataContext?.path ?? "",
+      functionHandler: executionHandler,
+      protocolVersion: dataContext?.protocolVersion ?? message.version,
+      index: dataContext?.index,
+      isUserActivated: userActivationPresent
+    )
+    effectiveContext.activeFunctionCatalogID = catalog.id
 
     var resolvedArgs: [String: JSONValue] = [:]
     for (key, val) in rawArgs {
@@ -400,18 +410,31 @@ public final class RPCHandler {
 private final class RPCArgumentFunctionHandler: FunctionHandler {
   private let delegate: FunctionHandler?
   private let fallback: DummyContextFunctionHandler
+  private let standaloneCatalog: AnyCatalog?
   private(set) var capturedError: Error?
 
-  init(delegate: FunctionHandler?, fallback: DummyContextFunctionHandler) {
+  init(
+    delegate: FunctionHandler?,
+    fallback: DummyContextFunctionHandler,
+    standaloneCatalog: AnyCatalog? = nil
+  ) {
     self.delegate = delegate
     self.fallback = fallback
+    self.standaloneCatalog = standaloneCatalog
   }
 
   func function(named name: String, catalogID: String?) -> (any FunctionImplementation)? {
-    if let delegate {
+    guard let delegate else {
+      return fallback.function(named: name, catalogID: catalogID)
+    }
+    guard let catalogID,
+      let standaloneCatalog,
+      catalogID == standaloneCatalog.id,
+      (try? delegate.validateFunctionCatalog(id: catalogID, functionName: name)) == nil
+    else {
       return delegate.function(named: name, catalogID: catalogID)
     }
-    return fallback.function(named: name, catalogID: catalogID)
+    return standaloneCatalog.functions[name]
   }
 
   func handleFunctionError(_ error: Error, functionName: String) {
@@ -422,11 +445,31 @@ private final class RPCArgumentFunctionHandler: FunctionHandler {
   }
 
   func validateFunctionCatalog(id catalogID: String?, functionName: String) throws {
-    if let delegate {
-      try delegate.validateFunctionCatalog(id: catalogID, functionName: functionName)
-    } else {
+    guard let delegate else {
       try fallback.validateFunctionCatalog(id: catalogID, functionName: functionName)
+      return
     }
+    do {
+      try delegate.validateFunctionCatalog(id: catalogID, functionName: functionName)
+    } catch {
+      if let standaloneCatalog, catalogID == standaloneCatalog.id {
+        return
+      }
+      throw error
+    }
+  }
+
+  func resolvedFunctionCatalogID(forCallCatalogID catalogID: String?) -> String? {
+    if let delegate {
+      if let standaloneCatalog,
+        catalogID == standaloneCatalog.id,
+        (try? delegate.validateFunctionCatalog(id: catalogID, functionName: "")) == nil
+      {
+        return standaloneCatalog.id
+      }
+      return delegate.resolvedFunctionCatalogID(forCallCatalogID: catalogID)
+    }
+    return fallback.resolvedFunctionCatalogID(forCallCatalogID: catalogID)
   }
 }
 
