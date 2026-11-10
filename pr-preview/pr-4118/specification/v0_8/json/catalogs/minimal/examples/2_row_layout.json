@@ -1,0 +1,50 @@
+[
+  {
+    "surfaceUpdate": {
+      "surfaceId": "2_row_layout",
+      "components": [
+        {
+          "id": "root",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["left_text", "right_text"]
+              },
+              "distribution": "spaceBetween",
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "left_text",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Left Content"
+              },
+              "usageHint": "body"
+            }
+          }
+        },
+        {
+          "id": "right_text",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Right Content"
+              },
+              "usageHint": "caption"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "2_row_layout",
+      "root": "root",
+      "catalogId": "https://a2ui.org/specification/v0_8/catalogs/minimal/minimal_catalog.json"
+    }
+  }
+]
