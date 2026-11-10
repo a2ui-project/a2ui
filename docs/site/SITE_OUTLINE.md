@@ -61,6 +61,7 @@ All cross-page links must target these exact Starlight routes (with `docs/site/s
 | **Guides**        | How to Integrate A2UI into a Client            | **P1**   | `content/docs/guides/client-integration.mdx`                              | `/guides/client-integration/`                              |
 | **Guides**        | How to Integrate A2UI into an Agent            | **P1**   | `content/docs/guides/agent-integration.mdx`                               | `/guides/agent-integration/`                               |
 | **Guides**        | How to Define a Catalog                        | **P1**   | `content/docs/guides/defining-a-catalog.mdx`                              | `/guides/defining-a-catalog/`                              |
+| **Guides**        | How to Restrict URLs                           | **P1**   | `content/docs/guides/url-security.mdx`                                    | `/guides/url-security/`                                    |
 | **Guides**        | Using Macros                                   | **P2**   | `content/docs/guides/macros.mdx`                                          | `/guides/macros/`                                          |
 | **Guides**        | Architecting an A2UI Integration               | **P2**   | `content/docs/guides/architecting-an-integration.mdx`                     | `/guides/architecting-an-integration/`                     |
 | **Guides**        | How to Improve Latency                         | **P2**   | `content/docs/guides/improving-latency.mdx`                               | `/guides/improving-latency/`                               |
@@ -312,6 +313,16 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
     4. **Registering on the Client Renderer**: Implementing per-`Component` UI widgets and local `functions` and binding the `catalogId` in `MessageProcessor`.
     5. **Client-Server Schema Parity Testing**:
         - > **[VERIFICATION REQUIREMENT FOR IMPLEMENTING AGENT]**: Compare normalized `Catalog.fromJson` / `Catalog.from_json` objects rather than raw JSON strings (inspect `dart/a2ui_core/test/catalog_json_test.dart` to see how SDKs normalize `protocolVersion`, `$ref`s, and function schemas across Python, TypeScript, Dart, Swift, and Kotlin).
+
+<a id="how-to-restrict-urls"></a>
+
+#### How to Restrict URLs (`/guides/url-security/`) [P1]
+
+- **Sources**: [`specification/proposals/url_security_policy.md`](../../specification/proposals/url_security_policy.md), [`conformance/core/url_security_policy.yaml`](../../conformance/core/url_security_policy.yaml), and `typescript/core/web_core/src/security/`.
+- **Content Outline**:
+    1. **Overview**: Purpose statement and the exfiltration threat (a prompt-injected agent putting data-model values into an agent-supplied URL).
+    2. **Core Path**: Set `urlSecurityPolicy` on `MessageProcessor` (`AllowlistUrlSecurityPolicy` per-context host lists), mark custom component URL props (`mediaUrl()` / `navigationUrl()` / `iframeUrl()` and `x-a2ui-url-context` in catalog JSON, `none` opt-out), check URLs custom code builds with `sanitizeUrl` on `DataContext` / `ComponentContext`, and watch `URL_BLOCKED` warnings.
+    3. **Additional Steps**: URL contexts and the baseline, allowlist host rules (wildcards, ports, `allowRelative`, `allowSvgDataUrls`), `rewrite` hooks, custom `UrlSecurityPolicy` implementations, `openUrlHandler`, the `urlProperties` map for catalogs the host can't edit, the agent payload check (`checkPayloadUrls` in `@a2ui/agent`), unmarked URL property warnings, limits (custom code fetching on its own, CSP as backstop), and per-SDK availability.
 
 <a id="macros"></a>
 

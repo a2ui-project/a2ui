@@ -245,6 +245,10 @@ export default defineConfig({
               slug: 'guides/defining-a-catalog',
             },
             {
+              label: 'How to Restrict URLs',
+              slug: 'guides/url-security',
+            },
+            {
               label: 'Using Macros',
               slug: 'guides/macros',
             },
