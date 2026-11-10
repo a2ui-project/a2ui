@@ -1,7 +1,7 @@
 ---
 codebase_path: dart/a2ui_agent
 associated_module: a2ui_agent
-module_blueprint_commit: 87b945802660c507bc84f7f47a25199b4939efbe
+module_blueprint_commit: a641e84f2861d1ff068df7616e06d08bfd4d0a88
 implemented_features:
   agent_renderer_app: 21e8df7f8e67619c30682ede25f17f0a9cfa96f8
 local_development:

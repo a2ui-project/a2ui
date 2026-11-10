@@ -90,7 +90,12 @@ def read_renderer_capabilities(
         )
 
     try:
-        entry_model.model_validate(entry)
+        if "inlineCatalogs" in entry and entry["inlineCatalogs"] is None:
+            raise A2uiCatalogError(
+                f"The 'inlineCatalogs' field in {key!r} renderer capabilities"
+                f" under {metadata_key!r} must be an array of catalog objects."
+            )
+        entry_model.model_validate(entry, by_alias=True, by_name=False)
         for document in entry.get("inlineCatalogs") or []:
             Catalog.from_json(document, protocol_version=protocol_version.value)
     except A2uiCatalogError:

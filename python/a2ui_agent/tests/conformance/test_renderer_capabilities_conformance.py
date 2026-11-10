@@ -70,3 +70,11 @@ def test_renderer_capabilities_conformance(suite: str, case: dict[str, Any]) -> 
 
     result = read_renderer_capabilities(metadata, version)
     assert result == case["expect"]
+
+
+def test_rejects_snake_case_field_names() -> None:
+    with pytest.raises(A2uiCatalogError):
+        read_renderer_capabilities(
+            {"a2uiRendererCapabilities": {"1.0": {"supported_catalog_ids": ["cat-1"]}}},
+            "1.0",
+        )

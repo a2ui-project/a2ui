@@ -19,10 +19,10 @@ import {RendererCapabilities, toCanonicalVersion} from '../internal/web-core.js'
 import {catalogFromDocument} from '../processor/catalog-providers.js';
 import {ProtocolVersion} from '../types.js';
 
-/** Transport metadata key for v0.8 and v0.9 client capabilities. */
+/** Transport metadata key for v0.9 and v0.9.1 client capabilities. */
 export const A2UI_CLIENT_CAPABILITIES_KEY = 'a2uiClientCapabilities';
 
-/** Transport metadata key for v1.0+ renderer capabilities. */
+/** Transport metadata key for v1.0 and later renderer capabilities. */
 export const A2UI_RENDERER_CAPABILITIES_KEY = 'a2uiRendererCapabilities';
 
 const ALLOWED_ENTRY_KEYS = new Set(['supportedCatalogIds', 'inlineCatalogs']);

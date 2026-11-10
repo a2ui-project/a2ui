@@ -247,6 +247,20 @@
   expect_error:
     category: CatalogError
 
+- name: entry with null inlineCatalogs raises CatalogError
+  description: A version entry where inlineCatalogs is explicitly null raises CatalogError.
+  action: read_renderer_capabilities
+  args:
+    version: "1.0"
+    metadata:
+      a2uiRendererCapabilities:
+        "1.0":
+          supportedCatalogIds: []
+          inlineCatalogs: null
+  expect_error:
+    category: CatalogError
+  features: [F-AGT-18]
+
 - name: entry with inline catalog missing catalogId raises CatalogError
   description: A version entry whose inline catalog omits catalogId raises CatalogError.
   action: read_renderer_capabilities

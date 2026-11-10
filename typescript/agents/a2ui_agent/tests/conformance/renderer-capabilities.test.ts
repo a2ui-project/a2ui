@@ -21,6 +21,7 @@ import {
   A2UI_RENDERER_CAPABILITIES_KEY,
   A2uiCatalogError,
   CatalogConfig,
+  InMemoryCatalogProvider,
   readRendererCapabilities,
   resolveCatalogs,
 } from '../../src/index.js';
@@ -87,6 +88,44 @@ describe('renderer_capabilities.yaml invariants', () => {
         '0.9.1',
       ),
     ).toEqual({'v0.9': {supportedCatalogIds: ['cat-v09']}});
+
+    for (const inlineVersion of ['0.9', '0.9.1']) {
+      for (const targetVersion of ['v0.9', 'v0.9.1'] as const) {
+        const inlineSchema = {
+          catalogId: 'inline/v09-compat',
+          protocolVersion: inlineVersion,
+          components: {
+            Badge: {
+              type: 'object',
+              properties: {
+                component: {const: 'Badge'},
+                text: {type: 'string'},
+              },
+              required: ['component', 'text'],
+            },
+          },
+        };
+        const agentConfig = new CatalogConfig(
+          new InMemoryCatalogProvider(
+            {...inlineSchema, catalogId: 'agent/v09'},
+            targetVersion,
+          ).load(),
+        );
+        const caps = readRendererCapabilities(
+          {
+            [A2UI_CLIENT_CAPABILITIES_KEY]: {
+              'v0.9': {
+                supportedCatalogIds: [],
+                inlineCatalogs: [inlineSchema],
+              },
+            },
+          },
+          targetVersion,
+        );
+        const resolved = resolveCatalogs([agentConfig], caps, {acceptInlineCatalogs: true});
+        expect(resolved.map(c => c.id)).toEqual(['inline/v09-compat']);
+      }
+    }
   });
 
   test('throws A2uiCatalogError for unsupported or invalid version strings', () => {

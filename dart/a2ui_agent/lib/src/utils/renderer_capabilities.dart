@@ -14,10 +14,10 @@
 
 import 'package:a2ui_core/a2ui_core.dart';
 
-/// Transport metadata key for v0.8 and v0.9 client capabilities.
+/// Transport metadata key for v0.9 and v0.9.1 client capabilities.
 const String a2uiClientCapabilitiesKey = 'a2uiClientCapabilities';
 
-/// Transport metadata key for v1.0+ renderer capabilities.
+/// Transport metadata key for v1.0 and later renderer capabilities.
 const String a2uiRendererCapabilitiesKey = 'a2uiRendererCapabilities';
 
 const Set<String> _allowedEntryKeys = {'supportedCatalogIds', 'inlineCatalogs'};
@@ -73,6 +73,12 @@ A2uiRendererCapabilities? readRendererCapabilities(
         "'$metadataKey'.",
       );
     }
+  }
+  if (entry.containsKey('inlineCatalogs') && entry['inlineCatalogs'] == null) {
+    throw A2uiCatalogError(
+      "The 'inlineCatalogs' field in '$entryKey' renderer capabilities under "
+      "'$metadataKey' must be an array of catalog objects.",
+    );
   }
 
   try {
