@@ -1,0 +1,27 @@
+{
+  "name": "Simple Text",
+  "description": "Simple example demonstrating basic catalog components.",
+  "messages": [
+    {
+      "version": "v0.9",
+      "createSurface": {
+        "surfaceId": "gallery-simple-text",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateComponents": {
+        "surfaceId": "gallery-simple-text",
+        "components": [
+          {
+            "id": "root",
+            "component": "Text",
+            "text": "Hello, Minimal Catalog!",
+            "variant": "h1"
+          }
+        ]
+      }
+    }
+  ]
+}
