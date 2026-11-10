@@ -1,6 +1,8 @@
 ## Unreleased
 
 - **BREAKING CHANGE**: `regexCapture` now validates patterns with `analyzeRegex` from `@a2ui/web_core` and compiles them in Unicode mode (`new RegExp(pattern, 'u')`), converging on the A2UI regex dialect and static safety guard (allowing lookahead assertions while rejecting lookbehind, backreferences, named groups, `\p{...}`, inline flags, and patterns that risk catastrophic backtracking) and removing the `redos-detector` dependency. Recommended migration: rewrite `regexCapture` patterns that use constructs outside the A2UI portable regex subset or exceed 256 code points. [#3854](https://github.com/a2ui-project/a2ui/pull/3854)
+- `McpApp` caps the `_meta.ui.csp` lists by the surface's URL security policy: each source is checked through the component's `sanitizeUrl` (`connectDomains` and `resourceDomains` as `media`, `frameDomains` as `iframe`, `baseUriDomains` as `navigation`), and sources the policy doesn't allow are removed before the CSP is built. Sources with a scheme other than `http(s)`, `ws(s)`, `data` or `blob` are removed. [#4117](https://github.com/a2ui-project/a2ui/pull/4117)
+- `ui/open-link` URLs are checked as `navigation` against the surface's URL security policy; a blocked URL fails the request and a rewritten one is opened instead. [#4117](https://github.com/a2ui-project/a2ui/pull/4117)
 
 ## 0.0.3
 
