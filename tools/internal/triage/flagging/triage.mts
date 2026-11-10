@@ -150,15 +150,13 @@ const ageInDays = (isoTimestamp: string, now: number): number =>
   (now - new Date(isoTimestamp).getTime()) / DAY_MS;
 
 /**
- * Returns the most recent human contribution to an item: either its newest
- * non-bot contribution (a comment, or — on PRs — a review or inline review
- * comment), or, if there are none, the opening post itself. Used both to measure
- * staleness and to decide whether an external author is still awaiting a
- * maintainer response.
+ * Returns the most recent human contribution to an issue: either its newest
+ * non-bot comment, or, if there are none, the opening post itself. Used both to
+ * measure staleness and to decide whether an external contributor is still
+ * awaiting a maintainer response.
  *
- * `contributions` is the merged, normalized event list from `fetchContributions`.
- * On PRs it comes from three different endpoints so it is not sorted; the scan
- * picks the latest regardless of order.
+ * `contributions` is the normalized event list from `fetchContributions`. The
+ * scan picks the latest regardless of order.
  */
 export function lastHumanContribution(item: Item, contributions: Contribution[]): Contribution {
   let latest: Contribution = {
@@ -244,21 +242,22 @@ export function flagReason(
     return null;
   }
 
-  const latest = lastHumanContribution(item, contributions);
   const openedByExternal = isExternal({association: item.author_association});
 
   // Step 4: PRs. Only external contributors' PRs are watched; maintainers
-  // manage their own, so an internally-authored PR is never flagged. There is
-  // no grace period: a PR counts as needing triage from the moment the author
-  // has the last word, opening it included.
+  // manage their own, so an internally-authored PR is never flagged. An
+  // external PR needs triage until a team member takes it on by being
+  // assigned; a team comment alone does not take it off the queue. A PR
+  // waiting on its author has already left at step 1.
   if (isPR) {
-    if (!openedByExternal) {
+    if (!openedByExternal || assigneeCount > 0) {
       return null;
     }
-    return isExternal(latest) ? 'no maintainer has responded to the author.' : null;
+    return 'this external PR has no assignee.';
   }
 
   // Step 3: issues.
+  const latest = lastHumanContribution(item, contributions);
   const priority = PRIORITY_LABELS.find(p => labels.includes(p));
 
   // The team manages its own issues, so a missing priority matters only once
@@ -288,8 +287,8 @@ export function flagReason(
     return noPriorityReason;
   }
 
-  // The last word on the issue is an external one. Like PRs, this carries no
-  // grace period: it fires as soon as the comment lands.
+  // The last word on the issue is an external one. This carries no grace
+  // period: it fires as soon as the comment lands.
   if (isExternal(latest)) {
     return 'the latest contribution is from an external contributor and has gone unanswered.';
   }
@@ -327,9 +326,9 @@ const toEvent = (contribution: RawContribution): Contribution => ({
  * Gathers every human-visible contribution to an item as a flat list of
  * normalized events. For issues that is just the top-level comments. PRs also
  * accrue formal reviews and inline review comments, which live on separate
- * endpoints: a maintainer often responds by submitting a review or leaving
- * inline comments without a separate top-level comment, so considering only
- * issue comments would wrongly treat the PR as unanswered. A failure for one
+ * endpoints: an author often answers a request by replying in a review thread
+ * without a separate top-level comment, so considering only issue comments
+ * would leave WAITING_LABEL on a PR that has been answered. A failure for one
  * source must not abort the whole run, so errors fall back to an empty list for
  * that source.
  */

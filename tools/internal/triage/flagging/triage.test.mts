@@ -404,16 +404,13 @@ describe('flagReason — assigned for triage', () => {
   });
 
   // Step 2 decides alone: a fresh assignment holds back every later step.
-  // Both items below would be flagged without the label.
+  // The item below would be flagged without the label.
   it('does not flag a fresh assignment, whatever else is wrong with it', () => {
     const staleP1 = handedOut({
       labels: ['P1', ASSIGNED_FOR_TRIAGE_LABEL],
       created_at: daysAgo(9999),
     });
     assert.equal(flagReason(staleP1, [], NOW, daysAgo(1)), null);
-
-    const unansweredPR = pr({labels: [ASSIGNED_FOR_TRIAGE_LABEL], assignees: dev});
-    assert.equal(flagReason(unansweredPR, [], NOW, daysAgo(1)), null);
   });
 
   // Step 1 outranks step 2: a parked item waits on the author, not the assignee.
@@ -491,7 +488,6 @@ describe('flagReason — PRIORITY_LABELS contract', () => {
 });
 
 describe('flagReason — PRs', () => {
-  // An external author's comment 2 days ago, with no maintainer reply since.
   const externalComment = (age: number) =>
     event({
       created_at: daysAgo(age),
@@ -504,57 +500,46 @@ describe('flagReason — PRs', () => {
       author_association: 'MEMBER',
       user: {login: 'maintainer', type: 'User'},
     });
+  const dev = [{login: 'dev'}];
 
-  it('flags an external PR with no maintainer response', () => {
+  it('flags an unassigned external PR', () => {
     const item = pr({created_at: daysAgo(5), comments: 1});
-    assertReason(flagReason(item, [externalComment(2)], NOW), /no maintainer/);
+    assertReason(flagReason(item, [externalComment(2)], NOW), /no assignee/);
   });
 
-  it('flags an external PR that has never been answered', () => {
-    // No comments: the opening post itself is the unanswered external word.
-    const item = pr({created_at: daysAgo(2)});
-    assertReason(flagReason(item, [], NOW), /no maintainer/);
-  });
-
-  // There is no grace period any more: a PR is triage work from the moment it
-  // is opened, not a day later.
+  // There is no grace period: a PR is triage work from the moment it is opened.
   it('flags an external PR opened moments ago', () => {
-    assertReason(flagReason(pr({created_at: daysAgo(0)}), [], NOW), /no maintainer/);
+    assertReason(flagReason(pr({created_at: daysAgo(0)}), [], NOW), /no assignee/);
   });
 
-  it('flags an assigned external PR — a PR assignee is its reviewer', () => {
-    // The reviewer going quiet is exactly what step 4 watches for.
-    const item = pr({created_at: daysAgo(5), assignees: [{login: 'dev'}]});
-    assertReason(flagReason(item, [], NOW), /no maintainer/);
-  });
-
-  it('does not flag when a maintainer commented after the author', () => {
+  // A team comment is not a decision on the PR: only an assignee takes it off
+  // the queue.
+  it('keeps flagging an unassigned external PR after a team member replied', () => {
     const item = pr({created_at: daysAgo(5), comments: 2});
     const comments = [externalComment(3), memberComment(2)];
-    assert.equal(flagReason(item, comments, NOW), null);
+    assertReason(flagReason(item, comments, NOW), /no assignee/);
   });
 
-  it('flags a bot PR until a maintainer responds', () => {
+  it('does not flag an assigned external PR, whoever spoke last', () => {
+    const item = pr({created_at: daysAgo(30), assignees: dev, comments: 1});
+    assert.equal(flagReason(item, [], NOW), null);
+    assert.equal(flagReason(item, [externalComment(0)], NOW), null);
+    assert.equal(flagReason(item, [memberComment(0)], NOW), null);
+  });
+
+  it('does not flag an external PR waiting for its author', () => {
+    const item = pr({created_at: daysAgo(30), labels: [WAITING_LABEL]});
+    assert.equal(flagReason(item, [], NOW), null);
+  });
+
+  it('flags a bot PR until it is assigned', () => {
     const item = pr({
       created_at: daysAgo(2),
       user: {login: 'dependabot[bot]', type: 'Bot'},
     });
-    assertReason(flagReason(item, [], NOW), /no maintainer/);
-    assert.equal(flagReason({...item, comments: 1}, [memberComment(1)], NOW), null);
-  });
-
-  // A bot comment is no response, from the author or the team, so it neither
-  // flags nor unflags a PR.
-  it('ignores bot comments on PRs', () => {
-    const botComment = event({
-      created_at: daysAgo(1),
-      author_association: 'NONE',
-      user: {login: 'gemini-code-assist[bot]', type: 'Bot'},
-    });
-    const answered = pr({created_at: daysAgo(5), comments: 2});
-    assert.equal(flagReason(answered, [memberComment(3), botComment], NOW), null);
-    const unanswered = pr({created_at: daysAgo(5), comments: 1});
-    assertReason(flagReason(unanswered, [botComment], NOW), /no maintainer/);
+    assertReason(flagReason(item, [], NOW), /no assignee/);
+    assertReason(flagReason({...item, comments: 1}, [memberComment(1)], NOW), /no assignee/);
+    assert.equal(flagReason({...item, assignees: dev}, [], NOW), null);
   });
 
   it('never flags a maintainer-authored PR, however old', () => {

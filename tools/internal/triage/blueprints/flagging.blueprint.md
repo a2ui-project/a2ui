@@ -37,10 +37,10 @@ The script uses the following rules to decide if a PR or issue should get **the 
 4. Is the item **a PR**?
 
    - If yes:
-     - **LABEL** when it was opened by an external contributor and the latest human contribution is from an external contributor, meaning no team member has responded yet.
+     - **LABEL** when it was opened by an external contributor and has no assignee. A comment or review from a team member does not remove the label; assigning the PR does.
      - **NO LABEL** otherwise.
 
-Staleness is calculated from the last human contribution (comment, review, or issue/PR creation) rather than `updated_at` to avoid bot edits resetting the timer.
+Staleness is calculated from the last human contribution (a comment or the issue's creation) rather than `updated_at` to avoid bot edits resetting the timer.
 
 The bot prints to the console which items it flags or unflags and why. You can use this to track triage progress.
 

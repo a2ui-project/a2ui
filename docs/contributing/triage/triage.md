@@ -8,22 +8,21 @@ The goals of triage are to continuously make sure that:
 
 Queues used in triage:
 
-- [Not first line handled][not-first-line-handled]: new issues for [first line triage](#first-line-triage-daily-by-gardener).
-- [Needs triage][needs-triage-all]: everything the bot labeled `status: needs-triage`.
-- [Needs triage, without team input][needs-triage-minus-waiting]: the same, except items that need team input.
+- [First-line triage queue][not-first-line-handled]: new issues that need to be checked for criticality, following [these instructions](#first-line-triage-daily-by-gardener).
+- [Second-line triage queue][needs-triage-minus-waiting]: issues and PRs that need second-line triage, following [these instructions](#second-line-triage-weekly-by-triager).
 
 See [list of labels used in triage](labels.md).
 
 ## First line triage (daily, by gardener)
 
-For each issue that is [not first-line-handled][not-first-line-handled]:
+For each issue in the [first-line triage queue][not-first-line-handled]:
 
-- If it is P0, add the label `P0` and notify the team.
+- If the issue is critical and must be fixed urgently (for example, the tree is broken, it is a major security issue, or it is an unplanned breaking change), add the label `P0` and notify the team.
 - Add the label `status: first-line-handled`.
 
 ## Second line triage (weekly, by triager)
 
-1. Go through [Needs triage, without team input][needs-triage-minus-waiting]. For each item:
+1. Go through the [second-line triage queue][needs-triage-minus-waiting]. For each item:
 
     - If you can triage it in a couple of minutes, [triage it](#triage-an-item).
     - Otherwise, add [status: needs-team-input][needs-team-input]. Optionally, add a comment with your thoughts.
@@ -52,10 +51,9 @@ For each issue that is [not first-line-handled][not-first-line-handled]:
 
     If the team does not plan to invest in the issue, close it as not planned instead.
 
-3. Answer any open questions or comments from external contributors.
-4. For common cases, such as an out-of-scope request, use the [standard replies](templates.md).
+3. Respond to open questions and comments (see [standard replies](templates.md) for common types of issues).
 
-The triage is done when the issue has a priority and no external comment is left unanswered.
+The triage is done when the issue has a priority and every open question or comment has a response.
 
 ### Triage a PR
 
@@ -87,6 +85,10 @@ What may help:
 - Split a large change into small PRs that are each valuable on their own.
 - Before you start, check open issues and PRs for related work, so that your change does not overlap with them.
 ```
+
+## Other resources
+
+- [All items that need triage][needs-triage-all], including the ones that need team input.
 
 [not-first-line-handled]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20-label%3AP0%20-label%3AP1%20-label%3AP2%20-label%3AP3%20-label%3A%22status%3A%20first-line-handled%22%20sort%3Acreated-asc
 [needs-triage-all]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen+sort%3Aupdated-asc+repo%3Aa2ui-project%2Fa2ui%2Cflutter%2Fgenui+label%3A%22status%3A+needs-triage%22
