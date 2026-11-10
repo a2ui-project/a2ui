@@ -1555,11 +1555,11 @@ class MessageProcessor<T extends ComponentApi> {
       atLeastV1 ? _componentForValidator(full, catalog, surface) : full,
     );
     if (atLeastV1) {
+      final Set<String> envelopeFields = _envelopeFields(version);
       _validateNestedFunctionCalls(
         <String, Object?>{
           for (final MapEntry<String, Object?> entry in full.entries)
-            if (!_envelopeFields(version).contains(entry.key))
-              entry.key: entry.value,
+            if (!envelopeFields.contains(entry.key)) entry.key: entry.value,
         },
         home: catalog,
         homeIsDefault: identical(catalog, surface.defaultCatalog),
