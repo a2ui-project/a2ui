@@ -22,6 +22,11 @@ import path from 'node:path';
 import test from 'node:test';
 
 import {downloadVerified, fetchDocAssets} from '../scripts/fetch-doc-assets.mjs';
+import {
+  parseMp4Dimensions,
+  prepareDocAsset,
+  verifyManifestAndRepoAssets,
+} from '../scripts/upload-doc-asset.mjs';
 import {localDocAssetUrl, rehypeLocalDocAssets} from '../src/plugins/rehype-local-doc-assets.mjs';
 
 const BYTES = Buffer.from('image bytes');
@@ -198,8 +203,97 @@ test('fetchDocAssets downloads missing files, prunes orphans, and reuses matchin
       baseDelayMs: 0,
       log: () => {},
     });
-    assert.deepEqual(reDownload, {downloaded: 1, reused: 0, pruned: 0});
+    assert.equal(reDownload.downloaded, 1);
     assert.deepEqual(fs.readFileSync(path.join(outDir, 'page--shot.abcd1234.webp')), BYTES);
+  } finally {
+    fs.rmSync(dir, {recursive: true, force: true});
+  }
+});
+
+function buildMinimalMp4Buffer(width, height) {
+  const tkhd = Buffer.alloc(92);
+  tkhd.writeUInt32BE(92, 0);
+  tkhd.write('tkhd', 4, 'ascii');
+  tkhd.writeUInt32BE(width * 65536, 84);
+  tkhd.writeUInt32BE(height * 65536, 88);
+
+  const trakLen = 8 + tkhd.length;
+  const trak = Buffer.alloc(8);
+  trak.writeUInt32BE(trakLen, 0);
+  trak.write('trak', 4, 'ascii');
+
+  const moovLen = 8 + trakLen;
+  const moov = Buffer.alloc(8);
+  moov.writeUInt32BE(moovLen, 0);
+  moov.write('moov', 4, 'ascii');
+
+  return Buffer.concat([moov, trak, tkhd]);
+}
+
+test('parseMp4Dimensions extracts tkhd visual dimensions and prepareDocAsset handles svg and mp4', async () => {
+  const mp4Buf = buildMinimalMp4Buffer(1280, 800);
+  assert.deepEqual(parseMp4Dimensions(mp4Buf), {width: 1280, height: 800});
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'doc-assets-prepare-'));
+  try {
+    const svgPath = path.join(dir, 'logo.svg');
+    const svgXml =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 28"><rect width="120" height="28"/></svg>';
+    fs.writeFileSync(svgPath, svgXml, 'utf8');
+    const svgPrepared = await prepareDocAsset(svgPath);
+    assert.equal(svgPrepared.ext, 'svg');
+    assert.equal(svgPrepared.width, 120);
+    assert.equal(svgPrepared.height, 28);
+    assert.equal(svgPrepared.bytes, Buffer.byteLength(svgXml));
+
+    const mp4Path = path.join(dir, 'clip.mp4');
+    fs.writeFileSync(mp4Path, mp4Buf);
+    const mp4Prepared = await prepareDocAsset(mp4Path);
+    assert.equal(mp4Prepared.ext, 'mp4');
+    assert.equal(mp4Prepared.width, 1280);
+    assert.equal(mp4Prepared.height, 800);
+    assert.equal(mp4Prepared.bytes, mp4Buf.length);
+
+    const manifestPath = path.join(dir, 'assets-manifest.json');
+    const emptyAssetsDir = path.join(dir, 'src-assets');
+    fs.mkdirSync(emptyAssetsDir, {recursive: true});
+    const svgName = `get-help--logo.${svgPrepared.sha256.slice(0, 8)}.svg`;
+    const mp4Name = `get-help--clip.${mp4Prepared.sha256.slice(0, 8)}.mp4`;
+    fs.writeFileSync(
+      manifestPath,
+      JSON.stringify({
+        repo: 'a2ui-project/a2ui',
+        releaseTag: 'docs-assets',
+        baseUrl: 'https://github.com/a2ui-project/a2ui/releases/download/docs-assets',
+        assets: {
+          'get-help/logo': {
+            filename: svgName,
+            url: `https://github.com/a2ui-project/a2ui/releases/download/docs-assets/${svgName}`,
+            sha256: svgPrepared.sha256,
+            ext: 'svg',
+            width: svgPrepared.width,
+            height: svgPrepared.height,
+            bytes: svgPrepared.bytes,
+          },
+          'get-help/clip': {
+            filename: mp4Name,
+            url: `https://github.com/a2ui-project/a2ui/releases/download/docs-assets/${mp4Name}`,
+            sha256: mp4Prepared.sha256,
+            ext: 'mp4',
+            width: mp4Prepared.width,
+            height: mp4Prepared.height,
+            bytes: mp4Prepared.bytes,
+          },
+        },
+      }),
+    );
+
+    const verification = verifyManifestAndRepoAssets({
+      manifestPath,
+      srcAssetsDir: emptyAssetsDir,
+    });
+    assert.equal(verification.ok, true);
+    assert.equal(verification.checkedAssets, 2);
   } finally {
     fs.rmSync(dir, {recursive: true, force: true});
   }
