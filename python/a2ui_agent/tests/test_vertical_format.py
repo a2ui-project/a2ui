@@ -821,3 +821,64 @@ def test_comments_string_fences_and_catalog_agnostic_properties():
     text_stream = [p for p in stream_parts if isinstance(p, TextPart)]
     assert len(a2ui_stream) == 1
     assert text_stream == []
+
+    # Multi-line double-quoted strings containing '#', ',', or ')' stay intact
+    basic_parser = VerticalFormat(
+        [BasicCatalog("1.0")], surface_id="main"
+    ).create_parser()
+    for multiline_text in (
+        "Line 1\n# Bullet",
+        "Hello,\nworld, extra",
+        "Line 1\nStep 1) Do X",
+    ):
+        raw_stmt = f'Text("{multiline_text}")'
+        compiled_ml = to_message_dicts(basic_parser.compile(raw_stmt))
+        assert (
+            compiled_ml[0]["createSurface"]["components"][0]["text"] == multiline_text
+        )
+
+    # Per-statement inline backticks across multiple lines
+    bt_msgs = to_message_dicts(basic_parser.compile('`Text("a")`\n`Text("b")`'))
+    assert [m["createSurface"]["components"][0]["text"] for m in bt_msgs] == [
+        "a",
+        "b",
+    ]
+    bt_stream = basic_parser.open_stream()
+    bt_parts = bt_stream.feed('<a2ui>`Text("a")`\n`Text("b")</a2ui>')
+    bt_parts.extend(bt_stream.close())
+    assert len([p for p in bt_parts if isinstance(p, A2uiPart)]) == 2
+
+    # Optional check parameter round-trip when earlier optional parameter is omitted
+    max_only_payload = [{
+        "version": "1.0",
+        "createSurface": {
+            "surfaceId": "main",
+            "catalogId": BasicCatalog("1.0").catalog_id,
+            "components": [{
+                "id": "root",
+                "component": "TextField",
+                "label": "Username",
+                "value": {"@path": "/user/name"},
+                "checks": [{
+                    "condition": {
+                        "@call": "length",
+                        "args": {
+                            "value": {"@path": "/user/name"},
+                            "max": 10,
+                        },
+                    },
+                    "message": "At most 10 chars",
+                }],
+            }],
+        },
+    }]
+    decompiled_chk = basic_parser.decompile(max_only_payload)
+    assert "max=10" in decompiled_chk
+    recompiled_chk = to_message_dicts(basic_parser.compile(decompiled_chk))
+    assert recompiled_chk == max_only_payload
+
+    # Prompt teaches value=$/path requirement for checks
+    basic_prompt = VerticalFormat(
+        [BasicCatalog("1.0")], surface_id="main"
+    ).prompt_generator.generate()
+    assert "value=$/path" in basic_prompt

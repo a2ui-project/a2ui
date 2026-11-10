@@ -23,11 +23,12 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 import json
+import logging
 import re
 from typing import Any, Literal
 
 from a2ui.constants import A2UI_INFERENCE_CLOSE_TAG, A2UI_INFERENCE_OPEN_TAG
-from a2ui.core import CatalogApi
+from a2ui.core import A2uiError, CatalogApi
 from a2ui.core.common import is_at_least_version
 from a2ui.core.schema import AgentToRendererMessage, ProtocolVersion
 from a2ui.inference_formats._shared import (
@@ -51,6 +52,8 @@ from .compiler import (
 )
 from .decompiler import VerticalDecompiler
 
+_logger = logging.getLogger(__name__)
+
 _VERTICAL_HEADER = (
     "# A2UI Vertical Output Contract\n\nYou must output user interfaces using A2UI"
     " Vertical notation.\nYou MUST surround the UI block with sentinel tags"
@@ -71,8 +74,9 @@ _RULE_SYNTAX = (
     ' `Text("Hello")`).\n   - Strings: Double or single quoted (e.g. "Hello").\n   -'
     " Numbers: Integers or decimals (e.g. 42, 3.14).\n   - Booleans: true or false.\n  "
     ' - Null: null.\n   - Lists: [item1, item2].\n   - Maps: {"key": "value"} or {key:'
-    ' "value"}.\n   - Validation checks (on checkable inputs): `?required` or'
-    ' `?regex("^[0-9]+$", "Digits only")`.'
+    ' "value"}.\n   - Validation checks (on checkable inputs with `value=$/path`):'
+    ' `?required` or `?regex("^[0-9]+$", "Digits only")` (checks require the'
+    " component's `value` property to be bound to a `$/path`)."
 )
 
 _EVENT_RULE_PRE_V1_0 = (
@@ -219,35 +223,42 @@ class VerticalPromptGenerator(PromptGenerator):
     def _rewrite_catalog_instructions(
         self, raw_instructions: str, helper: CatalogSchemaHelper
     ) -> str:
-        """Rewrites standalone JSON examples in catalog instructions to Vertical, pruning nested examples."""
+        """Rewrites standalone JSON examples in catalog instructions to Vertical, omitting nested examples."""
         decompiler = VerticalDecompiler(self._catalogs, version=self.version)
 
         def _replace_json(match: re.Match[str]) -> str:
             try:
                 parsed = json.loads(match.group(1).strip())
-                msgs = [parsed] if isinstance(parsed, dict) else parsed
-                if not isinstance(msgs, list) or not msgs:
+            except json.JSONDecodeError as exc:
+                _logger.warning(
+                    "Skipping malformed JSON example in catalog instructions for"
+                    " '%s': %s",
+                    helper.catalog_model.catalog_id,
+                    exc,
+                )
+                return match.group(0)
+
+            msgs = [parsed] if isinstance(parsed, dict) else parsed
+            if not isinstance(msgs, list) or not msgs:
+                return ""
+            comps: list[Mapping[str, Any]] = []
+            for m in msgs:
+                if not isinstance(m, Mapping):
                     return ""
-                comps: list[Mapping[str, Any]] = []
-                for m in msgs:
-                    if not isinstance(m, Mapping):
-                        return ""
-                    for op_k in ("createSurface", "updateComponents"):
-                        body = m.get(op_k)
-                        if isinstance(body, Mapping) and isinstance(
-                            body.get("components"), list
-                        ):
-                            comps.extend(
-                                c for c in body["components"] if isinstance(c, Mapping)
-                            )
-                # Omit multi-component hierarchical examples (e.g. Column/Card trees)
-                if len(comps) > 1 or any(
-                    self.component_requires_children(
-                        str(c.get("component", "")), helper
-                    )
-                    for c in comps
-                ):
-                    return ""
+                for op_k in ("createSurface", "updateComponents"):
+                    body = m.get(op_k)
+                    if isinstance(body, Mapping) and isinstance(
+                        body.get("components"), list
+                    ):
+                        comps.extend(
+                            c for c in body["components"] if isinstance(c, Mapping)
+                        )
+            if len(comps) > 1 or any(
+                self.component_requires_children(str(c.get("component", "")), helper)
+                for c in comps
+            ):
+                return ""
+            try:
                 normalized = normalize_prompt_example_messages(
                     msgs,
                     version=self.version,
@@ -255,22 +266,21 @@ class VerticalPromptGenerator(PromptGenerator):
                     default_surface_id=self.surface_id,
                 )
                 dsl = decompiler.decompile(normalized)
-                if not dsl.strip():
-                    return ""
-                return f"```\n{decompiler.wrap_decompiled_blocks([dsl])}\n```"
-            except Exception:
+            except (A2uiError, ValueError) as exc:
+                _logger.warning(
+                    "Skipping non-decompilable example in catalog instructions for"
+                    " '%s': %s",
+                    helper.catalog_model.catalog_id,
+                    exc,
+                )
                 return ""
+            if not dsl.strip():
+                return ""
+            return f"```\n{decompiler.wrap_decompiled_blocks([dsl])}\n```"
 
         rewritten = _JSON_BLOCK_RE.sub(_replace_json, raw_instructions)
-        # Drop empty trailing "## Examples" header if all nested examples were pruned
         rewritten = re.sub(r"\n*## Examples\s*\Z", "", rewritten.strip())
-        # Drop layout-container preamble lines referencing Row/Column/Strict Hierarchy
-        filtered_lines = [
-            line
-            for line in rewritten.splitlines()
-            if "Row and Column" not in line and "Strict Hierarchy:" not in line
-        ]
-        return "\n".join(filtered_lines).strip()
+        return rewritten.strip()
 
     def generate_component_signatures(
         self,

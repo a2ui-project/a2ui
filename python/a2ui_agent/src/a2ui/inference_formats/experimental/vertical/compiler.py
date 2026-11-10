@@ -29,8 +29,7 @@ from dataclasses import dataclass
 import json
 import math
 import re
-from typing import Any, Literal, TYPE_CHECKING
-from weakref import WeakKeyDictionary
+from typing import Any, Literal
 
 from a2ui.core import (
     A2uiCatalogError,
@@ -55,23 +54,7 @@ from a2ui.inference_formats._shared import (
     to_message_models,
 )
 
-if TYPE_CHECKING:
-    from a2ui.utils import RendererState
-
 SUPPORTED_WIRE_VERSIONS = frozenset({"v0.9", "v0.9.1", "1.0"})
-
-_STATE_CALL_OFFSETS: WeakKeyDictionary[Any, int] = WeakKeyDictionary()
-
-
-def get_state_call_offset(state: RendererState) -> int:
-    """Returns the monotonic standalone function call counter associated with `state`."""
-    return _STATE_CALL_OFFSETS.get(state, 0)
-
-
-def set_state_call_offset(state: RendererState, offset: int) -> None:
-    """Updates the monotonic standalone function call counter associated with `state`."""
-    _STATE_CALL_OFFSETS[state] = offset
-
 
 _HEALING_NEW_COMPONENT_PATTERN = re.compile(
     r"\s*(?:"
@@ -180,6 +163,7 @@ def _strip_outer_tags_and_fences(text: str) -> str:
         and work.startswith("`")
         and work.endswith("`")
         and not work.startswith("```")
+        and "`" not in work[1:-1]
     ):
         work = work[1:-1].strip()
     return work
@@ -242,12 +226,6 @@ def _strip_comments_outside_strings(text: str, *, is_final: bool = True) -> str:
                     out.append(text[i : i + 2])
                     i += 2
                     continue
-                out.append(ch)
-                i += 1
-                continue
-            if len(in_quote) == 1 and ch == "\n":
-                in_quote = None
-                raw_quote = False
                 out.append(ch)
                 i += 1
                 continue
@@ -337,6 +315,15 @@ def split_complete_statements(
             cleaned = _OUTER_TRAILING_FENCE_RE.sub("", cleaned, count=1).strip()
             if cleaned.endswith(";"):
                 cleaned = cleaned[:-1].strip()
+            if (
+                len(cleaned) >= 2
+                and cleaned.startswith("`")
+                and cleaned.endswith("`")
+                and not cleaned.startswith("```")
+            ):
+                cleaned = cleaned[1:-1].strip()
+                if cleaned.endswith(";"):
+                    cleaned = cleaned[:-1].strip()
             if cleaned and cleaned != "```":
                 statements.append(cleaned)
         stmt_start = end_idx
@@ -351,15 +338,17 @@ def split_complete_statements(
                     break
                 i += 2
                 continue
-            if len(in_quote) == 1 and ch == "\n":
+            if (
+                len(in_quote) == 1
+                and ch == "\n"
+                and heal_across_lines
+                and _HEALING_NEW_COMPONENT_PATTERN.match(text, i + 1)
+            ):
                 in_quote = None
                 raw_quote = False
-                if heal_across_lines and _HEALING_NEW_COMPONENT_PATTERN.match(
-                    text, i + 1
-                ):
-                    _flush(i)
-                    paren_depth = bracket_depth = brace_depth = 0
-                    stmt_start = i + 1
+                _flush(i)
+                paren_depth = bracket_depth = brace_depth = 0
+                stmt_start = i + 1
                 i += 1
                 continue
             if text.startswith(in_quote, i):
@@ -427,6 +416,12 @@ def split_complete_statements(
                 and brace_depth == 0
                 and saw_open_paren
             ):
+                lead_slice = text[stmt_start:i].lstrip()
+                if lead_slice.startswith("`") and not lead_slice.startswith("```"):
+                    if i == n and not is_final:
+                        break
+                    if i < n and text[i] == "`":
+                        i += 1
                 if i < n and text[i] == ";":
                     i += 1
                 _flush(i)
@@ -496,11 +491,6 @@ def _split_args(args_str: str) -> list[str]:
         if in_quote is not None:
             if not raw_quote and ch == "\\":
                 i += 2
-                continue
-            if len(in_quote) == 1 and ch == "\n":
-                in_quote = None
-                raw_quote = False
-                i += 1
                 continue
             if cleaned_args.startswith(in_quote, i):
                 i += len(in_quote)

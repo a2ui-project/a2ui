@@ -249,29 +249,34 @@ class VerticalDecompiler:
 
         pos_parts: list[str] = []
         kw_parts: list[str] = []
+        omitted_prior = False
         for idx, p in enumerate(fn_props):
             if idx == 0 and skip_value:
                 continue
-            if p in args_map:
-                p_schema = (
-                    fn_helper.get_function_property_schema(fn_name, p)
-                    if fn_helper is not None
-                    else None
+            if p not in args_map:
+                omitted_prior = True
+                continue
+            p_schema = (
+                fn_helper.get_function_property_schema(fn_name, p)
+                if fn_helper is not None
+                else None
+            )
+            formatted = self._format_value(
+                args_map[p], p_schema, fn_helper, surface_cat_id
+            )
+            if (
+                idx == 0
+                and p == "value"
+                and not (
+                    isinstance(args_map[p], Mapping)
+                    and self._is_data_binding(args_map[p])
                 )
-                formatted = self._format_value(
-                    args_map[p], p_schema, fn_helper, surface_cat_id
-                )
-                if (
-                    idx == 0
-                    and p == "value"
-                    and not (
-                        isinstance(args_map[p], Mapping)
-                        and self._is_data_binding(args_map[p])
-                    )
-                ):
-                    kw_parts.append(f"value={formatted}")
-                else:
-                    pos_parts.append(formatted)
+            ):
+                kw_parts.append(f"value={formatted}")
+            elif omitted_prior:
+                kw_parts.append(f"{_format_key(p)}={formatted}")
+            else:
+                pos_parts.append(formatted)
 
         for k, v in args_map.items():
             if k not in fn_props:
@@ -281,7 +286,10 @@ class VerticalDecompiler:
 
         msg = rule.get("message")
         if isinstance(msg, str):
-            pos_parts.append(_format_string(msg))
+            if omitted_prior and kw_parts:
+                kw_parts.append(f"message={_format_string(msg)}")
+            else:
+                pos_parts.append(_format_string(msg))
         if write_cat_id is not None:
             kw_parts.append(f"catalogId={_format_string(write_cat_id)}")
 
