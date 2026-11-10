@@ -302,15 +302,14 @@ public final class MessageProcessor: ObservableObject {
       catalogDictionary["components"] = .object(componentsDictionary)
     }
 
-    if !catalog.functions.isEmpty {
-      if version.isAtLeastV10 {
-        let functionsDictionary = generateV10InlineFunctions(catalog)
-        if !functionsDictionary.isEmpty {
-          catalogDictionary["functions"] = .object(functionsDictionary)
-        }
-      } else {
-        catalogDictionary["functions"] = .array(generateV09InlineFunctions(catalog))
-      }
+    let functionsDictionary =
+      version.isAtLeastV10 && !catalog.functions.isEmpty
+      ? generateV10InlineFunctions(catalog)
+      : [:]
+    if !functionsDictionary.isEmpty {
+      catalogDictionary["functions"] = .object(functionsDictionary)
+    } else if !version.isAtLeastV10, !catalog.functions.isEmpty {
+      catalogDictionary["functions"] = .array(generateV09InlineFunctions(catalog))
     }
 
     if !version.isAtLeastV10, let themeSchema = catalog.themeSchema {
@@ -322,14 +321,13 @@ public final class MessageProcessor: ObservableObject {
     if version.isAtLeastV10 {
       // `catalog_definition.json` requires `$defs` to hold both unions, even for a catalog with
       // no components or no functions.
-      let functionNames = (catalogDictionary["functions"]?.objectValue?.keys).map(Array.init) ?? []
       catalogDictionary["$defs"] = .object([
         "anyComponent": inlineCatalogUnion(
           of: componentsDictionary.keys,
           in: "components",
           discriminator: "component"
         ),
-        "anyFunction": inlineCatalogUnion(of: functionNames, in: "functions"),
+        "anyFunction": inlineCatalogUnion(of: functionsDictionary.keys, in: "functions"),
       ])
     }
 
