@@ -12,7 +12,7 @@
   rejects `https:evil.example`, and allows relative URLs. Recommended
   migration: none for valid `http(s)` URLs; set
   `PermissiveUrlSecurityPolicy(allow_svg_data_urls=True)` to keep SVG `data:`
-  images (#4045, [#PR](https://github.com/a2ui-project/a2ui/pull/PR)).
+  images (#4045, [#4119](https://github.com/a2ui-project/a2ui/pull/4119)).
 - Add the URL security policy API: `UrlSecurityPolicy`,
   `PermissiveUrlSecurityPolicy`, `AllowlistUrlSecurityPolicy` (per-context host
   lists with `*.` wildcards, `allow_relative`, `rewrite` hooks, and
@@ -24,7 +24,7 @@
   and `open_url_handler`; `SurfaceModel`, `DataContext` and `ComponentContext`
   have `sanitize_url(url, context, info=None)`, and blocked URLs are reported
   once per surface as a redacted `URL_BLOCKED` warning
-  ([#PR](https://github.com/a2ui-project/a2ui/pull/PR)).
+  ([#4119](https://github.com/a2ui-project/a2ui/pull/4119)).
 - **BREAKING CHANGE**: (v1_0) Component validation
   (`PayloadValidator.validate_component`, and `MessageProcessor` for calls into
   another catalog) rejects a call to a function whose `allowedCallers` is
