@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.3.0 (2026-11-10)
+
 - Add `get_a2ui_messages`, which returns the A2UI messages in an A2A message's
   A2UI parts, and `create_a2ui_parts`, which wraps A2UI messages, such as the
   replies of `RendererToAgentMessageProcessor`, as A2UI parts. Models are
@@ -7,12 +9,6 @@
   were set, so an `agentFunctionResponse` keeps a `value` of `None`, and a
   model's default `version` is written for v0.9 and later.
   [#3795](https://github.com/a2ui-project/a2ui/pull/3795)
-- `create_a2ui_part` labels a part with the message's own `version` field when
-  no `version` is passed, so a v0.9.1 or v1.0 message gets the current A2UI MIME
-  type. [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
-- `parse_content_to_parts` logs a parse error, which may quote the response,
-  by type at warning level and in full only at debug level.
-  [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
 - Add `extract_a2ui_json_to_parts` to extract text and `<a2ui-json>` blocks into
   A2A parts without requiring a `Catalog` or `Parser`. A block that is unclosed,
   is not JSON, or is not a JSON object or array of objects is logged and
@@ -20,6 +16,15 @@
   opens a JSON array or object. Requires an `a2ui-agent-sdk` release later than
   0.10.0.
   [#3790](https://github.com/a2ui-project/a2ui/pull/3790)
+
+## 0.2.0 (2026-11-02)
+
+- `create_a2ui_part` labels a part with the message's own `version` field when
+  no `version` is passed, so a v0.9.1 or v1.0 message gets the current A2UI MIME
+  type. [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
+- `parse_content_to_parts` logs a parse error, which may quote the response,
+  by type at warning level and in full only at debug level.
+  [#3299](https://github.com/a2ui-project/a2ui/pull/3299)
 
 ## 0.1.0 (2026-10-17)
 

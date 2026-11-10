@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+- **Breaking:** (v0_9) `MessageProcessor` treats a component's `metadata` key
+  as an ordinary property on v0.9 surfaces, since v0.9 defines no component
+  metadata: it stays in `ComponentModel.properties`, is checked against the
+  component's schema only, and `ComponentModel.metadata` stays null. Before,
+  it was checked against the v1.0 metadata rules and moved out of the
+  properties. To migrate, read `metadata` from `properties` on v0.9
+  surfaces, or move to v1.0 for component metadata
+  ([#4137](https://github.com/a2ui-project/a2ui/issues/4137),
+  [#4140](https://github.com/a2ui-project/a2ui/pull/4140)).
+- `MessageProcessor` takes `unifiedOutbound` (`false` by default). When `true`,
+  `outboundListener` also receives an `ActionMessage` for each action emitted
+  on `model.onAction`, carrying the surface's protocol version; `onAction` and
+  `model.onAction` still fire. Setting `unifiedOutbound: true` without an
+  `outboundListener` throws `ArgumentError`
+  ([#4015](https://github.com/a2ui-project/a2ui/issues/4015),
+  [#4079](https://github.com/a2ui-project/a2ui/pull/4079)).
+- (v1_0) Function calls inside `${...}` template expressions of `formatString`
+  now inherit the `catalogId` that the enclosing `formatString` call resolved
+  to (preserving reserved `@`-prefixed system calls such as `${@index()}` as
+  catalogless), so nested template calls resolve against `formatString`'s
+  catalog on defaultless surfaces and when the surface defines a different
+  default `catalogId`
+  ([#3727](https://github.com/a2ui-project/a2ui/issues/3727),
+  [#4029](https://github.com/a2ui-project/a2ui/pull/4029)).
+
+## 0.6.0
+
 - Rename `Catalog.toLegacyInlineCatalog()` to `Catalog.toV09InlineCatalog()`.
   `toLegacyInlineCatalog()` remains as a deprecated alias
   ([#4006](https://github.com/a2ui-project/a2ui/pull/4006)).
@@ -32,6 +59,7 @@
   false, leaves such calls to the caller
   ([#3534](https://github.com/a2ui-project/a2ui/issues/3534),
   [#4008](https://github.com/a2ui-project/a2ui/pull/4008)).
+- (v1_0) The common types `IndexSystemFunction` schema declares `"returnType": "number"`, like catalog functions do ([#3725](https://github.com/a2ui-project/a2ui/issues/3725), [#4025](https://github.com/a2ui-project/a2ui/pull/4025)).
 - (v0_9) Restore `listStyle` property to basic catalog `List` component schema ([#3956](https://github.com/a2ui-project/a2ui/pull/3956)).
 - `RpcHandler.dispose` takes an optional reason, which each cancelled call's
   error message names. `SurfaceModel` and `MessageProcessor` take
@@ -51,6 +79,13 @@
   `a2ui_agent`'s `RendererFunctionCalls` reports when an agent has too many
   calls to renderer functions pending
   ([#3535](https://github.com/a2ui-project/a2ui/issues/3535)).
+- `GenericBinder` treats an object schema without an `Action` reference as an
+  inline action only when its only property is `event` or `functionCall`, as
+  in the specification's `Action`, and never treats a component's own schema
+  as one. A component that declares an `event` property, or a list whose items
+  declare one, now gets those values as written instead of action closures
+  ([#4086](https://github.com/a2ui-project/a2ui/issues/4086),
+  [#4087](https://github.com/a2ui-project/a2ui/pull/4087)).
 
 ## 0.5.0
 

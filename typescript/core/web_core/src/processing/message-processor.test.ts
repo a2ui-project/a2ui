@@ -1514,6 +1514,84 @@ describe('MessageProcessor', () => {
       assert.deepStrictEqual((dataModel?.surfaces as any)?.s1, {user: {name: 'Alice'}});
     });
 
+    it('records the createSurface message protocol version on the surface and falls back to catalog version', () => {
+      const textApi: ComponentApi = {
+        name: 'Text',
+        schema: z.object({text: z.string()}).strict(),
+      };
+      const v09Cat = new Catalog('cat-09', '0.9', [textApi]);
+      const handledErrors: RendererErrorMessage[] = [];
+      const proc = new MessageProcessor([v09Cat], undefined, {
+        errorHandler: err => handledErrors.push(err),
+      });
+
+      proc.processMessages([
+        {
+          version: 'v0.9.1',
+          createSurface: {
+            surfaceId: 's-091',
+            catalogId: 'cat-09',
+            sendDataModel: true,
+          },
+        },
+        {
+          version: 'v0.9.1',
+          updateDataModel: {
+            surfaceId: 's-091',
+            path: '/greeting',
+            value: 'hi',
+          },
+        },
+      ]);
+      assert.strictEqual(proc.getSurface('s-091')?.protocolVersion, 'v0.9.1');
+
+      proc.processMessages({
+        type: 'createSurface',
+        surfaceId: 's-unversioned',
+        catalogId: 'cat-09',
+        sendDataModel: true,
+        dataModel: {greeting: 'hello'},
+      });
+      assert.strictEqual(proc.getSurface('s-unversioned')?.protocolVersion, 'v0.9');
+
+      // An unversioned operation failing on the v0.9.1 surface inherits the surface's v0.9.1 version.
+      assert.throws(() => {
+        proc.processMessages({
+          type: 'updateComponents',
+          surfaceId: 's-091',
+          components: [{id: 'root', component: 'Text', text: 42 as unknown as string}],
+        });
+      }, A2uiValidationError);
+      assert.strictEqual(handledErrors.length, 1);
+      assert.strictEqual(handledErrors[0].version, 'v0.9.1');
+      assert.strictEqual(handledErrors[0].error.surfaceId, 's-091');
+
+      // Mixing v0.9 and v0.9.1 active surfaces with sendDataModel throws without an explicit version.
+      assert.throws(
+        () => proc.getRendererDataModel(),
+        (err: unknown) =>
+          err instanceof A2uiValidationError &&
+          err.message.includes(
+            'Multiple protocol versions detected among active surfaces: v0.9, v0.9.1',
+          ),
+      );
+
+      assert.deepStrictEqual(proc.getRendererDataModel('v0.9.1'), {
+        version: 'v0.9.1',
+        surfaces: {
+          's-091': {greeting: 'hi'},
+          's-unversioned': {greeting: 'hello'},
+        },
+      });
+      assert.deepStrictEqual(proc.getRendererDataModel('v0.9'), {
+        version: 'v0.9',
+        surfaces: {
+          's-091': {greeting: 'hi'},
+          's-unversioned': {greeting: 'hello'},
+        },
+      });
+    });
+
     it('provides resolvePath method on MessageProcessor', () => {
       const cat = new Catalog('test-cat', '0.9', []);
       const proc = new MessageProcessor([cat]);
@@ -1631,6 +1709,45 @@ describe('MessageProcessor', () => {
           vendor_app: {analyticsId: 'track_btn_1_updated', role: 'secondary'},
         },
       });
+    });
+
+    it('keeps metadata as an ordinary property below v1.0', () => {
+      const cardApi: ComponentApi = {
+        name: 'Card',
+        schema: z.object({metadata: z.record(z.string(), z.unknown())}).strict(),
+      };
+      const proc = new MessageProcessor<ComponentApi>([new Catalog('v09', '0.9', [cardApi])]);
+
+      proc.processMessages([
+        {version: 'v0.9', createSurface: {surfaceId: 's', catalogId: 'v09'}},
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 's',
+            components: [{id: 'root', component: 'Card', metadata: {source: 'crm'}}],
+          },
+        },
+      ]);
+
+      const card = proc.getSurface('s')?.componentsModel.get('root');
+      assert.ok(card);
+      assert.deepStrictEqual(card.properties, {metadata: {source: 'crm'}});
+      assert.strictEqual(card.metadata, undefined);
+
+      proc.processMessages([
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 's',
+            components: [
+              {id: 'root', component: 'Card', metadata: {extensions: {vendor_app: 'v'}}},
+            ],
+          },
+        },
+      ]);
+
+      assert.deepStrictEqual(card.properties, {metadata: {extensions: {vendor_app: 'v'}}});
+      assert.strictEqual(card.metadata, undefined);
     });
   });
 
