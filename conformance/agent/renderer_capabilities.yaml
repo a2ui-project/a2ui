@@ -280,6 +280,75 @@
   expect_error:
     category: CatalogError
 
+- name: v1.0 entry with v0.9 inline catalog raises CatalogError
+  description: A v1.0 capabilities entry whose inline catalog declares protocolVersion 0.9 raises CatalogError.
+  features: [F-AGT-18]
+  action: read_renderer_capabilities
+  args:
+    version: "1.0"
+    metadata:
+      a2uiRendererCapabilities:
+        "1.0":
+          supportedCatalogIds: []
+          inlineCatalogs:
+            - catalogId: "renderer/inline"
+              protocolVersion: "0.9"
+              components:
+                Marquee:
+                  type: object
+                  properties:
+                    component: {const: "Marquee"}
+                    text: {type: string}
+                  required: ["component", "text"]
+  expect_error:
+    category: CatalogError
+
+- name: v0.9 entry with v1.0 inline catalog raises CatalogError
+  description: A v0.9 capabilities entry whose inline catalog declares protocolVersion 1.0 raises CatalogError.
+  features: [F-AGT-18]
+  action: read_renderer_capabilities
+  args:
+    version: "v0.9"
+    metadata:
+      a2uiClientCapabilities:
+        v0.9:
+          supportedCatalogIds: []
+          inlineCatalogs:
+            - catalogId: "renderer/inline"
+              protocolVersion: "1.0"
+              components:
+                Marquee:
+                  type: object
+                  properties:
+                    component: {const: "Marquee"}
+                    text: {type: string}
+                  required: ["component", "text"]
+  expect_error:
+    category: CatalogError
+
+- name: entry with non-string inline catalog protocolVersion raises CatalogError
+  description: A capabilities entry whose inline catalog declares a non-string protocolVersion raises CatalogError.
+  features: [F-AGT-18]
+  action: read_renderer_capabilities
+  args:
+    version: "1.0"
+    metadata:
+      a2uiRendererCapabilities:
+        "1.0":
+          supportedCatalogIds: []
+          inlineCatalogs:
+            - catalogId: "renderer/inline"
+              protocolVersion: 10
+              components:
+                Marquee:
+                  type: object
+                  properties:
+                    component: {const: "Marquee"}
+                    text: {type: string}
+                  required: ["component", "text"]
+  expect_error:
+    category: CatalogError
+
 - name: both keys present returns only v1.0 key for v1.0
   description: When both a2uiClientCapabilities and a2uiRendererCapabilities are present, v1.0 returns only the '1.0' entry.
   action: read_renderer_capabilities

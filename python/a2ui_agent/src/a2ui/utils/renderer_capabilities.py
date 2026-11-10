@@ -97,6 +97,28 @@ def read_renderer_capabilities(
             )
         entry_model.model_validate(entry, by_alias=True, by_name=False)
         for document in entry.get("inlineCatalogs") or []:
+            if "protocolVersion" in document:
+                raw_doc_version = document["protocolVersion"]
+                if not isinstance(raw_doc_version, str):
+                    raise A2uiCatalogError(
+                        "Inline catalog 'protocolVersion' in"
+                        f" {key!r} renderer capabilities under"
+                        f" {metadata_key!r} must be a string."
+                    )
+                try:
+                    doc_version = to_protocol_version(raw_doc_version)
+                except ValueError as exc:
+                    raise A2uiCatalogError(
+                        "Unsupported inline catalog protocolVersion"
+                        f" {raw_doc_version!r} in {key!r} renderer"
+                        f" capabilities under {metadata_key!r}."
+                    ) from exc
+                if _CAPABILITIES_ENTRIES[doc_version][0] != key:
+                    raise A2uiCatalogError(
+                        f"Inline catalog protocolVersion {raw_doc_version!r}"
+                        f" is incompatible with {key!r} renderer capabilities"
+                        f" under {metadata_key!r}."
+                    )
             Catalog.from_json(document, protocol_version=protocol_version.value)
     except A2uiCatalogError:
         raise

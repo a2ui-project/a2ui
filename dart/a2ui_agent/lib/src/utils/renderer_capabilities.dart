@@ -82,9 +82,22 @@ A2uiRendererCapabilities? readRendererCapabilities(
   }
 
   try {
-    return A2uiRendererCapabilities.fromJson(<String, Object?>{
+    final capabilities = A2uiRendererCapabilities.fromJson(<String, Object?>{
       entryKey: entry,
     });
+    for (final CatalogApi catalog
+        in capabilities.forVersion(version)?.inlineCatalogs ?? const []) {
+      final A2uiProtocolVersion? declared = catalog.protocolVersion;
+      if (declared != null &&
+          !isCatalogVersionCompatible(declared.jsonValue, version.jsonValue)) {
+        throw A2uiCatalogError(
+          "Inline catalog '${catalog.id}' declares protocolVersion "
+          "'${declared.jsonValue}', which is incompatible with '$entryKey' "
+          "renderer capabilities under '$metadataKey'.",
+        );
+      }
+    }
+    return capabilities;
   } on A2uiError catch (e) {
     if (e is A2uiCatalogError) rethrow;
     throw A2uiCatalogError(e.message);

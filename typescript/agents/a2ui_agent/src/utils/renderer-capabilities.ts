@@ -83,6 +83,14 @@ function validateInlineCatalogs(
         `Each inline catalog in '${entryKey}' renderer capabilities under '${metadataKey}' must be an object with a non-empty string 'catalogId'.`,
       );
     }
+    if (
+      (cat.protocolVersion !== undefined && typeof cat.protocolVersion !== 'string') ||
+      (entryKey !== 'v0.9' && cat.protocolVersion === undefined)
+    ) {
+      throw new A2uiCatalogError(
+        `Each inline catalog in '${entryKey}' renderer capabilities under '${metadataKey}' must declare a valid string 'protocolVersion'.`,
+      );
+    }
     catalogFromDocument(cat, 'inlineCatalogs', wireVersion);
     inlineCatalogs.push({...cat});
   }

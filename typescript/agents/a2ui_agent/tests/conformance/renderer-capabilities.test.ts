@@ -122,10 +122,38 @@ describe('renderer_capabilities.yaml invariants', () => {
           },
           targetVersion,
         );
-        const resolved = resolveCatalogs([agentConfig], caps, {acceptInlineCatalogs: true});
+        const resolved = resolveCatalogs([agentConfig], caps, true);
         expect(resolved.map(c => c.id)).toEqual(['inline/v09-compat']);
       }
     }
+  });
+
+  test('throws A2uiCatalogError when v1.0 inline catalog omits protocolVersion', () => {
+    expect(() =>
+      readRendererCapabilities(
+        {
+          [A2UI_RENDERER_CAPABILITIES_KEY]: {
+            '1.0': {
+              supportedCatalogIds: [],
+              inlineCatalogs: [
+                {
+                  catalogId: 'inline/missing-version',
+                  components: {
+                    Badge: {
+                      type: 'object',
+                      properties: {
+                        component: {const: 'Badge'},
+                      },
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        },
+        '1.0',
+      ),
+    ).toThrow(A2uiCatalogError);
   });
 
   test('throws A2uiCatalogError for unsupported or invalid version strings', () => {
