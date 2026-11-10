@@ -34,7 +34,10 @@ import {
   type SurfaceModel,
 } from '@a2ui/web_core';
 import {basicCatalog as v1BasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+import {basicCatalog as v09BasicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
 import {A2uiLitElement} from '@a2ui/web_core/universal';
+import {A2uiClientMessageSchema} from '@a2ui/web_core/v0_9';
+import {RendererToAgentMessageSchema} from '@a2ui/web_core/v1_0';
 
 import type {A2uiSurface} from '../index.js';
 import type {LitComponentApi} from '../types.js';
@@ -76,12 +79,17 @@ export interface ExpectedViewNode {
   id: string;
   type?: string;
   state?: string;
+  occupiesLayout?: boolean;
   text?: string;
   value?: unknown;
+  url?: string;
+  name?: string;
+  axis?: string;
   badgeText?: string;
   isValid?: boolean;
   validationErrors?: string[];
   validationResults?: unknown[];
+  hints?: string[];
   children?: ExpectedViewNode[];
 }
 
@@ -113,16 +121,22 @@ export interface AdapterStep {
   expectViewTree?: ExpectedViewNode;
   expectDataModel?: Record<string, unknown>;
   expectSameViewIdentity?: string[];
+  expectNewViewIdentity?: string[];
+  expectDisposedNodes?: string[];
+  expectSurfaceRemoved?: boolean;
   expectActions?: ExpectedAction[];
   expectErrors?: ExpectedError[];
+  expectOutbound?: Array<Record<string, unknown>>;
   expectAccessibilityTree?: Record<string, ExpectedAccessibilityNode>;
+  expectThemeAbsent?: boolean;
   expectActiveSubscriptions?: number;
 }
 
 export interface SecondaryCatalogSpec {
   catalogId: string;
   protocolVersion?: string;
-  components: Record<string, unknown>;
+  components?: Record<string, unknown>;
+  functions?: Record<string, unknown>;
 }
 
 export interface AdapterTestCase {
@@ -130,6 +144,7 @@ export interface AdapterTestCase {
   description?: string;
   features?: string[];
   protocolVersion?: string;
+  strictMode?: boolean;
   action?: string;
   catalogPaths?: string[];
   catalogs?: SecondaryCatalogSpec[];
@@ -143,7 +158,11 @@ export interface AdapterSession {
   mountedElements: HTMLElement[];
   recordedActions: ExpectedAction[];
   recordedErrors: Array<{code: string; message: string; surfaceId: string}>;
+  recordedOutbound: Array<Record<string, unknown>>;
+  protocolVersion: string;
   priorIdentities: Map<string, HTMLElement>;
+  priorNodes: Map<string, ComponentNode<LitComponentApi>>;
+  lastCallId?: string;
 }
 
 export interface ManifestRecord {
@@ -158,7 +177,10 @@ export interface ManifestRecord {
  * Reasoned skip entries keyed by `"<case>"` or `"<case>/<op|expectKey>"`.
  * Every entry in this map must match at least one case during the run.
  */
-export const UNSUPPORTED: Record<string, string> = {};
+export const UNSUPPORTED: Record<string, string> = {
+  'validation_results_error_disables_warning_allows/hints':
+    'SHOULD in framework adapter specification, not implemented in Web Basic Catalog TextField',
+};
 
 const matchedUnsupportedKeys = new Set<string>();
 
@@ -169,11 +191,12 @@ export const KNOWN_KEYS = {
     'features',
     'action',
     'protocolVersion',
+    'strictMode',
     'catalogPaths',
     'catalogs',
     'steps',
   ]),
-  adapterCatalog: new Set(['catalogId', 'protocolVersion', 'components']),
+  adapterCatalog: new Set(['catalogId', 'protocolVersion', 'components', 'functions']),
   adapterStep: new Set([
     'description',
     'op',
@@ -186,7 +209,12 @@ export const KNOWN_KEYS = {
     'expectDataModel',
     'expectActions',
     'expectErrors',
+    'expectOutbound',
     'expectSameViewIdentity',
+    'expectNewViewIdentity',
+    'expectDisposedNodes',
+    'expectSurfaceRemoved',
+    'expectThemeAbsent',
     'expectActiveSubscriptions',
   ]),
   adapterOps: new Set([
@@ -200,12 +228,17 @@ export const KNOWN_KEYS = {
     'id',
     'type',
     'state',
+    'occupiesLayout',
     'text',
     'value',
+    'url',
+    'name',
+    'axis',
     'badgeText',
     'isValid',
     'validationErrors',
     'validationResults',
+    'hints',
     'children',
   ]),
   validationResult: new Set(['valid', 'code', 'message', 'severity']),
@@ -307,6 +340,20 @@ export function assertKnownKeys(
       assertObjectKeys(item, KNOWN_KEYS.expectedError, `${where}.expectErrors[${idx}]`);
     });
   }
+  if (step.expectOutbound !== undefined) {
+    assert.ok(Array.isArray(step.expectOutbound), `${where}.expectOutbound: expected array`);
+    step.expectOutbound.forEach((item, idx) => {
+      assert.ok(
+        typeof item === 'object' && item !== null && !Array.isArray(item),
+        `${where}.expectOutbound[${idx}]: expected object`,
+      );
+      assert.equal(
+        typeof (item as Record<string, unknown>).version,
+        'string',
+        `${where}.expectOutbound[${idx}].version: expected string`,
+      );
+    });
+  }
 }
 
 export function assertKnownAdapterCase(testCase: AdapterTestCase): void {
@@ -358,6 +405,21 @@ export function assertKnownAccessibilityCase(testCase: AccessibilityTestCase): v
   }
 }
 
+function collectViewTreeKeys(node: unknown, out: Set<string>): void {
+  if (!node || typeof node !== 'object' || Array.isArray(node)) {
+    return;
+  }
+  const rec = node as Record<string, unknown>;
+  for (const key of Object.keys(rec)) {
+    out.add(key);
+  }
+  if (Array.isArray(rec.children)) {
+    for (const child of rec.children) {
+      collectViewTreeKeys(child, out);
+    }
+  }
+}
+
 export function findUnsupportedReason(
   caseName: string,
   steps: Array<Record<string, unknown>> = [],
@@ -382,6 +444,15 @@ export function findUnsupportedReason(
         return UNSUPPORTED[stepKey];
       }
     }
+    const viewKeys = new Set<string>();
+    collectViewTreeKeys(step.expectViewTree, viewKeys);
+    for (const key of viewKeys) {
+      const viewKey = `${caseName}/${key}`;
+      if (Object.hasOwn(UNSUPPORTED, viewKey)) {
+        matchedUnsupportedKeys.add(viewKey);
+        return UNSUPPORTED[viewKey];
+      }
+    }
     const assertions = step.assertions;
     if (assertions && typeof assertions === 'object' && !Array.isArray(assertions)) {
       for (const key of Object.keys(assertions as Record<string, unknown>)) {
@@ -399,6 +470,7 @@ export function findUnsupportedReason(
 export function assertAllUnsupportedMatched(
   accessibilityCases: AccessibilityTestCase[] = [],
   adapterCases: AdapterTestCase[] = [],
+  adapterV09Cases: AdapterTestCase[] = [],
 ): void {
   for (const testCase of accessibilityCases) {
     const steps: AccessibilityStep[] = testCase.steps ?? [
@@ -409,7 +481,7 @@ export function assertAllUnsupportedMatched(
     ];
     findUnsupportedReason(testCase.name, steps as unknown as Array<Record<string, unknown>>);
   }
-  for (const testCase of adapterCases) {
+  for (const testCase of [...adapterCases, ...adapterV09Cases]) {
     findUnsupportedReason(
       testCase.name,
       testCase.steps as unknown as Array<Record<string, unknown>>,
@@ -460,25 +532,36 @@ function createIncrementCounterFn(): FunctionImplementation {
     name: 'incrementCounter',
     returnType: 'void',
     schema: z.object({
-      path: z.string(),
-      step: z.number(),
+      path: z.string().optional(),
+      targetPath: z.string().optional(),
+      step: z.any().optional(),
+      amount: z.any().optional(),
     }),
-    execute: (args: {path: string; step: number}, context) => {
-      const current = Number(context.dataModel.get(args.path) ?? 0);
-      context.dataModel.set(args.path, current + args.step);
+    execute: (
+      args: {path?: string; targetPath?: string; step?: number; amount?: number},
+      context,
+    ) => {
+      const targetPath = args.path ?? args.targetPath ?? '/counter';
+      const delta = args.step ?? args.amount ?? 1;
+      const current = Number(context.dataModel.get(targetPath) ?? 0);
+      context.dataModel.set(targetPath, current + delta);
     },
   };
 }
 
-export function createAugmentedBasicCatalog(): Catalog<LitComponentApi> {
-  const base = v1BasicCatalog as unknown as Catalog<LitComponentApi>;
+export function createAugmentedBasicCatalog(version: string = '1.0'): Catalog<LitComponentApi> {
+  const base = (version === 'v0.9'
+    ? v09BasicCatalog
+    : v1BasicCatalog) as unknown as Catalog<LitComponentApi>;
   const components = Array.from(base.components.values());
   const functions = [...Array.from(base.functions?.values() ?? []), createIncrementCounterFn()];
   return new Catalog<LitComponentApi>(
     base.id,
-    base.protocolVersion ?? '1.0',
+    base.protocolVersion ?? version,
     components,
     functions,
+    base.themeSchema,
+    base.instructions,
   );
 }
 
@@ -487,7 +570,7 @@ export function buildSecondaryCatalog(spec: SecondaryCatalogSpec): Catalog<LitCo
   const badgeSchema = z.object({
     badgeText: z.string().optional(),
   });
-  for (const compName of Object.keys(spec.components)) {
+  for (const compName of Object.keys(spec.components ?? {})) {
     const tagName = `a2ui-conformance-${compName.toLowerCase()}`;
     let element = customElements.get(tagName) as CustomElementConstructor | undefined;
     if (!element) {
@@ -509,11 +592,27 @@ export function buildSecondaryCatalog(spec: SecondaryCatalogSpec): Catalog<LitCo
       schema: badgeSchema,
     });
   }
+  const functions = spec.functions
+    ? Object.entries(spec.functions).map(([name, fnDef]) => {
+        const record = fnDef as Record<string, unknown>;
+        return {
+          name,
+          returnType: (record['returnType'] as any) ?? 'any',
+          schema: z.object({}).passthrough(),
+          allowedCallers: record['allowedCallers'] as
+            | 'rendererOnly'
+            | 'agentOnly'
+            | 'rendererOrAgent'
+            | undefined,
+          requiresUserActivation: record['requiresUserActivation'] as boolean | undefined,
+        } as unknown as FunctionImplementation;
+      })
+    : [];
   return new Catalog<LitComponentApi>(
     spec.catalogId,
     (spec.protocolVersion ?? 'v1.0') as 'v1.0',
     components,
-    [],
+    functions,
   );
 }
 
@@ -533,6 +632,7 @@ function findDomElementByComponentId(
 
 function getDirectChildNodes(
   node: ComponentNode<LitComponentApi>,
+  surfaceEl?: A2uiSurface,
 ): Array<ComponentNode<LitComponentApi>> {
   const props = getValue(node.props);
   const childrenProp = props.children;
@@ -542,6 +642,28 @@ function getDirectChildNodes(
   const childProp = props.child;
   if (isComponentNode(childProp)) {
     return [childProp as ComponentNode<LitComponentApi>];
+  }
+  const tabsProp = props.tabs;
+  if (Array.isArray(tabsProp)) {
+    const domEl = surfaceEl ? findDomElementForNode(surfaceEl, node) : undefined;
+    const activeIndex = (domEl as unknown as {activeIndex?: number})?.activeIndex ?? 0;
+    const activeTab = (tabsProp as Array<{child?: unknown}>)[activeIndex];
+    if (activeTab && isComponentNode(activeTab.child)) {
+      return [activeTab.child as ComponentNode<LitComponentApi>];
+    }
+    return [];
+  }
+  const triggerProp = props.trigger;
+  if (isComponentNode(triggerProp)) {
+    const modalChildren = [triggerProp as ComponentNode<LitComponentApi>];
+    const domEl = surfaceEl ? findDomElementForNode(surfaceEl, node) : undefined;
+    const isOpen =
+      (domEl as unknown as {isOpen?: boolean})?.isOpen === true ||
+      Boolean(domEl?.querySelector('.a2ui-modal-content'));
+    if (isOpen && isComponentNode(props.content)) {
+      modalChildren.push(props.content as ComponentNode<LitComponentApi>);
+    }
+    return modalChildren;
   }
   return [];
 }
@@ -560,6 +682,7 @@ function findDomElementForNode(
       return el as HTMLElement;
     }
     if (
+      a2uiEl.node === undefined &&
       a2uiEl.context?.componentModel.id === target.componentId &&
       a2uiEl.context?.dataContext.path === target.dataPath
     ) {
@@ -605,6 +728,25 @@ function snapshotViewIdentities(surfaceEl: A2uiSurface | undefined): Map<string,
   return map;
 }
 
+function snapshotNodes(
+  surfaceEl: A2uiSurface | undefined,
+): Map<string, ComponentNode<LitComponentApi>> {
+  const map = new Map<string, ComponentNode<LitComponentApi>>();
+  if (!surfaceEl?.rootNode) {
+    return map;
+  }
+  const visit = (node: ComponentNode<LitComponentApi>, path: string): void => {
+    map.set(path, node);
+    map.set(node.componentId, node);
+    const children = getDirectChildNodes(node);
+    children.forEach((child, idx) => {
+      visit(child, `${path}/children/${idx}`);
+    });
+  };
+  visit(surfaceEl.rootNode, 'root');
+  return map;
+}
+
 function unwrapProp(val: unknown): unknown {
   return val instanceof ResolvedBinding ? val.value : val;
 }
@@ -624,6 +766,22 @@ function assertNodeScalarProps(
   }
   if (expected.value !== undefined) {
     assert.deepEqual(unwrapProp(props.value), expected.value);
+  }
+  if (expected.url !== undefined) {
+    assert.equal(unwrapProp(props.url), expected.url);
+    if (surfaceEl) {
+      const domEl = findDomElementForNode(surfaceEl, actual);
+      const mediaEl = domEl?.querySelector('img, video, audio');
+      if (mediaEl) {
+        assert.equal(mediaEl.getAttribute('src'), expected.url);
+      }
+    }
+  }
+  if (expected.name !== undefined) {
+    assert.equal(unwrapProp(props.name), expected.name);
+  }
+  if (expected.axis !== undefined) {
+    assert.equal(unwrapProp(props.axis), expected.axis);
   }
   if (expected.badgeText !== undefined) {
     assert.equal(unwrapProp(props.badgeText), expected.badgeText);
@@ -649,6 +807,12 @@ function assertNodeScalarProps(
   if (expected.validationResults !== undefined) {
     assert.deepEqual(props.validationResults, expected.validationResults);
   }
+  if (expected.hints !== undefined && surfaceEl) {
+    const domEl = findDomElementForNode(surfaceEl, actual);
+    for (const hint of expected.hints) {
+      assert.ok(domEl?.textContent?.includes(hint));
+    }
+  }
 }
 
 export function extractViewTree(
@@ -673,6 +837,12 @@ export function assertViewTree(
   if (expected.state !== undefined) {
     assert.equal(actual.state, expected.state);
   }
+  if (expected.occupiesLayout !== undefined && resolvedSurfaceEl) {
+    const domEl = findDomElementForNode(resolvedSurfaceEl, actual);
+    const occupies =
+      domEl !== undefined && !domEl.hidden && window.getComputedStyle(domEl).display !== 'none';
+    assert.equal(occupies, expected.occupiesLayout);
+  }
   if (actual.state === 'resolved' && resolvedSurfaceEl) {
     const domEl = findDomElementForNode(resolvedSurfaceEl, actual);
     assert.ok(domEl, `Expected mounted DOM element for "${actual.componentId}"`);
@@ -680,7 +850,7 @@ export function assertViewTree(
   assertNodeScalarProps(resolvedSurfaceEl, actual, expected);
 
   if (expected.children !== undefined) {
-    const actualChildren = getDirectChildNodes(actual);
+    const actualChildren = getDirectChildNodes(actual, resolvedSurfaceEl);
     assert.equal(
       actualChildren.length,
       expected.children.length,
@@ -826,6 +996,127 @@ function countActiveSurfaceSubscriptions(surface: SurfaceModel<LitComponentApi>)
   return onCreatedSize + onDeletedSize + dataSubsSize;
 }
 
+export function frameActionEnvelope(
+  action: Record<string, unknown>,
+  protocolVersion: string,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    name: action.name,
+    surfaceId: action.surfaceId,
+    sourceComponentId: action.sourceComponentId,
+    timestamp: action.timestamp,
+    context: action.context ?? {},
+  };
+  if (action.userMessage !== undefined) {
+    payload.userMessage = action.userMessage;
+  }
+  if (action.metadata !== undefined) {
+    payload.metadata = action.metadata;
+  }
+  return {
+    version: protocolVersion,
+    action: payload,
+  };
+}
+
+export function frameErrorEnvelope(
+  err: Record<string, unknown>,
+  surfaceId: string,
+  protocolVersion: string,
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    code: err.code,
+    message: err.message,
+  };
+  if (typeof err.functionCallId === 'string') {
+    payload.functionCallId = err.functionCallId;
+  } else {
+    payload.surfaceId = typeof err.surfaceId === 'string' ? err.surfaceId : surfaceId;
+  }
+  if (typeof err.path === 'string') {
+    payload.path = err.path;
+  }
+  return {
+    version: protocolVersion,
+    error: payload,
+  };
+}
+
+function isMatchAny(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const keys = Object.keys(value as Record<string, unknown>);
+  return keys.length === 1 && (value as Record<string, unknown>)['$match'] === 'any';
+}
+
+function assertMatchesExpectedOutbound(actual: unknown, expected: unknown, where: string): void {
+  if (isMatchAny(expected)) {
+    assert.ok(
+      actual !== undefined && actual !== null,
+      `${where}: expected defined non-null value for {$match: "any"}`,
+    );
+    return;
+  }
+  if (Array.isArray(expected)) {
+    assert.ok(Array.isArray(actual), `${where}: expected array`);
+    assert.equal(actual.length, expected.length, `${where}: array length mismatch`);
+    for (let i = 0; i < expected.length; i++) {
+      assertMatchesExpectedOutbound(actual[i], expected[i], `${where}[${i}]`);
+    }
+    return;
+  }
+  if (typeof expected === 'object' && expected !== null) {
+    assert.ok(
+      typeof actual === 'object' && actual !== null && !Array.isArray(actual),
+      `${where}: expected object`,
+    );
+    const actualRecord = actual as Record<string, unknown>;
+    const expectedRecord = expected as Record<string, unknown>;
+    const actualKeys = Object.keys(actualRecord).sort();
+    const expectedKeys = Object.keys(expectedRecord).sort();
+    assert.deepEqual(actualKeys, expectedKeys, `${where}: object keys mismatch`);
+    for (const key of expectedKeys) {
+      assertMatchesExpectedOutbound(actualRecord[key], expectedRecord[key], `${where}.${key}`);
+    }
+    return;
+  }
+  assert.equal(actual, expected, `${where}: value mismatch`);
+}
+
+function validateOutboundEnvelopes(
+  envelopes: Array<Record<string, unknown>>,
+  protocolVersion: string,
+): void {
+  const isV09 = protocolVersion.startsWith('v0.9') || protocolVersion.startsWith('0.9');
+  for (let i = 0; i < envelopes.length; i++) {
+    const env = envelopes[i];
+    const parsed = isV09
+      ? A2uiClientMessageSchema.safeParse(env)
+      : RendererToAgentMessageSchema.safeParse(env);
+    assert.ok(
+      parsed.success,
+      `recordedOutbound[${i}] failed protocol schema validation: ${
+        parsed.success ? '' : JSON.stringify(parsed.error.issues)
+      }`,
+    );
+  }
+}
+
+function assertExpectedOutbound(
+  actual: Array<Record<string, unknown>>,
+  expected: Array<Record<string, unknown>>,
+): void {
+  assert.equal(
+    actual.length,
+    expected.length,
+    `expectOutbound length mismatch: actual=${actual.length}, expected=${expected.length}`,
+  );
+  for (let i = 0; i < expected.length; i++) {
+    assertMatchesExpectedOutbound(actual[i], expected[i], `expectOutbound[${i}]`);
+  }
+}
+
 export async function ensureSurfaceMounted(
   session: AdapterSession,
   mountedElements: HTMLElement[] = session.mountedElements,
@@ -847,6 +1138,9 @@ export async function ensureSurfaceMounted(
       sourceComponentId: action.sourceComponentId,
       context: action.context,
     });
+    session.recordedOutbound.push(
+      frameActionEnvelope(action as unknown as Record<string, unknown>, session.protocolVersion),
+    );
   });
   surface.onError.subscribe(err => {
     session.recordedErrors.push({
@@ -854,6 +1148,13 @@ export async function ensureSurfaceMounted(
       message: err.message,
       surfaceId: surface.id,
     });
+    session.recordedOutbound.push(
+      frameErrorEnvelope(
+        err as unknown as Record<string, unknown>,
+        surface.id,
+        session.protocolVersion,
+      ),
+    );
   });
 
   const el = document.createElement('a2ui-surface') as unknown as A2uiSurface;
@@ -866,7 +1167,7 @@ export async function ensureSurfaceMounted(
   session.surfaceEl = el;
 }
 
-function performStepOperation(session: AdapterSession, step: AdapterStep): void {
+async function performStepOperation(session: AdapterSession, step: AdapterStep): Promise<void> {
   switch (step.op) {
     case 'process_messages':
       session.processor.processMessages(step.messages ?? []);
@@ -874,7 +1175,74 @@ function performStepOperation(session: AdapterSession, step: AdapterStep): void 
     case 'user_input': {
       assert.ok(session.surfaceEl && step.targetNode, 'Expected surfaceEl and targetNode');
       const hostEl = findDomElementByComponentId(session.surfaceEl, step.targetNode);
-      const input = hostEl?.querySelector('input, textarea') as HTMLInputElement | undefined;
+      assert.ok(hostEl, `Expected host element for "${step.targetNode}"`);
+      const tag = hostEl.tagName.toLowerCase();
+      if (tag === 'a2ui-checkbox' || typeof step.inputValue === 'boolean') {
+        const checkbox = hostEl.querySelector('input[type="checkbox"]') as
+          | HTMLInputElement
+          | undefined;
+        assert.ok(checkbox, `Expected checkbox input inside "${step.targetNode}"`);
+        checkbox.checked = Boolean(step.inputValue);
+        checkbox.dispatchEvent(new Event('change', {bubbles: true, composed: true}));
+        return;
+      }
+      if (tag === 'a2ui-choicepicker' || Array.isArray(step.inputValue)) {
+        const values = (Array.isArray(step.inputValue) ? step.inputValue : [step.inputValue]).map(
+          String,
+        );
+        const options = Array.from(
+          hostEl.querySelectorAll('input.a2ui-option-input'),
+        ) as HTMLInputElement[];
+        assert.ok(options.length > 0, `Expected option inputs inside "${step.targetNode}"`);
+        for (const opt of options) {
+          const shouldCheck = values.includes(opt.value);
+          if (opt.type === 'radio' ? shouldCheck : opt.checked !== shouldCheck) {
+            opt.checked = shouldCheck;
+            opt.dispatchEvent(new Event('change', {bubbles: true, composed: true}));
+          }
+        }
+        return;
+      }
+      if (tag === 'a2ui-tabs') {
+        const tabButtons = Array.from(
+          hostEl.querySelectorAll('button.a2ui-tab-button'),
+        ) as HTMLButtonElement[];
+        const tabIdx = Number(step.inputValue ?? 0);
+        assert.ok(
+          tabButtons[tabIdx],
+          `Expected tab button at index ${tabIdx} inside "${step.targetNode}"`,
+        );
+        tabButtons[tabIdx].click();
+        return;
+      }
+      if (tag === 'a2ui-slider') {
+        const slider = hostEl.querySelector('input[type="range"]') as HTMLInputElement | undefined;
+        assert.ok(slider, `Expected range input inside "${step.targetNode}"`);
+        slider.value = String(step.inputValue ?? 0);
+        slider.dispatchEvent(new Event('input', {bubbles: true, composed: true}));
+        return;
+      }
+      if (tag === 'a2ui-datetimeinput') {
+        const raw = String(step.inputValue ?? '');
+        const [datePart, timePart] = raw.includes('T') ? raw.split('T') : [raw, ''];
+        const dateInput = hostEl.querySelector('input[type="date"]') as
+          | HTMLInputElement
+          | undefined;
+        if (dateInput && datePart) {
+          dateInput.value = datePart.slice(0, 10);
+          dateInput.dispatchEvent(new Event('change', {bubbles: true, composed: true}));
+          await settleSurface(session.surfaceEl);
+        }
+        const timeInput = hostEl.querySelector('input[type="time"]') as
+          | HTMLInputElement
+          | undefined;
+        if (timeInput && timePart) {
+          timeInput.value = timePart.slice(0, 5);
+          timeInput.dispatchEvent(new Event('change', {bubbles: true, composed: true}));
+        }
+        return;
+      }
+      const input = hostEl.querySelector('input, textarea') as HTMLInputElement | undefined;
       assert.ok(input, `Expected input element inside "${step.targetNode}"`);
       input.value = String(step.inputValue ?? '');
       input.dispatchEvent(new Event('input', {bubbles: true}));
@@ -903,7 +1271,7 @@ function performStepOperation(session: AdapterSession, step: AdapterStep): void 
         | Record<string, unknown>
         | undefined;
       assert.ok(rawAction && hostEl?.context, `Expected action on "${step.targetNode}"`);
-      hostEl.context.dataContext.resolveAction(rawAction, {
+      (hostEl.context.dataContext as any).resolveAction(rawAction, {
         userActivation: Boolean(step.userActivation),
       });
       return;
@@ -923,6 +1291,31 @@ function assertSameViewIdentities(session: AdapterSession, identityPaths: string
     const afterEl = resolveIdentityElement(session.surfaceEl, idPath);
     assert.ok(beforeEl && afterEl, `Missing view identity for "${idPath}"`);
     assert.equal(afterEl, beforeEl, `Expected view identity to be preserved for "${idPath}"`);
+  }
+}
+
+function assertNewViewIdentities(session: AdapterSession, identityPaths: string[]): void {
+  assert.ok(session.surfaceEl, 'Expected mounted surfaceEl for new view identity check');
+  for (const idPath of identityPaths) {
+    const beforeEl = session.priorIdentities.get(idPath);
+    const afterEl = resolveIdentityElement(session.surfaceEl, idPath);
+    assert.ok(beforeEl && afterEl, `Missing view identity for "${idPath}"`);
+    assert.notEqual(afterEl, beforeEl, `Expected new view identity for "${idPath}"`);
+  }
+}
+
+function assertDisposedNodes(session: AdapterSession, nodeIds: string[]): void {
+  for (const nodeId of nodeIds) {
+    const prevNode = session.priorNodes.get(nodeId);
+    assert.ok(prevNode, `Expected prior node "${nodeId}"`);
+    assert.equal(prevNode.disposed, true, `Expected node "${nodeId}" to be disposed`);
+    if (session.surfaceEl) {
+      assert.equal(
+        findDomElementByComponentId(session.surfaceEl, nodeId),
+        undefined,
+        `Expected node "${nodeId}" DOM element to be unmounted`,
+      );
+    }
   }
 }
 
@@ -957,15 +1350,43 @@ function verifyStepExpectations(session: AdapterSession, step: AdapterStep): voi
   if (step.expectSameViewIdentity) {
     assertSameViewIdentities(session, step.expectSameViewIdentity);
   }
+  if (step.expectNewViewIdentity) {
+    assertNewViewIdentities(session, step.expectNewViewIdentity);
+  }
+  if (step.expectDisposedNodes) {
+    assertDisposedNodes(session, step.expectDisposedNodes);
+  }
+  if (step.expectSurfaceRemoved) {
+    assert.ok(session.surface, 'Expected prior surface for expectSurfaceRemoved');
+    assert.equal(session.processor.model.getSurface(session.surface.id), undefined);
+    assert.equal(
+      Boolean((session.surface as any)?.isDisposed ?? (session.surface as any)?.disposed),
+      true,
+    );
+    assert.ok(!session.surfaceEl?.isConnected || session.surfaceEl.children.length === 0);
+  }
   if (step.expectActions !== undefined) {
     assert.deepEqual(session.recordedActions, step.expectActions);
   }
   if (step.expectErrors !== undefined) {
     assertRecordedErrors(session.recordedErrors, step.expectErrors);
   }
+  validateOutboundEnvelopes(session.recordedOutbound, session.protocolVersion);
+  if (step.expectOutbound !== undefined) {
+    assertExpectedOutbound(session.recordedOutbound, step.expectOutbound);
+  }
   if (step.expectAccessibilityTree && session.surfaceEl) {
     for (const [compId, expected] of Object.entries(step.expectAccessibilityTree)) {
       assertAccessibilityNode(session.surfaceEl, compId, expected);
+    }
+  }
+  if (step.expectThemeAbsent && session.surface && session.surfaceEl) {
+    assert.deepEqual(session.surface.theme ?? {}, {});
+    for (const el of Array.from(session.surfaceEl.querySelectorAll('*'))) {
+      const htmlEl = el as HTMLElement;
+      assert.equal(htmlEl.style.getPropertyValue('--a2ui-color-primary'), '');
+      const inlineStyle = (htmlEl.getAttribute('style') ?? '').toLowerCase();
+      assert.ok(!inlineStyle.includes('#ff00aa') && !inlineStyle.includes('255, 0, 170'));
     }
   }
   if (step.expectActiveSubscriptions !== undefined && session.surface) {
@@ -977,24 +1398,96 @@ export function mountSurface(
   caseSpec?: Partial<AdapterTestCase>,
   mountedElements: HTMLElement[] = [],
 ): AdapterSession {
+  const protocolVersion = caseSpec?.protocolVersion ?? '1.0';
   const catalogs: Array<Catalog<LitComponentApi>> = [
-    createAugmentedBasicCatalog(),
+    createAugmentedBasicCatalog(protocolVersion),
     ...(caseSpec?.catalogs ?? []).map(buildSecondaryCatalog),
   ];
-  return {
-    processor: new MessageProcessor<LitComponentApi>(catalogs),
+  const recordedOutbound: Array<Record<string, unknown>> = [];
+  const validationConfig =
+    caseSpec?.strictMode === true
+      ? {
+          allowOrphanComponents: false,
+          allowDanglingReferences: false,
+          allowMissingRoot: false,
+          allowUnknownElements: false,
+        }
+      : caseSpec?.strictMode === false
+        ? {
+            allowOrphanComponents: true,
+            allowDanglingReferences: true,
+            allowMissingRoot: true,
+            allowUnknownElements: true,
+          }
+        : undefined;
+  let lastCapturedCallId = '';
+  const processor = new MessageProcessor<LitComponentApi>(catalogs, undefined, {
+    validationConfig,
+    outboundListener: msg => {
+      recordedOutbound.push(structuredClone(msg) as unknown as Record<string, unknown>);
+      const call = (msg as Record<string, unknown>)?.['callAgentFunction'] as
+        | Record<string, unknown>
+        | undefined;
+      if (call && typeof call['functionCallId'] === 'string') {
+        lastCapturedCallId = call['functionCallId'];
+        if (session) {
+          session.lastCallId = lastCapturedCallId;
+        }
+      }
+    },
+  });
+  const session: AdapterSession = {
+    processor,
     mountedElements,
     recordedActions: [],
     recordedErrors: [],
+    recordedOutbound,
+    protocolVersion,
     priorIdentities: new Map(),
+    priorNodes: new Map(),
+    lastCallId: lastCapturedCallId,
   };
+  processor.model.onSurfaceDeleted.subscribe(deletedId => {
+    if (session.surface?.id === deletedId) {
+      session.surfaceEl?.remove();
+    }
+  });
+  return session;
+}
+
+export function substituteLastCallId(value: unknown, lastCallId: string): unknown {
+  if (Array.isArray(value)) {
+    return value.map(item => substituteLastCallId(item, lastCallId));
+  }
+  if (value && typeof value === 'object') {
+    const rec = value as Record<string, unknown>;
+    if (rec['$ref'] === 'lastCallId' && Object.keys(rec).length === 1) {
+      return lastCallId;
+    }
+    const result: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(rec)) {
+      result[k] = substituteLastCallId(v, lastCallId);
+    }
+    return result;
+  }
+  return value;
 }
 
 export async function runStep(session: AdapterSession, step: AdapterStep): Promise<void> {
   assertKnownKeys(step);
+  if (step.messages) {
+    step = {
+      ...step,
+      messages: substituteLastCallId(step.messages, session.lastCallId ?? '') as Array<
+        Record<string, unknown>
+      >,
+    };
+  }
   session.recordedActions = [];
   session.recordedErrors = [];
+  session.recordedOutbound.length = 0;
   session.priorIdentities = snapshotViewIdentities(session.surfaceEl);
+  session.priorNodes = snapshotNodes(session.surfaceEl);
 
   if (step.op === 'process_messages' && !session.surfaceEl) {
     for (const msg of step.messages ?? []) {
@@ -1007,7 +1500,7 @@ export async function runStep(session: AdapterSession, step: AdapterStep): Promi
       }
     }
   } else {
-    performStepOperation(session, step);
+    await performStepOperation(session, step);
   }
 
   if (session.surfaceEl && step.op !== 'unmount_surface') {

@@ -6,12 +6,12 @@ This roadmap outlines the current state and future plans for the A2UI project. T
 
 ### Protocol
 
-| Version    | Status       | Notes                                   |
-| ---------- | ------------ | --------------------------------------- |
-| **v0.8**   | 🆗 Prior     | Initial public release, minimal support |
-| **v0.9**   | 🆗 Prior     | Feature complete, legacy support        |
-| **v0.9.1** | 🆗 Current   | stable release                          |
-| **v1.0**   | 📋 Candidate | release candidate                       |
+| Version                                                                       | Status        | Notes                                   |
+| ----------------------------------------------------------------------------- | ------------- | --------------------------------------- |
+| **v1.0**                                                                      | 🆗 Current    | Current version                         |
+| **v0.9.1**                                                                    | 🆗 Previous   | Minor refinements to v0.9               |
+| **[v0.9](https://github.com/a2ui-project/a2ui/tree/main/specification/v0_9)** | 🆗 Previous   | Feature complete                        |
+| **[v0.8](https://github.com/a2ui-project/a2ui/tree/main/specification/v0_8)** | ⚠️ Deprecated | Initial public release, minimal support |
 
 ### Renderers
 

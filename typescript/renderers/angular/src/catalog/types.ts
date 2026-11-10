@@ -96,7 +96,7 @@ export class AngularCatalog extends Catalog<AngularComponentImplementation> {
     instructions?: string,
   ) {
     if (typeof protocolVersionOrComponents !== 'string') {
-      // Legacy v0.9 signature: `new AngularCatalog(id, components, functions, ...)`.
+      // Pre-1.0 (v0.9) signature: `new AngularCatalog(id, components, functions, ...)`.
       super(
         id,
         '0.9',

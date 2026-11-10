@@ -865,7 +865,7 @@ class A2uiXmlPromptGenerator(PromptGenerator):
 
     def generate_examples(
         self,
-        catalog: Any | None = None,
+        catalog: CatalogApi | None = None,
         validate: bool = False,
     ) -> str:
         """Formats few-shot A2UI example turns into `<a2ui>...</a2ui>` A2UI XML blocks."""
@@ -884,17 +884,3 @@ class A2uiXmlPromptGenerator(PromptGenerator):
             decompiled = self._decompiler.decompile_blocks(turn)
             blocks.append(self._decompiler.wrap_decompiled_blocks(decompiled))
         return "\n\n".join(blocks)
-
-    def generate(self) -> str:
-        """Assembles the complete A2UI XML system prompt contract."""
-        parts: list[str] = []
-        rules = self.generate_base_rules()
-        if rules:
-            parts.append(f"## Workflow Description:\n{rules}")
-        cat_inst = self.generate_catalog_instructions(include_schema=True)
-        if cat_inst:
-            parts.append(cat_inst)
-        examples = self.generate_examples()
-        if examples:
-            parts.append(f"### Examples:\n{examples}")
-        return "\n\n".join(parts)

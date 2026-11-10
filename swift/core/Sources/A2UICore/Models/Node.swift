@@ -15,6 +15,14 @@
 import Observation
 import OrderedJSON
 
+/// The resolution state of a component ``Node``.
+public enum NodeState: String, Sendable, Equatable {
+  case resolved = "resolved"
+  case pending = "pending"
+  case unknownType = "unknown-type"
+  case cyclic = "cyclic"
+}
+
 /// A persistent, observable backing store for a resolved component node.
 @MainActor
 package final class NodeBox: Observable {
@@ -23,6 +31,9 @@ package final class NodeBox: Observable {
   nonisolated let id: String
   nonisolated let type: String
   nonisolated let catalogID: String?
+  nonisolated let state: NodeState
+  nonisolated let scopeKey: String?
+  nonisolated let dataContextPath: String
   private var _properties: [String: any Resolved]
   private var _metadata: [String: JSONValue]?
   package private(set) var revision: UInt64 = 0
@@ -42,12 +53,18 @@ package final class NodeBox: Observable {
     id: String,
     type: String,
     catalogID: String? = nil,
+    state: NodeState = .resolved,
+    scopeKey: String? = nil,
+    dataContextPath: String = "/",
     properties: [String: any Resolved],
     metadata: [String: JSONValue]? = nil
   ) {
     self.id = id
     self.type = type
     self.catalogID = catalogID
+    self.state = state
+    self.scopeKey = scopeKey
+    self.dataContextPath = dataContextPath
     self._properties = properties
     self._metadata = metadata
   }
@@ -80,6 +97,24 @@ package final class NodeBox: Observable {
     }
   }
 
+  enum SlotStep: Sendable, Equatable {
+    case nodeListIndex(Int)
+    case arrayIndex(Int)
+    case key(String)
+  }
+
+  enum ChildSlot: Sendable, Equatable {
+    case direct(property: String)
+    case listElement(property: String, index: Int)
+    case nested(property: String, steps: [SlotStep])
+  }
+
+  struct ChildSlotReplacement {
+    let slots: [ChildSlot]
+    let oldBox: NodeBox
+    let newNode: Node
+  }
+
   /// Updates the box's metadata in-place without re-resolving properties or child subtrees.
   func updateMetadata(_ newMetadata: [String: JSONValue]?) {
     guard !MetadataValidator.areEqual(_metadata, newMetadata) else { return }
@@ -87,6 +122,150 @@ package final class NodeBox: Observable {
       _metadata = newMetadata
     }
     revision &+= 1
+  }
+
+  /// Replaces references to replaced child boxes in-place without re-resolving sibling children.
+  func replaceChildSlots(_ replacements: [ChildSlotReplacement]) {
+    guard
+      replacements.contains(where: {
+        $0.oldBox !== $0.newNode.box && slotsHold($0.oldBox, in: $0.slots)
+      })
+    else {
+      return
+    }
+    registrar.withMutation(of: self, keyPath: \.properties) {
+      for replacement in replacements where replacement.oldBox !== replacement.newNode.box {
+        for slot in replacement.slots {
+          applySlotReplacement(slot, from: replacement.oldBox, to: replacement.newNode)
+        }
+      }
+    }
+    propsRevision &+= 1
+    revision &+= 1
+  }
+
+  private func applySlotReplacement(_ slot: ChildSlot, from oldBox: NodeBox, to newNode: Node) {
+    switch slot {
+    case .direct(let property):
+      if let existing = _properties[property] as? Node, existing.box === oldBox {
+        _properties[property] = newNode
+      }
+    case .listElement(let property, let index):
+      guard _properties[property] is [Node],
+        var nodes = _properties.removeValue(forKey: property) as? [Node]
+      else {
+        return
+      }
+      if nodes.indices.contains(index), nodes[index].box === oldBox {
+        nodes[index] = newNode
+      }
+      _properties[property] = nodes
+    case .nested(let property, let steps):
+      guard var rootValue = _properties.removeValue(forKey: property) else { return }
+      Self.updateSlot(in: &rootValue, steps: steps[...], from: oldBox, to: newNode)
+      _properties[property] = rootValue
+    }
+  }
+
+  private func slotsHold(_ target: NodeBox, in slots: [ChildSlot]) -> Bool {
+    slots.contains { slot in
+      switch slot {
+      case .direct(let property):
+        return (_properties[property] as? Node)?.box === target
+      case .listElement(let property, let index):
+        guard let nodes = _properties[property] as? [Node], nodes.indices.contains(index) else {
+          return false
+        }
+        return nodes[index].box === target
+      case .nested(let property, let steps):
+        guard let existing = _properties[property] else { return false }
+        return Self.slotHolds(target, in: existing, steps: steps[...])
+      }
+    }
+  }
+
+  private static func slotHolds(
+    _ target: NodeBox,
+    in value: any Resolved,
+    steps: ArraySlice<SlotStep>
+  ) -> Bool {
+    guard let step = steps.first else {
+      return (value as? Node)?.box === target
+    }
+    let rest = steps.dropFirst()
+    switch step {
+    case .nodeListIndex(let index):
+      guard rest.isEmpty, let nodes = value as? [Node], nodes.indices.contains(index) else {
+        return false
+      }
+      return nodes[index].box === target
+    case .arrayIndex(let index):
+      guard let arr = value as? ResolvedArray, arr.elements.indices.contains(index) else {
+        return false
+      }
+      return slotHolds(target, in: arr.elements[index], steps: rest)
+    case .key(let key):
+      guard let dict = value as? ResolvedDictionary, let child = dict.storage[key] else {
+        return false
+      }
+      return slotHolds(target, in: child, steps: rest)
+    }
+  }
+
+  /// Replaces a nested child slot in `O(depth)`, moving each container out of its existential
+  /// before mutating so `[Node]`, `ResolvedArray`, and `ResolvedDictionary` buffers stay uniquely
+  /// referenced and avoid Copy-on-Write clones.
+  private static func updateSlot(
+    in value: inout any Resolved,
+    steps: ArraySlice<SlotStep>,
+    from oldBox: NodeBox,
+    to newNode: Node
+  ) {
+    guard let step = steps.first else {
+      if let node = value as? Node, node.box === oldBox {
+        value = newNode
+      }
+      return
+    }
+    let rest = steps.dropFirst()
+    var taken: any Resolved = false
+    swap(&value, &taken)
+    switch step {
+    case .nodeListIndex(let index):
+      guard var nodes = taken as? [Node] else {
+        value = taken
+        return
+      }
+      taken = false
+      if rest.isEmpty, nodes.indices.contains(index), nodes[index].box === oldBox {
+        nodes[index] = newNode
+      }
+      value = nodes
+    case .arrayIndex(let index):
+      guard var arr = taken as? ResolvedArray, arr.elements.indices.contains(index) else {
+        value = taken
+        return
+      }
+      taken = false
+      var child: any Resolved = false
+      swap(&arr.elements[index], &child)
+      updateSlot(in: &child, steps: rest, from: oldBox, to: newNode)
+      swap(&arr.elements[index], &child)
+      value = arr
+    case .key(let key):
+      guard var dict = taken as? ResolvedDictionary else {
+        value = taken
+        return
+      }
+      taken = false
+      guard var child = dict.storage.removeValue(forKey: key) else {
+        value = dict
+        return
+      }
+      updateSlot(in: &child, steps: rest, from: oldBox, to: newNode)
+      dict.storage[key] = child
+      value = dict
+    }
   }
 
   private static func arePropertiesShallowEqual(
@@ -129,6 +308,9 @@ public struct Node: Identifiable, @preconcurrency Equatable, Sendable {
   public var id: String { box.id }
   public var type: String { box.type }
   public var catalogID: String? { box.catalogID }
+  public var state: NodeState { box.state }
+  public var scopeKey: String? { box.scopeKey }
+  public var dataContextPath: String { box.dataContextPath }
   @MainActor
   public var properties: [String: any Resolved] { box.properties }
   @MainActor
@@ -136,11 +318,20 @@ public struct Node: Identifiable, @preconcurrency Equatable, Sendable {
   @MainActor
   public var extensions: [String: JSONValue]? { MetadataValidator.extensions(from: box.metadata) }
 
+  /// The identity of the node's backing store.
+  ///
+  /// The resolver updates a node in place while its component keeps its type and state, so two
+  /// nodes with the same identity are the same node instance at different points in time.
+  public var identity: ObjectIdentifier { ObjectIdentifier(box) }
+
   /// Creates a new resolved component node.
   public init(
     id: String,
     type: String,
     catalogID: String? = nil,
+    state: NodeState = .resolved,
+    scopeKey: String? = nil,
+    dataContextPath: String = "/",
     properties: [String: any Resolved],
     metadata: [String: JSONValue]? = nil
   ) {
@@ -148,8 +339,43 @@ public struct Node: Identifiable, @preconcurrency Equatable, Sendable {
       id: id,
       type: type,
       catalogID: catalogID,
+      state: state,
+      scopeKey: scopeKey,
+      dataContextPath: dataContextPath,
       properties: properties,
       metadata: metadata
+    )
+  }
+
+  /// Creates a placeholder node for a referenced component ID that has not arrived yet.
+  public static func pending(
+    id: String,
+    scopeKey: String? = nil,
+    dataContextPath: String = "/"
+  ) -> Node {
+    Node(
+      id: id,
+      type: "Placeholder",
+      state: .pending,
+      scopeKey: scopeKey,
+      dataContextPath: dataContextPath,
+      properties: [:]
+    )
+  }
+
+  /// Creates a placeholder node for a component reference that closes a cycle.
+  public static func cyclic(
+    id: String,
+    scopeKey: String? = nil,
+    dataContextPath: String = "/"
+  ) -> Node {
+    Node(
+      id: id,
+      type: "Placeholder",
+      state: .cyclic,
+      scopeKey: scopeKey,
+      dataContextPath: dataContextPath,
+      properties: [:]
     )
   }
 
@@ -173,7 +399,13 @@ public struct Node: Identifiable, @preconcurrency Equatable, Sendable {
     if lhs.box === rhs.box {
       return true
     }
-    guard lhs.id == rhs.id && lhs.type == rhs.type && lhs.catalogID == rhs.catalogID,
+    guard
+      lhs.id == rhs.id,
+      lhs.type == rhs.type,
+      lhs.catalogID == rhs.catalogID,
+      lhs.state == rhs.state,
+      lhs.scopeKey == rhs.scopeKey,
+      lhs.dataContextPath == rhs.dataContextPath,
       MetadataValidator.areEqual(lhs.metadata, rhs.metadata),
       lhs.properties.count == rhs.properties.count
     else {

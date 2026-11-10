@@ -34,8 +34,10 @@ The suites that do not depend on an inference format sit directly under `agent/`
 - `agent/catalog_provider.yaml`: Loading catalog documents from the filesystem, including the identity and protocol version checks a provider performs.
 - `agent/catalog_resolution.yaml`: Negotiating renderer capabilities against the catalogs an agent registered, including inline catalogs.
 - `agent/request_processor.yaml`: Building an inference format from its factory, and taking registered catalogs and renderer capabilities through to a request processor.
-- `agent/skill.yaml`: Generating skill documents and skill sets from a format and a catalog.
+- `agent/skill.yaml`: Generating skill documents and skill sets from a format and its catalogs, and checking that a monolithic skill's body equals the prompt snippet for the same catalogs (`monolithic_skill_equals_prompt_snippet`).
 - `agent/multi_catalog_formats.yaml`: Resolving components and function calls across active catalogs (omitting `createSurface.catalogId` when multiple catalogs are active, resolving un-annotated components and function calls by name when unique across active catalogs, and requiring an explicit `catalogId` override when ambiguous), across `direct_json` (and later `express`): compiling, decompiling (including omitting `catalogId` when name lookup is unambiguous), parsing a response, rendering a prompt snippet, and building a format. Component order inside a message carries no meaning, so a harness may compare the `components` of a compiled message by `id`.
+- `agent/agent_functions.yaml`: Agent functions (v1.0) and the agent's side of the messages a renderer sends. It covers declaring agent functions on the agent's copy of a catalog (including building one from the catalog's own declaration), answering `callAgentFunction` (the response values and error codes, schema defaults, the handler's context, and which catalog a call runs in), validating model output that calls agent functions, and how `RendererToAgentMessageProcessor` routes `action`, `error` and `rendererFunctionResponse` messages to its callbacks. See [Writing cases for the agent function suite](#writing-cases-for-the-agent-function-suite).
+- `agent/renderer_function_calls.yaml`: The agent calling renderer functions with `callRendererFunction` (v1.0): the message it builds, settling calls with responses, ignoring unknown, late and duplicate responses, timeouts, disposal and the limit on pending calls. See [Writing cases for the agent function suite](#writing-cases-for-the-agent-function-suite).
 - `agent/streamed_answer.yaml`: Reading a streamed answer into a renderer's message processor, for an app that is both the agent and the renderer, and keeping the answer's text, surfaces and rejected blocks in the order the model wrote them. It runs on `direct_json`, the format that streams. The suite belongs to the optional `agent_renderer_app` feature, and only an SDK that implements it runs the suite.
 
 A case names its format with `args.format`, an `InferenceFormatName`: `direct_json` (or `express`).
@@ -74,6 +76,32 @@ It is the one suite under `agent/` that does not use the case vocabulary below. 
 - `extensions/a2a/a2a_integration.yaml`: Contains test cases for A2A protocol event and part conversions.
 - `extensions/adk/adk_extensions.yaml`: Contains test cases for ADK extensions and RPC handling.
 
+### End-to-end (`e2e/`)
+
+End-to-end conformance scenarios in `e2e/` capture complete multi-turn conversational transcripts and user interactions. Each scenario validates:
+
+- **Agent half**: Inbound chunks for each declared format (`direct_json`, `express`) are streamed and single-shot parsed by the agent SDK's response parser, verifying that they yield the exact expected wire messages (`expectWire`) with adjacent text parts merged.
+- **Renderer half**: The `a2ui` messages from each turn are dispatched into framework adapter harnesses (or `MessageProcessor`), which verify the resulting resolved view trees (`expectViewTree`), execute simulated user interactions (`uiOps`), and assert outbound event envelopes (`expectOutbound`) and data model states (`expectDataModel`).
+
+Harnesses running the agent half:
+
+- Python Agent: `python/a2ui_agent`
+- TypeScript Agent: `typescript/agents/a2ui_agent`
+- Dart Agent: `dart/a2ui_agent`
+
+Harnesses running the renderer half:
+
+- Web Renderers: `@a2ui/lit`, `@a2ui/react`, `@a2ui/angular`
+- Flutter Renderer: `dart/a2ui_flutter`
+- SwiftUI Renderer: `swift/swiftui`
+
+#### Adding an e2e scenario
+
+1. Author a new scenario YAML file in `conformance/e2e/<scenario_name>.yaml`.
+2. Specify `action: e2e_scenario`, `protocolVersion` (e.g. `"1.0"`), `catalogPaths`, `formats` (e.g. `[direct_json, express]`), and multi-turn exchanges with `modelChunks`, `expectWire`, `expectViewTree`, and optional `uiOps`, `expectDataModel`, and `expectOutbound`.
+3. Verify the scenario using `pytest conformance/tests/test_e2e_scenarios.py`.
+4. Regenerate the v0.9.1 copies under `conformance/e2e/v0_9_1/` with `uv run --package a2ui-agent-sdk python conformance/scripts/lower_e2e_scenarios.py`.
+
 All static test data and simplified schemas are located in the `test_data/` directory.
 
 `conformance_schema.json` at the root is the JSON schema that validates the structure of YAML test files across all domains.
@@ -105,6 +133,8 @@ Every conformance test runner must declare two top-level configuration variables
 2. **`SKIP_TEST_NAMES`**: A transition skip list containing test case names to temporarily skip during active feature transitions. At the start of a feature migration, test names for unimplemented features are added to this set and progressively removed as feature implementations complete. Skipped tests are logged as `[SKIPPED]` without marking test runs as failures.
 
 When `A2UI_CONFORMANCE_MANIFEST_DIR` is set in CI, each harness writes one JSON Lines record per executed or skipped case to that directory, validated against [`executed_case_manifest.schema.json`](executed_case_manifest.schema.json), and [`scripts/check_executed_cases.py`](scripts/check_executed_cases.py) compares the recorded cases against the suite globs in [`manifest_corpora.json`](manifest_corpora.json). See [Executed-case manifest](conformance_harness_implementation_guide.md#5-executed-case-manifest) in the harness implementation guide for the record format, strict dispatch rules, and comparer flags.
+
+`features.yaml` (validated by [`features.schema.json`](features.schema.json)) maps each protocol, blueprint, and SDK audit feature ID (`F-CORE-*`, `F-AGT-*`, `F-RND-*`, `F-BP-*`) to its specification and blueprint anchors and the harnesses claiming support. Test cases list the feature IDs they exercise under `features`, and [`scripts/check_feature_coverage.py`](scripts/check_feature_coverage.py) checks both static registry integrity (`--static`) and per-harness execution against the manifest directory (`--manifest-dir` and `--harness`).
 
 Client-side implementations run these suites too:
 
@@ -148,6 +178,61 @@ The case then runs its `steps` in order. An `evaluate` step evaluates a `Functio
 - `expectActions`: the actions the surface dispatched during the step, in order, by `name`, `context` and, when the action has one, `userMessage`. A step without `expectActions` must dispatch none.
 
 The cases use no timers, so they do not cover the timeout of an agent call. An SDK that cannot run a case lists it as a known divergence with the reason: the Dart core cannot declare a function without an implementation, so it skips the cases that use `agentFunctions`. Re-evaluating a binding whose cancelled call should be sent again has no single trigger that works in every core, so that rule has two cases, and each core runs the one that fits how it re-evaluates: `..._when_its_value_is_rewritten` (TypeScript and Dart) and `..._on_unrelated_change` (Python and Swift). An agent-initiated `callRendererFunction` whose argument calls an agent function is not covered here, because the suite has no step that sends one and the basic catalog has no function an agent may call; each SDK covers it in its unit tests.
+
+### Writing cases for the agent function suite
+
+`agent/agent_functions.yaml` declares agent functions in `AgentFunctionCatalog` entries (`conformance_schema.json`): a catalog document in `catalog`, named as in the other agent suites, and `agent_functions`, the functions the agent adds to its copy of that catalog (`copy_with(agent_functions=...)`), by name. A declaration carries the JSON Schema of the function's `args`, its `returnType`, and optionally `description` and `requiresUserActivation`; an agent function built this way is `rendererOnly`. Two optional fields change how it is built:
+
+- `from_api: true` builds it from the catalog's own declaration of the function (`AgentFunction.from_api`), which keeps that declaration's `allowedCallers`. If the catalog declares no such function, the harness builds the declaration from `returnType`, `args` and `description`, and the catalog must refuse it.
+- `name` gives the function a name other than its key, so a case can declare two agent functions with one name.
+
+The `args` schema may declare local `$defs`. A `#/$defs/X` reference inside it resolves against the catalog's root `$defs` merged with the function's local `$defs`, and the catalog document hoists the local ones into its root `$defs`. Since the document keeps one definition per name, building the catalog fails with a `CatalogError` when a local name is also defined, differently (compared as JSON values), in the catalog's root `$defs` or in another agent function's local `$defs` on the same catalog. The error names the definition and the function. An identical definition is accepted.
+
+In place of a handler a declaration states a `behavior`, so every SDK runs the same function:
+
+- `returns`: returns that value, which may be `null`.
+- `returns_args: true`: returns the arguments the handler received, after validation and with the schema's defaults applied.
+- `returns_context: true`: returns the context of the call as `{catalogId, surfaceId, functionCallId}`.
+- `raises`: fails with `message`. With `code`, it fails the way the SDK lets a handler choose the response's RPC error code. With `validation: true`, it fails with the SDK's validation error (`A2uiValidationError`), which is still a handler error, answered with `EXECUTION_ERROR`. With neither, it fails with an ordinary error, also answered with `EXECUTION_ERROR`. Only the messages of the first two reach the renderer as written; the message sent for an ordinary failure is SDK-defined and may be redacted, so a case does not check it.
+
+The harness counts the runs of each case's handlers. When a case expects a reply whose `error.code` is `INVALID_FUNCTION_CALL` or `UNKNOWN_FUNCTION`, or expects an `expect_error`, no handler may have run.
+
+The suite has four actions:
+
+- `declare_agent_functions` builds one catalog with its agent functions. `expect` lists, without regard to order, the catalog's functions (agent functions included), its agent functions, and the functions its `toJson()` document lists. `expect_error` names a catalog the SDK must refuse to build: an agent function that takes the name of a function the catalog declares, two agent functions with one name, one whose parameter names aren't UAX #31 identifiers (on a v1.0 catalog), one built with `from_api` from a function the catalog doesn't declare, one whose local `$defs` define a name differently from the catalog or another agent function, or one built from an `agentOnly` declaration or from one that requires user activation without being `rendererOnly`.
+- `handle_agent_function` builds a `RendererToAgentMessageProcessor` from the `catalogs` and processes `message`, a `callAgentFunction` message as received. When `callFunction.catalogId` is omitted, the processor runs the function if exactly one registered catalog declares it, answers `UNKNOWN_FUNCTION` if none does, and answers `INVALID_FUNCTION_CALL` if more than one does. The result must be handled, with exactly one reply. `expect` is the body of that `agentFunctionResponse`: `functionCallId` and either `value` or `error`. `error.code` is compared exactly and `error.message` is a substring of the message sent. `expect_error` means building the catalogs and the processor, or processing the message, fails instead of answering it; the harness builds them inside the error check. Processing fails only when the message has no `functionCallId` to copy.
+- `validate_payload` validates `messages` against the `catalogs`, the way an agent checks model output before sending it. A case states `expect_valid: true` or `expect_error`, which also covers building the catalogs, so the harness builds them inside the error check.
+- `process_renderer_message` builds a `RendererToAgentMessageProcessor` from the agent functions of the optional `catalog`, or of `catalogs` for a case that needs more than one, and the callbacks named in `callbacks` (`action`, `error` and `rendererFunctionResponse`, for `on_action`, `on_error` and `on_renderer_function_response`), each of which records the message it receives, then processes `message`. A `callbacks` entry is either a kind, whose callback handles the message, or `{kind, declines: true}`, whose callback declines it (returns false). `expect.handled` is the result's `handled`. `expect.replies` lists the replies, serialized, in order; they are compared exactly, except that an expected `error.message` is a substring of the one sent and may be left out, and an absent `replies` means none. `expect.callback` is the one callback that ran, whether it handled or declined the message, as `{kind, message}` with the message it received, serialized, with `action.timestamp` values compared as ISO 8601 instants (so `2026-01-01T00:00:00Z` matches `2026-01-01T00:00:00.000Z`); absent, no callback ran. `expect_error` means building the processor (for example from two catalogs with one id, a `CatalogError`) or processing the message fails, and then no callback runs either. Every parsed JSON message must be an object with `version: "1.0"` and one message-kind key (`ValidationError` otherwise), while `action`, `error` and `rendererFunctionResponse` bodies are schema-validated only when their callback is set.
+
+In all four actions, `expect_error` is an `AgentFunctionExpectError`: a required `category`, `CatalogError` or `ValidationError`, and an optional `message`. The harness checks the error's category, and matches `message` as a literal substring of the error's text, not as a regular expression. A harness fails a case whose `expect_error` has any other key, so that an unrelated exception can't pass it.
+
+`agent/renderer_function_calls.yaml` has one action:
+
+- `call_renderer_function` makes calls to renderer functions and settles them, in `steps`. Each step does one thing: `call` makes a call named by its `label` (with `catalogId`, `name`, and optionally `args`, `surfaceId`, `functionCallId` and `timeout_ms`; `args` may be any JSON value, so a case can check that a non-object is refused), `respond` hands over a `rendererFunctionResponse` for a labelled `call` or a literal `functionCallId`, `advance_ms` moves the clock, and `dispose` disposes the calls with an optional `reason`. `args` may set `default_timeout_ms` (otherwise the SDK's default of 30 seconds applies), `max_pending`, and `catalogs`, the agent's catalogs that each `call` is checked against. A case may have `expect_error` (`RendererCallsBuildError`: a required `category`, which is `CatalogError`, and an optional literal-substring `message`) instead of `steps`, when building the calls helper must fail. A harness that hands responses over through a `RendererToAgentMessageProcessor`, with `resolve` as `on_renderer_function_response`, also checks that a response is handled exactly when its call is pending: `resolve` declines unknown, late and duplicate responses.
+
+A `call_renderer_function` harness runs the calls on a fake clock that only `advance_ms` moves, so the cases never wait on real time and a timer fires exactly when the clock reaches it. After each step it lets pending asynchronous work run, then checks:
+
+- `expect_message`, on a `call` step: the `callRendererFunction` message without its `functionCallId`. Separately, the harness checks that every call in a case got a different, non-empty `functionCallId`.
+- `expect_error`, on a `call` step (`RendererCallError`): the call is refused with that RPC error `code`, and, when `message` is set, a message containing it as a literal substring. No other keys are allowed.
+- `expect_calls`: the state of each labelled call, which is `pending`, `{value}`, or `{error: {code, message?}}` with `message` a substring.
+- `expect_pending_count`: how many calls are waiting for a response.
+
+Each entry of `catalogs` (`RendererCallCatalog` in `conformance_schema.json`) is a v1.0 catalog that the harness builds in code, not from a catalog document, so the catalog schema's rules don't apply to it:
+
+```yaml
+catalogs:
+  - catalogId: conformance/device
+    functions:
+      getLocation: {allowedCallers: rendererOrAgent}
+      vibrate: {allowedCallers: rendererOrAgent, requiresUserActivation: true}
+      formatLocal: {} # allowedCallers omitted, so rendererOnly
+```
+
+Each function takes any object as its arguments (schema `{type: object}`) and returns `any`; `allowedCallers` and `requiresUserActivation` are left unset when the case leaves them out. With `catalogs`, `call` fails with `UNKNOWN_FUNCTION` when `catalogId` names no catalog or the catalog lacks the function, and with `INVALID_FUNCTION_CALL` when the function is `rendererOnly` (or leaves `allowedCallers` out) or requires user activation. Two catalogs with one id make building the helper fail with a `CatalogError`.
+
+Before the catalog checks, `call` checks its own arguments, in this order: an empty given `functionCallId`, then (after the duplicate and pending-limit checks) an empty `name`, an empty `catalogId`, a `name` that isn't a UAX #31 identifier or starts with `@`, and `args` that aren't an object with identifier keys and JSON values. Each is `INVALID_FUNCTION_CALL`. Two cases pin the order with `expect_error.message`: an empty name and catalogId must give a message containing `function name`, and a bad argument key sent to a `rendererOnly` function must give a message containing the key. An SDK's message for a bad argument key names the key. A statically typed SDK whose `call` can't take a non-object `args` (Dart) meets `test_call_renderer_function_with_args_that_are_not_an_object` by showing that such a value can't be passed (a type error), with nothing sent or pending, instead of raising `INVALID_FUNCTION_CALL`.
+
+Only the Python agent harness runs this suite so far: the TypeScript and Dart agent harnesses (`typescript/agents/a2ui_agent` and `dart/a2ui_agent`) don't load it yet.
 
 ### Writing cases for the agent SDK suites
 

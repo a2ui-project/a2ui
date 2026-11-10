@@ -38,16 +38,7 @@
  */
 
 import type React from 'react';
-import {
-  createContext,
-  memo,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useSyncExternalStore,
-} from 'react';
+import {createContext, memo, useCallback, useContext, useEffect, useMemo, useRef} from 'react';
 import {createPortal} from 'react-dom';
 import {
   type A2uiMetadata,
@@ -63,15 +54,16 @@ import {
   type Signal,
   type SurfaceModel,
 } from '@a2ui/web_core/v0_9';
+import {HostOwner, HostRegistry} from './host_registry';
+import {HostedMarkdown} from './markdown_hosts';
 import type {
   NodeBuildChild,
   ReactCatalogComponent,
   ReactComponentImplementation,
   ReactRenderProps,
 } from './react_component_implementation';
+import {useSyncExternalStore} from './use_sync_external_store';
 import {WebComponentNode} from './web_component_node';
-import {HostOwner, HostRegistry} from './host_registry';
-import {HostedMarkdown} from './markdown_hosts';
 
 export const SurfaceContext = createContext<SurfaceModel<ReactCatalogComponent> | undefined>(
   undefined,
