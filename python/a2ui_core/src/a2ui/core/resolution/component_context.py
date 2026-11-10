@@ -14,6 +14,12 @@
 
 import inspect
 from typing import Any, Callable
+
+from ..security.url_security_policy import (
+    UrlCheckInfo,
+    UrlContext,
+    merge_url_check_info,
+)
 from ..state.component_model import ComponentModel
 from ..state.surface_components_model import SurfaceComponentsModel
 from ..state.surface_model import SurfaceModel
@@ -72,6 +78,47 @@ class ComponentContext:
         )
         inst.theme = getattr(surface, "theme", {})
         return inst
+
+    def sanitize_url(
+        self, url: str, context: UrlContext, info: UrlCheckInfo | None = None
+    ) -> str | None:
+        """Checks a URL the component is about to load, open, or embed.
+
+        For URLs that don't come from a property marked as a URL (those arrive
+        already checked), such as a URL the component builds itself. Fills in
+        the surface ID, catalog ID, component type, and component ID.
+
+        Example:
+            ::
+
+                src = context.sanitize_url(
+                    f"{props['baseUrl']}/tile.png",
+                    "media",
+                    UrlCheckInfo(property_name="baseUrl"),
+                )
+
+        Args:
+            url: The URL to check.
+            context: How the URL is used: `"media"`, `"navigation"`, or
+                `"iframe"`.
+            info: Optional details, such as the property the URL came from.
+                Fields it sets win over the ones filled in.
+
+        Returns:
+            The URL to use, possibly rewritten, or None when it is blocked.
+
+        Raises:
+            ValueError: If `context` is not a URL context.
+        """
+        catalog = self.component_model.catalog
+        base = UrlCheckInfo(
+            catalog_id=getattr(catalog, "catalog_id", None),
+            component_type=self.component_model.type,
+            component_id=self.component_model.id,
+        )
+        return self.data_context.sanitize_url(
+            url, context, merge_url_check_info(base, info)
+        )
 
     def dispatch_action(
         self,

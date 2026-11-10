@@ -29,10 +29,17 @@ from ..exceptions import (
     A2uiErrorDetail,
     A2uiExpressionError,
     A2uiRpcError,
+    A2uiUrlBlockedError,
     A2uiValidationError,
     RpcErrorCode,
 )
 from ..schema import ProtocolVersion
+from ..security.url_security_policy import (
+    DEFAULT_URL_SECURITY_POLICY,
+    UrlCheckInfo,
+    UrlContext,
+    apply_url_security_policy,
+)
 from ..state.data_model import DataModel
 from ..state.surface_model import AgentFunctionCall, SurfaceModel, agent_call_key
 from ..validation.payload_validator import (
@@ -556,6 +563,47 @@ class DataContext:
         """Sets a value in the DataModel relative to this DataContext path."""
         absolute_path = self.resolve_path(path)
         self.data_model.set(absolute_path, value)
+
+    def sanitize_url(
+        self, url: str, context: UrlContext, info: UrlCheckInfo | None = None
+    ) -> str | None:
+        """Checks a URL against the surface's URL security policy.
+
+        Function implementations call it on the `DataContext` they receive
+        before they open, load, or embed a URL. A blocked URL is reported once
+        as a `URL_BLOCKED` warning on the surface. A context whose surface has
+        no policy support applies the default permissive policy.
+
+        Example:
+            ::
+
+                def _share(args, context, abort_signal=None):
+                    url = context.sanitize_url(
+                        args["url"], "navigation", UrlCheckInfo(function_name="share")
+                    )
+                    if url is not None:
+                        share(url)
+
+        Args:
+            url: The URL to check.
+            context: How the URL is used: `"media"`, `"navigation"`, or
+                `"iframe"`.
+            info: Where the URL comes from, such as the function name. The
+                surface ID is filled in.
+
+        Returns:
+            The URL to use, possibly rewritten, or None when it is blocked.
+
+        Raises:
+            ValueError: If `context` is not a URL context.
+        """
+        sanitize = getattr(self.surface, "sanitize_url", None)
+        if callable(sanitize):
+            result: str | None = sanitize(url, context, info)
+            return result
+        return apply_url_security_policy(
+            DEFAULT_URL_SECURITY_POLICY, url, context, info
+        )
 
     @staticmethod
     def _peek_value(obj: Any) -> Any:
@@ -1132,6 +1180,8 @@ class DataContext:
     ) -> str:
         if isinstance(err, A2uiCatalogError):
             return "CATALOG_ERROR"
+        if isinstance(err, A2uiUrlBlockedError):
+            return "URL_BLOCKED"
         if is_action and in_body:
             return "EXECUTION_ERROR"
         return "EXPRESSION_ERROR"

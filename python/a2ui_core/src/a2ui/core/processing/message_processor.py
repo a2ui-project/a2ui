@@ -93,6 +93,14 @@ from .operations import (
 
 from ..rpc import CallOptions, OutboundListener, RpcHandler
 from ..resolution.data_context import DataContext
+from ..security._basic_catalog_url_properties import BASIC_CATALOG_IDS
+from ..security.url_security_policy import (
+    DEFAULT_URL_SECURITY_POLICY,
+    OpenUrlHandler,
+    UrlCheckInfo,
+    UrlSecurityPolicy,
+    apply_url_security_policy,
+)
 
 PendingAgentCallCallback = Callable[[Any, Optional[dict[str, Any]]], None]
 
@@ -113,6 +121,13 @@ class MessageProcessorOptions:
         report_errors_only: When True, process_messages suppresses raising A2uiError after reporting.
         max_agent_call_cache_entries: The most settled agent function call
             answers each surface keeps (evicting the oldest first).
+        url_security_policy: Decides which URLs components and functions may
+            load, open, or embed on every surface this processor creates.
+            Defaults to `PermissiveUrlSecurityPolicy`, which applies only the
+            built-in baseline checks.
+        open_url_handler: Opens URLs that `openUrl` was allowed to open, for
+            example after asking the user to confirm. It only ever receives
+            URLs the URL security policy allowed.
     """
 
     validation_config: ValidationConfig | None = None
@@ -121,6 +136,8 @@ class MessageProcessorOptions:
     error_handler: Callable[[dict[str, Any]], None] | None = None
     report_errors_only: bool = False
     max_agent_call_cache_entries: int = 256
+    url_security_policy: UrlSecurityPolicy | None = None
+    open_url_handler: OpenUrlHandler | None = None
 
 
 @dataclass
@@ -218,10 +235,18 @@ class MessageProcessor:
         self.max_agent_call_cache_entries = _check_max_agent_call_cache_entries(
             opts.max_agent_call_cache_entries
         )
+        self.url_security_policy: UrlSecurityPolicy = (
+            opts.url_security_policy
+            if opts.url_security_policy is not None
+            else DEFAULT_URL_SECURITY_POLICY
+        )
+        self.open_url_handler = opts.open_url_handler
         self.rpc = RpcHandler(
             catalogs=catalogs,
             outbound_listener=opts.outbound_listener,
             default_timeout_ms=opts.default_timeout_ms,
+            url_security_policy=self.url_security_policy,
+            open_url_handler=self.open_url_handler,
         )
         self.model.on_surface_deleted.subscribe(self.rpc.cancel_surface_calls)
         if action_handler:
@@ -682,6 +707,8 @@ class MessageProcessor:
             default_catalog=target_catalog,
             available_catalogs=available_catalogs,
             max_agent_call_cache_entries=self.max_agent_call_cache_entries,
+            url_security_policy=self.url_security_policy,
+            open_url_handler=self.open_url_handler,
         )
         return DataContext(surface=fallback_surface, path="/")
 
@@ -774,6 +801,9 @@ class MessageProcessor:
 
         if theme and surface_catalog is not None:
             self._validate_surface_theme(surface_id, surface_catalog, theme)
+        theme, blocked_icon_url = self._sanitize_theme_icon_url(
+            theme, surface_catalog, surface_id
+        )
 
         surface_proto_ver = getattr(surface_catalog, "protocol_version", None) or (
             to_protocol_version(msg_version)
@@ -811,6 +841,8 @@ class MessageProcessor:
             protocol_version=surface_proto_ver,
             metadata=op.metadata,
             max_agent_call_cache_entries=self.max_agent_call_cache_entries,
+            url_security_policy=self.url_security_policy,
+            open_url_handler=self.open_url_handler,
         )
         if op.root:
             new_surface.root_id = op.root
@@ -826,6 +858,16 @@ class MessageProcessor:
                 new_surface, _version_label(surface_proto_ver)
             )
         self.model.add_surface(new_surface)
+        if blocked_icon_url is not None:
+            # Reports the blocked URL on the new surface's warning stream.
+            new_surface.sanitize_url(
+                blocked_icon_url,
+                "media",
+                UrlCheckInfo(
+                    catalog_id=getattr(surface_catalog, "catalog_id", None),
+                    property_name="theme.iconUrl",
+                ),
+            )
 
         try:
             if op.data_model is not None:
@@ -1104,6 +1146,40 @@ class MessageProcessor:
                 path=first_path,
                 surface_id=surface.id,
             )
+
+    def _sanitize_theme_icon_url(
+        self, theme: Any, surface_catalog: Any, surface_id: str
+    ) -> tuple[Any, str | None]:
+        """Passes the basic catalog theme's `iconUrl` through the URL policy.
+
+        A blocked URL is removed from the theme and returned for reporting,
+        and a rewritten one (for example, through a media proxy) replaces the
+        original.
+
+        Returns:
+            The theme to use, and the blocked `iconUrl`, if any.
+        """
+        catalog_id = getattr(surface_catalog, "catalog_id", None)
+        if catalog_id not in BASIC_CATALOG_IDS or not isinstance(theme, dict):
+            return theme, None
+        icon_url = theme.get("iconUrl")
+        if not isinstance(icon_url, str):
+            return theme, None
+        allowed = apply_url_security_policy(
+            self.url_security_policy,
+            icon_url,
+            "media",
+            UrlCheckInfo(
+                surface_id=surface_id,
+                catalog_id=catalog_id,
+                property_name="theme.iconUrl",
+            ),
+        )
+        if allowed == icon_url:
+            return theme, None
+        if allowed is None:
+            return {k: v for k, v in theme.items() if k != "iconUrl"}, icon_url
+        return {**theme, "iconUrl": allowed}, None
 
     def _validate_surface_theme(
         self, surface_id: str, surface_catalog: Any, theme: Any

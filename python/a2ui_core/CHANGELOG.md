@@ -1,5 +1,30 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: Every surface applies a URL security policy. The basic
+  catalog `Image.url`, `Video.url`, `Video.posterUrl` and `AudioPlayer.url`
+  (and properties a catalog marks with `x-a2ui-url-context`) resolve to `None`
+  when the policy blocks them, and the v0.9 theme `iconUrl` is dropped. The
+  default `PermissiveUrlSecurityPolicy` blocks only what the shared baseline
+  blocks, such as `javascript:`, `data:image/svg+xml`, URLs with spaces or
+  backslashes, and `http(s)` URLs without `//` and a host. `openUrl` checks
+  its URL as `navigation` and fails a blocked one with the error code
+  `URL_BLOCKED` (`A2uiUrlBlockedError`) instead of `EXPRESSION_ERROR`; it now
+  rejects `https:evil.example`, and allows relative URLs. Recommended
+  migration: none for valid `http(s)` URLs; set
+  `PermissiveUrlSecurityPolicy(allow_svg_data_urls=True)` to keep SVG `data:`
+  images (#4045, [#4119](https://github.com/a2ui-project/a2ui/pull/4119)).
+- Add the URL security policy API: `UrlSecurityPolicy`,
+  `PermissiveUrlSecurityPolicy`, `AllowlistUrlSecurityPolicy` (per-context host
+  lists with `*.` wildcards, `allow_relative`, `rewrite` hooks, and
+  `url_properties` for catalogs the host can't annotate), `UrlContext`,
+  `UrlCheckInfo`, `OpenUrlHandler`, `url_property()` for marking catalog
+  properties, `url_context_of`, `apply_url_security_policy`, `redact_url`, and
+  `BASIC_CATALOG_URL_PROPERTIES`, exported from `a2ui.core` and
+  `a2ui.core.security`. `MessageProcessorOptions` takes `url_security_policy`
+  and `open_url_handler`; `SurfaceModel`, `DataContext` and `ComponentContext`
+  have `sanitize_url(url, context, info=None)`, and blocked URLs are reported
+  once per surface as a redacted `URL_BLOCKED` warning
+  ([#4119](https://github.com/a2ui-project/a2ui/pull/4119)).
 - **BREAKING CHANGE**: (v1_0) Component validation
   (`PayloadValidator.validate_component`, and `MessageProcessor` for calls into
   another catalog) rejects a call to a function whose `allowedCallers` is

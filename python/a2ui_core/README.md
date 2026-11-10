@@ -65,6 +65,25 @@ graph TD
 - **Pydantic Message Wrappers**: Compiled Pydantic models representing `A2uiMessage`, envelopes, and capabilities configuration structures.
 - **`constants`**: Spec constants defining default reachability links and single/list component reference parameters.
 
+#### 7. URL Security (`src/a2ui/core/security`)
+
+- **`UrlSecurityPolicy`**: Decides which URLs components and functions may load (`media`), open (`navigation`), or embed (`iframe`). Every policy runs a shared baseline first, which blocks script schemes, SVG `data:` URLs, and URLs that hide a host. Set one with `MessageProcessorOptions(url_security_policy=...)`; the default `PermissiveUrlSecurityPolicy` applies only the baseline, and `AllowlistUrlSecurityPolicy` limits each context to a list of hosts.
+- **`url_property`**: Marks a catalog property as a URL (`x-a2ui-url-context`), so `GenericBinder` passes its resolved values through the policy. Components and functions check other URLs with `sanitize_url` on their `ComponentContext` or `DataContext`.
+
+```python
+from a2ui.core import AllowlistUrlSecurityPolicy, MessageProcessor, MessageProcessorOptions
+from a2ui.core.basic_catalog import v1_0
+
+processor = MessageProcessor(
+    [v1_0.BasicCatalog()],
+    options=MessageProcessorOptions(
+        url_security_policy=AllowlistUrlSecurityPolicy(
+            media=["cdn.example.com"], navigation=["*.example.com"]
+        ),
+    ),
+)
+```
+
 ## Development & Testing
 
 We use [uv](https://github.com/astral-sh/uv) for extremely fast and reliable environment management and task execution.

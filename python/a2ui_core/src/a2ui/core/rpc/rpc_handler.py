@@ -35,6 +35,7 @@ from ..schema.v1_0 import (
     RendererFunctionResponseMessage,
 )
 from ..schema.v1_0.common_types import FunctionCall
+from ..security.url_security_policy import OpenUrlHandler, UrlSecurityPolicy
 from ..validation import PayloadValidator
 
 logger = logging.getLogger(__name__)
@@ -115,12 +116,28 @@ class RpcHandler:
         catalogs: Sequence[CatalogApi] | None = None,
         outbound_listener: OutboundListener | None = None,
         default_timeout_ms: float = 30000.0,
+        *,
+        url_security_policy: UrlSecurityPolicy | None = None,
+        open_url_handler: OpenUrlHandler | None = None,
     ) -> None:
+        """Initializes the handler.
+
+        Args:
+            catalogs: The catalogs whose functions the agent may call.
+            outbound_listener: Receives the messages sent to the agent.
+            default_timeout_ms: How long an agent function call may take.
+            url_security_policy: The URL security policy of the stand-in
+                surface created for a call that arrives without a surface of
+                its own. Defaults to `PermissiveUrlSecurityPolicy`.
+            open_url_handler: The open-URL handler of that stand-in surface.
+        """
         if not catalogs:
             raise ValueError("At least one catalog must be provided to RpcHandler.")
         self.catalogs = catalogs
         self.outbound_listener = outbound_listener
         self.default_timeout_ms = default_timeout_ms
+        self._url_security_policy = url_security_policy
+        self._open_url_handler = open_url_handler
         self._pending_agent_calls: dict[str, _PendingAgentCall] = {}
         self._is_disposed = False
 
@@ -350,6 +367,8 @@ class RpcHandler:
                 surface_id=f"_rpc_fallback_{call_id or 'default'}",
                 default_catalog=matched_catalog,
                 available_catalogs=available_catalogs,
+                url_security_policy=self._url_security_policy,
+                open_url_handler=self._open_url_handler,
             )
             return DataContext(surface=fallback_surface, path="/")
         except Exception:
