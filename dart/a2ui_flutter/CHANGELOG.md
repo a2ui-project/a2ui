@@ -38,6 +38,12 @@
   `MessageProcessor` to limit which hosts media loads from
   ([#4045](https://github.com/a2ui-project/a2ui/issues/4045),
   [#4120](https://github.com/a2ui-project/a2ui/pull/4120)).
+- Adds `A2uiMediaImage`, which shows an image from a URL the policy allowed:
+  it decodes a `data:` URL in memory, fetches any other URL, and builds its
+  error widget for a malformed `data:` URL. Use it in an `A2uiMarkdownBuilder`
+  image builder so allowed `data:` images in markdown show too
+  ([#4045](https://github.com/a2ui-project/a2ui/issues/4045),
+  [#4120](https://github.com/a2ui-project/a2ui/pull/4120)).
 
 ## 0.2.0
 

@@ -136,7 +136,7 @@ class _MediaPlayerState extends State<MediaPlayer> {
             child: started || (ready && !hasPoster)
                 ? VideoPlayer(controller!)
                 : hasPoster
-                ? mediaImage(
+                ? A2uiMediaImage(
                     poster,
                     fit: BoxFit.cover,
                     excludeFromSemantics: true,

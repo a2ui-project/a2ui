@@ -46,7 +46,7 @@ Widget buildImage(
           label: description,
           child: const Icon(Icons.broken_image),
         );
-  final Widget image = mediaImage(
+  final Widget image = A2uiMediaImage(
     url,
     fit:
         BoxFit.values.asNameMap()[props.string('fit')] ??

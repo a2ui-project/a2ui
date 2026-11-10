@@ -447,7 +447,10 @@ Widget _markdown(
   },
   imageBuilder: (uri, title, alt) {
     final String? src = sanitizeUrl('$uri', UrlContext.media);
-    return src == null ? Text(alt ?? '') : Image.network(src);
+    final Widget altText = Text(alt ?? '');
+    return src == null
+        ? altText
+        : A2uiMediaImage(src, errorBuilder: (_, _, _) => altText);
   },
   styleSheet: MarkdownStyleSheet.fromTheme(
     Theme.of(context),

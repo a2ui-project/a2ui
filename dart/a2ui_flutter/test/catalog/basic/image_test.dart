@@ -278,6 +278,21 @@ void main() {
     expect(find.byIcon(Icons.broken_image), findsNothing);
   });
 
+  _testImages('shows the broken-image icon for a malformed data: URL', (
+    tester,
+    server,
+  ) async {
+    final SurfaceHarness harness = await _pumpImages(tester, [
+      _image({'url': 'data:image/png;base64,!!!!', 'description': 'Broken'}),
+    ]);
+
+    expect(find.byIcon(Icons.broken_image), findsOneWidget);
+    expect(find.bySemanticsLabel('Broken'), findsOneWidget);
+    expect(server.requested, isEmpty);
+    expect(harness.warnings, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
   for (final (String description, Map<String, Object?> data) in [
     ('an empty URL', {'url': ''}),
     ('missing URL data', <String, Object?>{}),
