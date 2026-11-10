@@ -51,22 +51,31 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
 
   /// Returns `payload` with `createSurface.theme` removed from each message, accepting the same
   /// single-message, array, and `messages` wrapper shapes as ``extractOperations(from:)``.
+  /// Those shapes are one level deep, so this does not recurse into nested values.
   private static func removingCreateSurfaceTheme(from payload: JSONValue) -> JSONValue {
     switch payload {
     case .array(let items):
-      return .array(items.map(removingCreateSurfaceTheme(from:)))
-    case .object(var message):
-      if let messages = message["messages"]?.arrayValue {
-        message["messages"] = .array(messages.map(removingCreateSurfaceTheme(from:)))
-      } else if var createSurface = message["createSurface"]?.objectValue,
-        createSurface.removeValue(forKey: "theme") != nil
-      {
-        message["createSurface"] = .object(createSurface)
+      return .array(items.map(removingThemeFromMessage))
+    case .object(var wrapper):
+      guard let messages = wrapper["messages"]?.arrayValue else {
+        return removingThemeFromMessage(payload)
       }
-      return .object(message)
+      wrapper["messages"] = .array(messages.map(removingThemeFromMessage))
+      return .object(wrapper)
     default:
       return payload
     }
+  }
+
+  private static func removingThemeFromMessage(_ message: JSONValue) -> JSONValue {
+    guard case .object(var dict) = message,
+      var createSurface = dict["createSurface"]?.objectValue,
+      createSurface.removeValue(forKey: "theme") != nil
+    else {
+      return message
+    }
+    dict["createSurface"] = .object(createSurface)
+    return .object(dict)
   }
 
   public override func extractOperationsFromObject(
