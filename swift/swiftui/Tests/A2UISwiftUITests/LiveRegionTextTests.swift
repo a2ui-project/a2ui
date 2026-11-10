@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import A2UICore
-import A2UISwiftUI
+@_spi(Testing) import A2UISwiftUI
 import BasicCatalog
 import BasicCatalogSwiftUI
 import Foundation
@@ -27,17 +27,26 @@ import Testing
 #endif
 
 /// Checks the visible text that components report to live regions through
-/// `A2UIAccessibleTextKey`, and the text a live region announces from it.
+/// `A2UIAccessibleTextKey`, and what a live region announces from it.
 @MainActor
 struct LiveRegionTextTests {
 
-  /// Records the last `A2UIAccessibleTextKey` value that reached the top of a hosted surface.
+  /// An announcement posted by a live region.
+  private struct Announcement: Equatable {
+    let text: String
+    let isAssertive: Bool
+  }
+
+  /// Records the last `A2UIAccessibleTextKey` value that reached the top of a hosted surface,
+  /// and the announcements posted inside it.
   @MainActor
   private final class TextRecorder {
     var text: [String]?
+    var announcements: [Announcement] = []
   }
 
-  /// Hosts a surface and keeps it on screen while the test inspects the reported text.
+  /// Hosts a surface and keeps it on screen while the test inspects the reported text and the
+  /// announcements. Use ``withHost(_:inLiveRegion:_:)``, which tears the host down.
   ///
   /// With `inLiveRegion`, the surface and the recorder sit inside a live region, which is where
   /// components report their text. The recorder sits below the region, which consumes the text.
@@ -52,7 +61,17 @@ struct LiveRegionTextTests {
       private let window: UIWindow
     #endif
 
-    init(viewModel: SurfaceViewModel, inLiveRegion: Bool = true) {
+    static func withHost(
+      _ viewModel: SurfaceViewModel,
+      inLiveRegion: Bool = true,
+      _ body: (HostedSurface) async throws -> Void
+    ) async rethrows {
+      let host = HostedSurface(viewModel: viewModel, inLiveRegion: inLiveRegion)
+      defer { host.tearDown() }
+      try await body(host)
+    }
+
+    private init(viewModel: SurfaceViewModel, inLiveRegion: Bool) {
       let recorder = recorder
       let recorded = Surface(viewModel: viewModel, catalogs: BasicCatalogImplementation.allCatalogs)
         .frame(width: 400, height: 400)
@@ -64,10 +83,14 @@ struct LiveRegionTextTests {
         type: "Column",
         properties: ["accessibility": ResolvedDictionary(["live": "polite"])]
       )
-      let rootView =
+      let regionView =
         inLiveRegion
         ? AnyView(recorded.modifier(A2UIAccessibilityModifier(node: region)))
         : AnyView(recorded)
+      let announcer = A2UIAnnouncer { text, isAssertive in
+        recorder.announcements.append(Announcement(text: text, isAssertive: isAssertive))
+      }
+      let rootView = AnyView(regionView.environment(\.a2uiAnnouncer, announcer))
       let frame = CGRect(x: 0, y: 0, width: 400, height: 400)
       #if canImport(AppKit)
         hostingView = NSHostingView(rootView: rootView)
@@ -83,6 +106,21 @@ struct LiveRegionTextTests {
         window.makeKeyAndVisible()
       #endif
       flush()
+    }
+
+    /// Removes the surface from the window and closes the window, so nothing outlives the test.
+    private func tearDown() {
+      #if canImport(AppKit)
+        hostingView.rootView = AnyView(EmptyView())
+        window.contentView = nil
+        window.orderOut(nil)
+        window.close()
+      #elseif canImport(UIKit)
+        hostingController.rootView = AnyView(EmptyView())
+        window.rootViewController = nil
+        window.isHidden = true
+      #endif
+      RunLoop.main.run(until: Date())
     }
 
     func flush() {
@@ -148,6 +186,26 @@ struct LiveRegionTextTests {
     )
   }
 
+  /// Sets a data model value and lets the hosted surface render the change.
+  private func update(
+    _ path: String,
+    to value: Any,
+    with processor: MessageProcessor,
+    in host: HostedSurface
+  ) async throws {
+    try process(
+      [
+        [
+          "version": "1.0",
+          "updateDataModel": ["surfaceId": "live", "path": path, "value": value],
+        ]
+      ],
+      with: processor
+    )
+    await Task.yield()
+    host.flush()
+  }
+
   // MARK: - Announcement text
 
   @Test func liveRegionWithoutLabelAnnouncesItsSubtreeText() {
@@ -159,11 +217,14 @@ struct LiveRegionTextTests {
         == "Order shipped\nArrives Friday")
   }
 
-  @Test func explicitLabelIsAnnouncedInsteadOfSubtreeText() {
+  @Test func explicitLabelIsAnnouncedBeforeSubtreeText() {
     let modifier = A2UIAccessibilityModifier(
-      node: liveNode(["live": "assertive", "label": "Critical Alert"]))
+      node: liveNode(["live": "assertive", "label": "System alert"]))
 
-    #expect(modifier.announcementText(subtreeText: ["Connection Lost!"]) == "Critical Alert")
+    #expect(modifier.announcementText(subtreeText: []) == "System alert")
+    #expect(
+      modifier.announcementText(subtreeText: ["Connection lost"]) == "System alert\nConnection lost"
+    )
   }
 
   @Test func liveRegionWithoutTextAnnouncesNothing() {
@@ -215,16 +276,38 @@ struct LiveRegionTextTests {
         "accessibility": ["live": "polite"],
       ],
     ])
-    let host = HostedSurface(viewModel: surface)
 
-    // Markdown syntax is dropped, a hidden subtree reports nothing, and a live region keeps its
-    // text so that only the nearest live region announces it.
-    #expect(
-      host.recorder.text == [
-        "Order status",
-        "Shipped\nYour order left the warehouse.\nBox one\nBox two\n1. Unpack\n"
-          + "Keep the box.\n2. Check the contents",
-      ])
+    try await HostedSurface.withHost(surface) { host in
+      // Markdown syntax is dropped, a hidden subtree reports nothing, and a live region keeps
+      // its text so that only the nearest live region announces it.
+      #expect(
+        host.recorder.text == [
+          "Order status",
+          "Shipped\nYour order left the warehouse.\nBox one\nBox two\n1. Unpack\n"
+            + "Keep the box.\n2. Check the contents",
+        ])
+    }
+  }
+
+  @Test func labelsAreReportedInsteadOfTheTextTheyReplace() async throws {
+    let (_, surface) = try await makeSurface(components: [
+      [
+        "id": "root", "component": "Column", "children": ["status", "card"],
+        "accessibility": ["label": "Order"],
+      ],
+      [
+        "id": "status", "component": "Text", "text": "3/5",
+        "accessibility": ["label": "Step 3 of 5"],
+      ],
+      ["id": "card", "component": "Card", "child": "detail"],
+      ["id": "detail", "component": "Text", "text": "Packing"],
+    ])
+
+    try await HostedSurface.withHost(surface) { host in
+      // A group label comes before the text inside the group, and a label on a `Text` replaces
+      // its visible text, as VoiceOver reads them.
+      #expect(host.recorder.text == ["Order", "Step 3 of 5", "Packing"])
+    }
   }
 
   @Test func reportedTextFollowsTheDataModel() async throws {
@@ -237,22 +320,14 @@ struct LiveRegionTextTests {
       ],
       dataModel: ["status": "Connecting"]
     )
-    let host = HostedSurface(viewModel: surface)
-    #expect(host.recorder.text == ["Status", "Connecting"])
 
-    try process(
-      [
-        [
-          "version": "1.0",
-          "updateDataModel": ["surfaceId": "live", "path": "/status", "value": "Connected"],
-        ]
-      ],
-      with: processor
-    )
-    await Task.yield()
-    host.flush()
+    try await HostedSurface.withHost(surface) { host in
+      #expect(host.recorder.text == ["Status", "Connecting"])
 
-    #expect(host.recorder.text == ["Status", "Connected"])
+      try await update("/status", to: "Connected", with: processor, in: host)
+
+      #expect(host.recorder.text == ["Status", "Connected"])
+    }
   }
 
   @Test func textOutsideLiveRegionsReportsNothing() async throws {
@@ -260,9 +335,10 @@ struct LiveRegionTextTests {
       ["id": "root", "component": "Column", "children": ["status"]],
       ["id": "status", "component": "Text", "text": "Connected"],
     ])
-    let host = HostedSurface(viewModel: surface, inLiveRegion: false)
 
-    #expect(host.recorder.text?.isEmpty ?? true)
+    try await HostedSurface.withHost(surface, inLiveRegion: false) { host in
+      #expect(host.recorder.text?.isEmpty ?? true)
+    }
   }
 
   @Test func liveContainerKeepsItsSubtreeText() async throws {
@@ -273,8 +349,99 @@ struct LiveRegionTextTests {
       ],
       ["id": "status", "component": "Text", "text": "Connected"],
     ])
-    let host = HostedSurface(viewModel: surface)
 
-    #expect(host.recorder.text?.isEmpty ?? true)
+    try await HostedSurface.withHost(surface) { host in
+      #expect(host.recorder.text?.isEmpty ?? true)
+    }
+  }
+
+  // MARK: - Announcements
+
+  @Test func dataModelUpdateIsAnnouncedOnceAndNothingOnMount() async throws {
+    let (processor, surface) = try await makeSurface(
+      components: [
+        [
+          "id": "root", "component": "Card", "child": "value",
+          "accessibility": ["label": "System alert", "live": "assertive"],
+        ],
+        ["id": "value", "component": "Text", "text": ["@path": "/status"]],
+      ],
+      dataModel: ["status": "Connecting"]
+    )
+
+    try await HostedSurface.withHost(surface, inLiveRegion: false) { host in
+      #expect(host.recorder.announcements.isEmpty)
+
+      try await update("/status", to: "Connection lost", with: processor, in: host)
+
+      #expect(
+        host.recorder.announcements == [
+          Announcement(text: "System alert\nConnection lost", isAssertive: true)
+        ])
+    }
+  }
+
+  @Test func labeledLiveTextReadsItsLabelOnce() async throws {
+    let (processor, surface) = try await makeSurface(
+      components: [
+        [
+          "id": "root", "component": "Text", "text": ["@path": "/status"],
+          "accessibility": ["label": ["@path": "/label"], "live": "polite"],
+        ]
+      ],
+      dataModel: ["status": "Connection lost!", "label": "Offline"]
+    )
+
+    try await HostedSurface.withHost(surface, inLiveRegion: false) { host in
+      try await update("/label", to: "Critical alert", with: processor, in: host)
+
+      #expect(
+        host.recorder.announcements == [Announcement(text: "Critical alert", isAssertive: false)])
+    }
+  }
+
+  @Test func showingHiddenLiveRegionAnnouncesItsText() async throws {
+    let (processor, surface) = try await makeSurface(
+      components: [
+        [
+          "id": "root", "component": "Column", "children": ["status"],
+          "accessibility": ["live": "polite", "hidden": ["@path": "/hidden"]],
+        ],
+        ["id": "status", "component": "Text", "text": ["@path": "/status"]],
+      ],
+      dataModel: ["status": "Connecting", "hidden": true]
+    )
+
+    try await HostedSurface.withHost(surface, inLiveRegion: false) { host in
+      try await update("/status", to: "Connected", with: processor, in: host)
+      #expect(host.recorder.announcements.isEmpty)
+
+      try await update("/hidden", to: false, with: processor, in: host)
+
+      #expect(
+        host.recorder.announcements == [Announcement(text: "Connected", isAssertive: false)])
+    }
+  }
+
+  @Test func liveRegionInsideHiddenAncestorAnnouncesNothing() async throws {
+    let (processor, surface) = try await makeSurface(
+      components: [
+        [
+          "id": "root", "component": "Column", "children": ["status"],
+          "accessibility": ["hidden": true],
+        ],
+        [
+          "id": "status", "component": "Text", "text": ["@path": "/status"],
+          "accessibility": ["live": "assertive"],
+        ],
+      ],
+      dataModel: ["status": "Connecting"]
+    )
+
+    try await HostedSurface.withHost(surface, inLiveRegion: false) { host in
+      try await update("/status", to: "Connected", with: processor, in: host)
+
+      #expect(host.recorder.announcements.isEmpty)
+    }
   }
 }

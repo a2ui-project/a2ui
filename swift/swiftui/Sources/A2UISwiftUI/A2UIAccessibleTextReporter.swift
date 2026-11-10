@@ -14,15 +14,18 @@
 
 import SwiftUI
 
-/// Reports a view's visible text through ``A2UIAccessibleTextKey`` when the view is inside a live
-/// region. Outside one, the text is never evaluated.
+/// Reports a view's text through ``A2UIAccessibleTextKey`` when the view is inside a live
+/// region, ahead of any text its subtree reports. Outside one, the text is never evaluated.
 struct A2UIAccessibleTextReporter: ViewModifier {
   @Environment(\.a2uiInLiveRegion) private var isInLiveRegion
 
   let text: () -> String?
 
   func body(content: Content) -> some View {
-    content.preference(key: A2UIAccessibleTextKey.self, value: reportedText)
+    let reportedText = reportedText
+    return content.transformPreference(A2UIAccessibleTextKey.self) { subtreeText in
+      subtreeText.insert(contentsOf: reportedText, at: 0)
+    }
   }
 
   private var reportedText: [String] {

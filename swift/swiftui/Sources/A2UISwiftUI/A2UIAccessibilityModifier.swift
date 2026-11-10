@@ -26,9 +26,11 @@ import SwiftUI
 ///   accessibility element, so it is dropped on layout containers and other groups.
 /// - `hidden` becomes `accessibilityHidden` for the whole subtree.
 /// - `live` (`polite` or `assertive`) posts an announcement whenever the region's text changes:
-///   the explicit label if set, otherwise the visible text that components in the subtree report
-///   with ``SwiftUI/View/a2uiAccessibleText(_:)``. This works for a live `Text` and for a live
-///   container such as a `Column` or `Card`. See ``A2UIAccessibleTextKey``.
+///   the explicit label if set, followed by the visible text that components in the subtree
+///   report with ``SwiftUI/View/a2uiAccessibleText(_:)``. This works for a live `Text` and for a
+///   live container such as a `Column` or `Card`. A label on a `Text` replaces its visible text,
+///   so it is read once. Nothing is announced while the region or an ancestor is hidden. See
+///   ``A2UIAccessibleTextKey``.
 ///
 /// SwiftUI applies a label set on a stack to every element inside it. A component whose root is
 /// a stack should call ``SwiftUI/View/a2uiAccessibilityControl(for:)`` on its focusable control,
@@ -95,58 +97,66 @@ public struct A2UIAccessibilityModifier: ViewModifier {
     announcementText(subtreeText: [])
   }
 
-  /// The text announced when it changes: the explicit label of a live component, otherwise the
-  /// visible text its subtree reports through ``A2UIAccessibleTextKey``, one entry per line.
+  /// The text announced when it changes: the explicit label of a live component followed by
+  /// the visible text its subtree reports through ``A2UIAccessibleTextKey``, one entry per line.
   /// `nil` when nothing is announced.
   public func announcementText(subtreeText: [String]) -> String? {
     guard isLiveRegion, !isHidden else { return nil }
-    if let label { return label }
-    let text = subtreeText.filter { !$0.isEmpty }.joined(separator: "\n")
-    return text.isEmpty ? nil : text
+    let parts = ([label].compactMap { $0 } + subtreeText).filter { !$0.isEmpty }
+    return parts.isEmpty ? nil : parts.joined(separator: "\n")
   }
 
   public func body(content: Content) -> some View {
     liveRegion(
       hidden(
-        content
-          .a2uiOptionalAccessibilityIdentifier(appliesAccessibilityIdentifier ? identifier : nil)
-          .a2uiOptionalAccessibilityLabel(appliesLabelAndHint ? label : nil)
-          .a2uiOptionalAccessibilityHint(appliesLabelAndHint ? hint : nil)
+        labelText(
+          content
+            .a2uiOptionalAccessibilityIdentifier(appliesAccessibilityIdentifier ? identifier : nil)
+            .a2uiOptionalAccessibilityLabel(appliesLabelAndHint ? label : nil)
+            .a2uiOptionalAccessibilityHint(appliesLabelAndHint ? hint : nil)
+        )
       )
     )
   }
 
+  /// Reports the explicit label of a component inside a live region, ahead of its subtree text,
+  /// so the region reads it too. A live component announces its own label instead.
   @ViewBuilder
-  private func hidden<V: View>(_ view: V) -> some View {
-    if isHidden {
-      view
-        .accessibilityHidden(true)
-        // Text that assistive technologies can't reach is not announced by a live ancestor.
-        .transformPreference(A2UIAccessibleTextKey.self) { $0 = [] }
-        .environment(\.a2uiInLiveRegion, false)
+  private func labelText<V: View>(_ view: V) -> some View {
+    if let label, !isLiveRegion {
+      view.a2uiAccessibleText(label)
     } else {
       view
     }
   }
 
+  /// Hides the view and its subtree from assistive technologies when `hidden` is set.
+  ///
+  /// `hidden` can be bound to the data model, so the view tree is the same either way: changing
+  /// it keeps the component's state, and a live region inside stays mounted.
+  private func hidden<V: View>(_ view: V) -> some View {
+    let isHidden = isHidden
+    return
+      view
+      .accessibilityHidden(isHidden)
+      // Text that assistive technologies can't reach is not announced by a live ancestor.
+      .transformPreference(A2UIAccessibleTextKey.self) { text in
+        if isHidden { text = [] }
+      }
+      .transformEnvironment(\.a2uiInLiveRegion) { isInLiveRegion in
+        if isHidden { isInLiveRegion = false }
+      }
+      .transformEnvironment(\.a2uiAccessibilityHidden) { isAncestorHidden in
+        if isHidden { isAncestorHidden = true }
+      }
+  }
+
   @ViewBuilder
   private func liveRegion<V: View>(_ view: V) -> some View {
-    if isLiveRegion && !isHidden {
-      view
-        .environment(\.a2uiInLiveRegion, true)
-        .overlayPreferenceValue(A2UIAccessibleTextKey.self) { subtreeText in
-          Color.clear
-            .accessibilityHidden(true)
-            .allowsHitTesting(false)
-            .modifier(
-              AnnouncementTrigger(
-                text: announcementText(subtreeText: subtreeText),
-                assertive: isAssertive
-              )
-            )
-        }
-        // The nearest live region announces the text, so a live ancestor doesn't repeat it.
-        .transformPreference(A2UIAccessibleTextKey.self) { $0 = [] }
+    // Not conditional on `hidden`, which can be bound to the data model: the announcement
+    // trigger stays mounted, so showing the region again announces its text.
+    if isLiveRegion {
+      view.modifier(LiveRegionHostModifier(modifier: self))
     } else {
       view
     }

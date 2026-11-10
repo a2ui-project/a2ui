@@ -61,8 +61,8 @@ public struct A2UIText: View {
   public var body: some View {
     textForVariant(textContent, variant: variant)
       .accessibilityIdentifier("a2ui-\(node.id)")
-      .a2uiAccessibilityElement(for: node, children: .combine)
       .a2uiAccessibleText(Self.accessibleText(textContent, variant: variant))
+      .a2uiAccessibilityElement(for: node, children: .combine)
   }
 
   /// Evaluates the rendered visible text and semantic formatting constructs for this `Text` node.
