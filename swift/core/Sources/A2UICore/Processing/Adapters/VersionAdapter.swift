@@ -49,6 +49,13 @@ public protocol VersionAdapter: Sendable {
 
   /// Normalizes a decoded ``AgentToRendererMessage`` into version-neutral operations.
   func adaptMessage(_ message: AgentToRendererMessage) throws -> [InternalOperation]
+
+  /// Normalizes a decoded ``AgentToRendererMessage`` into version-neutral operations, applying
+  /// the same unknown-element policy as ``extractOperations(from:allowUnknownElements:)``.
+  func adaptMessage(
+    _ message: AgentToRendererMessage,
+    allowUnknownElements: Bool
+  ) throws -> [InternalOperation]
 }
 
 extension VersionAdapter {
@@ -59,6 +66,14 @@ extension VersionAdapter {
     allowUnknownElements: Bool
   ) throws -> [InternalOperation] {
     try extractOperations(from: payload)
+  }
+
+  /// Ignores `allowUnknownElements` and adapts the message as ``adaptMessage(_:)`` does.
+  public func adaptMessage(
+    _ message: AgentToRendererMessage,
+    allowUnknownElements: Bool
+  ) throws -> [InternalOperation] {
+    try adaptMessage(message)
   }
 }
 

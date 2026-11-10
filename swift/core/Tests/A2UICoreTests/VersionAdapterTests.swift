@@ -172,37 +172,42 @@ struct VersionAdapterTests {
     }
   }
 
-  @Test func v10AdapterDropsCreateSurfaceThemeOnlyWhenUnknownElementsAllowed() throws {
-    let adapter = V10VersionAdapter()
-    let message = """
-      {
-        "version": "1.0",
-        "createSurface": {
-          "surfaceId": "s1",
-          "catalogId": "basic",
-          "theme": { "primaryColor": "#FF0000" }
-        }
+  private static let v10CreateSurfaceWithThemeMessage = """
+    {
+      "version": "1.0",
+      "createSurface": {
+        "surfaceId": "s1",
+        "catalogId": "basic",
+        "theme": { "primaryColor": "#FF0000" }
       }
-      """
-    let payloads: [JSONValue] = [
-      try .parse(message),
-      try .parse("[\(message)]"),
-      try .parse("{ \"messages\": [\(message)] }"),
-    ]
-
-    for payload in payloads {
-      #expect(throws: A2UIValidationError.self) {
-        _ = try adapter.extractOperations(from: payload, allowUnknownElements: false)
-      }
-      let ops = try adapter.extractOperations(from: payload, allowUnknownElements: true)
-      #expect(ops.count == 1)
-      guard case .createSurface(let createOp) = try #require(ops.first) else {
-        Issue.record("Expected .createSurface operation")
-        continue
-      }
-      #expect(createOp.surfaceId == "s1")
-      #expect(createOp.theme == nil)
     }
+    """
+
+  @Test(
+    arguments: [
+      v10CreateSurfaceWithThemeMessage,
+      "[\(v10CreateSurfaceWithThemeMessage)]",
+      "{ \"messages\": [\(v10CreateSurfaceWithThemeMessage)] }",
+    ]
+  )
+  func v10AdapterDropsCreateSurfaceThemeOnlyWhenUnknownElementsAllowed(
+    rawPayload: String
+  ) throws {
+    let adapter = V10VersionAdapter()
+    let payload = try JSONValue.parse(rawPayload)
+
+    #expect(throws: A2UIValidationError.self) {
+      _ = try adapter.extractOperations(from: payload, allowUnknownElements: false)
+    }
+    let operations = try adapter.extractOperations(from: payload, allowUnknownElements: true)
+    #expect(operations.count == 1)
+    guard case .createSurface(let createOperation) = try #require(operations.first) else {
+      Issue.record("Expected .createSurface operation")
+      return
+    }
+    #expect(createOperation.surfaceID == "s1")
+    #expect(createOperation.catalogID == "basic")
+    #expect(createOperation.theme == nil)
   }
 
   @Test func v10AdapterStillRejectsOtherUnknownCreateSurfaceKeysWhenUnknownElementsAllowed()

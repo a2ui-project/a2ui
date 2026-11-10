@@ -260,6 +260,36 @@ struct MessageProcessorTests {
     #expect(processor.surfaceGroupModel["s1"] == nil)
   }
 
+  @Test(arguments: [true, false])
+  func processMessageAppliesUnknownElementPolicyToV10CreateSurfaceTheme(
+    allowUnknownElements: Bool
+  ) throws {
+    let handler = TestProcessorActionHandler()
+    let processor = MessageProcessor(
+      catalogs: [try makeV10Catalog()],
+      actionHandler: handler,
+      validationConfig: allowUnknownElements ? .relaxed : .strict
+    )
+    processor.process(
+      message: .createSurface(
+        CreateSurfaceMessage(
+          surfaceID: "s1",
+          catalogID: "cat-v10",
+          theme: ["primaryColor": .string("#FF00AA")],
+          version: .v10
+        )
+      )
+    )
+    if allowUnknownElements {
+      let surface = try #require(processor.surfaceGroupModel["s1"])
+      #expect(surface.theme == nil)
+      #expect(handler.capturedErrors.isEmpty)
+    } else {
+      #expect(processor.surfaceGroupModel["s1"] == nil)
+      #expect(handler.capturedErrors.count == 1)
+    }
+  }
+
   @Test func getRendererDataModelMultiVersionRequiresExplicitVersion() throws {
     let v091Catalog = Catalog(
       id: "cat-v091",

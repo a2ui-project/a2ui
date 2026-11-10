@@ -793,7 +793,10 @@ public final class MessageProcessor: ObservableObject {
 
   private func adaptToOperations(_ message: AgentToRendererMessage) throws -> [InternalOperation] {
     let adapter = adapterFactory.getAdapter(for: message.version)
-    return try adapter.adaptMessage(message)
+    return try adapter.adaptMessage(
+      message,
+      allowUnknownElements: validationConfig.allowUnknownElements
+    )
   }
 
   private func extractSurfaceID(from error: Error, fallback: String) -> String {

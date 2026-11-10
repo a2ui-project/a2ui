@@ -37,45 +37,23 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
     Self.supportedCatalogVersions
   }
 
-  /// Drops `theme` from every `createSurface` before validation when `allowUnknownElements` is
-  /// set, as relaxed renderers do; otherwise `theme` is rejected as an unrecognized property.
-  public override func extractOperations(
-    from payload: JSONValue,
+  /// Drops `theme` from a `createSurface` before validation when `allowUnknownElements` is set,
+  /// as relaxed renderers do; otherwise `theme` is rejected as an unrecognized property.
+  public override func preparePayloadForValidation(
+    _ message: OrderedDictionary<String, JSONValue>,
+    action: String,
     allowUnknownElements: Bool
-  ) throws -> [InternalOperation] {
-    guard allowUnknownElements else {
-      return try extractOperations(from: payload)
-    }
-    return try extractOperations(from: Self.removingCreateSurfaceTheme(from: payload))
-  }
-
-  /// Returns `payload` with `createSurface.theme` removed from each message, accepting the same
-  /// single-message, array, and `messages` wrapper shapes as ``extractOperations(from:)``.
-  /// Those shapes are one level deep, so this does not recurse into nested values.
-  private static func removingCreateSurfaceTheme(from payload: JSONValue) -> JSONValue {
-    switch payload {
-    case .array(let items):
-      return .array(items.map(removingThemeFromMessage))
-    case .object(var wrapper):
-      guard let messages = wrapper["messages"]?.arrayValue else {
-        return removingThemeFromMessage(payload)
-      }
-      wrapper["messages"] = .array(messages.map(removingThemeFromMessage))
-      return .object(wrapper)
-    default:
-      return payload
-    }
-  }
-
-  private static func removingThemeFromMessage(_ message: JSONValue) -> JSONValue {
-    guard case .object(var dict) = message,
-      var createSurface = dict["createSurface"]?.objectValue,
+  ) -> OrderedDictionary<String, JSONValue> {
+    guard allowUnknownElements,
+      action == "createSurface",
+      var createSurface = message["createSurface"]?.objectValue,
       createSurface.removeValue(forKey: "theme") != nil
     else {
       return message
     }
-    dict["createSurface"] = .object(createSurface)
-    return .object(dict)
+    var updatedMessage = message
+    updatedMessage["createSurface"] = .object(createSurface)
+    return updatedMessage
   }
 
   public override func extractOperationsFromObject(
