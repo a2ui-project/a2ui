@@ -1198,13 +1198,23 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
         yield* propertyNames(schema);
         return;
       }
+      final Iterable<MapEntry<Object?, Object?>> paramEntries =
+          schema.entries.where(
+        (MapEntry<Object?, Object?> e) =>
+            e.key is String && !(e.key! as String).startsWith(r'$'),
+      );
       if (schema['type'] is! String &&
           !schema.containsKey(r'$ref') &&
           !schema.containsKey('oneOf') &&
           !schema.containsKey('anyOf') &&
           !schema.containsKey('not') &&
-          schema.values.every((v) => v is Map || v is bool)) {
-        yield* schema.keys.whereType<String>();
+          paramEntries.isNotEmpty &&
+          paramEntries.every(
+            (MapEntry<Object?, Object?> e) => e.value is Map || e.value is bool,
+          )) {
+        for (final entry in paramEntries) {
+          yield entry.key! as String;
+        }
       }
     }
 

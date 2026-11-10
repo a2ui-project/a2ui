@@ -898,6 +898,147 @@ void main() {
         );
       },
     );
+
+    test(r'handles shorthand parameter maps with $comment or $defs, v0.9 '
+        r'@-prefixed functions, and broken #/components/... refs without '
+        'duplicate pathless findings', () {
+      final List<CatalogLintFinding> validShorthandWithDollarKeys = lintCatalog(
+        _v1Catalog(
+          functions: {
+            'formatVal': {
+              'type': 'object',
+              'returnType': 'string',
+              'properties': {
+                '@call': {'const': 'formatVal'},
+              },
+              'parameters': {
+                r'$comment': r'shorthand parameter map with $comment',
+                r'$defs': {
+                  'Helper': {'type': 'string'},
+                },
+                'validParam': {'type': 'string'},
+              },
+            },
+          },
+        ),
+      );
+      expect(validShorthandWithDollarKeys, isEmpty);
+
+      final List<CatalogLintFinding> invalidShorthandWithComment = lintCatalog(
+        _v1Catalog(
+          functions: {
+            'formatVal': {
+              'type': 'object',
+              'returnType': 'string',
+              'properties': {
+                '@call': {'const': 'formatVal'},
+              },
+              'parameters': {
+                r'$comment': r'shorthand parameter map with $comment',
+                'bad-param': {'type': 'string'},
+              },
+            },
+          },
+        ),
+      );
+      expect(
+        invalidShorthandWithComment,
+        contains(
+          isA<CatalogLintFinding>()
+              .having(
+                (CatalogLintFinding f) => f.code,
+                'code',
+                'invalid_identifier',
+              )
+              .having(
+                (CatalogLintFinding f) => f.path,
+                'path',
+                '/functions/formatVal',
+              ),
+        ),
+      );
+
+      final List<CatalogLintFinding> v09ReservedFunction = lintCatalog(
+        <String, Object?>{
+          'catalogId': 'https://example.com/v09/reserved_fn.json',
+          'protocolVersion': '0.9',
+          'functions': [
+            {'name': '@index', 'returnType': 'number'},
+          ],
+        },
+      );
+      expect(
+        v09ReservedFunction,
+        contains(
+          isA<CatalogLintFinding>()
+              .having(
+                (CatalogLintFinding f) => f.code,
+                'code',
+                'reserved_function_name',
+              )
+              .having((CatalogLintFinding f) => f.path, 'path', '/functions/0'),
+        ),
+      );
+
+      final List<CatalogLintFinding> brokenComponentRef = lintCatalog(
+        _v1Catalog(
+          defs: {
+            'BadProps': {
+              'type': 'object',
+              'properties': {
+                'bad-prop': {'type': 'string'},
+              },
+            },
+          },
+          components: {
+            'BrokenRefComp': {
+              'type': 'object',
+              'properties': {
+                'component': {'const': 'BrokenRefComp'},
+                'child': {r'$ref': '#/components/DoesNotExist'},
+              },
+            },
+            'InlinedDefComp': {
+              'type': 'object',
+              'allOf': [
+                {r'$ref': r'#/$defs/BadProps'},
+                {
+                  'type': 'object',
+                  'properties': {
+                    'component': {'const': 'InlinedDefComp'},
+                  },
+                },
+              ],
+            },
+          },
+        ),
+      );
+      final List<CatalogLintFinding> unresolvedFindings = [
+        for (final CatalogLintFinding f in brokenComponentRef)
+          if (f.code == 'unresolved_local_ref') f,
+      ];
+      expect(unresolvedFindings, hasLength(1));
+      expect(
+        unresolvedFindings.single.path,
+        equals(r'/components/BrokenRefComp/properties/child/$ref'),
+      );
+      expect(
+        brokenComponentRef,
+        contains(
+          isA<CatalogLintFinding>()
+              .having(
+                (CatalogLintFinding f) => f.code,
+                'code',
+                'invalid_identifier',
+              )
+              .having(
+                (CatalogLintFinding f) => f.path,
+                'path',
+                '/components/InlinedDefComp/properties/bad-prop',
+              ),
+        ),
+      );
+    });
   });
 
   group('conformance/core/catalog.yaml from_json parity', () {
@@ -948,27 +1089,31 @@ void main() {
           for (final CatalogLintFinding f in findings)
             if (f.severity == LintSeverity.error) f,
         ];
+        // Inline `Catalog.fromJson` test fixtures omit standalone-file
+        // wire discriminators (`missing_discriminator`), and
+        // `test_v10_catalog_from_json_leaf_defs` exercises non-standard root
+        // `metadata.displayName` that `Catalog.fromJson` ignores.
+        final List<CatalogLintFinding> coreParityErrors = isPublishedFile
+            ? errors
+            : [
+                for (final CatalogLintFinding f in errors)
+                  if (f.code != 'missing_discriminator' &&
+                      !(caseName == 'test_v10_catalog_from_json_leaf_defs' &&
+                          f.path == '/metadata'))
+                    f,
+              ];
 
         if (testCase.containsKey('expectError')) {
           expect(
-            errors,
+            coreParityErrors,
             isNotEmpty,
-            reason: 'Expected lint error for $caseName, got: $findings',
+            reason:
+                'Expected non-discriminator lint error for $caseName, '
+                'got: $findings',
           );
         } else if (isPublishedFile) {
           expect(findings, isEmpty, reason: 'Unexpected findings: $findings');
         } else {
-          // Inline `Catalog.fromJson` test fixtures omit standalone-file
-          // wire discriminators (`missing_discriminator`), and
-          // `test_v10_catalog_from_json_leaf_defs` exercises non-standard root
-          // `metadata.displayName` that `Catalog.fromJson` ignores.
-          final List<CatalogLintFinding> coreParityErrors = [
-            for (final CatalogLintFinding f in errors)
-              if (f.code != 'missing_discriminator' &&
-                  !(caseName == 'test_v10_catalog_from_json_leaf_defs' &&
-                      f.path == '/metadata'))
-                f,
-          ];
           expect(
             coreParityErrors,
             isEmpty,

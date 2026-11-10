@@ -71,10 +71,11 @@ dart run dart/a2ui_cli/bin/a2ui.dart lint \
 `a2ui lint` reports errors and warnings across protocol versions `0.9`, `0.9.1`, and `1.0`:
 
 - Core catalog structure, `catalogId`, `protocolVersion`, `metadata`, and local or external `$ref` targets via `a2ui_core`.
-- Unicode UAX 31 identifier names on components, functions, component properties, and function parameters, plus reserved `@`-prefixed function names.
+- Reserved `@`-prefixed function names across all catalog versions, and v1.0 Unicode UAX 31 identifier names on components, functions, component properties, and function parameters.
 - The reserved `Surface` component name, which is permitted only inside `allowedParents`.
-- Functions that set `requiresUserActivation: true` while permitting agent invocation in `allowedCallers`.
-- Warnings when components redundantly wrap `ComponentCommon` or redeclare `ComponentCommon` envelope properties.
+- Component (`properties.component.const`) and function (`properties['@call'].const`) wire discriminators in v1.0 catalogs.
+- Functions in v1.0 catalogs that set `requiresUserActivation: true` while permitting agent invocation in `allowedCallers`.
+- Warnings when components or v1.0 functions redundantly wrap `ComponentCommon` or `FunctionCommon`, or redeclare their envelope properties.
 
 ### Options
 

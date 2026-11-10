@@ -185,6 +185,7 @@ List<CatalogLintFinding> lintCatalog(Map<String, Object?> catalogJson) {
 
   final Map<String, Object?> normalizedCatalog = _normalizeSelfCatalogRefs(
     catalogJson,
+    isV1: isV1,
   );
   var inlined = normalizedCatalog;
   try {
@@ -196,13 +197,18 @@ List<CatalogLintFinding> lintCatalog(Map<String, Object?> catalogJson) {
       inlined = resolved;
     }
   } on A2uiError catch (e) {
-    findings.add(
-      CatalogLintFinding(
-        severity: LintSeverity.error,
-        code: 'unresolved_local_ref',
-        message: e.message,
-      ),
+    final bool alreadyReported = findings.any(
+      (CatalogLintFinding f) => f.code == 'unresolved_local_ref',
     );
+    if (!alreadyReported) {
+      findings.add(
+        CatalogLintFinding(
+          severity: LintSeverity.error,
+          code: 'unresolved_local_ref',
+          message: e.message,
+        ),
+      );
+    }
   }
 
   _lintComponents(
@@ -405,26 +411,63 @@ bool _hasComponentConst(Object? properties) {
 }
 
 Map<String, Object?> _normalizeSelfCatalogRefs(
-  Map<String, Object?> catalogJson,
-) => _rewriteCatalogSelfRefs(catalogJson)! as Map<String, Object?>;
+  Map<String, Object?> catalogJson, {
+  required bool isV1,
+}) {
+  final Set<String> allowedCommonDefs = isV1
+      ? _v1CommonTypesDefs
+      : _v09CommonTypesDefs;
+  return _rewriteCatalogSelfRefs(
+        catalogJson,
+        catalogJson: catalogJson,
+        allowedCommonDefs: allowedCommonDefs,
+      )!
+      as Map<String, Object?>;
+}
 
-Object? _rewriteCatalogSelfRefs(Object? node) {
+Object? _rewriteCatalogSelfRefs(
+  Object? node, {
+  required Map<String, Object?> catalogJson,
+  required Set<String> allowedCommonDefs,
+}) {
   if (node is List) {
     return <Object?>[
-      for (final Object? item in node) _rewriteCatalogSelfRefs(item),
+      for (final Object? item in node)
+        _rewriteCatalogSelfRefs(
+          item,
+          catalogJson: catalogJson,
+          allowedCommonDefs: allowedCommonDefs,
+        ),
     ];
   }
   if (node is! Map) return node;
-  return <String, Object?>{
-    for (final MapEntry<Object?, Object?> entry in node.entries)
-      if (entry.key is String)
-        entry.key! as String:
-            entry.key == r'$ref' &&
-                entry.value is String &&
-                (entry.value! as String).startsWith('catalog.json#')
-            ? (entry.value! as String).substring('catalog.json'.length)
-            : _rewriteCatalogSelfRefs(entry.value),
-  };
+  final result = <String, Object?>{};
+  for (final MapEntry<Object?, Object?> entry in node.entries) {
+    final Object? key = entry.key;
+    if (key is! String) continue;
+    final Object? value = entry.value;
+    if (key == r'$ref' && value is String) {
+      final String normalized = value.startsWith('catalog.json#')
+          ? value.substring('catalog.json'.length)
+          : value;
+      if (normalized.startsWith('#') &&
+          !_isResolvableLocalFragment(
+            normalized,
+            catalogJson: catalogJson,
+            allowedCommonDefs: allowedCommonDefs,
+          )) {
+        continue;
+      }
+      result[key] = normalized;
+    } else {
+      result[key] = _rewriteCatalogSelfRefs(
+        value,
+        catalogJson: catalogJson,
+        allowedCommonDefs: allowedCommonDefs,
+      );
+    }
+  }
+  return result;
 }
 
 void _lintRefs(
@@ -997,13 +1040,21 @@ Iterable<String> _collectParameterNames(Object? schema) sync* {
     yield* _collectPropertyNames(schema);
     return;
   }
+  final Iterable<MapEntry<Object?, Object?>> paramEntries = schema.entries
+      .where(
+        (MapEntry<Object?, Object?> e) =>
+            e.key is String && !(e.key! as String).startsWith(r'$'),
+      );
   if (schema['type'] is! String &&
       !schema.containsKey(r'$ref') &&
       !schema.containsKey('not') &&
-      schema.values.every((Object? v) => v is Map || v is bool)) {
-    yield* schema.keys.whereType<String>().where(
-      (String k) => !k.startsWith(r'$'),
-    );
+      paramEntries.isNotEmpty &&
+      paramEntries.every(
+        (MapEntry<Object?, Object?> e) => e.value is Map || e.value is bool,
+      )) {
+    for (final entry in paramEntries) {
+      yield entry.key! as String;
+    }
   }
 }
 
@@ -1077,29 +1128,29 @@ void _lintSingleFunction(
     );
   }
 
-  if (isV1) {
-    if (fn.name.startsWith('@')) {
-      findings.add(
-        CatalogLintFinding(
-          severity: LintSeverity.error,
-          code: 'reserved_function_name',
-          path: fn.path,
-          message:
-              "Function name '${fn.name}' starts with '@', which is reserved "
-              'for system functions.',
-        ),
-      );
-    } else if (!isValidUax31Identifier(fn.name)) {
-      findings.add(
-        CatalogLintFinding(
-          severity: LintSeverity.error,
-          code: 'invalid_identifier',
-          path: fn.path,
-          message: "Invalid UAX 31 function identifier '${fn.name}'.",
-        ),
-      );
-    }
+  if (fn.name.startsWith('@')) {
+    findings.add(
+      CatalogLintFinding(
+        severity: LintSeverity.error,
+        code: 'reserved_function_name',
+        path: fn.path,
+        message:
+            "Function name '${fn.name}' starts with '@', which is reserved "
+            'for system functions.',
+      ),
+    );
+  } else if (isV1 && !isValidUax31Identifier(fn.name)) {
+    findings.add(
+      CatalogLintFinding(
+        severity: LintSeverity.error,
+        code: 'invalid_identifier',
+        path: fn.path,
+        message: "Invalid UAX 31 function identifier '${fn.name}'.",
+      ),
+    );
+  }
 
+  if (isV1) {
     final seenArgs = <String>{};
     for (final String argName in _collectParameterNames(fn.inlinedArgs)) {
       if (seenArgs.add(argName) && !isValidUax31Identifier(argName)) {
