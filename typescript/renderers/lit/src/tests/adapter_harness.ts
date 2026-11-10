@@ -996,7 +996,7 @@ function countActiveSurfaceSubscriptions(surface: SurfaceModel<LitComponentApi>)
   return onCreatedSize + onDeletedSize + dataSubsSize;
 }
 
-function frameActionEnvelope(
+export function frameActionEnvelope(
   action: Record<string, unknown>,
   protocolVersion: string,
 ): Record<string, unknown> {
@@ -1019,7 +1019,7 @@ function frameActionEnvelope(
   };
 }
 
-function frameErrorEnvelope(
+export function frameErrorEnvelope(
   err: Record<string, unknown>,
   surfaceId: string,
   protocolVersion: string,

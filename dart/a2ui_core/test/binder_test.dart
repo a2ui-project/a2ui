@@ -971,5 +971,103 @@ void main() {
       expect(actions.single.name, 'bound_submit');
       expect(actions.single.context, {'from': 'binding'});
     });
+
+    group('inline actions', () {
+      Map<String, dynamic> bind(
+        Map<String, Schema> properties,
+        Map<String, dynamic> props,
+      ) {
+        final comp = ComponentModel('c1', 'Select', props);
+        surface.componentsModel.addComponent(comp);
+        final binder = GenericBinder(
+          ComponentContext(surface, comp),
+          Schema.object(properties: properties),
+        );
+        return binder.resolvedProps.value;
+      }
+
+      test('keeps top-level event and functionCall strings as literals', () {
+        final Map<String, dynamic> props = bind(
+          {
+            'label': Schema.string(),
+            'event': Schema.string(),
+            'functionCall': Schema.string(),
+          },
+          {'label': 'Pick', 'event': 'picked', 'functionCall': 'pick'},
+        );
+
+        expect(props['label'], 'Pick');
+        expect(props['event'], 'picked');
+        expect(props['functionCall'], 'pick');
+      });
+
+      test('does not bind a component whose only property is event', () {
+        final Map<String, dynamic> props = bind(
+          {'event': Schema.string()},
+          {'event': 'picked'},
+        );
+
+        expect(props['event'], 'picked');
+      });
+
+      test('keeps list items that declare event as plain maps', () {
+        final Map<String, dynamic> props = bind(
+          {
+            'options': Schema.list(
+              items: Schema.object(
+                properties: {
+                  'label': Schema.string(),
+                  'event': Schema.string(),
+                },
+              ),
+            ),
+          },
+          {
+            'options': [
+              {'label': 'Red', 'event': 'red'},
+              {'label': 'Blue', 'event': 'blue'},
+            ],
+          },
+        );
+
+        expect(props['options'], [
+          {'label': 'Red', 'event': 'red'},
+          {'label': 'Blue', 'event': 'blue'},
+        ]);
+      });
+
+      test('binds a schema whose only property is event or functionCall',
+          () async {
+        final actions = <A2uiRendererAction>[];
+        surface.onAction.subscribe(actions.add);
+
+        final Map<String, dynamic> props = bind(
+          {
+            'onPick': Schema.object(
+              properties: {
+                'event': Schema.object(properties: {'name': Schema.string()}),
+              },
+            ),
+            'onRun': Schema.object(
+              properties: {'functionCall': Schema.object()},
+            ),
+          },
+          {
+            'onPick': {
+              'event': {'name': 'picked'},
+            },
+            'onRun': {
+              'functionCall': {'call': 'capitalize'},
+            },
+          },
+        );
+
+        expect(props['onRun'], isA<Future<void> Function()>());
+        final Object? onPick = props['onPick'];
+        expect(onPick, isA<Future<void> Function()>());
+        await (onPick as Future<void> Function())();
+        expect(actions.single.name, 'picked');
+      });
+    });
   });
 }

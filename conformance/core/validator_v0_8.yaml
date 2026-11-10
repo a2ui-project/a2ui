@@ -17,6 +17,7 @@
 # ==============================================================================
 
 - name: test_validator_0_8
+  features: [F-CORE-07, F-CORE-11]
   description: Tests schema validation of v0.8 message envelopes against the standard v0.8 catalog schema.
   action: validate
   protocolVersion: "v0.8"
@@ -163,6 +164,7 @@
       expectError: "'UnknownComponent' was unexpected"
 
 - name: test_v08_topology_circular_reference_error
+  features: [F-CORE-12]
   description: Tests that circular component references fail validation in v0.8 strict mode.
   action: validate
   protocolVersion: "v0.8"
@@ -283,6 +285,7 @@
       expectError: "Missing root component"
 
 - name: test_v08_unknown_component_type
+  features: [F-CORE-42]
   description: Tests that unknown component types fail schema validation in v0.8.
   action: validate
   protocolVersion: "v0.8"

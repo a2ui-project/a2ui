@@ -125,6 +125,7 @@
 # --- Text as it arrives ---
 
 - name: test_chunk_text_emitted_as_it_arrives
+  features: [F-AGT-08, F-AGT-20]
   description: Text outside a block is handed on per chunk rather than held until the response ends.
   action: parse_chunk
   args:
@@ -139,6 +140,7 @@
         - text: "face."
 
 - name: test_chunk_text_then_block_at_part_boundaries
+  features: [F-AGT-08, F-AGT-20]
   description: Chunks that fall between parts yield exactly the parts a single call would.
   action: parse_chunk
   args:
@@ -172,6 +174,7 @@
   expect_matches_single_shot: true
 
 - name: test_chunk_whole_response_in_one_chunk
+  features: [F-AGT-08, F-AGT-20]
   description: A response that arrives whole is parsed as a whole.
   action: parse_chunk
   args:
@@ -192,6 +195,7 @@
 # --- Sentinel tags across a chunk boundary ---
 
 - name: test_chunk_open_tag_split_across_chunks
+  features: [F-AGT-08, F-AGT-20]
   description: An open tag cut in half is held rather than emitted as text.
   action: parse_chunk
   args:
@@ -469,6 +473,7 @@
   expect_matches_single_shot: true
 
 - name: test_chunk_progressive_key_heals_a_partial_string
+  features: [F-AGT-20]
   description: A string still arriving under a progressive key is closed where it stands, so the payload is emitted and emitted again when the rest of the value lands.
   action: parse_chunk
   args:
@@ -596,6 +601,7 @@
   expect_matches_single_shot: true
 
 - name: test_chunk_closed_components_emit_while_the_next_arrives
+  features: [F-AGT-20]
   description: The components that have closed are emitted while the next one is still arriving, and the message is emitted again once that one closes.
   action: parse_chunk
   args:
@@ -777,6 +783,7 @@
   expect_matches_single_shot: true
 
 - name: test_chunk_unreadable_payload_fails_when_the_block_closes
+  features: [F-AGT-45]
   description: Payload text that never becomes readable raises at the close tag rather than being handed on as text.
   action: parse_chunk
   args:
@@ -982,6 +989,7 @@
 # --- Assembling a payload from small deltas ---
 
 - name: test_chunk_payload_reassembled_from_small_deltas
+  features: [F-AGT-20]
   description: A payload arriving a few characters at a time is assembled across chunks, emitting each message as it becomes readable and each component once it closes.
   action: parse_chunk
   args:
@@ -1018,6 +1026,7 @@
                     text: "hello world"
 
 - name: test_chunk_each_message_emits_as_it_completes
+  features: [F-AGT-20]
   description: A payload holding several messages emits each one once, as it closes, rather than holding them all for the end of the block.
   action: parse_chunk
   args:
@@ -1208,6 +1217,7 @@
 # --- Reading past a rejected block ---
 
 - name: test_chunk_continue_returns_an_error_part_for_an_unreadable_block
+  features: [F-AGT-45]
   description: Reading past rejected blocks, a block that cannot be read becomes an error part, and the text after it is read as usual.
   action: parse_chunk
   args:
@@ -1244,6 +1254,7 @@
                 catalogId: "conformance/simplified"
 
 - name: test_chunk_continue_keeps_the_messages_emitted_before_the_rejection
+  features: [F-AGT-45]
   description: Messages a block emitted before it was rejected stay applied, so a later block can update the surface they created.
   action: parse_chunk
   args:
@@ -1275,6 +1286,7 @@
                     text: "Hi"
 
 - name: test_chunk_continue_skips_the_rest_of_a_rejected_block
+  features: [F-AGT-45]
   description: A block rejected before its close tag is skipped up to the close tag, and the text after it is read as usual.
   action: parse_chunk
   args:
@@ -1716,6 +1728,7 @@
         category: "ValidationError"
 
 - name: test_stream_create_surface_inline_components_v10
+  features: [F-AGT-20]
   description: A v1.0 createSurface carrying components and a data model is emitted once, whole.
   action: parse_chunk
   args:

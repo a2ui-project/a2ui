@@ -370,6 +370,27 @@ describe('ExpressPromptGenerator', () => {
       expect(() => new ExpressPromptGenerator([])).toThrow(A2uiCatalogError);
     });
 
+    it('stamps no catalogId on a system function call in an updateComponents example', () => {
+      const cat = loadConformanceCatalog('simplified_catalog_v1_0.json');
+      const components = [
+        {id: 'root', component: 'Column', children: {path: '/items', componentId: 'row'}},
+        {id: 'row', component: 'Text', text: {'@call': '@index'}},
+      ];
+      const examples = {
+        [cat.id]: [{version: '1.0', updateComponents: {surfaceId: 's1', components}}],
+      } as Record<string, AgentToRendererMessage[]>;
+      const snippet = new ExpressPromptGenerator([cat], examples).generate();
+      expect(snippet).toContain('Text(@index())');
+
+      const rawMarkdown =
+        '```json\n' +
+        JSON.stringify([{version: '1.0', updateComponents: {surfaceId: 's1', components}}]) +
+        '\n```';
+      const transformed = new ExpressPromptGenerator([cat]).transformExamples(rawMarkdown, cat);
+      expect(transformed).not.toContain('```json');
+      expect(transformed).toContain('Text(@index())');
+    });
+
     it('B5: translates fenced json blocks containing updateComponents', () => {
       const cat = loadConformanceCatalog('simplified_catalog_v1_0.json');
       const generator = new ExpressPromptGenerator([cat]);
