@@ -50,7 +50,7 @@ Issues are green and PRs are orange, in every group. Each type of item has its o
 
 ### Details
 
-Tabs at the top: one for the selected item, and one for each linked PR or issue that needs triage. An issue can have several linked PRs, and a PR several linked issues. A tab shows the item's icon and number, and a blue dot when the triager edited its suggestion.
+Tabs at the top: one for the selected item, and one for each linked PR or issue, whether or not it needs triage. An issue can have several linked PRs, and a PR several linked issues. A tab shows the item's icon and number, and a blue dot when the triager edited its suggestion.
 
 Each tab shows its item and its editable suggestion, on the page background, without a card frame.
 
@@ -68,12 +68,12 @@ The `summary` and the `suggestion` are shown as text. The triager can change the
 2. The triager checks the labels, people and milestone to add in a dropdown: the repository's labels, the people who can be assigned, and its open milestones. An item has at most one milestone, so checking one in its dropdown unchecks the other. The dropdown lists the checked options first. A dropdown with more than 7 options has a search field at the top.
 3. The fields that remove things list what the item has, its labels, assignees and milestone, each with a checkbox. A checked one is grayed out. A field is not shown when the item has nothing of its kind.
 
-Labels have their colors from the repository, as on GitHub. The related issues and PRs are links.
+Labels have their colors from the repository, as on GitHub. The related issues and PRs are links. Every link, and every button that opens a link, has a small **Copy link** button on its right.
 
 The buttons below the tabs:
 
 1. **Apply** applies the suggestion of each item in the tabs to it on GitHub, skipping the suggestions that change nothing. If an item has `status: needs-team-input` and its suggestion does not add it, the tool also removes that label, as [triage.md](../../../../../docs/contributing/triage/triage.md#second-line-triage-weekly-by-triager) asks once the item is triaged.
-2. **Needs team input** adds `status: needs-team-input` to each item in the tabs that does not have it, and posts the triager's comment on each, if they write one. It does not apply the suggestions. The button is shown only when an item in the tabs does not have the label.
+2. **Needs team input** adds `status: needs-team-input` to the selected item and to the linked items that need triage, the ones that do not have the label yet, and posts the triager's comment on each, if they write one. It does not apply the suggestions. The button is shown only when one of these items does not have the label.
 3. **Revert** undoes the triager's changes to the suggestions in all tabs. It is enabled when a tab has changes.
 
 ## CUJ

@@ -134,6 +134,22 @@ void main() {
     expect(controller.selected, isNull);
   });
 
+  test('groups an item with all its linked items, loading the ones that '
+      'are not in the queue', () async {
+    // The PR closes the issue, but does not need triage.
+    github
+      ..items[12] = itemNode(12, createdAt: day(5), linked: [31])
+      ..items[31] = itemNode(31, pr: true, labels: [], linked: [12]);
+    await controller.start();
+    final TriageItem issue = controller.item(12)!;
+
+    expect(numbers(controller.group(issue)), [12]);
+    await controller.loadLinked(issue);
+    expect(numbers(controller.group(issue)), [12, 31]);
+    // Item 11 is linked to PR 20, which is in the queue.
+    expect(numbers(controller.group(controller.item(11)!)), [11, 20]);
+  });
+
   test('reports a failure to connect, and can try again', () async {
     var fail = true;
     controller = TriageController(

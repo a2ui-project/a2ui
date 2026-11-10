@@ -46,9 +46,11 @@ class GroupActions extends StatelessWidget {
                   : '${items[k].name}: ${drafts[k].problem}',
           if (!anyChanges) 'Nothing to apply.',
         ];
+        // The selected item, and the linked items that need triage. A
+        // linked item that does not need triage stays as it is.
         final List<TriageItem> toTeam = [
-          for (final i in items)
-            if (!i.needsTeamInput) i,
+          for (final (int k, TriageItem i) in items.indexed)
+            if (!i.needsTeamInput && (k == 0 || i.needsTriage)) i,
         ];
         final bool edited = drafts.any((d) => d.isEdited);
         final all = items.length == 1 ? 'the item' : 'the items';

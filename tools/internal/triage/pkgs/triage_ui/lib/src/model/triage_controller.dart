@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:triage/triage.dart';
 
@@ -148,9 +150,48 @@ class TriageController extends ChangeNotifier {
         i,
   ];
 
-  /// [item] and the items linked to it that need triage or team input,
-  /// which the details show as tabs and apply together.
-  List<TriageItem> group(TriageItem item) => [item, ...relatedInQueue(item)];
+  /// The linked items that are neither in the queue nor opened by URL,
+  /// loaded by [loadLinked].
+  final Map<int, TriageItem> _linked = {};
+
+  /// The fetches of the linked items that [loadLinked] started, by number.
+  final Map<int, Future<void>> _linkedFetches = {};
+
+  /// [item] and all the items linked to it, whether or not they need
+  /// triage, which the details show as tabs and apply together.
+  ///
+  /// A linked item that is not loaded yet is left out, and loaded in the
+  /// background; the group includes it once it is.
+  List<TriageItem> group(TriageItem item) {
+    final List<int> missing = [
+      for (final n in item.linkedItems)
+        if (this.item(n) == null && !_linked.containsKey(n)) n,
+    ];
+    if (missing.isNotEmpty) unawaited(loadLinked(item));
+    return [
+      item,
+      for (final n in item.linkedItems)
+        if (this.item(n) ?? _linked[n] case final TriageItem linked) linked,
+    ];
+  }
+
+  /// Loads the items linked to [item] that are not loaded yet, and waits
+  /// for the ones that are being loaded.
+  Future<void> loadLinked(TriageItem item) => Future.wait([
+    for (final n in item.linkedItems)
+      if (this.item(n) == null) _linkedFetches.putIfAbsent(n, () => _fetch(n)),
+  ]);
+
+  Future<void> _fetch(int number) async {
+    try {
+      if (await _service!.fetchItem(number) case final TriageItem linked) {
+        _linked[number] = linked;
+        notifyListeners();
+      }
+    } on GitHubException {
+      // Tried again after a refresh.
+    }
+  }
 
   /// Whether a refresh found that [number] changed on GitHub, which reset
   /// its draft.
@@ -237,6 +278,9 @@ class TriageController extends ChangeNotifier {
     _setQueue(queue);
     _opened = opened;
     _setGenuiPullRequests(genui);
+    // Loaded again when the triager selects an item linked to them.
+    _linked.clear();
+    _linkedFetches.clear();
   });
 
   /// Selects [item], loading it first if it is not loaded.
@@ -493,6 +537,7 @@ class TriageController extends ChangeNotifier {
     ];
     _queue = replaced(_queue);
     _opened = replaced(_opened);
+    if (_linked.containsKey(fresh.number)) _linked[fresh.number] = fresh;
   }
 
   Future<void> _openPending() async {

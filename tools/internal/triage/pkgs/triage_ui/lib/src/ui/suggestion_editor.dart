@@ -67,6 +67,7 @@ class SuggestionEditor extends StatelessWidget {
             if (summary != null) _Text('Summary', summary),
             if (suggestion != null) _Text('Suggestion', suggestion),
             _RelatedItems(item: item, draft: draft),
+            const Divider(),
             TextField(
               controller: draft.reply,
               minLines: 2,

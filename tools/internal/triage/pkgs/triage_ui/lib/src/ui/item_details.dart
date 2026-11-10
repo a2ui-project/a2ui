@@ -218,7 +218,6 @@ class ItemView extends StatelessWidget {
             linkText: 'Open the item',
           ),
         },
-        const Divider(),
         if (payload != null)
           SuggestionSurface(item: item, payload: payload)
         else
