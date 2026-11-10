@@ -473,16 +473,22 @@ struct FormatStringFunctionTests {
     #expect(agentCallerInvocations == 0)
     #expect(!errorRecorder.capturedErrors.isEmpty)
 
-    // `rpcFormatString` without `catalogID` resolves via the surface default catalog and scopes
-    // nested template calls to `surfaceCatalogID`.
+    // A nested `@call` to `rpcFormatString` without `catalogId` resolves via the surface default
+    // catalog (`RPCArgumentFunctionHandler.resolvedFunctionCatalogID`) and scopes its template
+    // calls to `surfaceCatalogID`.
     errorRecorder.capturedErrors.removeAll()
     let defaultCatMessage = CallRendererFunctionMessage(
       surfaceID: "s-surface",
       functionCallID: "rpc-5",
       callFunction: CallFunctionPayload(
-        call: "rpcFormatString",
-        catalogID: nil,
-        args: ["value": .string("Default:${activeCat()}")]
+        call: "rpcEcho",
+        catalogID: standaloneID,
+        args: [
+          "value": .object([
+            "@call": .string("rpcFormatString"),
+            "args": .object(["value": .string("Default:${activeCat()}")]),
+          ])
+        ]
       ),
       version: .v10
     )
