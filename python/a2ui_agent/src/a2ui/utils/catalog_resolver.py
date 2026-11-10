@@ -73,7 +73,7 @@ def resolve_catalogs(
         prompt and in what validation accepts. Inline catalogs aren't
         transformed.
       renderer_capabilities: The capabilities that the renderer sent, keyed by
-        protocol version, for example `{"v1.0": {"supportedCatalogIds": [...]}}`.
+        protocol version, for example `{"1.0": {"supportedCatalogIds": [...]}}`.
         The v0.8 specification sends the entry itself, as
         `{"supportedCatalogIds": [...]}`, so v0.8 catalogs read that shape too.
         v0.9 and v0.9.1 catalogs read the `v0.9.1` entry, and the `v0.9` entry
