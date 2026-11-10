@@ -66,6 +66,10 @@ import {CommonSchemas as V0_9_COMMON_SCHEMAS} from '../../dist/src/v0_9/schema/c
 import {CommonSchemas as V1_0_COMMON_SCHEMAS} from '../../dist/src/v1_0/schema/common-types.js';
 import {PayloadValidator} from '../../dist/src/validation/index.js';
 import {runNodeResolutionCase} from '../../dist/tests/conformance/node-resolution.js';
+import {
+  runUrlPolicyCheckCase,
+  runUrlPolicyResolutionCase,
+} from '../../dist/tests/conformance/url-security-policy.js';
 
 // Dedicated basic catalog component definitions per specification version
 const v0_8Components = V0_8_BASIC_COMPONENTS;
@@ -308,8 +312,6 @@ const UNIMPLEMENTED_ACTIONS = new Map([
     'the timing cases depend on the machine, so `yarn test:timing` runs them apart from the other tests (tests/timing/)',
   ],
   ['measure_overhead', 'web_core has no streaming inference parser'],
-  ['url_policy_check', 'URL security policy not implemented yet (#4045)'],
-  ['url_policy_resolution', 'URL security policy not implemented yet (#4045)'],
 ]);
 
 const UNSUPPORTED = UNIMPLEMENTED_ACTIONS;
@@ -520,6 +522,12 @@ async function dispatchTestCase(testCase) {
       break;
     case 'route_agent_function':
       await validateRouteAgentFunctionTestCase(testCase);
+      break;
+    case 'url_policy_check':
+      runUrlPolicyCheckCase(testCase);
+      break;
+    case 'url_policy_resolution':
+      await runUrlPolicyResolutionCase(testCase, CONFORMANCE_ROOT);
       break;
     default:
       throw new Error(`Unhandled action type in conformance harness: '${action}'`);
