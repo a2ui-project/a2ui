@@ -2824,6 +2824,72 @@ describe('MessageProcessor', () => {
       assert.strictEqual(errorLog.length, 1);
       assert.strictEqual(errorLog[0].version, 'v0.8');
       assert.deepStrictEqual(outboundLog, []);
+
+      // Also verify v0.8 errors are suppressed when options.version is omitted,
+      // and unversioned errors on a 1.0-only processor use fallbackWireVersion().
+      const unversionedV08Outbound: unknown[] = [];
+      const unversionedV08Proc = new MessageProcessor([v08Cat, v10Catalog], undefined, {
+        outboundListener: msg => {
+          unversionedV08Outbound.push(msg);
+        },
+        unifiedOutbound: true,
+        reportErrorsOnly: true,
+      });
+      unversionedV08Proc.processMessages({
+        surfaceUpdate: {surfaceId: 'missing-08-unver', components: []},
+      });
+      assert.deepStrictEqual(unversionedV08Outbound, []);
+
+      const v08OnlyOutbound: unknown[] = [];
+      const v08OnlyProc = new MessageProcessor([v08Cat], undefined, {
+        outboundListener: msg => {
+          v08OnlyOutbound.push(msg);
+        },
+        unifiedOutbound: true,
+        reportErrorsOnly: true,
+      });
+      v08OnlyProc.processMessages('not-an-object' as any);
+      assert.deepStrictEqual(v08OnlyOutbound, []);
+
+      const v10OnlyOutbound: RendererErrorMessage[] = [];
+      const v10OnlyProc = new MessageProcessor([v10Catalog], undefined, {
+        outboundListener: msg => {
+          v10OnlyOutbound.push(msg as RendererErrorMessage);
+        },
+        unifiedOutbound: true,
+        reportErrorsOnly: true,
+      });
+      v10OnlyProc.processMessages('not-an-object' as any);
+      assert.strictEqual(v10OnlyOutbound.length, 1);
+      assert.strictEqual(v10OnlyOutbound[0].version, '1.0');
+    });
+
+    it('resolves surface protocolVersion before actionHandler deletes the surface', async () => {
+      const outboundLog: any[] = [];
+      const proc: MessageProcessor<any> = new MessageProcessor(
+        [v10Catalog, v09Catalog],
+        action => {
+          proc.model.deleteSurface(action.surfaceId);
+        },
+        {
+          outboundListener: msg => {
+            outboundLog.push(msg);
+          },
+          unifiedOutbound: true,
+        },
+      );
+
+      proc.processMessages({
+        version: '1.0',
+        createSurface: {surfaceId: 's-dismiss', catalogId: 'cat-v10'},
+      });
+      const surface = proc.getSurface('s-dismiss')!;
+      await surface.dispatchAction({event: {name: 'dismiss', context: {}}}, 'btn-dismiss');
+
+      assert.strictEqual(proc.getSurface('s-dismiss'), undefined);
+      assert.strictEqual(outboundLog.length, 1);
+      assert.strictEqual(outboundLog[0].version, '1.0');
+      assert.strictEqual(outboundLog[0].action.name, 'dismiss');
     });
 
     it('stops forwarding actions and errors after dispose()', async () => {

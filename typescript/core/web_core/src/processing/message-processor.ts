@@ -277,13 +277,13 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     this.validationConfig = options?.validationConfig
       ? withStrictDefaults(options.validationConfig)
       : undefined;
-    if (this.actionHandler) {
-      this.model.onAction.subscribe(this.actionHandler);
-    }
     if (this.unifiedOutbound) {
       this.model.onAction.subscribe(action => {
         this.forwardAction(action);
       });
+    }
+    if (this.actionHandler) {
+      this.model.onAction.subscribe(this.actionHandler);
     }
     this.model.onSurfaceDeleted.subscribe(surfaceId => {
       this.rpc.cancelSurfaceCalls(surfaceId);
@@ -749,8 +749,17 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       this.model.emitError(payload);
     }
     this.errorHandler?.(errorMsg);
-    if (this.unifiedOutbound && compareSemVer(errorMsg.version, '0.8') !== 0) {
-      this.invokeOutboundListener(errorMsg);
+    const isV08Action =
+      context.actionType === 'beginRendering' ||
+      context.actionType === 'surfaceUpdate' ||
+      context.actionType === 'dataModelUpdate';
+    const effectiveVersion = context.version ?? (isV08Action ? 'v0.8' : this.fallbackWireVersion());
+    const outboundErrorMsg =
+      effectiveVersion === context.version
+        ? errorMsg
+        : mapErrorToRendererMessage(err, {...context, version: effectiveVersion});
+    if (this.unifiedOutbound && compareSemVer(outboundErrorMsg.version, '0.8') !== 0) {
+      this.invokeOutboundListener(outboundErrorMsg);
     }
     return errorMsg;
   }
@@ -758,6 +767,14 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   private fallbackWireVersion(): string {
     if (this.defaultVersion && toCanonicalVersion(this.defaultVersion)) {
       return this.defaultVersion;
+    }
+    const allV08 =
+      this.registeredCatalogs.length > 0 &&
+      this.registeredCatalogs.every(
+        c => c.protocolVersion !== undefined && compareSemVer(c.protocolVersion, '0.8') === 0,
+      );
+    if (allV08) {
+      return 'v0.8';
     }
     const allV1 =
       this.registeredCatalogs.length > 0 &&
