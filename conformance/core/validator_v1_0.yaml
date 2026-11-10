@@ -17,6 +17,7 @@
 # ==============================================================================
 
 - name: test_validator_1_0
+  features: [F-CORE-07, F-CORE-11]
   description: Tests schema validation of v1.0 message envelopes (inline components, optional catalogId, data deletion) against the basic v1.0 catalog schema.
   action: validate
   protocolVersion: "1.0"
@@ -184,6 +185,7 @@
             message: "UnknownComponent"
 
 - name: test_v10_topology_circular_reference_error
+  features: [F-CORE-12]
   description: Tests that circular component references fail validation in v1.0 strict mode.
   action: validate
   protocolVersion: "1.0"
@@ -209,6 +211,7 @@
       expectError: "Circular component reference"
 
 - name: test_v10_topology_dangling_child_reference_error
+  features: [F-CORE-12]
   description: Tests that dangling child references fail validation in v1.0 strict mode.
   action: validate
   protocolVersion: "1.0"
@@ -231,6 +234,7 @@
       expectError: "Dangling reference"
 
 - name: test_v10_topology_self_reference_error
+  features: [F-CORE-12]
   description: Tests that self-referencing components fail validation in v1.0 strict mode.
   action: validate
   protocolVersion: "1.0"
@@ -253,6 +257,7 @@
       expectError: "Self-reference detected"
 
 - name: test_v10_topology_orphaned_component_error
+  features: [F-CORE-12]
   description: Tests that unreachable orphaned components fail validation in v1.0 strict mode.
   action: validate
   protocolVersion: "1.0"
@@ -278,6 +283,7 @@
       expectError: "is not reachable from"
 
 - name: test_v10_topology_missing_root_component_error
+  features: [F-CORE-12]
   description: Tests that component updates missing root component fail validation in v1.0 strict mode.
   action: validate
   protocolVersion: "1.0"
@@ -2243,3 +2249,201 @@
       expectError:
         category: ValidationError
         message: "😀"
+
+- name: test_v10_agent_only_function_in_binding_error
+  description: Tests that a component property bound to a function whose allowedCallers is agentOnly fails validation in v1.0, since a binding is a renderer call and agentOnly functions can't be bound to component properties. The error is a validation error, raised before any binding is evaluated.
+  action: validate
+  protocolVersion: "1.0"
+  catalog:
+    catalogId: arcana
+    components:
+      Label:
+        type: object
+        properties:
+          id: {type: string}
+          component: {const: Label}
+          text:
+            $ref: "common_types.json#/$defs/DynamicString"
+        required:
+          - component
+          - text
+    functions:
+      getMoonPhase:
+        type: object
+        allowedCallers: agentOnly
+        returnType: string
+        properties:
+          "@call": {const: getMoonPhase}
+          args:
+            type: object
+            properties:
+              date: {type: string}
+            additionalProperties: false
+        required:
+          - "@call"
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s1
+            catalogId: arcana
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Label
+                text:
+                  "@call": getMoonPhase
+                  args:
+                    date: today
+      expectError:
+        category: ValidationError
+        surfaceId: s1
+        rendererError:
+          version: "1.0"
+          error:
+            code: VALIDATION_FAILED
+            surfaceId: s1
+            path: "/components/0/text"
+            message: "agentOnly"
+
+- name: test_v10_agent_only_function_in_action_error
+  description: Tests that an action functionCall of a function whose allowedCallers is agentOnly fails validation in v1.0, since renderer UI actions can't run agentOnly functions, while a rendererOrAgent function can be.
+  action: validate
+  protocolVersion: "1.0"
+  catalog:
+    catalogId: arcana
+    components:
+      Trigger:
+        type: object
+        properties:
+          id: {type: string}
+          component: {const: Trigger}
+          action:
+            $ref: "common_types.json#/$defs/Action"
+        required:
+          - component
+          - action
+    functions:
+      getMoonPhase:
+        type: object
+        allowedCallers: agentOnly
+        returnType: string
+        properties:
+          "@call": {const: getMoonPhase}
+          args:
+            type: object
+            additionalProperties: false
+        required:
+          - "@call"
+      getTide:
+        type: object
+        allowedCallers: rendererOrAgent
+        returnType: string
+        properties:
+          "@call": {const: getTide}
+          args:
+            type: object
+            additionalProperties: false
+        required:
+          - "@call"
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s1
+            catalogId: arcana
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Trigger
+                action:
+                  functionCall:
+                    "@call": getTide
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s2
+            catalogId: arcana
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s2
+            components:
+              - id: root
+                component: Trigger
+                action:
+                  functionCall:
+                    "@call": getMoonPhase
+      expectError:
+        category: ValidationError
+        surfaceId: s2
+        rendererError:
+          version: "1.0"
+          error:
+            code: VALIDATION_FAILED
+            surfaceId: s2
+            path: "/components/0/action/functionCall"
+            message: "agentOnly"
+
+- name: test_v10_agent_only_function_cross_catalog_and_nested_error
+  description: Tests that a component property bound to an agentOnly function of another catalog than the component's, or holding one nested in the args of a renderer call, fails validation in v1.0.
+  action: validate
+  protocolVersion: "1.0"
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+    - conformance/test_data/catalogs/allowed_callers_catalog_v1_0.json
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s1
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s1
+            components:
+              - id: root
+                component: Text
+                text:
+                  "@call": readSessionToken
+                  catalogId: https://a2ui.org/catalogs/v10/allowed_callers
+      expectError:
+        category: ValidationError
+        surfaceId: s1
+        rendererError:
+          version: "1.0"
+          error:
+            code: VALIDATION_FAILED
+            surfaceId: s1
+            path: "/components/0/text"
+            message: "agentOnly"
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s2
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s2
+            components:
+              - id: root
+                component: Text
+                text:
+                  "@call": formatString
+                  args:
+                    value:
+                      "@call": readSessionToken
+                      catalogId: https://a2ui.org/catalogs/v10/allowed_callers
+      expectError:
+        category: ValidationError
+        surfaceId: s2
+        rendererError:
+          version: "1.0"
+          error:
+            code: VALIDATION_FAILED
+            surfaceId: s2
+            path: "/components/0/text/args/value"
+            message: "agentOnly"

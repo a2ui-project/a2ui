@@ -160,6 +160,38 @@ function standardDefsFor(protocolVersion: string): Record<string, unknown> {
 }
 
 /**
+ * Returns the system functions that a protocol version's common types define.
+ *
+ * A system function is defined by the protocol rather than by a catalog: it is
+ * a common types `$defs` entry whose `@call` property is a constant name
+ * starting with `@`, such as `@index` from v1.0. It has the same shape as a
+ * catalog function, so the same code reads its arguments.
+ *
+ * @param defs The common types `$defs` of a protocol version.
+ * @returns The system function schemas keyed by their `@` name, which is empty
+ *   for a version that defines none.
+ */
+export function systemFunctionSchemas(
+  defs: Record<string, unknown> | undefined,
+): Map<string, Record<string, unknown>> {
+  const found = new Map<string, Record<string, unknown>>();
+  for (const schema of Object.values(defs ?? {})) {
+    if (!schema || typeof schema !== 'object') {
+      continue;
+    }
+    const props = (schema as Record<string, unknown>).properties;
+    const call =
+      props && typeof props === 'object' ? (props as Record<string, unknown>)['@call'] : undefined;
+    const name =
+      call && typeof call === 'object' ? (call as Record<string, unknown>).const : undefined;
+    if (typeof name === 'string' && name.startsWith('@')) {
+      found.set(name, schema as Record<string, unknown>);
+    }
+  }
+  return found;
+}
+
+/**
  * The keys that mark a data binding (`path`) and a function call (`call`) on the wire.
  * v1.0 prefixes both with `@`; v0.9 and v0.9.1 use the plain names.
  */
@@ -189,6 +221,12 @@ export class CatalogSchemaHelper {
   readonly keys: ReservedKeys;
   readonly components: ReadonlyMap<string, Record<string, unknown>>;
   readonly functions: ReadonlyMap<string, Record<string, unknown>>;
+  /**
+   * The system functions that the catalog's protocol version defines, such as
+   * `@index`, keyed by name. The function getters read them as well as the
+   * catalog's own functions.
+   */
+  readonly systemFunctions: ReadonlyMap<string, Record<string, unknown>>;
 
   private readonly componentProperties = new Map<string, string[]>();
   private readonly componentRequired = new Map<string, string[]>();
@@ -198,6 +236,8 @@ export class CatalogSchemaHelper {
   private readonly componentPropertyEnums = new Map<string, string[]>();
   private readonly functionProperties = new Map<string, string[]>();
   private readonly functionRequired = new Map<string, string[]>();
+  private readonly systemFunctionProperties = new Map<string, string[]>();
+  private readonly systemFunctionRequired = new Map<string, string[]>();
 
   constructor(catalog: CatalogApi, protocolVersion: string) {
     this.catalog = catalog.toJson();
@@ -209,6 +249,9 @@ export class CatalogSchemaHelper {
       this.commonTypesLoaded = false;
     }
     this.keys = reservedKeysFor(protocolVersion);
+    this.systemFunctions = systemFunctionSchemas(
+      this.commonTypes.$defs as Record<string, unknown> | undefined,
+    );
 
     const rawComponents = (this.catalog.components ?? {}) as Record<string, unknown>;
     const componentsMap = new Map<string, Record<string, unknown>>();
@@ -530,49 +573,70 @@ export class CatalogSchemaHelper {
     }
 
     for (const [name, schema] of this.functions.entries()) {
-      const subSchemas: unknown[] = [schema];
-      const localRefs: unknown[] = [];
-      if (Array.isArray(schema.allOf)) {
-        for (const sub of schema.allOf) {
-          if (localRef(sub)) {
-            localRefs.push(sub);
-          } else {
-            subSchemas.push(sub);
-          }
-        }
-      }
-      subSchemas.push(...localRefs);
-
-      const props: Record<string, unknown> = {};
-      const reqs: string[] = [];
-      for (let sub of subSchemas) {
-        if (!sub || typeof sub !== 'object') {
-          continue;
-        }
-        if (localRef(sub)) {
-          const resolved = this.resolveLocalRef(sub);
-          if (resolved && typeof resolved === 'object') {
-            sub = resolved;
-          }
-        }
-        const subObj = sub as Record<string, unknown>;
-        if (subObj.properties && typeof subObj.properties === 'object') {
-          const argsObj = (subObj.properties as Record<string, unknown>).args;
-          if (argsObj && typeof argsObj === 'object') {
-            const argsProps = (argsObj as Record<string, unknown>).properties;
-            if (argsProps && typeof argsProps === 'object') {
-              Object.assign(props, argsProps);
-            }
-            const argsReq = (argsObj as Record<string, unknown>).required;
-            if (Array.isArray(argsReq)) {
-              reqs.push(...(argsReq as string[]));
-            }
-          }
-        }
-      }
-      this.functionProperties.set(name, Object.keys(props));
+      const [props, reqs] = this.functionSignature(schema);
+      this.functionProperties.set(name, props);
       this.functionRequired.set(name, reqs);
     }
+
+    // System function names start with `@`, which no catalog function name
+    // can, so they share the lookups without shadowing anything.
+    for (const [name, schema] of this.systemFunctions.entries()) {
+      const [props, reqs] = this.functionSignature(schema);
+      this.systemFunctionProperties.set(name, props);
+      this.systemFunctionRequired.set(name, reqs);
+    }
+  }
+
+  /**
+   * Returns a function schema's argument names in order, and the required ones.
+   */
+  private functionSignature(schema: Record<string, unknown>): [string[], string[]] {
+    const subSchemas: unknown[] = [schema];
+    const localRefs: unknown[] = [];
+    if (Array.isArray(schema.allOf)) {
+      for (const sub of schema.allOf) {
+        if (localRef(sub)) {
+          localRefs.push(sub);
+        } else {
+          subSchemas.push(sub);
+        }
+      }
+    }
+    subSchemas.push(...localRefs);
+
+    const props: Record<string, unknown> = {};
+    const reqs: string[] = [];
+    for (let sub of subSchemas) {
+      if (!sub || typeof sub !== 'object') {
+        continue;
+      }
+      if (localRef(sub)) {
+        const resolved = this.resolveLocalRef(sub);
+        if (resolved && typeof resolved === 'object') {
+          sub = resolved;
+        }
+      }
+      const subObj = sub as Record<string, unknown>;
+      if (subObj.properties && typeof subObj.properties === 'object') {
+        const argsObj = (subObj.properties as Record<string, unknown>).args;
+        if (argsObj && typeof argsObj === 'object') {
+          const argsProps = (argsObj as Record<string, unknown>).properties;
+          if (argsProps && typeof argsProps === 'object') {
+            Object.assign(props, argsProps);
+          }
+          const argsReq = (argsObj as Record<string, unknown>).required;
+          if (Array.isArray(argsReq)) {
+            reqs.push(...(argsReq as string[]));
+          }
+        }
+      }
+    }
+    return [Object.keys(props), reqs];
+  }
+
+  /** Returns the schema of a catalog or system function, or undefined. */
+  private functionSchema(name: string): Record<string, unknown> | undefined {
+    return this.functions.get(name) ?? this.systemFunctions.get(name);
   }
 
   /**
@@ -604,24 +668,24 @@ export class CatalogSchemaHelper {
   }
 
   /**
-   * Returns the ordered properties of the specified function's arguments.
+   * Returns the ordered properties of a catalog or system function's arguments.
    */
   getFunctionProperties(name: string): string[] {
-    return this.functionProperties.get(name) ?? [];
+    return this.functionProperties.get(name) ?? this.systemFunctionProperties.get(name) ?? [];
   }
 
   /**
-   * Returns the list of required argument properties for the function.
+   * Returns the required argument properties of a catalog or system function.
    */
   getFunctionRequired(name: string): string[] {
-    return this.functionRequired.get(name) ?? [];
+    return this.functionRequired.get(name) ?? this.systemFunctionRequired.get(name) ?? [];
   }
 
   /**
    * Retrieves the JSON schema for a specific function argument property.
    */
   getFunctionPropertySchema(fnName: string, propName: string): Record<string, unknown> | undefined {
-    const fnSchema = this.functions.get(fnName);
+    const fnSchema = this.functionSchema(fnName);
     if (!fnSchema) {
       return undefined;
     }
@@ -701,10 +765,10 @@ export class CatalogSchemaHelper {
   }
 
   /**
-   * Retrieves the description of the function from its catalog schema.
+   * Retrieves the description of a catalog or system function.
    */
   getFunctionDescription(name: string): string | undefined {
-    const schema = this.functions.get(name);
+    const schema = this.functionSchema(name);
     if (!schema) {
       return undefined;
     }

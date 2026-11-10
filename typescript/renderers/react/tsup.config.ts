@@ -31,8 +31,24 @@ export default defineConfig([
     clean: true,
     treeshake: true,
     external: ['react', 'react-dom', 'markdown-it'],
-    esbuildOptions(options) {
-      options.jsx = 'automatic';
+    esbuildOptions(options, {format}) {
+      options.jsx = 'transform';
+      options.jsxFactory = '__a2uiCreateElement';
+      options.jsxFragment = '__a2uiFragment';
+      delete options.tsconfig;
+      options.tsconfigRaw = {
+        compilerOptions: {
+          jsx: 'react',
+          jsxFactory: '__a2uiCreateElement',
+          jsxFragmentFactory: '__a2uiFragment',
+        },
+      };
+      options.banner = {
+        js:
+          format === 'esm'
+            ? "import {createElement as __a2uiCreateElement, Fragment as __a2uiFragment} from 'react';"
+            : "const {createElement: __a2uiCreateElement, Fragment: __a2uiFragment} = require('react');",
+      };
     },
   },
   // Styles entry without DTS (avoids symlink resolution issues)
@@ -47,6 +63,5 @@ export default defineConfig([
     sourcemap: true,
     clean: false,
     treeshake: true,
-    external: ['@a2ui/lit'],
   },
 ]);

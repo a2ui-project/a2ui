@@ -131,6 +131,7 @@ __metadata:
     "@types/node": "npm:^25.9.3"
     "@types/uuid": "npm:^11.0.0"
     "@vitest/browser": "npm:^4.1.8"
+    axe-core: "npm:^4.14.0"
     cypress: "npm:^15.17.0"
     eslint: "npm:^10.4.1"
     google-artifactregistry-auth: "npm:^3.5.0"
@@ -214,45 +215,6 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@a2ui/editor@workspace:tools/editor":
-  version: 0.0.0-use.local
-  resolution: "@a2ui/editor@workspace:tools/editor"
-  dependencies:
-    "@a2ui/lit": "workspace:*"
-    "@a2ui/web_core": "workspace:*"
-    "@google/genai": "npm:^2.8.0"
-    "@lit-labs/signals": "npm:^0.3.0"
-    "@lit/context": "npm:^1.1.6"
-    "@types/node": "npm:^25.9.3"
-    dotenv: "npm:^17.4.2"
-    eslint: "npm:^10.4.1"
-    gts: "npm:^7.0.0"
-    lit: "npm:^3.3.3"
-    typescript: "npm:5.9.3"
-    vite: "npm:^8.0.16"
-    wireit: "npm:^0.15.0-pre.2"
-  languageName: unknown
-  linkType: soft
-
-"@a2ui/inspector@workspace:tools/inspector":
-  version: 0.0.0-use.local
-  resolution: "@a2ui/inspector@workspace:tools/inspector"
-  dependencies:
-    "@a2ui/lit": "workspace:*"
-    "@a2ui/web_core": "workspace:*"
-    "@lit-labs/signals": "npm:^0.3.0"
-    "@lit/context": "npm:^1.1.6"
-    "@types/node": "npm:^25.9.3"
-    dotenv: "npm:^17.4.2"
-    eslint: "npm:^10.4.1"
-    gts: "npm:^7.0.0"
-    lit: "npm:^3.3.3"
-    typescript: "npm:5.9.3"
-    vite: "npm:^8.0.16"
-    wireit: "npm:^0.15.0-pre.2"
-  languageName: unknown
-  linkType: soft
-
 "@a2ui/lit-explorer@workspace:typescript/renderers/lit/a2ui_explorer":
   version: 0.0.0-use.local
   resolution: "@a2ui/lit-explorer@workspace:typescript/renderers/lit/a2ui_explorer"
@@ -332,12 +294,14 @@ __metadata:
   dependencies:
     "@a2ui/web_core": "workspace:*"
     "@types/dompurify": "npm:^3.2.0"
+    "@types/js-yaml": "npm:^4.0.9"
     "@types/jsdom": "npm:^28.0.3"
     "@types/markdown-it": "npm:^14.1.2"
     "@types/node": "npm:^25.9.3"
     dompurify: "npm:3.4.11"
     eslint: "npm:^10.4.1"
     gts: "npm:^7.0.0"
+    js-yaml: "npm:^4.1.0"
     jsdom: "npm:^29.1.1"
     markdown-it: "npm:^14.2.0"
     prettier: "npm:^3.8.4"
@@ -438,8 +402,8 @@ __metadata:
     wireit: "npm:^0.15.0-pre.2"
     zod: "npm:^3.25.76"
   peerDependencies:
-    react: ^18.0.0 || ^19.0.0
-    react-dom: ^18.0.0 || ^19.0.0
+    react: ^17.0.0 || ^18.0.0 || ^19.0.0
+    react-dom: ^17.0.0 || ^18.0.0 || ^19.0.0
     zod: ^3.25.76
   languageName: unknown
   linkType: soft
@@ -535,34 +499,6 @@ __metadata:
     vite: "npm:^8.0.16"
     vitest: "npm:^4.1.8"
     wireit: "npm:^0.15.0-pre.2"
-  languageName: unknown
-  linkType: soft
-
-"@a2ui/visual-parity@workspace:typescript/renderers/react/visual-parity":
-  version: 0.0.0-use.local
-  resolution: "@a2ui/visual-parity@workspace:typescript/renderers/react/visual-parity"
-  dependencies:
-    "@a2ui/lit": "workspace:*"
-    "@a2ui/markdown-it": "workspace:*"
-    "@a2ui/react": "workspace:*"
-    "@lit/context": "npm:^1.1.6"
-    "@playwright/test": "npm:1.58.1"
-    "@types/pixelmatch": "npm:^5.2.6"
-    "@types/pngjs": "npm:^6.0.5"
-    "@types/react": "npm:^19.2.17"
-    "@types/react-dom": "npm:^19.2.3"
-    "@vitejs/plugin-react": "npm:^6.0.2"
-    concurrently: "npm:^10.0.3"
-    eslint: "npm:^10.4.1"
-    gts: "npm:^7.0.0"
-    lit: "npm:^3.3.3"
-    markdown-it: "npm:^14.2.0"
-    pixelmatch: "npm:^7.2.0"
-    pngjs: "npm:^7.0.0"
-    react: "npm:^19.2.7"
-    react-dom: "npm:^19.2.7"
-    typescript: "npm:5.9.3"
-    vite: "npm:^8.0.16"
   languageName: unknown
   linkType: soft
 
@@ -9468,24 +9404,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/pixelmatch@npm:^5.2.6":
-  version: 5.2.6
-  resolution: "@types/pixelmatch@npm:5.2.6"
-  dependencies:
-    "@types/node": "npm:*"
-  checksum: 10c0/1045bde53809b7d555e70fb6a490472879fa8d322bc39cb3f15985b877e9fc5ccf0c0b7d97da936b52d76305aa8d2d6657c03b220af3196d17520cfaa2ecbaa1
-  languageName: node
-  linkType: hard
-
-"@types/pngjs@npm:^6.0.5":
-  version: 6.0.5
-  resolution: "@types/pngjs@npm:6.0.5"
-  dependencies:
-    "@types/node": "npm:*"
-  checksum: 10c0/11979d0690e774046d3a1e8cfc613a6b53a613909d81c93831cf253800e93ba1a2d47950979b523aebd4fc023351b644d7f4aa2dfcc027c70816a2968420e7da
-  languageName: node
-  linkType: hard
-
 "@types/prop-types@npm:^15.0.0":
   version: 15.7.15
   resolution: "@types/prop-types@npm:15.7.15"
@@ -10748,6 +10666,13 @@ __metadata:
   version: 1.0.20
   resolution: "aws4fetch@npm:1.0.20"
   checksum: 10c0/a4eac7bd0d1c3e611c17ed1ef41ac0b48c0a8e74a985ad968c071e74d94586d3572edc943b43fa5ca756c686ea73baa2f48e264d657bb8c2e95c8e0037d48a87
+  languageName: node
+  linkType: hard
+
+"axe-core@npm:^4.14.0":
+  version: 4.14.0
+  resolution: "axe-core@npm:4.14.0"
+  checksum: 10c0/8aaa0bf748e0dcf202e8f837951a37b28b4b62d639bed58c07a6890bf035ed6a11ede9f4006db9ca8041db821dc80476c27cff08fd70afa9195ee58fb995a958
   languageName: node
   linkType: hard
 
@@ -20110,17 +20035,6 @@ __metadata:
     "@napi-rs/nice":
       optional: true
   checksum: 10c0/61f4377dc7aeff2b3f71c2c03861fad97786b6fdad8a320e6281dd77bcadd4f2c8260a6274184d1c74ea30fddc293f30b10978f371b45a367b03145de3c84d1e
-  languageName: node
-  linkType: hard
-
-"pixelmatch@npm:^7.2.0":
-  version: 7.2.0
-  resolution: "pixelmatch@npm:7.2.0"
-  dependencies:
-    pngjs: "npm:^7.0.0"
-  bin:
-    pixelmatch: bin/pixelmatch
-  checksum: 10c0/d8a2454ecf3a977738d6050ed087effa0a9f1b53a0da92d37381a74bb04db5c21e14cfcd41965fbdac4a5967aa5ff2525e2afe9826a77eae043b8339dafc53b6
   languageName: node
   linkType: hard
 

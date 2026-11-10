@@ -47,12 +47,12 @@ import {
 } from '../common/settle_deep.js';
 
 import {FunctionInvoker} from '../catalog/function_invoker.js';
-import {resolveSurfaceCatalog} from '../state/resolve-surface-catalog.js';
-import {SurfaceModel} from '../state/surface-model.js';
-
 import {Catalog, CatalogInterface} from '../catalog/types.js';
 import {SpecVersion} from '../spec_versions.js';
+import {resolveSurfaceCatalog} from '../state/resolve-surface-catalog.js';
+import {SurfaceModel} from '../state/surface-model.js';
 import {IndexApi, SYSTEM_FUNCTIONS} from '../v1_0/functions/system_functions.js';
+import {registerDataContextInternals, type DataContextFlags} from './data-context-internal.js';
 
 const schemaKeysCache = new WeakMap<z.ZodTypeAny, Set<string> | null>();
 
@@ -82,7 +82,8 @@ function getSystemFunctionCatalog(): Catalog<any> {
  * Extracts declared property keys from a Zod schema representing an object with fixed keys.
  *
  * Traverses Zod wrappers (`ZodEffects`, `ZodOptional`, `ZodNullable`, `ZodDefault`,
- * `ZodCatch`, `ZodIntersection`, `ZodUnion`) and returns the set of allowed key names.
+ * `ZodCatch`, `ZodIntersection`, `ZodUnion`, `ZodDiscriminatedUnion`) and returns the set
+ * of allowed key names.
  *
  * @param schema Zod schema to inspect.
  * @returns Set of allowed property names, or `null` if arbitrary keys are permitted or undetermined.
@@ -135,8 +136,13 @@ export function getKnownSchemaKeys(schema: z.ZodTypeAny): Set<string> | null {
         }
         return new Set([...leftKeys, ...rightKeys]);
       }
-      if (current instanceof z.ZodUnion || current._def?.typeName === 'ZodUnion') {
-        const options: z.ZodTypeAny[] = current._def.options;
+      if (
+        current instanceof z.ZodUnion ||
+        current instanceof z.ZodDiscriminatedUnion ||
+        current._def?.typeName === 'ZodUnion' ||
+        current._def?.typeName === 'ZodDiscriminatedUnion'
+      ) {
+        const options: Iterable<z.ZodTypeAny> = current._def.options;
         const allKeys = new Set<string>();
         for (const opt of options) {
           const k = getKnownSchemaKeys(opt);
@@ -402,8 +408,25 @@ export class DataContext {
   private _isActionExecution = false;
   /** Whether calls the renderer does not implement must fail instead of going to the agent. */
   private _noAgentRouting = false;
+  /** Catalog ID of the currently executing catalog function, if any. */
+  private _activeCatalogId?: string;
+  /** Catalog instance of the currently executing catalog function, if any. */
+  private _activeCatalog?: Catalog<any>;
 
-  readonly surface?: SurfaceModel<any>;
+  readonly surface?: SurfaceModel<any, any>;
+
+  static {
+    registerDataContextInternals({
+      withFlags: (ctx, flags) => ctx.withFlags(flags),
+      resolveValue: (ctx, value, depth, userActivated, keepPending) =>
+        ctx.resolveValue(value, depth, userActivated, keepPending),
+      allowsAgentRouting: ctx => ctx.allowsAgentRouting,
+      resolveSignalValue: (ctx, value, depth, keepPending) =>
+        ctx.resolveSignalValue(value, depth, keepPending),
+      activeCatalogId: ctx => ctx.activeCatalogId,
+      activeCatalog: ctx => ctx.activeCatalog,
+    });
+  }
 
   /**
    * Initializes a new DataContext instance.
@@ -414,7 +437,7 @@ export class DataContext {
    * @param parent Optional parent DataContext in the scope chain.
    */
   constructor(
-    surface: SurfaceModel<any> | DataModel,
+    surface: SurfaceModel<any, any> | DataModel,
     readonly path: string,
     index?: number,
     parent?: DataContext,
@@ -491,11 +514,15 @@ export class DataContext {
    * Protocol version of the bound surface.
    *
    * Reads the surface's own version, which is set even when the surface has
-   * no default catalog, and falls back to the default catalog's version for
-   * surface-like objects that do not carry one.
+   * no default catalog, and falls back to the default or active catalog's
+   * version for surface-like or surface-less contexts.
    */
   private get surfaceProtocolVersion(): string | undefined {
-    return this.surface?.protocolVersion ?? this.surface?.defaultCatalog?.protocolVersion;
+    return (
+      this.surface?.protocolVersion ??
+      this.surface?.defaultCatalog?.protocolVersion ??
+      this.activeCatalog?.protocolVersion
+    );
   }
 
   private _cachedAtLeastV10?: boolean;
@@ -730,8 +757,15 @@ export class DataContext {
     // The evaluation flags are fixed on a scoped view of this context, so
     // the function and the error handling that run after pending arguments
     // settle see the same flags as a synchronous call.
+    const activeCatalogId = !callName.startsWith('@') ? targetCatalog.id : undefined;
     const scope =
-      userActivated && !this.isUserActivated ? this.withFlags({userActivated: true}) : this;
+      (userActivated && !this.isUserActivated) || activeCatalogId !== undefined
+        ? this.withFlags({
+            userActivated: userActivated && !this.isUserActivated,
+            activeCatalogId,
+            activeCatalog: activeCatalogId !== undefined ? targetCatalog : undefined,
+          })
+        : this;
     const result = scope.evaluateFunctionReactive<V>(
       callName,
       args,
@@ -950,7 +984,12 @@ export class DataContext {
       // A binding evaluates passively. The flag is fixed on a scoped view of
       // this context, so the function and the error handling that run after
       // pending arguments settle see it too.
-      const scope = this.withFlags({passive: true});
+      const activeCatalogId = !callName.startsWith('@') ? targetCatalog.id : undefined;
+      const scope = this.withFlags({
+        passive: true,
+        activeCatalogId,
+        activeCatalog: activeCatalogId !== undefined ? targetCatalog : undefined,
+      });
       const argSignals: Record<string, Signal<unknown>> = {};
 
       for (const [key, argVal] of Object.entries(call.args ?? {})) {
@@ -1362,16 +1401,19 @@ export class DataContext {
       }
       return getSystemFunctionCatalog();
     }
+    const effectiveCatalogId = this.atLeastV10 ? catalogId : undefined;
+    if (typeof effectiveCatalogId === 'string') {
+      const activeCatalog = this.lookupActiveCatalog(effectiveCatalogId);
+      if (activeCatalog) {
+        return activeCatalog;
+      }
+    }
     if (!this.surface) {
       throw new A2uiCatalogError(
         `No surface available to resolve catalog: ${catalogId ?? 'default'}`,
       );
     }
-    return resolveSurfaceCatalog(
-      this.surface,
-      this.atLeastV10 ? catalogId : undefined,
-      `Function call '${name}'`,
-    );
+    return resolveSurfaceCatalog(this.surface, effectiveCatalogId, `Function call '${name}'`);
   }
 
   /**
@@ -1415,18 +1457,51 @@ export class DataContext {
    * @param flags The flags to add to those of this context.
    * @returns The view.
    */
-  private withFlags(flags: {
-    userActivated?: boolean;
-    passive?: boolean;
-    action?: boolean;
-    noAgentRouting?: boolean;
-  }): this {
+  private withFlags(flags: DataContextFlags): this {
     const view = Object.create(this) as this;
     view._isUserActivated = this._isUserActivated || Boolean(flags.userActivated);
     view._isPassiveEvaluation = this._isPassiveEvaluation || Boolean(flags.passive);
     view._isActionExecution = this._isActionExecution || Boolean(flags.action);
     view._noAgentRouting = this._noAgentRouting || Boolean(flags.noAgentRouting);
+    view._activeCatalogId = flags.activeCatalogId ?? this._activeCatalogId;
+    view._activeCatalog =
+      flags.activeCatalog !== undefined
+        ? flags.activeCatalog
+        : flags.activeCatalogId !== undefined && flags.activeCatalogId !== this._activeCatalogId
+          ? undefined
+          : this._activeCatalog;
+    if (flags.activeCatalogId !== undefined || flags.activeCatalog !== undefined) {
+      view._cachedAtLeastV10 = undefined;
+    }
     return view;
+  }
+
+  /**
+   * The catalog ID of the catalog function currently executing in this context
+   * or an ancestor context, if any.
+   */
+  private get activeCatalogId(): string | undefined {
+    return this._activeCatalogId ?? this.parent?.activeCatalogId;
+  }
+
+  /**
+   * The active `Catalog` instance attached to the nearest active catalog scope,
+   * stopping at the closest context that defines `_activeCatalogId`.
+   */
+  private get activeCatalog(): Catalog<any> | undefined {
+    if (this._activeCatalogId !== undefined) {
+      return this._activeCatalog;
+    }
+    return this.parent?.activeCatalog;
+  }
+
+  /**
+   * Looks up a scoped active `Catalog` instance matching `catalogId` on the
+   * nearest active catalog scope.
+   */
+  private lookupActiveCatalog(catalogId: string): Catalog<any> | undefined {
+    const active = this.activeCatalog;
+    return active?.id === catalogId ? active : undefined;
   }
 
   /**

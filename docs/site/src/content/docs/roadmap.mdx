@@ -1,0 +1,130 @@
+---
+title: 'Roadmap'
+description: 'The tools A2UI is building to take a generative UI agent from its first component to production, and what is available today at each stage.'
+---
+
+import RoadmapLoop from '@components/docs/RoadmapLoop.astro';
+
+The A2UI roadmap describes the tools we are building around the protocol to help you take a generative UI (gen-UI) agent from its first component to production, and keep improving it after launch.
+
+Shipping a gen-UI agent involves five stages that repeat. You build components, configure your agent to use them, evaluate the results, distribute the agent to your users, and monitor how they respond. What you learn while monitoring feeds the next round of component work, so the stages form a loop.
+
+The diagram below shows that loop. Select a stage to see what is available today and what is planned for it. The A2UI CLI is at the center because we plan for it to cover every stage, so you or your coding agent can run the whole loop from a terminal.
+
+<RoadmapLoop />
+
+:::note[Plans can change]
+This page describes where we are investing. Priorities and scope may change as we learn from the community.
+:::
+
+## Build cross-platform components
+
+Our goal is for you to design a component once and render it natively on every platform.
+
+**Available today**
+
+1. [Catalogs](../concepts/catalogs/) describe your components and functions in one JSON Schema that both agents and renderers read. [How to Define a Catalog](../guides/defining-a-catalog/) covers [prompt instructions and metadata](../guides/defining-a-catalog/#prompt-instructions-and-catalog-metadata), [theming with reusable definitions](../guides/defining-a-catalog/#reusable-schema-definitions-defs-and-theming), and [schema parity tests in CI](../guides/defining-a-catalog/#schema-parity-tests-in-ci).
+2. The [Basic Catalog](../concepts/catalogs/#the-basic-catalog) ships with every official renderer and takes its styling from the host framework's theme. See the [v1.0 Basic Catalog Guide](/specification/v1.0-basic-catalog-implementation-guide/).
+3. Official [renderers](../concepts/sdks/#renderer-sdk) exist for React, Lit, Angular, Flutter, SwiftUI, and Jetpack Compose. See [Registering a catalog in a renderer](../concepts/catalogs/#registering-a-catalog-in-a-renderer).
+4. [Universal Web Components](../guides/authoring-universal-components/) let you write a custom web component once and register it in Lit, React, and Angular.
+5. The `a2ui codegen` command in the [A2UI CLI](https://github.com/a2ui-project/a2ui/tree/main/dart/a2ui_cli) generates typesafe component builders from a catalog.
+6. [A2UI Composer](https://a2ui-project.github.io/composer/) is a visual editor for A2UI layouts.
+
+**On the roadmap**
+
+1. Primitives that you style to match your design system and describe declaratively. Today a custom component still needs an implementation on each native platform; described primitives remove that step.
+2. A runtime templating engine that reads a component's description and renders it natively on each platform.
+3. A secure sandbox for components that need shared business logic, such as validation or pricing rules, where a declarative description is not enough. We will investigate a sandbox that lets you write that logic once and run it safely on every client.
+
+## Configure your agents
+
+Our goal is for your agent to know when and how to use each component.
+
+**Available today**
+
+1. The skill generator (`SkillGenerator`) in the Python and TypeScript [Agent SDKs](../concepts/sdks/#agent-sdk) builds an A2UI skill from your catalog, with grammar rules for the chosen inference format and the signatures of your components and functions. Because the skill comes from the catalog, it changes when your components change. See [Generate the skill](../concepts/overview/#generate-the-skill).
+2. [Catalog negotiation](../concepts/catalogs/#catalog-negotiation-and-multi-catalog-surfaces) selects the catalogs and protocol version that each client supports. See [Using a catalog in an agent](../concepts/catalogs/#using-a-catalog-in-an-agent).
+3. [Inference formats](../concepts/inference-formats/), such as Express and Direct JSON, compile model output into standard A2UI messages without client changes.
+4. The Agent SDKs [validate output against live surface state](../concepts/overview/#compile-and-validate-the-output), so errors go back to the model before anything reaches the client.
+5. Integrations exist for Google ADK and the A2A protocol, and [How to Integrate A2UI into an Agent](../guides/agent-integration/) covers other agent servers.
+
+**On the roadmap**
+
+1. Official Agent SDK support for decision models, such as [Jev](https://docs.typesafe.ai/) from TypeSafe, as an inference format. A decision model answers typed questions about layouts you define in advance instead of generating the component tree token by token, which makes layout decisions up to 80x faster. [Fast, reliable A2UI](https://developers.googleblog.com/fast-reliable-a2ui/) describes the approach, and [jev2ui](https://github.com/dglazkov/jev2ui) is an open-source example that builds A2UI screens from Jev decisions (try it hosted as [Apparite](https://apparite.cnfg.ai/)).
+2. Clearer error handling and diagnostics in the skill generator when a catalog or inference format cannot be compiled.
+3. Skill generation in the Dart Agent SDK, which does not support it yet.
+4. Integrations with more agent frameworks.
+
+## Evaluate gen-UI quality
+
+Our goal is for you to know whether your agent picks the right components and builds them correctly.
+
+**Available today**
+
+1. The [A2UI evaluation framework](https://github.com/a2ui-project/a2ui/tree/main/eval) is built on Inspect AI and scores model output against the project's own datasets in three stages: schema and structure validation, deterministic assertions, and an LLM judge that grades intent and quality. See the [evaluation design](https://github.com/a2ui-project/a2ui/blob/main/eval/DESIGN.md).
+2. [Token and latency benchmarks](../concepts/inference-formats/#token-and-latency-benchmarks) compare inference formats.
+
+**On the roadmap**
+
+Guidance and tooling to evaluate your own agents and catalogs, combining these approaches:
+
+1. Deterministic rules that check payloads against your catalog and scenario requirements.
+2. An LLM judge that grades whether the generated UI fits the user's intent.
+3. Tool usage as a judge, which looks at the agent's tool calls and context to check whether it used components correctly.
+
+## Distribute across platforms
+
+Our goal is for one agent to reach users wherever they are.
+
+**Available today**
+
+1. Renderers cover web and desktop (React, Lit, and Angular) and mobile (Flutter, SwiftUI, and Jetpack Compose). See [How to Integrate A2UI into a Client](../guides/client-integration/) and the [Android Jetpack Compose guide](https://developer.android.com/develop/ui/compose/agentic).
+2. MCP works in both directions. You can [render A2UI inside an MCP App](../guides/a2ui-in-mcp-apps/), or [embed MCP Apps in A2UI surfaces](../guides/mcp-apps-in-a2ui/), where `McpApp` already [shares data paths with sibling A2UI components](../guides/mcp-apps-in-a2ui/#synchronizing-state-and-tool-calls). The [MCP Integration Overview](../guides/mcp-overview/) compares these with [serving A2UI layouts from an MCP server](../guides/a2ui-over-mcp/) and [calling MCP tools from A2UI](../guides/mcp-catalog/).
+3. [Community Projects](../ecosystem/renderers/) cover more frameworks and platforms.
+
+**On the roadmap**
+
+1. Better tooling for MCP Apps, which is our first focus for distribution. This starts with sharing state between A2UI components and the MCP host and server when A2UI runs inside an MCP App, to match what `McpApp` already does in the other direction.
+2. Guides and examples for distributing your agent through AI assistants such as Gemini, Claude, and ChatGPT, and through messaging apps such as Microsoft Teams and Slack.
+
+## Monitor and evolve
+
+Our goal is for your gen-UI to improve as you learn from your users.
+
+**Available today**
+
+1. [Renderer-to-agent messages](../concepts/messages/#renderer-to-agent-messages) already report user actions and function results to your agent, which gives you events to log. See [Handle user actions](../concepts/overview/#handle-user-actions).
+
+**On the roadmap**
+
+1. Guidance on which logs to collect from gen-UI experiences, such as rendered surfaces, user actions, errors, and abandoned flows.
+2. Ways to turn those signals into design and component updates, which takes you back to [building components](#build-cross-platform-components).
+
+## The A2UI CLI
+
+The [A2UI CLI](https://github.com/a2ui-project/a2ui/tree/main/dart/a2ui_cli) connects the stages. Today it generates typesafe component builders from a catalog with `a2ui codegen`. We plan to extend it to every stage:
+
+| Stage      | What the CLI will help with                                      |
+| :--------- | :--------------------------------------------------------------- |
+| Build      | Scaffold, generate, preview, and publish components and catalogs |
+| Configure  | Generate skills and connect catalogs to agents                   |
+| Evaluate   | Validate output and run evaluation suites                        |
+| Distribute | Package agents for native apps, assistants, and MCP Apps hosts   |
+| Monitor    | Pull usage and feedback data back into your project              |
+
+The CLI runs in a terminal and is scriptable, so coding agents can run it directly. The repository also includes an [A2UI agent skill](https://github.com/a2ui-project/a2ui/tree/main/skills/a2ui) that teaches coding agents to work with A2UI. Together, they let a coding agent build a component, wire it into your agent, run evaluations, ship the result, and read the feedback.
+
+## Protocol versions
+
+The protocol evolves alongside this tooling. [`specification/versions.json`](https://github.com/a2ui-project/a2ui/blob/main/specification/versions.json) is the source of truth for version status.
+
+| Version                                                                   | Status     |
+| :------------------------------------------------------------------------ | :--------- |
+| [v1.0](/specification/v1.0-a2ui/)                                         | Current    |
+| [v0.9.1](/specification/v0.9.1-a2ui/)                                     | Previous   |
+| [v0.9](https://github.com/a2ui-project/a2ui/tree/main/specification/v0_9) | Previous   |
+| [v0.8](https://github.com/a2ui-project/a2ui/tree/main/specification/v0_8) | Deprecated |
+
+## Get involved
+
+We want to build this with the community. Share feedback, propose features, or pick up work on [GitHub](https://github.com/a2ui-project/a2ui) and in [GitHub Discussions](https://github.com/a2ui-project/a2ui/discussions).

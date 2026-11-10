@@ -206,6 +206,13 @@ enum SuiteVersion {
       ? liftParts(parts, join: join, injectedCatalogId: injectedCatalogId)
       : partsAsWritten(parts);
 
+  /// [properties], a component's property map, with reserved keys lifted to
+  /// v1.0 when the suite ran lowered.
+  Map<String, Object?> liftProperties(Map<String, Object?> properties) =>
+      _lowers
+      ? _renameKeysIn(properties, lower: false)! as Map<String, Object?>
+      : properties;
+
   /// Checks the catalog-level assertions of [expected] against [catalog];
   /// see [expectCatalog]. As written, the version is checked too.
   void expectCatalog(CatalogApi catalog, Map<String, Object?> expected) {
@@ -399,8 +406,11 @@ Map<String, Object?> lowerCatalogDocument(Map<String, Object?> document) {
       'functions': {
         for (final MapEntry<Object?, Object?> entry in functions.entries)
           entry.key.toString(): switch (entry.value) {
-            final Map<Object?, Object?> fn => {
-              ...fn,
+            final Map<Object?, Object?> fn => <String, Object?>{
+              for (final MapEntry<Object?, Object?> fnEntry in fn.entries)
+                if (fnEntry.key != 'allowedCallers' &&
+                    fnEntry.key != 'requiresUserActivation')
+                  fnEntry.key.toString(): fnEntry.value,
               if (fn['returnType'] == 'validationResult')
                 'returnType': 'boolean',
               if (fn['properties'] case final Map<Object?, Object?> props

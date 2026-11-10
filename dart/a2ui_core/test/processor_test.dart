@@ -125,7 +125,7 @@ void main() {
       final processor = MessageProcessor<ComponentApi>(
         catalogs: [
           catalogNamed('modern', protocolVersion: A2uiProtocolVersion.v1_0),
-          catalogNamed('legacy'),
+          catalogNamed('v09'),
         ],
         defaultVersion: version,
       );
@@ -150,8 +150,8 @@ void main() {
 
     test('a v0.9 surface includes unversioned catalogs', () {
       expect(
-        availableFor(A2uiProtocolVersion.v0_9, catalogId: 'legacy').keys,
-        ['legacy'],
+        availableFor(A2uiProtocolVersion.v0_9, catalogId: 'v09').keys,
+        ['v09'],
       );
     });
   });
@@ -371,13 +371,13 @@ void main() {
           ((json[version]! as Map)['inlineCatalogs'] as List).first
               as Map<String, Object?>;
 
-      // Below v1.0: the legacy shape, with components wrapped in the
+      // Below v1.0: the v0.9 shape, with components wrapped in the
       // ComponentCommon envelope and no `$schema`. Button's schema is an
       // allOf of CommonSchemas.checkable and an object; the body carries the
       // properties the catalog document serializes for it, minus `id`.
-      final Map<String, Object?> legacy = firstInline('v0.9');
-      expect(legacy.containsKey(r'$schema'), isFalse);
-      final button = (legacy['components']! as Map)['Button'] as Map;
+      final Map<String, Object?> v09Inline = firstInline('v0.9');
+      expect(v09Inline.containsKey(r'$schema'), isFalse);
+      final button = (v09Inline['components']! as Map)['Button'] as Map;
       final buttonMembers = button['allOf'] as List;
       expect(buttonMembers.first, {
         r'$ref': r'common_types.json#/$defs/ComponentCommon',
