@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:triage/triage.dart';
 
@@ -20,7 +21,8 @@ import 'milestone_change.dart';
 /// A triage suggestion as the triager edits it, before applying it.
 class SuggestionDraft extends ChangeNotifier {
   SuggestionDraft(TriageSuggestion suggestion)
-    : summary = suggestion.summary,
+    : _initial = suggestion,
+      summary = suggestion.summary,
       suggestion = suggestion.suggestion,
       reply = TextEditingController(text: suggestion.reply ?? ''),
       duplicateOf = TextEditingController(
@@ -36,6 +38,9 @@ class SuggestionDraft extends ChangeNotifier {
     reply.addListener(notifyListeners);
     duplicateOf.addListener(notifyListeners);
   }
+
+  /// The suggestion that the draft started from.
+  final TriageSuggestion _initial;
 
   /// The advisor's summary, which the triager reads but does not apply.
   final String? summary;
@@ -92,6 +97,49 @@ class SuggestionDraft extends ChangeNotifier {
 
   int? get _duplicateOf => int.tryParse(duplicateOf.text.trim());
 
+  /// Whether the triager changed the draft since it started, or since the
+  /// last [revert].
+  bool get isEdited {
+    final TriageSuggestion s = _initial;
+    return reply.text != (s.reply ?? '') ||
+        duplicateOf.text != (s.duplicateOf?.toString() ?? '') ||
+        _closeAs != s.closeAs ||
+        !listEquals(_addedLabels, s.addedLabels) ||
+        !listEquals(_removedLabels, s.removedLabels) ||
+        !listEquals(_newAssignees, s.newAssignees) ||
+        !listEquals(_removedAssignees, s.removedAssignees) ||
+        !milestoneChange.isEmpty;
+  }
+
+  /// Undoes the triager's changes, back to the suggestion the draft started
+  /// from.
+  void revert() {
+    final TriageSuggestion s = _initial;
+    reply.text = s.reply ?? '';
+    duplicateOf.text = s.duplicateOf?.toString() ?? '';
+    _set(() {
+      _closeAs = s.closeAs;
+      _addedLabels = s.addedLabels;
+      _removedLabels = s.removedLabels;
+      _newAssignees = s.newAssignees;
+      _removedAssignees = s.removedAssignees;
+      _newMilestone = null;
+      _removedMilestone = null;
+    });
+  }
+
+  /// Whether the draft changes anything on GitHub.
+  bool get hasChanges {
+    final TriageSuggestion s = toSuggestion();
+    return s.reply != null ||
+        s.closeAs != null ||
+        s.addedLabels.isNotEmpty ||
+        s.removedLabels.isNotEmpty ||
+        s.newAssignees.isNotEmpty ||
+        s.removedAssignees.isNotEmpty ||
+        !milestoneChange.isEmpty;
+  }
+
   /// Why the draft cannot be applied, or null if it can.
   String? get problem {
     if (_closeAs == TriageCloseReason.duplicate) {
@@ -100,16 +148,7 @@ class SuggestionDraft extends ChangeNotifier {
         return 'Enter the number of the issue that this one duplicates.';
       }
     }
-    final TriageSuggestion s = toSuggestion();
-    if (s.reply == null &&
-        s.closeAs == null &&
-        s.addedLabels.isEmpty &&
-        s.removedLabels.isEmpty &&
-        s.newAssignees.isEmpty &&
-        s.removedAssignees.isEmpty &&
-        milestoneChange.isEmpty) {
-      return 'Nothing to apply.';
-    }
+    if (!hasChanges) return 'Nothing to apply.';
     return null;
   }
 

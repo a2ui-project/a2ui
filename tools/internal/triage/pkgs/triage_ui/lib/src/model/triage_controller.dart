@@ -148,6 +148,10 @@ class TriageController extends ChangeNotifier {
         i,
   ];
 
+  /// [item] and the items linked to it that need triage or team input,
+  /// which the details show as tabs and apply together.
+  List<TriageItem> group(TriageItem item) => [item, ...relatedInQueue(item)];
+
   /// Whether a refresh found that [number] changed on GitHub, which reset
   /// its draft.
   bool changedOnGitHub(int number) => _changedOnGitHub.contains(number);
@@ -156,9 +160,22 @@ class TriageController extends ChangeNotifier {
 
   ApplyResult? lastResult(int number) => _results[number];
 
-  /// The draft for [item], which starts as [initial].
-  SuggestionDraft draftFor(TriageItem item, TriageSuggestion initial) =>
-      _drafts.putIfAbsent(item.number, () => SuggestionDraft(initial));
+  /// The draft for [item], which starts as [initial], or as the item's
+  /// suggestion if [initial] is null.
+  SuggestionDraft draftFor(TriageItem item, [TriageSuggestion? initial]) =>
+      _drafts.putIfAbsent(
+        item.number,
+        () => SuggestionDraft(
+          initial ?? item.suggestion?.suggestion ?? const TriageSuggestion(),
+        ),
+      );
+
+  /// Undoes the triager's changes to the drafts of [items].
+  void revert(List<TriageItem> items) {
+    for (final i in items) {
+      draftFor(i).revert();
+    }
+  }
 
   /// The session report.
   String report() => session.report(stillNeedTriage: remaining);
@@ -271,7 +288,27 @@ class TriageController extends ChangeNotifier {
   ///
   /// On success, records the item in the session and, if it is selected,
   /// selects the next item that is not handled yet.
-  Future<void> apply(TriageItem item) async {
+  Future<void> apply(TriageItem item) => applyAll([item]);
+
+  /// Applies the drafts of [items], one after another, skipping the drafts
+  /// that change nothing. An item whose apply fails does not stop the
+  /// others.
+  ///
+  /// If every apply succeeds and one of [items] is selected, selects the
+  /// next item that is not handled yet.
+  Future<void> applyAll(List<TriageItem> items) async {
+    final List<TriageItem> order = orderedItems;
+    var succeeded = true;
+    for (final i in items) {
+      if (!draftFor(i).hasChanges) continue;
+      if (!await _applyOne(i)) succeeded = false;
+    }
+    if (succeeded) _selectNextAfterGroup(items, order);
+    notifyListeners();
+  }
+
+  /// Applies the draft for [item], and returns whether it succeeded.
+  Future<bool> _applyOne(TriageItem item) async {
     final int n = item.number;
     final TriageSuggestion suggestion = _withoutTeamInput(
       item,
@@ -294,12 +331,12 @@ class TriageController extends ChangeNotifier {
     _results[n] = result;
     if (result.succeeded) {
       session.recordApplied(item, suggestion, milestone: milestone);
-      if (_selected == n) _selectNextAfter(n);
       if (suggestion.addedLabels.contains(needsTeamInputLabel)) {
         _moveToTeamInput(item);
       }
     }
     await _finish(n);
+    return result.succeeded;
   }
 
   /// Sends [item] to the team: adds `status: needs-team-input` and posts
@@ -308,7 +345,24 @@ class TriageController extends ChangeNotifier {
   /// On success, records the item in the session, moves it to the
   /// **Needs team input** group and, if it is selected, selects the next
   /// item that is not handled yet.
-  Future<void> sendToTeam(TriageItem item, {String? comment}) async {
+  Future<void> sendToTeam(TriageItem item, {String? comment}) =>
+      sendAllToTeam([item], comment: comment);
+
+  /// Sends those of [items] that do not have `status: needs-team-input` to
+  /// the team, each with [comment], as [sendToTeam] does.
+  Future<void> sendAllToTeam(List<TriageItem> items, {String? comment}) async {
+    final List<TriageItem> order = orderedItems;
+    var succeeded = true;
+    for (final i in items) {
+      if (i.needsTeamInput) continue;
+      if (!await _sendOne(i, comment: comment)) succeeded = false;
+    }
+    if (succeeded) _selectNextAfterGroup(items, order);
+    notifyListeners();
+  }
+
+  /// Sends [item] to the team, and returns whether it succeeded.
+  Future<bool> _sendOne(TriageItem item, {String? comment}) async {
     final int n = item.number;
     _applying.add(n);
     _results.remove(n);
@@ -320,7 +374,7 @@ class TriageController extends ChangeNotifier {
     } on GitHubException catch (e) {
       _error = 'Could not add "$needsTeamInputLabel" to #$n: ${e.message}';
       await _finish(n);
-      return;
+      return false;
     }
     var commented = comment != null;
     if (comment != null) {
@@ -334,9 +388,9 @@ class TriageController extends ChangeNotifier {
       }
     }
     session.recordSentToTeam(item, comment: commented ? comment : null);
-    if (_selected == n) _selectNextAfter(n);
     _moveToTeamInput(item);
     await _finish(n);
+    return true;
   }
 
   /// Adds `status: needs-team-input` to the labels that [suggestion]
@@ -408,8 +462,16 @@ class TriageController extends ChangeNotifier {
       ..sort((a, b) => a.updatedAt.compareTo(b.updatedAt));
   }
 
-  void _selectNextAfter(int number) {
-    final List<TriageItem> items = orderedItems;
+  /// If one of [items] is selected, selects the next item after them that
+  /// is not handled yet, in [order]: the list as it was before the items
+  /// changed, since a change can move an item to another group.
+  void _selectNextAfterGroup(List<TriageItem> items, List<TriageItem> order) {
+    if (items.any((i) => i.number == _selected)) {
+      _selectNextAfter(items.first.number, order);
+    }
+  }
+
+  void _selectNextAfter(int number, List<TriageItem> items) {
     final int index = items.indexWhere((i) => i.number == number);
     final Iterable<TriageItem> candidates = [
       ...items.skip(index + 1),

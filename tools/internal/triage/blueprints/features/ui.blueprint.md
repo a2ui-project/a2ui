@@ -50,7 +50,11 @@ Issues are green and PRs are orange, in every group. Each type of item has its o
 
 ### Details
 
-The editable suggestion for the selected item, followed by an editable suggestion for each linked PR or issue that needs triage.
+Tabs at the top: one for the selected item, and one for each linked PR or issue that needs triage. An issue can have several linked PRs, and a PR several linked issues. A tab shows the item's icon and number, and a blue dot when the triager edited its suggestion.
+
+Each tab shows its item and its editable suggestion, on the page background, without a card frame.
+
+Below the tabs are the buttons, which act on all the items in the tabs together.
 
 Nothing is selected when the tool starts, unless it starts with an item from a suggestion comment. Clicking the selected item again deselects it.
 
@@ -66,10 +70,11 @@ The `summary` and the `suggestion` are shown as text. The triager can change the
 
 Labels have their colors from the repository, as on GitHub. The related issues and PRs are links.
 
-There are two buttons:
+The buttons below the tabs:
 
-1. **Apply** applies the suggestion to the item on GitHub. If the item has `status: needs-team-input` and the suggestion does not add it, the tool also removes that label, as [triage.md](../../../../../docs/contributing/triage/triage.md#second-line-triage-weekly-by-triager) asks once the item is triaged.
-2. **Needs team input** adds `status: needs-team-input` to the item, and posts the triager's comment if they write one. It does not apply the suggestion. The button is shown only for items without the label.
+1. **Apply** applies the suggestion of each item in the tabs to it on GitHub, skipping the suggestions that change nothing. If an item has `status: needs-team-input` and its suggestion does not add it, the tool also removes that label, as [triage.md](../../../../../docs/contributing/triage/triage.md#second-line-triage-weekly-by-triager) asks once the item is triaged.
+2. **Needs team input** adds `status: needs-team-input` to each item in the tabs that does not have it, and posts the triager's comment on each, if they write one. It does not apply the suggestions. The button is shown only when an item in the tabs does not have the label.
+3. **Revert** undoes the triager's changes to the suggestions in all tabs. It is enabled when a tab has changes.
 
 ## CUJ
 
@@ -79,7 +84,7 @@ Ann is this week's triager.
 
 1. Ann wants to triage GitHub items and opens the tool from VS Code, with the `triage_ui` launch configuration.
 2. The header shows how many items need triage. The list on the left shows the **New** group, then the **Needs team input** group.
-3. Ann selects the first item in **New**. The details show its suggestion, and the suggestions for the linked items that need triage.
+3. Ann selects the first item in **New**. The details show its suggestion, with a tab for it and for each linked item that needs triage.
 4. Ann reads the summary and the suggestion, changes what to apply if needed, and clicks **Apply**.
 5. The tool applies the suggestion to the item on GitHub, marks the item as applied in the list, and selects the next item.
 
@@ -127,7 +132,7 @@ The suggestion is to close the issue as a duplicate of #1100. Ann opens #1100 fr
 
 ### Triage an issue and its PR
 
-An issue has a PR that fixes it, and both need triage. When Ann selects the issue, the details show the suggestions for both, and Ann applies each of them.
+An issue has a PR that fixes it, and both need triage. When Ann selects the issue, the details show a tab for each. Ann adjusts both suggestions and clicks **Apply** once, which applies both.
 
 ### Recover from a failed apply
 

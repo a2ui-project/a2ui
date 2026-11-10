@@ -175,8 +175,10 @@ void main() {
       findsNothing,
     );
 
-    // The linked PR needs triage too, so it is shown below the issue.
-    expect(find.text('Linked PR that needs triage'), findsOneWidget);
+    // The linked PR needs triage too, so it has a tab next to the issue's.
+    expect(find.widgetWithText(Tab, '#10'), findsOneWidget);
+    await tester.tap(find.widgetWithText(Tab, '#20'));
+    await tester.pumpAndSettle();
     expect(find.text('PR #20: Fix the Row crash'), findsOneWidget);
   });
 
@@ -333,9 +335,8 @@ void main() {
       tester.widget<Text>(find.text('type: bug').first).style!.color,
       Colors.black,
     );
-    // On the cards of the issue and of its linked PR, each in the labels
-    // and in the labels to remove.
-    expect(find.widgetWithText(LabelPill, needsTriageLabel), findsNWidgets(4));
+    // In the labels of the item, and in the labels to remove.
+    expect(find.widgetWithText(LabelPill, needsTriageLabel), findsNWidgets(2));
   });
 
   testWidgets('picks labels from the dropdown', (tester) async {
@@ -437,7 +438,7 @@ void main() {
     expect(find.byType(MenuItemButton), findsNWidgets(8));
   }, variant: TargetPlatformVariant.desktop());
 
-  testWidgets('sends an item to the team', (tester) async {
+  testWidgets('sends the item and its linked PR to the team', (tester) async {
     await pumpApp(tester);
 
     await tester.tap(
@@ -456,12 +457,63 @@ void main() {
     expect(github.calls, [
       'POST issues/10/labels {"labels":["status: needs-team-input"]}',
       'POST issues/10/comments {"body":"Is this a P0?"}',
+      'POST issues/20/labels {"labels":["status: needs-team-input"]}',
+      'POST issues/20/comments {"body":"Is this a P0?"}',
     ]);
-    expect(find.text('New (2)'), findsOneWidget);
+    expect(find.text('New (1)'), findsOneWidget);
     expect(find.text('Issue #11: Docs are unclear'), findsOneWidget);
-    await expand(tester, 'Needs team input (1)');
+    await expand(tester, 'Needs team input (2)');
     await expand(tester, 'Issues with PRs (1)');
     expect(find.byIcon(Icons.groups), findsOneWidget);
+  });
+
+  testWidgets('marks edited tabs, reverts them, and applies all tabs '
+      'together', (tester) async {
+    await pumpApp(tester);
+    final Finder revert = find.widgetWithText(TextButton, 'Revert');
+    final Finder edited = find.byTooltip('Edited');
+    expect(edited, findsNothing);
+    expect(tester.widget<TextButton>(revert).onPressed, isNull);
+
+    Future<void> addBugLabelToThePr() async {
+      await tester.tap(find.widgetWithText(Tab, '#20'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Choose labels to add'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(MenuItemButton, 'type: bug'));
+      await tester.tapAt(Offset.zero);
+      await tester.pumpAndSettle();
+    }
+
+    await addBugLabelToThePr();
+    expect(edited, findsOneWidget);
+    expect(find.widgetWithText(InputChip, 'type: bug'), findsOneWidget);
+
+    await tester.tap(revert);
+    await tester.pumpAndSettle();
+    expect(edited, findsNothing);
+    expect(find.widgetWithText(InputChip, 'type: bug'), findsNothing);
+
+    await addBugLabelToThePr();
+    await tester.tap(find.widgetWithText(FilledButton, 'Apply'));
+    await tester.pump();
+    for (
+      var i = 0;
+      i < 100 && (controller.isApplying(10) || controller.isApplying(20));
+      i++
+    ) {
+      await tester.pump(const Duration(milliseconds: 10));
+    }
+    await tester.pumpAndSettle();
+
+    // The issue's suggestion and the PR's edits, in one click.
+    expect(github.calls, [
+      'POST issues/10/comments {"body":"Thanks for the report."}',
+      'POST issues/10/labels {"labels":["P1"]}',
+      'POST issues/10/assignees {"assignees":["octocat"]}',
+      'POST issues/20/labels {"labels":["type: bug"]}',
+    ]);
+    expect(controller.selected!.number, 11);
   });
 
   testWidgets('starts with nothing selected, and a second click on an item '

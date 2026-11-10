@@ -52,7 +52,6 @@ class SuggestionEditor extends StatelessWidget {
       builder: (context, _) {
         final String? summary = draft.summary;
         final String? suggestion = draft.suggestion;
-        final String? problem = draft.problem;
         final bool applying = controller.isApplying(item.number);
         final ApplyResult? result = controller.lastResult(item.number);
         LabelColors? colorsOf(String name) =>
@@ -206,43 +205,6 @@ class SuggestionEditor extends StatelessWidget {
               onChanged: (List<String> v) =>
                   draft.removedMilestone = v.firstOrNull,
             ),
-            Wrap(
-              spacing: 16,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                Tooltip(
-                  message:
-                      'Post the reply, change the labels, assignees and '
-                      'milestone, and close the item on GitHub, as set above',
-                  child: FilledButton(
-                    onPressed: problem == null && !applying
-                        ? () => controller.apply(item)
-                        : null,
-                    child: const Text('Apply'),
-                  ),
-                ),
-                if (!item.needsTeamInput)
-                  Tooltip(
-                    message:
-                        'Add "$needsTeamInputLabel", so that the team '
-                        'discusses the item. The suggestion is not applied.',
-                    child: OutlinedButton(
-                      onPressed: applying
-                          ? null
-                          : () => _sendToTeam(context, controller, item),
-                      child: const Text('Needs team input'),
-                    ),
-                  ),
-                if (applying)
-                  const SizedBox.square(
-                    dimension: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                else if (problem != null)
-                  Text(problem),
-              ],
-            ),
             if (result != null && !applying) _ApplyResultView(result),
           ],
         );
@@ -339,82 +301,6 @@ class _PriorityField extends StatelessWidget {
       ],
     );
   }
-}
-
-/// Asks for an optional comment for the team, then sends [item] to the
-/// team.
-Future<void> _sendToTeam(
-  BuildContext context,
-  TriageController controller,
-  TriageItem item,
-) async {
-  final String? comment = await showDialog<String>(
-    context: context,
-    builder: (context) => _TeamInputDialog(item),
-  );
-  if (comment == null) return;
-  await controller.sendToTeam(item, comment: comment.isEmpty ? null : comment);
-}
-
-/// Asks for a comment for the team. Pops with the comment, which is empty
-/// when the triager wrote none, or with null when they cancel.
-class _TeamInputDialog extends StatefulWidget {
-  const _TeamInputDialog(this.item);
-
-  final TriageItem item;
-
-  @override
-  State<_TeamInputDialog> createState() => _TeamInputDialogState();
-}
-
-class _TeamInputDialogState extends State<_TeamInputDialog> {
-  final _comment = TextEditingController();
-
-  @override
-  void dispose() {
-    _comment.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => SelectionArea(
-    child: AlertDialog(
-      title: Text('Send ${widget.item.name} to the team?'),
-      content: SizedBox(
-        width: 560,
-        child: TextField(
-          controller: _comment,
-          autofocus: true,
-          minLines: 3,
-          maxLines: 10,
-          decoration: const InputDecoration(
-            labelText: 'Comment for the team',
-            helperText:
-                'Optional. Posted from your account. The suggestion is not '
-                'applied.',
-            border: OutlineInputBorder(),
-            alignLabelWithHint: true,
-          ),
-        ),
-      ),
-      actions: [
-        Tooltip(
-          message: 'Change nothing on GitHub',
-          child: TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-        ),
-        Tooltip(
-          message: 'Add the label, and post the comment if there is one',
-          child: FilledButton(
-            onPressed: () => Navigator.pop(context, _comment.text.trim()),
-            child: const Text('Add "$needsTeamInputLabel"'),
-          ),
-        ),
-      ],
-    ),
-  );
 }
 
 class _Text extends StatelessWidget {
