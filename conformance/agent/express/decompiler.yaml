@@ -1154,3 +1154,152 @@
   expect_contains:
     - 'root = Probe({"@path": "/a", other: 1})'
   expect_round_trip: true
+
+- name: test_decompile_express_multiline_code_writes_raw_triple_quoted_string
+  features: [F-AGT-21, F-AGT-47]
+  description: A multi-line string writes out as a raw triple-quoted string (r"""..."""), so code inside it reads as written. Backslashes, quotes, template literals, comment markers, sentinel tags and lines that look like Express statements are all kept verbatim, and the value recompiles byte for byte.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: |
+
+              import { useData, callFunction } from "a2ui";
+              // Renders the loan table. -- not an Express comment
+              # not an Express comment either
+              const PHONE = /^\d{3}-\d{4}$/;
+              const TAB = "\t";
+              surface("not_a_surface")
+              root = Text("not a component")
+              total = principal * rate
+              const tag = "<a2ui>" + body + "</a2ui>";
+              export default function App() {
+                const [rate] = useData<number>("/loan/rate", 5);
+                const label = `Rate: ${rate.toFixed(2)}% of $/loan/amount`;
+                return (
+                  <div title='it\'s "quoted"'>
+                    {label}\n
+                  </div>
+                );
+              }
+  expect_contains:
+    - "root = Text(r\"\"\"\nimport { useData, callFunction } from \"a2ui\";"
+    - "const PHONE = /^\\d{3}-\\d{4}$/;"
+    - "const TAB = \"\\t\";"
+    - "const label = `Rate: ${rate.toFixed(2)}% of $/loan/amount`;"
+    - 'const tag = "<a2ui>" + body + "</a2ui>";'
+    - "<div title='it\\'s \"quoted\"'>"
+    - "}\n\"\"\")"
+  expect_round_trip: true
+
+- name: test_decompile_express_multiline_text_without_backslashes_is_raw
+  features: [F-AGT-21, F-AGT-47]
+  description: A multi-line string is written raw even when it has no backslash, and a tab inside it stays a literal tab rather than a `\t` escape.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Say \"hello\"\n\tthen wave"
+  expect_contains:
+    - "root = Text(r\"\"\"Say \"hello\"\n\tthen wave\"\"\")"
+  expect_round_trip: true
+
+- name: test_decompile_express_multiline_string_ending_in_backslash_is_raw
+  features: [F-AGT-21, F-AGT-47]
+  description: A raw triple-quoted string ends at the first `"""` whatever comes before it, so a multi-line value ending in a backslash is still written raw.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "dir C:\\temp\nC:\\"
+  expect_contains:
+    - "root = Text(r\"\"\"dir C:\\temp\nC:\\\"\"\")"
+  expect_round_trip: true
+
+- name: test_decompile_express_multiline_string_ending_in_quote_is_escaped_triple_quoted
+  features: [F-AGT-21, F-AGT-47]
+  description: A multi-line value ending in `"` cannot be written raw, since its last quote would run into the closing `"""`. It falls back to an escaped triple-quoted string, where backslashes are doubled and the final quote is written `\"`.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "path = C:\\temp\nlabel = \"done\""
+  expect_contains:
+    - "root = Text(\"\"\"path = C:\\\\temp\nlabel = \"done\\\"\"\"\")"
+  expect_absent:
+    - 'Text(r"""'
+  expect_round_trip: true
+
+- name: test_decompile_express_multiline_string_containing_triple_quotes_is_escaped_triple_quoted
+  features: [F-AGT-21, F-AGT-47]
+  description: A multi-line value containing `"""` cannot be written raw, since a raw string ends at the first `"""`. It falls back to an escaped triple-quoted string in which no three quotes stand together unescaped.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "def area(r):\n    \"\"\"Area of a circle.\"\"\"\n    return 3.14 * r * r"
+  expect_contains:
+    - "root = Text(\"\"\"def area(r):\n    \\\"\\\"\"Area of a circle.\\\"\\\"\"\n    return 3.14 * r * r\"\"\")"
+  expect_absent:
+    - 'Text(r"""'
+  expect_round_trip: true
+
+- name: test_decompile_express_multiline_string_with_carriage_returns_round_trips
+  features: [F-AGT-21, F-AGT-47]
+  description: Carriage returns in a multi-line value, alone or as part of `\r\n`, are kept as written inside the raw triple-quoted string and recompile byte for byte.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "first\r\nsecond\rthird \\d"
+  expect_contains:
+    - "root = Text(r\"\"\"first\r\nsecond\rthird \\d\"\"\")"
+  expect_round_trip: true

@@ -203,14 +203,15 @@ export function decompileString(val: string): string {
   const hasTab = val.includes('\t');
   const hasBackslash = val.includes('\\');
 
-  // 1. Multi-line strings use triple-quotes
-  if (hasNewline && !val.endsWith('"') && !val.includes('"""')) {
-    // Use raw triple quotes if there are backslashes but no tabs
-    if (hasBackslash && !hasTab) {
+  // 1. Multi-line strings are raw triple-quoted, so code reads as written. A
+  // raw string ends at the first `"""`, so a value that contains one or ends
+  // in `"` is escaped instead: every `"` that starts a `""` pair or ends the
+  // value is written `\"`.
+  if (hasNewline) {
+    if (!val.includes('"""') && !val.endsWith('"')) {
       return `r"""${val}"""`;
     }
-    // Otherwise standard triple quotes
-    const escaped = val.replaceAll('\\', '\\\\').replaceAll('\t', '\\t');
+    const escaped = val.replaceAll('\\', '\\\\').replace(/"(?="|$)/g, '\\"');
     return `"""${escaped}"""`;
   }
 

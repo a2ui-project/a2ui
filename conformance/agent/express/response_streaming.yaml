@@ -1260,3 +1260,110 @@
                     text: "Bar"
         - text: "`baz` done."
   expect_matches_single_shot: true
+
+# --- 11. Raw triple-quoted code across chunk boundaries ---
+
+- name: test_express_stream_raw_triple_quoted_code_split_across_chunks
+  features: [F-AGT-22]
+  description: A raw triple-quoted string several kilobytes long, split inside its opening and closing quotes, right after backslashes, inside `${`, and inside a `</a2ui>` that is part of the code, is held until the string closes and then emitted byte for byte. Only the real closing tag ends the block, and the streamed result matches parsing the whole response at once.
+  action: parse_chunk
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+  steps:
+    - input: "<a2ui>\nsurface(\"s1\")\ncode = Text(r"
+      expect: []
+    - input: '""'
+      expect: []
+    - input: "\"\nimport { useData, callFunction } from \"a2ui\";\n// Renders the loan table. -- not an Express comment\n# not an Express comment either\nconst PHONE = /^\\"
+      expect: []
+    - input: "d{3}-\\d{4}$/;\nconst TAB = \"\\t\";\nsurface(\"not_a_surface\")\nroot = Text(\"not a component\")\ntotal = principal * rate\nconst tag = \"<a2ui>\" + body + \"</a2"
+      expect: []
+    - input: "ui>\";\nconst ROWS = [\n  { year: 1, note: \"Year 1\\tpaid\", path: String.raw`C:\\loans\\1` },\n  { year: 2, note: \"Year 2\\tpaid\", path: String.raw`C:\\loans\\2` },\n  { year: 3, note: \"Year 3\\tpaid\", path: String.raw`C:\\loans\\3` },\n  { year: 4, note: \"Year 4\\tpaid\", path: String.raw`C:\\loans\\4` },\n  { year: 5, note: \"Year 5\\tpaid\", path: String.raw`C:\\loans\\5` },\n  { year: 6, note: \"Year 6\\tpaid\", path: String.raw`C:\\loans\\6` },\n  { year: 7, note: \"Year 7\\tpaid\", path: String.raw`C:\\loans\\7` },\n  { year: 8, note: \"Year 8\\tpaid\", path: String.raw`C:\\loans\\8` },\n  { year: 9, note: \"Year 9\\tpaid\", path: String.raw`C:\\loans\\9` },\n  { year: 10, note: \"Year 10\\tpaid\", path: String.raw`C:\\loans\\10` },\n  { year: 11, note: \"Year 11\\tpaid\", path: String.raw`C:\\loans\\11` },\n  { year: 12, note: \"Year 12\\tpaid\", path: String.raw`C:\\loans\\12` },\n  { year: 13, note: \"Year 13\\tpaid\", path: String.raw`C:\\loans\\13` },\n  { year: 14, note: \"Year 14\\tpaid\", path: String.raw`C:\\loans\\14` },\n  { year: 15, note: \"Year 15\\tpaid\", path: String.raw`C:\\loans\\15` },\n  { year: 16, note: \"Year 16\\tpaid\", path: String.raw`C:\\loans\\16` },\n  { year: 17, note: \"Year 17\\tpaid\", path: String.raw`C:\\loans\\17` },\n  { year: 18, note: \"Year 18\\tpaid\", path: String.raw`C:\\loans\\18` },\n  { year: 19, note: \"Year 19\\tpaid\", path: String.raw`C:\\loans\\19` },\n  { "
+      expect: []
+    - input: "year: 20, note: \"Year 20\\tpaid\", path: String.raw`C:\\loans\\20` },\n  { year: 21, note: \"Year 21\\tpaid\", path: String.raw`C:\\loans\\21` },\n  { year: 22, note: \"Year 22\\tpaid\", path: String.raw`C:\\loans\\22` },\n  { year: 23, note: \"Year 23\\tpaid\", path: String.raw`C:\\loans\\23` },\n  { year: 24, note: \"Year 24\\tpaid\", path: String.raw`C:\\loans\\24` },\n  { year: 25, note: \"Year 25\\tpaid\", path: String.raw`C:\\loans\\25` },\n  { year: 26, note: \"Year 26\\tpaid\", path: String.raw`C:\\loans\\26` },\n  { year: 27, note: \"Year 27\\tpaid\", path: String.raw`C:\\loans\\27` },\n  { year: 28, note: \"Year 28\\tpaid\", path: String.raw`C:\\loans\\28` },\n  { year: 29, note: \"Year 29\\tpaid\", path: String.raw`C:\\loans\\29` },\n  { year: 30, note: \"Year 30\\tpaid\", path: String.raw`C:\\loans\\30` },\n  { year: 31, note: \"Year 31\\tpaid\", path: String.raw`C:\\loans\\31` },\n  { year: 32, note: \"Year 32\\tpaid\", path: String.raw`C:\\loans\\32` },\n  { year: 33, note: \"Year 33\\tpaid\", path: String.raw`C:\\"
+      expect: []
+    - input: "loans\\33` },\n  { year: 34, note: \"Year 34\\tpaid\", path: String.raw`C:\\loans\\34` },\n  { year: 35, note: \"Year 35\\tpaid\", path: String.raw`C:\\loans\\35` },\n  { year: 36, note: \"Year 36\\tpaid\", path: String.raw`C:\\loans\\36` },\n  { year: 37, note: \"Year 37\\tpaid\", path: String.raw`C:\\loans\\37` },\n  { year: 38, note: \"Year 38\\tpaid\", path: String.raw`C:\\loans\\38` },\n  { year: 39, note: \"Year 39\\tpaid\", path: String.raw`C:\\loans\\39` },\n  { year: 40, note: \"Year 40\\tpaid\", path: String.raw`C:\\loans\\40` },\n];\nexport default function App() {\n  const [rate] = useData<number>(\"/loan/rate\", 5);\n  const label = `Rate: $"
+      expect: []
+    - input: "{rate.toFixed(2)}% of $/loan/amount`;\n  return (\n    <div title='it\\'s \"quoted\"'>\n      {label}\\n\n    </div>\n  );\n}\n\"\""
+      expect: []
+    - input: "\")\nroot = Card(code)\n</a2"
+      expect:
+        - a2ui:
+            - version: "1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+                components:
+                  - id: "code"
+                    component: "Text"
+                    text: |
+
+                      import { useData, callFunction } from "a2ui";
+                      // Renders the loan table. -- not an Express comment
+                      # not an Express comment either
+                      const PHONE = /^\d{3}-\d{4}$/;
+                      const TAB = "\t";
+                      surface("not_a_surface")
+                      root = Text("not a component")
+                      total = principal * rate
+                      const tag = "<a2ui>" + body + "</a2ui>";
+                      const ROWS = [
+                        { year: 1, note: "Year 1\tpaid", path: String.raw`C:\loans\1` },
+                        { year: 2, note: "Year 2\tpaid", path: String.raw`C:\loans\2` },
+                        { year: 3, note: "Year 3\tpaid", path: String.raw`C:\loans\3` },
+                        { year: 4, note: "Year 4\tpaid", path: String.raw`C:\loans\4` },
+                        { year: 5, note: "Year 5\tpaid", path: String.raw`C:\loans\5` },
+                        { year: 6, note: "Year 6\tpaid", path: String.raw`C:\loans\6` },
+                        { year: 7, note: "Year 7\tpaid", path: String.raw`C:\loans\7` },
+                        { year: 8, note: "Year 8\tpaid", path: String.raw`C:\loans\8` },
+                        { year: 9, note: "Year 9\tpaid", path: String.raw`C:\loans\9` },
+                        { year: 10, note: "Year 10\tpaid", path: String.raw`C:\loans\10` },
+                        { year: 11, note: "Year 11\tpaid", path: String.raw`C:\loans\11` },
+                        { year: 12, note: "Year 12\tpaid", path: String.raw`C:\loans\12` },
+                        { year: 13, note: "Year 13\tpaid", path: String.raw`C:\loans\13` },
+                        { year: 14, note: "Year 14\tpaid", path: String.raw`C:\loans\14` },
+                        { year: 15, note: "Year 15\tpaid", path: String.raw`C:\loans\15` },
+                        { year: 16, note: "Year 16\tpaid", path: String.raw`C:\loans\16` },
+                        { year: 17, note: "Year 17\tpaid", path: String.raw`C:\loans\17` },
+                        { year: 18, note: "Year 18\tpaid", path: String.raw`C:\loans\18` },
+                        { year: 19, note: "Year 19\tpaid", path: String.raw`C:\loans\19` },
+                        { year: 20, note: "Year 20\tpaid", path: String.raw`C:\loans\20` },
+                        { year: 21, note: "Year 21\tpaid", path: String.raw`C:\loans\21` },
+                        { year: 22, note: "Year 22\tpaid", path: String.raw`C:\loans\22` },
+                        { year: 23, note: "Year 23\tpaid", path: String.raw`C:\loans\23` },
+                        { year: 24, note: "Year 24\tpaid", path: String.raw`C:\loans\24` },
+                        { year: 25, note: "Year 25\tpaid", path: String.raw`C:\loans\25` },
+                        { year: 26, note: "Year 26\tpaid", path: String.raw`C:\loans\26` },
+                        { year: 27, note: "Year 27\tpaid", path: String.raw`C:\loans\27` },
+                        { year: 28, note: "Year 28\tpaid", path: String.raw`C:\loans\28` },
+                        { year: 29, note: "Year 29\tpaid", path: String.raw`C:\loans\29` },
+                        { year: 30, note: "Year 30\tpaid", path: String.raw`C:\loans\30` },
+                        { year: 31, note: "Year 31\tpaid", path: String.raw`C:\loans\31` },
+                        { year: 32, note: "Year 32\tpaid", path: String.raw`C:\loans\32` },
+                        { year: 33, note: "Year 33\tpaid", path: String.raw`C:\loans\33` },
+                        { year: 34, note: "Year 34\tpaid", path: String.raw`C:\loans\34` },
+                        { year: 35, note: "Year 35\tpaid", path: String.raw`C:\loans\35` },
+                        { year: 36, note: "Year 36\tpaid", path: String.raw`C:\loans\36` },
+                        { year: 37, note: "Year 37\tpaid", path: String.raw`C:\loans\37` },
+                        { year: 38, note: "Year 38\tpaid", path: String.raw`C:\loans\38` },
+                        { year: 39, note: "Year 39\tpaid", path: String.raw`C:\loans\39` },
+                        { year: 40, note: "Year 40\tpaid", path: String.raw`C:\loans\40` },
+                      ];
+                      export default function App() {
+                        const [rate] = useData<number>("/loan/rate", 5);
+                        const label = `Rate: ${rate.toFixed(2)}% of $/loan/amount`;
+                        return (
+                          <div title='it\'s "quoted"'>
+                            {label}\n
+                          </div>
+                        );
+                      }
+                  - id: "root"
+                    component: "Card"
+                    child: "code"
+    - input: "ui>\nThe app is ready."
+      expect:
+        - text: "The app is ready."
+  expect_matches_single_shot: true

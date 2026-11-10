@@ -2569,3 +2569,84 @@
                     value:
                       "@path": "/name"
                 message: "Name is required"
+
+- name: test_compile_express_raw_triple_quoted_code_is_kept_byte_exact
+  features: [F-AGT-21]
+  description: A raw triple-quoted string compiles to exactly the characters between its quotes, including the line break after the opening quotes. Nothing inside it is unescaped, and backslashes, quotes, template literals, comment markers, sentinel tags and lines that look like Express statements are not read as Express.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    code = Text(r"""
+    import { useData, callFunction } from "a2ui";
+    // Renders the loan table. -- not an Express comment
+    # not an Express comment either
+    const PHONE = /^\d{3}-\d{4}$/;
+    const TAB = "\t";
+    surface("not_a_surface")
+    root = Text("not a component")
+    total = principal * rate
+    const tag = "<a2ui>" + body + "</a2ui>";
+    export default function App() {
+      const [rate] = useData<number>("/loan/rate", 5);
+      const label = `Rate: ${rate.toFixed(2)}% of $/loan/amount`;
+      return (
+        <div title='it\'s "quoted"'>
+          {label}\n
+        </div>
+      );
+    }
+    """)
+    root = Card(code)
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "code"
+            component: "Text"
+            text: |
+
+              import { useData, callFunction } from "a2ui";
+              // Renders the loan table. -- not an Express comment
+              # not an Express comment either
+              const PHONE = /^\d{3}-\d{4}$/;
+              const TAB = "\t";
+              surface("not_a_surface")
+              root = Text("not a component")
+              total = principal * rate
+              const tag = "<a2ui>" + body + "</a2ui>";
+              export default function App() {
+                const [rate] = useData<number>("/loan/rate", 5);
+                const label = `Rate: ${rate.toFixed(2)}% of $/loan/amount`;
+                return (
+                  <div title='it\'s "quoted"'>
+                    {label}\n
+                  </div>
+                );
+              }
+          - id: "root"
+            component: "Card"
+            child: "code"
+
+- name: test_compile_express_escaped_triple_quoted_string_with_quotes
+  features: [F-AGT-21]
+  description: An escaped triple-quoted string resolves `\"` and `\\`, so it can carry `"""` and end with a quote, which a raw triple-quoted string cannot.
+  action: compile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  input: |-
+    root = Text("""say \"\"\"hi\"\"\"
+    to C:\\temp \"you\"""")
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "default_surface"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "say \"\"\"hi\"\"\"\nto C:\\temp \"you\""
