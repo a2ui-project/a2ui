@@ -150,12 +150,21 @@ class _TriagePageState extends State<TriagePage> {
                         return Row(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            SizedBox(width: width, child: const ItemList()),
+                            // The list and the details have selection areas
+                            // of their own. In the page's one, a click on an
+                            // item left a caret in the list, and then a drag
+                            // in the details selected nothing.
+                            SizedBox(
+                              width: width,
+                              child: const SelectionArea(child: ItemList()),
+                            ),
                             _ColumnDivider(
                               onDrag: (double delta) =>
                                   setState(() => _listWidth = width + delta),
                             ),
-                            const Expanded(child: ItemDetails()),
+                            const Expanded(
+                              child: SelectionArea(child: ItemDetails()),
+                            ),
                           ],
                         );
                       },

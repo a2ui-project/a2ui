@@ -156,6 +156,9 @@ class TriageSession {
       if (s.newAssignees.isNotEmpty) 'assigned ${_and(s.newAssignees)}',
       if (s.removedAssignees.isNotEmpty)
         'unassigned ${_and(s.removedAssignees)}',
+      if (s.newMilestone case final String m) 'set milestone $m',
+      if (s.removedMilestone case final String m when s.newMilestone == null)
+        'removed milestone $m',
       if (s.reply != null) applied.sentToTeam ? 'commented' : 'replied',
     ].join(', ');
   }

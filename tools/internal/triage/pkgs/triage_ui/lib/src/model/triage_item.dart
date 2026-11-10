@@ -26,7 +26,11 @@ const String needsTeamInputLabel = 'status: needs-team-input';
 /// The types of items, in the order the list shows them. See
 /// `ui.blueprint.md`.
 enum ItemKind {
-  issue,
+  /// An issue that open pull requests close.
+  issueWithPrs,
+
+  /// An issue that no open pull request closes.
+  issueWithoutPrs,
 
   /// A pull request that closes issues.
   prWithIssues,
@@ -67,6 +71,7 @@ final class TriageItem {
     this.author,
     this.labels = const [],
     this.assignees = const [],
+    this.milestone,
     this.linkedItems = const [],
     this.suggestionStatus = SuggestionStatus.none,
     this.suggestion,
@@ -127,6 +132,10 @@ final class TriageItem {
         for (final Map<String, Object?> user in nodesOf(node['assignees']))
           user['login']! as String,
       ],
+      milestone: switch (node['milestone']) {
+        {'title': final String title} => title,
+        _ => null,
+      },
       linkedItems: [
         for (final Map<String, Object?> linked in nodesOf(
           node[isPullRequest
@@ -159,6 +168,9 @@ final class TriageItem {
   final List<String> labels;
   final List<String> assignees;
 
+  /// The title of the item's milestone, or null if it has none.
+  final String? milestone;
+
   /// For an issue, the open pull requests that close it. For a pull request,
   /// the issues it closes.
   final List<int> linkedItems;
@@ -180,11 +192,12 @@ final class TriageItem {
 
   bool get needsTeamInput => labels.contains(needsTeamInputLabel);
 
-  ItemKind get kind => !isPullRequest
-      ? ItemKind.issue
-      : linkedItems.isEmpty
-      ? ItemKind.prWithoutIssues
-      : ItemKind.prWithIssues;
+  ItemKind get kind => switch ((isPullRequest, linkedItems.isEmpty)) {
+    (false, false) => ItemKind.issueWithPrs,
+    (false, true) => ItemKind.issueWithoutPrs,
+    (true, false) => ItemKind.prWithIssues,
+    (true, true) => ItemKind.prWithoutIssues,
+  };
 
   /// "Issue #12" or "PR #12".
   String get name => '${isPullRequest ? 'PR' : 'Issue'} #$number';

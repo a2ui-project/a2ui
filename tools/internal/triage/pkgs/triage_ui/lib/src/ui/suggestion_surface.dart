@@ -49,6 +49,8 @@ const List<String> _properties = [
   TriageSuggestionProps.removedLabels,
   TriageSuggestionProps.newAssignees,
   TriageSuggestionProps.removedAssignees,
+  TriageSuggestionProps.newMilestone,
+  TriageSuggestionProps.removedMilestone,
   TriageSuggestionProps.relatedIssues,
   TriageSuggestionProps.relatedPrs,
 ];

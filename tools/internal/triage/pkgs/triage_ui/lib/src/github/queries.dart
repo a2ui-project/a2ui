@@ -33,6 +33,7 @@ fragment IssueFields on Issue {
   author { login }
   labels(first: 50) { nodes { name } }
   assignees(first: 20) { nodes { login } }
+  milestone { title }
   comments(last: 100) { nodes { ...Comments } }
   closedByPullRequestsReferences(first: 10, includeClosedPrs: false) {
     nodes { number }
@@ -53,6 +54,7 @@ fragment PullRequestFields on PullRequest {
   author { login }
   labels(first: 50) { nodes { name } }
   assignees(first: 20) { nodes { login } }
+  milestone { title }
   comments(last: 100) { nodes { ...Comments } }
   closingIssuesReferences(first: 10) { nodes { number } }
   reviews(last: 50) { nodes { submittedAt } }
@@ -94,6 +96,24 @@ query($query: String!, $cursor: String) {
 ''' +
     _itemFragments;
 
+/// A page of the pull requests that match a search query, with the fields
+/// that the list shows for the pull requests in `flutter/genui`.
+const String genuiPullRequestsQuery = r'''
+query($query: String!, $cursor: String) {
+  search(query: $query, type: ISSUE, first: 50, after: $cursor) {
+    pageInfo { hasNextPage endCursor }
+    nodes {
+      ... on PullRequest {
+        number title url createdAt updatedAt
+        author { login }
+        labels(first: 50) { nodes { name color } }
+        assignees(first: 20) { nodes { login } }
+      }
+    }
+  }
+}
+''';
+
 /// One item, by number.
 const String itemQuery =
     r'''
@@ -107,12 +127,18 @@ query($owner: String!, $name: String!, $number: Int!) {
 ''' +
     _itemFragments;
 
-/// The labels of the repository and the people who can be assigned.
+/// The labels of the repository, its open milestones and the people who
+/// can be assigned.
 const String repositoryQuery = r'''
 query($owner: String!, $name: String!) {
   repository(owner: $owner, name: $name) {
     labels(first: 100, orderBy: {field: NAME, direction: ASC}) {
       nodes { name color }
+    }
+    milestones(
+      first: 100, states: OPEN, orderBy: {field: DUE_DATE, direction: ASC}
+    ) {
+      nodes { number title }
     }
     assignableUsers(first: 100) { nodes { login } }
   }

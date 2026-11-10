@@ -25,6 +25,7 @@ void main() {
     github = FakeGitHub([
       itemNode(12, labels: [needsTriageLabel, 'status: needs-team-input']),
       itemNode(13, pr: true),
+      itemNode(14, milestone: 'November launch'),
     ]);
   });
 
@@ -41,6 +42,7 @@ void main() {
     suggestion,
     replyPosted: replyPosted,
     onReplyPosted: onReplyPosted ?? () {},
+    milestones: github.milestones,
   );
 
   test('applies every change, in order', () async {
@@ -135,5 +137,47 @@ void main() {
     expect(result.succeeded, isTrue);
     expect(result.steps.first.status, StepStatus.skipped);
     expect(github.calls, ['POST issues/12/labels {"labels":["P1"]}']);
+  });
+
+  test('sets a milestone, which replaces the old one', () async {
+    final ApplyResult result = await apply(
+      14,
+      const TriageSuggestion(
+        newMilestone: 'December launch',
+        removedMilestone: 'November launch',
+      ),
+    );
+
+    expect(result.succeeded, isTrue);
+    expect(result.steps.map((StepResult s) => s.description), [
+      'Set milestone: December launch',
+    ]);
+    expect(github.calls, ['PATCH issues/14 {"milestone":11}']);
+  });
+
+  test('removes the milestone, if the item still has it', () async {
+    final ApplyResult removed = await apply(
+      14,
+      const TriageSuggestion(removedMilestone: 'November launch'),
+    );
+    final ApplyResult skipped = await apply(
+      12,
+      const TriageSuggestion(removedMilestone: 'November launch'),
+    );
+
+    expect(removed.steps.single.status, StepStatus.done);
+    expect(skipped.steps.single.status, StepStatus.skipped);
+    expect(github.calls, ['PATCH issues/14 {"milestone":null}']);
+  });
+
+  test('fails to set a milestone that is not open', () async {
+    final ApplyResult result = await apply(
+      12,
+      const TriageSuggestion(newMilestone: 'Long ago'),
+    );
+
+    expect(result.steps.single.status, StepStatus.failed);
+    expect(result.steps.single.error, contains('no open milestone Long ago'));
+    expect(github.calls, isEmpty);
   });
 }

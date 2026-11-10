@@ -69,6 +69,18 @@ final ComponentApi triageSuggestionApi = ComponentApi(
       TriageSuggestionProps.removedAssignees: _names(
         'GitHub logins to unassign from the item.',
       ),
+      TriageSuggestionProps.newMilestone: Schema.string(
+        description:
+            'The title of the open milestone to set on the item, which '
+            'replaces its current milestone. Omitted means no change.',
+        minLength: 1,
+      ),
+      TriageSuggestionProps.removedMilestone: Schema.string(
+        description:
+            'The title of the milestone to remove from the item: its current '
+            'milestone. Omitted means no change.',
+        minLength: 1,
+      ),
       TriageSuggestionProps.relatedIssues: _itemNumbers(
         'Numbers of issues in the same repository that relate to the item.',
       ),
@@ -111,6 +123,8 @@ abstract final class TriageSuggestionProps {
   static const String removedLabels = 'removed_labels';
   static const String newAssignees = 'new_assignees';
   static const String removedAssignees = 'removed_assignees';
+  static const String newMilestone = 'new_milestone';
+  static const String removedMilestone = 'removed_milestone';
   static const String relatedIssues = 'related_issues';
   static const String relatedPrs = 'related_prs';
 }

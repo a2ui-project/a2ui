@@ -28,6 +28,8 @@ final class TriageSuggestion {
     this.removedLabels = const [],
     this.newAssignees = const [],
     this.removedAssignees = const [],
+    this.newMilestone,
+    this.removedMilestone,
     this.relatedIssues = const [],
     this.relatedPrs = const [],
   });
@@ -50,6 +52,9 @@ final class TriageSuggestion {
         removedAssignees: _strings(
           properties[TriageSuggestionProps.removedAssignees],
         ),
+        newMilestone: properties[TriageSuggestionProps.newMilestone] as String?,
+        removedMilestone:
+            properties[TriageSuggestionProps.removedMilestone] as String?,
         relatedIssues: _ints(properties[TriageSuggestionProps.relatedIssues]),
         relatedPrs: _ints(properties[TriageSuggestionProps.relatedPrs]),
       );
@@ -75,6 +80,14 @@ final class TriageSuggestion {
   final List<String> removedLabels;
   final List<String> newAssignees;
   final List<String> removedAssignees;
+
+  /// The title of the milestone to set, which replaces the item's current
+  /// one, or null for no change.
+  final String? newMilestone;
+
+  /// The title of the milestone to remove, or null for no change.
+  final String? removedMilestone;
+
   final List<int> relatedIssues;
   final List<int> relatedPrs;
 

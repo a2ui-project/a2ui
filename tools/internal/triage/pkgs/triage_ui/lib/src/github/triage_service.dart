@@ -14,6 +14,7 @@
 
 import 'package:triage/triage.dart';
 
+import '../model/genui_pull_request.dart';
 import '../model/triage_item.dart';
 import 'github_client.dart';
 import 'json.dart';
@@ -26,6 +27,7 @@ final class RepositoryInfo {
     this.labels = const [],
     this.labelColors = const {},
     this.assignableUsers = const [],
+    this.milestones = const {},
   });
 
   final List<String> labels;
@@ -34,6 +36,9 @@ final class RepositoryInfo {
   /// `d73a4a`.
   final Map<String, String> labelColors;
   final List<String> assignableUsers;
+
+  /// The number of each open milestone, by title, soonest due first.
+  final Map<String, int> milestones;
 }
 
 /// Reads and changes the items of `a2ui-project/a2ui` on GitHub.
@@ -42,6 +47,10 @@ class TriageService {
 
   static const String owner = 'a2ui-project';
   static const String name = 'a2ui';
+
+  /// The repository whose pull requests that need triage the list shows,
+  /// without editing them.
+  static const String genuiRepository = 'flutter/genui';
 
   final GitHubClient _client;
 
@@ -59,8 +68,8 @@ class TriageService {
       List<TriageItem> needTriage,
       List<TriageItem> needTeamInput,
     ) = await (
-      _search('label:"$needsTriageLabel"'),
-      _search('label:"$needsTeamInputLabel"'),
+      _searchItems('label:"$needsTriageLabel"'),
+      _searchItems('label:"$needsTeamInputLabel"'),
     ).wait;
     final Set<int> found = {for (final i in needTriage) i.number};
     return [
@@ -70,26 +79,47 @@ class TriageService {
     ];
   }
 
-  /// The open items that match [filter], a GitHub search filter.
-  Future<List<TriageItem>> _search(String filter) async {
-    final items = <TriageItem>[];
+  /// The open pull requests in [genuiRepository] with
+  /// `status: needs-triage`.
+  Future<List<GenuiPullRequest>> fetchGenuiPullRequests() async => [
+    for (final Map<String, Object?> node in await _search(
+      genuiPullRequestsQuery,
+      'repo:$genuiRepository is:pr is:open label:"$needsTriageLabel"',
+    ))
+      GenuiPullRequest.fromGraphQL(node),
+  ];
+
+  /// The open items in the repository that match [filter], a GitHub search
+  /// filter.
+  Future<List<TriageItem>> _searchItems(String filter) async => [
+    for (final Map<String, Object?> node in await _search(
+      searchQuery,
+      'repo:$owner/$name is:open $filter',
+    ))
+      TriageItem.fromGraphQL(node),
+  ];
+
+  /// The nodes of every page of [graphqlQuery], a search for [query].
+  Future<List<Map<String, Object?>>> _search(
+    String graphqlQuery,
+    String query,
+  ) async {
+    final nodes = <Map<String, Object?>>[];
     String? cursor;
     do {
       final Map<String, Object?> search = asMap(
-        (await _client.graphql(searchQuery, {
-          'query': 'repo:$owner/$name is:open $filter',
+        (await _client.graphql(graphqlQuery, {
+          'query': query,
           'cursor': cursor,
         }))['search'],
       );
-      for (final Map<String, Object?> node in nodesOf(search)) {
-        items.add(TriageItem.fromGraphQL(node));
-      }
+      nodes.addAll(nodesOf(search));
       final Map<String, Object?> page = asMap(search['pageInfo']);
       cursor = page['hasNextPage'] == true
           ? page['endCursor'] as String?
           : null;
     } while (cursor != null);
-    return items;
+    return nodes;
   }
 
   /// The item with [number], or null if there is none.
@@ -120,8 +150,17 @@ class TriageService {
         ))
           user['login']! as String,
       ]..sort(),
+      milestones: {
+        for (final Map<String, Object?> m in nodesOf(repository['milestones']))
+          m['title']! as String: m['number']! as int,
+      },
     );
   }
+
+  /// Sets the milestone with [milestone] number on the item, or removes
+  /// the item's milestone if [milestone] is null.
+  Future<void> setMilestone(int number, int? milestone) =>
+      _client.rest('PATCH', _issuePath(number), {'milestone': milestone});
 
   Future<void> postComment(int number, String body) =>
       _client.rest('POST', '${_issuePath(number)}/comments', {'body': body});

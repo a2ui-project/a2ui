@@ -15,6 +15,7 @@
 import 'package:flutter/material.dart';
 import 'package:triage/triage.dart';
 
+import '../model/genui_pull_request.dart';
 import '../model/triage_controller.dart';
 import '../model/triage_item.dart';
 import 'label_colors.dart';
@@ -24,13 +25,21 @@ import 'suggestion_surface.dart';
 import 'triage_scope.dart';
 
 /// The selected item, and the items linked to it that need triage, each
-/// with its editable suggestion.
+/// with its editable suggestion. Or the selected pull request in
+/// `flutter/genui`, which is not editable.
 class ItemDetails extends StatelessWidget {
   const ItemDetails({super.key});
 
   @override
   Widget build(BuildContext context) {
     final TriageController controller = TriageScope.of(context);
+    if (controller.selectedGenuiPullRequest case final GenuiPullRequest pr) {
+      return ListView(
+        key: ValueKey(pr.url),
+        padding: const EdgeInsets.all(24),
+        children: [_GenuiPullRequestCard(pr)],
+      );
+    }
     final TriageItem? item = controller.selected;
     if (item == null) {
       return const Center(child: Text('Select an item.'));
@@ -158,6 +167,68 @@ class ItemCard extends StatelessWidget {
               SuggestionSurface(item: item, payload: payload)
             else
               SuggestionEditor(item: item),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A pull request in `flutter/genui`: what the triager should know about
+/// it, and a link to it. The tool does not triage it, so nothing is
+/// editable.
+class _GenuiPullRequestCard extends StatelessWidget {
+  const _GenuiPullRequestCard(this.pr);
+
+  final GenuiPullRequest pr;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 12,
+          children: [
+            LinkText(
+              'genui PR #${pr.number}: ${pr.title}',
+              url: pr.url,
+              style: theme.textTheme.titleLarge,
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 4,
+              children: [
+                Text('Age: ${age(pr.createdAt)}.'),
+                Text('Updated: ${ago(pr.updatedAt)}.'),
+                Text('Author: ${pr.author ?? 'a deleted account'}.'),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    const Text('Labels:'),
+                    if (pr.labels.isEmpty) const Text('none.'),
+                    for (final String label in pr.labels)
+                      LabelPill(
+                        label,
+                        colors: labelColors(pr.labelColors[label]),
+                      ),
+                  ],
+                ),
+                Text(
+                  'Assignees: '
+                  '${pr.assignees.isEmpty ? 'none' : pr.assignees.join(', ')}.',
+                ),
+              ],
+            ),
+            _Notice(
+              'The tool does not triage PRs on genui. Triage it on GitHub.',
+              url: pr.url,
+              linkText: 'Open the PR',
+            ),
           ],
         ),
       ),

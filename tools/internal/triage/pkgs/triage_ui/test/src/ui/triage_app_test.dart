@@ -103,6 +103,20 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  /// The selected priority of the first item card.
+  Set<String> priorityOf(WidgetTester tester) => tester
+      .widget<SegmentedButton<String>>(
+        find
+            .ancestor(
+              of: find.text('P0').first,
+              matching: find.byWidgetPredicate(
+                (w) => w is SegmentedButton<String>,
+              ),
+            )
+            .first,
+      )
+      .selected;
+
   Finder inList(String text) =>
       find.descendant(of: find.byType(ListTile), matching: find.text(text));
 
@@ -120,8 +134,11 @@ void main() {
     // So do the subgroups, which only show the kinds the group has.
     expect(find.byType(ListTile), findsNothing);
     expect(find.text('PRs without issues (0)'), findsNothing);
-    await expand(tester, 'Issues (2)');
+    await expand(tester, 'Issues with PRs (1)');
+    await expand(tester, 'Issues without PRs (1)');
     await expand(tester, 'PRs with issues (1)');
+    expect(find.byTooltip('Issue with PRs'), findsOneWidget);
+    expect(find.byTooltip('Issue without PRs'), findsOneWidget);
     expect(find.byTooltip('PR with issues'), findsOneWidget);
     expect(inList('suggestion'), findsOneWidget);
     expect(inList('no suggestion'), findsNWidgets(2));
@@ -132,16 +149,23 @@ void main() {
     expect(find.text('A crash on an empty Row.'), findsOneWidget);
     expect(find.text('Set P1 and assign octocat.'), findsOneWidget);
     expect(find.text('Thanks for the report.'), findsOneWidget);
-    expect(find.widgetWithText(InputChip, 'P1'), findsOneWidget);
+    // The priority is a segmented button, not a label chip.
+    expect(priorityOf(tester), {'P1'});
+    expect(find.widgetWithText(InputChip, 'P1'), findsNothing);
     expect(find.widgetWithText(InputChip, 'octocat'), findsOneWidget);
+    // Item 10 has a label to remove, and no assignee or milestone.
+    expect(find.text('Remove labels'), findsWidgets);
+    expect(find.text('Unassign'), findsNothing);
+    expect(find.text('Remove milestone'), findsNothing);
     expect(find.widgetWithText(ActionChip, 'Issue #1234'), findsOneWidget);
     expect(find.widgetWithText(ActionChip, 'Fixed by PR #20'), findsOneWidget);
 
     // The item's age and author, on rows of their own.
     expect(find.textContaining(RegExp(r'^Age: \d+ days\.$')), findsWidgets);
     expect(find.text('Author: author10.'), findsOneWidget);
-    // The texts can be selected.
-    expect(find.byType(SelectionArea), findsOneWidget);
+    // The texts can be selected: on the page, in the list and in the
+    // details, each in a selection area of its own.
+    expect(find.byType(SelectionArea), findsNWidgets(3));
     // The label and assignee fields have no text box, only the dropdown.
     expect(
       find.descendant(
@@ -161,11 +185,13 @@ void main() {
   ) async {
     await pumpApp(tester);
 
-    await tester.tap(find.byTooltip('Remove P1'));
-    await tester.pump();
-    await tester.tap(find.byTooltip('Choose labels to add').first);
+    // P2 instead of the suggested P1.
+    await tester.tap(find.text('P2').first);
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(MenuItemButton, 'P2'));
+    expect(priorityOf(tester), {'P2'});
+    await tester.tap(find.byTooltip('Choose the milestone').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(MenuItemButton, 'November launch'));
     await tester.tapAt(Offset.zero);
     await tester.pumpAndSettle();
 
@@ -180,10 +206,81 @@ void main() {
       'POST issues/10/comments {"body":"Thanks for the report."}',
       'POST issues/10/labels {"labels":["P2"]}',
       'POST issues/10/assignees {"assignees":["octocat"]}',
+      'PATCH issues/10 {"milestone":10}',
     ]);
     expect(find.text('2 items need triage'), findsOneWidget);
+    // The list shows the next item, #11, which is in another subgroup.
+    await expand(tester, 'Issues with PRs (1)');
     expect(find.byIcon(Icons.check_circle), findsOneWidget);
     expect(find.text('Issue #11: Docs are unclear'), findsOneWidget);
+  });
+
+  testWidgets('removes labels, assignees and the milestone with checkboxes, '
+      'and clears the priority', (tester) async {
+    github.items[10]!
+      ..['labels'] = {
+        'nodes': [
+          {'name': needsTriageLabel},
+          {'name': 'type: bug'},
+          {'name': 'P2'},
+        ],
+      }
+      ..['assignees'] = {
+        'nodes': [
+          {'login': 'hubot'},
+        ],
+      }
+      ..['milestone'] = {'title': 'November launch'};
+    await pumpApp(tester);
+
+    // The priority is not among the labels to remove.
+    expect(find.byTooltip('Remove type: bug'), findsOneWidget);
+    expect(find.byTooltip('Remove P2'), findsNothing);
+
+    // A checked label is grayed out.
+    await tester.tap(find.byTooltip('Remove type: bug'));
+    await tester.pumpAndSettle();
+    final Opacity bug = tester.widget(
+      find
+          .ancestor(
+            of: find.widgetWithText(LabelPill, 'type: bug').last,
+            matching: find.byType(Opacity),
+          )
+          .first,
+    );
+    expect(bug.opacity, lessThan(1));
+    for (final name in ['hubot', 'November launch']) {
+      await tester.ensureVisible(find.byTooltip('Remove $name'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Remove $name'));
+      await tester.pumpAndSettle();
+    }
+    // The suggestion sets P1; clicking it again sets no priority, which
+    // removes the item's P2.
+    await tester.ensureVisible(find.text('P1').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('P1').first);
+    await tester.pumpAndSettle();
+    expect(priorityOf(tester), isEmpty);
+
+    final Finder apply = find.widgetWithText(FilledButton, 'Apply').first;
+    await tester.ensureVisible(apply);
+    await tester.pumpAndSettle();
+    await tester.tap(apply);
+    await tester.pump();
+    for (var i = 0; i < 100 && controller.isApplying(10); i++) {
+      await tester.pump(const Duration(milliseconds: 10));
+    }
+    await tester.pumpAndSettle();
+
+    expect(github.calls, [
+      'POST issues/10/comments {"body":"Thanks for the report."}',
+      'DELETE issues/10/labels/type%3A%20bug',
+      'DELETE issues/10/labels/P2',
+      'DELETE issues/10/assignees {"assignees":["hubot"]}',
+      'POST issues/10/assignees {"assignees":["octocat"]}',
+      'PATCH issues/10 {"milestone":null}',
+    ]);
   });
 
   testWidgets('shows labels in their GitHub colors', (tester) async {
@@ -193,12 +290,33 @@ void main() {
         {'name': 'type: bug'},
       ],
     };
+    github.labelColors['area: docs'] = '1d76db';
     await pumpApp(tester);
 
-    // P1 is dark, so its name is white.
-    final InputChip p1 = tester.widget(find.widgetWithText(InputChip, 'P1'));
-    expect(p1.backgroundColor, const Color(0xFFB60205));
-    expect(p1.labelStyle!.color, Colors.white);
+    // The dropdown shows a dot of the label's color.
+    await tester.tap(find.byTooltip('Choose labels to add').first);
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(
+        of: find.widgetWithText(MenuItemButton, 'area: docs'),
+        matching: find.byWidgetPredicate(
+          (w) =>
+              w is DecoratedBox &&
+              (w.decoration as BoxDecoration).color == const Color(0xFF1D76DB),
+        ),
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.widgetWithText(MenuItemButton, 'area: docs'));
+    await tester.tapAt(Offset.zero);
+    await tester.pumpAndSettle();
+
+    // The label is dark, so its name on the chip is white.
+    final InputChip docs = tester.widget(
+      find.widgetWithText(InputChip, 'area: docs'),
+    );
+    expect(docs.backgroundColor, const Color(0xFF1D76DB));
+    expect(docs.labelStyle!.color, Colors.white);
 
     // On the item card, a light label has black text, and a label without a
     // color has the theme's colors.
@@ -215,23 +333,9 @@ void main() {
       tester.widget<Text>(find.text('type: bug').first).style!.color,
       Colors.black,
     );
-    // On the cards of the issue and of its linked PR.
-    expect(find.widgetWithText(LabelPill, needsTriageLabel), findsNWidgets(2));
-
-    // The dropdown shows a dot of the label's color.
-    await tester.tap(find.byTooltip('Choose labels to add').first);
-    await tester.pumpAndSettle();
-    expect(
-      find.descendant(
-        of: find.widgetWithText(MenuItemButton, 'P1'),
-        matching: find.byWidgetPredicate(
-          (w) =>
-              w is DecoratedBox &&
-              (w.decoration as BoxDecoration).color == const Color(0xFFB60205),
-        ),
-      ),
-      findsOneWidget,
-    );
+    // On the cards of the issue and of its linked PR, each in the labels
+    // and in the labels to remove.
+    expect(find.widgetWithText(LabelPill, needsTriageLabel), findsNWidgets(4));
   });
 
   testWidgets('picks labels from the dropdown', (tester) async {
@@ -248,41 +352,44 @@ void main() {
     ];
     await tester.tap(find.byTooltip('Choose labels to add').first);
     await tester.pumpAndSettle();
-    // The checked labels come first, then the priority labels.
-    expect(choices().take(4), ['P1', 'P0', 'P2', 'P3']);
-    await tester.tap(find.widgetWithText(MenuItemButton, 'P2'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(MenuItemButton, 'P1'));
+    // The priorities have a field of their own.
+    expect(choices(), ['area: docs', 'type: bug', needsTeamInputLabel]);
+    await tester.tap(find.widgetWithText(MenuItemButton, 'type: bug'));
     await tester.pumpAndSettle();
 
-    // The dropdown stays open, and shows what is checked.
+    // The dropdown stays open, shows what is checked, and keeps the
+    // choices in their places.
     expect(
       find.descendant(
-        of: find.widgetWithText(MenuItemButton, 'P2'),
+        of: find.widgetWithText(MenuItemButton, 'type: bug'),
         matching: find.byIcon(Icons.check_box),
       ),
       findsOneWidget,
     );
-    expect(find.widgetWithText(InputChip, 'P2'), findsOneWidget);
-    expect(find.widgetWithText(InputChip, 'P1'), findsNothing);
-    // The choices keep their places while the dropdown is open.
-    expect(choices().take(4), ['P1', 'P0', 'P2', 'P3']);
+    expect(find.widgetWithText(InputChip, 'type: bug'), findsOneWidget);
+    expect(choices(), ['area: docs', 'type: bug', needsTeamInputLabel]);
 
-    // Opened again, the dropdown lists the newly checked label first.
+    // Opened again, the dropdown lists the checked label first.
     await tester.tapAt(Offset.zero);
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Choose labels to add').first);
     await tester.pumpAndSettle();
-    expect(choices().take(4), ['P2', 'P0', 'P1', 'P3']);
+    expect(choices(), ['type: bug', 'area: docs', needsTeamInputLabel]);
   });
 
   testWidgets('filters a dropdown with more than 7 choices', (tester) async {
-    github.labels.addAll(['area: lit', 'area: angular']);
+    github.labels.addAll([
+      'area: lit',
+      'area: angular',
+      'area: react',
+      'area: swift',
+      'area: vue',
+    ]);
     await pumpApp(tester);
     Finder filter() => find.widgetWithText(TextField, 'Filter');
 
-    // Item 10 has one label, so there is nothing to filter.
-    await tester.tap(find.byTooltip('Choose labels to remove').first);
+    // There are two milestones, so there is nothing to filter.
+    await tester.tap(find.byTooltip('Choose the milestone').first);
     await tester.pumpAndSettle();
     expect(filter(), findsNothing);
     await tester.tapAt(Offset.zero);
@@ -306,13 +413,13 @@ void main() {
     addTearDown(mouse.removePointer);
     await mouse.addPointer(location: Offset.zero);
     await mouse.moveTo(
-      tester.getCenter(find.widgetWithText(MenuItemButton, 'P2')),
+      tester.getCenter(find.widgetWithText(MenuItemButton, 'type: bug')),
     );
     await tester.pumpAndSettle();
     expect(search.focusNode.hasFocus, isTrue);
     await tester.enterText(filter(), 'AREA');
     await tester.pumpAndSettle();
-    expect(find.byType(MenuItemButton), findsNWidgets(3));
+    expect(find.byType(MenuItemButton), findsNWidgets(6));
 
     await tester.tap(find.widgetWithText(MenuItemButton, 'area: lit'));
     await tester.pumpAndSettle();
@@ -327,7 +434,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Choose labels to add').first);
     await tester.pumpAndSettle();
-    expect(find.byType(MenuItemButton), findsNWidgets(9));
+    expect(find.byType(MenuItemButton), findsNWidgets(8));
   }, variant: TargetPlatformVariant.desktop());
 
   testWidgets('sends an item to the team', (tester) async {
@@ -353,7 +460,7 @@ void main() {
     expect(find.text('New (2)'), findsOneWidget);
     expect(find.text('Issue #11: Docs are unclear'), findsOneWidget);
     await expand(tester, 'Needs team input (1)');
-    await expand(tester, 'Issues (1)');
+    await expand(tester, 'Issues with PRs (1)');
     expect(find.byIcon(Icons.groups), findsOneWidget);
   });
 
@@ -364,7 +471,7 @@ void main() {
     expect(find.text('Select an item.'), findsOneWidget);
 
     await expand(tester, 'New (3)');
-    await expand(tester, 'Issues (2)');
+    await expand(tester, 'Issues without PRs (1)');
     await tester.tap(inList('#11 Docs are unclear'));
     await tester.pumpAndSettle();
     expect(controller.selected!.number, 11);
@@ -398,6 +505,54 @@ void main() {
     expect((tile.shape! as RoundedRectangleBorder).side.width, 2);
   });
 
+  testWidgets('shows a PR on genui in a card that is not editable', (
+    tester,
+  ) async {
+    github.genuiPullRequests = [
+      genuiPullRequestNode(
+        7,
+        title: 'Add a Slider',
+        author: 'octocat',
+        labels: {needsTriageLabel: null, 'P1': 'b60205'},
+        assignees: ['hubot'],
+      ),
+    ];
+    await pumpApp(tester);
+    expect(controller.selected!.number, 10);
+
+    expect(find.text('PRs on genui (1)'), findsOneWidget);
+    expect(inList('#7 Add a Slider'), findsNothing);
+    await expand(tester, 'PRs on genui (1)');
+    expect(find.byTooltip('PR on genui'), findsOneWidget);
+
+    await tester.tap(inList('#7 Add a Slider'));
+    await tester.pumpAndSettle();
+
+    expect(controller.selected, isNull);
+    expect(controller.selectedGenuiPullRequest!.number, 7);
+    expect(find.text('genui PR #7: Add a Slider'), findsOneWidget);
+    expect(find.text('Author: octocat.'), findsOneWidget);
+    expect(find.text('Assignees: hubot.'), findsOneWidget);
+    final DecoratedBox p1 = tester.widget(
+      find.ancestor(of: find.text('P1'), matching: find.byType(DecoratedBox)),
+    );
+    expect((p1.decoration as BoxDecoration).color, const Color(0xFFB60205));
+    expect(find.text('Open the PR'), findsOneWidget);
+    // Nothing to edit or apply.
+    expect(find.byType(TextField), findsNothing);
+    expect(find.widgetWithText(FilledButton, 'Apply'), findsNothing);
+    expect(
+      find.widgetWithText(OutlinedButton, 'Needs team input'),
+      findsNothing,
+    );
+
+    // A second click on the PR deselects it.
+    await tester.tap(inList('#7 Add a Slider'));
+    await tester.pumpAndSettle();
+    expect(controller.selectedGenuiPullRequest, isNull);
+    expect(find.text('Select an item.'), findsOneWidget);
+  });
+
   testWidgets('the divider resizes the item list', (tester) async {
     await pumpApp(tester);
     final Finder list = find.byType(ItemList);
@@ -415,7 +570,7 @@ void main() {
   testWidgets('an item without a suggestion starts empty', (tester) async {
     await pumpApp(tester);
     await expand(tester, 'New (3)');
-    await expand(tester, 'Issues (2)');
+    await expand(tester, 'Issues without PRs (1)');
     await tester.tap(inList('#11 Docs are unclear'));
     await tester.pumpAndSettle();
 

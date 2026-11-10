@@ -72,7 +72,7 @@ root = TriageSuggestion(
 The parts of the comment, in order:
 
 1. The `summary` and the `suggestion`, as paragraphs.
-2. The other properties that have values, as a numbered list: **Close as**, **Add labels**, **Remove labels**, **Assign**, **Unassign**, **Related issues** and **Related PRs**. An example of **Close as** is "Close as: duplicate of #1100".
+2. The other properties that have values, as a numbered list: **Close as**, **Add labels**, **Remove labels**, **Assign**, **Unassign**, **Set milestone**, **Remove milestone**, **Related issues** and **Related PRs**. An example of **Close as** is "Close as: duplicate of #1100".
 3. The `reply`, quoted, under **Reply**. The section is left out when there is no reply.
 4. The command that opens the item in the triage UI.
 5. The component, under **Details**.
@@ -109,6 +109,8 @@ The component is defined in [triage_suggestion.dart](../../pkgs/triage/lib/src/t
 5. `duplicate_of`: the number of the item that this item duplicates. It is set only with `close_as: duplicate`.
 6. `added_labels` and `removed_labels`: labels to add and remove.
 7. `new_assignees` and `removed_assignees`: GitHub logins to assign and unassign.
-8. `related_issues` and `related_prs`: numbers of related issues and PRs, which the triager may want to read. The triage UI does not change them.
+8. `new_milestone`: the title of the open milestone to set. An item has at most one milestone, so it replaces the current one.
+9. `removed_milestone`: the title of the item's milestone, to remove it. It has no effect when `new_milestone` is set.
+10. `related_issues` and `related_prs`: numbers of related issues and PRs, which the triager may want to read. The triage UI does not change them.
 
 Item numbers refer to the item's own repository. An omitted list means none.

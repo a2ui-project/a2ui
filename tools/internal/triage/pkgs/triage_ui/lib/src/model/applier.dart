@@ -65,7 +65,8 @@ String closeReason(TriageItem item, TriageSuggestion suggestion) {
 }
 
 /// Applies [suggestion] to [item] on GitHub: posts the reply, changes the
-/// labels and assignees, and closes the item, in this order.
+/// labels, assignees and milestone, and closes the item, in this order.
+/// [milestones] gives the numbers of the open milestones by title.
 ///
 /// Stops at the first step that fails. Skips the reply if [replyPosted],
 /// so that retrying after a failure does not post it twice, and calls
@@ -76,10 +77,13 @@ Future<ApplyResult> applySuggestion(
   TriageSuggestion suggestion, {
   required bool replyPosted,
   required void Function() onReplyPosted,
+  Map<String, int> milestones = const {},
 }) async {
   final int n = item.number;
   final String? reply = suggestion.reply;
   final String? closeAs = suggestion.closeAs;
+  final String? newMilestone = suggestion.newMilestone;
+  final String? removedMilestone = suggestion.removedMilestone;
   final steps = <(String, Future<void> Function()?)>[
     if (reply != null)
       replyPosted
@@ -111,6 +115,26 @@ Future<ApplyResult> applySuggestion(
         'Assign: ${suggestion.newAssignees.join(', ')}',
         () => service.addAssignees(n, suggestion.newAssignees),
       ),
+    if (newMilestone != null)
+      (
+        'Set milestone: $newMilestone',
+        () async {
+          final int? number = milestones[newMilestone];
+          if (number == null) {
+            throw GitHubException('There is no open milestone $newMilestone.');
+          }
+          await service.setMilestone(n, number);
+        },
+      )
+    // Setting a milestone replaces the old one, so removing it is needed
+    // only without a new one.
+    else if (removedMilestone != null)
+      item.milestone == removedMilestone
+          ? (
+              'Remove milestone: $removedMilestone',
+              () => service.setMilestone(n, null),
+            )
+          : ('Remove milestone: $removedMilestone: not on the item', null),
     if (closeAs != null)
       (
         'Close ${closeReason(item, suggestion)}'.trim(),

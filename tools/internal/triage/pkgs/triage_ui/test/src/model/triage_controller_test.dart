@@ -16,6 +16,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:triage/triage.dart';
 import 'package:triage_ui/src/github/github_client.dart';
 import 'package:triage_ui/src/github_item.dart';
+import 'package:triage_ui/src/model/genui_pull_request.dart';
 import 'package:triage_ui/src/model/triage_controller.dart';
 import 'package:triage_ui/src/model/triage_item.dart';
 
@@ -52,18 +53,54 @@ void main() {
   GitHubItem url(String path) =>
       GitHubItem.tryParse('https://github.com/a2ui-project/a2ui/$path')!;
 
-  test('loads the queue in groups: issues, then PRs with issues, then PRs '
-      'without issues, least recently updated first', () async {
+  test('loads the queue in groups: issues with PRs, issues without PRs, PRs '
+      'with issues, then PRs without issues, least recently updated '
+      'first', () async {
     await controller.start();
 
     expect(controller.isConnected, isTrue);
-    expect(numbers(controller.newItems), [10, 11, 20, 21]);
+    expect(numbers(controller.newItems), [11, 10, 20, 21]);
     expect(numbers(controller.teamInputItems), [40, 41]);
-    expect(numbers(controller.orderedItems), [10, 11, 20, 21, 40, 41]);
+    expect(numbers(controller.orderedItems), [11, 10, 20, 21, 40, 41]);
     expect(controller.selected, isNull);
     expect(controller.remaining, 6);
     expect(controller.repositoryInfo.labels, contains('P1'));
     expect(numbers(controller.relatedInQueue(controller.item(11)!)), [20]);
+  });
+
+  test('loads the PRs on genui, least recently updated first, and loads '
+      'them again on refresh', () async {
+    github.genuiPullRequests = [
+      genuiPullRequestNode(7, updatedAt: day(3), author: 'octocat'),
+      genuiPullRequestNode(5, updatedAt: day(2)),
+    ];
+
+    await controller.start();
+
+    expect([for (final pr in controller.genuiPullRequests) pr.number], [5, 7]);
+    final GenuiPullRequest pr = controller.genuiPullRequests.last;
+    expect(pr.title, 'Genui PR 7');
+    expect(pr.url, 'https://github.com/flutter/genui/pull/7');
+    expect(pr.author, 'octocat');
+    // They are not in the queue.
+    expect(controller.remaining, 6);
+    expect(controller.item(7), isNull);
+
+    // Selecting a PR on genui and an item of the queue replace each other.
+    controller.select(10);
+    controller.selectGenuiPullRequest(7);
+    expect(controller.selected, isNull);
+    expect(controller.selectedGenuiPullRequest!.title, 'Genui PR 7');
+    controller.select(10);
+    expect(controller.selectedGenuiPullRequest, isNull);
+    controller.selectGenuiPullRequest(7);
+
+    github.genuiPullRequests = [genuiPullRequestNode(8)];
+    await controller.refresh();
+
+    expect([for (final pr in controller.genuiPullRequests) pr.number], [8]);
+    // The selected PR no longer needs triage.
+    expect(controller.selectedGenuiPullRequest, isNull);
   });
 
   test('lists the items with a suggestion first', () async {
@@ -83,9 +120,9 @@ void main() {
 
     await controller.start();
 
-    // 12 is the most recently updated issue, but the only one with a
-    // suggestion.
-    expect(numbers(controller.newItems), [12, 10, 11, 20, 21]);
+    // 12 is the most recently updated issue without PRs, but the only one
+    // with a suggestion.
+    expect(numbers(controller.newItems), [11, 12, 10, 20, 21]);
   });
 
   test('deselects the selected item', () async {
@@ -142,11 +179,11 @@ void main() {
 
     expect(controller.lastResult(10)!.succeeded, isTrue);
     expect(controller.session.isApplied(10), isTrue);
-    expect(controller.selected!.number, 11);
+    expect(controller.selected!.number, 20);
     expect(controller.remaining, 5);
     // The item shows its new labels, and stays in its place until a refresh.
     expect(controller.item(10)!.labels, contains('P2'));
-    expect(numbers(controller.newItems), [10, 11, 20, 21]);
+    expect(numbers(controller.newItems), [11, 10, 20, 21]);
   });
 
   test('keeps a failed item selected, and posts its reply once', () async {
@@ -254,7 +291,7 @@ void main() {
     ]);
     expect(numbers(controller.newItems), [11, 20, 21]);
     expect(numbers(controller.teamInputItems), [10, 40, 41]);
-    expect(controller.selected!.number, 11);
+    expect(controller.selected!.number, 20);
     expect(controller.remaining, 5);
     expect(controller.session.isSentToTeam(10), isTrue);
     expect(controller.report(), contains('Sent 1 issue to the team.'));
@@ -282,6 +319,6 @@ void main() {
     expect(controller.error, contains('Could not add'));
     expect(github.calls.where((c) => c.contains('comments')), isEmpty);
     expect(controller.session.isSentToTeam(10), isFalse);
-    expect(numbers(controller.newItems), [10, 11, 20, 21]);
+    expect(numbers(controller.newItems), [11, 10, 20, 21]);
   });
 }

@@ -23,6 +23,7 @@ import '../model/triage_item.dart';
 import 'chip_list_field.dart';
 import 'label_colors.dart';
 import 'links.dart';
+import 'remove_list_field.dart';
 import 'triage_scope.dart';
 
 /// The triage suggestion for [item], which the triager edits and applies.
@@ -54,6 +55,12 @@ class SuggestionEditor extends StatelessWidget {
         final String? problem = draft.problem;
         final bool applying = controller.isApplying(item.number);
         final ApplyResult? result = controller.lastResult(item.number);
+        LabelColors? colorsOf(String name) =>
+            labelColors(controller.repositoryInfo.labelColors[name]);
+        final List<String> milestones = [
+          for (final String m in controller.repositoryInfo.milestones.keys)
+            if (m != item.milestone) m,
+        ];
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           spacing: 16,
@@ -143,26 +150,31 @@ class SuggestionEditor extends StatelessWidget {
                   ),
               ],
             ),
+            _PriorityField(item: item, draft: draft),
             ChipListField(
               label: 'Add labels',
-              colorsOf: (String name) =>
-                  labelColors(controller.repositoryInfo.labelColors[name]),
+              colorsOf: colorsOf,
               chooseTooltip: 'Choose labels to add',
-              values: draft.addedLabels,
-              options: _prioritiesFirst([
+              // The priority has a field of its own.
+              values: _withoutPriorities(draft.addedLabels),
+              options: _withoutPriorities([
                 for (final String label in controller.repositoryInfo.labels)
                   if (!item.labels.contains(label)) label,
               ]),
-              onChanged: (List<String> v) => draft.addedLabels = v,
+              onChanged: (List<String> v) => draft.addedLabels = [
+                ...v,
+                ..._onlyPriorities(draft.addedLabels),
+              ],
             ),
-            ChipListField(
+            RemoveListField(
               label: 'Remove labels',
-              colorsOf: (String name) =>
-                  labelColors(controller.repositoryInfo.labelColors[name]),
-              chooseTooltip: 'Choose labels to remove',
-              values: draft.removedLabels,
-              options: _prioritiesFirst(item.labels),
-              onChanged: (List<String> v) => draft.removedLabels = v,
+              colorsOf: colorsOf,
+              names: _withoutPriorities(item.labels),
+              removed: draft.removedLabels,
+              onChanged: (List<String> v) => draft.removedLabels = [
+                ...v,
+                ..._onlyPriorities(draft.removedLabels),
+              ],
             ),
             ChipListField(
               label: 'Assign',
@@ -171,12 +183,28 @@ class SuggestionEditor extends StatelessWidget {
               options: controller.repositoryInfo.assignableUsers,
               onChanged: (List<String> v) => draft.newAssignees = v,
             ),
-            ChipListField(
+            RemoveListField(
               label: 'Unassign',
-              chooseTooltip: 'Choose people to unassign',
-              values: draft.removedAssignees,
-              options: item.assignees,
+              names: item.assignees,
+              removed: draft.removedAssignees,
               onChanged: (List<String> v) => draft.removedAssignees = v,
+            ),
+            if (milestones.isNotEmpty || draft.newMilestone != null)
+              ChipListField(
+                label: 'Set milestone',
+                chooseTooltip: 'Choose the milestone',
+                single: true,
+                values: [?draft.newMilestone],
+                options: milestones,
+                onChanged: (List<String> v) =>
+                    draft.newMilestone = v.firstOrNull,
+              ),
+            RemoveListField(
+              label: 'Remove milestone',
+              names: [?item.milestone],
+              removed: [?draft.removedMilestone],
+              onChanged: (List<String> v) =>
+                  draft.removedMilestone = v.firstOrNull,
             ),
             Wrap(
               spacing: 16,
@@ -185,8 +213,8 @@ class SuggestionEditor extends StatelessWidget {
               children: [
                 Tooltip(
                   message:
-                      'Post the reply, change the labels and assignees, and '
-                      'close the item on GitHub, as set above',
+                      'Post the reply, change the labels, assignees and '
+                      'milestone, and close the item on GitHub, as set above',
                   child: FilledButton(
                     onPressed: problem == null && !applying
                         ? () => controller.apply(item)
@@ -226,14 +254,95 @@ class SuggestionEditor extends StatelessWidget {
 /// The priority labels, which the triager sets most often.
 const List<String> _priorities = ['P0', 'P1', 'P2', 'P3'];
 
-/// [labels] with the priority labels first, in priority order, and the
-/// other labels after them, in their order.
-List<String> _prioritiesFirst(List<String> labels) => [
-  for (final p in _priorities)
-    if (labels.contains(p)) p,
+List<String> _withoutPriorities(List<String> labels) => [
   for (final l in labels)
     if (!_priorities.contains(l)) l,
 ];
+
+List<String> _onlyPriorities(List<String> labels) => [
+  for (final l in labels)
+    if (_priorities.contains(l)) l,
+];
+
+/// What each priority means, from `docs/contributing/triage/triage.md`.
+const Map<String, String> _priorityMeanings = {
+  'P0': 'Urgent. Assign someone.',
+  'P1':
+      'A priority: the team is working on it, or will be soon. Assign '
+      'someone.',
+  'P2': 'The team intends to work on it.',
+  'P3': 'A good request, not planned now.',
+};
+
+/// The item's priority as a segmented button, with no priority or one of
+/// the priority labels selected.
+///
+/// Selecting a priority adds its label, unless the item has it, and
+/// removes the item's other priority labels. Unselecting it removes all of
+/// them.
+class _PriorityField extends StatelessWidget {
+  const _PriorityField({required this.item, required this.draft});
+
+  final TriageItem item;
+  final SuggestionDraft draft;
+
+  /// The priority that the item has once the draft is applied.
+  String? get _priority {
+    for (final String p in _priorities) {
+      if (draft.addedLabels.contains(p)) return p;
+    }
+    for (final String p in _priorities) {
+      if (item.labels.contains(p) && !draft.removedLabels.contains(p)) {
+        return p;
+      }
+    }
+    return null;
+  }
+
+  void _select(String? priority) {
+    draft
+      ..addedLabels = [
+        ..._withoutPriorities(draft.addedLabels),
+        if (priority != null && !item.labels.contains(priority)) priority,
+      ]
+      ..removedLabels = [
+        ..._withoutPriorities(draft.removedLabels),
+        for (final p in _priorities)
+          if (item.labels.contains(p) && p != priority) p,
+      ];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final String? priority = _priority;
+    return InputDecorator(
+      decoration: const InputDecoration(
+        labelText: 'Priority',
+        border: OutlineInputBorder(),
+      ),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: SegmentedButton<String>(
+          showSelectedIcon: false,
+          emptySelectionAllowed: true,
+          segments: [
+            for (final p in _priorities)
+              ButtonSegment(
+                value: p,
+                label: Text(p),
+                tooltip:
+                    '${_priorityMeanings[p]} Click again to set no '
+                    'priority.',
+              ),
+          ],
+          selected: {?priority},
+          onSelectionChanged: (Set<String> selected) =>
+              _select(selected.firstOrNull),
+        ),
+      ),
+    );
+  }
+}
 
 /// Asks for an optional comment for the team, then sends [item] to the
 /// team.

@@ -106,6 +106,25 @@ Sent 1 issue and 1 PR to the team.
     C: added status: needs-team-input''');
   });
 
+  test('reports milestone changes', () {
+    final session = TriageSession()
+      ..recordApplied(
+        item(1, 'A'),
+        const TriageSuggestion(
+          newMilestone: 'December launch',
+          removedMilestone: 'November launch',
+        ),
+      )
+      ..recordApplied(
+        item(2, 'B'),
+        const TriageSuggestion(removedMilestone: 'November launch'),
+      );
+
+    final String report = session.report(stillNeedTriage: 0);
+    expect(report, contains('A: set milestone December launch\n'));
+    expect(report, contains('B: removed milestone November launch'));
+  });
+
   test('reports an empty session', () {
     expect(
       TriageSession().report(stillNeedTriage: 1),

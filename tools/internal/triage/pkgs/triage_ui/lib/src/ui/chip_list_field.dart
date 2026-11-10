@@ -30,7 +30,12 @@ class ChipListField extends StatefulWidget {
     required this.chooseTooltip,
     this.options = const [],
     this.colorsOf,
+    this.single = false,
   });
+
+  /// Whether the field holds at most one name, such as a milestone. Checking
+  /// a name in the dropdown then replaces the one the field holds.
+  final bool single;
 
   /// The colors to show a name in, such as a label's colors on GitHub.
   /// Names without colors, and every name if this is null, have the theme's
@@ -74,7 +79,7 @@ class _ChipListFieldState extends State<ChipListField> {
 
   void _toggle(String name, {required bool checked}) => widget.onChanged(
     checked
-        ? [...widget.values, name]
+        ? [if (!widget.single) ...widget.values, name]
         : [
             for (final v in widget.values)
               if (v != name) v,

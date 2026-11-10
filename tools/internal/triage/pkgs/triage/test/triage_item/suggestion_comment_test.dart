@@ -51,6 +51,8 @@ root = TriageSuggestion(
   removed_labels=["status: needs-team-input"],
   new_assignees=["octocat"],
   removed_assignees=["hubot"],
+  new_milestone="November launch",
+  removed_milestone="October launch",
   related_issues=[1234],
   related_prs=[1300, 1301]
 )'''),
@@ -66,6 +68,8 @@ root = TriageSuggestion(
     expect(s.removedLabels, ['status: needs-team-input']);
     expect(s.newAssignees, ['octocat']);
     expect(s.removedAssignees, ['hubot']);
+    expect(s.newMilestone, 'November launch');
+    expect(s.removedMilestone, 'October launch');
     expect(s.relatedIssues, [1234]);
     expect(s.relatedPrs, [1300, 1301]);
 
@@ -83,6 +87,8 @@ root = TriageSuggestion(
     expect(s.closeAs, isNull);
     expect(s.duplicateOf, isNull);
     expect(s.addedLabels, isEmpty);
+    expect(s.newMilestone, isNull);
+    expect(s.removedMilestone, isNull);
     expect(s.relatedPrs, isEmpty);
   });
 

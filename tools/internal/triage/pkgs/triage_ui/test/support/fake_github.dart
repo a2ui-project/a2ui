@@ -82,6 +82,7 @@ Map<String, Object?> itemNode(
   List<Map<String, Object?>> timeline = const [],
   List<Map<String, Object?>> reviews = const [],
   List<int> linked = const [],
+  String? milestone,
 }) {
   final kind = pr ? 'pull' : 'issues';
   Map<String, Object?> nodes(List<Object?> list) => {'nodes': list};
@@ -102,6 +103,7 @@ Map<String, Object?> itemNode(
     'assignees': nodes([
       for (final a in assignees) {'login': a},
     ]),
+    'milestone': milestone == null ? null : {'title': milestone},
     'comments': nodes(comments),
     'timelineItems': nodes(timeline),
     if (pr) 'reviews': nodes(reviews),
@@ -110,6 +112,34 @@ Map<String, Object?> itemNode(
     ]),
   };
 }
+
+/// A GraphQL node of a pull request in `flutter/genui`.
+Map<String, Object?> genuiPullRequestNode(
+  int number, {
+  String? title,
+  DateTime? updatedAt,
+  String? author,
+  Map<String, String?> labels = const {needsTriageLabel: null},
+  List<String> assignees = const [],
+}) => {
+  'number': number,
+  'title': title ?? 'Genui PR $number',
+  'url': 'https://github.com/flutter/genui/pull/$number',
+  'createdAt': day(1).toIso8601String(),
+  'updatedAt': (updatedAt ?? day(1)).toIso8601String(),
+  'author': author == null ? null : {'login': author},
+  'labels': {
+    'nodes': [
+      for (final MapEntry(:key, :value) in labels.entries)
+        {'name': key, 'color': value},
+    ],
+  },
+  'assignees': {
+    'nodes': [
+      for (final login in assignees) {'login': login},
+    ],
+  },
+};
 
 /// GitHub, as far as the triage UI uses it, with items held in memory.
 ///
@@ -121,6 +151,10 @@ class FakeGitHub {
 
   final Map<int, Map<String, Object?>> items;
   final List<String> calls = [];
+
+  /// The open pull requests in `flutter/genui` with `status: needs-triage`,
+  /// as [genuiPullRequestNode]s.
+  List<Map<String, Object?>> genuiPullRequests = [];
 
   /// Logins that GitHub silently does not assign.
   final Set<String> unassignable = {};
@@ -144,6 +178,9 @@ class FakeGitHub {
   Map<String, String> labelColors = {'P1': 'b60205', 'type: bug': 'fbca04'};
 
   List<String> assignableUsers = ['hubot', 'octocat'];
+
+  /// The open milestones: their numbers by title.
+  Map<String, int> milestones = {'November launch': 10, 'December launch': 11};
 
   var _clock = 100;
 
@@ -169,11 +206,27 @@ class FakeGitHub {
       return _json({'message': 'Server error'}, status: 500);
     }
 
+    final json = (body ?? <String, Object?>{}) as Map<String, Object?>;
+    // Setting or removing the milestone.
+    if (RegExp(r'^issues/(\d+)$').firstMatch(issuePath) case final m?
+        when request.method == 'PATCH') {
+      final Map<String, Object?> item = items[int.parse(m.group(1)!)]!;
+      _touch(item);
+      final Object? number = json['milestone'];
+      item['milestone'] = number == null
+          ? null
+          : {
+              'title': milestones.entries
+                  .firstWhere((e) => e.value == number)
+                  .key,
+            };
+      return _json({}, status: 200);
+    }
+
     final RegExpMatch match = RegExp(
       r'^issues/(\d+)/(\w+)(?:/(.*))?$',
     ).firstMatch(issuePath)!;
     final Map<String, Object?> item = items[int.parse(match.group(1)!)]!;
-    final json = (body ?? <String, Object?>{}) as Map<String, Object?>;
     _touch(item);
     switch ((request.method, match.group(2))) {
       case ('POST', 'comments'):
@@ -212,6 +265,17 @@ class FakeGitHub {
   }
 
   http.Response _graphql(String query, Map<String, Object?> variables) {
+    if (query.contains('search(') &&
+        (variables['query']! as String).contains('repo:flutter/genui ')) {
+      return _json({
+        'data': {
+          'search': {
+            'pageInfo': {'hasNextPage': false, 'endCursor': null},
+            'nodes': genuiPullRequests,
+          },
+        },
+      });
+    }
     if (query.contains('search(')) {
       final String label = RegExp(
         r'label:"([^"]+)"',
@@ -249,6 +313,13 @@ class FakeGitHub {
             'assignableUsers': {
               'nodes': [
                 for (final u in assignableUsers) {'login': u},
+              ],
+            },
+            'milestones': {
+              'nodes': [
+                for (final MapEntry(key: title, value: number)
+                    in milestones.entries)
+                  {'number': number, 'title': title},
               ],
             },
           },

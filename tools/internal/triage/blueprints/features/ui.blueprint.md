@@ -28,10 +28,11 @@ The list of items, in groups:
 1. **New**: open items with `status: needs-triage` and without `status: needs-team-input`.
 2. **Needs team input**: open items with `status: needs-team-input`.
 3. **Not in the queue**: items that the triager opened from a [suggestion comment](triage_item.blueprint.md#the-suggestion-comment) and that are in neither group above.
+4. **PRs on genui**: open PRs in [`flutter/genui`](https://github.com/flutter/genui) with `status: needs-triage`, least recently updated first. Each PR shows its number, title and when it was last updated. The tool does not triage these PRs, and they do not count in the number of items that need triage. When the triager selects one, the details show a card that is not editable: the PR's title, with a link to it on GitHub, its age, when it was last updated, its author, labels and assignees.
 
-Each group lists issues first, then PRs with linked issues, then PRs without linked issues. Each of these lists starts with the items that have a suggestion, current or outdated, and then the items without one. Within each of these, the least recently updated item comes first.
+The first three groups list issues with linked PRs first, then issues without linked PRs, then PRs with linked issues, then PRs without linked issues. Each of these lists starts with the items that have a suggestion, current or outdated, and then the items without one. Within each of these, the least recently updated item comes first.
 
-Each group has a subgroup for each type of item it has. The groups and the subgroups start collapsed. When the tool selects an item itself, such as an item opened from its suggestion comment or the next item after **Apply**, the list expands the item's group and subgroup, and scrolls to the item.
+Each of the first three groups has a subgroup for each type of item it has. The groups and the subgroups start collapsed. When the tool selects an item itself, such as an item opened from its suggestion comment or the next item after **Apply**, the list expands the item's group and subgroup, and scrolls to the item.
 
 An item's flags show:
 
@@ -40,11 +41,12 @@ An item's flags show:
 3. `status: needs-team-input`.
 4. Whether the triager has applied its suggestion in this session.
 
-Items are colored differently by types:
+Issues are green and PRs are orange, in every group. Each type of item has its own icon:
 
-- Issues
+- Issues with PRs
+- Issues without PRs: an empty circle, for the missing PR.
 - PRs with issues
-- PRs without issues
+- PRs without issues: a broken link, for the missing issue.
 
 ### Details
 
@@ -56,7 +58,13 @@ Nothing is selected when the tool starts, unless it starts with an item from a s
 
 The editable suggestion is the triage UI's implementation of the [`TriageSuggestion`](triage_item.blueprint.md#the-triagesuggestion-component) A2UI component. It renders the component from the item's suggestion comment, or an empty one when the item has no suggestion.
 
-The `summary` and the `suggestion` are shown as text. The triager can change the other properties: the reply, how to close the item, the labels and the assignees. The triager checks labels and logins in a dropdown of the possible options: the repository's labels and the people who can be assigned for the labels and assignees to add, and the item's own labels and assignees for the ones to remove. Labels have their colors from the repository, as on GitHub. The dropdown lists the checked options first. A dropdown with more than 7 options has a search field at the top. The related issues and PRs are links.
+The `summary` and the `suggestion` are shown as text. The triager can change the other properties: the reply, how to close the item, the priority, the labels, the assignees and the milestone.
+
+1. The priority is a segmented button with `P0` to `P3`, with none or one of them selected. Selecting a priority adds its label and removes the item's other priority labels. Clicking the selected priority again removes them all. The other fields leave out the priority labels.
+2. The triager checks the labels, people and milestone to add in a dropdown: the repository's labels, the people who can be assigned, and its open milestones. An item has at most one milestone, so checking one in its dropdown unchecks the other. The dropdown lists the checked options first. A dropdown with more than 7 options has a search field at the top.
+3. The fields that remove things list what the item has, its labels, assignees and milestone, each with a checkbox. A checked one is grayed out. A field is not shown when the item has nothing of its kind.
+
+Labels have their colors from the repository, as on GitHub. The related issues and PRs are links.
 
 There are two buttons:
 

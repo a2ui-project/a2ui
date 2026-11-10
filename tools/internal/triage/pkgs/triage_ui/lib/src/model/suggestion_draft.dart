@@ -29,6 +29,8 @@ class SuggestionDraft extends ChangeNotifier {
       _removedLabels = suggestion.removedLabels,
       _newAssignees = suggestion.newAssignees,
       _removedAssignees = suggestion.removedAssignees,
+      _newMilestone = suggestion.newMilestone,
+      _removedMilestone = suggestion.removedMilestone,
       relatedIssues = suggestion.relatedIssues,
       relatedPrs = suggestion.relatedPrs {
     reply.addListener(notifyListeners);
@@ -54,6 +56,8 @@ class SuggestionDraft extends ChangeNotifier {
   List<String> _removedLabels;
   List<String> _newAssignees;
   List<String> _removedAssignees;
+  String? _newMilestone;
+  String? _removedMilestone;
 
   /// One of [TriageCloseReason.values], or null to keep the item open.
   String? get closeAs => _closeAs;
@@ -71,6 +75,14 @@ class SuggestionDraft extends ChangeNotifier {
   List<String> get removedAssignees => _removedAssignees;
   set removedAssignees(List<String> value) =>
       _set(() => _removedAssignees = value);
+
+  /// The title of the milestone to set, or null for no change.
+  String? get newMilestone => _newMilestone;
+  set newMilestone(String? value) => _set(() => _newMilestone = value);
+
+  /// The title of the milestone to remove, or null for no change.
+  String? get removedMilestone => _removedMilestone;
+  set removedMilestone(String? value) => _set(() => _removedMilestone = value);
 
   void _set(void Function() change) {
     change();
@@ -93,7 +105,9 @@ class SuggestionDraft extends ChangeNotifier {
         s.addedLabels.isEmpty &&
         s.removedLabels.isEmpty &&
         s.newAssignees.isEmpty &&
-        s.removedAssignees.isEmpty) {
+        s.removedAssignees.isEmpty &&
+        s.newMilestone == null &&
+        s.removedMilestone == null) {
       return 'Nothing to apply.';
     }
     return null;
@@ -114,6 +128,8 @@ class SuggestionDraft extends ChangeNotifier {
       removedLabels: _removedLabels,
       newAssignees: _newAssignees,
       removedAssignees: _removedAssignees,
+      newMilestone: _newMilestone,
+      removedMilestone: _removedMilestone,
       relatedIssues: relatedIssues,
       relatedPrs: relatedPrs,
     );

@@ -14,21 +14,40 @@
 
 import 'package:flutter/material.dart';
 
+import '../model/genui_pull_request.dart';
 import '../model/triage_controller.dart';
 import '../model/triage_item.dart';
 import 'links.dart';
 import 'triage_scope.dart';
 
+/// [color] in the shade that suits the theme of [context].
+Color _shade(BuildContext context, MaterialColor color) =>
+    Theme.of(context).brightness == Brightness.dark
+    ? color.shade300
+    : color.shade700;
+
 /// How the list shows an item of [kind]: its name, icon and color.
+///
+/// Issues are green and PRs are orange. An item without linked items has
+/// an icon that shows the missing link: an empty circle for an issue, a
+/// broken link for a PR.
 (String, IconData, Color) kindStyle(BuildContext context, ItemKind kind) {
-  final dark = Theme.of(context).brightness == Brightness.dark;
-  Color shade(MaterialColor color) => dark ? color.shade300 : color.shade700;
+  Color shade(MaterialColor color) => _shade(context, color);
   return switch (kind) {
-    ItemKind.issue => ('Issue', Icons.adjust, shade(Colors.green)),
+    ItemKind.issueWithPrs => (
+      'Issue with PRs',
+      Icons.adjust,
+      shade(Colors.green),
+    ),
+    ItemKind.issueWithoutPrs => (
+      'Issue without PRs',
+      Icons.radio_button_unchecked,
+      shade(Colors.green),
+    ),
     ItemKind.prWithIssues => (
       'PR with issues',
       Icons.call_merge,
-      shade(Colors.deepPurple),
+      shade(Colors.orange),
     ),
     ItemKind.prWithoutIssues => (
       'PR without issues',
@@ -42,7 +61,8 @@ import 'triage_scope.dart';
 Color kindBackground(Color color) => color.withValues(alpha: 0.08);
 
 /// The items, in the groups `ui.blueprint.md` describes: **New**, **Needs
-/// team input**, and the items opened by URL that are not in the queue.
+/// team input**, the items opened by URL that are not in the queue, and
+/// **PRs on genui**.
 ///
 /// The groups start collapsed. When the controller selects an item on its
 /// own, such as an item opened by URL, the list expands the item's group
@@ -109,10 +129,22 @@ class _ItemListState extends State<ItemList> {
                     if (i.kind == kind) i,
                 ], selected: selected),
           ],
+          _GroupHeader(
+            '$_genuiTitle (${controller.genuiPullRequests.length})',
+            expanded: _expanded.contains(_genuiTitle),
+            onTap: () => setState(() {
+              if (!_expanded.remove(_genuiTitle)) _expanded.add(_genuiTitle);
+            }),
+          ),
+          if (_expanded.contains(_genuiTitle))
+            for (final GenuiPullRequest pr in controller.genuiPullRequests)
+              _GenuiPullRequestTile(pr, key: ValueKey(pr.url)),
         ],
       ),
     );
   }
+
+  static const String _genuiTitle = 'PRs on genui';
 
   /// The header of the subgroup of [kind] with [key], and its [items] if it
   /// is expanded. Nothing if there are no [items].
@@ -128,7 +160,8 @@ class _ItemListState extends State<ItemList> {
     return [
       _GroupHeader(
         '${switch (kind) {
-          ItemKind.issue => 'Issues',
+          ItemKind.issueWithPrs => 'Issues with PRs',
+          ItemKind.issueWithoutPrs => 'Issues without PRs',
           ItemKind.prWithIssues => 'PRs with issues',
           ItemKind.prWithoutIssues => 'PRs without issues',
         }} (${items.length})',
@@ -184,11 +217,14 @@ class _GroupHeader extends StatelessWidget {
           children: [
             Icon(expanded ? Icons.expand_more : Icons.chevron_right),
             ?icon,
-            Text(
-              title,
-              style: indent > 0
-                  ? Theme.of(context).textTheme.labelLarge
-                  : Theme.of(context).textTheme.titleSmall,
+            Flexible(
+              child: Text(
+                title,
+                overflow: TextOverflow.ellipsis,
+                style: indent > 0
+                    ? Theme.of(context).textTheme.labelLarge
+                    : Theme.of(context).textTheme.titleSmall,
+              ),
             ),
           ],
         ),
@@ -277,6 +313,52 @@ class _ItemTile extends StatelessWidget {
       // A second click on the selected item deselects it.
       onTap: () =>
           selected ? controller.deselect() : controller.select(item.number),
+    );
+    return Semantics(selected: selected, child: tile);
+  }
+}
+
+/// A pull request in `flutter/genui`. Clicking it shows it in the details,
+/// where the tool does not triage it.
+class _GenuiPullRequestTile extends StatelessWidget {
+  const _GenuiPullRequestTile(this.pr, {super.key});
+
+  final GenuiPullRequest pr;
+
+  @override
+  Widget build(BuildContext context) {
+    final TriageController controller = TriageScope.of(context);
+    final Color color = _shade(context, Colors.orange);
+    final selected = controller.selectedGenuiPullRequest?.number == pr.number;
+    final tile = ListTile(
+      tileColor: kindBackground(color),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(6),
+        side: selected
+            ? BorderSide(color: Theme.of(context).colorScheme.primary, width: 2)
+            : BorderSide.none,
+      ),
+      leading: Tooltip(
+        message: 'PR on genui',
+        child: Icon(
+          Icons.call_merge,
+          color: color,
+          semanticLabel: 'PR on genui',
+        ),
+      ),
+      title: Text(
+        '#${pr.number} ${pr.title}',
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Text('updated ${ago(pr.updatedAt)}'),
+      ),
+      // A second click on the selected PR deselects it.
+      onTap: () => selected
+          ? controller.deselect()
+          : controller.selectGenuiPullRequest(pr.number),
     );
     return Semantics(selected: selected, child: tile);
   }

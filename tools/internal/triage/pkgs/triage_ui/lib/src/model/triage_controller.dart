@@ -19,6 +19,7 @@ import '../github/github_client.dart';
 import '../github/triage_service.dart';
 import '../github_item.dart';
 import 'applier.dart';
+import 'genui_pull_request.dart';
 import 'suggestion_draft.dart';
 import 'triage_item.dart';
 import 'triage_session.dart';
@@ -53,6 +54,12 @@ class TriageController extends ChangeNotifier {
   /// Items opened by URL that are not in the queue.
   List<TriageItem> _opened = const [];
 
+  List<GenuiPullRequest> _genuiPullRequests = const [];
+
+  /// The open pull requests in `flutter/genui` that need triage, least
+  /// recently updated first. The tool shows them, but does not triage them.
+  List<GenuiPullRequest> get genuiPullRequests => _genuiPullRequests;
+
   RepositoryInfo _repositoryInfo = const RepositoryInfo();
   RepositoryInfo get repositoryInfo => _repositoryInfo;
 
@@ -70,6 +77,10 @@ class TriageController extends ChangeNotifier {
   bool get isConnected => _service != null;
 
   int? _selected;
+
+  /// The number of the selected pull request in `flutter/genui`. At most
+  /// one of [_selected] and [_selectedGenui] is set.
+  int? _selectedGenui;
   GitHubItem? _pendingOpen;
 
   final Set<int> _changedOnGitHub = {};
@@ -102,6 +113,14 @@ class TriageController extends ChangeNotifier {
   int get remaining => _queue.where((i) => !session.isHandled(i.number)).length;
 
   TriageItem? get selected => _selected == null ? null : item(_selected!);
+
+  /// The selected pull request in `flutter/genui`, or null.
+  GenuiPullRequest? get selectedGenuiPullRequest {
+    for (final GenuiPullRequest pr in _genuiPullRequests) {
+      if (pr.number == _selectedGenui) return pr;
+    }
+    return null;
+  }
 
   var _revealCount = 0;
 
@@ -151,22 +170,32 @@ class TriageController extends ChangeNotifier {
   /// Connects to GitHub and loads the items.
   Future<void> start() => _load(() async {
     final TriageService service = await _connect();
-    final (RepositoryInfo info, List<TriageItem> queue) = await (
+    final (
+      RepositoryInfo info,
+      List<TriageItem> queue,
+      List<GenuiPullRequest> genui,
+    ) = await (
       service.fetchRepositoryInfo(),
       service.fetchQueue(),
+      service.fetchGenuiPullRequests(),
     ).wait;
     _service = service;
     _repositoryInfo = info;
     _setQueue(queue);
+    _setGenuiPullRequests(genui);
   }, then: _openPending);
 
-  /// Loads the queue again, and the items opened by URL.
+  /// Loads the queue again, the items opened by URL and the pull requests in
+  /// `flutter/genui`.
   ///
   /// Resets the drafts of the items that changed on GitHub, so that the
   /// triager sees their current state.
   Future<void> refresh() => _load(() async {
     final TriageService service = _service!;
-    final List<TriageItem> queue = await service.fetchQueue();
+    final (List<TriageItem> queue, List<GenuiPullRequest> genui) = await (
+      service.fetchQueue(),
+      service.fetchGenuiPullRequests(),
+    ).wait;
     final Set<int> inQueue = {for (final i in queue) i.number};
     final opened = <TriageItem>[];
     for (final TriageItem i in _opened) {
@@ -189,6 +218,7 @@ class TriageController extends ChangeNotifier {
     }
     _setQueue(queue);
     _opened = opened;
+    _setGenuiPullRequests(genui);
   });
 
   /// Selects [item], loading it first if it is not loaded.
@@ -215,12 +245,21 @@ class TriageController extends ChangeNotifier {
 
   void select(int number) {
     _selected = number;
+    _selectedGenui = null;
+    notifyListeners();
+  }
+
+  /// Selects the pull request in `flutter/genui` with [number].
+  void selectGenuiPullRequest(int number) {
+    _selected = null;
+    _selectedGenui = number;
     notifyListeners();
   }
 
   /// Selects nothing.
   void deselect() {
     _selected = null;
+    _selectedGenui = null;
     notifyListeners();
   }
 
@@ -247,6 +286,7 @@ class TriageController extends ChangeNotifier {
       suggestion,
       replyPosted: session.hasReplied(n),
       onReplyPosted: () => session.recordReplied(n),
+      milestones: _repositoryInfo.milestones,
     );
     _results[n] = result;
     if (result.succeeded) {
@@ -317,6 +357,8 @@ class TriageController extends ChangeNotifier {
       removedLabels: [...suggestion.removedLabels, needsTeamInputLabel],
       newAssignees: suggestion.newAssignees,
       removedAssignees: suggestion.removedAssignees,
+      newMilestone: suggestion.newMilestone,
+      removedMilestone: suggestion.removedMilestone,
       relatedIssues: suggestion.relatedIssues,
       relatedPrs: suggestion.relatedPrs,
     );
@@ -360,6 +402,11 @@ class TriageController extends ChangeNotifier {
     _listedUpdatedAt = {for (final i in queue) i.number: i.updatedAt};
   }
 
+  void _setGenuiPullRequests(List<GenuiPullRequest> pullRequests) {
+    _genuiPullRequests = pullRequests.toList()
+      ..sort((a, b) => a.updatedAt.compareTo(b.updatedAt));
+  }
+
   void _selectNextAfter(int number) {
     final List<TriageItem> items = orderedItems;
     final int index = items.indexWhere((i) => i.number == number);
@@ -370,6 +417,7 @@ class TriageController extends ChangeNotifier {
     for (final i in candidates) {
       if (!session.isHandled(i.number)) {
         _selected = i.number;
+        _selectedGenui = null;
         _revealCount++;
         return;
       }
