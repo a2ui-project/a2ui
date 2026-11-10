@@ -74,7 +74,7 @@ way as the source.
 
 | Language | From                               | To                                                          | Guide                                                                                                                                                                                                                                                                                                                                    |
 | -------- | ---------------------------------- | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Dart     | `package:genui` 0.10.x (A2UI v0.9) | `a2ui_core` + `a2ui_flutter` (+ `a2ui_agent`), v0.9 or v1.0 | [`references/dart_genui_to_1_0.md`](references/dart_genui_to_1_0.md)                                                                                                                                                                                                                                                                     |
+| Dart     | `genui` 0.9.x / 0.10.x (A2UI v0.9) | `a2ui_core` + `a2ui_flutter` (+ `a2ui_agent`), v0.9 or v1.0 | [`references/dart_genui_to_1_0.md`](references/dart_genui_to_1_0.md)                                                                                                                                                                                                                                                                     |
 | any      | protocol v0.8                      | protocol v0.9                                               | [`specification/v0_9/docs/evolution_guide.md`](../../../specification/v0_9/docs/evolution_guide.md); Python payload converter [`samples/agent/adk/migrate_v08_to_v09.py`](../../../samples/agent/adk/migrate_v08_to_v09.py); Lit renderer example in [`typescript/renderers/lit/README.md`](../../../typescript/renderers/lit/README.md) |
 | any      | protocol v0.9                      | protocol v0.9.1                                             | [`specification/v0_9_1/docs/evolution_guide.md`](../../../specification/v0_9_1/docs/evolution_guide.md)                                                                                                                                                                                                                                  |
 | any      | protocol v0.9 / v0.9.1             | protocol v1.0                                               | [`specification/v1_0/docs/evolution_guide.md`](../../../specification/v1_0/docs/evolution_guide.md), then the SDK's `CHANGELOG.md`                                                                                                                                                                                                       |
@@ -116,10 +116,11 @@ guide:
 When the migration is a pull request to someone else's repository, such as a
 package on pub.dev that depends on `genui`:
 
-1. Read the repository's CI workflows and its agent instructions
-   (`AGENTS.md`, `CLAUDE.md`) first, and run the CI steps locally before and
-   after the change, including in the example package. CI usually runs the
-   latest stable SDK, so use it locally too.
+1. Read the repository's CI workflows, its agent instructions
+   (`AGENTS.md`, `CLAUDE.md`) and its commit and PR title conventions first
+   (some repositories check PR titles against Conventional Commits). Run the
+   CI steps locally before and after the change, including in the example
+   package. CI usually runs the latest stable SDK, so use it locally too.
 2. Keep the package's name and public class names. Keep its API shape where
    the new SDK allows, and list each breaking change in its `CHANGELOG.md`
    under an `Unreleased` heading; leave the version number to the maintainer.
@@ -128,8 +129,19 @@ package on pub.dev that depends on `genui`:
 4. Commit only the migration. Revert edits that tools make on their own: for
    example, Flutter 3.47 and later rewrites `analysis_options.yaml` to
    exclude build and platform directories on `flutter pub get` and
-   `flutter analyze`.
-5. Leave behavior the migration did not have to change as it is, including
+   `flutter analyze`. Do commit a tracked `pubspec.lock` and the plugin
+   registrant entries that dropping a dependency removes (genui pulled in
+   `url_launcher`, `audioplayers` and `video_player_win`), but revert
+   unrelated registrant changes, and never commit generated files that hold
+   local paths (`.dart_tool/`, `.flutter-plugins-dependencies`). In a
+   repository without a complete `.gitignore`, stage files by name rather
+   than with `git add -A`.
+5. Keep the package's SDK lower bound even when the new dependencies need a
+   newer SDK: in Dart, a higher lower bound raises the language version, and
+   `dart format` then reformats every file.
+6. Read the APIs of the published SDK releases (for Dart, in the pub cache),
+   not this repository's sources, which may be ahead of the release.
+7. Leave behavior the migration did not have to change as it is, including
    bugs you notice, and mention them in the change description instead.
 
 ## Adding a case
