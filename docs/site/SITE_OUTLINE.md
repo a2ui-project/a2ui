@@ -322,7 +322,7 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 - **Content Outline**:
     1. **Overview**: Purpose statement and the exfiltration threat (a prompt-injected agent putting data-model values into an agent-supplied URL).
     2. **Core Path**: Set `urlSecurityPolicy` on `MessageProcessor` (`AllowlistUrlSecurityPolicy` per-context host lists), mark custom component URL props (`mediaUrl()` / `navigationUrl()` / `iframeUrl()` and `x-a2ui-url-context` in catalog JSON, `none` opt-out), check URLs custom code builds with `sanitizeUrl` on `DataContext` / `ComponentContext`, and watch `URL_BLOCKED` warnings.
-    3. **Additional Steps**: URL contexts and the baseline, allowlist host rules (wildcards, ports, `allowRelative`, `allowSvgDataUrls`), `rewrite` hooks, custom `UrlSecurityPolicy` implementations, `openUrlHandler`, the `urlProperties` map for catalogs the host can't edit, limits (custom code fetching on its own, CSP as backstop), and per-SDK availability.
+    3. **Additional Steps**: URL contexts and the baseline, allowlist host rules (wildcards, ports, `allowRelative`, `allowSvgDataUrls`), `rewrite` hooks, custom `UrlSecurityPolicy` implementations, `openUrlHandler`, the `urlProperties` map for catalogs the host can't edit, the agent payload check (`checkPayloadUrls` in `@a2ui/agent`), unmarked URL property warnings, limits (custom code fetching on its own, CSP as backstop), and per-SDK availability.
 
 <a id="macros"></a>
 

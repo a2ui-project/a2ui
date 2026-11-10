@@ -314,6 +314,31 @@ new AllowlistUrlSecurityPolicy({
 });
 ```
 
+### Check payloads on the agent
+
+The renderer applies its own policy whatever the agent sends, but an agent can run the same check before a payload leaves it, to log, drop, or retry a response from a model that was prompted into putting data into a URL. `checkPayloadUrls(catalogs, payload, options?)` from `@a2ui/agent` finds URL properties the same way the renderer does (catalog marks, the basic catalog's built-in list, and the policy's `urlProperties`) and checks each value with the policy you pass, usually the one your renderer uses. `@a2ui/agent` re-exports the policy classes:
+
+```ts
+import {AllowlistUrlSecurityPolicy, checkPayloadUrls} from '@a2ui/agent';
+
+const policy = new AllowlistUrlSecurityPolicy({media: ['cdn.example.com']});
+const {messages, blocked} = checkPayloadUrls(catalogs, payload, {policy, onBlocked: 'strip'});
+for (const url of blocked) console.warn(`Blocked ${url.redactedUrl} in ${url.propertyName}`);
+```
+
+`catalogs` are the catalogs the agent uses, and `payload` is one message or a list of messages. Each entry in `blocked` names the message, surface, component, property (such as `items[].imageUrl` or `theme.iconUrl`), context, and redacted URL. With `onBlocked: 'strip'`, `messages` holds copies with each blocked value replaced by an empty string, which the renderer treats as unset. The default, `'report'`, returns the messages unchanged.
+
+The check covers literal values and data bindings to values the same payload sets. It can't resolve function calls such as `formatString`, relative bindings inside list templates, or values set by earlier payloads; the renderer still checks those.
+
+### Find unmarked URL properties
+
+A URL property without a mark isn't checked at all, so A2UI tools warn about properties whose name looks like a URL (`url`, `uri`, `href`, `src`, or a name ending in `Url`, `Uri`, `_url`, or `_uri`), whose schema may hold a string, and that have no `x-a2ui-url-context`:
+
+- `Catalog.fromJson()` in `@a2ui/web_core` logs a `console.warn` once per catalog.
+- `tools/build_catalog/assemble_catalog.py` logs a warning for each property while it assembles a catalog.
+
+Mark each reported property with its context, or with `"x-a2ui-url-context": "none"` if it doesn't hold a URL. The basic catalog's built-in URL properties count as marked.
+
 ### What the policy can't cover
 
 The policy sees only URLs that pass through a marked property or a `sanitizeUrl` call. It can't intercept a custom component that fetches a URL on its own: a hand-written `fetch`, an embedded web view, or a third-party SDK (such as a map library loading tiles) that loads its own resources. Follow one rule in every custom component and function: any URL it loads, opens, or embeds comes from a marked property or goes through `sanitizeUrl`.
@@ -324,11 +349,12 @@ The policy doesn't apply to data sent back to the agent your app already talks t
 
 ### SDK availability
 
-| SDK                           | Status                                                                  |
-| :---------------------------- | :---------------------------------------------------------------------- |
-| TypeScript (`@a2ui/web_core`) | Available                                                               |
-| Python (`a2ui_core`)          | In progress ([#4045](https://github.com/a2ui-project/a2ui/issues/4045)) |
-| Dart (`a2ui_core`)            | In progress ([#4045](https://github.com/a2ui-project/a2ui/issues/4045)) |
-| Swift (`A2UICore`)            | In progress ([#4045](https://github.com/a2ui-project/a2ui/issues/4045)) |
+| SDK        | Core SDK policy                                                         | Agent payload check                                                     |
+| :--------- | :---------------------------------------------------------------------- | :---------------------------------------------------------------------- |
+| TypeScript | Available (`@a2ui/web_core`)                                            | Available (`@a2ui/agent`)                                               |
+| Python     | In progress ([#4119](https://github.com/a2ui-project/a2ui/pull/4119))   | In progress ([#4045](https://github.com/a2ui-project/a2ui/issues/4045)) |
+| Dart       | In progress ([#4114](https://github.com/a2ui-project/a2ui/pull/4114))   | Not available                                                           |
+| Swift      | In progress ([#4045](https://github.com/a2ui-project/a2ui/issues/4045)) | Not available                                                           |
+| Kotlin     | Not available                                                           | Not available                                                           |
 
-Each SDK follows the same rules and runs the same conformance suite, with names adapted to the language.
+Each core SDK that adds the policy follows the same rules and passes the same conformance suite, with names adapted to the language.
