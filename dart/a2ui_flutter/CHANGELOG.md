@@ -21,6 +21,15 @@
 - **Breaking:** Requires `a2ui_core` `^0.6.0`, whose types this library
   re-exports.
 
+- `A2uiSurface` takes `fallbacks`, an `A2uiFallbacks` whose `pending` and
+  `error` builders show widgets in place of a component that has not arrived
+  (including the root) or will not render (`unknown-type`, `cyclic`). Each
+  builder gets an `A2uiPendingInfo` or `A2uiErrorInfo`, and returns null to
+  show nothing. A fallback takes a slot like any other child; `buildChildOrNull`
+  lets a container lay out only the children that show something, as the basic
+  Row, Column and List do
+  ([#2013](https://github.com/a2ui-project/a2ui/issues/2013)).
+
 ## 0.1.0
 
 - Requires `a2ui_core` `^0.5.0`.

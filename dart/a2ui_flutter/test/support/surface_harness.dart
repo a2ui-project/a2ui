@@ -140,7 +140,8 @@ class SurfaceHarness {
 /// A null [validationConfig] builds the processor without one.
 ///
 /// [host] lays the surfaces out as a `Scaffold` body inside a `MaterialApp`;
-/// the default scrolls. The processor is disposed when the test ends.
+/// the default scrolls. Each surface gets [fallbacks]. The processor is
+/// disposed when the test ends.
 Future<SurfaceHarness> pumpSurface(
   WidgetTester tester,
   List<Map<String, Object?>> messages, {
@@ -148,6 +149,7 @@ Future<SurfaceHarness> pumpSurface(
   List<CatalogImplementation> moreCatalogs = const [],
   ValidationConfig? validationConfig = ValidationConfig.strict,
   SurfaceHost host = scrollingHost,
+  A2uiFallbacks? fallbacks,
 }) async {
   final harness = SurfaceHarness._(
     tester,
@@ -181,7 +183,11 @@ Future<SurfaceHarness> pumpSurface(
               valueListenable: harness._surfaces,
               builder: (context, surfaces, _) => host([
                 for (final s in surfaces)
-                  A2uiSurface(key: ObjectKey(s), surface: s),
+                  A2uiSurface(
+                    key: ObjectKey(s),
+                    surface: s,
+                    fallbacks: fallbacks,
+                  ),
               ]),
             ),
       ),
@@ -199,6 +205,7 @@ Future<SurfaceHarness> pumpComponents(
   Map<String, Object?>? data,
   ValidationConfig? validationConfig = ValidationConfig.strict,
   SurfaceHost host = scrollingHost,
+  A2uiFallbacks? fallbacks,
 }) {
   final CatalogImplementation resolved = catalog ?? fixtureCatalog();
   return pumpSurface(
@@ -211,5 +218,6 @@ Future<SurfaceHarness> pumpComponents(
     catalog: resolved,
     validationConfig: validationConfig,
     host: host,
+    fallbacks: fallbacks,
   );
 }
