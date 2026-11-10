@@ -10,7 +10,7 @@
   properties. To migrate, read `metadata` from `properties` on v0.9
   surfaces, or move to v1.0 for component metadata
   ([#4137](https://github.com/a2ui-project/a2ui/issues/4137),
-  [#PR](https://github.com/a2ui-project/a2ui/pull/PR)).
+  [#4140](https://github.com/a2ui-project/a2ui/pull/4140)).
 - (v1_0) Function calls inside `${...}` template expressions of `formatString`
   now inherit the `catalogId` that the enclosing `formatString` call resolved
   to (preserving reserved `@`-prefixed system calls such as `${@index()}` as
