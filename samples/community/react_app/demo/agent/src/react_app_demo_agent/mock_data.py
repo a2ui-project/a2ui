@@ -146,6 +146,10 @@ _ALL_REGIONS = "*"
 
 def _normalize_region(region: Any) -> str | None:
     """The canonical region name, `_ALL_REGIONS`, or None for an unknown region."""
+    if isinstance(region, (list, tuple)):
+        if not region:
+            return _ALL_REGIONS
+        region = region[0]
     if not isinstance(region, str) or region.strip().lower() in ("", "all", "*"):
         return _ALL_REGIONS
     key = region.strip().lower()

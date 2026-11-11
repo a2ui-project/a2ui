@@ -149,3 +149,17 @@ async def test_chat_requires_text_or_action(tmp_path: Path) -> None:
         response = await client.post("/api/chat", json={"conversationId": "c1"})
 
     assert response.status_code == 400
+
+
+async def test_history_endpoint_returns_turns(tmp_path: Path) -> None:
+    async with _client(tmp_path) as client:
+        await client.post(
+            "/api/chat", json={"conversationId": "c1", "text": "Say hello"}
+        )
+        history = await client.get("/api/history")
+
+    assert history.status_code == 200
+    data = history.json()
+    assert data["ok"] is True
+    assert data["count"] >= 1
+    assert any(t["key"] == "Say hello" for t in data["turns"])

@@ -87,6 +87,8 @@ $/loan/years = 15
 - Use the `a2ui` primitives (`Card`, `Button`, `Text`, `Slider`, `Stack`) and `theme`, so the app looks like the native components.
 - For custom CSS, use the theme variables, `var(--a2ui-*)`. Never hard-code colors or fonts: no `'#ccc'`, `'rgb(...)'` or font names in the code. Use `var(--a2ui-color-border)` for borders, `<Text tone="muted">` for secondary text and `var(--a2ui-color-primary)` for highlights.
 - Leave colors and fonts out of `VegaChart` specs, including `scale.range`: the chart takes them, and a palette for series, from the theme. Where a spec needs a literal color, use `theme.colors.primary` or `theme.colors.secondary`.
+- Avoid nested vertical scrollbars inside the app: never put fixed heights with `overflow-y: scroll` or `auto` inside cards or panels. Let the app flow naturally so the frame resizes to fit, wrap items (`wrap`), or paginate. For horizontal collections, use modern hidden-scrollbar carousels with `className="a2ui-carousel"` or `className="a2ui-scroll-x a2ui-scroll-hidden"`.
+- Native `ChoicePicker` in the data model stores values as string arrays (e.g. `["All"]` or `["EMEA"]`). Normalize array values before passing to functions or logic: `const [val] = useData<any>('/path', 'All'); const picked = Array.isArray(val) ? (val[0] || 'All') : val;`.
 
 ### Functions the app can call
 

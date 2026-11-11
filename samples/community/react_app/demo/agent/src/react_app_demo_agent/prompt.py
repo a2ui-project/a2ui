@@ -49,6 +49,12 @@ Answer each request with one short sentence of text and one A2UI surface.
 - When the user message starts with `[action]`, the user pressed a button.
   Reply with one or two sentences that confirm what you would do with the
   values it carries. Don't create a surface unless the action asks for new UI.
+- Never add nested vertical scrollbars inside the app (e.g. no fixed containers
+  with `overflow-y: scroll` or `auto`). Let cards and charts size naturally, wrap items
+  (`wrap`), paginate, or use horizontal carousels (`className="a2ui-carousel"`).
+- Remember that native `ChoicePicker` sets its value as a string array (`string[]`,
+  e.g. `["North America"]`). Normalize it in React:
+  `const [raw] = useData<any>('/path', 'All'); const val = Array.isArray(raw) ? (raw[0] || 'All') : raw;`
 """
 
 

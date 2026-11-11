@@ -60,5 +60,13 @@ def test_query_sales_covers_the_whole_year_for_every_region() -> None:
     assert {row["region"] for row in rows} == set(mock_data.SALES_REGIONS)
 
 
+def test_query_sales_accepts_list_from_choice_picker() -> None:
+    # A2UI ChoicePicker stores value as an array of strings e.g. ["North America"] or ["All"].
+    rows = mock_data.query_sales(["North America"], "2025-01-01", "2025-12-31")
+    assert rows
+    assert {row["region"] for row in rows} == {"North America"}
+    assert rows == mock_data.query_sales("North America", "2025-01-01", "2025-12-31")
+
+
 def test_query_sales_has_no_orders_for_an_unknown_region() -> None:
     assert mock_data.query_sales("Mars", "2025-01-01", "2025-12-31") == []

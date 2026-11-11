@@ -36,6 +36,7 @@ from .turn import (
     TurnRunner,
     action_prompt,
     app_error_prompt,
+    get_recent_turns,
 )
 
 logger = logging.getLogger(__name__)
@@ -94,6 +95,12 @@ def create_app(model: ModelClient) -> FastAPI:
     @app.get("/api/health")
     async def health() -> dict[str, Any]:
         return {"ok": True, "model": model.name, "mode": model.mode}
+
+    @app.get("/api/history")
+    async def history() -> dict[str, Any]:
+        """Returns recent turn execution records, Express text, reactApps, and timings."""
+        turns = get_recent_turns()
+        return {"ok": True, "count": len(turns), "turns": turns}
 
     @app.post("/api/chat")
     async def chat(request: ChatRequest) -> StreamingResponse:

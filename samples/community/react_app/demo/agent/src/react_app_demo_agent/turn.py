@@ -56,6 +56,26 @@ logger = logging.getLogger(__name__)
 MAX_ATTEMPTS = 2
 """The first try plus one automatic retry on validation errors."""
 
+_RECENT_TURNS: list[dict[str, Any]] = []
+_MAX_RECENT_TURNS = 100
+_TURNS_LOG_FILE = "turns.jsonl"
+
+
+def get_recent_turns() -> list[dict[str, Any]]:
+    """Returns recent turn summaries for debugging and inspection."""
+    return list(_RECENT_TURNS)
+
+
+def _append_turn_record(record: dict[str, Any]) -> None:
+    _RECENT_TURNS.append(record)
+    if len(_RECENT_TURNS) > _MAX_RECENT_TURNS:
+        _RECENT_TURNS.pop(0)
+    try:
+        with open(_TURNS_LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    except OSError:
+        pass
+
 _ENVELOPES = ("createSurface", "updateComponents", "updateDataModel", "deleteSurface")
 _OPEN_TAG = "<a2ui>"
 _REACT_APP_CALL_RE = re.compile(r"\bReactApp\s*\(")
@@ -277,21 +297,18 @@ class TurnRunner:
         def log(debug: dict[str, Any]) -> None:
             nonlocal logged
             logged = True
-            logger.info(
-                "turn",
-                extra={
-                    "json": {
-                        "event": "turn",
-                        "conversationId": conversation.id,
-                        "key": key,
-                        **{k: v for k, v in debug.items() if k != "messages"},
-                        "durationsMs": {
-                            name: round(at - timings["received"], 1)
-                            for name, at in timings.items()
-                        },
-                    }
+            record = {
+                "event": "turn",
+                "conversationId": conversation.id,
+                "key": key,
+                **debug,
+                "durationsMs": {
+                    name: round(at - timings["received"], 1)
+                    for name, at in timings.items()
                 },
-            )
+            }
+            logger.info("turn", extra={"json": {k: v for k, v in record.items() if k != "messages"}})
+            _append_turn_record(record)
 
         try:
             yield SseEvent(

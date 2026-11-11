@@ -234,7 +234,7 @@ export abstract class SandboxedFrameElement<
     if (!frame) {
       return;
     }
-    this.sizing ??= new FrameSizing({frame});
+    this.sizing ??= new FrameSizing({frame, threshold: 1});
     this.sizing.requestSize(width, height);
   }
 

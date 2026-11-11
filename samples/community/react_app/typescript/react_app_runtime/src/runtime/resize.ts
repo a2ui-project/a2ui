@@ -30,11 +30,14 @@ export function watchContentHeight(
   const report = () => {
     scheduled = false;
     const style = getComputedStyle(element);
-    const height = Math.ceil(
-      element.scrollHeight +
-        parseFloat(style.marginTop || '0') +
-        parseFloat(style.marginBottom || '0'),
-    );
+    // Add a 4px safety buffer so fractional subpixel text layout, scrollbars or border rounding
+    // never causes the iframe to show a nested vertical scrollbar.
+    const height =
+      Math.ceil(
+        element.scrollHeight +
+          parseFloat(style.marginTop || '0') +
+          parseFloat(style.marginBottom || '0'),
+      ) + 4;
     if (height !== lastHeight) {
       lastHeight = height;
       onHeight(height);

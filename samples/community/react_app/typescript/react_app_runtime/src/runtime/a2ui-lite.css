@@ -59,11 +59,17 @@
 html,
 body {
   margin: 0;
+  padding: 0;
   background: transparent;
   color: var(--a2ui-lite-fg);
   font-family: var(--a2ui-lite-font);
   font-size: var(--a2ui-font-size-m, 14px);
   line-height: 1.45;
+  overflow-x: hidden;
+}
+
+html {
+  scrollbar-width: thin;
 }
 
 #root {
@@ -324,6 +330,44 @@ input[type='range'] {
   font-family: var(--a2ui-lite-mono);
   font-size: 12px;
   margin: var(--a2ui-lite-space-2) 0 0;
+}
+
+/* Modern hidden-scrollbar horizontal scroll and carousel utilities */
+.a2ui-scroll-x {
+  overflow-x: auto;
+  overflow-y: hidden;
+  display: flex;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+.a2ui-scroll-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.a2ui-scroll-hidden::-webkit-scrollbar {
+  display: none;
+}
+
+.a2ui-carousel {
+  display: flex;
+  overflow-x: auto;
+  gap: var(--a2ui-lite-space-2);
+  padding-bottom: var(--a2ui-lite-space-1);
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.a2ui-carousel::-webkit-scrollbar {
+  display: none;
+}
+
+.a2ui-carousel > * {
+  scroll-snap-align: start;
+  flex-shrink: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {
