@@ -5,6 +5,9 @@
   "license": "Apache-2.0",
   "private": true,
   "type": "module",
+  "exports": {
+    "./use_cases": "./src/use_cases.ts"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.json && vite build",
@@ -17,6 +20,7 @@
   },
   "dependencies": {
     "@a2ui-labs/react-app": "workspace:*",
+    "@a2ui-labs/react-app-runtime": "workspace:*",
     "@a2ui/markdown-it": "*",
     "@a2ui/react": "*",
     "@a2ui/web_core": "*",
@@ -29,7 +33,6 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@a2ui-labs/react-app-runtime": "workspace:*",
     "@types/node": "^25.9.3",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",

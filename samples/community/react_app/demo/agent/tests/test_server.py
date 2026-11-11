@@ -107,6 +107,43 @@ async def test_renderer_message_runs_agent_functions(tmp_path: Path) -> None:
     assert isinstance(reply["value"], int) and reply["value"] > 0
 
 
+async def test_renderer_errors_become_notes_and_bad_messages_get_400(
+    tmp_path: Path,
+) -> None:
+    async with _client(tmp_path) as client:
+        noted = await client.post(
+            "/api/renderer-message",
+            json={
+                "conversationId": "c1",
+                "message": {
+                    "version": "1.0",
+                    "error": {
+                        "code": "REACT_APP_ERROR",
+                        "surfaceId": "trip",
+                        "message": "boom",
+                    },
+                },
+            },
+        )
+        bad = await client.post(
+            "/api/renderer-message",
+            json={
+                "conversationId": "c1",
+                "message": {
+                    "version": "1.0",
+                    "callAgentFunction": {
+                        "surfaceId": "trip",
+                        "callFunction": {"@call": "estimateTravelTime", "args": {}},
+                    },
+                },
+            },
+        )
+
+    assert noted.json() == {"handled": True, "replies": []}
+    assert bad.status_code == 400
+    assert "error" in bad.json()
+
+
 async def test_chat_requires_text_or_action(tmp_path: Path) -> None:
     async with _client(tmp_path) as client:
         response = await client.post("/api/chat", json={"conversationId": "c1"})

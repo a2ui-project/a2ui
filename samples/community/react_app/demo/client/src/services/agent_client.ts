@@ -76,6 +76,7 @@ export type AgentEvent =
       data: {attempt: number; index: number; title: string | null; height: number | null};
     }
   | {type: 'retry'; data: {attempt: number; errors: string[]}}
+  | {type: 'restore_surface'; data: {surfaceId: string}}
   | {type: 'debug'; data: TurnDebug}
   | {type: 'error'; data: {message: string; errors?: string[]}}
   | {type: 'done'; data: {turnId?: string; ok: boolean}};
@@ -83,7 +84,16 @@ export type AgentEvent =
 /** What the client sends for one turn. */
 export type ChatRequest =
   | {conversationId: string; text: string}
-  | {conversationId: string; action: Record<string, unknown>};
+  | {conversationId: string; action: Record<string, unknown>}
+  | {conversationId: string; appError: AppErrorReport};
+
+/** An app that failed in the browser, sent to the agent for one repair turn. */
+export interface AppErrorReport {
+  surfaceId: string | null;
+  componentId: string | null;
+  phase: string;
+  message: string;
+}
 
 /**
  * Posts a chat turn and calls `onEvent` for every event of its SSE response.
@@ -144,11 +154,13 @@ export function parseEvent(block: string): AgentEvent | null {
 export async function sendRendererMessage(
   conversationId: string,
   message: unknown,
+  signal?: AbortSignal,
 ): Promise<unknown[]> {
   const response = await fetch('/api/renderer-message', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({conversationId, message}),
+    signal,
   });
   if (!response.ok) {
     throw new Error(`The agent answered HTTP ${response.status}.`);

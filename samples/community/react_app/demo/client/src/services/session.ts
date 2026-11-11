@@ -27,6 +27,7 @@ import {
   sendRendererMessage,
   streamChat,
   type AgentEvent,
+  type AppErrorReport,
   type ChatRequest,
   type TurnDebug,
 } from './agent_client';
@@ -55,7 +56,8 @@ const AGENT_CHECKPOINTS: Record<string, CheckpointId> = {
 
 export interface TurnState {
   readonly id: string;
-  readonly kind: 'prompt' | 'action';
+  /** `repair` turns ask the agent to fix an app that failed in the browser. */
+  readonly kind: 'prompt' | 'action' | 'repair';
   /** The prompt, or a label for the action. */
   readonly prompt: string;
   readonly status: 'streaming' | 'done' | 'error';
@@ -72,7 +74,16 @@ export interface TurnState {
   readonly frameTimings: ReactAppTimings | null;
   readonly model: string | null;
   readonly mode: string | null;
+  /** Problems the page saw after the agent answered: app errors, rejected messages. */
+  readonly problems: readonly string[];
+  /** Surfaces a later turn rewrote; they now show in that turn. */
+  readonly superseded: readonly string[];
 }
+
+/** How long a turn may stream before the client gives up. */
+const TURN_TIMEOUT_MS = 180_000;
+/** How long an agent function call may take before the app gets an error. */
+const AGENT_CALL_TIMEOUT_MS = 10_000;
 
 /**
  * A random conversation id. `crypto.randomUUID` only exists in secure contexts, and the demo is
@@ -106,6 +117,13 @@ export class DemoSession {
   private readonly listeners = new Set<() => void>();
   private activeTurnId: string | null = null;
   private nextTurn = 1;
+  /** The turn that shows each surface, and the one that showed it before it was deleted. */
+  private readonly owner = new Map<string, string>();
+  private readonly previousOwner = new Map<string, string>();
+  /** Surfaces the agent is restoring after a failed attempt, and the turn they go back to. */
+  private readonly restoring = new Map<string, string>();
+  /** Turns that already asked the agent for a repair. */
+  private readonly repairRequested = new Set<string>();
 
   constructor() {
     this.processor = new MessageProcessor<ReactCatalogComponent>(
@@ -113,20 +131,8 @@ export class DemoSession {
       action => this.sendAction(action),
       {outboundListener: message => this.forwardToAgent(message)},
     );
-    this.processor.model.onSurfaceCreated.subscribe(surface => {
-      const turnId = this.activeTurnId;
-      if (turnId) {
-        this.update(turnId, turn => ({...turn, surfaceIds: [...turn.surfaceIds, surface.id]}));
-      }
-    });
-    this.processor.model.onSurfaceDeleted.subscribe(surfaceId => {
-      this.turns = this.turns.map(turn =>
-        turn.surfaceIds.includes(surfaceId)
-          ? {...turn, surfaceIds: turn.surfaceIds.filter(id => id !== surfaceId)}
-          : turn,
-      );
-      this.notify();
-    });
+    this.processor.model.onSurfaceCreated.subscribe(surface => this.surfaceCreated(surface.id));
+    this.processor.model.onSurfaceDeleted.subscribe(surfaceId => this.surfaceDeleted(surfaceId));
   }
 
   subscribe = (listener: () => void): (() => void) => {
@@ -161,6 +167,24 @@ export class DemoSession {
       conversationId: this.conversationId,
       action: action as unknown as Record<string, unknown>,
     });
+  }
+
+  /**
+   * Records an app that failed in the browser: the turn shows it, and the agent gets one chance
+   * to repair it in a new turn. Repair turns don't ask again, so a broken fix can't loop.
+   */
+  recordAppError(turnId: string, report: AppErrorReport): void {
+    this.addProblem(turnId, `The app failed (${report.phase}): ${report.message}`);
+    const turn = this.turns.find(candidate => candidate.id === turnId);
+    if (turn && turn.kind !== 'repair' && !this.repairRequested.has(turnId) && !this.busy) {
+      this.repairRequested.add(turnId);
+      void this.runTurn('repair', 'Fix the app error', {
+        conversationId: this.conversationId,
+        appError: report,
+      });
+      return;
+    }
+    this.reportToAgent('REACT_APP_ERROR', report.surfaceId, report.message);
   }
 
   /** Records a bridge event from a turn's ReactApp element, and the checkpoints it marks. */
@@ -210,19 +234,44 @@ export class DemoSession {
         frameTimings: null,
         model: null,
         mode: null,
+        problems: [],
+        superseded: [],
       },
     ];
     this.notify();
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), TURN_TIMEOUT_MS);
+    let finished = false;
     try {
-      await streamChat(request, event => this.handleEvent(id, event));
-      this.update(id, turn => (turn.status === 'streaming' ? {...turn, status: 'done'} : turn));
+      await streamChat(
+        request,
+        event => {
+          finished ||= event.type === 'done';
+          this.handleEvent(id, event);
+        },
+        abort.signal,
+      );
+      this.update(id, turn => {
+        if (turn.status !== 'streaming') {
+          return turn;
+        }
+        return finished
+          ? {...turn, status: 'done'}
+          : {...turn, status: 'error', error: 'The agent stopped answering before the turn ended.'};
+      });
     } catch (error) {
       this.update(id, turn => ({
         ...turn,
         status: 'error',
-        error: error instanceof Error ? error.message : String(error),
+        pendingApp: null,
+        error: abort.signal.aborted
+          ? 'The agent took too long to answer.'
+          : error instanceof Error
+            ? error.message
+            : String(error),
       }));
     } finally {
+      clearTimeout(timer);
       this.mark(id, 'T8', performance.now());
       this.activeTurnId = null;
       this.notify();
@@ -261,6 +310,14 @@ export class DemoSession {
           retries: [...turn.retries, {attempt: event.data.attempt, errors: event.data.errors}],
         }));
         break;
+      case 'restore_surface': {
+        const {surfaceId} = event.data;
+        const target = this.previousOwner.get(surfaceId) ?? this.owner.get(surfaceId);
+        if (target) {
+          this.restoring.set(surfaceId, target);
+        }
+        break;
+      }
       case 'debug':
         this.update(turnId, turn => ({...turn, debug: event.data}));
         break;
@@ -282,7 +339,10 @@ export class DemoSession {
     try {
       this.processor.processMessages([message as never]);
     } catch (error) {
-      console.error('[demo] Rejected A2UI message', message, error);
+      const reason = error instanceof Error ? error.message : String(error);
+      console.warn('[demo] Rejected A2UI message', message, error);
+      this.addProblem(turnId, `The page rejected a message from the agent: ${reason}`);
+      this.reportToAgent('MESSAGE_REJECTED', null, reason);
       return;
     }
     const body = (message['updateComponents'] ?? message['createSurface']) as
@@ -301,14 +361,97 @@ export class DemoSession {
     }
   }
 
+  /**
+   * Sends the processor's outbound messages to the agent. An agent function call that fails or
+   * takes too long is answered locally with an error, so the app's `function/call` settles.
+   */
   private forwardToAgent(message: unknown): void {
-    if (!message || typeof message !== 'object' || !('callAgentFunction' in message)) {
+    if (!message || typeof message !== 'object') {
       return;
     }
-    sendRendererMessage(this.conversationId, message).then(
-      replies => this.processor.processMessages(replies as never),
-      error => console.error('[demo] Agent function call failed', error),
+    if ('error' in message) {
+      void sendRendererMessage(this.conversationId, message).catch(() => undefined);
+      return;
+    }
+    if (!('callAgentFunction' in message)) {
+      return;
+    }
+    const call = (message as {callAgentFunction: {functionCallId?: string}}).callAgentFunction;
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), AGENT_CALL_TIMEOUT_MS);
+    sendRendererMessage(this.conversationId, message, abort.signal)
+      .then(
+        replies => this.processor.processMessages(replies as never),
+        (error: unknown) => {
+          const reason = abort.signal.aborted
+            ? `The agent didn't answer within ${AGENT_CALL_TIMEOUT_MS / 1000} s.`
+            : `The agent couldn't be reached: ${error instanceof Error ? error.message : String(error)}`;
+          this.processor.processMessages([
+            {
+              version: '1.0',
+              agentFunctionResponse: {
+                functionCallId: call.functionCallId ?? '',
+                error: {code: 'AGENT_UNAVAILABLE', message: reason},
+              },
+            } as never,
+          ]);
+        },
+      )
+      .finally(() => clearTimeout(timer));
+  }
+
+  /** Tells the agent about a problem on the page; it hears about it on the next turn. */
+  private reportToAgent(code: string, surfaceId: string | null, message: string): void {
+    void sendRendererMessage(this.conversationId, {
+      version: '1.0',
+      error: {code, message, ...(surfaceId ? {surfaceId} : {})},
+    }).catch(() => undefined);
+  }
+
+  private addProblem(turnId: string, problem: string): void {
+    this.update(turnId, turn =>
+      turn.problems.includes(problem) ? turn : {...turn, problems: [...turn.problems, problem]},
     );
+  }
+
+  /** A new surface belongs to the turn it's restored to, or else to the streaming turn. */
+  private surfaceCreated(surfaceId: string): void {
+    const restoredTo = this.restoring.get(surfaceId);
+    this.restoring.delete(surfaceId);
+    const target = restoredTo ?? this.activeTurnId;
+    if (!target) {
+      return;
+    }
+    this.owner.set(surfaceId, target);
+    this.update(target, turn => ({
+      ...turn,
+      surfaceIds: turn.surfaceIds.includes(surfaceId)
+        ? turn.surfaceIds
+        : [...turn.surfaceIds, surfaceId],
+      superseded: turn.superseded.filter(id => id !== surfaceId),
+    }));
+    const before = this.previousOwner.get(surfaceId);
+    if (!restoredTo && before && before !== target) {
+      this.update(before, turn => ({...turn, superseded: [...turn.superseded, surfaceId]}));
+    }
+  }
+
+  /** A deleted surface leaves its turn, unless the agent is about to restore it there. */
+  private surfaceDeleted(surfaceId: string): void {
+    const turnId = this.owner.get(surfaceId);
+    if (!turnId) {
+      return;
+    }
+    if (this.restoring.get(surfaceId) === turnId) {
+      this.notify();
+      return;
+    }
+    this.owner.delete(surfaceId);
+    this.previousOwner.set(surfaceId, turnId);
+    this.update(turnId, turn => ({
+      ...turn,
+      surfaceIds: turn.surfaceIds.filter(id => id !== surfaceId),
+    }));
   }
 
   private mark(turnId: string, checkpoint: CheckpointId, time: number): void {

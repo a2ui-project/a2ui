@@ -30,7 +30,7 @@ import {
   type Page,
   type TestInfo,
 } from '@playwright/test';
-import {USE_CASES, type UseCase} from '../../client/src/use_cases';
+import {USE_CASES, type UseCase} from '@a2ui-labs/react-app-demo-client/use_cases';
 
 export const MODE: 'live' | 'recorded' =
   process.env['DEMO_E2E_MODE'] === 'live' ? 'live' : 'recorded';
@@ -72,9 +72,11 @@ declare global {
  * The tests' `test`: it fails a test when any frame (the page, the sandbox proxy or an app frame)
  * logs a console error or throws an uncaught exception, such as a cross-origin SecurityError.
  */
-export const test = base.extend<{frameErrors: string[]}>({
+export const test = base.extend<{allowedFrameErrors: RegExp[]; frameErrors: string[]}>({
+  /** Errors a test provokes on purpose, which `frameErrors` then ignores. */
+  allowedFrameErrors: [[], {option: true}],
   frameErrors: [
-    async ({page}, use) => {
+    async ({page, allowedFrameErrors}, use) => {
       const errors: string[] = [];
       page.on('console', message => {
         if (message.type() === 'error') {
@@ -83,15 +85,20 @@ export const test = base.extend<{frameErrors: string[]}>({
       });
       page.on('pageerror', error => errors.push(`uncaught ${error.name}: ${error.message}`));
       await use(errors);
+      const unexpected = errors.filter(error => !allowedFrameErrors.some(re => re.test(error)));
       expect(
-        errors.filter(error => /SecurityError|Blocked a frame/.test(error)),
+        unexpected.filter(error => /SecurityError|Blocked a frame/.test(error)),
         'cross-origin access errors',
       ).toEqual([]);
-      expect(errors, 'console errors and uncaught exceptions in any frame').toEqual([]);
+      expect(unexpected, 'console errors and uncaught exceptions in any frame').toEqual([]);
     },
     {auto: true},
   ],
 });
+
+/** The follow-up of the loan use case: it rewrites the app, so it exercises surface replacement. */
+export const LOAN_FOLLOW_UP =
+  'Make it a line chart instead, and add a toggle between 10 and 15 years.';
 
 export function useCase(id: UseCase['id']): UseCase {
   return USE_CASES.find(candidate => candidate.id === id)!;

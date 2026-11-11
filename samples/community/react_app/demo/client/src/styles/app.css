@@ -580,6 +580,22 @@ code {
   color: var(--ink-soft);
 }
 
+.turn-note-quiet {
+  border-left-color: var(--rule-strong);
+  background: var(--paper-deep);
+}
+
+.turn-error p {
+  margin: 0;
+}
+
+.turn-error-details {
+  margin: var(--s-1) 0 0;
+  padding-left: var(--s-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
 .turn-error {
   border-left-color: var(--danger);
   background: #f6e1de;
