@@ -1710,3 +1710,51 @@ describe('NodeResolver omitted property pruning on update (#3779)', () => {
     surface.dispose();
   });
 });
+
+describe('NodeResolver @accessibility mirror', () => {
+  function setupV10(schema: z.ZodTypeAny) {
+    const catalog = new Catalog<ComponentApi>('a11y-catalog', '1.0', [{name: 'Widget', schema}]);
+    const surface = new SurfaceModel('surf-1', catalog);
+    const resolver = new NodeResolver(surface, catalog);
+    return {surface, resolver};
+  }
+
+  function label(value: unknown): unknown {
+    assert.ok(value && typeof value === 'object', 'expected accessibility attributes');
+    const binding = (value as Record<string, unknown>)['label'];
+    return binding instanceof ResolvedBinding ? binding.value : binding;
+  }
+
+  it('exposes @accessibility as accessibility in node props', async () => {
+    const {surface, resolver} = setupV10(z.object({text: z.string().optional()}));
+    surface.dataModel.set('/label', 'Save');
+    add(surface, 'root', 'Widget', {'@accessibility': {label: {'@path': '/label'}}});
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    assert.strictEqual(props(root)['accessibility'], props(root)['@accessibility']);
+    assert.strictEqual(label(props(root)['accessibility']), 'Save');
+
+    surface.dataModel.set('/label', 'Cancel');
+    await flush();
+    assert.strictEqual(label(props(root)['accessibility']), 'Cancel');
+
+    surface.componentsModel.get('root')!.properties = {text: 'x'};
+    assert.ok(!('accessibility' in props(root)));
+    assert.ok(!('@accessibility' in props(root)));
+    resolver.dispose();
+    surface.dispose();
+  });
+
+  it('leaves a custom accessibility the payload omits unset', () => {
+    const {surface, resolver} = setupV10(
+      z.object({accessibility: z.enum(['high', 'low']).optional()}),
+    );
+    add(surface, 'root', 'Widget', {'@accessibility': {label: 'Save'}});
+    const root = getValue(resolver.rootNode);
+    assert.ok(root);
+    assert.ok(!('accessibility' in props(root)));
+    assert.strictEqual(label(props(root)['@accessibility']), 'Save');
+    resolver.dispose();
+    surface.dispose();
+  });
+});

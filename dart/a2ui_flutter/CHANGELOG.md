@@ -16,6 +16,10 @@
 
 # [a2ui_flutter](https://pub.dev/packages/a2ui_flutter) Changelog
 
+## Unreleased
+
+- `NodeView` reads `@accessibility` with a fallback to `accessibility` so v1.0 surfaces resolve `@`-prefixed accessibility attributes alongside custom `accessibility` component properties ([#1376](https://github.com/a2ui-project/a2ui/issues/1376), [#4037](https://github.com/a2ui-project/a2ui/pull/4037)).
+
 ## 0.3.0
 
 - **Breaking:** Requires `a2ui_core` `^0.7.0`, whose types this library

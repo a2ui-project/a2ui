@@ -1871,3 +1871,55 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
     surface.dispose();
   });
 });
+
+describe('GenericBinder @accessibility mirror', () => {
+  function setup(schema: z.ZodTypeAny) {
+    const catalog = new Catalog('test', '1.0', [], []);
+    const surface = new SurfaceModel('s1', catalog);
+    surface.dataModel.set('/label', 'Save');
+    surface.componentsModel.addComponent(
+      new ComponentModel('c1', 'Widget', {'@accessibility': {label: {'@path': '/label'}}}, catalog),
+    );
+    const binder = new GenericBinder<{
+      'accessibility'?: unknown;
+      '@accessibility'?: {label?: string};
+    }>(new ComponentContext(surface, 'c1'), schema);
+    const sub = binder.subscribe(() => {});
+    return {surface, binder, sub};
+  }
+
+  it('does not mirror @accessibility onto a custom accessibility the payload omits', async () => {
+    const {surface, binder, sub} = setup(
+      z.object({accessibility: z.enum(['high', 'low']).optional()}),
+    );
+    assert.strictEqual(binder.snapshot['@accessibility']?.label, 'Save');
+    assert.strictEqual(binder.snapshot.accessibility, undefined);
+
+    surface.dataModel.set('/label', 'Cancel');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual(binder.snapshot['@accessibility']?.label, 'Cancel');
+    assert.strictEqual(binder.snapshot.accessibility, undefined);
+
+    sub.unsubscribe();
+    surface.dispose();
+  });
+
+  it('mirrors @accessibility onto accessibility when the schema declares no custom one', async () => {
+    const {surface, binder, sub} = setup(z.object({text: z.string().optional()}));
+    assert.deepStrictEqual(binder.snapshot.accessibility, binder.snapshot['@accessibility']);
+    assert.strictEqual(
+      (binder.snapshot.accessibility as {label?: string} | undefined)?.label,
+      'Save',
+    );
+
+    surface.dataModel.set('/label', 'Cancel');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual(
+      (binder.snapshot.accessibility as {label?: string} | undefined)?.label,
+      'Cancel',
+    );
+
+    sub.unsubscribe();
+    surface.dispose();
+  });
+});

@@ -2400,6 +2400,89 @@ void main() {
       expect(props.containsKey('call'), isFalse);
     });
   });
+
+  group('Catalog.customComponentProperties', () {
+    /// The custom properties of a v1.0 component whose `properties` block
+    /// holds [properties], plus `id` when [inlineId].
+    Set<String> customOf(
+      Map<String, Object?> properties, {
+      required bool inlineId,
+    }) {
+      final CatalogApi catalog = Catalog.fromJson({
+        'catalogId': 'inline-mixins',
+        'protocolVersion': '1.0',
+        'components': {
+          'Box': {
+            'type': 'object',
+            'properties': {
+              if (inlineId) 'id': {'type': 'string'},
+              'component': {'const': 'Box'},
+              ...properties,
+            },
+          },
+        },
+      });
+      return catalog.customComponentProperties('Box');
+    }
+
+    const Map<String, Object?> standardMetadata = {
+      'type': 'object',
+      'properties': {
+        'extensions': {'type': 'object'},
+      },
+    };
+
+    test(
+        'reads an inline catalogId as the mixin only beside id and as a '
+        'string', () {
+      expect(
+        customOf({
+          'catalogId': {'type': 'string'},
+        }, inlineId: true),
+        isEmpty,
+      );
+      expect(
+        customOf({
+          'catalogId': {'type': 'integer'},
+        }, inlineId: true),
+        {'catalogId'},
+      );
+      expect(
+        customOf({
+          'catalogId': {'type': 'string'},
+        }, inlineId: false),
+        {'catalogId'},
+      );
+    });
+
+    test(
+        'reads an inline metadata as the mixin only beside id and as an '
+        'object holding only extensions', () {
+      expect(customOf({'metadata': standardMetadata}, inlineId: true), isEmpty);
+      expect(
+        customOf({
+          'metadata': {'type': 'string'},
+        }, inlineId: true),
+        {'metadata'},
+      );
+      expect(
+        customOf({
+          'metadata': {
+            'type': 'object',
+            'properties': {
+              'extensions': {'type': 'object'},
+              'pageNumber': {'type': 'number'},
+            },
+          },
+        }, inlineId: true),
+        {'metadata'},
+      );
+      expect(
+        customOf({'metadata': standardMetadata}, inlineId: false),
+        {'metadata'},
+      );
+    });
+  });
 }
 
 /// A v0.9 document with instructions, a top-level theme and a local mixin.

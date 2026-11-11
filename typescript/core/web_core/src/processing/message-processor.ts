@@ -25,6 +25,14 @@ import {SurfaceComponentsModel} from '../state/surface-components-model.js';
 import {DataModel} from '../state/data-model.js';
 import {Subscription} from '../common/events.js';
 import {A2uiMetadata, validateMetadata} from '../common/metadata.js';
+import {
+  atMixinKey,
+  componentMixinLayout,
+  ComponentMixinLayout,
+  componentPayloadState,
+  routeLegacyCatalogId,
+  splitComponentEnvelope,
+} from '../catalog/component_envelope.js';
 import {batchWrite} from '../reactivity/signals.js';
 
 import {
@@ -1275,8 +1283,15 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     }
 
     const targetCatalog = this.resolveComponentCatalog(comp, surface);
-    if (isAtLeastVersion(surface.protocolVersion, '1.0') && comp['metadata'] !== undefined) {
-      validateMetadata(comp['metadata']);
+    // From v1.0 `@metadata` (or a legacy bare `metadata` the component's schema
+    // doesn't declare) is the component's envelope metadata. Below v1.0 a
+    // `metadata` is an ordinary property, checked by the component's schema.
+    if (isAtLeastVersion(surface.protocolVersion, '1.0')) {
+      const {mixins} = splitComponentEnvelope(
+        comp,
+        this.componentLayout(comp, surface, targetCatalog),
+      );
+      validateMetadata(mixins.metadata?.value);
     }
 
     // A partial update names no component type; the existing model supplies it.
@@ -1321,14 +1336,85 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     surface: SurfaceModel<T>,
     componentCatalog: Catalog<T>,
   ): Record<string, unknown> {
-    const {catalogId: _catalogId, ...payload} = comp;
-    if (
-      isAtLeastVersion(surface.protocolVersion, '1.0') &&
-      componentCatalog !== surface.defaultCatalog
-    ) {
-      payload['catalogId'] = componentCatalog.id;
+    // Below v1.0 a `catalogId` is an ordinary property, checked by the
+    // component's schema.
+    if (!isAtLeastVersion(surface.protocolVersion, '1.0')) return comp;
+    // A component naming its catalog with a non-string resolved to the
+    // surface default; the validator rejects the value as written.
+    const namedCatalogId = this.componentCatalogId(comp, surface);
+    if (namedCatalogId !== undefined && typeof namedCatalogId !== 'string') return comp;
+    const catalogKey = atMixinKey('catalogId');
+    const {[catalogKey]: _catalogId, ...payload} = comp;
+    if (comp[catalogKey] === undefined && namedCatalogId !== undefined) {
+      // A legacy bare `catalogId` the component's schema doesn't declare.
+      delete payload['catalogId'];
+    }
+    if (componentCatalog !== surface.defaultCatalog) {
+      payload[catalogKey] = componentCatalog.id;
     }
     return payload;
+  }
+
+  /**
+   * Returns the catalog a v1.0 component object names: its `@catalogId`, or
+   * else a legacy bare `catalogId` that the component's schema in the
+   * surface's default catalog doesn't declare as its own property.
+   *
+   * @param comp Raw component payload.
+   * @param surface Surface the component belongs to.
+   * @returns The catalog the component names, or `undefined` if it names
+   *   none or the surface is below v1.0, which has no per-component catalog.
+   */
+  private componentCatalogId(comp: Record<string, unknown>, surface: SurfaceModel<T>): unknown {
+    if (!isAtLeastVersion(surface.protocolVersion, '1.0')) return undefined;
+    const atCatalogId = comp[atMixinKey('catalogId')];
+    if (atCatalogId !== undefined) return atCatalogId;
+    const bareCatalogId = comp['catalogId'];
+    if (bareCatalogId === undefined) return undefined;
+    const layout = this.componentLayout(comp, surface, surface.defaultCatalog);
+    return layout.customKeys.has('catalogId') ? undefined : bareCatalogId;
+  }
+
+  /**
+   * Returns how a component's schema declares the envelope mixins.
+   *
+   * A legacy bare `catalogId` that routed the component, because its schema
+   * in the surface's default catalog doesn't declare one, is the mixin here
+   * too, even if the schema in `catalog` declares a `catalogId` property.
+   *
+   * @param comp Raw component payload.
+   * @param surface Surface the component belongs to.
+   * @param catalog Catalog the component resolves to, if known.
+   * @returns The component's mixin layout.
+   */
+  private componentLayout(
+    comp: Record<string, unknown>,
+    surface: SurfaceModel<T>,
+    catalog: Catalog<T> | undefined,
+  ): ComponentMixinLayout {
+    const layout = componentMixinLayout(this.componentSchema(comp, surface, catalog));
+    if (catalog === surface.defaultCatalog) return layout;
+    return routeLegacyCatalogId(
+      layout,
+      comp,
+      this.componentSchema(comp, surface, surface.defaultCatalog),
+    );
+  }
+
+  /** Returns the schema of a component's type in `catalog`, if any. */
+  private componentSchema(
+    comp: Record<string, unknown>,
+    surface: SurfaceModel<T>,
+    catalog: Catalog<T> | undefined,
+  ): ComponentApi['schema'] | undefined {
+    const {id, component} = comp;
+    const type =
+      typeof component === 'string' && component
+        ? component
+        : typeof id === 'string'
+          ? surface.componentsModel.get(id)?.type
+          : undefined;
+    return type ? catalog?.components.get(type)?.schema : undefined;
   }
 
   /**
@@ -1350,11 +1436,13 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     comp: Record<string, unknown>,
     surface: SurfaceModel<T>,
   ): Catalog<T> {
-    const {id, component, catalogId} = comp;
+    const {id, component} = comp;
     const subject = `Component '${id}'`;
     const atLeastV1 = isAtLeastVersion(surface.protocolVersion, '1.0');
-    // From v1.0 an empty catalogId names a catalog too (one that never exists).
-    if (typeof catalogId === 'string' && (catalogId || atLeastV1)) {
+    // Only from v1.0 can a component name a catalog, and an empty catalogId
+    // names a catalog too (one that never exists).
+    const catalogId = this.componentCatalogId(comp, surface);
+    if (typeof catalogId === 'string') {
       return this.resolveSurfaceItemCatalog(surface, catalogId, subject);
     }
 
@@ -1491,11 +1579,17 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       }
     };
 
-    for (const [key, value] of Object.entries(comp)) {
-      if (key === 'id' || key === 'component' || key === 'catalogId' || key === 'metadata') {
-        continue;
-      }
+    // `@catalogId` and `@metadata` hold no calls; the component's own
+    // properties, `@accessibility` and `@checks` may.
+    const {properties, mixins} = splitComponentEnvelope(
+      comp,
+      this.componentLayout(comp, surface, componentCatalog),
+    );
+    for (const [key, value] of Object.entries(properties)) {
       visit(value, `/${key}`);
+    }
+    for (const mixin of [mixins.accessibility, mixins.checks]) {
+      if (mixin) visit(mixin.value, `/${mixin.wireKey}`);
     }
   }
 
@@ -1531,15 +1625,17 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   }
 
   private applyComponentUpdate(comp: Record<string, unknown>, surface: SurfaceModel<T>): void {
-    const {id, component, catalogId: _catalogId, ...properties} = comp;
+    const {id, component} = comp;
     if (typeof id !== 'string') return;
-    // Component metadata exists from v1.0; below it `metadata` is a property.
-    let metadata: A2uiMetadata | undefined;
-    if (isAtLeastVersion(surface.protocolVersion, '1.0')) {
-      metadata = extractComponentMetadata(properties['metadata']);
-      delete properties['metadata'];
-    }
     const targetCatalog = this.resolveComponentCatalog(comp, surface);
+    const state = componentPayloadState(
+      comp,
+      surface.protocolVersion,
+      this.componentSchema(comp, surface, targetCatalog),
+      {defaultCatalogSchema: this.componentSchema(comp, surface, surface.defaultCatalog)},
+    );
+    const properties = state.properties;
+    const metadata = extractComponentMetadata(state.metadata);
     const existing = surface.componentsModel.get(id);
 
     if (existing) {
