@@ -1,0 +1,135 @@
+{
+  "name": "Countdown Timer",
+  "description": "Example of countdown timer demonstrating date formatting.",
+  "messages": [
+    {
+      "version": "v0.9",
+      "createSurface": {
+        "surfaceId": "gallery-countdown-timer",
+        "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
+        "sendDataModel": true
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateComponents": {
+        "surfaceId": "gallery-countdown-timer",
+        "components": [
+          {
+            "id": "root",
+            "component": "Card",
+            "child": "main-column"
+          },
+          {
+            "id": "main-column",
+            "component": "Column",
+            "children": ["event-name", "countdown-row", "target-date"],
+            "align": "center"
+          },
+          {
+            "id": "event-name",
+            "component": "Text",
+            "text": {
+              "path": "/eventName"
+            },
+            "variant": "h3"
+          },
+          {
+            "id": "countdown-row",
+            "component": "Row",
+            "children": ["days-col", "hours-col", "minutes-col"],
+            "justify": "spaceAround"
+          },
+          {
+            "id": "days-col",
+            "component": "Column",
+            "children": ["days-value", "days-label"],
+            "align": "center"
+          },
+          {
+            "id": "days-value",
+            "component": "Text",
+            "text": {
+              "path": "/days"
+            },
+            "variant": "h1"
+          },
+          {
+            "id": "days-label",
+            "component": "Text",
+            "text": "Days",
+            "variant": "caption"
+          },
+          {
+            "id": "hours-col",
+            "component": "Column",
+            "children": ["hours-value", "hours-label"],
+            "align": "center"
+          },
+          {
+            "id": "hours-value",
+            "component": "Text",
+            "text": {
+              "path": "/hours"
+            },
+            "variant": "h1"
+          },
+          {
+            "id": "hours-label",
+            "component": "Text",
+            "text": "Hours",
+            "variant": "caption"
+          },
+          {
+            "id": "minutes-col",
+            "component": "Column",
+            "children": ["minutes-value", "minutes-label"],
+            "align": "center"
+          },
+          {
+            "id": "minutes-value",
+            "component": "Text",
+            "text": {
+              "path": "/minutes"
+            },
+            "variant": "h1"
+          },
+          {
+            "id": "minutes-label",
+            "component": "Text",
+            "text": "Minutes",
+            "variant": "caption"
+          },
+          {
+            "id": "target-date",
+            "component": "Text",
+            "text": {
+              "call": "formatDate",
+              "args": {
+                "value": {
+                  "path": "/targetDate"
+                },
+                "format": "MMMM d, yyyy"
+              },
+              "returnType": "string"
+            },
+            "variant": "body"
+          }
+        ]
+      }
+    },
+    {
+      "version": "v0.9",
+      "updateDataModel": {
+        "surfaceId": "gallery-countdown-timer",
+        "value": {
+          "eventName": "Product Launch",
+          "days": "14",
+          "hours": "08",
+          "minutes": "32",
+          "targetDate": "2025-01-15"
+        }
+      }
+    }
+  ]
+}
