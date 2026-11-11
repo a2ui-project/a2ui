@@ -288,7 +288,14 @@ export class PayloadValidator {
     }
 
     const knownKeys = getKnownSchemaKeys(componentApi.schema);
-    this.validateCommonEnvelopeFields(properties, knownKeys, componentType, id, componentCatalogId);
+    this.validateCommonEnvelopeFields(
+      properties,
+      comp['metadata'],
+      knownKeys,
+      componentType,
+      id,
+      componentCatalogId,
+    );
 
     const result = componentApi.schema.safeParse(properties);
     if (!result.success) {
@@ -309,12 +316,19 @@ export class PayloadValidator {
   }
 
   /**
-   * Validates `accessibility` from `ComponentCommon` when the component
-   * schema does not explicitly declare it, removing it from `properties`
-   * before strict component schema parsing.
+   * Validates `accessibility` from `ComponentCommon` when the component schema
+   * does not explicitly declare it, removing it from `properties` before
+   * strict component schema parsing.
+   *
+   * Also validates `metadata` against `ComponentCommon`. It is an envelope
+   * key, so `stripEnvelopeKeys` has already removed it from `properties` and
+   * the component schema never sees it, even when it declares `metadata`. It
+   * is passed separately and, as it exists only from v1.0, checked only on
+   * v1.0+ catalogs.
    */
   private validateCommonEnvelopeFields(
     properties: Record<string, unknown>,
+    metadata: unknown,
     knownKeys: Set<string> | null | undefined,
     componentType: string,
     id: string,
@@ -335,6 +349,20 @@ export class PayloadValidator {
         );
       }
       this.validateNestedFunctions(accVal, componentCatalogId, '/accessibility');
+    }
+
+    if (this.enforceIdentifiers && metadata !== undefined) {
+      const metaResult = ComponentCommonSchema.shape.metadata.safeParse(metadata);
+      if (!metaResult.success) {
+        const formattedErrors = metaResult.error.errors.map(formatZodIssue).join(', ');
+        const details = zodIssuesToDetails(metaResult.error.issues, '/metadata');
+        throw new A2uiValidationError(
+          `Validation failed for component '${componentType}' (${id}): ${formattedErrors}`,
+          details,
+          'VALIDATION_ERROR',
+          {path: details[0]?.path},
+        );
+      }
     }
   }
 
