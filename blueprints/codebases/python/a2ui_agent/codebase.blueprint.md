@@ -1,7 +1,7 @@
 ---
 codebase_path: python/a2ui_agent
 associated_module: a2ui_agent
-module_blueprint_commit: ccf5dc20d0b0ed041b03e3913d807420ff45e178
+module_blueprint_commit: 87b945802660c507bc84f7f47a25199b4939efbe
 implemented_features:
   skill_generator: c177173ca12a9d4739e16e56d6eb87b1e0608d85
   typesafe_builder_api: ae0a5253b4e4d8aad06e1b97c236d426b8a401f0
@@ -25,7 +25,7 @@ The reference Python implementation of the A2UI Agent SDK (`a2ui_agent`).
 
 ## **Local Technical Decisions & Overrides**
 
-- **Multi-Catalog Capability Negotiation**: Implements `A2uiGenerator` and `A2uiRequestProcessor` to negotiate client capabilities (`A2uiRendererCapabilities`) against registered catalog configurations (`CatalogConfig`).
+- **Multi-Catalog Capability Negotiation**: Implements `A2uiGenerator`, `A2uiRequestProcessor`, `resolve_catalogs`, and `read_renderer_capabilities` (`a2ui.utils`, with `A2UI_CLIENT_CAPABILITIES_KEY` and `A2UI_RENDERER_CAPABILITIES_KEY` in `a2ui.constants`) to extract, validate, and negotiate client capabilities (`A2uiRendererCapabilities`) against registered catalog configurations (`CatalogConfig`).
 - **Standalone Catalog Transformers**: Uses `ComponentPruningTransformer` and `FunctionPruningTransformer` to decouple component and function allowlist filtering from raw schema parsing and representation.
 - **Zero Validator Overhead**: Directly reuses `a2ui.core.validation.PayloadValidator` from `a2ui_core`, eliminating redundant validator facade wrappers in the agent layer.
 - **Direct JSON Syntax Healing**: `DirectJsonFormat` includes JSON-specific repair utilities and `progressive_keys` to auto-heal fragmented JSON syntax, unquoted keys, and trailing commas.
@@ -35,7 +35,7 @@ The reference Python implementation of the A2UI Agent SDK (`a2ui_agent`).
 - **No renderer**: The Python SDK has no renderer, so it does not implement the optional `agent_renderer_app` feature.
 - **Agent function RPC on asyncio**: `a2ui.rpc` is asyncio-native and re-exports the v1.0 renderer-to-agent message classes and `AgentFunctionResponseMessage`. `RendererToAgentMessageProcessor.process_message` is a coroutine; it awaits async agent function handlers on the caller's loop, runs sync handlers through `asyncio.to_thread`, applies `agent_function_timeout` (in seconds) with `asyncio.wait_for` around an inner coroutine that already turns the handler's own exceptions (a `TimeoutError` included) into error replies, so only the processor's deadline gives the timeout message, and accepts sync or async callbacks, which may return `False` to decline. There is no `process_messages`; callers await `process_message` per message. The agent function index is the internal module `a2ui.rpc._agent_function_registry`.
 - **Renderer function calls in a follow-up**: The feature's second part, the agent calling renderer functions (`RendererFunctionCalls` and the ADK handling of `rendererFunctionResponse`), is implemented in a follow-up change rather than in this codebase yet, so `agent_functions` is omitted from `implemented_features` until that lands. Until then, a `rendererFunctionResponse` without `on_renderer_function_response` is left unhandled for the agent's turn.
-- **ADK and A2A integration**: `a2ui-adk`'s `a2ui_rpc_callback` builds a `RendererToAgentMessageProcessor` per request from the agent's catalogs (or a provider of the session's active catalogs), answers a request holding only `callAgentFunction` messages without a model turn, and passes every other request to the agent. `exclude_a2ui_rpc_from_prompt` and `SendA2uiToClientToolset` keep `callAgentFunction` and `agentFunctionResponse` out of the model's prompt, and A2A serialization uses Pydantic `exclude_unset=True` so `null` response values are preserved on the wire.
+- **ADK and A2A integration**: `a2ui-a2a`'s `renderer_capabilities_from_message` reads and validates renderer capabilities across `Message.metadata`, `DataPart.metadata`, and legacy `DataPart.data["metadata"]` mappings. `a2ui-adk`'s `a2ui_rpc_callback` builds a `RendererToAgentMessageProcessor` per request from the agent's catalogs (or a provider of the session's active catalogs), answers a request holding only `callAgentFunction` messages without a model turn, and passes every other request to the agent. `exclude_a2ui_rpc_from_prompt` and `SendA2uiToClientToolset` keep `callAgentFunction` and `agentFunctionResponse` out of the model's prompt, and A2A serialization uses Pydantic `exclude_unset=True` so `null` response values are preserved on the wire.
 
 ## **Validation & Execution Recipes**
 

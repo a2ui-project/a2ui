@@ -15,7 +15,7 @@
  */
 
 import {zodToJsonSchema} from 'zod-to-json-schema';
-import {SurfaceModel, ActionListener} from '../state/surface-model.js';
+import {SurfaceModel, ActionListener, type ActionPayload} from '../state/surface-model.js';
 import {Catalog, ComponentApi} from '../catalog/types.js';
 import {exclusiveUnionOverride} from '../catalog/exclusive_union.js';
 import {cleanSchemaNode} from '../catalog/schema_generator.js';
@@ -25,6 +25,14 @@ import {SurfaceComponentsModel} from '../state/surface-components-model.js';
 import {DataModel} from '../state/data-model.js';
 import {Subscription} from '../common/events.js';
 import {A2uiMetadata, validateMetadata} from '../common/metadata.js';
+import {
+  atMixinKey,
+  componentMixinLayout,
+  ComponentMixinLayout,
+  componentPayloadState,
+  routeLegacyCatalogId,
+  splitComponentEnvelope,
+} from '../catalog/component_envelope.js';
 import {batchWrite} from '../reactivity/signals.js';
 
 import {
@@ -75,12 +83,14 @@ import type {
 import type {RendererFunctionResponseMessage} from '../v1_0/schema/renderer-to-agent.js';
 import type {FunctionCall} from '../v1_0/schema/common-types.js';
 import {
-  RpcHandler,
-  CallOptions,
-  OutboundMessageListener,
   A2uiRpcError,
+  CallOptions,
+  type OutboundActionMessage,
+  OutboundMessageListener,
   RpcErrorCode,
+  RpcHandler,
 } from '../rpc/index.js';
+import {toOutboundActionMessage} from './outbound-envelope.js';
 import {DataContext} from '../resolution/data-context.js';
 import {
   RELAXED_PATH_PATTERN,
@@ -113,6 +123,7 @@ export type {
   RendererCapabilities,
   RendererCapabilities as ClientCapabilities,
   ValidationConfig,
+  OutboundActionMessage,
   OutboundMessageListener,
   CallOptions,
 };
@@ -184,6 +195,12 @@ export interface MessageProcessorOptions {
    * 256), evicting the oldest first. Must be a positive integer.
    */
   maxAgentCallCacheEntries?: number;
+  /**
+   * When true, `outboundListener` also receives each action as an `action`
+   * envelope and each processing error as an `error` envelope.
+   * Requires `outboundListener`.
+   */
+  unifiedOutbound?: boolean;
 }
 
 import {formatZodIssue} from './format-zod-issue.js';
@@ -212,8 +229,11 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   private readonly reportErrorsOnly: boolean;
   /** The settled agent call cache bound for the surfaces this processor creates. */
   private readonly maxAgentCallCacheEntries?: number;
+  private readonly outboundListener?: OutboundMessageListener;
+  private readonly unifiedOutbound: boolean;
   /** Whether outbound messages, and so `callAgentFunction`, can reach the agent. */
   private readonly hasOutboundListener: boolean;
+  private disposed = false;
   /**
    * What the last check of each surface's components found, under a config
    * that defers the reference and reachability checks, with the number of
@@ -228,6 +248,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * @param actionHandler Global handler for actions dispatched from all surfaces.
    * @param options Configuration options for the processor.
    * @throws {RangeError} If `options.maxAgentCallCacheEntries` isn't a positive integer.
+   * @throws {A2uiValidationError} If `options.unifiedOutbound` is true without `options.outboundListener`.
    */
   constructor(
     catalogs: Catalog<any>[],
@@ -241,6 +262,11 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     ) {
       throw new RangeError('maxAgentCallCacheEntries must be a positive integer.');
     }
+    if (options?.unifiedOutbound && !options?.outboundListener) {
+      throw new A2uiValidationError(
+        'unifiedOutbound requires an outboundListener in MessageProcessorOptions.',
+      );
+    }
     this.maxAgentCallCacheEntries = maxEntries;
     this.registeredCatalogs = catalogs;
     this.model = new SurfaceGroupModel<T>();
@@ -248,6 +274,8 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     this.defaultVersion = options?.version;
     this.errorHandler = options?.errorHandler;
     this.reportErrorsOnly = options?.reportErrorsOnly ?? false;
+    this.outboundListener = options?.outboundListener;
+    this.unifiedOutbound = Boolean(options?.unifiedOutbound);
     this.rpc = new RpcHandler({
       catalogs: this.registeredCatalogs,
       outboundListener: options?.outboundListener,
@@ -257,6 +285,11 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     this.validationConfig = options?.validationConfig
       ? withStrictDefaults(options.validationConfig)
       : undefined;
+    if (this.unifiedOutbound) {
+      this.model.onAction.subscribe(action => {
+        this.forwardAction(action);
+      });
+    }
     if (this.actionHandler) {
       this.model.onAction.subscribe(this.actionHandler);
     }
@@ -290,6 +323,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * Disposes the MessageProcessor, tearing down active surfaces and rejecting pending RPC calls.
    */
   dispose(): void {
+    this.disposed = true;
     this.model.dispose();
     this.rpc.dispose();
   }
@@ -723,7 +757,61 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       this.model.emitError(payload);
     }
     this.errorHandler?.(errorMsg);
+    const isV08Action =
+      context.actionType === 'beginRendering' ||
+      context.actionType === 'surfaceUpdate' ||
+      context.actionType === 'dataModelUpdate';
+    const effectiveVersion = context.version ?? (isV08Action ? 'v0.8' : this.fallbackWireVersion());
+    const outboundErrorMsg =
+      effectiveVersion === context.version
+        ? errorMsg
+        : mapErrorToRendererMessage(err, {...context, version: effectiveVersion});
+    if (this.unifiedOutbound && compareSemVer(outboundErrorMsg.version, '0.8') !== 0) {
+      this.invokeOutboundListener(outboundErrorMsg);
+    }
     return errorMsg;
+  }
+
+  private fallbackWireVersion(): string {
+    if (this.defaultVersion && toCanonicalVersion(this.defaultVersion)) {
+      return this.defaultVersion;
+    }
+    const allV08 =
+      this.registeredCatalogs.length > 0 &&
+      this.registeredCatalogs.every(
+        c => c.protocolVersion !== undefined && compareSemVer(c.protocolVersion, '0.8') === 0,
+      );
+    if (allV08) {
+      return 'v0.8';
+    }
+    const allV1 =
+      this.registeredCatalogs.length > 0 &&
+      this.registeredCatalogs.every(
+        c => c.protocolVersion !== undefined && isAtLeastVersion(c.protocolVersion, '1.0'),
+      );
+    return allV1 ? '1.0' : 'v0.9';
+  }
+
+  private forwardAction(action: ActionPayload): void {
+    if (this.disposed || !this.outboundListener) return;
+    const surfaceVersion = this.model.getSurface(action.surfaceId)?.protocolVersion;
+    const version = surfaceVersion ?? this.fallbackWireVersion();
+    const envelope = toOutboundActionMessage(action, version);
+    if (envelope) {
+      this.invokeOutboundListener(envelope);
+    }
+  }
+
+  private invokeOutboundListener(message: OutboundActionMessage | RendererErrorMessage): void {
+    if (this.disposed || !this.outboundListener) return;
+    try {
+      const result = this.outboundListener(message);
+      if (result && typeof (result as Promise<void>).catch === 'function') {
+        (result as Promise<void>).catch(() => {});
+      }
+    } catch {
+      // Outbound listener errors must not break action dispatch or error handling.
+    }
   }
 
   private extractSingleMessageOperations(item: unknown): InternalOperation[] {
@@ -1195,8 +1283,15 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     }
 
     const targetCatalog = this.resolveComponentCatalog(comp, surface);
-    if (isAtLeastVersion(surface.protocolVersion, '1.0') && comp['metadata'] !== undefined) {
-      validateMetadata(comp['metadata']);
+    // From v1.0 `@metadata` (or a legacy bare `metadata` the component's schema
+    // doesn't declare) is the component's envelope metadata. Below v1.0 a
+    // `metadata` is an ordinary property, checked by the component's schema.
+    if (isAtLeastVersion(surface.protocolVersion, '1.0')) {
+      const {mixins} = splitComponentEnvelope(
+        comp,
+        this.componentLayout(comp, surface, targetCatalog),
+      );
+      validateMetadata(mixins.metadata?.value);
     }
 
     // A partial update names no component type; the existing model supplies it.
@@ -1241,14 +1336,85 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     surface: SurfaceModel<T>,
     componentCatalog: Catalog<T>,
   ): Record<string, unknown> {
-    const {catalogId: _catalogId, ...payload} = comp;
-    if (
-      isAtLeastVersion(surface.protocolVersion, '1.0') &&
-      componentCatalog !== surface.defaultCatalog
-    ) {
-      payload['catalogId'] = componentCatalog.id;
+    // Below v1.0 a `catalogId` is an ordinary property, checked by the
+    // component's schema.
+    if (!isAtLeastVersion(surface.protocolVersion, '1.0')) return comp;
+    // A component naming its catalog with a non-string resolved to the
+    // surface default; the validator rejects the value as written.
+    const namedCatalogId = this.componentCatalogId(comp, surface);
+    if (namedCatalogId !== undefined && typeof namedCatalogId !== 'string') return comp;
+    const catalogKey = atMixinKey('catalogId');
+    const {[catalogKey]: _catalogId, ...payload} = comp;
+    if (comp[catalogKey] === undefined && namedCatalogId !== undefined) {
+      // A legacy bare `catalogId` the component's schema doesn't declare.
+      delete payload['catalogId'];
+    }
+    if (componentCatalog !== surface.defaultCatalog) {
+      payload[catalogKey] = componentCatalog.id;
     }
     return payload;
+  }
+
+  /**
+   * Returns the catalog a v1.0 component object names: its `@catalogId`, or
+   * else a legacy bare `catalogId` that the component's schema in the
+   * surface's default catalog doesn't declare as its own property.
+   *
+   * @param comp Raw component payload.
+   * @param surface Surface the component belongs to.
+   * @returns The catalog the component names, or `undefined` if it names
+   *   none or the surface is below v1.0, which has no per-component catalog.
+   */
+  private componentCatalogId(comp: Record<string, unknown>, surface: SurfaceModel<T>): unknown {
+    if (!isAtLeastVersion(surface.protocolVersion, '1.0')) return undefined;
+    const atCatalogId = comp[atMixinKey('catalogId')];
+    if (atCatalogId !== undefined) return atCatalogId;
+    const bareCatalogId = comp['catalogId'];
+    if (bareCatalogId === undefined) return undefined;
+    const layout = this.componentLayout(comp, surface, surface.defaultCatalog);
+    return layout.customKeys.has('catalogId') ? undefined : bareCatalogId;
+  }
+
+  /**
+   * Returns how a component's schema declares the envelope mixins.
+   *
+   * A legacy bare `catalogId` that routed the component, because its schema
+   * in the surface's default catalog doesn't declare one, is the mixin here
+   * too, even if the schema in `catalog` declares a `catalogId` property.
+   *
+   * @param comp Raw component payload.
+   * @param surface Surface the component belongs to.
+   * @param catalog Catalog the component resolves to, if known.
+   * @returns The component's mixin layout.
+   */
+  private componentLayout(
+    comp: Record<string, unknown>,
+    surface: SurfaceModel<T>,
+    catalog: Catalog<T> | undefined,
+  ): ComponentMixinLayout {
+    const layout = componentMixinLayout(this.componentSchema(comp, surface, catalog));
+    if (catalog === surface.defaultCatalog) return layout;
+    return routeLegacyCatalogId(
+      layout,
+      comp,
+      this.componentSchema(comp, surface, surface.defaultCatalog),
+    );
+  }
+
+  /** Returns the schema of a component's type in `catalog`, if any. */
+  private componentSchema(
+    comp: Record<string, unknown>,
+    surface: SurfaceModel<T>,
+    catalog: Catalog<T> | undefined,
+  ): ComponentApi['schema'] | undefined {
+    const {id, component} = comp;
+    const type =
+      typeof component === 'string' && component
+        ? component
+        : typeof id === 'string'
+          ? surface.componentsModel.get(id)?.type
+          : undefined;
+    return type ? catalog?.components.get(type)?.schema : undefined;
   }
 
   /**
@@ -1270,11 +1436,13 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     comp: Record<string, unknown>,
     surface: SurfaceModel<T>,
   ): Catalog<T> {
-    const {id, component, catalogId} = comp;
+    const {id, component} = comp;
     const subject = `Component '${id}'`;
     const atLeastV1 = isAtLeastVersion(surface.protocolVersion, '1.0');
-    // From v1.0 an empty catalogId names a catalog too (one that never exists).
-    if (typeof catalogId === 'string' && (catalogId || atLeastV1)) {
+    // Only from v1.0 can a component name a catalog, and an empty catalogId
+    // names a catalog too (one that never exists).
+    const catalogId = this.componentCatalogId(comp, surface);
+    if (typeof catalogId === 'string') {
       return this.resolveSurfaceItemCatalog(surface, catalogId, subject);
     }
 
@@ -1411,11 +1579,17 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       }
     };
 
-    for (const [key, value] of Object.entries(comp)) {
-      if (key === 'id' || key === 'component' || key === 'catalogId' || key === 'metadata') {
-        continue;
-      }
+    // `@catalogId` and `@metadata` hold no calls; the component's own
+    // properties, `@accessibility` and `@checks` may.
+    const {properties, mixins} = splitComponentEnvelope(
+      comp,
+      this.componentLayout(comp, surface, componentCatalog),
+    );
+    for (const [key, value] of Object.entries(properties)) {
       visit(value, `/${key}`);
+    }
+    for (const mixin of [mixins.accessibility, mixins.checks]) {
+      if (mixin) visit(mixin.value, `/${mixin.wireKey}`);
     }
   }
 
@@ -1451,15 +1625,17 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   }
 
   private applyComponentUpdate(comp: Record<string, unknown>, surface: SurfaceModel<T>): void {
-    const {id, component, catalogId: _catalogId, ...properties} = comp;
+    const {id, component} = comp;
     if (typeof id !== 'string') return;
-    // Component metadata exists from v1.0; below it `metadata` is a property.
-    let metadata: A2uiMetadata | undefined;
-    if (isAtLeastVersion(surface.protocolVersion, '1.0')) {
-      metadata = extractComponentMetadata(properties['metadata']);
-      delete properties['metadata'];
-    }
     const targetCatalog = this.resolveComponentCatalog(comp, surface);
+    const state = componentPayloadState(
+      comp,
+      surface.protocolVersion,
+      this.componentSchema(comp, surface, targetCatalog),
+      {defaultCatalogSchema: this.componentSchema(comp, surface, surface.defaultCatalog)},
+    );
+    const properties = state.properties;
+    const metadata = extractComponentMetadata(state.metadata);
     const existing = surface.componentsModel.get(id);
 
     if (existing) {

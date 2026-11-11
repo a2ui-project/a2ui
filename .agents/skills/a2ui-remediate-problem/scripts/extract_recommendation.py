@@ -118,7 +118,7 @@ def _build_rec_entry(lines: list[str]) -> dict[str, str]:
     """Extracts priority, title, and raw text from lines of a single recommendation."""
     raw_text = "\n".join(lines).strip()
     first_line = lines[0] if lines else ""
-    prio_match = re.search(r"\*\*(P[0-4])\*\*", first_line)
+    prio_match = re.search(r"\*\*(P[0-3])\*\*", first_line)
     priority = prio_match.group(1) if prio_match else "P2"
 
     return {
