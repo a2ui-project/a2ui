@@ -3,16 +3,20 @@
 Case of the [migration skill](../SKILL.md).
 
 - **Language**: Dart / Flutter.
-- **From**: `package:genui` 0.10.x (flutter/genui), which speaks A2UI v0.9.
-  Code on genui 0.8.x and 0.9.x follows the same steps; see
-  [From genui 0.9](#from-genui-09). genui 0.5 to 0.7 speak v0.8; see
-  [From genui 0.5 to 0.7](#from-genui-05-to-07).
+- **From**: `package:genui` 0.10.x (flutter/genui), which speaks protocol
+  v0.9. Code on genui 0.8.x and genui 0.9.x follows the same steps; see
+  [From genui 0.9](#from-genui-09). genui 0.5 to genui 0.7 speak protocol
+  v0.8; see [From genui 0.5 to 0.7](#from-genui-05-to-07).
 - **To**: `package:a2ui_core` and `package:a2ui_flutter` from this repository,
   plus `package:a2ui_agent` for apps that prompt a model themselves. These
-  are the A2UI 1.0 SDKs: they speak v0.9 and v1.0 with one processor, so the
-  wire version can stay at v0.9 or move to v1.0 in the same migration.
+  SDKs speak protocol v0.9 and v1.0 with one processor, so the wire version
+  can stay at v0.9 or move to v1.0 in the same migration.
+- **Version names**: a package version always follows the package name
+  (genui 0.10, `a2ui_core` 0.6.0) and has no `v`. A protocol version has a
+  `v` (protocol v0.9, A2UI v1.0), except inside wire strings, which keep
+  their exact spelling (`"version": "1.0"`).
 
-`genui` 0.10 was the Flutter renderer for A2UI v0.9. The A2UI project
+genui 0.10 was the Flutter renderer for protocol v0.9. The A2UI project
 replaced it with three packages in this repository:
 
 | Package             | What it owns                                                                                           | genui layer it replaces                                                                                                     |
@@ -54,8 +58,8 @@ an app can move off genui first and move its agent to v1.0 later.
      `DataPart`, `UiInteractionPart` (from `genai_primitives`) and signals
      (from `preact_signals`);
    - tests that build a `SurfaceController` and pump a `Surface`.
-3. Decide the wire version. genui 0.8 and later speak **v0.9**; genui 0.5
-   to 0.7 speak v0.8, which `a2ui_core` does not read, so their wire moves to
+3. Decide the wire version. genui 0.8 and later speak **protocol v0.9**;
+   genui 0.5 to genui 0.7 speak protocol v0.8, which `a2ui_core` does not read, so their wire moves to
    v0.9 in the same change (see
    [From genui 0.5 to 0.7](#from-genui-05-to-07)). Keep v0.9 when the agent
    is not changing in the same step: use
@@ -72,25 +76,26 @@ an app can move off genui first and move its agent to v1.0 later.
 ### From genui 0.9
 
 The rest of this guide is written against genui 0.10. These differences
-matter for code on 0.9, and on 0.8, which differs from 0.9 mainly in its
-library exports:
+matter for code on genui 0.9, and on genui 0.8, which differs from genui 0.9
+mainly in its library exports:
 
-| genui 0.9                                                                                          | Notes                                                                                                                                                                                                  |
-| -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `A2uiMessage`, `CreateSurface`, `UpdateComponents`, `UpdateDataModel`, `DeleteSurface`             | genui's own classes, without a `version`. 0.10 moved them to `a2ui_core` 0.1 as `A2uiMessage` and `*Message`. Both sets map to `AgentToRendererMessage` and the `*Message` classes of `a2ui_core` 0.5. |
-| `basicCatalogId`, `https://a2ui.org/specification/v0_9/basic_catalog.json`                         | 0.10's `legacyBasicCatalogId`. `v0_9.basicCatalog()` does not register it; derive a catalog under it if the agent sends it (step 3).                                                                   |
-| `PromptBuilder.chat(...)`, a factory                                                               | A static method in 0.10, called the same way; the replacement is the same.                                                                                                                             |
-| A second `createSurface` for an existing surface set its catalog and theme and kept its components | 0.10 rejected it, as `a2ui_core` 0.5 does (`INTEGRITY_ERROR`).                                                                                                                                         |
+| genui 0.9                                                                                          | Notes                                                                                                                                                                                                        |
+| -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `A2uiMessage`, `CreateSurface`, `UpdateComponents`, `UpdateDataModel`, `DeleteSurface`             | genui's own classes, without a `version`. genui 0.10 moved them to `a2ui_core` 0.1 as `A2uiMessage` and `*Message`. Both sets map to `AgentToRendererMessage` and the `*Message` classes of `a2ui_core` 0.5. |
+| `basicCatalogId`, `https://a2ui.org/specification/v0_9/basic_catalog.json`                         | genui 0.10's `legacyBasicCatalogId`. `v0_9.basicCatalog()` does not register it; derive a catalog under it if the agent sends it (step 3).                                                                   |
+| `PromptBuilder.chat(...)`, a factory                                                               | A static method in genui 0.10, called the same way; the replacement is the same.                                                                                                                             |
+| A second `createSurface` for an existing surface set its catalog and theme and kept its components | genui 0.10 rejected it, as `a2ui_core` 0.5 does (`INTEGRITY_ERROR`).                                                                                                                                         |
 
 A package that imported `a2ui_core` 0.1 directly also renames `A2uiMessage`
-to `AgentToRendererMessage`. In 0.5, `AgentToRendererMessage.fromJson`
+to `AgentToRendererMessage`. In `a2ui_core` 0.5, `AgentToRendererMessage.fromJson`
 rejects unknown envelope and body fields, and accepts `"v0.9.1"` and `"1.0"`
 as well as `"v0.9"`; an app that must keep rejecting them checks `version`
 before `fromJson`. Every message constructor now takes `version:`.
 
 ### From genui 0.5 to 0.7
 
-These releases speak A2UI v0.8 (genui 0.8.0 moved to v0.9), and
+These genui releases speak protocol v0.8 (genui 0.8.0 moved to protocol
+v0.9), and
 `a2ui_core` reads only `"v0.9"`, `"v0.9.1"` and `"1.0"`. The agent of such
 an app is usually the app itself (a `ContentGenerator` calling a model), so
 both sides move to v0.9 together. When the agent is a hand-written emitter
@@ -100,11 +105,11 @@ in the same repository (a backend that builds `surfaceUpdate` and
 and say that both must ship together; its tests usually encode the v0.8
 shapes. Otherwise convert v0.8 to v0.9 in the app before `processMessages`.
 Read the pre-0.8 API in the pub cache (`genui-0.6.1/lib/src/`,
-`genui-0.7.0/lib/src/`); the names differ from 0.10:
+`genui-0.7.0/lib/src/`); the names differ from genui 0.10:
 
 | genui 0.6                                                                                                                                     | Replacement                                                                                                                                                                              |
 | --------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `A2uiMessageProcessor` (`GenUiManager` before 0.6), `GenUiHost`, `GenUiSurface(host:, surfaceId:)`                                            | `MessageProcessor`, `A2uiSurface` (recipes (a), (b)).                                                                                                                                    |
+| `A2uiMessageProcessor` (`GenUiManager` before genui 0.6), `GenUiHost`, `GenUiSurface(host:, surfaceId:)`                                      | `MessageProcessor`, `A2uiSurface` (recipes (a), (b)).                                                                                                                                    |
 | `SurfaceUpdate(surfaceId, components: [Component(id:, componentProperties: {'Type': {...}})])`, then `BeginRendering(surfaceId:, root:, ...)` | `createSurface` first, then `updateComponents` with each component flattened to `{"id", "component": "Type", ...props}`. The root id must be `root`; genui 0.6 took any id.              |
 | `SurfaceDeletion`, `DataModelUpdate`                                                                                                          | `deleteSurface`, `updateDataModel`.                                                                                                                                                      |
 | Default catalog id `a2ui.org:standard_catalog_0_8_0`, `CoreCatalogItems.asCatalog()`, `catalog.copyWith([...])`                               | `v0_9.basicCatalog().derive(catalogId:, ...)`; the agent sends the new id.                                                                                                               |
@@ -112,7 +117,7 @@ Read the pre-0.8 API in the pub cache (`genui-0.6.1/lib/src/`,
 | `GenUiSurface(host:, surfaceId:)` placed before the surface exists                                                                            | A small `StatefulWidget` that reads `getSurface(id)` in `initState`, follows `onSurfaceCreated` and `onSurfaceDeleted` filtered by id, and shows the fallback while the surface is null. |
 | genui's own sealed `ChatMessage` (`UserMessage`, `AiTextMessage`, `UserUiInteractionMessage`, ...), not `genai_primitives`                    | The app's own message type or a `String`. `onSubmit` text was `jsonEncode({'userAction': event.toMap()})`; `{'userAction': action.toJson()}` keeps it.                                   |
 | `A2UiClientCapabilities.toJson()`, `{"supportedCatalogIds": [...]}`                                                                           | `getRendererCapabilities(...).toJson()`, keyed by version: `{"v0.9": {"supportedCatalogIds": [...]}}`.                                                                                   |
-| `Catalog([CatalogItem(name:, dataSchema:, widgetBuilder:)], catalogId:)`, reading raw `ctx.data`                                              | Same mapping as the 0.10 `CatalogItem` row.                                                                                                                                              |
+| `Catalog([CatalogItem(name:, dataSchema:, widgetBuilder:)], catalogId:)`, reading raw `ctx.data`                                              | Same mapping as the genui 0.10 `CatalogItem` row.                                                                                                                                        |
 | `ContentGenerator` (`a2uiMessageStream`, `textResponseStream`, `errorStream`, `sendRequest(ChatMessage, {history})`), `GenUiConversation`     | Recipe (f). A package that exported a `ContentGenerator` keeps its public names by declaring its own class with the same streams, as recipe (f) case 3 describes for `Transport`.        |
 | `genui_firebase_ai` and other generators that declared `surfaceUpdate`, `beginRendering` and `deleteSurface` as model tools                   | Use the model SDK directly with `a2ui_agent`'s prompt and parser, and restrict the parser to what the tools allowed (see below).                                                         |
 
@@ -520,6 +525,47 @@ also change in these ways:
 - Run `dart analyze`, the app's tests, and a manual check of a surface with
   an input and an action against the real agent.
 
+## In a package you do not own
+
+The skill's
+[Migrating a package you do not own](../SKILL.md#migrating-a-package-you-do-not-own)
+rules apply. In Dart and Flutter they mean:
+
+1. Task runners are melos scripts or a `Taskfile.yml`. Run the checks in
+   `example/` and in every package that depends on the migrated one
+   through a `path:` dependency.
+2. When the repository pins the Flutter SDK exactly and `pub get` refuses
+   the local release, relax the pin in the pubspecs to run the checks, then
+   restore the pubspecs and the `sdks:` section of `pubspec.lock`.
+3. Flutter 3.47 and later rewrites `analysis_options.yaml` to exclude build
+   and platform directories on `flutter pub get`, `flutter analyze` and
+   `flutter test`, in every workspace member and in `example/`. Revert it
+   after every run.
+4. A plain `pub get` on a newer SDK can change a tracked `pubspec.lock`
+   before any edit, for packages the SDK pins such as `meta` and
+   `vector_math`.
+5. When the change only removes dependencies, regenerate the lock before
+   and after the change, delete from the committed lock the packages that
+   disappear between the two, keep any that another entry still needs, and
+   check that `pub get --dry-run` adds and removes nothing.
+6. Commit the plugin registrant entries that dropping genui removes (it
+   pulled in `url_launcher`, `audioplayers` and `video_player_win`), but
+   revert unrelated registrant changes. Never commit `.dart_tool/`,
+   `.flutter-plugins` or `.flutter-plugins-dependencies`, which hold local
+   paths.
+7. Compare each new package's `environment` with the project's Flutter
+   (CI, `.tool-versions`, `.fvmrc`): for example, `video_player_avfoundation`
+   2.12.3 needs Flutter 3.47. To hold one back, add it as a temporary root
+   dev dependency with an exact version, run `pub get`, then remove it and
+   run `pub get` again; pub keeps locked versions.
+8. Keep the SDK lower bound in `pubspec.yaml`. A higher lower bound raises
+   the language version, and `dart format` then reformats every file.
+   Resolution stays correct, since pub refuses an SDK older than a
+   dependency needs and names that dependency in the error.
+9. Read the APIs of the published releases in the pub cache
+   (`~/.pub-cache/hosted/pub.dev/a2ui_core-<version>/`), not this
+   repository's sources, which may be ahead of the release.
+
 ## Checklist
 
 - [ ] No `package:genui/` imports remain; `genui` is out of `pubspec.yaml`.
@@ -542,7 +588,7 @@ also change in these ways:
 
 ## API mapping
 
-Old symbols are from `genui` 0.10.x;
+Old symbols are from genui 0.10.x;
 new symbols are from the packages under `dart/` in this repository. Paths in
 the notes are relative to `dart/`.
 
