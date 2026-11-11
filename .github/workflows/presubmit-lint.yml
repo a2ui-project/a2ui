@@ -80,7 +80,7 @@ jobs:
           '
 
   format-check:
-    runs-on: ubuntu-24.04 # setup-swift does not support Ubuntu 26.04 yet
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -94,9 +94,9 @@ jobs:
         with:
           sdk: stable
       - name: Set up Swift
-        uses: swift-actions/setup-swift@7ca6abe6b3b0e8b5421b88be48feee39cbf52c6a # v2
+        uses: SwiftyLab/setup-swift@d60245579ea3836a3f2fa65ebbe1e8891d577c76 # v1.14.2
         with:
-          swift-version: "6.0"
+          swift-version: "6.4"
       - name: Run enforce-formatting check
         run: ./scripts/fix_format.sh --check
 
