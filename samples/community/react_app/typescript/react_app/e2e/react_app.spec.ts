@@ -89,6 +89,31 @@ test.describe('ReactApp in the real double iframe', () => {
     await expect(frame.getByTestId('count')).toHaveText('41');
   });
 
+  test('loads the theme font faces in the frame before the first render', async ({page}) => {
+    await openFixture(page);
+    const frame = appFrame(page);
+
+    // The count rendered, so the runtime has waited for the fonts.
+    const fonts = await frame.locator('body').evaluate(() => {
+      const loaded: string[] = [];
+      document.fonts.forEach(face => {
+        if (face.status === 'loaded') {
+          loaded.push(face.family.replace(/"/g, ''));
+        }
+      });
+      return {
+        size: document.fonts.size,
+        loaded,
+        check: document.fonts.check('16px "IBM Plex Sans"'),
+      };
+    });
+    expect(fonts).toEqual({size: 1, loaded: ['IBM Plex Sans'], check: true});
+    await expect(frame.getByRole('heading', {name: 'Fixture app'})).toHaveCSS(
+      'font-family',
+      /^"IBM Plex Sans"/,
+    );
+  });
+
   test('app writes reach the data model and native components', async ({page}) => {
     await openFixture(page);
     const frame = appFrame(page);
@@ -193,5 +218,17 @@ test.describe('catalog examples in the real double iframe', () => {
       .poll(() => page.evaluate(() => (window.fixture.getData('/timer/laps') as unknown[]).length))
       .toBe(2);
     await expect(page.getByText(/^0:00\.\d$/)).toHaveCount(2);
+  });
+});
+
+test.describe('typed bindings', () => {
+  test('a2ui:bindings calls round-trip through the module the frame makes', async ({page}) => {
+    await page.goto(`/?runtime=${encodeURIComponent(RUNTIME_ORIGIN)}&example=bindings`);
+    const frame = appFrame(page);
+
+    // Two stops at 25 minutes each from the mocked agent, and the basic catalog's formatCurrency.
+    await expect(frame.getByTestId('binding-minutes')).toHaveText('50');
+    await expect(frame.getByTestId('binding-price')).toHaveText('$42.00');
+    expect(await page.evaluate(() => window.fixture.errors)).toEqual([]);
   });
 });

@@ -25,6 +25,15 @@ import {getSession, toErrorDetails} from './session.js';
 /** A value that survives JSON serialization. */
 export type JsonValue = string | number | boolean | null | JsonValue[] | {[key: string]: JsonValue};
 
+/** `T` when every value it can hold is JSON; `useData` and `setData` require it. */
+export type JsonCompatible<T> = {
+  [K in keyof T]: [T[K]] extends [JsonValue]
+    ? T[K]
+    : T[K] extends (...args: never[]) => unknown
+      ? never
+      : JsonCompatible<T[K]>;
+} & ([T] extends [(...args: never[]) => unknown] ? never : unknown);
+
 /** Default timeout of `callFunction`, matching the agent function timeout of web_core. */
 export const DEFAULT_FUNCTION_TIMEOUT_MS = 30_000;
 
@@ -41,7 +50,7 @@ export interface FunctionState<R> {
   refresh: () => void;
 }
 
-export function useData<T extends JsonValue>(
+export function useData<T extends JsonCompatible<T>>(
   path: string,
   fallback: T,
 ): [T, (value: T | ((previous: T) => T)) => void] {
@@ -66,15 +75,15 @@ export function useData<T extends JsonValue>(
   return [value === undefined ? fallback : (value as T), setter];
 }
 
-export async function getData<T extends JsonValue>(path: string): Promise<T | undefined> {
+export async function getData<T = JsonValue>(path: string): Promise<T | undefined> {
   return (await getSession().store.read(path)) as T | undefined;
 }
 
-export function setData<T extends JsonValue>(path: string, value: T): Promise<void> {
+export function setData<T extends JsonCompatible<T>>(path: string, value: T): Promise<void> {
   return getSession().store.write(path, value);
 }
 
-export function subscribe<T extends JsonValue>(
+export function subscribe<T = JsonValue>(
   path: string,
   onChange: (value: T | undefined) => void,
 ): () => void {

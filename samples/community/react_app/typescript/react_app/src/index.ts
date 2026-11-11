@@ -14,6 +14,11 @@
  * limitations under the License.
  */
 
+export {
+  MAX_AGENT_ERRORS_PER_MINUTE,
+  REACT_APP_ERROR_CODE,
+  type ReactAppAgentError,
+} from './agent_errors.js';
 export {REACT_APP_CATALOG_ID, reactAppCatalog} from './catalog.js';
 export {
   A2uiReactApp,
@@ -26,12 +31,14 @@ export {
 } from './react_app.js';
 export {
   BRIDGE_PROTOCOL_VERSION,
+  MAX_ACTIONS_PER_SECOND,
   ReactAppBridge,
   ReactAppErrorCode,
   createFrameTransport,
   type ReactAppBridgeEvent,
   type ReactAppBridgeOptions,
   type ReactAppBridgeTransport,
+  type ReactAppDenialReason,
   type ReactAppError,
   type ReactAppTimings,
 } from './react_app_bridge.js';
@@ -44,4 +51,10 @@ export {
   type ReactAppRuntimeManifest,
 } from './react_app_config.js';
 export {ReactAppFrameHost} from './react_app_frame_host.js';
-export {DEFAULT_THEME_VARIABLES, readThemeTokens, type ThemeTokens} from './theme_tokens.js';
+export {
+  DEFAULT_THEME_VARIABLES,
+  readThemeTokens,
+  type ThemeFontFace,
+  type ThemeOptions,
+  type ThemeTokens,
+} from './theme_tokens.js';

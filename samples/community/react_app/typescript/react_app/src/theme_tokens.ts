@@ -14,10 +14,31 @@
  * limitations under the License.
  */
 
+/** A font face of a theme font (bridge protocol 3.1). */
+export interface ThemeFontFace {
+  /** Family name, as the `--a2ui-font-family*` variables use it. */
+  readonly family: string;
+  /** A CSS `src` value, for example `url(data:font/woff2;base64,…) format("woff2")`, or a URL. */
+  readonly src: string;
+  /** CSS `font-weight` descriptor, for example `400` or `100 900`. */
+  readonly weight?: string;
+  /** CSS `font-style` descriptor, for example `italic`. */
+  readonly style?: string;
+}
+
 /** Theme tokens sent to the app in `initialize` and `theme/changed` (bridge protocol 3.1). */
 export interface ThemeTokens {
   readonly colorScheme: 'light' | 'dark';
   readonly cssVars: Readonly<Record<string, string>>;
+  readonly fontFaces?: readonly ThemeFontFace[];
+}
+
+/** What {@link readThemeTokens} adds to the page's variables; `ReactAppConfig` has both fields. */
+export interface ThemeOptions {
+  /** CSS custom properties to send besides the `--a2ui-*` ones. */
+  readonly themeVariables?: readonly string[];
+  /** Font faces to send with the theme. */
+  readonly fontFaces?: readonly ThemeFontFace[];
 }
 
 /**
@@ -38,6 +59,7 @@ export const DEFAULT_THEME_VARIABLES: readonly string[] = [
   '--a2ui-color-error',
   '--a2ui-font-family',
   '--a2ui-font-family-mono',
+  '--a2ui-font-family-title',
   '--a2ui-font-size-xs',
   '--a2ui-font-size-s',
   '--a2ui-font-size-m',
@@ -55,15 +77,14 @@ export const DEFAULT_THEME_VARIABLES: readonly string[] = [
 
 /**
  * Reads the theme of the page at `element`: every `--a2ui-*` custom property in its computed
- * style (they inherit, so the surface's theme applies), plus `extraVariables`. The color scheme is
- * dark when the element's `color-scheme` allows dark and the page prefers it.
+ * style (they inherit, so the surface's theme applies), plus `options.themeVariables`, and
+ * `options.fontFaces`. The color scheme is dark when the element's `color-scheme` allows dark and
+ * the page prefers it.
  */
-export function readThemeTokens(
-  element: Element,
-  extraVariables: readonly string[] = [],
-): ThemeTokens {
+export function readThemeTokens(element: Element, options: ThemeOptions = {}): ThemeTokens {
+  const {themeVariables = [], fontFaces = []} = options;
   const style = getComputedStyle(element);
-  const names = new Set([...DEFAULT_THEME_VARIABLES, ...extraVariables]);
+  const names = new Set([...DEFAULT_THEME_VARIABLES, ...themeVariables]);
   for (let index = 0; index < style.length; index++) {
     const name = style.item(index);
     if (name.startsWith('--a2ui-')) {
@@ -82,5 +103,9 @@ export function readThemeTokens(
     typeof window.matchMedia === 'function' &&
     window.matchMedia('(prefers-color-scheme: dark)').matches;
   const onlyDark = allowsDark && !/\blight\b/.test(style.colorScheme || '');
-  return {colorScheme: onlyDark || (allowsDark && prefersDark) ? 'dark' : 'light', cssVars};
+  return {
+    colorScheme: onlyDark || (allowsDark && prefersDark) ? 'dark' : 'light',
+    cssVars,
+    ...(fontFaces.length > 0 ? {fontFaces} : {}),
+  };
 }

@@ -53,6 +53,7 @@ def _app(**props: Any) -> dict[str, Any]:
         "catalogId": REACT_APP_CATALOG_ID,
         "title": "Counter",
         "source": _VALID_SOURCE,
+        "dataPaths": ["/count"],
     }
     component.update(props)
     return {key: value for key, value in component.items() if value is not None}
@@ -136,7 +137,7 @@ def test_valid_messages_pass_unchanged() -> None:
             "triple_quote",
             "source",
         ),
-        ({"dataPaths": ["loan/rate"]}, "invalid_data_paths", "dataPaths"),
+        ({"dataPaths": "/count"}, "invalid_data_paths", "dataPaths"),
         ({"dataPaths": ["/a~2b"]}, "invalid_data_paths", "dataPaths"),
         ({"dataPaths": "/loan"}, "invalid_data_paths", "dataPaths"),
         ({"dataPaths": [7]}, "invalid_data_paths", "dataPaths"),
@@ -254,7 +255,7 @@ def test_a_forbidden_module_is_reported_once() -> None:
 
 
 def test_data_paths_accept_escaped_pointers_but_not_the_root() -> None:
-    assert _codes(_app(dataPaths=["/a~0b/c~1d", "/items/0"])) == []
+    assert _codes(_app(dataPaths=["/count", "/a~0b/c~1d", "/items/0"])) == []
     # The root pointer would allow every path; omitting dataPaths says that.
     assert _codes(_app(dataPaths=[""])) == ["invalid_data_paths"]
 

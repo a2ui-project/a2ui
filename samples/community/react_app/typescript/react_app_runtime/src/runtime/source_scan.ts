@@ -15,39 +15,9 @@
  */
 
 /**
- * Static checks on app source that run before it is compiled: which modules it imports and which
- * data paths it reads on its first render. Both are regular-expression scans, which is enough for
- * the single, model-written file a ReactApp holds.
+ * Finds the data paths an app reads on its first render, with a regular-expression scan, which is
+ * enough for the single, model-written file a ReactApp holds.
  */
-
-/** Modules the import map of an app frame provides (bridge protocol section 9). */
-export const AVAILABLE_MODULES: readonly string[] = [
-  'a2ui',
-  'react',
-  'react/jsx-runtime',
-  'react-dom',
-  'react-dom/client',
-];
-
-const IMPORT_PATTERN =
-  /(?:^|[\s;])(?:import|export)\s+(?:type\s+)?(?:[\w*{}\s,$]+\s+from\s+)?['"]([^'"]+)['"]|\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
-
-/** The module specifiers a source imports, in order of first appearance. */
-export function findImports(source: string): string[] {
-  const found = new Set<string>();
-  for (const match of source.matchAll(IMPORT_PATTERN)) {
-    const specifier = match[1] ?? match[2];
-    if (specifier) {
-      found.add(specifier);
-    }
-  }
-  return [...found];
-}
-
-/** The imported modules that the frame doesn't provide. */
-export function findUnavailableImports(source: string): string[] {
-  return findImports(source).filter(specifier => !AVAILABLE_MODULES.includes(specifier));
-}
 
 const PATH_CALL_PATTERN =
   /\b(?:useData|getData|subscribe)\s*(?:<[^>()]*>)?\s*\(\s*(['"`])([^'"`$]*)\1/g;

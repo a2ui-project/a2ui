@@ -14,8 +14,10 @@
  * limitations under the License.
  */
 
-import {describe, expect, it} from 'vitest';
-import {RateLimiter, toLoggable} from './diagnostics.js';
+import {describe, expect, it, vi} from 'vitest';
+
+import {RateLimiter, toLoggable, watchCspViolations} from './diagnostics.js';
+import type {RuntimeSession} from './session.js';
 
 describe('RateLimiter', () => {
   it('allows `limit` events per second', () => {
@@ -39,5 +41,39 @@ describe('toLoggable', () => {
     expect(toLoggable({a: {b: {c: {d: 1}}}})).toEqual({a: {b: {c: '{…}'}}});
     expect((toLoggable('x'.repeat(3000)) as string).length).toBe(2001);
     expect(toLoggable(undefined)).toBe('undefined');
+  });
+});
+
+describe('watchCspViolations', () => {
+  function violation(effectiveDirective: string, blockedURI: string): Event {
+    return Object.assign(new Event('securitypolicyviolation'), {
+      effectiveDirective,
+      violatedDirective: effectiveDirective,
+      blockedURI,
+    });
+  }
+
+  it('reports each distinct violation once as a csp error, at most 5 per second', () => {
+    const reportError = vi.fn();
+    const target = document.implementation.createHTMLDocument('csp');
+    watchCspViolations({reportError} as unknown as RuntimeSession, target);
+
+    target.dispatchEvent(violation('connect-src', 'https://api.example/price'));
+    target.dispatchEvent(violation('connect-src', 'https://api.example/price'));
+    for (let index = 0; index < 10; index++) {
+      target.dispatchEvent(violation('img-src', `https://img.example/${index}.png`));
+    }
+
+    expect(reportError).toHaveBeenCalledTimes(5);
+    expect(reportError.mock.calls[0]).toEqual([
+      'csp',
+      {
+        message: expect.stringMatching(
+          /^The content security policy blocked https:\/\/api\.example\/price \(connect-src\)\./,
+        ),
+        blockedUri: 'https://api.example/price',
+        directive: 'connect-src',
+      },
+    ]);
   });
 });

@@ -10,12 +10,14 @@
     "demo/*"
   ],
   "scripts": {
-    "build": "yarn workspaces foreach -A -t --exclude a2ui-react-app-labs run build",
-    "test": "yarn workspaces foreach -A -t --exclude a2ui-react-app-labs run test",
-    "lint": "yarn workspaces foreach -A -t --exclude a2ui-react-app-labs run lint",
-    "lint:fix": "yarn workspaces foreach -A -t --exclude a2ui-react-app-labs run lint:fix",
+    "build": "yarn workspaces foreach -A -t --topological-dev --exclude a2ui-react-app-labs run build",
+    "test": "yarn workspaces foreach -A -t --topological-dev --exclude a2ui-react-app-labs run test",
+    "lint": "yarn workspaces foreach -A -t --topological-dev --exclude a2ui-react-app-labs run lint",
+    "lint:fix": "yarn workspaces foreach -A -t --topological-dev --exclude a2ui-react-app-labs run lint:fix",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "video": "node scripts/video_upload.mjs",
+    "test:scripts": "node scripts/video_upload.test.mjs"
   },
   "resolutions": {
     "@a2ui/markdown-it": "portal:../../../typescript/renderers/markdown-it",

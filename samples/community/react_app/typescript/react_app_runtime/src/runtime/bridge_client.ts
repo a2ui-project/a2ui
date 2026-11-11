@@ -32,6 +32,9 @@ export const BridgeErrorCode = {
   FunctionNotAllowed: -32012,
   Timeout: -32013,
   ActionFailed: -32014,
+  ActionNeedsUserGesture: -32015,
+  TooManyRequests: -32016,
+  ActionNotAllowed: -32017,
 } as const;
 
 /** A failed request: the message of the error response, with its code. */

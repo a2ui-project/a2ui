@@ -22,21 +22,21 @@ import {FORBIDDEN_PROTOTYPE_KEYS} from './shared/sandbox/payload_validation.js';
 
 /**
  * Whether `path` is allowed by the component's `dataPaths`: equal to an entry, or below one.
- * Without an allowlist every path is allowed.
+ * Without an allowlist no path is allowed.
  */
 export function isPathAllowed(path: string, allowlist: readonly string[] | undefined): boolean {
-  if (allowlist === undefined) {
-    return true;
-  }
-  return allowlist.some(entry => {
+  return (allowlist ?? []).some(entry => {
     const prefix = entry.endsWith('/') ? entry.slice(0, -1) : entry;
     return path === prefix || path.startsWith(`${prefix}/`);
   });
 }
 
-/** Whether `name` is allowed by the component's `functions`. Without an allowlist all are. */
-export function isFunctionAllowed(name: string, allowlist: readonly string[] | undefined): boolean {
-  return allowlist === undefined || allowlist.includes(name);
+/**
+ * Whether `name` is in the component's `functions` or `actions`. Without an allowlist no name
+ * is allowed.
+ */
+export function isNameAllowed(name: string, allowlist: readonly string[] | undefined): boolean {
+  return allowlist?.includes(name) ?? false;
 }
 
 /** Whether a JSON pointer has a segment that could pollute prototypes once unescaped. */

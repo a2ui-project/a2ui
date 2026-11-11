@@ -20,6 +20,7 @@
  */
 
 import {A2uiSurface, type ReactCatalogComponent} from '@a2ui/react';
+import plexSans400 from '@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-400-normal.woff2';
 import {
   basicCatalog,
   Catalog,
@@ -31,7 +32,13 @@ import {createRoot} from 'react-dom/client';
 import {z} from 'zod';
 import lapTimerExample from '../../../../catalog/v1/examples/lap_timer.json' with {type: 'json'};
 import loanExplorerExample from '../../../../catalog/v1/examples/loan_explorer.json' with {type: 'json'};
-import {configureReactApp, REACT_APP_CATALOG_ID, reactAppCatalog} from '../../src/index.js';
+import {
+  configureReactApp,
+  REACT_APP_CATALOG_ID,
+  reactAppCatalog,
+  type ReactAppBridgeEvent,
+} from '../../src/index.js';
+import {BINDINGS_APP_SOURCE} from './bindings_app.mjs';
 
 /** Catalog examples the page can render instead of the fixture, with `?example=<name>`. */
 const EXAMPLES: Record<string, {messages: unknown[]}> = {
@@ -70,6 +77,36 @@ export default function App() {
 }
 `;
 
+/**
+ * An app that dispatches one action from an effect on mount, which the host must refuse, and
+ * one from a button, which it must accept.
+ */
+const GESTURE_APP_SOURCE = String.raw`import { useEffect, useState } from "react";
+import { Button, Card, Text, dispatchAction } from "a2ui";
+
+export default function App() {
+  const [auto, setAuto] = useState("pending");
+  useEffect(() => {
+    dispatchAction("autoFired", {}).then(
+      () => setAuto("sent"),
+      (error) => setAuto(String(error.code)),
+    );
+  }, []);
+  return (
+    <Card title="Gesture app">
+      <Text>Effect dispatch: <span data-testid="auto">{auto}</span></Text>
+      <Button onClick={() => dispatchAction("clicked", { by: "user" })}>Send</Button>
+    </Card>
+  );
+}
+`;
+
+/** An app whose render throws, so the element reports a render error to the agent. */
+const CRASH_APP_SOURCE = String.raw`export default function App() {
+  throw new Error("The app broke on purpose.");
+}
+`;
+
 /** An agent function, declared in a third catalog and answered by the mocked agent below. */
 const estimateTravelTime: FunctionApi = {
   name: 'estimateTravelTime',
@@ -89,6 +126,10 @@ interface FixtureHooks {
   surface: SurfaceModel<ReactCatalogComponent>;
   actions: unknown[];
   agentCalls: unknown[];
+  /** The v1.0 `error` messages the page would send to the agent. */
+  agentErrors: unknown[];
+  /** The `denied` bridge events. */
+  denied: unknown[];
   errors: unknown[];
   rendered: Array<{timings: Record<string, number>; frameReadyToRenderedMs: number}>;
   getData(path: string): unknown;
@@ -103,8 +144,52 @@ declare global {
 
 const query = new URLSearchParams(location.search);
 const runtimeOrigin = query.get('runtime') ?? location.origin;
-const example = EXAMPLES[query.get('example') ?? ''];
-configureReactApp({runtimeBaseUrl: `${runtimeOrigin}/react-app/v1/`});
+const exampleName = query.get('example') ?? '';
+
+/** A surface whose root is one ReactApp with `props` besides `component` and `catalogId`. */
+function singleAppMessages(surfaceId: string, props: Record<string, unknown>): unknown[] {
+  return [
+    {version: '1.0', createSurface: {surfaceId}},
+    {
+      version: '1.0',
+      updateComponents: {
+        surfaceId,
+        components: [
+          {id: 'root', component: 'ReactApp', catalogId: REACT_APP_CATALOG_ID, ...props},
+        ],
+      },
+    },
+  ];
+}
+
+/** Fixture apps the page can render instead of the main fixture, with `?example=<name>`. */
+const FIXTURE_APPS: Record<string, () => unknown[]> = {
+  bindings: () =>
+    singleAppMessages('bindings', {
+      title: 'Bindings app',
+      height: 160,
+      functions: ['estimateTravelTime', 'formatCurrency'],
+      source: BINDINGS_APP_SOURCE,
+    }),
+  gesture: () =>
+    singleAppMessages('gesture', {
+      title: 'Gesture app',
+      height: 160,
+      actions: ['autoFired', 'clicked'],
+      source: GESTURE_APP_SOURCE,
+    }),
+  crash: () =>
+    singleAppMessages('crash', {title: 'Crash app', height: 160, source: CRASH_APP_SOURCE}),
+};
+
+const fixtureApp = FIXTURE_APPS[exampleName];
+const example: {messages: unknown[]} | undefined = fixtureApp
+  ? {messages: fixtureApp()}
+  : EXAMPLES[exampleName];
+configureReactApp({
+  runtimeBaseUrl: `${runtimeOrigin}/react-app/v1/`,
+  fontFaces: [{family: 'IBM Plex Sans', src: plexSans400, weight: '400'}],
+});
 
 const actions: unknown[] = [];
 const agentCalls: unknown[] = [];
@@ -182,6 +267,7 @@ const fixtureMessages = [
           height: 260,
           dataPaths: ['/fixture'],
           functions: ['formatCurrency', 'estimateTravelTime'],
+          actions: ['fixtureDone'],
           source: FIXTURE_APP_SOURCE,
         },
       ],
@@ -195,7 +281,22 @@ const surfaceId = (messages[0] as {createSurface: {surfaceId: string}}).createSu
 const surface = processor.model.getSurface(surfaceId) as SurfaceModel<ReactCatalogComponent>;
 const errors: unknown[] = [];
 const rendered: FixtureHooks['rendered'] = [];
+const denied: unknown[] = [];
+// What a host does to send app errors to the agent: forward the error channel as v1.0 messages.
+const agentErrors: unknown[] = [];
+processor.model.onError.subscribe(error => {
+  agentErrors.push({version: '1.0', error});
+});
 document.addEventListener('react-app-error', event => errors.push((event as CustomEvent).detail));
+document.addEventListener('react-app-bridge', event => {
+  const detail = (event as CustomEvent<ReactAppBridgeEvent>).detail;
+  if (detail.type === 'denied') {
+    denied.push(detail);
+    // The test waits for this line instead of polling the page, because Playwright's
+    // evaluations count as user gestures.
+    console.info(`[fixture] denied ${detail.reason} ${detail.target ?? ''}`);
+  }
+});
 document.addEventListener('react-app-rendered', event =>
   rendered.push((event as CustomEvent).detail),
 );
@@ -205,6 +306,8 @@ window.fixture = {
   surface,
   actions,
   agentCalls,
+  agentErrors,
+  denied,
   errors,
   rendered,
   getData: path => surface.dataModel.get(path),

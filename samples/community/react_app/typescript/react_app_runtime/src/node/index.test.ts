@@ -71,4 +71,9 @@ describe('createReactAppRuntimeHandler', () => {
     expect((await fetch(`${origin}/rt/missing.js`)).status).toBe(404);
     expect((await fetch(`${origin}/rt/..%2F..%2Fetc%2Fpasswd`)).status).toBe(404);
   });
+
+  it('answers 400 for a path that is not valid percent encoding, and keeps serving', async () => {
+    expect((await fetch(`${origin}/rt/%E0`)).status).toBe(400);
+    expect((await fetch(`${origin}/rt/a2ui-ABCD1234.js`)).status).toBe(200);
+  });
 });

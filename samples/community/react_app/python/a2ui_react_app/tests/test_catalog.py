@@ -36,6 +36,7 @@ def test_catalog_defines_react_app_for_v1_0() -> None:
         "height",
         "dataPaths",
         "functions",
+        "actions",
         "compiled",
     }
 

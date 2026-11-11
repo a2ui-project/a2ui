@@ -21,15 +21,15 @@
  * is small enough to implement directly.
  */
 
-import {hasForbiddenSegment, isFunctionAllowed, isPathAllowed} from './allowlist.js';
+import {hasForbiddenSegment, isNameAllowed, isPathAllowed} from './allowlist.js';
+import {deepEqual} from './shared/sandbox/data_model_sync.js';
 import type {FrameHost, FrameHostSubscription} from './shared/sandbox/frame_host.js';
+import {validateMessagePayload} from './shared/sandbox/payload_validation.js';
 import {
   isMessageFromFrame,
   isSandboxProxyReadyMessage,
   type MessageListenerTarget,
 } from './shared/sandbox/sandbox_bootstrap.js';
-import {deepEqual} from './shared/sandbox/data_model_sync.js';
-import {validateMessagePayload} from './shared/sandbox/payload_validation.js';
 import type {ThemeTokens} from './theme_tokens.js';
 
 const LOG_PREFIX = '[ReactApp]';
@@ -49,10 +49,16 @@ export const ReactAppErrorCode = {
   PathNotAllowed: -32011,
   FunctionNotAllowed: -32012,
   ActionFailed: -32014,
+  ActionNeedsUserGesture: -32015,
+  TooManyRequests: -32016,
+  ActionNotAllowed: -32017,
 } as const;
 
 /** Most `ui/log` and `ui/error` notifications accepted per second (section 8). */
 export const MAX_DIAGNOSTICS_PER_SECOND = 50;
+
+/** Most `action/dispatch` requests accepted per second (section 3.7). */
+export const MAX_ACTIONS_PER_SECOND = 5;
 
 /** Timings of `ui/rendered`, in milliseconds since the app document's time origin. */
 export interface ReactAppTimings {
@@ -72,8 +78,16 @@ export interface ReactAppError {
   readonly column?: number;
 }
 
-/** What the bridge reports to the page, for logs, panels and tests. */
-export type ReactAppBridgeEvent =
+/**
+ * Why the bridge refused a message: a path, function or action outside its allowlist, a
+ * payload over the limits of section 8, an action without a user gesture, or an action over the
+ * rate limit.
+ */
+export type ReactAppDenialReason =
+  'path' | 'function' | 'action' | 'payload' | 'userGesture' | 'rateLimit';
+
+/** A {@link ReactAppBridgeEvent} without the `frameId` the bridge adds. */
+type ReactAppBridgeEventBody =
   | {
       readonly type: 'message';
       readonly direction: 'in' | 'out';
@@ -88,7 +102,25 @@ export type ReactAppBridgeEvent =
       readonly frameReadyToRenderedMs: number;
     }
   | {readonly type: 'error'; readonly error: ReactAppError}
-  | {readonly type: 'log'; readonly level: string; readonly args: readonly unknown[]};
+  | {readonly type: 'log'; readonly level: string; readonly args: readonly unknown[]}
+  | {
+      readonly type: 'denied';
+      readonly reason: ReactAppDenialReason;
+      /** The refused method; absent for a message too malformed to have one. */
+      readonly method?: string;
+      /** The refused path or function or action name, when there is one. */
+      readonly target?: string;
+      /** The error code the app got, or would get for a refused notification. */
+      readonly code: number;
+      readonly message: string;
+      readonly time: number;
+    };
+
+/**
+ * What the bridge reports to the page, for logs, panels and tests. `frameId` tells the frames of
+ * a page apart: the element sets it to the surface id and the component id.
+ */
+export type ReactAppBridgeEvent = ReactAppBridgeEventBody & {readonly frameId?: string};
 
 /** How the bridge reaches the frame. */
 export interface ReactAppBridgeTransport {
@@ -120,15 +152,26 @@ export function createFrameTransport(
   };
 }
 
-/** The component properties the bridge reads on every request. */
+/**
+ * The component properties the bridge reads on every request. An absent list allows nothing
+ * (section 4).
+ */
 export interface ReactAppBridgeProps {
   readonly dataPaths?: readonly string[];
   readonly functions?: readonly string[];
+  readonly actions?: readonly string[];
+}
+
+/** Whether the host page has transient user activation, which a click in the frame gives it. */
+function hasTransientUserActivation(): boolean {
+  return navigator.userActivation?.isActive ?? false;
 }
 
 /** Inputs of {@link ReactAppBridge}. */
 export interface ReactAppBridgeOptions {
   readonly transport: ReactAppBridgeTransport;
+  /** Identifies the frame in every {@link ReactAppBridgeEvent}; defaults to `''`. */
+  readonly frameId?: string;
   /** The surface side: data model, functions and actions. */
   readonly host: FrameHost;
   /** The component's current allowlists. */
@@ -141,8 +184,14 @@ export interface ReactAppBridgeOptions {
   readonly onResize?: (height: number, width?: number) => void;
   /** Receives every {@link ReactAppBridgeEvent}. */
   readonly onEvent?: (event: ReactAppBridgeEvent) => void;
-  /** Clock for latency measurements; defaults to `performance.now`. */
+  /** Clock for latency measurements and rate limits; defaults to `performance.now`. */
   readonly now?: () => number;
+  /**
+   * Whether the user is interacting with the page right now, checked for every
+   * `action/dispatch`. Defaults to `navigator.userActivation.isActive`, which is false in
+   * browsers without the User Activation API.
+   */
+  readonly hasUserActivation?: () => boolean;
 }
 
 interface JsonRpcRequest {
@@ -159,6 +208,45 @@ class RequestError extends Error {
     readonly data?: Record<string, unknown>,
   ) {
     super(message);
+  }
+}
+
+/** A {@link RequestError} for a refusal, which the bridge also reports as a `denied` event. */
+class RequestDenied extends RequestError {
+  constructor(
+    readonly reason: ReactAppDenialReason,
+    code: number,
+    message: string,
+    readonly target?: string,
+  ) {
+    super(code, message, target === undefined ? undefined : {[targetKey(reason)]: target});
+  }
+}
+
+/** The `data` key of a refused target: `path` for paths, `name` for functions and actions. */
+function targetKey(reason: ReactAppDenialReason): string {
+  return reason === 'path' ? 'path' : 'name';
+}
+
+/** Counts events in fixed one-second windows. */
+class RateLimiter {
+  private windowStart = -Infinity;
+  private count = 0;
+
+  constructor(
+    private readonly limitPerSecond: number,
+    private readonly now: () => number,
+  ) {}
+
+  /** Counts one event; returns whether it is within the limit. */
+  allow(): boolean {
+    const time = this.now();
+    if (time - this.windowStart >= 1000) {
+      this.windowStart = time;
+      this.count = 0;
+    }
+    this.count++;
+    return this.count <= this.limitPerSecond;
   }
 }
 
@@ -197,12 +285,15 @@ export class ReactAppBridge {
   /** The path the app is writing right now; changes to it are the app's own (echo). */
   private writingPath: string | null = null;
   private readyAt: number;
-  private diagnosticsWindow = {start: 0, count: 0};
   private readonly now: () => number;
+  private readonly diagnosticsLimiter: RateLimiter;
+  private readonly actionsLimiter: RateLimiter;
 
   constructor(private readonly options: ReactAppBridgeOptions) {
     this.now = options.now ?? (() => performance.now());
     this.readyAt = this.now();
+    this.diagnosticsLimiter = new RateLimiter(MAX_DIAGNOSTICS_PER_SECOND, this.now);
+    this.actionsLimiter = new RateLimiter(MAX_ACTIONS_PER_SECOND, this.now);
   }
 
   /** Starts listening to the frame. */
@@ -248,12 +339,15 @@ export class ReactAppBridge {
     const security = validateMessagePayload(message);
     if (!security.valid) {
       console.warn(`${LOG_PREFIX} Message rejected:`, security.reason);
+      const reason = `Message rejected: ${security.reason}`;
+      this.emitDenied({
+        reason: 'payload',
+        ...(typeof method === 'string' ? {method} : {}),
+        code: ReactAppErrorCode.PayloadRejected,
+        message: reason,
+      });
       if (isRequest) {
-        this.sendError(
-          id as string | number,
-          ReactAppErrorCode.PayloadRejected,
-          `Message rejected: ${security.reason}`,
-        );
+        this.sendError(id as string | number, ReactAppErrorCode.PayloadRejected, reason);
       }
       return;
     }
@@ -280,6 +374,15 @@ export class ReactAppBridge {
         (error: unknown) => {
           if (!this.stopListening) {
             return;
+          }
+          if (error instanceof RequestDenied) {
+            this.emitDenied({
+              reason: error.reason,
+              method: request.method,
+              ...(error.target === undefined ? {} : {target: error.target}),
+              code: error.code,
+              message: error.message,
+            });
           }
           if (error instanceof RequestError) {
             this.sendError(request.id, error.code, error.message, error.data);
@@ -338,8 +441,26 @@ export class ReactAppBridge {
     const dataSnapshot: Record<string, unknown> = {};
     const deniedPaths: string[] = [];
     for (const path of requested) {
-      if (hasForbiddenSegment(path) || !isPathAllowed(path, dataPaths)) {
+      if (hasForbiddenSegment(path)) {
         deniedPaths.push(path);
+        this.emitDenied({
+          reason: 'payload',
+          method: 'reactApp/initialize',
+          target: path,
+          code: ReactAppErrorCode.InvalidParams,
+          message: `Path ${path} has a forbidden segment.`,
+        });
+        continue;
+      }
+      if (!isPathAllowed(path, dataPaths)) {
+        deniedPaths.push(path);
+        this.emitDenied({
+          reason: 'path',
+          method: 'reactApp/initialize',
+          target: path,
+          code: ReactAppErrorCode.PathNotAllowed,
+          message: `Path ${path} is not in the app's dataPaths.`,
+        });
         continue;
       }
       const value = this.subscribe(path);
@@ -364,16 +485,18 @@ export class ReactAppBridge {
       throw new RequestError(ReactAppErrorCode.InvalidParams, 'The path param must be a string.');
     }
     if (hasForbiddenSegment(path)) {
-      throw new RequestError(
+      throw new RequestDenied(
+        'payload',
         ReactAppErrorCode.InvalidParams,
         `Path ${path} has a forbidden segment.`,
       );
     }
     if (!isPathAllowed(path, this.options.getProps().dataPaths)) {
-      throw new RequestError(
+      throw new RequestDenied(
+        'path',
         ReactAppErrorCode.PathNotAllowed,
         `Path ${path} is not in the app's dataPaths.`,
-        {path},
+        path,
       );
     }
     return path;
@@ -443,11 +566,12 @@ export class ReactAppBridge {
     if (!isRecord(args)) {
       throw new RequestError(ReactAppErrorCode.InvalidParams, 'The args param must be an object.');
     }
-    if (!isFunctionAllowed(name, this.options.getProps().functions)) {
-      throw new RequestError(
+    if (!isNameAllowed(name, this.options.getProps().functions)) {
+      throw new RequestDenied(
+        'function',
         ReactAppErrorCode.FunctionNotAllowed,
         `Function ${name} is not in the app's functions.`,
-        {name},
+        name,
       );
     }
     try {
@@ -457,6 +581,11 @@ export class ReactAppBridge {
     }
   }
 
+  /**
+   * Dispatches an action once it passes the `actions` allowlist, the user gesture check and the
+   * rate limit, in that order. The checks run before the first `await`, while the user activation
+   * of the click that sent the request is still current.
+   */
   private async dispatchAction(params: Record<string, unknown>): Promise<Record<string, unknown>> {
     const name = params['name'];
     const context = params['context'] ?? {};
@@ -464,6 +593,31 @@ export class ReactAppBridge {
       throw new RequestError(
         ReactAppErrorCode.InvalidParams,
         'action/dispatch needs a string name and an object context.',
+      );
+    }
+    if (!isNameAllowed(name, this.options.getProps().actions)) {
+      throw new RequestDenied(
+        'action',
+        ReactAppErrorCode.ActionNotAllowed,
+        `Action ${name} is not in the app's actions.`,
+        name,
+      );
+    }
+    const hasUserActivation = this.options.hasUserActivation ?? hasTransientUserActivation;
+    if (!hasUserActivation()) {
+      throw new RequestDenied(
+        'userGesture',
+        ReactAppErrorCode.ActionNeedsUserGesture,
+        `Action ${name} needs a user gesture: dispatch it from a click or key handler, not from an effect or timer.`,
+        name,
+      );
+    }
+    if (!this.actionsLimiter.allow()) {
+      throw new RequestDenied(
+        'rateLimit',
+        ReactAppErrorCode.TooManyRequests,
+        `Action ${name} was dropped: at most ${MAX_ACTIONS_PER_SECOND} actions per second.`,
+        name,
       );
     }
     try {
@@ -494,7 +648,7 @@ export class ReactAppBridge {
         return;
       }
       case 'ui/error': {
-        if (!this.allowDiagnostic()) {
+        if (!this.diagnosticsLimiter.allow()) {
           return;
         }
         const error: ReactAppError = {
@@ -509,7 +663,7 @@ export class ReactAppBridge {
         return;
       }
       case 'ui/log': {
-        if (!this.allowDiagnostic()) {
+        if (!this.diagnosticsLimiter.allow()) {
           return;
         }
         const level = typeof params['level'] === 'string' ? params['level'] : 'info';
@@ -520,15 +674,6 @@ export class ReactAppBridge {
       default:
         return;
     }
-  }
-
-  private allowDiagnostic(): boolean {
-    const time = this.now();
-    if (time - this.diagnosticsWindow.start >= 1000) {
-      this.diagnosticsWindow = {start: time, count: 0};
-    }
-    this.diagnosticsWindow.count++;
-    return this.diagnosticsWindow.count <= MAX_DIAGNOSTICS_PER_SECOND;
   }
 
   private sendError(
@@ -545,9 +690,16 @@ export class ReactAppBridge {
     this.options.transport.send(message);
   }
 
-  private emit(event: ReactAppBridgeEvent): void {
+  /** Reports a refusal as a `denied` event. */
+  private emitDenied(
+    denial: Omit<Extract<ReactAppBridgeEventBody, {type: 'denied'}>, 'type' | 'time'>,
+  ): void {
+    this.emit({type: 'denied', ...denial, time: this.now()});
+  }
+
+  private emit(event: ReactAppBridgeEventBody): void {
     try {
-      this.options.onEvent?.(event);
+      this.options.onEvent?.({...event, frameId: this.options.frameId ?? ''});
     } catch (error) {
       console.error(`${LOG_PREFIX} Event listener failed:`, error);
     }

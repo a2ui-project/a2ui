@@ -14,7 +14,15 @@
  * limitations under the License.
  */
 
-import {Component, useLayoutEffect, type ComponentType, type ReactNode} from 'react';
+import {
+  Component,
+  isValidElement,
+  useLayoutEffect,
+  type ComponentType,
+  type ReactNode,
+} from 'react';
+
+import {decodeReactError} from './error_messages.js';
 
 /** What the error card shows. */
 export interface ErrorCardProps {
@@ -83,12 +91,25 @@ export class AppErrorBoundary extends Component<BoundaryProps, {error: Error | n
         <ErrorCard
           title={this.props.title}
           heading="The app stopped with an error."
-          message={this.state.error.message}
+          message={decodeReactError(this.state.error.message)}
         />
       );
     }
     return this.props.children;
   }
+}
+
+/**
+ * Whether `value` can be rendered as a component: a function or class, or an object React wraps
+ * one in (`memo`, `forwardRef`, `lazy`). An element (`export default <App />`) is not.
+ */
+export function isComponentType(value: unknown): value is ComponentType {
+  if (typeof value === 'function') {
+    return true;
+  }
+  return (
+    typeof value === 'object' && value !== null && '$$typeof' in value && !isValidElement(value)
+  );
 }
 
 /** Renders the app and reports its first commit; the probe's layout effect runs after the app's. */

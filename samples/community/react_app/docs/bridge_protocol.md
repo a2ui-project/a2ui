@@ -37,9 +37,9 @@ sequenceDiagram
     3. a `<script type="application/json" id="a2ui-react-app-config">` holding `{"source": string, "compiled"?: string, "title"?: string}`, with every `<` written as `\u003c`,
     4. an inline module script that imports the runtime entry and starts it.
 2. The host sends the document as the `html` of the sandbox resource, with `sandbox: "allow-scripts"` and `csp.resourceDomains` set to the origin that serves the runtime. The proxy adds a CSP meta tag whose `script-src`, `style-src` and `font-src` allow that origin; `connect-src` and `frame-src` stay `'none'`.
-3. A change of `source` or `compiled` changes the document, so the frame reloads and a new bridge session starts. Other property changes (`dataPaths`, `functions`, `title`, `height`) apply to the running session.
+3. A change of `source`, `compiled` or `title` changes the document, so the frame reloads and a new bridge session starts. Other property changes (`dataPaths`, `functions`, `actions`, `height`) apply to the running session.
 4. Once loaded, the runtime MUST send `reactApp/initialize` before any other request. The host MUST answer every other request that arrives before `reactApp/initialize` with error `-32002`.
-5. After the initialize response, the runtime transpiles the source (unless `compiled` is present), imports it, renders its default export into `#root`, and sends `ui/rendered` after the first commit has painted.
+5. After the initialize response, the runtime starts loading the theme's `fontFaces`, transpiles the source (unless `compiled` is present) and imports it. It then waits for the fonts, for at most 2 seconds, renders the default export into `#root`, and sends `ui/rendered` after the first commit has painted. The default export can be any component: a function, a class, or a `memo`, `forwardRef` or `lazy` wrapper. `VegaChart` also waits for the fonts before it draws, because Vega measures label text on a canvas.
 6. A session ends when the frame reloads or the host disconnects the bridge. The host MUST drop its subscriptions, and MUST NOT answer requests from a previous session.
 
 ## 3. Methods
@@ -58,13 +58,13 @@ Params:
 
 Result:
 
-| Field             | Type                     | Meaning                                                                                                                                |
-| ----------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `protocolVersion` | `"1"`                    | Bridge protocol version the host speaks.                                                                                               |
-| `theme`           | `{colorScheme, cssVars}` | `colorScheme` is `"light"` or `"dark"`; `cssVars` maps each `--a2ui-*` custom property name to its computed value on the host element. |
-| `containerSize`   | `{width, height}`        | Size of the frame in CSS pixels.                                                                                                       |
-| `dataSnapshot`    | `{[path]: value}`        | Current value of every requested path the allowlist permits. A path with no value is omitted.                                          |
-| `deniedPaths`     | string[]                 | Requested paths the allowlist refused.                                                                                                 |
+| Field             | Type                                 | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ----------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `protocolVersion` | `"1"`                                | Bridge protocol version the host speaks.                                                                                                                                                                                                                                                                                                                                                                                          |
+| `theme`           | `{colorScheme, cssVars, fontFaces?}` | `colorScheme` is `"light"` or `"dark"`; `cssVars` maps each `--a2ui-*` custom property name to its computed value on the host element. `fontFaces` lists the faces of the theme fonts as `{family, src, weight?, style?}`, where `src` is a CSS `src` value such as `url(data:font/woff2;base64,…) format("woff2")`; the frame can't see the page's `@font-face` rules, so without them a theme font falls back to a system font. |
+| `containerSize`   | `{width, height}`                    | Size of the frame in CSS pixels.                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `dataSnapshot`    | `{[path]: value}`                    | Current value of every requested path the allowlist permits. A path with no value is omitted.                                                                                                                                                                                                                                                                                                                                     |
+| `deniedPaths`     | string[]                             | Requested paths the allowlist refused.                                                                                                                                                                                                                                                                                                                                                                                            |
 
 The host MUST subscribe to every path in `dataSnapshot` as if the app had sent `data/subscribe`, so changes made between the snapshot and the app's first render reach the app. The runtime MUST seed its store with `dataSnapshot` before the first render, so `useData` returns real values on the first paint.
 
@@ -104,6 +104,14 @@ Params `{name, args}`; `args` is an object of named arguments. Result `{value}`.
 
 Params `{name, context}`. The host dispatches an A2UI `event` action of the component with that name and context, so action listeners see the `ReactApp` as its source. Result `{}` once the dispatch resolves.
 
+An action can tell the agent to book, buy or send something, so the host checks every request, in this order, before it dispatches:
+
+1. `name` MUST be in the component's `actions` allowlist (section 4). Otherwise the host answers `-32017`.
+2. The host page MUST have transient user activation (`navigator.userActivation.isActive`) when the request arrives. A click or key press in the app frame activates the host page too, since user activation propagates to ancestor frames across origins, and it stays active for a few seconds. A dispatch from an effect, a timer or a promise that resolves later than that has no activation, and gets `-32015`. A browser without the User Activation API has no activation either, so it refuses every action.
+3. The host accepts at most 5 dispatches per second per frame, and answers `-32016` to the rest.
+
+These checks apply only to the app. Actions of native components don't go through the bridge, so they are unaffected.
+
 ### 3.8. `ui/rendered` (app to host, notification)
 
 Params `{timings}`, where every timing is in milliseconds since the app document's time origin (`performance.timeOrigin` of the inner frame):
@@ -124,13 +132,16 @@ Params `{height, width?}` in CSS pixels: the size the app's content needs. The h
 
 ### 3.10. `ui/error` (app to host, notification)
 
-Params `{phase, message, stack?, line?, column?}`. `phase` is one of:
+Params `{phase, message, stack?, line?, column?, blockedUri?, directive?}`. `phase` is one of:
 
 1. `compile`: Sucrase failed. `line` and `column` point into `source`.
-2. `load`: importing the compiled module failed, or it has no default export.
+2. `load`: importing the compiled module failed, or its default export isn't a component. An import of a module that section 9 doesn't list fails here, and the message names that module and the available ones.
 3. `render`: a React error boundary caught an error.
 4. `runtime`: an uncaught error or unhandled rejection in the app.
 5. `bridge`: a request failed (the runtime also rejects the caller's promise).
+6. `csp`: the frame's content security policy blocked a request or a load, for example a `fetch` or a script from a CDN. `blockedUri` is what was blocked (a URL, `inline` or `eval`) and `directive` the directive that blocked it. The runtime reports each distinct violation once, and at most 5 per second.
+
+The runtime ships the production build of React, whose errors read `Minified React error #321; visit …`. The runtime replaces the ones generated apps commonly hit (#31, #130, #152, #185, #300, #301, #310, #321 and #482) with a readable message that says what to change, in `message` and on the error card.
 
 The runtime MUST show an error card in the frame for `compile`, `load` and `render`. The host MUST log every `ui/error` and SHOULD expose it to the page (the reference host dispatches a `react-app-error` DOM event from the element).
 
@@ -140,13 +151,16 @@ Params `{level, args}`, with `level` one of `debug`, `info`, `warn`, `error` and
 
 ### 3.12. `theme/changed` (host to app, notification)
 
-Params `{colorScheme, cssVars}`, same shape as `theme` in section 3.1. The host sends it when the page's color scheme changes, or when the page calls the element's theme refresh method. The runtime sets the variables on `:root`, so CSS that uses `var(--a2ui-*)` updates without a re-render, and re-renders components that use `useTheme`.
+Params `{colorScheme, cssVars, fontFaces?}`, same shape as `theme` in section 3.1. The host sends it when the page's color scheme changes, or when the page calls the element's theme refresh method. The runtime sets the variables on `:root`, so CSS that uses `var(--a2ui-*)` updates without a re-render, and re-renders components that use `useTheme`. It loads the font faces it hasn't loaded before.
 
 ## 4. Allowlists
 
-1. `dataPaths` (component property): when present, a path is allowed if it equals an entry or starts with an entry followed by `/`. `/loan` allows `/loan` and `/loan/rate`, but not `/loans` or `/`. When absent, every path is allowed. Relative paths are checked as written, before resolution.
-2. `functions` (component property): when present, a function is allowed if its name is in the list. When absent, every function is allowed.
-3. A refused path results in error `-32011`, a refused function in error `-32012`. The host reads the allowlists on every request, so a property update applies at once.
+1. `dataPaths` (component property): a path is allowed if it equals an entry or starts with an entry followed by `/`. `/loan` allows `/loan` and `/loan/rate`, but not `/loans` or `/`. Relative paths are checked as written, before resolution.
+2. `functions` (component property): a function is allowed if its name is in the list.
+3. `actions` (component property): an action is allowed if its name is in the list.
+4. An absent list allows nothing, the same as an empty one. The model is asked to write all three lists, and the agent server (`ReactAppTransformer`) fills in a missing one from the calls in `source` before the component ships, so a missing list in the browser means the app gets no access.
+5. A refused path results in error `-32011`, a refused function in error `-32012` and a refused action in error `-32017`. The host reads the allowlists on every request, so a property update applies at once.
+6. The reference host reports every refusal, including the payload, gesture and rate limit refusals of sections 3.7 and 8, to the page as a `denied` bridge event with the reason, the method, the refused path or name and the error code.
 
 ## 5. Ordering and consistency
 
@@ -180,8 +194,35 @@ Errors use the JSON-RPC `error` member: `{code, message, data?}`.
 | `-32012` | Function not allowed | The function is outside `functions`. `data.name` is the function name.                        |
 | `-32013` | Timeout              | Runtime-side only: no response in time.                                                       |
 | `-32014` | Action failed        | The action dispatch rejected.                                                                 |
+| `-32015` | Action needs gesture | `action/dispatch` arrived without user activation in the host (section 3.7). `data.name`.     |
+| `-32016` | Too many requests    | More than 5 `action/dispatch` requests in a second (section 3.7). `data.name`.                |
+| `-32017` | Action not allowed   | The action is outside `actions`. `data.name` is the action name.                              |
 
 The runtime turns an error response into a rejected promise with an `Error` whose `message` is the error message and whose `code` property is the code.
+
+### 7.1. Reporting app errors to the agent
+
+The agent wrote the app, so it has to learn when the app fails. For a `ui/error` with phase `compile`, `load`, `render`, `runtime` or `csp`, the host reports an A2UI v1.0 renderer-to-agent `error` message, using the generic branch of `specification/v1_0/json/renderer_to_agent.json`:
+
+```json
+{
+  "version": "1.0",
+  "error": {
+    "code": "REACT_APP_ERROR",
+    "message": "The ReactApp chart failed in phase render: Cannot read properties of undefined (reading 'map')",
+    "surfaceId": "plan",
+    "componentId": "chart",
+    "phase": "render",
+    "line": 12,
+    "column": 5
+  }
+}
+```
+
+1. The host reports only the first such error of each app document: a crashed app tends to fail the same way again, and a new `source` makes a new document. `bridge` errors are never reported, because the app already got the error response.
+2. The host reports at most 3 errors per minute per component, so a page that reloads apps quickly can't flood the agent.
+3. `message` holds at most 1000 characters. `line` and `column` are present when the runtime knows them.
+4. The reference host passes the error body to `SurfaceModel.dispatchError`, the same error channel web_core uses for its own renderer errors, so it reaches `MessageProcessor.model.onError` and `SurfaceModel.onError`. The page wraps it as `{version: "1.0", error}` and sends it to the agent next to its actions and `callAgentFunction` messages. The element still dispatches its `react-app-error` DOM event for every error.
 
 ## 8. Limits
 
@@ -194,12 +235,13 @@ The runtime turns an error response into a rejected promise with an `Error` whos
 
 The import map of the app document maps these names. Any other bare import fails to resolve, and the runtime reports it as a `load` error.
 
-| Module                          | Contents                                                                                              |
-| ------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `react`                         | React 19.                                                                                             |
-| `react/jsx-runtime`             | Used by the transpiled JSX; apps don't import it directly.                                            |
-| `react-dom`, `react-dom/client` | React DOM 19; apps rarely need them, since the runtime mounts `App`.                                  |
-| `a2ui`                          | The bridge API and primitives, typed by [`a2ui.d.ts`](../typescript/react_app_runtime/src/a2ui.d.ts). |
+| Module                          | Contents                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `react`                         | React 19.                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `react/jsx-runtime`             | Used by the transpiled JSX; apps don't import it directly.                                                                                                                                                                                                                                                                                                                                                                                    |
+| `react-dom`, `react-dom/client` | React DOM 19; apps rarely need them, since the runtime mounts `App`.                                                                                                                                                                                                                                                                                                                                                                          |
+| `a2ui`                          | The bridge API and primitives, typed by [`a2ui.d.ts`](../typescript/react_app_runtime/src/a2ui.d.ts).                                                                                                                                                                                                                                                                                                                                         |
+| `a2ui:bindings`                 | Typed wrappers over `callFunction`, one per catalog function. The agent generates the declarations from its catalogs (`react_app_bindings`); the runtime builds the module from the names the app imports or uses on a namespace or default import, so nothing extra travels with the app. Only ASCII identifiers that aren't reserved words ([`reserved_words.json`](../typescript/react_app_runtime/src/reserved_words.json)) are exported. |
 
 The runtime itself is the `a2ui-runtime` entry. Sucrase and `vega-embed` (with Vega and Vega-Lite) are chunks of the runtime build rather than import map entries: Sucrase loads only when the app arrives without `compiled`, and Vega on the first `VegaChart` render.
 

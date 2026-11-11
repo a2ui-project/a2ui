@@ -22,13 +22,17 @@
 
 import type {ComponentType} from 'react';
 import {createRoot} from 'react-dom/client';
-import {AppRoot, ErrorCard, type ErrorCardProps} from './app_root.js';
+
+import {AppRoot, ErrorCard, isComponentType, type ErrorCardProps} from './app_root.js';
+import {linkBindings} from './bindings.js';
 import {BridgeClient, DEFAULT_REQUEST_TIMEOUT_MS} from './bridge_client.js';
-import {forwardConsole, watchUncaughtErrors} from './diagnostics.js';
-import {RuntimeSession, setSession, toErrorDetails, type ErrorPhase} from './session.js';
-import {findDataPaths, findUnavailableImports, AVAILABLE_MODULES} from './source_scan.js';
-import {applyTheme, type ThemeTokens} from './theme.js';
+import {forwardConsole, watchCspViolations, watchUncaughtErrors} from './diagnostics.js';
+import {unavailableModuleMessage, unresolvedImport} from './error_messages.js';
+import {loadFontFaces} from './fonts.js';
 import {watchContentHeight} from './resize.js';
+import {RuntimeSession, setSession, toErrorDetails, type ErrorPhase} from './session.js';
+import {findDataPaths} from './source_scan.js';
+import {applyTheme, type ThemeTokens} from './theme.js';
 
 /** Version of the bridge protocol this runtime speaks. */
 export const PROTOCOL_VERSION = '1';
@@ -72,13 +76,28 @@ function readConfig(doc: Document): AppConfig {
   };
 }
 
-/** Imports an ES module from source text; bare imports resolve through the import map. */
+function moduleUrl(code: string): string {
+  return URL.createObjectURL(new Blob([code], {type: 'text/javascript'}));
+}
+
+/**
+ * Imports the app module from source text. Bare imports resolve through the import map, and an
+ * `a2ui:bindings` import gets a bindings module made for the names the app imports.
+ */
 async function importModule(code: string): Promise<Record<string, unknown>> {
-  const url = URL.createObjectURL(new Blob([code], {type: 'text/javascript'}));
+  const urls: string[] = [];
+  const track = (source: string) => {
+    const url = moduleUrl(source);
+    urls.push(url);
+    return url;
+  };
+  const url = track(linkBindings(code, track));
   try {
     return (await import(/* @vite-ignore */ url)) as Record<string, unknown>;
   } finally {
-    URL.revokeObjectURL(url);
+    for (const created of urls) {
+      URL.revokeObjectURL(created);
+    }
   }
 }
 
@@ -94,6 +113,7 @@ export async function start(): Promise<void> {
   setSession(session);
   forwardConsole(client);
   watchUncaughtErrors(session);
+  watchCspViolations(session);
 
   const config = readConfig(document);
   const title = config.title ?? 'App';
@@ -125,7 +145,13 @@ export async function start(): Promise<void> {
     return;
   }
   timings['initialized'] = now();
-  client.onNotification('theme/changed', params => applyTheme(params as ThemeTokens));
+  client.onNotification('theme/changed', params => {
+    // Fonts first: charts re-embed on the theme change and wait for them.
+    void loadFontFaces(params['fontFaces']);
+    applyTheme(params as ThemeTokens);
+  });
+  // The fonts load while the source is transpiled and imported; the first render waits for them.
+  const fontsLoaded = loadFontFaces(init.theme?.fontFaces);
   applyTheme(init.theme ?? {});
   const snapshot = init.dataSnapshot ?? {};
   const denied = new Set(init.deniedPaths ?? []);
@@ -137,14 +163,6 @@ export async function start(): Promise<void> {
   let code = config.compiled;
   let transpileMs = 0;
   if (code === undefined) {
-    const unavailable = findUnavailableImports(config.source);
-    if (unavailable.length > 0) {
-      fail('compile', {
-        heading: 'The app imports a module that is not available.',
-        message: `Not available: ${unavailable.join(', ')}. Apps can import: ${AVAILABLE_MODULES.join(', ')}.`,
-      });
-      return;
-    }
     const started = performance.now();
     try {
       // Sucrase is its own chunk, so apps that arrive compiled never load it.
@@ -171,11 +189,23 @@ export async function start(): Promise<void> {
   let app: ComponentType;
   try {
     const module = await importModule(code);
-    if (typeof module['default'] !== 'function') {
+    if (!isComponentType(module['default'])) {
       throw new Error('The app must default-export a component: export default function App() {…}');
     }
-    app = module['default'] as ComponentType;
+    app = module['default'];
   } catch (error) {
+    const specifier = unresolvedImport(error);
+    if (specifier !== undefined) {
+      fail(
+        'load',
+        {
+          heading: 'The app imports a module that is not available.',
+          message: unavailableModuleMessage(specifier),
+        },
+        error,
+      );
+      return;
+    }
     fail(
       'load',
       {
@@ -187,6 +217,7 @@ export async function start(): Promise<void> {
     return;
   }
   timings['compiled'] = now();
+  await fontsLoaded;
 
   await new Promise<void>(resolve => {
     root.render(

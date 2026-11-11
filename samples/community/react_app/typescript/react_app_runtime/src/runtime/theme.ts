@@ -16,10 +16,14 @@
 
 import {useSyncExternalStore} from 'react';
 
+import type {ThemeFontFace} from './fonts.js';
+
 /** Theme tokens as the host sends them in `initialize` and `theme/changed`. */
 export interface ThemeTokens {
   readonly colorScheme?: 'light' | 'dark';
   readonly cssVars?: Readonly<Record<string, string>>;
+  /** Font faces of the theme fonts; see `loadFontFaces`. */
+  readonly fontFaces?: readonly ThemeFontFace[];
 }
 
 /** The theme as the `a2ui` module exposes it (see `a2ui.d.ts`). */

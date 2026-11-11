@@ -16,12 +16,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping, Sequence
-import json
+from collections.abc import Mapping, Sequence
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from a2ui.core import A2uiCatalogError, CatalogApi
+from a2ui.core import CatalogApi
 from a2ui.inference_formats import to_message_models
 from a2ui.inference_formats.express import ExpressDecompiler
 
@@ -31,6 +30,10 @@ from ._catalog import (
     react_app_catalog,
     read_typings,
 )
+from ._schema_ts import RETURN_TYPES, args_schema, select_functions, ts_object
+
+if TYPE_CHECKING:
+    from ._bindings import ReactAppBindings
 
 _PROMPT_EXAMPLE = "Loan amortization explorer"
 
@@ -44,16 +47,29 @@ _RULES = '''## ReactApp: custom interactive apps
 - Build everything else from native components: headings, labels, sliders, text fields, buttons and lists. Don't rebuild them inside the app.
 - Connect the app and the native components through shared data model paths. A native component bound to `$/loan/rate` and an app that calls `useData('/loan/rate', 5)` read and write the same value. Give those paths initial values in the data model.
 - Put data you already have, such as tool results, lists and chart series, in the data model (for example `$/sales/points = [...]`) and read it in the app with `useData`. Don't copy data into the source.
-- List the paths the app reads and writes in `dataPaths`, and the functions it calls in `functions`. Never set `compiled`.
+- List the paths the app reads and writes in `dataPaths`, the functions it calls in `functions`, and the actions it dispatches in `actions`. Never set `compiled`.
 
 ### Writing the source
 
 - `source` is one TSX file that default-exports a component named `App`, which takes no props: `export default function App() { ... }`.
 - Import only from `react` and `a2ui`. The app has no network access, no other packages and no access to the host page.
+- Never call `fetch`, `XMLHttpRequest`, `WebSocket` or `EventSource`, and never navigate the frame: the browser blocks them. Get outside data through an agent function or put it in the data model. If the user asks for live or external data, or a library, that you can't provide, say so in your text; never simulate it with made-up or random values.
 - Write `ReactApp` with keyword arguments only: `ReactApp(source=r"""...""", title="...", height=360, dataPaths=[...], functions=[...])`.
 - Write `source` inline in the `ReactApp(...)` call as a raw triple-quoted string: `source=r"""` directly followed by the code, then `"""` to close it. Nothing inside a raw string is escaped, so write the code exactly as it should run.
 - Never put three double quotes in a row inside the code, and don't end the code with a double quote. Use single quotes or template literals for strings in the code instead.
 - Keep values that the surface or the agent needs in the data model with `useData`. Keep purely visual state, such as hover or drag state, in React state.
+- Call hooks (`useData`, `useFunction`, `useState`, `useEffect` and the others) only at the top level of a component, never inside effects, event handlers, loops or conditions. To write a value from an effect or a handler, call the setter of a top-level `useData`.
+- Each value the app writes with `setData`, and the `args` of each function call, must stay under 64 KB. Keep big data in the data model and write ids or small changes.
+
+### Changing a surface in a later turn
+
+Surfaces from earlier turns are still on screen, and creating one again fails. To change one, write `surface("<id>", update=true)` and then only what changes: components under their existing ids (each replaces the component with that id), and `$/path = value` lines for data. Write `root = ...` only when the root itself changes. To change an app, write its `ReactApp` again under the same id with the whole new source; the frame reloads with it. Use a new surface id for a new, unrelated UI.
+
+```
+surface("loan", update=true)
+chart = ReactApp(source=r"""...the whole new source...""", title="Loan balance", height=360, dataPaths=["/loan/rate", "/loan/years"])
+$/loan/years = 15
+```
 
 ### Modules
 
@@ -76,6 +92,19 @@ _RULES = '''## ReactApp: custom interactive apps
 
 {functions}'''
 
+_BINDINGS_SECTION = """### Typed functions: `a2ui:bindings`
+
+Import the functions the app calls from `a2ui:bindings` instead of naming them in `callFunction`. Each one takes the function's arguments as one object and returns a promise of its result, and the declarations below give the types of both. Import only names declared there. For results that follow app state, keep using `useFunction`.
+
+```ts
+import { formatCurrency } from "a2ui:bindings";
+const label = await formatCurrency({ value: 1200, currency: "USD" });
+```
+
+```ts
+{declarations}
+```"""
+
 _FUNCTIONS_INTRO = (
     "Call these with `callFunction(name, args)` or `useFunction(name, args)`,"
     " passing plain JSON values as `args`. Only the names below are functions:"
@@ -87,119 +116,12 @@ _FUNCTIONS_INTRO = (
 )
 _NO_FUNCTIONS = "The catalogs declare no functions that the app can call."
 
-_DYNAMIC_TYPES = {
-    "DynamicString": "string",
-    "DynamicNumber": "number",
-    "DynamicBoolean": "boolean",
-    "DynamicStringList": "string[]",
-    "DynamicValue": "JsonValue",
-}
-_RETURN_TYPES = {
-    "string": "string",
-    "number": "number",
-    "boolean": "boolean",
-    "array": "JsonValue[]",
-    "object": "{ [key: string]: JsonValue }",
-    "void": "void",
-}
 _LICENSE_HEADER_RE = re.compile(r"\A\s*/\*.*?Copyright.*?\*/\s*", re.DOTALL)
 
 
 def _typings_for_prompt() -> str:
     """Returns `a2ui.d.ts` without its license header, which only costs tokens."""
     return _LICENSE_HEADER_RE.sub("", read_typings(), count=1).rstrip()
-
-
-def _ts_type(schema: Any) -> str:
-    """Writes a JSON schema as a TypeScript type, for a function signature."""
-    if not isinstance(schema, Mapping):
-        return "JsonValue"
-    ref = schema.get("$ref")
-    if isinstance(ref, str):
-        return _DYNAMIC_TYPES.get(ref.rsplit("/", 1)[-1], "JsonValue")
-    if "const" in schema:
-        return json.dumps(schema["const"])
-    if isinstance(schema.get("enum"), list):
-        return " | ".join(json.dumps(v) for v in schema["enum"])
-    for key in ("oneOf", "anyOf"):
-        if isinstance(schema.get(key), list):
-            return " | ".join(dict.fromkeys(_ts_type(s) for s in schema[key]))
-    schema_type = schema.get("type")
-    if isinstance(schema_type, list):
-        return " | ".join(_ts_type({**schema, "type": t}) for t in schema_type)
-    if schema_type == "string":
-        return "string"
-    if schema_type in ("number", "integer"):
-        return "number"
-    if schema_type == "boolean":
-        return "boolean"
-    if schema_type == "null":
-        return "null"
-    if schema_type == "array":
-        item = _ts_type(schema.get("items"))
-        return f"({item})[]" if " " in item else f"{item}[]"
-    if schema_type == "object" and isinstance(schema.get("properties"), Mapping):
-        return _ts_object(schema)
-    if schema_type == "object":
-        return "{ [key: string]: JsonValue }"
-    return "JsonValue"
-
-
-def _ts_object(schema: Mapping[str, Any]) -> str:
-    """Writes an object schema with `properties` as a TypeScript object type."""
-    properties: Mapping[str, Any] = schema.get("properties") or {}
-    required = set(schema.get("required") or [])
-    fields = [
-        f"{name}{'' if name in required else '?'}: {_ts_type(prop)}"
-        for name, prop in properties.items()
-    ]
-    return "{ " + "; ".join(fields) + " }" if fields else "{}"
-
-
-def _args_schema(definition: Mapping[str, Any]) -> Mapping[str, Any] | None:
-    """Returns the `args` schema of a catalog function definition, if it has one."""
-    candidates = [definition]
-    if isinstance(definition.get("allOf"), list):
-        candidates += [s for s in definition["allOf"] if isinstance(s, Mapping)]
-    for candidate in candidates:
-        props = candidate.get("properties")
-        if isinstance(props, Mapping) and isinstance(props.get("args"), Mapping):
-            args: Mapping[str, Any] = props["args"]
-            return args
-    return None
-
-
-def _function_definitions(
-    catalogs: Sequence[CatalogApi],
-) -> Iterator[tuple[str, Mapping[str, Any]]]:
-    """Yields every function the catalogs declare, with its catalog definition.
-
-    The definitions come from each catalog's document (`to_json`), which writes
-    agent functions in the same shape as the others.
-    """
-    for catalog in catalogs:
-        functions = catalog.to_json().get("functions") or {}
-        if isinstance(functions, Mapping):
-            entries = list(functions.items())
-        else:
-            entries = [(f.get("name"), f) for f in functions if isinstance(f, Mapping)]
-        for name, definition in entries:
-            if isinstance(name, str) and isinstance(definition, Mapping):
-                yield name, definition
-
-
-def _callable_by_default(definition: Mapping[str, Any]) -> bool:
-    """Whether an app can usefully call a function it wasn't told about.
-
-    This leaves out functions the renderer refuses to run for components
-    (`agentOnly`), functions that need a user gesture, which a call from the
-    frame doesn't carry, and validation checks, which belong in `checks`.
-    """
-    return (
-        definition.get("allowedCallers") != "agentOnly"
-        and not definition.get("requiresUserActivation")
-        and definition.get("returnType") != "validationResult"
-    )
 
 
 def _indent(text: str, width: int = 2) -> str:
@@ -212,9 +134,9 @@ def _indent(text: str, width: int = 2) -> str:
 
 def _describe_function(name: str, definition: Mapping[str, Any]) -> str:
     """Writes a function's signature, description and argument descriptions."""
-    args = _args_schema(definition)
-    args_type = _ts_object(args) if args and args.get("properties") else "{}"
-    return_type = _RETURN_TYPES.get(str(definition.get("returnType")), "JsonValue")
+    args = args_schema(definition)
+    args_type = ts_object(args) if args and args.get("properties") else "{}"
+    return_type = RETURN_TYPES.get(str(definition.get("returnType")), "JsonValue")
     lines = [f"- `{name}(args: {args_type}): {return_type}`"]
     description = definition.get("description")
     if isinstance(description, str) and description:
@@ -232,22 +154,10 @@ def _describe_function(name: str, definition: Mapping[str, Any]) -> str:
 def _functions_section(
     catalogs: Sequence[CatalogApi], functions: Sequence[str] | None
 ) -> str:
-    definitions: dict[str, Mapping[str, Any]] = {}
-    for name, definition in _function_definitions(catalogs):
-        definitions.setdefault(name, definition)
-    if functions is None:
-        names = [n for n, d in definitions.items() if _callable_by_default(d)]
-    else:
-        unknown = [n for n in functions if n not in definitions]
-        if unknown:
-            raise A2uiCatalogError(
-                f"No catalog declares the functions {unknown}. Declared functions:"
-                f" {sorted(definitions)}."
-            )
-        names = list(dict.fromkeys(functions))
+    definitions, names = select_functions(catalogs, functions)
     if not names:
         return _NO_FUNCTIONS
-    entries = [_describe_function(n, definitions[n]) for n in sorted(names)]
+    entries = [_describe_function(n, definitions[n]) for n in names]
     return _FUNCTIONS_INTRO + "\n\n" + "\n".join(entries)
 
 
@@ -282,6 +192,8 @@ def _example_section(catalogs: Sequence[CatalogApi]) -> str | None:
 def react_app_prompt(
     catalogs: Sequence[CatalogApi],
     functions: Sequence[str] | None = None,
+    *,
+    bindings: ReactAppBindings | None = None,
 ) -> str:
     """Returns the prompt fragment that teaches a model to write `ReactApp` apps.
 
@@ -300,6 +212,9 @@ def react_app_prompt(
         functions: The names of the functions to list. None lists every
             declared function that an app can call: not `agentOnly`, not
             needing a user gesture, and not a validation check.
+        bindings: The `a2ui:bindings` declarations (`react_app_bindings`).
+            When they bind at least one function, the prompt includes them
+            and asks the app to import its functions from `a2ui:bindings`.
 
     Returns:
         The prompt fragment, in Markdown.
@@ -315,6 +230,10 @@ def react_app_prompt(
         "{functions}", _functions_section(catalogs, functions)
     ).replace("{typings}", _typings_for_prompt())
     sections = [rules]
+    if bindings is not None and bindings.names:
+        sections.append(
+            _BINDINGS_SECTION.replace("{declarations}", bindings.declarations.rstrip())
+        )
     example = _example_section(catalogs)
     if example is not None:
         sections.append(example)

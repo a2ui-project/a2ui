@@ -28,14 +28,21 @@
         },
         "dataPaths": {
           "type": "array",
-          "description": "Optional allowlist of data model paths the app may read and write, as JSON pointers. A request for one of these paths, or a path below one, is allowed; any other path is rejected. Omit it to allow every path. List the paths the app passes to `useData`, `getData`, `setData` and `subscribe`.",
+          "description": "Allowlist of the data model paths the app may read and write, as JSON pointers. A request for one of these paths, or a path below one, is allowed; any other path is rejected. When absent, the app may use no path. List the paths the app passes to `useData`, `getData`, `setData` and `subscribe`; if you leave it out, the agent server fills it in from those calls in `source`.",
           "items": {
             "type": "string"
           }
         },
         "functions": {
           "type": "array",
-          "description": "Optional allowlist of the function names the app may call with `callFunction` or `useFunction`. Omit it to allow every function the surface's catalogs declare or the agent provides.",
+          "description": "Allowlist of the function names the app may call with `callFunction`, `useFunction` or `a2ui:bindings`. When absent, the app may call no function. If you leave it out, the agent server fills it in from the calls in `source`.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "actions": {
+          "type": "array",
+          "description": "Allowlist of the action names the app may dispatch with `dispatchAction`. When absent, the app may dispatch no action. If you leave it out, the agent server fills it in from the calls in `source`. The host also refuses an action that doesn't come from a click or key press, and more than 5 actions per second, so dispatch actions from event handlers, never from effects or timers.",
           "items": {
             "type": "string"
           }

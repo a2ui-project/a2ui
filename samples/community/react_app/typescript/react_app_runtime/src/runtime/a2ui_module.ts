@@ -29,6 +29,7 @@ export {
   useFunction,
   type CallFunctionOptions,
   type FunctionState,
+  type JsonCompatible,
   type JsonValue,
 } from './data_api.js';
 export {Button, Card, Slider, Stack, Text, type Space} from './primitives.js';

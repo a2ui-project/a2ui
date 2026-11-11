@@ -8,7 +8,9 @@ The package gives an agent:
 - `react_app_examples()`: example turns that pair a `ReactApp` with native basic-catalog components.
 - `react_app_prompt(catalogs, functions=None)`: the prompt fragment. It has the rules for when and how to write a `ReactApp`, the modules an app can import, the full `a2ui.d.ts`, the styling rules, the functions the app can call (read from the catalogs, agent functions included) and a worked example in Express.
 - `ReactAppTransformer`: a catalog and message transformer with the same shape as `MacroExpander`. It adds the ReactApp catalog to the inference catalogs, and checks every outbound `ReactApp` before it reaches the renderer.
-- `check_react_app(component)`, `ReactAppDiagnostic` and `ReactAppValidationError`: the same checks as structured data, for a repair loop.
+- `check_react_app(component, functions=...)`, `ReactAppDiagnostic` and `ReactAppValidationError`: the same checks as structured data, for a repair loop.
+- `react_app_source_facts(source)`: what a source reads, writes, calls, dispatches and imports, read with regular expressions. The checks, the transformer and the evals all use it.
+- `react_app_bindings(catalogs)`: the declarations of the `a2ui:bindings` module, one typed async function per catalog function, agent functions included. Pass them to `react_app_prompt(..., bindings=...)`, and the app imports its functions instead of naming them in `callFunction`. Names that aren't ASCII identifiers, and reserved words such as `delete`, are left out.
 
 ## Usage
 
@@ -41,12 +43,15 @@ To let the app call agent functions, add them to the catalog with `Catalog.copy_
 
 ## Checks
 
-`transform_to_transport` checks each `ReactApp` whose `catalogId` is `REACT_APP_CATALOG_ID` (or that has no `catalogId` on a surface whose default catalog is the ReactApp catalog, has none, or isn't known):
+`transform_to_transport` checks each `ReactApp` whose `catalogId` is `REACT_APP_CATALOG_ID` (or that has no `catalogId` on a surface whose default catalog is the ReactApp catalog, has none, or isn't known). First it fills in `dataPaths`, `functions` and `actions` when a ReactApp leaves them out and its source names everything it uses with string literals, because the surface refuses whatever a ReactApp doesn't list. Then it checks:
 
 - `source` is a non-empty string with a default export.
-- `source` imports only `react`, `react/jsx-runtime`, `react-dom`, `react-dom/client` and `a2ui`, with static imports.
+- `source` imports only `react`, `react/jsx-runtime`, `react-dom`, `react-dom/client`, `a2ui` and `a2ui:bindings`, with static imports.
 - `source` has no three double quotes in a row, which would end the raw Express string early.
-- `dataPaths` holds JSON pointers and `functions` holds names.
+- `source` uses no browser API the frame blocks (`fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource`, `navigator.sendBeacon`, navigation, `window.open`).
+- `source` calls no hook inside an effect or memo callback, an event handler or a loop callback, which React rejects with error #321.
+- Every function the source calls (`callFunction`, `useFunction`, `a2ui:bindings`) or `functions` lists is a catalog function, not an `a2ui` module function such as `setData`. After `transform_catalogs`, it must also be one the catalogs declare and an app can call.
+- `dataPaths` holds JSON pointers (absolute, or relative to the component's data context), and `functions` and `actions` hold names. Each list is present when the source needs it and covers every literal path and name the source uses.
 - `height` is a positive number.
 - `compiled` is absent: only the agent server sets it.
 
