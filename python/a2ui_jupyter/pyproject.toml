@@ -1,0 +1,74 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+[project]
+name = "a2ui-jupyter"
+dynamic = ["version"]
+description = "JupyterLab renderer for A2UI"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+keywords = ["a2ui", "jupyter", "jupyterlab", "renderer"]
+dependencies = [
+  "a2ui-core>=0.6.0,<0.7.0",
+  "anywidget>=0.11.0",
+  "ipykernel>=7.4.0",
+]
+
+[project.urls]
+Homepage = "https://a2ui.org/"
+Repository = "https://github.com/a2ui-project/a2ui/tree/main/python/a2ui_jupyter"
+Issues = "https://github.com/a2ui-project/a2ui/issues"
+
+[tool.uv.sources]
+a2ui-core = { workspace = true }
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+fallback-version = "0.1.0"
+
+[tool.hatch.version.raw-options]
+root = "../.."
+tag_regex = '^python/a2ui-jupyter/v(?P<version>.+)$'
+local_scheme = "no-local-version"
+git_describe_command = [
+  "git",
+  "describe",
+  "--dirty",
+  "--tags",
+  "--long",
+  "--match",
+  "python/a2ui-jupyter/v*",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/a2ui_jupyter"]
+core-metadata-version = "2.4"
+
+[tool.hatch.build.targets.sdist]
+core-metadata-version = "2.4"
+
+[dependency-groups]
+dev = [
+  "jupyter-client>=8.6.0",
+  "pytest>=9.1.1",
+]
+
+[[tool.uv.index]]
+url = "https://pypi.org/simple"
+default = true
