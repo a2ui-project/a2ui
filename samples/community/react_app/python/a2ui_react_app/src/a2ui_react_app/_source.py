@@ -285,26 +285,40 @@ def react_app_source_facts(source: str) -> ReactAppSourceFacts:
     actions = [name for _, name in _literals(_ACTION_CALL_RE, code)]
     a2ui_imports: set[str] = set()
     bound: set[str] = set()
+    called_bound: set[str] = set()
     for match in _NAMED_IMPORT_RE.finditer(code):
         module = match.group(3)
         if module not in ("a2ui", "a2ui:bindings"):
             continue
         for part in match.group(1).split(","):
-            name = re.sub(r"^type\s+", "", part.strip()).split(" as ")[0].strip()
+            raw = re.sub(r"^type\s+", "", part.strip())
+            imported, _, alias = raw.partition(" as ")
+            name = imported.strip()
+            local = (alias or imported).strip()
             if not name:
                 continue
-            (a2ui_imports if module == "a2ui" else bound).add(name)
+            if module == "a2ui":
+                a2ui_imports.add(name)
+            else:
+                bound.add(name)
+                if re.search(
+                    rf"(?<![\w$]){re.escape(local)}\s*\(", code[match.end() :]
+                ):
+                    called_bound.add(name)
     for match in _NAMESPACE_IMPORT_RE.finditer(code):
         member = re.compile(
             rf"(?<![\w$.]){re.escape(match.group(1))}\s*\??\.\s*([\w$]+)"
         )
-        bound.update(m.group(1) for m in member.finditer(code))
+        for member_match in member.finditer(code):
+            bound.add(member_match.group(1))
+            called_bound.add(member_match.group(1))
     masked = _mask_strings(code)
     return ReactAppSourceFacts(
         read_paths=frozenset(read),
         written_paths=frozenset(written),
         dynamic_paths=dynamic_paths,
-        functions=frozenset(n for n in functions if n is not None),
+        functions=frozenset(n for n in functions if n is not None)
+        | frozenset(called_bound),
         bound_functions=frozenset(bound),
         dynamic_functions=None in functions,
         actions=frozenset(n for n in actions if n is not None),

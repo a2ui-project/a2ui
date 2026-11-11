@@ -31,7 +31,7 @@ from inspect_ai.scorer import Scorer
 
 from .dataset import load_dataset
 from .scorers import express_multiline_scorer, react_app_scorer
-from .solvers import react_app_system_prompt
+from .solvers import react_app_server_compile, react_app_system_prompt
 
 __all__ = [
     "DEFAULT_MODEL",
@@ -72,6 +72,8 @@ def _express_task(
     no_judge: bool,
     tags: str | Sequence[str] | None,
     max_validation_retries: int,
+    bindings: bool = False,
+    repair: bool = False,
 ) -> Task:
     version = "1.0"
     return Task(
@@ -80,18 +82,25 @@ def _express_task(
         ),
         solver=[
             format_system_prompt("express", version),
-            react_app_system_prompt(version),
+            react_app_system_prompt(version, bindings=bindings),
             measured_generate(),
             compile_format_payload(
                 "express", version, max_validation_retries=max_validation_retries
             ),
+            react_app_server_compile(repair=repair),
         ],
         scorer=[
             a2ui_scorer(version=version),
             suite_scorer,
             _judge(grading_model, no_judge),
         ],
-        metadata={"suite": dataset_name, "strategy": "express", "version": version},
+        metadata={
+            "suite": dataset_name,
+            "strategy": "express",
+            "version": version,
+            "bindings": bindings,
+            "repair": repair,
+        },
     )
 
 
@@ -101,8 +110,15 @@ def react_app_v1_0(
     no_judge: bool = False,
     tags: str | Sequence[str] | None = None,
     max_validation_retries: int = 0,
+    bindings: bool = False,
+    repair: bool = False,
 ) -> Task:
-    """ReactApp suite: the three use cases and three extra apps."""
+    """ReactApp suite: the three use cases and three extra apps.
+
+    With `bindings`, the prompt includes the `a2ui:bindings` declarations; with
+    `repair`, apps that fail the server compile go back to the model (at most
+    two rounds) before scoring.
+    """
     return _express_task(
         "react_app_v1_0",
         react_app_scorer(),
@@ -110,6 +126,8 @@ def react_app_v1_0(
         no_judge=no_judge,
         tags=tags,
         max_validation_retries=max_validation_retries,
+        bindings=bindings,
+        repair=repair,
     )
 
 

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests of the facts, checker, dataset loader and scorers, without a model."""
+"""Tests of the facts, compiler use, dataset loader and scorers, without a model."""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ from inspect_ai.scorer import Target
 from inspect_ai.solver import TaskState
 import pytest
 
-from react_app_eval.checker import ReactAppChecker
+from a2ui_react_app import ReactAppCompiler
 from react_app_eval.dataset import load_dataset
 from react_app_eval.facts import iter_react_apps, source_facts
 from react_app_eval.scorers import (
@@ -48,16 +48,10 @@ def _loan_source() -> str:
 
 
 def _score_react_app(state: TaskState) -> Any:
-    """Runs the ReactApp scorer with its own checker, closed on the same event loop."""
+    """Runs the ReactApp scorer with its own compile worker."""
 
-    async def run() -> Any:
-        checker = ReactAppChecker()
-        try:
-            return await react_app_scorer(lambda: checker)(state, Target(""))
-        finally:
-            await checker.close()
-
-    return asyncio.run(run())
+    with ReactAppCompiler() as compiler:
+        return asyncio.run(react_app_scorer(lambda: compiler)(state, Target("")))
 
 
 def _state(metadata: dict[str, Any], raw: str = "") -> TaskState:
@@ -88,6 +82,15 @@ def test_source_facts_of_the_loan_example() -> None:
     assert facts.hard_coded_colors == 0
 
 
+def test_source_facts_count_bindings_calls() -> None:
+    facts = source_facts(
+        'import { estimateTravelTime as eta, querySales } from "a2ui:bindings";\n'
+        "eta({ stops });\n"
+    )
+
+    assert facts.functions == {"estimateTravelTime"}
+
+
 def test_source_facts_count_color_literals_and_function_hooks() -> None:
     facts = source_facts(
         'import { useFunction } from "a2ui";\n'
@@ -106,31 +109,23 @@ def test_path_covered_accepts_parents() -> None:
     assert not path_covered("/loan/rate", {"/loans"})
 
 
-def test_checker_transpiles_and_type_checks() -> None:
-    async def run() -> tuple[Any, Any, Any]:
-        checker = ReactAppChecker()
-        try:
-            return (
-                await checker.check(_loan_source()),
-                await checker.check(
-                    'import { useData } from "a2ui";\n'
-                    "export default function App() {\n"
-                    '  const [n] = useData<number>("/n", "zero");\n'
-                    "  return <p>{n}</p>;\n"
-                    "}\n"
-                ),
-                await checker.check("export default function App() { return <div>; }"),
-            )
-        finally:
-            await checker.close()
+def test_compiler_transpiles_and_type_checks() -> None:
+    with ReactAppCompiler() as compiler:
+        good = compiler.compile(_loan_source())
+        wrong_type = compiler.compile(
+            'import { useData } from "a2ui";\n'
+            "export default function App() {\n"
+            '  const [n] = useData<number>("/n", "zero");\n'
+            "  return <p>{n}</p>;\n"
+            "}\n"
+        )
+        broken = compiler.compile("export default function App() { return <div>; }")
 
-    good, wrong_type, broken = asyncio.run(run())
-
-    assert good.transpiled and good.type_checks
-    assert wrong_type.transpiled and not wrong_type.type_checks
-    assert wrong_type.type_errors[0].line == 3
-    assert not broken.transpiled and "Unexpected token" in (
-        broken.transpile_error or ""
+    assert good.ok
+    assert wrong_type.compiled is not None and not wrong_type.ok
+    assert wrong_type.diagnostics[0].line == 3
+    assert (
+        broken.compiled is None and "Unexpected token" in broken.diagnostics[0].message
     )
 
 

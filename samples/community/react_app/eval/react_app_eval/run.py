@@ -31,7 +31,7 @@ import re
 from typing import Any
 
 from inspect_ai import Task, eval as inspect_eval
-from inspect_ai.log import EvalLog, EvalSample
+from inspect_ai.log import EvalLog, EvalSample, list_eval_logs, read_eval_log
 
 from .tasks import DEFAULT_MODEL, express_multiline_v1_0, react_app_v1_0
 
@@ -59,10 +59,17 @@ class SuiteReport:
     passed_per_epoch: dict[int, float] = field(default_factory=dict)
     per_sample: dict[str, float] = field(default_factory=dict)
     failure_modes: list[tuple[str, int]] = field(default_factory=list)
+    compile: dict[str, float] = field(default_factory=dict)
+    config: dict[str, Any] = field(default_factory=dict)
 
     def to_markdown(self) -> str:
         lines = [
-            f"### {self.suite}",
+            f"### {self.suite}"
+            + (
+                f" ({', '.join(k for k, v in self.config.items() if v)})"
+                if any(self.config.values())
+                else ""
+            ),
             "",
             (
                 f"{self.samples} samples x {self.epochs} runs. A sample passes when"
@@ -82,6 +89,10 @@ class SuiteReport:
             (
                 f"| Judge C / P / I | {self.judge.get('C', 0)} /"
                 f" {self.judge.get('P', 0)} / {self.judge.get('I', 0)} |"
+            ),
+            *(
+                f"| Server compile: {key} | {value:g} |"
+                for key, value in self.compile.items()
             ),
             "",
             "| Sample | Pass rate |",
@@ -170,6 +181,22 @@ def summarize(log: EvalLog) -> SuiteReport:
     }
     report.per_sample = {name: _rate(oks) for name, oks in passes_by_sample.items()}
     report.failure_modes = failures.most_common(8)
+    report.config = {
+        k: (log.eval.metadata or {}).get(k) for k in ("bindings", "repair")
+    }
+    records = [r for s in samples for r in s.metadata.get("react_app_compile") or []]
+    if records:
+        repaired = [r for r in records if r["attempts"]]
+        report.compile = {
+            "apps": len(records),
+            "first-pass ok %": round(100 * _rate([r["first_ok"] for r in records])),
+            "final ok %": round(100 * _rate([r["final_ok"] for r in records])),
+            "repaired apps": len(repaired),
+            "repairs that fixed it": sum(1 for r in repaired if r["final_ok"]),
+            "mean repair rounds": round(_rate([r["attempts"] for r in repaired]), 2),
+            "mean repair ms": round(_rate([r["repair_ms"] for r in repaired])),
+            "mean compile ms": round(_rate([r["compile_ms"] for r in records])),
+        }
     return report
 
 
@@ -180,6 +207,11 @@ def _tasks(suites: Iterable[str], args: argparse.Namespace) -> list[Task]:
             no_judge=args.no_judge,
             tags=args.tags,
             max_validation_retries=args.max_validation_retries,
+            **(
+                {"bindings": args.bindings, "repair": args.repair}
+                if suite == "react_app"
+                else {}
+            ),
         )
         for suite in suites
     ]
@@ -197,8 +229,26 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--max-connections", type=int, default=10)
     parser.add_argument("--max-validation-retries", type=int, default=0)
     parser.add_argument("--log-dir", type=Path, default=_DEFAULT_LOG_DIR)
+    parser.add_argument(
+        "--summarize",
+        type=Path,
+        default=None,
+        help="Only summarize the logs in this directory.",
+    )
+    parser.add_argument(
+        "--bindings", action="store_true", help="Prompt with a2ui:bindings."
+    )
+    parser.add_argument(
+        "--repair",
+        action="store_true",
+        help="Repair apps that fail the server compile.",
+    )
     args = parser.parse_args(argv)
 
+    if args.summarize is not None:
+        for info in list_eval_logs(str(args.summarize)):
+            print(summarize(read_eval_log(info)).to_markdown(), "\n")
+        return
     suites = list(_SUITES) if args.suite == "all" else [args.suite]
     logs = inspect_eval(
         _tasks(suites, args),
