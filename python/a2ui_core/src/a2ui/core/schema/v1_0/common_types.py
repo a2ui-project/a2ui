@@ -200,15 +200,18 @@ class ComponentCommon(SpecBaseModel):
     id: ComponentId = Field(...)
     catalog_id: str | None = Field(
         default=None,
-        alias="catalogId",
+        alias="@catalogId",
         description=(
             "The catalog ID for this component, overriding any surface-level default"
             " catalogId."
         ),
     )
-    accessibility: AccessibilityAttributes | None = Field(default=None)
+    accessibility: AccessibilityAttributes | None = Field(
+        default=None, alias="@accessibility"
+    )
     metadata: ComponentCommonMetadata | None = Field(
         default=None,
+        alias="@metadata",
         description="Optional component-level metadata for vendor extensions.",
     )
 
@@ -324,6 +327,7 @@ class Checkable(SpecBaseModel):
     )
     checks: list[CheckRule] | None = Field(
         default=None,
+        alias="@checks",
         description="A list of validation check rules to perform on the component.",
     )
 

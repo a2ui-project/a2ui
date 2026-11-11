@@ -116,8 +116,9 @@ To ensure a consistent user experience across platforms, A2UI defines a basic se
     All components from v0.9.1, with the following changes:
     - **Text**: `variant` is `caption` or `body`. Render simple Markdown, including headings.
     - **Video**: Support the `posterUrl` property to display a preview image.
-    - **TextField**: Support the `placeholder` property. `value` is required, and `validationRegexp` is removed in favor of `checks` with the `regex` function.
+    - **TextField**: Support the `placeholder` property. `value` is required, and `validationRegexp` is removed in favor of `@checks` with the `regex` function.
     - **Slider**: Support the `steps` property to snap to discrete values.
+    - **Envelope keys**: Read `@catalogId`, `@accessibility`, `@metadata`, and `@checks` (instead of bare `accessibility` and `checks`). A custom component can declare its own `catalogId`, `accessibility`, `metadata`, or `checks` property, which is an ordinary property.
 
 === "v0.9.1"
 

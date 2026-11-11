@@ -14,11 +14,8 @@
 
 import 'package:a2ui_core/a2ui_core.dart';
 
+import '../inference_formats/express/schema_helper.dart';
 import 'catalogs.dart';
-
-/// The keys of a component that are not its properties, so that no function
-/// call is nested in them.
-const Set<String> _envelopeKeys = {'id', 'component', 'catalogId', 'metadata'};
 
 /// Reads the decoded messages of one payload into messages of the protocol
 /// version [catalogs] target, checking each the way a renderer holding
@@ -58,6 +55,11 @@ class MessageReader {
   _validators = {
     for (final CatalogApi catalog in catalogs)
       catalog.id: PayloadValidator(catalog: catalog),
+  };
+
+  late final Map<String, CatalogSchemaHelper> _helpers = {
+    for (final CatalogApi catalog in catalogs)
+      catalog.id: CatalogSchemaHelper(catalog),
   };
 
   /// Checks each `callRendererFunction` as a renderer holding [catalogs]
@@ -173,17 +175,42 @@ class MessageReader {
     }
 
     final Object? id = component['id'];
+    final Object? type = component['component'];
+    final String? defaultCatalog = created
+        ? surfaces[surfaceId]
+        : _declaring(type, components: true);
+    final bool defaultHasCustomCatalogId =
+        type is String &&
+        defaultCatalog != null &&
+        _hasCustomProperty(defaultCatalog, type, 'catalogId');
+    final Object? namedCatalogId = component.containsKey('@catalogId')
+        ? component['@catalogId']
+        : (defaultHasCustomCatalogId ? null : component['catalogId']);
     final String catalogId = resolve(
-      component['catalogId'],
+      namedCatalogId,
       "Component '$id'",
-      _declaring(component['component'], components: true),
+      _declaring(type, components: true),
     );
-    // Given its catalog's id, the validator checks the calls that name that
-    // catalog, and the others are checked below, each against its own.
-    _validator(
+    final PayloadValidator<ComponentApi, FunctionApi> validator = _validator(
       catalogId,
       "Component '$id'",
-    ).validateComponent({...component, 'catalogId': catalogId});
+    );
+    final bool hasCustomCatalogId =
+        type is String && _hasCustomProperty(catalogId, type, 'catalogId');
+    final bool hasCustomMetadata =
+        type is String && _hasCustomProperty(catalogId, type, 'metadata');
+    final bool replaceLegacyCatalogId =
+        !component.containsKey('@catalogId') &&
+        component.containsKey('catalogId') &&
+        !defaultHasCustomCatalogId;
+    // Given its catalog's id, the validator checks the calls that name that
+    // catalog, and the others are checked below, each against its own.
+    validator.validateComponent({
+      for (final MapEntry<String, Object?> entry in component.entries)
+        if (!replaceLegacyCatalogId || entry.key != 'catalogId')
+          entry.key: entry.value,
+      '@catalogId': catalogId,
+    });
 
     void visit(Object? node) {
       switch (node) {
@@ -209,8 +236,24 @@ class MessageReader {
     }
 
     for (final MapEntry<String, Object?> entry in component.entries) {
-      if (!_envelopeKeys.contains(entry.key)) visit(entry.value);
+      final String key = entry.key;
+      if (key == 'id' ||
+          key == 'component' ||
+          key == '@catalogId' ||
+          key == '@metadata' ||
+          (key == 'catalogId' && !hasCustomCatalogId) ||
+          (key == 'metadata' && !hasCustomMetadata)) {
+        continue;
+      }
+      visit(entry.value);
     }
+  }
+
+  bool _hasCustomProperty(String catalogId, String component, String property) {
+    final CatalogSchemaHelper? helper = _helpers[catalogId];
+    return helper != null &&
+        helper.isComponent(component) &&
+        helper.properties(component).contains(property);
   }
 
   /// The validator of the active catalog [catalogId], which [subject] names.
