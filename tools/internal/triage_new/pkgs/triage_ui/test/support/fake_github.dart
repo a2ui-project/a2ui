@@ -29,7 +29,7 @@ ItemRef genui(int number) => (repository: genuiRepository, number: number);
 /// The time the fake items are created at, and later times.
 DateTime day(int n) => DateTime.utc(2026, 11, n);
 
-/// A suggestion comment, as the advisor posts it, with [component] in its
+/// A suggestion comment, as the triage bot posts it, with [component] in its
 /// `<a2ui>` block.
 String suggestionComment(String component) =>
     '''

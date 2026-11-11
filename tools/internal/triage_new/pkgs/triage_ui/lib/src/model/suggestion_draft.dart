@@ -43,14 +43,14 @@ class SuggestionDraft extends ChangeNotifier {
   /// The suggestion that the draft started from.
   final TriageSuggestion _initial;
 
-  /// The advisor's summary, which the triager reads but does not apply.
+  /// The triage bot's summary, which the triager reads but does not apply.
   final String? summary;
 
-  /// The advisor's reason why the item is flagged for triage, which the
+  /// The triage bot's reason why the item is flagged for triage, which the
   /// triager reads but does not apply.
   final String? reason;
 
-  /// The advisor's suggestion, which the triager reads but does not apply.
+  /// The triage bot's suggestion, which the triager reads but does not apply.
   final String? suggestion;
 
   final TextEditingController reply;
@@ -87,7 +87,7 @@ class SuggestionDraft extends ChangeNotifier {
       _set(() => _removedAssignees = value);
 
   /// The title of the milestone to set, or null for no change. The
-  /// triager sets it, since the advisor does not suggest milestones.
+  /// triager sets it, since the triage bot does not suggest milestones.
   String? get newMilestone => _newMilestone;
   set newMilestone(String? value) => _set(() => _newMilestone = value);
 

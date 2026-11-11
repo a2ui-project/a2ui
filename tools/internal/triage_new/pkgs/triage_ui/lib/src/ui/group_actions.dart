@@ -19,8 +19,8 @@ import '../model/triage_controller.dart';
 import '../model/triage_item.dart';
 import 'triage_scope.dart';
 
-/// The buttons that act on all of [items] together: **Apply**, **Needs
-/// team input** and **Revert**.
+/// The buttons that act on all of [items] together: **Apply** and **Needs
+/// team input**. Each item's **Revert** is in its **Edit** tab.
 class GroupActions extends StatelessWidget {
   const GroupActions({super.key, required this.items});
 
@@ -52,7 +52,6 @@ class GroupActions extends StatelessWidget {
           for (final (int k, TriageItem i) in items.indexed)
             if (!i.needsTeamInput && (k == 0 || i.needsTriage)) i,
         ];
-        final bool edited = drafts.any((d) => d.isEdited);
         final all = items.length == 1 ? 'the item' : 'the items';
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
@@ -89,15 +88,6 @@ class GroupActions extends StatelessWidget {
                     child: const Text('Needs team input'),
                   ),
                 ),
-              Tooltip(
-                message: 'Undo your changes in all tabs',
-                child: TextButton(
-                  onPressed: edited && !busy
-                      ? () => controller.revert(items)
-                      : null,
-                  child: const Text('Revert'),
-                ),
-              ),
               if (busy)
                 const SizedBox.square(
                   dimension: 20,

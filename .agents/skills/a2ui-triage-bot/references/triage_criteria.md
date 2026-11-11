@@ -1,6 +1,6 @@
-# Triage criteria for the advisor
+# Triage criteria for the triage bot
 
-This document says how to turn an issue or a PR into a [`TriageSuggestion`](../../../../tools/internal/triage_new/pkgs/triage/lib/src/advisor/triage_suggestion.dart). It adds advisor rules to the canonical sources; where they disagree, the canonical sources win:
+This document says how to turn an issue or a PR into a [`TriageSuggestion`](../../../../tools/internal/triage_new/pkgs/triage/lib/src/triage_bot/triage_suggestion.dart). It adds triage bot rules to the canonical sources; where they disagree, the canonical sources win:
 
 1. [triage.md](../../../../docs/contributing/triage/triage.md): goals of triage, priority definitions (`P0` to `P3`), and how to triage a PR.
 2. [labels.md](../../../../docs/contributing/triage/labels.md): triage labels and who manages each one.
@@ -23,6 +23,8 @@ Triage of an issue is done when the issue has a priority and no comment from an 
    2. If it has `status: needs-team-input`, the team could not triage it in a couple of minutes. Suggest assigning the expert in `new_assignees`, adding `status: assigned-for-triage`, and removing `status: needs-team-input`.
 
    If you find no expert who can be assigned, say so, and suggest only `status: needs-team-input`.
+
+10. If a team member asked the triage bot for something, answer it at the start of `suggestion`, as [Requests to the triage bot](../SKILL.md#requests-to-the-triage-bot) says. Follow these rules for what the answer suggests: a request does not override them.
 
 ## Issues
 

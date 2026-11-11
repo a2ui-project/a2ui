@@ -21,6 +21,7 @@ import '../github/github_client.dart';
 import '../github/triage_service.dart';
 import '../github_item.dart';
 import 'applier.dart';
+import 'log_entry.dart';
 import 'milestone_change.dart';
 import 'suggestion_draft.dart';
 import 'triage_item.dart';
@@ -43,10 +44,14 @@ class TriageController extends ChangeNotifier {
   /// from all the repositories the UI triages.
   List<TriageItem> _queue = const [];
 
-  /// The items in [_queue] that the list shows under **Needs team input**:
-  /// the ones that had `status: needs-team-input` when they were loaded, and
-  /// the ones that the triager sent to the team since. An item stays in its
-  /// group until a refresh, even if the triager removes the label.
+  /// The items in [_queue] that had `status: needs-team-input` when they
+  /// were loaded. The **New** group shows the other items in the queue.
+  Set<ItemRef> _loadedTeamInput = const {};
+
+  /// The items that the list shows under **Needs team input**: the ones in
+  /// [_loadedTeamInput], and the ones that the triager sent to the team
+  /// since, which also stay in their own group. An item stays in the group
+  /// until a refresh, even if the triager removes the label.
   Set<ItemRef> _teamInput = const {};
 
   /// When each item in [_queue] was last updated, as of the last load. The
@@ -85,27 +90,31 @@ class TriageController extends ChangeNotifier {
   final Set<ItemRef> _changedOnGitHub = {};
   final Map<ItemRef, SuggestionDraft> _drafts = {};
   final Map<ItemRef, ApplyResult> _results = {};
+  final Map<ItemRef, List<LogEntry>> _logs = {};
   final Set<ItemRef> _applying = {};
 
   /// The items in the **New** group, in the order the list shows them.
   List<TriageItem> get newItems =>
-      _sorted(_queue.where((i) => !_teamInput.contains(i.ref)));
+      _sorted(_queue.where((i) => !_loadedTeamInput.contains(i.ref)));
 
   /// The items in the **Needs team input** group, in the order the list
-  /// shows them.
+  /// shows them. An item that the triager sent to the team is also in its
+  /// own group.
   List<TriageItem> get teamInputItems =>
-      _sorted(_queue.where((i) => _teamInput.contains(i.ref)));
+      _sorted([..._queue, ..._opened].where((i) => _teamInput.contains(i.ref)));
 
   /// The items opened by URL that are not in the queue, in the order the
   /// triager opened them.
   List<TriageItem> get opened => _opened;
 
-  /// All items, in the order the list shows them.
-  List<TriageItem> get orderedItems => [
-    ...newItems,
-    ...teamInputItems,
-    ..._opened,
-  ];
+  /// All items, each once, in the order the list first shows them.
+  List<TriageItem> get orderedItems {
+    final seen = <ItemRef>{};
+    return [
+      for (final i in [...newItems, ...teamInputItems, ..._opened])
+        if (seen.add(i.ref)) i,
+    ];
+  }
 
   /// How many items in the queue the triager neither applied a suggestion
   /// to nor sent to the team.
@@ -211,6 +220,12 @@ class TriageController extends ChangeNotifier {
 
   ApplyResult? lastResult(ItemRef item) => _results[item];
 
+  /// What the tool did to [item] in this session, and what it found out
+  /// about it, oldest first. Kept across refreshes.
+  List<LogEntry> logOf(ItemRef item) => _logs[item] ?? const [];
+
+  void _log(ItemRef item, LogEntry entry) => (_logs[item] ??= []).add(entry);
+
   /// The draft for [item], which starts as [initial], or as the item's
   /// suggestion if [initial] is null, and removes `status: needs-triage`
   /// if the item has it.
@@ -279,6 +294,13 @@ class TriageController extends ChangeNotifier {
         _changedOnGitHub.add(i.ref);
         _drafts.remove(i.ref)?.dispose();
         _results.remove(i.ref);
+        _log(
+          i.ref,
+          LogEntry(
+            'A refresh found that the item changed on GitHub, and reset '
+            'its suggestion to the current state',
+          ),
+        );
       }
     }
     _setQueue(queue);
@@ -369,10 +391,17 @@ class TriageController extends ChangeNotifier {
       milestones: repositoryInfo(item.repository).milestones,
     );
     _results[n] = result;
+    _log(
+      n,
+      LogEntry(
+        result.succeeded ? 'Applied the suggestion' : 'Some changes failed',
+        steps: result.steps,
+      ),
+    );
     if (result.succeeded) {
       session.recordApplied(item, suggestion, milestone: milestone);
       if (suggestion.addedLabels.contains(needsTeamInputLabel)) {
-        _moveToTeamInput(item);
+        _addToTeamInput(item);
       }
     }
     await _finish(n);
@@ -383,9 +412,9 @@ class TriageController extends ChangeNotifier {
   /// [comment] under [teamNoteHeading], if the triager wrote one. Does not
   /// apply the draft, so the item stays open even if the draft closes it.
   ///
-  /// On success, records the item in the session, moves it to the
-  /// **Needs team input** group and, if it is selected, selects the next
-  /// item that is not handled yet.
+  /// On success, records the item in the session, adds it to the
+  /// **Needs team input** group, keeping it in its own group too, and, if it
+  /// is selected, selects the next item that is not handled yet.
   Future<void> sendToTeam(TriageItem item, {String? comment}) =>
       sendAllToTeam([item], comment: comment);
 
@@ -410,28 +439,52 @@ class TriageController extends ChangeNotifier {
     _error = null;
     notifyListeners();
 
+    const addLabel = 'Add labels: $needsTeamInputLabel';
+    const postComment = 'Post the comment for the team';
     try {
       await _service!.addLabels(n, const [needsTeamInputLabel]);
     } on GitHubException catch (e) {
       _error =
           'Could not add "$needsTeamInputLabel" to ${item.name}: '
           '${e.message}';
+      _log(
+        n,
+        LogEntry(
+          'Could not send the item to the team',
+          steps: [
+            StepResult(addLabel, StepStatus.failed, error: e.message),
+            if (comment != null)
+              StepResult(postComment, StepStatus.notRun, text: comment),
+          ],
+        ),
+      );
       await _finish(n);
       return false;
     }
+    final steps = [const StepResult(addLabel, StepStatus.done)];
     var commented = comment != null;
     if (comment != null) {
       try {
         await _service!.postComment(n, '$teamNoteHeading$comment');
+        steps.add(StepResult(postComment, StepStatus.done, text: comment));
       } on GitHubException catch (e) {
         commented = false;
         _error =
             'Added "$needsTeamInputLabel" to ${item.name}, but could not '
             'post the comment: ${e.message}';
+        steps.add(
+          StepResult(
+            postComment,
+            StepStatus.failed,
+            error: e.message,
+            text: comment,
+          ),
+        );
       }
     }
+    _log(n, LogEntry('Sent the item to the team', steps: steps));
     session.recordSentToTeam(item, comment: commented ? comment : null);
-    _moveToTeamInput(item);
+    _addToTeamInput(item);
     await _finish(n);
     return true;
   }
@@ -473,17 +526,10 @@ class TriageController extends ChangeNotifier {
     );
   }
 
-  /// Moves [item] to the **Needs team input** group, from the queue or from
-  /// the items opened by URL.
-  void _moveToTeamInput(TriageItem item) {
+  /// Adds [item] to the **Needs team input** group. It stays in its own
+  /// group too.
+  void _addToTeamInput(TriageItem item) {
     final ItemRef n = item.ref;
-    if (this.item(n) != null && !_queue.any((i) => i.ref == n)) {
-      _opened = [
-        for (final i in _opened)
-          if (i.ref != n) i,
-      ];
-      _queue = [..._queue, item];
-    }
     _teamInput = {..._teamInput, n};
     _listedUpdatedAt = {n: item.updatedAt, ..._listedUpdatedAt};
   }
@@ -504,10 +550,11 @@ class TriageController extends ChangeNotifier {
 
   void _setQueue(List<TriageItem> queue) {
     _queue = queue;
-    _teamInput = {
+    _loadedTeamInput = {
       for (final i in queue)
         if (i.needsTeamInput) i.ref,
     };
+    _teamInput = _loadedTeamInput;
     _listedUpdatedAt = {for (final i in queue) i.ref: i.updatedAt};
   }
 

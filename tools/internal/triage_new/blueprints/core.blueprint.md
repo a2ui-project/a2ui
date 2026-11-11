@@ -22,10 +22,10 @@ The triage process is described in [triage.md](../../../../docs/contributing/tri
    2. Started by: a GitHub workflow.
    3. Needs to: comment on items, and send messages to team members.
 
-3. The [advisor](features/advisor.blueprint.md#triage-suggestions) posts a triage suggestion on each item that needs triage.
+3. The [triage bot](features/triage_bot.blueprint.md#triage-suggestions) posts a triage suggestion on each item with `status: needs-triage` or `status: needs-team-input`, and answers [requests to the triage bot](features/triage_bot.blueprint.md#requests-to-the-triage-bot) from team members.
 
    1. Runs: daily.
-   2. Started by: a scheduled agent that runs the [a2ui-triage-advisor](../../../../.agents/skills/a2ui-triage-advisor/SKILL.md) skill.
+   2. Started by: a scheduled agent that runs the [a2ui-triage-bot](../../../../.agents/skills/a2ui-triage-bot/SKILL.md) skill.
    3. Needs to: query an AI agent, and comment on items.
 
 4. The [triage UI](features/ui.blueprint.md) helps the triager finalize the suggestions and apply them, or postpone the items till the team discussion with `status: needs-team-input`. Once an item is triaged, the flagger removes its `status: needs-triage`.

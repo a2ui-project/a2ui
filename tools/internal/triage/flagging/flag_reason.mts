@@ -15,7 +15,7 @@
  */
 
 // Prints why the flagger flags each given issue or PR, with the same rules
-// and data that triage.mts uses. The triage advisor copies the reason into the
+// and data that triage.mts uses. The triage bot copies the reason into the
 // `reason` property of its suggestion.
 //
 // Usage, from the repository root:

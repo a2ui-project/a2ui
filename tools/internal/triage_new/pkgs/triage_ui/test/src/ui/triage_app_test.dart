@@ -472,15 +472,23 @@ void main() {
       'POST issues/20/comments '
           '{"body":"**From triager for team discussion:**\\n\\nIs this a P0?"}',
     ]);
-    expect(find.text('New (1)'), findsOneWidget);
+    // The items stay in their group, and are also under Needs team input,
+    // marked as sent to the team in both.
+    expect(find.text('New (3)'), findsOneWidget);
     expect(find.text('Issue #11: Docs are unclear'), findsOneWidget);
     await expand(tester, 'Needs team input (2)');
     await expand(tester, 'Issues with open PRs (1)');
     expect(find.byIcon(Icons.groups), findsOneWidget);
+    await tester.tap(find.text('Issues with open PRs (1)').first);
+    await tester.pumpAndSettle();
+    final Finder sent = inList('#10 Flutter renderer crashes on an empty Row');
+    expect(sent, findsNWidgets(2));
+    expect(find.byIcon(Icons.groups), findsNWidgets(2));
 
     // The comment shows with the suggestion.
-    await tester.tap(inList('#10 Flutter renderer crashes on an empty Row'));
+    await tester.tap(sent.last);
     await tester.pumpAndSettle();
+    expect(sent, findsNWidgets(2));
     expect(find.text('From @octocat for team discussion'), findsOneWidget);
     expect(find.text('Is this a P0?'), findsOneWidget);
     expect(find.text('Summary'), findsOneWidget);

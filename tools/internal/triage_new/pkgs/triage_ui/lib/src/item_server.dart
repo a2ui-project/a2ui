@@ -22,7 +22,7 @@ import 'github_item.dart';
 ///
 /// Listens on 127.0.0.1 and accepts `POST /open` with the URL of an item in
 /// the `item` form field. See
-/// `tools/internal/triage_new/blueprints/features/advisor.blueprint.md`.
+/// `tools/internal/triage_new/blueprints/features/triage_bot.blueprint.md`.
 final class ItemServer {
   ItemServer._(this._server);
 

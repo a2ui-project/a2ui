@@ -27,9 +27,11 @@ The list of items holds the issues and PRs of [`a2ui-project/a2ui`](https://gith
 
 1. **New**: open items with `status: needs-triage` and without `status: needs-team-input`.
 2. **Needs team input**: open items with `status: needs-team-input`.
-3. **Not in the queue**: items that the triager opened from a [suggestion comment](advisor.blueprint.md#the-suggestion-comment) or by URL, and that are in neither group above.
+3. **Not in the queue**: items that the triager opened from a [suggestion comment](triage_bot.blueprint.md#the-suggestion-comment) or by URL, and that are in neither group above.
 
-An item in `flutter/genui` shows "genui" before its number, as in "genui #12", because the two repositories number their items separately. The tool triages it as an item in `a2ui-project/a2ui`, except that its changes go to `flutter/genui`, and its label, assignee and milestone choices are those of `flutter/genui`. The advisor comments only on `a2ui-project/a2ui`, so items in `flutter/genui` have no suggestion.
+The groups are set when the items load. An item that the triager sends to the team in this session stays in its group, and also shows in **Needs team input**, so it is listed twice until a refresh.
+
+An item in `flutter/genui` shows "genui" before its number, as in "genui #12", because the two repositories number their items separately. The tool triages it as an item in `a2ui-project/a2ui`, except that its changes go to `flutter/genui`, and its label, assignee and milestone choices are those of `flutter/genui`. The triage bot comments only on `a2ui-project/a2ui`, so items in `flutter/genui` have no suggestion.
 
 The groups list issues with open PRs first, then issues without open PRs, then PRs with linked issues, then PRs without linked issues. Each of these lists starts with the items that have a suggestion, current or outdated, and then the items without one. Within each of these, the least recently updated item comes first.
 
@@ -37,10 +39,10 @@ Each group has a subgroup for each type of item it has. An open PR of an issue i
 
 An item's flags show:
 
-1. Whether it has a suggestion, and whether the suggestion is [current or outdated](advisor.blueprint.md#current-and-outdated-suggestions). A suggestion comment that does not parse counts as no suggestion.
+1. Whether it has a suggestion, and whether the suggestion is [current or outdated](triage_bot.blueprint.md#current-and-outdated-suggestions). A suggestion comment that does not parse counts as no suggestion.
 2. Its linked PRs, for an issue, and its linked issues, for a PR.
 3. `status: needs-team-input`.
-4. Whether the triager has applied its suggestion in this session.
+4. Whether the triager has applied its suggestion or sent it to the team in this session. A sent item shows a team icon in both of its groups.
 
 Issues are green and PRs are orange, in every group. Each type of item has its own icon:
 
@@ -61,9 +63,9 @@ Nothing is selected when the tool starts, unless it starts with an item from a s
 
 ### Editable suggestion
 
-The editable suggestion is the triage UI's implementation of the [`TriageSuggestion`](advisor.blueprint.md#the-triagesuggestion-component) A2UI component. It renders the component from the item's suggestion comment, or an empty one when the item has no suggestion.
+The editable suggestion is the triage UI's implementation of the [`TriageSuggestion`](triage_bot.blueprint.md#the-triagesuggestion-component) A2UI component. It renders the component from the item's suggestion comment, or an empty one when the item has no suggestion.
 
-The `summary`, the `reason` and the `suggestion` are shown as text, with each URL in them as a link that opens in the browser. Below them is the latest comment for the team, if the item has one: a comment by a team member that starts with `**From triager for team discussion:**`, as **Needs team input** posts it. It is shown the same way, without the heading, under "From @login for team discussion", so the team reads the triager's question together with the advisor's suggestion. The triager can change the other properties: the reply, how to close the item, the labels and the assignees. The triager also sets the item's priority, and its milestone, which the advisor does not suggest.
+The `summary`, the `reason` and the `suggestion` are shown as text, with each URL in them as a link that opens in the browser. Below them is the latest comment for the team, if the item has one: a comment by a team member that starts with `**From triager for team discussion:**`, as **Needs team input** posts it. It is shown the same way, without the heading, under "From @login for team discussion", so the team reads the triager's question together with the triage bot's suggestion. The triager can change the other properties: the reply, how to close the item, the labels and the assignees. The triager also sets the item's priority, and its milestone, which the triage bot does not suggest.
 
 1. The priority is a segmented button with `P0` to `P3`, without a field frame, with none or one of them selected. Selecting a priority adds its label and removes the item's other priority labels. Clicking the selected priority again removes them all. The other fields leave out the priority labels.
 2. The triager checks the labels, people and milestone to add in a dropdown: the repository's labels, the people who can be assigned, and its open milestones. An item has at most one milestone, so checking one in its dropdown unchecks the other. The dropdown lists the checked options first. A dropdown with more than 7 options has a search field at the top.
@@ -96,34 +98,34 @@ Ann is done with the **New** group when every item in it is applied or [needs te
 The suggestion for an issue says P1, but Ann thinks the issue is P2.
 
 1. Ann replaces `P1` with `P2` in the labels to add, and rewrites the reply.
-2. Ann clicks **Apply**. The tool applies the edited suggestion, not the advisor's original.
+2. Ann clicks **Apply**. The tool applies the edited suggestion, not the triage bot's original.
 
 ### Open an item from its suggestion comment
 
 1. Ann reads an issue on GitHub and wants to triage it now.
-2. Ann copies the command from the [suggestion comment](advisor.blueprint.md#the-suggestion-comment) and runs it in a terminal in the a2ui checkout.
+2. Ann copies the command from the [suggestion comment](triage_bot.blueprint.md#the-suggestion-comment) and runs it in a terminal in the a2ui checkout.
 3. If the tool is running, it shows the issue. Otherwise the command starts the tool with the issue.
 
 The tool shows the item even if the item no longer has `status: needs-triage`.
 
 ### Triage an item without a suggestion
 
-The advisor has not commented on a new issue yet, or its comment does not parse. The list shows that the issue has no suggestion. When Ann selects it, the details show an empty suggestion. Ann fills it in and clicks **Apply**.
+The triage bot has not commented on a new issue yet, or its comment does not parse. The list shows that the issue has no suggestion. When Ann selects it, the details show an empty suggestion. Ann fills it in and clicks **Apply**.
 
 ### Check an outdated suggestion
 
-Someone commented on the item after the advisor did, so the suggestion is [outdated](advisor.blueprint.md#current-and-outdated-suggestions). The details say so and link to the item. Ann reads the new comment on GitHub, adjusts the suggestion, and clicks **Apply**.
+Someone commented on the item after the triage bot did, so the suggestion is [outdated](triage_bot.blueprint.md#current-and-outdated-suggestions). The details say so and link to the item. Ann reads the new comment on GitHub, adjusts the suggestion, and clicks **Apply**.
 
 ### Ask the team
 
-Ann cannot triage an item in a couple of minutes, or the suggestion says that the advisor could not decide. Ann clicks **Needs team input** and writes a comment for the team. The tool adds `status: needs-team-input`, posts the comment under "From triager for team discussion", and moves the item to the **Needs team input** group. The item stays open, even if its suggestion closes it.
+Ann cannot triage an item in a couple of minutes, or the suggestion says that the triage bot could not decide. Ann clicks **Needs team input** and writes a comment for the team. The tool adds `status: needs-team-input`, posts the comment under "From triager for team discussion", and adds the item to the **Needs team input** group. The item also stays in its own group, with a team icon. It stays open, even if its suggestion closes it.
 
 ### Triage with the team
 
-Ann goes through the **Needs team input** group with other team members. For each item, the details show Ann's comment for the team below the advisor's suggestion. Then:
+Ann goes through the **Needs team input** group with other team members. For each item, the details show Ann's comment for the team below the triage bot's suggestion. Then:
 
 1. If they can triage it in a couple of minutes, Ann adjusts the suggestion and clicks **Apply**.
-2. Otherwise, they pick an expert in the area. The advisor suggests one from the commit history of the affected area (see [Suggested assignees](advisor.blueprint.md#suggested-assignees)). Ann adds `status: assigned-for-triage` to the labels, adds the expert to the assignees, and clicks **Apply**.
+2. Otherwise, they pick an expert in the area. The triage bot suggests one from the commit history of the affected area (see [Suggested assignees](triage_bot.blueprint.md#suggested-assignees)). Ann adds `status: assigned-for-triage` to the labels, adds the expert to the assignees, and clicks **Apply**.
 
 In both cases, the tool removes `status: needs-team-input` from the item.
 

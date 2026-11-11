@@ -15,6 +15,6 @@
 /// Triage of GitHub items in the A2UI repository.
 library;
 
-export 'src/advisor/suggestion.dart';
-export 'src/advisor/suggestion_comment.dart';
-export 'src/advisor/triage_suggestion.dart';
+export 'src/triage_bot/suggestion.dart';
+export 'src/triage_bot/suggestion_comment.dart';
+export 'src/triage_bot/triage_suggestion.dart';

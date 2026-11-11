@@ -22,15 +22,20 @@ import '../model/suggestion_draft.dart';
 import '../model/triage_controller.dart';
 import '../model/triage_item.dart';
 import 'chip_list_field.dart';
+import 'item_info.dart';
+import 'item_log.dart';
 import 'label_colors.dart';
-import 'links.dart';
 import 'remove_list_field.dart';
 import 'triage_scope.dart';
 
-/// The triage suggestion for [item], which the triager edits and applies.
+/// The triage suggestion for [item], which the triager edits and applies:
+/// the reply, how to close the item, its priority, labels, assignees and
+/// milestone, and **Revert**. Shows the steps of the last apply if it
+/// failed.
 ///
 /// The edits are kept in the controller's draft for [item], which starts as
-/// [initial].
+/// [initial]. The details show the summary, reason and suggestion of the
+/// draft next to the editor, in [ItemInfo].
 class SuggestionEditor extends StatelessWidget {
   const SuggestionEditor({
     super.key,
@@ -51,9 +56,6 @@ class SuggestionEditor extends StatelessWidget {
     return ListenableBuilder(
       listenable: draft,
       builder: (context, _) {
-        final String? summary = draft.summary;
-        final String? reason = draft.reason;
-        final String? suggestion = draft.suggestion;
         final bool applying = controller.isApplying(item.ref);
         final ApplyResult? result = controller.lastResult(item.ref);
         final RepositoryInfo info = controller.repositoryInfo(item.repository);
@@ -67,17 +69,18 @@ class SuggestionEditor extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           spacing: 16,
           children: [
-            if (summary != null) _Text('Summary', summary),
-            if (reason != null) _Text('Why flagged for triage', reason),
-            if (suggestion != null) _Text('Suggestion', suggestion),
-            if (item.teamNote case final TeamNote note)
-              _Text(
-                'From ${note.author == null ? 'triager' : '@${note.author}'} '
-                'for team discussion',
-                note.text,
+            Align(
+              alignment: Alignment.centerRight,
+              child: Tooltip(
+                message: 'Undo your changes to this suggestion',
+                child: TextButton(
+                  onPressed: draft.isEdited && !applying
+                      ? () => controller.revert([item])
+                      : null,
+                  child: const Text('Revert'),
+                ),
               ),
-            _RelatedItems(item: item, draft: draft),
-            const Divider(),
+            ),
             TextField(
               controller: draft.reply,
               minLines: 2,
@@ -216,7 +219,8 @@ class SuggestionEditor extends StatelessWidget {
               onChanged: (List<String> v) =>
                   draft.removedMilestone = v.firstOrNull,
             ),
-            if (result != null && !applying) _ApplyResultView(result),
+            if (result != null && !result.succeeded && !applying)
+              _FailedApply(result),
           ],
         );
       },
@@ -314,152 +318,26 @@ class _PriorityField extends StatelessWidget {
   }
 }
 
-class _Text extends StatelessWidget {
-  const _Text(this.title, this.text);
+/// The steps of an apply that failed, so that the triager can fix the
+/// problem and apply again. The item's log has every apply.
+class _FailedApply extends StatelessWidget {
+  const _FailedApply(this.result);
 
-  final String title;
-  final String text;
+  final ApplyResult result;
 
   @override
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     spacing: 4,
     children: [
-      Text(title, style: Theme.of(context).textTheme.titleSmall),
-      LinkifiedText(text),
+      Text(
+        'Some changes failed. Fix the problem and click Apply again. '
+        'A reply that was posted is not posted again.',
+        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+          color: Theme.of(context).colorScheme.error,
+        ),
+      ),
+      StepList(result.steps),
     ],
   );
-}
-
-/// Links to the items that the item is linked to, and to the ones the
-/// suggestion names.
-class _RelatedItems extends StatelessWidget {
-  const _RelatedItems({required this.item, required this.draft});
-
-  final TriageItem item;
-  final SuggestionDraft draft;
-
-  @override
-  Widget build(BuildContext context) {
-    final TriageController controller = TriageScope.of(context);
-    final int? duplicateOf = draft.toSuggestion().duplicateOf;
-    // "(closed)" or "(merged)" once the item is known to be.
-    // The numbers are in the item's repository.
-    String closed(int n) => switch (controller.closedAs(item.refTo(n))) {
-      final String state => ' ($state)',
-      null => '',
-    };
-    String issue(int n) => issueUrl(item.refTo(n));
-    String pullRequest(int n) => pullRequestUrl(item.refTo(n));
-    final links = <(String, String)>[
-      for (final int n in item.linkedItems)
-        item.isPullRequest
-            ? ('Fixes issue #$n${closed(n)}', issue(n))
-            : ('Fixed by PR #$n${closed(n)}', pullRequest(n)),
-      if (duplicateOf != null)
-        (
-          'Duplicate of #$duplicateOf${closed(duplicateOf)}',
-          issue(duplicateOf),
-        ),
-      for (final int n in draft.relatedIssues)
-        ('Issue #$n${closed(n)}', issue(n)),
-      for (final int n in draft.relatedPrs)
-        ('PR #$n${closed(n)}', pullRequest(n)),
-    ];
-    if (links.isEmpty) return const SizedBox.shrink();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      spacing: 4,
-      children: [
-        Text('Related items', style: Theme.of(context).textTheme.titleSmall),
-        Wrap(
-          spacing: 12,
-          runSpacing: 4,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            for (final (String text, String url) in links)
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                spacing: 2,
-                children: [
-                  ActionChip(
-                    label: Text(text),
-                    tooltip: url,
-                    onPressed: () => openUrl(url),
-                  ),
-                  CopyLinkButton(url),
-                ],
-              ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _ApplyResultView extends StatelessWidget {
-  const _ApplyResultView(this.result);
-
-  final ApplyResult result;
-
-  @override
-  Widget build(BuildContext context) {
-    final ColorScheme colors = Theme.of(context).colorScheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      spacing: 4,
-      children: [
-        Text(
-          result.succeeded
-              ? 'Applied.'
-              : 'Some changes failed. Fix the problem and click Apply again. '
-                    'A reply that was posted is not posted again.',
-          style: Theme.of(context).textTheme.titleSmall,
-        ),
-        for (final StepResult step in result.steps)
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            spacing: 8,
-            children: [
-              switch (step.status) {
-                StepStatus.done => Icon(
-                  Icons.check,
-                  size: 18,
-                  color: colors.primary,
-                  semanticLabel: 'Done',
-                ),
-                StepStatus.skipped => const Icon(
-                  Icons.redo,
-                  size: 18,
-                  semanticLabel: 'Skipped',
-                ),
-                StepStatus.failed => Icon(
-                  Icons.error_outline,
-                  size: 18,
-                  color: colors.error,
-                  semanticLabel: 'Failed',
-                ),
-                StepStatus.notRun => const Icon(
-                  Icons.remove,
-                  size: 18,
-                  semanticLabel: 'Not run',
-                ),
-              },
-              Expanded(
-                child: Text(
-                  [
-                    step.description,
-                    if (step.status == StepStatus.notRun) '(not run)',
-                    if (step.error case final String error) '\n$error',
-                  ].join(' '),
-                  style: step.status == StepStatus.failed
-                      ? TextStyle(color: colors.error)
-                      : null,
-                ),
-              ),
-            ],
-          ),
-      ],
-    );
-  }
 }

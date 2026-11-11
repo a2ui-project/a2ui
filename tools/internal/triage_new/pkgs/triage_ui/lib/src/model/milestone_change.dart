@@ -15,7 +15,7 @@
 /// A change of an item's milestone, which the triager makes in the triage
 /// UI.
 ///
-/// The advisor does not suggest milestones, so the change is not part of a
+/// The triage bot does not suggest milestones, so the change is not part of a
 /// `TriageSuggestion`.
 final class MilestoneChange {
   const MilestoneChange({this.set, this.remove});

@@ -358,8 +358,10 @@ void main() {
     ]);
     // The tool picks up the comment, to show it with the suggestion.
     expect(controller.item(a2ui(10))!.teamNote?.text, 'Thoughts.');
-    expect(numbers(controller.newItems), [11, 20, 21]);
+    // The item stays in its group, and is also under Needs team input.
+    expect(numbers(controller.newItems), [11, 10, 20, 21]);
     expect(numbers(controller.teamInputItems), [10, 40, 41]);
+    expect(numbers(controller.orderedItems), [11, 10, 20, 21, 40, 41]);
     expect(controller.selected!.number, 20);
     expect(controller.remaining, 5);
     expect(controller.session.isSentToTeam(a2ui(10)), isTrue);
@@ -375,7 +377,7 @@ void main() {
     expect(github.calls, [
       'POST issues/30/labels {"labels":["status: needs-team-input"]}',
     ]);
-    expect(controller.opened, isEmpty);
+    expect(numbers(controller.opened), [30]);
     expect(numbers(controller.teamInputItems), [30, 40, 41]);
   });
 

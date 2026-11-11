@@ -105,7 +105,7 @@ class _ChipListFieldState extends State<ChipListField> {
   @override
   Widget build(BuildContext context) {
     // The options, and the values that are not among them, such as labels
-    // that the advisor suggested and the repository does not have, so that
+    // that the triage bot suggested and the repository does not have, so that
     // they can be unchecked too.
     final List<String> all = [
       for (final v in widget.values)

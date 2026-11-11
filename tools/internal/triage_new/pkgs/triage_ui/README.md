@@ -1,7 +1,7 @@
 # triage_ui
 
 The triage UI, a macOS Flutter app that helps the triager go through the
-GitHub items in the A2UI repository that need triage, and apply the advisor's
+GitHub items in the A2UI repository that need triage, and apply the triage bot's
 triage suggestions. [ui.blueprint.md](../../blueprints/features/ui.blueprint.md)
 describes what it does.
 

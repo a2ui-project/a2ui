@@ -32,13 +32,16 @@ enum StepStatus {
 
 /// One change that applying a suggestion makes, and how it went.
 final class StepResult {
-  const StepResult(this.description, this.status, {this.error});
+  const StepResult(this.description, this.status, {this.error, this.text});
 
   final String description;
   final StepStatus status;
 
   /// Why the step failed.
   final String? error;
+
+  /// The text that the step posts, such as the reply.
+  final String? text;
 }
 
 /// How applying a suggestion to an item went, step by step.
@@ -87,59 +90,53 @@ Future<ApplyResult> applySuggestion(
   final String? closeAs = suggestion.closeAs;
   final String? newMilestone = milestone.set;
   final String? removedMilestone = milestone.remove;
-  final steps = <(String, Future<void> Function()?)>[
+  final steps = <_Step>[
     if (reply != null)
       replyPosted
-          ? ('Post the reply: already posted', null)
-          : (
-              'Post the reply',
-              () async {
-                await service.postComment(n, reply);
-                onReplyPosted();
-              },
-            ),
+          ? _Step('Post the reply: already posted', null, text: reply)
+          : _Step('Post the reply', () async {
+              await service.postComment(n, reply);
+              onReplyPosted();
+            }, text: reply),
     if (suggestion.removedLabels.isNotEmpty)
-      (
+      _Step(
         'Remove labels: ${suggestion.removedLabels.join(', ')}',
         () => service.removeLabels(n, suggestion.removedLabels),
       ),
     if (suggestion.addedLabels.isNotEmpty)
-      (
+      _Step(
         'Add labels: ${suggestion.addedLabels.join(', ')}',
         () => service.addLabels(n, suggestion.addedLabels),
       ),
     if (suggestion.removedAssignees.isNotEmpty)
-      (
+      _Step(
         'Unassign: ${suggestion.removedAssignees.join(', ')}',
         () => service.removeAssignees(n, suggestion.removedAssignees),
       ),
     if (suggestion.newAssignees.isNotEmpty)
-      (
+      _Step(
         'Assign: ${suggestion.newAssignees.join(', ')}',
         () => service.addAssignees(n, suggestion.newAssignees),
       ),
     if (newMilestone != null)
-      (
-        'Set milestone: $newMilestone',
-        () async {
-          final int? number = milestones[newMilestone];
-          if (number == null) {
-            throw GitHubException('There is no open milestone $newMilestone.');
-          }
-          await service.setMilestone(n, number);
-        },
-      )
+      _Step('Set milestone: $newMilestone', () async {
+        final int? number = milestones[newMilestone];
+        if (number == null) {
+          throw GitHubException('There is no open milestone $newMilestone.');
+        }
+        await service.setMilestone(n, number);
+      })
     // Setting a milestone replaces the old one, so removing it is needed
     // only without a new one.
     else if (removedMilestone != null)
       item.milestone == removedMilestone
-          ? (
+          ? _Step(
               'Remove milestone: $removedMilestone',
               () => service.setMilestone(n, null),
             )
-          : ('Remove milestone: $removedMilestone: not on the item', null),
+          : _Step('Remove milestone: $removedMilestone: not on the item', null),
     if (closeAs != null)
-      (
+      _Step(
         'Close ${closeReason(item, suggestion)}'.trim(),
         () => service.close(item, closeAs, duplicateOf: suggestion.duplicateOf),
       ),
@@ -147,22 +144,36 @@ Future<ApplyResult> applySuggestion(
 
   final results = <StepResult>[];
   var failed = false;
-  for (final (String description, Future<void> Function()? run) in steps) {
+  for (final _Step step in steps) {
+    StepResult result(StepStatus status, {String? error}) =>
+        StepResult(step.description, status, error: error, text: step.text);
+    final run = step.run;
     if (failed) {
-      results.add(StepResult(description, StepStatus.notRun));
+      results.add(result(StepStatus.notRun));
     } else if (run == null) {
-      results.add(StepResult(description, StepStatus.skipped));
+      results.add(result(StepStatus.skipped));
     } else {
       try {
         await run();
-        results.add(StepResult(description, StepStatus.done));
+        results.add(result(StepStatus.done));
       } on GitHubException catch (e) {
         failed = true;
-        results.add(
-          StepResult(description, StepStatus.failed, error: e.message),
-        );
+        results.add(result(StepStatus.failed, error: e.message));
       }
     }
   }
   return ApplyResult(List.unmodifiable(results));
+}
+
+/// A change that [applySuggestion] makes: what it does, how, and the text it
+/// posts.
+final class _Step {
+  const _Step(this.description, this.run, {this.text});
+
+  final String description;
+
+  /// Makes the change, or null if it is not needed.
+  final Future<void> Function()? run;
+
+  final String? text;
 }

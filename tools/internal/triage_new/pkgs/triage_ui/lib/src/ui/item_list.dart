@@ -60,7 +60,9 @@ Color _shade(BuildContext context, MaterialColor color) =>
 Color kindBackground(Color color) => color.withValues(alpha: 0.08);
 
 /// The items, in the groups `ui.blueprint.md` describes: **New**, **Needs
-/// team input**, and the items opened by URL that are not in the queue.
+/// team input**, and the items opened by URL that are not in the queue. An
+/// item that the triager sent to the team is in its own group and in
+/// **Needs team input**.
 ///
 /// The groups start collapsed. When the controller selects an item on its
 /// own, such as an item opened by URL, the list expands the item's group
@@ -86,6 +88,12 @@ class _ItemListState extends State<ItemList> {
       ('Needs team input', controller.teamInputItems),
       if (controller.opened.isNotEmpty) ('Not in the queue', controller.opened),
     ];
+    // The first group with the selected item, whose tile is the one to
+    // scroll to.
+    final String? selectedIn = [
+      for (final (String title, List<TriageItem> items) in sections)
+        if (items.any((i) => i.ref == selected)) title,
+    ].firstOrNull;
     if (controller.revealCount != _revealCount) {
       _revealCount = controller.revealCount;
       for (final (String title, List<TriageItem> items) in sections) {
@@ -122,25 +130,28 @@ class _ItemListState extends State<ItemList> {
             ),
             if (_expanded.contains(title))
               for (final ItemKind kind in ItemKind.values)
-                ..._subgroup(_subgroupKey(title, kind), kind, [
+                ..._subgroup(title, kind, [
                   for (final i in items)
                     if (i.kind == kind) i,
-                ], selected: selected),
+                ], selected: title == selectedIn ? selected : null),
           ],
         ],
       ),
     );
   }
 
-  /// The header of the subgroup of [kind] with [key], and its [items] if it
-  /// is expanded. Nothing if there are no [items].
+  /// The header of the subgroup of [kind] in the group [title], and its
+  /// [items] if it is expanded. Nothing if there are no [items].
+  ///
+  /// The tile of [selected] gets the key to scroll to.
   List<Widget> _subgroup(
-    String key,
+    String title,
     ItemKind kind,
     List<TriageItem> items, {
     required ItemRef? selected,
   }) {
     if (items.isEmpty) return const [];
+    final String key = _subgroupKey(title, kind);
     final bool expanded = _expanded.contains(key);
     final (_, IconData icon, Color color) = kindStyle(context, kind);
     return [
@@ -162,7 +173,9 @@ class _ItemListState extends State<ItemList> {
         for (final TriageItem item in items)
           _ItemTile(
             item,
-            key: item.ref == selected ? _selectedKey : ValueKey(item.ref),
+            key: item.ref == selected
+                ? _selectedKey
+                : ValueKey((title, item.ref)),
           ),
     ];
   }

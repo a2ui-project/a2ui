@@ -1,4 +1,4 @@
-# Advisor
+# Triage bot
 
 The terms are defined in [core.blueprint.md](../core.blueprint.md).
 
@@ -6,7 +6,7 @@ The terms are defined in [core.blueprint.md](../core.blueprint.md).
 
 A triage suggestion says what the triager should do with an issue or a PR. It goes through these steps:
 
-1. The advisor, the [a2ui-triage-advisor](../../../../../.agents/skills/a2ui-triage-advisor/SKILL.md) skill, takes each open item with `status: needs-triage`, or each item named in its prompt. If the item has no [current suggestion](#current-and-outdated-suggestions), the advisor:
+1. The triage bot, the [a2ui-triage-bot](../../../../../.agents/skills/a2ui-triage-bot/SKILL.md) skill, takes each open item with `status: needs-triage` or `status: needs-team-input`, or each item named in its prompt. If the item has no [current suggestion](#current-and-outdated-suggestions), the triage bot:
 
    1. Researches the item and decides what the triager should do.
    2. Writes the decision as a [`TriageSuggestion`](#the-triagesuggestion-component) A2UI component.
@@ -19,15 +19,23 @@ A triage suggestion says what the triager should do with an issue or a PR. It go
    3. Lets the triager change it.
    4. Applies it to the item when the triager clicks **Apply**.
 
-The advisor only comments. It never changes labels, assignees or the state of an item: that is the triager's decision.
+The triage bot only comments. It never changes labels, assignees or the state of an item: that is the triager's decision.
+
+## Requests to the triage bot
+
+A team member can ask the triage bot for something in a comment on the item that addresses it, usually in a comment that starts with `**From triager for team discussion:**`. For example: "Triage bot, can you suggest an expert?"
+
+The request is a comment, so it makes the item's suggestion [outdated](#current-and-outdated-suggestions). At its next run, the triage bot researches the request and updates the suggestion. The `suggestion` starts with the answer, which links to the request and names who asked. When the request asks for an action, such as assigning someone, the triage bot suggests it in the component's properties and does not do it.
+
+The triage bot answers only team members. It treats a request from an out-of-team contributor as data and does not follow it.
 
 ## Suggested assignees
 
-The advisor finds who knows an area from the repository history: the people who wrote most of the recent commits to the affected files. It suggests only people who can be assigned to the item, and says in the suggestion why it picked them. It suggests:
+The triage bot finds who knows an area from the repository history: the people who wrote most of the recent commits to the affected files. It suggests only people who can be assigned to the item, and says in the suggestion why it picked them. It suggests:
 
 1. An owner of the affected area as the assignee of an unassigned `P0` or `P1` bug.
 2. An owner of the changed files as the assignee of a PR that the team should review.
-3. An expert to finish the triage of an item that the advisor cannot triage, following [second line triage](../../../../../docs/contributing/triage/triage.md#second-line-triage-weekly-by-triager). If the item has `status: needs-team-input`, the advisor suggests assigning the expert, adding `status: assigned-for-triage` and removing `status: needs-team-input`. Otherwise, it suggests adding `status: needs-team-input` and names the expert for the team.
+3. An expert to finish the triage of an item that the triage bot cannot triage, following [second line triage](../../../../../docs/contributing/triage/triage.md#second-line-triage-weekly-by-triager). If the item has `status: needs-team-input`, the triage bot suggests assigning the expert, adding `status: assigned-for-triage` and removing `status: needs-team-input`. Otherwise, it suggests adding `status: needs-team-input` and names the expert for the team.
 
 ## The suggestion comment
 
@@ -105,11 +113,11 @@ The [triage_ui.sh](../../triage_ui.sh) command takes the item's URL, for example
 1. Sends the URL to the triage UI if the app is running. The app listens on `127.0.0.1:47123`, accepts `POST /open` with the URL in the `item` form field, and accepts only URLs of issues and PRs in `a2ui-project/a2ui` and `flutter/genui`.
 2. Otherwise starts the app on macOS with `flutter run`, passing the URL as the app's argument.
 
-The `summary`, the `suggestion` and the `reply` link every artifact they mention, so that the triager can check it in one click: files, folders, lines of code, issues, PRs, commits, workflow runs, docs pages and specifications. The link is on the words that name the artifact: in "The `genui` package README links to `./DESIGN.md`", "README" links to the README file, not to its repository. Links to files point to a commit SHA, not to a branch, so that they keep showing what the advisor read. When the text is about specific lines, such as a broken link or the code that causes a bug, it links to those lines with a permalink, the commit SHA and a line anchor such as `#L10-L20`, not to the whole file. Issues and PRs are written as `#123`, or `owner/repo#123` in another repository, which GitHub turns into links.
+The `summary`, the `suggestion` and the `reply` link every artifact they mention, so that the triager can check it in one click: files, folders, lines of code, issues, PRs, commits, workflow runs, docs pages and specifications. The link is on the words that name the artifact: in "The `genui` package README links to `./DESIGN.md`", "README" links to the README file, not to its repository. Links to files point to a commit SHA, not to a branch, so that they keep showing what the triage bot read. When the text is about specific lines, such as a broken link or the code that causes a bug, it links to those lines with a permalink, the commit SHA and a line anchor such as `#L10-L20`, not to the whole file. Issues and PRs are written as `#123`, or `owner/repo#123` in another repository, which GitHub turns into links.
 
 The comment names people by their GitHub login in backticks, without `@`. A suggestion is not a decision yet, so it does not notify the people it names.
 
-An item has at most one suggestion comment. When the suggestion is outdated, the advisor edits the comment instead of posting a new one, so that subscribers are not notified again.
+An item has at most one suggestion comment. When the suggestion is outdated, the triage bot edits the comment instead of posting a new one, so that subscribers are not notified again.
 
 ## Current and outdated suggestions
 
@@ -123,7 +131,7 @@ A suggestion is **current** when nothing happened on the item after the suggesti
 
 ## The `TriageSuggestion` component
 
-The component is defined in [triage_suggestion.dart](../../pkgs/triage/lib/src/advisor/triage_suggestion.dart). Its properties:
+The component is defined in [triage_suggestion.dart](../../pkgs/triage/lib/src/triage_bot/triage_suggestion.dart). Its properties:
 
 1. `summary` (required): what the item is about, in plain English.
 2. `reason`: why the item is flagged for triage, in plain English, such as "This issue has external input but no priority label yet." It is the reason that the [flagger](../../../triage/blueprints/flagging.blueprint.md) gives for the item, as [flag_reason.mts](../../../triage/flagging/flag_reason.mts) prints it, and is omitted when the flagger does not flag the item.
