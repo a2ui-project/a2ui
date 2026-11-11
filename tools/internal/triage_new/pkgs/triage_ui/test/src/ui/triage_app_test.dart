@@ -43,7 +43,8 @@ void main() {
           commentNode(
             suggestionComment(
               'root = TriageSuggestion(summary="""A crash on an empty '
-              'Row.""", suggestion="""Set P1 and assign octocat.""", '
+              'Row.""", reason="Priority is not set.", '
+              'suggestion="""Set P1 and assign octocat.""", '
               'reply="""Thanks for the report.""", added_labels=["P1"], '
               'new_assignees=["octocat"], related_issues=[1234])',
             ),
@@ -147,6 +148,8 @@ void main() {
 
     // The suggestion, rendered by the TriageSuggestion component.
     expect(find.text('A crash on an empty Row.'), findsOneWidget);
+    expect(find.text('Why flagged for triage'), findsOneWidget);
+    expect(find.text('Priority is not set.'), findsOneWidget);
     expect(find.text('Set P1 and assign octocat.'), findsOneWidget);
     expect(find.text('Thanks for the report.'), findsOneWidget);
     // The priority is a segmented button, not a label chip.

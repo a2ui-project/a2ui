@@ -88,16 +88,17 @@ Decide what the triager should do, following [triage_criteria.md](references/tri
 The [`TriageSuggestion`](../../../tools/internal/triage_new/pkgs/triage/lib/src/triage_item/triage_suggestion.dart) component has these properties:
 
 1. `summary` (required): what the item is about, in one or two sentences, for a triager who has not read it.
-2. `suggestion` (required): what the triager should do and why. Name the evidence with links.
-3. `reply`: a comment for the item's author or other participants, which the triage UI posts when the triager applies the suggestion. Copy it from [templates.md](../../../docs/contributing/triage/templates.md) when a template fits. Add a reply when the author needs to act, when an out-of-team contributor's question is unanswered, or when the item is closed.
-4. `close_as`: `completed`, `not_planned` or `duplicate`, when the triager should close the item. Omit it to keep the item open.
-5. `duplicate_of`: with `close_as` set to `duplicate`, the number of the item this one duplicates.
-6. `added_labels`: labels to add.
-7. `removed_labels`: labels to remove.
-8. `new_assignees`: GitHub logins to assign.
-9. `removed_assignees`: GitHub logins to unassign.
-10. `related_issues`: numbers of related issues in `a2ui-project/a2ui`.
-11. `related_prs`: numbers of related PRs in `a2ui-project/a2ui`.
+2. `reason`: why the item is flagged for triage, in one short sentence, such as "Priority is not set." or "The issue is P1 and has had no human activity for more than 30 days." Check the item against the rules in [flagging.blueprint.md](../../../tools/internal/triage/blueprints/flagging.blueprint.md) and name the rules it matches. Omit it when the item does not have `status: needs-triage`.
+3. `suggestion` (required): what the triager should do and why. Name the evidence with links.
+4. `reply`: a comment for the item's author or other participants, which the triage UI posts when the triager applies the suggestion. Copy it from [templates.md](../../../docs/contributing/triage/templates.md) when a template fits. Add a reply when the author needs to act, when an out-of-team contributor's question is unanswered, or when the item is closed.
+5. `close_as`: `completed`, `not_planned` or `duplicate`, when the triager should close the item. Omit it to keep the item open.
+6. `duplicate_of`: with `close_as` set to `duplicate`, the number of the item this one duplicates.
+7. `added_labels`: labels to add.
+8. `removed_labels`: labels to remove.
+9. `new_assignees`: GitHub logins to assign.
+10. `removed_assignees`: GitHub logins to unassign.
+11. `related_issues`: numbers of related issues in `a2ui-project/a2ui`.
+12. `related_prs`: numbers of related PRs in `a2ui-project/a2ui`.
 
 Rules for the lists:
 
@@ -108,7 +109,7 @@ Rules for the lists:
 5. List a related item only if the suggestion says how it relates. Do not list the item itself, or the item in `duplicate_of`.
 6. Do not repeat an entry in a list.
 
-Write `summary` and `suggestion` for the triager, and `reply` for the people on the item, following the natural-writing rules. In `suggestion`, state the action first, then the reason. Do not use filler such as "I hope this helps".
+Write `summary`, `reason` and `suggestion` for the triager, and `reply` for the people on the item, following the natural-writing rules. In `suggestion`, state the action first, then why. Do not use filler such as "I hope this helps".
 
 ## Step 7: Format the comment
 
@@ -122,8 +123,13 @@ Triage suggestion:
 <details>
 <summary>For humans</summary>
 
+**Summary:**
 <summary>
 
+**Why flagged for triage:**
+<reason>
+
+**Suggestion:**
 <suggestion>
 
 1. Close as: <completed | not planned | duplicate of #<number>>
@@ -147,12 +153,13 @@ tools/internal/triage_new/triage_ui.sh <item URL>
 </details>
 
 <details>
-<summary>For software</summary>
+<summary>For agents</summary>
 
 ```
 <a2ui>
 root = TriageSuggestion(
   summary="<summary>",
+  reason="<reason>",
   suggestion="""<suggestion>""",
   reply="""<reply>""",
   close_as="duplicate",
@@ -169,7 +176,7 @@ root = TriageSuggestion(
 
 Formatting rules:
 
-1. In the numbered list, keep only the lines for properties that have values, and number them from 1. Leave out the **Reply** part when there is no reply. Quote every line of the reply with `>`.
+1. Leave out the **Why flagged for triage** paragraph when there is no reason. In the numbered list, keep only the lines for properties that have values, and number them from 1. Leave out the **Reply** part when there is no reply. Quote every line of the reply with `>`.
 2. Write logins in backticks without `@`, in every property. A suggestion is not a decision yet, so it must not notify the people it names.
 3. In the command, use the item's URL, such as `https://github.com/a2ui-project/a2ui/issues/123` or `https://github.com/a2ui-project/a2ui/pull/123`.
 4. Keep a blank line after each `<summary>` line and before each `</details>`, so that GitHub renders the Markdown inside the section.
@@ -186,8 +193,13 @@ Triage suggestion:
 <details>
 <summary>For humans</summary>
 
+**Summary:**
 The Flutter renderer throws an exception when a `Row` has an empty `children` list. The report includes a stack trace and a three-line payload that reproduces it.
 
+**Why flagged for triage:**
+Priority is not set.
+
+**Suggestion:**
 Set P1 and assign `flutter-owner`, who wrote most recent changes to `dart/a2ui_flutter`. Any agent that streams an empty `Row` crashes the surface, and there is no workaround. #1234 reports the same crash for `Column` and probably has the same cause.
 
 1. Add labels: `type: bug`, `P1`, `component: flutter adapter`, `status: first-line-handled`
@@ -203,12 +215,13 @@ tools/internal/triage_new/triage_ui.sh https://github.com/a2ui-project/a2ui/issu
 </details>
 
 <details>
-<summary>For software</summary>
+<summary>For agents</summary>
 
 ```
 <a2ui>
 root = TriageSuggestion(
   summary="""The Flutter renderer throws an exception when a `Row` has an empty `children` list. The report includes a stack trace and a three-line payload that reproduces it.""",
+  reason="Priority is not set.",
   suggestion="""Set P1 and assign `flutter-owner`, who wrote most recent changes to `dart/a2ui_flutter`. Any agent that streams an empty `Row` crashes the surface, and there is no workaround. #1234 reports the same crash for `Column` and probably has the same cause.""",
   added_labels=["type: bug", "P1", "component: flutter adapter", "status: first-line-handled"],
   new_assignees=["flutter-owner"],
@@ -230,8 +243,13 @@ Triage suggestion:
 <details>
 <summary>For humans</summary>
 
+**Summary:**
 The issue asks for a `Slider` component in the basic catalog.
 
+**Why flagged for triage:**
+Priority is not set.
+
+**Suggestion:**
 Close as a duplicate of #1100, which asks for the same component and already has P2. The issue adds no new use case.
 
 1. Close as: duplicate of #1100
@@ -250,12 +268,13 @@ tools/internal/triage_new/triage_ui.sh https://github.com/a2ui-project/a2ui/issu
 </details>
 
 <details>
-<summary>For software</summary>
+<summary>For agents</summary>
 
 ```
 <a2ui>
 root = TriageSuggestion(
   summary="The issue asks for a `Slider` component in the basic catalog.",
+  reason="Priority is not set.",
   suggestion="Close as a duplicate of #1100, which asks for the same component and already has P2. The issue adds no new use case.",
   reply="""Thanks for the request. #1100 tracks the same component, so we are closing this issue as a duplicate. Add your use case there if it is not covered yet.""",
   close_as="duplicate",

@@ -51,6 +51,7 @@ class SuggestionEditor extends StatelessWidget {
       listenable: draft,
       builder: (context, _) {
         final String? summary = draft.summary;
+        final String? reason = draft.reason;
         final String? suggestion = draft.suggestion;
         final bool applying = controller.isApplying(item.number);
         final ApplyResult? result = controller.lastResult(item.number);
@@ -65,6 +66,7 @@ class SuggestionEditor extends StatelessWidget {
           spacing: 16,
           children: [
             if (summary != null) _Text('Summary', summary),
+            if (reason != null) _Text('Why flagged for triage', reason),
             if (suggestion != null) _Text('Suggestion', suggestion),
             _RelatedItems(item: item, draft: draft),
             const Divider(),

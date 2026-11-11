@@ -62,7 +62,7 @@ Nothing is selected when the tool starts, unless it starts with an item from a s
 
 The editable suggestion is the triage UI's implementation of the [`TriageSuggestion`](triage_item.blueprint.md#the-triagesuggestion-component) A2UI component. It renders the component from the item's suggestion comment, or an empty one when the item has no suggestion.
 
-The `summary` and the `suggestion` are shown as text. The triager can change the other properties: the reply, how to close the item, the labels and the assignees. The triager also sets the item's priority, and its milestone, which the advisor does not suggest.
+The `summary`, the `reason` and the `suggestion` are shown as text. The triager can change the other properties: the reply, how to close the item, the labels and the assignees. The triager also sets the item's priority, and its milestone, which the advisor does not suggest.
 
 1. The priority is a segmented button with `P0` to `P3`, without a field frame, with none or one of them selected. Selecting a priority adds its label and removes the item's other priority labels. Clicking the selected priority again removes them all. The other fields leave out the priority labels.
 2. The triager checks the labels, people and milestone to add in a dropdown: the repository's labels, the people who can be assigned, and its open milestones. An item has at most one milestone, so checking one in its dropdown unchecks the other. The dropdown lists the checked options first. A dropdown with more than 7 options has a search field at the top.
@@ -85,7 +85,7 @@ Ann is this week's triager.
 1. Ann wants to triage GitHub items and opens the tool from VS Code, with the `triage_ui` launch configuration.
 2. The header shows how many items need triage. The list on the left shows the **New** group, then the **Needs team input** group.
 3. Ann selects the first item in **New**. The details show its suggestion, with a tab for it and for each linked item that needs triage.
-4. Ann reads the summary and the suggestion, changes what to apply if needed, and clicks **Apply**.
+4. Ann reads the summary, why the item is flagged and the suggestion, changes what to apply if needed, and clicks **Apply**.
 5. The tool applies the suggestion to the item on GitHub, marks the item as applied in the list, and selects the next item.
 
 Ann is done with the **New** group when every item in it is applied or [needs team input](#ask-the-team).

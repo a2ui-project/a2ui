@@ -35,6 +35,12 @@ final ComponentApi triageSuggestionApi = ComponentApi(
         description: 'What the item is about, in plain English.',
         minLength: 1,
       ),
+      TriageSuggestionProps.reason: Schema.string(
+        description:
+            'Why the item is flagged for triage, in plain English. Omitted '
+            'when the item is not flagged.',
+        minLength: 1,
+      ),
       TriageSuggestionProps.suggestion: Schema.string(
         description:
             'What the triager should do with the item and why, in '
@@ -103,6 +109,7 @@ abstract final class TriageSuggestionProps {
   static const String componentName = 'TriageSuggestion';
 
   static const String summary = 'summary';
+  static const String reason = 'reason';
   static const String suggestion = 'suggestion';
   static const String reply = 'reply';
   static const String closeAs = 'close_as';

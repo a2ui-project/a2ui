@@ -23,6 +23,7 @@ class SuggestionDraft extends ChangeNotifier {
   SuggestionDraft(TriageSuggestion suggestion)
     : _initial = suggestion,
       summary = suggestion.summary,
+      reason = suggestion.reason,
       suggestion = suggestion.suggestion,
       reply = TextEditingController(text: suggestion.reply ?? ''),
       duplicateOf = TextEditingController(
@@ -44,6 +45,10 @@ class SuggestionDraft extends ChangeNotifier {
 
   /// The advisor's summary, which the triager reads but does not apply.
   final String? summary;
+
+  /// The advisor's reason why the item is flagged for triage, which the
+  /// triager reads but does not apply.
+  final String? reason;
 
   /// The advisor's suggestion, which the triager reads but does not apply.
   final String? suggestion;
@@ -161,6 +166,7 @@ class SuggestionDraft extends ChangeNotifier {
     final String text = reply.text.trim();
     return TriageSuggestion(
       summary: summary,
+      reason: reason,
       suggestion: suggestion,
       reply: text.isEmpty ? null : text,
       closeAs: _closeAs,

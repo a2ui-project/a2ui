@@ -31,7 +31,7 @@ The Flutter renderer crashes.
 </details>
 
 <details>
-<summary>For software</summary>
+<summary>For agents</summary>
 
 ```
 <a2ui>
@@ -48,6 +48,7 @@ void main() {
       comment('''
 root = TriageSuggestion(
   summary="""The Flutter renderer crashes on an empty `Row`.""",
+  reason="Priority is not set.",
   suggestion="""Close as a duplicate of #1100.""",
   reply="""Thanks! This duplicates #1100.""",
   close_as="duplicate",
@@ -63,6 +64,7 @@ root = TriageSuggestion(
 
     final TriageSuggestion s = payload.suggestion;
     expect(s.summary, 'The Flutter renderer crashes on an empty `Row`.');
+    expect(s.reason, 'Priority is not set.');
     expect(s.suggestion, 'Close as a duplicate of #1100.');
     expect(s.reply, 'Thanks! This duplicates #1100.');
     expect(s.closeAs, TriageCloseReason.duplicate);

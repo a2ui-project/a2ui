@@ -20,6 +20,7 @@ import 'triage_suggestion.dart';
 final class TriageSuggestion {
   const TriageSuggestion({
     this.summary,
+    this.reason,
     this.suggestion,
     this.reply,
     this.closeAs,
@@ -37,6 +38,7 @@ final class TriageSuggestion {
   factory TriageSuggestion.fromProperties(Map<String, Object?> properties) =>
       TriageSuggestion(
         summary: properties[TriageSuggestionProps.summary] as String?,
+        reason: properties[TriageSuggestionProps.reason] as String?,
         suggestion: properties[TriageSuggestionProps.suggestion] as String?,
         reply: properties[TriageSuggestionProps.reply] as String?,
         closeAs: properties[TriageSuggestionProps.closeAs] as String?,
@@ -57,6 +59,9 @@ final class TriageSuggestion {
   /// What the item is about. Null for a suggestion that the triager writes
   /// from scratch.
   final String? summary;
+
+  /// Why the item is flagged for triage, or null when it is not flagged.
+  final String? reason;
 
   /// What the triager should do and why. Null for a suggestion that the
   /// triager writes from scratch.

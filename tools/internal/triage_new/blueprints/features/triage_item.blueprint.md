@@ -35,8 +35,13 @@ Triage suggestion:
 <details>
 <summary>For humans</summary>
 
+**Summary:**
 The Flutter renderer throws an exception when a `Row` has an empty `children` list. The report includes a stack trace and a three-line payload that reproduces it.
 
+**Why flagged for triage:**
+Priority is not set.
+
+**Suggestion:**
 Set P1 and assign `octocat`, who made most of the recent changes to `dart/a2ui_flutter`. Any agent that streams an empty `Row` crashes the surface, and there is no workaround. #1234 reports the same crash for `Column` and probably has the same cause.
 
 1. Add labels: `type: bug`, `P1`, `component: flutter adapter`, `status: first-line-handled`
@@ -56,12 +61,13 @@ tools/internal/triage_new/triage_ui.sh https://github.com/a2ui-project/a2ui/issu
 </details>
 
 <details>
-<summary>For software</summary>
+<summary>For agents</summary>
 
 ```
 <a2ui>
 root = TriageSuggestion(
   summary="""The Flutter renderer throws an exception when a `Row` has an empty `children` list. The report includes a stack trace and a three-line payload that reproduces it.""",
+  reason="Priority is not set.",
   suggestion="""Set P1 and assign `octocat`, who made most of the recent changes to `dart/a2ui_flutter`. Any agent that streams an empty `Row` crashes the surface, and there is no workaround. #1234 reports the same crash for `Column` and probably has the same cause.""",
   reply="""Thanks for the report and the payload that reproduces it. We confirmed the crash and plan to fix it soon. #1234 reports the same crash for `Column`.""",
   added_labels=["type: bug", "P1", "component: flutter adapter", "status: first-line-handled"],
@@ -78,7 +84,7 @@ The parts of the comment, in order:
 
 1. The triage bot prefix, and the line "Triage suggestion:".
 2. The **For humans** section, collapsed:
-   1. The `summary` and the `suggestion`, as paragraphs.
+   1. The `summary`, the `reason` and the `suggestion`, as paragraphs under **Summary**, **Why flagged for triage** and **Suggestion**. The **Why flagged for triage** paragraph is left out when there is no reason.
    2. The other properties that have values, as a numbered list: **Close as**, **Add labels**, **Remove labels**, **Assign**, **Unassign**, **Related issues** and **Related PRs**. An example of **Close as** is "Close as: duplicate of #1100".
    3. The `reply`, quoted, under **Reply**. The part is left out when there is no reply.
    4. The command that opens the item in the triage UI.
@@ -110,12 +116,13 @@ A suggestion is **current** when nothing happened on the item after the suggesti
 The component is defined in [triage_suggestion.dart](../../pkgs/triage/lib/src/triage_item/triage_suggestion.dart). Its properties:
 
 1. `summary` (required): what the item is about, in plain English.
-2. `suggestion` (required): what the triager should do and why, in plain English.
-3. `reply`: a comment for the item's author or other participants. When the suggestion is applied, the triage UI posts it from the triager's account.
-4. `close_as`: how to close the item: `completed`, `not_planned` or `duplicate`. When it is omitted, the item stays open. A PR has no close reason, so any value closes it.
-5. `duplicate_of`: the number of the item that this item duplicates. It is set only with `close_as: duplicate`.
-6. `added_labels` and `removed_labels`: labels to add and remove.
-7. `new_assignees` and `removed_assignees`: GitHub logins to assign and unassign.
-8. `related_issues` and `related_prs`: numbers of related issues and PRs, which the triager may want to read. The triage UI does not change them.
+2. `reason`: why the item is flagged for triage, in plain English, such as "Priority is not set." It names the [flagger](../../../triage/blueprints/flagging.blueprint.md) rule that the item matches, and is omitted when the item does not have `status: needs-triage`.
+3. `suggestion` (required): what the triager should do and why, in plain English.
+4. `reply`: a comment for the item's author or other participants. When the suggestion is applied, the triage UI posts it from the triager's account.
+5. `close_as`: how to close the item: `completed`, `not_planned` or `duplicate`. When it is omitted, the item stays open. A PR has no close reason, so any value closes it.
+6. `duplicate_of`: the number of the item that this item duplicates. It is set only with `close_as: duplicate`.
+7. `added_labels` and `removed_labels`: labels to add and remove.
+8. `new_assignees` and `removed_assignees`: GitHub logins to assign and unassign.
+9. `related_issues` and `related_prs`: numbers of related issues and PRs, which the triager may want to read. The triage UI does not change them.
 
 Item numbers refer to the item's own repository. An omitted list means none.

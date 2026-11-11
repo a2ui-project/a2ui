@@ -469,6 +469,7 @@ class TriageController extends ChangeNotifier {
     }
     return TriageSuggestion(
       summary: suggestion.summary,
+      reason: suggestion.reason,
       suggestion: suggestion.suggestion,
       reply: suggestion.reply,
       closeAs: suggestion.closeAs,

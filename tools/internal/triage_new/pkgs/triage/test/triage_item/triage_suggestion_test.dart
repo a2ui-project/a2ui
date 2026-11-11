@@ -43,6 +43,7 @@ void main() {
     expect(
       () => validator.validateComponent(
         suggestion({
+          'reason': 'Priority is not set.',
           'reply': 'Thanks for the report. This duplicates #7.',
           'close_as': 'duplicate',
           'duplicate_of': 7,
@@ -91,12 +92,14 @@ void main() {
     );
   });
 
-  test('rejects an empty reply', () {
-    expect(
-      () => validator.validateComponent(suggestion({'reply': ''})),
-      rejected,
-    );
-  });
+  for (final property in ['reason', 'reply']) {
+    test('rejects an empty $property', () {
+      expect(
+        () => validator.validateComponent(suggestion({property: ''})),
+        rejected,
+      );
+    });
+  }
 
   test('rejects a duplicate_of that is not a positive integer', () {
     for (final Object reference in ['#12', 0, 1.5]) {

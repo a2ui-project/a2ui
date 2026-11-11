@@ -39,7 +39,7 @@ Text for people.
 </details>
 
 <details>
-<summary>For software</summary>
+<summary>For agents</summary>
 
 ```
 <a2ui>
