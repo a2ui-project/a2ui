@@ -16,7 +16,7 @@ import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
 import 'package:triage/triage.dart';
 
-/// A suggestion comment like the one in triage_item.blueprint.md.
+/// A suggestion comment like the one in advisor.blueprint.md.
 String comment(String component) =>
     '''
 **From triage bot:**

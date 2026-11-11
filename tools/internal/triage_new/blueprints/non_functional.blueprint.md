@@ -5,7 +5,7 @@ The triage automation consists of:
 1. Skills in [`.agents/skills/`](../../../../.agents/skills/), such as [a2ui-triage-advisor](../../../../.agents/skills/a2ui-triage-advisor/SKILL.md).
 2. Dart packages in [`pkgs/`](../pkgs/):
 
-   1. [`triage`](../pkgs/triage/): Dart-only code, such as the [`TriageSuggestion`](features/triage_item.blueprint.md#the-triagesuggestion-component) component.
+   1. [`triage`](../pkgs/triage/): Dart-only code, such as the [`TriageSuggestion`](features/advisor.blueprint.md#the-triagesuggestion-component) component.
    2. [`triage_ui`](../pkgs/triage_ui/): the Flutter application of the [triage UI](features/ui.blueprint.md).
 
 3. The TypeScript implementation of the [flagger](../../triage/blueprints/flagging.blueprint.md), in [`tools/internal/triage/flagging/`](../../triage/flagging/).

@@ -17,7 +17,7 @@ library;
 
 /// The fields of an issue or a pull request that the triage UI shows, and
 /// that tell whether its suggestion is current. See
-/// `blueprints/features/triage_item.blueprint.md`.
+/// `blueprints/features/advisor.blueprint.md`.
 const String _itemFragments = r'''
 fragment Comments on IssueComment {
   author { login __typename }

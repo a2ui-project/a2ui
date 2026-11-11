@@ -1,4 +1,4 @@
-# Triage an item
+# Advisor
 
 The terms are defined in [core.blueprint.md](../core.blueprint.md).
 
@@ -20,6 +20,14 @@ A triage suggestion says what the triager should do with an issue or a PR. It go
    4. Applies it to the item when the triager clicks **Apply**.
 
 The advisor only comments. It never changes labels, assignees or the state of an item: that is the triager's decision.
+
+## Suggested assignees
+
+The advisor finds who knows an area from the repository history: the people who wrote most of the recent commits to the affected files. It suggests only people who can be assigned to the item, and says in the suggestion why it picked them. It suggests:
+
+1. An owner of the affected area as the assignee of an unassigned `P0` or `P1` bug.
+2. An owner of the changed files as the assignee of a PR that the team should review.
+3. An expert to finish the triage of an item that the advisor cannot triage, following [second line triage](../../../../../docs/contributing/triage/triage.md#second-line-triage-weekly-by-triager). If the item has `status: needs-team-input`, the advisor suggests assigning the expert, adding `status: assigned-for-triage` and removing `status: needs-team-input`. Otherwise, it suggests adding `status: needs-team-input` and names the expert for the team.
 
 ## The suggestion comment
 

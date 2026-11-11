@@ -10,7 +10,7 @@ description: >-
 
 # A2UI triage advisor
 
-The advisor is the triage job that writes triage suggestions (see [Triage jobs](../../../tools/internal/triage_new/blueprints/core.blueprint.md#triage-jobs)). For each item, it posts one comment that says in plain English what the triager should do, and carries the same suggestion as a `TriageSuggestion` A2UI component. The triage UI parses that component, the triager finalizes it, and the UI applies it. The workflow is described in [triage_item.blueprint.md](../../../tools/internal/triage_new/blueprints/features/triage_item.blueprint.md).
+The advisor is the triage job that writes triage suggestions (see [Triage jobs](../../../tools/internal/triage_new/blueprints/core.blueprint.md#triage-jobs)). For each item, it posts one comment that says in plain English what the triager should do, and carries the same suggestion as a `TriageSuggestion` A2UI component. The triage UI parses that component, the triager finalizes it, and the UI applies it. The workflow is described in [advisor.blueprint.md](../../../tools/internal/triage_new/blueprints/features/advisor.blueprint.md).
 
 The advisor only comments. It never adds or removes labels, assigns people, closes items, or changes milestones: those are the triager's decisions.
 
@@ -60,7 +60,7 @@ node tools/internal/triage/flagging/flag_reason.mts <number> <number>
 
 A suggestion comment is a comment whose body starts with `**From triage bot:**` and contains an `<a2ui>` block. There is at most one per item.
 
-[Current and outdated suggestions](../../../tools/internal/triage_new/blueprints/features/triage_item.blueprint.md#current-and-outdated-suggestions) defines when a suggestion is current. In the fields that [item.graphql](references/item.graphql) returns, the suggestion is current when its `updatedAt` is later than all of the following:
+[Current and outdated suggestions](../../../tools/internal/triage_new/blueprints/features/advisor.blueprint.md#current-and-outdated-suggestions) defines when a suggestion is current. In the fields that [item.graphql](references/item.graphql) returns, the suggestion is current when its `updatedAt` is later than all of the following:
 
 1. The `createdAt` of every other comment, excluding other triage bot comments.
 2. The `submittedAt` of every PR review.

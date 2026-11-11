@@ -27,7 +27,7 @@ The list of items, in groups:
 
 1. **New**: open items with `status: needs-triage` and without `status: needs-team-input`.
 2. **Needs team input**: open items with `status: needs-team-input`.
-3. **Not in the queue**: items that the triager opened from a [suggestion comment](triage_item.blueprint.md#the-suggestion-comment) and that are in neither group above.
+3. **Not in the queue**: items that the triager opened from a [suggestion comment](advisor.blueprint.md#the-suggestion-comment) and that are in neither group above.
 4. **PRs on genui**: open PRs in [`flutter/genui`](https://github.com/flutter/genui) with `status: needs-triage`, least recently updated first. Each PR shows its number, title and when it was last updated. The tool does not triage these PRs, and they do not count in the number of items that need triage. When the triager selects one, the details show a card that is not editable: the PR's title, with a link to it on GitHub, its age, when it was last updated, its author, labels and assignees.
 
 The first three groups list issues with open PRs first, then issues without open PRs, then PRs with linked issues, then PRs without linked issues. Each of these lists starts with the items that have a suggestion, current or outdated, and then the items without one. Within each of these, the least recently updated item comes first.
@@ -36,7 +36,7 @@ Each of the first three groups has a subgroup for each type of item it has. An o
 
 An item's flags show:
 
-1. Whether it has a suggestion, and whether the suggestion is [current or outdated](triage_item.blueprint.md#current-and-outdated-suggestions). A suggestion comment that does not parse counts as no suggestion.
+1. Whether it has a suggestion, and whether the suggestion is [current or outdated](advisor.blueprint.md#current-and-outdated-suggestions). A suggestion comment that does not parse counts as no suggestion.
 2. Its linked PRs, for an issue, and its linked issues, for a PR.
 3. `status: needs-team-input`.
 4. Whether the triager has applied its suggestion in this session.
@@ -60,7 +60,7 @@ Nothing is selected when the tool starts, unless it starts with an item from a s
 
 ### Editable suggestion
 
-The editable suggestion is the triage UI's implementation of the [`TriageSuggestion`](triage_item.blueprint.md#the-triagesuggestion-component) A2UI component. It renders the component from the item's suggestion comment, or an empty one when the item has no suggestion.
+The editable suggestion is the triage UI's implementation of the [`TriageSuggestion`](advisor.blueprint.md#the-triagesuggestion-component) A2UI component. It renders the component from the item's suggestion comment, or an empty one when the item has no suggestion.
 
 The `summary`, the `reason` and the `suggestion` are shown as text. The triager can change the other properties: the reply, how to close the item, the labels and the assignees. The triager also sets the item's priority, and its milestone, which the advisor does not suggest.
 
@@ -100,7 +100,7 @@ The suggestion for an issue says P1, but Ann thinks the issue is P2.
 ### Open an item from its suggestion comment
 
 1. Ann reads an issue on GitHub and wants to triage it now.
-2. Ann copies the command from the [suggestion comment](triage_item.blueprint.md#the-suggestion-comment) and runs it in a terminal in the a2ui checkout.
+2. Ann copies the command from the [suggestion comment](advisor.blueprint.md#the-suggestion-comment) and runs it in a terminal in the a2ui checkout.
 3. If the tool is running, it shows the issue. Otherwise the command starts the tool with the issue.
 
 The tool shows the item even if the item no longer has `status: needs-triage`.
@@ -111,7 +111,7 @@ The advisor has not commented on a new issue yet, or its comment does not parse.
 
 ### Check an outdated suggestion
 
-Someone commented on the item after the advisor did, so the suggestion is [outdated](triage_item.blueprint.md#current-and-outdated-suggestions). The details say so and link to the item. Ann reads the new comment on GitHub, adjusts the suggestion, and clicks **Apply**.
+Someone commented on the item after the advisor did, so the suggestion is [outdated](advisor.blueprint.md#current-and-outdated-suggestions). The details say so and link to the item. Ann reads the new comment on GitHub, adjusts the suggestion, and clicks **Apply**.
 
 ### Ask the team
 
@@ -122,7 +122,7 @@ Ann cannot triage an item in a couple of minutes, or the suggestion says that th
 Ann goes through the **Needs team input** group with other team members. For each item:
 
 1. If they can triage it in a couple of minutes, Ann adjusts the suggestion and clicks **Apply**.
-2. Otherwise, they pick an expert in the area. The advisor suggests one from the commit history of the affected area (see [triage criteria](../../../../../.agents/skills/a2ui-triage-advisor/references/triage_criteria.md#rules-for-every-item)). Ann adds `status: assigned-for-triage` to the labels, adds the expert to the assignees, and clicks **Apply**.
+2. Otherwise, they pick an expert in the area. The advisor suggests one from the commit history of the affected area (see [Suggested assignees](advisor.blueprint.md#suggested-assignees)). Ann adds `status: assigned-for-triage` to the labels, adds the expert to the assignees, and clicks **Apply**.
 
 In both cases, the tool removes `status: needs-team-input` from the item.
 

@@ -22,7 +22,7 @@ The triage process is described in [triage.md](../../../../docs/contributing/tri
    2. Started by: a GitHub workflow.
    3. Needs to: comment on items, and send messages to team members.
 
-3. The [advisor](features/triage_item.blueprint.md#triage-suggestions) posts a triage suggestion on each item that needs triage.
+3. The [advisor](features/advisor.blueprint.md#triage-suggestions) posts a triage suggestion on each item that needs triage.
 
    1. Runs: daily.
    2. Started by: a scheduled agent that runs the [a2ui-triage-advisor](../../../../.agents/skills/a2ui-triage-advisor/SKILL.md) skill.

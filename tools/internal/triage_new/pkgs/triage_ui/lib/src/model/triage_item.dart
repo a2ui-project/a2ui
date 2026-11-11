@@ -42,7 +42,7 @@ enum ItemKind {
 }
 
 /// Whether an item has a triage suggestion, and whether it is current. See
-/// `blueprints/features/triage_item.blueprint.md`.
+/// `blueprints/features/advisor.blueprint.md`.
 enum SuggestionStatus {
   /// No triage bot comment on the item has an `<a2ui>` block.
   none,
@@ -223,7 +223,7 @@ final class TriageItem {
   }
 
   /// The times of the things that happened on the item, as
-  /// `triage_item.blueprint.md` lists them.
+  /// `advisor.blueprint.md` lists them.
   static Iterable<DateTime> _activity(
     Map<String, Object?> node,
     List<Map<String, Object?>> comments,
