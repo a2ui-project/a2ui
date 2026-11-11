@@ -41,6 +41,11 @@ class TestFixLicenses(unittest.TestCase):
         self.assertTrue(fix_licenses.should_ignore("yarn.lock"))
         self.assertTrue(fix_licenses.should_ignore("node_modules/foo/bar.js"))
         self.assertTrue(fix_licenses.should_ignore("eval/datasets/test.yaml"))
+        self.assertTrue(
+            fix_licenses.should_ignore(
+                "samples/community/react_app/eval/datasets/test.yaml"
+            )
+        )
         self.assertTrue(fix_licenses.should_ignore("eval/bin/transcrypt"))
         self.assertTrue(fix_licenses.should_ignore("third_party/lib/foo.c"))
         self.assertFalse(fix_licenses.should_ignore("src/main.py"))

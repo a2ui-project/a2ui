@@ -19,20 +19,26 @@ import {
   buildAllowAttribute,
   buildInnerCspContent,
   buildPermissionsPolicy,
+  buildProxyFramePolicy,
   createAllowedReferrerPattern,
+  createSandboxErrorMessages,
   DEFAULT_INNER_SANDBOX,
   HOST_ORIGINS_META_NAME,
   injectCspMeta,
+  LOGGING_MESSAGE_NOTIFICATION,
   normalizeOrigin,
   PROXY_READY_NOTIFICATION,
   readAllowedHostOrigins,
   resolveInnerSandbox,
   RESOURCE_READY_NOTIFICATION,
+  SANDBOX_PROXY_LOGGER,
+  SandboxErrorCode,
   SENSITIVE_PERMISSIONS,
   startSandboxProxy,
   type SandboxProxyDocument,
   type SandboxProxyWindow,
 } from './sandbox.js';
+import {resolveSandboxUrl} from './sandbox_config.js';
 
 const DENY_ALL =
   "camera 'none'; microphone 'none'; geolocation 'none'; clipboard-read 'none'; clipboard-write 'none';";
@@ -231,6 +237,50 @@ describe('sandbox proxy helpers', () => {
       ).toBe('allow-scripts allow-popups');
     });
   });
+
+  describe('buildProxyFramePolicy', () => {
+    it('refuses every frame navigation without frameDomains', () => {
+      expect(buildProxyFramePolicy()).toBe("frame-src 'none';");
+      expect(buildProxyFramePolicy({connectDomains: ['https://api.example.com']})).toBe(
+        "frame-src 'none';",
+      );
+    });
+
+    it('allows the frameDomains of the resource, as the injected policy does', () => {
+      const csp = {frameDomains: ['https://embed.example.com', 'https://maps.example.com']};
+      expect(buildProxyFramePolicy(csp)).toBe(
+        'frame-src https://embed.example.com https://maps.example.com;',
+      );
+      expect(buildInnerCspContent(csp)).toContain(
+        'frame-src https://embed.example.com https://maps.example.com;',
+      );
+    });
+
+    it('drops malformed frameDomains entries', () => {
+      expect(
+        buildProxyFramePolicy({
+          frameDomains: ['https://ok.example', 'https://x.example; script-src *'],
+        }),
+      ).toBe('frame-src https://ok.example;');
+    });
+  });
+
+  describe('createSandboxErrorMessages', () => {
+    it('builds the A2UI envelope and an MCP logging notification with the same report', () => {
+      expect(createSandboxErrorMessages(SandboxErrorCode.InnerFrameNavigated, 'gone')).toEqual([
+        {type: A2uiSandboxMessageType.SandboxError, code: 'inner_frame_navigated', message: 'gone'},
+        {
+          jsonrpc: '2.0',
+          method: LOGGING_MESSAGE_NOTIFICATION,
+          params: {
+            level: 'error',
+            logger: SANDBOX_PROXY_LOGGER,
+            data: {code: 'inner_frame_navigated', message: 'gone'},
+          },
+        },
+      ]);
+    });
+  });
 });
 
 describe('startSandboxProxy', () => {
@@ -242,6 +292,9 @@ describe('startSandboxProxy', () => {
   let parentWindow: Window;
   let parentPost: jasmine.Spy;
   let listeners: Array<(event: MessageEvent) => void>;
+  let violationListeners: Array<(event: SecurityPolicyViolationEvent) => void>;
+  let headNodes: Node[];
+  let reload: jasmine.Spy;
   let metaContent: string | null;
   let sameOriginInner: boolean;
 
@@ -253,6 +306,9 @@ describe('startSandboxProxy', () => {
     parentWindow = parentFrame.contentWindow!;
     parentPost = spyOn(parentWindow, 'postMessage');
     listeners = [];
+    violationListeners = [];
+    headNodes = [];
+    reload = jasmine.createSpy('reload');
     metaContent = null;
     sameOriginInner = false;
   });
@@ -276,13 +332,17 @@ describe('startSandboxProxy', () => {
     return {location: {href: `${HOST_ORIGIN}/`}};
   }
 
+  function fakeLocation(href: string): SandboxProxyWindow['location'] {
+    return {href, search: new URL(href).search, reload};
+  }
+
   function fakeWindow(overrides: Partial<SandboxProxyWindow> = {}): SandboxProxyWindow {
     const href = overrides.location?.href ?? `${OWN_URL}?disable_security_self_test=true`;
     return {
       self: {},
       top: secureTop(),
       parent: parentWindow,
-      location: {href, search: new URL(href).search},
+      location: fakeLocation(href),
       addEventListener: (_type, listener) => {
         listeners.push(listener);
       },
@@ -293,6 +353,13 @@ describe('startSandboxProxy', () => {
   function fakeDocument(referrer = `${HOST_ORIGIN}/app`): SandboxProxyDocument {
     return {
       referrer,
+      // The page policy goes to a detached list: a real `<meta>` CSP would bind the test page.
+      head: {
+        appendChild: <T extends Node>(node: T): T => {
+          headNodes.push(node);
+          return node;
+        },
+      },
       body: {
         appendChild: <T extends Node>(node: T): T => {
           // A sandboxed frame has an opaque origin whose window cannot be spied on; the relay
@@ -303,7 +370,10 @@ describe('startSandboxProxy', () => {
           return container.appendChild(node);
         },
       },
-      createElement: () => document.createElement('iframe'),
+      createElement: tagName => document.createElement(tagName),
+      addEventListener: (_type, listener) => {
+        violationListeners.push(listener);
+      },
       querySelector: () => {
         if (metaContent === null) {
           return null;
@@ -366,7 +436,7 @@ describe('startSandboxProxy', () => {
       const href =
         'http://localhost:5173/a2ui-sandbox/sandbox.html?disable_security_self_test=true';
       startSandboxProxy({
-        window: fakeWindow({location: {href, search: new URL(href).search}}),
+        window: fakeWindow({location: fakeLocation(href)}),
         document: fakeDocument('http://127.0.0.1:5173/'),
       });
       expect(parentPost).toHaveBeenCalledWith(
@@ -378,7 +448,7 @@ describe('startSandboxProxy', () => {
 
   describe('security self-test', () => {
     it('fails when the top window is reachable', () => {
-      const win = fakeWindow({top: reachableTop(), location: {href: OWN_URL, search: ''}});
+      const win = fakeWindow({top: reachableTop(), location: fakeLocation(OWN_URL)});
       expect(() => startSandboxProxy({window: win, document: fakeDocument()})).toThrowError(
         /not setup securely/,
       );
@@ -386,7 +456,7 @@ describe('startSandboxProxy', () => {
     });
 
     it('passes when the top window is cross-origin', () => {
-      const win = fakeWindow({location: {href: OWN_URL, search: ''}});
+      const win = fakeWindow({location: fakeLocation(OWN_URL)});
       expect(() => startSandboxProxy({window: win, document: fakeDocument()})).not.toThrow();
       expect(parentPost).toHaveBeenCalledTimes(2);
     });
@@ -665,30 +735,92 @@ describe('startSandboxProxy', () => {
       expect(innerFrame().src).toBe('https://app.example/ui');
     });
 
-    it('drops the previous srcdoc or src when a later resource switches modes', () => {
+    function sendResource(resource: Record<string, unknown>): void {
       dispatch({
-        data: {type: A2uiSandboxMessageType.SandboxResourceReady, html: '<p>inline</p>'},
+        data: {type: A2uiSandboxMessageType.SandboxResourceReady, ...resource},
         origin: HOST_ORIGIN,
         source: parentWindow,
       });
+    }
+
+    function pagePolicies(): string[] {
+      return headNodes.map(node => {
+        expect(node).toBeInstanceOf(HTMLMetaElement);
+        expect((node as HTMLMetaElement).httpEquiv).toBe('Content-Security-Policy');
+        return (node as HTMLMetaElement).content;
+      });
+    }
+
+    it('loads every resource in a fresh inner frame', () => {
+      sendResource({html: '<p>first</p>'});
+      const first = innerFrame();
+      sendResource({html: '<p>second</p>'});
+      const second = innerFrame();
+      expect(second).not.toBe(first);
+      expect(first.isConnected).toBeFalse();
+      expect(second.srcdoc).toBe(injectCspMeta('<p>second</p>'));
+    });
+
+    it('adds the frame-src policy to its own page before it loads inline HTML', () => {
+      sendResource({html: '<p>hi</p>'});
+      expect(pagePolicies()).toEqual(["frame-src 'none';"]);
+    });
+
+    it('lists the frameDomains of the resource in the page policy', () => {
+      dispatch({
+        data: {
+          jsonrpc: '2.0',
+          method: RESOURCE_READY_NOTIFICATION,
+          params: {htmlContent: '<p>mcp</p>', csp: {frameDomains: ['https://embed.example.com']}},
+        },
+        origin: HOST_ORIGIN,
+        source: parentWindow,
+      });
+      expect(pagePolicies()).toEqual(['frame-src https://embed.example.com;']);
+    });
+
+    it('adds no page policy for an external URL', () => {
+      sendResource({url: 'https://app.example/ui'});
+      expect(headNodes).toEqual([]);
+    });
+
+    it('keeps its page policy for a later resource that needs the same one', () => {
+      sendResource({html: '<p>first</p>'});
+      sendResource({html: '<p>second</p>'});
+      expect(pagePolicies()).toEqual(["frame-src 'none';"]);
+      expect(reload).not.toHaveBeenCalled();
+      expect(innerFrame().srcdoc).toBe(injectCspMeta('<p>second</p>'));
+    });
+
+    it('reloads itself for a later resource that needs another page policy', () => {
+      sendResource({html: '<p>first</p>'});
+      const first = innerFrame();
+      sendResource({html: '<p>second</p>', csp: {frameDomains: ['https://embed.example.com']}});
+      expect(reload).toHaveBeenCalledTimes(1);
+      expect(innerFrame()).toBe(first);
+
+      sendResource({url: 'https://app.example/ui'});
+      expect(reload).toHaveBeenCalledTimes(2);
+      expect(pagePolicies()).toEqual(["frame-src 'none';"]);
+    });
+
+    it('loads inline HTML after an external URL in a frame without src', () => {
+      sendResource({url: 'https://app.example/ui'});
+      expect(innerFrame().src).toBe('https://app.example/ui');
+
+      sendResource({html: '<p>inline</p>'});
       const inner = innerFrame();
-      expect(inner.hasAttribute('srcdoc')).toBeTrue();
-
-      dispatch({
-        data: {type: A2uiSandboxMessageType.SandboxResourceReady, url: 'https://app.example/ui'},
-        origin: HOST_ORIGIN,
-        source: parentWindow,
-      });
-      expect(inner.hasAttribute('srcdoc')).toBeFalse();
-      expect(inner.src).toBe('https://app.example/ui');
-
-      dispatch({
-        data: {type: A2uiSandboxMessageType.SandboxResourceReady, html: '<p>again</p>'},
-        origin: HOST_ORIGIN,
-        source: parentWindow,
-      });
       expect(inner.hasAttribute('src')).toBeFalse();
-      expect(inner.srcdoc).toBe(injectCspMeta('<p>again</p>'));
+      expect(inner.srcdoc).toBe(injectCspMeta('<p>inline</p>'));
+      expect(reload).not.toHaveBeenCalled();
+    });
+
+    it('ignores a resource-ready message without html or url', () => {
+      const before = innerFrame();
+      sendResource({sandbox: 'allow-scripts allow-popups'});
+      expect(innerFrame()).toBe(before);
+      expect(before.getAttribute('sandbox')).toBe(DEFAULT_INNER_SANDBOX);
+      expect(headNodes).toEqual([]);
     });
 
     it('ignores resource-ready messages from an unexpected origin', () => {
@@ -755,5 +887,271 @@ describe('startSandboxProxy', () => {
       expect(innerPost).not.toHaveBeenCalled();
       expect(parentPost).not.toHaveBeenCalled();
     });
+  });
+
+  describe('inner frame navigation', () => {
+    const [A2UI_REPORT, MCP_REPORT] = createSandboxErrorMessages(
+      SandboxErrorCode.InnerFrameNavigated,
+      'The sandboxed content navigated away from the document the host sent; the sandbox stopped relaying its messages.',
+    );
+
+    let consoleError: jasmine.Spy;
+
+    beforeEach(() => {
+      // Same-origin inner frames, so the test can watch the windows the proxy posts to.
+      sameOriginInner = true;
+      consoleError = spyOn(console, 'error');
+      startSandboxProxy({window: fakeWindow(), document: fakeDocument()});
+    });
+
+    /** Sends inline HTML and resolves with its frame once that frame has loaded it. */
+    async function loadApp(html = '<p>app</p>'): Promise<HTMLIFrameElement> {
+      dispatch({
+        data: {type: A2uiSandboxMessageType.SandboxResourceReady, html},
+        origin: HOST_ORIGIN,
+        source: parentWindow,
+      });
+      const inner = innerFrame();
+      await new Promise(resolve => inner.addEventListener('load', resolve, {once: true}));
+      return inner;
+    }
+
+    function violation(effectiveDirective: string): SecurityPolicyViolationEvent {
+      return new SecurityPolicyViolationEvent('securitypolicyviolation', {
+        effectiveDirective,
+        violatedDirective: effectiveDirective,
+        blockedURI: 'https://evil.example/',
+        originalPolicy: "frame-src 'none';",
+        disposition: 'enforce',
+        documentURI: OWN_URL,
+        statusCode: 0,
+      });
+    }
+
+    function expectStopped(navigated: HTMLIFrameElement, navigatedWindow: Window): void {
+      // The navigated frame is gone, replaced by an empty one.
+      expect(navigated.isConnected).toBeFalse();
+      const blank = innerFrame();
+      expect(blank).not.toBe(navigated);
+      expect(blank.hasAttribute('srcdoc')).toBeFalse();
+      expect(blank.hasAttribute('src')).toBeFalse();
+      // The host gets the report in both framings.
+      expect(parentPost.calls.allArgs()).toEqual([
+        [A2UI_REPORT, HOST_ORIGIN],
+        [MCP_REPORT, HOST_ORIGIN],
+      ]);
+      expect(consoleError).toHaveBeenCalled();
+
+      // Nothing crosses in either direction afterwards.
+      parentPost.calls.reset();
+      const blankPost = spyOn(blank.contentWindow!, 'postMessage');
+      dispatch({data: {type: 'a2ui_app_frame_ready'}, origin: 'null', source: navigatedWindow});
+      dispatch({data: {type: 'a2ui_app_frame_ready'}, origin: 'null', source: blank.contentWindow});
+      dispatch({
+        data: {jsonrpc: '2.0', id: 1, result: {}},
+        origin: HOST_ORIGIN,
+        source: parentWindow,
+      });
+      expect(parentPost).not.toHaveBeenCalled();
+      expect(blankPost).not.toHaveBeenCalled();
+    }
+
+    it('relays and reports nothing while the frame shows its document', async () => {
+      const inner = await loadApp();
+      parentPost.calls.reset();
+      dispatch({data: {type: 'a2ui_app_frame_ready'}, origin: 'null', source: inner.contentWindow});
+      expect(parentPost.calls.allArgs()).toEqual([[{type: 'a2ui_app_frame_ready'}, HOST_ORIGIN]]);
+      expect(innerFrame()).toBe(inner);
+    });
+
+    it('treats a second load without a new resource as a navigation', async () => {
+      const inner = await loadApp();
+      const innerWindow = inner.contentWindow!;
+      const innerPost = spyOn(innerWindow, 'postMessage');
+      parentPost.calls.reset();
+
+      inner.dispatchEvent(new Event('load'));
+
+      // The navigated document never gets `sandbox-init`.
+      expect(innerPost).not.toHaveBeenCalled();
+      expectStopped(inner, innerWindow);
+    });
+
+    it('treats a frame-src violation of its page as a navigation', async () => {
+      const inner = await loadApp();
+      const innerWindow = inner.contentWindow!;
+      parentPost.calls.reset();
+      expect(violationListeners.length).toBe(1);
+
+      violationListeners[0](violation('script-src'));
+      expect(parentPost).not.toHaveBeenCalled();
+
+      violationListeners[0](violation('frame-src'));
+      expectStopped(inner, innerWindow);
+    });
+
+    it('reports a navigation once', async () => {
+      const inner = await loadApp();
+      inner.dispatchEvent(new Event('load'));
+      violationListeners[0](violation('frame-src'));
+      innerFrame().dispatchEvent(new Event('load'));
+      const reports = parentPost.calls
+        .allArgs()
+        .filter(([data]) => (data as {type?: string}).type === A2uiSandboxMessageType.SandboxError);
+      expect(reports.length).toBe(1);
+    });
+
+    it('relays again once the host sends a new resource', async () => {
+      const first = await loadApp();
+      first.dispatchEvent(new Event('load'));
+
+      const second = await loadApp('<p>again</p>');
+      parentPost.calls.reset();
+      dispatch({
+        data: {type: 'a2ui_app_frame_ready'},
+        origin: 'null',
+        source: second.contentWindow,
+      });
+      expect(parentPost.calls.allArgs()).toEqual([[{type: 'a2ui_app_frame_ready'}, HOST_ORIGIN]]);
+    });
+  });
+});
+
+/**
+ * Regression tests for an escape through self-navigation, with the real proxy page that the
+ * package's Karma configuration serves from `dist/sandbox/` at `/a2ui-sandbox/`. Content that set
+ * `location.href` used to keep the bridge in its new document, outside the injected CSP: the proxy
+ * relayed the snapshot to it and its writes and actions to the host.
+ */
+describe('the real proxy page when the content navigates itself', () => {
+  /** Content that says hello, then navigates to the URL the host sends it. */
+  const APP = `<script>
+    addEventListener('message', event => {
+      if (event.data && event.data.navigate) location.href = event.data.navigate;
+      if (event.data && event.data.hash) location.hash = event.data.hash;
+      if (event.data && event.data.ping) parent.postMessage({app: 'pong'}, '*');
+    });
+    parent.postMessage({app: 'hello'}, '*');
+  </script>`;
+
+  /** A document that speaks to the bridge as soon as it runs, and echoes what it receives. */
+  const EVIL_DOCUMENT = `<script>
+    parent.postMessage({evil: 'initialize'}, '*');
+    setInterval(() => parent.postMessage({evil: 'tick'}, '*'), 20);
+    addEventListener('message', event => parent.postMessage({evil: 'echo', data: event.data}, '*'));
+  </script>`;
+
+  let hostFrame: HTMLIFrameElement;
+  let received: unknown[];
+  let violations: string[];
+  let onMessage: (event: MessageEvent) => void;
+
+  async function waitFor(predicate: () => boolean, what: string): Promise<void> {
+    for (let attempt = 0; attempt < 600 && !predicate(); attempt++) {
+      await new Promise(resolve => setTimeout(resolve, 5));
+    }
+    expect(predicate()).withContext(what).toBeTrue();
+  }
+
+  function receivedWith(key: string, value?: unknown): unknown[] {
+    return received.filter(
+      data =>
+        typeof data === 'object' &&
+        data !== null &&
+        key in data &&
+        (value === undefined || (data as Record<string, unknown>)[key] === value),
+    );
+  }
+
+  function postToProxy(data: unknown): void {
+    hostFrame.contentWindow!.postMessage(data, window.location.origin);
+  }
+
+  beforeEach(async () => {
+    received = [];
+    violations = [];
+    onMessage = event => {
+      if (event.source === hostFrame.contentWindow) {
+        received.push(event.data);
+      }
+    };
+    window.addEventListener('message', onMessage);
+    hostFrame = document.createElement('iframe');
+    hostFrame.src = resolveSandboxUrl('html').href;
+    document.body.appendChild(hostFrame);
+    await waitFor(
+      () => receivedWith('type', A2uiSandboxMessageType.SandboxProxyReady).length > 0,
+      'the proxy is ready',
+    );
+    // The proxy page is same-origin here, so the test can watch its policy violations.
+    hostFrame.contentDocument!.addEventListener('securitypolicyviolation', event => {
+      violations.push(`${event.effectiveDirective} ${event.blockedURI}`);
+    });
+    postToProxy({type: A2uiSandboxMessageType.SandboxResourceReady, html: APP});
+    await waitFor(() => receivedWith('app', 'hello').length > 0, 'the app said hello');
+  });
+
+  afterEach(() => {
+    window.removeEventListener('message', onMessage);
+    hostFrame.remove();
+  });
+
+  async function navigateAndExpectStop(url: string): Promise<void> {
+    postToProxy({navigate: url});
+    await waitFor(
+      () => receivedWith('type', A2uiSandboxMessageType.SandboxError).length > 0,
+      'the proxy reported the navigation',
+    );
+    expect(receivedWith('type', A2uiSandboxMessageType.SandboxError)).toEqual([
+      jasmine.objectContaining({code: SandboxErrorCode.InnerFrameNavigated}),
+    ]);
+    expect(receivedWith('method', LOGGING_MESSAGE_NOTIFICATION)).toEqual([
+      jasmine.objectContaining({
+        params: jasmine.objectContaining({level: 'error', logger: SANDBOX_PROXY_LOGGER}),
+      }),
+    ]);
+
+    // Nothing crosses the bridge afterwards, in either direction.
+    const countAfterReport = received.length;
+    postToProxy({ping: 1});
+    postToProxy({jsonrpc: '2.0', id: 1, result: {snapshot: {secret: 42}}});
+    await new Promise(resolve => setTimeout(resolve, 300));
+    expect(receivedWith('evil')).toEqual([]);
+    expect(receivedWith('app', 'pong')).toEqual([]);
+    expect(received.length).toBe(countAfterReport);
+
+    // The proxy dropped the navigated frame.
+    const inner = hostFrame.contentDocument!.querySelector('iframe')!;
+    expect(inner.hasAttribute('srcdoc')).toBeFalse();
+    expect(inner.hasAttribute('src')).toBeFalse();
+  }
+
+  it('relays normally while the content keeps its document', async () => {
+    postToProxy({ping: 1});
+    await waitFor(() => receivedWith('app', 'pong').length > 0, 'the app answered');
+    expect(receivedWith('type', A2uiSandboxMessageType.SandboxError)).toEqual([]);
+  });
+
+  it('refuses a network navigation before it is requested and stops relaying', async () => {
+    const target = new URL('/a2ui-sandbox/escape-target.html', window.location.href).href;
+    await navigateAndExpectStop(target);
+    // Cross-origin reports carry only the origin of the blocked URL.
+    expect(violations.some(v => v.startsWith(`frame-src ${window.location.origin}`)))
+      .withContext(violations.join(', '))
+      .toBeTrue();
+  });
+
+  it('gives a navigated document nothing, even one that inherits the CSP', async () => {
+    await navigateAndExpectStop(`data:text/html,${encodeURIComponent(EVIL_DOCUMENT)}`);
+  });
+
+  it('allows same-document navigation such as a fragment change', async () => {
+    // `location.hash` stays in the document. `location.href = '#section'` would not: a `srcdoc`
+    // document resolves URLs against the proxy page's URL, so that is a navigation to the proxy.
+    postToProxy({hash: 'section'});
+    await new Promise(resolve => setTimeout(resolve, 200));
+    postToProxy({ping: 1});
+    await waitFor(() => receivedWith('app', 'pong').length > 0, 'the app answered');
+    expect(receivedWith('type', A2uiSandboxMessageType.SandboxError)).toEqual([]);
   });
 });

@@ -1,0 +1,48 @@
+{
+  "name": "@a2ui-labs/react-app-demo-client",
+  "version": "0.1.0",
+  "description": "Chat client of the ReactApp demo: A2UI surfaces with agent-written React apps, plus panels that explain how each turn was built.",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./use_cases": "./src/use_cases.ts"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "@a2ui-labs/react-app": "workspace:*",
+    "@a2ui-labs/react-app-runtime": "workspace:*",
+    "@a2ui/markdown-it": "*",
+    "@a2ui/react": "*",
+    "@a2ui/web_core": "*",
+    "@fontsource-variable/fraunces": "^5.2.8",
+    "@fontsource/ibm-plex-mono": "^5.2.7",
+    "@fontsource/ibm-plex-sans": "^5.2.8",
+    "lit": "^3.3.3",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.2",
+    "eslint": "^10.4.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "gts": "^7.0.0",
+    "prettier": "^3.8.4",
+    "typescript": "5.9.3",
+    "vite": "^8.0.16",
+    "vitest": "^4.1.8"
+  }
+}

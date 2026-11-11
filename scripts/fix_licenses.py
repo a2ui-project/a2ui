@@ -54,6 +54,7 @@ IGNORE_PATTERNS = [
     "**/third_party/**",
     "eval/bin/transcrypt",
     "eval/datasets/*.yaml",
+    "samples/community/react_app/eval/datasets/*.yaml",
 ]
 
 

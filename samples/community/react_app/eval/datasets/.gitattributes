@@ -1,0 +1,2 @@
+# Every dataset YAML is encrypted at rest with Transcrypt, like eval/datasets/.
+*.yaml filter=crypt diff=crypt merge=crypt

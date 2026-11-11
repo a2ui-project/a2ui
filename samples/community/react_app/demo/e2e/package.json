@@ -1,0 +1,26 @@
+{
+  "name": "@a2ui-labs/react-app-demo-e2e",
+  "version": "0.1.0",
+  "description": "Playwright tests of the ReactApp demo, against recorded model responses or a live model.",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "echo \"Workspace has no build.\"",
+    "test": "playwright test",
+    "test:live": "DEMO_E2E_MODE=live playwright test",
+    "lint": "tsc -p tsconfig.json && eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@a2ui-labs/react-app-demo-client": "workspace:*",
+    "@playwright/test": "1.58.1",
+    "@types/node": "^25.9.3",
+    "eslint": "^10.4.1",
+    "gts": "^7.0.0",
+    "prettier": "^3.8.4",
+    "typescript": "5.9.3"
+  }
+}

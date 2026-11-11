@@ -854,19 +854,22 @@ String _double(double value) {
   return '$value';
 }
 
-/// A string literal: raw when that keeps backslashes single, and escaped
-/// otherwise.
+/// A string literal: raw triple-quoted across lines, raw on one line when that
+/// keeps backslashes single, and escaped otherwise.
 String _string(String value) {
-  final bool hasBackslash = value.contains(r'\');
-  if (hasBackslash && !value.contains(RegExp('["\n\r]'))) return 'r"$value"';
-  // Across lines a raw string is triple-quoted, and ends at the first `"""`.
-  if (hasBackslash &&
-      value.contains('\n') &&
-      !value.contains('\r') &&
-      !value.contains('"""') &&
-      !value.endsWith('"')) {
-    return 'r"""$value"""';
+  // A raw string ends at the first `"""`, so a multi-line value that contains
+  // one or ends in `"` is escaped instead: every `"` that starts a `""` pair
+  // or ends the value is written `\"`.
+  if (value.contains(RegExp('[\n\r]'))) {
+    if (!value.contains('"""') && !value.endsWith('"')) {
+      return 'r"""$value"""';
+    }
+    final String escaped = value
+        .replaceAll(r'\', r'\\')
+        .replaceAll(RegExp(r'"(?="|$)'), r'\"');
+    return '"""$escaped"""';
   }
+  if (value.contains(r'\') && !value.contains('"')) return 'r"$value"';
   final String escaped = value
       .replaceAll(r'\', r'\\')
       .replaceAll('"', r'\"')

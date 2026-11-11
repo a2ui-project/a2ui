@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/labs/react_app/v1/catalog.json",
+  "protocolVersion": "1.0",
+  "title": "A2UI ReactApp Catalog (labs)",
+  "description": "Defines the `ReactApp` component: a small React app, written by the agent as one TSX file, that renders in a sandboxed frame next to the native components and talks to the surface data model and catalog functions through the `a2ui` module.",
+  "catalogId": "https://a2ui.org/labs/react_app/v1/catalog.json",
+  "instructions": "Use `ReactApp` only for interactive UI the native components can't express: custom charts with interactions, drag and drop, brushing, canvases, timers or games. Build everything else (labels, sliders, text fields, buttons, lists) from native components, and connect them to the app through shared data model paths. The app reads and writes those paths with `useData(path, fallback)` from the `a2ui` module, and calls catalog or agent functions with `callFunction(name, args)`. Write `source` as one raw triple-quoted string, `r\"\"\"...\"\"\"`, inline in the `ReactApp(...)` call.",
+  "components": {
+    "ReactApp": {
+      "type": "object",
+      "description": "A small interactive React app written as one TSX file. It renders in an isolated frame inside the surface, sized by `height`. The app can import only `react` and `a2ui`. Through `a2ui` it reads, writes and subscribes to data model paths (`useData`, `getData`, `setData`, `subscribe`), calls catalog and agent functions (`callFunction`, `useFunction`), dispatches actions (`dispatchAction`), draws Vega-Lite charts (`VegaChart`) and uses styled primitives (`Card`, `Button`, `Text`, `Slider`, `Stack`) that match the native components. The app has no network access and no access to the host page.",
+      "properties": {
+        "component": {
+          "const": "ReactApp"
+        },
+        "source": {
+          "type": "string",
+          "description": "The complete TSX source of the app: one file that default-exports a component named `App`, which takes no props. Import only from `react` and `a2ui`. Read and write data model paths with `useData`, never with props or globals. Style with the `a2ui` primitives or `var(--a2ui-*)` CSS variables; don't hard-code colors or fonts. Write it as a raw triple-quoted string `r\"\"\"...\"\"\"`: nothing inside is escaped, and it must never contain three double quotes in a row."
+        },
+        "title": {
+          "type": "string",
+          "description": "A short title for the app. It is the accessible name of the frame and the heading of its error card."
+        },
+        "height": {
+          "type": "number",
+          "description": "The height of the frame in CSS pixels. Defaults to 360. Pick a height that fits the app without scrolling; the app can ask for more at runtime."
+        },
+        "dataPaths": {
+          "type": "array",
+          "description": "Allowlist of the data model paths the app may read and write, as JSON pointers. A request for one of these paths, or a path below one, is allowed; any other path is rejected. When absent, the app may use no path. List the paths the app passes to `useData`, `getData`, `setData` and `subscribe`; if you leave it out, the agent server fills it in from those calls in `source`.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "functions": {
+          "type": "array",
+          "description": "Allowlist of the function names the app may call with `callFunction`, `useFunction` or `a2ui:bindings`. When absent, the app may call no function. If you leave it out, the agent server fills it in from the calls in `source`.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "actions": {
+          "type": "array",
+          "description": "Allowlist of the action names the app may dispatch with `dispatchAction`. When absent, the app may dispatch no action. If you leave it out, the agent server fills it in from the calls in `source`. The host also refuses an action that doesn't come from a click or key press, and more than 5 actions per second, so dispatch actions from event handlers, never from effects or timers.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "compiled": {
+          "type": "string",
+          "description": "The app compiled to plain JavaScript (an ES module) by the agent server (`ReactAppTransformer` strips any value the model sets and fills this in when a compiler is configured); never write this property yourself. When present, the frame runs it inside the same sandbox and CSP as `source`, skipping the in-browser transpile."
+        }
+      },
+      "required": ["component", "source"]
+    }
+  },
+  "functions": {},
+  "$defs": {
+    "anyComponent": {
+      "oneOf": [
+        {
+          "$ref": "#/components/ReactApp"
+        }
+      ],
+      "discriminator": {
+        "propertyName": "component"
+      }
+    },
+    "anyFunction": {
+      "not": {}
+    }
+  }
+}

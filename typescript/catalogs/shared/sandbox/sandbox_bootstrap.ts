@@ -25,8 +25,10 @@
 
 import {
   A2uiSandboxMessageType,
+  LOGGING_MESSAGE_NOTIFICATION,
   PROXY_READY_NOTIFICATION,
   RESOURCE_READY_NOTIFICATION,
+  SANDBOX_PROXY_LOGGER,
   type SandboxCsp,
   type SandboxPermissions,
 } from './sandbox.js';
@@ -141,6 +143,81 @@ export function listenForSandboxProxyReady(options: SandboxProxyReadyListenerOpt
       isSandboxProxyReadyMessage(event.data, protocol)
     ) {
       onReady();
+    }
+  };
+  target.addEventListener('message', listener);
+  return () => {
+    target.removeEventListener('message', listener);
+  };
+}
+
+/** An error the proxy reports to the host, such as `inner_frame_navigated` (`SandboxErrorCode`). */
+export interface SandboxError {
+  readonly code: string;
+  readonly message: string;
+}
+
+/**
+ * Reads the error report of the given protocol: the `a2ui_sandbox_error` envelope, or an MCP
+ * logging notification from the proxy's logger. Returns null for any other message. The proxy
+ * relays the content's messages from the same window, so the content can forge a report too; all
+ * it achieves is stopping itself.
+ */
+export function readSandboxError(data: unknown, protocol: SandboxProtocol): SandboxError | null {
+  if (!isRecord(data)) {
+    return null;
+  }
+  let report: unknown;
+  if (protocol === 'mcp') {
+    const params = data['params'];
+    if (
+      data['method'] !== LOGGING_MESSAGE_NOTIFICATION ||
+      !isRecord(params) ||
+      params['logger'] !== SANDBOX_PROXY_LOGGER
+    ) {
+      return null;
+    }
+    report = params['data'];
+  } else {
+    if (data['type'] !== A2uiSandboxMessageType.SandboxError) {
+      return null;
+    }
+    report = data;
+  }
+  if (!isRecord(report) || typeof report['code'] !== 'string') {
+    return null;
+  }
+  const code = report['code'];
+  return {code, message: typeof report['message'] === 'string' ? report['message'] : code};
+}
+
+/** Inputs of {@link listenForSandboxError}. */
+export interface SandboxErrorListenerOptions {
+  /** The frame that loads the proxy page. */
+  readonly frame: HTMLIFrameElement;
+  /** Origin the proxy page is served from. */
+  readonly sandboxOrigin: string;
+  readonly protocol: SandboxProtocol;
+  /** Called with each error the proxy reports. */
+  readonly onError: (error: SandboxError) => void;
+  /** Where the events arrive; defaults to `window`. */
+  readonly target?: MessageListenerTarget;
+}
+
+/**
+ * Calls `onError` whenever the proxy in `frame` reports an error. Returns a function that removes
+ * the listener.
+ */
+export function listenForSandboxError(options: SandboxErrorListenerOptions): () => void {
+  const {frame, sandboxOrigin, protocol, onError} = options;
+  const target: MessageListenerTarget = options.target ?? window;
+  const listener = (event: Event) => {
+    if (!(event instanceof MessageEvent) || !isMessageFromFrame(event, frame, sandboxOrigin)) {
+      return;
+    }
+    const error = readSandboxError(event.data, protocol);
+    if (error) {
+      onError(error);
     }
   };
   target.addEventListener('message', listener);

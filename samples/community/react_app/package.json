@@ -1,0 +1,30 @@
+{
+  "name": "a2ui-react-app-labs",
+  "version": "0.0.0",
+  "private": true,
+  "description": "ReactApp for A2UI (labs prototype): agent-written React apps in a sandboxed frame, connected to the surface data model and functions.",
+  "license": "Apache-2.0",
+  "packageManager": "yarn@4.13.0",
+  "workspaces": [
+    "typescript/*",
+    "demo/*"
+  ],
+  "scripts": {
+    "build": "yarn workspaces foreach -A -t --topological-dev --exclude a2ui-react-app-labs run build",
+    "test": "yarn workspaces foreach -A -t --topological-dev --exclude a2ui-react-app-labs run test",
+    "lint": "yarn workspaces foreach -A -t --topological-dev --exclude a2ui-react-app-labs run lint",
+    "lint:fix": "yarn workspaces foreach -A -t --topological-dev --exclude a2ui-react-app-labs run lint:fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "video": "node scripts/video_upload.mjs",
+    "test:scripts": "node scripts/video_upload.test.mjs"
+  },
+  "resolutions": {
+    "@a2ui/markdown-it": "portal:../../../typescript/renderers/markdown-it",
+    "@a2ui/react": "portal:../../../typescript/renderers/react",
+    "@a2ui/web_core": "portal:../../../typescript/core/web_core"
+  },
+  "devDependencies": {
+    "prettier": "^3.8.4"
+  }
+}

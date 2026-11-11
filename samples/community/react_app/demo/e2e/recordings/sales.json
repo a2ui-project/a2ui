@@ -1,0 +1,476 @@
+{
+  "entries": [
+    {
+      "key": "Plot our 2025 sales by month and amount for each region. Let me drag over the chart to pick a region and a few months, and list the matching orders below.",
+      "attempt": 2,
+      "model": "gemini-3.5-flash",
+      "chunks": [
+        {
+          "t": 1174.6,
+          "text": "Here is"
+        },
+        {
+          "t": 1249.3,
+          "text": " the interactive 2025 sales explorer where you can filter by region and drag a selection"
+        },
+        {
+          "t": 1400.3,
+          "text": " across the monthly chart to list matching orders.\n\n<a2ui>\nsurface(\"sales_analyzer\")\n$/sales"
+        },
+        {
+          "t": 1589.9,
+          "text": "/region = [\"All\"]\n$/sales/summary = \"Drag across the chart to pick months and filter orders.\"\n$/sales/count"
+        },
+        {
+          "t": 1783.2,
+          "text": " = \"Select a region or brush the chart to explore.\"\n\nroot = Column([heading, region_picker, chart"
+        },
+        {
+          "t": 1914.3,
+          "text": "_app, summary_text, count_text])\nheading = Text(\"## 2025 Regional Sales Explorer\")\n\n"
+        },
+        {
+          "t": 2027.2,
+          "text": "region_picker = ChoicePicker(\n  label=\"Filter Region\",\n  variant=\"mutuallyExclusive\",\n  options=[\n    {"
+        },
+        {
+          "t": 2096.3,
+          "text": "label: \"All Regions\", value: \"All\"},\n    {label: \"North America\", value: \"North"
+        },
+        {
+          "t": 2170.5,
+          "text": " America\"},\n    {label: \"EMEA\", value: \"EMEA\"},\n    {label: \"APAC"
+        },
+        {
+          "t": 2258.4,
+          "text": "\", value: \"APAC\"},\n    {label: \"LATAM\", value: \"LATAM\"}\n  ],"
+        },
+        {
+          "t": 2350.6,
+          "text": "\n  value=$/sales/region,\n  displayStyle=\"chips\"\n)\n\nchart_app = React"
+        },
+        {
+          "t": 2452.1,
+          "text": "App(\n  source=r\"\"\"import { useEffect, useState, useMemo } from \"react\";\nimport { Card,"
+        },
+        {
+          "t": 2639.5,
+          "text": " Stack, Text, VegaChart, useData, useFunction, setData } from \"a2ui\";\n\ntype Order = {"
+        },
+        {
+          "t": 2793.7,
+          "text": "\n  id: string;\n  date: string;\n  region: string;\n  customer: string;"
+        },
+        {
+          "t": 2959.0,
+          "text": "\n  product: string;\n  amount: number;\n};\n\nexport default function App() {\n  const"
+        },
+        {
+          "t": 3082.6,
+          "text": " [regionArr] = useData<string[]>(\"/sales/region\", [\"All\"]);\n  const region = regionArr["
+        },
+        {
+          "t": 3154.8,
+          "text": "0] || \"All\";\n\n  const { data: sales, loading } = useFunction<Order[]>(\"query"
+        },
+        {
+          "t": 3248.9,
+          "text": "Sales\", {\n    region: region,\n    from: \"2025-01-01"
+        },
+        {
+          "t": 3323.9,
+          "text": "\",\n    to: \"2025-12-31\"\n  });\n\n  const ["
+        },
+        {
+          "t": 3445.9,
+          "text": "brushRange, setBrushRange] = useState<[string, string] | null>(null);\n\n  // Group"
+        },
+        {
+          "t": 3554.4,
+          "text": " sales by month and region\n  const monthlyData = useMemo(() => {\n    if (!sales) return [];\n    const map"
+        },
+        {
+          "t": 3676.2,
+          "text": " = new Map<string, { month: string; region: string; total: number }>();\n    for (const order of sales)"
+        },
+        {
+          "t": 3758.4,
+          "text": " {\n      const month = order.date.substring(0, 7); // YYYY-MM\n"
+        },
+        {
+          "t": 3863.0,
+          "text": "      const key = `${month}_${order.region}`;\n      const current = map.get(key) || {"
+        },
+        {
+          "t": 3972.8,
+          "text": " month, region: order.region, total: 0 };\n      current.total += order.amount;\n      map.set("
+        },
+        {
+          "t": 4049.5,
+          "text": "key, current);\n    }\n    return Array.from(map.values()).sort((a, b)"
+        },
+        {
+          "t": 4172.7,
+          "text": " => a.month.localeCompare(b.month));\n  }, [sales]);\n\n  // Filter orders based on brush selection"
+        },
+        {
+          "t": 4283.6,
+          "text": "\n  const selectedOrders = useMemo(() => {\n    if (!sales) return [];\n    if (!brushRange) return sales"
+        },
+        {
+          "t": 4379.2,
+          "text": ";\n    const [start, end] = brushRange;\n    return sales.filter(o => o."
+        },
+        {
+          "t": 4446.4,
+          "text": "date >= start && o.date <= end);\n  }, [sales, brushRange]);\n\n  useEffect(() =>"
+        },
+        {
+          "t": 4543.6,
+          "text": " {\n    if (brushRange) {\n      setData(\"/sales/summary\", `Showing orders from ${brushRange["
+        },
+        {
+          "t": 4627.6,
+          "text": "0]} to ${brushRange[1]}`);\n    } else {\n      setData(\"/sales/summary\", \""
+        },
+        {
+          "t": 4738.1,
+          "text": "Drag across the x-axis to select a date range.\");\n    }\n    setData(\"/sales/count\", `${selectedOrders.length"
+        },
+        {
+          "t": 4821.1,
+          "text": "} matching order(s) found`);\n  }, [brushRange, selectedOrders]);\n\n  const spec = {"
+        },
+        {
+          "t": 4913.0,
+          "text": "\n    data: { name: \"table\" },\n    params: [\n      {\n        name: \"brush\",\n        "
+        },
+        {
+          "t": 5026.6,
+          "text": "select: { type: \"interval\", encodings: [\"x\"] }\n      }\n    ],\n    mark: \""
+        },
+        {
+          "t": 5118.5,
+          "text": "bar\",\n    encoding: {\n      x: { field: \"month\", type: \"nominal\", title: \"Month\""
+        },
+        {
+          "t": 5196.2,
+          "text": " },\n      y: { field: \"total\", type: \"quantitative\", title: \"Total Sales ($)\" },"
+        },
+        {
+          "t": 5303.6,
+          "text": "\n      color: { field: \"region\", type: \"nominal\", title: \"Region\" },\n      opacity"
+        },
+        {
+          "t": 5448.3,
+          "text": ": {\n        condition: { param: \"brush\", value: 1 },\n        value: 0.3"
+        },
+        {
+          "t": 5485.7,
+          "text": "\n      }\n    }\n  };\n\n  if (loading) {\n    return (\n      <Card"
+        },
+        {
+          "t": 5602.9,
+          "text": " title=\"Sales Chart\">\n        <Text>Loading 2025 sales data...</Text>\n      </Card>\n"
+        },
+        {
+          "t": 5719.9,
+          "text": "    );\n  }\n\n  return (\n    <Card title=\"Monthly Sales & Drag-to-Select\">\n      "
+        },
+        {
+          "t": 5820.0,
+          "text": "<Stack gap={2}>\n        <VegaChart\n          spec={spec}\n          data={{ table: monthly"
+        },
+        {
+          "t": 6010.6,
+          "text": "Data }}\n          height={220}\n          onSignal={{\n            brush: (val: any) => {\n"
+        },
+        {
+          "t": 6142.7,
+          "text": "              if (val && val.month) {\n                const dates = val.month;\n                setBrushRange(["
+        },
+        {
+          "t": 6224.0,
+          "text": "dates[0], dates[dates.length - 1]]);\n              } else {\n                setBrushRange(null"
+        },
+        {
+          "t": 6340.1,
+          "text": ");\n              }\n            }\n          }}\n        />\n        {selectedOrders.length > 0 && (\n          <"
+        },
+        {
+          "t": 6473.7,
+          "text": "Stack gap={1}>\n            <Text variant=\"h3\">Selected Orders Sample</Text>\n            {selectedOrders.slice(0"
+        },
+        {
+          "t": 6574.0,
+          "text": ", 5).map(o => (\n              <Text key={o.id} variant=\"caption\">\n                {"
+        },
+        {
+          "t": 6678.8,
+          "text": "o.date} | {o.region} | {o.customer} - ${o.amount} ({o.product})\n              "
+        },
+        {
+          "t": 6761.4,
+          "text": "</Text>\n            ))}\n            {selectedOrders.length > 5 && (\n              <Text variant=\""
+        },
+        {
+          "t": 6866.9,
+          "text": "caption\" tone=\"muted\">\n                ...and {selectedOrders.length - 5} more orders.\n              </Text>\n"
+        },
+        {
+          "t": 6954.7,
+          "text": "            )}\n          </Stack>\n        )}\n      </Stack>\n    </Card>\n  );\n"
+        },
+        {
+          "t": 7099.9,
+          "text": "}\n\"\"\",\n  title=\"Sales Chart App\",\n  height=420,\n  dataPaths=[\"/sales\"],"
+        },
+        {
+          "t": 7179.3,
+          "text": "\n  functions=[\"querySales\"]\n)\n\nsummary_text = Text($/sales/summary, variant=\"body"
+        },
+        {
+          "t": 7264.8,
+          "text": "\")\ncount_text = Text($/sales/count, variant=\"caption\")\n</a2ui>"
+        }
+      ],
+      "usage": {
+        "promptTokens": 13997,
+        "outputTokens": 1430,
+        "thoughtsTokens": 0
+      }
+    },
+    {
+      "key": "Plot our 2025 sales by month and amount for each region. Let me drag over the chart to pick a region and a few months, and list the matching orders below.",
+      "attempt": 1,
+      "model": "gemini-3.5-flash",
+      "chunks": [
+        {
+          "t": 3599.8,
+          "text": "Here is an interactive 2025"
+        },
+        {
+          "t": 3722.7,
+          "text": " sales explorer with brush filtering and matching order details.\n\n<a2ui>\nsurface(\"sales\")\n$/sales/region"
+        },
+        {
+          "t": 3794.5,
+          "text": " = \"All\"\n$/sales/from = \"2025-01-01\"\n$/"
+        },
+        {
+          "t": 3881.0,
+          "text": "sales/to = \"2025-12-31\"\n$/sales/summary = \"Drag"
+        },
+        {
+          "t": 4012.6,
+          "text": " a window on the chart to filter orders by date range.\"\nroot = Column(children=[title, regionPicker, chart, summaryText"
+        },
+        {
+          "t": 4190.9,
+          "text": ", orderList])\ntitle = Text(\"## 2025 Sales Performance\")\nregionPicker = ChoicePicker(label=\"Filter"
+        },
+        {
+          "t": 4325.0,
+          "text": " Region\", options=[{label: \"All\", value: \"All\"}, {label: \"North America\", value: \"North America\"}, {"
+        },
+        {
+          "t": 4356.3,
+          "text": "label: \"EMEA\", value: \"EMEA\"}, {label: \"APAC\", value: \"APAC\"}, {"
+        },
+        {
+          "t": 4456.7,
+          "text": "label: \"LATAM\", value: \"LATAM\"}], value=$/sales/region, displayStyle=\"chips\")\nchart"
+        },
+        {
+          "t": 4570.7,
+          "text": " = ReactApp(source=r\"\"\"import { useEffect } from \"react\";\nimport { Card, Stack, Text"
+        },
+        {
+          "t": 4665.5,
+          "text": ", VegaChart, useData, useFunction } from \"a2ui\";\n\nexport default function App() {\n  const [region"
+        },
+        {
+          "t": 4746.0,
+          "text": "] = useData<string>(\"/sales/region\", \"All\");\n  const [, setFrom] = use"
+        },
+        {
+          "t": 4829.9,
+          "text": "Data<string>(\"/sales/from\", \"2025-01-01\");\n  const"
+        },
+        {
+          "t": 4915.0,
+          "text": " [, setTo] = useData<string>(\"/sales/to\", \"2025-12-3"
+        },
+        {
+          "t": 5015.2,
+          "text": "1\");\n  const [, setSummary] = useData<string>(\"/sales/summary\", \"\");\n\n  const { data:"
+        },
+        {
+          "t": 5169.2,
+          "text": " sales, loading } = useFunction<any[]>(\"querySales\", {\n    region: region,\n    from: \""
+        },
+        {
+          "t": 5255.3,
+          "text": "2025-01-01\",\n    to: \"2025-12-"
+        },
+        {
+          "t": 5321.2,
+          "text": "31\"\n  });\n\n  const spec = {\n    data: { name: \"table\" },\n    params:"
+        },
+        {
+          "t": 5432.9,
+          "text": " [\n      {\n        name: \"brush\",\n        select: { type: \"interval\", encodings: [\"x\"] }"
+        },
+        {
+          "t": 5534.7,
+          "text": "\n      }\n    ],\n    mark: { type: \"line\", point: true, tooltip: true },\n    encoding"
+        },
+        {
+          "t": 5646.4,
+          "text": ": {\n      x: { field: \"date\", type: \"temporal\", title: \"Month / Date\" },\n      y"
+        },
+        {
+          "t": 5741.7,
+          "text": ": { field: \"amount\", type: \"quantitative\", aggregate: \"sum\", title: \"Total Sales ($)\" },\n      color"
+        },
+        {
+          "t": 5847.0,
+          "text": ": { field: \"region\", type: \"nominal\", title: \"Region\" }\n    }\n  };"
+        },
+        {
+          "t": 5974.5,
+          "text": "\n\n  const handleSignal = (val: any) => {\n    if (val && val.date) {\n      const start"
+        },
+        {
+          "t": 6052.4,
+          "text": " = new Date(val.date[0]).toISOString().split(\"T\")[0];\n      const end = new"
+        },
+        {
+          "t": 6143.1,
+          "text": " Date(val.date[1]).toISOString().split(\"T\")[0];\n      setFrom(start);\n"
+        },
+        {
+          "t": 6296.4,
+          "text": "      setTo(end);\n      setSummary(`Showing orders from ${start} to ${end}`);\n    } else {\n"
+        },
+        {
+          "t": 6368.9,
+          "text": "      setFrom(\"2025-01-01\");\n      setTo(\"2025-"
+        },
+        {
+          "t": 6465.4,
+          "text": "12-31\");\n      setSummary(\"Drag over the chart to highlight a date range.\");\n    }\n"
+        },
+        {
+          "t": 6585.7,
+          "text": "  };\n\n  return (\n    <Card title=\"Monthly Sales Trend\">\n      <Stack gap={2}>\n        {"
+        },
+        {
+          "t": 6662.0,
+          "text": "loading ? (\n          <Text tone=\"muted\">Loading sales data...</Text>\n        ) : (\n          <VegaChart"
+        },
+        {
+          "t": 6746.8,
+          "text": "\n            spec={spec}\n            data={{ table: sales || [] }}\n            height={260}"
+        },
+        {
+          "t": 6844.4,
+          "text": "\n            onSignal={{ brush: handleSignal }}\n          />\n        )}\n      </Stack>\n    </"
+        },
+        {
+          "t": 6908.6,
+          "text": "Card>\n  );\n}\n\"\"\", title=\"2025 Sales Trend\", height=320,"
+        },
+        {
+          "t": 7030.6,
+          "text": " dataPaths=[\"/sales\"], functions=[\"querySales\"])\nsummaryText = Text($/sales/summary)\norderList = React"
+        },
+        {
+          "t": 7119.3,
+          "text": "App(source=r\"\"\"import { Card, Stack, Text, useData, useFunction, callFunction } from \"a"
+        },
+        {
+          "t": 7203.2,
+          "text": "2ui\";\nimport { useEffect, useState } from \"react\";\n\nexport default function App() {\n  const"
+        },
+        {
+          "t": 7287.4,
+          "text": " [region] = useData<string>(\"/sales/region\", \"All\");\n  const [from] ="
+        },
+        {
+          "t": 7360.4,
+          "text": " useData<string>(\"/sales/from\", \"2025-01-01\");\n  "
+        },
+        {
+          "t": 7460.1,
+          "text": "const [to] = useData<string>(\"/sales/to\", \"2025-12-"
+        },
+        {
+          "t": 7530.9,
+          "text": "31\");\n\n  const { data: orders, loading } = useFunction<any[]>(\"querySales\", {"
+        },
+        {
+          "t": 7626.8,
+          "text": " region, from, to });\n  const [formattedOrders, setFormattedOrders] = useState<any[]>([]);\n\n  useEffect(() =>"
+        },
+        {
+          "t": 7783.5,
+          "text": " {\n    if (!orders) return;\n    let active = true;\n    Promise.all(\n      orders.slice(0"
+        },
+        {
+          "t": 7881.3,
+          "text": ", 15).map(async (o) => ({\n        ...o,\n        formattedAmount: await callFunction(\""
+        },
+        {
+          "t": 7955.2,
+          "text": "formatCurrency\", { value: o.amount, currency: \"USD\" })\n      }))\n    ).then(("
+        },
+        {
+          "t": 8035.1,
+          "text": "res) => {\n      if (active) setFormattedOrders(res);\n    });\n    return () =>"
+        },
+        {
+          "t": 8153.2,
+          "text": " { active = false; };\n  }, [orders]);\n\n  if (loading) return <Text tone=\"muted\">Loading orders"
+        },
+        {
+          "t": 8294.1,
+          "text": "...</Text>;\n\n  return (\n    <Card title={`Matching Orders (${orders ? orders.length : 0})`}>\n"
+        },
+        {
+          "t": 8413.8,
+          "text": "      <Stack gap={1}>\n        {formattedOrders.map((o) => (\n          <Text key={"
+        },
+        {
+          "t": 8491.0,
+          "text": "o.id} variant=\"caption\">\n            {o.date} | {o.region} | {o.customer} -"
+        },
+        {
+          "t": 8605.4,
+          "text": " {o.product}: {o.formattedAmount}\n          </Text>\n        ))}\n        {orders && orders.length"
+        },
+        {
+          "t": 8795.0,
+          "text": " > 15 && (\n          <Text variant=\"caption\" tone=\"muted\">\n            And {orders.length -"
+        },
+        {
+          "t": 8866.1,
+          "text": " 15} more orders...\n          </Text>\n        )}\n      </Stack>\n    </Card"
+        },
+        {
+          "t": 8975.5,
+          "text": ">\n  );\n}\n\"\"\", title=\"Filtered Orders\", height=280, dataPaths=[\"/sales\"], functions=[\"querySales"
+        },
+        {
+          "t": 9008.9,
+          "text": "\", \"formatCurrency\"])\n</a2ui>"
+        }
+      ],
+      "usage": {
+        "promptTokens": 13699,
+        "outputTokens": 1390,
+        "thoughtsTokens": 345
+      }
+    }
+  ]
+}

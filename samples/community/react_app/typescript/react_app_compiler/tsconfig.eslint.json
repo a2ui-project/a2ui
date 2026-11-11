@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  /* Covers the sources, their tests and the vitest config for ESLint's typed rules. */
+  "extends": "./tsconfig.json",
+  "compilerOptions": {"noEmit": true, "rootDir": "."},
+  "include": ["src/**/*.ts", "*.ts"],
+  "exclude": []
+}

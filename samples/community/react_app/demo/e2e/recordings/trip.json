@@ -1,0 +1,192 @@
+{
+  "entries": [
+    {
+      "key": "I'm visiting the Louvre, Montmartre, the Eiffel Tower and Notre-Dame tomorrow. Let me drag them into the order I want and tell me how long the travel takes. Then let me book that order.",
+      "attempt": 1,
+      "model": "gemini-3.5-flash",
+      "chunks": [
+        {
+          "t": 3879.2,
+          "text": "Here is your interactive"
+        },
+        {
+          "t": 3980.1,
+          "text": " itinerary builder to reorder your Paris stops, view live travel estimates, and book your route.\n\n<a2ui"
+        },
+        {
+          "t": 4099.2,
+          "text": ">\nsurface(\"paris-itinerary\")\n$/itinerary/stops = [\"Eiffel Tower\", \"Louvre\", \"Notre-Dame"
+        },
+        {
+          "t": 4183.7,
+          "text": "\", \"Montmartre\"]\n$/itinerary/travelTimeMinutes = 0\n$/itinerary/summary ="
+        },
+        {
+          "t": 4305.0,
+          "text": " \"Estimated travel time calculating...\"\nroot = Column(children=[heading, app, summary_text, book_button])\nheading = Text"
+        },
+        {
+          "t": 4477.8,
+          "text": "(text=\"## Paris Itinerary Planner\")\napp = ReactApp(source=r\"\"\"import { useEffect, useState } from \"react"
+        },
+        {
+          "t": 4536.6,
+          "text": "\";\nimport { Card, Stack, Text, useData, useFunction, setData } from \"a2ui\";\n\nexport default function"
+        },
+        {
+          "t": 4646.0,
+          "text": " App() {\n  const [stops, setStops] = useData<string[]>(\"/itinerary/stops"
+        },
+        {
+          "t": 4719.8,
+          "text": "\", [\n    \"Eiffel Tower\",\n    \"Louvre\",\n    \"Notre-Dame\",\n    \""
+        },
+        {
+          "t": 4853.7,
+          "text": "Montmartre\"\n  ]);\n  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);\n\n"
+        },
+        {
+          "t": 4947.4,
+          "text": "  const { data: minutes, loading } = useFunction<number>(\n    \"estimateTravelTime\",\n    stops.length"
+        },
+        {
+          "t": 5028.7,
+          "text": " > 0 ? { stops } : null\n  );\n\n  useEffect(() => {\n    if (minutes !=="
+        },
+        {
+          "t": 5112.4,
+          "text": " undefined) {\n      setData(\"/itinerary/travelTimeMinutes\", minutes);\n      setData(\"/itinerary/summary"
+        },
+        {
+          "t": 5216.9,
+          "text": "\", `Total travel time between stops: ${minutes} minutes`);\n    }\n  }, [minutes]);\n\n  const handleDrag"
+        },
+        {
+          "t": 5358.3,
+          "text": "Start = (index: number) => {\n    setDraggedIndex(index);\n  };\n\n  const handleDragOver = ("
+        },
+        {
+          "t": 5406.8,
+          "text": "e: React.DragEvent) => {\n    e.preventDefault();\n  };\n\n  const handleDrop ="
+        },
+        {
+          "t": 5490.4,
+          "text": " (dropIndex: number) => {\n    if (draggedIndex === null || draggedIndex === dropIndex)"
+        },
+        {
+          "t": 5572.8,
+          "text": " return;\n    const nextStops = [...stops];\n    const [moved] = nextStops.splice"
+        },
+        {
+          "t": 5682.8,
+          "text": "(draggedIndex, 1);\n    nextStops.splice(dropIndex, 0, moved);\n    setDragged"
+        },
+        {
+          "t": 5771.5,
+          "text": "Index(null);\n    setStops(nextStops);\n  };\n\n  return (\n    <"
+        },
+        {
+          "t": 5926.2,
+          "text": "Card title=\"Drag stops to reorder your tour\">\n      <Stack gap={3}>\n        <Stack gap={2}>\n"
+        },
+        {
+          "t": 6000.1,
+          "text": "          {stops.map((stop, idx) => (\n            <div\n              key={stop}\n              draggable\n              "
+        },
+        {
+          "t": 6103.0,
+          "text": "onDragStart={() => handleDragStart(idx)}\n              onDragOver={handleDragOver}\n              onDrop={() =>"
+        },
+        {
+          "t": 6186.2,
+          "text": " handleDrop(idx)}\n              style={{\n                padding: \"12px 16px\",\n                "
+        },
+        {
+          "t": 6300.0,
+          "text": "border: \"1px solid var(--a2ui-color-border)\",\n                borderRadius: \"8px\","
+        },
+        {
+          "t": 6395.5,
+          "text": "\n                backgroundColor: \"var(--a2ui-color-surface)\",\n                cursor: \"grab\",\n                "
+        },
+        {
+          "t": 6523.2,
+          "text": "display: \"flex\",\n                alignItems: \"center\",\n                justifyContent: \"space-between\",\n                userSelect: \""
+        },
+        {
+          "t": 6644.0,
+          "text": "none\"\n              }}\n            >\n              <Stack direction=\"horizontal\" gap={2} align=\"center\">"
+        },
+        {
+          "t": 6731.6,
+          "text": "\n                <Text variant=\"mono\" tone=\"muted\">{idx + 1}.</Text>\n                <Text"
+        },
+        {
+          "t": 6834.9,
+          "text": " variant=\"body\">{stop}</Text>\n              </Stack>\n              <Text variant=\"caption\" tone=\"muted\">\u283f Drag</"
+        },
+        {
+          "t": 6986.3,
+          "text": "Text>\n            </div>\n          ))}\n        </Stack>\n        <Stack direction=\"horizontal\" justify=\"between\" align=\"center"
+        },
+        {
+          "t": 7072.7,
+          "text": "\">\n          <Text variant=\"caption\" tone=\"muted\">\n            {loading ? \"Calculating travel time...\" : `Est"
+        },
+        {
+          "t": 7205.9,
+          "text": ". transit: ${minutes ?? \"--\"} mins`}\n          </Text>\n        </Stack>\n      </Stack>\n    "
+        },
+        {
+          "t": 7339.9,
+          "text": "</Card>\n  );\n}\n\"\"\", title=\"Reorder Paris Stops\", height=380, dataPaths=[\"/"
+        },
+        {
+          "t": 7438.3,
+          "text": "itinerary\"], functions=[\"estimateTravelTime\"])\nsummary_text = Text(text=$/itinerary/summary)"
+        },
+        {
+          "t": 7578.6,
+          "text": "\nbook_btn_label = Text(text=\"Book This Itinerary\")\nbook_button = Button(child="
+        },
+        {
+          "t": 7665.5,
+          "text": "book_btn_label, variant=\"primary\", action=Event(\"bookItinerary\", {stops: $/itinerary"
+        },
+        {
+          "t": 7783.6,
+          "text": "/stops, travelTimeMinutes: $/itinerary/travelTimeMinutes}))\n</a2ui>"
+        }
+      ],
+      "usage": {
+        "promptTokens": 13706,
+        "outputTokens": 959,
+        "thoughtsTokens": 451
+      }
+    },
+    {
+      "key": "action:bookItinerary",
+      "attempt": 1,
+      "model": "gemini-3.5-flash",
+      "chunks": [
+        {
+          "t": 1182.5,
+          "text": "I have"
+        },
+        {
+          "t": 1324.8,
+          "text": " booked your itinerary for the Louvre, Notre-Dame, Montmartre, and the Eiffel"
+        },
+        {
+          "t": 1400.6,
+          "text": " Tower with an estimated travel time of 57 minutes."
+        }
+      ],
+      "usage": {
+        "promptTokens": 14728,
+        "outputTokens": 32,
+        "thoughtsTokens": 0
+      }
+    }
+  ]
+}

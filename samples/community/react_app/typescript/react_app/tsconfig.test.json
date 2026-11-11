@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+
+  /* Type-checks the whole source tree with the tests (Jasmine globals), the copied shared sandbox
+     included. Used by `test`, by the Karma esbuild preprocessor and by ESLint; the library build
+     uses tsconfig.json. The Playwright fixture has its own project, e2e/tsconfig.json. */
+  "compilerOptions": {
+    "noEmit": true,
+    "forceConsistentCasingInFileNames": true,
+    "target": "es2021",
+    "module": "esnext",
+    "lib": ["es2023", "DOM", "DOM.Iterable"],
+    "types": ["jasmine", "node"],
+    "skipLibCheck": true,
+    "useDefineForClassFields": false,
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "strict": true,
+    "noImplicitOverride": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["src/**/*.ts", "src/catalog.json"],
+  "exclude": ["node_modules", "dist"]
+}

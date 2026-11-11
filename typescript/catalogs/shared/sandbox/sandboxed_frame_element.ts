@@ -15,11 +15,13 @@
  */
 
 import {A2uiLitElement, type ComponentApi} from '@a2ui/web_core/v1_0';
-import {css, html, type PropertyValues, type TemplateResult} from 'lit';
+import {css, html, nothing, type PropertyValues, type TemplateResult} from 'lit';
 import {FrameSizing} from './frame_sizing.js';
 import {
+  listenForSandboxError,
   listenForSandboxProxyReady,
   sendSandboxResourceReady,
+  type SandboxError,
   type SandboxProtocol,
   type SandboxResource,
 } from './sandbox_bootstrap.js';
@@ -39,6 +41,12 @@ export function frameTitleFromProps(accessibility: unknown, fallback: string): s
   const label = isRecord(accessibility) ? accessibility['label'] : undefined;
   return typeof label === 'string' && label.trim() !== '' ? label : fallback;
 }
+
+/**
+ * DOM event a {@link SandboxedFrameElement} dispatches when the proxy reports an error; `detail` is
+ * the {@link SandboxError}. It bubbles and crosses shadow roots.
+ */
+export const SANDBOX_ERROR_EVENT = 'a2ui-sandbox-error';
 
 /** Whether two resources would load the same content under the same restrictions. */
 function sameResource(a: SandboxResource | null, b: SandboxResource | null): boolean {
@@ -62,6 +70,7 @@ interface FrameSession {
   readonly frame: HTMLIFrameElement;
   readonly sandboxOrigin: string;
   readonly stopProxyReadyListener: () => void;
+  readonly stopErrorListener: () => void;
   disconnectBridge: () => void;
   /** The resource the current bridge was connected for; a different one reconnects the bridge. */
   resource: SandboxResource | null;
@@ -83,6 +92,10 @@ interface FrameSession {
  * document, and set up again when it is re-attached (the browser reloads the frame, so the proxy
  * announces itself again). The `height` property sets the element's height; an app that asks for
  * a size through its protocol resizes the frame and the element through {@link FrameSizing}.
+ *
+ * When the proxy reports an error, for example because the content navigated away from the
+ * document it was given, the element disconnects the bridge, hides the frame behind an alert with
+ * the error message and dispatches {@link SANDBOX_ERROR_EVENT}. A new resource clears the error.
  *
  * The element can be styled through these CSS custom properties:
  *
@@ -121,6 +134,15 @@ export abstract class SandboxedFrameElement<
       border: none;
       background-color: transparent;
     }
+
+    iframe[hidden] {
+      display: none;
+    }
+
+    .a2ui-sandbox-error {
+      padding: 12px;
+      color: var(--a2ui-color-error, #b3261e);
+    }
   `;
 
   /** Proxy page to load: `html` for inline content, `url` for external URLs. */
@@ -149,6 +171,7 @@ export abstract class SandboxedFrameElement<
   private proxyReady = false;
   private appliedHeight: number | undefined = undefined;
   private sizing: FrameSizing | null = null;
+  private sandboxError: SandboxError | null = null;
 
   override connectedCallback() {
     super.connectedCallback();
@@ -169,10 +192,14 @@ export abstract class SandboxedFrameElement<
   }
 
   override render(): TemplateResult {
-    return html`<iframe
-      src=${this.sandboxUrl?.href ?? 'about:blank'}
-      title=${this.resolveTitle()}
-    ></iframe>`;
+    const error = this.sandboxError;
+    return html`${error
+        ? html`<div class="a2ui-sandbox-error" role="alert">${error.message}</div>`
+        : nothing}<iframe
+        src=${this.sandboxUrl?.href ?? 'about:blank'}
+        title=${this.resolveTitle()}
+        ?hidden=${error !== null}
+      ></iframe>`;
   }
 
   protected override updated(changed: PropertyValues) {
@@ -188,6 +215,10 @@ export abstract class SandboxedFrameElement<
     }
     const resource = this.resolveResource();
     if (changed.has('context') || !sameResource(resource, this.session.resource)) {
+      if (this.sandboxError) {
+        this.sandboxError = null;
+        this.requestUpdate();
+      }
       this.session.disconnectBridge();
       this.session.disconnectBridge = this.connectFrame(frame, this.session.sandboxOrigin);
       this.sendResource(resource);
@@ -203,7 +234,7 @@ export abstract class SandboxedFrameElement<
     if (!frame) {
       return;
     }
-    this.sizing ??= new FrameSizing({frame});
+    this.sizing ??= new FrameSizing({frame, threshold: 1});
     this.sizing.requestSize(width, height);
   }
 
@@ -229,6 +260,14 @@ export abstract class SandboxedFrameElement<
           this.sendResource(this.resolveResource());
         },
       }),
+      stopErrorListener: listenForSandboxError({
+        frame,
+        sandboxOrigin,
+        protocol: this.sandboxProtocol,
+        onError: error => {
+          this.handleSandboxError(error);
+        },
+      }),
       disconnectBridge: this.connectFrame(frame, sandboxOrigin),
       resource: null,
     };
@@ -242,6 +281,7 @@ export abstract class SandboxedFrameElement<
     }
     this.session = null;
     session.stopProxyReadyListener();
+    session.stopErrorListener();
     session.disconnectBridge();
     this.sizing?.dispose();
     this.sizing = null;
@@ -276,6 +316,29 @@ export abstract class SandboxedFrameElement<
       protocol: this.sandboxProtocol,
       resource,
     });
+  }
+
+  /**
+   * Stops the session's traffic after the proxy reports an error: the proxy relays nothing more,
+   * so the bridge would only wait for an app that is gone.
+   */
+  private handleSandboxError(error: SandboxError): void {
+    const session = this.session;
+    if (!session) {
+      return;
+    }
+    session.disconnectBridge();
+    session.disconnectBridge = () => {};
+    console.error(`[SandboxedFrame] ${error.message}`);
+    this.sandboxError = error;
+    this.requestUpdate();
+    this.dispatchEvent(
+      new CustomEvent<SandboxError>(SANDBOX_ERROR_EVENT, {
+        detail: error,
+        bubbles: true,
+        composed: true,
+      }),
+    );
   }
 
   private applyHeight(frame: HTMLIFrameElement): void {

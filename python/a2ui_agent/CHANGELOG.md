@@ -46,6 +46,11 @@
   `value=DataBinding(path="/form/email")`. The path does not have to exist yet
   ([#3830](https://github.com/a2ui-project/a2ui/issues/3830),
   [#3868](https://github.com/a2ui-project/a2ui/pull/3868)).
+- The Express decompiler writes every multi-line string as a raw
+  triple-quoted string (`r"""..."""`), so code in prompt examples reads as
+  written. A value that contains `"""` or ends in `"` is written as an escaped
+  triple-quoted string instead. The Express prompt tells the model to write
+  code and long multi-line text as an inline raw triple-quoted string.
 - (v1_0) Express compiles, decompiles and prompts the protocol's system
   functions, which no catalog defines: `@index()` and `@index(offset=1)`
   compile to `{"@call": "@index", ...}` without a `catalogId`, the decompiler

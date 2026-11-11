@@ -1,0 +1,378 @@
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*
+ * Base styles of a ReactApp frame. Bare elements and the `.a2ui-*` classes of the primitives use
+ * the `--a2ui-*` variables the host sends in `initialize` and `theme/changed`, with fallbacks
+ * close to the basic catalog, so the app looks like the native components around it.
+ */
+
+:root {
+  color-scheme: light;
+  --a2ui-lite-font: var(
+    --a2ui-font-family,
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif
+  );
+  --a2ui-lite-title-font: var(--a2ui-font-family-title, var(--a2ui-lite-font));
+  --a2ui-lite-mono: var(--a2ui-font-family-mono, ui-monospace, 'SFMono-Regular', Menlo, monospace);
+  --a2ui-lite-fg: var(--a2ui-color-on-surface, var(--a2ui-color-on-background, #1f1f1f));
+  --a2ui-lite-bg: var(--a2ui-color-surface, var(--a2ui-color-background, #ffffff));
+  --a2ui-lite-primary: var(--a2ui-color-primary, #1a73e8);
+  --a2ui-lite-on-primary: var(--a2ui-color-on-primary, #ffffff);
+  --a2ui-lite-border-color: var(--a2ui-color-border, #dadce0);
+  --a2ui-lite-muted: var(
+    --a2ui-text-caption-color,
+    color-mix(in srgb, var(--a2ui-lite-fg) 62%, transparent)
+  );
+  --a2ui-lite-radius: var(--a2ui-border-radius, 8px);
+  --a2ui-lite-border: var(--a2ui-border-width, 1px) solid var(--a2ui-lite-border-color);
+  --a2ui-lite-space-1: var(--a2ui-spacing-xs, 4px);
+  --a2ui-lite-space-2: var(--a2ui-spacing-s, 8px);
+  --a2ui-lite-space-3: var(--a2ui-spacing-m, 16px);
+  --a2ui-lite-space-4: var(--a2ui-spacing-l, 24px);
+  --a2ui-lite-space-5: var(--a2ui-spacing-xl, 32px);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--a2ui-lite-fg);
+  font-family: var(--a2ui-lite-font);
+  font-size: var(--a2ui-font-size-m, 14px);
+  line-height: 1.45;
+  overflow-x: hidden;
+}
+
+html {
+  scrollbar-width: thin;
+}
+
+#root {
+  padding: var(--a2ui-lite-space-1);
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--a2ui-lite-title-font);
+}
+
+h1 {
+  font-size: var(--a2ui-font-size-xl, 1.75em);
+  font-weight: 600;
+}
+
+h2 {
+  font-size: var(--a2ui-font-size-l, 1.35em);
+  font-weight: 600;
+}
+
+h3 {
+  font-size: 1.1em;
+  font-weight: 600;
+}
+
+code,
+.a2ui-text-mono {
+  font-family: var(--a2ui-lite-mono);
+  font-size: 0.92em;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+input[type='range'] {
+  width: 100%;
+  accent-color: var(--a2ui-slider-thumb-color, var(--a2ui-lite-primary));
+}
+
+.a2ui-card {
+  background: var(--a2ui-lite-bg);
+  border: var(--a2ui-lite-border);
+  border-radius: var(--a2ui-lite-radius);
+  display: flex;
+  flex-direction: column;
+  gap: var(--a2ui-lite-space-2);
+}
+
+.a2ui-card-title {
+  margin: 0;
+}
+
+.a2ui-pad-0 {
+  padding: 0;
+}
+.a2ui-pad-1 {
+  padding: var(--a2ui-lite-space-1);
+}
+.a2ui-pad-2 {
+  padding: var(--a2ui-lite-space-2);
+}
+.a2ui-pad-3 {
+  padding: var(--a2ui-lite-space-3);
+}
+.a2ui-pad-4 {
+  padding: var(--a2ui-lite-space-4);
+}
+.a2ui-pad-5 {
+  padding: var(--a2ui-lite-space-5);
+}
+
+.a2ui-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--a2ui-lite-space-1);
+  min-height: 36px;
+  padding: 0 var(--a2ui-lite-space-3);
+  border-radius: var(--a2ui-lite-radius);
+  border: var(--a2ui-lite-border);
+  background: var(--a2ui-lite-bg);
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease;
+}
+
+.a2ui-button:hover:not(:disabled) {
+  border-color: var(--a2ui-lite-primary);
+}
+
+.a2ui-button:focus-visible {
+  outline: 2px solid var(--a2ui-lite-primary);
+  outline-offset: 2px;
+}
+
+.a2ui-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.a2ui-button-primary {
+  background: var(--a2ui-lite-primary);
+  border-color: var(--a2ui-lite-primary);
+  color: var(--a2ui-lite-on-primary);
+}
+
+.a2ui-button-primary:hover:not(:disabled) {
+  background: var(--a2ui-color-primary-hover, var(--a2ui-lite-primary));
+}
+
+.a2ui-button-borderless {
+  border-color: transparent;
+  background: transparent;
+  color: var(--a2ui-lite-primary);
+}
+
+.a2ui-text-caption {
+  font-size: var(--a2ui-font-size-s, 0.86em);
+}
+
+.a2ui-text-numeric {
+  font-variant-numeric: tabular-nums;
+}
+
+.a2ui-tone-muted {
+  color: var(--a2ui-lite-muted);
+}
+
+.a2ui-tone-accent {
+  color: var(--a2ui-lite-primary);
+}
+
+.a2ui-tone-danger {
+  color: var(--a2ui-color-error, #b3261e);
+}
+
+.a2ui-slider {
+  display: flex;
+  flex-direction: column;
+  gap: var(--a2ui-lite-space-1);
+}
+
+.a2ui-slider-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--a2ui-label-font-size, 0.9em);
+  font-weight: var(--a2ui-label-font-weight, 500);
+}
+
+.a2ui-stack {
+  display: flex;
+}
+
+.a2ui-stack-vertical {
+  flex-direction: column;
+}
+
+.a2ui-stack-horizontal {
+  flex-direction: row;
+  align-items: center;
+}
+
+.a2ui-gap-0 {
+  gap: 0;
+}
+.a2ui-gap-1 {
+  gap: var(--a2ui-lite-space-1);
+}
+.a2ui-gap-2 {
+  gap: var(--a2ui-lite-space-2);
+}
+.a2ui-gap-3 {
+  gap: var(--a2ui-lite-space-3);
+}
+.a2ui-gap-4 {
+  gap: var(--a2ui-lite-space-4);
+}
+.a2ui-gap-5 {
+  gap: var(--a2ui-lite-space-5);
+}
+
+.a2ui-align-start {
+  align-items: flex-start;
+}
+.a2ui-align-center {
+  align-items: center;
+}
+.a2ui-align-end {
+  align-items: flex-end;
+}
+.a2ui-align-stretch {
+  align-items: stretch;
+}
+
+.a2ui-justify-start {
+  justify-content: flex-start;
+}
+.a2ui-justify-center {
+  justify-content: center;
+}
+.a2ui-justify-end {
+  justify-content: flex-end;
+}
+.a2ui-justify-between {
+  justify-content: space-between;
+}
+
+.a2ui-wrap {
+  flex-wrap: wrap;
+}
+
+.a2ui-draggable {
+  cursor: grab;
+  padding: var(--a2ui-lite-space-2) var(--a2ui-lite-space-3);
+  border: var(--a2ui-lite-border);
+  border-radius: var(--a2ui-lite-radius);
+  background: var(--a2ui-lite-bg);
+}
+
+.a2ui-vega-chart {
+  width: 100%;
+  min-height: 40px;
+}
+
+.a2ui-vega-chart .vega-embed {
+  width: 100%;
+}
+
+.a2ui-error-card {
+  border: 1px solid var(--a2ui-color-error, #b3261e);
+  border-radius: var(--a2ui-lite-radius);
+  padding: var(--a2ui-lite-space-3);
+  background: color-mix(in srgb, var(--a2ui-color-error, #b3261e) 6%, var(--a2ui-lite-bg));
+}
+
+.a2ui-error-card h3 {
+  color: var(--a2ui-color-error, #b3261e);
+  margin-bottom: var(--a2ui-lite-space-2);
+}
+
+.a2ui-error-card pre {
+  white-space: pre-wrap;
+  font-family: var(--a2ui-lite-mono);
+  font-size: 12px;
+  margin: var(--a2ui-lite-space-2) 0 0;
+}
+
+/* Modern hidden-scrollbar horizontal scroll and carousel utilities */
+.a2ui-scroll-x {
+  overflow-x: auto;
+  overflow-y: hidden;
+  display: flex;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+.a2ui-scroll-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.a2ui-scroll-hidden::-webkit-scrollbar {
+  display: none;
+}
+
+.a2ui-carousel {
+  display: flex;
+  overflow-x: auto;
+  gap: var(--a2ui-lite-space-2);
+  padding-bottom: var(--a2ui-lite-space-1);
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.a2ui-carousel::-webkit-scrollbar {
+  display: none;
+}
+
+.a2ui-carousel > * {
+  scroll-snap-align: start;
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

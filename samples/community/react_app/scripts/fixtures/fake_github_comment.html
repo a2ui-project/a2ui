@@ -1,0 +1,52 @@
+<!--
+ Copyright 2024 Google LLC
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+     https://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <!-- The test server removes this tag to simulate a logged-out session. -->
+    <meta name="user-login" content="octo-test" />
+    <title>Fake GitHub comment box</title>
+  </head>
+  <body>
+    <!-- A stand-in for GitHub's markdown editor: a textarea, a hidden file input in the same
+         container, and an upload that first writes a placeholder and then the asset URL. -->
+    <form id="comment" action="/submit" method="post">
+      <div class="editor">
+        <textarea name="comment[body]" aria-label="Comment body">Existing draft text</textarea>
+        <input type="file" hidden />
+      </div>
+      <button type="submit">Comment</button>
+    </form>
+    <script>
+      const textarea = document.querySelector('textarea');
+      document.querySelector('input[type="file"]').addEventListener('change', event => {
+        const [file] = event.target.files;
+        const placeholder = `![Uploading ${file.name}…]()`;
+        textarea.value += `\n${placeholder}`;
+        setTimeout(() => {
+          textarea.value = textarea.value.replace(
+            placeholder,
+            'https://github.com/user-attachments/assets/1f0e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b',
+          );
+        }, 400);
+      });
+      document.getElementById('comment').addEventListener('submit', () => {
+        window.submitted = true;
+      });
+    </script>
+  </body>
+</html>

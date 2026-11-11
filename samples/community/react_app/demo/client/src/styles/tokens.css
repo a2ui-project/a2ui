@@ -1,0 +1,120 @@
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*
+ * Design tokens. Everything on the page, the native A2UI components and the ReactApp frames take
+ * their colors, type and spacing from here: the second block maps the tokens onto the basic
+ * catalog's --a2ui-* custom properties, which the ReactApp element also sends into its frame.
+ */
+:root {
+  /* Paper and ink. */
+  --paper: #fbf7f0;
+  --paper-deep: #f4ede1;
+  --paper-card: #fffdf9;
+  --ink: #1f2a2e;
+  --ink-soft: #46524f;
+  --ink-muted: #7b8380;
+  --rule: #e4dacb;
+  --rule-strong: #cdbfa9;
+
+  /* One confident accent, and two muted companions for data. */
+  --accent: #c8553d;
+  --accent-deep: #a5432e;
+  --accent-tint: #f7e4dc;
+  --sage: #6f8a64;
+  --sage-tint: #e6ede0;
+  --ochre: #c3923a;
+  --ochre-tint: #f5ebd5;
+  --danger: #a83a32;
+
+  /* Type. Self-hosted through @fontsource; the stacks fall back to close system faces. */
+  --font-display: 'Fraunces Variable', 'Iowan Old Style', Georgia, serif;
+  --font-sans: 'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --text-xs: 12px;
+  --text-s: 13.5px;
+  --text-m: 15.5px;
+  --text-l: 19px;
+  --text-xl: 25px;
+  --text-2xl: 34px;
+
+  /* An 8px spacing scale. */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 16px;
+  --s-4: 24px;
+  --s-5: 32px;
+  --s-6: 48px;
+  --s-7: 72px;
+
+  --radius-1: 3px;
+  --radius-2: 6px;
+  --hairline: 1px solid var(--rule);
+  --lift: 0 1px 0 rgb(31 42 46 / 4%), 0 8px 24px -16px rgb(31 42 46 / 18%);
+
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --fast: 160ms;
+  --slow: 240ms;
+
+  color-scheme: light;
+}
+
+/* The basic catalog's custom properties, driven by the tokens above. */
+:root {
+  --a2ui-color-primary: var(--accent);
+  --a2ui-color-primary-hover: var(--accent-deep);
+  --a2ui-color-on-primary: #fff8f1;
+  --a2ui-color-secondary: var(--sage);
+  --a2ui-color-secondary-hover: #5d7553;
+  --a2ui-color-on-secondary: #fbfaf5;
+  --a2ui-color-background: var(--paper-card);
+  --a2ui-color-on-background: var(--ink);
+  --a2ui-color-surface: var(--paper-card);
+  --a2ui-color-on-surface: var(--ink);
+  --a2ui-color-border: var(--rule);
+  --a2ui-color-error: var(--danger);
+  --a2ui-color-input: var(--paper-card);
+  --a2ui-color-on-input: var(--ink);
+  --a2ui-text-color-text: var(--ink);
+  --a2ui-text-caption-color: var(--ink-muted);
+  --a2ui-text-a-color: var(--accent-deep);
+
+  --a2ui-font-family: var(--font-sans);
+  --a2ui-font-family-title: var(--font-display);
+  --a2ui-font-family-mono: var(--font-mono);
+  --a2ui-font-size-xs: var(--text-xs);
+  --a2ui-font-size-s: var(--text-s);
+  --a2ui-font-size-m: var(--text-m);
+  --a2ui-font-size-l: var(--text-l);
+  --a2ui-font-size-xl: var(--text-xl);
+  --a2ui-font-size-2xl: var(--text-2xl);
+  --a2ui-line-height-body: 1.55;
+  --a2ui-line-height-headings: 1.15;
+  --a2ui-label-font-weight: 500;
+
+  --a2ui-spacing-xs: var(--s-1);
+  --a2ui-spacing-s: var(--s-2);
+  --a2ui-spacing-m: var(--s-3);
+  --a2ui-spacing-l: var(--s-4);
+  --a2ui-spacing-xl: var(--s-5);
+
+  --a2ui-border-radius: var(--radius-2);
+  --a2ui-border-width: 1px;
+  --a2ui-border: var(--hairline);
+  --a2ui-slider-track-color: var(--rule-strong);
+  --a2ui-slider-thumb-color: var(--accent);
+  --a2ui-tabs-header-color-active: var(--accent-deep);
+}

@@ -14,11 +14,14 @@
  * limitations under the License.
  */
 
+import {createSandboxErrorMessages, SandboxErrorCode} from './sandbox.js';
 import {
   createSandboxResourceReadyMessage,
   isMessageFromFrame,
   isSandboxProxyReadyMessage,
+  listenForSandboxError,
   listenForSandboxProxyReady,
+  readSandboxError,
   sendSandboxResourceReady,
 } from './sandbox_bootstrap.js';
 
@@ -175,6 +178,76 @@ describe('sandbox bootstrap', () => {
       );
       stopWindow();
       expect(onWindowReady).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('readSandboxError', () => {
+    const [a2uiReport, mcpReport] = createSandboxErrorMessages(
+      SandboxErrorCode.InnerFrameNavigated,
+      'The content navigated away.',
+    );
+    const expected = {code: 'inner_frame_navigated', message: 'The content navigated away.'};
+
+    it('reads the report of each protocol only', () => {
+      expect(readSandboxError(a2uiReport, 'a2ui')).toEqual(expected);
+      expect(readSandboxError(a2uiReport, 'mcp')).toBeNull();
+      expect(readSandboxError(mcpReport, 'mcp')).toEqual(expected);
+      expect(readSandboxError(mcpReport, 'a2ui')).toBeNull();
+    });
+
+    it('ignores logging notifications from other loggers, such as the app', () => {
+      expect(
+        readSandboxError(
+          {
+            jsonrpc: '2.0',
+            method: 'notifications/message',
+            params: {level: 'error', logger: 'my-app', data: {code: 'x', message: 'y'}},
+          },
+          'mcp',
+        ),
+      ).toBeNull();
+    });
+
+    it('falls back to the code without a message and rejects reports without a code', () => {
+      expect(readSandboxError({type: 'a2ui_sandbox_error', code: 'oops'}, 'a2ui')).toEqual({
+        code: 'oops',
+        message: 'oops',
+      });
+      expect(readSandboxError({type: 'a2ui_sandbox_error', message: 'no code'}, 'a2ui')).toBeNull();
+      expect(readSandboxError(null, 'a2ui')).toBeNull();
+      expect(readSandboxError({type: 'a2ui_sandbox_proxy_ready'}, 'a2ui')).toBeNull();
+    });
+  });
+
+  describe('listenForSandboxError', () => {
+    it('reports errors of its protocol from the frame until stopped', () => {
+      const target = new EventTarget();
+      const onError = jasmine.createSpy('onError');
+      const stop = listenForSandboxError({
+        frame,
+        sandboxOrigin: SANDBOX_ORIGIN,
+        protocol: 'mcp',
+        onError,
+        target,
+      });
+      const [a2uiReport, mcpReport] = createSandboxErrorMessages(
+        SandboxErrorCode.InnerFrameNavigated,
+        'gone',
+      );
+
+      target.dispatchEvent(frameMessage(a2uiReport));
+      target.dispatchEvent(frameMessage(mcpReport, 'https://evil.example'));
+      target.dispatchEvent(
+        new MessageEvent('message', {data: mcpReport, origin: SANDBOX_ORIGIN, source: window}),
+      );
+      expect(onError).not.toHaveBeenCalled();
+
+      target.dispatchEvent(frameMessage(mcpReport));
+      expect(onError).toHaveBeenCalledOnceWith({code: 'inner_frame_navigated', message: 'gone'});
+
+      stop();
+      target.dispatchEvent(frameMessage(mcpReport));
+      expect(onError).toHaveBeenCalledTimes(1);
     });
   });
 

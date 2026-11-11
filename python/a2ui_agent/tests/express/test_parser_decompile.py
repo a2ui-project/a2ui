@@ -97,11 +97,11 @@ class TestExpressParser(unittest.TestCase):
 
         envelope_nl = compiler.compile('root = Text("hello \\n world")')
         decompiled_nl = decompiler.decompile(envelope_nl)
-        self.assertIn('root = Text("""hello \n world""")', decompiled_nl)
+        self.assertIn('root = Text(r"""hello \n world""")', decompiled_nl)
 
         envelope_cr = compiler.compile('root = Text("hello \\r \\"")')
         decompiled_cr = decompiler.decompile(envelope_cr)
-        self.assertIn('root = Text("hello \\r \\"")', decompiled_cr)
+        self.assertIn('root = Text("""hello \r \\"""")', decompiled_cr)
 
         envelope_raw = compiler.compile('root = Text("C:\\\\path\\\\to\\\\file")')
         decompiled_raw = decompiler.decompile(envelope_raw)
