@@ -20,6 +20,7 @@
     "samples/client/react/*",
     "samples/vegachart",
     "specification/*/test",
+    "tools/*",
     "!**/dist"
   ],
   "scripts": {
@@ -46,6 +47,7 @@
     "typescript": "5.9.3",
     "zod": "^3.25.76",
     "hono": "^4.11.10",
+    "react-resizable-panels": "^3.0.6",
     "@a2ui/web_core": "workspace:*",
     "@a2ui/lit": "workspace:*",
     "@a2ui/angular": "workspace:*",

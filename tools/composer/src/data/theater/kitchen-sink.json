@@ -1,0 +1,1301 @@
+[
+  {
+    "beginRendering": {
+      "surfaceId": "demo-text",
+      "root": "demo-text-root"
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "demo-text",
+      "components": [
+        {
+          "id": "demo-text-root",
+          "component": {
+            "TextField": {
+              "label": {
+                "literalString": "Enter some text"
+              },
+              "text": {
+                "path": "galleryData/textField"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "demo-text",
+      "contents": [
+        {
+          "key": "galleryData",
+          "valueMap": [
+            {
+              "key": "textField",
+              "valueString": "Hello World"
+            },
+            {
+              "key": "checkbox",
+              "valueBoolean": false
+            },
+            {
+              "key": "checkboxChecked",
+              "valueBoolean": true
+            },
+            {
+              "key": "slider",
+              "valueNumber": 30
+            },
+            {
+              "key": "date",
+              "valueString": "2025-10-26"
+            },
+            {
+              "key": "favorites",
+              "valueMap": [
+                {
+                  "key": "0",
+                  "valueString": "A"
+                }
+              ]
+            },
+            {
+              "key": "favoritesChips",
+              "valueMap": []
+            },
+            {
+              "key": "favoritesFilter",
+              "valueMap": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "demo-text-regex",
+      "root": "demo-text-regex-root"
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "demo-text-regex",
+      "components": [
+        {
+          "id": "demo-text-regex-root",
+          "component": {
+            "TextField": {
+              "label": {
+                "literalString": "Enter exactly 5 digits"
+              },
+              "text": {
+                "path": "galleryData/textFieldRegex"
+              },
+              "validationRegexp": "^\\d{5}$"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "demo-text-regex",
+      "contents": [
+        {
+          "key": "galleryData",
+          "valueMap": [
+            {
+              "key": "textField",
+              "valueString": "Hello World"
+            },
+            {
+              "key": "checkbox",
+              "valueBoolean": false
+            },
+            {
+              "key": "checkboxChecked",
+              "valueBoolean": true
+            },
+            {
+              "key": "slider",
+              "valueNumber": 30
+            },
+            {
+              "key": "date",
+              "valueString": "2025-10-26"
+            },
+            {
+              "key": "favorites",
+              "valueMap": [
+                {
+                  "key": "0",
+                  "valueString": "A"
+                }
+              ]
+            },
+            {
+              "key": "favoritesChips",
+              "valueMap": []
+            },
+            {
+              "key": "favoritesFilter",
+              "valueMap": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "demo-checkbox",
+      "root": "demo-checkbox-root"
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "demo-checkbox",
+      "components": [
+        {
+          "id": "demo-checkbox-root",
+          "component": {
+            "CheckBox": {
+              "label": {
+                "literalString": "Toggle me"
+              },
+              "value": {
+                "path": "galleryData/checkbox"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "demo-checkbox",
+      "contents": [
+        {
+          "key": "galleryData",
+          "valueMap": [
+            {
+              "key": "textField",
+              "valueString": "Hello World"
+            },
+            {
+              "key": "checkbox",
+              "valueBoolean": false
+            },
+            {
+              "key": "checkboxChecked",
+              "valueBoolean": true
+            },
+            {
+              "key": "slider",
+              "valueNumber": 30
+            },
+            {
+              "key": "date",
+              "valueString": "2025-10-26"
+            },
+            {
+              "key": "favorites",
+              "valueMap": [
+                {
+                  "key": "0",
+                  "valueString": "A"
+                }
+              ]
+            },
+            {
+              "key": "favoritesChips",
+              "valueMap": []
+            },
+            {
+              "key": "favoritesFilter",
+              "valueMap": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "demo-slider",
+      "root": "demo-slider-root"
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "demo-slider",
+      "components": [
+        {
+          "id": "demo-slider-root",
+          "component": {
+            "Slider": {
+              "value": {
+                "path": "galleryData/slider"
+              },
+              "minValue": 0,
+              "maxValue": 100
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "demo-slider",
+      "contents": [
+        {
+          "key": "galleryData",
+          "valueMap": [
+            {
+              "key": "textField",
+              "valueString": "Hello World"
+            },
+            {
+              "key": "checkbox",
+              "valueBoolean": false
+            },
+            {
+              "key": "checkboxChecked",
+              "valueBoolean": true
+            },
+            {
+              "key": "slider",
+              "valueNumber": 30
+            },
+            {
+              "key": "date",
+              "valueString": "2025-10-26"
+            },
+            {
+              "key": "favorites",
+              "valueMap": [
+                {
+                  "key": "0",
+                  "valueString": "A"
+                }
+              ]
+            },
+            {
+              "key": "favoritesChips",
+              "valueMap": []
+            },
+            {
+              "key": "favoritesFilter",
+              "valueMap": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "demo-date",
+      "root": "demo-date-root"
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "demo-date",
+      "components": [
+        {
+          "id": "demo-date-root",
+          "component": {
+            "DateTimeInput": {
+              "value": {
+                "path": "galleryData/date"
+              },
+              "enableDate": true
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "demo-date",
+      "contents": [
+        {
+          "key": "galleryData",
+          "valueMap": [
+            {
+              "key": "textField",
+              "valueString": "Hello World"
+            },
+            {
+              "key": "checkbox",
+              "valueBoolean": false
+            },
+            {
+              "key": "checkboxChecked",
+              "valueBoolean": true
+            },
+            {
+              "key": "slider",
+              "valueNumber": 30
+            },
+            {
+              "key": "date",
+              "valueString": "2025-10-26"
+            },
+            {
+              "key": "favorites",
+              "valueMap": [
+                {
+                  "key": "0",
+                  "valueString": "A"
+                }
+              ]
+            },
+            {
+              "key": "favoritesChips",
+              "valueMap": []
+            },
+            {
+              "key": "favoritesFilter",
+              "valueMap": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "demo-multichoice",
+      "root": "demo-multichoice-root"
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "demo-multichoice",
+      "components": [
+        {
+          "id": "demo-multichoice-root",
+          "component": {
+            "MultipleChoice": {
+              "selections": {
+                "path": "galleryData/favorites"
+              },
+              "options": [
+                {
+                  "label": {
+                    "literalString": "Apple"
+                  },
+                  "value": "A"
+                },
+                {
+                  "label": {
+                    "literalString": "Banana"
+                  },
+                  "value": "B"
+                },
+                {
+                  "label": {
+                    "literalString": "Cherry"
+                  },
+                  "value": "C"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "demo-multichoice",
+      "contents": [
+        {
+          "key": "galleryData",
+          "valueMap": [
+            {
+              "key": "textField",
+              "valueString": "Hello World"
+            },
+            {
+              "key": "checkbox",
+              "valueBoolean": false
+            },
+            {
+              "key": "checkboxChecked",
+              "valueBoolean": true
+            },
+            {
+              "key": "slider",
+              "valueNumber": 30
+            },
+            {
+              "key": "date",
+              "valueString": "2025-10-26"
+            },
+            {
+              "key": "favorites",
+              "valueMap": [
+                {
+                  "key": "0",
+                  "valueString": "A"
+                }
+              ]
+            },
+            {
+              "key": "favoritesChips",
+              "valueMap": []
+            },
+            {
+              "key": "favoritesFilter",
+              "valueMap": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "demo-multichoice-chips",
+      "root": "demo-multichoice-chips-root"
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "demo-multichoice-chips",
+      "components": [
+        {
+          "id": "demo-multichoice-chips-root",
+          "component": {
+            "MultipleChoice": {
+              "selections": {
+                "path": "galleryData/favoritesChips"
+              },
+              "description": "Select tags (Chips)",
+              "variant": "chips",
+              "options": [
+                {
+                  "label": {
+                    "literalString": "Work"
+                  },
+                  "value": "work"
+                },
+                {
+                  "label": {
+                    "literalString": "Home"
+                  },
+                  "value": "home"
+                },
+                {
+                  "label": {
+                    "literalString": "Urgent"
+                  },
+                  "value": "urgent"
+                },
+                {
+                  "label": {
+                    "literalString": "Later"
+                  },
+                  "value": "later"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "demo-multichoice-chips",
+      "contents": [
+        {
+          "key": "galleryData",
+          "valueMap": [
+            {
+              "key": "textField",
+              "valueString": "Hello World"
+            },
+            {
+              "key": "checkbox",
+              "valueBoolean": false
+            },
+            {
+              "key": "checkboxChecked",
+              "valueBoolean": true
+            },
+            {
+              "key": "slider",
+              "valueNumber": 30
+            },
+            {
+              "key": "date",
+              "valueString": "2025-10-26"
+            },
+            {
+              "key": "favorites",
+              "valueMap": [
+                {
+                  "key": "0",
+                  "valueString": "A"
+                }
+              ]
+            },
+            {
+              "key": "favoritesChips",
+              "valueMap": []
+            },
+            {
+              "key": "favoritesFilter",
+              "valueMap": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "demo-multichoice-filter",
+      "root": "demo-multichoice-filter-root"
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "demo-multichoice-filter",
+      "components": [
+        {
+          "id": "demo-multichoice-filter-root",
+          "component": {
+            "MultipleChoice": {
+              "selections": {
+                "path": "galleryData/favoritesFilter"
+              },
+              "description": "Select countries (Filterable)",
+              "filterable": true,
+              "options": [
+                {
+                  "label": {
+                    "literalString": "United States"
+                  },
+                  "value": "US"
+                },
+                {
+                  "label": {
+                    "literalString": "Canada"
+                  },
+                  "value": "CA"
+                },
+                {
+                  "label": {
+                    "literalString": "United Kingdom"
+                  },
+                  "value": "UK"
+                },
+                {
+                  "label": {
+                    "literalString": "Australia"
+                  },
+                  "value": "AU"
+                },
+                {
+                  "label": {
+                    "literalString": "Germany"
+                  },
+                  "value": "DE"
+                },
+                {
+                  "label": {
+                    "literalString": "France"
+                  },
+                  "value": "FR"
+                },
+                {
+                  "label": {
+                    "literalString": "Japan"
+                  },
+                  "value": "JP"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "demo-multichoice-filter",
+      "contents": [
+        {
+          "key": "galleryData",
+          "valueMap": [
+            {
+              "key": "textField",
+              "valueString": "Hello World"
+            },
+            {
+              "key": "checkbox",
+              "valueBoolean": false
+            },
+            {
+              "key": "checkboxChecked",
+              "valueBoolean": true
+            },
+            {
+              "key": "slider",
+              "valueNumber": 30
+            },
+            {
+              "key": "date",
+              "valueString": "2025-10-26"
+            },
+            {
+              "key": "favorites",
+              "valueMap": [
+                {
+                  "key": "0",
+                  "valueString": "A"
+                }
+              ]
+            },
+            {
+              "key": "favoritesChips",
+              "valueMap": []
+            },
+            {
+              "key": "favoritesFilter",
+              "valueMap": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "demo-image",
+      "root": "demo-image-root"
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "demo-image",
+      "components": [
+        {
+          "id": "demo-image-root",
+          "component": {
+            "Image": {
+              "url": {
+                "literalString": "http://localhost:10005/assets/a2ui.png"
+              },
+              "usageHint": "mediumFeature"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "demo-image",
+      "contents": [
+        {
+          "key": "galleryData",
+          "valueMap": [
+            {
+              "key": "textField",
+              "valueString": "Hello World"
+            },
+            {
+              "key": "checkbox",
+              "valueBoolean": false
+            },
+            {
+              "key": "checkboxChecked",
+              "valueBoolean": true
+            },
+            {
+              "key": "slider",
+              "valueNumber": 30
+            },
+            {
+              "key": "date",
+              "valueString": "2025-10-26"
+            },
+            {
+              "key": "favorites",
+              "valueMap": [
+                {
+                  "key": "0",
+                  "valueString": "A"
+                }
+              ]
+            },
+            {
+              "key": "favoritesChips",
+              "valueMap": []
+            },
+            {
+              "key": "favoritesFilter",
+              "valueMap": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "demo-button",
+      "root": "demo-button-root"
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "demo-button",
+      "components": [
+        {
+          "id": "demo-button-text",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Trigger Action"
+              }
+            }
+          }
+        },
+        {
+          "id": "demo-button-root",
+          "component": {
+            "Button": {
+              "child": "demo-button-text",
+              "primary": true,
+              "action": {
+                "name": "custom_action",
+                "context": [
+                  {
+                    "key": "info",
+                    "value": {
+                      "literalString": "Custom Button Clicked"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "demo-tabs",
+      "root": "demo-tabs-root"
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "demo-tabs",
+      "components": [
+        {
+          "id": "tab-1-content",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "First Tab Content"
+              }
+            }
+          }
+        },
+        {
+          "id": "tab-2-content",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Second Tab Content"
+              }
+            }
+          }
+        },
+        {
+          "id": "demo-tabs-root",
+          "component": {
+            "Tabs": {
+              "tabItems": [
+                {
+                  "title": {
+                    "literalString": "View One"
+                  },
+                  "child": "tab-1-content"
+                },
+                {
+                  "title": {
+                    "literalString": "View Two"
+                  },
+                  "child": "tab-2-content"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "demo-icon",
+      "root": "icon-root"
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "demo-icon",
+      "components": [
+        {
+          "id": "icon-root",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["icon-1", "icon-2", "icon-3"]
+              },
+              "distribution": "spaceEvenly",
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "icon-1",
+          "component": {
+            "Icon": {
+              "name": {
+                "literalString": "star"
+              }
+            }
+          }
+        },
+        {
+          "id": "icon-2",
+          "component": {
+            "Icon": {
+              "name": {
+                "literalString": "home"
+              }
+            }
+          }
+        },
+        {
+          "id": "icon-3",
+          "component": {
+            "Icon": {
+              "name": {
+                "literalString": "settings"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "demo-divider",
+      "root": "div-root"
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "demo-divider",
+      "components": [
+        {
+          "id": "div-root",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["div-text-1", "div-horiz", "div-text-2"]
+              },
+              "distribution": "start",
+              "alignment": "stretch"
+            }
+          }
+        },
+        {
+          "id": "div-text-1",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Above Divider"
+              }
+            }
+          }
+        },
+        {
+          "id": "div-horiz",
+          "component": {
+            "Divider": {
+              "axis": "horizontal"
+            }
+          }
+        },
+        {
+          "id": "div-text-2",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Below Divider"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "demo-card",
+      "root": "card-root"
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "demo-card",
+      "components": [
+        {
+          "id": "card-root",
+          "component": {
+            "Card": {
+              "child": "card-text"
+            }
+          }
+        },
+        {
+          "id": "card-text",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "I am inside a Card"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "demo-video",
+      "root": "demo-video-root"
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "demo-video",
+      "components": [
+        {
+          "id": "demo-video-root",
+          "component": {
+            "Video": {
+              "url": {
+                "literalString": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "demo-video",
+      "contents": [
+        {
+          "key": "galleryData",
+          "valueMap": [
+            {
+              "key": "textField",
+              "valueString": "Hello World"
+            },
+            {
+              "key": "checkbox",
+              "valueBoolean": false
+            },
+            {
+              "key": "checkboxChecked",
+              "valueBoolean": true
+            },
+            {
+              "key": "slider",
+              "valueNumber": 30
+            },
+            {
+              "key": "date",
+              "valueString": "2025-10-26"
+            },
+            {
+              "key": "favorites",
+              "valueMap": [
+                {
+                  "key": "0",
+                  "valueString": "A"
+                }
+              ]
+            },
+            {
+              "key": "favoritesChips",
+              "valueMap": []
+            },
+            {
+              "key": "favoritesFilter",
+              "valueMap": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "demo-modal",
+      "root": "modal-root"
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "demo-modal",
+      "components": [
+        {
+          "id": "modal-root",
+          "component": {
+            "Modal": {
+              "entryPointChild": "modal-btn",
+              "contentChild": "modal-content"
+            }
+          }
+        },
+        {
+          "id": "modal-btn",
+          "component": {
+            "Button": {
+              "child": "modal-btn-text",
+              "primary": false,
+              "action": {
+                "name": "noop"
+              }
+            }
+          }
+        },
+        {
+          "id": "modal-btn-text",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Open Modal"
+              }
+            }
+          }
+        },
+        {
+          "id": "modal-content",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "This is the modal content!"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "demo-list",
+      "root": "list-root"
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "demo-list",
+      "components": [
+        {
+          "id": "list-root",
+          "component": {
+            "List": {
+              "children": {
+                "explicitList": ["list-item-1", "list-item-2", "list-item-3"]
+              },
+              "direction": "vertical",
+              "alignment": "stretch"
+            }
+          }
+        },
+        {
+          "id": "list-item-1",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Item 1"
+              }
+            }
+          }
+        },
+        {
+          "id": "list-item-2",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Item 2"
+              }
+            }
+          }
+        },
+        {
+          "id": "list-item-3",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Item 3"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "demo-audio",
+      "root": "demo-audio-root"
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "demo-audio",
+      "components": [
+        {
+          "id": "demo-audio-root",
+          "component": {
+            "AudioPlayer": {
+              "url": {
+                "literalString": "http://localhost:10005/assets/audio.mp3"
+              },
+              "description": {
+                "literalString": "Local Audio Sample"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "demo-audio",
+      "contents": [
+        {
+          "key": "galleryData",
+          "valueMap": [
+            {
+              "key": "textField",
+              "valueString": "Hello World"
+            },
+            {
+              "key": "checkbox",
+              "valueBoolean": false
+            },
+            {
+              "key": "checkboxChecked",
+              "valueBoolean": true
+            },
+            {
+              "key": "slider",
+              "valueNumber": 30
+            },
+            {
+              "key": "date",
+              "valueString": "2025-10-26"
+            },
+            {
+              "key": "favorites",
+              "valueMap": [
+                {
+                  "key": "0",
+                  "valueString": "A"
+                }
+              ]
+            },
+            {
+              "key": "favoritesChips",
+              "valueMap": []
+            },
+            {
+              "key": "favoritesFilter",
+              "valueMap": []
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "response-surface",
+      "root": "response-text"
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "response-surface",
+      "components": [
+        {
+          "id": "response-text",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Interact with the gallery to see responses. This view is updated by the agent by relaying the raw action commands it received from the client"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "action": {
+      "name": "custom_action",
+      "surfaceId": "demo-buttons",
+      "sourceComponentId": "demo-btn-3",
+      "timestamp": "2026-03-15T12:05:00Z",
+      "context": {
+        "info": "Custom Button Clicked"
+      }
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "response-surface",
+      "components": [
+        {
+          "id": "response-text",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Agent Processed Action: ACTION: custom_action with {\"info\": \"Custom Button Clicked\"} at 12:05:00"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+]

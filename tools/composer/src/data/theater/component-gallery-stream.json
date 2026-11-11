@@ -1,0 +1,127 @@
+[
+  {
+    "beginRendering": {
+      "surfaceId": "demo-text",
+      "root": "demo-text-root"
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "demo-text",
+      "components": [
+        {
+          "id": "demo-text-root",
+          "component": {
+            "TextField": {
+              "label": {
+                "literalString": "Enter some text"
+              },
+              "text": {
+                "path": "galleryData/textField"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "demo-text",
+      "contents": [
+        {
+          "key": "galleryData",
+          "valueMap": [
+            {
+              "key": "textField",
+              "valueString": "Hello World"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "demo-button",
+      "root": "demo-button-root"
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "demo-button",
+      "components": [
+        {
+          "id": "demo-button-text",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Trigger Action"
+              }
+            }
+          }
+        },
+        {
+          "id": "demo-button-root",
+          "component": {
+            "Button": {
+              "child": "demo-button-text",
+              "primary": true,
+              "action": {
+                "name": "custom_action",
+                "context": [
+                  {
+                    "key": "info",
+                    "value": {
+                      "literalString": "Custom Button Clicked"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "response-surface",
+      "root": "response-text"
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "response-surface",
+      "components": [
+        {
+          "id": "response-text",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Interact with the gallery to see responses. This view is updated by the agent by relaying the raw action commands it received from the client"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "surfaceUpdate": {
+      "surfaceId": "response-surface",
+      "components": [
+        {
+          "id": "response-text",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Agent Processed Action: ACTION: custom_action with {'info': 'Custom Button Clicked'} at 18:01:44"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+]
