@@ -39,7 +39,7 @@ Triage suggestion:
 The Flutter renderer throws an exception when a `Row` has an empty `children` list. The report includes a stack trace and a three-line payload that reproduces it.
 
 **Why flagged for triage:**
-Priority is not set.
+This issue has external input but no priority label yet.
 
 **Suggestion:**
 Set P1 and assign `octocat`, who made most of the recent changes to `dart/a2ui_flutter`. Any agent that streams an empty `Row` crashes the surface, and there is no workaround. #1234 reports the same crash for `Column` and probably has the same cause.
@@ -67,7 +67,7 @@ tools/internal/triage_new/triage_ui.sh https://github.com/a2ui-project/a2ui/issu
 <a2ui>
 root = TriageSuggestion(
   summary="""The Flutter renderer throws an exception when a `Row` has an empty `children` list. The report includes a stack trace and a three-line payload that reproduces it.""",
-  reason="Priority is not set.",
+  reason="This issue has external input but no priority label yet.",
   suggestion="""Set P1 and assign `octocat`, who made most of the recent changes to `dart/a2ui_flutter`. Any agent that streams an empty `Row` crashes the surface, and there is no workaround. #1234 reports the same crash for `Column` and probably has the same cause.""",
   reply="""Thanks for the report and the payload that reproduces it. We confirmed the crash and plan to fix it soon. #1234 reports the same crash for `Column`.""",
   added_labels=["type: bug", "P1", "component: flutter adapter", "status: first-line-handled"],
@@ -116,7 +116,7 @@ A suggestion is **current** when nothing happened on the item after the suggesti
 The component is defined in [triage_suggestion.dart](../../pkgs/triage/lib/src/triage_item/triage_suggestion.dart). Its properties:
 
 1. `summary` (required): what the item is about, in plain English.
-2. `reason`: why the item is flagged for triage, in plain English, such as "Priority is not set." It names the [flagger](../../../triage/blueprints/flagging.blueprint.md) rule that the item matches, and is omitted when the item does not have `status: needs-triage`.
+2. `reason`: why the item is flagged for triage, in plain English, such as "This issue has external input but no priority label yet." It is the reason that the [flagger](../../../triage/blueprints/flagging.blueprint.md) gives for the item, as [flag_reason.mts](../../../triage/flagging/flag_reason.mts) prints it, and is omitted when the flagger does not flag the item.
 3. `suggestion` (required): what the triager should do and why, in plain English.
 4. `reply`: a comment for the item's author or other participants. When the suggestion is applied, the triage UI posts it from the triager's account.
 5. `close_as`: how to close the item: `completed`, `not_planned` or `duplicate`. When it is omitted, the item stays open. A PR has no close reason, so any value closes it.

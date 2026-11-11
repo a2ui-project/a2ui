@@ -96,7 +96,7 @@ async function gh(path: string, paginate: boolean): Promise<unknown> {
  * Fills the `{name}` parameters of `route` from `params`, and adds the other
  * params as the query.
  */
-function toPath(route: string, params: Record<string, unknown>): string {
+export function toPath(route: string, params: Record<string, unknown>): string {
   const query = new URLSearchParams();
   const used = new Set<string>();
   const path = route.replace(/\{(\w+)\}/g, (_, name: string) => {

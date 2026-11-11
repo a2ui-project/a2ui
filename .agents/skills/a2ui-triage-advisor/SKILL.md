@@ -50,6 +50,12 @@ gh api graphql -F owner=a2ui-project -F repo=a2ui -F number=<number> \
 
 Skip locked items: a comment cannot be posted on them.
 
+Then get why the flagger flags each item. [flag_reason.mts](../../../tools/internal/triage/flagging/flag_reason.mts) applies the [flagger](../../../tools/internal/triage/blueprints/flagging.blueprint.md)'s rules to the items you pass, as numbers or URLs, and prints a JSON array with one `{"url", "reason"}` entry per item. The `reason` is `null` for an item that the flagger does not flag. Pass all the items in one call:
+
+```bash
+node tools/internal/triage/flagging/flag_reason.mts <number> <number>
+```
+
 ## Step 3: Skip items with a current suggestion
 
 A suggestion comment is a comment whose body starts with `**From triage bot:**` and contains an `<a2ui>` block. There is at most one per item.
@@ -70,7 +76,7 @@ Otherwise the suggestion is outdated. Skip items with a current suggestion. For 
 2. For a bug, diagnose it from the logs, stack traces, specification (`specification/`) and code. Reproduce it only when the steps are short and clear. Do it in a temporary clone or worktree in your scratch directory, and delete it when you finish.
 3. For a PR, read the changed files and the issues it closes. Check whether a closed issue is assigned to the PR author, and whether open PRs touch the same files.
 4. Look for related items. Start with the cross-referenced items in the timeline, then run at most three searches, such as `gh search issues --repo a2ui-project/a2ui "<keywords>"` and `gh search prs --repo a2ui-project/a2ui "<keywords>"`. Open each candidate before you call it related or a duplicate.
-5. To find an owner for the affected area, count recent commit authors on its path:
+5. To find an owner of the affected area, or an expert to finish the triage, count recent commit authors on its path:
 
    ```bash
    gh api "repos/a2ui-project/a2ui/commits?path=<path>&per_page=20" -q '.[].author.login' \
@@ -81,14 +87,14 @@ Otherwise the suggestion is outdated. Skip items with a current suggestion. For 
 
 ## Step 5: Decide
 
-Decide what the triager should do, following [triage_criteria.md](references/triage_criteria.md). If you cannot decide with confidence, say so in the suggestion and suggest `status: needs-team-input`, with what you found and what is still unclear. A short, honest suggestion is better than a confident guess.
+Decide what the triager should do, following [triage_criteria.md](references/triage_criteria.md). If you cannot decide with confidence, say so in the suggestion, with what you found and what is still unclear, and suggest an expert or `status: needs-team-input` as rule 9 of the criteria says. A short, honest suggestion is better than a confident guess.
 
 ## Step 6: Fill in the suggestion
 
 The [`TriageSuggestion`](../../../tools/internal/triage_new/pkgs/triage/lib/src/triage_item/triage_suggestion.dart) component has these properties:
 
 1. `summary` (required): what the item is about, in one or two sentences, for a triager who has not read it.
-2. `reason`: why the item is flagged for triage, in one short sentence, such as "Priority is not set." or "The issue is P1 and has had no human activity for more than 30 days." Check the item against the rules in [flagging.blueprint.md](../../../tools/internal/triage/blueprints/flagging.blueprint.md) and name the rules it matches. Omit it when the item does not have `status: needs-triage`.
+2. `reason`: why the item is flagged for triage. Copy it unchanged from the output of `flag_reason.mts` in step 2, and omit it when the output has `null`. Do not work out the reason yourself: the script uses the same code as the flagger, so the two always agree.
 3. `suggestion` (required): what the triager should do and why. Name the evidence with links.
 4. `reply`: a comment for the item's author or other participants, which the triage UI posts when the triager applies the suggestion. Copy it from [templates.md](../../../docs/contributing/triage/templates.md) when a template fits. Add a reply when the author needs to act, when an out-of-team contributor's question is unanswered, or when the item is closed.
 5. `close_as`: `completed`, `not_planned` or `duplicate`, when the triager should close the item. Omit it to keep the item open.
@@ -109,7 +115,7 @@ Rules for the lists:
 5. List a related item only if the suggestion says how it relates. Do not list the item itself, or the item in `duplicate_of`.
 6. Do not repeat an entry in a list.
 
-Write `summary`, `reason` and `suggestion` for the triager, and `reply` for the people on the item, following the natural-writing rules. In `suggestion`, state the action first, then why. Do not use filler such as "I hope this helps".
+Write `summary` and `suggestion` for the triager, and `reply` for the people on the item, following the natural-writing rules. In `suggestion`, state the action first, then why. Do not use filler such as "I hope this helps".
 
 ## Step 7: Format the comment
 
@@ -197,7 +203,7 @@ Triage suggestion:
 The Flutter renderer throws an exception when a `Row` has an empty `children` list. The report includes a stack trace and a three-line payload that reproduces it.
 
 **Why flagged for triage:**
-Priority is not set.
+This issue has external input but no priority label yet.
 
 **Suggestion:**
 Set P1 and assign `flutter-owner`, who wrote most recent changes to `dart/a2ui_flutter`. Any agent that streams an empty `Row` crashes the surface, and there is no workaround. #1234 reports the same crash for `Column` and probably has the same cause.
@@ -221,7 +227,7 @@ tools/internal/triage_new/triage_ui.sh https://github.com/a2ui-project/a2ui/issu
 <a2ui>
 root = TriageSuggestion(
   summary="""The Flutter renderer throws an exception when a `Row` has an empty `children` list. The report includes a stack trace and a three-line payload that reproduces it.""",
-  reason="Priority is not set.",
+  reason="This issue has external input but no priority label yet.",
   suggestion="""Set P1 and assign `flutter-owner`, who wrote most recent changes to `dart/a2ui_flutter`. Any agent that streams an empty `Row` crashes the surface, and there is no workaround. #1234 reports the same crash for `Column` and probably has the same cause.""",
   added_labels=["type: bug", "P1", "component: flutter adapter", "status: first-line-handled"],
   new_assignees=["flutter-owner"],
@@ -247,7 +253,7 @@ Triage suggestion:
 The issue asks for a `Slider` component in the basic catalog.
 
 **Why flagged for triage:**
-Priority is not set.
+This issue has external input but no priority label yet.
 
 **Suggestion:**
 Close as a duplicate of #1100, which asks for the same component and already has P2. The issue adds no new use case.
@@ -274,7 +280,7 @@ tools/internal/triage_new/triage_ui.sh https://github.com/a2ui-project/a2ui/issu
 <a2ui>
 root = TriageSuggestion(
   summary="The issue asks for a `Slider` component in the basic catalog.",
-  reason="Priority is not set.",
+  reason="This issue has external input but no priority label yet.",
   suggestion="Close as a duplicate of #1100, which asks for the same component and already has P2. The issue adds no new use case.",
   reply="""Thanks for the request. #1100 tracks the same component, so we are closing this issue as a duplicate. Add your use case there if it is not covered yet.""",
   close_as="duplicate",
