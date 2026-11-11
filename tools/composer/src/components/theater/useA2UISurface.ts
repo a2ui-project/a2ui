@@ -31,9 +31,9 @@ function applyUpdateDataModel(
   const {path, value} = update;
   if (!path || path === '/') {
     if (value && typeof value === 'object' && !Array.isArray(value)) {
-      return {...data, ...value};
+      return structuredClone(value);
     }
-    return data;
+    return {};
   }
 
   const parts = path.split('/').filter(Boolean);

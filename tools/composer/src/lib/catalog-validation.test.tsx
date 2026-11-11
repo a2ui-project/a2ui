@@ -88,6 +88,7 @@ describe('v0.9 catalog schema validation across Composer static data', () => {
         `preview-${comp.name}`,
         comp.preview!.root,
         comp.preview!.components,
+        comp.preview!.data ?? {},
       );
       expect(surface).toBeDefined();
     }

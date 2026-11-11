@@ -87,11 +87,18 @@ describe('useA2UISurface', () => {
     });
   });
 
-  it('supports key deletion via updateDataModel with undefined value and resets on deleteSurface', () => {
+  it('supports key deletion via updateDataModel with undefined value, root replacement/clear, and resets on deleteSurface', () => {
     const messagesWithDeleteKey: Array<Record<string, unknown>> = [
       {
         version: 'v0.9',
         createSurface: {surfaceId: 's1'},
+      },
+      {
+        version: 'v0.9',
+        updateDataModel: {
+          surfaceId: 's1',
+          value: {staleKey: 99},
+        },
       },
       {
         version: 'v0.9',
@@ -120,6 +127,17 @@ describe('useA2UISurface', () => {
       initialProps: {msgs: messagesWithDeleteKey},
     });
     expect(result.current.data).toEqual({keep: 1, list: ['y']});
+
+    rerender({
+      msgs: [
+        ...messagesWithDeleteKey,
+        {
+          version: 'v0.9',
+          updateDataModel: {surfaceId: 's1', path: '/'},
+        },
+      ],
+    });
+    expect(result.current.data).toEqual({});
 
     rerender({
       msgs: [
