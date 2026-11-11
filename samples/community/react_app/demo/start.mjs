@@ -20,11 +20,13 @@
  *
  *   node demo/start.mjs            # live: calls gemini-3.5-flash, needs GEMINI_API_KEY
  *   node demo/start.mjs --replay   # replays demo/e2e/recordings, no key needed
+ *   node demo/start.mjs --host 0.0.0.0   # also reachable by machine name, e.g. from a laptop
  *
  * Builds the ReactApp packages first if their output is missing.
  */
 import {spawn, spawnSync} from 'node:child_process';
 import {existsSync} from 'node:fs';
+import {hostname} from 'node:os';
 import {dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
@@ -33,6 +35,14 @@ const projectDir = join(demoDir, '..');
 const replay = process.argv.includes('--replay');
 const agentPort = process.env.DEMO_AGENT_PORT ?? '8787';
 const clientPort = process.env.DEMO_CLIENT_PORT ?? '5317';
+const hostFlag = process.argv.indexOf('--host');
+const clientHost =
+  hostFlag >= 0 ? process.argv[hostFlag + 1] : (process.env.DEMO_CLIENT_HOST ?? '127.0.0.1');
+const loopback = ['127.0.0.1', 'localhost', '::1'].includes(clientHost);
+if (!clientHost || clientHost.startsWith('--')) {
+  console.error('--host needs an address, for example --host 0.0.0.0');
+  process.exit(2);
+}
 
 if (!replay && !process.env.GEMINI_API_KEY) {
   console.error('GEMINI_API_KEY is not set. Set it, or run with --replay for recorded answers.');
@@ -63,14 +73,18 @@ const children = [
     stdio: 'inherit',
     env: {
       ...process.env,
+      DEMO_CLIENT_HOST: clientHost,
       DEMO_CLIENT_PORT: clientPort,
       DEMO_AGENT_URL: `http://127.0.0.1:${agentPort}`,
     },
   }),
 ];
 
+// The agent stays on loopback; the browser reaches it through the client's /api proxy.
+const anyInterface = clientHost === '0.0.0.0' || clientHost === '::';
+const shownHost = loopback ? '127.0.0.1' : anyInterface ? hostname() : clientHost;
 console.log(
-  `\nMargin demo (${replay ? 'recorded answers' : 'live model'}): http://127.0.0.1:${clientPort}/\n`,
+  `\nMargin demo (${replay ? 'recorded answers' : 'live model'}): http://${shownHost}:${clientPort}/\n`,
 );
 
 const stop = () => {

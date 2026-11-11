@@ -21,6 +21,14 @@ node demo/start.mjs --replay             # recorded answers, no key needed
 
 Open http://127.0.0.1:5317/. `start.mjs` builds the ReactApp packages first if their output is missing. The agent listens on port 8787; set `DEMO_AGENT_PORT` and `DEMO_CLIENT_PORT` to change the ports.
 
+To open the demo from another machine, for example a laptop reaching a cloud workstation, listen on all interfaces:
+
+```bash
+node demo/start.mjs --host 0.0.0.0   # prints http://<machine name>:5317/
+```
+
+The client then accepts any `Host` header; set `DEMO_ALLOWED_HOSTS` (comma-separated) to restrict it. The agent stays on 127.0.0.1, because the browser reaches it only through the client's `/api` proxy. The sandbox proxy and the ReactApp runtime are served from the page's own origin, so they work under any host name.
+
 Try the three suggested prompts:
 
 1. **Loan explorer.** Native sliders drive a Vega bar chart in the app. Clicking a bar writes the selected year to the data model, and a native text shows what's left. "Email me this plan" sends an action, and the agent answers in a new turn.
