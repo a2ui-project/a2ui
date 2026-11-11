@@ -4323,7 +4323,7 @@
               createSurface:
                 surfaceId: "main"
                 catalogId: "conformance/simplified"
-    - input: '{"version": "1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Column", "children": ["t1", "m1"]}, {"id": "t1", "component": "Text", "text": "Users"}, {"id": "m1", "catalogId": "conformance/custom", "component": "Gauge"'
+    - input: '{"version": "1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Column", "children": ["t1", "m1"]}, {"id": "t1", "component": "Text", "text": "Users"}, {"id": "m1", "@catalogId": "conformance/custom", "component": "Gauge"'
       expect:
         - a2ui:
             - version: "1.0"
@@ -4354,7 +4354,7 @@
                     component: "Text"
                     text: "Users"
                   - id: "m1"
-                    catalogId: "conformance/custom"
+                    "@catalogId": "conformance/custom"
                     component: "Gauge"
                     value: 42
     - input: "]}}]</a2ui-json>"
@@ -4389,7 +4389,7 @@
         category: "ValidationError"
 
 - name: test_stream_component_catalog_id_arrives_late_v10
-  description: A component is held back until its object closes, so a catalogId that arrives after the type and properties picks the catalog it is checked against.
+  description: A component is held back until its object closes, so a `@catalogId` that arrives after the type and properties picks the catalog it is checked against.
   action: parse_chunk
   args:
     format: direct_json
@@ -4416,7 +4416,7 @@
                     component: "Column"
                     children:
                       - "m1"
-    - input: ', "catalogId": "conformance/custom"}'
+    - input: ', "@catalogId": "conformance/custom"}'
       expect:
         - a2ui:
             - version: "1.0"
@@ -4430,12 +4430,12 @@
                   - id: "m1"
                     component: "Gauge"
                     value: 42
-                    catalogId: "conformance/custom"
+                    "@catalogId": "conformance/custom"
     - input: "]}}]</a2ui-json>"
       expect: []
 
 - name: test_stream_catalog_id_split_across_chunks_v10
-  description: A component whose catalogId is split at the key, between the key and its value, and inside the value is emitted once, after its object closes.
+  description: A component whose `@catalogId` is split at the key, between the key and its value, and inside the value is emitted once, after its object closes.
   action: parse_chunk
   args:
     format: direct_json
@@ -4451,7 +4451,7 @@
               createSurface:
                 surfaceId: "main"
                 catalogId: "conformance/simplified"
-    - input: '{"version": "1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Gauge", "value": 42, "catal'
+    - input: '{"version": "1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Gauge", "value": 42, "@catal'
       expect: []
     - input: 'ogId"'
       expect: []
@@ -4471,7 +4471,7 @@
                   - id: "root"
                     component: "Gauge"
                     value: 42
-                    catalogId: "conformance/custom"
+                    "@catalogId": "conformance/custom"
     - input: "]}}]</a2ui-json>"
       expect: []
 

@@ -18,13 +18,19 @@
  * @fileoverview Unit tests for component integrity checking and path syntax recursion validation.
  */
 
-import {describe, it} from 'node:test';
 import assert from 'node:assert/strict';
-import {getComponentReferences} from './integrity-checker.js';
-import {A2uiIntegrityError, A2uiRecursionError} from '../errors.js';
+import {describe, it} from 'node:test';
+
+import {z} from 'zod';
+
 import {buildComponentRefMap, ComponentRefMap} from '../catalog/reference-map.js';
+import {Catalog} from '../catalog/types.js';
 import {BASIC_COMPONENTS} from '../catalogs/basic/v1/components/basic_components.js';
+import {A2uiIntegrityError, A2uiRecursionError} from '../errors.js';
+import {ComponentModel} from '../state/component-model.js';
+import {SurfaceComponentsModel} from '../state/surface-components-model.js';
 import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
+import {getComponentReferences} from './integrity-checker.js';
 
 describe('Integrity Verification', () => {
   describe('getComponentReferences', () => {
@@ -152,6 +158,297 @@ describe('Integrity Verification', () => {
         ['c3', 'sections[0].children[1]'],
         ['c4', 'sections[1].children[0]'],
       ]);
+    });
+
+    it('prioritizes nestedKeys over template detection when structured array items also carry componentId and path/@path fields', () => {
+      const refMap: ComponentRefMap = {
+        ActionRows: {
+          singleRefs: new Set<string>(),
+          listRefs: new Set(['rows']),
+          nestedRefs: {rows: new Set(['iconChild', 'children'])},
+        },
+      };
+
+      const v09Comp = {
+        id: 'root',
+        component: {
+          ActionRows: {
+            rows: [
+              {
+                componentId: 'not-a-template-id',
+                path: '/route/settings',
+                iconChild: 'icon-1',
+                children: ['body-1', 'body-2'],
+              },
+            ],
+          },
+        },
+      };
+      assert.deepEqual(Array.from(getComponentReferences(v09Comp, refMap)), [
+        ['icon-1', 'rows[0].iconChild'],
+        ['body-1', 'rows[0].children[0]'],
+        ['body-2', 'rows[0].children[1]'],
+      ]);
+
+      const v10Comp = {
+        id: 'root',
+        component: 'ActionRows',
+        rows: [
+          {
+            componentId: 'not-a-template-id',
+            '@path': '/route/profile',
+            iconChild: 'icon-2',
+            children: ['body-3'],
+          },
+        ],
+      };
+      assert.deepEqual(Array.from(getComponentReferences(v10Comp, refMap)), [
+        ['icon-2', 'rows[0].iconChild'],
+        ['body-3', 'rows[0].children[0]'],
+      ]);
+
+      // When an item omits optional nested child keys (`iconChild`, `children`), its own
+      // `componentId` and `path`/`@path` fields must not be mistaken for a template.
+      const omittedOptionalChildRow = {
+        id: 'root',
+        component: 'ActionRows',
+        rows: [
+          {
+            componentId: 'not-a-template-id',
+            path: '/route/settings',
+          },
+          {
+            componentId: 'also-not-a-template-id',
+            '@path': '/route/profile',
+          },
+        ],
+      };
+      assert.deepEqual(Array.from(getComponentReferences(omittedOptionalChildRow, refMap)), []);
+
+      // When an open container's `child` holds a data-binding or function-call object without
+      // `componentId`, no string inside the binding expression is treated as a child component ID.
+      const openCatalog = new Catalog('open-binding-cat', '1.0', [
+        {name: 'OpenBox', schema: z.object({}).passthrough()},
+      ]);
+      for (const boundChild of [
+        {'@path': '/someData'},
+        {path: '/someData'},
+        {'@call': 'formatString', args: {value: 'not-a-child-id'}},
+        {call: 'formatString', args: {value: 'not-a-child-id'}},
+      ]) {
+        assert.deepEqual(
+          Array.from(
+            getComponentReferences(
+              {id: 'root', component: 'OpenBox', child: boundChild},
+              openCatalog,
+            ),
+          ),
+          [],
+        );
+        const model = new SurfaceComponentsModel(openCatalog);
+        model.addComponent(new ComponentModel('root', 'OpenBox', {child: boundChild}, openCatalog));
+        assert.doesNotThrow(() =>
+          model.validateTopology({
+            allowMissingRoot: false,
+            allowDanglingReferences: false,
+            allowOrphanComponents: false,
+          }),
+        );
+      }
+    });
+
+    it('extracts only componentId from {componentId, "@path"} templates and passes strict validateTopology alongside z.object({}) containers', () => {
+      const catalog = new Catalog('v10-tmpl-cat', '1.0', [
+        {
+          name: 'Repeater',
+          schema: z.object({
+            children: z.object({componentId: z.string(), '@path': z.string()}),
+          }),
+        },
+        {
+          name: 'EmptyWrapper',
+          schema: z.object({}),
+        },
+        {
+          name: 'LeafText',
+          schema: z.object({text: z.string()}).strict(),
+        },
+      ]);
+
+      const refs = Array.from(
+        getComponentReferences(
+          {
+            id: 'root',
+            component: 'Repeater',
+            children: {componentId: 'wrapper', '@path': '/items'},
+          },
+          catalog,
+        ),
+      );
+      assert.deepEqual(refs, [['wrapper', 'children.componentId']]);
+
+      const model = new SurfaceComponentsModel(catalog);
+      model.addComponent(
+        new ComponentModel(
+          'root',
+          'Repeater',
+          {children: {componentId: 'wrapper', '@path': '/items'}},
+          catalog,
+        ),
+      );
+      model.addComponent(new ComponentModel('wrapper', 'EmptyWrapper', {child: 'leaf'}, catalog));
+      model.addComponent(new ComponentModel('leaf', 'LeafText', {text: 'Hi'}, catalog));
+
+      assert.doesNotThrow(() =>
+        model.validateTopology({
+          allowMissingRoot: false,
+          allowDanglingReferences: false,
+          allowOrphanComponents: false,
+        }),
+      );
+    });
+
+    it('extracts template componentId when a property has nestedRefs from a [list, nested] union regardless of branch order', () => {
+      const ComponentIdRef = z.string().describe('REF:common_types.json#/$defs/ComponentId');
+      const TemplateBranch = z.object({
+        componentId: ComponentIdRef,
+        path: z.string(),
+      });
+      const StructuredBranch = z.array(
+        z.object({
+          title: z.string(),
+          child: ComponentIdRef,
+        }),
+      );
+
+      for (const sectionsSchema of [
+        z.union([TemplateBranch, StructuredBranch]),
+        z.union([StructuredBranch, TemplateBranch]),
+      ]) {
+        const catalog = new Catalog('union-nested-tmpl-cat', '0.9', [
+          {
+            name: 'FlexibleSections',
+            schema: z.object({sections: sectionsSchema}),
+          },
+          {
+            name: 'LeafText',
+            schema: z.object({text: z.string()}).strict(),
+          },
+        ]);
+
+        assert.deepEqual(
+          Array.from(
+            getComponentReferences(
+              {
+                id: 'root',
+                component: 'FlexibleSections',
+                sections: {componentId: 'item-tpl', path: '/items'},
+              },
+              catalog,
+            ),
+          ),
+          [['item-tpl', 'sections.componentId']],
+        );
+
+        assert.deepEqual(
+          Array.from(
+            getComponentReferences(
+              {
+                id: 'root',
+                component: 'FlexibleSections',
+                sections: [{title: 'Not a component ID', child: 'c1'}],
+              },
+              catalog,
+            ),
+          ),
+          [['c1', 'sections[0].child']],
+        );
+
+        const model = new SurfaceComponentsModel(catalog);
+        model.addComponent(
+          new ComponentModel(
+            'root',
+            'FlexibleSections',
+            {sections: {componentId: 'item-tpl', path: '/items'}},
+            catalog,
+          ),
+        );
+        model.addComponent(new ComponentModel('item-tpl', 'LeafText', {text: 'Row'}, catalog));
+        assert.doesNotThrow(() =>
+          model.validateTopology({
+            allowMissingRoot: false,
+            allowDanglingReferences: false,
+            allowOrphanComponents: false,
+          }),
+        );
+      }
+    });
+
+    it('extracts both single string IDs and structured nested IDs from a [single, nested] union regardless of branch order', () => {
+      const ComponentIdRef = z.string().describe('REF:common_types.json#/$defs/ComponentId');
+      const StructuredBranch = z.array(
+        z.object({
+          title: z.string(),
+          child: ComponentIdRef,
+        }),
+      );
+
+      for (const slotSchema of [
+        z.union([ComponentIdRef, StructuredBranch]),
+        z.union([StructuredBranch, ComponentIdRef]),
+      ]) {
+        const catalog = new Catalog('union-single-nested-cat', '0.9', [
+          {
+            name: 'FlexibleSlot',
+            schema: z.object({slot: slotSchema}),
+          },
+          {
+            name: 'LeafText',
+            schema: z.object({text: z.string()}).strict(),
+          },
+        ]);
+
+        assert.deepEqual(
+          Array.from(
+            getComponentReferences(
+              {
+                id: 'root',
+                component: 'FlexibleSlot',
+                slot: 'leaf-1',
+              },
+              catalog,
+            ),
+          ),
+          [['leaf-1', 'slot']],
+        );
+
+        assert.deepEqual(
+          Array.from(
+            getComponentReferences(
+              {
+                id: 'root',
+                component: 'FlexibleSlot',
+                slot: [{title: 'Row', child: 'c1'}],
+              },
+              catalog,
+            ),
+          ),
+          [['c1', 'slot[0].child']],
+        );
+
+        const singleModel = new SurfaceComponentsModel(catalog);
+        singleModel.addComponent(
+          new ComponentModel('root', 'FlexibleSlot', {slot: 'leaf-1'}, catalog),
+        );
+        singleModel.addComponent(new ComponentModel('leaf-1', 'LeafText', {text: 'Hi'}, catalog));
+        assert.doesNotThrow(() =>
+          singleModel.validateTopology({
+            allowMissingRoot: false,
+            allowDanglingReferences: false,
+            allowOrphanComponents: false,
+          }),
+        );
+      }
     });
   });
 

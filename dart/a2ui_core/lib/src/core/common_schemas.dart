@@ -355,9 +355,9 @@ class CommonSchemasV1 {
     Schema.object(
       properties: {
         'id': CommonSchemas.componentId,
-        'catalogId': Schema.string(),
-        'accessibility': accessibilityAttributes,
-        'metadata': Schema.object(
+        '@catalogId': Schema.string(),
+        '@accessibility': accessibilityAttributes,
+        '@metadata': Schema.object(
           properties: {'extensions': Schema.object(additionalProperties: true)},
           additionalProperties: false,
         ),

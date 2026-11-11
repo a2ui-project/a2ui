@@ -755,7 +755,15 @@ export class RendererState {
     const type = typeof update.component === 'string' ? update.component : existing.type;
     if (type !== existing.type) return true;
     const atLeastV1 = this.releaseLine !== 'v0.9';
-    const catalogId = update.catalogId;
+    let catalogId: unknown;
+    if (atLeastV1 && '@catalogId' in update) {
+      catalogId = update['@catalogId'];
+    } else if ('catalogId' in update) {
+      if (atLeastV1 && surface.defaultCatalog?.id !== existing.catalog.id) {
+        return true;
+      }
+      catalogId = update.catalogId;
+    }
     if (typeof catalogId === 'string' && (catalogId !== '' || atLeastV1)) {
       return catalogId !== existing.catalog.id;
     }
@@ -1466,7 +1474,14 @@ function componentTypes(messages: Message[]): Set<string> {
   for (const message of messages) {
     for (const components of componentLists(message)) {
       for (const component of components) {
-        if (!component || typeof component !== 'object' || 'catalogId' in component) continue;
+        if (
+          !component ||
+          typeof component !== 'object' ||
+          '@catalogId' in component ||
+          'catalogId' in component
+        ) {
+          continue;
+        }
         const type = (component as Message).component;
         if (typeof type === 'string') types.add(type);
       }

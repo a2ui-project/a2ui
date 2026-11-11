@@ -41,6 +41,7 @@ from a2ui.inference_formats._shared import (
     coalesce_surface_messages,
     surface_catalog_id,
 )
+from a2ui.utils.component_envelope import get_envelope_value
 from .constants import SurfaceOperation
 from .errors import ExpressValidationError
 
@@ -684,17 +685,39 @@ class ExpressDecompiler:
             comp_helper, write_cat_id = self._resolve(
                 "component",
                 comp_name,
-                c.get("catalogId"),
+                self._component_catalog_id(c, surface_cat_id),
                 surface_cat_id,
                 "component",
             )
 
             properties = comp_helper.get_component_properties(comp_name)
+            custom_envelope = comp_helper.get_custom_envelope_properties(comp_name)
             args_reprs = []
+            # The `catalogId=` keyword names the component's catalog, so a
+            # property the component declares as `catalogId` is written
+            # positionally, along with every property before it.
+            positional_until = (
+                properties.index("catalogId")
+                if use_keyword_args and "catalogId" in properties and "catalogId" in c
+                else -1
+            )
 
-            for prop_name in properties:
-                if prop_name == "checks":
-                    checks_val = c.get("checks", [])
+            for prop_idx, prop_name in enumerate(properties):
+                keyword = use_keyword_args and prop_idx > positional_until
+                if (
+                    prop_name == "checks"
+                    and "checks" not in custom_envelope
+                    and comp_helper.component_is_checkable.get(comp_name, False)
+                ):
+                    checks_val = (
+                        get_envelope_value(
+                            c,
+                            "checks",
+                            at_least_v10=self._v1,
+                            custom_properties=custom_envelope,
+                        )
+                        or []
+                    )
                     if not checks_val:
                         args_reprs.append("_")
                         continue
@@ -716,24 +739,50 @@ class ExpressDecompiler:
                         _is_component_reference_property(p_schema),
                         surface_cat_id,
                     )
-                    if use_keyword_args:
+                    if keyword:
                         args_reprs.append(f"{prop_name}={val_str}")
                     else:
                         args_reprs.append(val_str)
-                elif not use_keyword_args:
+                elif not keyword:
                     # Only append "_" if a later regular property has a value
-                    idx = properties.index(prop_name)
-                    if any(p != "checks" and p in c for p in properties[idx + 1 :]):
+                    if any(
+                        (p != "checks" or "checks" in custom_envelope) and p in c
+                        for p in properties[prop_idx + 1 :]
+                    ):
                         args_reprs.append("_")
 
             _strip_trailing_placeholders(args_reprs)
+
+            if "checks" in custom_envelope and comp_helper.component_is_checkable.get(
+                comp_name, False
+            ):
+                checks_val = (
+                    get_envelope_value(
+                        c,
+                        "checks",
+                        at_least_v10=self._v1,
+                        custom_properties=custom_envelope,
+                    )
+                    or []
+                )
+                if checks_val:
+                    check_reprs = [
+                        self._decompile_check(rc, c, var_names, surface_cat_id)
+                        for rc in checks_val
+                    ]
+                    if len(check_reprs) == 1:
+                        args_reprs.append(check_reprs[0])
+                    else:
+                        args_reprs.append(f"[{', '.join(check_reprs)}]")
 
             if write_cat_id is not None:
                 args_reprs.append(f"catalogId={_decompile_string(write_cat_id)}")
             if var_name != comp_id:
                 args_reprs.append(f"id={_decompile_string(comp_id)}")
             if self._v1:
-                comp_meta = c.get("metadata")
+                comp_meta = get_envelope_value(
+                    c, "metadata", at_least_v10=True, custom_properties=custom_envelope
+                )
                 if isinstance(comp_meta, dict) and isinstance(
                     comp_meta.get("extensions"), dict
                 ):
@@ -744,6 +793,46 @@ class ExpressDecompiler:
 
             dsl_lines.append(f"{var_name} = {comp_name}({', '.join(args_reprs)})")
         return dsl_lines
+
+    def _component_catalog_id(
+        self, component: dict[str, Any], surface_cat_id: str | None
+    ) -> str | None:
+        """Returns the catalog override of a component, or None when it names none.
+
+        From v1.0 the override is `@catalogId`. A bare `catalogId`, which v1.0
+        payloads used before the cutover, is read too, unless the component's
+        surface catalog declares `catalogId` as a property of the component.
+        """
+        if not self._v1:
+            override = component.get("catalogId")
+            return override if isinstance(override, str) else None
+        if "@catalogId" in component:
+            override = component["@catalogId"]
+            if not isinstance(override, str) or not override:
+                raise ExpressValidationError(
+                    f"Component '{component.get('id', '<unknown>')}' has an invalid"
+                    f" '@catalogId': {override!r}."
+                )
+            return override
+        legacy = component.get("catalogId")
+        if not isinstance(legacy, str):
+            return None
+        home = self.helpers.get(surface_cat_id) if surface_cat_id else None
+        comp_name = component.get("component")
+        if isinstance(comp_name, str):
+            if home is not None and comp_name in home.components:
+                if "catalogId" in home.get_custom_envelope_properties(comp_name):
+                    return None
+            else:
+                declaring = [
+                    h for h in self.helpers.values() if comp_name in h.components
+                ]
+                if declaring and all(
+                    "catalogId" in h.get_custom_envelope_properties(comp_name)
+                    for h in declaring
+                ):
+                    return None
+        return legacy
 
     def _decompile_check(
         self,

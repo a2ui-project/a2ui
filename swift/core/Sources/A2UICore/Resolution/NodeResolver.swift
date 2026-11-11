@@ -971,6 +971,17 @@ public final class NodeResolver: Sendable {
     isTrackingNodeReplacements = false
   }
 
+  /// The schema of the accessibility mixin: `AccessibilityAttributes`.
+  private static let accessibilityMixinSchema: JSONValue = .object([
+    "$ref": .string(A2UICommonSchema.v10URI(for: "AccessibilityAttributes"))
+  ])
+
+  /// The schema of the checks mixin: a list of `CheckRule`.
+  private static let checksMixinSchema: JSONValue = .object([
+    "type": .string("array"),
+    "items": .object(["$ref": .string(A2UICommonSchema.v10URI(for: "CheckRule"))]),
+  ])
+
   private func cachedSchema(
     for type: String,
     catalogID: String?,
@@ -982,11 +993,23 @@ public final class NodeResolver: Sendable {
     }
     let schemaJSON = catalog?.components[type]?.schema.jsonValue ?? .object([:])
     var propertiesSchema = extractPropertiesSchema(from: schemaJSON)
+    // The shared v1.0 `Checkable` definition declares only `@checks`. A v0.9 component, or a
+    // v1.0 component sent with the legacy bare key, still carries its checks as `checks`, so a
+    // checkable component that declares no `checks` of its own accepts that key as the mixin.
+    if propertiesSchema["checks"] == nil, let prefixedChecks = propertiesSchema["@checks"] {
+      propertiesSchema["checks"] = prefixedChecks
+    }
     // `accessibility` comes from `ComponentCommon`, so a component schema need not declare it.
     if propertiesSchema["accessibility"] == nil {
-      propertiesSchema["accessibility"] = .object([
-        "$ref": .string(A2UICommonSchema.v10URI(for: "AccessibilityAttributes"))
-      ])
+      propertiesSchema["accessibility"] = Self.accessibilityMixinSchema
+    }
+    // A v1.0 component keeps its accessibility and checks mixins under `@accessibility` and
+    // `@checks`, apart from any `accessibility` or `checks` property of its own.
+    if propertiesSchema["@accessibility"] == nil {
+      propertiesSchema["@accessibility"] = Self.accessibilityMixinSchema
+    }
+    if propertiesSchema["@checks"] == nil {
+      propertiesSchema["@checks"] = Self.checksMixinSchema
     }
     let entry = CachedComponentSchema(
       propertiesSchema: propertiesSchema,
