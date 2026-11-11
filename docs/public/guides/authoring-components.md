@@ -106,6 +106,8 @@ Here is the schema for the `Chart` component:
 }
 ```
 
+To decide whether a component needs a schema `label` property or a built-in widget label, see [Accessibility](defining-your-own-catalog.md#accessibility).
+
 ---
 
 ## 2. Implementing the Component (Client)

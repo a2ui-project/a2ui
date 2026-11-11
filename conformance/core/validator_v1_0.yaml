@@ -2447,3 +2447,160 @@
             surfaceId: s2
             path: "/components/0/text/args/value"
             message: "agentOnly"
+
+- name: test_v10_validate_at_prefixed_component_envelope_mixins
+  description: >-
+    Tests that PayloadValidator accepts @metadata, @accessibility, and @checks
+    on v1.0 components while continuing to accept legacy bare metadata,
+    accessibility, and checks during the v1.0 transition window (#1376).
+  action: validate
+  protocolVersion: "1.0"
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s_at_mixins
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s_at_mixins
+            components:
+              - id: root
+                component: TextField
+                label: "Email"
+                value: ""
+                "@accessibility":
+                  label: "Email address"
+                  description: "Enter your work email"
+                "@metadata":
+                  extensions:
+                    com_example_field: "email"
+                "@checks":
+                  - condition:
+                      "@call": required
+                      args:
+                        value: ""
+                    message: "Email is required"
+
+- name: test_v10_validate_component_metadata_invalid_extension_key_error
+  description: >-
+    Tests that PayloadValidator validates component @metadata.extensions (and
+    legacy metadata.extensions) keys as UAX 31 identifiers and rejects keys
+    containing dots or hyphens (#3466).
+  action: validate
+  protocolVersion: "1.0"
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s_bad_at_meta
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s_bad_at_meta
+            components:
+              - id: root
+                component: Text
+                text: "Hello"
+                "@metadata":
+                  extensions:
+                    "com.example.invalid": "v1"
+      expectError:
+        category: ValidationError
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s_bad_bare_meta
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s_bad_bare_meta
+            components:
+              - id: root
+                component: Text
+                text: "Hello"
+                metadata:
+                  extensions:
+                    "com-example-invalid": "v1"
+      expectError:
+        category: ValidationError
+
+- name: test_v10_validate_component_envelope_conflict_at_and_bare_error
+  description: >-
+    Tests that supplying both @metadata and legacy bare metadata (or both
+    @accessibility and bare accessibility) on a v1.0 component whose schema
+    does not declare a custom property of that bare name fails validation.
+  action: validate
+  protocolVersion: "1.0"
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s_conflict_meta
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s_conflict_meta
+            components:
+              - id: root
+                component: Text
+                text: "Conflict"
+                "@metadata":
+                  extensions:
+                    com_example_a: "1"
+                metadata:
+                  extensions:
+                    com_example_b: "2"
+      expectError:
+        category: ValidationError
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s_conflict_a11y
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s_conflict_a11y
+            components:
+              - id: root
+                component: Text
+                text: "Conflict"
+                "@accessibility":
+                  label: "New a11y"
+                accessibility:
+                  label: "Old a11y"
+      expectError:
+        category: ValidationError
+
+- name: test_v10_validate_at_checks_on_non_checkable_component_error
+  description: >-
+    Tests that supplying @checks on a non-checkable v1.0 component such as Text
+    fails schema validation.
+  action: validate
+  protocolVersion: "1.0"
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s_non_checkable
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s_non_checkable
+            components:
+              - id: root
+                component: Text
+                text: "Not checkable"
+                "@checks":
+                  - condition: true
+                    message: "Should fail"
+      expectError:
+        category: ValidationError
