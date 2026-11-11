@@ -1,0 +1,76 @@
+{
+  "entries": [
+    {
+      "key": "Show me an app that crashes",
+      "attempt": 1,
+      "model": "hand-written",
+      "chunks": [
+        {
+          "t": 300,
+          "text": "Here is a test app.\n<a2ui>\nsurface(\"crash\")\n$/crash/count = "
+        },
+        {
+          "t": 304,
+          "text": "1\nroot = Column(children=[title, app])\ntitle = Text(text=\"##"
+        },
+        {
+          "t": 308,
+          "text": " Crash test\")\napp = ReactApp(title=\"Crashy\", height=200, dat"
+        },
+        {
+          "t": 312,
+          "text": "aPaths=[\"/crash\"], source=r\"\"\"\nimport { useData } from \"a2ui"
+        },
+        {
+          "t": 316,
+          "text": "\";\n\nexport default function App() {\n  const [count] = useDat"
+        },
+        {
+          "t": 320,
+          "text": "a<number>(\"/crash/count\", 1);\n  if (count > 0) {\n    throw n"
+        },
+        {
+          "t": 324,
+          "text": "ew Error(\"demo crash on purpose\");\n  }\n  return <p>never</p>"
+        },
+        {
+          "t": 328,
+          "text": ";\n}\n\"\"\")\n</a2ui>"
+        }
+      ],
+      "usage": {}
+    },
+    {
+      "key": "app_error:crash",
+      "attempt": 1,
+      "model": "hand-written",
+      "chunks": [
+        {
+          "t": 300,
+          "text": "I fixed the app so it shows the count.\n<a2ui>\nsurface(\"crash"
+        },
+        {
+          "t": 304,
+          "text": "\")\napp = ReactApp(title=\"Crashy\", height=200, dataPaths=[\"/c"
+        },
+        {
+          "t": 308,
+          "text": "rash\"], source=r\"\"\"\nimport { Text, useData } from \"a2ui\";\n\ne"
+        },
+        {
+          "t": 312,
+          "text": "xport default function App() {\n  const [count] = useData<num"
+        },
+        {
+          "t": 316,
+          "text": "ber>(\"/crash/count\", 1);\n  return <Text>Count is {count}</Te"
+        },
+        {
+          "t": 320,
+          "text": "xt>;\n}\n\"\"\")\n</a2ui>"
+        }
+      ],
+      "usage": {}
+    }
+  ]
+}

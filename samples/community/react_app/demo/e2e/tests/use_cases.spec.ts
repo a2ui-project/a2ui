@@ -29,6 +29,7 @@ import {
   dragAndDrop,
   entriesAfter,
   LOAN_FOLLOW_UP,
+  MODE,
   lastSeq,
   moveNativeSlider,
   nativeText,
@@ -74,12 +75,18 @@ test('loan explorer: sliders redraw the chart, a bar click updates the page', as
   const modelBefore = await dataModels(page, turnId);
   const clickSeq = await lastSeq(page, turnId);
   await marks.nth(3).click();
-  await expect
-    .poll(
-      async () =>
-        (await nativeText(turn)) !== textBefore || (await dataModels(page, turnId)) !== modelBefore,
-    )
-    .toBe(true);
+  if (MODE === 'recorded') {
+    // The recorded app writes the selected year's summary, which a native Text shows.
+    await expect.poll(() => nativeText(turn)).not.toBe(textBefore);
+  } else {
+    await expect
+      .poll(
+        async () =>
+          (await nativeText(turn)) !== textBefore ||
+          (await dataModels(page, turnId)) !== modelBefore,
+      )
+      .toBe(true);
+  }
   expect(
     entriesAfter(await bridgeEntries(page, turnId), clickSeq, 'data/set').length,
   ).toBeGreaterThan(0);
@@ -207,6 +214,11 @@ test('sales explorer: a brush selection queries the agent and fills the page', a
     entry => entry.request?.method === 'function/call' && entry.method === 'result',
   );
   expect(queries.length).toBeGreaterThan(0);
+  if (MODE === 'recorded') {
+    // The recorded app queries the agent for the brushed range and a native Text summarises it.
+    expect(entriesAfter(afterBrush, seq, 'function/call').length).toBeGreaterThan(0);
+    expect(await nativeText(turn)).not.toBe(textBefore);
+  }
   testInfo.annotations.push({
     type: 'querySales',
     description:
