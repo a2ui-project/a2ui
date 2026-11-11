@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Fix a sandbox escape: an app could navigate its own frame (for example with `location.href`) to a document outside the injected CSP and keep the bridge there. The sandbox proxy now blocks these navigations with a `frame-src` policy on its page. If the inner frame loads again anyway, the proxy removes the frame, stops relaying and reports `inner_frame_navigated`. `McpApp` then disconnects the bridge, shows the error and dispatches an `a2ui-sandbox-error` event. Apps that reload or navigate their own frame now stop with this error. [#TBD](https://github.com/a2ui-project/a2ui/pulls)
 - **BREAKING CHANGE**: `regexCapture` now validates patterns with `analyzeRegex` from `@a2ui/web_core` and compiles them in Unicode mode (`new RegExp(pattern, 'u')`), converging on the A2UI regex dialect and static safety guard (allowing lookahead assertions while rejecting lookbehind, backreferences, named groups, `\p{...}`, inline flags, and patterns that risk catastrophic backtracking) and removing the `redos-detector` dependency. Recommended migration: rewrite `regexCapture` patterns that use constructs outside the A2UI portable regex subset or exceed 256 code points. [#3854](https://github.com/a2ui-project/a2ui/pull/3854)
 
 ## 0.0.3
