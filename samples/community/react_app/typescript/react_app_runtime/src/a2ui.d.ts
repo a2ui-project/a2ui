@@ -24,6 +24,9 @@
  * Paths are JSON pointers. `/loan/rate` addresses the surface data model; a path without a leading
  * slash resolves against the component's own data context (for example a `List` item).
  *
+ * Each value the app sends (a `setData` or `useData` write, function `args`, action context) must
+ * stay under 64 KB of JSON: keep big data in the data model and write ids.
+ *
  * This file is part of the agent prompt, so every comment is written for the model.
  */
 declare module 'a2ui' {
@@ -81,8 +84,8 @@ declare module 'a2ui' {
   export function setData<T extends JsonCompatible<T>>(path: string, value: T): Promise<void>;
 
   /**
-   * Calls `onChange` with the current value of a path and then on every change made by someone
-   * else (native components, the agent). Returns a function that stops the subscription.
+   * Calls `onChange` with the current value of a path and then on every change: the app's own
+   * writes, native components and the agent. Returns a function that stops the subscription.
    */
   export function subscribe<T = JsonValue>(
     path: string,

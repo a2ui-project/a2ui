@@ -24,6 +24,7 @@ import {
   resetSandboxConfig,
   type SandboxConfig,
 } from './shared/sandbox/sandbox_config.js';
+import type {ThemeFontFace} from './theme_tokens.js';
 
 /** The runtime's `manifest.json` (written by `@a2ui-labs/react-app-runtime`'s build). */
 export interface ReactAppRuntimeManifest {
@@ -56,6 +57,12 @@ export interface ReactAppConfig {
   readonly manifest?: ReactAppRuntimeManifest;
   /** CSS custom properties to send to the app besides the `--a2ui-*` ones. */
   readonly themeVariables?: readonly string[];
+  /**
+   * Font faces sent to the app with the theme. The frame can't see the page's `@font-face`
+   * rules, so list the faces of the fonts the `--a2ui-font-family*` variables name. `src` can be
+   * a `data:` URL, or a URL on the runtime's origin: the frame's CSP allows only those for fonts.
+   */
+  readonly fontFaces?: readonly ThemeFontFace[];
   /** Where the host serves the sandbox proxy pages; see `SandboxConfig`. */
   readonly sandbox?: Partial<SandboxConfig>;
 }

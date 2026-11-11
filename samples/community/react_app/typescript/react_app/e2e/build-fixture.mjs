@@ -51,5 +51,7 @@ await build({
   sourcemap: true,
   define: {'process.env.NODE_ENV': '"development"'},
   alias: {react: single('react'), 'react-dom': single('react-dom'), lit: single('lit')},
+  // The fixture passes a font to the app frame as a data: URL, as hosts should.
+  loader: {'.woff2': 'dataurl'},
   logLevel: 'warning',
 });

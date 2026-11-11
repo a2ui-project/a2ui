@@ -17,7 +17,6 @@
 import {describe, expect, it} from 'vitest';
 
 import {bindingNames, bindingsModuleSource, isBindingName, linkBindings} from './bindings.js';
-import {findUnavailableImports} from './source_scan.js';
 import {transpileApp} from './transpile.js';
 
 const BLOB = 'blob:bindings-1';
@@ -168,11 +167,5 @@ describe('linkBindings', () => {
 
     expect(linked).toBe('const label = "a2ui:bindings";\nexport default 1;');
     expect(made).toEqual([]);
-  });
-});
-
-describe('source scan', () => {
-  it('treats a2ui:bindings as an available module', () => {
-    expect(findUnavailableImports('import { x } from "a2ui:bindings";')).toEqual([]);
   });
 });

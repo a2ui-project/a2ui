@@ -15,6 +15,8 @@
  */
 
 import {useEffect, useRef, useState, type CSSProperties, type ReactElement} from 'react';
+
+import {whenFontsReady} from './fonts.js';
 import {getSession, toErrorDetails} from './session.js';
 import {useTheme, type Theme} from './theme.js';
 
@@ -170,8 +172,9 @@ export function VegaChart(props: VegaChartProps): ReactElement {
       },
       datasetNames,
     );
-    loadVegaEmbed()
-      .then(async module => {
+    // Vega measures labels on a canvas, so it waits for the theme fonts.
+    Promise.all([loadVegaEmbed(), whenFontsReady()])
+      .then(async ([module]) => {
         if (cancelled) {
           return;
         }

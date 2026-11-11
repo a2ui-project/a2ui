@@ -20,6 +20,7 @@
  */
 
 import {A2uiSurface, type ReactCatalogComponent} from '@a2ui/react';
+import plexSans400 from '@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-400-normal.woff2';
 import {
   basicCatalog,
   Catalog,
@@ -131,7 +132,10 @@ function bindingsMessages(): unknown[] {
 
 const example: {messages: unknown[]} | undefined =
   exampleName === 'bindings' ? {messages: bindingsMessages()} : EXAMPLES[exampleName];
-configureReactApp({runtimeBaseUrl: `${runtimeOrigin}/react-app/v1/`});
+configureReactApp({
+  runtimeBaseUrl: `${runtimeOrigin}/react-app/v1/`,
+  fontFaces: [{family: 'IBM Plex Sans', src: plexSans400, weight: '400'}],
+});
 
 const actions: unknown[] = [];
 const agentCalls: unknown[] = [];

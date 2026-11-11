@@ -190,6 +190,20 @@ describe('readThemeTokens', () => {
     expect(tokens.cssVars['--a2ui-custom-accent']).toBe('teal');
     expect(tokens.cssVars['--unrelated']).toBeUndefined();
     expect(tokens.colorScheme).toBe('light');
+    expect(tokens.fontFaces).toBeUndefined();
     container.remove();
+  });
+
+  it('adds the configured extra variables and font faces', () => {
+    const element = document.createElement('div');
+    element.style.setProperty('--brand-ink', 'navy');
+    document.body.appendChild(element);
+    const fontFaces = [{family: 'Plex', src: 'data:font/woff2;base64,AAAA', weight: '400'}];
+
+    const tokens = readThemeTokens(element, {themeVariables: ['--brand-ink'], fontFaces});
+
+    expect(tokens.cssVars['--brand-ink']).toBe('navy');
+    expect(tokens.fontFaces).toEqual(fontFaces);
+    element.remove();
   });
 });

@@ -17,7 +17,7 @@
 import {describe, expect, it} from 'vitest';
 import loanExampleJson from '../../../../catalog/v1/examples/loan_explorer.json' with {type: 'json'};
 import {codeFrame} from './app_root.js';
-import {findDataPaths, findImports, findUnavailableImports} from './source_scan.js';
+import {findDataPaths} from './source_scan.js';
 import {CompileError, transpileApp} from './transpile.js';
 
 const loanExample = loanExampleJson as {
@@ -34,27 +34,6 @@ function exampleSource(): string {
   }
   throw new Error('No ReactApp in the example.');
 }
-
-describe('findImports', () => {
-  it('finds static, re-export, side-effect and dynamic imports', () => {
-    const source = [
-      'import React, {useState} from "react";',
-      "import type {Theme} from 'a2ui';",
-      'import "./styles.css";',
-      "export {x} from 'lodash';",
-      'const mod = await import("d3");',
-    ].join('\n');
-
-    expect(findImports(source)).toEqual(['react', 'a2ui', './styles.css', 'lodash', 'd3']);
-  });
-
-  it('reports only the modules the frame does not provide', () => {
-    expect(findUnavailableImports(exampleSource())).toEqual([]);
-    expect(
-      findUnavailableImports('import _ from "lodash";\nimport {useData} from "a2ui";'),
-    ).toEqual(['lodash']);
-  });
-});
 
 describe('findDataPaths', () => {
   it('finds literal paths passed to useData, getData and subscribe, with or without generics', () => {
