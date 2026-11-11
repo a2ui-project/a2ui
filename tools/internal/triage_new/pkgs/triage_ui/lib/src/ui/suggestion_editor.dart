@@ -16,6 +16,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:triage/triage.dart';
 
+import '../github/triage_service.dart';
 import '../model/applier.dart';
 import '../model/suggestion_draft.dart';
 import '../model/triage_controller.dart';
