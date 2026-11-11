@@ -13,3 +13,6 @@ python/**/assets/
 **/.mypy_cache
 **/.venv
 **/__pycache__
+eval/logs
+eval/datasets
+**/e2e/results
