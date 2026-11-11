@@ -23,15 +23,33 @@ import {Composer} from './Composer';
 import {EmptyState} from './EmptyState';
 import {Header} from './Header';
 import {useShowInternals} from './show_internals';
+import {ToolsAndDataPanel} from './ToolsAndDataPanel';
 import {TurnView} from './TurnView';
 
 export function App({session}: {session: DemoSession}) {
   const turns = useSyncExternalStore(session.subscribe, session.getTurns);
   const [showInternals, setShowInternals] = useShowInternals();
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
   const busy = turns.some(turn => turn.status === 'streaming');
   const lastTurnId = turns.at(-1)?.id;
+
+  const handleAboutToggle = () => {
+    setAboutOpen(open => {
+      const next = !open;
+      if (next) setToolsOpen(false);
+      return next;
+    });
+  };
+
+  const handleToolsToggle = () => {
+    setToolsOpen(open => {
+      const next = !open;
+      if (next) setAboutOpen(false);
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (lastTurnId) {
@@ -46,9 +64,12 @@ export function App({session}: {session: DemoSession}) {
           showInternals={showInternals}
           onShowInternalsChange={setShowInternals}
           aboutOpen={aboutOpen}
-          onAboutToggle={() => setAboutOpen(open => !open)}
+          onAboutToggle={handleAboutToggle}
+          toolsOpen={toolsOpen}
+          onToolsToggle={handleToolsToggle}
         />
         {aboutOpen && <AboutPanel onClose={() => setAboutOpen(false)} />}
+        {toolsOpen && <ToolsAndDataPanel onClose={() => setToolsOpen(false)} />}
         <main className="column" aria-live="polite">
           {turns.length === 0 ? (
             <EmptyState onPick={prompt => session.send(prompt)} />

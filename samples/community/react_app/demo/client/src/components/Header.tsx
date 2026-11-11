@@ -19,6 +19,8 @@ interface HeaderProps {
   onShowInternalsChange: (value: boolean) => void;
   aboutOpen: boolean;
   onAboutToggle: () => void;
+  toolsOpen: boolean;
+  onToolsToggle: () => void;
 }
 
 export function Header({
@@ -26,6 +28,8 @@ export function Header({
   onShowInternalsChange,
   aboutOpen,
   onAboutToggle,
+  toolsOpen,
+  onToolsToggle,
 }: HeaderProps) {
   return (
     <header className="masthead">
@@ -35,6 +39,15 @@ export function Header({
           <span className="wordmark-tag">apps written in the margin of a chat</span>
         </a>
         <nav className="masthead-actions" aria-label="Demo controls">
+          <button
+            type="button"
+            className="text-button"
+            aria-expanded={toolsOpen}
+            data-testid="tools-toggle"
+            onClick={onToolsToggle}
+          >
+            Tools &amp; Data
+          </button>
           <button
             type="button"
             className="text-button"

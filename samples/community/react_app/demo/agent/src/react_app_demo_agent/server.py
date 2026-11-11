@@ -60,6 +60,13 @@ class RendererMessageRequest(BaseModel):
     message: dict[str, Any]
 
 
+class ToolExecuteRequest(BaseModel):
+    """Request to directly execute an agent tool for debugging/exploration."""
+
+    name: str
+    args: dict[str, Any] = {}
+
+
 def create_app(model: ModelClient) -> FastAPI:
     """Builds the FastAPI app around a model client."""
     catalogs = build_catalogs()
@@ -101,6 +108,114 @@ def create_app(model: ModelClient) -> FastAPI:
         """Returns recent turn execution records, Express text, reactApps, and timings."""
         turns = get_recent_turns()
         return {"ok": True, "count": len(turns), "turns": turns}
+
+    @app.get("/api/tools-and-data")
+    async def tools_and_data() -> dict[str, Any]:
+        """Returns agent tools and deterministic dataset for exploring tools and fake data."""
+        from .mock_data import (
+            SALES_REGIONS,
+            _orders,
+            query_companies,
+        )
+
+        all_orders = [o for r in SALES_REGIONS for o in _orders(r)]
+        companies = query_companies(sort_by="totalSpend", sort_order="desc")
+        total_spend = sum(o["amount"] for o in all_orders)
+
+        tools = [
+            {
+                "name": "queryCompanies",
+                "description": "Aggregates, filters, and sorts companies with their order stats, total spend, and top products.",
+                "parameters": {
+                    "region": "Optional string: 'North America' | 'EMEA' | 'APAC' | 'LATAM' | 'All'",
+                    "sortBy": "Optional string: 'totalSpend' | 'orderCount' | 'name' | 'latestOrderDate'",
+                    "sortOrder": "Optional string: 'asc' | 'desc'",
+                    "limit": "Optional integer (default: 50)",
+                },
+                "sampleArgs": {"region": "All", "sortBy": "totalSpend", "limit": 5},
+                "returns": "Array of Company Summary objects with metrics",
+            },
+            {
+                "name": "getCompanyDetails",
+                "description": "Returns full company profile (tier, industry, HQ, contacts) and chronological order history.",
+                "parameters": {
+                    "company": "String: Exact name of the company (e.g. 'Pine & Pixel', 'Acme Corp')",
+                },
+                "sampleArgs": {"company": "Pine & Pixel"},
+                "returns": "Company Profile object with order history list",
+            },
+            {
+                "name": "getOrderDetails",
+                "description": "Retrieves itemized line items, tracking numbers, shipping carrier, and fulfillment status for an order.",
+                "parameters": {
+                    "orderId": "String: Order ID (e.g. 'ORD-1001')",
+                },
+                "sampleArgs": {"orderId": "ORD-1001"},
+                "returns": "Order Details object with line items and tracking status",
+            },
+            {
+                "name": "querySales",
+                "description": "Returns raw sales transactions filtered by geographic region and date range.",
+                "parameters": {
+                    "region": "String: 'North America' | 'EMEA' | 'APAC' | 'LATAM' | 'All'",
+                    "from": "String: ISO-8601 start date (YYYY-MM-DD)",
+                    "to": "String: ISO-8601 end date (YYYY-MM-DD)",
+                },
+                "sampleArgs": {"region": "North America", "from": "2025-01-01", "to": "2025-03-31"},
+                "returns": "Array of Sales Order records",
+            },
+            {
+                "name": "estimateTravelTime",
+                "description": "Calculates ground transit times between Paris cultural landmarks for itinerary ordering.",
+                "parameters": {
+                    "stops": "Array of strings: 'Louvre', 'Eiffel Tower', 'Montmartre', 'Notre-Dame', etc.",
+                },
+                "sampleArgs": {"stops": ["Louvre", "Eiffel Tower", "Montmartre"]},
+                "returns": "Integer: Estimated transit minutes",
+            },
+        ]
+
+        return {
+            "ok": True,
+            "tools": tools,
+            "summary": {
+                "totalOrders": len(all_orders),
+                "totalCompanies": len(companies),
+                "totalSpend": total_spend,
+                "regions": list(SALES_REGIONS),
+                "dateRange": "2025-01-01 to 2025-12-31",
+            },
+            "companies": companies,
+            "sampleOrders": all_orders[:150],
+        }
+
+    @app.post("/api/tools/execute")
+    async def execute_tool(request: ToolExecuteRequest) -> dict[str, Any]:
+        """Executes an agent function directly and returns the result."""
+        started = time.perf_counter()
+        msg = {
+            "version": "1.0",
+            "callAgentFunction": {
+                "callId": f"tool_exec_{int(time.time() * 1000)}",
+                "function": request.name,
+                "args": request.args,
+            },
+        }
+        res = await renderer_messages.process_message(msg)
+        duration_ms = round((time.perf_counter() - started) * 1000, 2)
+        for reply in res.replies:
+            dumped = reply.model_dump(by_alias=True, exclude_none=True)
+            if "agentFunctionResponse" in dumped:
+                resp = dumped["agentFunctionResponse"]
+                if "error" in resp:
+                    return {"ok": False, "error": resp["error"], "durationMs": duration_ms}
+                return {
+                    "ok": True,
+                    "function": request.name,
+                    "result": resp.get("result"),
+                    "durationMs": duration_ms,
+                }
+        return {"ok": False, "error": "Function did not return a response", "durationMs": duration_ms}
 
     @app.post("/api/chat")
     async def chat(request: ChatRequest) -> StreamingResponse:
