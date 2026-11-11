@@ -30,6 +30,7 @@
     Roboto,
     sans-serif
   );
+  --a2ui-lite-title-font: var(--a2ui-font-family-title, var(--a2ui-lite-font));
   --a2ui-lite-mono: var(--a2ui-font-family-mono, ui-monospace, 'SFMono-Regular', Menlo, monospace);
   --a2ui-lite-fg: var(--a2ui-color-on-surface, var(--a2ui-color-on-background, #1f1f1f));
   --a2ui-lite-bg: var(--a2ui-color-surface, var(--a2ui-color-background, #ffffff));
@@ -74,6 +75,12 @@ h2,
 h3,
 p {
   margin: 0;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--a2ui-lite-title-font);
 }
 
 h1 {

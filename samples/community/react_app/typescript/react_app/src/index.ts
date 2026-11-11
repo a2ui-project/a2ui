@@ -44,4 +44,10 @@ export {
   type ReactAppRuntimeManifest,
 } from './react_app_config.js';
 export {ReactAppFrameHost} from './react_app_frame_host.js';
-export {DEFAULT_THEME_VARIABLES, readThemeTokens, type ThemeTokens} from './theme_tokens.js';
+export {
+  DEFAULT_THEME_VARIABLES,
+  readThemeTokens,
+  type ThemeFontFace,
+  type ThemeOptions,
+  type ThemeTokens,
+} from './theme_tokens.js';

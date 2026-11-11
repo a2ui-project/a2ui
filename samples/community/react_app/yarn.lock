@@ -80,6 +80,7 @@ __metadata:
     "@a2ui-labs/react-app-runtime": "workspace:*"
     "@a2ui/react": "npm:*"
     "@a2ui/web_core": "npm:*"
+    "@fontsource/ibm-plex-sans": "npm:^5.2.8"
     "@playwright/test": "npm:1.58.1"
     "@types/jasmine": "npm:^6.0.0"
     "@types/node": "npm:^25.9.3"

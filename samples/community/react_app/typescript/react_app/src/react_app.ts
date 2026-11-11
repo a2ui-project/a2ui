@@ -140,7 +140,7 @@ class ReactAppElement extends SandboxedFrameElement<typeof ReactAppApi> {
 
   /** Sends the page's current theme to the app, for hosts that change it at runtime. */
   refreshTheme(): void {
-    this.bridge?.sendTheme(readThemeTokens(this, getReactAppConfig().themeVariables));
+    this.bridge?.sendTheme(readThemeTokens(this, getReactAppConfig()));
   }
 
   protected resolveResource(): SandboxResource | null {
@@ -177,7 +177,7 @@ class ReactAppElement extends SandboxedFrameElement<typeof ReactAppApi> {
         const {dataPaths, functions} = this.controller.props;
         return {dataPaths: stringList(dataPaths), functions: stringList(functions)};
       },
-      getTheme: () => readThemeTokens(this, getReactAppConfig().themeVariables),
+      getTheme: () => readThemeTokens(this, getReactAppConfig()),
       getContainerSize: () => ({width: frame.clientWidth, height: frame.clientHeight}),
       onResize: height => {
         // The app can ask for more room than `height`, never less.

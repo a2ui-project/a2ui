@@ -15,12 +15,16 @@
  */
 
 import type {BridgeClient} from './bridge_client.js';
+import {cspViolationMessage} from './error_messages.js';
 import {toErrorDetails, type RuntimeSession} from './session.js';
 
 /** Most `ui/log` and `ui/error` messages sent per second (bridge protocol section 8). */
 export const MAX_DIAGNOSTICS_PER_SECOND = 50;
 
-/** A token bucket that allows `limit` events per second. */
+/** Most `csp` errors sent per second; a repeat of a violation already reported isn't sent. */
+export const MAX_CSP_ERRORS_PER_SECOND = 5;
+
+/** Allows `limit` events per fixed one-second window. */
 export class RateLimiter {
   private windowStart = 0;
   private count = 0;
@@ -113,5 +117,29 @@ export function watchUncaughtErrors(session: RuntimeSession, target: Window = wi
     if (limiter.tryAcquire()) {
       session.reportError('runtime', toErrorDetails(event.reason, 'Unhandled rejection'));
     }
+  });
+}
+
+/**
+ * Reports content security policy violations as `ui/error` with phase `csp`, so a blocked `fetch`
+ * or remote script reaches the host instead of only the frame's console. Each distinct
+ * violation (directive and blocked URI) is reported once.
+ */
+export function watchCspViolations(session: RuntimeSession, target: Document = document): void {
+  const limiter = new RateLimiter(MAX_CSP_ERRORS_PER_SECOND);
+  const reported = new Set<string>();
+  target.addEventListener('securitypolicyviolation', event => {
+    const directive = event.effectiveDirective || event.violatedDirective;
+    const blockedUri = event.blockedURI || 'inline';
+    const key = `${directive} ${blockedUri}`;
+    if (reported.has(key) || !limiter.tryAcquire()) {
+      return;
+    }
+    reported.add(key);
+    session.reportError('csp', {
+      message: cspViolationMessage(directive, blockedUri),
+      blockedUri,
+      directive,
+    });
   });
 }

@@ -16,9 +16,10 @@
 
 import {BridgeClient, BridgeError} from './bridge_client.js';
 import {AppDataStore} from './data_store.js';
+import {decodeReactError} from './error_messages.js';
 
 /** Phase of a `ui/error` notification (bridge protocol section 3.10). */
-export type ErrorPhase = 'compile' | 'load' | 'render' | 'runtime' | 'bridge';
+export type ErrorPhase = 'compile' | 'load' | 'render' | 'runtime' | 'bridge' | 'csp';
 
 /** Fields of a `ui/error` notification besides the phase. */
 export interface ErrorDetails {
@@ -26,6 +27,10 @@ export interface ErrorDetails {
   readonly stack?: string;
   readonly line?: number;
   readonly column?: number;
+  /** Phase `csp`: what the policy blocked (a URL, `inline` or `eval`). */
+  readonly blockedUri?: string;
+  /** Phase `csp`: the directive that blocked it, for example `connect-src`. */
+  readonly directive?: string;
 }
 
 /** The connection of one app document to its host: the bridge client and the data store. */
@@ -58,9 +63,12 @@ export class RuntimeSession {
   }
 }
 
-/** Turns anything thrown into the fields of a `ui/error`, prefixing `context` when given. */
+/**
+ * Turns anything thrown into the fields of a `ui/error`, prefixing `context` when given. Minified
+ * React errors are decoded into readable ones.
+ */
 export function toErrorDetails(error: unknown, context?: string): ErrorDetails {
-  const base = error instanceof Error ? error.message : String(error);
+  const base = decodeReactError(error instanceof Error ? error.message : String(error));
   const message = context ? `${context}: ${base}` : base;
   const stack = error instanceof Error ? error.stack : undefined;
   return stack ? {message, stack} : {message};

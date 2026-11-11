@@ -39,7 +39,7 @@ sequenceDiagram
 2. The host sends the document as the `html` of the sandbox resource, with `sandbox: "allow-scripts"` and `csp.resourceDomains` set to the origin that serves the runtime. The proxy adds a CSP meta tag whose `script-src`, `style-src` and `font-src` allow that origin; `connect-src` and `frame-src` stay `'none'`.
 3. A change of `source` or `compiled` changes the document, so the frame reloads and a new bridge session starts. Other property changes (`dataPaths`, `functions`, `title`, `height`) apply to the running session.
 4. Once loaded, the runtime MUST send `reactApp/initialize` before any other request. The host MUST answer every other request that arrives before `reactApp/initialize` with error `-32002`.
-5. After the initialize response, the runtime transpiles the source (unless `compiled` is present), imports it, renders its default export into `#root`, and sends `ui/rendered` after the first commit has painted.
+5. After the initialize response, the runtime starts loading the theme's `fontFaces`, transpiles the source (unless `compiled` is present) and imports it. It then waits for the fonts, for at most 2 seconds, renders the default export into `#root`, and sends `ui/rendered` after the first commit has painted. The default export can be any component: a function, a class, or a `memo`, `forwardRef` or `lazy` wrapper. `VegaChart` also waits for the fonts before it draws, because Vega measures label text on a canvas.
 6. A session ends when the frame reloads or the host disconnects the bridge. The host MUST drop its subscriptions, and MUST NOT answer requests from a previous session.
 
 ## 3. Methods
@@ -58,13 +58,13 @@ Params:
 
 Result:
 
-| Field             | Type                     | Meaning                                                                                                                                |
-| ----------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `protocolVersion` | `"1"`                    | Bridge protocol version the host speaks.                                                                                               |
-| `theme`           | `{colorScheme, cssVars}` | `colorScheme` is `"light"` or `"dark"`; `cssVars` maps each `--a2ui-*` custom property name to its computed value on the host element. |
-| `containerSize`   | `{width, height}`        | Size of the frame in CSS pixels.                                                                                                       |
-| `dataSnapshot`    | `{[path]: value}`        | Current value of every requested path the allowlist permits. A path with no value is omitted.                                          |
-| `deniedPaths`     | string[]                 | Requested paths the allowlist refused.                                                                                                 |
+| Field             | Type                                 | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ----------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `protocolVersion` | `"1"`                                | Bridge protocol version the host speaks.                                                                                                                                                                                                                                                                                                                                                                                          |
+| `theme`           | `{colorScheme, cssVars, fontFaces?}` | `colorScheme` is `"light"` or `"dark"`; `cssVars` maps each `--a2ui-*` custom property name to its computed value on the host element. `fontFaces` lists the faces of the theme fonts as `{family, src, weight?, style?}`, where `src` is a CSS `src` value such as `url(data:font/woff2;base64,…) format("woff2")`; the frame can't see the page's `@font-face` rules, so without them a theme font falls back to a system font. |
+| `containerSize`   | `{width, height}`                    | Size of the frame in CSS pixels.                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `dataSnapshot`    | `{[path]: value}`                    | Current value of every requested path the allowlist permits. A path with no value is omitted.                                                                                                                                                                                                                                                                                                                                     |
+| `deniedPaths`     | string[]                             | Requested paths the allowlist refused.                                                                                                                                                                                                                                                                                                                                                                                            |
 
 The host MUST subscribe to every path in `dataSnapshot` as if the app had sent `data/subscribe`, so changes made between the snapshot and the app's first render reach the app. The runtime MUST seed its store with `dataSnapshot` before the first render, so `useData` returns real values on the first paint.
 
@@ -124,13 +124,16 @@ Params `{height, width?}` in CSS pixels: the size the app's content needs. The h
 
 ### 3.10. `ui/error` (app to host, notification)
 
-Params `{phase, message, stack?, line?, column?}`. `phase` is one of:
+Params `{phase, message, stack?, line?, column?, blockedUri?, directive?}`. `phase` is one of:
 
 1. `compile`: Sucrase failed. `line` and `column` point into `source`.
-2. `load`: importing the compiled module failed, or it has no default export.
+2. `load`: importing the compiled module failed, or its default export isn't a component. An import of a module that section 9 doesn't list fails here, and the message names that module and the available ones.
 3. `render`: a React error boundary caught an error.
 4. `runtime`: an uncaught error or unhandled rejection in the app.
 5. `bridge`: a request failed (the runtime also rejects the caller's promise).
+6. `csp`: the frame's content security policy blocked a request or a load, for example a `fetch` or a script from a CDN. `blockedUri` is what was blocked (a URL, `inline` or `eval`) and `directive` the directive that blocked it. The runtime reports each distinct violation once, and at most 5 per second.
+
+The runtime ships the production build of React, whose errors read `Minified React error #321; visit …`. The runtime replaces the ones generated apps commonly hit (#31, #130, #152, #185, #300, #301, #310, #321 and #482) with a readable message that says what to change, in `message` and on the error card.
 
 The runtime MUST show an error card in the frame for `compile`, `load` and `render`. The host MUST log every `ui/error` and SHOULD expose it to the page (the reference host dispatches a `react-app-error` DOM event from the element).
 
@@ -140,7 +143,7 @@ Params `{level, args}`, with `level` one of `debug`, `info`, `warn`, `error` and
 
 ### 3.12. `theme/changed` (host to app, notification)
 
-Params `{colorScheme, cssVars}`, same shape as `theme` in section 3.1. The host sends it when the page's color scheme changes, or when the page calls the element's theme refresh method. The runtime sets the variables on `:root`, so CSS that uses `var(--a2ui-*)` updates without a re-render, and re-renders components that use `useTheme`.
+Params `{colorScheme, cssVars, fontFaces?}`, same shape as `theme` in section 3.1. The host sends it when the page's color scheme changes, or when the page calls the element's theme refresh method. The runtime sets the variables on `:root`, so CSS that uses `var(--a2ui-*)` updates without a re-render, and re-renders components that use `useTheme`. It loads the font faces it hasn't loaded before.
 
 ## 4. Allowlists
 

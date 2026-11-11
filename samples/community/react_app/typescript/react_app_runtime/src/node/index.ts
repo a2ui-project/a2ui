@@ -90,7 +90,8 @@ export interface RuntimeHandlerOptions {
 /**
  * A request handler for Node `http`, Connect, Express or a Vite dev server middleware that
  * serves the runtime files with {@link runtimeHeaders}. Requests outside `basePath`, or for files
- * that don't exist, go to `next` (or get a 404 without one).
+ * that don't exist, go to `next` (or get a 404 without one). A path that isn't valid percent
+ * encoding gets a 400.
  */
 export function createReactAppRuntimeHandler(
   options: RuntimeHandlerOptions = {},
@@ -106,7 +107,14 @@ export function createReactAppRuntimeHandler(
       res.statusCode = 404;
       res.end('Not found');
     };
-    const pathname = decodeURIComponent(new URL(req.url ?? '/', 'http://localhost').pathname);
+    let pathname: string;
+    try {
+      pathname = decodeURIComponent(new URL(req.url ?? '/', 'http://localhost').pathname);
+    } catch {
+      res.statusCode = 400;
+      res.end('Bad request');
+      return;
+    }
     if (!pathname.startsWith(basePath)) {
       notFound();
       return;

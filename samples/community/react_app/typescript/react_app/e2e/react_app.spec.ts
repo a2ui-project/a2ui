@@ -89,6 +89,31 @@ test.describe('ReactApp in the real double iframe', () => {
     await expect(frame.getByTestId('count')).toHaveText('41');
   });
 
+  test('loads the theme font faces in the frame before the first render', async ({page}) => {
+    await openFixture(page);
+    const frame = appFrame(page);
+
+    // The count rendered, so the runtime has waited for the fonts.
+    const fonts = await frame.locator('body').evaluate(() => {
+      const loaded: string[] = [];
+      document.fonts.forEach(face => {
+        if (face.status === 'loaded') {
+          loaded.push(face.family.replace(/"/g, ''));
+        }
+      });
+      return {
+        size: document.fonts.size,
+        loaded,
+        check: document.fonts.check('16px "IBM Plex Sans"'),
+      };
+    });
+    expect(fonts).toEqual({size: 1, loaded: ['IBM Plex Sans'], check: true});
+    await expect(frame.getByRole('heading', {name: 'Fixture app'})).toHaveCSS(
+      'font-family',
+      /^"IBM Plex Sans"/,
+    );
+  });
+
   test('app writes reach the data model and native components', async ({page}) => {
     await openFixture(page);
     const frame = appFrame(page);
