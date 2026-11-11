@@ -15,8 +15,8 @@
  */
 
 /**
- * Stands in for a ReactApp while the model is still writing its source: a card shaped like a
- * small chart that blends seamlessly with surrounding A2UI content.
+ * Stands in for a ReactApp while the model is still writing its source: a placeholder
+ * that blends seamlessly with surrounding A2UI content.
  */
 export function AppSkeleton({
   title,
@@ -27,7 +27,9 @@ export function AppSkeleton({
   height: number | null;
   embedded?: boolean;
 }) {
-  const bodyHeight = Math.min(Math.max(height ?? 300, 180), 520);
+  const bodyHeight = Math.min(Math.max(height ?? 260, 160), 480);
+  const displayTitle = title && title !== 'Interactive app' ? title : null;
+
   return (
     <div
       className={`app-skeleton${embedded ? ' app-skeleton-embedded' : ''}`}
@@ -35,13 +37,13 @@ export function AppSkeleton({
       aria-busy="true"
     >
       <div className="app-skeleton-head">
-        <span className="app-skeleton-title">{title ?? 'Interactive app'}</span>
+        {displayTitle && <span className="app-skeleton-title">{displayTitle}</span>}
         <span className="app-skeleton-status">
           custom component loading
           <span className="dots" aria-hidden="true" />
         </span>
       </div>
-      <div className="app-skeleton-body" style={{height: bodyHeight - 56}}>
+      <div className="app-skeleton-body" style={{height: bodyHeight - 48}}>
         {[62, 48, 74, 40, 86, 55, 68, 36].map((bar, index) => (
           <span
             key={index}

@@ -48,7 +48,7 @@ export const REACT_APP_INNER_SANDBOX = 'allow-scripts';
 export const DEFAULT_REACT_APP_HEIGHT = 360;
 
 /** Accessible name of the frame when the component sets no `title`. */
-export const DEFAULT_REACT_APP_TITLE = 'Interactive app';
+export const DEFAULT_REACT_APP_TITLE = 'Custom component';
 
 /** DOM event the element dispatches for every bridge event; `detail` is a `ReactAppBridgeEvent`. */
 export const REACT_APP_BRIDGE_EVENT = 'react-app-bridge';
