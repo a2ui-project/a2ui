@@ -1,4 +1,4 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -125,10 +125,19 @@ def create_app(model: ModelClient) -> FastAPI:
         tools = [
             {
                 "name": "queryCompanies",
-                "description": "Aggregates, filters, and sorts companies with their order stats, total spend, and top products.",
+                "description": (
+                    "Aggregates, filters, and sorts companies with their order stats,"
+                    " total spend, and top products."
+                ),
                 "parameters": {
-                    "region": "Optional string: 'North America' | 'EMEA' | 'APAC' | 'LATAM' | 'All'",
-                    "sortBy": "Optional string: 'totalSpend' | 'orderCount' | 'name' | 'latestOrderDate'",
+                    "region": (
+                        "Optional string: 'North America' | 'EMEA' | 'APAC' | 'LATAM' |"
+                        " 'All'"
+                    ),
+                    "sortBy": (
+                        "Optional string: 'totalSpend' | 'orderCount' | 'name' |"
+                        " 'latestOrderDate'"
+                    ),
                     "sortOrder": "Optional string: 'asc' | 'desc'",
                     "limit": "Optional integer (default: 50)",
                 },
@@ -137,16 +146,25 @@ def create_app(model: ModelClient) -> FastAPI:
             },
             {
                 "name": "getCompanyDetails",
-                "description": "Returns full company profile (tier, industry, HQ, contacts) and chronological order history.",
+                "description": (
+                    "Returns full company profile (tier, industry, HQ, contacts) and"
+                    " chronological order history."
+                ),
                 "parameters": {
-                    "company": "String: Exact name of the company (e.g. 'Pine & Pixel', 'Acme Corp')",
+                    "company": (
+                        "String: Exact name of the company (e.g. 'Pine & Pixel', 'Acme"
+                        " Corp')"
+                    ),
                 },
                 "sampleArgs": {"company": "Pine & Pixel"},
                 "returns": "Company Profile object with order history list",
             },
             {
                 "name": "getOrderDetails",
-                "description": "Retrieves itemized line items, tracking numbers, shipping carrier, and fulfillment status for an order.",
+                "description": (
+                    "Retrieves itemized line items, tracking numbers, shipping carrier,"
+                    " and fulfillment status for an order."
+                ),
                 "parameters": {
                     "orderId": "String: Order ID (e.g. 'NO-0100', 'EM-0101')",
                 },
@@ -155,20 +173,35 @@ def create_app(model: ModelClient) -> FastAPI:
             },
             {
                 "name": "querySales",
-                "description": "Returns raw sales transactions filtered by geographic region and date range.",
+                "description": (
+                    "Returns raw sales transactions filtered by geographic region and"
+                    " date range."
+                ),
                 "parameters": {
-                    "region": "String: 'North America' | 'EMEA' | 'APAC' | 'LATAM' | 'All'",
+                    "region": (
+                        "String: 'North America' | 'EMEA' | 'APAC' | 'LATAM' | 'All'"
+                    ),
                     "from": "String: ISO-8601 start date (YYYY-MM-DD)",
                     "to": "String: ISO-8601 end date (YYYY-MM-DD)",
                 },
-                "sampleArgs": {"region": "North America", "from": "2025-01-01", "to": "2025-03-31"},
+                "sampleArgs": {
+                    "region": "North America",
+                    "from": "2025-01-01",
+                    "to": "2025-03-31",
+                },
                 "returns": "Array of Sales Order records",
             },
             {
                 "name": "estimateTravelTime",
-                "description": "Calculates ground transit times between Paris cultural landmarks for itinerary ordering.",
+                "description": (
+                    "Calculates ground transit times between Paris cultural landmarks"
+                    " for itinerary ordering."
+                ),
                 "parameters": {
-                    "stops": "Array of strings: 'Louvre', 'Eiffel Tower', 'Montmartre', 'Notre-Dame', etc.",
+                    "stops": (
+                        "Array of strings: 'Louvre', 'Eiffel Tower', 'Montmartre',"
+                        " 'Notre-Dame', etc."
+                    ),
                 },
                 "sampleArgs": {"stops": ["Louvre", "Eiffel Tower", "Montmartre"]},
                 "returns": "Integer: Estimated transit minutes",
@@ -208,17 +241,29 @@ def create_app(model: ModelClient) -> FastAPI:
         duration_ms = round((time.perf_counter() - started) * 1000, 2)
         for reply in res.replies:
             dumped = reply.model_dump(by_alias=True, exclude_none=True)
-            resp = dumped.get("agentFunctionResponse") or dumped.get("agent_function_response")
+            resp = dumped.get("agentFunctionResponse") or dumped.get(
+                "agent_function_response"
+            )
             if resp:
                 if resp.get("error"):
-                    return {"ok": False, "error": resp["error"], "durationMs": duration_ms}
+                    return {
+                        "ok": False,
+                        "error": resp["error"],
+                        "durationMs": duration_ms,
+                    }
                 return {
                     "ok": True,
                     "function": request.name,
-                    "result": resp.get("value") if "value" in resp else resp.get("result"),
+                    "result": (
+                        resp.get("value") if "value" in resp else resp.get("result")
+                    ),
                     "durationMs": duration_ms,
                 }
-        return {"ok": False, "error": "Function did not return a response", "durationMs": duration_ms}
+        return {
+            "ok": False,
+            "error": "Function did not return a response",
+            "durationMs": duration_ms,
+        }
 
     @app.post("/api/chat")
     async def chat(request: ChatRequest) -> StreamingResponse:

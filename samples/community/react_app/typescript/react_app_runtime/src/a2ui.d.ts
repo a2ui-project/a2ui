@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,7 +34,12 @@ declare module 'a2ui' {
 
   /** A value that survives JSON serialization. Everything sent to the surface must be one. */
   export type JsonValue =
-    string | number | boolean | null | JsonValue[] | {[key: string]: JsonValue};
+    | string
+    | number
+    | boolean
+    | null
+    | JsonValue[]
+    | {[key: string]: JsonValue};
 
   /**
    * `T` when every value it can hold is JSON. `setData` and `useData` require it, so a `Date`, a

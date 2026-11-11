@@ -1,4 +1,4 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -220,22 +220,102 @@ def query_sales(region: Any, start: Any, end: Any) -> list[dict[str, Any]]:
 
 
 _COMPANY_METADATA: dict[str, dict[str, str]] = {
-    "Atelier Nord": {"industry": "Architecture & Design", "hq": "Oslo, Norway", "tier": "Enterprise", "region": "EMEA"},
-    "Bramble & Co": {"industry": "Artisan Goods & Gifts", "hq": "London, UK", "tier": "Growth", "region": "EMEA"},
-    "Cobalt Freight": {"industry": "Global Freight Logistics", "hq": "Rotterdam, Netherlands", "tier": "Enterprise", "region": "EMEA"},
-    "Dunmore Labs": {"industry": "Biotechnology Research", "hq": "Boston, USA", "tier": "Enterprise", "region": "North America"},
-    "Elmwood Studio": {"industry": "Creative Media & UX", "hq": "Toronto, Canada", "tier": "Standard", "region": "North America"},
-    "Fennel Foods": {"industry": "Organic Food Supply", "hq": "Bologna, Italy", "tier": "Growth", "region": "EMEA"},
-    "Granite Health": {"industry": "Medical Diagnostics", "hq": "Zurich, Switzerland", "tier": "Enterprise", "region": "EMEA"},
-    "Harbor Lane": {"industry": "Maritime Supply & Marine", "hq": "Singapore", "tier": "Enterprise", "region": "APAC"},
-    "Indigo Works": {"industry": "Robotics & Automation", "hq": "Tokyo, Japan", "tier": "Enterprise", "region": "APAC"},
-    "Juniper Retail": {"industry": "Omnichannel Retail", "hq": "Austin, USA", "tier": "Enterprise", "region": "North America"},
-    "Kestrel Air": {"industry": "Regional Aviation", "hq": "Sydney, Australia", "tier": "Growth", "region": "APAC"},
-    "Lumen Print": {"industry": "Precision Publishing", "hq": "Munich, Germany", "tier": "Standard", "region": "EMEA"},
-    "Marlow Textiles": {"industry": "Sustainable Fabrics", "hq": "Manchester, UK", "tier": "Growth", "region": "EMEA"},
-    "Northwind": {"industry": "Wind & Renewable Energy", "hq": "Copenhagen, Denmark", "tier": "Enterprise", "region": "EMEA"},
-    "Orchard Supply": {"industry": "AgriTech Equipment", "hq": "São Paulo, Brazil", "tier": "Growth", "region": "LATAM"},
-    "Pine & Pixel": {"industry": "Video Game Development", "hq": "Stockholm, Sweden", "tier": "Standard", "region": "EMEA"},
+    "Atelier Nord": {
+        "industry": "Architecture & Design",
+        "hq": "Oslo, Norway",
+        "tier": "Enterprise",
+        "region": "EMEA",
+    },
+    "Bramble & Co": {
+        "industry": "Artisan Goods & Gifts",
+        "hq": "London, UK",
+        "tier": "Growth",
+        "region": "EMEA",
+    },
+    "Cobalt Freight": {
+        "industry": "Global Freight Logistics",
+        "hq": "Rotterdam, Netherlands",
+        "tier": "Enterprise",
+        "region": "EMEA",
+    },
+    "Dunmore Labs": {
+        "industry": "Biotechnology Research",
+        "hq": "Boston, USA",
+        "tier": "Enterprise",
+        "region": "North America",
+    },
+    "Elmwood Studio": {
+        "industry": "Creative Media & UX",
+        "hq": "Toronto, Canada",
+        "tier": "Standard",
+        "region": "North America",
+    },
+    "Fennel Foods": {
+        "industry": "Organic Food Supply",
+        "hq": "Bologna, Italy",
+        "tier": "Growth",
+        "region": "EMEA",
+    },
+    "Granite Health": {
+        "industry": "Medical Diagnostics",
+        "hq": "Zurich, Switzerland",
+        "tier": "Enterprise",
+        "region": "EMEA",
+    },
+    "Harbor Lane": {
+        "industry": "Maritime Supply & Marine",
+        "hq": "Singapore",
+        "tier": "Enterprise",
+        "region": "APAC",
+    },
+    "Indigo Works": {
+        "industry": "Robotics & Automation",
+        "hq": "Tokyo, Japan",
+        "tier": "Enterprise",
+        "region": "APAC",
+    },
+    "Juniper Retail": {
+        "industry": "Omnichannel Retail",
+        "hq": "Austin, USA",
+        "tier": "Enterprise",
+        "region": "North America",
+    },
+    "Kestrel Air": {
+        "industry": "Regional Aviation",
+        "hq": "Sydney, Australia",
+        "tier": "Growth",
+        "region": "APAC",
+    },
+    "Lumen Print": {
+        "industry": "Precision Publishing",
+        "hq": "Munich, Germany",
+        "tier": "Standard",
+        "region": "EMEA",
+    },
+    "Marlow Textiles": {
+        "industry": "Sustainable Fabrics",
+        "hq": "Manchester, UK",
+        "tier": "Growth",
+        "region": "EMEA",
+    },
+    "Northwind": {
+        "industry": "Wind & Renewable Energy",
+        "hq": "Copenhagen, Denmark",
+        "tier": "Enterprise",
+        "region": "EMEA",
+    },
+    "Orchard Supply": {
+        "industry": "AgriTech Equipment",
+        "hq": "São Paulo, Brazil",
+        "tier": "Growth",
+        "region": "LATAM",
+    },
+    "Pine & Pixel": {
+        "industry": "Video Game Development",
+        "hq": "Stockholm, Sweden",
+        "tier": "Standard",
+        "region": "EMEA",
+    },
 }
 
 

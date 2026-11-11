@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -358,7 +358,8 @@ export class DemoSession {
       return;
     }
     const body = (message['updateComponents'] ?? message['createSurface']) as
-      {components?: Array<{component?: string}>} | undefined;
+      | {components?: Array<{component?: string}>}
+      | undefined;
     const components = body?.components ?? [];
     if (components.length > 0) {
       const marks = this.turns.find(turn => turn.id === turnId)?.marks;

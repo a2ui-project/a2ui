@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -80,7 +80,9 @@ export function ToolsAndDataPanel({onClose}: {onClose: () => void}) {
 
   // Tester state
   const [testerTool, setTesterTool] = useState('queryCompanies');
-  const [testerArgs, setTesterArgs] = useState('{\n  "region": "All",\n  "sortBy": "totalSpend",\n  "limit": 5\n}');
+  const [testerArgs, setTesterArgs] = useState(
+    '{\n  "region": "All",\n  "sortBy": "totalSpend",\n  "limit": 5\n}',
+  );
   const [testerOutput, setTesterOutput] = useState<string | null>(null);
   const [testerRunning, setTesterRunning] = useState(false);
   const [testerDuration, setTesterDuration] = useState<number | null>(null);
@@ -184,13 +186,18 @@ export function ToolsAndDataPanel({onClose}: {onClose: () => void}) {
   });
 
   return (
-    <section className="about tools-panel" data-testid="tools-and-data-panel" aria-label="Tools and Data Explorer">
+    <section
+      className="about tools-panel"
+      data-testid="tools-and-data-panel"
+      aria-label="Tools and Data Explorer"
+    >
       <div className="about-inner">
         <div className="about-head">
           <div>
             <h2>Agent Tools &amp; Mock Dataset</h2>
             <p className="tools-panel-sub">
-              Explore the deterministic database and the 5 RPC tools the agent and ReactApps can call.
+              Explore the deterministic database and the 5 RPC tools the agent and ReactApps can
+              call.
             </p>
           </div>
           <button type="button" className="text-button" onClick={onClose}>
@@ -218,7 +225,9 @@ export function ToolsAndDataPanel({onClose}: {onClose: () => void}) {
                 <span className="tools-stat-lbl">Sales Orders</span>
               </div>
               <div className="tools-stat">
-                <span className="tools-stat-val">${Math.round(data.summary.totalSpend).toLocaleString()}</span>
+                <span className="tools-stat-val">
+                  ${Math.round(data.summary.totalSpend).toLocaleString()}
+                </span>
                 <span className="tools-stat-lbl">2025 Total Volume</span>
               </div>
               <div className="tools-stat">
@@ -338,17 +347,26 @@ export function ToolsAndDataPanel({onClose}: {onClose: () => void}) {
                     </thead>
                     <tbody>
                       {filteredCompanies.map(c => (
-                        <tr key={c.name} className={selectedCompany === c.name ? 'is-selected-row' : ''}>
-                          <td><strong>{c.name}</strong></td>
+                        <tr
+                          key={c.name}
+                          className={selectedCompany === c.name ? 'is-selected-row' : ''}
+                        >
                           <td>
-                            <span className={`tier-badge tier-${(c.tier || 'Standard').toLowerCase()}`}>
+                            <strong>{c.name}</strong>
+                          </td>
+                          <td>
+                            <span
+                              className={`tier-badge tier-${(c.tier || 'Standard').toLowerCase()}`}
+                            >
                               {c.tier || 'Standard'}
                             </span>
                           </td>
                           <td>{c.industry || '—'}</td>
                           <td>{c.hq || '—'}</td>
                           <td>{c.region}</td>
-                          <td style={{textAlign: 'right'}}>${Math.round(c.totalSpend).toLocaleString()}</td>
+                          <td style={{textAlign: 'right'}}>
+                            ${Math.round(c.totalSpend).toLocaleString()}
+                          </td>
                           <td style={{textAlign: 'right'}}>{c.orderCount}</td>
                           <td>
                             <button
@@ -383,14 +401,29 @@ export function ToolsAndDataPanel({onClose}: {onClose: () => void}) {
                     ) : companyDetails ? (
                       <div className="tools-detail-content">
                         <div className="tools-detail-grid">
-                          <div><strong>Industry:</strong> {companyDetails.industry}</div>
-                          <div><strong>HQ:</strong> {companyDetails.hq}</div>
-                          <div><strong>Account Tier:</strong> {companyDetails.tier}</div>
-                          <div><strong>Region:</strong> {companyDetails.region}</div>
-                          <div><strong>Total Spend:</strong> ${Math.round(companyDetails.totalSpend).toLocaleString()}</div>
-                          <div><strong>Top Products:</strong> {companyDetails.topProducts?.join(', ')}</div>
+                          <div>
+                            <strong>Industry:</strong> {companyDetails.industry}
+                          </div>
+                          <div>
+                            <strong>HQ:</strong> {companyDetails.hq}
+                          </div>
+                          <div>
+                            <strong>Account Tier:</strong> {companyDetails.tier}
+                          </div>
+                          <div>
+                            <strong>Region:</strong> {companyDetails.region}
+                          </div>
+                          <div>
+                            <strong>Total Spend:</strong> $
+                            {Math.round(companyDetails.totalSpend).toLocaleString()}
+                          </div>
+                          <div>
+                            <strong>Top Products:</strong> {companyDetails.topProducts?.join(', ')}
+                          </div>
                         </div>
-                        <h4 style={{marginTop: 'var(--s-3)'}}>Order History ({companyDetails.orders?.length} orders)</h4>
+                        <h4 style={{marginTop: 'var(--s-3)'}}>
+                          Order History ({companyDetails.orders?.length} orders)
+                        </h4>
                         <div className="tools-subtable-container">
                           <table className="tools-table tools-subtable">
                             <thead>
@@ -404,10 +437,14 @@ export function ToolsAndDataPanel({onClose}: {onClose: () => void}) {
                             <tbody>
                               {companyDetails.orders?.map((ord: any) => (
                                 <tr key={ord.id}>
-                                  <td><code>{ord.id}</code></td>
+                                  <td>
+                                    <code>{ord.id}</code>
+                                  </td>
                                   <td>{ord.date}</td>
                                   <td>{ord.product}</td>
-                                  <td style={{textAlign: 'right'}}>${Math.round(ord.amount).toLocaleString()}</td>
+                                  <td style={{textAlign: 'right'}}>
+                                    ${Math.round(ord.amount).toLocaleString()}
+                                  </td>
                                 </tr>
                               ))}
                             </tbody>
@@ -463,12 +500,18 @@ export function ToolsAndDataPanel({onClose}: {onClose: () => void}) {
                     <tbody>
                       {filteredOrders.slice(0, 50).map(o => (
                         <tr key={o.id}>
-                          <td><code>{o.id}</code></td>
-                          <td><strong>{o.customer}</strong></td>
+                          <td>
+                            <code>{o.id}</code>
+                          </td>
+                          <td>
+                            <strong>{o.customer}</strong>
+                          </td>
                           <td>{o.date}</td>
                           <td>{o.region}</td>
                           <td>{o.product}</td>
-                          <td style={{textAlign: 'right'}}>${Math.round(o.amount).toLocaleString()}</td>
+                          <td style={{textAlign: 'right'}}>
+                            ${Math.round(o.amount).toLocaleString()}
+                          </td>
                           <td>
                             <button
                               type="button"
@@ -484,14 +527,17 @@ export function ToolsAndDataPanel({onClose}: {onClose: () => void}) {
                   </table>
                 </div>
                 <p className="tools-table-note">
-                  Showing top {Math.min(50, filteredOrders.length)} matching orders of {data.summary.totalOrders} total.
+                  Showing top {Math.min(50, filteredOrders.length)} matching orders of{' '}
+                  {data.summary.totalOrders} total.
                 </p>
 
                 {/* Order Details View */}
                 {selectedOrder && (
                   <div className="tools-detail-box">
                     <div className="tools-detail-head">
-                      <h3>Order #{selectedOrder.id}: {selectedOrder.customer}</h3>
+                      <h3>
+                        Order #{selectedOrder.id}: {selectedOrder.customer}
+                      </h3>
                       <button
                         type="button"
                         className="text-button"
@@ -501,12 +547,28 @@ export function ToolsAndDataPanel({onClose}: {onClose: () => void}) {
                       </button>
                     </div>
                     <div className="tools-detail-grid">
-                      <div><strong>Date:</strong> {selectedOrder.date}</div>
-                      <div><strong>Region:</strong> {selectedOrder.region}</div>
-                      <div><strong>Carrier:</strong> {selectedOrder.shippingCarrier}</div>
-                      <div><strong>Tracking:</strong> <code>{selectedOrder.trackingNumber}</code></div>
-                      <div><strong>Status:</strong> <span className="tier-badge tier-growth">{selectedOrder.deliveryStatus}</span></div>
-                      <div><strong>Total Amount:</strong> ${Math.round(selectedOrder.amount).toLocaleString()}</div>
+                      <div>
+                        <strong>Date:</strong> {selectedOrder.date}
+                      </div>
+                      <div>
+                        <strong>Region:</strong> {selectedOrder.region}
+                      </div>
+                      <div>
+                        <strong>Carrier:</strong> {selectedOrder.shippingCarrier}
+                      </div>
+                      <div>
+                        <strong>Tracking:</strong> <code>{selectedOrder.trackingNumber}</code>
+                      </div>
+                      <div>
+                        <strong>Status:</strong>{' '}
+                        <span className="tier-badge tier-growth">
+                          {selectedOrder.deliveryStatus}
+                        </span>
+                      </div>
+                      <div>
+                        <strong>Total Amount:</strong> $
+                        {Math.round(selectedOrder.amount).toLocaleString()}
+                      </div>
                     </div>
                     <h4 style={{marginTop: 'var(--s-3)'}}>Line Items</h4>
                     <ul>
@@ -576,7 +638,8 @@ export function ToolsAndDataPanel({onClose}: {onClose: () => void}) {
                     {testerDuration !== null && <span>Duration: {testerDuration}ms</span>}
                   </div>
                   <pre className="tools-pre">
-                    {testerOutput || '// Click "Execute Function Call" to run the agent tool and inspect response payload.'}
+                    {testerOutput ||
+                      '// Click "Execute Function Call" to run the agent tool and inspect response payload.'}
                   </pre>
                 </div>
               </div>

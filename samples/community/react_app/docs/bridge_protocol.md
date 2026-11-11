@@ -32,10 +32,10 @@ sequenceDiagram
 ```
 
 1. The host builds the **app document**, a complete HTML document with:
-    1. an import map that maps the module names in section 9 to the runtime's content-hashed files,
-    2. the runtime stylesheet (`a2ui-lite.css`),
-    3. a `<script type="application/json" id="a2ui-react-app-config">` holding `{"source": string, "compiled"?: string, "title"?: string}`, with every `<` written as `\u003c`,
-    4. an inline module script that imports the runtime entry and starts it.
+   1. an import map that maps the module names in section 9 to the runtime's content-hashed files,
+   2. the runtime stylesheet (`a2ui-lite.css`),
+   3. a `<script type="application/json" id="a2ui-react-app-config">` holding `{"source": string, "compiled"?: string, "title"?: string}`, with every `<` written as `\u003c`,
+   4. an inline module script that imports the runtime entry and starts it.
 2. The host sends the document as the `html` of the sandbox resource, with `sandbox: "allow-scripts"` and `csp.resourceDomains` set to the origin that serves the runtime. The proxy adds a CSP meta tag whose `script-src`, `style-src` and `font-src` allow that origin; `connect-src` and `frame-src` stay `'none'`.
 3. A change of `source`, `compiled` or `title` changes the document, so the frame reloads and a new bridge session starts. Other property changes (`dataPaths`, `functions`, `actions`, `height`) apply to the running session. `compiled` carries the same trust as `source`: both run inside the double-iframe sandbox under the same CSP and bridge allowlists, which are the security boundary. Static import and API checks on the server catch mistakes early, not hostile code; `ReactAppTransformer` strips any `compiled` the model sets and fills it in only from its own compiler.
 4. Once loaded, the runtime MUST send `reactApp/initialize` before any other request. The host MUST answer every other request that arrives before `reactApp/initialize` with error `-32002`.

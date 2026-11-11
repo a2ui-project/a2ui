@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 Google LLC
+ * Copyright 2024 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,7 +26,8 @@ export interface HostMessage {
 
 /** What a request handler returns: a result, or an error response. */
 export type HostReply =
-  {readonly result: Record<string, unknown>} | {readonly error: {code: number; message: string}};
+  | {readonly result: Record<string, unknown>}
+  | {readonly error: {code: number; message: string}};
 
 /**
  * A host for app-side tests: receives what the client posts, answers requests with the handler

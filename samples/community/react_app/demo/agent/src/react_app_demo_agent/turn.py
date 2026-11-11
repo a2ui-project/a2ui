@@ -1,4 +1,4 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -75,6 +75,7 @@ def _append_turn_record(record: dict[str, Any]) -> None:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
     except OSError:
         pass
+
 
 _ENVELOPES = ("createSurface", "updateComponents", "updateDataModel", "deleteSurface")
 _OPEN_TAG = "<a2ui>"
@@ -307,7 +308,10 @@ class TurnRunner:
                     for name, at in timings.items()
                 },
             }
-            logger.info("turn", extra={"json": {k: v for k, v in record.items() if k != "messages"}})
+            logger.info(
+                "turn",
+                extra={"json": {k: v for k, v in record.items() if k != "messages"}},
+            )
             _append_turn_record(record)
 
         try:

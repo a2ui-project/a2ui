@@ -1,4 +1,4 @@
-# Copyright 2026 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -132,7 +132,10 @@ def demo_catalog() -> CatalogApi:
                         },
                         "sortBy": {
                             "type": "string",
-                            "description": "Sort key: 'totalSpend', 'orderCount', 'latestOrderDate', 'name'.",
+                            "description": (
+                                "Sort key: 'totalSpend', 'orderCount',"
+                                " 'latestOrderDate', 'name'."
+                            ),
                         },
                         "sortOrder": {
                             "type": "string",
@@ -145,8 +148,9 @@ def demo_catalog() -> CatalogApi:
                     },
                 },
                 description=(
-                    "Agent function. Returns aggregated company accounts: {name, region,"
-                    " industry, headquarters, tier, orderCount, totalSpend, latestOrderDate, topProduct}."
+                    "Agent function. Returns aggregated company accounts: {name,"
+                    " region, industry, headquarters, tier, orderCount, totalSpend,"
+                    " latestOrderDate, topProduct}."
                 ),
             ),
             AgentFunction(
@@ -164,8 +168,9 @@ def demo_catalog() -> CatalogApi:
                     "required": ["company"],
                 },
                 description=(
-                    "Agent function. Full profile and recent orders for a company: {name,"
-                    " region, industry, headquarters, tier, orderCount, totalSpend, latestOrderDate, orders}."
+                    "Agent function. Full profile and recent orders for a company:"
+                    " {name, region, industry, headquarters, tier, orderCount,"
+                    " totalSpend, latestOrderDate, orders}."
                 ),
             ),
             AgentFunction(
@@ -183,8 +188,10 @@ def demo_catalog() -> CatalogApi:
                     "required": ["orderId"],
                 },
                 description=(
-                    "Agent function. Detailed line item breakdown, tracking number and shipping info for an order: "
-                    "{id, date, customer, region, product, amount, quantity, unitPrice, status, shippingAddress, trackingNumber}."
+                    "Agent function. Detailed line item breakdown, tracking number and"
+                    " shipping info for an order: {id, date, customer, region, product,"
+                    " amount, quantity, unitPrice, status, shippingAddress,"
+                    " trackingNumber}."
                 ),
             ),
         ],
