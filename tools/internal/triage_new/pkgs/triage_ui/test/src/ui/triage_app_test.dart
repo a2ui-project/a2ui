@@ -516,6 +516,12 @@ void main() {
     expect(edited, findsOneWidget);
     expect(find.widgetWithText(InputChip, 'type: bug'), findsOneWidget);
 
+    // Each Edit tab has its own Revert, for its own suggestion.
+    await tester.tap(find.widgetWithText(Tab, '#10'));
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextButton>(revert).onPressed, isNull);
+    await tester.tap(find.widgetWithText(Tab, '#20'));
+    await tester.pumpAndSettle();
     await tester.tap(revert);
     await tester.pumpAndSettle();
     expect(edited, findsNothing);
@@ -544,6 +550,55 @@ void main() {
       'POST issues/20/labels {"labels":["type: bug"]}',
     ]);
     expect(controller.selected!.number, 11);
+  });
+
+  testWidgets('shows a failed apply in the Edit tab, and every step in the '
+      'Log tab', (tester) async {
+    github.unassignable.add('octocat');
+    await pumpApp(tester);
+    expect(find.widgetWithText(Tab, 'Log'), findsOneWidget);
+    await tester.tap(find.widgetWithText(Tab, 'Log'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Nothing was done to this item in this session.'),
+      findsOneWidget,
+    );
+    await tester.tap(find.widgetWithText(Tab, 'Edit'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Apply'));
+    await tester.pump();
+    for (
+      var i = 0;
+      i < 100 &&
+          (controller.isApplying(a2ui(10)) || controller.isApplying(a2ui(20)));
+      i++
+    ) {
+      await tester.pump(const Duration(milliseconds: 10));
+    }
+    await tester.pumpAndSettle();
+
+    // The issue stays selected, and its Edit tab says what failed.
+    expect(controller.selected!.number, 10);
+    expect(find.textContaining('Some changes failed.'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(Tab, 'Log (1)'));
+    await tester.pumpAndSettle();
+    expect(find.text('Some changes failed'), findsOneWidget);
+    expect(find.text('Post the reply'), findsOneWidget);
+    // The posted reply, in full.
+    expect(find.text('Thanks for the report.'), findsOneWidget);
+    expect(find.text('Add labels: P1'), findsOneWidget);
+    expect(find.text('Assign: octocat'), findsOneWidget);
+    expect(find.byIcon(Icons.error_outline), findsOneWidget);
+
+    // The PR's apply succeeded, and its log says so.
+    await tester.tap(find.widgetWithText(Tab, '#20'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(Tab, 'Log (1)'));
+    await tester.pumpAndSettle();
+    expect(find.text('Applied the suggestion'), findsOneWidget);
+    expect(find.text('Remove labels: status: needs-triage'), findsOneWidget);
   });
 
   testWidgets('says which related items are closed or merged', (tester) async {

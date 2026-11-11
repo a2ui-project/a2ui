@@ -55,7 +55,12 @@ Issues are green and PRs are orange, in every group. Each type of item has its o
 
 Tabs at the top: one for the selected item, and one for each linked PR or issue, whether or not it needs triage. An issue can have several linked PRs, and a PR several linked issues. A tab shows the item's icon and number, with "genui" before the number for an item in `flutter/genui`, and a blue dot when the triager edited its suggestion.
 
-Each tab shows its item and its editable suggestion, on the page background, without a card frame.
+Each tab shows its item in two columns, on the page background, without a card frame:
+
+1. On the left, what the triager should know about the item: its title, age, author, labels and assignees, notices about its state, the triage bot's `summary`, `reason` and `suggestion`, the comment for the team, and the related items.
+2. On the right, two tabs:
+   - **Edit**: the rest of the [editable suggestion](#editable-suggestion), and **Revert**, which undoes the triager's changes to this item's suggestion. **Revert** is enabled when the suggestion has changes. If the last **Apply** of the item failed, the tab shows which changes it made and which failed.
+   - **Log**: what the tool did to the item in this session, newest first, each with its time. For each **Apply** and **Needs team input**, the log lists every change in order, whether it was made, skipped, failed or not tried, why it failed, and the full text of the reply or comment it posted. It also says when a refresh found that the item changed on GitHub and reset its suggestion. The tab shows how many entries the log has, as in "Log (2)".
 
 Below the tabs are the buttons, which act on all the items in the tabs together.
 
@@ -65,7 +70,7 @@ Nothing is selected when the tool starts, unless it starts with an item from a s
 
 The editable suggestion is the triage UI's implementation of the [`TriageSuggestion`](triage_bot.blueprint.md#the-triagesuggestion-component) A2UI component. It renders the component from the item's suggestion comment, or an empty one when the item has no suggestion.
 
-The `summary`, the `reason` and the `suggestion` are shown as text, with each URL in them as a link that opens in the browser. Below them is the latest comment for the team, if the item has one: a comment by a team member that starts with `**From triager for team discussion:**`, as **Needs team input** posts it. It is shown the same way, without the heading, under "From @login for team discussion", so the team reads the triager's question together with the triage bot's suggestion. The triager can change the other properties: the reply, how to close the item, the labels and the assignees. The triager also sets the item's priority, and its milestone, which the triage bot does not suggest.
+The `summary`, the `reason` and the `suggestion` are shown as text in the left column, with each URL in them as a link that opens in the browser. Below them is the latest comment for the team, if the item has one: a comment by a team member that starts with `**From triager for team discussion:**`, as **Needs team input** posts it. It is shown the same way, without the heading, under "From @login for team discussion", so the team reads the triager's question together with the triage bot's suggestion. The triager can change the other properties: the reply, how to close the item, the labels and the assignees. The triager also sets the item's priority, and its milestone, which the triage bot does not suggest.
 
 1. The priority is a segmented button with `P0` to `P3`, without a field frame, with none or one of them selected. Selecting a priority adds its label and removes the item's other priority labels. Clicking the selected priority again removes them all. The other fields leave out the priority labels.
 2. The triager checks the labels, people and milestone to add in a dropdown: the repository's labels, the people who can be assigned, and its open milestones. An item has at most one milestone, so checking one in its dropdown unchecks the other. The dropdown lists the checked options first. A dropdown with more than 7 options has a search field at the top.
@@ -77,7 +82,6 @@ The buttons below the tabs:
 
 1. **Apply** applies the suggestion of each item in the tabs to it on GitHub, skipping the suggestions that change nothing. If an item has `status: needs-team-input` and its suggestion does not add it, the tool also removes that label, as [triage.md](../../../../../docs/contributing/triage/triage.md#second-line-triage-weekly-by-triager) asks once the item is triaged.
 2. **Needs team input** adds `status: needs-team-input` to the selected item and to the linked items that need triage, the ones that do not have the label yet, and posts the triager's comment on each, if they write one, under the heading `**From triager for team discussion:**` and a blank line. It does not apply the suggestions, so the items stay open even if a tab closes them, and the replies, labels and assignees in the tabs are not changed. The button's tooltip says so. The button is shown only when one of these items does not have the label.
-3. **Revert** undoes the triager's changes to the suggestions in all tabs. It is enabled when a tab has changes.
 
 ## CUJ
 
@@ -139,7 +143,7 @@ An issue has a PR that fixes it, and both need triage. When Ann selects the issu
 
 ### Recover from a failed apply
 
-Ann clicks **Apply**, and GitHub refuses to assign one of the assignees. The tool shows which changes it made and which failed. Ann removes the assignee and clicks **Apply** again. The tool does not post the reply a second time.
+Ann clicks **Apply**, and GitHub refuses to assign one of the assignees. The **Edit** tab shows which changes the tool made and which failed, and the **Log** tab keeps them after the next try. Ann removes the assignee and clicks **Apply** again. The tool does not post the reply a second time.
 
 ### Refresh the queue
 

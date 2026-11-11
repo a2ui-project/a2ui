@@ -144,10 +144,10 @@ Future<ApplyResult> applySuggestion(
 
   final results = <StepResult>[];
   var failed = false;
-  for (final _Step step in steps) {
+  for (final step in steps) {
     StepResult result(StepStatus status, {String? error}) =>
         StepResult(step.description, status, error: error, text: step.text);
-    final run = step.run;
+    final Future<void> Function()? run = step.run;
     if (failed) {
       results.add(result(StepStatus.notRun));
     } else if (run == null) {

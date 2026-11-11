@@ -16,6 +16,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:triage/triage.dart';
 import 'package:triage_ui/src/github/github_client.dart';
 import 'package:triage_ui/src/github_item.dart';
+import 'package:triage_ui/src/model/applier.dart';
+import 'package:triage_ui/src/model/log_entry.dart';
 import 'package:triage_ui/src/model/triage_controller.dart';
 import 'package:triage_ui/src/model/triage_item.dart';
 
@@ -255,6 +257,26 @@ void main() {
 
     expect(controller.lastResult(a2ui(10))!.succeeded, isTrue);
     expect(github.calls.where((c) => c.contains('comments')), hasLength(1));
+
+    // The log has both applies, with every step, the reply and the error.
+    final List<LogEntry> log = controller.logOf(a2ui(10));
+    expect(log.map((LogEntry e) => e.title), [
+      'Some changes failed',
+      'Applied the suggestion',
+    ]);
+    expect(log.first.failed, isTrue);
+    // The reply, removing "status: needs-triage", and the assignee.
+    expect(log.first.steps.map((StepResult s) => s.status), [
+      StepStatus.done,
+      StepStatus.done,
+      StepStatus.failed,
+    ]);
+    expect(log.first.steps.first.text, 'Thanks!');
+    expect(log.first.steps.last.description, 'Assign: stranger');
+    expect(log.first.steps.last.error, isNotNull);
+    expect(log.last.failed, isFalse);
+    expect(log.last.steps.first.description, 'Post the reply: already posted');
+    expect(log.last.steps.first.status, StepStatus.skipped);
   });
 
   test('refresh drops triaged items and resets the drafts of changed '
@@ -283,6 +305,8 @@ void main() {
       controller.draftFor(controller.item(a2ui(10))!, empty).reply.text,
       '',
     );
+    expect(controller.logOf(a2ui(10)).single.title, contains('changed on'));
+    expect(controller.logOf(a2ui(11)), isEmpty);
     expect(
       controller.draftFor(controller.item(a2ui(11))!, empty).reply.text,
       'B',
@@ -366,6 +390,13 @@ void main() {
     expect(controller.remaining, 5);
     expect(controller.session.isSentToTeam(a2ui(10)), isTrue);
     expect(controller.report(), contains('Sent 1 issue to the team.'));
+    final LogEntry entry = controller.logOf(a2ui(10)).single;
+    expect(entry.title, 'Sent the item to the team');
+    expect(entry.steps.map((StepResult s) => s.description), [
+      'Add labels: status: needs-team-input',
+      'Post the comment for the team',
+    ]);
+    expect(entry.steps.last.text, 'Thoughts.');
   });
 
   test('sends an item opened by URL to the team', () async {
@@ -394,5 +425,11 @@ void main() {
     expect(github.calls.where((c) => c.contains('comments')), isEmpty);
     expect(controller.session.isSentToTeam(a2ui(10)), isFalse);
     expect(numbers(controller.newItems), [11, 10, 20, 21]);
+    final LogEntry entry = controller.logOf(a2ui(10)).single;
+    expect(entry.failed, isTrue);
+    expect(entry.steps.map((StepResult s) => s.status), [
+      StepStatus.failed,
+      StepStatus.notRun,
+    ]);
   });
 }

@@ -74,6 +74,15 @@ void main() {
       'Assign: octocat',
       'Close as duplicate of #7',
     ]);
+    // Only the reply step posts a text, which the item's log shows.
+    expect(result.steps.map((StepResult s) => s.text), [
+      'Thanks!',
+      null,
+      null,
+      null,
+      null,
+      null,
+    ]);
     expect(github.calls, [
       'POST issues/12/comments {"body":"Thanks!"}',
       'DELETE issues/12/labels/status%3A%20needs-team-input',

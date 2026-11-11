@@ -27,6 +27,20 @@ import 'suggestion_draft.dart';
 import 'triage_item.dart';
 import 'triage_session.dart';
 
+/// A group of the item list, as `ui.blueprint.md` describes. An item can be
+/// in two groups: its own and [teamInput].
+enum ItemGroup {
+  /// **New**: the items in the queue without `status: needs-team-input` when
+  /// they were loaded.
+  newItems,
+
+  /// **Needs team input**.
+  teamInput,
+
+  /// **Not in the queue**: the items opened by URL.
+  notInQueue,
+}
+
 /// The state of the triage UI: the items, the selected one, the triager's
 /// drafts and what the triager applied.
 class TriageController extends ChangeNotifier {
@@ -85,6 +99,11 @@ class TriageController extends ChangeNotifier {
   bool get isConnected => _service != null;
 
   ItemRef? _selected;
+
+  /// The group in which the triager selected [_selected], or null for the
+  /// first group that has it.
+  ItemGroup? _selectedGroup;
+
   GitHubItem? _pendingOpen;
 
   final Set<ItemRef> _changedOnGitHub = {};
@@ -107,20 +126,36 @@ class TriageController extends ChangeNotifier {
   /// triager opened them.
   List<TriageItem> get opened => _opened;
 
-  /// All items, each once, in the order the list first shows them.
-  List<TriageItem> get orderedItems {
-    final seen = <ItemRef>{};
-    return [
-      for (final i in [...newItems, ...teamInputItems, ..._opened])
-        if (seen.add(i.ref)) i,
-    ];
-  }
+  /// The items in [group], in the order the list shows them.
+  List<TriageItem> itemsIn(ItemGroup group) => switch (group) {
+    ItemGroup.newItems => newItems,
+    ItemGroup.teamInput => teamInputItems,
+    ItemGroup.notInQueue => opened,
+  };
+
+  /// Each group's items, in the order the list shows them. An item in two
+  /// groups is listed twice.
+  List<(ItemGroup, TriageItem)> get _listed => [
+    for (final ItemGroup g in ItemGroup.values)
+      for (final TriageItem i in itemsIn(g)) (g, i),
+  ];
 
   /// How many items in the queue the triager neither applied a suggestion
   /// to nor sent to the team.
   int get remaining => _queue.where((i) => !session.isHandled(i.ref)).length;
 
   TriageItem? get selected => _selected == null ? null : item(_selected!);
+
+  /// The group in which the selected item is selected: the one the triager
+  /// selected it in, if it is still there, or else the first group that has
+  /// it.
+  ItemGroup? get selectedGroup {
+    final ItemRef? ref = _selected;
+    if (ref == null) return null;
+    bool has(ItemGroup g) => itemsIn(g).any((i) => i.ref == ref);
+    if (_selectedGroup case final ItemGroup g when has(g)) return g;
+    return ItemGroup.values.where(has).firstOrNull;
+  }
 
   var _revealCount = 0;
 
@@ -332,14 +367,20 @@ class TriageController extends ChangeNotifier {
     }
   }
 
-  void select(ItemRef item) {
+  ///
+  /// [group] is the group in which the triager selected it, which decides
+  /// the next item after an apply. If it is null, the first group that has
+  /// the item.
+  void select(ItemRef item, {ItemGroup? group}) {
     _selected = item;
+    _selectedGroup = group;
     notifyListeners();
   }
 
   /// Selects nothing.
   void deselect() {
     _selected = null;
+    _selectedGroup = null;
     notifyListeners();
   }
 
@@ -359,13 +400,14 @@ class TriageController extends ChangeNotifier {
   /// If every apply succeeds and one of [items] is selected, selects the
   /// next item that is not handled yet.
   Future<void> applyAll(List<TriageItem> items) async {
-    final List<TriageItem> order = orderedItems;
+    final List<(ItemGroup, TriageItem)> order = _listed;
+    final ItemGroup? group = selectedGroup;
     var succeeded = true;
     for (final i in items) {
       if (!draftFor(i).hasChanges) continue;
       if (!await _applyOne(i)) succeeded = false;
     }
-    if (succeeded) _selectNextAfterGroup(items, order);
+    if (succeeded) _selectNextAfterGroup(items, group, order);
     notifyListeners();
   }
 
@@ -421,13 +463,14 @@ class TriageController extends ChangeNotifier {
   /// Sends those of [items] that do not have `status: needs-team-input` to
   /// the team, each with [comment], as [sendToTeam] does.
   Future<void> sendAllToTeam(List<TriageItem> items, {String? comment}) async {
-    final List<TriageItem> order = orderedItems;
+    final List<(ItemGroup, TriageItem)> order = _listed;
+    final ItemGroup? group = selectedGroup;
     var succeeded = true;
     for (final i in items) {
       if (i.needsTeamInput) continue;
       if (!await _sendOne(i, comment: comment)) succeeded = false;
     }
-    if (succeeded) _selectNextAfterGroup(items, order);
+    if (succeeded) _selectNextAfterGroup(items, group, order);
     notifyListeners();
   }
 
@@ -558,24 +601,28 @@ class TriageController extends ChangeNotifier {
     _listedUpdatedAt = {for (final i in queue) i.ref: i.updatedAt};
   }
 
-  /// If one of [items] is selected, selects the next item after them that
-  /// is not handled yet, in [order]: the list as it was before the items
-  /// changed, since a change can move an item to another group.
-  void _selectNextAfterGroup(List<TriageItem> items, List<TriageItem> order) {
-    if (items.any((i) => i.ref == _selected)) {
-      _selectNextAfter(items.first.ref, order);
-    }
-  }
-
-  void _selectNextAfter(ItemRef item, List<TriageItem> items) {
-    final int index = items.indexWhere((i) => i.ref == item);
-    final Iterable<TriageItem> candidates = [
-      ...items.skip(index + 1),
-      ...items.take(index),
+  /// If one of [items] is selected, selects the next item that is not
+  /// handled yet after the selected one in [group], in [order]: the list as
+  /// it was before the items changed, since a change can add an item to a
+  /// group. After the last item of [group] come the next groups.
+  void _selectNextAfterGroup(
+    List<TriageItem> items,
+    ItemGroup? group,
+    List<(ItemGroup, TriageItem)> order,
+  ) {
+    final ItemRef? selected = _selected;
+    if (!items.any((i) => i.ref == selected)) return;
+    final int index = order.indexWhere(
+      (e) => e.$1 == group && e.$2.ref == selected,
+    );
+    final Iterable<(ItemGroup, TriageItem)> candidates = [
+      ...order.skip(index + 1),
+      ...order.take(index),
     ];
-    for (final i in candidates) {
+    for (final (ItemGroup g, TriageItem i) in candidates) {
       if (!session.isHandled(i.ref)) {
         _selected = i.ref;
+        _selectedGroup = g;
         _revealCount++;
         return;
       }

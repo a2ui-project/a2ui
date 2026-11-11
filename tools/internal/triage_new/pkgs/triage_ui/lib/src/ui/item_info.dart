@@ -22,7 +22,7 @@ import 'links.dart';
 import 'triage_scope.dart';
 
 /// What the triager should know about [item]: its title, age, author,
-/// labels and assignees, notices about its state, the advisor's summary,
+/// labels and assignees, notices about its state, the triage bot's summary,
 /// reason and suggestion, the comment for the team, and the related items.
 ///
 /// The details show it in their left column, next to the editable
@@ -114,7 +114,7 @@ class ItemInfo extends StatelessWidget {
           ),
           SuggestionStatus.outdated => _Notice(
             'The suggestion is outdated: something happened on the item '
-            'after the advisor commented. Read the new activity before '
+            'after the triage bot commented. Read the new activity before '
             'you apply it.',
             warning: true,
             url: item.url,
