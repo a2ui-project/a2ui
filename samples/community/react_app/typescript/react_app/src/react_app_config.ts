@@ -34,12 +34,15 @@ export interface ReactAppRuntimeManifest {
   readonly entry: string;
   readonly stylesheet: string;
   readonly preload: readonly string[];
+  readonly chunks?: readonly string[];
 }
 
 /** A manifest and the URL its relative paths resolve against. */
 export interface LoadedRuntime {
   readonly manifest: ReactAppRuntimeManifest;
   readonly baseUrl: URL;
+  /** Whether the manifest's modules and stylesheet were inlined as `data:` URLs. */
+  readonly inlineDataUrls?: boolean;
 }
 
 /** Default directory of the runtime, next to the sandbox proxy. */
@@ -55,6 +58,16 @@ export interface ReactAppConfig {
   readonly runtimeBaseUrl?: string;
   /** The manifest, for hosts that bundle it instead of fetching it. */
   readonly manifest?: ReactAppRuntimeManifest;
+  /**
+   * Whether `loadRuntime` fetches the runtime's JS modules and stylesheet on the host page and
+   * turns them into `data:` URLs in the import map (with `preload` cleared). The inner sandboxed
+   * frame has an opaque `"null"` origin, so its module fetches omit cookies and fail behind
+   * authenticating reverse proxies (such as Uberproxy).
+   *
+   * Defaults to `true` when `manifest` is not pre-supplied and `runtimeBaseUrl` is omitted or
+   * relative, and `false` otherwise.
+   */
+  readonly inlineDataUrls?: boolean;
   /** CSS custom properties to send to the app besides the `--a2ui-*` ones. */
   readonly themeVariables?: readonly string[];
   /**
@@ -66,6 +79,9 @@ export interface ReactAppConfig {
   /** Where the host serves the sandbox proxy pages; see `SandboxConfig`. */
   readonly sandbox?: Partial<SandboxConfig>;
 }
+
+const RELATIVE_JS_SPECIFIER =
+  /(?<=\bfrom\s*|\bimport\s*\(\s*|\bimport\s*)(['"])(\.\.?\/[^'"]+\.js)\1/g;
 
 let currentConfig: ReactAppConfig = {};
 let loading: {key: string; promise: Promise<LoadedRuntime>} | null = null;
@@ -101,25 +117,162 @@ export function resolveRuntimeBaseUrl(documentBase: string = document.baseURI): 
   return new URL(base.endsWith('/') ? base : `${base}/`, documentBase);
 }
 
+function isRelativeUrl(url: string | undefined): boolean {
+  return url === undefined || !/^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(url);
+}
+
+function toBase64DataUrl(text: string, mimeType: string): string {
+  const bytes = new TextEncoder().encode(text);
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
+  return `data:${mimeType};base64,${btoa(binary)}`;
+}
+
+function canonicalRelPath(targetUrl: URL, baseUrl: URL): string {
+  return targetUrl.href.startsWith(baseUrl.href)
+    ? `./${targetUrl.href.slice(baseUrl.href.length)}`
+    : targetUrl.href;
+}
+
+function chunkSpecifier(relPath: string): string {
+  return `a2ui-chunk/${relPath.replace(/^\.\//, '')}`;
+}
+
+async function fetchText(url: string, fetchImpl: typeof fetch): Promise<string> {
+  const response = await fetchImpl(url);
+  if (!response.ok) {
+    throw new Error(`Loading the ReactApp runtime asset ${url} failed: HTTP ${response.status}`);
+  }
+  return response.text();
+}
+
+/**
+ * Fetches the runtime's JS modules, shared/lazy chunks and stylesheet via the host's `fetchImpl`
+ * and returns a manifest whose `importMap.imports` and `stylesheet` are `data:` URLs and whose
+ * `preload` is empty. Relative imports between runtime files are rewritten to bare `a2ui-chunk/*`
+ * specifiers in the import map so all entries share one instance of every chunk in memory.
+ */
+export async function inlineRuntimeAsDataUrls(
+  manifest: ReactAppRuntimeManifest,
+  baseUrl: URL,
+  fetchImpl: typeof fetch = fetch,
+): Promise<ReactAppRuntimeManifest> {
+  const rawSources = new Map<string, string>();
+  const pending = new Set<string>();
+  const enqueue = (path: string) => {
+    if (!path || path.startsWith('data:')) {
+      return;
+    }
+    const rel = canonicalRelPath(new URL(path, baseUrl), baseUrl);
+    if (!rawSources.has(rel)) {
+      pending.add(rel);
+    }
+  };
+
+  for (const path of Object.values(manifest.importMap.imports)) {
+    enqueue(path);
+  }
+  for (const path of manifest.preload) {
+    enqueue(path);
+  }
+  for (const path of manifest.chunks ?? []) {
+    enqueue(path);
+  }
+
+  const stylesheetPromise =
+    manifest.stylesheet && !manifest.stylesheet.startsWith('data:')
+      ? fetchText(new URL(manifest.stylesheet, baseUrl).href, fetchImpl)
+      : Promise.resolve(null);
+
+  while (pending.size > 0) {
+    const batch = [...pending];
+    pending.clear();
+    const texts = await Promise.all(
+      batch.map(rel => fetchText(new URL(rel, baseUrl).href, fetchImpl)),
+    );
+    for (let i = 0; i < batch.length; i++) {
+      const rel = batch[i];
+      const text = texts[i];
+      rawSources.set(rel, text);
+      const fileUrl = new URL(rel, baseUrl);
+      for (const match of text.matchAll(RELATIVE_JS_SPECIFIER)) {
+        enqueue(canonicalRelPath(new URL(match[2], fileUrl), baseUrl));
+      }
+    }
+  }
+
+  const dataUrlByRel = new Map<string, string>();
+  for (const [rel, text] of rawSources) {
+    const fileUrl = new URL(rel, baseUrl);
+    const rewritten = text.replace(RELATIVE_JS_SPECIFIER, (_match, quote: string, spec: string) => {
+      const targetRel = canonicalRelPath(new URL(spec, fileUrl), baseUrl);
+      return `${quote}${chunkSpecifier(targetRel)}${quote}`;
+    });
+    dataUrlByRel.set(rel, toBase64DataUrl(rewritten, 'text/javascript'));
+  }
+
+  const entryRels = new Set<string>();
+  const imports: Record<string, string> = {};
+  for (const [name, path] of Object.entries(manifest.importMap.imports)) {
+    if (path.startsWith('data:')) {
+      imports[name] = path;
+      continue;
+    }
+    const rel = canonicalRelPath(new URL(path, baseUrl), baseUrl);
+    entryRels.add(rel);
+    imports[name] = dataUrlByRel.get(rel) ?? path;
+  }
+  for (const [rel, dataUrl] of dataUrlByRel) {
+    if (!entryRels.has(rel)) {
+      imports[chunkSpecifier(rel)] = dataUrl;
+    }
+  }
+
+  const cssText = await stylesheetPromise;
+  const stylesheet = cssText !== null ? toBase64DataUrl(cssText, 'text/css') : manifest.stylesheet;
+
+  return {
+    ...manifest,
+    importMap: {imports},
+    stylesheet,
+    preload: [],
+  };
+}
+
 /**
  * Loads the runtime manifest once per configuration: the configured one, or `manifest.json`
- * from the runtime directory.
+ * from the runtime directory. When `inlineDataUrls` is enabled (the default for a relative
+ * `runtimeBaseUrl`), also fetches the runtime's modules and stylesheet on the host page and
+ * converts them to `data:` URLs so the inner frame makes no cross-origin network requests.
  */
 export function loadRuntime(fetchImpl: typeof fetch = fetch): Promise<LoadedRuntime> {
   const baseUrl = resolveRuntimeBaseUrl();
-  const key = baseUrl.href;
+  const inlineDataUrls =
+    currentConfig.inlineDataUrls ??
+    (currentConfig.manifest === undefined && isRelativeUrl(currentConfig.runtimeBaseUrl));
+  const key = `${baseUrl.href}|inline=${String(inlineDataUrls)}`;
   if (loading?.key === key) {
     return loading.promise;
   }
   const configured = currentConfig.manifest;
-  const promise = configured
-    ? Promise.resolve({manifest: configured, baseUrl})
+  const manifestPromise = configured
+    ? Promise.resolve(configured)
     : fetchImpl(new URL('manifest.json', baseUrl).href).then(async response => {
         if (!response.ok) {
           throw new Error(`Loading the ReactApp runtime manifest failed: HTTP ${response.status}`);
         }
-        return {manifest: (await response.json()) as ReactAppRuntimeManifest, baseUrl};
+        return (await response.json()) as ReactAppRuntimeManifest;
       });
+  const promise = manifestPromise.then(async manifest => {
+    if (!inlineDataUrls) {
+      return {manifest, baseUrl, inlineDataUrls: false};
+    }
+    const inlined = await inlineRuntimeAsDataUrls(manifest, baseUrl, fetchImpl);
+    return {manifest: inlined, baseUrl, inlineDataUrls: true};
+  });
   loading = {key, promise};
   promise.catch(() => {
     if (loading?.promise === promise) {

@@ -250,4 +250,38 @@ test.describe('typed bindings and server compile', () => {
     expect(transpileChunks).toEqual([]);
     console.log(`compiled app: iframe ready -> ui/rendered: ${rendered.frameReadyToRenderedMs} ms`);
   });
+
+  test('inlineDataUrls loads the runtime, Sucrase and VegaChart from data: URLs with zero inner-frame HTTP requests', async ({
+    page,
+  }) => {
+    const innerFrameHttpRequests: string[] = [];
+    page.on('request', request => {
+      const frame = request.frame();
+      if (
+        frame &&
+        frame !== page.mainFrame() &&
+        frame.parentFrame() &&
+        frame.parentFrame() !== page.mainFrame() &&
+        /^https?:/.test(request.url())
+      ) {
+        innerFrameHttpRequests.push(request.url());
+      }
+    });
+    await page.goto(
+      `/?runtime=${encodeURIComponent(RUNTIME_ORIGIN)}&inline=1&example=loan_explorer`,
+    );
+    const frame = appFrame(page);
+
+    const bars = frame.locator('[aria-roledescription="bar"]');
+    await expect(bars).toHaveCount(10);
+    const importMap = await frame
+      .locator('script[type="importmap"]')
+      .evaluate(el => JSON.parse(el.textContent ?? '{}') as {imports: Record<string, string>});
+    expect(
+      Object.values(importMap.imports).every(url => url.startsWith('data:text/javascript;base64,')),
+    ).toBe(true);
+    expect(await frame.locator('link[rel="modulepreload"]').count()).toBe(0);
+    expect(innerFrameHttpRequests).toEqual([]);
+    expect(await page.evaluate(() => window.fixture.errors)).toEqual([]);
+  });
 });

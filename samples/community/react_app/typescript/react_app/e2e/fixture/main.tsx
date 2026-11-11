@@ -202,6 +202,7 @@ const example: {messages: unknown[]} | undefined = fixtureApp
   : EXAMPLES[exampleName];
 configureReactApp({
   runtimeBaseUrl: `${runtimeOrigin}/react-app/v1/`,
+  ...(query.get('inline') === '1' ? {inlineDataUrls: true} : {}),
   fontFaces: [{family: 'IBM Plex Sans', src: plexSans400, weight: '400'}],
 });
 

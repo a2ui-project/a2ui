@@ -61,16 +61,16 @@ export function buildAppDocument(runtime: LoadedRuntime, content: AppDocumentCon
   if (content.title !== undefined) {
     config['title'] = content.title;
   }
-  const preloads = manifest.preload
-    .map(path => `<link rel="modulepreload" href="${escapeAttribute(resolve(path))}" crossorigin>`)
-    .join('\n');
+  const preloads = manifest.preload.map(
+    path => `<link rel="modulepreload" href="${escapeAttribute(resolve(path))}" crossorigin>`,
+  );
   return [
     '<!doctype html>',
     '<html>',
     '<head>',
     '<meta charset="utf-8">',
     `<script type="importmap">${jsonForScript({imports})}</script>`,
-    preloads,
+    ...preloads,
     `<link rel="stylesheet" href="${escapeAttribute(resolve(manifest.stylesheet))}" crossorigin>`,
     `<script type="application/json" id="${APP_CONFIG_ELEMENT_ID}">${jsonForScript(config)}</script>`,
     `<script type="module">import {start} from ${JSON.stringify(manifest.entry)}; start();</script>`,

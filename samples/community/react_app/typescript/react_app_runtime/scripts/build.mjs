@@ -154,6 +154,10 @@ const firstRender = ['react', 'react/jsx-runtime', 'react-dom/client', 'a2ui', '
 const preload = staticClosure(firstRender.map(file => relative(packageDir, file))).map(
   file => `./${relative(outDir, join(packageDir, file))}`,
 );
+const chunks = Object.entries(result.metafile.outputs)
+  .filter(([file, output]) => file.endsWith('.js') && !output.entryPoint)
+  .map(([file]) => `./${relative(outDir, resolve(packageDir, file))}`)
+  .sort();
 
 const css = readFileSync(join(packageDir, 'src', 'runtime', 'a2ui-lite.css'));
 const cssHash = createHash('sha256').update(css).digest('hex').slice(0, 8).toUpperCase();
@@ -167,6 +171,7 @@ const manifest = {
   entry: 'a2ui-runtime',
   stylesheet: `./${stylesheet}`,
   preload,
+  chunks,
 };
 writeFileSync(join(outDir, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
 
