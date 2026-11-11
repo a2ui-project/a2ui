@@ -79,16 +79,14 @@ export interface IssueEvent {
 type Params = Record<string, unknown>;
 type Endpoint = (params: Params) => Promise<unknown>;
 
-export interface GitHub {
+/** The endpoints that read one item, which `fetchHistory` needs. */
+export interface GitHubReader {
   paginate<T>(endpoint: Endpoint, params: Params): Promise<T[]>;
   rest: {
     issues: {
-      listForRepo: Endpoint;
       listComments: Endpoint;
       listEvents: Endpoint;
       get(params: Params): Promise<{data: Item}>;
-      addLabels(params: Params): Promise<unknown>;
-      removeLabel(params: Params): Promise<unknown>;
     };
     pulls: {
       listReviews: Endpoint;
@@ -97,14 +95,42 @@ export interface GitHub {
   };
 }
 
+export interface GitHub extends GitHubReader {
+  rest: {
+    issues: GitHubReader['rest']['issues'] & {
+      listForRepo: Endpoint;
+      addLabels(params: Params): Promise<unknown>;
+      removeLabel(params: Params): Promise<unknown>;
+    };
+    pulls: GitHubReader['rest']['pulls'];
+  };
+}
+
 export interface Context {
   repo: {owner: string; repo: string};
 }
 
-interface Client {
-  github: GitHub;
+export interface Client {
+  github: GitHubReader;
   owner: string;
   repo: string;
+}
+
+/** What the bot reads about an item, besides the item itself. */
+export interface ItemHistory {
+  contributions: Contribution[];
+  // When WAITING_LABEL was last added, or null when unknown.
+  waitingSince: string | null;
+  // When ASSIGNED_FOR_TRIAGE_LABEL was last added, or null when unknown.
+  assignedForTriageSince: string | null;
+}
+
+/** What the bot decides for an item. */
+export interface Decision {
+  // True when WAITING_LABEL should be cleared.
+  clearWaiting: boolean;
+  // Why the item should carry FLAG_LABEL, or null if it should not.
+  reason: string | null;
 }
 
 export const WAITING_LABEL = 'status: waiting-for-author-response';
@@ -418,6 +444,48 @@ async function labelsAddedAt(
   return addedAt;
 }
 
+/**
+ * Reads the contributions to `item`, and when its timed labels were added. The
+ * event history is only needed for items carrying a label whose age matters,
+ * so it costs an extra call on those alone.
+ */
+export async function fetchHistory(client: Client, item: Item): Promise<ItemHistory> {
+  const labels = labelNames(item);
+  const timedLabels = [WAITING_LABEL, ASSIGNED_FOR_TRIAGE_LABEL].filter(name =>
+    labels.includes(name),
+  );
+  const [contributions, addedAt] = await Promise.all([
+    fetchContributions(client, item),
+    timedLabels.length > 0
+      ? labelsAddedAt(client, item, timedLabels)
+      : ({} as Record<string, string>),
+  ]);
+  return {
+    contributions,
+    waitingSince: addedAt[WAITING_LABEL] ?? null,
+    assignedForTriageSince: addedAt[ASSIGNED_FOR_TRIAGE_LABEL] ?? null,
+  };
+}
+
+/**
+ * Decides whether to clear WAITING_LABEL on `item`, and why it should carry
+ * FLAG_LABEL.
+ */
+export function decide(item: Item, history: ItemHistory, now: number): Decision {
+  const {contributions, waitingSince, assignedForTriageSince} = history;
+  const labels = labelNames(item);
+  const clearWaiting =
+    labels.includes(WAITING_LABEL) && externalHasResponded(contributions, waitingSince);
+
+  // Score the item as it will look once the waiting label is gone: a label
+  // this run clears must not also inhibit flagging until the next run.
+  const scored = clearWaiting
+    ? {...item, labels: labels.filter(label => label !== WAITING_LABEL)}
+    : item;
+
+  return {clearWaiting, reason: flagReason(scored, contributions, now, assignedForTriageSince)};
+}
+
 export default async function issueTriage({
   github,
   context,
@@ -438,29 +506,13 @@ export default async function issueTriage({
     per_page: 100,
   });
 
-  // Fetch each item's contributions in bounded concurrent batches to avoid a
-  // slow serial loop without flooding the API. The event history is only needed
-  // for items carrying a label whose age matters, so it costs an extra call on
-  // those alone.
-  const itemsWithContributions = await mapInBatches(openItems, async item => {
-    const client: Client = {github, owner, repo};
-    const labels = labelNames(item);
-    const timedLabels = [WAITING_LABEL, ASSIGNED_FOR_TRIAGE_LABEL].filter(name =>
-      labels.includes(name),
-    );
-    const [contributions, addedAt] = await Promise.all([
-      fetchContributions(client, item),
-      timedLabels.length > 0
-        ? labelsAddedAt(client, item, timedLabels)
-        : ({} as Record<string, string>),
-    ]);
-    return {
-      item,
-      contributions,
-      waitingSince: addedAt[WAITING_LABEL] ?? null,
-      assignedForTriageSince: addedAt[ASSIGNED_FOR_TRIAGE_LABEL] ?? null,
-    };
-  });
+  // Fetch each item's history in bounded concurrent batches to avoid a slow
+  // serial loop without flooding the API.
+  const client: Client = {github, owner, repo};
+  const itemsWithHistory = await mapInBatches(openItems, async item => ({
+    item,
+    history: await fetchHistory(client, item),
+  }));
 
   // Decide each item's desired state from the snapshot, and keep only those
   // whose labels need to change. The snapshot from `listForRepo` can be stale —
@@ -468,28 +520,13 @@ export default async function issueTriage({
   // a label, and GitHub's index can still list an item that is already closed —
   // so the mutation below re-reads each item and decides again on live data.
   // Contributions are carried along for that second pass.
-  const itemsToUpdate = itemsWithContributions
-    .map(({item, contributions, waitingSince, assignedForTriageSince}) => {
-      const labels = labelNames(item);
-      const clearWaiting =
-        labels.includes(WAITING_LABEL) && externalHasResponded(contributions, waitingSince);
-
-      // Score the item as it will look once the waiting label is gone: a label
-      // this run clears must not also inhibit flagging until the next run.
-      const scored = clearWaiting
-        ? {...item, labels: labels.filter(label => label !== WAITING_LABEL)}
-        : item;
-
+  const itemsToUpdate = itemsWithHistory
+    .map(({item, history}) => {
       // Retain contributions and the triage assignment time so the mutation
       // step can recompute the desired flag state from the live issue snapshot
       // (avoids flip-flops).
-      return {
-        item,
-        contributions,
-        assignedForTriageSince,
-        clearWaiting,
-        reason: flagReason(scored, contributions, now, assignedForTriageSince),
-      };
+      const {contributions, assignedForTriageSince} = history;
+      return {item, contributions, assignedForTriageSince, ...decide(item, history, now)};
     })
     .filter(
       ({item, clearWaiting, reason}) =>
