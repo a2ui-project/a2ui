@@ -18,7 +18,11 @@ Triage of an issue is done when the issue has a priority and no comment from an 
 6. Suggest removing labels that no longer apply, such as `status: needs-team-input` after the team answered, or `status: assigned-for-triage` once the item has a priority.
 7. Never add or remove `status: needs-triage`. The [flagger](../../../../tools/internal/triage/blueprints/flagging.blueprint.md) manages it.
 8. If a team member agreed in a comment that a contributor works on the issue, but did not assign them, suggest assigning them in `new_assignees`.
-9. If the item cannot be triaged without more expertise, suggest `status: needs-team-input` and say which question the team needs to answer. If you know an expert in the area, suggest assigning them with `status: assigned-for-triage` instead.
+9. If the item cannot be triaged without more expertise, find an expert in the affected area from the commit history (see step 4 of the [skill](../SKILL.md#step-4-research-the-item)), and name them in `suggestion` with the evidence, such as "wrote 6 of the last 20 commits to `renderers/lit`". Then follow the [second-line triage](../../../../docs/contributing/triage/triage.md#second-line-triage-weekly-by-triager) steps:
+   1. If the item does not have `status: needs-team-input`, suggest adding it, and say which question the team needs to answer.
+   2. If it has `status: needs-team-input`, the team could not triage it in a couple of minutes. Suggest assigning the expert in `new_assignees`, adding `status: assigned-for-triage`, and removing `status: needs-team-input`.
+
+   If you find no expert who can be assigned, say so, and suggest only `status: needs-team-input`.
 
 ## Issues
 
