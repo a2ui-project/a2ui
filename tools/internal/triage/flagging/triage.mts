@@ -60,6 +60,8 @@ export interface RawContribution {
   submitted_at?: string;
   author_association: string;
   user: User | null;
+  // Null on a review submitted without a summary.
+  body?: string | null;
 }
 
 /** A contribution in the common shape `toEvent` gives it. */
@@ -135,6 +137,23 @@ const MAINTAINER_ASSOCIATIONS = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
 // past contributions still count, rather than silently classifying them as a bot.
 export const isBot = (user: User | null | undefined): boolean =>
   user != null && (user.type === 'Bot' || /\[bot\]$/.test(user.login || ''));
+
+// Opens a comment that the triage tooling posts from a maintainer's account,
+// such as a triage suggestion: `**From triage bot:**`, in either Markdown bold
+// form or plain.
+const TRIAGE_BOT_PREFIX = /^\s*(\*\*|__)?From triage bot:/;
+
+/**
+ * True for a comment a maintainer posted on behalf of the triage tooling. Such
+ * a comment is a suggestion for the team, not a response, so it must neither
+ * reset the staleness clock nor answer an external comment.
+ *
+ * Only maintainer comments qualify; otherwise anyone outside the team could
+ * hide their comment from triage by starting it with the prefix.
+ */
+export const isTriageBotComment = (contribution: RawContribution): boolean =>
+  MAINTAINER_ASSOCIATIONS.has(contribution.author_association) &&
+  TRIAGE_BOT_PREFIX.test(contribution.body ?? '');
 
 // True for anyone outside the team, bots included: an issue a workflow files or
 // a PR dependabot opens needs triage as much as one from an outside human.
@@ -331,6 +350,8 @@ const toEvent = (contribution: RawContribution): Contribution => ({
  * would leave WAITING_LABEL on a PR that has been answered. A failure for one
  * source must not abort the whole run, so errors fall back to an empty list for
  * that source.
+ *
+ * Comments the triage tooling posted are left out (see `isTriageBotComment`).
  */
 async function fetchContributions(
   {github, owner, repo}: Client,
@@ -372,7 +393,9 @@ async function fetchContributions(
       : [],
   ]);
 
-  return [...issueComments, ...reviews, ...reviewComments].map(toEvent);
+  return [...issueComments, ...reviews, ...reviewComments]
+    .filter(contribution => !isTriageBotComment(contribution))
+    .map(toEvent);
 }
 
 /**
