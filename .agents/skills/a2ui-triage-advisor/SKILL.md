@@ -95,7 +95,7 @@ The [`TriageSuggestion`](../../../tools/internal/triage_new/pkgs/triage/lib/src/
 
 1. `summary` (required): what the item is about, in one or two sentences, for a triager who has not read it.
 2. `reason`: why the item is flagged for triage. Copy it unchanged from the output of `flag_reason.mts` in step 2, and omit it when the output has `null`. Do not work out the reason yourself: the script uses the same code as the flagger, so the two always agree.
-3. `suggestion` (required): what the triager should do and why. Name the evidence with links.
+3. `suggestion` (required): what the triager should do and why. Name the evidence, with links (see the rules for links below).
 4. `reply`: a comment for the item's author or other participants, which the triage UI posts when the triager applies the suggestion. Copy it from [templates.md](../../../docs/contributing/triage/templates.md) when a template fits. Add a reply when the author needs to act, when an out-of-team contributor's question is unanswered, or when the item is closed.
 5. `close_as`: `completed`, `not_planned` or `duplicate`, when the triager should close the item. Omit it to keep the item open.
 6. `duplicate_of`: with `close_as` set to `duplicate`, the number of the item this one duplicates.
@@ -116,6 +116,15 @@ Rules for the lists:
 6. Do not repeat an entry in a list.
 
 Write `summary` and `suggestion` for the triager, and `reply` for the people on the item, following the natural-writing rules. In `suggestion`, state the action first, then why. Do not use filler such as "I hope this helps".
+
+Rules for links in `summary`, `suggestion` and `reply`:
+
+1. Link every artifact you mention, so that the triager can check it in one click: files, folders, lines of code, commits, workflow runs, docs pages and specifications.
+2. Put the link on the words that name the artifact. In "The `genui` package README links to `./DESIGN.md`", link "README" to the README file, not to its repository.
+3. Write an issue or a PR as `#123` in `a2ui-project/a2ui`, and as `owner/repo#123` in another repository. GitHub turns both into links.
+4. Link files and lines to a commit SHA, not to a branch, so that the link keeps showing what you read after the branch moves: `https://github.com/<owner>/<repo>/blob/<sha>/<path>#L10-L20`. Get the SHA of `main` with `gh api repos/<owner>/<repo>/commits/main -q .sha`. For a Markdown file, add `?plain=1` before the line anchor.
+5. When you name someone as an owner or an expert from the commit history in step 4, link the history: `https://github.com/a2ui-project/a2ui/commits/main/<path>`.
+6. Check that every link resolves before you post.
 
 ## Step 7: Format the comment
 
@@ -206,7 +215,7 @@ The Flutter renderer throws an exception when a `Row` has an empty `children` li
 This issue has external input but no priority label yet.
 
 **Suggestion:**
-Set P1 and assign `flutter-owner`, who wrote most recent changes to `dart/a2ui_flutter`. Any agent that streams an empty `Row` crashes the surface, and there is no workaround. #1234 reports the same crash for `Column` and probably has the same cause.
+Set P1 and assign `flutter-owner`, who wrote [most recent changes](https://github.com/a2ui-project/a2ui/commits/main/dart/a2ui_flutter) to `dart/a2ui_flutter`. Any agent that streams an empty `Row` crashes the surface, and there is no workaround. #1234 reports the same crash for `Column` and probably has the same cause.
 
 1. Add labels: `type: bug`, `P1`, `component: flutter adapter`, `status: first-line-handled`
 2. Assign: `flutter-owner`
@@ -228,7 +237,7 @@ tools/internal/triage_new/triage_ui.sh https://github.com/a2ui-project/a2ui/issu
 root = TriageSuggestion(
   summary="""The Flutter renderer throws an exception when a `Row` has an empty `children` list. The report includes a stack trace and a three-line payload that reproduces it.""",
   reason="This issue has external input but no priority label yet.",
-  suggestion="""Set P1 and assign `flutter-owner`, who wrote most recent changes to `dart/a2ui_flutter`. Any agent that streams an empty `Row` crashes the surface, and there is no workaround. #1234 reports the same crash for `Column` and probably has the same cause.""",
+  suggestion="""Set P1 and assign `flutter-owner`, who wrote [most recent changes](https://github.com/a2ui-project/a2ui/commits/main/dart/a2ui_flutter) to `dart/a2ui_flutter`. Any agent that streams an empty `Row` crashes the surface, and there is no workaround. #1234 reports the same crash for `Column` and probably has the same cause.""",
   added_labels=["type: bug", "P1", "component: flutter adapter", "status: first-line-handled"],
   new_assignees=["flutter-owner"],
   related_issues=[1234]
