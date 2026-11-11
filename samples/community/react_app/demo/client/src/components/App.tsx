@@ -17,7 +17,7 @@
 import {renderMarkdown} from '@a2ui/markdown-it';
 import {MarkdownContext} from '@a2ui/react';
 import {useEffect, useRef, useState, useSyncExternalStore} from 'react';
-import type {DemoSession} from '../lib/session';
+import type {DemoSession} from '../services/session';
 import {AboutPanel} from './AboutPanel';
 import {Composer} from './Composer';
 import {EmptyState} from './EmptyState';

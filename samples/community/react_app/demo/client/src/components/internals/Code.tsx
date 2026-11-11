@@ -15,7 +15,7 @@
  */
 
 import type {ReactNode} from 'react';
-import type {Token} from '../../lib/highlight';
+import type {Token} from '../../services/highlight';
 
 /** Renders highlighted tokens; `renderToken` can replace any token (used to fold code). */
 export function Code({

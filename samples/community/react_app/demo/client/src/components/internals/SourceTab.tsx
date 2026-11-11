@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import {highlightTsx} from '../../lib/highlight';
-import type {TurnState} from '../../lib/session';
+import {highlightTsx} from '../../services/highlight';
+import type {TurnState} from '../../services/session';
 import {Code, TabEmpty} from './Code';
 
 /** The ReactApp sources as the model wrote them, with the checks they went through. */

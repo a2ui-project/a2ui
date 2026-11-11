@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import {highlightJson} from '../../lib/highlight';
-import type {TurnState} from '../../lib/session';
+import {highlightJson} from '../../services/highlight';
+import type {TurnState} from '../../services/session';
 import {Code, TabEmpty} from './Code';
 
 /** A one-line summary of an A2UI message: its kind, surface and size. */

@@ -15,7 +15,7 @@
  */
 
 import {useState} from 'react';
-import type {DemoSession, TurnState} from '../../lib/session';
+import type {DemoSession, TurnState} from '../../services/session';
 import {BridgeTab} from './BridgeTab';
 import {DataModelTab} from './DataModelTab';
 import {ExpressTab} from './ExpressTab';

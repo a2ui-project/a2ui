@@ -146,12 +146,20 @@ test('itinerary: dragging a stop calls estimateTravelTime on the agent', async (
     .toBe(true);
   await expect.poll(() => dataModels(page, turnId)).not.toBe(modelBefore);
 
-  // The latest estimate shows in the app.
+  // The latest estimate shows on the page: in the app, or in a native text the app wrote.
   const results = entriesAfter(await bridgeEntries(page, turnId), seq, 'function/call').filter(
     entry => entry.method === 'result',
   );
-  const minutes = (results.at(-1)!.payload as {value?: unknown}).value;
-  await expect(frame.locator('body')).toContainText(String(minutes));
+  const minutes = Number((results.at(-1)!.payload as {value?: unknown}).value);
+  // Apps write the total as "65 min" or as "1h 5m".
+  const shows = (text: string) =>
+    text.includes(String(minutes)) ||
+    (text.includes(`${Math.floor(minutes / 60)}h`) && text.includes(String(minutes % 60)));
+  await expect
+    .poll(
+      async () => shows(await frame.locator('body').innerText()) || shows(await nativeText(turn)),
+    )
+    .toBe(true);
 
   const checkpoints = await recordLatency(page, testInfo, 'trip', turnId);
   expect.soft(checkpoints['T7']! - checkpoints['T4']!).toBeLessThan(RENDER_BUDGET_MS);

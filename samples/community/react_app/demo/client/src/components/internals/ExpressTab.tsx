@@ -15,8 +15,8 @@
  */
 
 import {useMemo, useState} from 'react';
-import {highlightExpress, highlightTsx} from '../../lib/highlight';
-import type {TurnState} from '../../lib/session';
+import {highlightExpress, highlightTsx} from '../../services/highlight';
+import type {TurnState} from '../../services/session';
 import {Code, TabEmpty} from './Code';
 
 /** The raw model output; `r"""` code blocks fold until clicked. */

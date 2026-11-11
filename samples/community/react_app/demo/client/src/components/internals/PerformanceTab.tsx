@@ -15,7 +15,7 @@
  */
 
 import {useSyncExternalStore} from 'react';
-import {CHECKPOINTS, type DemoSession, type TurnState} from '../../lib/session';
+import {CHECKPOINTS, type DemoSession, type TurnState} from '../../services/session';
 
 const formatMs = (ms: number) => `${Math.round(ms).toLocaleString('en-US')} ms`;
 

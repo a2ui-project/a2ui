@@ -17,7 +17,7 @@
 import {REACT_APP_BRIDGE_EVENT, type ReactAppBridgeEvent} from '@a2ui-labs/react-app';
 import {A2uiSurface} from '@a2ui/react';
 import {useEffect, useRef, useState} from 'react';
-import type {DemoSession, TurnState} from '../lib/session';
+import type {DemoSession, TurnState} from '../services/session';
 import {AppSkeleton} from './AppSkeleton';
 import {Chevron} from './glyphs';
 import {InternalsPanel} from './internals/InternalsPanel';

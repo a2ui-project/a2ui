@@ -15,7 +15,7 @@
  */
 
 import {useMemo, useState, useSyncExternalStore} from 'react';
-import type {BridgeEntry, BridgeLog} from '../../lib/bridge_log';
+import type {BridgeEntry, BridgeLog} from '../../services/bridge_log';
 import {TabEmpty} from './Code';
 
 const FILTERS = [

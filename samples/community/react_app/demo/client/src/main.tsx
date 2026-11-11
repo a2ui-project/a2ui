@@ -27,7 +27,7 @@ import './styles/app.css';
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import {App} from './components/App';
-import {DemoSession} from './lib/session';
+import {DemoSession} from './services/session';
 
 const session = new DemoSession();
 

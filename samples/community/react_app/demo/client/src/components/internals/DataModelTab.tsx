@@ -15,8 +15,8 @@
  */
 
 import {useEffect, useState, useSyncExternalStore} from 'react';
-import {writtenPaths} from '../../lib/bridge_log';
-import type {DemoSession, TurnState} from '../../lib/session';
+import {writtenPaths} from '../../services/bridge_log';
+import type {DemoSession, TurnState} from '../../services/session';
 import {TabEmpty} from './Code';
 
 const POLL_MS = 300;

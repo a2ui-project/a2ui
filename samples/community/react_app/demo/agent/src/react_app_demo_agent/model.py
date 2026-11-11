@@ -291,11 +291,13 @@ class RecordingModel:
         document: dict[str, list[dict[str, object]]] = {"entries": []}
         if self._path.exists():
             document = json.loads(self._path.read_text(encoding="utf-8"))
+        key = recording_key(str(entry["key"]))
+        # A first attempt starts a new recording of the key: drop its old retries.
         document["entries"] = [
             e
             for e in document["entries"]
-            if (recording_key(str(e["key"])), e.get("attempt", 1))
-            != (recording_key(str(entry["key"])), entry["attempt"])
+            if recording_key(str(e["key"])) != key
+            or (entry["attempt"] != 1 and e.get("attempt", 1) != entry["attempt"])
         ] + [entry]
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._path.write_text(json.dumps(document, indent=1) + "\n", encoding="utf-8")
