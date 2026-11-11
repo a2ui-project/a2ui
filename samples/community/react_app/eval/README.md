@@ -16,7 +16,7 @@ A sample passes when Stage 1/2 pass, every hard check passes and the judge grade
 
 ## Running
 
-The suites live in their own uv project, with editable path dependencies on `eval/`, the agent SDK and `a2ui-react-app`. The TypeScript checks run in a Node worker ([`node/check_react_app.mjs`](node/check_react_app.mjs)) that uses Sucrase and TypeScript from the ReactApp Yarn project, so run `yarn install` in `samples/community/react_app` first.
+The suites live in their own uv project, with editable path dependencies on `eval/`, the agent SDK and `a2ui-react-app`. The TypeScript compile and type check run in the worker of [`@a2ui-labs/react-app-compiler`](../typescript/react_app_compiler/), so run `yarn install && yarn build` in `samples/community/react_app` first.
 
 ```bash
 cd samples/community/react_app/eval

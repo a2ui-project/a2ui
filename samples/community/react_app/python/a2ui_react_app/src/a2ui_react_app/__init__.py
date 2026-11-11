@@ -42,6 +42,16 @@ from ._compiler import (
     default_worker_path,
 )
 from ._prompt import react_app_prompt
+from ._repair import (
+    Generate,
+    RepairAttempt,
+    RepairResult,
+    compile_and_repair,
+    gemini_generate,
+    repair_prompt,
+    repair_react_app,
+    repair_system_instruction,
+)
 from ._source import ReactAppSourceFacts, react_app_source_facts
 from ._transformer import (
     ReactAppCompile,
@@ -54,6 +64,7 @@ __all__ = [
     "BINDINGS_MODULE",
     "CompileDiagnostic",
     "CompileResult",
+    "Generate",
     "REACT_APP_CATALOG_ID",
     "ReactAppBindings",
     "ReactAppCompile",
@@ -64,11 +75,18 @@ __all__ = [
     "ReactAppTransformer",
     "ReactAppTransportResult",
     "ReactAppValidationError",
+    "RepairAttempt",
+    "RepairResult",
     "check_react_app",
+    "compile_and_repair",
     "default_worker_path",
+    "gemini_generate",
     "react_app_bindings",
     "react_app_catalog",
     "react_app_examples",
     "react_app_prompt",
     "react_app_source_facts",
+    "repair_prompt",
+    "repair_react_app",
+    "repair_system_instruction",
 ]

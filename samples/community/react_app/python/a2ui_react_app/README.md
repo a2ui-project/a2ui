@@ -12,6 +12,7 @@ The package gives an agent:
 - `react_app_source_facts(source)`: what a source reads, writes, calls, dispatches and imports, read with regular expressions. The checks, the transformer and the evals all use it.
 - `ReactAppCompiler`: a client of the compile worker of `@a2ui-labs/react-app-compiler`, which transpiles with Sucrase and type-checks with a warm TypeScript language service. Given to `ReactAppTransformer(compiler=...)`, it fills in each app's `compiled`, so the frame skips its own transpile.
 - `react_app_bindings(catalogs)`: the declarations of the `a2ui:bindings` module, one typed async function per catalog function, agent functions included. Pass them to `react_app_prompt(..., bindings=...)` and to the transformer, and a wrong call fails the type check. Names that aren't ASCII identifiers, and reserved words such as `delete`, are left out.
+- `repair_react_app(...)`, `compile_and_repair(...)` and `repair_system_instruction(...)`: send a failing source and its diagnostics back to the model (with rules and declarations in the system instruction and dynamic backtick fences), re-check both structural rules and types, and swap in the candidate only when it improves on the original. `gemini_generate()` is a ready model call (install the `gemini` extra).
 
 ## Usage
 

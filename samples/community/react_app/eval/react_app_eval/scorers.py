@@ -34,15 +34,19 @@ from a2ui_eval.runner import (
     runner_options_from_metadata,
 )
 from a2ui_eval.shared.utils import GIT_ROOT
-from a2ui_react_app import check_react_app
+from a2ui_react_app import (
+    CompileResult,
+    ReactAppCompiler,
+    ReactAppTransformer,
+    check_react_app,
+)
 from inspect_ai.model import ChatMessageAssistant
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer
 from inspect_ai.solver import TaskState
 from pydantic import TypeAdapter
 
-from .checker import CheckResult, ReactAppChecker, default_checker
 from .facts import SourceFacts, iter_react_apps, iter_strings, source_facts
-from .solvers import sample_catalogs
+from .solvers import BINDINGS_KEY, sample_catalogs, shared_compiler
 
 __all__ = [
     "EXPRESS_KEYS",
@@ -111,12 +115,13 @@ def _zero(keys: Sequence[str]) -> dict[str, float]:
 
 @scorer(metrics={key: [mean()] for key in REACT_APP_KEYS})
 def react_app_scorer(
-    checker: Callable[[], ReactAppChecker] = default_checker,
+    compiler: Callable[[], ReactAppCompiler] = shared_compiler,
 ) -> Scorer:
     """Checks the ReactApp components of the compiled payload.
 
     Keys: `present` (a ReactApp exists), `compiles` (Sucrase, as in the frame),
-    `typechecks` (TypeScript against `a2ui.d.ts`; reported only), `paths` (the
+    `typechecks` (TypeScript against `a2ui.d.ts`, `@types/react` and the
+    sample's `a2ui:bindings` declarations, through the server compiler; reported only), `paths` (the
     app reads or writes every path of `expect.paths`), `functions` (it calls
     every function of `expect.functions`), `imports` (only allowed modules, a
     default export, no three double quotes), `styling` (primitives, theme or
@@ -136,21 +141,34 @@ def react_app_scorer(
 
         expect: Mapping[str, Any] = state.metadata.get("expect") or {}
         sources = [str(app.get("source") or "") for app in apps]
-        results: list[CheckResult] = [
-            await checker().check(source) for source in sources
+        declarations = state.metadata.get(BINDINGS_KEY)
+        results: list[CompileResult] = [
+            await asyncio.to_thread(compiler().compile, source, bindings=declarations)
+            for source in sources
         ]
         facts = _merge([source_facts(source) for source in sources])
-        diagnostics = [d for app in apps for d in check_react_app(app)]
+        diagnostics = [
+            d
+            for app in apps
+            for d in check_react_app(
+                ReactAppTransformer.fill_allowlists(
+                    {k: v for k, v in app.items() if k != "compiled"}
+                )
+            )
+        ]
 
         problems: list[str] = []
         value: dict[str, float] = {"present": 1.0}
-        value["compiles"] = float(all(r.transpiled for r in results))
+        value["compiles"] = float(all(r.compiled is not None for r in results))
         if not value["compiles"]:
             problems += [
-                f"Sucrase: {r.transpile_error}" for r in results if not r.transpiled
+                f"Sucrase: {d.message}"
+                for r in results
+                for d in r.diagnostics
+                if d.phase == "transpile"
             ]
-        value["typechecks"] = float(all(r.type_checks for r in results))
-        type_errors = [e for r in results for e in r.type_errors]
+        value["typechecks"] = float(all(r.ok for r in results))
+        type_errors = [d for r in results for d in r.diagnostics if d.phase == "type"]
         if type_errors:
             problems += [
                 f"tsc {e.line}:{e.column}: {e.message.splitlines()[0]}"
@@ -198,7 +216,7 @@ def react_app_scorer(
             "apps": len(apps),
             "source_chars": sum(len(s) for s in sources),
             "type_errors": len(type_errors),
-            "check_ms": sum(r.ms for r in results),
+            "check_ms": sum(r.round_trip_ms for r in results),
             "paths": sorted(facts.paths),
             "functions": sorted(facts.functions),
             "primitives": sorted(facts.primitives),

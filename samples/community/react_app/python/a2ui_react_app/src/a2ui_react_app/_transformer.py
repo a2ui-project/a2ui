@@ -91,6 +91,10 @@ class ReactAppCompile:
         result: The compiler's result, with timings.
         diagnostics: The problems that count under the transformer's
             `type_errors` policy.
+        message_index: Index of the message in the turn.
+        envelope: `"createSurface"` or `"updateComponents"`.
+        component_index: Index of the component in the envelope's `components`.
+        component: Snapshot of the component dict (with filled allowlists).
     """
 
     component_id: str | None
@@ -98,6 +102,10 @@ class ReactAppCompile:
     source: str
     result: CompileResult
     diagnostics: tuple[ReactAppDiagnostic, ...] = ()
+    message_index: int = 0
+    envelope: str = ""
+    component_index: int = 0
+    component: Mapping[str, Any] = field(default_factory=dict)
 
     @property
     def ok(self) -> bool:
@@ -183,6 +191,12 @@ class ReactAppTransformer:
         self.type_errors: Literal["error", "warning"] = type_errors
         self._surface_catalogs: OrderedDict[str, str | None] = OrderedDict()
         self._functions: frozenset[str] | None = None
+        self.last_result: ReactAppTransportResult | None = None
+
+    @property
+    def declared_functions(self) -> frozenset[str] | None:
+        """The functions an app may call, once `transform_catalogs` has run."""
+        return self._functions
 
     def transform_catalogs(self, catalogs: Sequence[CatalogApi]) -> list[CatalogApi]:
         """Returns the catalogs, with the ReactApp catalog added if it is missing.
@@ -306,7 +320,7 @@ class ReactAppTransformer:
         out: list[AgentToRendererMessage] = []
         diagnostics: list[ReactAppDiagnostic] = []
         compiles: list[ReactAppCompile] = []
-        for message in messages:
+        for message_index, message in enumerate(messages):
             msg = message.model_dump(by_alias=True, exclude_none=True)
             self._track_surfaces(msg, surfaces)
             changed = False
@@ -328,7 +342,7 @@ class ReactAppTransformer:
                         }
                         components[index] = component
                         changed = True
-                    completed = self._fill_allowlists(component)
+                    completed = self.fill_allowlists(component)
                     if completed is not component:
                         component = completed
                         components[index] = component
@@ -336,30 +350,52 @@ class ReactAppTransformer:
                     found = check_react_app(
                         component, surface_id=surface_id, functions=self._functions
                     )
-                    diagnostics += found
-                    if found or self.compiler is None:
+                    source = component.get("source")
+                    if (
+                        self.compiler is None
+                        or not isinstance(source, str)
+                        or not source.strip()
+                    ):
+                        diagnostics += found
                         continue
-                    compiled = self._compile(component, surface_id)
+                    compiled = self._compile(
+                        component,
+                        surface_id,
+                        structural=found,
+                        message_index=message_index,
+                        envelope=envelope,
+                        component_index=index,
+                    )
                     compiles.append(compiled)
                     diagnostics += compiled.diagnostics
-                    if compiled.result.compiled is not None:
+                    if not found and compiled.result.compiled is not None:
                         component["compiled"] = compiled.result.compiled
                         changed = True
             out.append(to_message_models([msg])[0] if changed else message)
-        return ReactAppTransportResult(
+        result = ReactAppTransportResult(
             messages=out, diagnostics=diagnostics, compiles=compiles
         )
+        self.last_result = result
+        return result
 
     def _compile(
-        self, component: dict[str, Any], surface_id: str | None
+        self,
+        component: dict[str, Any],
+        surface_id: str | None,
+        *,
+        structural: Sequence[ReactAppDiagnostic] = (),
+        message_index: int = 0,
+        envelope: str = "",
+        component_index: int = 0,
     ) -> ReactAppCompile:
         assert self.compiler is not None
         raw_id = component.get("id")
         component_id = raw_id if isinstance(raw_id, str) else None
         source = str(component.get("source") or "")
+        snapshot = copy.deepcopy(component)
         bindings_dts = (
             self.bindings.declarations
-            if self.bindings is not None and self.bindings.names
+            if self.bindings is not None and self.bindings.declarations.strip()
             else None
         )
         try:
@@ -383,12 +419,19 @@ class ReactAppTransformer:
                 surface_id=surface_id,
                 source=source,
                 result=CompileResult(ok=False, compiled=None),
-                diagnostics=(unavailable,),
+                diagnostics=(*structural, unavailable),
+                message_index=message_index,
+                envelope=envelope,
+                component_index=component_index,
+                component=snapshot,
             )
         diagnostics = [
-            compile_diagnostic(d, component_id=component_id, surface_id=surface_id)
-            for d in result.diagnostics
-            if d.phase == "transpile" or self.type_errors == "error"
+            *structural,
+            *(
+                compile_diagnostic(d, component_id=component_id, surface_id=surface_id)
+                for d in result.diagnostics
+                if d.phase == "transpile" or self.type_errors == "error"
+            ),
         ]
         if self.type_errors == "warning" and any(
             d.phase == "type" for d in result.diagnostics
@@ -398,16 +441,22 @@ class ReactAppTransformer:
                 component_id,
                 "\n".join(d.describe() for d in result.diagnostics),
             )
+        if not structural and result.compiled is not None:
+            snapshot["compiled"] = result.compiled
         return ReactAppCompile(
             component_id=component_id,
             surface_id=surface_id,
             source=source,
             result=result,
             diagnostics=tuple(diagnostics),
+            message_index=message_index,
+            envelope=envelope,
+            component_index=component_index,
+            component=snapshot,
         )
 
     @staticmethod
-    def _fill_allowlists(component: dict[str, Any]) -> dict[str, Any]:
+    def fill_allowlists(component: dict[str, Any]) -> dict[str, Any]:
         """Returns the component with its missing allowlists filled in, if any were.
 
         A list is filled only when the source uses something it would allow
