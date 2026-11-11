@@ -14,6 +14,7 @@
 
 import 'package:a2ui_core/a2ui_core.dart';
 
+import '../inference_formats/express/schema_helper.dart';
 import 'catalogs.dart';
 
 /// Reads the decoded messages of one payload into messages of the protocol
@@ -54,6 +55,11 @@ class MessageReader {
   _validators = {
     for (final CatalogApi catalog in catalogs)
       catalog.id: PayloadValidator(catalog: catalog),
+  };
+
+  late final Map<String, CatalogSchemaHelper> _helpers = {
+    for (final CatalogApi catalog in catalogs)
+      catalog.id: CatalogSchemaHelper(catalog),
   };
 
   /// Checks each `callRendererFunction` as a renderer holding [catalogs]
@@ -243,15 +249,12 @@ class MessageReader {
     }
   }
 
-  bool _hasCustomProperty(
-    String catalogId,
-    String component,
-    String property,
-  ) =>
-      _validators[catalogId]?.catalog
-          .customComponentProperties(component)
-          .contains(property) ??
-      false;
+  bool _hasCustomProperty(String catalogId, String component, String property) {
+    final CatalogSchemaHelper? helper = _helpers[catalogId];
+    return helper != null &&
+        helper.isComponent(component) &&
+        helper.properties(component).contains(property);
+  }
 
   /// The validator of the active catalog [catalogId], which [subject] names.
   ///

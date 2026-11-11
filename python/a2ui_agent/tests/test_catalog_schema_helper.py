@@ -114,7 +114,10 @@ def inheriting_helper() -> CatalogSchemaHelper:
                     "mode": {"type": "string"},
                     "size": {"type": "string", "enum": ["l"]},
                     "label": {"$ref": "common_types.json#/$defs/ComponentId"},
-                    "checks": {"type": "array"},
+                    "checks": {
+                        "type": "array",
+                        "items": {"$ref": "common_types.json#/$defs/CheckRule"},
+                    },
                     "extra": {"type": "string"},
                 },
                 "required": ["component"],
