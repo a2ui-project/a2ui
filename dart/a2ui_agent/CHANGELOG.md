@@ -1,11 +1,20 @@
 # [a2ui_agent](https://pub.dev/packages/a2ui_agent) Changelog
 
-## Unreleased
+## 0.3.0
+
+- **Breaking:** Requires `a2ui_core` `^0.7.0`, whose types this library
+  re-exports.
 
 - Add `readRendererCapabilities(metadata, version)`, `a2uiClientCapabilitiesKey`,
   and `a2uiRendererCapabilitiesKey` to extract and validate
   `A2uiRendererCapabilities` from transport metadata.
   [#4013](https://github.com/a2ui-project/a2ui/pull/4013)
+- (v1_0) Express compiles, decompiles and prompts the protocol's system
+  functions, which no catalog defines: `@index()` and `@index(offset=1)`
+  compile to `{"@call": "@index", ...}` without a `catalogId`, the decompiler
+  writes such calls back as `@index(...)`, and the v1.0 Express prompt lists
+  `@index(offset?)`. Before v1.0, `@index()` is a validation error
+  ([#3725](https://github.com/a2ui-project/a2ui/issues/3725), [#4025](https://github.com/a2ui-project/a2ui/pull/4025)).
 
 ## 0.2.0
 
@@ -28,12 +37,6 @@
   ([#3534](https://github.com/a2ui-project/a2ui/issues/3534),
   [#4008](https://github.com/a2ui-project/a2ui/pull/4008)).
 - Export `agentCallableFunctions` from `package:a2ui_agent/a2ui_agent.dart` to return the names of functions across active catalogs that the agent may invoke via `callRendererFunction` ([#3864](https://github.com/a2ui-project/a2ui/pull/3864), [#3880](https://github.com/a2ui-project/a2ui/pull/3880)).
-- (v1_0) Express compiles, decompiles and prompts the protocol's system
-  functions, which no catalog defines: `@index()` and `@index(offset=1)`
-  compile to `{"@call": "@index", ...}` without a `catalogId`, the decompiler
-  writes such calls back as `@index(...)`, and the v1.0 Express prompt lists
-  `@index(offset?)`. Before v1.0, `@index()` is a validation error
-  ([#3725](https://github.com/a2ui-project/a2ui/issues/3725), [#4025](https://github.com/a2ui-project/a2ui/pull/4025)).
 - `DirectJsonPromptGenerator.generate()` follows the prompt layout
   the other SDKs use: the rules without the `## Workflow Description:` heading,
   then a schema block with the protocol schemas, then one schema block per
