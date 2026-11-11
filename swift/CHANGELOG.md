@@ -5,6 +5,12 @@
 - Report the component definition ID rather than the synthesized `:index` instance ID as
   `sourceComponentID` on actions dispatched from template-expanded components.
   [#4043](https://github.com/a2ui-project/a2ui/pull/4043)
+- Deprecate `A2UICatalogsKey`, `A2UIDefaultCatalogIDKey`, and `A2UIThemeKey` in `A2UISwiftUI` in
+  favor of `EnvironmentValues.a2uiCatalogs`, `EnvironmentValues.a2uiDefaultCatalogID`, and
+  `EnvironmentValues.a2uiTheme`, and update `BasicCatalogSwiftUI` components (`A2UIIcon` and
+  `A2UIChoicePicker` Dynamic Type scaling, multi-line `TextField(axis: .vertical)` for `longText`
+  `A2UITextField`, and SVG path parsing improvements in `SVGPathParser` / `SVGPathShape`).
+  [#4023](https://github.com/a2ui-project/a2ui/pull/4023)
 
 ## 0.10.0
 

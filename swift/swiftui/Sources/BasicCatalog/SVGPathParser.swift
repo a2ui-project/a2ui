@@ -186,7 +186,7 @@ public enum SVGPathParser {
     }
 
     for character in input {
-      if (character == "e" || character == "E"),
+      if character == "e" || character == "E",
         !hasExponentInCurrent,
         currentNumber.contains(where: { $0.isASCII && $0.isWholeNumber })
       {
