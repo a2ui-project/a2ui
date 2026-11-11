@@ -1007,6 +1007,11 @@ code {
   color: var(--ink-muted);
 }
 
+.bridge-method {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .bridge-up .bridge-method {
   color: var(--accent-deep);
 }
@@ -1119,7 +1124,7 @@ mark.written-key {
 
 .waterfall-row {
   display: grid;
-  grid-template-columns: 3ch 15em 1fr 8ch;
+  grid-template-columns: 3ch 18em 1fr 8ch;
   gap: var(--s-2);
   align-items: center;
   font-size: var(--text-s);

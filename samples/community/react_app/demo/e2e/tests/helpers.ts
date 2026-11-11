@@ -93,6 +93,14 @@ export async function turnSnapshot(page: Page, turnId: string): Promise<TurnSnap
   );
 }
 
+/**
+ * Data marks of the Vega charts in an app frame: bars, points, lines. Legends, axes and brush
+ * rectangles don't count, so an empty chart has none.
+ */
+export function chartMarks(frame: FrameLocator): Locator {
+  return frame.locator('svg g.role-mark:not([class*="brush"]) > [role="graphics-symbol"]');
+}
+
 /** The app frame of the turn's first ReactApp (the inner frame of the sandbox proxy). */
 export function appFrame(turn: Locator): FrameLocator {
   return turn.frameLocator('a2ui-react-app iframe').first().frameLocator('iframe');

@@ -29,9 +29,11 @@ const AGENT_PORT = Number(process.env['DEMO_E2E_AGENT_PORT'] ?? 8797);
 const CLIENT_PORT = Number(process.env['DEMO_E2E_CLIENT_PORT'] ?? 5397);
 process.env['DEMO_E2E_RUN_ID'] ??= new Date().toISOString();
 
+// DEMO_E2E_RECORDINGS replays another directory, for example to rerun a failed live response.
+const recordings = process.env['DEMO_E2E_RECORDINGS'] ?? '../e2e/recordings';
 const agentArgs = live
   ? '--record ../e2e/results/live-recordings.json --log-file ../e2e/results/agent-live.log'
-  : '--replay ../e2e/recordings --log-file ../e2e/results/agent-recorded.log';
+  : `--replay ${recordings} --log-file ../e2e/results/agent-recorded.log`;
 
 export default defineConfig({
   testDir: './tests',
@@ -45,7 +47,7 @@ export default defineConfig({
   use: {
     baseURL: `http://127.0.0.1:${CLIENT_PORT}`,
     viewport: {width: 1280, height: 900},
-    video: 'on',
+    video: {mode: 'on', size: {width: 1280, height: 900}},
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },

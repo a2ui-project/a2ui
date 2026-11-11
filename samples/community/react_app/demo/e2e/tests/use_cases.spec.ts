@@ -23,6 +23,7 @@ import {
   appFrame,
   bridgeEntries,
   brushChart,
+  chartMarks,
   checkPanels,
   dataModels,
   dragAndDrop,
@@ -51,7 +52,7 @@ test('loan explorer: sliders redraw the chart, a bar click updates the page', as
 
   // The app frame holds a real chart.
   const frame = appFrame(turn);
-  const marks = frame.locator('svg [role="graphics-symbol"]');
+  const marks = chartMarks(frame);
   await expect(marks.first()).toBeVisible();
   expect(await marks.count()).toBeGreaterThanOrEqual(5);
 
@@ -178,7 +179,7 @@ test('sales explorer: a brush selection queries the agent and fills the page', a
   await waitForAppRendered(page, turnId);
 
   const frame = appFrame(turn);
-  const marks = frame.locator('svg [role="graphics-symbol"]');
+  const marks = chartMarks(frame);
   await expect(marks.first()).toBeVisible();
   expect(await marks.count()).toBeGreaterThanOrEqual(5);
 

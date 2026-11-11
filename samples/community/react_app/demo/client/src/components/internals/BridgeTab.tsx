@@ -59,6 +59,9 @@ function describe(entry: BridgeEntry): string {
   if (!payload || typeof payload !== 'object') {
     return payload === null ? '' : JSON.stringify(payload);
   }
+  if (Object.keys(payload).length === 0) {
+    return '';
+  }
   if (entry.method === 'function/call') {
     return `${String(payload['name'])}(${truncate(JSON.stringify(payload['args'] ?? {}), 70)})`;
   }
