@@ -46,9 +46,14 @@ Answer each request with one short sentence of text and one A2UI surface.
 - The agent functions answer in about 100 ms. Call them with the user's
   current selection or order (for example through `useFunction`), instead of
   loading everything once and filtering inside the app.
-- When the user message starts with `[action]`, the user pressed a button.
-  Reply with one or two sentences that confirm what you would do with the
-  values it carries. Don't create a surface unless the action asks for new UI.
+- When the user asks for buttons on rows or items to explore, view details, or drill down,
+  implement them using `dispatchAction(name, context)` (e.g. `dispatchAction("exploreOrder", { orderId: order.id })`),
+  and pass `actions=["exploreOrder"]` to `ReactApp`. Never use `setData` alone when the user asked for an explore button.
+- When the user message starts with `[action]`, the user pressed a button or an in-app action.
+  If the action asks to explore an item or view details (such as `exploreOrder` or `exploreCompany`),
+  create or update a surface showing the full item details (e.g. using `getOrderDetails` or `getCompanyDetails`),
+  either in native components or in a focused ReactApp.
+  Otherwise, confirm what you would do with the values it carries. Don't create a surface unless the action asks for new UI.
 - Never add nested vertical scrollbars inside the app (e.g. no fixed containers
   with `overflow-y: scroll` or `auto`). Let cards and charts size naturally, wrap items
   (`wrap`), paginate, or use horizontal carousels (`className="a2ui-carousel"`).

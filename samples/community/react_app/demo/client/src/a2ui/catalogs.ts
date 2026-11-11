@@ -43,11 +43,39 @@ const querySales: FunctionApi = {
   schema: z.object({region: z.string(), from: z.string(), to: z.string()}),
 };
 
+const queryCompanies: FunctionApi = {
+  name: 'queryCompanies',
+  returnType: 'array',
+  schema: z.object({
+    region: z.string().optional(),
+    sortBy: z.string().optional(),
+    sortOrder: z.string().optional(),
+    limit: z.number().optional(),
+  }),
+};
+
+const getCompanyDetails: FunctionApi = {
+  name: 'getCompanyDetails',
+  returnType: 'object',
+  schema: z.object({company: z.string()}),
+};
+
+const getOrderDetails: FunctionApi = {
+  name: 'getOrderDetails',
+  returnType: 'object',
+  schema: z.object({orderId: z.string()}),
+};
+
 /**
  * Schema-only functions make a catalog of declarations; `Catalog`'s type parameter defaults to
  * implemented functions, hence the cast (see the SDK friction notes in the README).
  */
-const demoCatalog = new Catalog(DEMO_CATALOG_ID, '1.0', [], [estimateTravelTime, querySales]);
+const demoCatalog = new Catalog(
+  DEMO_CATALOG_ID,
+  '1.0',
+  [],
+  [estimateTravelTime, querySales, queryCompanies, getCompanyDetails, getOrderDetails],
+);
 
 /**
  * The page's fonts, for the app frames: they can't fetch the page's files (opaque origin), so

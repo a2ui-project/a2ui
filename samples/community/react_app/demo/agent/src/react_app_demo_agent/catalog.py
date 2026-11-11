@@ -40,6 +40,26 @@ async def _query_sales(args: dict[str, Any]) -> list[dict[str, Any]]:
     return mock_data.query_sales(args.get("region"), args.get("from"), args.get("to"))
 
 
+async def _query_companies(args: dict[str, Any]) -> list[dict[str, Any]]:
+    await asyncio.sleep(_FUNCTION_DELAY_SECONDS)
+    return mock_data.query_companies(
+        region=args.get("region"),
+        sort_by=str(args.get("sortBy") or "totalSpend"),
+        sort_order=str(args.get("sortOrder") or "desc"),
+        limit=int(args.get("limit") or 50),
+    )
+
+
+async def _get_company_details(args: dict[str, Any]) -> dict[str, Any] | None:
+    await asyncio.sleep(_FUNCTION_DELAY_SECONDS)
+    return mock_data.get_company_details(str(args.get("company") or ""))
+
+
+async def _get_order_details(args: dict[str, Any]) -> dict[str, Any] | None:
+    await asyncio.sleep(_FUNCTION_DELAY_SECONDS)
+    return mock_data.get_order_details(str(args.get("orderId") or ""))
+
+
 def demo_catalog() -> CatalogApi:
     """Returns the catalog that declares and runs the demo's agent functions."""
     regions = ", ".join(f"'{r}'" for r in mock_data.SALES_REGIONS)
@@ -97,6 +117,74 @@ def demo_catalog() -> CatalogApi:
                     " oldest first, at most 1000 (a whole year of every region fits)."
                     " An unknown region has none. Each order is {id, date, region,"
                     " customer, product, amount}."
+                ),
+            ),
+            AgentFunction(
+                "queryCompanies",
+                handler=_query_companies,
+                return_type="array",
+                schema={
+                    "type": "object",
+                    "properties": {
+                        "region": {
+                            "type": "string",
+                            "description": f"Filter by region: {regions}, or 'All'.",
+                        },
+                        "sortBy": {
+                            "type": "string",
+                            "description": "Sort key: 'totalSpend', 'orderCount', 'latestOrderDate', 'name'.",
+                        },
+                        "sortOrder": {
+                            "type": "string",
+                            "description": "'desc' or 'asc'.",
+                        },
+                        "limit": {
+                            "type": "number",
+                            "description": "Maximum companies to return (default 50).",
+                        },
+                    },
+                },
+                description=(
+                    "Agent function. Returns aggregated company accounts: {name, region,"
+                    " industry, headquarters, tier, orderCount, totalSpend, latestOrderDate, topProduct}."
+                ),
+            ),
+            AgentFunction(
+                "getCompanyDetails",
+                handler=_get_company_details,
+                return_type="object",
+                schema={
+                    "type": "object",
+                    "properties": {
+                        "company": {
+                            "type": "string",
+                            "description": "The exact or partial company name.",
+                        },
+                    },
+                    "required": ["company"],
+                },
+                description=(
+                    "Agent function. Full profile and recent orders for a company: {name,"
+                    " region, industry, headquarters, tier, orderCount, totalSpend, latestOrderDate, orders}."
+                ),
+            ),
+            AgentFunction(
+                "getOrderDetails",
+                handler=_get_order_details,
+                return_type="object",
+                schema={
+                    "type": "object",
+                    "properties": {
+                        "orderId": {
+                            "type": "string",
+                            "description": "The order ID such as 'NO-0412'.",
+                        },
+                    },
+                    "required": ["orderId"],
+                },
+                description=(
+                    "Agent function. Detailed line item breakdown, tracking number and shipping info for an order: "
+                    "{id, date, customer, region, product, amount, quantity, unitPrice, status, shippingAddress, trackingNumber}."
                 ),
             ),
         ],

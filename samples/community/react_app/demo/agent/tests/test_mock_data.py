@@ -70,3 +70,35 @@ def test_query_sales_accepts_list_from_choice_picker() -> None:
 
 def test_query_sales_has_no_orders_for_an_unknown_region() -> None:
     assert mock_data.query_sales("Mars", "2025-01-01", "2025-12-31") == []
+
+
+def test_query_companies_returns_sorted_aggregations() -> None:
+    companies = mock_data.query_companies(sort_by="totalSpend", limit=10)
+    assert len(companies) == 10
+    assert all(c["totalSpend"] > 0 for c in companies)
+    assert all(c["orderCount"] > 0 for c in companies)
+    assert all(c["latestOrderDate"].startswith("2025-") for c in companies)
+    # Descending spend
+    spends = [c["totalSpend"] for c in companies]
+    assert spends == sorted(spends, reverse=True)
+
+
+def test_query_companies_filters_by_region() -> None:
+    apac = mock_data.query_companies(region="APAC")
+    assert apac
+    assert all(c["region"] == "APAC" for c in apac)
+
+
+def test_get_company_details_and_order_details() -> None:
+    company = mock_data.get_company_details("Atelier Nord")
+    assert company is not None
+    assert company["name"] == "Atelier Nord"
+    assert len(company["orders"]) > 0
+
+    first_order_id = company["orders"][0]["id"]
+    order = mock_data.get_order_details(first_order_id)
+    assert order is not None
+    assert order["id"] == first_order_id
+    assert order["customer"] == "Atelier Nord"
+    assert "trackingNumber" in order
+    assert order["amount"] > 0

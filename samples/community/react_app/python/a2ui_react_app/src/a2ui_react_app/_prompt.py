@@ -61,6 +61,21 @@ _RULES = '''## ReactApp: custom interactive apps
 - Call hooks (`useData`, `useFunction`, `useState`, `useEffect` and the others) only at the top level of a component, never inside effects, event handlers, loops or conditions. To write a value from an effect or a handler, call the setter of a top-level `useData`.
 - Each value the app writes with `setData`, and the `args` of each function call, must stay under 64 KB. Keep big data in the data model and write ids or small changes.
 
+### Dispatching actions to prompt the agent: `dispatchAction`
+
+When the user asks for buttons on rows, cards, or tables to explore, view details, book, or trigger an agent action:
+- Call `dispatchAction(name, context)` from the button's `onClick` handler:
+  ```tsx
+  import { Button, dispatchAction } from "a2ui";
+
+  <Button onClick={() => dispatchAction("exploreOrder", { orderId: order.id })}>
+    Explore
+  </Button>
+  ```
+- List the action names in `ReactApp(..., actions=["exploreOrder"])`.
+- Calling `dispatchAction` dispatches an A2UI action to the agent and starts a new conversation turn, prompting the agent to provide the requested drill-down view or follow-up response.
+- Do not use `setData` alone when the user asks for a button to explore or drill down. `setData` only alters local text on the existing surface; `dispatchAction` triggers the agent to respond.
+
 ### Changing a surface in a later turn
 
 Surfaces from earlier turns are still on screen, and creating one again fails. To change one, write `surface("<id>", update=true)` and then only what changes: components under their existing ids (each replaces the component with that id), and `$/path = value` lines for data. Write `root = ...` only when the root itself changes. To change an app, write its `ReactApp` again under the same id with the whole new source; the frame reloads with it. Use a new surface id for a new, unrelated UI.

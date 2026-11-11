@@ -200,18 +200,7 @@ def _orders(region: str) -> list[dict[str, Any]]:
 
 
 def query_sales(region: Any, start: Any, end: Any) -> list[dict[str, Any]]:
-    """Orders of a region between two dates, both included, oldest first.
-
-    Args:
-        region: A region name or alias; empty or `All` for every region. An
-            unknown region has no orders.
-        start: The first day, as an ISO date, a `YYYY-MM` month or epoch ms.
-        end: The last day, in the same forms.
-
-    Returns:
-        At most `MAX_SALES_ROWS` orders with `id`, `date`, `region`,
-        `customer`, `product` and `amount`.
-    """
+    """Orders of a region between two dates, both included, oldest first."""
     wanted = _normalize_region(region)
     if wanted is None:
         return []
@@ -228,3 +217,151 @@ def query_sales(region: Any, start: Any, end: Any) -> list[dict[str, Any]]:
     ]
     rows.sort(key=lambda order: (order["date"], order["id"]))
     return rows[:MAX_SALES_ROWS]
+
+
+_COMPANY_METADATA: dict[str, dict[str, str]] = {
+    "Atelier Nord": {"industry": "Architecture & Design", "hq": "Oslo, Norway", "tier": "Enterprise", "region": "EMEA"},
+    "Bramble & Co": {"industry": "Artisan Goods & Gifts", "hq": "London, UK", "tier": "Growth", "region": "EMEA"},
+    "Cobalt Freight": {"industry": "Global Freight Logistics", "hq": "Rotterdam, Netherlands", "tier": "Enterprise", "region": "EMEA"},
+    "Dunmore Labs": {"industry": "Biotechnology Research", "hq": "Boston, USA", "tier": "Enterprise", "region": "North America"},
+    "Elmwood Studio": {"industry": "Creative Media & UX", "hq": "Toronto, Canada", "tier": "Standard", "region": "North America"},
+    "Fennel Foods": {"industry": "Organic Food Supply", "hq": "Bologna, Italy", "tier": "Growth", "region": "EMEA"},
+    "Granite Health": {"industry": "Medical Diagnostics", "hq": "Zurich, Switzerland", "tier": "Enterprise", "region": "EMEA"},
+    "Harbor Lane": {"industry": "Maritime Supply & Marine", "hq": "Singapore", "tier": "Enterprise", "region": "APAC"},
+    "Indigo Works": {"industry": "Robotics & Automation", "hq": "Tokyo, Japan", "tier": "Enterprise", "region": "APAC"},
+    "Juniper Retail": {"industry": "Omnichannel Retail", "hq": "Austin, USA", "tier": "Enterprise", "region": "North America"},
+    "Kestrel Air": {"industry": "Regional Aviation", "hq": "Sydney, Australia", "tier": "Growth", "region": "APAC"},
+    "Lumen Print": {"industry": "Precision Publishing", "hq": "Munich, Germany", "tier": "Standard", "region": "EMEA"},
+    "Marlow Textiles": {"industry": "Sustainable Fabrics", "hq": "Manchester, UK", "tier": "Growth", "region": "EMEA"},
+    "Northwind": {"industry": "Wind & Renewable Energy", "hq": "Copenhagen, Denmark", "tier": "Enterprise", "region": "EMEA"},
+    "Orchard Supply": {"industry": "AgriTech Equipment", "hq": "São Paulo, Brazil", "tier": "Growth", "region": "LATAM"},
+    "Pine & Pixel": {"industry": "Video Game Development", "hq": "Stockholm, Sweden", "tier": "Standard", "region": "EMEA"},
+}
+
+
+def query_companies(
+    region: Any = None,
+    sort_by: str = "totalSpend",
+    sort_order: str = "desc",
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Aggregated company accounts with total spend, order count and latest activity."""
+    wanted_region = _normalize_region(region)
+    all_orders = [order for r in SALES_REGIONS for order in _orders(r)]
+    by_customer: dict[str, list[dict[str, Any]]] = {}
+    for order in all_orders:
+        by_customer.setdefault(order["customer"], []).append(order)
+
+    companies: list[dict[str, Any]] = []
+    for name, meta in _COMPANY_METADATA.items():
+        comp_region = meta["region"]
+        if (
+            wanted_region is not None
+            and wanted_region != _ALL_REGIONS
+            and comp_region != wanted_region
+        ):
+            continue
+        cust_orders = by_customer.get(name, [])
+        total_spend = sum(o["amount"] for o in cust_orders)
+        order_count = len(cust_orders)
+        latest_date = max((o["date"] for o in cust_orders), default="2025-01-01")
+        prod_counts: dict[str, int] = {}
+        for o in cust_orders:
+            prod_counts[o["product"]] = prod_counts.get(o["product"], 0) + 1
+        top_prod = (
+            max(prod_counts.items(), key=lambda kv: kv[1])[0]
+            if prod_counts
+            else "Enterprise plan"
+        )
+        companies.append({
+            "name": name,
+            "region": comp_region,
+            "industry": meta["industry"],
+            "headquarters": meta["hq"],
+            "tier": meta["tier"],
+            "orderCount": order_count,
+            "totalSpend": total_spend,
+            "latestOrderDate": latest_date,
+            "topProduct": top_prod,
+        })
+
+    reverse = sort_order.lower() in ("desc", "descending")
+    valid_sorts = (
+        "totalSpend",
+        "orderCount",
+        "latestOrderDate",
+        "name",
+        "region",
+        "industry",
+    )
+    field = sort_by if sort_by in valid_sorts else "totalSpend"
+    companies.sort(key=lambda c: c[field], reverse=reverse)
+    return companies[:limit]
+
+
+def get_company_details(company: str) -> dict[str, Any] | None:
+    """Returns company profile and full order history."""
+    if not isinstance(company, str) or not company.strip():
+        return None
+    matched = None
+    target = company.strip().lower()
+    for name in _COMPANY_METADATA:
+        if name.lower() == target or target in name.lower():
+            matched = name
+            break
+    if not matched:
+        return None
+    meta = _COMPANY_METADATA[matched]
+    all_orders = [
+        dict(
+            order,
+            status="Delivered" if order["date"] < "2025-11-01" else "In Transit",
+        )
+        for r in SALES_REGIONS
+        for order in _orders(r)
+        if order["customer"] == matched
+    ]
+    all_orders.sort(key=lambda o: o["date"], reverse=True)
+    total_spend = sum(o["amount"] for o in all_orders)
+    return {
+        "name": matched,
+        "region": meta["region"],
+        "industry": meta["industry"],
+        "headquarters": meta["hq"],
+        "tier": meta["tier"],
+        "orderCount": len(all_orders),
+        "totalSpend": total_spend,
+        "latestOrderDate": all_orders[0]["date"] if all_orders else "2025-01-01",
+        "orders": all_orders,
+    }
+
+
+def get_order_details(order_id: str) -> dict[str, Any] | None:
+    """Returns detailed order line items and shipping tracking."""
+    if not isinstance(order_id, str) or not order_id.strip():
+        return None
+    target = order_id.strip().upper()
+    for r in SALES_REGIONS:
+        for o in _orders(r):
+            if o["id"].upper() == target:
+                meta = _COMPANY_METADATA.get(
+                    o["customer"], {"hq": "Metropolis", "industry": "General"}
+                )
+                status = "Delivered" if o["date"] < "2025-11-01" else "In Transit"
+                qty = max(1, round(o["amount"] / 1200))
+                unit_price = round(o["amount"] / qty, 2)
+                digest = hashlib.sha256(o["id"].encode()).hexdigest()[:10].upper()
+                return {
+                    "id": o["id"],
+                    "date": o["date"],
+                    "customer": o["customer"],
+                    "region": o["region"],
+                    "product": o["product"],
+                    "amount": o["amount"],
+                    "quantity": qty,
+                    "unitPrice": unit_price,
+                    "status": status,
+                    "shippingAddress": f"100 Enterprise Way, {meta['hq']}",
+                    "trackingNumber": f"TRK-{digest}",
+                }
+    return None
