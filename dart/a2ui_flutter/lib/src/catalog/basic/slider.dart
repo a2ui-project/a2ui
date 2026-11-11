@@ -55,52 +55,61 @@ Widget buildSlider(
           : null);
   final double raw = props.number('value') ?? min;
   final double value = raw.isFinite ? raw.clamp(min, max) : min;
+  final String label = props.string('label') ?? '';
   final String valueText = ComponentProps.asString(value)!;
   final String? error = props.validationErrors.firstOrNull;
   final String? hint = checkHint(props);
   final void Function(Object?)? write = writerFor(context, props, 'value');
+  // A position on the track as the value a move there writes: on its step,
+  // and whole when it can be.
+  num snap(double position) {
+    final double stepped = steps != null
+        ? min + range * ((position - min) / range * steps).round() / steps
+        : divisions != null
+        ? min + (position - min).round()
+        : position;
+    final double snapped = stepped.clamp(min, max);
+    return snapped == snapped.roundToDouble() && snapped.abs() < _twoTo53
+        ? snapped.toInt()
+        : snapped;
+  }
+
   return limitUnboundedWidth(
     context,
     Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                props.string('label') ?? '',
-                style: theme.textTheme.titleSmall,
-              ),
-            ),
-            Text(valueText, style: theme.textTheme.bodySmall),
-          ],
+        // The slider announces both, as its name and its value. Read here as
+        // well, a screen reader would say them twice.
+        ExcludeSemantics(
+          child: Row(
+            children: [
+              Expanded(child: Text(label, style: theme.textTheme.titleSmall)),
+              Text(valueText, style: theme.textTheme.bodySmall),
+            ],
+          ),
         ),
-        Slider(
-          value: value,
-          min: min,
-          max: max,
-          divisions: divisions,
-          label: valueText,
-          onChanged: write == null || !range.isFinite
-              ? null
-              : (moved) {
-                  final double stepped = steps != null
-                      ? min +
-                            range *
-                                ((moved - min) / range * steps).round() /
-                                steps
-                      : divisions != null
-                      ? min + (moved - min).round()
-                      : moved;
-                  final double snapped = stepped.clamp(min, max);
-                  write(
-                    snapped == snapped.roundToDouble() &&
-                            snapped.abs() < _twoTo53
-                        ? snapped.toInt()
-                        : snapped,
-                  );
-                },
+        // The label names the node that carries the value and the actions.
+        // Flutter's own `label` is the value bubble, and it would be
+        // announced as the slider's name.
+        MergeSemantics(
+          child: Semantics(
+            label: label,
+            child: Slider(
+              value: value,
+              min: min,
+              max: max,
+              divisions: divisions,
+              // Flutter scales each value back from the track, which leaves
+              // 28.999999999999996 where the slider writes 29.
+              semanticFormatterCallback: (v) =>
+                  ComponentProps.asString(snap(v))!,
+              onChanged: write == null || !range.isFinite
+                  ? null
+                  : (moved) => write(snap(moved)),
+            ),
+          ),
         ),
         if (error != null)
           Text(

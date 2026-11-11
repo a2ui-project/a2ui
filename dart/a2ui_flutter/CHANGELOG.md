@@ -16,6 +16,13 @@
 
 # [a2ui_flutter](https://pub.dev/packages/a2ui_flutter) Changelog
 
+## Unreleased
+
+- `Slider` is named by its `label` and reads the value it shows, instead of a
+  percentage. The value bubble is gone, since Flutter reads its text as the
+  slider's name; the value stays on screen above the track
+  ([#3411](https://github.com/a2ui-project/a2ui/pull/3411)).
+
 ## 0.3.0
 
 - **Breaking:** Requires `a2ui_core` `^0.7.0`, whose types this library
