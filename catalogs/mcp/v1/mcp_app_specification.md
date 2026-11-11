@@ -70,6 +70,7 @@ The following table outlines the protocol methods used in the `McpApp` lifecycle
 | `notifications/message`                   | App $\rightarrow$ Host   | Notification | **Standard MCP**   | Diagnostic logging                                   |
 | `ui/notifications/sandbox-proxy-ready`    | Proxy $\rightarrow$ Host | Notification | **Standard MCP**   | Proxy frame ready signal                             |
 | `ui/notifications/sandbox-resource-ready` | Host $\rightarrow$ Proxy | Notification | **Standard MCP**   | Provide HTML, CSP, and permissions for inner frame   |
+| `notifications/message` (proxy logger)    | Proxy $\rightarrow$ Host | Notification | **A2UI Extension** | Report that the inner frame navigated away           |
 | `ui/notifications/data-model-change`      | App $\rightarrow$ Host   | Notification | **A2UI Extension** | Two-way local data binding                           |
 | `ui/notifications/data-model-update`      | Host $\rightarrow$ App   | Notification | **A2UI Extension** | Two-way local data binding                           |
 | `ui/requests/function-call`               | App $\rightarrow$ Host   | Request      | **A2UI Extension** | Local client-side function execution                 |
@@ -411,6 +412,7 @@ The host receives the `htmlContent` property from the catalog definition:
 - The inner iframe runs without `allow-same-origin` to isolate its storage.
 - The outer proxy matches messages from the parent against the expected parent origin using `document.referrer`.
 - The outer proxy validates messages from the inner frame by checking `event.source === inner.contentWindow`.
+- The outer proxy keeps the inner frame on the document it loaded. It adds `frame-src 'none'` (or the resource's `frameDomains`) to its own page, so the browser refuses any navigation of the inner frame. If the frame loads again anyway, the proxy removes it, stops relaying and sends the host a `notifications/message` at level `error` from the `a2ui-sandbox-proxy` logger with `data.code` `inner_frame_navigated`.
 
 ## 5.3. Security controls and operational guardrails
 

@@ -37,6 +37,7 @@ import {resetSandboxConfig, resolveSandboxUrl, type SandboxMode} from './sandbox
 import {
   frameHeightFromProp,
   frameTitleFromProps,
+  SANDBOX_ERROR_EVENT,
   SandboxedFrameElement,
 } from './sandboxed_frame_element.js';
 
@@ -390,5 +391,34 @@ describe('SandboxedFrameElement', () => {
     expect(element.connections.length).toBe(2);
     expect(element.connections[1].disconnected).toBeFalse();
     await waitFor(() => innerSrcdoc(frame).includes('<p>hello</p>'), 'second session ready');
+  });
+
+  it('disconnects the bridge and shows the error when the content navigates itself', async () => {
+    spyOn(console, 'error');
+    const errors: unknown[] = [];
+    container.addEventListener(SANDBOX_ERROR_EVENT, event => {
+      errors.push((event as CustomEvent).detail);
+    });
+    const {element, frame} = await renderFrame({
+      content: `<script>location.href = 'data:text/html,escaped';</script>`,
+    });
+
+    await waitFor(() => errors.length > 0, 'the element reported the error');
+    expect(errors).toEqual([jasmine.objectContaining({code: 'inner_frame_navigated'})]);
+    expect(element.connections.length).toBe(1);
+    expect(element.connections[0].disconnected).toBeTrue();
+    await element.updateComplete;
+    expect(element.querySelector('[role="alert"]')?.textContent).toContain('navigated away');
+    expect(frame.hidden).toBeTrue();
+
+    // A new resource clears the error and connects a new bridge.
+    componentProps({content: '<p id="app">again</p>'});
+    await element.updateComplete;
+    await element.updateComplete;
+    expect(element.querySelector('[role="alert"]')).toBeNull();
+    expect(frame.hidden).toBeFalse();
+    expect(element.connections.length).toBe(2);
+    expect(element.connections[1].disconnected).toBeFalse();
+    await waitFor(() => innerSrcdoc(frame).includes('<p id="app">again</p>'), 'new content loaded');
   });
 });
