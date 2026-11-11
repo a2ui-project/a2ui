@@ -23,6 +23,11 @@
   slider's name; the value stays on screen above the track
   ([#3411](https://github.com/a2ui-project/a2ui/pull/3411)).
 
+## 0.3.0
+
+- **Breaking:** Requires `a2ui_core` `^0.7.0`, whose types this library
+  re-exports.
+
 ## 0.2.0
 
 - **Breaking:** Requires `a2ui_core` `^0.6.0`, whose types this library

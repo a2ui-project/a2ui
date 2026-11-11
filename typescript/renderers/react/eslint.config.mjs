@@ -138,6 +138,6 @@ export default tseslint.config(
 
   // Ignored paths
   {
-    ignores: ['dist/**', 'node_modules/**', 'visual-parity/**', '**/*.d.ts'],
+    ignores: ['dist/**', 'node_modules/**', '**/*.d.ts'],
   },
 );

@@ -43,10 +43,16 @@ export function resolveSurfaceCatalog<C>(
 ): C {
   if (catalogId !== undefined) {
     const found = surface.availableCatalogs?.get(catalogId);
-    if (!found) {
-      throw new A2uiCatalogError(`Catalog not found: ${catalogId}`);
+    if (found) {
+      return found;
     }
-    return found;
+    if (
+      surface.defaultCatalog &&
+      (surface.defaultCatalog as {readonly id?: unknown}).id === catalogId
+    ) {
+      return surface.defaultCatalog;
+    }
+    throw new A2uiCatalogError(`Catalog not found: ${catalogId}`);
   }
   if (!surface.defaultCatalog) {
     throw new A2uiCatalogError(
