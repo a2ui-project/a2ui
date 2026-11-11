@@ -195,3 +195,15 @@ test.describe('catalog examples in the real double iframe', () => {
     await expect(page.getByText(/^0:00\.\d$/)).toHaveCount(2);
   });
 });
+
+test.describe('typed bindings', () => {
+  test('a2ui:bindings calls round-trip through the module the frame makes', async ({page}) => {
+    await page.goto(`/?runtime=${encodeURIComponent(RUNTIME_ORIGIN)}&example=bindings`);
+    const frame = appFrame(page);
+
+    // Two stops at 25 minutes each from the mocked agent, and the basic catalog's formatCurrency.
+    await expect(frame.getByTestId('binding-minutes')).toHaveText('50');
+    await expect(frame.getByTestId('binding-price')).toHaveText('$42.00');
+    expect(await page.evaluate(() => window.fixture.errors)).toEqual([]);
+  });
+});

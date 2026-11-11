@@ -32,6 +32,7 @@ import {z} from 'zod';
 import lapTimerExample from '../../../../catalog/v1/examples/lap_timer.json' with {type: 'json'};
 import loanExplorerExample from '../../../../catalog/v1/examples/loan_explorer.json' with {type: 'json'};
 import {configureReactApp, REACT_APP_CATALOG_ID, reactAppCatalog} from '../../src/index.js';
+import {BINDINGS_APP_SOURCE} from './bindings_app.mjs';
 
 /** Catalog examples the page can render instead of the fixture, with `?example=<name>`. */
 const EXAMPLES: Record<string, {messages: unknown[]}> = {
@@ -103,7 +104,33 @@ declare global {
 
 const query = new URLSearchParams(location.search);
 const runtimeOrigin = query.get('runtime') ?? location.origin;
-const example = EXAMPLES[query.get('example') ?? ''];
+const exampleName = query.get('example') ?? '';
+
+/** A surface with one app that imports `a2ui:bindings`. */
+function bindingsMessages(): unknown[] {
+  return [
+    {version: '1.0', createSurface: {surfaceId: 'bindings'}},
+    {
+      version: '1.0',
+      updateComponents: {
+        surfaceId: 'bindings',
+        components: [
+          {
+            id: 'root',
+            component: 'ReactApp',
+            catalogId: REACT_APP_CATALOG_ID,
+            title: 'Bindings app',
+            height: 160,
+            source: BINDINGS_APP_SOURCE,
+          },
+        ],
+      },
+    },
+  ];
+}
+
+const example: {messages: unknown[]} | undefined =
+  exampleName === 'bindings' ? {messages: bindingsMessages()} : EXAMPLES[exampleName];
 configureReactApp({runtimeBaseUrl: `${runtimeOrigin}/react-app/v1/`});
 
 const actions: unknown[] = [];

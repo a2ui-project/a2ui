@@ -16,7 +16,8 @@
 
 The sources of truth are the catalog and its examples under
 `samples/community/react_app/catalog/v1/` and the `a2ui` module typings under
-`samples/community/react_app/typescript/react_app_runtime/src/a2ui.d.ts`. Run
+`samples/community/react_app/typescript/react_app_runtime/src/a2ui.d.ts`, with
+the words that can't name a bound function next to it (`reserved_words.json`). Run
 this script after changing any of them; `tests/test_assets.py` fails while the
 copies differ from the sources.
 
@@ -33,14 +34,15 @@ PACKAGE_ROOT = Path(__file__).resolve().parent.parent
 REACT_APP_ROOT = PACKAGE_ROOT.parent.parent
 ASSETS_DIR = PACKAGE_ROOT / "src" / "a2ui_react_app" / "assets"
 _CATALOG_DIR = REACT_APP_ROOT / "catalog" / "v1"
-_TYPINGS = REACT_APP_ROOT / "typescript" / "react_app_runtime" / "src" / "a2ui.d.ts"
+_RUNTIME_SRC = REACT_APP_ROOT / "typescript" / "react_app_runtime" / "src"
 
 
 def asset_pairs() -> list[tuple[Path, Path]]:
     """Returns each source file with the path of its copy in the package."""
     pairs = [
         (_CATALOG_DIR / "catalog.json", ASSETS_DIR / "catalog.json"),
-        (_TYPINGS, ASSETS_DIR / "a2ui.d.ts"),
+        (_RUNTIME_SRC / "a2ui.d.ts", ASSETS_DIR / "a2ui.d.ts"),
+        (_RUNTIME_SRC / "reserved_words.json", ASSETS_DIR / "reserved_words.json"),
     ]
     for example in sorted((_CATALOG_DIR / "examples").glob("*.json")):
         pairs.append((example, ASSETS_DIR / "examples" / example.name))

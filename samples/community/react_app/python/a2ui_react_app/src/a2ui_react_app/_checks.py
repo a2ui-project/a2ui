@@ -30,6 +30,7 @@ ALLOWED_MODULES: tuple[str, ...] = (
     "react-dom",
     "react-dom/client",
     "a2ui",
+    "a2ui:bindings",
 )
 """The modules a ReactApp may import, as the runtime's import map maps them."""
 

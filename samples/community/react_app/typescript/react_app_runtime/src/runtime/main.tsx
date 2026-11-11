@@ -23,6 +23,7 @@
 import type {ComponentType} from 'react';
 import {createRoot} from 'react-dom/client';
 import {AppRoot, ErrorCard, type ErrorCardProps} from './app_root.js';
+import {linkBindings} from './bindings.js';
 import {BridgeClient, DEFAULT_REQUEST_TIMEOUT_MS} from './bridge_client.js';
 import {forwardConsole, watchUncaughtErrors} from './diagnostics.js';
 import {RuntimeSession, setSession, toErrorDetails, type ErrorPhase} from './session.js';
@@ -72,13 +73,28 @@ function readConfig(doc: Document): AppConfig {
   };
 }
 
-/** Imports an ES module from source text; bare imports resolve through the import map. */
+function moduleUrl(code: string): string {
+  return URL.createObjectURL(new Blob([code], {type: 'text/javascript'}));
+}
+
+/**
+ * Imports the app module from source text. Bare imports resolve through the import map, and an
+ * `a2ui:bindings` import gets a bindings module made for the names the app imports.
+ */
 async function importModule(code: string): Promise<Record<string, unknown>> {
-  const url = URL.createObjectURL(new Blob([code], {type: 'text/javascript'}));
+  const urls: string[] = [];
+  const track = (source: string) => {
+    const url = moduleUrl(source);
+    urls.push(url);
+    return url;
+  };
+  const url = track(linkBindings(code, track));
   try {
     return (await import(/* @vite-ignore */ url)) as Record<string, unknown>;
   } finally {
-    URL.revokeObjectURL(url);
+    for (const created of urls) {
+      URL.revokeObjectURL(created);
+    }
   }
 }
 

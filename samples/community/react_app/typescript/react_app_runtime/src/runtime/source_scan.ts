@@ -23,6 +23,7 @@
 /** Modules the import map of an app frame provides (bridge protocol section 9). */
 export const AVAILABLE_MODULES: readonly string[] = [
   'a2ui',
+  'a2ui:bindings',
   'react',
   'react/jsx-runtime',
   'react-dom',

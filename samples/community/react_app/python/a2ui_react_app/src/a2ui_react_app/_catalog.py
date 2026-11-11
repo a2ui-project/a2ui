@@ -33,7 +33,7 @@ REACT_APP_COMPONENT = "ReactApp"
 _PROTOCOL_VERSION = "1.0"
 
 
-def _read_asset(*parts: str) -> str:
+def read_asset(*parts: str) -> str:
     """Reads a file under the package's `assets` directory."""
     resource = resources.files("a2ui_react_app").joinpath("assets")
     for part in parts:
@@ -43,7 +43,7 @@ def _read_asset(*parts: str) -> str:
 
 def read_typings() -> str:
     """Returns the `a2ui` module typings (`a2ui.d.ts`) as shipped."""
-    return _read_asset("a2ui.d.ts")
+    return read_asset("a2ui.d.ts")
 
 
 def react_app_catalog() -> CatalogApi:
@@ -54,7 +54,7 @@ def react_app_catalog() -> CatalogApi:
     replacing them.
     """
     return Catalog.from_json(
-        json.loads(_read_asset("catalog.json")),
+        json.loads(read_asset("catalog.json")),
         protocol_version=_PROTOCOL_VERSION,
     )
 
@@ -63,7 +63,7 @@ def example_documents() -> list[dict[str, Any]]:
     """Returns the example documents (`name`, `description`, `messages`), by file name."""
     examples_dir = resources.files("a2ui_react_app").joinpath("assets/examples")
     names = sorted(f.name for f in examples_dir.iterdir() if f.name.endswith(".json"))
-    return [json.loads(_read_asset("examples", name)) for name in names]
+    return [json.loads(read_asset("examples", name)) for name in names]
 
 
 def react_app_examples() -> list[list[AgentToRendererMessage]]:

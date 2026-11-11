@@ -9,6 +9,7 @@ The package gives an agent:
 - `react_app_prompt(catalogs, functions=None)`: the prompt fragment. It has the rules for when and how to write a `ReactApp`, the modules an app can import, the full `a2ui.d.ts`, the styling rules, the functions the app can call (read from the catalogs, agent functions included) and a worked example in Express.
 - `ReactAppTransformer`: a catalog and message transformer with the same shape as `MacroExpander`. It adds the ReactApp catalog to the inference catalogs, and checks every outbound `ReactApp` before it reaches the renderer.
 - `check_react_app(component)`, `ReactAppDiagnostic` and `ReactAppValidationError`: the same checks as structured data, for a repair loop.
+- `react_app_bindings(catalogs)`: the declarations of the `a2ui:bindings` module, one typed async function per catalog function, agent functions included. Pass them to `react_app_prompt(..., bindings=...)`, and the app imports its functions instead of naming them in `callFunction`. Names that aren't ASCII identifiers, and reserved words such as `delete`, are left out.
 
 ## Usage
 
@@ -44,7 +45,7 @@ To let the app call agent functions, add them to the catalog with `Catalog.copy_
 `transform_to_transport` checks each `ReactApp` whose `catalogId` is `REACT_APP_CATALOG_ID` (or that has no `catalogId` on a surface whose default catalog is the ReactApp catalog, has none, or isn't known):
 
 - `source` is a non-empty string with a default export.
-- `source` imports only `react`, `react/jsx-runtime`, `react-dom`, `react-dom/client` and `a2ui`, with static imports.
+- `source` imports only `react`, `react/jsx-runtime`, `react-dom`, `react-dom/client`, `a2ui` and `a2ui:bindings`, with static imports.
 - `source` has no three double quotes in a row, which would end the raw Express string early.
 - `dataPaths` holds JSON pointers and `functions` holds names.
 - `height` is a positive number.

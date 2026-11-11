@@ -33,6 +33,19 @@ declare module 'a2ui' {
   export type JsonValue =
     string | number | boolean | null | JsonValue[] | {[key: string]: JsonValue};
 
+  /**
+   * `T` when every value it can hold is JSON. `setData` and `useData` require it, so a `Date`, a
+   * `Map`, a function or a class instance fails to type-check: convert it first, for example with
+   * `date.toISOString()`.
+   */
+  export type JsonCompatible<T> = {
+    [K in keyof T]: [T[K]] extends [JsonValue]
+      ? T[K]
+      : T[K] extends (...args: never[]) => unknown
+        ? never
+        : JsonCompatible<T[K]>;
+  } & ([T] extends [(...args: never[]) => unknown] ? never : unknown);
+
   // ---------------------------------------------------------------------------------------------
   // Data model
   // ---------------------------------------------------------------------------------------------
@@ -42,7 +55,9 @@ declare module 'a2ui' {
    * surface. Native components bound to the same path (for example a `Slider` with
    * `value=$/loan/rate`) update when you call the setter, and the app re-renders when they change.
    *
-   * The setter updates the app at once and then writes to the surface. Values must be JSON.
+   * The setter updates the app at once and then writes to the surface. Values must be JSON:
+   * plain objects, arrays, strings, numbers, booleans and null. Interfaces and type aliases of
+   * such values are fine as `T`; a `Date` or a function is not (see `JsonCompatible`).
    *
    * @param path JSON pointer, for example `/loan/rate`.
    * @param fallback Returned while the path holds no value.
@@ -51,25 +66,25 @@ declare module 'a2ui' {
    * @example
    * const [rate, setRate] = useData<number>('/loan/rate', 5);
    */
-  export function useData<T extends JsonValue>(
+  export function useData<T extends JsonCompatible<T>>(
     path: string,
     fallback: T,
   ): [T, (value: T | ((previous: T) => T)) => void];
 
   /** Reads a data model path once. Resolves to `undefined` when the path holds no value. */
-  export function getData<T extends JsonValue>(path: string): Promise<T | undefined>;
+  export function getData<T = JsonValue>(path: string): Promise<T | undefined>;
 
   /**
    * Writes a data model path. Resolves once the surface has applied the write. Prefer the setter
    * of `useData` inside components.
    */
-  export function setData<T extends JsonValue>(path: string, value: T): Promise<void>;
+  export function setData<T extends JsonCompatible<T>>(path: string, value: T): Promise<void>;
 
   /**
    * Calls `onChange` with the current value of a path and then on every change made by someone
    * else (native components, the agent). Returns a function that stops the subscription.
    */
-  export function subscribe<T extends JsonValue>(
+  export function subscribe<T = JsonValue>(
     path: string,
     onChange: (value: T | undefined) => void,
   ): () => void;

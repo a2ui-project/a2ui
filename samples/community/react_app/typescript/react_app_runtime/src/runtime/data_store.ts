@@ -21,7 +21,10 @@ export interface DataTransport {
   subscribe(path: string): Promise<{value?: unknown}>;
 }
 
-/** Called when a write fails, after the store has re-read the path from the host. */
+/**
+ * Called when a write fails: when the value isn't JSON, or after the store has re-read the path
+ * from the host.
+ */
 export type WriteErrorHandler = (path: string, error: unknown) => void;
 
 type Listener = () => void;
@@ -29,6 +32,63 @@ type Listener = () => void;
 interface InFlight {
   count: number;
   lastFailed: boolean;
+}
+
+function describeKind(value: unknown): string {
+  if (typeof value === 'function') {
+    return 'a function';
+  }
+  if (typeof value !== 'object' || value === null) {
+    return typeof value === 'number' ? String(value) : `a ${typeof value}`;
+  }
+  const name = (Object.getPrototypeOf(value) as {constructor?: {name?: string}} | null)?.constructor
+    ?.name;
+  return name ? `a ${name}` : 'an object that is not plain';
+}
+
+/**
+ * Describes the first part of `value` that JSON can't carry, such as a `Date`, a `Map`, a
+ * function, `NaN` or a circular reference, with its JSON pointer relative to `value`. Returns
+ * `undefined` when `value` is JSON. `undefined` itself is allowed: it means "no value", and
+ * object fields holding it are dropped.
+ */
+export function findNonJson(value: unknown): string | undefined {
+  const ancestors = new Set<object>();
+  const visit = (item: unknown, pointer: string): string | undefined => {
+    if (item === undefined || item === null) {
+      return undefined;
+    }
+    if (typeof item === 'string' || typeof item === 'boolean') {
+      return undefined;
+    }
+    if (typeof item === 'number') {
+      return Number.isFinite(item) ? undefined : `${pointer || 'the value'} is ${item}`;
+    }
+    if (typeof item !== 'object') {
+      return `${pointer || 'the value'} is ${describeKind(item)}`;
+    }
+    if (ancestors.has(item)) {
+      return `${pointer || 'the value'} is a circular reference`;
+    }
+    const prototype: unknown = Object.getPrototypeOf(item);
+    const isArray = Array.isArray(item);
+    if (!isArray && prototype !== Object.prototype && prototype !== null) {
+      return `${pointer || 'the value'} is ${describeKind(item)}`;
+    }
+    ancestors.add(item);
+    const entries = isArray
+      ? (item as unknown[]).map((child, index) => [String(index), child] as const)
+      : Object.entries(item);
+    for (const [key, child] of entries) {
+      const found = visit(child, `${pointer}/${key.replace(/~/g, '~0').replace(/\//g, '~1')}`);
+      if (found) {
+        return found;
+      }
+    }
+    ancestors.delete(item);
+    return undefined;
+  };
+  return visit(value, '');
 }
 
 /** Structural equality with JSON semantics: key order is irrelevant, `undefined` fields are absent. */
@@ -131,8 +191,20 @@ export class AppDataStore {
     return result.value;
   }
 
-  /** Writes `path`: updates the store at once and resolves once the host applied the write. */
+  /**
+   * Writes `path`: updates the store at once and resolves once the host applied the write. A value
+   * that isn't JSON is rejected at once and leaves the store unchanged.
+   */
   async write(path: string, value: unknown): Promise<void> {
+    const nonJson = findNonJson(value);
+    if (nonJson) {
+      const error = new TypeError(
+        `Can't write ${path}: values must be JSON (plain objects, arrays, strings, finite` +
+          ` numbers, booleans and null), but ${nonJson}.`,
+      );
+      this.onWriteError?.(path, error);
+      throw error;
+    }
     let entry = this.inFlight.get(path);
     if (!entry) {
       entry = {count: 0, lastFailed: false};
