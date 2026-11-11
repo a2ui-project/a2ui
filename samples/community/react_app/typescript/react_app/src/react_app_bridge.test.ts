@@ -15,9 +15,11 @@
  */
 
 import {
+  MAX_ACTIONS_PER_SECOND,
   ReactAppBridge,
   ReactAppErrorCode,
   type ReactAppBridgeEvent,
+  type ReactAppBridgeProps,
   type ReactAppBridgeTransport,
 } from './react_app_bridge.js';
 import {FakeFrameHost} from './shared/sandbox/testing/fake_frame_host.js';
@@ -65,26 +67,39 @@ const THEME = {colorScheme: 'light' as const, cssVars: {'--a2ui-color-primary': 
 describe('ReactAppBridge', () => {
   let transport: MemoryTransport;
   let host: FakeFrameHost;
-  let props: {dataPaths?: string[]; functions?: string[]};
+  let props: ReactAppBridgeProps;
   let events: ReactAppBridgeEvent[];
   let bridge: ReactAppBridge;
   let clock: number;
+  let userActive: boolean;
 
-  beforeEach(() => {
-    transport = new MemoryTransport();
-    host = new FakeFrameHost({loan: {rate: 5, principal: 250000}, other: {secret: 1}});
-    props = {};
-    events = [];
-    clock = 100;
-    bridge = new ReactAppBridge({
+  function createBridge(onResize?: (height: number) => void): ReactAppBridge {
+    return new ReactAppBridge({
       transport,
+      frameId: 'plan/app',
       host,
       getProps: () => props,
       getTheme: () => THEME,
       getContainerSize: () => ({width: 640, height: 360}),
+      ...(onResize ? {onResize} : {}),
       onEvent: event => events.push(event),
       now: () => clock,
+      hasUserActivation: () => userActive,
     });
+  }
+
+  function denials() {
+    return events.filter(event => event.type === 'denied');
+  }
+
+  beforeEach(() => {
+    transport = new MemoryTransport();
+    host = new FakeFrameHost({loan: {rate: 5, principal: 250000}, other: {secret: 1}});
+    props = {dataPaths: ['/loan', '/nothing']};
+    events = [];
+    clock = 100;
+    userActive = true;
+    bridge = createBridge();
     bridge.start();
   });
 
@@ -219,7 +234,8 @@ describe('ReactAppBridge', () => {
     ]);
   });
 
-  it('dispatches actions', async () => {
+  it('dispatches listed actions during a user gesture', async () => {
+    props = {actions: ['confirmItinerary']};
     await initialize();
 
     const response = await transport.request(2, 'action/dispatch', {
@@ -229,6 +245,92 @@ describe('ReactAppBridge', () => {
 
     expect(response['result']).toEqual({});
     expect(host.actions).toEqual([{name: 'confirmItinerary', context: {stops: ['a']}}]);
+    expect(denials()).toEqual([]);
+  });
+
+  it('refuses an action without a user gesture, and reports it as denied', async () => {
+    props = {actions: ['confirmItinerary']};
+    userActive = false;
+    await initialize();
+
+    const response = await transport.request(2, 'action/dispatch', {
+      name: 'confirmItinerary',
+      context: {},
+    });
+
+    expect(response['error']).toEqual({
+      code: ReactAppErrorCode.ActionNeedsUserGesture,
+      message: jasmine.stringContaining('needs a user gesture'),
+      data: {name: 'confirmItinerary'},
+    });
+    expect(host.actions).toEqual([]);
+    expect(denials()).toEqual([
+      jasmine.objectContaining({
+        type: 'denied',
+        frameId: 'plan/app',
+        reason: 'userGesture',
+        method: 'action/dispatch',
+        target: 'confirmItinerary',
+        code: ReactAppErrorCode.ActionNeedsUserGesture,
+      }),
+    ]);
+  });
+
+  it('refuses an action outside actions before it checks the gesture', async () => {
+    props = {actions: ['confirmItinerary']};
+    userActive = false;
+    await initialize();
+
+    const response = await transport.request(2, 'action/dispatch', {name: 'bookFlight'});
+
+    expect((response['error'] as {code: number}).code).toBe(ReactAppErrorCode.ActionNotAllowed);
+    expect(denials().map(event => event.type === 'denied' && event.reason)).toEqual(['action']);
+  });
+
+  it('accepts at most MAX_ACTIONS_PER_SECOND actions per second', async () => {
+    props = {actions: ['tick']};
+    await initialize();
+
+    const codes: Array<number | undefined> = [];
+    for (let id = 2; id < 2 + MAX_ACTIONS_PER_SECOND + 1; id++) {
+      const response = await transport.request(id, 'action/dispatch', {name: 'tick'});
+      codes.push((response['error'] as {code: number} | undefined)?.code);
+    }
+    clock += 1000;
+    const later = await transport.request(20, 'action/dispatch', {name: 'tick'});
+
+    expect(codes).toEqual([
+      ...Array<undefined>(MAX_ACTIONS_PER_SECOND).fill(undefined),
+      ReactAppErrorCode.TooManyRequests,
+    ]);
+    expect(later['result']).toEqual({});
+    expect(host.actions.length).toBe(MAX_ACTIONS_PER_SECOND + 1);
+    expect(denials().map(event => event.type === 'denied' && event.reason)).toEqual(['rateLimit']);
+  });
+
+  it('denies every path, function and action when the allowlists are absent', async () => {
+    props = {};
+    host.functions.set('formatCurrency', () => '$1');
+
+    const init = await initialize(['/loan/rate']);
+    const get = await transport.request(2, 'data/get', {path: '/loan/rate'});
+    const call = await transport.request(3, 'function/call', {name: 'formatCurrency', args: {}});
+    const action = await transport.request(4, 'action/dispatch', {name: 'confirmItinerary'});
+
+    expect((init['result'] as {deniedPaths: string[]}).deniedPaths).toEqual(['/loan/rate']);
+    expect((get['error'] as {code: number}).code).toBe(ReactAppErrorCode.PathNotAllowed);
+    expect((call['error'] as {code: number}).code).toBe(ReactAppErrorCode.FunctionNotAllowed);
+    expect((action['error'] as {code: number}).code).toBe(ReactAppErrorCode.ActionNotAllowed);
+    expect(host.functionCalls).toEqual([]);
+    expect(host.actions).toEqual([]);
+    expect(
+      denials().map(event => event.type === 'denied' && [event.reason, event.method, event.target]),
+    ).toEqual([
+      ['path', 'reactApp/initialize', '/loan/rate'],
+      ['path', 'data/get', '/loan/rate'],
+      ['function', 'function/call', 'formatCurrency'],
+      ['action', 'action/dispatch', 'confirmItinerary'],
+    ]);
   });
 
   it('rejects oversized or polluted messages with payload rejected', async () => {
@@ -250,21 +352,16 @@ describe('ReactAppBridge', () => {
       ReactAppErrorCode.PayloadRejected,
     );
     expect(host.actions).toEqual([]);
+    expect(denials().map(event => event.type === 'denied' && [event.reason, event.code])).toEqual([
+      ['payload', ReactAppErrorCode.PayloadRejected],
+      ['payload', ReactAppErrorCode.PayloadRejected],
+    ]);
   });
 
   it('measures proxy ready to ui/rendered, and reports errors, logs and resizes', async () => {
     const resizes: number[] = [];
     bridge.dispose();
-    bridge = new ReactAppBridge({
-      transport,
-      host,
-      getProps: () => props,
-      getTheme: () => THEME,
-      getContainerSize: () => ({width: 640, height: 360}),
-      onResize: height => resizes.push(height),
-      onEvent: event => events.push(event),
-      now: () => clock,
-    });
+    bridge = createBridge(height => resizes.push(height));
     bridge.start();
 
     clock = 1000;
@@ -284,11 +381,21 @@ describe('ReactAppBridge', () => {
     transport.fromApp({jsonrpc: '2.0', method: 'ui/resize', params: {height: 512}});
 
     expect(events.filter(e => e.type !== 'message')).toEqual([
-      {type: 'ready', time: 1000},
-      {type: 'rendered', timings: {rendered: 83, transpileMs: 4}, frameReadyToRenderedMs: 180},
-      {type: 'error', error: {phase: 'compile', message: 'Unexpected token', line: 3}},
-      {type: 'log', level: 'info', args: ['hi']},
+      {type: 'ready', time: 1000, frameId: 'plan/app'},
+      {
+        type: 'rendered',
+        timings: {rendered: 83, transpileMs: 4},
+        frameReadyToRenderedMs: 180,
+        frameId: 'plan/app',
+      },
+      {
+        type: 'error',
+        error: {phase: 'compile', message: 'Unexpected token', line: 3},
+        frameId: 'plan/app',
+      },
+      {type: 'log', level: 'info', args: ['hi'], frameId: 'plan/app'},
     ]);
+    expect(events.every(event => event.frameId === 'plan/app')).toBeTrue();
     expect(resizes).toEqual([512]);
   });
 

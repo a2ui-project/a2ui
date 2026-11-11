@@ -104,6 +104,14 @@ Params `{name, args}`; `args` is an object of named arguments. Result `{value}`.
 
 Params `{name, context}`. The host dispatches an A2UI `event` action of the component with that name and context, so action listeners see the `ReactApp` as its source. Result `{}` once the dispatch resolves.
 
+An action can tell the agent to book, buy or send something, so the host checks every request, in this order, before it dispatches:
+
+1. `name` MUST be in the component's `actions` allowlist (section 4). Otherwise the host answers `-32017`.
+2. The host page MUST have transient user activation (`navigator.userActivation.isActive`) when the request arrives. A click or key press in the app frame activates the host page too, since user activation propagates to ancestor frames across origins, and it stays active for a few seconds. A dispatch from an effect, a timer or a promise that resolves later than that has no activation, and gets `-32015`. A browser without the User Activation API has no activation either, so it refuses every action.
+3. The host accepts at most 5 dispatches per second per frame, and answers `-32016` to the rest.
+
+These checks apply only to the app. Actions of native components don't go through the bridge, so they are unaffected.
+
 ### 3.8. `ui/rendered` (app to host, notification)
 
 Params `{timings}`, where every timing is in milliseconds since the app document's time origin (`performance.timeOrigin` of the inner frame):
@@ -144,9 +152,12 @@ Params `{colorScheme, cssVars}`, same shape as `theme` in section 3.1. The host 
 
 ## 4. Allowlists
 
-1. `dataPaths` (component property): when present, a path is allowed if it equals an entry or starts with an entry followed by `/`. `/loan` allows `/loan` and `/loan/rate`, but not `/loans` or `/`. When absent, every path is allowed. Relative paths are checked as written, before resolution.
-2. `functions` (component property): when present, a function is allowed if its name is in the list. When absent, every function is allowed.
-3. A refused path results in error `-32011`, a refused function in error `-32012`. The host reads the allowlists on every request, so a property update applies at once.
+1. `dataPaths` (component property): a path is allowed if it equals an entry or starts with an entry followed by `/`. `/loan` allows `/loan` and `/loan/rate`, but not `/loans` or `/`. Relative paths are checked as written, before resolution.
+2. `functions` (component property): a function is allowed if its name is in the list.
+3. `actions` (component property): an action is allowed if its name is in the list.
+4. An absent list allows nothing, the same as an empty one. The model is asked to write all three lists, and the agent server (`ReactAppTransformer`) fills in a missing one from the calls in `source` before the component ships, so a missing list in the browser means the app gets no access.
+5. A refused path results in error `-32011`, a refused function in error `-32012` and a refused action in error `-32017`. The host reads the allowlists on every request, so a property update applies at once.
+6. The reference host reports every refusal, including the payload, gesture and rate limit refusals of sections 3.7 and 8, to the page as a `denied` bridge event with the reason, the method, the refused path or name and the error code.
 
 ## 5. Ordering and consistency
 
@@ -180,8 +191,35 @@ Errors use the JSON-RPC `error` member: `{code, message, data?}`.
 | `-32012` | Function not allowed | The function is outside `functions`. `data.name` is the function name.                        |
 | `-32013` | Timeout              | Runtime-side only: no response in time.                                                       |
 | `-32014` | Action failed        | The action dispatch rejected.                                                                 |
+| `-32015` | Action needs gesture | `action/dispatch` arrived without user activation in the host (section 3.7). `data.name`.     |
+| `-32016` | Too many requests    | More than 5 `action/dispatch` requests in a second (section 3.7). `data.name`.                |
+| `-32017` | Action not allowed   | The action is outside `actions`. `data.name` is the action name.                              |
 
 The runtime turns an error response into a rejected promise with an `Error` whose `message` is the error message and whose `code` property is the code.
+
+### 7.1. Reporting app errors to the agent
+
+The agent wrote the app, so it has to learn when the app fails. For a `ui/error` with phase `compile`, `load`, `render`, `runtime` or `csp`, the host reports an A2UI v1.0 renderer-to-agent `error` message, using the generic branch of `specification/v1_0/json/renderer_to_agent.json`:
+
+```json
+{
+  "version": "1.0",
+  "error": {
+    "code": "REACT_APP_ERROR",
+    "message": "The ReactApp chart failed in phase render: Cannot read properties of undefined (reading 'map')",
+    "surfaceId": "plan",
+    "componentId": "chart",
+    "phase": "render",
+    "line": 12,
+    "column": 5
+  }
+}
+```
+
+1. The host reports only the first such error of each app document: a crashed app tends to fail the same way again, and a new `source` makes a new document. `bridge` errors are never reported, because the app already got the error response.
+2. The host reports at most 3 errors per minute per component, so a page that reloads apps quickly can't flood the agent.
+3. `message` holds at most 1000 characters. `line` and `column` are present when the runtime knows them.
+4. The reference host passes the error body to `SurfaceModel.dispatchError`, the same error channel web_core uses for its own renderer errors, so it reaches `MessageProcessor.model.onError` and `SurfaceModel.onError`. The page wraps it as `{version: "1.0", error}` and sends it to the agent next to its actions and `callAgentFunction` messages. The element still dispatches its `react-app-error` DOM event for every error.
 
 ## 8. Limits
 

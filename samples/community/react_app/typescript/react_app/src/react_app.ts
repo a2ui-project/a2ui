@@ -17,6 +17,8 @@
 import type {ComponentApi, WebComponentImplementation} from '@a2ui/web_core/v1_0';
 import {css} from 'lit';
 import {z} from 'zod';
+
+import {AgentErrorReporter} from './agent_errors.js';
 import {buildAppDocument} from './app_document.js';
 import {
   ReactAppBridge,
@@ -63,11 +65,21 @@ export const ReactAppApi = {
       'dataPaths': z
         .array(z.string())
         .optional()
-        .describe('Allowlist of the data model paths the app may read and write.'),
+        .describe(
+          'Allowlist of the data model paths the app may read and write. When absent, the app may use no path.',
+        ),
       'functions': z
         .array(z.string())
         .optional()
-        .describe('Allowlist of the functions the app may call.'),
+        .describe(
+          'Allowlist of the functions the app may call. When absent, the app may call no function.',
+        ),
+      'actions': z
+        .array(z.string())
+        .optional()
+        .describe(
+          'Allowlist of the actions the app may dispatch. When absent, the app may dispatch no action.',
+        ),
       'compiled': z
         .string()
         .optional()
@@ -94,6 +106,11 @@ function stringList(value: readonly unknown[] | undefined): string[] | undefined
  * `SandboxedFrameElement`), it dispatches these events
  * (bubbling and composed): `react-app-bridge` for every bridge message and lifecycle event,
  * `react-app-error` for an app error, `react-app-rendered` once the app painted.
+ *
+ * It also reports app errors to the agent through the surface's error channel
+ * (`SurfaceModel.dispatchError`, which reaches `MessageProcessor.model.onError`): the first
+ * `compile`, `load`, `render`, `runtime` or `csp` error of each app document, rate limited by
+ * {@link AgentErrorReporter}. Forwarding `onError` to the agent is up to the host.
  */
 class ReactAppElement extends SandboxedFrameElement<typeof ReactAppApi> {
   /**
@@ -118,6 +135,9 @@ class ReactAppElement extends SandboxedFrameElement<typeof ReactAppApi> {
 
   private runtime: LoadedRuntime | null = null;
   private bridge: ReactAppBridge | null = null;
+  private readonly agentErrors = new AgentErrorReporter(error => {
+    void this.context?.dataContext.surface?.dispatchError(error);
+  });
 
   override connectedCallback() {
     super.connectedCallback();
@@ -170,12 +190,23 @@ class ReactAppElement extends SandboxedFrameElement<typeof ReactAppApi> {
 
   protected connectFrame(frame: HTMLIFrameElement, sandboxOrigin: string): () => void {
     this.lastRendered = null;
+    const errorTarget = {
+      surfaceId: this.context.dataContext.surface?.id ?? '',
+      componentId: this.context.componentModel.id,
+    };
+    // The document the frame shows from now on; app errors are reported once per document.
+    const appDocument = this.resolveResource()?.html ?? '';
     const bridge = new ReactAppBridge({
       transport: createFrameTransport(frame, sandboxOrigin),
+      frameId: `${errorTarget.surfaceId}/${errorTarget.componentId}`,
       host: new ReactAppFrameHost(this.context),
       getProps: () => {
-        const {dataPaths, functions} = this.controller.props;
-        return {dataPaths: stringList(dataPaths), functions: stringList(functions)};
+        const {dataPaths, functions, actions} = this.controller.props;
+        return {
+          dataPaths: stringList(dataPaths),
+          functions: stringList(functions),
+          actions: stringList(actions),
+        };
       },
       getTheme: () => readThemeTokens(this, getReactAppConfig().themeVariables),
       getContainerSize: () => ({width: frame.clientWidth, height: frame.clientHeight}),
@@ -183,7 +214,12 @@ class ReactAppElement extends SandboxedFrameElement<typeof ReactAppApi> {
         // The app can ask for more room than `height`, never less.
         this.requestFrameSize(undefined, Math.max(height, this.resolveHeight()));
       },
-      onEvent: event => this.handleBridgeEvent(event),
+      onEvent: event => {
+        this.handleBridgeEvent(event);
+        if (event.type === 'error') {
+          this.agentErrors.report(event.error, appDocument, errorTarget);
+        }
+      },
     });
     this.bridge = bridge;
     bridge.start();

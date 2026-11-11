@@ -17,7 +17,7 @@
 import {basicCatalog, MessageProcessor} from '@a2ui/web_core/v1_0';
 import lapTimerExample from '../../../catalog/v1/examples/lap_timer.json' with {type: 'json'};
 import loanExample from '../../../catalog/v1/examples/loan_explorer.json' with {type: 'json'};
-import {hasForbiddenSegment, isFunctionAllowed, isPathAllowed} from './allowlist.js';
+import {hasForbiddenSegment, isNameAllowed, isPathAllowed} from './allowlist.js';
 import {buildAppDocument, jsonForScript} from './app_document.js';
 import catalogJson from './catalog.json' with {type: 'json'};
 import {REACT_APP_CATALOG_ID, reactAppCatalog} from './catalog.js';
@@ -84,14 +84,18 @@ describe('allowlists', () => {
     expect(isPathAllowed('/loan/rate', ['/loan/'])).toBeTrue();
     expect(isPathAllowed('/loans', ['/loan'])).toBeFalse();
     expect(isPathAllowed('/', ['/loan'])).toBeFalse();
-    expect(isPathAllowed('/anything', undefined)).toBeTrue();
+  });
+
+  it('denies every path when dataPaths is absent or empty', () => {
+    expect(isPathAllowed('/anything', undefined)).toBeFalse();
     expect(isPathAllowed('/anything', [])).toBeFalse();
   });
 
-  it('allows listed functions only, when there is a list', () => {
-    expect(isFunctionAllowed('formatCurrency', ['formatCurrency'])).toBeTrue();
-    expect(isFunctionAllowed('other', ['formatCurrency'])).toBeFalse();
-    expect(isFunctionAllowed('other', undefined)).toBeTrue();
+  it('allows listed names only, and none without a list', () => {
+    expect(isNameAllowed('formatCurrency', ['formatCurrency'])).toBeTrue();
+    expect(isNameAllowed('other', ['formatCurrency'])).toBeFalse();
+    expect(isNameAllowed('other', undefined)).toBeFalse();
+    expect(isNameAllowed('other', [])).toBeFalse();
   });
 
   it('finds prototype pollution segments, escaped or not', () => {
