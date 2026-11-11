@@ -82,7 +82,7 @@ const stories: Story[] = [
     title:
       'ByteDance built an A2UI renderer into Lynx, its open-source framework for mobile, web and desktop apps.',
     body: [
-      'ByteDance released an A2UI renderer for Lynx, its cross-platform framework, in June. Lynx keeps streamed screens smooth and ships a default set of components built on its lynx-ui library.',
+      'ByteDance released an A2UI renderer for Lynx, its cross-platform framework, in June 2026. Lynx keeps streamed screens smooth and ships a default set of components built on its lynx-ui library.',
       'In the Lynx GenUI Playground you can watch A2UI messages render natively, for example as a two-day trip planner for Kyoto. Lynx supports A2UI 0.9 today and is working with the A2UI team on 1.0 and A2UI Express.',
     ],
     image: {
@@ -123,9 +123,25 @@ const stories: Story[] = [
     ],
   },
   {
+    id: 'gemini-notebook',
+    team: 'Gemini',
+    product: 'Gemini Notebook',
+    title: 'Gemini Notebook uses A2UI cards to confirm what you want before it creates a slide deck.',
+    body: [
+      'Ask Gemini Notebook for a slide deck and it replies with a card that asks two things: presenter slides or a detailed deck, and which topics to focus on. A review card follows with the format, focus and visual style, which you can edit before it generates.',
+      'The same cards guide Video Overviews on the web and on mobile.',
+    ],
+    image: {
+      asset: releaseAsset('build-with-a2ui/gemini-notebook-slides'),
+      alt: 'Two Gemini Notebook cards for a slide deck: an options card to pick presenter slides or a detailed deck and the topics to focus on, and a review card to check the format, length, language, slide focus and visual style before generating.',
+      caption: 'The options card (left) and the review card (right) in Gemini Notebook.',
+    },
+    links: [],
+  },
+  {
     id: 'gemini-enterprise',
     team: 'Google Cloud',
-    product: 'Gemini Enterprise',
+    product: 'Inside Gemini',
     title: 'Gemini Enterprise supports A2UI agents that organizations build and register.',
     body: [
       'Organizations can register their own agents that respond with A2UI. Gemini Enterprise renders those responses using the components in its A2UI component gallery, and supports A2UI 0.9.1 today.',
@@ -153,22 +169,6 @@ const stories: Story[] = [
         href: 'https://docs.cloud.google.com/gemini/enterprise/docs/a2ui-agents/tutorial-host-agent-cloud-run',
       },
     ],
-    links: [],
-  },
-  {
-    id: 'gemini-notebook',
-    team: 'Gemini',
-    product: 'Gemini Notebook',
-    title: 'Gemini Notebook uses A2UI cards to confirm what you want before it creates a slide deck.',
-    body: [
-      'Ask Gemini Notebook for a slide deck and it replies with a card that asks two things: presenter slides or a detailed deck, and which topics to focus on. A review card follows with the format, focus and visual style, which you can edit before it generates.',
-      'The same cards guide Video Overviews on the web and on mobile.',
-    ],
-    image: {
-      asset: releaseAsset('build-with-a2ui/gemini-notebook-cards'),
-      alt: 'Two Gemini Notebook cards for a Neapolitan pizza slide deck: an options card to pick the deck type and focus topics, and a review card to edit format, focus and visual style.',
-      caption: 'The options card (left) and the review card (right) in Gemini Notebook.',
-    },
     links: [],
   },
 ];
