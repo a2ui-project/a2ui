@@ -17,7 +17,7 @@
 /**
  * Integration tests for the standalone VegaChart sample (`a2ui_vegachart.json`).
  *
- * Verifies multi-catalog registration (`basicCatalog` + `vegachartCatalog`),
+ * Verifies the combined catalog (`basicCatalog` + `vegachartCatalog`),
  * static payload validation, component creation, and reactive data model
  * bindings for `VegaChart` specs.
  */
@@ -25,14 +25,10 @@
 import {beforeEach, describe, expect, it} from 'vitest';
 
 import {A2uiVegaChartElement} from '@a2ui/catalog-vegachart';
+import {basicCatalog} from '@a2ui/lit/v0_9';
 import {DataContext} from '@a2ui/web_core/v0_9';
 
-import {
-  A2uiVegachartApp,
-  BASIC_CATALOG_ID,
-  DASHBOARD_SURFACE_ID,
-  VEGACHART_CATALOG_ID,
-} from './app.js';
+import {A2uiVegachartApp, DASHBOARD_SURFACE_ID, SAMPLE_CATALOG_ID, sampleCatalog} from './app.js';
 
 if (!(document as unknown as Record<string, unknown>)['adoptedStyleSheets']) {
   (document as unknown as Record<string, unknown>)['adoptedStyleSheets'] = [];
@@ -59,13 +55,16 @@ describe('the VegaChart sample payload', () => {
     app = new A2uiVegachartApp();
   });
 
-  it('registers both the basic catalog and the VegaChart catalog', async () => {
+  it('registers one catalog with the basic components and VegaChart', async () => {
     await bootstrap(app);
 
     const supported =
       app.processor.getClientCapabilities({versions: ['v0.9']})['v0.9']?.supportedCatalogIds ?? [];
-    expect(supported).toContain(BASIC_CATALOG_ID);
-    expect(supported).toContain(VEGACHART_CATALOG_ID);
+    expect(supported).toEqual([SAMPLE_CATALOG_ID]);
+    expect(sampleCatalog.components.has('VegaChart')).toBe(true);
+    for (const name of basicCatalog.components.keys()) {
+      expect(sampleCatalog.components.has(name)).toBe(true);
+    }
   });
 
   it('validates the static payload and creates the dashboard surface without errors', async () => {
@@ -86,7 +85,7 @@ describe('the VegaChart sample payload', () => {
     const surface = app.surface!;
     const revenueComp = surface.componentsModel.get('revenue_chart')!;
     expect(revenueComp.type).toBe('VegaChart');
-    expect(revenueComp.catalog.id).toBe(VEGACHART_CATALOG_ID);
+    expect(revenueComp.catalog.id).toBe(SAMPLE_CATALOG_ID);
 
     const ctx = new DataContext(surface, '/');
     const initialSpec = (await ctx.resolveDynamicValue(revenueComp.properties['spec'])) as Record<
