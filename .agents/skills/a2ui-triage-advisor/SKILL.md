@@ -122,9 +122,10 @@ Rules for links in `summary`, `suggestion` and `reply`:
 1. Link every artifact you mention, so that the triager can check it in one click: files, folders, lines of code, commits, workflow runs, docs pages and specifications.
 2. Put the link on the words that name the artifact. In "The `genui` package README links to `./DESIGN.md`", link "README" to the README file, not to its repository.
 3. Write an issue or a PR as `#123` in `a2ui-project/a2ui`, and as `owner/repo#123` in another repository. GitHub turns both into links.
-4. Link files and lines to a commit SHA, not to a branch, so that the link keeps showing what you read after the branch moves: `https://github.com/<owner>/<repo>/blob/<sha>/<path>#L10-L20`. Get the SHA of `main` with `gh api repos/<owner>/<repo>/commits/main -q .sha`. For a Markdown file, add `?plain=1` before the line anchor.
-5. When you name someone as an owner or an expert from the commit history in step 4, link the history: `https://github.com/a2ui-project/a2ui/commits/main/<path>`.
-6. Check that every link resolves before you post.
+4. Link files to a commit SHA, not to a branch, so that the link keeps showing what you read after the branch moves: `https://github.com/<owner>/<repo>/blob/<sha>/<path>`. Get the SHA of `main` with `gh api repos/<owner>/<repo>/commits/main -q .sha`.
+5. When the text is about specific lines, such as a broken link, a line of a stack trace, or the code that causes a bug, link to those lines with a permalink, not to the whole file: the commit SHA and a line anchor, `https://github.com/<owner>/<repo>/blob/<sha>/<path>#L10` for one line or `#L10-L20` for a range. For a Markdown file, add `?plain=1` before the anchor, as in `.../README.md?plain=1#L81`, or GitHub shows the rendered file and ignores the anchor.
+6. When you name someone as an owner or an expert from the commit history in step 4, link the history: `https://github.com/a2ui-project/a2ui/commits/main/<path>`.
+7. Check that every link resolves before you post, and that each line link points at the lines the text describes.
 
 ## Step 7: Format the comment
 
