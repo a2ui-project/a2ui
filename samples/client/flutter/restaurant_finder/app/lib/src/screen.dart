@@ -12,9 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'package:a2ui_core/a2ui_core.dart' hide Action;
+import 'package:a2ui_flutter/a2ui_flutter.dart';
+import 'package:a2ui_flutter/v0_9/basic_catalog.dart';
 // ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
 import 'package:flutter/material.dart';
-import 'package:genui/genui.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
 import 'primitives.dart';
 import 'session.dart';
@@ -152,20 +155,23 @@ class _RestaurantScreenState extends State<RestaurantScreen> {
   }
 
   Widget _buildSurfaces() {
-    final List<String> surfaceIds = _session.activeSurfaceIds.toList();
+    final List<SurfaceModel<ComponentImplementation>> surfaces =
+        _session.surfaces;
     return Column(
       children: [
         if (_session.error != null) ErrorBanner(message: _session.error!),
         Expanded(
-          child: surfaceIds.isEmpty
+          child: surfaces.isEmpty
               ? const Center(child: CircularProgressIndicator())
-              : ListView.builder(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.all(12),
-                  itemCount: surfaceIds.length,
-                  itemBuilder: (context, i) => Surface(
-                    surfaceContext: _session.surfaceHost.contextFor(
-                      surfaceIds[i],
+              : A2uiMarkdown(
+                  builder: _markdown,
+                  child: ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.all(12),
+                    itemCount: surfaces.length,
+                    itemBuilder: (context, i) => A2uiSurface(
+                      key: ObjectKey(surfaces[i]),
+                      surface: surfaces[i],
                     ),
                   ),
                 ),
@@ -173,6 +179,17 @@ class _RestaurantScreenState extends State<RestaurantScreen> {
       ],
     );
   }
+
+  static Widget _markdown(
+    BuildContext context,
+    String markdown,
+    TextStyle style,
+  ) => MarkdownBody(
+    data: markdown,
+    styleSheet: MarkdownStyleSheet.fromTheme(
+      Theme.of(context),
+    ).copyWith(p: style),
+  );
 
   Future<void> _sendMessage() async {
     final String text = _textController.text.trim();
