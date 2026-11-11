@@ -16,21 +16,24 @@
 
 Re-exports ``AccessibilityAttributes``, ``ActionEvent``, ``CheckRule``,
 ``DataBinding``, ``Extensions``, and ``FunctionCall`` from ``a2ui.core.schema.v1_0``.
-Defines ``ComponentBuilderNode``, ``Action``, and ``DynamicChildList`` locally
-for ergonomic authoring.
+Defines ``ComponentBuilderNode``, ``Child``, ``Action``, ``DynamicChildList``, and
+``ChildList`` locally for ergonomic authoring with ``@``-prefixed wire output.
 """
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 import copy
-from typing import Any, ClassVar, Self, TypeAlias
+from typing import Annotated, Any, ClassVar, Self, TypeAlias
 
 from pydantic import (
     AliasChoices,
     AliasPath,
+    BeforeValidator,
     Field,
+    PlainSerializer,
     PydanticUndefinedAnnotation,
+    SerializationInfo,
     StrictBool,
     StrictFloat,
     StrictInt,
@@ -51,8 +54,11 @@ from a2ui.core.schema.v1_0 import (
     LiteralObject,
 )
 from ..core.base_model import BuilderBaseModel
-from ..core.base_node import ComponentBuilderNode as CoreComponentBuilderNode
-from ..core.child import Child
+from ..core.base_node import (
+    ComponentBuilderNode as CoreComponentBuilderNode,
+    ComponentRef,
+)
+from ..core.child import emit_component, flatten_context_of, serialize_child
 
 _UNSET_CATALOG_ID: Any = object()
 
@@ -295,14 +301,65 @@ DynamicValue = (
 )
 
 
+def _coerce_v10_child(value: Any) -> Any:
+    """Accepts builder nodes, ``{"@child": id}`` wire objects, or legacy IDs."""
+    if isinstance(value, Mapping) and set(value.keys()) == {"@child"}:
+        inner = value["@child"]
+        if isinstance(inner, str):
+            return ComponentRef(id=inner)
+        return inner
+    # TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+    if isinstance(value, str):
+        return ComponentRef(id=value)
+    return value
+
+
+def _serialize_v10_child(
+    node: CoreComponentBuilderNode, info: SerializationInfo
+) -> Any:
+    """Serializes a v1.0 child slot as ``{"@child": "<id>"}`` during flattening."""
+    context = flatten_context_of(info)
+    if context is None:
+        return node.model_dump(by_alias=True, exclude_none=True)
+    return {"@child": emit_component(node, context)}
+
+
+Child: TypeAlias = Annotated[
+    CoreComponentBuilderNode,
+    BeforeValidator(_coerce_v10_child),
+    PlainSerializer(_serialize_v10_child, return_type=Any),
+]
+"""A v1.0 child component slot that flattens to ``{"@child": "<id>"}``."""
+
+
+def _coerce_bare_child(value: Any) -> Any:
+    """Accepts builder nodes or bare string IDs inside ChildList containers."""
+    if isinstance(value, str):
+        return ComponentRef(id=value)
+    return value
+
+
+_BareChild: TypeAlias = Annotated[
+    CoreComponentBuilderNode,
+    BeforeValidator(_coerce_bare_child),
+    PlainSerializer(serialize_child, return_type=Any),
+]
+
+
 class Action(BuilderBaseModel):
     """Dispatches either an agent ``event`` or a renderer/agent ``function_call`` (mutually exclusive)."""
 
-    event: ActionEvent | None = None
+    event: ActionEvent | None = Field(
+        default=None,
+        serialization_alias="@action",
+        # TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+        validation_alias=AliasChoices("@action", "event"),
+    )
     function_call: FunctionCall | None = Field(
         default=None,
-        serialization_alias="functionCall",
-        validation_alias=AliasChoices("function_call", "functionCall"),
+        serialization_alias="@functionCall",
+        # TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+        validation_alias=AliasChoices("@functionCall", "functionCall"),
     )
 
     @model_validator(mode="after")
@@ -318,26 +375,56 @@ class DynamicChildList(BuilderBaseModel):
     """Repeats ``template`` for each item in the data model array at ``path``.
 
     During flattening, ``template`` is emitted as a sibling component and
-    replaced by its allocated ``componentId`` on the wire. ``path`` may be
+    written under ``@child`` with ``@path`` on the wire. ``path`` may be
     absolute (``/items``) or relative to an enclosing template scope.
     """
 
     path: str = Field(
-        validation_alias=AliasChoices("path", "data_model_path", "dataModelPath"),
+        serialization_alias="@path",
+        # TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+        validation_alias=AliasChoices(
+            "@path", "path", "data_model_path", "dataModelPath"
+        ),
     )
-    template: Child = Field(
-        serialization_alias="componentId",
-        validation_alias=AliasChoices("template", "componentId"),
+    template: _BareChild = Field(
+        serialization_alias="@child",
+        # TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+        validation_alias=AliasChoices("@child", "componentId"),
     )
 
 
-ChildList: TypeAlias = Sequence[Child] | DynamicChildList
+def _coerce_v10_child_list(value: Any) -> Any:
+    """Unwraps ``{"@child": [...]}`` static child lists; leaves templates intact."""
+    if isinstance(value, Mapping) and set(value.keys()) == {"@child"}:
+        items = value["@child"]
+        if isinstance(items, Sequence) and not isinstance(items, (str, bytes)):
+            return list(items)
+    return value
+
+
+def _serialize_v10_child_list(value: Any, info: SerializationInfo) -> Any:
+    """Serializes static child lists to ``{"@child": [...]}`` during flattening."""
+    if isinstance(value, DynamicChildList):
+        return value.model_dump(by_alias=True, exclude_none=True, context=info.context)
+    context = flatten_context_of(info)
+    if context is None:
+        return [item.model_dump(by_alias=True, exclude_none=True) for item in value]
+    return {"@child": [emit_component(item, context) for item in value]}
+
+
+# TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback on input.
+ChildList: TypeAlias = Annotated[
+    Sequence[_BareChild] | DynamicChildList,
+    BeforeValidator(_coerce_v10_child_list),
+    PlainSerializer(_serialize_v10_child_list, return_type=Any),
+]
 
 __all__ = [
     "AccessibilityAttributes",
     "Action",
     "ActionEvent",
     "CheckRule",
+    "Child",
     "ChildList",
     "ComponentBuilderNode",
     "DataBinding",

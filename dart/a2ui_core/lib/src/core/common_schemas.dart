@@ -219,11 +219,11 @@ class CommonSchemas {
 
 /// Dart builders for the v1.0 `common_types.json` definitions.
 ///
-/// v1.0 marks data bindings and function calls with the reserved `@path` and
-/// `@call` keys, so these differ from [CommonSchemas] wherever a value may be
-/// dynamic. A literal object in a [dynamicValue] may not use any other key
-/// starting with a single `@`; such keys are reserved for protocol directives
-/// and must be escaped as `@@`.
+/// v1.0 marks protocol directives with the reserved `@path`, `@call`, `@child`,
+/// `@action`, and `@functionCall` keys, so these differ from [CommonSchemas]
+/// wherever a value may be dynamic or use those structures. A literal object in
+/// a [dynamicValue] may not use any other key starting with a single `@`; such
+/// keys are reserved for protocol directives and must be escaped as `@@`.
 class CommonSchemasV1 {
   static final Schema dataBinding = _withRef(
     Schema.object(
@@ -294,7 +294,8 @@ class CommonSchemasV1 {
   /// A literal, a data binding, or a function call returning any type.
   ///
   /// The literal-object alternative rejects reserved single-`@` keys and any
-  /// object carrying `@path` or `@call`, so exactly one alternative matches.
+  /// object carrying `@path`, `@call`, `@child`, `@action`, or `@functionCall`,
+  /// so exactly one alternative matches.
   static final Schema dynamicValue = _withRef(
     Schema.combined(
       description: 'Any value',
@@ -316,6 +317,15 @@ class CommonSchemasV1 {
               <String, Object?>{
                 'required': <Object?>['@call'],
               },
+              <String, Object?>{
+                'required': <Object?>['@child'],
+              },
+              <String, Object?>{
+                'required': <Object?>['@action'],
+              },
+              <String, Object?>{
+                'required': <Object?>['@functionCall'],
+              },
             ],
           },
         }),
@@ -324,6 +334,89 @@ class CommonSchemasV1 {
       ],
     ),
     'DynamicValue',
+  );
+
+  static final Schema child = _withRef(
+    Schema.object(
+      description: 'A reference to a single child component.',
+      properties: {'@child': CommonSchemas.componentId},
+      required: ['@child'],
+      additionalProperties: false,
+    ),
+    'Child',
+  );
+
+  static final Schema childList = _withRef(
+    Schema.combined(
+      description: 'A list of child component IDs or a template.',
+      oneOf: [
+        Schema.object(
+          description: 'A static list of child component IDs.',
+          properties: {'@child': Schema.list(items: CommonSchemas.componentId)},
+          required: ['@child'],
+          additionalProperties: false,
+        ),
+        Schema.object(
+          description:
+              'A template for generating a dynamic list of children from a '
+              'data model list. The `@child` is the component ID to use as a '
+              'template.',
+          properties: {
+            '@child': CommonSchemas.componentId,
+            '@path': Schema.string(
+              description:
+                  'The path to the list of component property objects in the '
+                  'data model.',
+            ),
+          },
+          required: ['@child', '@path'],
+          additionalProperties: false,
+        ),
+      ],
+    ),
+    'ChildList',
+  );
+
+  static final Schema action = _withRef(
+    Schema.combined(
+      description: 'Defines an interaction handler that can either trigger an '
+          'agent-side event or execute a local renderer-side function.',
+      oneOf: [
+        Schema.object(
+          description: 'Triggers an agent-side event.',
+          properties: {
+            '@action': Schema.object(
+              description: 'The event to dispatch to the agent.',
+              properties: {
+                'name': Schema.string(
+                  description:
+                      'The name of the action to be dispatched to the agent.',
+                ),
+                'userMessage': dynamicString,
+                'context': Schema.fromMap(<String, Object?>{
+                  'type': 'object',
+                  'description':
+                      'A JSON object containing the key-value pairs for the '
+                          'action context.',
+                  'additionalProperties': dynamicValue.value,
+                }),
+              },
+              required: ['name'],
+              additionalProperties: false,
+            ),
+          },
+          required: ['@action'],
+          additionalProperties: false,
+        ),
+        Schema.object(
+          description: 'Executes a renderer or agent-side function.',
+          properties: {'@functionCall': functionCall},
+          required: ['@functionCall'],
+          additionalProperties: false,
+        ),
+      ],
+    ),
+    'Action',
   );
 
   static final Schema accessibilityAttributes = _withRef(

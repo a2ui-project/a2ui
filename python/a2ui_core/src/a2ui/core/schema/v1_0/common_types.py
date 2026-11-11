@@ -38,15 +38,12 @@ from .._json_schema import (
     is_identifier_key,
 )
 from ..common_types import (
-    Child,
-    ChildList,
     ComponentId,
     ComponentReference,
     ListReference,
     SingleReference,
     SpecBaseModel,
     StrictBaseModel,
-    TemplateChildList,
 )
 
 
@@ -216,10 +213,41 @@ class ComponentCommon(SpecBaseModel):
     )
 
 
+class Child(SpecBaseModel, ComponentReference):
+    """A reference to a single child component."""
+
+    model_config = ConfigDict(populate_by_name=True)
+    child: ComponentId = Field(..., alias="@child")
+
+
+class StaticChildList(SpecBaseModel, ListReference):
+    """A static list of child component IDs."""
+
+    model_config = ConfigDict(populate_by_name=True)
+    child: list[ComponentId] = Field(..., alias="@child")
+
+
+class TemplateChildList(SpecBaseModel, ListReference):
+    """A template for generating a dynamic list of children from a data model list. The `@child` is the component ID to use as a template."""
+
+    model_config = ConfigDict(populate_by_name=True)
+    child: ComponentId = Field(..., alias="@child")
+    path: str = Field(
+        ...,
+        alias="@path",
+        description=(
+            "The path to the list of component property objects in the data model."
+        ),
+    )
+
+
+ChildList = TypeAliasType("ChildList", StaticChildList | TemplateChildList)
+
+
 def _validate_literal_object(v: Any) -> dict[str, Any]:
     if not isinstance(v, dict):
         raise ValueError("Expected a dictionary object")
-    forbidden = {"@call", "@path"}
+    forbidden = {"@action", "@call", "@child", "@functionCall", "@path"}
     found = forbidden.intersection(v.keys())
     if found:
         raise ValueError(
@@ -242,7 +270,13 @@ LiteralObject = Annotated[
         {
             "propertyNames": {"not": {"pattern": "^@([^@]|$)"}},
             "not": {
-                "anyOf": [{"required": ["@path"]}, {"required": ["@call"]}],
+                "anyOf": [
+                    {"required": ["@path"]},
+                    {"required": ["@call"]},
+                    {"required": ["@child"]},
+                    {"required": ["@action"]},
+                    {"required": ["@functionCall"]},
+                ],
                 KEEP_ANY_OF_MARKER: True,
             },
         },
@@ -362,14 +396,16 @@ class ActionEventWrapper(SpecBaseModel):
     """Triggers an agent-side event."""
 
     model_config = ConfigDict(populate_by_name=True)
-    event: ActionEvent = Field(..., description="The event to dispatch to the agent.")
+    action: ActionEvent = Field(
+        ..., alias="@action", description="The event to dispatch to the agent."
+    )
 
 
 class ActionFunctionCallWrapper(SpecBaseModel):
     """Executes a renderer or agent-side function."""
 
     model_config = ConfigDict(populate_by_name=True)
-    function_call: FunctionCall = Field(..., alias="functionCall")
+    function_call: FunctionCall = Field(..., alias="@functionCall")
 
 
 Action = TypeAliasType("Action", ActionEventWrapper | ActionFunctionCallWrapper)
@@ -446,16 +482,8 @@ COMMON_TYPES_DEFS: Final[dict[str, Any]] = {
         ),
     ],
     "ComponentCommon": ComponentCommon,
-    "Child": Annotated[
-        Child, Field(description="A reference to a single child component ID.")
-    ],
-    "ChildList": (
-        Annotated[
-            list[ComponentId],
-            Field(description="A static list of child component IDs."),
-        ]
-        | TemplateChildList
-    ),
+    "Child": Child,
+    "ChildList": ChildList,
     "DataBinding": DataBinding,
     "DynamicValue": Annotated[
         DynamicValue,
@@ -547,6 +575,7 @@ __all__ = [
     "LiteralObject",
     "SingleReference",
     "SpecBaseModel",
+    "StaticChildList",
     "StrictBaseModel",
     "Surface",
     "TemplateChildList",

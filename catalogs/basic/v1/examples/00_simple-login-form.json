@@ -18,7 +18,9 @@
           {
             "id": "root",
             "component": "Column",
-            "children": ["form_title", "username_field", "password_field", "submit_button"],
+            "children": {
+              "@child": ["form_title", "username_field", "password_field", "submit_button"]
+            },
             "justify": "start",
             "align": "stretch"
           },
@@ -48,10 +50,12 @@
           {
             "id": "submit_button",
             "component": "Button",
-            "child": "submit_label",
+            "child": {
+              "@child": "submit_label"
+            },
             "variant": "primary",
             "action": {
-              "event": {
+              "@action": {
                 "name": "login_submitted",
                 "context": {
                   "user": {

@@ -49,8 +49,6 @@ from a2ui.processor import CatalogConfig
 from a2ui.processor import InMemoryCatalogProvider
 from a2ui.utils import (
     agent_callable_functions,
-    load_examples,
-    resolve_catalogs,
     validate_payload,
 )
 
@@ -67,6 +65,7 @@ from .lowering import injected_catalog_id
 from .lowering import lift_messages
 from .lowering import lift_parts
 from .lowering import lower_case
+from .lowering import lower_decompiled_fragment
 from .lowering import lower_messages
 from .lowering import lower_text
 from .lowering import v09_skip_reason
@@ -586,10 +585,12 @@ def test_compiler_conformance(suite, test_case, version):
     assert_known_keys(test_case, _COMPILE_CASE_KEYS, "compile case")
     is_express = test_case.get("args", {}).get("format") == "express"
     inj_id = None
+    v10_catalogs: list[Any] | None = None
     if version == "v0.9-lowered":
         skip_reason = v09_skip_reason(suite, test_case)
         if skip_reason:
             pytest.skip(skip_reason)
+        v10_catalogs = _catalogs_for(test_case.get("args", {}))
         inj_id = injected_catalog_id(test_case, DEFAULT_CATALOG)
         test_case = lower_case(test_case, DEFAULT_CATALOG)
 
@@ -610,6 +611,7 @@ def test_compiler_conformance(suite, test_case, version):
             compiled,
             join=is_express,
             injected_catalog_id=None if is_express else inj_id,
+            catalogs=v10_catalogs,
         )
 
     if "expect_present" in test_case:
@@ -634,10 +636,12 @@ def test_decompiler_conformance(suite, test_case, version):
     orig_messages = test_case["messages"]
     is_express = test_case.get("args", {}).get("format") == "express"
     inj_id = None
+    v10_catalogs: list[Any] | None = None
     if version == "v0.9-lowered":
         skip_reason = v09_skip_reason(suite, test_case)
         if skip_reason:
             pytest.skip(skip_reason)
+        v10_catalogs = _catalogs_for(test_case.get("args", {}))
         if not is_express and not any(
             isinstance(m, dict)
             and isinstance(m.get("createSurface"), dict)
@@ -658,7 +662,14 @@ def test_decompiler_conformance(suite, test_case, version):
     notation = parser.decompile(to_message_models(messages))
 
     for fragment in test_case.get("expect_contains", []):
-        assert fragment in notation, f"{fragment!r} not in {notation!r}"
+        expected_fragment = (
+            lower_decompiled_fragment(fragment, is_lowered=(version == "v0.9-lowered"))
+            if not is_express
+            else fragment
+        )
+        assert (
+            expected_fragment in notation
+        ), f"{expected_fragment!r} not in {notation!r}"
 
     for fragment in test_case.get("expect_absent", []):
         assert fragment not in notation, f"{fragment!r} unexpectedly in {notation!r}"
@@ -670,6 +681,7 @@ def test_decompiler_conformance(suite, test_case, version):
                 recompiled,
                 join=is_express,
                 injected_catalog_id=None if is_express else inj_id,
+                catalogs=v10_catalogs,
             )
         return recompiled
 
@@ -748,10 +760,12 @@ cases_response_parser = get_marked_conformance_cases(
 def test_response_parser_conformance(suite, test_case, version):
     is_express = test_case.get("args", {}).get("format") == "express"
     inj_id = None
+    v10_catalogs: list[Any] | None = None
     if version == "v0.9-lowered":
         skip_reason = v09_skip_reason(suite, test_case)
         if skip_reason:
             pytest.skip(skip_reason)
+        v10_catalogs = _catalogs_for(test_case.get("args", {}))
         inj_id = injected_catalog_id(test_case, DEFAULT_CATALOG)
         test_case = lower_case(test_case, DEFAULT_CATALOG)
 
@@ -812,6 +826,7 @@ def test_response_parser_conformance(suite, test_case, version):
                 actual_dicts,
                 join=is_express,
                 injected_catalog_id=None if is_express else inj_id,
+                catalogs=v10_catalogs,
             )
         assert actual_dicts == test_case["expect"]
 
@@ -847,10 +862,12 @@ def test_response_streaming_conformance(suite, test_case, version):
     is_express = orig_args.get("format") == "express"
     declares_v1 = case_declares_v1(orig_args)
     inj_id = None
+    v10_catalogs: list[Any] | None = None
     if version == "v0.9-lowered":
         skip_reason = v09_skip_reason(suite, test_case)
         if skip_reason:
             pytest.skip(skip_reason)
+        v10_catalogs = _catalogs_for(orig_args)
         inj_id = injected_catalog_id(test_case, DEFAULT_CATALOG)
         test_case = lower_case(test_case, DEFAULT_CATALOG)
 
@@ -861,6 +878,7 @@ def test_response_streaming_conformance(suite, test_case, version):
                 dicts,
                 join=is_express,
                 injected_catalog_id=None if is_express else inj_id,
+                catalogs=v10_catalogs,
             )
         return dicts
 
@@ -975,10 +993,12 @@ def run_format_case(test_case, tmp_path, *, suite: str = "", version: str = "v1.
     )
     is_express = effective_format == "express"
     inj_id = None
+    v10_catalogs: list[Any] | None = None
     if is_lowered:
         skip_reason = v09_skip_reason(suite, test_case)
         if skip_reason:
             pytest.skip(skip_reason)
+        v10_catalogs = _catalogs_for(test_case.get("args", {}))
         inj_id = injected_catalog_id(test_case, DEFAULT_CATALOG)
         test_case = lower_case(test_case, DEFAULT_CATALOG)
 
@@ -1001,6 +1021,7 @@ def run_format_case(test_case, tmp_path, *, suite: str = "", version: str = "v1.
                 compiled,
                 join=is_express,
                 injected_catalog_id=None if is_express else inj_id,
+                catalogs=v10_catalogs,
             )
         assert sort_components_by_id(compiled) == sort_components_by_id(
             test_case["expect"]
@@ -1017,7 +1038,12 @@ def run_format_case(test_case, tmp_path, *, suite: str = "", version: str = "v1.
         notation = parser.decompile(to_message_models(messages))
         _expect_snippet(
             notation,
-            test_case.get("expect_contains", []),
+            [
+                lower_decompiled_fragment(f, is_lowered=is_lowered)
+                if not is_express
+                else f
+                for f in test_case.get("expect_contains", [])
+            ],
             test_case.get("expect_absent", []),
         )
         if test_case.get("expect_round_trip"):
@@ -1027,6 +1053,7 @@ def run_format_case(test_case, tmp_path, *, suite: str = "", version: str = "v1.
                     recompiled,
                     join=is_express,
                     injected_catalog_id=None if is_express else inj_id,
+                    catalogs=v10_catalogs,
                 )
             assert sort_components_by_id(recompiled) == sort_components_by_id(
                 orig_messages
@@ -1038,6 +1065,7 @@ def run_format_case(test_case, tmp_path, *, suite: str = "", version: str = "v1.
                     recompiled,
                     join=is_express,
                     injected_catalog_id=None if is_express else inj_id,
+                    catalogs=v10_catalogs,
                 )
             assert sort_components_by_id(recompiled) == sort_components_by_id(
                 test_case["expect_recompiled"]
@@ -1057,6 +1085,7 @@ def run_format_case(test_case, tmp_path, *, suite: str = "", version: str = "v1.
                 actual_dicts,
                 join=is_express,
                 injected_catalog_id=None if is_express else inj_id,
+                catalogs=v10_catalogs,
             )
         assert actual_dicts == test_case["expect"]
 
@@ -1139,6 +1168,7 @@ def run_format_case(test_case, tmp_path, *, suite: str = "", version: str = "v1.
             is_lowered=is_lowered,
             is_express=is_express,
             inj_id=inj_id,
+            v10_catalogs=v10_catalogs,
         )
 
     else:
@@ -1238,6 +1268,7 @@ def run_create_processor_case(
     is_lowered: bool = False,
     is_express: bool = False,
     inj_id: str | None = None,
+    v10_catalogs: list[Any] | None = None,
 ):
     from a2ui.processor import A2uiGenerator
 
@@ -1314,6 +1345,7 @@ def run_create_processor_case(
                 actual_dicts,
                 join=is_express,
                 injected_catalog_id=None if is_express else inj_id,
+                catalogs=v10_catalogs,
             )
         assert actual_dicts == expected_parts
 
@@ -1341,6 +1373,7 @@ def run_create_processor_case(
             is_lowered=is_lowered,
             is_express=is_express,
             inj_id=inj_id,
+            v10_catalogs=v10_catalogs,
         )
 
 
@@ -1351,6 +1384,7 @@ def _run_then_stream(
     is_lowered: bool = False,
     is_express: bool = False,
     inj_id: str | None = None,
+    v10_catalogs: list[Any] | None = None,
 ):
     """Feeds `then_stream` steps through a stream the processor opened.
 
@@ -1370,6 +1404,7 @@ def _run_then_stream(
                 actual_dicts,
                 join=is_express,
                 injected_catalog_id=None if is_express else inj_id,
+                catalogs=v10_catalogs,
             )
         assert actual_dicts == expected_parts
 

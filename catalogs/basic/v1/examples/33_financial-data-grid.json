@@ -18,18 +18,24 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main_column"
+            "child": {
+              "@child": "main_column"
+            }
           },
           {
             "id": "main_column",
             "component": "Column",
-            "children": ["header_row", "grid_list"],
+            "children": {
+              "@child": ["header_row", "grid_list"]
+            },
             "align": "stretch"
           },
           {
             "id": "header_row",
             "component": "Row",
-            "children": ["col_asset", "col_price", "col_change", "col_market_cap"],
+            "children": {
+              "@child": ["col_asset", "col_price", "col_change", "col_market_cap"]
+            },
             "align": "center"
           },
           {
@@ -64,20 +70,24 @@
             "id": "grid_list",
             "component": "List",
             "children": {
-              "path": "/assets",
-              "componentId": "row_template"
+              "@child": "row_template",
+              "@path": "/assets"
             }
           },
           {
             "id": "row_template",
             "component": "Row",
-            "children": ["asset_info", "asset_price", "asset_change", "asset_market_cap"],
+            "children": {
+              "@child": ["asset_info", "asset_price", "asset_change", "asset_market_cap"]
+            },
             "align": "center"
           },
           {
             "id": "asset_info",
             "component": "Row",
-            "children": ["asset_icon", "asset_name_col"],
+            "children": {
+              "@child": ["asset_icon", "asset_name_col"]
+            },
             "weight": 2,
             "align": "center"
           },
@@ -89,7 +99,9 @@
           {
             "id": "asset_name_col",
             "component": "Column",
-            "children": ["asset_name", "asset_symbol"]
+            "children": {
+              "@child": ["asset_name", "asset_symbol"]
+            }
           },
           {
             "id": "asset_name",

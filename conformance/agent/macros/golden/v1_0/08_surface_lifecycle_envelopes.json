@@ -26,14 +26,18 @@
         {
           "component": "Row",
           "id": "root__row_1",
-          "children": ["root__text_1", "root__text_2"],
+          "children": {
+            "@child": ["root__text_1", "root__text_2"]
+          },
           "justify": "start",
           "align": "stretch"
         },
         {
           "component": "Card",
           "id": "root",
-          "child": "root__row_1"
+          "child": {
+            "@child": "root__row_1"
+          }
         }
       ]
     }

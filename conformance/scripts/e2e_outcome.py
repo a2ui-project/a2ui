@@ -110,9 +110,9 @@ def _extract_action_outcome(
     structural: bool,
 ) -> tuple[str, Any]:
     if structural and isinstance(action, dict):
-        if "event" in action:
+        if "event" in action or "@action" in action:
             return "actionKind", "event"
-        if "functionCall" in action:
+        if "functionCall" in action or "@functionCall" in action:
             return "actionKind", "functionCall"
         return "actionKind", "other"
     return "action", normalize_ids(action, ordinals)

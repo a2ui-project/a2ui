@@ -190,7 +190,8 @@ struct ActionsConformanceTests {
       } ?? .null
     let callMetadataJSON = testCase["metadata"].map { ConformanceTestHelper.toJSONValue($0) }
     let payloadMetaJSON =
-      rawAction.objectValue?["event"]?.objectValue?["metadata"]
+      rawAction.objectValue?["@action"]?.objectValue?["metadata"]
+      ?? rawAction.objectValue?["event"]?.objectValue?["metadata"]
       ?? rawAction.objectValue?["metadata"]
     let baseMeta = payloadMetaJSON?.objectValue.map {
       Dictionary(uniqueKeysWithValues: $0.map { ($0.key, $0.value) })
@@ -252,13 +253,13 @@ struct ActionsConformanceTests {
   ) -> RendererAction? {
     guard case .object(let dict) = rawAction else { return nil }
 
-    if let funcCallVal = dict["functionCall"] {
+    if let funcCallVal = dict["@functionCall"] ?? dict["functionCall"] {
       _ = context.resolveDynamicValue(funcCallVal)
       return nil
     }
 
     let eventDict: OrderedDictionary<String, JSONValue>?
-    if let eventVal = dict["event"], case .object(let inner) = eventVal {
+    if let eventVal = dict["@action"] ?? dict["event"], case .object(let inner) = eventVal {
       eventDict = inner
     } else if dict["name"] != nil {
       eventDict = dict

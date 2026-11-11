@@ -139,5 +139,30 @@ void main() {
       ).first.message;
       expect(again, same(first));
     });
+    test('strips raw line breaks inside @child string and array values', () {
+      final Object? single = readPartialMessages(
+        '[{"id": "root", "component": "Card", '
+        '"child": {"@child": "my\nChild"}}]',
+        const {},
+      ).single.message;
+      expect(single, {
+        'id': 'root',
+        'component': 'Card',
+        'child': {'@child': 'myChild'},
+      });
+
+      final Object? list = readPartialMessages(
+        '[{"id": "root", "component": "Column", '
+        '"children": {"@child": ["first\nChild", "second\nChild"]}}]',
+        const {},
+      ).single.message;
+      expect(list, {
+        'id': 'root',
+        'component': 'Column',
+        'children': {
+          '@child': ['firstChild', 'secondChild'],
+        },
+      });
+    });
   });
 }

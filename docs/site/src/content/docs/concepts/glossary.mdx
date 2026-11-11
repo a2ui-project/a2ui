@@ -49,10 +49,16 @@ An interaction handler property on a UI [component](#component) (such as `Button
 
 An `Action` is a `oneOf` union that specifies one of two behaviors when a user interacts with the component:
 
-1. An [`event`](#event) (`{"event": {"name": "...", "context": {...}}}`), which causes the renderer to resolve any bound values and send an outbound [`action`](../../specification/v1.0/schemas/#renderer_to_agent.json/properties/action) message in [`renderer_to_agent`](#renderer_to_agent) to notify the agent of user intent.
-2. A [`functionCall`](#function-call) (`{"functionCall": {"@call": "...", "args": {...}}}` in v1.0, or `"call"` in v0.9.1), which invokes a [function](#function) without dispatching an `action` event message (in v1.0, running locally on the renderer or routing to the agent via [`callAgentFunction`](#callagentfunction) when unimplemented locally).
+1. An [`event`](#event) (`{"@action": {"name": "...", "context": {...}}}` in v1.0; `{"event": {"name": "...", "context": {...}}}` in v0.9.1), which causes the renderer to resolve any bound values and send an outbound [`action`](../../specification/v1.0/schemas/#renderer_to_agent.json/properties/action) message in [`renderer_to_agent`](#renderer_to_agent) to notify the agent of user intent.
+2. A [`functionCall`](#function-call) (`{"@functionCall": {"@call": "...", "args": {...}}}` in v1.0; `{"functionCall": {"call": "...", "args": {...}}}` in v0.9.1), which invokes a [function](#function) without dispatching an `action` event message (in v1.0, running locally on the renderer or routing to the agent via [`callAgentFunction`](#callagentfunction) when unimplemented locally).
 
-See [Actions and Functions](../actions-and-functions/) and [Defining actions](../../specification/v1.0-a2ui/#defining-actions) in the protocol specification.
+See [`@action` directive](#action-directive), [Actions and Functions](../actions-and-functions/), and [Defining actions](../../specification/v1.0-a2ui/#defining-actions) in the protocol specification.
+
+### @action directive
+
+The reserved v1.0 protocol directive key in an [`Action`](#action) object (`{"@action": {"name": "...", "context": {...}}}`) that declares an agent-bound [`event`](#event) handler.
+
+In v0.9.1, agent events use `"event"` without the `@` prefix. Wrapping interaction handlers in `@action` lets parsers treat `context` and `userMessage` expressions as deferred closures without consulting a catalog schema.
 
 ### Agent
 
@@ -174,14 +180,28 @@ In v1.0, each `CheckRule` pairs a `condition` (a [`DataBinding`](#data-binding) 
 
 See [Actions and Functions](../actions-and-functions/) and [Component Validation & Check Rules](../../specification/v1.0-a2ui/#component-validation--check-rules) in the protocol specification.
 
+### Child
+
+The schema type ([`common_types.json#/$defs/Child`](../../specification/v1.0/schemas/#common_types.json/$defs/Child)) used by single-child [component](#component) properties (such as `Card.child`, `Button.child`, `Modal.trigger`, and `Modal.content`) in v1.0, encoded as `{"@child": "<componentId>"}`.
+
+In v0.9.1, single-child slots hold a bare `ComponentId` string ([`common_types.json#/$defs/ComponentId`](../../specification/v0.9.1/schemas/#common_types.json/$defs/ComponentId)).
+
+See [`@child` directive](#child-directive) and [`ChildList`](#childlist).
+
+### @child directive
+
+The reserved v1.0 protocol directive key used by [`Child`](#child) (`{"@child": "<id>"}`) and [`ChildList`](#childlist) (`{"@child": ["<id1>", "<id2>"]}` or `{"@child": "<templateId>", "@path": "/items"}`) to mark child component edges on the wire.
+
+Marking child references with `@child` lets renderers and topology validators extract parent-child relationships across standard and custom components without loading the catalog schema.
+
 ### ChildList
 
 The schema type ([`common_types.json#/$defs/ChildList`](../../specification/v1.0/schemas/#common_types.json/$defs/ChildList) in v1.0; [`common_types.json#/$defs/ChildList`](../../specification/v0.9.1/schemas/#common_types.json/$defs/ChildList) in v0.9.1) used by container [components](#component) (such as `Column`, `Row`, and `List`) to hold multiple child components in a [surface](#surface)'s flat component list.
 
 A `ChildList` property accepts one of two forms:
 
-1. A static array of `ComponentId` strings (for example, `["header", "body", "footer"]`).
-2. A collection template object `{"path": "/items", "componentId": "itemCard"}` that instantiates `componentId` once for each element of the array at `path` in the [data model](#data-model), establishing a collection scope for relative [`@path`](#path) bindings and [`@index`](#index) calls. Template objects use the plain property name `"path"` (not `"@path"`) in both v1.0 and v0.9.1.
+1. A static array of `ComponentId` strings wrapped in `@child` (`{"@child": ["header", "body", "footer"]}` in v1.0; bare `["header", "body", "footer"]` in v0.9.1).
+2. A collection template object (`{"@child": "itemCard", "@path": "/items"}` in v1.0; `{"path": "/items", "componentId": "itemCard"}` in v0.9.1) that instantiates the template component once for each element of the array at `/items` in the [data model](#data-model), establishing a collection scope for relative [`@path`](#path) bindings and [`@index`](#index) calls.
 
 See [Data Model and Data Binding](../data-binding/#displaying-dynamic-lists-of-data) and [Collection scopes (relative paths)](../../specification/v1.0-a2ui/#collection-scopes-relative-paths) in the protocol specification.
 
@@ -191,7 +211,7 @@ See [Data Model and Data Binding](../data-binding/#displaying-dynamic-lists-of-d
 
 A declarative UI element defined in a [catalog](#catalog) (such as `Card`, `Button`, `TextField`, or a domain-specific `FlightStatusCard`) and rendered as a native widget by a client [framework adapter](#framework-adapter).
 
-Within a [surface](#surface), component instances are sent in `createSurface` or `updateComponents` as a flat adjacency list rather than a nested tree: each entry has a unique `id` (following Unicode UAX #31 identifier rules in v1.0), a `component` type name, optional `@catalogId`, `@accessibility` attributes, and `@metadata.extensions` (bare `accessibility` in v0.9.1), and references children by ID (`ComponentId` or [`ChildList`](#childlist)). Every rendered surface requires one component with `"id": "root"`, which mounts inside the reserved immutable `Surface` container ([`common_types.json#/$defs/Surface`](../../specification/v1.0/schemas/#common_types.json/$defs/Surface)).
+Within a [surface](#surface), component instances are sent in `createSurface` or `updateComponents` as a flat adjacency list rather than a nested tree: each entry has a unique `id` (following Unicode UAX #31 identifier rules in v1.0), a `component` type name, optional `@catalogId`, `@accessibility` attributes, and `@metadata.extensions` (bare `accessibility` in v0.9.1), and references children via [`Child`](#child) or [`ChildList`](#childlist) (`ComponentId` or [`ChildList`](#childlist) in v0.9.1). Every rendered surface requires one component with `"id": "root"`, which mounts inside the reserved immutable `Surface` container ([`common_types.json#/$defs/Surface`](../../specification/v1.0/schemas/#common_types.json/$defs/Surface)).
 
 See [Catalogs](../catalogs/) and [Component model](../../specification/v1.0-a2ui/#component-model) in the protocol specification.
 
@@ -245,9 +265,9 @@ See [Messages](../messages/) and [Envelope message structure](../../specificatio
 
 ### Event
 
-The agent-bound variant of a component [`Action`](#action) (`action.event` in [`common_types.json#/$defs/Action`](../../specification/v1.0/schemas/#common_types.json/$defs/Action)) that notifies the [agent](#agent) of user intent, such as clicking a submit button or choosing an item.
+The agent-bound variant of a component [`Action`](#action) (`@action` in [`common_types.json#/$defs/Action`](../../specification/v1.0/schemas/#common_types.json/$defs/Action); `event` in v0.9.1) that notifies the [agent](#agent) of user intent, such as clicking a submit button or choosing an item.
 
-An `event` object declares a required `name`, an optional `context` map of literal values or dynamic bindings, and (in v1.0) an optional `userMessage` (`DynamicString`). When triggered by the user (provided no component [`CheckRule`](#checkrule) fails with `"error"` severity), the [renderer](#renderer) resolves every binding in `context` and `userMessage` against the local [data model](#data-model) and emits an [`action`](../../specification/v1.0/schemas/#renderer_to_agent.json/properties/action) message in [`renderer_to_agent`](#renderer_to_agent) containing `name`, `surfaceId`, `sourceComponentId`, ISO 8601 `timestamp`, resolved `context`, and (in v1.0) optional `userMessage` and `metadata.extensions`.
+An event object declares a required `name`, an optional `context` map of literal values or dynamic bindings, and (in v1.0) an optional `userMessage` (`DynamicString`). When triggered by the user (provided no component [`CheckRule`](#checkrule) fails with `"error"` severity), the [renderer](#renderer) resolves every binding in `context` and `userMessage` against the local [data model](#data-model) and emits an [`action`](../../specification/v1.0/schemas/#renderer_to_agent.json/properties/action) message in [`renderer_to_agent`](#renderer_to_agent) containing `name`, `surfaceId`, `sourceComponentId`, ISO 8601 `timestamp`, resolved `context`, and (in v1.0) optional `userMessage` and `metadata.extensions`.
 
 See [Actions and Functions](../actions-and-functions/) and [`action`](../../specification/v1.0-a2ui/#action) in the protocol specification.
 
@@ -295,10 +315,16 @@ Function calls occur in four places across the protocol:
 
 1. Dynamic component property bindings (`DynamicString`, `DynamicNumber`, `DynamicBoolean`, `DynamicStringList`, and `DynamicValue`), re-evaluated reactively when bound [data model](#data-model) paths change.
 2. Validation rules ([`CheckRule`](#checkrule) `@checks[].condition` in v1.0, `checks[].condition` in v0.9.1), returning a `ValidationResult` or boolean to validate inputs and gate controls.
-3. Component [`Action`](#action) handlers (`action.functionCall`), triggered by a user gesture.
+3. Component [`Action`](#action) handlers (`@functionCall` in v1.0; `functionCall` in v0.9.1), triggered by a user gesture.
 4. Explicit remote procedure call envelopes ([`callRendererFunction`](#callrendererfunction) and [`callAgentFunction`](#callagentfunction) in v1.0).
 
 See [Actions and Functions](../actions-and-functions/).
+
+### @functionCall
+
+The reserved v1.0 protocol directive key in an [`Action`](#action) object (`{"@functionCall": {"@call": "...", "args": {...}}}`) that wraps a deferred [`FunctionCall`](#function-call) triggered on user interaction.
+
+In v0.9.1, interaction function handlers use `"functionCall"` without the `@` prefix. Marking deferred action handlers with `@functionCall` prevents schema-less parsers from eagerly evaluating the inner `@call` during render.
 
 ## G
 
@@ -373,9 +399,9 @@ See [Synchronizing state back to the agent](../data-binding/#synchronizing-state
 
 ### @path
 
-The reserved v1.0 protocol directive key in a [`DataBinding`](../../specification/v1.0/schemas/#common_types.json/$defs/DataBinding) object that points to a value in a surface's [data model](#data-model) using an [RFC 6901 JSON Pointer](https://datatracker.ietf.org/doc/html/rfc6901), such as `{"@path": "/reservation/guestEmail"}`.
+The reserved v1.0 protocol directive key in a [`DataBinding`](../../specification/v1.0/schemas/#common_types.json/$defs/DataBinding) object (and in [`ChildList`](#childlist) template objects alongside `@child`) that points to a value in a surface's [data model](#data-model) using an [RFC 6901 JSON Pointer](https://datatracker.ietf.org/doc/html/rfc6901), such as `{"@path": "/reservation/guestEmail"}`.
 
-A path starting with `/` resolves from the root of the surface data model, while a path without a leading slash (such as `{"@path": "guestName"}`) resolves relative to the current item in an enclosing [`ChildList`](#childlist) collection template. In v0.9.1, `DataBinding` uses `"path"` without the `@` prefix ([`common_types.json#/$defs/DataBinding`](../../specification/v0.9.1/schemas/#common_types.json/$defs/DataBinding)). Even in v1.0, `updateDataModel.path` and `ChildList` template `path` use plain `"path"` because they are fixed schema fields rather than dynamic value unions.
+A path starting with `/` resolves from the root of the surface data model, while a path without a leading slash (such as `{"@path": "guestName"}`) resolves relative to the current item in an enclosing [`ChildList`](#childlist) collection template. In v0.9.1, `DataBinding` and `ChildList` templates use `"path"` without the `@` prefix ([`common_types.json#/$defs/DataBinding`](../../specification/v0.9.1/schemas/#common_types.json/$defs/DataBinding)). Even in v1.0, `updateDataModel.path` uses plain `"path"` because it is a fixed message field rather than a data binding or template directive.
 
 See [Data binding](#data-binding), [Data Model and Data Binding](../data-binding/), and [Path resolution & scope](../../specification/v1.0-a2ui/#path-resolution--scope) in the protocol specification.
 

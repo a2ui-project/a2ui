@@ -180,7 +180,7 @@ struct CheckSeverityTests {
         id: "root",
         type: "Button",
         properties: [
-          "action": .object(["event": .object(["name": .string("submit")])]),
+          "action": .object(["@action": .object(["name": .string("submit")])]),
           "checks": .array([
             .object([
               "condition": .object(["@path": .string("/check")]),

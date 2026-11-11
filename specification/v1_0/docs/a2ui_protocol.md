@@ -126,11 +126,12 @@ A2UI v1.0 is defined by three interacting JSON schemas.
 The [`common_types.json`] schema defines reusable primitives used throughout the protocol.
 
 - **`DynamicString` / `DynamicNumber` / `DynamicBoolean` / `DynamicStringList`**: The core of the data binding system. Any property that can be bound to data is defined as a `Dynamic*` type. It accepts either a literal value, a `DataBinding` (`{"@path": "..."}` using [JSON Pointer]), or a `FunctionCall` (`{"@call": "...", "args": {...}}`). When a `DynamicBoolean` resolves to a `ValidationResult` object (an object with a boolean `valid` property), it is coerced to `result.valid`; strings, numbers, `null`, objects, and arrays are coerced as defined under [`DynamicBoolean` and `CheckRule` Coercion](#dynamicboolean-and-checkrule-coercion).
-- **`ChildList`**: Defines how containers hold children. It supports:
-  - `array`: A static array of `ComponentId` component references.
-  - `object`: A template for generating children from a list in the data model (requires a template `componentId` and a JSON Pointer `path` string; note that `path` here is a plain string property on the template object, not a `DataBinding` `{"@path": "..."}` object).
-
-- **`ComponentId`**: A reference to the unique ID of another component within the same surface.
+- **`Child`**: A reference to a single child component within the same surface, encoded as `{"@child": "<componentId>"}`.
+- **`ChildList`**: Defines how containers hold children. It supports two `@child`-wrapped object forms:
+  - Static list: `{"@child": ["<id1>", "<id2>"]}`, holding an array of `ComponentId` references.
+  - Dynamic template: `{"@child": "<templateId>", "@path": "/items"}`, generating children from a list in the data model (note that `@path` here is a plain JSON Pointer string on the template object, not a nested `DataBinding` object).
+- **`Action`**: Defines a deferred interaction handler. It accepts either an agent event (`{"@action": {"name": "...", "userMessage": ..., "context": {...}}}`) or a function call (`{"@functionCall": {"@call": "...", "args": {...}}}`).
+- **`ComponentId`**: A string identifying a component within the same surface, used in component `id` definitions and inside `@child` references.
 - **`AccessibilityAttributes`**: Standardized accessibility properties attached via `ComponentCommon.@accessibility` to any component, supporting `label` (`DynamicString`), `description` (`DynamicString`), `live` (`"off"` | `"polite"` | `"assertive"`), and `hidden` (`DynamicBoolean`).
 
 ### Agent to renderer message structure: the envelope
@@ -156,16 +157,19 @@ Defining your own catalog allows you to restrict the agent to using exactly the 
 
 ### Validator compliance when defining catalogs
 
-To ensure that automated validators can verify the integrity of your UI tree (checking that parents reference existing children), any catalog you define MUST adhere to the following strict typing rules:
+To allow schemas, code generators, and validators to type-check child slots and interaction handlers uniformly, any catalog you define MUST use the standard types from `common_types.json`:
 
-1.  **Single child references:** Any property that holds the ID of another component MUST use the `ComponentId` type defined in `common_types.json`.
-    - Use: `"$ref": "common_types.json#/$defs/ComponentId"`
+1.  **Single child references:** Any property that holds a single child component reference MUST use the `Child` type defined in `common_types.json` (`{"@child": "<componentId>"}`).
+    - Use: `"$ref": "common_types.json#/$defs/Child"`
     - Do NOT use: `"type": "string"`
 
-2.  **List references:** Any property that holds a list of children or a template MUST use the `ChildList` type.
+2.  **List references:** Any property that holds a list of children or a template MUST use the `ChildList` type (`{"@child": [...]}` or `{"@child": "<templateId>", "@path": "/items"}`).
     - Use: `"$ref": "common_types.json#/$defs/ChildList"`
 
-Validators determine which fields represent structural links by looking for these specific schema references. If you use a raw string type for an ID, the validator will treat it as static text (like a URL or label) and will not check if the target component exists.
+3.  **Action handlers:** Any property that holds an interaction handler MUST use the `Action` type (`{"@action": ...}` or `{"@functionCall": ...}`).
+    - Use: `"$ref": "common_types.json#/$defs/Action"`
+
+On the wire, wrapping child references in `@child` and actions in `@action` or `@functionCall` also makes parent-child edges and deferred closures self-describing, so renderers and topology validators can inspect the component tree and bind actions even when no catalog component schema is present. Using the `common_types.json` `$ref` targets above keeps catalog schemas and generated SDK models aligned with those wire shapes.
 
 ## Envelope message structure
 
@@ -203,7 +207,7 @@ When a single `createSurface` carries both `dataModel` and `components`, the ren
       {
         "id": "root",
         "component": "Column",
-        "children": ["user_name"]
+        "children": {"@child": ["user_name"]}
       },
       {
         "id": "user_name",
@@ -238,7 +242,7 @@ This message provides a flat list of UI components to add or update within a spe
       {
         "id": "root",
         "component": "Column",
-        "children": ["user_name", "user_title"]
+        "children": {"@child": ["user_name", "user_title"]}
       },
       {
         "id": "user_name",
@@ -485,7 +489,7 @@ The following example demonstrates a complete interaction to render a Contact Fo
 
 ```jsonl
 {"version": "1.0", "createSurface":{"surfaceId":"contact_form_1","catalogId":"https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"}}
-{"version": "1.0", "updateComponents":{"surfaceId":"contact_form_1","components":[{"id":"root","component":"Card","child":"form_container"},{"id":"form_container","component":"Column","children":["header_row","name_row","email_group","phone_group","pref_group","divider_1","newsletter_checkbox","submit_button"],"justify":"start","align":"stretch"},{"id":"header_row","component":"Row","children":["header_icon","header_text"],"align":"center"},{"id":"header_icon","component":"Icon","name":"mail"},{"id":"header_text","component":"Text","text":"# Contact Us"},{"id":"name_row","component":"Row","children":["first_name_group","last_name_group"],"justify":"spaceBetween"},{"id":"first_name_group","component":"Column","children":["first_name_label","first_name_field"],"weight":1},{"id":"first_name_label","component":"Text","text":"First Name","variant":"caption"},{"id":"first_name_field","component":"TextField","label":"First Name","value":{"@path":"/contact/firstName"},"variant":"shortText"},{"id":"last_name_group","component":"Column","children":["last_name_label","last_name_field"],"weight":1},{"id":"last_name_label","component":"Text","text":"Last Name","variant":"caption"},{"id":"last_name_field","component":"TextField","label":"Last Name","value":{"@path":"/contact/lastName"},"variant":"shortText"},{"id":"email_group","component":"Column","children":["email_label","email_field"]},{"id":"email_label","component":"Text","text":"Email Address","variant":"caption"},{"id":"email_field","component":"TextField","label":"Email","value":{"@path":"/contact/email"},"variant":"shortText","@checks":[{"condition":{"@call":"required","args":{"value":{"@path":"/contact/email"}}},"message":"Email is required."},{"condition":{"@call":"email","args":{"value":{"@path":"/contact/email"}}},"message":"Please enter a valid email address."}]},{"id":"phone_group","component":"Column","children":["phone_label","phone_field"]},{"id":"phone_label","component":"Text","text":"Phone Number","variant":"caption"},{"id":"phone_field","component":"TextField","label":"Phone","value":{"@path":"/contact/phone"},"variant":"shortText","@checks":[{"condition":{"@call":"regex","args":{"value":{"@path":"/contact/phone"},"pattern":"^\\d{10}$"}},"message":"Phone number must be 10 digits."}]},{"id":"pref_group","component":"Column","children":["pref_label","pref_picker"]},{"id":"pref_label","component":"Text","text":"Preferred Contact Method","variant":"caption"},{"id":"pref_picker","component":"ChoicePicker","variant":"mutuallyExclusive","options":[{"label":"Email","value":"email"},{"label":"Phone","value":"phone"},{"label":"SMS","value":"sms"}],"value":{"@path":"/contact/preference"}},{"id":"divider_1","component":"Divider","axis":"horizontal"},{"id":"newsletter_checkbox","component":"CheckBox","label":"Subscribe to our newsletter","value":{"@path":"/contact/subscribe"}},{"id":"submit_button_label","component":"Text","text":"Send Message"},{"id":"submit_button","component":"Button","child":"submit_button_label","variant":"primary","action":{"event":{"name":"submitContactForm","context":{"formId":"contact_form_1","rendererTime":{"@call":"formatDate","args":{"value": "2026-02-02T15:17:00Z", "format": "E MMM d, YYYY h:mm a"}},"isNewsletterSubscribed":{"@path":"/contact/subscribe"}}}}}]}}
+{"version": "1.0", "updateComponents":{"surfaceId":"contact_form_1","components":[{"id":"root","component":"Card","child":{"@child":"form_container"}},{"id":"form_container","component":"Column","children":{"@child":["header_row","name_row","email_group","phone_group","pref_group","divider_1","newsletter_checkbox","submit_button"]},"justify":"start","align":"stretch"},{"id":"header_row","component":"Row","children":{"@child":["header_icon","header_text"]},"align":"center"},{"id":"header_icon","component":"Icon","name":"mail"},{"id":"header_text","component":"Text","text":"# Contact Us"},{"id":"name_row","component":"Row","children":{"@child":["first_name_group","last_name_group"]},"justify":"spaceBetween"},{"id":"first_name_group","component":"Column","children":{"@child":["first_name_label","first_name_field"]},"weight":1},{"id":"first_name_label","component":"Text","text":"First Name","variant":"caption"},{"id":"first_name_field","component":"TextField","label":"First Name","value":{"@path":"/contact/firstName"},"variant":"shortText"},{"id":"last_name_group","component":"Column","children":{"@child":["last_name_label","last_name_field"]},"weight":1},{"id":"last_name_label","component":"Text","text":"Last Name","variant":"caption"},{"id":"last_name_field","component":"TextField","label":"Last Name","value":{"@path":"/contact/lastName"},"variant":"shortText"},{"id":"email_group","component":"Column","children":{"@child":["email_label","email_field"]}},{"id":"email_label","component":"Text","text":"Email Address","variant":"caption"},{"id":"email_field","component":"TextField","label":"Email","value":{"@path":"/contact/email"},"variant":"shortText","@checks":[{"condition":{"@call":"required","args":{"value":{"@path":"/contact/email"}}},"message":"Email is required."},{"condition":{"@call":"email","args":{"value":{"@path":"/contact/email"}}},"message":"Please enter a valid email address."}]},{"id":"phone_group","component":"Column","children":{"@child":["phone_label","phone_field"]}},{"id":"phone_label","component":"Text","text":"Phone Number","variant":"caption"},{"id":"phone_field","component":"TextField","label":"Phone","value":{"@path":"/contact/phone"},"variant":"shortText","@checks":[{"condition":{"@call":"regex","args":{"value":{"@path":"/contact/phone"},"pattern":"^\\d{10}$"}},"message":"Phone number must be 10 digits."}]},{"id":"pref_group","component":"Column","children":{"@child":["pref_label","pref_picker"]}},{"id":"pref_label","component":"Text","text":"Preferred Contact Method","variant":"caption"},{"id":"pref_picker","component":"ChoicePicker","variant":"mutuallyExclusive","options":[{"label":"Email","value":"email"},{"label":"Phone","value":"phone"},{"label":"SMS","value":"sms"}],"value":{"@path":"/contact/preference"}},{"id":"divider_1","component":"Divider","axis":"horizontal"},{"id":"newsletter_checkbox","component":"CheckBox","label":"Subscribe to our newsletter","value":{"@path":"/contact/subscribe"}},{"id":"submit_button_label","component":"Text","text":"Send Message"},{"id":"submit_button","component":"Button","child":{"@child":"submit_button_label"},"variant":"primary","action":{"@action":{"name":"submitContactForm","context":{"formId":"contact_form_1","rendererTime":{"@call":"formatDate","args":{"value": "2026-02-02T15:17:00Z", "format": "E MMM d, YYYY h:mm a"}},"isNewsletterSubscribed":{"@path":"/contact/subscribe"}}}}}]}}
 {"version": "1.0", "updateDataModel":{"surfaceId":"contact_form_1","path":"/contact","value":{"firstName":"John","lastName":"Doe","email":"john.doe@example.com","phone":"1234567890","preference":["email"],"subscribe":true}}}
 {"version": "1.0", "deleteSurface":{"surfaceId":"contact_form_1"}}
 ```
@@ -504,9 +508,9 @@ Each object in the `components` array of an `updateComponents` message defines a
 - `@accessibility` (`AccessibilityAttributes`, optional): Accessibility attributes (`label`, `description`, `live`, `hidden`) for assistive technologies.
 - `@metadata` (object, optional): Component-level metadata containing an optional `extensions` map (`common_types.json#/$defs/Extensions`).
 - `@checks` (array of `CheckRule`, optional on `Checkable` components): Validation rules evaluated on the renderer.
-- **Component Properties**: Other properties relevant to the specific component type (e.g., `text`, `url`, `children`, or custom properties such as `metadata`, `catalogId`, `accessibility`, or `checks` whose names conform to UAX #31) are included directly in the component object.
+- **Component Properties**: Other properties relevant to the specific component type (e.g., `text`, `url`, `children`, or custom properties such as `metadata`, `catalogId`, `accessibility`, or `checks` whose names conform to UAX #31) are included directly in the component object. Inside property values, protocol directives use `@`-prefixed objects (`@path`, `@call`, `@child`, `@action`, and `@functionCall`), making bindings, child references, and deferred action handlers self-describing without requiring a catalog schema.
 
-This structure is designed to be both flexible and strictly validated. Component-level envelope mixins (`@catalogId`, `@accessibility`, `@metadata`, and `@checks`) use the `@` sigil so they never collide with UAX #31 catalog property names (`id` and `component` remain unprefixed as the required structural identity and discriminator keys).
+This structure is designed to be both flexible and strictly validated. Component-level envelope mixins (`@catalogId`, `@accessibility`, `@metadata`, and `@checks`) and property-level directives (`@path`, `@call`, `@child`, `@action`, and `@functionCall`) use the `@` sigil so they never collide with UAX #31 catalog property names (`id` and `component` remain unprefixed as the required structural identity and discriminator keys).
 
 #### Mixable catalogs and component resolution logic
 
@@ -793,9 +797,9 @@ flowchart TD
     end
 
     subgraph "Renderer-Side Buffer (Map)"
-        C("root: {id: 'root', component: 'Column', children: ['title', 'button']}")
+        C("root: {id: 'root', component: 'Column', children: {'@child': ['title', 'button']}}")
         D("title: {id: 'title', component: 'Text', text: 'Welcome'}")
-        E("button: {id: 'button', component: 'Button', child: 'button_label'}")
+        E("button: {id: 'button', component: 'Button', child: {'@child': 'button_label'}}")
     end
 
     subgraph "Rendered Widget Tree"
@@ -861,19 +865,19 @@ To validate component nesting hierarchies, A2UI component catalogs support compo
 
 ### Defining actions
 
-Interactive components (like `Button`) use an `action` property to define what happens when the user interacts with them. Actions can either trigger an event sent to the agent or execute a local renderer-side function.
+Interactive components (like `Button`) use an `action` property to define what happens when the user interacts with them. Actions can either trigger an event sent to the agent or execute a local renderer-side function. Both forms are wrapped in an `@`-prefixed directive (`@action` or `@functionCall`) so renderers treat their inner expressions as deferred interaction handlers rather than evaluating bindings or function calls during initial render.
 
 #### Agent actions
 
-To send an event to the agent, use the `event` property within the `action` object. It requires a `name` and supports an optional `userMessage` (`DynamicString`, resolved by the renderer into a human-readable string in the outbound `action` message) and an optional `context` object containing key-value parameters to dispatch to the agent.
+To send an event to the agent, use an object with the `@action` property. It requires a `name` and supports an optional `userMessage` (`DynamicString`, resolved by the renderer into a human-readable string in the outbound `action` message) and an optional `context` object containing key-value `DynamicValue` parameters resolved when the user triggers the action.
 
 ```json
 {
   "id": "submit_button",
   "component": "Button",
-  "child": "submit_button_label",
+  "child": {"@child": "submit_button_label"},
   "action": {
-    "event": {
+    "@action": {
       "name": "submit_form",
       "userMessage": "Submitted order #123",
       "context": {
@@ -886,15 +890,15 @@ To send an event to the agent, use the `event` property within the `action` obje
 
 #### Local actions
 
-To execute a local function, use the `functionCall` property within the `action` object. This property references a standard `FunctionCall` object. Functions declared with `requiresUserActivation: true` in their catalog definition (such as `openUrl`) MUST only execute when triggered by an active user gesture (e.g., inside an `action` handler); referencing them in a passive property binding or validation `CheckRule.condition` is blocked by the renderer (`code: "EXPRESSION_ERROR"`).
+To execute a function on interaction, use an object with the `@functionCall` property. This property references a standard `FunctionCall` object. Functions declared with `requiresUserActivation: true` in their catalog definition (such as `openUrl`) MUST only execute when triggered by an active user gesture (e.g., inside an `@action` / `@functionCall` handler); referencing them in a passive property binding or validation `CheckRule.condition` is blocked by the renderer (`code: "EXPRESSION_ERROR"`).
 
 ```json
 {
   "id": "open_link_button",
   "component": "Button",
-  "child": "open_link_button_label",
+  "child": {"@child": "open_link_button_label"},
   "action": {
-    "functionCall": {
+    "@functionCall": {
       "@call": "openUrl",
       "args": {
         "url": {"@path": "/url"}
@@ -924,7 +928,7 @@ By default, all components operate in the **Root Scope**.
 
 When a container component (such as `Column`, `Row`, or `List`) utilizes the **Template** feature of `ChildList`, it creates a new **Child Scope** for each item in the bound array.
 
-- **Template definition:** When a container binds its children to a path (e.g., `path: "/users"`), the renderer iterates over the array found at that location.
+- **Template definition:** When a container binds its children to a path (e.g., `"@child": "employee_card_template", "@path": "/users"`), the renderer iterates over the array found at that location.
 - **Scope instantiation:** For every item in the array, the renderer instantiates the template component.
 - **Relative resolution:** Inside these instantiated components, any path that **does not** start with a forward slash `/` is treated as a **Relative Path**.
   - A relative path `firstName` inside a template iterating over `/users` resolves to `/users/0/firstName` for the first item, `/users/1/firstName` for the second, etc.
@@ -952,14 +956,14 @@ When a container component (such as `Column`, `Row`, or `List`) utilizes the **T
   "id": "employee_list",
   "component": "List",
   "children": {
-    "path": "/employees",
-    "componentId": "employee_card_template"
+    "@child": "employee_card_template",
+    "@path": "/employees"
   }
 },
 {
   "id": "employee_card_template",
   "component": "Column",
-  "children": ["name_text", "company_text"]
+  "children": {"@child": ["name_text", "company_text"]}
 },
 {
   "id": "name_text",
@@ -1016,7 +1020,7 @@ It is critical to note that Two-Way Binding is **local to the renderer**.
 
     ```json
     "action": {
-      "event": {
+      "@action": {
         "name": "submit_form",
         "context": {
           "email": { "@path": "/formData/email" }
@@ -1186,9 +1190,9 @@ Buttons can also define `@checks`. If any check fails, the button is automatical
 {
   "id": "submit_button",
   "component": "Button",
-  "child": "submit_button_label",
+  "child": {"@child": "submit_button_label"},
   "action": {
-    "event": {
+    "@action": {
       "name": "submit_form"
     }
   },
@@ -1255,15 +1259,18 @@ The [`catalogs/basic/catalog.json`] provides the baseline set of components and 
 
 ### Functions
 
-> **Reserved Protocol Directives (`@` Prefix)**: The `@` prefix is strictly reserved for protocol-level directives and system context functions:
+> **Reserved Protocol Directives (`@` Prefix)**: The `@` prefix is strictly reserved for protocol-level directives, component envelope mixins, and system context functions:
 >
-> - **`@path`**: Represents a dynamic data binding to a path in the data model (e.g. `{"@path": "/user/name"}`).
+> - **`@path`**: Represents a dynamic data binding to a path in the data model (e.g. `{"@path": "/user/name"}`), or the data path of a template `ChildList`.
 > - **`@call`**: Represents a catalog or system function invocation (e.g. `{"@call": "formatString", "args": {...}}`).
+> - **`@child`**: Represents a structural reference to one child component (`{"@child": "id"}`), a static list (`{"@child": ["id1", "id2"]}`), or a template (`{"@child": "tpl", "@path": "/items"}`).
+> - **`@action`**: Represents a deferred agent event handler (`{"@action": {"name": "submit", "context": {...}}}`).
+> - **`@functionCall`**: Represents a deferred function call handler (`{"@functionCall": {"@call": "openUrl", "args": {...}}}`).
 > - **`@index`**: Represents the universal system context function returning the 0-based iteration index during list template rendering (`{"@call": "@index"}`). Custom catalogs MUST NOT define functions prefixed with `@`.
 >
-> **Single-`@` Directive Rule**: Any key in a dynamic object matching `^@([^@]|$)` (a leading `@` that is not doubled, including a key consisting of `@` alone) that is not a recognized protocol directive is disallowed and rejected by renderers and validators. This reserves the single-`@` namespace for future protocol extensions without breaking backward compatibility.
+> **Single-`@` Directive Rule**: Any key in a dynamic object matching `^@([^@]|$)` (a leading `@` that is not doubled, including a key consisting of `@` alone) that is not a recognized directive for that position is disallowed and rejected by renderers and validators. Inside `DynamicValue` contexts (such as `FunctionCall.args` or `@action.context`), only `@path` and `@call` are valid directives; unescaped `@child`, `@action`, and `@functionCall` keys are rejected. This reserves the single-`@` namespace for protocol extensions without breaking backward compatibility.
 >
-> **Escaping via Prefix Doubling**: Plain objects that require literal property names starting with `@` must escape them by doubling the prefix: `"@@path"` evaluates to `"@path"`, `"@@type"` evaluates to `"@type"`, etc. Plain objects with `"path"` and `"call"` keys are literal objects and are never intercepted as dynamic bindings.
+> **Escaping via Prefix Doubling**: Plain objects that require literal property names starting with `@` must escape them by doubling the prefix: `"@@path"` evaluates to `"@path"`, `"@@child"` evaluates to `"@child"`, `"@@type"` evaluates to `"@type"`, etc. Plain objects with bare keys such as `"path"`, `"call"`, `"child"`, `"event"`, or `"functionCall"` are literal objects unless typed as a schema slot in pre-1.0 payloads.
 
 | Function           | Description                                                                     |
 | :----------------- | :------------------------------------------------------------------------------ |
@@ -1449,7 +1456,7 @@ This message is sent when a user interacts with a component that has an agent ac
 - `surfaceId` (string, required): The unique ID of the surface where the event originated.
 - `sourceComponentId` (string, required): The ID of the component that triggered the interaction.
 - `timestamp` (string, required): An ISO 8601 timestamp representing when the event occurred.
-- `userMessage` (string, optional): A human-readable message describing the action performed by the user, resolved from `action.event.userMessage`.
+- `userMessage` (string, optional): A human-readable message describing the action performed by the user, resolved from `action.@action.userMessage`.
 - `context` (object, required): A JSON object containing the key-value pairs of the action's context parameters, after resolving all dynamic data bindings.
 - `metadata` (object, optional): Action-level metadata containing an optional `extensions` map (`common_types.json#/$defs/Extensions`).
 
@@ -1587,7 +1594,7 @@ In addition to top-level protocol RPC messages (`callRendererFunction` and `call
 
 - **Dynamic Value Bindings:** A `FunctionCall` can compute dynamic property values (e.g. formatting a timestamp or fetching calculated user statistics).
 - **Validation Rules (`Checkable`):** Components that support client validation (such as input fields) use `FunctionCall` objects inside check rules to perform validation logic.
-- **Action Handlers (`Action`):** Component interaction handlers can execute a `FunctionCall` directly on click or trigger.
+- **Action Handlers (`Action`):** Component interaction handlers can execute a `FunctionCall` directly on click or trigger (via `{"@functionCall": ...}`).
 
 The component tree syntax is completely uniform. The renderer evaluates whether to execute the function locally or route a `callAgentFunction` RPC to the agent based on function target resolution rules.
 

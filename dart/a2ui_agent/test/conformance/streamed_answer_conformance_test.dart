@@ -91,6 +91,9 @@ void _runCase(Map<String, Object?> testCase, SuiteVersion version) {
 
   final StreamedAnswer<ComponentApi> answer = open();
   final String? catalogId = version.injectedCatalog(testCase);
+  final SuiteTextLowerer lowerer = version.openTextLowerer(
+    catalogId: catalogId,
+  );
   for (final (int i, Object? step)
       in (testCase['steps']! as List<Object?>).indexed) {
     final stepCase = step! as Map<String, Object?>;
@@ -100,7 +103,7 @@ void _runCase(Map<String, Object?> testCase, SuiteVersion version) {
       'step:stream_answer',
     );
     final input = stepCase['input']! as String;
-    answer.feed(version.text(input, catalogId: catalogId));
+    answer.feed(lowerer.feed(input));
     expect(
       _partsJson(answer, renderer),
       stepCase['expect_parts'],
@@ -110,6 +113,8 @@ void _runCase(Map<String, Object?> testCase, SuiteVersion version) {
       expect(answer.isInBlock, inBlock, reason: 'step $i: in block');
     }
   }
+  final String tail = lowerer.close();
+  if (tail.isNotEmpty) answer.feed(tail);
   answer.close();
   if (testCase['expect_close'] case final Object expected) {
     expect(_partsJson(answer, renderer), expected, reason: 'close');

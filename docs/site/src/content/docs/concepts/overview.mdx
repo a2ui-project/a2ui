@@ -192,11 +192,11 @@ Layout message, defined by [`UpdateComponentsMessage`](/specification/v1.0/schem
   "updateComponents": {
     "surfaceId": "flight-booking-surface",
     "components": [
-      {"id": "root", "component": "Card", "child": "layout_col"},
+      {"id": "root", "component": "Card", "child": {"@child": "layout_col"}},
       {
         "id": "layout_col",
         "component": "Column",
-        "children": ["flight_outbound", "flight_return", "submit_btn"]
+        "children": {"@child": ["flight_outbound", "flight_return", "submit_btn"]}
       },
       {
         "id": "flight_outbound",
@@ -220,10 +220,10 @@ Layout message, defined by [`UpdateComponentsMessage`](/specification/v1.0/schem
       {
         "id": "submit_btn",
         "component": "Button",
-        "child": "submit_label",
+        "child": {"@child": "submit_label"},
         "variant": "primary",
         "action": {
-          "event": {
+          "@action": {
             "name": "confirm_booking",
             "context": {
               "outboundPax": {"@path": "/outbound/pax"},
@@ -345,7 +345,7 @@ Data message, defined by [`UpdateDataModelMessage`](/specification/v0.9.1/schema
 The client receives `createSurface`, `updateComponents`, and `updateDataModel` over its transport (for example AG-UI, A2A, MCP, or a WebSocket), and the A2UI Renderer:
 
 1. Creates the surface identified by `surfaceId` and stores the initial values in its data model.
-2. Resolves the flat component list and data model into a hierarchical node layer starting at `root`, following each `child` and `children` ID and binding path references (such as `/outbound/pax`) to their values in the data model.
+2. Resolves the flat component list and data model into a hierarchical node layer starting at `root`, following each `@child` reference in `child` and `children` properties (bare IDs and arrays in v0.9.1) and binding path references (such as `/outbound/pax`) to their values in the data model.
 3. Builds the native widgets from that node tree and subscribes each widget to updates on its bound properties.
 
 At this point, the client's node layer joins the component hierarchy with the resolved values from the data model. `Card` (`root`) wraps `Column` (`layout_col`), which contains the two `FlightCard` nodes with their bound prices and passenger counts alongside `Button` (`submit_btn`) and its `Text` label:

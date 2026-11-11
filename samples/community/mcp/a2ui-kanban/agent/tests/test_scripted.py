@@ -200,7 +200,7 @@ async def test_show_board_sends_the_surface(
         assert components[badge]["text"]["@call"] == "transformData"
     assert components["quick_add_title"]["component"] == "TextField"
     assert components["quick_add_assignee"]["component"] == "TextField"
-    quick_add = components["quick_add_button"]["action"]["functionCall"]
+    quick_add = components["quick_add_button"]["action"]["@functionCall"]
     assert quick_add["@call"] == "updateDataModel"
     transform = quick_add["args"]["updates"]
     assert transform["@call"] == "transformData"
@@ -425,13 +425,14 @@ async def test_gemini_build_tools_emits_a2ui_messages(mcp: FakeKanbanMcp):
     assert tab_components["board_card"] == {
         "id": "board_card",
         "component": "Card",
-        "child": "board",
+        "child": {"@child": "board"},
     }
 
     emitted["s-gemini"].clear()
     custom_json = (
-        '[{"id": "root", "component": "Card", "child": "custom_col"},'
-        ' {"id": "custom_col", "component": "Column", "children": ["todo_count"]}]'
+        '[{"id": "root", "component": "Card", "child": {"@child": "custom_col"}},'
+        ' {"id": "custom_col", "component": "Column", "children": {"@child":'
+        ' ["todo_count"]}}]'
     )
     res4 = await tools["update_surface_layout"](ctx, components_json=custom_json)
     assert res4["layout"] == "custom"
@@ -439,7 +440,7 @@ async def test_gemini_build_tools_emits_a2ui_messages(mcp: FakeKanbanMcp):
         c["id"]: c for c in emitted["s-gemini"][0]["updateComponents"]["components"]
     }
     assert custom_components["root"]["component"] == "Column"
-    assert "board" in custom_components["root"]["children"]
+    assert "board" in custom_components["root"]["children"]["@child"]
 
 
 async def test_scripted_agent_updates_surface_layouts(agent: ScriptedKanbanAgent):

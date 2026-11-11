@@ -52,7 +52,9 @@ class SvgPath(StrictBaseModel):
 class TabItem(StrictBaseModel):
     model_config = ConfigDict(populate_by_name=True)
     title: DynamicString = Field(..., description="The tab title.")
-    child: Child = Field(..., description="The ID of the child component.")
+    child: Child = Field(
+        ..., description='A reference ({"@child": "<id>"}) to the child component.'
+    )
 
 
 class OptionItem(StrictBaseModel):
@@ -219,9 +221,10 @@ class RowComponent(ComponentCommon):
     children: ChildList = Field(
         ...,
         description=(
-            "Defines the children. Use an array of strings for a fixed set of children,"
-            " or a template object to generate children from a data list. Children"
-            " cannot be defined inline, they must be referred to by ID."
+            'Defines the children. Use {"@child": [...]} for a fixed set of children,'
+            ' or {"@child": "<templateId>", "@path": "/path"} to generate children from'
+            " a data list. Children cannot be defined inline, they must be referred to"
+            " by ID."
         ),
     )
     justify: (
@@ -263,9 +266,10 @@ class ColumnComponent(ComponentCommon):
     children: ChildList = Field(
         ...,
         description=(
-            "Defines the children. Use an array of strings for a fixed set of children,"
-            " or a template object to generate children from a data list. Children"
-            " cannot be defined inline, they must be referred to by ID."
+            'Defines the children. Use {"@child": [...]} for a fixed set of children,'
+            ' or {"@child": "<templateId>", "@path": "/path"} to generate children from'
+            " a data list. Children cannot be defined inline, they must be referred to"
+            " by ID."
         ),
     )
     justify: (
@@ -304,8 +308,9 @@ class ListComponent(ComponentCommon):
     children: ChildList = Field(
         ...,
         description=(
-            "Defines the children. Use an array of strings for a fixed set of children,"
-            " or a template object to generate children from a data list."
+            'Defines the children. Use {"@child": [...]} for a fixed set of children,'
+            ' or {"@child": "<templateId>", "@path": "/path"} to generate children from'
+            " a data list."
         ),
     )
     direction: Literal["vertical", "horizontal"] | None = Field(
@@ -326,10 +331,10 @@ class CardComponent(ComponentCommon):
     child: Child = Field(
         ...,
         description=(
-            "The ID of the single child component to be rendered inside the card. To"
-            " display multiple elements, you MUST wrap them in a layout component (like"
-            " Column or Row) and pass that container's ID here. Do NOT pass multiple"
-            " IDs or a non-existent ID."
+            'A reference ({"@child": "<id>"}) to the single child component to be'
+            " rendered inside the card. To display multiple elements, you MUST wrap"
+            " them in a layout component (like Column or Row) and reference that"
+            " container's ID here. Do NOT pass multiple IDs or a non-existent ID."
         ),
     )
     weight: Weight | None = Field(default=None)
@@ -352,12 +357,16 @@ class ModalComponent(ComponentCommon):
     trigger: Child = Field(
         ...,
         description=(
-            "The ID of the component that opens the modal when interacted with (e.g., a"
-            " button)."
+            'A reference ({"@child": "<id>"}) to the component that opens the modal'
+            " when interacted with (e.g., a button)."
         ),
     )
     content: Child = Field(
-        ..., description="The ID of the component to be displayed inside the modal."
+        ...,
+        description=(
+            'A reference ({"@child": "<id>"}) to the component to be displayed inside'
+            " the modal."
+        ),
     )
     weight: Weight | None = Field(default=None)
 
@@ -378,9 +387,9 @@ class ButtonComponent(ComponentCommon, Checkable):
     child: Child = Field(
         ...,
         description=(
-            "The ID of the child component. Use a 'Text' component for a labeled"
-            " button. Only use an 'Icon' if the requirements explicitly ask for an"
-            " icon-only button."
+            'A reference ({"@child": "<id>"}) to the child component. Use a \'Text\''
+            " component for a labeled button. Only use an 'Icon' if the requirements"
+            " explicitly ask for an icon-only button."
         ),
     )
     variant: Literal["default", "primary", "borderless"] | None = Field(

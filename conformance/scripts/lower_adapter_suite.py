@@ -73,6 +73,26 @@ def _rename_keys(node: Any) -> Any:
     if isinstance(node, list):
         return [_rename_keys(x) for x in node]
     if isinstance(node, dict):
+        if len(node) == 1 and "@child" in node:
+            child_val = node["@child"]
+            if isinstance(child_val, (str, list)):
+                return copy.deepcopy(child_val)
+        if (
+            len(node) == 2
+            and "@child" in node
+            and "@path" in node
+            and isinstance(node["@child"], str)
+            and isinstance(node["@path"], str)
+        ):
+            return {"componentId": node["@child"], "path": node["@path"]}
+        if len(node) == 1 and "@action" in node and isinstance(node["@action"], dict):
+            return {"event": _rename_keys(node["@action"])}
+        if (
+            len(node) == 1
+            and "@functionCall" in node
+            and isinstance(node["@functionCall"], dict)
+        ):
+            return {"functionCall": _rename_keys(node["@functionCall"])}
         is_child_list = "componentId" in node
         is_component = "component" in node and "id" in node
         res: dict[str, Any] = {}

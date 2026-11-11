@@ -506,6 +506,8 @@ class _Context {
     this.allowPending = false,
     this.allowComponentRef = false,
     this.allowListComponentRefs = false,
+    this.wrapChild = false,
+    this.wrapChildList = false,
     this.slot,
   });
 
@@ -530,6 +532,12 @@ class _Context {
   /// Whether items of a list here are forward component references.
   final bool allowListComponentRefs;
 
+  /// Whether a `String` child ID here wraps as `{"@child": id}` on v1.0.
+  final bool wrapChild;
+
+  /// Whether a list of child IDs here wraps as `{"@child": [...]}` on v1.0.
+  final bool wrapChildList;
+
   /// The schema declared at this position, when known. Array items and map
   /// entries resolve their own sub-schema from it, so an action slot nested
   /// inside a list item (such as `items: [{label, action}]`) is compiled as
@@ -546,17 +554,23 @@ class _Context {
 
   /// The context of the value at [suffix] inside this one, in [slot]: an
   /// array item's or a map entry's.
-  _Context at(Object suffix, _Slot? slot, {bool allowComponentRef = false}) =>
-      _Context(
-        idPrefix: '${idPrefix}_$suffix',
-        hoisted: hoisted,
-        valueBinding: valueBinding,
-        allowPending: allowPending,
-        allowComponentRef:
-            allowComponentRef || (slot != null && isComponentId(slot.schema)),
-        allowListComponentRefs: slot != null && isChildList(slot.schema),
-        slot: slot,
-      );
+  _Context at(
+    Object suffix,
+    _Slot? slot, {
+    bool allowComponentRef = false,
+    bool? wrapChild,
+  }) => _Context(
+    idPrefix: '${idPrefix}_$suffix',
+    hoisted: hoisted,
+    valueBinding: valueBinding,
+    allowPending: allowPending,
+    allowComponentRef:
+        allowComponentRef || (slot != null && isComponentId(slot.schema)),
+    allowListComponentRefs: slot != null && isChildList(slot.schema),
+    wrapChild: wrapChild ?? (slot != null && isChild(slot.schema)),
+    wrapChildList: slot != null && isChildList(slot.schema),
+    slot: slot,
+  );
 }
 
 class _SurfaceCompiler {
@@ -1312,10 +1326,11 @@ class _SurfaceCompiler {
       final bool isChildRef =
           isComponentId(schema) ||
           (!helper.commonTypesLoaded && property == 'child');
+      final bool isChildWrapper =
+          isChild(schema) || (!helper.commonTypesLoaded && property == 'child');
       final bool isChildrenList =
-          (isChildList(schema) ||
-              (!helper.commonTypesLoaded && property == 'children')) &&
-          node is ArrayNode;
+          isChildList(schema) ||
+          (!helper.commonTypesLoaded && property == 'children');
       Object? value = _value(
         node,
         _Context(
@@ -1324,6 +1339,8 @@ class _SurfaceCompiler {
           allowPending: allowPending,
           allowComponentRef: isChildRef,
           allowListComponentRefs: isChildrenList,
+          wrapChild: isChildWrapper,
+          wrapChildList: isChildrenList,
           slot: schema == null ? null : _Slot(schema, helper),
         ),
       );
@@ -1468,8 +1485,12 @@ class _SurfaceCompiler {
     return (check.args, null);
   }
 
+  Object _childValue(Object id, _Context context) =>
+      _v1 && context.wrapChild ? {'@child': id} : id;
+
   Object? _value(ExpressNode node, _Context context) => switch (node) {
-    LiteralNode(:final Object? value) => value,
+    LiteralNode(:final Object? value) =>
+      value is String ? _childValue(value, context) : value,
     PathNode(:final String path) => {_pathKey: path},
     SkippedNode() => throw A2uiValidationError(
       "'_' can only stand in for an argument.",
@@ -1492,7 +1513,9 @@ class _SurfaceCompiler {
     _referencedVars.add(name);
     final ExpressNode? node = surface.symbols[name];
     if (node == null) {
-      if (context.allowComponentRef && context.allowPending) return name;
+      if (context.allowComponentRef && context.allowPending) {
+        return _childValue(name, context);
+      }
       if (context.allowPending) {
         throw _PendingVariableError(name);
       }
@@ -1502,7 +1525,7 @@ class _SurfaceCompiler {
       );
     }
     if (node is CallNode && _isComponent(node)) {
-      return _componentId(name, node, atLeastV10: _v1);
+      return _childValue(_componentId(name, node, atLeastV10: _v1), context);
     }
     if (!_resolving.add(name)) {
       throw A2uiValidationError("Variable '$name' refers to itself.");
@@ -1532,7 +1555,7 @@ class _SurfaceCompiler {
         id = _newId(context.idPrefix);
       }
       context.hoisted.addAll(_component(id, call));
-      return id;
+      return _childValue(id, context);
     }
     final String? catalogId = compiler._catalogArgument(call);
     switch (name) {
@@ -1601,7 +1624,9 @@ class _SurfaceCompiler {
       'catalogId': ?writtenCatalog,
       if (args.isNotEmpty || !name.startsWith('@')) 'args': args,
     };
-    return context.isAction ? {'functionCall': functionCall} : functionCall;
+    return context.isAction
+        ? {(_v1 ? '@functionCall' : 'functionCall'): functionCall}
+        : functionCall;
   }
 
   /// `_template(path, component)`: a child list generated from a list in the
@@ -1635,21 +1660,20 @@ class _SurfaceCompiler {
         'The second argument of _template must be a component.',
       );
     }
-    // A child list template keeps the plain `path` key in every version.
-    return {
-      'componentId': _value(
-        template,
-        context.child('template', allowComponentRef: true),
-      ),
-      'path': path.path,
-    };
+    final Object? templateId = _value(
+      template,
+      context.child('template', allowComponentRef: true),
+    );
+    return _v1
+        ? {'@child': templateId, '@path': path.path}
+        : {'componentId': templateId, 'path': path.path};
   }
 
   /// The values of an array, each in the slot of the array's items, which is
   /// resolved once since every item shares it.
-  List<Object?> _list(List<ExpressNode> items, _Context context) {
+  Object _list(List<ExpressNode> items, _Context context) {
     final _Slot? itemSlot = context.slot?.item;
-    return [
+    final List<Object?> compiled = [
       for (final (int index, ExpressNode item) in items.indexed)
         _value(
           item,
@@ -1657,9 +1681,11 @@ class _SurfaceCompiler {
             index,
             itemSlot,
             allowComponentRef: context.allowListComponentRefs,
+            wrapChild: context.allowListComponentRefs ? false : null,
           ),
         ),
     ];
+    return _v1 && context.wrapChildList ? {'@child': compiled} : compiled;
   }
 
   /// `Event(name, context?, userMessage=?, context=?)`: an action sent to
@@ -1735,7 +1761,7 @@ class _SurfaceCompiler {
     if (eventContext is Map && eventContext.isNotEmpty) {
       event['context'] = eventContext;
     }
-    return {'event': event};
+    return {(_v1 ? '@action' : 'event'): event};
   }
 
   /// [id], the id an inline component takes from where it is written, such

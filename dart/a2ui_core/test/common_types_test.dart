@@ -164,6 +164,56 @@ void main() {
         CommonSchemasV1.functionCall.validateSync({'call': 'f'}),
         isNotEmpty,
       );
+      expect(
+        CommonSchemasV1.child.validateSync({'@child': 'leaf'}),
+        isEmpty,
+      );
+      expect(CommonSchemasV1.child.validateSync('leaf'), isNotEmpty);
+      expect(
+        CommonSchemasV1.childList.validateSync({
+          '@child': ['a', 'b'],
+        }),
+        isEmpty,
+      );
+      expect(
+        CommonSchemasV1.childList.validateSync({
+          '@child': 'row',
+          '@path': '/items',
+        }),
+        isEmpty,
+      );
+      expect(CommonSchemasV1.childList.validateSync(['a', 'b']), isNotEmpty);
+      expect(
+        CommonSchemasV1.childList.validateSync({
+          'componentId': 'row',
+          'path': '/items',
+        }),
+        isNotEmpty,
+      );
+      expect(
+        CommonSchemasV1.action.validateSync({
+          '@action': {'name': 'submit'},
+        }),
+        isEmpty,
+      );
+      expect(
+        CommonSchemasV1.action.validateSync({
+          '@functionCall': {'@call': 'openUrl'},
+        }),
+        isEmpty,
+      );
+      expect(
+        CommonSchemasV1.action.validateSync({
+          'event': {'name': 'submit'},
+        }),
+        isNotEmpty,
+      );
+      expect(
+        CommonSchemasV1.action.validateSync({
+          'functionCall': {'@call': 'openUrl'},
+        }),
+        isNotEmpty,
+      );
       for (final Schema schema in [
         CommonSchemasV1.dynamicString,
         CommonSchemasV1.dynamicNumber,
@@ -177,14 +227,34 @@ void main() {
       }
     });
 
-    test('v1.0 DynamicValue rejects unknown single-@ keys', () {
+    test('v1.0 DynamicValue rejects unknown single-@ keys and directives', () {
       final Schema schema = CommonSchemasV1.dynamicValue;
 
       expect(schema.value.toString(), contains('propertyNames'));
       expect(schema.value.toString(), contains(r'^@([^@]|$)'));
       expect(schema.validateSync({'@if': true}), isNotEmpty);
       expect(schema.validateSync({'@': 'x'}), isNotEmpty);
+      expect(schema.validateSync({'@child': 'c1'}), isNotEmpty);
+      expect(
+        schema.validateSync({
+          '@child': ['c1'],
+        }),
+        isNotEmpty,
+      );
+      expect(
+        schema.validateSync({
+          '@action': {'name': 'go'},
+        }),
+        isNotEmpty,
+      );
+      expect(
+        schema.validateSync({
+          '@functionCall': {'@call': 'f'},
+        }),
+        isNotEmpty,
+      );
       expect(schema.validateSync({'@@path': '/x'}), isEmpty);
+      expect(schema.validateSync({'@@child': 'c1'}), isEmpty);
       expect(schema.validateSync({'path': 'a', 'call': 'b'}), isEmpty);
       expect(schema.validateSync({'@path': '/a'}), isEmpty);
       expect(schema.validateSync({'@call': 'f'}), isEmpty);
@@ -199,6 +269,9 @@ void main() {
         'AccessibilityAttributes': CommonSchemas.accessibilityAttributes,
         'CheckRule': CommonSchemas.checkRule,
         'ComponentCommon': CommonSchemas.componentCommon,
+        'Child': CommonSchemasV1.child,
+        'ChildList': CommonSchemasV1.childList,
+        'Action': CommonSchemasV1.action,
         'DataBinding': CommonSchemasV1.dataBinding,
         'FunctionCall': CommonSchemasV1.functionCall,
         'DynamicString': CommonSchemasV1.dynamicString,

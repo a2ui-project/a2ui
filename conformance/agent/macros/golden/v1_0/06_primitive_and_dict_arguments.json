@@ -25,14 +25,18 @@
         {
           "component": "Column",
           "id": "cfg_1__column_1",
-          "children": ["cfg_1__text_1", "cfg_1__text_2", "cfg_1__text_3"],
+          "children": {
+            "@child": ["cfg_1__text_1", "cfg_1__text_2", "cfg_1__text_3"]
+          },
           "justify": "start",
           "align": "stretch"
         },
         {
           "component": "Card",
           "id": "cfg_1",
-          "child": "cfg_1__column_1"
+          "child": {
+            "@child": "cfg_1__column_1"
+          }
         }
       ]
     }

@@ -15,14 +15,16 @@
         {
           "component": "Card",
           "id": "feed_container__post_card",
-          "child": "feed_container__post_title"
+          "child": {
+            "@child": "feed_container__post_title"
+          }
         },
         {
           "component": "Column",
           "id": "feed_container",
           "children": {
-            "path": "/feed/posts",
-            "componentId": "feed_container__post_card"
+            "@child": "feed_container__post_card",
+            "@path": "/feed/posts"
           },
           "justify": "start",
           "align": "stretch"

@@ -174,10 +174,7 @@ function deletePointer(payload: unknown, pointer: string): void {
   }
 }
 
-async function getParser(
-  args: Record<string, unknown> = {},
-  lower = false,
-): Promise<ExpressParser> {
+function loadArgsCatalogs(args: Record<string, unknown> = {}, lower = false): CatalogApi[] {
   const catalogSpecs: Array<string | Record<string, unknown>> = [];
   if (Array.isArray(args.catalogs)) {
     catalogSpecs.push(...(args.catalogs as Array<string | Record<string, unknown>>));
@@ -190,13 +187,18 @@ async function getParser(
     catalogSpecs.push(DEFAULT_CATALOG);
   }
 
-  const catalogs = catalogSpecs.map(spec =>
+  return catalogSpecs.map(spec =>
     typeof spec === 'string'
       ? loadCatalogFromRelativePath(spec, lower)
       : Catalog.fromJson(lower ? lowerCatalogDocument(spec) : spec),
   );
+}
 
-  return new ExpressParser(catalogs, CONFORMANCE_SURFACE_ID);
+async function getParser(
+  args: Record<string, unknown> = {},
+  lower = false,
+): Promise<ExpressParser> {
+  return new ExpressParser(loadArgsCatalogs(args, lower), CONFORMANCE_SURFACE_ID);
 }
 
 function assertRawPartsMatch(
@@ -222,8 +224,11 @@ function assertPartsMatch(
   actualParts: ResponsePart[],
   expectedParts: Array<Record<string, unknown>>,
   lower = false,
+  v10Catalogs: readonly CatalogApi[] = [],
 ): void {
-  const liftedActual = lower ? liftParts(actualParts, {join: true}) : actualParts;
+  const liftedActual = lower
+    ? liftParts(actualParts, {join: true, catalogs: v10Catalogs})
+    : actualParts;
   expect(liftedActual.length).toBe(expectedParts.length);
   for (let i = 0; i < liftedActual.length; i++) {
     const actual = liftedActual[i];
@@ -268,7 +273,10 @@ forEachSuiteVersion(
       }
 
       const rawCompiled = compileChecked(parser, payload);
-      const compiled = isLowered ? liftMessages(rawCompiled, {join: true}) : rawCompiled;
+      const v10Catalogs = isLowered ? loadArgsCatalogs(args, false) : [];
+      const compiled = isLowered
+        ? liftMessages(rawCompiled, {join: true, catalogs: v10Catalogs})
+        : rawCompiled;
 
       if (testCase.expect_present) {
         for (const pointer of testCase.expect_present as string[]) {
@@ -312,9 +320,12 @@ forEachSuiteVersion(
         }
       }
 
+      const v10Catalogs = isLowered ? loadArgsCatalogs(args, false) : [];
       const recompile = () => {
         const recompiled = compileChecked(parser, notation);
-        return isLowered ? liftMessages(recompiled, {join: true}) : recompiled;
+        return isLowered
+          ? liftMessages(recompiled, {join: true, catalogs: v10Catalogs})
+          : recompiled;
       };
 
       if (testCase.expect_round_trip) {
@@ -379,7 +390,13 @@ forEachSuiteVersion(
       }
 
       const parts = parser.parseResponse(testCase.input as string, {wrapped});
-      assertPartsMatch(parts, testCase.expect as Array<Record<string, unknown>>, isLowered);
+      const v10Catalogs = isLowered ? loadArgsCatalogs(args, false) : [];
+      assertPartsMatch(
+        parts,
+        testCase.expect as Array<Record<string, unknown>>,
+        isLowered,
+        v10Catalogs,
+      );
     } else if (action === 'generate_prompt_snippet') {
       const catEntries =
         (args.catalogs as Array<{

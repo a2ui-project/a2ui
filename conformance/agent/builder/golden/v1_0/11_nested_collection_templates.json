@@ -16,8 +16,8 @@
           "component": "Column",
           "id": "org_chart__department_block",
           "children": {
-            "path": "employees",
-            "componentId": "org_chart__employee_name"
+            "@child": "org_chart__employee_name",
+            "@path": "employees"
           },
           "justify": "start",
           "align": "stretch"
@@ -26,8 +26,8 @@
           "component": "Column",
           "id": "org_chart",
           "children": {
-            "path": "/departments",
-            "componentId": "org_chart__department_block"
+            "@child": "org_chart__department_block",
+            "@path": "/departments"
           },
           "justify": "start",
           "align": "stretch"

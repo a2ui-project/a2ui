@@ -575,5 +575,44 @@ void main() {
         );
       },
     );
+
+    test(
+      'emits v1.0 Child, ChildList, Action, and Sequence[Child] from v1.0 refs',
+      () {
+        final json = <String, dynamic>{
+          'catalogId': 'https://a2ui.org/catalogs/test/v1_directives',
+          'protocolVersion': '1.0',
+          'components': {
+            'SlotCard': {
+              'type': 'object',
+              'properties': {
+                'component': {'const': 'SlotCard'},
+                'body': {r'$ref': r'common_types.json#/$defs/Child'},
+                'items': {r'$ref': r'common_types.json#/$defs/ChildList'},
+                'slots': {
+                  'type': 'array',
+                  'items': {r'$ref': r'common_types.json#/$defs/Child'},
+                },
+                'onTap': {r'$ref': r'common_types.json#/$defs/Action'},
+              },
+              'required': ['component', 'body'],
+            },
+          },
+        };
+        final catalog = CodegenCatalog.fromJson(json);
+        final AnalysedCatalog analysed = CatalogAnalyzer.analyzeCodegen(
+          catalog,
+        );
+        final emitter = PythonEmitter(analysed);
+        final String code = emitter.generate();
+
+        expect(code, contains('from a2ui.builder.v1_0 import ('));
+        expect(code, contains('    body: Child\n'));
+        expect(code, contains('    items: Optional[ChildList] = None\n'));
+        expect(code, contains('    slots: Optional[Sequence[Child]] = None\n'));
+        expect(code, contains('    on_tap: Optional[Action] = Field('));
+        expect(code, contains('alias="onTap"'));
+      },
+    );
   });
 }

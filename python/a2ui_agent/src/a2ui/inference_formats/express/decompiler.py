@@ -39,6 +39,7 @@ from a2ui.inference_formats._shared import (
     catalogs_protocol_version,
     check_mixed_catalogs,
     coalesce_surface_messages,
+    is_action_slot,
     surface_catalog_id,
 )
 from a2ui.utils.component_envelope import get_envelope_value
@@ -208,13 +209,16 @@ def _flatten_data_model(data_dict: dict[str, Any]) -> list[tuple[str, Any]]:
 
 
 def _is_component_reference_property(prop_schema: Any) -> bool:
-    """Checks if a property schema defines a component reference (ComponentId or list of ComponentId)."""
+    """Checks if a property schema defines a component reference (`Child`, `ChildList`, or `ComponentId`)."""
     if not isinstance(prop_schema, dict):
         return False
     if "$ref" in prop_schema:
         ref = prop_schema["$ref"]
         if "ComponentId" in ref or "Child" in ref or "ChildList" in ref:
             return True
+    props = prop_schema.get("properties")
+    if isinstance(props, dict) and "@child" in props:
+        return True
     if "oneOf" in prop_schema or "anyOf" in prop_schema or "allOf" in prop_schema:
         subs = (
             prop_schema.get("oneOf", [])
@@ -733,11 +737,18 @@ class ExpressDecompiler:
 
                 if prop_name in c:
                     p_schema = comp_helper.get_property_schema(comp_name, prop_name)
+                    is_ref = _is_component_reference_property(p_schema) or (
+                        not comp_helper.common_types_loaded
+                        and prop_name in ("child", "children")
+                    )
                     val_str = self._decompile_value(
                         c[prop_name],
                         var_names,
-                        _is_component_reference_property(p_schema),
+                        is_ref,
                         surface_cat_id,
+                        slot_schema=p_schema,
+                        slot_helper=comp_helper,
+                        is_action=is_action_slot(p_schema),
                     )
                     if keyword:
                         args_reprs.append(f"{prop_name}={val_str}")
@@ -947,6 +958,10 @@ class ExpressDecompiler:
         var_names: dict[str, str],
         is_ref: bool,
         surface_cat_id: str | None,
+        *,
+        slot_schema: dict[str, Any] | None = None,
+        slot_helper: CatalogSchemaHelper | None = None,
+        is_action: bool = False,
     ) -> str:
         """Decompiles a single value node back to A2UI Express notation.
 
@@ -958,29 +973,62 @@ class ExpressDecompiler:
             surface_cat_id: The catalog of the surface, which every call
                 without a `catalogId` belongs to, or None when the surface has
                 no catalog.
+            slot_schema: Optional schema at this position, used to resolve nested
+                `Child` / `Action` slots cleanly without colliding with custom keys.
+            slot_helper: Catalog helper owning `slot_schema`.
+            is_action: Whether this position expects an `Action` union.
 
         Returns:
             A plain-text representation of the value.
         """
         if isinstance(val, dict):
-            # A child list template keeps the plain `path` key in every
-            # version. A data binding is an object whose only key is the
-            # binding key of the version, so a plain `path` key in v1.0, or a
-            # binding key beside other keys, is data.
-            if "componentId" in val and "path" in val:
+            if self._v1:
+                if (
+                    set(val.keys()) == {"@child", "@path"}
+                    and isinstance(val["@child"], str)
+                    and isinstance(val["@path"], str)
+                ):
+                    comp_id_repr = _decompile_reference(val["@child"], var_names)
+                    return f"_template({_decompile_path(val['@path'])}, {comp_id_repr})"
+                if set(val.keys()) == {"@child"}:
+                    inner_child = val["@child"]
+                    if isinstance(inner_child, str):
+                        return _decompile_reference(inner_child, var_names)
+                    if isinstance(inner_child, list):
+                        list_reprs = [
+                            self._decompile_value(item, var_names, True, surface_cat_id)
+                            for item in inner_child
+                        ]
+                        return f"[{', '.join(list_reprs)}]"
+
+            # Legacy ChildList template: {"componentId": ..., "path": ...}.
+            # On v1.0, only dual-read inside an actual Child/ChildList reference slot.
+            # TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+            if (not self._v1 or is_ref) and "componentId" in val and "path" in val:
                 comp_id_repr = _decompile_reference(val["componentId"], var_names)
                 return f"_template({_decompile_path(val['path'])}, {comp_id_repr})"
             bound_path = val.get(self._path_key)
             if isinstance(bound_path, str) and len(val) == 1:
                 return _decompile_path(bound_path)
 
+            # Action event: v1.0 `@action`, plus legacy `event` in v1.0 Action slots.
             # Before v1.0 an event has no userMessage, and the compiler rejects
-            # `userMessage=`, so such an object is written as a map literal that
-            # compiles back as written.
-            if isinstance(val.get("event"), dict) and (
-                self._v1 or val["event"].get("userMessage") is None
+            # `userMessage=`, so such an object is written as a map literal.
+            evt: dict[str, Any] | None = None
+            if (
+                self._v1
+                and set(val.keys()) == {"@action"}
+                and isinstance(val.get("@action"), dict)
             ):
+                evt = val["@action"]
+            elif isinstance(val.get("event"), dict) and (
+                (not self._v1 and val["event"].get("userMessage") is None)
+                or (self._v1 and is_action and set(val.keys()) == {"event"})
+            ):
+                # TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
                 evt = val["event"]
+
+            if evt is not None:
                 event_args = [_decompile_string(evt.get("name", ""))]
                 # An empty context is written out so that it compiles back.
                 if "context" in evt:
@@ -997,7 +1045,19 @@ class ExpressDecompiler:
                     event_args.append(f"userMessage={user_message}")
                 return f"Event({', '.join(event_args)})"
 
-            if isinstance(val.get("functionCall"), dict):
+            if (
+                self._v1
+                and set(val.keys()) == {"@functionCall"}
+                and isinstance(val.get("@functionCall"), dict)
+            ):
+                return self._decompile_call(
+                    val["@functionCall"], var_names, surface_cat_id
+                )
+
+            if isinstance(val.get("functionCall"), dict) and (
+                not self._v1 or (is_action and set(val.keys()) == {"functionCall"})
+            ):
+                # TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
                 return self._decompile_call(
                     val["functionCall"], var_names, surface_cat_id
                 )
@@ -1007,16 +1067,47 @@ class ExpressDecompiler:
 
             items_reprs = []
             for k, v in val.items():
-                item_is_ref = is_ref or k in ("child", "componentId")
+                sub_schema = (
+                    slot_helper.resolve_property_schema(slot_schema, k)
+                    if slot_helper is not None and slot_schema is not None
+                    else None
+                )
+                item_is_action = is_action_slot(sub_schema)
+                item_is_ref = (
+                    _is_component_reference_property(sub_schema)
+                    if sub_schema is not None
+                    else (is_ref or (not self._v1 and k in ("child", "componentId")))
+                )
                 v_repr = self._decompile_value(
-                    v, var_names, item_is_ref, surface_cat_id
+                    v,
+                    var_names,
+                    item_is_ref,
+                    surface_cat_id,
+                    slot_schema=sub_schema,
+                    slot_helper=slot_helper,
+                    is_action=item_is_action,
                 )
                 items_reprs.append(f"{_decompile_key(k)}: {v_repr}")
             return f"{{{', '.join(items_reprs)}}}"
 
         if isinstance(val, list):
+            item_schema = (
+                slot_helper.resolve_item_schema(slot_schema)
+                if slot_helper is not None and slot_schema is not None
+                else None
+            )
+            item_is_action = is_action or is_action_slot(item_schema)
+            item_is_ref = is_ref or _is_component_reference_property(item_schema)
             list_reprs = [
-                self._decompile_value(item, var_names, is_ref, surface_cat_id)
+                self._decompile_value(
+                    item,
+                    var_names,
+                    item_is_ref,
+                    surface_cat_id,
+                    slot_schema=item_schema,
+                    slot_helper=slot_helper,
+                    is_action=item_is_action,
+                )
                 for item in val
             ]
             return f"[{', '.join(list_reprs)}]"

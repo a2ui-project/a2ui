@@ -37,13 +37,15 @@
           {
             "id": "root",
             "component": "Column",
-            "children": [
-              "scene3d_heading",
-              "scene3d_geom_input",
-              "scene3d_app",
-              "scene3d_telemetry_text",
-              "scene3d_context_text"
-            ],
+            "children": {
+              "@child": [
+                "scene3d_heading",
+                "scene3d_geom_input",
+                "scene3d_app",
+                "scene3d_telemetry_text",
+                "scene3d_context_text"
+              ]
+            },
             "align": "stretch"
           },
           {

@@ -680,9 +680,9 @@ void main() {
           {
             'id': 'root',
             'component': 'Button',
-            'child': 'label',
+            'child': {'@child': 'label'},
             'action': {
-              'event': {'name': 'reply', 'userMessage': 'Replying now'},
+              '@action': {'name': 'reply', 'userMessage': 'Replying now'},
             },
           },
           {'id': 'label', 'component': 'Text', 'text': 'Reply'},
@@ -694,9 +694,9 @@ void main() {
           {
             'id': 'root',
             'component': 'Button',
-            'child': 'label',
+            'child': {'@child': 'label'},
             'action': {
-              'event': {
+              '@action': {
                 'name': 'reply',
                 'userMessage': {'@path': '/draft'},
                 'context': {'id': 1},
@@ -719,7 +719,7 @@ void main() {
               {
                 'label': 'Reply',
                 'action': {
-                  'event': {
+                  '@action': {
                     'name': 'reply',
                     'userMessage': {
                       '@call': 'openUrl',
@@ -794,7 +794,7 @@ void main() {
                   {
                     'label': 'Docs',
                     'action': {
-                      'functionCall': {
+                      '@functionCall': {
                         '@call': 'openUrl',
                         'args': {'url': 'https://a2ui.org'},
                       },
@@ -866,7 +866,7 @@ void main() {
               {
                 'label': 'Docs',
                 'action': {
-                  'functionCall': {
+                  '@functionCall': {
                     '@call': 'openUrl',
                     'args': {'url': 'https://a2ui.org'},
                   },
@@ -875,7 +875,7 @@ void main() {
               {
                 'label': 'Go',
                 'action': {
-                  'event': {'name': 'go'},
+                  '@action': {'name': 'go'},
                 },
               },
             ],
@@ -886,6 +886,33 @@ void main() {
           '{label: "Go", action: Event("go")}])',
         ),
       );
+    });
+
+    test('dual-reads legacy bare Child and Action keys on v1.0', () {
+      final String written = v1Parser.decompile(
+        AgentToRendererMessage.parseAll([
+          {
+            'version': '1.0',
+            'createSurface': {
+              'surfaceId': 's',
+              'catalogId': links.id,
+              'components': [
+                {
+                  'id': 'root',
+                  'component': 'Button',
+                  'child': 'label',
+                  'action': {
+                    'event': {'name': 'go', 'userMessage': 'Going'},
+                  },
+                },
+                {'id': 'label', 'component': 'Text', 'text': 'Go'},
+              ],
+            },
+          },
+        ], protocolVersion: A2uiProtocolVersion.v1_0).messages,
+      );
+      expect(written, contains('Event("go", userMessage="Going")'));
+      expect(written, contains('root = Button(label, '));
     });
   });
 

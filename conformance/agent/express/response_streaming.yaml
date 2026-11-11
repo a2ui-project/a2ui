@@ -153,7 +153,8 @@
                 components:
                   - id: "root"
                     component: "Card"
-                    child: "col"
+                    child:
+                      "@child": "col"
                 dataModel:
                   title: "Menu"
     - input: "col = Column([item1])\n"
@@ -165,7 +166,8 @@
                 components:
                   - id: "col"
                     component: "Column"
-                    children: ["item1"]
+                    children:
+                      "@child": ["item1"]
     - input: "item1 = Text($/title)\n</a2ui>"
       expect:
         - a2ui:
@@ -239,7 +241,8 @@
                       "@path": "/title"
                   - id: "root"
                     component: "Card"
-                    child: "body"
+                    child:
+                      "@child": "body"
                 dataModel:
                   title: "Menu"
   expect_matches_single_shot: true
@@ -390,9 +393,10 @@
                 components:
                   - id: "root"
                     component: "Button"
-                    child: "root_child"
+                    child:
+                      "@child": "root_child"
                     action:
-                      event:
+                      "@action":
                         name: "save"
                   - id: "root_child"
                     component: "Text"
@@ -419,7 +423,8 @@
                 components:
                   - id: "root"
                     component: "Card"
-                    child: "hdr"
+                    child:
+                      "@child": "hdr"
     - input: "hdr = Text(\"Header\", id=\"custom_hdr\")\n</a2ui>"
       expect:
         - a2ui:
@@ -429,7 +434,8 @@
                 components:
                   - id: "root"
                     component: "Card"
-                    child: "custom_hdr"
+                    child:
+                      "@child": "custom_hdr"
                   - id: "custom_hdr"
                     component: "Text"
                     text: "Header"
@@ -455,7 +461,8 @@
                 components:
                   - id: "root"
                     component: "Card"
-                    child: "body"
+                    child:
+                      "@child": "body"
                   - id: "body"
                     component: "Text"
                     text:
@@ -541,7 +548,8 @@
                 components:
                   - id: "root"
                     component: "Card"
-                    child: "body"
+                    child:
+                      "@child": "body"
                   - id: "body"
                     component: "Text"
                     text: "Initial"
@@ -582,7 +590,8 @@
                 components:
                   - id: "root"
                     component: "Card"
-                    child: "header"
+                    child:
+                      "@child": "header"
                   - id: "header"
                     component: "Text"
                     text: "Old top"
@@ -593,7 +602,8 @@
                 components:
                   - id: "root"
                     component: "Card"
-                    child: "footer"
+                    child:
+                      "@child": "footer"
                   - id: "footer"
                     component: "Text"
                     text: "Old bottom"
@@ -660,7 +670,8 @@
                 components:
                   - id: "root"
                     component: "Card"
-                    child: "missing_child"
+                    child:
+                      "@child": "missing_child"
     - input: "</a2ui>"
       expect_error:
         category: "ValidationError"
@@ -894,7 +905,8 @@
                 components:
                   - id: "root"
                     component: "Card"
-                    child: "hdr"
+                    child:
+                      "@child": "hdr"
                   - id: "hdr"
                     component: "Text"
                     text: "Head"
@@ -907,7 +919,8 @@
                 components:
                   - id: "root"
                     component: "Card"
-                    child: "custom_hdr"
+                    child:
+                      "@child": "custom_hdr"
                   - id: "custom_hdr"
                     component: "Text"
                     text: "Header"
@@ -976,7 +989,8 @@
                 components:
                   - id: "root"
                     component: "Card"
-                    child: "body"
+                    child:
+                      "@child": "body"
                   - id: "body"
                     component: "Text"
                     text: "Initial"
@@ -1097,7 +1111,8 @@
                     component: "Tabs"
                     tabItems:
                       - title: "Tab 1"
-                        child: "panel1"
+                        child:
+                          "@child": "panel1"
     - input: "panel1 = Text(\"Content\")\n</a2ui>"
       expect:
         - a2ui:
@@ -1129,8 +1144,9 @@
                   - id: "root"
                     component: "Column"
                     children:
-                      - "hdr"
-                      - "body"
+                      "@child":
+                        - "hdr"
+                        - "body"
                   - id: "hdr"
                     component: "Text"
                     text: "Header"
@@ -1178,8 +1194,9 @@
                   - id: "root"
                     component: "Column"
                     children:
-                      - "b"
-                      - "a"
+                      "@child":
+                        - "b"
+                        - "a"
                   - id: "b"
                     component: "Text"
                     text: "bbbb"
@@ -1208,7 +1225,8 @@
                 components:
                   - id: "root"
                     component: "Card"
-                    child: "root_child"
+                    child:
+                      "@child": "root_child"
                   - id: "root_child"
                     component: "Text"
                     text: "Inline"

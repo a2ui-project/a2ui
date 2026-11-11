@@ -43,6 +43,7 @@ from a2ui.inference_formats._shared import (
     build_catalog_helpers,
     catalogs_defining,
     check_mixed_catalogs,
+    schema_expects_at_child,
     surface_catalog_id,
     to_message_models,
 )
@@ -120,6 +121,11 @@ def _is_action_property(prop_schema: Any) -> bool:
         ref_name = ref.split("/")[-1]
         if ref_name == "Action":
             return True
+    props = prop_schema.get("properties")
+    if isinstance(props, dict) and (
+        set(props) == {"@action"} or set(props) == {"@functionCall"}
+    ):
+        return True
     if "oneOf" in prop_schema or "anyOf" in prop_schema or "allOf" in prop_schema:
         subs = (
             prop_schema.get("oneOf", [])
@@ -1076,7 +1082,8 @@ class ElementalCompiler:
                     raw_ctx = self._compile_value(fn_args["context"], is_action)
                     if isinstance(raw_ctx, dict):
                         context.update(raw_ctx)
-            return {"event": {"name": event_name, "context": context}}
+            event_key = "@action" if self.at_least_v10 else "event"
+            return {event_key: {"name": event_name, "context": context}}
 
         explicit_fn_catalog_id: str | None = val.get("catalogId")
         # A `catalogId` argument names the call's catalog unless a function of
@@ -1135,7 +1142,8 @@ class ElementalCompiler:
             call_dict["catalogId"] = write_catalog_id
 
         if is_action:
-            return {"functionCall": call_dict}
+            fc_key = "@functionCall" if self.at_least_v10 else "functionCall"
+            return {fc_key: call_dict}
         return call_dict
 
     def _to_envelope_wire_keys(
@@ -1322,10 +1330,14 @@ class ElementalCompiler:
 
         # 3. Map children (slots and templates)
         default_slot = None
-        if "children" in properties:
+        if comp_helper.get_property_type(comp_name, "children") == "ChildList" or (
+            not comp_helper.common_types_loaded and "children" in properties
+        ):
             default_slot = "children"
-            comp_dict["children"] = []
-        elif "child" in properties:
+            comp_dict.setdefault("children", [])
+        elif comp_helper.get_property_type(comp_name, "child") == "Child" or (
+            not comp_helper.common_types_loaded and "child" in properties
+        ):
             default_slot = "child"
 
         if template_node and default_slot:
@@ -1351,10 +1363,16 @@ class ElementalCompiler:
                     template_ids.append(t_id)
 
             if template_ids:
-                comp_dict[default_slot] = {
-                    "path": path_val["path"],
-                    "componentId": template_ids[0],
-                }
+                if self.at_least_v10:
+                    comp_dict[default_slot] = {
+                        "@path": path_val["path"],
+                        "@child": template_ids[0],
+                    }
+                else:
+                    comp_dict[default_slot] = {
+                        "path": path_val["path"],
+                        "componentId": template_ids[0],
+                    }
 
             # Process other script slots if present
             for child in node.children:
@@ -1400,7 +1418,12 @@ class ElementalCompiler:
                             slot_schema = comp_helper.get_property_schema(
                                 comp_name, slot_name
                             )
-                            if slot_schema and slot_schema.get("type") == "array":
+                            slot_kind = comp_helper.get_property_type(
+                                comp_name, slot_name
+                            )
+                            if slot_kind == "ChildList" or (
+                                slot_schema and slot_schema.get("type") == "array"
+                            ):
                                 if slot_name not in comp_dict:
                                     comp_dict[slot_name] = []
                                 comp_dict[slot_name].append(child_id)
@@ -1516,9 +1539,30 @@ class ElementalCompiler:
                     wrapped_checks.append(check)
             comp_dict["checks"] = wrapped_checks
 
-        # Clean up empty slots
-        if "children" in comp_dict and not comp_dict["children"]:
+        # Clean up empty slots and wrap v1.0 Child / ChildList values under @child
+        if (
+            default_slot == "children"
+            and "children" in comp_dict
+            and not comp_dict["children"]
+        ):
             del comp_dict["children"]
+        if self.at_least_v10:
+            for k, v in list(comp_dict.items()):
+                if k in ("id", "component", "catalogId"):
+                    continue
+                prop_schema = comp_helper.get_property_schema(comp_name, k)
+                expects_at_child = schema_expects_at_child(prop_schema) or (
+                    prop_schema is None
+                    and not comp_helper.common_types_loaded
+                    and k in ("child", "children")
+                )
+                if not expects_at_child:
+                    continue
+                prop_kind = comp_helper.get_property_type(comp_name, k)
+                if prop_kind == "Child" and isinstance(v, str):
+                    comp_dict[k] = {"@child": v}
+                elif prop_kind == "ChildList" and isinstance(v, list):
+                    comp_dict[k] = {"@child": v}
 
         # Inject default action for any required Action property if missing (required by schema)
         required_props = comp_helper.get_component_required(comp_name)
@@ -1526,8 +1570,9 @@ class ElementalCompiler:
             if prop_name not in comp_dict:
                 p_schema = comp_helper.get_property_schema(comp_name, prop_name)
                 if p_schema and _is_action_property(p_schema):
+                    event_key = "@action" if self.at_least_v10 else "event"
                     comp_dict[prop_name] = {
-                        "event": {
+                        event_key: {
                             "name": f"{comp_id}_clicked",
                             "context": {"component": comp_name, "property": prop_name},
                         }

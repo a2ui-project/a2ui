@@ -151,16 +151,23 @@ struct AgentFunctionRoutingConformanceTests {
         switch kind {
         case "binding": probe["value"] = call
         case "check": probe["checks"] = [["condition": call, "message": "Check failed"]]
-        case "action": probe["onClick"] = ["functionCall": call]
-        case "event": probe["onClick"] = ["event": call]
+        case "action":
+          probe["onClick"] =
+            version >= .v10 ? ["@functionCall": call] : ["functionCall": call]
+        case "event":
+          probe["onClick"] = version >= .v10 ? ["@action": call] : ["event": call]
         default:
           Issue.record("\(label): unknown evaluation kind \(kind)")
           return
         }
         probes.append(.object(probe))
+        let childrenVal: JSONValue =
+          version >= .v10
+          ? .object(["@child": .array(probes.compactMap { $0["id"] })])
+          : .array(probes.compactMap { $0["id"] })
         var root: OrderedDictionary<String, JSONValue> = [
           "id": "root", "component": "Probe",
-          "children": .array(probes.compactMap { $0["id"] }),
+          "children": childrenVal,
         ]
         if let probeCatalogID { root["catalogId"] = probeCatalogID }
         // Added to the surface directly, as a resolved `updateComponents` would add them, so that

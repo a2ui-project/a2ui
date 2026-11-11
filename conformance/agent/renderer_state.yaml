@@ -49,7 +49,7 @@
             "updateComponents": {
               "surfaceId": "s1",
               "components": [
-                {"id": "root", "component": "Column", "children": ["header", "subtitle"]},
+                {"id": "root", "component": "Column", "children": {"@child": ["header", "subtitle"]}},
                 {"id": "header", "component": "Text", "text": "Hello"},
                 {"id": "subtitle", "component": "Text", "text": {"@path": "/title"}}
               ]
@@ -62,7 +62,8 @@
           components:
             root:
               component: "Column"
-              children: ["header", "subtitle"]
+              children:
+                "@child": ["header", "subtitle"]
             header:
               component: "Text"
               text: "Hello"
@@ -100,7 +101,8 @@
           components:
             root:
               component: "Column"
-              children: ["header", "subtitle"]
+              children:
+                "@child": ["header", "subtitle"]
             header:
               component: "Text"
               text: "Updated"
@@ -157,7 +159,7 @@
             "updateComponents": {
               "surfaceId": "s1",
               "components": [
-                {"id": "root", "component": "Column", "children": ["item_a"]},
+                {"id": "root", "component": "Column", "children": {"@child": ["item_a"]}},
                 {"id": "item_a", "component": "Text", "text": "Item A"}
               ]
             }
@@ -169,7 +171,8 @@
           components:
             root:
               component: "Column"
-              children: ["item_a"]
+              children:
+                "@child": ["item_a"]
             item_a:
               component: "Text"
               text: "Item A"
@@ -182,7 +185,7 @@
             "updateComponents": {
               "surfaceId": "s1",
               "components": [
-                {"id": "root", "component": "Column", "children": ["nonexistent_child"]}
+                {"id": "root", "component": "Column", "children": {"@child": ["nonexistent_child"]}}
               ]
             }
           }
@@ -210,7 +213,8 @@
           components:
             root:
               component: "Column"
-              children: ["item_a"]
+              children:
+                "@child": ["item_a"]
             item_a:
               component: "Text"
               text: "Item A Updated"
@@ -308,7 +312,8 @@
           components:
             root:
               component: "Column"
-              children: ["header", "subtitle"]
+              children:
+                "@child": ["header", "subtitle"]
             header:
               component: "Text"
               text: "Hello"
@@ -330,7 +335,8 @@
           components:
             root:
               component: "Column"
-              children: ["header", "subtitle"]
+              children:
+                "@child": ["header", "subtitle"]
             header:
               component: "Text"
               text: "Updated"
@@ -374,7 +380,8 @@
           components:
             root:
               component: "Column"
-              children: ["item_a"]
+              children:
+                "@child": ["item_a"]
             item_a:
               component: "Text"
               text: "Item A"
@@ -400,7 +407,8 @@
           components:
             root:
               component: "Column"
-              children: ["item_a"]
+              children:
+                "@child": ["item_a"]
             item_a:
               component: "Text"
               text: "Item A Updated"
@@ -459,7 +467,8 @@
             components:
               - id: "root"
                 component: "Column"
-                children: ["title_text"]
+                children:
+                  "@child": ["title_text"]
               - id: "title_text"
                 component: "Text"
                 text:
@@ -471,7 +480,8 @@
           components:
             root:
               component: "Column"
-              children: ["title_text"]
+              children:
+                "@child": ["title_text"]
             title_text:
               component: "Text"
               text:
@@ -490,7 +500,8 @@
             components:
               - id: "root"
                 component: "Column"
-                children: ["nonexistent_child"]
+                children:
+                  "@child": ["nonexistent_child"]
       expect_error:
         category: "ValidationError"
         message: "nonexistent_child"
@@ -505,7 +516,8 @@
           components:
             root:
               component: "Column"
-              children: ["title_text"]
+              children:
+                "@child": ["title_text"]
             title_text:
               component: "Text"
               text:

@@ -31,7 +31,7 @@
         components:
           - id: "root"
             component: "Column"
-            children: ["text1"]
+            children: {"@child": ["text1"]}
           - id: "text1"
             component: "Text"
             text: "Inline Text"
@@ -140,7 +140,7 @@
         components:
           - id: "root"
             component: "Column"
-            children: ["c1"]
+            children: {"@child": ["c1"]}
           - id: "c1"
             component: "PieChart"
             catalogId: "charts-catalog"
@@ -389,7 +389,7 @@
         components:
           - id: "root"
             component: "Column"
-            children: ["text1"]
+            children: {"@child": ["text1"]}
           - id: "text1"
             component: "Text"
             text: "Initial"
@@ -433,7 +433,7 @@
         components:
           - id: "root"
             component: "Column"
-            children: ["c1"]
+            children: {"@child": ["c1"]}
           - id: "c1"
             component: "Text"
             text: "First"
@@ -464,7 +464,7 @@
             components:
               - id: "root"
                 component: "Column"
-                children: ["c1"]
+                children: {"@child": ["c1"]}
               - id: "c1"
                 component: "Text"
                 text: "Valid Text"
@@ -484,10 +484,10 @@
             components:
               - id: "c1"
                 component: "Column"
-                children: ["c2"]
+                children: {"@child": ["c2"]}
               - id: "c2"
                 component: "Column"
-                children: ["c1"]
+                children: {"@child": ["c1"]}
       expectError:
         category: "IntegrityError"
         surfaceId: "s_cycle"
@@ -578,7 +578,7 @@
         components:
           - id: "root"
             component: "Column"
-            children: []
+            children: {"@child": []}
           - id: "orphan_comp"
             component: "Text"
             text: "Unreachable Text"
@@ -605,7 +605,7 @@
         components:
           - id: "root"
             component: "Column"
-            children: ["uncreated_child_node"]
+            children: {"@child": ["uncreated_child_node"]}
   expect:
     surfaces:
       s_permissive_dangling:
@@ -728,7 +728,7 @@
             components:
               - id: "root"
                 component: "Column"
-                children: ["missing_child"]
+                children: {"@child": ["missing_child"]}
       expectError:
         message: "Dangling reference"
 
@@ -744,7 +744,7 @@
         components:
           - id: "root"
             component: "Column"
-            children: ["text_child"]
+            children: {"@child": ["text_child"]}
           - id: "text_child"
             component: "Text"
             text: "Child Text"
@@ -1061,7 +1061,7 @@
           - id: "root"
             component: "Column"
             catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
-            children: ["greeting", "badge"]
+            children: {"@child": ["greeting", "badge"]}
           - id: "greeting"
             component: "Text"
             catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
@@ -1632,8 +1632,8 @@
             component: "List"
             catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
             children:
-              path: "/items"
-              componentId: "row"
+              "@child": "row"
+              "@path": "/items"
           - id: "row"
             component: "Text"
             catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
@@ -1666,8 +1666,8 @@
           - id: "root"
             component: "List"
             children:
-              path: "/items"
-              componentId: "row"
+              "@child": "row"
+              "@path": "/items"
           - id: "row"
             component: "Text"
             text:
@@ -2088,8 +2088,8 @@
           - id: "root"
             component: "List"
             children:
-              path: "/items"
-              componentId: "row"
+              "@child": "row"
+              "@path": "/items"
           - id: "row"
             component: "Text"
             text:
@@ -2170,8 +2170,8 @@
             component: "List"
             catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
             children:
-              path: "/items"
-              componentId: "row"
+              "@child": "row"
+              "@path": "/items"
           - id: "row"
             component: "Text"
             catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
@@ -3268,7 +3268,7 @@
             components:
               - id: "mid_card"
                 component: "Card"
-                child: "leaf_text"
+                child: {"@child": "leaf_text"}
       expect:
         surfaces:
           s_stream:
@@ -3279,7 +3279,7 @@
                 text: "Streamed Leaf"
               - id: "mid_card"
                 component: "Card"
-                child: "leaf_text"
+                child: {"@child": "leaf_text"}
     - messages:
         - version: "1.0"
           updateComponents:
@@ -3287,7 +3287,7 @@
             components:
               - id: "root"
                 component: "Column"
-                children: ["mid_card"]
+                children: {"@child": ["mid_card"]}
       expect:
         surfaces:
           s_stream:

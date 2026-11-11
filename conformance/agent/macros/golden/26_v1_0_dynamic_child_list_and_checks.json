@@ -40,8 +40,8 @@
           "component": "List",
           "id": "root__list_1",
           "children": {
-            "path": "/form/items",
-            "componentId": "item_tmpl"
+            "@child": "item_tmpl",
+            "@path": "/form/items"
           },
           "direction": "vertical",
           "align": "stretch"
@@ -55,10 +55,12 @@
         {
           "component": "Button",
           "id": "root__button_1",
-          "child": "root__text_1",
+          "child": {
+            "@child": "root__text_1"
+          },
           "variant": "primary",
           "action": {
-            "event": {
+            "@action": {
               "name": "submit_form",
               "userMessage": "Submit registration",
               "context": {
@@ -72,14 +74,18 @@
         {
           "component": "Column",
           "id": "root__column_1",
-          "children": ["root__textfield_1", "root__list_1", "root__button_1"],
+          "children": {
+            "@child": ["root__textfield_1", "root__list_1", "root__button_1"]
+          },
           "justify": "start",
           "align": "stretch"
         },
         {
           "component": "Card",
           "id": "root",
-          "child": "root__column_1"
+          "child": {
+            "@child": "root__column_1"
+          }
         },
         {
           "component": "Text",

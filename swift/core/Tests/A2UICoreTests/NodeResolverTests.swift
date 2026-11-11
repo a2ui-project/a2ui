@@ -933,7 +933,7 @@ struct NodeResolverTests {
         "root": ComponentModel(
           id: "root",
           type: "Container",
-          properties: ["children": .array([.string("t1"), .string("t2")])]
+          properties: ["children": .object(["@child": .array([.string("t1"), .string("t2")])])]
         ),
         "t1": ComponentModel(
           id: "t1",
@@ -1612,7 +1612,7 @@ struct NodeResolverTests {
           type: "Button",
           properties: [
             "action": .object([
-              "event": .object([
+              "@action": .object([
                 "name": .string("send"),
                 "userMessage": .object(["@path": .string("/draft")]),
               ])
@@ -1681,10 +1681,12 @@ struct NodeResolverTests {
           properties: [
             "label": .string("Submit"),
             "action": .object([
-              "event": .object(["name": .string("submit")]),
-              "metadata": .object([
-                "extensions": .object(["baseExt": .integer(1)])
-              ]),
+              "@action": .object([
+                "name": .string("submit"),
+                "metadata": .object([
+                  "extensions": .object(["baseExt": .integer(1)])
+                ]),
+              ])
             ]),
           ],
           metadata: ["extensions": .object(["badge": .string("new")])]

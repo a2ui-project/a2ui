@@ -1353,3 +1353,66 @@ def test_renderer_to_agent_and_catalog_definition_extract_nested_metadata_models
             "type": "object",
             "metadata": {"extensions": {"bad-key": 1}},
         })
+
+
+def test_v10_child_child_list_and_action_generated_models():
+    """v1.0 Child, ChildList, and Action models use @ directives cleanly."""
+    from pydantic import TypeAdapter
+    from a2ui.core.schema.v1_0 import (
+        Action,
+        ActionEvent,
+        ActionEventWrapper,
+        ActionFunctionCallWrapper,
+        Child,
+        ChildList,
+        ComponentReference,
+        DynamicValue,
+        FunctionCall,
+        ListReference,
+        LiteralObject,
+        StaticChildList,
+        TemplateChildList,
+    )
+
+    child = Child.model_validate({"@child": "btn_1"})
+    assert issubclass(Child, ComponentReference)
+    assert not issubclass(Child, ListReference)
+    assert child.child == "btn_1"
+    assert child.model_dump(by_alias=True) == {"@child": "btn_1"}
+    with pytest.raises(ValidationError):
+        Child.model_validate("btn_1")
+
+    cl_adapter = TypeAdapter(ChildList)
+    static_cl = cl_adapter.validate_python({"@child": ["a", "b"]})
+    assert isinstance(static_cl, StaticChildList)
+    assert issubclass(StaticChildList, ListReference)
+    assert static_cl.model_dump(by_alias=True) == {"@child": ["a", "b"]}
+
+    tpl_cl = cl_adapter.validate_python({"@child": "row", "@path": "/items"})
+    assert isinstance(tpl_cl, TemplateChildList)
+    assert issubclass(TemplateChildList, ListReference)
+    assert tpl_cl.model_dump(by_alias=True) == {"@child": "row", "@path": "/items"}
+
+    act_adapter = TypeAdapter(Action)
+    evt_act = act_adapter.validate_python({"@action": {"name": "save"}})
+    assert isinstance(evt_act, ActionEventWrapper)
+    assert isinstance(evt_act.action, ActionEvent)
+    assert evt_act.model_dump(by_alias=True, exclude_none=True) == {
+        "@action": {"name": "save"}
+    }
+
+    fc_act = act_adapter.validate_python({"@functionCall": {"@call": "openUrl"}})
+    assert isinstance(fc_act, ActionFunctionCallWrapper)
+    assert isinstance(fc_act.function_call, FunctionCall)
+    assert fc_act.model_dump(by_alias=True, exclude_none=True) == {
+        "@functionCall": {"@call": "openUrl"}
+    }
+
+    lit_adapter = TypeAdapter(LiteralObject)
+    dv_adapter = TypeAdapter(DynamicValue)
+    for forbidden in ("@child", "@action", "@functionCall", "@path", "@call"):
+        with pytest.raises(ValidationError):
+            lit_adapter.validate_python({forbidden: "x"})
+    for forbidden_dv in ("@child", "@action", "@functionCall"):
+        with pytest.raises(ValidationError):
+            dv_adapter.validate_python({forbidden_dv: "x"})

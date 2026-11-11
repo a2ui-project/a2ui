@@ -670,7 +670,7 @@ struct AgentFunctionRoutingTests {
       processor,
       """
       {"id": "root", "component": "Text",
-       "onClick": {"functionCall": {"@call": "submitOrder", "args": {"id": "o-1"}}}}
+       "onClick": {"@functionCall": {"@call": "submitOrder", "args": {"id": "o-1"}}}}
       """
     )
     let action = try #require(surface.rootNode?.properties["onClick"] as? ResolvedAction)
@@ -700,7 +700,7 @@ struct AgentFunctionRoutingTests {
       processor,
       """
       {"id": "root", "component": "Text",
-       "onClick": {"functionCall": {"@call": "submitOrder", "args": {"id": "o-1"}}}}
+       "onClick": {"@functionCall": {"@call": "submitOrder", "args": {"id": "o-1"}}}}
       """
     )
     let action = try #require(surface.rootNode?.properties["onClick"] as? ResolvedAction)
@@ -717,7 +717,7 @@ struct AgentFunctionRoutingTests {
       processor,
       """
       {"id": "root", "component": "Text",
-       "onClick": {"event": {"name": "checkout",
+       "onClick": {"@action": {"name": "checkout",
                              "context": {"token": {"@call": "mintToken"}}}}}
       """
     )
@@ -742,7 +742,7 @@ struct AgentFunctionRoutingTests {
       processor,
       """
       {"id": "root", "component": "Text",
-       "onClick": {"event": {"name": "checkout",
+       "onClick": {"@action": {"name": "checkout",
                              "context": {"token": {"@call": "mintToken"}}}}}
       """
     )
@@ -765,7 +765,7 @@ struct AgentFunctionRoutingTests {
       processor,
       """
       {"id": "root", "component": "Text",
-       "onClick": {"functionCall": {"@call": "submitOrder",
+       "onClick": {"@functionCall": {"@call": "submitOrder",
                                     "args": {"token": {"@call": "mintToken"}}}}}
       """
     )
@@ -789,7 +789,7 @@ struct AgentFunctionRoutingTests {
       processor,
       """
       {"id": "root", "component": "Text",
-       "onClick": {"functionCall": {"@call": "submitOrder",
+       "onClick": {"@functionCall": {"@call": "submitOrder",
                                     "args": {"token": {"@call": "mintToken"}}}}}
       """
     )
@@ -817,7 +817,7 @@ struct AgentFunctionRoutingTests {
       processor,
       """
       {"id": "root", "component": "Text",
-       "onClick": {"functionCall": {"@call": "submitOrder",
+       "onClick": {"@functionCall": {"@call": "submitOrder",
                                     "args": {"price": {"@call": "quote",
                                                        "args": {"symbol": {"@path": "/symbol"}}},
                                              "token": {"@call": "mintToken"}}}}}
@@ -886,7 +886,7 @@ struct AgentFunctionRoutingTests {
       processor,
       """
       {"id": "root", "component": "Text", "text": {"@call": "confirmOrder"},
-       "onClick": {"functionCall": {"@call": "confirmOrder"}}}
+       "onClick": {"@functionCall": {"@call": "confirmOrder"}}}
       """
     )
     await settle()
@@ -1131,7 +1131,7 @@ struct AgentFunctionRoutingTests {
       processor,
       """
       {"id": "root", "component": "Text",
-       "onClick": {"functionCall": {"@call": "confirmOrder",
+       "onClick": {"@functionCall": {"@call": "confirmOrder",
                                     "args": {"token": {"@call": "mintToken"}}}}}
       """
     )
@@ -1152,7 +1152,7 @@ struct AgentFunctionRoutingTests {
       processor,
       """
       {"id": "root", "component": "Text",
-       "onClick": {"event": {"name": "checkout",
+       "onClick": {"@action": {"name": "checkout",
                              "context": {"token": {"@call": "mintToken"},
                                          "user": {"@call": "lookupUser"}},
                              "userMessage": {"@call": "describeOrder"}}}}
@@ -1198,7 +1198,7 @@ struct AgentFunctionRoutingTests {
       processor,
       """
       {"id": "root", "component": "Text",
-       "onClick": {"event": {"name": "checkout",
+       "onClick": {"@action": {"name": "checkout",
                              "context": {"token": {"@call": "mintToken"},
                                          "user": {"@call": "lookupUser"}},
                              "userMessage": {"@call": "describeOrder"}}}}
@@ -1222,7 +1222,7 @@ struct AgentFunctionRoutingTests {
       processor,
       """
       {"id": "root", "component": "Text",
-       "onClick": {"event": {"name": "checkout",
+       "onClick": {"@action": {"name": "checkout",
                              "context": {"price": {"@call": "quote",
                                                    "args": {"symbol": {"@path": "/symbol"}}}},
                              "userMessage": {"@call": "describeOrder"}}}}
@@ -1243,7 +1243,7 @@ struct AgentFunctionRoutingTests {
       processor,
       """
       {"id": "root", "component": "Text",
-       "onClick": {"functionCall": {"@call": "submitOrder",
+       "onClick": {"@functionCall": {"@call": "submitOrder",
                                     "args": {"token": {"@call": "mintToken"},
                                              "user": {"@call": "lookupUser"}}}}}
       """
@@ -1265,7 +1265,7 @@ struct AgentFunctionRoutingTests {
       processor,
       """
       {"id": "root", "component": "Text",
-       "onClick": {"event": {"name": "confirm",
+       "onClick": {"@action": {"name": "confirm",
                              "context": {"confirmed": {"@call": "confirmOrder"}}}}}
       """
     )
@@ -1353,7 +1353,7 @@ struct AgentFunctionRoutingTests {
       {"id": "root", "component": "Text",
        "text": {"@call": "fetchFxRate", "args": {"base": "EUR"}},
        "checks": [{"condition": {"@call": "isAvailable"}, "message": "Unavailable"}],
-       "onClick": {"functionCall": {"@call": "submitOrder"}}}
+       "onClick": {"@functionCall": {"@call": "submitOrder"}}}
       """
     )
     let action = try #require(surface.rootNode?.properties["onClick"] as? ResolvedAction)
@@ -1406,7 +1406,7 @@ struct AgentFunctionRoutingTests {
       processor,
       """
       {"id": "root", "component": "Text",
-       "onClick": {"event": {"name": "checkout",
+       "onClick": {"@action": {"name": "checkout",
                              "context": {"token": {"@call": "mintToken"},
                                          "user": {"@call": "lookupUser"}}}}}
       """
@@ -1519,7 +1519,7 @@ struct AgentFunctionRoutingTests {
       processor,
       """
       {"id": "root", "component": "Text",
-       "onClick": {"event": {"name": "checkout", "userMessage": {"@call": "describeOrder"}}}}
+       "onClick": {"@action": {"name": "checkout", "userMessage": {"@call": "describeOrder"}}}}
       """
     )
     let action = try #require(surface.rootNode?.properties["onClick"] as? ResolvedAction)
@@ -1541,7 +1541,7 @@ struct AgentFunctionRoutingTests {
       processor,
       """
       {"id": "root", "component": "Text",
-       "onClick": {"event": {"name": "checkout", "userMessage": {"@path": "/symbol"}}}}
+       "onClick": {"@action": {"name": "checkout", "userMessage": {"@path": "/symbol"}}}}
       """
     )
     let action = try #require(surface.rootNode?.properties["onClick"] as? ResolvedAction)
@@ -1560,7 +1560,7 @@ struct AgentFunctionRoutingTests {
       processor,
       """
       {"id": "root", "component": "Text",
-       "onClick": {"event": {"name": "checkout", "userMessage": {"@path": "/missing"}}},
+       "onClick": {"@action": {"name": "checkout", "userMessage": {"@path": "/missing"}}},
        "label": "x"}
       """
     )
@@ -1582,7 +1582,7 @@ struct AgentFunctionRoutingTests {
       processor,
       """
       {"id": "root", "component": "Text",
-       "onClick": {"event": {"name": "checkout", "userMessage": {"@call": "describeOrder"}}}}
+       "onClick": {"@action": {"name": "checkout", "userMessage": {"@call": "describeOrder"}}}}
       """
     )
     let action = try #require(surface.rootNode?.properties["onClick"] as? ResolvedAction)
@@ -1747,7 +1747,7 @@ struct AgentFunctionRoutingTests {
       """
       {"id": "root", "component": "Text",
        "text": {"@call": "explode"},
-       "onClick": {"functionCall": {"@call": "explode"}}}
+       "onClick": {"@functionCall": {"@call": "explode"}}}
       """
     )
     await waitUntil { !errors.isEmpty }
@@ -1771,7 +1771,7 @@ struct AgentFunctionRoutingTests {
       processor,
       """
       {"id": "root", "component": "Text",
-       "onClick": {"event": {"name": "checkout",
+       "onClick": {"@action": {"name": "checkout",
                              "context": {"token": {"@call": "mintToken"}},
                              "userMessage": {"@call": "explode"}}},
        "label": {"@path": "/other"}}
@@ -1787,7 +1787,7 @@ struct AgentFunctionRoutingTests {
       processor,
       """
       {"id": "root", "component": "Text",
-       "onClick": {"event": {"name": "checkout",
+       "onClick": {"@action": {"name": "checkout",
                              "userMessage": {"@call": "explode"}}}}
       """
     )
@@ -1857,7 +1857,7 @@ struct AgentFunctionRoutingTests {
       processor,
       """
       {"id": "root", "component": "Text",
-       "onClick": {"functionCall": {"@call": "submitOrder",
+       "onClick": {"@functionCall": {"@call": "submitOrder",
                                     "args": {"note": {"@call": "bracketGreeting"}}}}}
       """
     )
@@ -1885,7 +1885,7 @@ struct AgentFunctionRoutingTests {
     let (_, surface) = try makeProcessor()
     try await addUnvalidated(
       surface,
-      ["onClick": ["event": ["name": "checkout", "context": ["bad": ["@call": 5]]]]]
+      ["onClick": ["@action": ["name": "checkout", "context": ["bad": ["@call": 5]]]]]
     )
     let action = try #require(surface.rootNode?.properties["onClick"] as? ResolvedAction)
     action()
@@ -1907,7 +1907,7 @@ struct AgentFunctionRoutingTests {
       surface,
       [
         "onClick": [
-          "event": [
+          "@action": [
             "name": "checkout",
             "context": ["token": ["@call": "mintToken"]],
             "userMessage": ["@call": "describeOrder", "args": 5],
@@ -1961,7 +1961,7 @@ struct AgentFunctionRoutingTests {
       processor,
       """
       {"id": "root", "component": "Text",
-       "onClick": {"functionCall": {"@call": "quote",
+       "onClick": {"@functionCall": {"@call": "quote",
                                     "args": {"symbol": {"@path": "/symbol"}}}}}
       """
     )
@@ -1975,7 +1975,7 @@ struct AgentFunctionRoutingTests {
     await waitUntil { surface.rootNode?.properties["onClick"] == nil }
     try await addUnvalidated(
       surface,
-      ["onClick": ["event": ["name": "audit", "context": ["logged": ["@call": "auditLog"]]]]]
+      ["onClick": ["@action": ["name": "audit", "context": ["logged": ["@call": "auditLog"]]]]]
     )
     let agentOnly = try #require(surface.rootNode?.properties["onClick"] as? ResolvedAction)
     agentOnly()
@@ -2052,7 +2052,7 @@ struct AgentFunctionRoutingTests {
       surface,
       [
         "text": ["@call": "upper"],
-        "onClick": ["functionCall": ["@call": "upper"]],
+        "onClick": ["@functionCall": ["@call": "upper"]],
       ]
     )
     await waitUntil { !errors.isEmpty }
@@ -2071,7 +2071,7 @@ struct AgentFunctionRoutingTests {
     let (_, surface) = try makeProcessor()
     try await addUnvalidated(
       surface,
-      ["onClick": ["event": ["name": "checkout", "context": ["shout": ["@call": "upper"]]]]]
+      ["onClick": ["@action": ["name": "checkout", "context": ["shout": ["@call": "upper"]]]]]
     )
     let action = try #require(surface.rootNode?.properties["onClick"] as? ResolvedAction)
     action()
@@ -2086,7 +2086,7 @@ struct AgentFunctionRoutingTests {
     let (_, surface) = try makeProcessor()
     try await addUnvalidated(
       surface,
-      ["onClick": ["event": ["name": "checkout", "context": ["bad": ["@unknown": 1]]]]]
+      ["onClick": ["@action": ["name": "checkout", "context": ["bad": ["@unknown": 1]]]]]
     )
     let action = try #require(surface.rootNode?.properties["onClick"] as? ResolvedAction)
     action()
@@ -2108,7 +2108,7 @@ struct AgentFunctionRoutingTests {
       surface,
       [
         "onClick": [
-          "event": [
+          "@action": [
             "name": "checkout",
             "context": ["token": ["@call": "mintToken"]],
             "userMessage": ["@unknown": 1],
@@ -2136,7 +2136,7 @@ struct AgentFunctionRoutingTests {
     let (_, surface) = try makeProcessor()
     try await addUnvalidated(
       surface,
-      ["onClick": ["event": ["name": "checkout", "context": ["tag": ["@@mention": "ada"]]]]]
+      ["onClick": ["@action": ["name": "checkout", "context": ["tag": ["@@mention": "ada"]]]]]
     )
     let action = try #require(surface.rootNode?.properties["onClick"] as? ResolvedAction)
     action()

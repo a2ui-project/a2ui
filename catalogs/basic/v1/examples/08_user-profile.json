@@ -18,12 +18,16 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main_column"
+            "child": {
+              "@child": "main_column"
+            }
           },
           {
             "id": "main_column",
             "component": "Column",
-            "children": ["header", "info", "bio", "stats_row", "follow_btn"],
+            "children": {
+              "@child": ["header", "info", "bio", "stats_row", "follow_btn"]
+            },
             "align": "center"
           },
           {
@@ -38,7 +42,9 @@
           {
             "id": "info",
             "component": "Column",
-            "children": ["name", "username"],
+            "children": {
+              "@child": ["name", "username"]
+            },
             "align": "center"
           },
           {
@@ -67,13 +73,17 @@
           {
             "id": "stats_row",
             "component": "Row",
-            "children": ["followers_col", "following_col", "posts_col"],
+            "children": {
+              "@child": ["followers_col", "following_col", "posts_col"]
+            },
             "justify": "spaceAround"
           },
           {
             "id": "followers_col",
             "component": "Column",
-            "children": ["followers_count", "followers_label"],
+            "children": {
+              "@child": ["followers_count", "followers_label"]
+            },
             "align": "center"
           },
           {
@@ -97,7 +107,9 @@
           {
             "id": "following_col",
             "component": "Column",
-            "children": ["following_count", "following_label"],
+            "children": {
+              "@child": ["following_count", "following_label"]
+            },
             "align": "center"
           },
           {
@@ -121,7 +133,9 @@
           {
             "id": "posts_col",
             "component": "Column",
-            "children": ["posts_count", "posts_label"],
+            "children": {
+              "@child": ["posts_count", "posts_label"]
+            },
             "align": "center"
           },
           {
@@ -152,9 +166,11 @@
           {
             "id": "follow_btn",
             "component": "Button",
-            "child": "follow_btn_text",
+            "child": {
+              "@child": "follow_btn_text"
+            },
             "action": {
-              "event": {
+              "@action": {
                 "name": "follow",
                 "context": {}
               }

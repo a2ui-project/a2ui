@@ -595,4 +595,61 @@ struct A2UICommonSchemaTests {
     ]
     #expect(!schema.validate(value).isValid)
   }
+
+  // MARK: - v1.0 Child, ChildList, Action & DynamicValue Directives
+
+  @Test func testV10ChildSchemaRequiresAtChildWrapper() throws {
+    let schema = try Schema(
+      instance: """
+        { "$ref": "\(A2UICommonSchema.v10URI(for: "Child"))" }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    #expect(schema.validate(["@child": "t1"]).isValid)
+    #expect(!schema.validate("t1").isValid)
+    #expect(!schema.validate(["@child": "t1", "extra": true]).isValid)
+    #expect(!schema.validate(["@child": 42]).isValid)
+  }
+
+  @Test func testV10ChildListSchemaRequiresAtChildOrTemplateAtPath() throws {
+    let schema = try Schema(
+      instance: """
+        { "$ref": "\(A2UICommonSchema.v10URI(for: "ChildList"))" }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    #expect(schema.validate(["@child": ["a", "b"]]).isValid)
+    #expect(schema.validate(["@child": "tpl", "@path": "/items"]).isValid)
+    #expect(!schema.validate(["a", "b"]).isValid)
+    #expect(!schema.validate(["componentId": "tpl", "path": "/items"]).isValid)
+  }
+
+  @Test func testV10ActionSchemaRequiresAtActionOrAtFunctionCall() throws {
+    let schema = try Schema(
+      instance: """
+        { "$ref": "\(A2UICommonSchema.v10URI(for: "Action"))" }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    #expect(schema.validate(["@action": ["name": "submit"]]).isValid)
+    #expect(schema.validate(["@functionCall": ["@call": "openUrl"]]).isValid)
+    #expect(!schema.validate(["event": ["name": "submit"]]).isValid)
+    #expect(!schema.validate(["functionCall": ["@call": "openUrl"]]).isValid)
+  }
+
+  @Test func testV10DynamicValueSchemaRejectsChildAndActionDirectives() throws {
+    let schema = try Schema(
+      instance: """
+        { "$ref": "\(A2UICommonSchema.v10URI(for: "DynamicValue"))" }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    #expect(schema.validate(["@path": "/a"]).isValid)
+    #expect(schema.validate(["@call": "f"]).isValid)
+    #expect(schema.validate(["@@child": "c1"]).isValid)
+    #expect(!schema.validate(["@child": "c1"]).isValid)
+    #expect(!schema.validate(["@child": ["c1"]]).isValid)
+    #expect(!schema.validate(["@action": ["name": "go"]]).isValid)
+    #expect(!schema.validate(["@functionCall": ["@call": "f"]]).isValid)
+  }
 }

@@ -52,6 +52,9 @@ def _is_component_reference_property(prop_schema: Any) -> bool:
         ref = prop_schema["$ref"]
         if "ComponentId" in ref or "Child" in ref or "ChildList" in ref:
             return True
+    props = prop_schema.get("properties")
+    if isinstance(props, dict) and "@child" in props:
+        return True
     if "oneOf" in prop_schema or "anyOf" in prop_schema or "allOf" in prop_schema:
         subs = (
             prop_schema.get("oneOf", [])
@@ -89,21 +92,29 @@ def _contract_options(val: list[dict]) -> list[str]:
     return [item["label"] for item in val]
 
 
-def _is_complex(val: Any) -> bool:
+def _is_complex(
+    val: Any, *, is_action: bool = False, at_least_v10: bool = False
+) -> bool:
     """Returns True if the value is complex (dict or list of dicts) and not an expression."""
     if isinstance(val, dict):
         if (
             "path" in val
             or "@path" in val
-            or "event" in val
-            or "functionCall" in val
+            or "@action" in val
+            or "@functionCall" in val
             or "call" in val
             or "@call" in val
+            or (
+                (not at_least_v10 or is_action)
+                and ("event" in val or "functionCall" in val)
+            )
         ):
             return False
         return True
     if isinstance(val, list):
-        return any(_is_complex(x) for x in val)
+        return any(
+            _is_complex(x, is_action=is_action, at_least_v10=at_least_v10) for x in val
+        )
     return False
 
 
@@ -127,11 +138,50 @@ def _is_action_ref(s: Any) -> bool:
     if isinstance(s, dict):
         if "$ref" in s and "Action" in s["$ref"]:
             return True
+        props = s.get("properties")
+        if isinstance(props, dict) and (
+            set(props) == {"@action"} or set(props) == {"@functionCall"}
+        ):
+            return True
         for k in ["oneOf", "anyOf", "allOf"]:
             if k in s and isinstance(s[k], list):
                 if any(_is_action_ref(sub) for sub in s[k]):
                     return True
     return False
+
+
+def _unwrap_child_refs(
+    val: Any, *, at_least_v10: bool
+) -> tuple[list[str], tuple[str, str] | None]:
+    """Extracts child component IDs or a `(template_id, path)` tuple from a ref value."""
+    if isinstance(val, dict):
+        if (
+            at_least_v10
+            and set(val) == {"@child", "@path"}
+            and isinstance(val["@child"], str)
+            and isinstance(val["@path"], str)
+        ):
+            return [], (val["@child"], val["@path"])
+        if at_least_v10 and set(val) == {"@child"}:
+            inner = val["@child"]
+            if isinstance(inner, str):
+                return [inner], None
+            if isinstance(inner, list):
+                return [x for x in inner if isinstance(x, str)], None
+        # TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+        if isinstance(val.get("componentId"), str) and (
+            "path" in val or "@path" in val
+        ):
+            path_val = val.get("@path") if "@path" in val else val.get("path")
+            if isinstance(path_val, str):
+                return [], (val["componentId"], path_val)
+        return [], None
+    # TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+    if isinstance(val, list):
+        return [x for x in val if isinstance(x, str)], None
+    if isinstance(val, str):
+        return [val], None
+    return [], None
 
 
 def _get_action_properties(helper: CatalogSchemaHelper, comp_name: str) -> list[str]:
@@ -489,16 +539,14 @@ class ElementalDecompiler:
                     if prop_name == "template" or _is_component_reference_property(
                         p_schema
                     ):
-                        if isinstance(val, list):
-                            for v in val:
-                                if isinstance(v, str):
-                                    child_to_parent[v] = c["id"]
-                        elif isinstance(val, str):
-                            child_to_parent[val] = c["id"]
-                        elif isinstance(val, dict) and isinstance(
-                            val.get("componentId"), str
-                        ):
-                            child_to_parent[val["componentId"]] = c["id"]
+                        child_ids, tpl = _unwrap_child_refs(
+                            val, at_least_v10=self._at_least_v10
+                        )
+                        if tpl is not None:
+                            child_to_parent[tpl[0]] = c["id"]
+                        else:
+                            for v in child_ids:
+                                child_to_parent[v] = c["id"]
 
         roots = [c["id"] for c in components if c["id"] not in child_to_parent]
 
@@ -541,9 +589,13 @@ class ElementalDecompiler:
         properties = comp_helper.get_component_properties(comp_name)
 
         default_slot = None
-        if "children" in properties:
+        if comp_helper.get_property_type(comp_name, "children") == "ChildList" or (
+            not comp_helper.common_types_loaded and "children" in properties
+        ):
             default_slot = "children"
-        elif "child" in properties:
+        elif comp_helper.get_property_type(comp_name, "child") == "Child" or (
+            not comp_helper.common_types_loaded and "child" in properties
+        ):
             default_slot = "child"
 
         attrs = [f'id="{_escape_attr(comp_id)}"']
@@ -577,63 +629,50 @@ class ElementalDecompiler:
             )
 
             if is_ref:
+                child_ids, tpl = _unwrap_child_refs(
+                    val, at_least_v10=self._at_least_v10
+                )
                 if prop_name == "template":
-                    template_children = []
-                    if isinstance(val, list):
-                        for t_id in val:
-                            template_children.append(
-                                self._render_component(t_id, indent + 2)
-                            )
-                    elif isinstance(val, str):
-                        template_children.append(
-                            self._render_component(val, indent + 2)
-                        )
-
+                    template_children = [
+                        self._render_component(t_id, indent + 2) for t_id in child_ids
+                    ]
                     if template_children:
                         template_str = "\n".join(template_children)
                         child_elements.append(
                             f'{"  " * (indent + 1)}<template>\n{template_str}\n{"  " * (indent + 1)}</template>'
                         )
                 elif prop_name == default_slot:
-                    if isinstance(val, list):
-                        for c_id in val:
-                            child_elements.append(
-                                self._render_component(c_id, indent + 1)
-                            )
-                    elif isinstance(val, str):
-                        child_elements.append(self._render_component(val, indent + 1))
-                    elif (
-                        isinstance(val, dict)
-                        and ("path" in val or "@path" in val)
-                        and "componentId" in val
-                    ):
+                    if tpl is not None:
                         # Render template binding as parent 'path' attribute and nested <template>
-                        path_val = {"path": val.get("@path") or val["path"]}
+                        path_val = {"path": tpl[1]}
                         attrs.append(
                             self._format_attribute("path", path_val, self.comp_ids)
                         )
-                        template_child_html = self._render_component(
-                            val["componentId"], indent + 2
-                        )
+                        template_child_html = self._render_component(tpl[0], indent + 2)
                         child_elements.append(
                             f'{"  " * (indent + 1)}<template>\n{template_child_html}\n{"  " * (indent + 1)}</template>'
                         )
-                else:
-                    if isinstance(val, list):
-                        for c_id in val:
+                    else:
+                        for c_id in child_ids:
                             child_elements.append(
-                                self._render_component(c_id, indent + 1, slot=prop_name)
+                                self._render_component(c_id, indent + 1)
                             )
-                    elif isinstance(val, str):
+                else:
+                    for c_id in child_ids:
                         child_elements.append(
-                            self._render_component(val, indent + 1, slot=prop_name)
+                            self._render_component(c_id, indent + 1, slot=prop_name)
                         )
             else:
                 if prop_name == "checks":
                     attr_str = self._format_checks(val, C, self.comp_ids)
                     if attr_str:
                         attrs.append(attr_str)
-                elif _is_complex(val):
+                elif _is_complex(
+                    val,
+                    is_action=prop_name
+                    in _get_action_properties(comp_helper, comp_name),
+                    at_least_v10=self._at_least_v10,
+                ):
                     json_str = json.dumps(val, indent=2)
                     indented_json = "\n".join(
                         f'{"  " * (indent + 2)}{line}' for line in json_str.splitlines()
@@ -690,9 +729,11 @@ class ElementalDecompiler:
         """
         kebab_name = re.sub(r"(?<!^)(?=[A-Z])", "-", name).lower()
 
+        is_action = False
         if comp_name and helper:
             action_props = _get_action_properties(helper, comp_name)
             if name in action_props:
+                is_action = True
                 if len(action_props) == 1:
                     kebab_name = "onclick"
                 else:
@@ -703,7 +744,9 @@ class ElementalDecompiler:
             return f'{kebab_name}="{_escape_attr(val)}"'
 
         if isinstance(val, (dict, list)):
-            decompiled = self._decompile_value_internal(val, comp_ids)
+            decompiled = self._decompile_value_internal(
+                val, comp_ids, is_action=is_action
+            )
             return f'{kebab_name}="{{{_escape_attr(decompiled)}}}"'
 
         if isinstance(val, bool):
@@ -781,7 +824,9 @@ class ElementalDecompiler:
         calls_combined = ", ".join(checks_list)
         return f'checks="{{[{_escape_attr(calls_combined)}]}}"'
 
-    def _decompile_value_internal(self, val: Any, comp_ids: set[str]) -> str:
+    def _decompile_value_internal(
+        self, val: Any, comp_ids: set[str], *, is_action: bool = False
+    ) -> str:
         if isinstance(val, dict):
             if "path" in val or "@path" in val:
                 path_str = str(val.get("@path") or val.get("path", ""))
@@ -789,8 +834,22 @@ class ElementalDecompiler:
                     return f"$/{path_str[1:]}"
                 return f"${path_str}"
 
-            if "event" in val:
+            evt: dict[str, Any] | None = None
+            if (
+                self._at_least_v10
+                and set(val) == {"@action"}
+                and isinstance(val["@action"], dict)
+            ):
+                evt = val["@action"]
+            elif (
+                (not self._at_least_v10 or is_action)
+                and "event" in val
+                and isinstance(val["event"], dict)
+            ):
+                # TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
                 evt = val["event"]
+
+            if evt is not None:
                 name = evt.get("name", "")
                 ctx = evt.get("context", {})
                 ctx_reprs = []
@@ -808,8 +867,22 @@ class ElementalDecompiler:
                     return f"Event({name_repr}, {{{', '.join(ctx_reprs)}}})"
                 return f"Event({name_repr})"
 
-            if "functionCall" in val:
+            fn: dict[str, Any] | None = None
+            if (
+                self._at_least_v10
+                and set(val) == {"@functionCall"}
+                and isinstance(val["@functionCall"], dict)
+            ):
+                fn = val["@functionCall"]
+            elif (
+                (not self._at_least_v10 or is_action)
+                and "functionCall" in val
+                and isinstance(val["functionCall"], dict)
+            ):
+                # TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
                 fn = val["functionCall"]
+
+            if fn is not None:
                 return self._decompile_function_call(
                     fn.get("@call") or fn["call"],
                     fn.get("args", {}),

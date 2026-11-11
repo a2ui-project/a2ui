@@ -56,9 +56,9 @@ class TestExpressIntegration(unittest.TestCase):
     """
         res = to_message_dicts(compiler.compile(dsl_event_var))[0]
         btn = res["createSurface"]["components"][0]
-        self.assertEqual(btn["action"]["event"]["name"], "my_custom_click")
-        self.assertEqual(btn["action"]["event"]["context"]["userId"], 123)
-        self.assertEqual(btn["action"]["event"]["context"]["active"], True)
+        self.assertEqual(btn["action"]["@action"]["name"], "my_custom_click")
+        self.assertEqual(btn["action"]["@action"]["context"]["userId"], 123)
+        self.assertEqual(btn["action"]["@action"]["context"]["active"], True)
 
         # 2. Conversational parser robustness (no sentinels)
         conversational_content = (

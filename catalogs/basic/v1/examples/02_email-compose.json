@@ -18,17 +18,23 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main_column"
+            "child": {
+              "@child": "main_column"
+            }
           },
           {
             "id": "main_column",
             "component": "Column",
-            "children": ["from_row", "to_row", "subject_row", "divider", "message", "actions"]
+            "children": {
+              "@child": ["from_row", "to_row", "subject_row", "divider", "message", "actions"]
+            }
           },
           {
             "id": "from_row",
             "component": "Row",
-            "children": ["from_label", "from_value"],
+            "children": {
+              "@child": ["from_label", "from_value"]
+            },
             "align": "center"
           },
           {
@@ -48,7 +54,9 @@
           {
             "id": "to_row",
             "component": "Row",
-            "children": ["to_label", "to_value"],
+            "children": {
+              "@child": ["to_label", "to_value"]
+            },
             "align": "center"
           },
           {
@@ -68,7 +76,9 @@
           {
             "id": "subject_row",
             "component": "Row",
-            "children": ["subject_label", "subject_value"],
+            "children": {
+              "@child": ["subject_label", "subject_value"]
+            },
             "align": "center"
           },
           {
@@ -92,7 +102,9 @@
           {
             "id": "message",
             "component": "Column",
-            "children": ["greeting", "body_text", "closing", "signature"]
+            "children": {
+              "@child": ["greeting", "body_text", "closing", "signature"]
+            }
           },
           {
             "id": "greeting",
@@ -129,7 +141,9 @@
           {
             "id": "actions",
             "component": "Row",
-            "children": ["send_btn", "discard_btn"]
+            "children": {
+              "@child": ["send_btn", "discard_btn"]
+            }
           },
           {
             "id": "send_btn_text",
@@ -139,9 +153,11 @@
           {
             "id": "send_btn",
             "component": "Button",
-            "child": "send_btn_text",
+            "child": {
+              "@child": "send_btn_text"
+            },
             "action": {
-              "event": {
+              "@action": {
                 "name": "send",
                 "context": {}
               }
@@ -155,9 +171,11 @@
           {
             "id": "discard_btn",
             "component": "Button",
-            "child": "discard_btn_text",
+            "child": {
+              "@child": "discard_btn_text"
+            },
             "action": {
-              "event": {
+              "@action": {
                 "name": "discard",
                 "context": {}
               }

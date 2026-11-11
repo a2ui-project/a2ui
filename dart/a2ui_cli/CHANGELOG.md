@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Breaking:** (v1_0) Distinguish `$defs/Child` from `$defs/ComponentId` and
+  arrays of `$defs/Child` from `$defs/ChildList` in `CatalogAnalyzer` so v1.0
+  properties typed as `$defs/ComponentId` remain `str` while `$defs/Child` maps
+  to `Child` and `array` of `$defs/Child` maps to `Sequence[Child]` rather than
+  `ChildList` in generated `a2ui.builder.v1_0` Python builders
+  ([#4171](https://github.com/a2ui-project/a2ui/pull/4171)).
 - (v1_0) Filter `@catalogId`, `@metadata`, and `@accessibility` from component
   builder properties in `CatalogAnalyzer`, detect checkable components from
   `@checks`, and emit `serialization_alias="@checks"` and

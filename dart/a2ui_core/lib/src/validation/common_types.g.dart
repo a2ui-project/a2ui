@@ -403,31 +403,45 @@ const String commonTypesV1_0Json = r'''
       "required": ["id"]
     },
     "Child": {
-      "$ref": "#/$defs/ComponentId",
-      "description": "A reference to a single child component ID."
+      "type": "object",
+      "description": "A reference to a single child component.",
+      "properties": {
+        "@child": {
+          "$ref": "#/$defs/ComponentId"
+        }
+      },
+      "required": ["@child"],
+      "additionalProperties": false
     },
     "ChildList": {
       "oneOf": [
         {
-          "type": "array",
+          "type": "object",
           "description": "A static list of child component IDs.",
-          "items": {
-            "$ref": "#/$defs/ComponentId"
-          }
+          "properties": {
+            "@child": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ComponentId"
+              }
+            }
+          },
+          "required": ["@child"],
+          "additionalProperties": false
         },
         {
           "type": "object",
-          "description": "A template for generating a dynamic list of children from a data model list. The `componentId` is the component to use as a template.",
+          "description": "A template for generating a dynamic list of children from a data model list. The `@child` is the component ID to use as a template.",
           "properties": {
-            "componentId": {
+            "@child": {
               "$ref": "#/$defs/ComponentId"
             },
-            "path": {
+            "@path": {
               "type": "string",
               "description": "The path to the list of component property objects in the data model."
             }
           },
-          "required": ["componentId", "path"],
+          "required": ["@child", "@path"],
           "additionalProperties": false
         }
       ]
@@ -472,6 +486,15 @@ const String commonTypesV1_0Json = r'''
               },
               {
                 "required": ["@call"]
+              },
+              {
+                "required": ["@child"]
+              },
+              {
+                "required": ["@action"]
+              },
+              {
+                "required": ["@functionCall"]
               }
             ]
           }
@@ -637,7 +660,7 @@ const String commonTypesV1_0Json = r'''
           "type": "object",
           "description": "Triggers an agent-side event.",
           "properties": {
-            "event": {
+            "@action": {
               "type": "object",
               "description": "The event to dispatch to the agent.",
               "properties": {
@@ -661,18 +684,18 @@ const String commonTypesV1_0Json = r'''
               "additionalProperties": false
             }
           },
-          "required": ["event"],
+          "required": ["@action"],
           "additionalProperties": false
         },
         {
           "type": "object",
           "description": "Executes a renderer or agent-side function.",
           "properties": {
-            "functionCall": {
+            "@functionCall": {
               "$ref": "#/$defs/FunctionCall"
             }
           },
-          "required": ["functionCall"],
+          "required": ["@functionCall"],
           "additionalProperties": false
         }
       ]

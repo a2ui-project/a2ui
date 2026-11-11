@@ -850,7 +850,7 @@ struct RPCConformanceTests {
         .object([
           "id": .string("root"),
           "component": .string("Column"),
-          "children": .array([.string(firstID)]),
+          "children": .object(["@child": .array([.string(firstID)])]),
         ]),
         at: 0
       )
@@ -939,7 +939,9 @@ struct RPCConformanceTests {
     scenario: JSONValue
   ) async throws {
     let surfaceID = scenario["surfaceId"]?.stringValue ?? "main_surface"
-    let fnCall = scenario["actionPayload"]?["functionCall"]
+    let fnCall =
+      scenario["actionPayload"]?["@functionCall"]
+      ?? scenario["actionPayload"]?["functionCall"]
     let catalogID =
       scenario["catalogId"]?.stringValue
       ?? fnCall?["catalogId"]?.stringValue
@@ -964,7 +966,7 @@ struct RPCConformanceTests {
         .object([
           "id": .string("root"),
           "component": .string("Button"),
-          "child": .string("btn_label"),
+          "child": .object(["@child": .string("btn_label")]),
           "action": actionPayload,
         ]),
         .object([

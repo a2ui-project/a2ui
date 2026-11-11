@@ -29,15 +29,15 @@
             components:
               - id: root
                 component: Column
-                children: [list]
+                children: {"@child": [list]}
               - id: list
                 component: List
                 children:
-                  path: "/tasks"
-                  componentId: row
+                  "@child": row
+                  "@path": "/tasks"
               - id: row
                 component: Row
-                children: [item_index, item_text]
+                children: {"@child": [item_index, item_text]}
               - id: item_index
                 component: Text
                 text:
@@ -82,8 +82,8 @@
               - id: root
                 component: List
                 children:
-                  path: "/players"
-                  componentId: text
+                  "@child": text
+                  "@path": "/players"
               - id: text
                 component: Text
                 text:
@@ -123,11 +123,11 @@
               - id: root
                 component: List
                 children:
-                  path: "/users"
-                  componentId: col
+                  "@child": col
+                  "@path": "/users"
               - id: col
                 component: Column
-                children: [nested_text]
+                children: {"@child": [nested_text]}
               - id: nested_text
                 component: Text
                 text:

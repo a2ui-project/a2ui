@@ -20,59 +20,115 @@ This page showcases all A2UI components with examples and usage patterns.
 
 Horizontal layout container. Children are arranged left-to-right.
 
-**Properties:** `children` (array or template), `justify`, `align`
+**Properties:** `children` (`ChildList`), `justify`, `align`
 
-```json
-{
-  "id": "toolbar",
-  "component": "Row",
-  "children": [
-    "btn1",
-    "btn2",
-    "btn3"
-  ],
-  "justify": "spaceBetween",
-  "align": "center"
-}
-```
+=== "v1.0"
+
+    ```json
+    {
+      "id": "toolbar",
+      "component": "Row",
+      "children": {
+        "@child": [
+          "btn1",
+          "btn2",
+          "btn3"
+        ]
+      },
+      "justify": "spaceBetween",
+      "align": "center"
+    }
+    ```
+
+=== "v0.9.1"
+
+    ```json
+    {
+      "id": "toolbar",
+      "component": "Row",
+      "children": [
+        "btn1",
+        "btn2",
+        "btn3"
+      ],
+      "justify": "spaceBetween",
+      "align": "center"
+    }
+    ```
 
 ### Column
 
 Vertical layout container. Children are arranged top-to-bottom.
 
-**Properties:** `children` (array or template), `justify`, `align`
+**Properties:** `children` (`ChildList`), `justify`, `align`
 
-```json
-{
-  "id": "content",
-  "component": "Column",
-  "children": [
-    "header",
-    "body",
-    "footer"
-  ],
-  "justify": "start",
-  "align": "stretch"
-}
-```
+=== "v1.0"
+
+    ```json
+    {
+      "id": "content",
+      "component": "Column",
+      "children": {
+        "@child": [
+          "header",
+          "body",
+          "footer"
+        ]
+      },
+      "justify": "start",
+      "align": "stretch"
+    }
+    ```
+
+=== "v0.9.1"
+
+    ```json
+    {
+      "id": "content",
+      "component": "Column",
+      "children": [
+        "header",
+        "body",
+        "footer"
+      ],
+      "justify": "start",
+      "align": "stretch"
+    }
+    ```
 
 ### List
 
 Scrollable list of items. Supports static children and dynamic templates.
 
-**Properties:** `children` (array or template), `direction`, `align`
+**Properties:** `children` (`ChildList`), `direction`, `align`
 
-```json
-{
-  "id": "message-list",
-  "component": "List",
-  "children": {
-    "componentId": "message-item",
-    "path": "/messages"
-  },
-  "direction": "vertical"
-}
-```
+=== "v1.0"
+
+    ```json
+    {
+      "id": "message-list",
+      "component": "List",
+      "children": {
+        "@child": "message-item",
+        "@path": "/messages"
+      },
+      "direction": "vertical"
+    }
+    ```
+
+=== "v0.9.1"
+
+    ```json
+    {
+      "id": "message-list",
+      "component": "List",
+      "children": {
+        "componentId": "message-item",
+        "path": "/messages"
+      },
+      "direction": "vertical"
+    }
+    ```
 
 ---
 
@@ -193,21 +249,41 @@ Visual separator line.
 
 Clickable button that triggers an action.
 
-**Properties:** `child` (component ID), `variant`, `action`, `@checks` (`checks` in v0.9.1)
+**Properties:** `child` (`Child` in v1.0, component ID in v0.9.1), `variant`, `action`, `@checks` (`checks` in v0.9.1)
 
-```json
-{
-  "id": "submit-btn",
-  "component": "Button",
-  "child": "submit-text",
-  "variant": "primary",
-  "action": {
-    "event": {
-      "name": "submit_form"
+=== "v1.0"
+
+    ```json
+    {
+      "id": "submit-btn",
+      "component": "Button",
+      "child": {
+        "@child": "submit-text"
+      },
+      "variant": "primary",
+      "action": {
+        "@action": {
+          "name": "submit_form"
+        }
+      }
     }
-  }
-}
-```
+    ```
+
+=== "v0.9.1"
+
+    ```json
+    {
+      "id": "submit-btn",
+      "component": "Button",
+      "child": "submit-text",
+      "variant": "primary",
+      "action": {
+        "event": {
+          "name": "submit_form"
+        }
+      }
+    }
+    ```
 
 ### TextField
 
@@ -432,53 +508,109 @@ Select one or more options from a list.
 
 Container with elevation/border and padding.
 
-**Properties:** `child` (component ID)
+**Properties:** `child` (`Child` in v1.0, component ID in v0.9.1)
 
-```json
-{
-  "id": "info-card",
-  "component": "Card",
-  "child": "card-content"
-}
-```
+=== "v1.0"
+
+    ```json
+    {
+      "id": "info-card",
+      "component": "Card",
+      "child": {
+        "@child": "card-content"
+      }
+    }
+    ```
+
+=== "v0.9.1"
+
+    ```json
+    {
+      "id": "info-card",
+      "component": "Card",
+      "child": "card-content"
+    }
+    ```
 
 ### Modal
 
 Overlay dialog opened by a trigger component.
 
-**Properties:** `trigger` (component ID), `content` (component ID)
+**Properties:** `trigger` (`Child` in v1.0, component ID in v0.9.1), `content` (`Child` in v1.0, component ID in v0.9.1)
 
-```json
-{
-  "id": "confirmation-modal",
-  "component": "Modal",
-  "trigger": "open-modal-btn",
-  "content": "modal-content"
-}
-```
+=== "v1.0"
+
+    ```json
+    {
+      "id": "confirmation-modal",
+      "component": "Modal",
+      "trigger": {
+        "@child": "open-modal-btn"
+      },
+      "content": {
+        "@child": "modal-content"
+      }
+    }
+    ```
+
+=== "v0.9.1"
+
+    ```json
+    {
+      "id": "confirmation-modal",
+      "component": "Modal",
+      "trigger": "open-modal-btn",
+      "content": "modal-content"
+    }
+    ```
 
 ### Tabs
 
 Tabbed interface for organizing content into switchable panels.
 
-**Properties:** `tabs` (array of `{ title, child }`)
+**Properties:** `tabs` (array of `{ title, child }`, where `child` is `Child` in v1.0 or component ID in v0.9.1)
 
-```json
-{
-  "id": "settings-tabs",
-  "component": "Tabs",
-  "tabs": [
+=== "v1.0"
+
+    ```json
     {
-      "title": "General",
-      "child": "general-tab"
-    },
-    {
-      "title": "Privacy",
-      "child": "privacy-tab"
+      "id": "settings-tabs",
+      "component": "Tabs",
+      "tabs": [
+        {
+          "title": "General",
+          "child": {
+            "@child": "general-tab"
+          }
+        },
+        {
+          "title": "Privacy",
+          "child": {
+            "@child": "privacy-tab"
+          }
+        }
+      ]
     }
-  ]
-}
-```
+    ```
+
+=== "v0.9.1"
+
+    ```json
+    {
+      "id": "settings-tabs",
+      "component": "Tabs",
+      "tabs": [
+        {
+          "title": "General",
+          "child": "general-tab"
+        },
+        {
+          "title": "Privacy",
+          "child": "privacy-tab"
+        }
+      ]
+    }
+    ```
 
 ---
 
@@ -528,17 +660,22 @@ In these examples the label is static and the description comes from the data mo
 
 The component names and most properties are the same in v1.0 and v0.9.1. The differences are:
 
-| Aspect               | v1.0                                                   | v0.9.1                                     |
-| -------------------- | ------------------------------------------------------ | ------------------------------------------ |
-| Data binding         | `{ "@path": "/data" }`                                 | `{ "path": "/data" }`                      |
-| Function call        | `{ "@call": "fn", "args": { ... } }`                   | `{ "call": "fn", "args": { ... } }`        |
-| Envelope keys        | `@catalogId`, `@accessibility`, `@metadata`, `@checks` | `accessibility`, `checks`                  |
-| Text styling         | `variant`: `caption` or `body`; Markdown headings      | `variant`: `h1` to `h5`, `caption`, `body` |
-| TextField validation | `@checks` with the `regex` function                    | `validationRegexp` or `checks`             |
-| TextField            | `value` required; adds `placeholder`                   | `value` optional                           |
-| Video                | adds `posterUrl`                                       | `url` only                                 |
-| Slider               | adds `steps`                                           | `min`, `max`, `value`                      |
-| Accessibility        | adds `live` and `hidden`                               | `label` and `description`                  |
+| Aspect                | v1.0                                                   | v0.9.1                                       |
+| --------------------- | ------------------------------------------------------ | -------------------------------------------- |
+| Single child          | `{ "@child": "id" }`                                   | `"id"`                                       |
+| Child list (static)   | `{ "@child": ["a", "b"] }`                             | `["a", "b"]`                                 |
+| Child list (template) | `{ "@child": "tpl", "@path": "/items" }`               | `{ "componentId": "tpl", "path": "/items" }` |
+| Action (event)        | `{ "@action": { "name": "..." } }`                     | `{ "event": { "name": "..." } }`             |
+| Action (function)     | `{ "@functionCall": { "@call": "fn" } }`               | `{ "functionCall": { "call": "fn" } }`       |
+| Data binding          | `{ "@path": "/data" }`                                 | `{ "path": "/data" }`                        |
+| Function call         | `{ "@call": "fn", "args": { ... } }`                   | `{ "call": "fn", "args": { ... } }`          |
+| Envelope keys         | `@catalogId`, `@accessibility`, `@metadata`, `@checks` | `accessibility`, `checks`                    |
+| Text styling          | `variant`: `caption` or `body`; Markdown headings      | `variant`: `h1` to `h5`, `caption`, `body`   |
+| TextField validation  | `@checks` with the `regex` function                    | `validationRegexp` or `checks`               |
+| TextField             | `value` required; adds `placeholder`                   | `value` optional                             |
+| Video                 | adds `posterUrl`                                       | `url` only                                   |
+| Slider                | adds `steps`                                           | `min`, `max`, `value`                        |
+| Accessibility         | adds `live` and `hidden`                               | `label` and `description`                    |
 
 See the [v1.0 evolution guide](../specification/v1.0-evolution-guide.md) for the full list of changes.
 

@@ -269,8 +269,8 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
         self.assertEqual(len(messages), 1)
         comps = {c["id"]: c for c in messages[0]["createSurface"]["components"]}
         self.assertEqual(comps["root"]["justify"], "start")
-        self.assertEqual(comps["root"]["children"], ["card2Rating"])
-        self.assertEqual(comps["card2Rating"]["child"], "lightsCheckbox")
+        self.assertEqual(comps["root"]["children"], {"@child": ["card2Rating"]})
+        self.assertEqual(comps["card2Rating"]["child"], {"@child": "lightsCheckbox"})
         self.assertEqual(comps["lightsCheckbox"]["text"], {"@path": "/form/phone"})
 
     def test_sql_comments_and_positional_numeric_skip(self):
@@ -280,7 +280,7 @@ valueField = TextField("Deal Value", $/form/value, "0.00", "number", ?required)"
         messages = to_message_dicts(compiler.compile(dsl))
         self.assertEqual(len(messages), 1)
         comps = {c["id"]: c for c in messages[0]["createSurface"]["components"]}
-        self.assertEqual(comps["root"]["children"], ["t"])
+        self.assertEqual(comps["root"]["children"], {"@child": ["t"]})
         self.assertEqual(comps["root"]["weight"], 2)
 
     def test_enum_property_with_function_call_not_rejected_by_enum_check(self):
@@ -471,7 +471,7 @@ class TestExpressEventAndNestedActionSlots(unittest.TestCase):
         )
         self.assertEqual(
             root["items"][0]["action"],
-            {"event": {"name": "reply", "userMessage": "Now"}},
+            {"@action": {"name": "reply", "userMessage": "Now"}},
         )
 
     def test_event_context_keeps_a_function_call_a_plain_call(self):
@@ -480,7 +480,7 @@ class TestExpressEventAndNestedActionSlots(unittest.TestCase):
             ' {label: concat("a", "b")})}])'
         )
         self.assertEqual(
-            root["items"][0]["action"]["event"]["context"]["label"],
+            root["items"][0]["action"]["@action"]["context"]["label"],
             {"@call": "concat", "args": {"a": "a", "b": "b"}},
         )
 
@@ -492,7 +492,7 @@ class TestExpressEventAndNestedActionSlots(unittest.TestCase):
         self.assertEqual(
             root["items"][0]["action"],
             {
-                "event": {
+                "@action": {
                     "name": "reply",
                     "userMessage": {"@path": "/draft/message"},
                     "context": {"threadId": "t1"},
@@ -507,7 +507,7 @@ class TestExpressEventAndNestedActionSlots(unittest.TestCase):
         )
         self.assertEqual(
             root["items"][0]["action"],
-            {"event": {"name": "submit", "context": {"itemId": "42"}}},
+            {"@action": {"name": "submit", "context": {"itemId": "42"}}},
         )
 
     def test_event_duplicate_context_is_a_validation_error(self):
@@ -535,7 +535,7 @@ class TestExpressEventAndNestedActionSlots(unittest.TestCase):
         self.assertEqual(
             root["items"][0]["action"],
             {
-                "event": {
+                "@action": {
                     "name": "reply",
                     "userMessage": {
                         "@call": "concat",
@@ -627,7 +627,7 @@ class TestExpressEventAndNestedActionSlots(unittest.TestCase):
             [{
                 "label": "Docs",
                 "action": {
-                    "functionCall": {
+                    "@functionCall": {
                         "@call": "openUrl",
                         "args": {"url": "https://a2ui.org"},
                     }
@@ -658,7 +658,7 @@ class TestExpressEventAndNestedActionSlots(unittest.TestCase):
         self.assertEqual(
             root["items"][0]["action"],
             {
-                "functionCall": {
+                "@functionCall": {
                     "@call": "openUrl",
                     "args": {"url": "https://a2ui.org"},
                 }
@@ -667,7 +667,7 @@ class TestExpressEventAndNestedActionSlots(unittest.TestCase):
         self.assertEqual(
             root["primary"],
             {
-                "functionCall": {
+                "@functionCall": {
                     "@call": "openUrl",
                     "args": {"url": "https://a2ui.org/start"},
                 }
@@ -682,7 +682,7 @@ class TestExpressEventAndNestedActionSlots(unittest.TestCase):
         self.assertEqual(
             root["items"][0]["action"],
             {
-                "functionCall": {
+                "@functionCall": {
                     "@call": "openUrl",
                     "args": {"url": "https://a2ui.org"},
                 }

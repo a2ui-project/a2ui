@@ -84,7 +84,7 @@
             components:
               - id: "root"
                 component: "Column"
-                children: ["t1", "t2"]
+                children: {"@child": ["t1", "t2"]}
               - id: "t1"
                 component: "Text"
                 text:
@@ -127,7 +127,7 @@
             components:
               - id: "root"
                 component: "Column"
-                children: ["t_and", "t_or", "t_not"]
+                children: {"@child": ["t_and", "t_or", "t_not"]}
               - id: "t_and"
                 component: "Text"
                 text:

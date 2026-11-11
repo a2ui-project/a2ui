@@ -44,7 +44,8 @@
         components:
           - id: "root"
             component: "Card"
-            child: "body"
+            child:
+              "@child": "body"
           - id: "body"
             component: "Text"
             text: "Hello"
@@ -114,7 +115,8 @@
         components:
           - id: "root"
             component: "Card"
-            child: "body"
+            child:
+              "@child": "body"
           - id: "body"
             component: "Text"
             text: "Hello"

@@ -18,24 +18,30 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main_column"
+            "child": {
+              "@child": "main_column"
+            }
           },
           {
             "id": "main_column",
             "component": "Column",
-            "children": [
-              "header",
-              "email_field",
-              "password_field",
-              "login_btn",
-              "divider",
-              "signup_text"
-            ]
+            "children": {
+              "@child": [
+                "header",
+                "email_field",
+                "password_field",
+                "login_btn",
+                "divider",
+                "signup_text"
+              ]
+            }
           },
           {
             "id": "header",
             "component": "Column",
-            "children": ["title", "subtitle"],
+            "children": {
+              "@child": ["title", "subtitle"]
+            },
             "align": "center"
           },
           {
@@ -123,7 +129,9 @@
           {
             "id": "login_btn",
             "component": "Button",
-            "child": "login_btn_text",
+            "child": {
+              "@child": "login_btn_text"
+            },
             "@checks": [
               {
                 "condition": {
@@ -154,7 +162,7 @@
               }
             ],
             "action": {
-              "event": {
+              "@action": {
                 "name": "login",
                 "context": {
                   "email": {
@@ -171,7 +179,9 @@
           {
             "id": "signup_text",
             "component": "Row",
-            "children": ["no_account", "signup_link"],
+            "children": {
+              "@child": ["no_account", "signup_link"]
+            },
             "justify": "center"
           },
           {
@@ -188,9 +198,11 @@
           {
             "id": "signup_link",
             "component": "Button",
-            "child": "signup_link_text",
+            "child": {
+              "@child": "signup_link_text"
+            },
             "action": {
-              "event": {
+              "@action": {
                 "name": "signup",
                 "context": {}
               }

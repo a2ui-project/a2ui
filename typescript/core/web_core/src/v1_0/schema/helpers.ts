@@ -36,14 +36,14 @@ export {type ChildRefKind, type RefSchemaOptions, markChildRef, childRefKindOf};
 
 export const TemplateChildListSchema = z
   .object({
-    'componentId': z.lazy(() => ComponentIdSchema),
-    'path': z
+    '@child': z.lazy(() => ComponentIdSchema),
+    '@path': z
       .string()
       .describe('The path to the list of component property objects in the data model.'),
   })
   .strict()
   .describe(
-    'REF:#/$defs/TemplateChildList|A template for generating a dynamic list of children from a data model list. The `componentId` is the component to use as a template.',
+    'REF:#/$defs/TemplateChildList|A template for generating a dynamic list of children from a data model list. The `@child` is the component ID to use as a template.',
   );
 export type TemplateChildList = z.infer<typeof TemplateChildListSchema>;
 

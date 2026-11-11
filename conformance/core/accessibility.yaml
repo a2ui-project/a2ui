@@ -26,12 +26,12 @@
         components:
           - id: "root"
             component: "Column"
-            children: ["btn1", "status_text"]
+            children: {"@child": ["btn1", "status_text"]}
           - id: "btn1"
             component: "Button"
-            child: "btn1_label"
+            child: {"@child": "btn1_label"}
             action:
-              event:
+              "@action":
                 name: "tap"
             "@accessibility":
               label: "Mute Notifications"
@@ -92,7 +92,7 @@
         components:
           - id: "root"
             component: "Card"
-            child: "alert_box"
+            child: {"@child": "alert_box"}
           - id: "alert_box"
             component: "Text"
             text: "Connection Lost!"
@@ -133,7 +133,7 @@
             component: "Column"
             "@accessibility":
               hidden: true
-            children: ["visible_text", "decorative_icon"]
+            children: {"@child": ["visible_text", "decorative_icon"]}
           - id: "visible_text"
             component: "Text"
             text: "Visible Content"
@@ -173,12 +173,12 @@
         components:
           - id: "root"
             component: "Column"
-            children: ["submit_btn"]
+            children: {"@child": ["submit_btn"]}
           - id: "submit_btn"
             component: "Button"
-            child: "submit_btn_label"
+            child: {"@child": "submit_btn_label"}
             action:
-              event:
+              "@action":
                 name: "tap"
           - id: "submit_btn_label"
             component: "Text"
@@ -218,12 +218,12 @@
         components:
           - id: "root"
             component: "Column"
-            children: ["btn", "text_input", "check_box", "choice_picker"]
+            children: {"@child": ["btn", "text_input", "check_box", "choice_picker"]}
           - id: "btn"
             component: "Button"
-            child: "btn_label"
+            child: {"@child": "btn_label"}
             action:
-              event:
+              "@action":
                 name: "tap"
             "@accessibility":
               label: "Submit Feedback"
@@ -332,12 +332,12 @@
         components:
           - id: "root"
             component: "Column"
-            children: ["dynamic_btn", "dynamic_status"]
+            children: {"@child": ["dynamic_btn", "dynamic_status"]}
           - id: "dynamic_btn"
             component: "Button"
-            child: "dynamic_btn_label"
+            child: {"@child": "dynamic_btn_label"}
             action:
-              event:
+              "@action":
                 name: "tap"
             "@accessibility":
               label:
@@ -366,12 +366,12 @@
             components:
               - id: "root"
                 component: "Column"
-                children: ["dynamic_btn", "dynamic_status"]
+                children: {"@child": ["dynamic_btn", "dynamic_status"]}
               - id: "dynamic_btn"
                 component: "Button"
-                child: "dynamic_btn_label"
+                child: {"@child": "dynamic_btn_label"}
                 action:
-                  event:
+                  "@action":
                     name: "tap"
                 "@accessibility":
                   label:
@@ -478,7 +478,7 @@
         components:
           - id: "root"
             component: "Column"
-            children: ["legacy_text"]
+            children: {"@child": ["legacy_text"]}
           - id: "legacy_text"
             component: "Text"
             text: "Legacy"

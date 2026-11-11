@@ -265,6 +265,7 @@ Object? _perform(Map<String, Object?> testCase, SuiteVersion version) {
     final String text => version.text(text, catalogId: catalogId),
     _ => null,
   };
+  final List<CatalogApi> liftCatalogs = version.liftCatalogs(args);
   switch (testCase['action']) {
     case 'generate_prompt_snippet':
       return format.promptGenerator.generate();
@@ -289,6 +290,7 @@ Object? _perform(Map<String, Object?> testCase, SuiteVersion version) {
       return version.messagesJson(
         compileChecked(format.createParser(), input!),
         injectedCatalogId: catalogId,
+        catalogs: liftCatalogs,
       );
     case 'decompile':
       return format.createParser().decompile(
@@ -301,6 +303,7 @@ Object? _perform(Map<String, Object?> testCase, SuiteVersion version) {
           wrapped: args['wrapped'] as bool? ?? true,
         ),
         injectedCatalogId: catalogId,
+        catalogs: liftCatalogs,
       );
     default:
       throw UnsupportedError('Unknown action ${testCase['action']}');
@@ -326,8 +329,12 @@ void _runChunks(Map<String, Object?> testCase, SuiteVersion version) {
       ? SuiteVersion.v1_0
       : version;
   final String? catalogId = written.injectedCatalog(testCase);
-  List<Object?> lift(List<StreamPart> parts) =>
-      written.partsJson(parts, injectedCatalogId: catalogId);
+  final List<CatalogApi> liftCatalogs = written.liftCatalogs(args);
+  List<Object?> lift(List<StreamPart> parts) => written.partsJson(
+    parts,
+    injectedCatalogId: catalogId,
+    catalogs: liftCatalogs,
+  );
   final Parser parser = _format(testCase, version).createParser();
   final ResponseReader<StreamPart> stream =
       args['after_rejected_block'] == 'continue'
@@ -341,6 +348,9 @@ void _runChunks(Map<String, Object?> testCase, SuiteVersion version) {
 
   final chunks = <String>[];
   final yielded = <Object?>[];
+  final SuiteTextLowerer lowerer = written.openTextLowerer(
+    catalogId: catalogId,
+  );
   for (final (int i, Object? step)
       in (testCase['steps']! as List<Object?>).indexed) {
     final stepCase = step! as Map<String, Object?>;
@@ -349,10 +359,7 @@ void _runChunks(Map<String, Object?> testCase, SuiteVersion version) {
       _knownKeys['step:parse_chunk']!,
       'step:parse_chunk',
     );
-    final String chunk = written.text(
-      stepCase['input']! as String,
-      catalogId: catalogId,
-    );
+    final String chunk = lowerer.feed(stepCase['input']! as String);
     chunks.add(chunk);
     if (stepCase['expect_error'] case final Object error) {
       A2uiError? thrown;
@@ -382,6 +389,11 @@ void _runChunks(Map<String, Object?> testCase, SuiteVersion version) {
     expect(parts, stepCase['expect'], reason: 'step $i: ${stepCase['input']}');
     expectInBlock(stepCase, i);
     yielded.addAll(parts);
+  }
+  final String tail = lowerer.close();
+  if (tail.isNotEmpty) {
+    chunks.add(tail);
+    yielded.addAll(lift(stream.feed(tail)));
   }
   final List<Object?> closed = lift(stream.close());
   if (testCase['expect_close'] case final Object expected) {
@@ -453,7 +465,7 @@ void _checkDecompiled(
 ) {
   for (final Object? text
       in (testCase['expect_contains'] as List<Object?>?) ?? const []) {
-    expect(output, contains(text));
+    expect(output, contains(_lowerDecompiledFragment(text, version)));
   }
   if (testCase['expect_round_trip'] == true) {
     final List<AgentToRendererMessage> recompiled = compileChecked(
@@ -461,9 +473,29 @@ void _checkDecompiled(
       output,
     );
     expect(
-      version.messagesJson(recompiled),
+      version.messagesJson(
+        recompiled,
+        catalogs: version.liftCatalogs(
+          testCase['args']! as Map<String, Object?>,
+        ),
+      ),
       testCase['messages'],
       reason: 'JSON written:\n$output',
     );
   }
+}
+
+Object? _lowerDecompiledFragment(Object? fragment, SuiteVersion version) {
+  if (version != SuiteVersion.v0_9 || fragment is! String) return fragment;
+  return switch (fragment) {
+    '"@action"' => '"event"',
+    '"@functionCall"' => '"functionCall"',
+    '"@path"' => '"path"',
+    '"@call"' => '"call"',
+    // In direct JSON, `"@child"` in decompiler assertions corresponds to the
+    // `@child` key inside template ChildList objects (`{"componentId": ...,
+    // "path": ...}` in v0.9).
+    '"@child"' => '"componentId"',
+    _ => fragment,
+  };
 }

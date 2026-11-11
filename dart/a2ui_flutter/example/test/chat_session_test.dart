@@ -349,7 +349,9 @@ void main() {
             {
               'id': 'root',
               'component': 'Column',
-              'children': ['a'],
+              'children': {
+                '@child': ['a'],
+              },
             },
             {'id': 'a', 'component': 'Text', 'text': 'First'},
           ],

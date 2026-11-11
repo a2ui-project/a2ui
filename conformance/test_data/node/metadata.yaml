@@ -17,13 +17,13 @@ data: {name: Ada}
 components:
   - id: root
     component: Card
-    child: button
+    child: {"@child": button}
     metadata: {extensions: {com_example_policy: restricted}}
   - id: button
     component: Button
-    child: label
+    child: {"@child": label}
     action:
-      event:
+      "@action":
         name: save
         context: {name: {'@path': /name}}
     metadata: {extensions: {com_example_trace: t1}}

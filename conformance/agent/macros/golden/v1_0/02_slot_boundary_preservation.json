@@ -13,14 +13,18 @@
         {
           "component": "Column",
           "id": "container_1__column_1",
-          "children": ["container_1__text_1", "external_child_42"],
+          "children": {
+            "@child": ["container_1__text_1", "external_child_42"]
+          },
           "justify": "start",
           "align": "stretch"
         },
         {
           "component": "Card",
           "id": "container_1",
-          "child": "container_1__column_1"
+          "child": {
+            "@child": "container_1__column_1"
+          }
         }
       ]
     }

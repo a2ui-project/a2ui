@@ -7,7 +7,7 @@
           "additionalProperties": false,
           "description": "Triggers an agent-side event.",
           "properties": {
-            "event": {
+            "@action": {
               "additionalProperties": false,
               "description": "The event to dispatch to the agent.",
               "properties": {
@@ -34,7 +34,7 @@
             }
           },
           "required": [
-            "event"
+            "@action"
           ],
           "type": "object"
         },
@@ -42,12 +42,12 @@
           "additionalProperties": false,
           "description": "Executes a renderer or agent-side function.",
           "properties": {
-            "functionCall": {
+            "@functionCall": {
               "$ref": "#/$defs/FunctionCall"
             }
           },
           "required": [
-            "functionCall"
+            "@functionCall"
           ],
           "type": "object"
         }
@@ -79,33 +79,51 @@
       "type": "object"
     },
     "Child": {
-      "$ref": "#/$defs/ComponentId",
-      "description": "A reference to a single child component ID."
+      "additionalProperties": false,
+      "description": "A reference to a single child component.",
+      "properties": {
+        "@child": {
+          "$ref": "#/$defs/ComponentId"
+        }
+      },
+      "required": [
+        "@child"
+      ],
+      "type": "object"
     },
     "ChildList": {
       "oneOf": [
         {
+          "additionalProperties": false,
           "description": "A static list of child component IDs.",
-          "items": {
-            "$ref": "#/$defs/ComponentId"
+          "properties": {
+            "@child": {
+              "items": {
+                "$ref": "#/$defs/ComponentId"
+              },
+              "type": "array"
+            }
           },
-          "type": "array"
+          "required": [
+            "@child"
+          ],
+          "type": "object"
         },
         {
           "additionalProperties": false,
-          "description": "A template for generating a dynamic list of children from a data model list. The `componentId` is the component to use as a template.",
+          "description": "A template for generating a dynamic list of children from a data model list. The `@child` is the component ID to use as a template.",
           "properties": {
-            "componentId": {
+            "@child": {
               "$ref": "#/$defs/ComponentId"
             },
-            "path": {
+            "@path": {
               "description": "The path to the list of component property objects in the data model.",
               "type": "string"
             }
           },
           "required": [
-            "componentId",
-            "path"
+            "@child",
+            "@path"
           ],
           "type": "object"
         }
@@ -213,6 +231,21 @@
               {
                 "required": [
                   "@call"
+                ]
+              },
+              {
+                "required": [
+                  "@child"
+                ]
+              },
+              {
+                "required": [
+                  "@action"
+                ]
+              },
+              {
+                "required": [
+                  "@functionCall"
                 ]
               }
             ]
@@ -453,7 +486,7 @@
         },
         "child": {
           "$ref": "#/$defs/Child",
-          "description": "The ID of the child component. Use a 'Text' component for a labeled button. Only use an 'Icon' if the requirements explicitly ask for an icon-only button."
+          "description": "A reference ({\"@child\": \"<id>\"}) to the child component. Use a 'Text' component for a labeled button. Only use an 'Icon' if the requirements explicitly ask for an icon-only button."
         },
         "component": {
           "const": "Button"
@@ -488,7 +521,7 @@
       "properties": {
         "child": {
           "$ref": "#/$defs/Child",
-          "description": "The ID of the single child component to be rendered inside the card. To display multiple elements, you MUST wrap them in a layout component (like Column or Row) and pass that container's ID here. Do NOT pass multiple IDs or a non-existent ID."
+          "description": "A reference ({\"@child\": \"<id>\"}) to the single child component to be rendered inside the card. To display multiple elements, you MUST wrap them in a layout component (like Column or Row) and reference that container's ID here. Do NOT pass multiple IDs or a non-existent ID."
         },
         "component": {
           "const": "Card"
@@ -644,7 +677,7 @@
         },
         "children": {
           "$ref": "#/$defs/ChildList",
-          "description": "Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list. Children cannot be defined inline, they must be referred to by ID."
+          "description": "Defines the children. Use {\"@child\": [...]} for a fixed set of children, or {\"@child\": \"<templateId>\", \"@path\": \"/path\"} to generate children from a data list. Children cannot be defined inline, they must be referred to by ID."
         },
         "component": {
           "const": "Column"
@@ -979,7 +1012,7 @@
         },
         "children": {
           "$ref": "#/$defs/ChildList",
-          "description": "Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list."
+          "description": "Defines the children. Use {\"@child\": [...]} for a fixed set of children, or {\"@child\": \"<templateId>\", \"@path\": \"/path\"} to generate children from a data list."
         },
         "component": {
           "const": "List"
@@ -1015,7 +1048,7 @@
         },
         "content": {
           "$ref": "#/$defs/Child",
-          "description": "The ID of the component to be displayed inside the modal."
+          "description": "A reference ({\"@child\": \"<id>\"}) to the component to be displayed inside the modal."
         },
         "id": {
           "$ref": "#/$defs/ComponentId",
@@ -1023,7 +1056,7 @@
         },
         "trigger": {
           "$ref": "#/$defs/Child",
-          "description": "The ID of the component that opens the modal when interacted with (e.g., a button)."
+          "description": "A reference ({\"@child\": \"<id>\"}) to the component that opens the modal when interacted with (e.g., a button)."
         },
         "weight": {
           "$ref": "#/$defs/Weight"
@@ -1053,7 +1086,7 @@
         },
         "children": {
           "$ref": "#/$defs/ChildList",
-          "description": "Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list. Children cannot be defined inline, they must be referred to by ID."
+          "description": "Defines the children. Use {\"@child\": [...]} for a fixed set of children, or {\"@child\": \"<templateId>\", \"@path\": \"/path\"} to generate children from a data list. Children cannot be defined inline, they must be referred to by ID."
         },
         "component": {
           "const": "Row"
@@ -1154,7 +1187,7 @@
             "properties": {
               "child": {
                 "$ref": "#/$defs/Child",
-                "description": "The ID of the child component."
+                "description": "A reference ({\"@child\": \"<id>\"}) to the child component."
               },
               "title": {
                 "$ref": "#/$defs/DynamicString",
@@ -1795,6 +1828,6 @@
       "type": "object"
     }
   },
-  "instructions": "For layout, use the Row and Column components to organize other components.\n\n## Catalog Guidelines\n\n1. String Concatenation & Formatting: A2UI does not support binary operators like '+' or formatting symbols. To concatenate strings or dynamically inject data bindings into text, you must use the catalog function `formatString(value)` where the value string contains placeholders formatted as `${expression}`:\n   formatString(\"Hello ${/user/name}\")\n\n2. Strict Hierarchy: You must strictly adhere to the requested component nesting and hierarchy. If the prompt specifies that a component is 'inside' or 'contained in' another component, you MUST place it as a child of that specific component, not as a sibling or in a different container.\n\n3. Validation Checks: When components support validation checks, specify any custom error messages directly as the 'message' inside the check. Do NOT create separate text-display components to display validation errors.\n\n## Examples\n\nExample 1: Dynamic text form\n```json\n[\n  {\n    \"version\": \"1.0\",\n    \"createSurface\": {\n      \"surfaceId\": \"main\",\n      \"catalogId\": \"https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json\",\n      \"components\": [\n        {\n          \"id\": \"root\",\n          \"component\": \"Column\",\n          \"children\": [\"repField\", \"valueField\"]\n        },\n        {\n          \"id\": \"repField\",\n          \"component\": \"TextField\",\n          \"label\": \"Representative\",\n          \"value\": {\"@path\": \"/form/rep\"},\n          \"placeholder\": \"Enter name\"\n        },\n        {\n          \"id\": \"valueField\",\n          \"component\": \"TextField\",\n          \"label\": \"Deal Value\",\n          \"value\": {\"@path\": \"/form/value\"},\n          \"placeholder\": \"0.00\",\n          \"variant\": \"number\",\n          \"@checks\": [\n            {\n              \"condition\": {\n                \"@call\": \"required\",\n                \"args\": {\"value\": {\"@path\": \"/form/value\"}}\n              },\n              \"message\": \"Deal value is required.\"\n            }\n          ]\n        }\n      ],\n      \"dataModel\": {\n        \"form\": {\n          \"rep\": \"John Doe\",\n          \"value\": 1500.00\n        }\n      }\n    }\n  }\n]\n```\n\nExample 2: Dynamic list with templates\n```json\n[\n  {\n    \"version\": \"1.0\",\n    \"createSurface\": {\n      \"surfaceId\": \"main\",\n      \"catalogId\": \"https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json\",\n      \"components\": [\n        {\n          \"id\": \"root\",\n          \"component\": \"Card\",\n          \"child\": \"breedList\"\n        },\n        {\n          \"id\": \"breedList\",\n          \"component\": \"List\",\n          \"children\": {\n            \"path\": \"/breeds\",\n            \"componentId\": \"breedTemplate\"\n          },\n          \"direction\": \"horizontal\"\n        },\n        {\n          \"id\": \"breedTemplate\",\n          \"component\": \"Image\",\n          \"url\": {\"@path\": \"url\"}\n        }\n      ],\n      \"dataModel\": {\n        \"breeds\": [\n          {\n            \"url\": \"https://example.com/poodle.jpg\"\n          },\n          {\n            \"url\": \"https://example.com/lab.jpg\"\n          }\n        ]\n      }\n    }\n  }\n]\n```",
+  "instructions": "For layout, use the Row and Column components to organize other components.\n\n## Catalog Guidelines\n\n1. String Concatenation & Formatting: A2UI does not support binary operators like '+' or formatting symbols. To concatenate strings or dynamically inject data bindings into text, you must use the catalog function `formatString(value)` where the value string contains placeholders formatted as `${expression}`:\n   formatString(\"Hello ${/user/name}\")\n\n2. Strict Hierarchy: You must strictly adhere to the requested component nesting and hierarchy. If the prompt specifies that a component is 'inside' or 'contained in' another component, you MUST place it as a child of that specific component, not as a sibling or in a different container.\n\n3. Validation Checks: When components support validation checks, specify any custom error messages directly as the 'message' inside the check. Do NOT create separate text-display components to display validation errors.\n\n## Examples\n\nExample 1: Dynamic text form\n```json\n[\n  {\n    \"version\": \"1.0\",\n    \"createSurface\": {\n      \"surfaceId\": \"main\",\n      \"catalogId\": \"https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json\",\n      \"components\": [\n        {\n          \"id\": \"root\",\n          \"component\": \"Column\",\n          \"children\": {\"@child\": [\"repField\", \"valueField\"]}\n        },\n        {\n          \"id\": \"repField\",\n          \"component\": \"TextField\",\n          \"label\": \"Representative\",\n          \"value\": {\"@path\": \"/form/rep\"},\n          \"placeholder\": \"Enter name\"\n        },\n        {\n          \"id\": \"valueField\",\n          \"component\": \"TextField\",\n          \"label\": \"Deal Value\",\n          \"value\": {\"@path\": \"/form/value\"},\n          \"placeholder\": \"0.00\",\n          \"variant\": \"number\",\n          \"@checks\": [\n            {\n              \"condition\": {\n                \"@call\": \"required\",\n                \"args\": {\"value\": {\"@path\": \"/form/value\"}}\n              },\n              \"message\": \"Deal value is required.\"\n            }\n          ]\n        }\n      ],\n      \"dataModel\": {\n        \"form\": {\n          \"rep\": \"John Doe\",\n          \"value\": 1500.00\n        }\n      }\n    }\n  }\n]\n```\n\nExample 2: Dynamic list with templates\n```json\n[\n  {\n    \"version\": \"1.0\",\n    \"createSurface\": {\n      \"surfaceId\": \"main\",\n      \"catalogId\": \"https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json\",\n      \"components\": [\n        {\n          \"id\": \"root\",\n          \"component\": \"Card\",\n          \"child\": {\"@child\": \"breedList\"}\n        },\n        {\n          \"id\": \"breedList\",\n          \"component\": \"List\",\n          \"children\": {\n            \"@child\": \"breedTemplate\",\n            \"@path\": \"/breeds\"\n          },\n          \"direction\": \"horizontal\"\n        },\n        {\n          \"id\": \"breedTemplate\",\n          \"component\": \"Image\",\n          \"url\": {\"@path\": \"url\"}\n        }\n      ],\n      \"dataModel\": {\n        \"breeds\": [\n          {\n            \"url\": \"https://example.com/poodle.jpg\"\n          },\n          {\n            \"url\": \"https://example.com/lab.jpg\"\n          }\n        ]\n      }\n    }\n  }\n]\n```",
   "protocolVersion": "1.0"
 }

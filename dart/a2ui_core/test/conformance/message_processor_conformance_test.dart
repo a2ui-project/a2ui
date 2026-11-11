@@ -495,7 +495,17 @@ List<Catalog<ComponentApi, FunctionImplementation>> _catalogsFor(
     final List<Catalog<ComponentApi, FunctionImplementation>> built = [
       for (final document in documents) rendererCatalog(document),
       for (final document in inline)
-        rendererCatalog(document, protocolVersion: version),
+        if (includeBasic &&
+            document['catalogId'] is String &&
+            !document.containsKey('components') &&
+            !document.containsKey('theme') &&
+            !document.containsKey('functions'))
+          basicCatalogFor(
+            (document['protocolVersion'] as String?) ?? version,
+            asCatalogId: document['catalogId']! as String,
+          )
+        else
+          rendererCatalog(document, protocolVersion: version),
     ];
     if (includeBasic && !built.any((c) => c.id == 'basic')) {
       built.add(basicCatalogFor(version, asCatalogId: 'basic'));

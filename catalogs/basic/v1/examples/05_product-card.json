@@ -18,12 +18,16 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main_column"
+            "child": {
+              "@child": "main_column"
+            }
           },
           {
             "id": "main_column",
             "component": "Column",
-            "children": ["image", "details"]
+            "children": {
+              "@child": ["image", "details"]
+            }
           },
           {
             "id": "image",
@@ -36,7 +40,9 @@
           {
             "id": "details",
             "component": "Column",
-            "children": ["name", "rating_row", "price_row", "actions"]
+            "children": {
+              "@child": ["name", "rating_row", "price_row", "actions"]
+            }
           },
           {
             "id": "name",
@@ -48,7 +54,9 @@
           {
             "id": "rating_row",
             "component": "Row",
-            "children": ["stars", "reviews"],
+            "children": {
+              "@child": ["stars", "reviews"]
+            },
             "align": "center"
           },
           {
@@ -73,7 +81,9 @@
           {
             "id": "price_row",
             "component": "Row",
-            "children": ["price", "original_price"],
+            "children": {
+              "@child": ["price", "original_price"]
+            },
             "align": "start"
           },
           {
@@ -106,7 +116,9 @@
           {
             "id": "actions",
             "component": "Row",
-            "children": ["add_cart_btn"]
+            "children": {
+              "@child": ["add_cart_btn"]
+            }
           },
           {
             "id": "add_cart_btn_text",
@@ -116,10 +128,12 @@
           {
             "id": "add_cart_btn",
             "component": "Button",
-            "child": "add_cart_btn_text",
+            "child": {
+              "@child": "add_cart_btn_text"
+            },
             "variant": "primary",
             "action": {
-              "event": {
+              "@action": {
                 "name": "addToCart",
                 "context": {}
               }

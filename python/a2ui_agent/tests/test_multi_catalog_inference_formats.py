@@ -212,7 +212,7 @@ root = Column([w1, w2, c1])
         },
     ]
     assert comps["w2"]["action"] == {
-        "functionCall": {
+        "@functionCall": {
             "@call": "sharedFn",
             "catalogId": "https://a2ui.org/catalogs/primary",
             "args": {"firstPrimary": "act-pri-1", "secondPrimary": "act-pri-2"},
@@ -230,7 +230,7 @@ root = Column([w1, w2, c1])
         "id": "root",
         "component": "Column",
         "@catalogId": "https://a2ui.org/catalogs/primary",
-        "children": ["w1", "w2", "c1"],
+        "children": {"@child": ["w1", "w2", "c1"]},
     }
 
     # Verify decompilation and recompilation round-trip preserves catalogId overrides and positional args
@@ -326,7 +326,7 @@ def test_elemental_multi_catalog_per_component_and_function_override(
                     "id": "root",
                     "component": "Column",
                     "@catalogId": "https://a2ui.org/catalogs/primary",
-                    "children": ["w1", "w2"],
+                    "children": {"@child": ["w1", "w2"]},
                 },
             ],
         },
@@ -365,7 +365,7 @@ def test_elemental_multi_catalog_per_component_and_function_override(
     assert comps["w2"]["@catalogId"] == "https://a2ui.org/catalogs/secondary"
     assert comps["w2"]["secondaryArg"] == "from-secondary"
     assert comps["w2"]["action"] == {
-        "functionCall": {
+        "@functionCall": {
             "@call": "sharedFn",
             "catalogId": "https://a2ui.org/catalogs/primary",
             "args": {
@@ -488,7 +488,7 @@ def test_atom_multi_catalog_per_component_and_function_override(
             },
         ],
         "action": {
-            "functionCall": {
+            "@functionCall": {
                 "@call": "sharedFn",
                 "catalogId": "https://a2ui.org/catalogs/primary",
                 "args": {
@@ -509,7 +509,7 @@ def test_atom_multi_catalog_per_component_and_function_override(
         "id": "root",
         "component": "Column",
         "@catalogId": "https://a2ui.org/catalogs/primary",
-        "children": ["w1", "w2", "c1"],
+        "children": {"@child": ["w1", "w2", "c1"]},
     }
 
     # Round-trip decompile -> compile reproduces the message exactly.

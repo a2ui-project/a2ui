@@ -67,7 +67,8 @@
           - id: "root"
             component: "Column"
             "@catalogId": "conformance/simplified"
-            children: ["title", "chart"]
+            children:
+              "@child": ["title", "chart"]
           - id: "title"
             component: "Text"
             "@catalogId": "conformance/simplified"
@@ -122,7 +123,8 @@
           - id: "root"
             component: "Column"
             "@catalogId": "conformance/cat_a"
-            children: ["b1", "b2"]
+            children:
+              "@child": ["b1", "b2"]
           - id: "b1"
             component: "Badge"
             "@catalogId": "conformance/cat_a"
@@ -310,7 +312,8 @@
           - id: "root"
             component: "Column"
             "@catalogId": "conformance/simplified"
-            children: ["title", "chart"]
+            children:
+              "@child": ["title", "chart"]
           - id: "title"
             component: "Text"
             "@catalogId": "conformance/simplified"
@@ -490,7 +493,8 @@
               - id: "root"
                 component: "Column"
                 "@catalogId": "conformance/simplified"
-                children: ["header", "chart"]
+                children:
+                  "@child": ["header", "chart"]
               - id: "header"
                 component: "Text"
                 "@catalogId": "conformance/simplified"
@@ -566,7 +570,7 @@
               "id": "root",
               "component": "Column",
               "@catalogId": "conformance/simplified",
-              "children": ["title", "chart", "gauge"]
+              "children": {"@child": ["title", "chart", "gauge"]}
             },
             {
               "id": "title",
@@ -605,7 +609,8 @@
           - id: "root"
             component: "Column"
             "@catalogId": "conformance/simplified"
-            children: ["title", "chart", "gauge"]
+            children:
+              "@child": ["title", "chart", "gauge"]
           - id: "title"
             component: "Text"
             "@catalogId": "conformance/simplified"
@@ -695,7 +700,7 @@
               "id": "root",
               "component": "Column",
               "catalogId": "conformance/cat_a",
-              "children": ["b1", "b2"]
+              "children": {"@child": ["b1", "b2"]}
             },
             {
               "id": "b1",
@@ -722,7 +727,8 @@
           - id: "root"
             component: "Column"
             catalogId: "conformance/cat_a"
-            children: ["b1", "b2"]
+            children:
+              "@child": ["b1", "b2"]
           - id: "b1"
             component: "Badge"
             catalogId: "conformance/cat_a"
@@ -846,7 +852,8 @@
           - id: "root"
             component: "Column"
             catalogId: "conformance/simplified"
-            children: ["title", "chart"]
+            children:
+              "@child": ["title", "chart"]
           - id: "title"
             component: "Text"
             catalogId: "conformance/simplified"
@@ -897,7 +904,7 @@
               "id": "root",
               "component": "Column",
               "catalogId": "conformance/simplified",
-              "children": ["header", "chart"]
+              "children": {"@child": ["header", "chart"]}
             },
             {
               "id": "header",
@@ -926,7 +933,8 @@
               - id: "root"
                 component: "Column"
                 catalogId: "conformance/simplified"
-                children: ["header", "chart"]
+                children:
+                  "@child": ["header", "chart"]
               - id: "header"
                 component: "Text"
                 catalogId: "conformance/simplified"

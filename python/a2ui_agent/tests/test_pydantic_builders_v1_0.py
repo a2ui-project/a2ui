@@ -31,6 +31,7 @@ from a2ui.builder.v1_0 import (
     Card,
     CheckBox,
     CheckRule,
+    Child,
     ChoicePicker,
     ChoicePickerOption,
     Column,
@@ -131,7 +132,7 @@ def test_v1_0_action_event_and_function_call() -> None:
     )
     event_dump = event_action.model_dump(by_alias=True, exclude_none=True)
     assert event_dump == {
-        "event": {
+        "@action": {
             "name": "submit",
             "userMessage": "Submitting data",
         }
@@ -140,7 +141,7 @@ def test_v1_0_action_event_and_function_call() -> None:
     fn_action = Action(function_call=OpenUrl(url="https://a2ui.org"))
     fn_dump = fn_action.model_dump(by_alias=True, exclude_none=True)
     assert fn_dump == {
-        "functionCall": {
+        "@functionCall": {
             "@call": "openUrl",
             "args": {"url": "https://a2ui.org"},
         }
@@ -170,7 +171,7 @@ def test_v1_0_action_event_with_data_binding_context_and_message() -> None:
     )
     dumped = action.model_dump(by_alias=True, exclude_none=True)
     assert dumped == {
-        "event": {
+        "@action": {
             "name": "select_item",
             "userMessage": {
                 "@call": "formatString",
@@ -393,8 +394,8 @@ def test_v1_0_dynamic_child_list_template_flattening() -> None:
     assert parent_list["component"] == "List"
     assert parent_list["id"] == "item_list"
     assert parent_list["children"] == {
-        "path": "/users",
-        "componentId": template_comp["id"],
+        "@path": "/users",
+        "@child": template_comp["id"],
     }
 
 
@@ -691,4 +692,137 @@ def test_v1_0_custom_subclass_default_catalog_id_preserves_wire_alias() -> None:
         "catalogId": "custom-cat",
         "accessibility": "custom-a11y",
         "extensions": "custom-ext",
+    }]
+
+
+def test_v1_0_child_and_action_cutover_dual_read_and_custom_non_collision() -> None:
+    """Verifies canonical v1.0 @child/@action/@functionCall emission, bare dual-read, and custom bare keys."""
+    btn = Button(
+        id="btn1",
+        child=Text(id="lbl1", text="Go"),
+        action=Action(event=ActionEvent(name="submit")),
+    )
+    btn_by_id = {c["id"]: c for c in flatten_component_tree(btn)}
+    assert btn_by_id["btn1"] == {
+        "component": "Button",
+        "id": "btn1",
+        "child": {"@child": "btn1__lbl1"},
+        "action": {"@action": {"name": "submit"}},
+        "variant": "default",
+    }
+    assert btn_by_id["btn1__lbl1"]["text"] == "Go"
+
+    tpl_list = List(
+        id="list1",
+        children=DynamicChildList(
+            path="/items", template=Text(id="row_tpl", text="Row")
+        ),
+    )
+    list_by_id = {c["id"]: c for c in flatten_component_tree(tpl_list)}
+    assert list_by_id["list1"] == {
+        "component": "List",
+        "id": "list1",
+        "children": {"@child": "list1__row_tpl", "@path": "/items"},
+        "align": "stretch",
+        "direction": "vertical",
+    }
+    assert list_by_id["list1__row_tpl"]["text"] == "Row"
+
+    # Legacy bare Child, static ChildList, template ChildList, and Action inputs (# TODO(#4168))
+    legacy_btn = Button.model_validate({
+        "component": "Button",
+        "id": "legacy_btn",
+        "child": "lbl_bare",
+        "action": {"event": {"name": "legacyTap"}},
+    })
+    assert flatten_component_tree(legacy_btn) == [{
+        "component": "Button",
+        "id": "legacy_btn",
+        "child": {"@child": "lbl_bare"},
+        "variant": "default",
+        "action": {"@action": {"name": "legacyTap"}},
+    }]
+
+    legacy_fn_btn = Button.model_validate({
+        "component": "Button",
+        "id": "legacy_fn_btn",
+        "child": {"@child": "lbl_fn"},
+        "action": {
+            "functionCall": {
+                "@call": "openUrl",
+                "args": {"url": "https://example.com"},
+            }
+        },
+    })
+    assert flatten_component_tree(legacy_fn_btn) == [{
+        "component": "Button",
+        "id": "legacy_fn_btn",
+        "child": {"@child": "lbl_fn"},
+        "variant": "default",
+        "action": {
+            "@functionCall": {
+                "@call": "openUrl",
+                "args": {"url": "https://example.com"},
+            }
+        },
+    }]
+
+    legacy_col = Column.model_validate({
+        "component": "Column",
+        "id": "legacy_col",
+        "children": ["c1", "c2"],
+    })
+    assert flatten_component_tree(legacy_col) == [{
+        "component": "Column",
+        "id": "legacy_col",
+        "children": {"@child": ["c1", "c2"]},
+        "justify": "start",
+        "align": "stretch",
+    }]
+
+    legacy_tpl_list = List.model_validate({
+        "component": "List",
+        "id": "legacy_tpl_list",
+        "children": {"componentId": "row_tpl", "path": "/rows"},
+    })
+    assert flatten_component_tree(legacy_tpl_list) == [{
+        "component": "List",
+        "id": "legacy_tpl_list",
+        "children": {"@child": "row_tpl", "@path": "/rows"},
+        "direction": "vertical",
+        "align": "stretch",
+    }]
+
+    # Custom bare properties with non-directive schemas remain plain wire values
+    class CustomSlotAndBareProps(ComponentBuilderNode):
+        component: Literal["CustomSlotAndBareProps"] = "CustomSlotAndBareProps"
+        slot: Child
+        on_click: Action = Field(alias="onClick")
+        component_id: str = Field(alias="componentId")
+        event: dict[str, str]
+        function_call: str = Field(alias="functionCall")
+        child: str
+        children: list[str]
+
+    custom = CustomSlotAndBareProps.model_validate({
+        "component": "CustomSlotAndBareProps",
+        "id": "cs1",
+        "slot": {"@child": "inner"},
+        "onClick": {"@action": {"name": "ok"}},
+        "componentId": "bare_comp_id",
+        "event": {"kind": "analytics"},
+        "functionCall": "literal_call",
+        "child": "literal_child_str",
+        "children": ["a", "b"],
+    })
+    assert flatten_component_tree(custom) == [{
+        "component": "CustomSlotAndBareProps",
+        "id": "cs1",
+        "slot": {"@child": "inner"},
+        "onClick": {"@action": {"name": "ok"}},
+        "componentId": "bare_comp_id",
+        "event": {"kind": "analytics"},
+        "functionCall": "literal_call",
+        "child": "literal_child_str",
+        "children": ["a", "b"],
     }]

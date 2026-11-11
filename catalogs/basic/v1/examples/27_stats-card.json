@@ -18,17 +18,23 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main_column"
+            "child": {
+              "@child": "main_column"
+            }
           },
           {
             "id": "main_column",
             "component": "Column",
-            "children": ["header", "value", "trend_row"]
+            "children": {
+              "@child": ["header", "value", "trend_row"]
+            }
           },
           {
             "id": "header",
             "component": "Row",
-            "children": ["metric_icon", "metric_name"],
+            "children": {
+              "@child": ["metric_icon", "metric_name"]
+            },
             "align": "center"
           },
           {
@@ -62,7 +68,9 @@
           {
             "id": "trend_row",
             "component": "Row",
-            "children": ["trend_icon", "trend_text"],
+            "children": {
+              "@child": ["trend_icon", "trend_text"]
+            },
             "align": "center"
           },
           {

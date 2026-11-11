@@ -36,7 +36,7 @@
         {
           "id": "root",
           "component": "Column",
-          "children": ["title", "subtitle", "body"]
+          "children": {"@child": ["title", "subtitle", "body"]}
         },
         {
           "id": "title",
@@ -52,29 +52,29 @@
         {
           "id": "body",
           "component": "Row",
-          "children": ["left_pane", "right_pane"]
+          "children": {"@child": ["left_pane", "right_pane"]}
         },
         {
           "id": "left_pane",
           "component": "Column",
           "weight": 1,
-          "children": ["top_card", "entries_card"]
+          "children": {"@child": ["top_card", "entries_card"]}
         },
         {
           "id": "top_card",
           "component": "Card",
-          "child": "controls_row"
+          "child": {"@child": "controls_row"}
         },
         {
           "id": "controls_row",
           "component": "Row",
-          "children": ["nav_column", "search_column"]
+          "children": {"@child": ["nav_column", "search_column"]}
         },
         {
           "id": "nav_column",
           "component": "Column",
           "weight": 1,
-          "children": ["path_field", "nav_row"]
+          "children": {"@child": ["path_field", "nav_row"]}
         },
         {
           "id": "path_field",
@@ -87,15 +87,15 @@
         {
           "id": "nav_row",
           "component": "Row",
-          "children": ["open_button", "parent_button", "home_button"]
+          "children": {"@child": ["open_button", "parent_button", "home_button"]}
         },
         {
           "id": "open_button",
           "component": "Button",
           "variant": "primary",
-          "child": "open_button_text",
+          "child": {"@child": "open_button_text"},
           "action": {
-            "functionCall": {
+            "@functionCall": {
               "@call": "updateDataModel",
               "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
               "args": {
@@ -158,9 +158,9 @@
         {
           "id": "parent_button",
           "component": "Button",
-          "child": "parent_button_text",
+          "child": {"@child": "parent_button_text"},
           "action": {
-            "functionCall": {
+            "@functionCall": {
               "@call": "updateDataModel",
               "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
               "args": {
@@ -251,9 +251,9 @@
         {
           "id": "home_button",
           "component": "Button",
-          "child": "home_button_text",
+          "child": {"@child": "home_button_text"},
           "action": {
-            "functionCall": {
+            "@functionCall": {
               "@call": "updateDataModel",
               "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
               "args": {
@@ -313,7 +313,7 @@
           "id": "search_column",
           "component": "Column",
           "weight": 1,
-          "children": ["search_field", "search_button"]
+          "children": {"@child": ["search_field", "search_button"]}
         },
         {
           "id": "search_field",
@@ -326,9 +326,9 @@
         {
           "id": "search_button",
           "component": "Button",
-          "child": "search_button_text",
+          "child": {"@child": "search_button_text"},
           "action": {
-            "functionCall": {
+            "@functionCall": {
               "@call": "updateDataModel",
               "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
               "args": {
@@ -397,12 +397,12 @@
         {
           "id": "entries_card",
           "component": "Card",
-          "child": "entries_column"
+          "child": {"@child": "entries_column"}
         },
         {
           "id": "entries_column",
           "component": "Column",
-          "children": ["entries_title", "entries_list"]
+          "children": {"@child": ["entries_title", "entries_list"]}
         },
         {
           "id": "entries_title",
@@ -418,14 +418,14 @@
           "id": "entries_list",
           "component": "List",
           "children": {
-            "componentId": "entry_row",
-            "path": "/entries"
+            "@child": "entry_row",
+            "@path": "/entries"
           }
         },
         {
           "id": "entry_row",
           "component": "Row",
-          "children": ["entry_icon", "entry_button", "entry_size"]
+          "children": {"@child": ["entry_icon", "entry_button", "entry_size"]}
         },
         {
           "id": "entry_icon",
@@ -439,9 +439,9 @@
           "component": "Button",
           "variant": "borderless",
           "weight": 1,
-          "child": "entry_name",
+          "child": {"@child": "entry_name"},
           "action": {
-            "functionCall": {
+            "@functionCall": {
               "@call": "updateDataModel",
               "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
               "args": {
@@ -543,17 +543,17 @@
           "id": "right_pane",
           "component": "Column",
           "weight": 1,
-          "children": ["viewer_card"]
+          "children": {"@child": ["viewer_card"]}
         },
         {
           "id": "viewer_card",
           "component": "Card",
-          "child": "viewer_column"
+          "child": {"@child": "viewer_column"}
         },
         {
           "id": "viewer_column",
           "component": "Column",
-          "children": ["viewer_title", "viewer_body"]
+          "children": {"@child": ["viewer_title", "viewer_body"]}
         },
         {
           "id": "viewer_title",

@@ -17,7 +17,9 @@
           {
             "id": "root",
             "component": "Column",
-            "children": ["title", "action_button"],
+            "children": {
+              "@child": ["title", "action_button"]
+            },
             "justify": "center",
             "align": "center"
           },
@@ -30,10 +32,12 @@
           {
             "id": "action_button",
             "component": "Button",
-            "child": "button_label",
+            "child": {
+              "@child": "button_label"
+            },
             "variant": "primary",
             "action": {
-              "event": {
+              "@action": {
                 "name": "button_clicked",
                 "context": {}
               }

@@ -14,7 +14,9 @@
         {
           "id": "root",
           "component": "Column",
-          "children": ["p_cat_a", "p_cat_b"]
+          "children": {
+            "@child": ["p_cat_a", "p_cat_b"]
+          }
         },
         {
           "id": "p_cat_a",
@@ -31,7 +33,9 @@
         {
           "component": "Card",
           "id": "p_cat_b",
-          "child": "p_cat_b__text_1"
+          "child": {
+            "@child": "p_cat_b__text_1"
+          }
         }
       ]
     }
@@ -58,12 +62,16 @@
           "component": "BrandBox",
           "id": "root__brandbox_1",
           "@catalogId": "https://example.com/catalog_a.json",
-          "child": "root__text_1"
+          "child": {
+            "@child": "root__text_1"
+          }
         },
         {
           "component": "Card",
           "id": "root",
-          "child": "root__brandbox_1"
+          "child": {
+            "@child": "root__brandbox_1"
+          }
         }
       ]
     }
@@ -96,19 +104,25 @@
           "component": "BrandBox",
           "id": "root__innerbadgeinherited_1",
           "@catalogId": "https://example.com/catalog_a.json",
-          "child": "root__innerbadgeinherited_1__text_1"
+          "child": {
+            "@child": "root__innerbadgeinherited_1__text_1"
+          }
         },
         {
           "component": "Column",
           "id": "root__column_1",
-          "children": ["root__text_1", "root__innerbadgeinherited_1"],
+          "children": {
+            "@child": ["root__text_1", "root__innerbadgeinherited_1"]
+          },
           "justify": "start",
           "align": "stretch"
         },
         {
           "component": "Card",
           "id": "root",
-          "child": "root__column_1"
+          "child": {
+            "@child": "root__column_1"
+          }
         }
       ]
     }

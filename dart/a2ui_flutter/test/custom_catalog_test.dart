@@ -196,7 +196,9 @@ void main() {
               {
                 'id': 'root',
                 'component': 'Column',
-                'children': ['title', 'rating'],
+                'children': {
+                  '@child': ['title', 'rating'],
+                },
               },
               {'id': 'title', 'component': 'Text', 'text': 'Your review'},
               {
@@ -206,7 +208,7 @@ void main() {
                 'label': 'Stars',
                 'value': {'@path': '/stars'},
                 'onChanged': {
-                  'event': {'name': 'rated'},
+                  '@action': {'name': 'rated'},
                 },
               },
             ],

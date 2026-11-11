@@ -18,17 +18,23 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main_column"
+            "child": {
+              "@child": "main_column"
+            }
           },
           {
             "id": "main_column",
             "component": "Column",
-            "children": ["header", "divider", "metrics_row", "date"]
+            "children": {
+              "@child": ["header", "divider", "metrics_row", "date"]
+            }
           },
           {
             "id": "header",
             "component": "Row",
-            "children": ["workout_icon", "title"],
+            "children": {
+              "@child": ["workout_icon", "title"]
+            },
             "align": "center"
           },
           {
@@ -50,13 +56,17 @@
           {
             "id": "metrics_row",
             "component": "Row",
-            "children": ["duration_col", "calories_col", "distance_col"],
+            "children": {
+              "@child": ["duration_col", "calories_col", "distance_col"]
+            },
             "justify": "spaceAround"
           },
           {
             "id": "duration_col",
             "component": "Column",
-            "children": ["duration_value", "duration_label"],
+            "children": {
+              "@child": ["duration_value", "duration_label"]
+            },
             "align": "center"
           },
           {
@@ -75,7 +85,9 @@
           {
             "id": "calories_col",
             "component": "Column",
-            "children": ["calories_value", "calories_label"],
+            "children": {
+              "@child": ["calories_value", "calories_label"]
+            },
             "align": "center"
           },
           {
@@ -99,7 +111,9 @@
           {
             "id": "distance_col",
             "component": "Column",
-            "children": ["distance_value", "distance_label"],
+            "children": {
+              "@child": ["distance_value", "distance_label"]
+            },
             "align": "center"
           },
           {

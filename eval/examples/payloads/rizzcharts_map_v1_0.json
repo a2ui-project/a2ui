@@ -14,7 +14,9 @@
         {
           "id": "root",
           "component": "Column",
-          "children": ["map_header", "location_map"]
+          "children": {
+            "@child": ["map_header", "location_map"]
+          }
         },
         {
           "id": "map_header",

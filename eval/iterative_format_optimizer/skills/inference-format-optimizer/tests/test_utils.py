@@ -79,7 +79,7 @@ class TestFormatTools(unittest.TestCase):
             "createSurface": {
                 "surfaceId": "main",
                 "components": [
-                    {"id": "root", "component": "Card", "child": "node_0"},
+                    {"id": "root", "component": "Card", "child": {"@child": "node_0"}},
                     {"id": "node_0", "component": "Text", "text": "Hello"},
                 ],
             },
@@ -93,7 +93,7 @@ class TestFormatTools(unittest.TestCase):
             "createSurface": {
                 "surfaceId": "main",
                 "components": [
-                    {"id": "root", "component": "Card", "child": "node_0"},
+                    {"id": "root", "component": "Card", "child": {"@child": "node_0"}},
                     {"id": "node_0", "component": "Text", "text": "Hello"},
                 ],
             },
@@ -107,7 +107,7 @@ class TestFormatTools(unittest.TestCase):
             "createSurface": {
                 "surfaceId": "main",
                 "components": [
-                    {"id": "root", "component": "Card", "child": "node_0"},
+                    {"id": "root", "component": "Card", "child": {"@child": "node_0"}},
                     {"id": "node_0", "component": "Text", "text": "Hello"},
                 ],
             },

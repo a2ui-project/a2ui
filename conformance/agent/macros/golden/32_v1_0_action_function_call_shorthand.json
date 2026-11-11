@@ -20,10 +20,12 @@
         {
           "component": "Button",
           "id": "root",
-          "child": "root__text_1",
+          "child": {
+            "@child": "root__text_1"
+          },
           "variant": "primary",
           "action": {
-            "functionCall": {
+            "@functionCall": {
               "@call": "openUrl",
               "args": {
                 "url": "https://a2ui.org"

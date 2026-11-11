@@ -33,6 +33,8 @@ const NEWLINE_STRIPPED_KEYS = new Set([
   'id',
   'component',
   'child',
+  // The v1.0 child / template reference directive.
+  '@child',
   'surfaceId',
   'catalogId',
   // The v1.0 component-level catalog override.
@@ -354,7 +356,7 @@ class Reader {
           value = this.closedOr(() =>
             this.array(
               this.partial && this.wholeItemKeys.has(key),
-              key === 'children' && !this.inDataModel,
+              (key === 'children' || key === '@child') && !this.inDataModel,
             ),
           );
         } else if (!this.atEnd && this.text[this.i] === '{') {

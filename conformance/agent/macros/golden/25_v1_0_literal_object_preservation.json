@@ -20,10 +20,12 @@
         {
           "component": "Button",
           "id": "root",
-          "child": "root__text_1",
+          "child": {
+            "@child": "root__text_1"
+          },
           "variant": "primary",
           "action": {
-            "event": {
+            "@action": {
               "name": "execute_command",
               "context": {
                 "payload": {

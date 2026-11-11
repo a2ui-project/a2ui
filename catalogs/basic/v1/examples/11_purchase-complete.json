@@ -18,19 +18,23 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main_column"
+            "child": {
+              "@child": "main_column"
+            }
           },
           {
             "id": "main_column",
             "component": "Column",
-            "children": [
-              "success_icon",
-              "title",
-              "product_row",
-              "divider",
-              "details_col",
-              "view_btn"
-            ],
+            "children": {
+              "@child": [
+                "success_icon",
+                "title",
+                "product_row",
+                "divider",
+                "details_col",
+                "view_btn"
+              ]
+            },
             "align": "center"
           },
           {
@@ -46,7 +50,9 @@
           {
             "id": "product_row",
             "component": "Row",
-            "children": ["product_image", "product_info"],
+            "children": {
+              "@child": ["product_image", "product_info"]
+            },
             "align": "center"
           },
           {
@@ -60,7 +66,9 @@
           {
             "id": "product_info",
             "component": "Column",
-            "children": ["product_name", "product_price"]
+            "children": {
+              "@child": ["product_name", "product_price"]
+            }
           },
           {
             "id": "product_name",
@@ -90,12 +98,16 @@
           {
             "id": "details_col",
             "component": "Column",
-            "children": ["delivery_row", "seller_row"]
+            "children": {
+              "@child": ["delivery_row", "seller_row"]
+            }
           },
           {
             "id": "delivery_row",
             "component": "Row",
-            "children": ["delivery_icon", "delivery_text"],
+            "children": {
+              "@child": ["delivery_icon", "delivery_text"]
+            },
             "align": "center"
           },
           {
@@ -114,7 +126,9 @@
           {
             "id": "seller_row",
             "component": "Row",
-            "children": ["seller_label", "seller_name"]
+            "children": {
+              "@child": ["seller_label", "seller_name"]
+            }
           },
           {
             "id": "seller_label",
@@ -138,9 +152,11 @@
           {
             "id": "view_btn",
             "component": "Button",
-            "child": "view_btn_text",
+            "child": {
+              "@child": "view_btn_text"
+            },
             "action": {
-              "event": {
+              "@action": {
                 "name": "view_details",
                 "context": {}
               }

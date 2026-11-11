@@ -925,6 +925,10 @@ struct MessageProcessorConformanceTests {
     case let array as ResolvedArray:
       let elements = array.elements.compactMap(resolvedJSON)
       return elements.count == array.elements.count ? .array(elements) : nil
+    case let node as Node:
+      return .string(node.id)
+    case let nodes as [Node]:
+      return .array(nodes.map { .string($0.id) })
     default:
       return nil
     }

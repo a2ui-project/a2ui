@@ -49,6 +49,7 @@ from .common_types import (
     LiteralObject,
     SingleReference,
     SpecBaseModel,
+    StaticChildList,
     StrictBaseModel,
     Surface,
     TemplateChildList,
@@ -113,6 +114,7 @@ from .renderer_to_agent import (
     RendererToAgentMessageListWrapper,
 )
 
+
 __all__ = [
     "AccessibilityAttributes",
     "Action",
@@ -146,6 +148,7 @@ __all__ = [
     "LiteralObject",
     "SingleReference",
     "SpecBaseModel",
+    "StaticChildList",
     "StrictBaseModel",
     "Surface",
     "TemplateChildList",

@@ -29,10 +29,12 @@
         {
           "component": "Button",
           "id": "main_card__btn_save",
-          "child": "main_card__btn_save_text",
+          "child": {
+            "@child": "main_card__btn_save_text"
+          },
           "variant": "primary",
           "action": {
-            "event": {
+            "@action": {
               "name": "save_changes"
             }
           }
@@ -40,21 +42,27 @@
         {
           "component": "Row",
           "id": "main_card__action_row",
-          "children": ["main_card__save_icon", "main_card__btn_save"],
+          "children": {
+            "@child": ["main_card__save_icon", "main_card__btn_save"]
+          },
           "justify": "start",
           "align": "stretch"
         },
         {
           "component": "Column",
           "id": "main_card__main_col",
-          "children": ["main_card__title", "main_card__div_1", "main_card__action_row"],
+          "children": {
+            "@child": ["main_card__title", "main_card__div_1", "main_card__action_row"]
+          },
           "justify": "start",
           "align": "stretch"
         },
         {
           "component": "Card",
           "id": "main_card",
-          "child": "main_card__main_col"
+          "child": {
+            "@child": "main_card__main_col"
+          }
         }
       ]
     }

@@ -18,12 +18,16 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main_row"
+            "child": {
+              "@child": "main_row"
+            }
           },
           {
             "id": "main_row",
             "component": "Row",
-            "children": ["artwork", "content"],
+            "children": {
+              "@child": ["artwork", "content"]
+            },
             "align": "start"
           },
           {
@@ -37,7 +41,9 @@
           {
             "id": "content",
             "component": "Column",
-            "children": ["show_name", "episode_title", "meta_row", "description", "audio_player"]
+            "children": {
+              "@child": ["show_name", "episode_title", "meta_row", "description", "audio_player"]
+            }
           },
           {
             "id": "show_name",
@@ -57,7 +63,9 @@
           {
             "id": "meta_row",
             "component": "Row",
-            "children": ["duration", "date"]
+            "children": {
+              "@child": ["duration", "date"]
+            }
           },
           {
             "id": "duration",

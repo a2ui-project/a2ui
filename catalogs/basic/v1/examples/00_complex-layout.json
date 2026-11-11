@@ -17,7 +17,9 @@
           {
             "id": "root",
             "component": "Column",
-            "children": ["header", "form_row", "footer"],
+            "children": {
+              "@child": ["header", "form_row", "footer"]
+            },
             "justify": "spaceBetween",
             "align": "stretch"
           },
@@ -29,7 +31,9 @@
           {
             "id": "form_row",
             "component": "Row",
-            "children": ["first_name", "last_name"],
+            "children": {
+              "@child": ["first_name", "last_name"]
+            },
             "justify": "start",
             "align": "start"
           },

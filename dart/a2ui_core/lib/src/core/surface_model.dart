@@ -217,7 +217,14 @@ class SurfaceModel<T extends ComponentApi> {
           ),
         ),
         dataModel = DataModel(),
-        componentsModel = SurfaceComponentsModel(catalog: defaultCatalog) {
+        componentsModel = SurfaceComponentsModel(
+          catalog: defaultCatalog,
+          atLeastV10: _isAtLeastV10(
+            protocolVersion,
+            defaultCatalog,
+            availableCatalogs,
+          ),
+        ) {
     if (maxAgentCallCacheEntries < 1) {
       throw ArgumentError.value(
         maxAgentCallCacheEntries,
@@ -277,6 +284,30 @@ class SurfaceModel<T extends ComponentApi> {
     final Map<String, Object?>? cloned = cloneMetadata(nextMeta);
     _metadata.value = cloned;
     _onMetadataChanged.emit(cloned);
+  }
+
+  static bool _isAtLeastV10<T extends ComponentApi>(
+    String? protocolVersion,
+    Catalog<T, FunctionImplementation>? defaultCatalog,
+    Iterable<Catalog<T, FunctionImplementation>> availableCatalogs,
+  ) {
+    if (protocolVersion != null &&
+        (A2uiProtocolVersion.tryParseSemVer(protocolVersion)
+                ?.isAtLeast(A2uiProtocolVersion.v1_0) ??
+            false)) {
+      return true;
+    }
+    if (defaultCatalog?.protocolVersion?.isAtLeast(A2uiProtocolVersion.v1_0) ??
+        false) {
+      return true;
+    }
+    for (final catalog in availableCatalogs) {
+      if (catalog.protocolVersion?.isAtLeast(A2uiProtocolVersion.v1_0) ??
+          false) {
+        return true;
+      }
+    }
+    return false;
   }
 
   static Map<String, Catalog<T, FunctionImplementation>>

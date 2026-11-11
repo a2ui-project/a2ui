@@ -71,8 +71,8 @@ Agents can set `@accessibility` (or `accessibility` in v0.9 and v0.9.1) on any c
     {
       "id": "close_button",
       "component": "Button",
-      "child": "close_icon",
-      "action": {"event": {"name": "close_dialog"}},
+      "child": {"@child": "close_icon"},
+      "action": {"@action": {"name": "close_dialog"}},
       "@accessibility": {
         "label": "Close dialog",
         "description": {"@path": "/dialog/unsavedWarning"}

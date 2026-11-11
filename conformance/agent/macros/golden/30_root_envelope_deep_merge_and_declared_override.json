@@ -14,7 +14,9 @@
         {
           "component": "Row",
           "id": "root",
-          "children": ["ann_badge", "decl_a11y", "weighted_card"]
+          "children": {
+            "@child": ["ann_badge", "decl_a11y", "weighted_card"]
+          }
         },
         {
           "component": "Text",
@@ -31,7 +33,9 @@
         {
           "component": "Row",
           "id": "ann_badge__row_1",
-          "children": ["ann_badge__text_1", "ann_badge__text_2"],
+          "children": {
+            "@child": ["ann_badge__text_1", "ann_badge__text_2"]
+          },
           "justify": "start",
           "align": "stretch"
         },
@@ -52,7 +56,9 @@
               }
             }
           },
-          "child": "ann_badge__row_1"
+          "child": {
+            "@child": "ann_badge__row_1"
+          }
         },
         {
           "component": "Text",
@@ -66,7 +72,9 @@
           "@accessibility": {
             "label": "Custom: Passed as param"
           },
-          "child": "decl_a11y__text_1"
+          "child": {
+            "@child": "decl_a11y__text_1"
+          }
         },
         {
           "component": "Text",
@@ -77,7 +85,9 @@
         {
           "component": "Card",
           "id": "weighted_card",
-          "child": "weighted_card__text_1",
+          "child": {
+            "@child": "weighted_card__text_1"
+          },
           "weight": 2.0
         }
       ]

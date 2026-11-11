@@ -1427,6 +1427,7 @@ class MessageProcessor<T extends ComponentApi> {
     model.refFields = checkedBatch.refFields;
     final bool atLeastV1 =
         checkedBatch.version.isAtLeast(A2uiProtocolVersion.v1_0);
+    model.atLeastV10 = atLeastV1;
     final Set<String> envelopeFields =
         atLeastV1 ? _v1NormalizedEnvelopeFields : _preV1EnvelopeFields;
     for (final Map<String, Object?> entry in checkedBatch.resolved) {

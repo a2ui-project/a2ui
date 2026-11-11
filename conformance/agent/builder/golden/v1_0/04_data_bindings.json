@@ -23,14 +23,18 @@
         {
           "component": "Column",
           "id": "profile_card__profile_col",
-          "children": ["profile_card__user_greeting", "profile_card__user_balance"],
+          "children": {
+            "@child": ["profile_card__user_greeting", "profile_card__user_balance"]
+          },
           "justify": "start",
           "align": "stretch"
         },
         {
           "component": "Card",
           "id": "profile_card",
-          "child": "profile_card__profile_col"
+          "child": {
+            "@child": "profile_card__profile_col"
+          }
         }
       ]
     }

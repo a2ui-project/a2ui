@@ -355,6 +355,16 @@ function crawlPropertyType(schema: unknown): 'Child' | 'ChildList' | 'Action' | 
   if (direct) {
     return direct;
   }
+  if (s.properties && typeof s.properties === 'object' && !Array.isArray(s.properties)) {
+    const props = s.properties as Record<string, unknown>;
+    if (Object.hasOwn(props, '@child')) {
+      const childProp = props['@child'];
+      const isArrayProp =
+        Boolean(childProp && typeof childProp === 'object') &&
+        (childProp as Record<string, unknown>).type === 'array';
+      return isArrayProp || Object.hasOwn(props, '@path') ? 'ChildList' : 'Child';
+    }
+  }
   for (const k of ['oneOf', 'anyOf', 'allOf'] as const) {
     const subList = s[k];
     if (!Array.isArray(subList)) {
@@ -368,6 +378,23 @@ function crawlPropertyType(schema: unknown): 'Child' | 'ChildList' | 'Action' | 
     }
   }
   return undefined;
+}
+
+function wrapChildDirective(
+  val: unknown,
+  propType: 'Child' | 'ChildList' | 'Action' | undefined,
+  targetMajorMinor: [number, number],
+): unknown {
+  if (targetMajorMinor[0] < 1) {
+    return val;
+  }
+  if (propType === 'Child' && typeof val === 'string') {
+    return {'@child': val};
+  }
+  if (propType === 'ChildList' && Array.isArray(val)) {
+    return {'@child': val};
+  }
+  return val;
 }
 
 function resolvePropertyType(
@@ -2260,20 +2287,24 @@ export class ExpressCompiler {
       // Sanctioned departure §5.2 item 1: action slot via isActionSlot
       const isAction = isActionSlot(propSchema);
 
-      let mappedVal = this._compileValue(
-        arg,
-        rawSymbols,
-        compIds,
-        ctx,
+      let mappedVal = wrapChildDirective(
+        this._compileValue(
+          arg,
+          rawSymbols,
+          compIds,
+          ctx,
+          targetMajorMinor,
+          isAction,
+          {
+            parentId: compId,
+            property: propName,
+          },
+          propType === 'Child',
+          propType === 'ChildList' && Array.isArray(arg),
+          {schema: propSchema, helper: compHelper},
+        ),
+        propType,
         targetMajorMinor,
-        isAction,
-        {
-          parentId: compId,
-          property: propName,
-        },
-        propType === 'Child',
-        propType === 'ChildList' && Array.isArray(arg),
-        {schema: propSchema, helper: compHelper},
       );
 
       // Sanctioned departure §5.2 item 5: forbidden-binding check walking schema.
@@ -2769,8 +2800,9 @@ export class ExpressCompiler {
     }
 
     const contextNode = fnArgs.length === 2 ? fnArgs[1] : fnKwargs.context;
+    const actionKey = targetMajorMinor[0] >= 1 ? '@action' : 'event';
     if (contextNode === undefined) {
-      return {event};
+      return {[actionKey]: event};
     }
 
     const rawContext = compile(contextNode);
@@ -2794,7 +2826,7 @@ export class ExpressCompiler {
       }
     }
     event.context = compiledContext;
-    return {event};
+    return {[actionKey]: event};
   }
 
   /**
@@ -2838,17 +2870,21 @@ export class ExpressCompiler {
           )
         : undefined;
       return val.map((item, index) =>
-        this._compileValue(
-          item,
-          rawSymbols,
-          compIds,
-          ctx,
+        wrapChildDirective(
+          this._compileValue(
+            item,
+            rawSymbols,
+            compIds,
+            ctx,
+            targetMajorMinor,
+            itemIsAction,
+            inlineCtx ? {...inlineCtx, index} : undefined,
+            allowListComponentRefs || itemPropType === 'Child',
+            itemPropType === 'ChildList' && Array.isArray(item),
+            itemsSlot,
+          ),
+          itemPropType,
           targetMajorMinor,
-          itemIsAction,
-          inlineCtx ? {...inlineCtx, index} : undefined,
-          allowListComponentRefs || itemPropType === 'Child',
-          itemPropType === 'ChildList' && Array.isArray(item),
-          itemsSlot,
         ),
       );
     }
@@ -2938,17 +2974,21 @@ export class ExpressCompiler {
       setOwnEntry(
         dictRes,
         k,
-        this._compileValue(
-          v,
-          rawSymbols,
-          compIds,
-          ctx,
+        wrapChildDirective(
+          this._compileValue(
+            v,
+            rawSymbols,
+            compIds,
+            ctx,
+            targetMajorMinor,
+            entryIsAction,
+            undefined,
+            entryPropType === 'Child',
+            entryPropType === 'ChildList' && Array.isArray(v),
+            entrySlot,
+          ),
+          entryPropType,
           targetMajorMinor,
-          entryIsAction,
-          undefined,
-          entryPropType === 'Child',
-          entryPropType === 'ChildList' && Array.isArray(v),
-          entrySlot,
         ),
       );
     }
@@ -2970,6 +3010,11 @@ export class ExpressCompiler {
     if (compIds.has(refName)) {
       return compIds.get(refName)!;
     }
+    const rawVal = rawSymbols[refName];
+    const slotIsChildList =
+      slot !== undefined &&
+      resolvePropertyType(slot.helper, '', slot.schema as Record<string, unknown> | undefined) ===
+        'ChildList';
     if (Object.hasOwn(rawSymbols, refName)) {
       if (ctx.resolving.has(refName)) {
         throw new ExpressValidationError(
@@ -2979,7 +3024,7 @@ export class ExpressCompiler {
       ctx.resolving.add(refName);
       try {
         return this._compileValue(
-          rawSymbols[refName],
+          rawVal,
           rawSymbols,
           compIds,
           ctx,
@@ -2987,7 +3032,7 @@ export class ExpressCompiler {
           isAction,
           undefined,
           allowComponentRef,
-          allowListComponentRefs,
+          allowListComponentRefs || (slotIsChildList && Array.isArray(rawVal)),
           slot,
         );
       } finally {
@@ -3052,7 +3097,7 @@ export class ExpressCompiler {
       false,
     );
     if (isAction) {
-      return {functionCall: compiledFn};
+      return {[targetMajorMinor[0] >= 1 ? '@functionCall' : 'functionCall']: compiledFn};
     }
     return compiledFn;
   }
@@ -3064,7 +3109,7 @@ export class ExpressCompiler {
     ctx: CompileContext,
     targetMajorMinor: [number, number],
     isAction: boolean,
-  ): {path: unknown; componentId: unknown} {
+  ): Record<string, unknown> {
     if (fnArgs.length < 2) {
       throw new ExpressParseError(
         '_template helper requires exactly 2 arguments: path and templateComponent.',
@@ -3094,8 +3139,15 @@ export class ExpressCompiler {
       true,
       false,
     );
+    const resolvedPath = (pathVal as Record<string, unknown>)[ctx.keys.path];
+    if (targetMajorMinor[0] >= 1) {
+      return {
+        '@child': compIdVal,
+        '@path': resolvedPath,
+      };
+    }
     return {
-      path: (pathVal as Record<string, unknown>)[ctx.keys.path],
+      path: resolvedPath,
       componentId: compIdVal,
     };
   }

@@ -17,7 +17,9 @@
           {
             "id": "root",
             "component": "Column",
-            "children": ["header", "content_grid"],
+            "children": {
+              "@child": ["header", "content_grid"]
+            },
             "align": "stretch"
           },
           {
@@ -28,18 +30,24 @@
           {
             "id": "content_grid",
             "component": "Row",
-            "children": ["left_panel", "right_panel"]
+            "children": {
+              "@child": ["left_panel", "right_panel"]
+            }
           },
           {
             "id": "left_panel",
             "component": "Column",
-            "children": ["panel_a_loading"],
+            "children": {
+              "@child": ["panel_a_loading"]
+            },
             "weight": 1
           },
           {
             "id": "right_panel",
             "component": "Column",
-            "children": ["panel_b_loading"],
+            "children": {
+              "@child": ["panel_b_loading"]
+            },
             "weight": 1
           },
           {
@@ -65,13 +73,17 @@
           {
             "id": "left_panel",
             "component": "Column",
-            "children": ["analytics_card"],
+            "children": {
+              "@child": ["analytics_card"]
+            },
             "weight": 1
           },
           {
             "id": "analytics_card",
             "component": "Card",
-            "child": "analytics_text"
+            "child": {
+              "@child": "analytics_text"
+            }
           },
           {
             "id": "analytics_text",
@@ -90,15 +102,17 @@
           {
             "id": "right_panel",
             "component": "Column",
-            "children": ["logs_list"],
+            "children": {
+              "@child": ["logs_list"]
+            },
             "weight": 1
           },
           {
             "id": "logs_list",
             "component": "List",
             "children": {
-              "path": "/logs",
-              "componentId": "log_template"
+              "@child": "log_template",
+              "@path": "/logs"
             }
           },
           {

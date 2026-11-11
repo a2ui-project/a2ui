@@ -146,12 +146,12 @@ def _bound_leaf_components() -> list[dict[str, Any]]:
         {
             "id": "quick_add_card",
             "component": "Card",
-            "child": "quick_add_col",
+            "child": {"@child": "quick_add_col"},
         },
         {
             "id": "quick_add_col",
             "component": "Column",
-            "children": ["quick_add_caption", "quick_add_row"],
+            "children": {"@child": ["quick_add_caption", "quick_add_row"]},
             "align": "stretch",
         },
         _text(
@@ -164,11 +164,13 @@ def _bound_leaf_components() -> list[dict[str, Any]]:
         {
             "id": "quick_add_row",
             "component": "Row",
-            "children": [
-                "quick_add_title",
-                "quick_add_assignee",
-                "quick_add_button",
-            ],
+            "children": {
+                "@child": [
+                    "quick_add_title",
+                    "quick_add_assignee",
+                    "quick_add_button",
+                ]
+            },
             "align": "center",
         },
         {
@@ -188,10 +190,10 @@ def _bound_leaf_components() -> list[dict[str, Any]]:
         {
             "id": "quick_add_button",
             "component": "Button",
-            "child": "quick_add_button_label",
+            "child": {"@child": "quick_add_button_label"},
             "variant": "primary",
             "action": {
-                "functionCall": _mcp_call(
+                "@functionCall": _mcp_call(
                     "updateDataModel",
                     {
                         "updates": _transform(
@@ -261,40 +263,51 @@ def layout_components(layout: str = "default") -> list[dict[str, Any]]:
             {
                 "id": "root",
                 "component": "Column",
-                "children": [
-                    "summary_caption",
-                    "metrics_row",
-                    "selection_card",
-                    "quick_add_card",
-                    "board_divider",
-                    "board_caption",
-                    "board_card",
-                ],
+                "children": {
+                    "@child": [
+                        "summary_caption",
+                        "metrics_row",
+                        "selection_card",
+                        "quick_add_card",
+                        "board_divider",
+                        "board_caption",
+                        "board_card",
+                    ]
+                },
                 "align": "stretch",
             },
             {
                 "id": "metrics_row",
                 "component": "Row",
-                "children": ["todo_card", "wip_card", "done_card"],
+                "children": {"@child": ["todo_card", "wip_card", "done_card"]},
                 "justify": "spaceBetween",
                 "align": "stretch",
             },
             {
                 "id": "todo_card",
                 "component": "Card",
-                "child": "todo_count",
+                "child": {"@child": "todo_count"},
                 "weight": 1,
             },
-            {"id": "wip_card", "component": "Card", "child": "wip_badge", "weight": 1},
+            {
+                "id": "wip_card",
+                "component": "Card",
+                "child": {"@child": "wip_badge"},
+                "weight": 1,
+            },
             {
                 "id": "done_card",
                 "component": "Card",
-                "child": "done_count",
+                "child": {"@child": "done_count"},
                 "weight": 1,
             },
-            {"id": "selection_card", "component": "Card", "child": "selection_text"},
+            {
+                "id": "selection_card",
+                "component": "Card",
+                "child": {"@child": "selection_text"},
+            },
             {"id": "board_divider", "component": "Divider", "axis": "horizontal"},
-            {"id": "board_card", "component": "Card", "child": "board"},
+            {"id": "board_card", "component": "Card", "child": {"@child": "board"}},
             *leaves,
         ]
 
@@ -303,34 +316,41 @@ def layout_components(layout: str = "default") -> list[dict[str, Any]]:
             {
                 "id": "root",
                 "component": "Column",
-                "children": ["workspace_tabs"],
+                "children": {"@child": ["workspace_tabs"]},
                 "align": "stretch",
             },
             {
                 "id": "workspace_tabs",
                 "component": "Tabs",
                 "tabs": [
-                    {"title": "Sprint Board", "child": "board_tab"},
-                    {"title": "Sprint Summary & Selection", "child": "details_tab"},
+                    {"title": "Sprint Board", "child": {"@child": "board_tab"}},
+                    {
+                        "title": "Sprint Summary & Selection",
+                        "child": {"@child": "details_tab"},
+                    },
                 ],
             },
             {
                 "id": "board_tab",
                 "component": "Column",
-                "children": ["quick_add_card", "board_caption", "board_card"],
+                "children": {
+                    "@child": ["quick_add_card", "board_caption", "board_card"]
+                },
                 "align": "stretch",
             },
-            {"id": "board_card", "component": "Card", "child": "board"},
+            {"id": "board_card", "component": "Card", "child": {"@child": "board"}},
             {
                 "id": "details_tab",
                 "component": "Column",
-                "children": [
-                    "details_heading",
-                    "summary_caption",
-                    "metrics_card",
-                    "details_divider",
-                    "selection_card",
-                ],
+                "children": {
+                    "@child": [
+                        "details_heading",
+                        "summary_caption",
+                        "metrics_card",
+                        "details_divider",
+                        "selection_card",
+                    ]
+                },
                 "align": "stretch",
             },
             _text(
@@ -339,15 +359,23 @@ def layout_components(layout: str = "default") -> list[dict[str, Any]]:
                 literal=True,
                 variant="caption",
             ),
-            {"id": "metrics_card", "component": "Card", "child": "metrics_col"},
+            {
+                "id": "metrics_card",
+                "component": "Card",
+                "child": {"@child": "metrics_col"},
+            },
             {
                 "id": "metrics_col",
                 "component": "Column",
-                "children": ["todo_count", "wip_badge", "done_count"],
+                "children": {"@child": ["todo_count", "wip_badge", "done_count"]},
                 "align": "stretch",
             },
             {"id": "details_divider", "component": "Divider", "axis": "horizontal"},
-            {"id": "selection_card", "component": "Card", "child": "selection_text"},
+            {
+                "id": "selection_card",
+                "component": "Card",
+                "child": {"@child": "selection_text"},
+            },
             *leaves,
         ]
 
@@ -356,30 +384,32 @@ def layout_components(layout: str = "default") -> list[dict[str, Any]]:
             {
                 "id": "root",
                 "component": "Row",
-                "children": ["inspector_card", "board_col"],
+                "children": {"@child": ["inspector_card", "board_col"]},
                 "justify": "spaceBetween",
                 "align": "start",
             },
             {
                 "id": "inspector_card",
                 "component": "Card",
-                "child": "inspector_col",
+                "child": {"@child": "inspector_col"},
                 "weight": 1,
             },
             {
                 "id": "inspector_col",
                 "component": "Column",
-                "children": [
-                    "inspector_title",
-                    "summary_caption",
-                    "inspector_divider_1",
-                    "todo_count",
-                    "wip_badge",
-                    "done_count",
-                    "inspector_divider_2",
-                    "selection_heading",
-                    "selection_text",
-                ],
+                "children": {
+                    "@child": [
+                        "inspector_title",
+                        "summary_caption",
+                        "inspector_divider_1",
+                        "todo_count",
+                        "wip_badge",
+                        "done_count",
+                        "inspector_divider_2",
+                        "selection_heading",
+                        "selection_text",
+                    ]
+                },
                 "align": "stretch",
             },
             _text(
@@ -399,11 +429,13 @@ def layout_components(layout: str = "default") -> list[dict[str, Any]]:
             {
                 "id": "board_col",
                 "component": "Column",
-                "children": ["quick_add_card", "board_caption", "board_card"],
+                "children": {
+                    "@child": ["quick_add_card", "board_caption", "board_card"]
+                },
                 "align": "stretch",
                 "weight": 3,
             },
-            {"id": "board_card", "component": "Card", "child": "board"},
+            {"id": "board_card", "component": "Card", "child": {"@child": "board"}},
             *leaves,
         ]
 
@@ -411,42 +443,52 @@ def layout_components(layout: str = "default") -> list[dict[str, Any]]:
         {
             "id": "root",
             "component": "Column",
-            "children": [
-                "summary_caption",
-                "summary",
-                "selection_text",
-                "quick_add_card",
-                "board_caption",
-                "board",
-            ],
+            "children": {
+                "@child": [
+                    "summary_caption",
+                    "summary",
+                    "selection_text",
+                    "quick_add_card",
+                    "board_caption",
+                    "board",
+                ]
+            },
             "align": "stretch",
         },
         {
             "id": "summary",
             "component": "Row",
-            "children": ["todo_count", "wip_badge", "done_count"],
+            "children": {"@child": ["todo_count", "wip_badge", "done_count"]},
             "justify": "spaceBetween",
         },
         *leaves,
     ]
 
 
+def _extract_child_ids(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, dict):
+        inner = value.get("@child")
+        if isinstance(inner, str):
+            return [inner]
+        if isinstance(inner, list):
+            return [item for item in inner if isinstance(item, str)]
+    if isinstance(value, list):
+        return [item for item in value if isinstance(item, str)]
+    return []
+
+
 def _referenced_child_ids(components: list[dict[str, Any]]) -> set[str]:
     referenced: set[str] = set()
     for comp in components:
-        child = comp.get("child")
-        if isinstance(child, str):
-            referenced.add(child)
-        children = comp.get("children")
-        if isinstance(children, list):
-            for item in children:
-                if isinstance(item, str):
-                    referenced.add(item)
+        referenced.update(_extract_child_ids(comp.get("child")))
+        referenced.update(_extract_child_ids(comp.get("children")))
         tabs = comp.get("tabs")
         if isinstance(tabs, list):
             for tab in tabs:
-                if isinstance(tab, dict) and isinstance(tab.get("child"), str):
-                    referenced.add(tab["child"])
+                if isinstance(tab, dict):
+                    referenced.update(_extract_child_ids(tab.get("child")))
     return referenced
 
 
@@ -468,8 +510,14 @@ def prepare_custom_components(
     referenced = _referenced_child_ids(prepared)
     if "board" not in referenced:
         root = by_id["root"]
-        if isinstance(root.get("children"), list):
-            root["children"].append("board")
+        root_children = root.get("children")
+        if isinstance(root_children, dict) and isinstance(
+            root_children.get("@child"), list
+        ):
+            root_children["@child"].append("board")
+            referenced.add("board")
+        elif isinstance(root_children, list):
+            root["children"] = {"@child": [*root_children, "board"]}
             referenced.add("board")
         else:
             previous_root_copy = copy.deepcopy(root)
@@ -478,7 +526,7 @@ def prepare_custom_components(
             by_id["root"] = {
                 "id": "root",
                 "component": "Column",
-                "children": ["custom_header", "board"],
+                "children": {"@child": ["custom_header", "board"]},
                 "align": "stretch",
             }
             for idx, comp in enumerate(prepared):

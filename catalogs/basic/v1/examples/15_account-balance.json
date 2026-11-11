@@ -18,17 +18,23 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main_column"
+            "child": {
+              "@child": "main_column"
+            }
           },
           {
             "id": "main_column",
             "component": "Column",
-            "children": ["header", "balance", "updated", "divider", "actions"]
+            "children": {
+              "@child": ["header", "balance", "updated", "divider", "actions"]
+            }
           },
           {
             "id": "header",
             "component": "Row",
-            "children": ["account_icon", "account_name"],
+            "children": {
+              "@child": ["account_icon", "account_name"]
+            },
             "align": "center"
           },
           {
@@ -71,7 +77,9 @@
           {
             "id": "actions",
             "component": "Row",
-            "children": ["transfer_btn", "pay_btn"]
+            "children": {
+              "@child": ["transfer_btn", "pay_btn"]
+            }
           },
           {
             "id": "transfer_btn_text",
@@ -81,9 +89,11 @@
           {
             "id": "transfer_btn",
             "component": "Button",
-            "child": "transfer_btn_text",
+            "child": {
+              "@child": "transfer_btn_text"
+            },
             "action": {
-              "event": {
+              "@action": {
                 "name": "transfer",
                 "context": {}
               }
@@ -97,9 +107,11 @@
           {
             "id": "pay_btn",
             "component": "Button",
-            "child": "pay_btn_text",
+            "child": {
+              "@child": "pay_btn_text"
+            },
             "action": {
-              "event": {
+              "@action": {
                 "name": "pay_bill",
                 "context": {}
               }

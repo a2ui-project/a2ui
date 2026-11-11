@@ -531,9 +531,9 @@
             {
               "id": "btn1",
               "component": "Button",
-              "child": "txt1",
+              "child": {"@child": "txt1"},
               "action": {
-                "functionCall": {
+                "@functionCall": {
                   "@call": "openUrl",
                   "args": {
                     "url": "https://example.com"
@@ -561,9 +561,9 @@
             {
               "id": "btn1",
               "component": "Button",
-              "child": "txt1",
+              "child": {"@child": "txt1"},
               "action": {
-                "functionCall": {
+                "@functionCall": {
                   "@call": "openUrl",
                   "args": "https://example.com"
                 }
@@ -589,9 +589,9 @@
             {
               "id": "btn1",
               "component": "Button",
-              "child": "txt1",
+              "child": {"@child": "txt1"},
               "action": {
-                "functionCall": {
+                "@functionCall": {
                   "@call": "openUrl",
                   "args": {
                     "url": "https://example.com"
@@ -903,9 +903,9 @@
             {
               "id": "btn1",
               "component": "Button",
-              "child": "txt1",
+              "child": {"@child": "txt1"},
               "action": {
-                "functionCall": {
+                "@functionCall": {
                   "@call": "openUrl",
                   "args": {
                     "url": "not a uri"
@@ -1233,8 +1233,8 @@
               "id": "list1",
               "component": "List",
               "children": {
-                "componentId": "slider1",
-                "path": "/items"
+                "@child": "slider1",
+                "@path": "/items"
               }
             },
             {

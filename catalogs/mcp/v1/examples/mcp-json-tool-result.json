@@ -27,14 +27,16 @@
           {
             "id": "root",
             "component": "Column",
-            "children": [
-              "heading",
-              "repository_field",
-              "button_row",
-              "issue_list",
-              "all_issues_heading",
-              "all_issue_list"
-            ],
+            "children": {
+              "@child": [
+                "heading",
+                "repository_field",
+                "button_row",
+                "issue_list",
+                "all_issues_heading",
+                "all_issue_list"
+              ]
+            },
             "align": "stretch"
           },
           {
@@ -53,15 +55,19 @@
           {
             "id": "button_row",
             "component": "Row",
-            "children": ["load_button", "load_all_button"]
+            "children": {
+              "@child": ["load_button", "load_all_button"]
+            }
           },
           {
             "id": "load_button",
             "component": "Button",
-            "child": "load_button_label",
+            "child": {
+              "@child": "load_button_label"
+            },
             "variant": "primary",
             "action": {
-              "functionCall": {
+              "@functionCall": {
                 "@call": "updateDataModel",
                 "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
                 "args": {
@@ -96,9 +102,11 @@
           {
             "id": "load_all_button",
             "component": "Button",
-            "child": "load_all_button_label",
+            "child": {
+              "@child": "load_all_button_label"
+            },
             "action": {
-              "functionCall": {
+              "@functionCall": {
                 "@call": "callMcpTool",
                 "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
                 "args": {
@@ -122,14 +130,16 @@
             "id": "issue_list",
             "component": "Column",
             "children": {
-              "componentId": "issue_row",
-              "path": "/issues"
+              "@child": "issue_row",
+              "@path": "/issues"
             }
           },
           {
             "id": "issue_row",
             "component": "Row",
-            "children": ["issue_number", "issue_title"],
+            "children": {
+              "@child": ["issue_number", "issue_title"]
+            },
             "align": "center"
           },
           {
@@ -157,8 +167,8 @@
             "id": "all_issue_list",
             "component": "Column",
             "children": {
-              "componentId": "all_issue_title",
-              "path": "/issueResponse/structuredContent/issues"
+              "@child": "all_issue_title",
+              "@path": "/issueResponse/structuredContent/issues"
             }
           },
           {

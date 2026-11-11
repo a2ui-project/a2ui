@@ -403,5 +403,58 @@ void main() {
       );
       expect(model.get('a')!.type, 'Text');
     });
+
+    test(
+      'SurfaceModel without defaultCatalog still enables v1.0 @child '
+      'graph queries when protocolVersion or availableCatalogs is v1.0',
+      () {
+        final v1Catalog = Catalog<ComponentApi, FunctionImplementation>(
+          id: 'test:v1-available',
+          protocolVersion: A2uiProtocolVersion.v1_0,
+          components: [TestRowApi(), TestTextApi()],
+        );
+
+        // Both explicit protocolVersion: '1.0' and implicit inference from
+        // availableCatalogs must wire v1.0 @child rules into componentsModel.
+        for (final String? surfaceVersion in ['1.0', null]) {
+          final surface = SurfaceModel<ComponentApi>(
+            's_defaultless_${surfaceVersion ?? 'inferred'}',
+            protocolVersion: surfaceVersion,
+            availableCatalogs: [v1Catalog],
+          );
+          addTearDown(surface.dispose);
+
+          final SurfaceComponentsModel components = surface.componentsModel;
+          components.addComponent(
+            ComponentModel(
+                'root',
+                'Row',
+                {
+                  'children': {
+                    '@child': ['a'],
+                  },
+                },
+                catalog: 'test:v1-available'),
+          );
+          components.addComponent(
+            ComponentModel('a', 'Text', {'text': 'hi'},
+                catalog: 'test:v1-available'),
+          );
+
+          expect(components.getChildIds('root'), ['a']);
+          expect(components.detectCycles(), {'root', 'a'});
+          expect(components.validateTopology, returnsNormally);
+
+          components.addComponent(
+            ComponentModel('orphan', 'Text', {'text': 'orphan'},
+                catalog: 'test:v1-available'),
+          );
+          expect(
+            components.validateTopology,
+            throwsA(isA<A2uiIntegrityError>()),
+          );
+        }
+      },
+    );
   });
 }

@@ -22,6 +22,11 @@ import {readFileSync} from 'fs';
 import {basename} from 'path';
 
 import {AgentToRendererMessage, InMemoryCatalogProvider} from '../../src/index.js';
+import {
+  CatalogSchemaHelper,
+  commonDefName,
+  isActionSlot,
+} from '../../src/inference-formats/express/schema-helper.js';
 import {CatalogApi} from '../../src/internal/web-core.js';
 import {LoadedCase} from './loader.js';
 import {conformancePath} from './suite-helpers.js';
@@ -43,6 +48,14 @@ const MIXIN_KEYS_TO_V10: Record<string, string> = Object.fromEntries(
 
 const VERSION_FIELD_RE = /([\u201c"]version[\u201d"]\s*:\s*[\u201c"])(v?1\.0|v0\.9)([\u201d"])/g;
 const RESERVED_KEY_FIELD_RE = /"@(path|call)"(?=\s*:)/g;
+const CHILD_TEMPLATE_AT_FIRST_RE =
+  /\{\s*"@child"\s*:\s*("(?:[^"\\]|\\.)*")\s*,\s*"@path"\s*:\s*("(?:[^"\\]|\\.)*")\s*\}/g;
+const CHILD_TEMPLATE_PATH_FIRST_RE =
+  /\{\s*"@path"\s*:\s*("(?:[^"\\]|\\.)*")\s*,\s*"@child"\s*:\s*("(?:[^"\\]|\\.)*")\s*\}/g;
+const CHILD_DIRECTIVE_VALUE_RE =
+  /\{\s*"@child"\s*:\s*("(?:[^"\\]|\\.)*"|\[(?:[^[\]]|"(?:[^"\\]|\\.)*")*\])\s*\}/g;
+const ACTION_KEY_RE = /"@action"(?=\s*:)/g;
+const FUNCTION_CALL_KEY_RE = /"@functionCall"(?=\s*:)/g;
 const CREATE_SURFACE_OPEN_RE = /"createSurface"\s*:\s*\{/g;
 
 const ONE_CATALOG_PER_SURFACE =
@@ -53,6 +66,8 @@ const NO_USER_MESSAGE =
   'The v0.9 Action has no userMessage field, so an event carrying one runs as written in v1.0 only.';
 const NO_SYSTEM_FUNCTIONS =
   'v0.9 defines no system functions, so a call to @index runs as written in v1.0 only.';
+const PARTIAL_CHILD_CHUNK =
+  'Splits a v1.0 {"@child": ...} directive across streaming chunks, which per-chunk v0.9 lowering cannot rewrite.';
 
 export const V1_ONLY_CASES: Readonly<Record<string, string>> = {
   // Express cases
@@ -135,6 +150,9 @@ export const V1_ONLY_CASES: Readonly<Record<string, string>> = {
     'Protocol v0.9 function schema does not support allowedCallers.',
   test_decompile_json_call_renderer_function: 'Protocol v0.9 has no callRendererFunction message.',
   test_decompile_json_catalog_qualified_components: ONE_CATALOG_PER_SURFACE,
+  test_chunk_partial_child_reference_withholds: PARTIAL_CHILD_CHUNK,
+  test_chunk_partial_children_list_withholds: PARTIAL_CHILD_CHUNK,
+  test_chunk_partial_child_list_template_withholds: PARTIAL_CHILD_CHUNK,
 };
 
 /** Swaps between v1.0 and v0.9 version strings. */
@@ -327,6 +345,11 @@ export function injectedCatalogId(
 /** Lowers a raw JSON payload string from v1.0 to v0.9. */
 export function lowerText(text: string, catalogId?: string): string {
   let lowered = text
+    .replace(CHILD_TEMPLATE_AT_FIRST_RE, '{"componentId": $1, "path": $2}')
+    .replace(CHILD_TEMPLATE_PATH_FIRST_RE, '{"componentId": $2, "path": $1}')
+    .replace(CHILD_DIRECTIVE_VALUE_RE, '$1')
+    .replace(ACTION_KEY_RE, '"event"')
+    .replace(FUNCTION_CALL_KEY_RE, '"functionCall"')
     .replace(VERSION_FIELD_RE, (_m, p1, p2, p3) => `${p1}${String(swapVersion(p2))}${p3}`)
     .replace(RESERVED_KEY_FIELD_RE, '"$1"');
   if (catalogId !== undefined) {
@@ -338,12 +361,54 @@ export function lowerText(text: string, catalogId?: string): string {
   return lowered;
 }
 
-function renameKeysIn(node: unknown, lower: boolean): unknown {
+function renameKeysIn(node: unknown, lower: boolean, liftLegacyDirectives = true): unknown {
   if (Array.isArray(node)) {
-    return node.map(item => renameKeysIn(item, lower));
+    return node.map(item => renameKeysIn(item, lower, liftLegacyDirectives));
   }
   if (node !== null && typeof node === 'object') {
     const map = node as Record<string, unknown>;
+    const keys = Object.keys(map);
+    if (lower) {
+      if (keys.length === 1 && keys[0] === '@child') {
+        const inner = map['@child'];
+        if (typeof inner === 'string') {
+          return inner;
+        }
+        if (Array.isArray(inner)) {
+          return inner.map(item => renameKeysIn(item, lower, liftLegacyDirectives));
+        }
+      }
+      if (
+        keys.length === 2 &&
+        Object.hasOwn(map, '@child') &&
+        Object.hasOwn(map, '@path') &&
+        typeof map['@child'] === 'string'
+      ) {
+        return {componentId: map['@child'], path: map['@path']};
+      }
+      if (keys.length === 1 && keys[0] === '@action') {
+        return {event: renameKeysIn(map['@action'], lower, liftLegacyDirectives)};
+      }
+      if (keys.length === 1 && keys[0] === '@functionCall') {
+        return {functionCall: renameKeysIn(map['@functionCall'], lower, liftLegacyDirectives)};
+      }
+    } else if (liftLegacyDirectives) {
+      if (
+        keys.length === 2 &&
+        Object.hasOwn(map, 'componentId') &&
+        Object.hasOwn(map, 'path') &&
+        typeof map['componentId'] === 'string' &&
+        typeof map['path'] === 'string'
+      ) {
+        return {'@child': map['componentId'], '@path': map['path']};
+      }
+      if (keys.length === 1 && keys[0] === 'event') {
+        return {'@action': renameKeysIn(map['event'], lower, liftLegacyDirectives)};
+      }
+      if (keys.length === 1 && keys[0] === 'functionCall') {
+        return {'@functionCall': renameKeysIn(map['functionCall'], lower, liftLegacyDirectives)};
+      }
+    }
     const isTemplate = 'componentId' in map;
     let keyMap = lower ? RESERVED_KEYS_TO_V09 : RESERVED_KEYS_TO_V10;
     if ('id' in map && 'component' in map) {
@@ -352,11 +417,139 @@ function renameKeysIn(node: unknown, lower: boolean): unknown {
     const result: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(map)) {
       const nextKey = isTemplate ? k : (keyMap[k] ?? k);
-      result[nextKey] = renameKeysIn(v, lower);
+      result[nextKey] = renameKeysIn(v, lower, liftLegacyDirectives);
     }
     return result;
   }
   return node;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function childDirectiveKind(schema: unknown): 'Child' | 'ChildList' | undefined {
+  if (!schema || typeof schema !== 'object') {
+    return undefined;
+  }
+  const obj = schema as Record<string, unknown>;
+  const def = commonDefName(obj.$ref);
+  if (def === 'Child') {
+    return 'Child';
+  }
+  if (def === 'ChildList') {
+    return 'ChildList';
+  }
+  for (const k of ['oneOf', 'anyOf', 'allOf'] as const) {
+    const list = obj[k];
+    if (Array.isArray(list)) {
+      for (const sub of list) {
+        const nested = childDirectiveKind(sub);
+        if (nested) {
+          return nested;
+        }
+      }
+    }
+  }
+  return undefined;
+}
+
+/** Builds `CatalogSchemaHelper` instances configured for v1.0 schema resolution. */
+export function toV10SchemaHelpers(catalogs: readonly CatalogApi[]): CatalogSchemaHelper[] {
+  return catalogs.map(catalog => new CatalogSchemaHelper(catalog, '1.0'));
+}
+
+function liftPropertyValue(value: unknown, schema: unknown, helper: CatalogSchemaHelper): unknown {
+  const kind = childDirectiveKind(schema);
+  if (kind === 'Child' && typeof value === 'string') {
+    return {'@child': value};
+  }
+  if (kind === 'ChildList') {
+    if (Array.isArray(value)) {
+      return {'@child': value};
+    }
+    if (
+      isPlainObject(value) &&
+      Object.keys(value).length === 2 &&
+      Object.hasOwn(value, 'componentId') &&
+      Object.hasOwn(value, 'path') &&
+      typeof value['componentId'] === 'string' &&
+      typeof value['path'] === 'string'
+    ) {
+      return {'@child': value['componentId'], '@path': value['path']};
+    }
+  }
+  if (isActionSlot(schema) && isPlainObject(value)) {
+    const keys = Object.keys(value);
+    if (keys.length === 1 && keys[0] === 'event') {
+      return {'@action': renameKeysIn(value['event'], false, false)};
+    }
+    if (keys.length === 1 && keys[0] === 'functionCall') {
+      return {'@functionCall': renameKeysIn(value['functionCall'], false, false)};
+    }
+  }
+  if (Array.isArray(value)) {
+    const itemSchema = helper.resolveItemSchema(schema);
+    if (itemSchema) {
+      return value.map(item => liftPropertyValue(item, itemSchema, helper));
+    }
+    return value.map(item => renameKeysIn(item, false, false));
+  }
+  if (isPlainObject(value)) {
+    const result: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value)) {
+      const nextKey = RESERVED_KEYS_TO_V10[k] ?? k;
+      const subSchema = helper.resolvePropertySchema(schema, nextKey);
+      result[nextKey] = subSchema
+        ? liftPropertyValue(v, subSchema, helper)
+        : renameKeysIn(v, false, false);
+    }
+    return result;
+  }
+  return renameKeysIn(value, false, false);
+}
+
+/**
+ * Lifts a v0.9 component's property map to v1.0 wire shape using the un-lowered
+ * v1.0 catalog schemas when available.
+ */
+export function liftComponentProperties(
+  componentType: string,
+  props: Readonly<Record<string, unknown>>,
+  v10Helpers: readonly CatalogSchemaHelper[],
+): Record<string, unknown> {
+  const helper = v10Helpers.find(h => h.components.has(componentType));
+  const result: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(props)) {
+    if (Object.hasOwn(MIXIN_KEYS_TO_V10, k)) {
+      result[MIXIN_KEYS_TO_V10[k]] = renameKeysIn(v, false, false);
+      continue;
+    }
+    if (!helper) {
+      result[k] = renameKeysIn(v, false, true);
+      continue;
+    }
+    const propSchema = helper.getPropertySchema(componentType, k);
+    result[k] = propSchema
+      ? liftPropertyValue(v, propSchema, helper)
+      : renameKeysIn(v, false, false);
+  }
+  return result;
+}
+
+function liftComponent(comp: unknown, v10Helpers: readonly CatalogSchemaHelper[]): unknown {
+  if (!isPlainObject(comp) || typeof comp['component'] !== 'string') {
+    return renameKeysIn(comp, false, v10Helpers.length === 0);
+  }
+  const {id, component, ...rest} = comp;
+  const liftedProps = liftComponentProperties(component, rest, v10Helpers);
+  const result: Record<string, unknown> = {};
+  if (id !== undefined) {
+    result['id'] = id;
+  }
+  result['component'] = component;
+  Object.assign(result, liftedProps);
+  return result;
 }
 
 /** Lifts v0.9 reserved keys (`path`, `call`) inside a component property object to v1.0. */
@@ -376,14 +569,20 @@ export function lowerCapabilities<T>(capabilities: Record<string, T>): Record<st
 function renameReservedKeys(
   message: Record<string, unknown>,
   lower: boolean,
+  v10Helpers: readonly CatalogSchemaHelper[] = [],
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(message)) {
     if (v !== null && typeof v === 'object' && !Array.isArray(v)) {
       const body: Record<string, unknown> = {};
       for (const [fieldK, fieldV] of Object.entries(v as Record<string, unknown>)) {
-        if (fieldK === 'components' || fieldK === 'callFunction') {
-          body[fieldK] = renameKeysIn(fieldV, lower);
+        if (fieldK === 'components') {
+          body[fieldK] =
+            !lower && Array.isArray(fieldV)
+              ? fieldV.map(comp => liftComponent(comp, v10Helpers))
+              : renameKeysIn(fieldV, lower);
+        } else if (fieldK === 'callFunction') {
+          body[fieldK] = renameKeysIn(fieldV, lower, v10Helpers.length === 0);
         } else {
           body[fieldK] = structuredClone(fieldV);
         }
@@ -439,12 +638,13 @@ export function lowerMessages(
 /** Lifts v0.9 message objects back to the v1.0 conformance shape. */
 export function liftMessages(
   messages: readonly unknown[],
-  options: {join?: boolean; injectedCatalogId?: string} = {},
+  options: {join?: boolean; injectedCatalogId?: string; catalogs?: readonly CatalogApi[]} = {},
 ): Record<string, unknown>[] {
-  const {join = false, injectedCatalogId: injId} = options;
+  const {join = false, injectedCatalogId: injId, catalogs} = options;
+  const v10Helpers = catalogs ? toV10SchemaHelpers(catalogs) : [];
   const lifted: Record<string, unknown>[] = [];
   for (const rawMsg of messages) {
-    const msg = renameReservedKeys(rawMsg as Record<string, unknown>, false);
+    const msg = renameReservedKeys(rawMsg as Record<string, unknown>, false, v10Helpers);
     const last = lifted[lifted.length - 1];
     const lastCreate =
       last && typeof last['createSurface'] === 'object' && last['createSurface'] !== null
@@ -504,7 +704,7 @@ export function liftMessages(
 /** Lifts parsed response parts from v0.9 to v1.0. */
 export function liftParts<T>(
   parts: readonly T[],
-  options: {join?: boolean; injectedCatalogId?: string} = {},
+  options: {join?: boolean; injectedCatalogId?: string; catalogs?: readonly CatalogApi[]} = {},
 ): T[] {
   return parts.map(part => {
     if (part !== null && typeof part === 'object' && 'a2ui' in (part as Record<string, unknown>)) {

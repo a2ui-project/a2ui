@@ -358,8 +358,8 @@ def test_worker_round_trip_applies_pruning() -> None:
                     {
                         "id": "root",
                         "component": "Button",
-                        "child": "label",
-                        "action": {"event": {"name": "tap"}},
+                        "child": {"@child": "label"},
+                        "action": {"@action": {"name": "tap"}},
                     },
                     {"id": "label", "component": "Text", "text": "Go"},
                 ],

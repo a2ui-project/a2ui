@@ -116,16 +116,31 @@ No component updates needed—just data updates.
 
 Use templates to render arrays:
 
-```json
-{
-  "id": "product-list",
-  "component": "Column",
-  "children": {
-    "path": "/products",
-    "componentId": "product-card"
-  }
-}
-```
+=== "v1.0"
+
+    ```json
+    {
+      "id": "product-list",
+      "component": "Column",
+      "children": {
+        "@child": "product-card",
+        "@path": "/products"
+      }
+    }
+    ```
+
+=== "v0.9.1"
+
+    ```json
+    {
+      "id": "product-list",
+      "component": "Column",
+      "children": {
+        "path": "/products",
+        "componentId": "product-card"
+      }
+    }
+    ```
 
 **Data:**
 

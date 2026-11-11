@@ -1042,6 +1042,42 @@ export class ExpressDecompiler {
   }
 
   /**
+   * Formats an Action event payload (`@action` or legacy `event`) as `Event(...)`.
+   */
+  private formatEventAction(
+    evt: Record<string, unknown>,
+    varNames: ReadonlyMap<string, string>,
+    helper: CatalogSchemaHelper,
+    surfaceCatalogId: string | undefined,
+  ): string {
+    const name = typeof evt.name === 'string' ? evt.name : '';
+    const eventArgs = [decompileString(name)];
+    // An empty context is written out so that it compiles back.
+    if (evt.context !== undefined && evt.context !== null) {
+      const ctx = optionalObjectField(evt.context, `Event '${name}'`, 'context');
+      const ctxReprs: string[] = [];
+      for (const [k, v] of Object.entries(ctx)) {
+        const kRepr = isExpressIdentifier(k) ? k : decompileString(k);
+        ctxReprs.push(
+          `${kRepr}: ${this.decompileValue(v, varNames, false, helper, surfaceCatalogId)}`,
+        );
+      }
+      eventArgs.push(`{${ctxReprs.join(', ')}}`);
+    }
+    if (evt.userMessage !== undefined && evt.userMessage !== null) {
+      const userMessage = this.decompileValue(
+        evt.userMessage,
+        varNames,
+        false,
+        helper,
+        surfaceCatalogId,
+      );
+      eventArgs.push(`userMessage=${userMessage}`);
+    }
+    return `Event(${eventArgs.join(', ')})`;
+  }
+
+  /**
    * Decompiles a single value node back to A2UI Express notation.
    *
    * @param val The JSON-serialized property value structure.
@@ -1076,12 +1112,14 @@ export class ExpressDecompiler {
 
     if (typeof val === 'string') {
       if (isRef) {
+        // Also serves as legacy bare Child ID fallback on v1.0; see TODO(#4168).
         return decompileReference(val, varNames);
       }
       return decompileString(val);
     }
 
     if (Array.isArray(val)) {
+      // Also serves as legacy bare ChildList array fallback on v1.0; see TODO(#4168).
       const listReprs = val.map(item =>
         this.decompileValue(item, varNames, isRef, helper, surfaceCatalogId),
       );
@@ -1090,9 +1128,38 @@ export class ExpressDecompiler {
 
     if (typeof val === 'object') {
       const obj = val as Record<string, unknown>;
+      const objKeys = Object.keys(obj);
 
-      // A template keeps the plain `path` key in every version; a data binding uses the
-      // version's reserved key.
+      if (this.isV1 && Object.hasOwn(obj, '@child')) {
+        if (
+          objKeys.length === 2 &&
+          Object.hasOwn(obj, '@path') &&
+          typeof obj['@path'] === 'string' &&
+          typeof obj['@child'] === 'string'
+        ) {
+          const pathRepr = this.decompileValue(
+            {[helper.keys.path]: obj['@path']},
+            varNames,
+            false,
+            helper,
+            surfaceCatalogId,
+          );
+          const compIdRepr = decompileReference(obj['@child'], varNames);
+          return `_template(${pathRepr}, ${compIdRepr})`;
+        }
+        if (objKeys.length === 1 && Array.isArray(obj['@child'])) {
+          const listReprs = obj['@child'].map(item =>
+            this.decompileValue(item, varNames, true, helper, surfaceCatalogId),
+          );
+          return `[${listReprs.join(', ')}]`;
+        }
+        if (objKeys.length === 1 && typeof obj['@child'] === 'string') {
+          return decompileReference(obj['@child'], varNames);
+        }
+      }
+
+      // Legacy pre-1.0 / v1.0 template format: {componentId, path}.
+      // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
       if (
         typeof obj.path === 'string' &&
         'componentId' in obj &&
@@ -1112,7 +1179,7 @@ export class ExpressDecompiler {
       // A data binding is an object whose only key is the version's binding key, so a plain
       // `path` key in v1.0, or a binding key beside other keys, is data.
       const boundPath = obj[helper.keys.path];
-      if (typeof boundPath === 'string' && Object.keys(obj).length === 1) {
+      if (typeof boundPath === 'string' && objKeys.length === 1) {
         const pathStr = boundPath;
         if (pathStr.startsWith('/')) {
           return `$/${pathStr.slice(1)}`;
@@ -1120,43 +1187,65 @@ export class ExpressDecompiler {
         return `$${pathStr}`;
       }
 
+      if (
+        this.isV1 &&
+        objKeys.length === 1 &&
+        Object.hasOwn(obj, '@action') &&
+        obj['@action'] &&
+        typeof obj['@action'] === 'object' &&
+        !Array.isArray(obj['@action'])
+      ) {
+        return this.formatEventAction(
+          obj['@action'] as Record<string, unknown>,
+          varNames,
+          helper,
+          surfaceCatalogId,
+        );
+      }
+
       // Before v1.0 an event has no userMessage, and the compiler rejects `userMessage=`,
       // so such an object is written as a map literal that compiles back as written.
+      // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
       if (
         'event' in obj &&
         obj.event &&
         typeof obj.event === 'object' &&
-        (this.isV1 || (obj.event as Record<string, unknown>).userMessage === undefined)
+        !Array.isArray(obj.event) &&
+        (!this.isV1
+          ? (obj.event as Record<string, unknown>).userMessage === undefined
+          : objKeys.length === 1)
       ) {
-        const evt = obj.event as Record<string, unknown>;
-        const name = typeof evt.name === 'string' ? evt.name : '';
-        const eventArgs = [decompileString(name)];
-        // An empty context is written out so that it compiles back.
-        if (evt.context !== undefined && evt.context !== null) {
-          const ctx = optionalObjectField(evt.context, `Event '${name}'`, 'context');
-          const ctxReprs: string[] = [];
-          for (const [k, v] of Object.entries(ctx)) {
-            const kRepr = isExpressIdentifier(k) ? k : decompileString(k);
-            ctxReprs.push(
-              `${kRepr}: ${this.decompileValue(v, varNames, false, helper, surfaceCatalogId)}`,
-            );
-          }
-          eventArgs.push(`{${ctxReprs.join(', ')}}`);
-        }
-        if (evt.userMessage !== undefined && evt.userMessage !== null) {
-          const userMessage = this.decompileValue(
-            evt.userMessage,
-            varNames,
-            false,
-            helper,
-            surfaceCatalogId,
-          );
-          eventArgs.push(`userMessage=${userMessage}`);
-        }
-        return `Event(${eventArgs.join(', ')})`;
+        return this.formatEventAction(
+          obj.event as Record<string, unknown>,
+          varNames,
+          helper,
+          surfaceCatalogId,
+        );
       }
 
-      if ('functionCall' in obj && obj.functionCall && typeof obj.functionCall === 'object') {
+      if (
+        this.isV1 &&
+        objKeys.length === 1 &&
+        Object.hasOwn(obj, '@functionCall') &&
+        obj['@functionCall'] &&
+        typeof obj['@functionCall'] === 'object' &&
+        !Array.isArray(obj['@functionCall'])
+      ) {
+        return this.formatFunctionCall(
+          obj['@functionCall'] as Record<string, unknown>,
+          varNames,
+          surfaceCatalogId,
+        );
+      }
+
+      // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+      if (
+        'functionCall' in obj &&
+        obj.functionCall &&
+        typeof obj.functionCall === 'object' &&
+        !Array.isArray(obj.functionCall) &&
+        (!this.isV1 || objKeys.length === 1)
+      ) {
         return this.formatFunctionCall(
           obj.functionCall as Record<string, unknown>,
           varNames,

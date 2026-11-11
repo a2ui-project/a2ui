@@ -247,5 +247,45 @@ void main() {
       expect(scalarChecks.isCheckable, isFalse);
       expect(scalarChecks.properties.keys, equals(['checks']));
     });
+
+    test('maps v1.0 Child, ChildList, Action, and arrays of Child cleanly', () {
+      final json = <String, Object?>{
+        'catalogId': 'v1_types_catalog',
+        'protocolVersion': '1.0',
+        'components': {
+          'Container': {
+            'properties': {
+              'component': {'const': 'Container'},
+              'child': {r'$ref': r'common_types.json#/$defs/Child'},
+              'children': {r'$ref': r'common_types.json#/$defs/ChildList'},
+              'action': {r'$ref': r'common_types.json#/$defs/Action'},
+              'items': {
+                'type': 'array',
+                'items': {r'$ref': r'common_types.json#/$defs/Child'},
+              },
+              'targetId': {r'$ref': r'common_types.json#/$defs/ComponentId'},
+            },
+            'required': ['component', 'child'],
+          },
+        },
+      };
+
+      final catalog = CodegenCatalog.fromJson(json);
+      final AnalysedCatalog analysed = CatalogAnalyzer.analyzeCodegen(catalog);
+      final AnalysedComponentApi container = analysed.components['Container']!;
+      expect(container.properties['child']!.type, isA<ComponentRefType>());
+      expect(container.properties['children']!.type, isA<ComponentListType>());
+      expect(container.properties['action']!.type, isA<ActionType>());
+      final TypeDescriptor itemsType = container.properties['items']!.type;
+      expect(itemsType, isA<ListType>());
+      expect((itemsType as ListType).elementType, isA<ComponentRefType>());
+      final TypeDescriptor targetIdType =
+          container.properties['targetId']!.type;
+      expect(targetIdType, isA<PrimitiveType>());
+      expect(
+        (targetIdType as PrimitiveType).primitive,
+        equals(PrimitiveKind.string),
+      );
+    });
   });
 }

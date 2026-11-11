@@ -321,7 +321,7 @@
         components:
           - id: "root"
             component: "Container"
-            children: ["item1"]
+            children: {"@child": ["item1"]}
           - id: "item1"
             component: "RestrictedItem"
   expectError:
@@ -414,7 +414,7 @@
         components:
           - id: "root"
             component: "StrictList"
-            children: ["item1"]
+            children: {"@child": ["item1"]}
           - id: "item1"
             component: "OtherItem"
   expectError:
@@ -452,10 +452,10 @@
         components:
           - id: "root"
             component: "Column"
-            children: ["child1"]
+            children: {"@child": ["child1"]}
           - id: "child1"
             component: "Column"
-            children: ["root"]
+            children: {"@child": ["root"]}
   expectError:
     category: "RecursionError"
     surfaceId: "main"
@@ -484,7 +484,7 @@
         components:
           - id: "root"
             component: "Column"
-            children: ["missing_child"]
+            children: {"@child": ["missing_child"]}
   expectError:
     category: "IntegrityError"
     surfaceId: "main"
@@ -549,7 +549,7 @@
                 text: "Buffered child"
               - id: "root"
                 component: "Column"
-                children: ["orphan1", "dangling_child"]
+                children: {"@child": ["orphan1", "dangling_child"]}
     - payload:
         - version: "1.0"
           updateComponents:

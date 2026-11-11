@@ -25,14 +25,18 @@
         {
           "component": "Row",
           "id": "badge_1__row_1",
-          "children": ["badge_1__text_1", "badge_1__text_2"],
+          "children": {
+            "@child": ["badge_1__text_1", "badge_1__text_2"]
+          },
           "justify": "start",
           "align": "stretch"
         },
         {
           "component": "Card",
           "id": "badge_1",
-          "child": "badge_1__row_1"
+          "child": {
+            "@child": "badge_1__row_1"
+          }
         }
       ]
     }

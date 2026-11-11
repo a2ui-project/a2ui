@@ -30,7 +30,7 @@ A2UI uses an **adjacency list model** for component hierarchies. Instead of nest
           {
             "id": "root",
             "component": "Column",
-            "children": ["greeting", "buttons"]
+            "children": {"@child": ["greeting", "buttons"]}
           },
           {
             "id": "greeting",
@@ -40,13 +40,13 @@ A2UI uses an **adjacency list model** for component hierarchies. Instead of nest
           {
             "id": "buttons",
             "component": "Row",
-            "children": ["cancel-btn", "ok-btn"]
+            "children": {"@child": ["cancel-btn", "ok-btn"]}
           },
           {
             "id": "cancel-btn",
             "component": "Button",
-            "child": "cancel-text",
-            "action": { "event": { "name": "cancel" } }
+            "child": {"@child": "cancel-text"},
+            "action": { "@action": { "name": "cancel" } }
           },
           {
             "id": "cancel-text",
@@ -56,8 +56,8 @@ A2UI uses an **adjacency list model** for component hierarchies. Instead of nest
           {
             "id": "ok-btn",
             "component": "Button",
-            "child": "ok-text",
-            "action": { "event": { "name": "ok" } }
+            "child": {"@child": "ok-text"},
+            "action": { "@action": { "name": "ok" } }
           },
           {
             "id": "ok-text",
@@ -148,24 +148,47 @@ For the complete component gallery with examples, see [Component Reference](../r
 
 ## Static vs. Dynamic Children
 
-**Static** - Fixed list of child IDs:
+=== "v1.0"
 
-```json
-{
-  "children": ["back-btn", "title", "menu-btn"]
-}
-```
+    **Static** - Fixed list of child IDs wrapped in `@child`:
 
-**Dynamic** - Generate children from data array:
+    ```json
+    {
+      "children": {"@child": ["back-btn", "title", "menu-btn"]}
+    }
+    ```
 
-```json
-{
-  "children": {
-    "path": "/items",
-    "componentId": "item-template"
-  }
-}
-```
+    **Dynamic** - Generate children from a data array:
+
+    ```json
+    {
+      "children": {
+        "@child": "item-template",
+        "@path": "/items"
+      }
+    }
+    ```
+
+=== "v0.9.1"
+
+    **Static** - Fixed list of child IDs:
+
+    ```json
+    {
+      "children": ["back-btn", "title", "menu-btn"]
+    }
+    ```
+
+    **Dynamic** - Generate children from data array:
+
+    ```json
+    {
+      "children": {
+        "path": "/items",
+        "componentId": "item-template"
+      }
+    }
+    ```
 
 For each item in `/items`, render the `item-template`. See [Data Binding](data-binding.md) for details.
 

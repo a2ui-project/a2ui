@@ -21,4 +21,4 @@ components:
     event: picked
     options: [{label: Red, event: red}, Blue]
     action:
-      event: {name: submit}
+      "@action": {name: submit}

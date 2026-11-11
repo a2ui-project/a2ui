@@ -138,23 +138,32 @@ export const ComponentCommonSchema = z
   .describe('REF:#/$defs/ComponentCommon');
 export type ComponentCommon = z.infer<typeof ComponentCommonSchema>;
 
-export const ChildSchema = ComponentIdSchema;
+export const ChildSchema = markChildRef(
+  z
+    .object({'@child': ComponentIdSchema})
+    .strict()
+    .describe('REF:#/$defs/Child|A reference to a single child component.'),
+  'component-id',
+);
 export type Child = z.infer<typeof ChildSchema>;
 
 export const ChildListSchema = markChildRef(
   z
     .union([
-      z.array(ComponentIdSchema).describe('A static list of child component IDs.'),
+      z
+        .object({'@child': z.array(ComponentIdSchema)})
+        .strict()
+        .describe('A static list of child component IDs.'),
       z
         .object({
-          'componentId': ComponentIdSchema,
-          'path': z
+          '@child': ComponentIdSchema,
+          '@path': z
             .string()
             .describe('The path to the list of component property objects in the data model.'),
         })
         .strict()
         .describe(
-          'A template for generating a dynamic list of children from a data model list. The `componentId` is the component to use as a template.',
+          'A template for generating a dynamic list of children from a data model list. The `@child` is the component ID to use as a template.',
         ),
     ])
     .describe('REF:#/$defs/ChildList'),
@@ -172,7 +181,15 @@ export const DynamicValueSchema = z
       .record(z.string(), z.unknown())
       .refine(
         obj =>
-          !obj || (!('@path' in obj) && !('path' in obj) && !('@call' in obj) && !('call' in obj)),
+          !obj ||
+          (!('@path' in obj) &&
+            !('path' in obj) &&
+            !('@call' in obj) &&
+            !('call' in obj) &&
+            !('@child' in obj) &&
+            !('@action' in obj) &&
+            !('@functionCall' in obj) &&
+            !Object.keys(obj).some(k => /^@([^@]|$)/.test(k))),
       ),
     DataBindingSchema,
     FunctionCallSchema,
@@ -237,7 +254,7 @@ export const ActionSchema = z
   .union([
     z
       .object({
-        'event': z
+        '@action': z
           .object({
             'name': z.string().describe('The name of the action to be dispatched to the agent.'),
             'userMessage': DynamicStringSchema.optional(),
@@ -254,7 +271,7 @@ export const ActionSchema = z
       .strict()
       .describe('Triggers an agent-side event.'),
     z
-      .object({'functionCall': FunctionCallSchema})
+      .object({'@functionCall': FunctionCallSchema})
       .strict()
       .describe('Executes a renderer or agent-side function.'),
   ])

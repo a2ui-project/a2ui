@@ -202,8 +202,8 @@
                 component: "List"
                 catalogId: "basic"
                 children:
-                  path: "/items"
-                  componentId: "row"
+                  "@child": "row"
+                  "@path": "/items"
               - id: "row"
                 component: "Text"
                 catalogId: "basic"

@@ -13,7 +13,7 @@
             {
               "id": "root",
               "component": "Column",
-              "children": ["welcome_text"]
+              "children": {"@child": ["welcome_text"]}
             },
             {
               "id": "welcome_text",

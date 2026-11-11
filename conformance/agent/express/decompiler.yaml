@@ -74,7 +74,8 @@
         components:
           - id: "root"
             component: "Card"
-            child: "body"
+            child:
+              "@child": "body"
           - id: "body"
             component: "Text"
             text: "Hello"
@@ -99,7 +100,8 @@
         components:
           - id: "root"
             component: "Column"
-            children: ["größe", "名前"]
+            children:
+              "@child": ["größe", "名前"]
           - id: "größe"
             component: "Text"
             text: "Size"
@@ -149,7 +151,8 @@
         components:
           - id: "root"
             component: "Card"
-            child: "title-heading"
+            child:
+              "@child": "title-heading"
           - id: "title-heading"
             component: "Text"
             text: "Hello"
@@ -172,8 +175,8 @@
           - id: "root"
             component: "Column"
             children:
-              componentId: "itemRow"
-              path: "/items"
+              "@child": "itemRow"
+              "@path": "/items"
           - id: "itemRow"
             component: "Text"
             text:
@@ -200,8 +203,8 @@
             component: "Column"
             "@catalogId": "conformance/simplified"
             children:
-              componentId: "itemRow"
-              path: "/items"
+              "@child": "itemRow"
+              "@path": "/items"
           - id: "itemRow"
             component: "Text"
             "@catalogId": "conformance/simplified"
@@ -230,8 +233,8 @@
           - id: "root"
             component: "Column"
             children:
-              componentId: "itemRow"
-              path: "/items"
+              "@child": "itemRow"
+              "@path": "/items"
           - id: "itemRow"
             component: "Text"
             text:
@@ -256,8 +259,8 @@
           - id: "root"
             component: "Column"
             children:
-              componentId: "itemRow"
-              path: "/items"
+              "@child": "itemRow"
+              "@path": "/items"
           - id: "itemRow"
             component: "Text"
             text:
@@ -396,9 +399,10 @@
         components:
           - id: "root"
             component: "Button"
-            child: "label"
+            child:
+              "@child": "label"
             action:
-              functionCall:
+              "@functionCall":
                 "@call": "openUrl"
                 args:
                   url: "https://example.com"
@@ -442,9 +446,10 @@
         components:
           - id: "root"
             component: "Button"
-            child: "label"
+            child:
+              "@child": "label"
             action:
-              event:
+              "@action":
                 name: "submit"
                 context:
                   item-id: "42"
@@ -629,8 +634,8 @@
           - id: "root"
             component: "Column"
             children:
-              path: "/items"
-              componentId: "itemTmpl"
+              "@path": "/items"
+              "@child": "itemTmpl"
           - id: "itemTmpl"
             component: "Text"
             text:
@@ -655,8 +660,8 @@
           - id: "root"
             component: "Column"
             children:
-              path: "items"
-              componentId: "itemTmpl"
+              "@path": "items"
+              "@child": "itemTmpl"
           - id: "itemTmpl"
             component: "Text"
             text:
@@ -680,9 +685,10 @@
         components:
           - id: "root"
             component: "Button"
-            child: "bText"
+            child:
+              "@child": "bText"
             action:
-              event:
+              "@action":
                 name: "click"
           - id: "bText"
             component: "Text"
@@ -705,9 +711,10 @@
         components:
           - id: "root"
             component: "Button"
-            child: "bText"
+            child:
+              "@child": "bText"
             action:
-              event:
+              "@action":
                 name: "save"
                 context:
                   userId: "u123"
@@ -734,12 +741,14 @@
         components:
           - id: "root"
             component: "Column"
-            children: ["plain", "withContext"]
+            children:
+              "@child": ["plain", "withContext"]
           - id: "plain"
             component: "Button"
-            child: "plainText"
+            child:
+              "@child": "plainText"
             action:
-              event:
+              "@action":
                 name: "reply"
                 userMessage: "Replying now"
           - id: "plainText"
@@ -747,9 +756,10 @@
             text: "Reply"
           - id: "withContext"
             component: "Button"
-            child: "withContextText"
+            child:
+              "@child": "withContextText"
             action:
-              event:
+              "@action":
                 name: "reply"
                 userMessage:
                   "@path": "/draft/message"
@@ -777,9 +787,10 @@
         components:
           - id: "root"
             component: "Button"
-            child: "bText"
+            child:
+              "@child": "bText"
             action:
-              event:
+              "@action":
                 name: "reply"
                 userMessage:
                   "@call": "formatString"
@@ -809,13 +820,13 @@
             items:
               - label: "Docs"
                 action:
-                  functionCall:
+                  "@functionCall":
                     "@call": "openUrl"
                     args:
                       url: "https://a2ui.org"
               - label: "Go"
                 action:
-                  event:
+                  "@action":
                     name: "go"
   expect_contains:
     - 'root = Links([{label: "Docs", action: openUrl("https://a2ui.org")}, {label: "Go", action: Event("go")}])'
@@ -835,9 +846,10 @@
         components:
           - id: "root"
             component: "Button"
-            child: "bText"
+            child:
+              "@child": "bText"
             action:
-              event:
+              "@action":
                 name: "checkout"
                 context:
                   cart:
@@ -1347,3 +1359,168 @@
     - 'catalogId="conformance/cat_b"'
     - 'extensions={source: "agent"}'
   expect_round_trip: true
+
+# --- v1.0 child, children, and action directive transition ---
+#
+# Canonical v1.0 components use `{"@child": ...}`, `{"@child": ..., "@path": ...}`,
+# `{"@action": ...}`, and `{"@functionCall": ...}`. During the v1.0 transition a
+# decompiler also accepts legacy bare `child`, `children`, `action.event`, and
+# `action.functionCall`, and recompiling writes out the `@`-prefixed shapes.
+
+- name: test_decompile_express_legacy_bare_child_and_children_on_v1_0
+  description: 'During the v1.0 transition, legacy bare `child` and `children` ID arrays on v1.0 components decompile to Express nesting and array syntax, and recompiling emits `{"@child": ...}`.'
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["card1"]
+          - id: "card1"
+            component: "Card"
+            child: "body"
+          - id: "body"
+            component: "Text"
+            text: "Hello"
+  expect_contains:
+    - 'surface("s1")'
+    - "root = Column([card1])"
+    - "card1 = Card(body)"
+    - 'body = Text("Hello")'
+  expect_round_trip: false
+  expect_recompiled:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Column"
+            children:
+              "@child": ["card1"]
+          - id: "card1"
+            component: "Card"
+            child:
+              "@child": "body"
+          - id: "body"
+            component: "Text"
+            text: "Hello"
+
+- name: test_decompile_express_legacy_bare_template_children_on_v1_0
+  description: 'During the v1.0 transition, a legacy bare `{path, componentId}` template object in `children` on a v1.0 component decompiles to `_template(...)`, and recompiling emits `{"@child": ..., "@path": ...}`.'
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Column"
+            children:
+              path: "/items"
+              componentId: "itemTmpl"
+          - id: "itemTmpl"
+            component: "Text"
+            text:
+              "@path": "label"
+  expect_contains:
+    - "root = Column(_template($/items, itemTmpl))"
+    - "itemTmpl = Text($label)"
+  expect_round_trip: false
+  expect_recompiled:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Column"
+            children:
+              "@child": "itemTmpl"
+              "@path": "/items"
+          - id: "itemTmpl"
+            component: "Text"
+            text:
+              "@path": "label"
+
+- name: test_decompile_express_legacy_bare_action_on_v1_0
+  description: 'During the v1.0 transition, legacy bare `action.event` and `action.functionCall` objects on v1.0 components decompile to `Event(...)` and function call actions, and recompiling emits `{"@action": ...}` and `{"@functionCall": ...}`.'
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Column"
+            children: ["saveBtn", "openBtn"]
+          - id: "saveBtn"
+            component: "Button"
+            child: "saveLabel"
+            action:
+              event:
+                name: "save"
+          - id: "saveLabel"
+            component: "Text"
+            text: "Save"
+          - id: "openBtn"
+            component: "Button"
+            child: "openLabel"
+            action:
+              functionCall:
+                "@call": "openUrl"
+                args:
+                  url: "https://example.com"
+          - id: "openLabel"
+            component: "Text"
+            text: "Open"
+  expect_contains:
+    - 'Event("save")'
+    - 'openUrl("https://example.com")'
+  expect_round_trip: false
+  expect_recompiled:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Column"
+            children:
+              "@child": ["saveBtn", "openBtn"]
+          - id: "saveBtn"
+            component: "Button"
+            child:
+              "@child": "saveLabel"
+            action:
+              "@action":
+                name: "save"
+          - id: "saveLabel"
+            component: "Text"
+            text: "Save"
+          - id: "openBtn"
+            component: "Button"
+            child:
+              "@child": "openLabel"
+            action:
+              "@functionCall":
+                "@call": "openUrl"
+                args:
+                  url: "https://example.com"
+          - id: "openLabel"
+            component: "Text"
+            text: "Open"

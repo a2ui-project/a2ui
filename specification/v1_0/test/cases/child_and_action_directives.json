@@ -1,0 +1,379 @@
+{
+  "schema": "agent_to_renderer.json",
+  "tests": [
+    {
+      "description": "Valid @child single, static list, template list, Modal, Tabs, @action, and @functionCall",
+      "valid": true,
+      "data": {
+        "version": "1.0",
+        "updateComponents": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "root",
+              "component": "Card",
+              "child": {"@child": "col"}
+            },
+            {
+              "id": "col",
+              "component": "Column",
+              "children": {"@child": ["list1", "modal1", "tabs1", "btn_action", "btn_fn"]}
+            },
+            {
+              "id": "list1",
+              "component": "List",
+              "children": {"@child": "row_tpl", "@path": "/items"}
+            },
+            {
+              "id": "row_tpl",
+              "component": "Text",
+              "text": {"@path": "label"}
+            },
+            {
+              "id": "modal1",
+              "component": "Modal",
+              "trigger": {"@child": "btn_action"},
+              "content": {"@child": "modal_body"}
+            },
+            {
+              "id": "modal_body",
+              "component": "Text",
+              "text": "Modal body"
+            },
+            {
+              "id": "tabs1",
+              "component": "Tabs",
+              "tabs": [
+                {
+                  "title": "Tab 1",
+                  "child": {"@child": "tab_body"}
+                }
+              ]
+            },
+            {
+              "id": "tab_body",
+              "component": "Text",
+              "text": "Tab body"
+            },
+            {
+              "id": "btn_action",
+              "component": "Button",
+              "child": {"@child": "btn_action_label"},
+              "action": {
+                "@action": {
+                  "name": "submit",
+                  "userMessage": {"@path": "/msg"},
+                  "context": {
+                    "id": "123",
+                    "value": {"@path": "/val"},
+                    "escaped": {"@@child": "lit"}
+                  }
+                }
+              }
+            },
+            {
+              "id": "btn_action_label",
+              "component": "Text",
+              "text": "Submit"
+            },
+            {
+              "id": "btn_fn",
+              "component": "Button",
+              "child": {"@child": "btn_fn_label"},
+              "action": {
+                "@functionCall": {
+                  "@call": "openUrl",
+                  "args": {"url": "https://example.com"}
+                }
+              }
+            },
+            {
+              "id": "btn_fn_label",
+              "component": "Text",
+              "text": "Open"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "Invalid legacy bare string Child on Card.child",
+      "valid": false,
+      "data": {
+        "version": "1.0",
+        "updateComponents": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "root",
+              "component": "Card",
+              "child": "txt1"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "Invalid legacy bare array ChildList on Column.children",
+      "valid": false,
+      "data": {
+        "version": "1.0",
+        "updateComponents": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "root",
+              "component": "Column",
+              "children": ["txt1"]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "Invalid legacy template ChildList (componentId/path) on List.children",
+      "valid": false,
+      "data": {
+        "version": "1.0",
+        "updateComponents": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "root",
+              "component": "List",
+              "children": {"componentId": "tpl1", "path": "/items"}
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "Invalid legacy bare Child in Tabs.tabs[0].child",
+      "valid": false,
+      "data": {
+        "version": "1.0",
+        "updateComponents": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "root",
+              "component": "Tabs",
+              "tabs": [{"title": "Tab 1", "child": "txt1"}]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "Invalid legacy event Action on Button.action",
+      "valid": false,
+      "data": {
+        "version": "1.0",
+        "updateComponents": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "btn1",
+              "component": "Button",
+              "child": {"@child": "txt1"},
+              "action": {"event": {"name": "submit"}}
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "Invalid legacy functionCall Action on Button.action",
+      "valid": false,
+      "data": {
+        "version": "1.0",
+        "updateComponents": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "btn1",
+              "component": "Button",
+              "child": {"@child": "txt1"},
+              "action": {
+                "functionCall": {
+                  "@call": "openUrl",
+                  "args": {"url": "https://example.com"}
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "Invalid Child with extra property",
+      "valid": false,
+      "data": {
+        "version": "1.0",
+        "updateComponents": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "root",
+              "component": "Card",
+              "child": {"@child": "txt1", "extra": 1}
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "Invalid ChildList mixing array @child with @path",
+      "valid": false,
+      "data": {
+        "version": "1.0",
+        "updateComponents": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "root",
+              "component": "List",
+              "children": {"@child": ["txt1"], "@path": "/items"}
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "Invalid Action @action missing required name",
+      "valid": false,
+      "data": {
+        "version": "1.0",
+        "updateComponents": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "btn1",
+              "component": "Button",
+              "child": {"@child": "txt1"},
+              "action": {"@action": {}}
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "Invalid Action @action with extra property on wrapper",
+      "valid": false,
+      "data": {
+        "version": "1.0",
+        "updateComponents": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "btn1",
+              "component": "Button",
+              "child": {"@child": "txt1"},
+              "action": {"@action": {"name": "submit"}, "extra": 1}
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "Invalid unescaped @child inside @action.context DynamicValue",
+      "valid": false,
+      "data": {
+        "version": "1.0",
+        "updateComponents": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "btn1",
+              "component": "Button",
+              "child": {"@child": "txt1"},
+              "action": {
+                "@action": {
+                  "name": "submit",
+                  "context": {"bad": {"@child": "txt1"}}
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "Invalid unescaped @action inside @action.context DynamicValue",
+      "valid": false,
+      "data": {
+        "version": "1.0",
+        "updateComponents": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "btn1",
+              "component": "Button",
+              "child": {"@child": "txt1"},
+              "action": {
+                "@action": {
+                  "name": "submit",
+                  "context": {"bad": {"@action": {"name": "nested"}}}
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "Invalid unescaped @functionCall inside @action.context DynamicValue",
+      "valid": false,
+      "data": {
+        "version": "1.0",
+        "updateComponents": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "btn1",
+              "component": "Button",
+              "child": {"@child": "txt1"},
+              "action": {
+                "@action": {
+                  "name": "submit",
+                  "context": {
+                    "bad": {
+                      "@functionCall": {
+                        "@call": "openUrl",
+                        "args": {"url": "https://example.com"}
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "Invalid @functionCall Action with extra property",
+      "valid": false,
+      "data": {
+        "version": "1.0",
+        "updateComponents": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "btn1",
+              "component": "Button",
+              "child": {"@child": "txt1"},
+              "action": {
+                "@functionCall": {
+                  "@call": "openUrl",
+                  "args": {"url": "https://example.com"}
+                },
+                "extra": 1
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

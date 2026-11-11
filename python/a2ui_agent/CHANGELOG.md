@@ -1,5 +1,17 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: (v1_0) Emit `{"@child": ...}`, `{"@child": [...]}`,
+  `{"@child": ..., "@path": ...}`, `{"@action": ...}`, and
+  `{"@functionCall": ...}` on v1.0 `Child`, `ChildList`, and `Action` slots
+  across `a2ui.builder.v1_0`, `ExpressCompiler`, `AtomCompiler`,
+  `ElementalCompiler`, `MacroExpander`, and `RendererState`, while keeping
+  `ComponentId` string references and pre-1.0 formats unchanged. Builders,
+  `MacroExpander`, `ExpressDecompiler`, `AtomDecompiler`, and
+  `ElementalDecompiler` dual-read legacy bare `child`/`children`/`componentId`+`path`
+  and `event`/`functionCall` inputs on v1.0 only inside `Child`, `ChildList`,
+  or `Action` slots (or schema-less fallbacks) so custom bare properties remain
+  untouched (`# TODO(#4168)` for removal). Recommended migration: migrate custom v1.0 emitters and fixtures to `{"@child": ...}`, `{"@action": ...}`, and `{"@functionCall": ...}`
+  ([#2791](https://github.com/a2ui-project/a2ui/issues/2791), [#4171](https://github.com/a2ui-project/a2ui/pull/4171)).
 - **BREAKING CHANGE**: (v1_0) Emit `@catalogId`, `@metadata`, `@accessibility`,
   and `@checks` on v1.0 components across `ExpressCompiler`,
   `AtomCompiler`, `ElementalCompiler`, `MacroExpander`, `RendererState`, and the

@@ -14,7 +14,9 @@
         {
           "component": "Column",
           "id": "root",
-          "children": ["btn_basic", "btn_standalone"]
+          "children": {
+            "@child": ["btn_basic", "btn_standalone"]
+          }
         },
         {
           "component": "Text",
@@ -25,10 +27,12 @@
         {
           "component": "Button",
           "id": "btn_basic",
-          "child": "btn_basic__text_1",
+          "child": {
+            "@child": "btn_basic__text_1"
+          },
           "variant": "primary",
           "action": {
-            "event": {
+            "@action": {
               "name": "submit_form"
             }
           },
@@ -53,10 +57,12 @@
         {
           "component": "Button",
           "id": "btn_standalone",
-          "child": "btn_standalone__text_1",
+          "child": {
+            "@child": "btn_standalone__text_1"
+          },
           "variant": "primary",
           "action": {
-            "event": {
+            "@action": {
               "name": "cancel_form"
             }
           },

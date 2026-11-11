@@ -327,15 +327,15 @@ The stream compiles the model's output into standard A2UI wire messages (`agent_
       "surfaceId": "order_summary",
       "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
       "components": [
-        {"id": "root", "component": "Card", "child": "col"},
-        {"id": "col", "component": "Column", "children": ["headline", "confirm_btn"]},
+        {"id": "root", "component": "Card", "child": {"@child": "col"}},
+        {"id": "col", "component": "Column", "children": {"@child": ["headline", "confirm_btn"]}},
         {"id": "headline", "component": "Text", "text": {"@path": "/summaryText"}},
         {
           "id": "confirm_btn",
           "component": "Button",
-          "child": "confirm_label",
+          "child": {"@child": "confirm_label"},
           "action": {
-            "event": {"name": "confirm_order", "context": {"orderId": {"@path": "/orderId"}}}
+            "@action": {"name": "confirm_order", "context": {"orderId": {"@path": "/orderId"}}}
           }
         },
         {"id": "confirm_label", "component": "Text", "text": "Confirm order"}
@@ -1528,7 +1528,7 @@ const exampleTurn: AgentToRendererMessage[] = [
       surfaceId: 'order_summary',
       catalogId: basicCatalog.id,
       components: [
-        {id: 'root', component: 'Card', child: 'status'},
+        {id: 'root', component: 'Card', child: {'@child': 'status'}},
         {id: 'status', component: 'Text', text: 'Order ORD-4821 ready for pickup'},
       ],
     },
@@ -1579,7 +1579,7 @@ example_turn = to_message_models([
             "surfaceId": "order_summary",
             "catalogId": basic.catalog_id,
             "components": [
-                {"id": "root", "component": "Card", "child": "status"},
+                {"id": "root", "component": "Card", "child": {"@child": "status"}},
                 {
                     "id": "status",
                     "component": "Text",
@@ -1628,7 +1628,7 @@ final exampleTurn = [
       'surfaceId': 'order_summary',
       'catalogId': basic.id,
       'components': [
-        {'id': 'root', 'component': 'Card', 'child': 'status'},
+        {'id': 'root', 'component': 'Card', 'child': {'@child': 'status'}},
         {
           'id': 'status',
           'component': 'Text',

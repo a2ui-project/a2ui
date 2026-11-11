@@ -651,17 +651,17 @@
     validComponents:
       - id: btn1
         component: Button
-        child: txt1
+        child: {"@child": txt1}
         action:
-          functionCall:
+          "@functionCall":
             "@call": openUrl
             args: {url: "https://example.com"}
     invalidComponents:
       - id: btn1
         component: Button
-        child: txt1
+        child: {"@child": txt1}
         action:
-          functionCall:
+          "@functionCall":
             "@call": notAFunction
             args: {}
 
@@ -674,9 +674,9 @@
     invalidComponents:
       - id: btn1
         component: Button
-        child: txt1
+        child: {"@child": txt1}
         action:
-          functionCall:
+          "@functionCall":
             "@call": openUrl
             args: {url: "https://example.com"}
             bogus: 1

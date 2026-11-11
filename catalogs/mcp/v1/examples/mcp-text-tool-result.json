@@ -27,7 +27,9 @@
           {
             "id": "root",
             "component": "Column",
-            "children": ["heading", "query_field", "search_button", "result_list"],
+            "children": {
+              "@child": ["heading", "query_field", "search_button", "result_list"]
+            },
             "align": "stretch"
           },
           {
@@ -46,10 +48,12 @@
           {
             "id": "search_button",
             "component": "Button",
-            "child": "search_button_label",
+            "child": {
+              "@child": "search_button_label"
+            },
             "variant": "primary",
             "action": {
-              "functionCall": {
+              "@functionCall": {
                 "@call": "updateDataModel",
                 "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
                 "args": {
@@ -106,14 +110,16 @@
             "id": "result_list",
             "component": "Column",
             "children": {
-              "componentId": "result_row",
-              "path": "/results"
+              "@child": "result_row",
+              "@path": "/results"
             }
           },
           {
             "id": "result_row",
             "component": "Column",
-            "children": ["result_title", "result_url"]
+            "children": {
+              "@child": ["result_title", "result_url"]
+            }
           },
           {
             "id": "result_title",

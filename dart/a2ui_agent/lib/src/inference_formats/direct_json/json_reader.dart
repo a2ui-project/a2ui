@@ -271,6 +271,7 @@ class _Reader {
     'id',
     'component',
     'child',
+    '@child',
     'surfaceId',
     'catalogId',
     '@catalogId',
@@ -350,7 +351,8 @@ class _Reader {
         map[key] = !_atEnd && text[_i] == '['
             ? _array(
                 wholeItems: _partial && wholeItemKeys.contains(key),
-                stripItemNewlines: key == 'children' && !_inDataModel,
+                stripItemNewlines:
+                    (key == 'children' || key == '@child') && !_inDataModel,
               )
             : (!_atEnd && text[_i] == '{'
                   ? _object(key)

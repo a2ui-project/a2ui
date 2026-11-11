@@ -89,8 +89,8 @@ struct A2UITabsTests {
               "id": "root",
               "component": "Tabs",
               "tabs": [
-                ["title": ["@path": "/firstTitle"], "child": "pane_a"],
-                ["title": ["@path": "/secondTitle"], "child": "pane_b"],
+                ["title": ["@path": "/firstTitle"], "child": ["@child": "pane_a"]],
+                ["title": ["@path": "/secondTitle"], "child": ["@child": "pane_b"]],
               ],
             ],
             ["id": "pane_a", "component": "Text", "text": "Pane A"],

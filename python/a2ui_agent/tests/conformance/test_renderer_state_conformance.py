@@ -30,10 +30,11 @@ from .conformance_helpers import (
 from .lowering import (
     SUITE_VERSIONS,
     first_catalog_id,
-    lift_value_keys,
+    lift_component_properties,
     lower_catalog_entry,
     lower_messages,
     lower_text,
+    to_v10_schema_helpers,
     v09_skip_reason,
 )
 from .test_conformance import (
@@ -67,7 +68,11 @@ _RENDERER_STATE_SURFACE_EXPECT_KEYS = frozenset({
 
 
 def _assert_expected_surfaces(
-    state: RendererState, expect_surfaces: dict[str, Any], *, is_lowered: bool
+    state: RendererState,
+    expect_surfaces: dict[str, Any],
+    *,
+    is_lowered: bool,
+    v10_helpers: list[Any],
 ) -> None:
     assert set(state.surface_ids) == set(expect_surfaces.keys())
     for surface_id, expected_surface in expect_surfaces.items():
@@ -85,7 +90,9 @@ def _assert_expected_surfaces(
                 comp = surface.components_model.get(comp_id)
                 assert comp is not None, f"Missing component {comp_id} on {surface_id}"
                 props = (
-                    lift_value_keys(comp.properties) if is_lowered else comp.properties
+                    lift_component_properties(comp.type, comp.properties, v10_helpers)
+                    if is_lowered
+                    else comp.properties
                 )
                 actual_comp = {"component": comp.type, **props}
                 assert actual_comp == expected_comp
@@ -107,11 +114,13 @@ def test_renderer_state_conformance(
     is_lowered = version == "v0.9-lowered"
     raw_catalogs = list(test_case.get("catalogs", [DEFAULT_CATALOG]))
     inj_id = None
+    v10_helpers: list[Any] = []
     if is_lowered:
         skip_reason = v09_skip_reason(suite, test_case)
         if skip_reason:
             pytest.skip(skip_reason)
         inj_id = first_catalog_id({"catalogs": raw_catalogs}, DEFAULT_CATALOG)
+        v10_helpers = to_v10_schema_helpers(_catalogs_for({"catalogs": raw_catalogs}))
         raw_catalogs = [lower_catalog_entry(c) for c in raw_catalogs]
 
     catalogs = _catalogs_for({"catalogs": raw_catalogs})
@@ -156,5 +165,8 @@ def test_renderer_state_conformance(
         apply_turn()
         if "expect_surfaces" in turn:
             _assert_expected_surfaces(
-                state, turn["expect_surfaces"], is_lowered=is_lowered
+                state,
+                turn["expect_surfaces"],
+                is_lowered=is_lowered,
+                v10_helpers=v10_helpers,
             )

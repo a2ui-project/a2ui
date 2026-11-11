@@ -207,7 +207,11 @@ struct SelectionAccessibilityTests {
   @Test func selectableComponentsRender() async throws {
     let (_, surface) = try await makeSurface(
       components: [
-        ["id": "root", "component": "Column", "children": ["agree", "picker", "chips", "tabs"]],
+        [
+          "id": "root",
+          "component": "Column",
+          "children": ["@child": ["agree", "picker", "chips", "tabs"]],
+        ],
         [
           "id": "agree", "component": "CheckBox", "label": "I agree",
           "value": ["@path": "/agree"],
@@ -225,7 +229,10 @@ struct SelectionAccessibilityTests {
         ],
         [
           "id": "tabs", "component": "Tabs",
-          "tabs": [["title": "One", "child": "one"], ["title": "Two", "child": "two"]],
+          "tabs": [
+            ["title": "One", "child": ["@child": "one"]],
+            ["title": "Two", "child": ["@child": "two"]],
+          ],
         ],
         ["id": "one", "component": "Text", "text": "One"],
         ["id": "two", "component": "Text", "text": "Two"],

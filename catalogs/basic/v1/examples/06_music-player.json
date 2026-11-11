@@ -18,12 +18,16 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main_column"
+            "child": {
+              "@child": "main_column"
+            }
           },
           {
             "id": "main_column",
             "component": "Column",
-            "children": ["album_art", "track_info", "progress", "time_row", "controls"],
+            "children": {
+              "@child": ["album_art", "track_info", "progress", "time_row", "controls"]
+            },
             "align": "center"
           },
           {
@@ -37,7 +41,9 @@
           {
             "id": "track_info",
             "component": "Column",
-            "children": ["song_title", "artist"],
+            "children": {
+              "@child": ["song_title", "artist"]
+            },
             "align": "center"
           },
           {
@@ -66,7 +72,9 @@
           {
             "id": "time_row",
             "component": "Row",
-            "children": ["current_time", "total_time"],
+            "children": {
+              "@child": ["current_time", "total_time"]
+            },
             "justify": "spaceBetween"
           },
           {
@@ -88,7 +96,9 @@
           {
             "id": "controls",
             "component": "Row",
-            "children": ["prev_btn", "play_btn", "next_btn"],
+            "children": {
+              "@child": ["prev_btn", "play_btn", "next_btn"]
+            },
             "justify": "center"
           },
           {
@@ -99,9 +109,11 @@
           {
             "id": "prev_btn",
             "component": "Button",
-            "child": "prev_btn_icon",
+            "child": {
+              "@child": "prev_btn_icon"
+            },
             "action": {
-              "event": {
+              "@action": {
                 "name": "previous",
                 "context": {}
               }
@@ -117,9 +129,11 @@
           {
             "id": "play_btn",
             "component": "Button",
-            "child": "play_btn_icon",
+            "child": {
+              "@child": "play_btn_icon"
+            },
             "action": {
-              "event": {
+              "@action": {
                 "name": "playPause",
                 "context": {}
               }
@@ -133,9 +147,11 @@
           {
             "id": "next_btn",
             "component": "Button",
-            "child": "next_btn_icon",
+            "child": {
+              "@child": "next_btn_icon"
+            },
             "action": {
-              "event": {
+              "@action": {
                 "name": "next",
                 "context": {}
               }

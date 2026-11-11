@@ -23,9 +23,16 @@ import {
   InferenceFormat,
   RendererState,
 } from '../../src/index.js';
+import {CatalogSchemaHelper} from '../../src/inference-formats/express/schema-helper.js';
 import {CatalogApi} from '../../src/internal/web-core.js';
 import {loadCases} from './loader.js';
-import {firstCatalogId, liftValueKeys, lowerMessages, lowerText} from './lowering.js';
+import {
+  firstCatalogId,
+  liftComponentProperties,
+  lowerMessages,
+  lowerText,
+  toV10SchemaHelpers,
+} from './lowering.js';
 import {
   assertKnownKeys,
   CASE_METADATA_KEYS,
@@ -59,6 +66,7 @@ function assertExpectedSurfaces(
   state: RendererState,
   expectSurfaces: Record<string, unknown>,
   isLowered: boolean,
+  v10Helpers: readonly CatalogSchemaHelper[],
 ): void {
   expect(new Set(state.surfaceIds)).toEqual(new Set(Object.keys(expectSurfaces)));
   for (const [surfaceId, rawExpected] of Object.entries(expectSurfaces)) {
@@ -78,7 +86,9 @@ function assertExpectedSurfaces(
         const comp = surface.componentsModel.get(compId);
         expect(comp).toBeDefined();
         if (!comp) continue;
-        const props = isLowered ? liftValueKeys(comp.properties) : comp.properties;
+        const props = isLowered
+          ? liftComponentProperties(comp.type, comp.properties, v10Helpers)
+          : comp.properties;
         expect({component: comp.type, ...props}).toEqual(expectedComp);
       }
     }
@@ -107,6 +117,11 @@ forEachSuiteVersion(
     const catalogs = rawCatalogs.map(
       entry => loadCatalogEntry(entry, isLowered).transformedCatalog,
     );
+    const v10Helpers = isLowered
+      ? toV10SchemaHelpers(
+          rawCatalogs.map(entry => loadCatalogEntry(entry, false).transformedCatalog),
+        )
+      : [];
     const state = new RendererState(catalogs);
 
     const turns = tc.turns as Array<Record<string, unknown>>;
@@ -149,7 +164,12 @@ forEachSuiteVersion(
 
       applyTurn();
       if (turn.expect_surfaces !== undefined) {
-        assertExpectedSurfaces(state, turn.expect_surfaces as Record<string, unknown>, isLowered);
+        assertExpectedSurfaces(
+          state,
+          turn.expect_surfaces as Record<string, unknown>,
+          isLowered,
+          v10Helpers,
+        );
       }
     }
   },

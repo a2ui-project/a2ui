@@ -16,7 +16,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 import copy
 import json
 import os
@@ -24,6 +24,11 @@ import re
 from typing import Any
 
 from a2ui.inference_formats import to_message_dicts
+from a2ui.inference_formats._shared.schema_helper import (
+    CatalogSchemaHelper,
+    _common_def_name,
+    is_action_slot,
+)
 
 from .conformance_helpers import load_conformance_json
 
@@ -39,6 +44,17 @@ _VERSION_FIELD_RE = re.compile(
     r'([\u201c"]version[\u201d"]\s*:\s*[\u201c"])(v?1\.0|v0\.9)([\u201d"])'
 )
 _RESERVED_KEY_FIELD_RE = re.compile(r'"@(path|call)"(?=\s*:)')
+_CHILD_TEMPLATE_AT_FIRST_RE = re.compile(
+    r'\{\s*"@child"\s*:\s*("(?:[^"\\]|\\.)*")\s*,\s*"@path"\s*:\s*("(?:[^"\\]|\\.)*")\s*\}'
+)
+_CHILD_TEMPLATE_PATH_FIRST_RE = re.compile(
+    r'\{\s*"@path"\s*:\s*("(?:[^"\\]|\\.)*")\s*,\s*"@child"\s*:\s*("(?:[^"\\]|\\.)*")\s*\}'
+)
+_CHILD_DIRECTIVE_VALUE_RE = re.compile(
+    r'\{\s*"@child"\s*:\s*("(?:[^"\\]|\\.)*"|\[(?:[^\[\]]|"(?:[^"\\]|\\.)*")*\])\s*\}'
+)
+_ACTION_KEY_RE = re.compile(r'"@action"(?=\s*:)')
+_FUNCTION_CALL_KEY_RE = re.compile(r'"@functionCall"(?=\s*:)')
 _CREATE_SURFACE_OPEN_RE = re.compile(r'"createSurface"\s*:\s*\{')
 
 _ONE_CATALOG_PER_SURFACE = (
@@ -55,6 +71,10 @@ _NO_USER_MESSAGE = (
 _NO_SYSTEM_FUNCTIONS = (
     "v0.9 defines no system functions, so a call to @index runs as written in"
     " v1.0 only."
+)
+_PARTIAL_CHILD_CHUNK = (
+    'Splits a v1.0 {"@child": ...} directive across streaming chunks, which'
+    " per-chunk v0.9 lowering cannot rewrite."
 )
 
 V1_ONLY_CASES: dict[str, str] = {
@@ -193,6 +213,9 @@ V1_ONLY_CASES: dict[str, str] = {
         "Protocol v0.9 has no callRendererFunction message."
     ),
     "test_decompile_json_catalog_qualified_components": _ONE_CATALOG_PER_SURFACE,
+    "test_chunk_partial_child_reference_withholds": _PARTIAL_CHILD_CHUNK,
+    "test_chunk_partial_children_list_withholds": _PARTIAL_CHILD_CHUNK,
+    "test_chunk_partial_child_list_template_withholds": _PARTIAL_CHILD_CHUNK,
 }
 
 
@@ -369,10 +392,33 @@ def lower_catalog_entry(entry: Any) -> Any:
     return entry
 
 
+_DECOMPILED_FRAGMENT_MAP = {
+    '"@action"': '"event"',
+    '"@functionCall"': '"functionCall"',
+    '"@path"': '"path"',
+    '"@call"': '"call"',
+    '"@child"': '"componentId"',
+}
+
+
+def lower_decompiled_fragment(fragment: str, *, is_lowered: bool) -> str:
+    """Rewrites Direct JSON v1.0 directive fragments when asserting v0.9 output."""
+    if not is_lowered:
+        return fragment
+    return _DECOMPILED_FRAGMENT_MAP.get(fragment, fragment)
+
+
 def lower_text(text: str, catalog_id: str | None = None) -> str:
     """Lowers a raw JSON payload string from v1.0 to v0.9."""
+    lowered = _CHILD_TEMPLATE_AT_FIRST_RE.sub(r'{"componentId": \1, "path": \2}', text)
+    lowered = _CHILD_TEMPLATE_PATH_FIRST_RE.sub(
+        r'{"componentId": \2, "path": \1}', lowered
+    )
+    lowered = _CHILD_DIRECTIVE_VALUE_RE.sub(r"\1", lowered)
+    lowered = _ACTION_KEY_RE.sub('"event"', lowered)
+    lowered = _FUNCTION_CALL_KEY_RE.sub('"functionCall"', lowered)
     lowered = _VERSION_FIELD_RE.sub(
-        lambda m: f"{m.group(1)}{swap_version(m.group(2))}{m.group(3)}", text
+        lambda m: f"{m.group(1)}{swap_version(m.group(2))}{m.group(3)}", lowered
     )
     lowered = _RESERVED_KEY_FIELD_RE.sub(r'"\1"', lowered)
     if catalog_id is not None:
@@ -383,20 +429,204 @@ def lower_text(text: str, catalog_id: str | None = None) -> str:
     return lowered
 
 
-def _rename_keys_in(node: Any, *, lower: bool) -> Any:
+def _rename_keys_in(
+    node: Any, *, lower: bool, lift_legacy_directives: bool = True
+) -> Any:
     if isinstance(node, list):
-        return [_rename_keys_in(item, lower=lower) for item in node]
+        return [
+            _rename_keys_in(
+                item, lower=lower, lift_legacy_directives=lift_legacy_directives
+            )
+            for item in node
+        ]
     if isinstance(node, dict):
+        if lower:
+            if len(node) == 1 and "@child" in node:
+                inner = node["@child"]
+                if isinstance(inner, str):
+                    return inner
+                if isinstance(inner, list):
+                    return [
+                        _rename_keys_in(
+                            item,
+                            lower=lower,
+                            lift_legacy_directives=lift_legacy_directives,
+                        )
+                        for item in inner
+                    ]
+            if (
+                len(node) == 2
+                and "@child" in node
+                and "@path" in node
+                and isinstance(node["@child"], str)
+            ):
+                return {"componentId": node["@child"], "path": node["@path"]}
+            if len(node) == 1 and "@action" in node:
+                return {
+                    "event": _rename_keys_in(
+                        node["@action"],
+                        lower=lower,
+                        lift_legacy_directives=lift_legacy_directives,
+                    )
+                }
+            if len(node) == 1 and "@functionCall" in node:
+                return {
+                    "functionCall": _rename_keys_in(
+                        node["@functionCall"],
+                        lower=lower,
+                        lift_legacy_directives=lift_legacy_directives,
+                    )
+                }
+        elif lift_legacy_directives:
+            if (
+                len(node) == 2
+                and "componentId" in node
+                and "path" in node
+                and isinstance(node["componentId"], str)
+                and isinstance(node["path"], str)
+            ):
+                return {"@child": node["componentId"], "@path": node["path"]}
+            if len(node) == 1 and "event" in node:
+                return {
+                    "@action": _rename_keys_in(
+                        node["event"],
+                        lower=lower,
+                        lift_legacy_directives=lift_legacy_directives,
+                    )
+                }
+            if len(node) == 1 and "functionCall" in node:
+                return {
+                    "@functionCall": _rename_keys_in(
+                        node["functionCall"],
+                        lower=lower,
+                        lift_legacy_directives=lift_legacy_directives,
+                    )
+                }
         is_template = "componentId" in node
         key_map = _RESERVED_KEYS_TO_V09 if lower else _RESERVED_KEYS_TO_V10
         if "id" in node and "component" in node:
             mixins = _MIXIN_KEYS_TO_V09 if lower else _MIXIN_KEYS_TO_V10
             key_map = {**key_map, **mixins}
         return {
-            (k if is_template else key_map.get(k, k)): _rename_keys_in(v, lower=lower)
+            (k if is_template else key_map.get(k, k)): _rename_keys_in(
+                v, lower=lower, lift_legacy_directives=lift_legacy_directives
+            )
             for k, v in node.items()
         }
     return node
+
+
+def _child_directive_kind(schema: Any) -> str | None:
+    if not isinstance(schema, dict):
+        return None
+    def_name = _common_def_name(schema.get("$ref"))
+    if def_name in ("Child", "ChildList"):
+        return def_name
+    for key in ("oneOf", "anyOf", "allOf"):
+        subs = schema.get(key)
+        if isinstance(subs, list):
+            for sub in subs:
+                nested = _child_directive_kind(sub)
+                if nested:
+                    return nested
+    return None
+
+
+def to_v10_schema_helpers(catalogs: Sequence[Any]) -> list[CatalogSchemaHelper]:
+    """Builds `CatalogSchemaHelper` instances configured for v1.0 schema resolution."""
+    return [
+        CatalogSchemaHelper(catalog, protocol_version="1.0") for catalog in catalogs
+    ]
+
+
+def _lift_property_value(value: Any, schema: Any, helper: CatalogSchemaHelper) -> Any:
+    kind = _child_directive_kind(schema)
+    if kind == "Child" and isinstance(value, str):
+        return {"@child": value}
+    if kind == "ChildList":
+        if isinstance(value, list):
+            return {"@child": value}
+        if (
+            isinstance(value, dict)
+            and len(value) == 2
+            and isinstance(value.get("componentId"), str)
+            and isinstance(value.get("path"), str)
+        ):
+            return {"@child": value["componentId"], "@path": value["path"]}
+    if is_action_slot(schema) and isinstance(value, dict) and len(value) == 1:
+        if "event" in value:
+            return {
+                "@action": _rename_keys_in(
+                    value["event"], lower=False, lift_legacy_directives=False
+                )
+            }
+        if "functionCall" in value:
+            return {
+                "@functionCall": _rename_keys_in(
+                    value["functionCall"], lower=False, lift_legacy_directives=False
+                )
+            }
+    if isinstance(value, list):
+        item_schema = helper.resolve_item_schema(schema)
+        if item_schema is not None:
+            return [_lift_property_value(item, item_schema, helper) for item in value]
+        return [
+            _rename_keys_in(item, lower=False, lift_legacy_directives=False)
+            for item in value
+        ]
+    if isinstance(value, dict):
+        result: dict[str, Any] = {}
+        for k, v in value.items():
+            next_key = _RESERVED_KEYS_TO_V10.get(k, k)
+            sub_schema = helper.resolve_property_schema(schema, next_key)
+            result[next_key] = (
+                _lift_property_value(v, sub_schema, helper)
+                if sub_schema is not None
+                else _rename_keys_in(v, lower=False, lift_legacy_directives=False)
+            )
+        return result
+    return _rename_keys_in(value, lower=False, lift_legacy_directives=False)
+
+
+def lift_component_properties(
+    component_type: str,
+    props: Mapping[str, Any],
+    v10_helpers: Sequence[CatalogSchemaHelper],
+) -> dict[str, Any]:
+    """Lifts a v0.9 component property map to v1.0 wire shape using v1.0 schemas."""
+    helper = next((h for h in v10_helpers if component_type in h.components), None)
+    result: dict[str, Any] = {}
+    for k, v in props.items():
+        if k in _MIXIN_KEYS_TO_V10:
+            result[_MIXIN_KEYS_TO_V10[k]] = _rename_keys_in(
+                v, lower=False, lift_legacy_directives=False
+            )
+            continue
+        if helper is None:
+            result[k] = _rename_keys_in(v, lower=False, lift_legacy_directives=True)
+            continue
+        prop_schema = helper.get_property_schema(component_type, k)
+        result[k] = (
+            _lift_property_value(v, prop_schema, helper)
+            if prop_schema is not None
+            else _rename_keys_in(v, lower=False, lift_legacy_directives=False)
+        )
+    return result
+
+
+def _lift_component(comp: Any, v10_helpers: Sequence[CatalogSchemaHelper]) -> Any:
+    if not isinstance(comp, dict) or not isinstance(comp.get("component"), str):
+        return _rename_keys_in(
+            comp, lower=False, lift_legacy_directives=(not v10_helpers)
+        )
+    rest = {k: v for k, v in comp.items() if k not in ("id", "component")}
+    lifted_props = lift_component_properties(comp["component"], rest, v10_helpers)
+    result: dict[str, Any] = {}
+    if "id" in comp:
+        result["id"] = comp["id"]
+    result["component"] = comp["component"]
+    result.update(lifted_props)
+    return result
 
 
 def lift_value_keys(node: Any) -> Any:
@@ -404,14 +634,30 @@ def lift_value_keys(node: Any) -> Any:
     return _rename_keys_in(node, lower=False)
 
 
-def _rename_reserved_keys(message: Mapping[str, Any], *, lower: bool) -> dict[str, Any]:
+def _rename_reserved_keys(
+    message: Mapping[str, Any],
+    *,
+    lower: bool,
+    v10_helpers: Sequence[CatalogSchemaHelper] = (),
+) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for k, v in message.items():
         if isinstance(v, dict):
             body: dict[str, Any] = {}
             for field_k, field_v in v.items():
-                if field_k in ("components", "callFunction"):
-                    body[field_k] = _rename_keys_in(field_v, lower=lower)
+                if field_k == "components":
+                    if not lower and isinstance(field_v, list):
+                        body[field_k] = [
+                            _lift_component(comp, v10_helpers) for comp in field_v
+                        ]
+                    else:
+                        body[field_k] = _rename_keys_in(field_v, lower=lower)
+                elif field_k == "callFunction":
+                    body[field_k] = _rename_keys_in(
+                        field_v,
+                        lower=lower,
+                        lift_legacy_directives=(not v10_helpers),
+                    )
                 else:
                     body[field_k] = copy.deepcopy(field_v)
             result[k] = body
@@ -463,8 +709,10 @@ def lift_messages(
     *,
     join: bool = False,
     injected_catalog_id: str | None = None,
+    catalogs: Sequence[Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Lifts v0.9 message dicts or models back to the v1.0 conformance shape."""
+    v10_helpers = to_v10_schema_helpers(catalogs) if catalogs else []
     raw_dicts = (
         to_message_dicts(messages)
         if messages and hasattr(messages[0], "model_dump")
@@ -472,7 +720,7 @@ def lift_messages(
     )
     lifted: list[dict[str, Any]] = []
     for raw_msg in raw_dicts:
-        msg = _rename_reserved_keys(raw_msg, lower=False)
+        msg = _rename_reserved_keys(raw_msg, lower=False, v10_helpers=v10_helpers)
         last_create = (
             lifted[-1].get("createSurface")
             if lifted and isinstance(lifted[-1].get("createSurface"), dict)
@@ -530,6 +778,7 @@ def lift_parts(
     *,
     join: bool = False,
     injected_catalog_id: str | None = None,
+    catalogs: Sequence[Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Lifts parsed response parts from v0.9 to v1.0."""
     lifted: list[dict[str, Any]] = []
@@ -540,6 +789,7 @@ def lift_parts(
                     part["a2ui"],
                     join=join,
                     injected_catalog_id=injected_catalog_id,
+                    catalogs=catalogs,
                 )
             })
         else:

@@ -208,16 +208,16 @@ def test_compile_notification_card(compiler: AtomCompiler) -> None:
     }
     comps = _components(message)
     assert comps["root"]["component"] == "Card"
-    column = comps[comps["root"]["child"]]
+    column = comps[comps["root"]["child"]["@child"]]
     assert column["component"] == "Column"
     assert column["align"] == "center"
-    icon, title, row = (comps[cid] for cid in column["children"])
+    icon, title, row = (comps[cid] for cid in column["children"]["@child"])
     assert icon["name"] == {"@path": "/icon"}
     assert title["text"] == {"@path": "/title"}
-    button = comps[row["children"][0]]
-    assert button["action"] == {"event": {"name": "accept"}}
-    assert comps[button["child"]] == {
-        "id": button["child"],
+    button = comps[row["children"]["@child"][0]]
+    assert button["action"] == {"@action": {"name": "accept"}}
+    assert comps[button["child"]["@child"]] == {
+        "id": button["child"]["@child"],
         "component": "Text",
         "text": "Yes",
     }
@@ -259,7 +259,7 @@ def test_compile_primitives_and_bindings(compiler: AtomCompiler) -> None:
             " :value $/v :min 0 :max 2.5))",
         )
     )
-    first, second, slider = (comps[cid] for cid in comps["root"]["children"])
+    first, second, slider = (comps[cid] for cid in comps["root"]["children"]["@child"])
     assert first["text"] == {"@path": "/user/name"}
     assert second["text"] == {"@path": "relative/x"}
     assert slider["min"] == 0
@@ -284,7 +284,7 @@ def test_compile_event_context(compiler: AtomCompiler) -> None:
         )
     )
     assert comps["root"]["action"] == {
-        "event": {
+        "@action": {
             "name": "submit",
             "context": {"user": {"@path": "/name"}, "age": 30},
         }
@@ -295,7 +295,7 @@ def test_tagged_children_list_and_id_references(compiler: AtomCompiler) -> None:
     comps = _components(
         _compile_one(compiler, '(Column :children [(Text "A") "existing_id"])')
     )
-    children = comps["root"]["children"]
+    children = comps["root"]["children"]["@child"]
     assert comps[children[0]]["text"] == "A"
     assert children[1] == "existing_id"
 
@@ -326,12 +326,12 @@ def test_list_template_and_tabs_round_trip(
     )
     message = _compile_one(compiler, text)
     comps = _components(message)
-    lst, tabs = (comps[cid] for cid in comps["root"]["children"])
-    assert lst["children"]["path"] == "/users"
-    card = comps[lst["children"]["componentId"]]
-    assert comps[card["child"]]["text"] == {"@path": "item/name"}
+    lst, tabs = (comps[cid] for cid in comps["root"]["children"]["@child"])
+    assert lst["children"]["@path"] == "/users"
+    card = comps[lst["children"]["@child"]]
+    assert comps[card["child"]["@child"]]["text"] == {"@path": "item/name"}
     assert tabs["tabs"][0]["title"] == "A"
-    assert comps[tabs["tabs"][0]["child"]]["text"] == "a"
+    assert comps[tabs["tabs"][0]["child"]["@child"]]["text"] == "a"
     _round_trip(compiler, decompiler, [message])
 
 
@@ -343,9 +343,10 @@ def test_template_item_variable_only_rewrites_template_subtree(
         " row (Text $/row/title))))"
     )
     comps = _components(_compile_one(compiler, text))
-    outside, lst = (comps[cid] for cid in comps["root"]["children"])
+    outside, lst = (comps[cid] for cid in comps["root"]["children"]["@child"])
     assert outside["text"] == {"@path": "/row/title"}
-    inside = comps[lst["children"]["componentId"]]
+    assert lst["children"]["@path"] == "/rows"
+    inside = comps[lst["children"]["@child"]]
     assert inside["text"] == {"@path": "item/title"}
 
 
@@ -363,7 +364,7 @@ def test_generated_ids_skip_explicit_ids(compiler: AtomCompiler) -> None:
     comps = _components(
         _compile_one(compiler, '(Column (Text "generated") (Text :id "node_0" "x"))')
     )
-    first, second = comps["root"]["children"]
+    first, second = comps["root"]["children"]["@child"]
     assert second == "node_0"
     assert first != "node_0"
     assert comps["node_0"]["text"] == "x"
@@ -503,9 +504,9 @@ def test_secondary_catalog_templates_and_object_lists() -> None:
     )
     message = _compile_one(compiler, text)
     comps = _components(message)
-    deck, pager = (comps[cid] for cid in comps["root"]["items"])
-    assert deck["cards"]["path"] == "/notes"
-    assert comps[deck["cards"]["componentId"]]["body"] == {"@path": "item/body"}
+    deck, pager = (comps[cid] for cid in comps["root"]["items"]["@child"])
+    assert deck["cards"]["@path"] == "/notes"
+    assert comps[deck["cards"]["@child"]]["body"] == {"@path": "item/body"}
     assert pager["pages"][0]["title"] == "P1"
     assert comps[pager["pages"][0]["child"]]["body"] == "x"
     assert all(c["@catalogId"] == SEC for c in comps.values())
@@ -521,7 +522,11 @@ def test_escaping_round_trip(
             "surfaceId": "main",
             "catalogId": compiler.catalogs[0].catalog_id,
             "components": [
-                {"id": "root", "component": "Column", "children": ["q", "k"]},
+                {
+                    "id": "root",
+                    "component": "Column",
+                    "children": {"@child": ["q", "k"]},
+                },
                 {"id": "q", "component": "Text", "text": 'say "hi"\n\\ok'},
                 {"id": "k", "component": "Text", "text": ":id"},
             ],
@@ -762,7 +767,7 @@ def test_names_resolve_by_unique_lookup_across_catalogs() -> None:
     assert "catalogId" not in message["createSurface"]
     comps = _components(message)
     assert comps["root"]["@catalogId"] == PRI
-    first, second = (comps[cid] for cid in comps["root"]["children"])
+    first, second = (comps[cid] for cid in comps["root"]["children"]["@child"])
     assert first["@catalogId"] == SEC
     assert first["body"] == {
         "@call": "check",
@@ -784,7 +789,7 @@ def test_ambiguous_component_name_needs_catalog_id() -> None:
     comps = _components(
         _compile_one(compiler, f'(Box (Label :catalogId "{TER}" :tone "warm" "x"))')
     )
-    label = comps[comps["root"]["children"][0]]
+    label = comps[comps["root"]["children"]["@child"][0]]
     assert label == {
         "id": label["id"],
         "component": "Label",
@@ -848,7 +853,7 @@ def test_update_components_carry_catalog_ids_with_several_catalogs() -> None:
 def test_bare_string_child_wraps_in_parent_catalog() -> None:
     compiler = AtomCompiler([_primary(), _tertiary()])
     comps = _components(_compile_one(compiler, '(Box "hello")'))
-    child = comps[comps["root"]["children"][0]]
+    child = comps[comps["root"]["children"]["@child"][0]]
     assert child == {
         "id": child["id"],
         "component": "Label",
@@ -880,7 +885,11 @@ def test_decompile_several_catalogs_names_only_ambiguous_catalogs() -> None:
             "surfaceId": "main",
             "catalogId": PRI,
             "components": [
-                {"id": "root", "component": "Box", "children": ["a", "b"]},
+                {
+                    "id": "root",
+                    "component": "Box",
+                    "children": {"@child": ["a", "b"]},
+                },
                 {"id": "a", "component": "Label", "text": {"@call": "check"}},
                 {"id": "b", "component": "Label", "catalogId": TER, "text": "t"},
             ],
@@ -1073,3 +1082,137 @@ def test_atom_decompiler_ignores_at_envelope_when_custom_property_shares_name() 
     atom_src = decompiler.decompile(payload)
     assert atom_src.count(":metadata") == 1
     assert ':metadata "custom-value"' in atom_src
+
+
+def test_v1_0_atom_child_action_dual_read_and_custom_non_collision() -> None:
+    """Verifies Atom v1.0 @child/@action/@functionCall emission, bare dual-read, and custom bare props."""
+    from a2ui.core import Catalog as CoreCatalog
+
+    cat = CoreCatalog.from_json(
+        {
+            "catalogId": "test/atom_child_action",
+            "components": {
+                "Text": {"properties": {"text": {"type": "string"}}},
+                "SlotBox": {
+                    "properties": {
+                        "content": {"$ref": "common_types.json#/$defs/Child"},
+                        "items": {"$ref": "common_types.json#/$defs/ChildList"},
+                        "refId": {"$ref": "common_types.json#/$defs/ComponentId"},
+                        "onClick": {"$ref": "common_types.json#/$defs/Action"},
+                    }
+                },
+                "CustomProps": {
+                    "properties": {
+                        "child": {"type": "string"},
+                        "children": {"type": "array", "items": {"type": "string"}},
+                        "event": {"type": "object"},
+                        "functionCall": {"type": "object"},
+                        "componentId": {"type": "string"},
+                    }
+                },
+            },
+            "functions": {
+                "customFn": {
+                    "returnType": "void",
+                    "properties": {
+                        "args": {
+                            "type": "object",
+                            "properties": {"x": {"type": "string"}},
+                            "required": ["x"],
+                        }
+                    },
+                }
+            },
+        },
+        protocol_version="1.0",
+        catalog_id="test/atom_child_action",
+    )
+    compiler = AtomCompiler([cat])
+    decompiler = AtomDecompiler([cat])
+
+    # 1. Compile canonical @child/@action/@functionCall while keeping ComponentId bare
+    atom_text = (
+        '(SlotBox :content (Text :id "leaf" "Hi")'
+        ' :items (template :items $/rows (Text :id "tpl" "Row"))'
+        ' :refId "leaf"'
+        ' :onClick (Event "go"))'
+    )
+    compiled = _compile(compiler, atom_text)
+    root = _components(compiled[0])["root"]
+    assert root["content"] == {"@child": "leaf"}
+    assert root["items"] == {"@child": "tpl", "@path": "/rows"}
+    assert root["refId"] == "leaf"
+    assert root["onClick"] == {"@action": {"name": "go"}}
+
+    # 2. Legacy bare Child, ChildList, template, Action dual-read (# TODO(#4168))
+    legacy_payload = [{
+        "version": "1.0",
+        "createSurface": {
+            "surfaceId": "main",
+            "components": [
+                {"id": "leaf", "component": "Text", "text": "Hi"},
+                {"id": "tpl", "component": "Text", "text": "Row"},
+                {
+                    "id": "root",
+                    "component": "SlotBox",
+                    "items": ["single_box", "tpl_box", "fn_box"],
+                },
+                {
+                    "id": "single_box",
+                    "component": "SlotBox",
+                    "content": "leaf",
+                    "refId": "leaf",
+                    "onClick": {"event": {"name": "go"}},
+                },
+                {
+                    "id": "tpl_box",
+                    "component": "SlotBox",
+                    "items": {"componentId": "tpl", "path": "/rows"},
+                },
+                {
+                    "id": "fn_box",
+                    "component": "SlotBox",
+                    "items": ["leaf"],
+                    "onClick": {
+                        "functionCall": {"@call": "customFn", "args": {"x": "ok"}}
+                    },
+                },
+            ],
+        },
+    }]
+    decompiled = decompiler.decompile(to_message_models(legacy_payload))
+    recompiled = _components(_compile(compiler, decompiled)[0])
+    assert recompiled["root"]["items"] == {
+        "@child": ["single_box", "tpl_box", "fn_box"]
+    }
+    assert recompiled["single_box"]["content"] == {"@child": "leaf"}
+    assert recompiled["single_box"]["refId"] == "leaf"
+    assert recompiled["single_box"]["onClick"] == {"@action": {"name": "go"}}
+    assert recompiled["tpl_box"]["items"] == {"@child": "tpl", "@path": "/rows"}
+    assert recompiled["fn_box"]["items"] == {"@child": ["leaf"]}
+    assert recompiled["fn_box"]["onClick"] == {
+        "@functionCall": {"@call": "customFn", "args": {"x": "ok"}}
+    }
+
+    # 3. Custom bare properties stay literal on v1.0
+    custom_payload = [{
+        "version": "1.0",
+        "createSurface": {
+            "surfaceId": "main",
+            "catalogId": "test/atom_child_action",
+            "components": [{
+                "id": "root",
+                "component": "CustomProps",
+                "child": "plain",
+                "children": ["a", "b"],
+                "event": {"name": "note"},
+                "functionCall": {"label": "raw"},
+                "componentId": "bare_id",
+            }],
+            "dataModel": {},
+        },
+    }]
+    custom_atom = decompiler.decompile(to_message_models(custom_payload))
+    assert "(Event" not in custom_atom
+    assert "(customFn" not in custom_atom
+    assert _by_id(_compile(compiler, custom_atom)) == _by_id(custom_payload)

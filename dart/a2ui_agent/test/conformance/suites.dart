@@ -183,6 +183,15 @@ enum SuiteVersion {
   String text(String text, {String? catalogId}) =>
       _lowers ? lowerText(text, catalogId: catalogId) : text;
 
+  /// A streaming text lowerer for chunked raw responses.
+  SuiteTextLowerer openTextLowerer({String? catalogId}) =>
+      SuiteTextLowerer(catalogId: catalogId, passthrough: !_lowers);
+
+  /// The unlowered v1.0 catalogs named by [args] when running lowered, or
+  /// empty when running as written.
+  List<CatalogApi> liftCatalogs(Map<String, Object?> args) =>
+      _lowers ? caseCatalogs(args, lower: false) : const [];
+
   /// The catalog a harness names in each `createSurface` of [testCase] when
   /// it is lowered; see [injectedCatalogId].
   String? injectedCatalog(Map<String, Object?> testCase) =>
@@ -193,8 +202,14 @@ enum SuiteVersion {
     List<AgentToRendererMessage> messages, {
     bool join = false,
     String? injectedCatalogId,
+    List<CatalogApi> catalogs = const [],
   }) => _lowers
-      ? liftMessages(messages, join: join, injectedCatalogId: injectedCatalogId)
+      ? liftMessages(
+          messages,
+          join: join,
+          injectedCatalogId: injectedCatalogId,
+          catalogs: catalogs,
+        )
       : messages.map(messageAsWritten).toList();
 
   /// [parts] in the vocabulary of the suites; see [liftParts].
@@ -202,15 +217,30 @@ enum SuiteVersion {
     List<StreamPart> parts, {
     bool join = false,
     String? injectedCatalogId,
+    List<CatalogApi> catalogs = const [],
   }) => _lowers
-      ? liftParts(parts, join: join, injectedCatalogId: injectedCatalogId)
+      ? liftParts(
+          parts,
+          join: join,
+          injectedCatalogId: injectedCatalogId,
+          catalogs: catalogs,
+        )
       : partsAsWritten(parts);
 
-  /// [properties], a component's property map, with reserved keys lifted to
-  /// v1.0 when the suite ran lowered.
-  Map<String, Object?> liftProperties(Map<String, Object?> properties) =>
-      _lowers
-      ? _renameKeysIn(properties, lower: false)! as Map<String, Object?>
+  /// [properties], a component's property map, with reserved keys and
+  /// `Child`/`ChildList`/`Action` properties lifted to v1.0 when the suite
+  /// ran lowered.
+  Map<String, Object?> liftProperties(
+    Map<String, Object?> properties, {
+    String? componentType,
+    String? catalogId,
+    List<CatalogApi> catalogs = const [],
+  }) => _lowers
+      ? _ComponentLifter(catalogs).liftProperties(
+          properties,
+          componentType: componentType,
+          catalogId: catalogId,
+        )
       : properties;
 
   /// Checks the catalog-level assertions of [expected] against [catalog];
@@ -393,16 +423,18 @@ CatalogApi _provide(
   protocolVersion: document.containsKey('protocolVersion') ? null : version,
 ).load();
 
-/// [document] with a `protocolVersion` of `1.0` or later stated as `0.9`, and
+/// [document] with a `protocolVersion` of `1.0` or later stated as `0.9`,
+/// any `common_types.json#/$defs/Child` `$ref` rewritten to `ComponentId`, and
 /// any `validationResult` function return type stated as `boolean`.
 Map<String, Object?> lowerCatalogDocument(Map<String, Object?> document) {
   if (!_isVersionAtLeast1_0(document['protocolVersion'])) {
     return {...document};
   }
+  final rewritten = _lowerChildRefs(document)! as Map<String, Object?>;
   return {
-    ...document,
+    ...rewritten,
     'protocolVersion': '0.9',
-    if (document['functions'] case final Map<Object?, Object?> functions)
+    if (rewritten['functions'] case final Map<Object?, Object?> functions)
       'functions': {
         for (final MapEntry<Object?, Object?> entry in functions.entries)
           entry.key.toString(): switch (entry.value) {
@@ -427,6 +459,27 @@ Map<String, Object?> lowerCatalogDocument(Map<String, Object?> document) {
   };
 }
 
+Object? _lowerChildRefs(Object? node) => switch (node) {
+  final List<Object?> list => [
+    for (final Object? item in list) _lowerChildRefs(item),
+  ],
+  final Map<Object?, Object?> map => <String, Object?>{
+    for (final MapEntry<Object?, Object?> entry in map.entries)
+      entry.key.toString():
+          entry.key == r'$ref' &&
+              entry.value is String &&
+              (entry.value! as String).endsWith(
+                'common_types.json#/\$defs/Child',
+              )
+          ? (entry.value! as String).replaceFirst(
+              'common_types.json#/\$defs/Child',
+              'common_types.json#/\$defs/ComponentId',
+            )
+          : _lowerChildRefs(entry.value),
+  },
+  _ => node,
+};
+
 /// [version] swapped between the suite's version and this SDK's, in either
 /// spelling; any other value is returned as it is.
 Object? swapVersion(Object? version) => switch (version) {
@@ -441,24 +494,460 @@ final RegExp _versionField = RegExp(
 );
 
 /// [text], a payload a model wrote, lowered to v0.9: each `version` swapped,
-/// each `@path` and `@call` key written without its `@`, and each
-/// `createSurface` given [catalogId] when it is not null.
+/// each `@path`, `@call`, `@action`, and `@functionCall` key rewritten to
+/// its v0.9 spelling, each `{"@child": ...}` unwrapped or lowered to a v0.9
+/// template, and each `createSurface` given [catalogId] when it is not null.
 String lowerText(String text, {String? catalogId}) {
-  final String lowered = text
+  final lowerer = SuiteTextLowerer(catalogId: catalogId);
+  return '${lowerer.feed(text)}${lowerer.close()}';
+}
+
+/// Incrementally lowers raw v1.0 JSON response text (including chunked
+/// streams) into v0.9 JSON text.
+class SuiteTextLowerer {
+  final String? catalogId;
+  final bool passthrough;
+
+  SuiteTextLowerer({this.catalogId, this.passthrough = false});
+
+  final StringBuffer _pending = StringBuffer();
+  int _braceDepth = 0;
+  String? _stringOpenQuote;
+  bool get _inString => _stringOpenQuote != null;
+  bool _escape = false;
+  bool _capturingChild = false;
+  int _childBaseDepth = 0;
+  int _dataModelDepth = -1;
+  bool _expectKey = false;
+  bool _awaitingCreateSurfaceOpen = false;
+  bool _awaitingVersionValue = false;
+
+  static bool _isJsonQuote(String ch) => ch == '"' || ch == '“' || ch == '”';
+
+  static bool _closesQuote(String openQuote, String ch) =>
+      openQuote == '"' ? ch == '"' : (ch == '”' || ch == '“');
+
+  String feed(String chunk) {
+    if (passthrough) return chunk;
+    final out = StringBuffer();
+    for (var i = 0; i < chunk.length; i++) {
+      _consumeChar(chunk[i], out);
+    }
+    return out.toString();
+  }
+
+  String close() {
+    if (passthrough || _pending.isEmpty) return '';
+    final rest = _pending.toString();
+    _pending.clear();
+    return _lowerFragment(rest);
+  }
+
+  void _consumeChar(String ch, StringBuffer out) {
+    if (_capturingChild) {
+      _pending.write(ch);
+      _advanceJsonState(ch);
+      if (!_inString && _braceDepth == _childBaseDepth) {
+        final raw = _pending.toString();
+        _pending.clear();
+        _capturingChild = false;
+        out.write(_lowerCapturedChildObject(raw));
+      }
+      return;
+    }
+
+    if (_pending.isNotEmpty) {
+      _pending.write(ch);
+      _advanceJsonState(ch);
+      _drainPending(out);
+      return;
+    }
+
+    if (_inString) {
+      _advanceJsonState(ch);
+      out.write(ch);
+      return;
+    }
+
+    if (ch == '{') {
+      _braceDepth++;
+      _expectKey = true;
+      if (_dataModelDepth >= 0) {
+        out.write(ch);
+        return;
+      }
+      if (_awaitingCreateSurfaceOpen) {
+        _awaitingCreateSurfaceOpen = false;
+        out.write(ch);
+        if (catalogId != null) {
+          out.write('"catalogId": ${jsonEncode(catalogId)}, ');
+        }
+        return;
+      }
+      _pending.write(ch);
+      return;
+    }
+
+    if (ch == '}' && _braceDepth > 0) {
+      _braceDepth--;
+      if (_braceDepth == _dataModelDepth) {
+        _dataModelDepth = -1;
+      }
+      _expectKey = false;
+      out.write(ch);
+      return;
+    }
+
+    if (ch == ',' && _braceDepth > 0) {
+      _expectKey = true;
+      _awaitingCreateSurfaceOpen = false;
+      _awaitingVersionValue = false;
+      out.write(ch);
+      return;
+    }
+
+    if (_braceDepth > 0 && _isJsonQuote(ch)) {
+      if (_dataModelDepth < 0 && (_expectKey || _awaitingVersionValue)) {
+        _pending.write(ch);
+        _advanceJsonState(ch);
+        return;
+      }
+      _advanceJsonState(ch);
+      out.write(ch);
+      return;
+    }
+
+    if (_awaitingCreateSurfaceOpen || _awaitingVersionValue) {
+      if (!_isWhitespace(ch)) {
+        _awaitingCreateSurfaceOpen = false;
+        _awaitingVersionValue = false;
+      }
+    } else if (_expectKey && !_isWhitespace(ch)) {
+      _expectKey = false;
+    }
+    out.write(ch);
+  }
+
+  void _drainPending(StringBuffer out) {
+    final buf = _pending.toString();
+    // Started with `{` outside dataModel; check whether first key is @child.
+    if (buf.startsWith('{')) {
+      final int firstNonWs = _skipWhitespace(buf, 1);
+      if (firstNonWs >= buf.length) return;
+      if (!_isJsonQuote(buf[firstNonWs])) {
+        // Not an object starting with a string key (`{}` or prose `{foo}`).
+        _pending.clear();
+        if (_awaitingCreateSurfaceOpen) {
+          _awaitingCreateSurfaceOpen = false;
+          out.write(buf);
+          if (catalogId != null && buf.startsWith('{')) {
+            out.write('"catalogId": ${jsonEncode(catalogId)}, ');
+          }
+          return;
+        }
+        out.write(buf);
+        return;
+      }
+      final int? keyEnd = _findQuotedStringEnd(buf, firstNonWs);
+      if (keyEnd == null) return;
+      final String keyText = _decodeQuotedStringOrRaw(
+        buf.substring(firstNonWs, keyEnd + 1),
+      );
+      if (keyText != '@child') {
+        _pending.clear();
+        // Flush `{` + leading ws, and re-process from the first key `"`.
+        out.write(buf.substring(0, firstNonWs));
+        _pending.write(buf.substring(firstNonWs));
+        _drainPending(out);
+        return;
+      }
+      final int afterKey = _skipWhitespace(buf, keyEnd + 1);
+      if (afterKey >= buf.length) return;
+      if (buf[afterKey] == ':') {
+        _capturingChild = true;
+        _childBaseDepth = _braceDepth - 1;
+        return;
+      }
+      _pending.clear();
+      out.write(buf);
+      return;
+    }
+
+    // Case 2: started with `"..."` (either a key or `"version"` value).
+    final int? strEnd = _findQuotedStringEnd(buf, 0);
+    if (strEnd == null) {
+      // Flush once a long string won't match a short reserved key.
+      if (buf.length > 20) {
+        _pending.clear();
+        _expectKey = false;
+        _awaitingVersionValue = false;
+        out.write(buf);
+      }
+      return;
+    }
+
+    final String strToken = buf.substring(0, strEnd + 1);
+    final String decoded = _decodeQuotedStringOrRaw(strToken);
+
+    if (_awaitingVersionValue) {
+      _pending.clear();
+      _awaitingVersionValue = false;
+      out.write(_reQuote(strToken, '${swapVersion(decoded)}'));
+      out.write(buf.substring(strEnd + 1));
+      return;
+    }
+
+    const interestingKeys = <String>{
+      '@action',
+      '@functionCall',
+      '@path',
+      '@call',
+      'version',
+      'createSurface',
+      'dataModel',
+      'updateDataModel',
+    };
+    if (!interestingKeys.contains(decoded)) {
+      _pending.clear();
+      _expectKey = false;
+      out.write(buf);
+      return;
+    }
+
+    final int afterStr = _skipWhitespace(buf, strEnd + 1);
+    if (afterStr >= buf.length) return;
+
+    _pending.clear();
+    _expectKey = false;
+    final String rest = buf.substring(strEnd + 1);
+    if (buf[afterStr] != ':') {
+      out.write(buf);
+      return;
+    }
+
+    switch (decoded) {
+      case '@action':
+        out.write(_reQuote(strToken, 'event'));
+        out.write(rest);
+      case '@functionCall':
+        out.write(_reQuote(strToken, 'functionCall'));
+        out.write(rest);
+      case '@path':
+        out.write(_reQuote(strToken, 'path'));
+        out.write(rest);
+      case '@call':
+        out.write(_reQuote(strToken, 'call'));
+        out.write(rest);
+      case 'version':
+        _awaitingVersionValue = true;
+        out.write(strToken);
+        out.write(rest);
+      case 'createSurface':
+        _awaitingCreateSurfaceOpen = true;
+        out.write(strToken);
+        out.write(rest);
+      case 'dataModel':
+      case 'updateDataModel':
+        _dataModelDepth = _braceDepth;
+        out.write(strToken);
+        out.write(rest);
+      default:
+        out.write(buf);
+    }
+  }
+
+  void _advanceJsonState(String ch) {
+    final String? openQuote = _stringOpenQuote;
+    if (openQuote != null) {
+      if (_escape) {
+        _escape = false;
+      } else if (ch == r'\') {
+        _escape = true;
+      } else if (_closesQuote(openQuote, ch)) {
+        _stringOpenQuote = null;
+      }
+      return;
+    }
+    if (_isJsonQuote(ch)) {
+      _stringOpenQuote = ch;
+    } else if (ch == '{') {
+      _braceDepth++;
+    } else if (ch == '}' && _braceDepth > 0) {
+      _braceDepth--;
+    }
+  }
+
+  String _lowerCapturedChildObject(String raw) {
+    // Extract top-level key/value slices directly before invoking `jsonDecode`,
+    // so raw unescaped line breaks or curly quotes inside identifier strings
+    // (`{"@child": "bo\ndy"}`) pass through intact for the v0.9 parser.
+    final List<(String, String)>? entries = _parseTopLevelObjectEntries(raw);
+    if (entries != null) {
+      if (entries.length == 1 && entries[0].$1 == '@child') {
+        return entries[0].$2;
+      }
+      if (entries.length == 2) {
+        String? childRaw;
+        String? pathRaw;
+        for (final (String key, String value) in entries) {
+          if (key == '@child') childRaw = value;
+          if (key == '@path') pathRaw = value;
+        }
+        if (childRaw != null && pathRaw != null) {
+          return '{"componentId": $childRaw, "path": $pathRaw}';
+        }
+      }
+    }
+    try {
+      final Object? decoded = jsonDecode(raw);
+      if (decoded is Map<String, Object?>) {
+        if (decoded.length == 1 && decoded.containsKey('@child')) {
+          return jsonEncode(decoded['@child']);
+        }
+        if (decoded.length == 2 &&
+            decoded.containsKey('@child') &&
+            decoded.containsKey('@path')) {
+          return jsonEncode({
+            'componentId': decoded['@child'],
+            'path': decoded['@path'],
+          });
+        }
+        return jsonEncode(_renameKeysIn(decoded, lower: true));
+      }
+    } on FormatException {
+      // Incomplete or malformed object: fall back to literal key lowering.
+    }
+    return _lowerFragment(raw);
+  }
+
+  static List<(String, String)>? _parseTopLevelObjectEntries(String raw) {
+    if (raw.length < 2 || !raw.startsWith('{') || !raw.endsWith('}')) {
+      return null;
+    }
+    final int end = raw.length - 1;
+    final entries = <(String, String)>[];
+    int i = _skipWhitespace(raw, 1);
+    while (i < end) {
+      if (!_isJsonQuote(raw[i])) return null;
+      final int? keyEnd = _findQuotedStringEnd(raw, i);
+      if (keyEnd == null || keyEnd >= end) return null;
+      final String key = _decodeQuotedStringOrRaw(raw.substring(i, keyEnd + 1));
+      i = _skipWhitespace(raw, keyEnd + 1);
+      if (i >= end || raw[i] != ':') return null;
+      i = _skipWhitespace(raw, i + 1);
+      if (i >= end) return null;
+      final valStart = i;
+      var braceDepth = 0;
+      var bracketDepth = 0;
+      while (i < end) {
+        final String ch = raw[i];
+        if (_isJsonQuote(ch)) {
+          final int? strEnd = _findQuotedStringEnd(raw, i);
+          if (strEnd == null || strEnd >= end) return null;
+          i = strEnd + 1;
+          continue;
+        }
+        if (ch == '{') {
+          braceDepth++;
+        } else if (ch == '}') {
+          if (braceDepth == 0) return null;
+          braceDepth--;
+        } else if (ch == '[') {
+          bracketDepth++;
+        } else if (ch == ']') {
+          if (bracketDepth == 0) return null;
+          bracketDepth--;
+        } else if (ch == ',' && braceDepth == 0 && bracketDepth == 0) {
+          break;
+        }
+        i++;
+      }
+      if (braceDepth != 0 || bracketDepth != 0) return null;
+      final String rawValue = raw.substring(valStart, i).trim();
+      if (rawValue.isEmpty) return null;
+      entries.add((key, rawValue));
+      if (i < end && raw[i] == ',') {
+        i = _skipWhitespace(raw, i + 1);
+        continue;
+      }
+      break;
+    }
+    return entries;
+  }
+
+  static int? _findQuotedStringEnd(String s, int start) {
+    final String open = s[start];
+    var escape = false;
+    for (int i = start + 1; i < s.length; i++) {
+      final String ch = s[i];
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      if (ch == r'\') {
+        escape = true;
+        continue;
+      }
+      if (_closesQuote(open, ch)) {
+        return i;
+      }
+    }
+    return null;
+  }
+
+  static String _decodeQuotedStringOrRaw(String token) {
+    if (token.length < 2) return token;
+    final straight = token.startsWith('"') && token.endsWith('"')
+        ? token
+        : '"${token.substring(1, token.length - 1).replaceAll('"', r'\"')}"';
+    try {
+      final Object? decoded = jsonDecode(straight);
+      if (decoded is String) return decoded;
+    } on FormatException {
+      // Unescaped control char or partial escape: fall through to raw text.
+    }
+    return token.substring(1, token.length - 1);
+  }
+
+  static String _reQuote(String templateToken, String replacement) {
+    final String open = templateToken[0];
+    final String close = templateToken[templateToken.length - 1];
+    if (open == '"' && close == '"') return jsonEncode(replacement);
+    final String encoded = jsonEncode(replacement);
+    return '$open${encoded.substring(1, encoded.length - 1)}$close';
+  }
+
+  String _lowerFragment(String raw) => raw
+      .replaceAllMapped(_reservedKeyField, (m) => '"${_lowerKeyName(m[1]!)}"')
       .replaceAllMapped(
         _versionField,
         (m) => '${m[1]}${swapVersion(m[2])}${m[3]}',
-      )
-      .replaceAllMapped(_reservedKeyField, (m) => '"${m[1]}"');
-  if (catalogId == null) return lowered;
-  return lowered.replaceAll(
-    RegExp(r'"createSurface"\s*:\s*\{'),
-    '"createSurface": {"catalogId": ${jsonEncode(catalogId)}, ',
-  );
+      );
+
+  static String _lowerKeyName(String name) => switch (name) {
+    'action' => 'event',
+    'functionCall' => 'functionCall',
+    'path' => 'path',
+    'call' => 'call',
+    _ => name,
+  };
+
+  static bool _isWhitespace(String ch) =>
+      ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r';
+
+  static int _skipWhitespace(String s, int start) {
+    var i = start;
+    while (i < s.length && _isWhitespace(s[i])) {
+      i++;
+    }
+    return i;
+  }
 }
 
 // A single `@`: a doubled one escapes a literal key and stays as it is.
-final RegExp _reservedKeyField = RegExp(r'"@(path|call)"(?=\s*:)');
+final RegExp _reservedKeyField = RegExp(
+  r'"@(path|call|action|functionCall)"(?=\s*:)',
+);
 
 /// The catalog a harness names in each `createSurface` of a case that names
 /// none, or null when the case names one itself.
@@ -549,12 +1038,21 @@ List<Object?> liftMessages(
   List<AgentToRendererMessage> messages, {
   bool join = false,
   String? injectedCatalogId,
+  List<CatalogApi> catalogs = const [],
 }) {
+  final lifter = _ComponentLifter(catalogs);
   final lifted = <Map<String, Object?>>[];
+  String? currentSurfaceCatalogId;
   for (final message in messages) {
+    final Map<String, Object?> rawJson = message.toJson();
+    if (rawJson['createSurface'] case final Map<String, Object?> cs) {
+      currentSurfaceCatalogId = cs['catalogId'] as String?;
+    }
     final Map<String, Object?> json = _renameReservedKeys(
-      message.toJson(),
+      rawJson,
       lower: false,
+      lifter: lifter,
+      surfaceCatalogId: currentSurfaceCatalogId,
     );
     final create = lifted.lastOrNull?['createSurface'] as Map<String, Object?>?;
     final Object? surfaceId = create?['surfaceId'];
@@ -608,41 +1106,372 @@ const Map<String, String> _componentMixinKeys = {
 Map<String, Object?> _renameReservedKeys(
   Map<String, Object?> message, {
   required bool lower,
+  _ComponentLifter? lifter,
+  String? surfaceCatalogId,
 }) => {
   for (final MapEntry<String, Object?> entry in message.entries)
     entry.key: switch (entry.value) {
       final Map<String, Object?> body => {
         for (final MapEntry<String, Object?> field in body.entries)
-          field.key: field.key == 'components' || field.key == 'callFunction'
-              ? _renameKeysIn(field.value, lower: lower)
-              : field.value,
+          field.key: switch (field.key) {
+            'components' => _liftOrLowerComponents(
+              field.value,
+              lower: lower,
+              lifter: lifter,
+              surfaceCatalogId: surfaceCatalogId,
+            ),
+            'callFunction' => _renameKeysIn(field.value, lower: lower),
+            _ => field.value,
+          },
       },
       final Object? value => value,
     },
 };
 
-/// [node] with each reserved key renamed, except in a `ChildList` template,
-/// whose `path` is unprefixed in both versions.
+Object? _liftOrLowerComponents(
+  Object? components, {
+  required bool lower,
+  _ComponentLifter? lifter,
+  String? surfaceCatalogId,
+}) {
+  if (lower || lifter == null || components is! List<Object?>) {
+    return _renameKeysIn(components, lower: lower);
+  }
+  return [
+    for (final Object? comp in components)
+      comp is Map<String, Object?>
+          ? lifter.liftComponent(comp, surfaceCatalogId: surfaceCatalogId)
+          : _renameKeysIn(comp, lower: false),
+  ];
+}
+
+/// [node] with each reserved key renamed, and v1.0 `@child`/`@action`/
+/// `@functionCall` directives lowered when [lower] is true.
 Object? _renameKeysIn(Object? node, {required bool lower}) => switch (node) {
   final List<Object?> list => [
     for (final Object? item in list) _renameKeysIn(item, lower: lower),
   ],
+  final Map<String, Object?> map when lower => _lowerMap(map),
   final Map<String, Object?> map => {
     for (final MapEntry<String, Object?> entry in map.entries)
       (map.containsKey('componentId')
           ? entry.key
           : _renameKey(
               entry.key,
-              lower,
+              false,
               isComponentRoot:
                   map.containsKey('id') && map.containsKey('component'),
             )): _renameKeysIn(
         entry.value,
-        lower: lower,
+        lower: false,
       ),
   },
   _ => node,
 };
+
+Object? _lowerMap(Map<String, Object?> map) {
+  if (map.length == 1 && map.containsKey('@child')) {
+    return map['@child'];
+  }
+  if (map.length == 2 &&
+      map.containsKey('@child') &&
+      map.containsKey('@path')) {
+    return <String, Object?>{
+      'componentId': map['@child'],
+      'path': map['@path'],
+    };
+  }
+  if (map.length == 1 && map.containsKey('@action')) {
+    return <String, Object?>{
+      'event': _renameKeysIn(map['@action'], lower: true),
+    };
+  }
+  if (map.length == 1 && map.containsKey('@functionCall')) {
+    return <String, Object?>{
+      'functionCall': _renameKeysIn(map['@functionCall'], lower: true),
+    };
+  }
+  final bool isRoot = map.containsKey('id') && map.containsKey('component');
+  return {
+    for (final MapEntry<String, Object?> entry in map.entries)
+      (map.containsKey('componentId')
+              ? entry.key
+              : _renameKey(entry.key, true, isComponentRoot: isRoot)):
+          _renameKeysIn(entry.value, lower: true),
+  };
+}
+
+/// Schema-guided lifter transforming v0.9 component properties into v1.0
+/// `@child`, `@action`, and `@functionCall` wire shapes.
+class _ComponentLifter {
+  final List<CatalogApi> catalogs;
+
+  _ComponentLifter(this.catalogs);
+
+  Map<String, Object?> liftComponent(
+    Map<String, Object?> comp, {
+    String? surfaceCatalogId,
+  }) => liftProperties(
+    comp,
+    componentType: comp['component'] as String?,
+    catalogId: (comp['@catalogId'] ?? comp['catalogId']) as String?,
+    surfaceCatalogId: surfaceCatalogId,
+    isComponentRoot: true,
+  );
+
+  Map<String, Object?> liftProperties(
+    Map<String, Object?> properties, {
+    String? componentType,
+    String? catalogId,
+    String? surfaceCatalogId,
+    bool isComponentRoot = true,
+  }) {
+    final CatalogApi? catalog = _findCatalog(
+      componentType,
+      catalogId: catalogId,
+      surfaceCatalogId: surfaceCatalogId,
+    );
+    if (catalog == null || componentType == null) {
+      return _renameKeysIn(properties, lower: false)! as Map<String, Object?>;
+    }
+    final Map<String, Object?>? rootSchema =
+        (catalog.resolvedComponentSchemas[componentType] ??
+                catalog.components[componentType]?.schema)
+            ?.value;
+    final Map<String, Object?> defs = {
+      ...catalog.definitions,
+      ...(catalog.toJson()[r'$defs'] as Map?)?.cast<String, Object?>() ??
+          const {},
+    };
+    return _liftObject(
+      properties,
+      rootSchema,
+      defs,
+      isComponentRoot: isComponentRoot,
+    );
+  }
+
+  CatalogApi? _findCatalog(
+    String? componentType, {
+    String? catalogId,
+    String? surfaceCatalogId,
+  }) {
+    if (componentType == null) return null;
+    for (final preferred in [catalogId, surfaceCatalogId]) {
+      if (preferred == null) continue;
+      for (final CatalogApi cat in catalogs) {
+        if (cat.id == preferred && cat.components.containsKey(componentType)) {
+          return cat;
+        }
+      }
+    }
+    for (final CatalogApi cat in catalogs) {
+      if (cat.components.containsKey(componentType)) return cat;
+    }
+    return null;
+  }
+
+  Object? _liftValue(
+    Object? value,
+    Map<String, Object?>? schema,
+    Map<String, Object?> defs, {
+    bool isComponentRoot = false,
+  }) {
+    if (schema != null) {
+      final String? commonType = _commonTypeName(schema, defs, {});
+      switch (commonType) {
+        case 'Child':
+          return value is String ? <String, Object?>{'@child': value} : value;
+        case 'ChildList':
+          if (value is List) return <String, Object?>{'@child': value};
+          if (value is Map<String, Object?> &&
+              value.containsKey('componentId')) {
+            return <String, Object?>{
+              '@child': value['componentId'],
+              if (value.containsKey('path')) '@path': value['path'],
+            };
+          }
+          return value;
+        case 'Action':
+          if (value is Map<String, Object?>) {
+            if (value.containsKey('event')) {
+              return <String, Object?>{
+                '@action': _renameKeysIn(value['event'], lower: false),
+              };
+            }
+            if (value.containsKey('functionCall')) {
+              return <String, Object?>{
+                '@functionCall': _renameKeysIn(
+                  value['functionCall'],
+                  lower: false,
+                ),
+              };
+            }
+          }
+          return _renameKeysIn(value, lower: false);
+      }
+    }
+
+    if (value is List<Object?>) {
+      final Map<String, Object?>? itemSchema = schema == null
+          ? null
+          : _itemsSchema(schema, defs, {});
+      return [
+        for (final Object? item in value) _liftValue(item, itemSchema, defs),
+      ];
+    }
+    if (value is Map<String, Object?>) {
+      return _liftObject(value, schema, defs, isComponentRoot: isComponentRoot);
+    }
+    return value;
+  }
+
+  Map<String, Object?> _liftObject(
+    Map<String, Object?> map,
+    Map<String, Object?>? schema,
+    Map<String, Object?> defs, {
+    required bool isComponentRoot,
+  }) {
+    if (map.containsKey('componentId') && map.containsKey('path')) {
+      return <String, Object?>{
+        '@child': map['componentId'],
+        '@path': map['path'],
+      };
+    }
+    return {
+      for (final MapEntry<String, Object?> entry in map.entries)
+        _renameKey(
+          entry.key,
+          false,
+          isComponentRoot: isComponentRoot,
+        ): _liftValue(
+          entry.value,
+          schema == null ? null : _propertySchema(schema, entry.key, defs, {}),
+          defs,
+        ),
+    };
+  }
+
+  static String? _commonTypeName(
+    Map<String, Object?> schema,
+    Map<String, Object?> defs,
+    Set<String> visited,
+  ) {
+    final ref = (schema[r'$ref'] ?? schema['commonTypesRef']) as String?;
+    if (ref != null) {
+      for (final name in ['Child', 'ChildList', 'Action']) {
+        if (ref.endsWith('/\$defs/$name') || ref == name) return name;
+      }
+      if (ref.startsWith('#/\$defs/') && visited.add(ref)) {
+        final Object? target = defs[ref.substring(8)];
+        if (target is Map) {
+          final String? resolved = _commonTypeName(
+            target.cast<String, Object?>(),
+            defs,
+            visited,
+          );
+          if (resolved != null) return resolved;
+        }
+      }
+    }
+    for (final combiner in ['allOf', 'oneOf', 'anyOf']) {
+      if (schema[combiner] case final List<Object?> branches) {
+        for (final branch in branches) {
+          if (branch is Map) {
+            final String? resolved = _commonTypeName(
+              branch.cast<String, Object?>(),
+              defs,
+              visited,
+            );
+            if (resolved != null) return resolved;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  static Map<String, Object?>? _propertySchema(
+    Map<String, Object?> schema,
+    String key,
+    Map<String, Object?> defs,
+    Set<String> visited,
+  ) {
+    if (schema['properties'] case final Map<Object?, Object?> props) {
+      if (props[key] case final Map<Object?, Object?> propSchema) {
+        return propSchema.cast<String, Object?>();
+      }
+    }
+    if (schema['additionalProperties']
+        case final Map<Object?, Object?> addSchema) {
+      return addSchema.cast<String, Object?>();
+    }
+    final ref = schema[r'$ref'] as String?;
+    if (ref != null && ref.startsWith('#/\$defs/') && visited.add(ref)) {
+      if (defs[ref.substring(8)] case final Map<Object?, Object?> target) {
+        final Map<String, Object?>? found = _propertySchema(
+          target.cast<String, Object?>(),
+          key,
+          defs,
+          visited,
+        );
+        if (found != null) return found;
+      }
+    }
+    for (final combiner in ['allOf', 'oneOf', 'anyOf']) {
+      if (schema[combiner] case final List<Object?> branches) {
+        for (final branch in branches) {
+          if (branch is Map) {
+            final Map<String, Object?>? found = _propertySchema(
+              branch.cast<String, Object?>(),
+              key,
+              defs,
+              visited,
+            );
+            if (found != null) return found;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  static Map<String, Object?>? _itemsSchema(
+    Map<String, Object?> schema,
+    Map<String, Object?> defs,
+    Set<String> visited,
+  ) {
+    if (schema['items'] case final Map<Object?, Object?> items) {
+      return items.cast<String, Object?>();
+    }
+    final ref = schema[r'$ref'] as String?;
+    if (ref != null && ref.startsWith('#/\$defs/') && visited.add(ref)) {
+      if (defs[ref.substring(8)] case final Map<Object?, Object?> target) {
+        final Map<String, Object?>? found = _itemsSchema(
+          target.cast<String, Object?>(),
+          defs,
+          visited,
+        );
+        if (found != null) return found;
+      }
+    }
+    for (final combiner in ['allOf', 'oneOf', 'anyOf']) {
+      if (schema[combiner] case final List<Object?> branches) {
+        for (final branch in branches) {
+          if (branch is Map) {
+            final Map<String, Object?>? found = _itemsSchema(
+              branch.cast<String, Object?>(),
+              defs,
+              visited,
+            );
+            if (found != null) return found;
+          }
+        }
+      }
+    }
+    return null;
+  }
+}
 
 String _renameKey(String key, bool lower, {bool isComponentRoot = false}) {
   if (isComponentRoot) {
@@ -669,6 +1498,7 @@ List<Object?> liftParts(
   List<StreamPart> parts, {
   bool join = false,
   String? injectedCatalogId,
+  List<CatalogApi> catalogs = const [],
 }) => [
   for (final StreamPart part in parts)
     switch (part) {
@@ -678,6 +1508,7 @@ List<Object?> liftParts(
           a2ui,
           join: join,
           injectedCatalogId: injectedCatalogId,
+          catalogs: catalogs,
         ),
       },
       ErrorPart(:final A2uiError error) => errorPartJson(error),

@@ -357,9 +357,9 @@
       components:
         - id: button
           component: Button
-          child: label
+          child: {"@child": label}
           action:
-            event:
+            "@action":
               name: save
               context: {name: {"@path": /name}}
           metadata: {extensions: {com_example_trace: t2, com_example_state: verified}}
@@ -387,9 +387,9 @@
       components:
         - id: button
           component: Button
-          child: label
+          child: {"@child": label}
           action:
-            event:
+            "@action":
               name: save
               context: {name: {"@path": /name}}
       expect:
@@ -404,9 +404,9 @@
       components:
         - id: button
           component: Button
-          child: label
+          child: {"@child": label}
           action:
-            event:
+            "@action":
               name: save
               context: {name: {"@path": /name}}
       expect:

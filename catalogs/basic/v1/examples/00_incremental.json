@@ -44,8 +44,8 @@
             "id": "root",
             "component": "Column",
             "children": {
-              "path": "/restaurants",
-              "componentId": "restaurant_card"
+              "@child": "restaurant_card",
+              "@path": "/restaurants"
             }
           }
         ]
@@ -59,7 +59,9 @@
           {
             "id": "restaurant_card",
             "component": "Column",
-            "children": ["rc_title", "rc_subtitle", "rc_address"]
+            "children": {
+              "@child": ["rc_title", "rc_subtitle", "rc_address"]
+            }
           },
           {
             "id": "rc_title",
@@ -105,14 +107,18 @@
           {
             "id": "restaurant_card",
             "component": "Column",
-            "children": ["rc_title", "rc_subtitle", "rc_address", "rc_button"]
+            "children": {
+              "@child": ["rc_title", "rc_subtitle", "rc_address", "rc_button"]
+            }
           },
           {
             "id": "rc_button",
             "component": "Button",
-            "child": "rc_button_label",
+            "child": {
+              "@child": "rc_button_label"
+            },
             "action": {
-              "event": {
+              "@action": {
                 "name": "book_now",
                 "context": {
                   "restaurantName": {

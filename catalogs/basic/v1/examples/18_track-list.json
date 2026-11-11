@@ -18,17 +18,23 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main_column"
+            "child": {
+              "@child": "main_column"
+            }
           },
           {
             "id": "main_column",
             "component": "Column",
-            "children": ["header", "divider", "tracks_list"]
+            "children": {
+              "@child": ["header", "divider", "tracks_list"]
+            }
           },
           {
             "id": "header",
             "component": "Row",
-            "children": ["playlist_icon", "playlist_name"],
+            "children": {
+              "@child": ["playlist_icon", "playlist_name"]
+            },
             "align": "center"
           },
           {
@@ -51,14 +57,16 @@
             "id": "tracks_list",
             "component": "Column",
             "children": {
-              "path": "/tracks",
-              "componentId": "track_item_template"
+              "@child": "track_item_template",
+              "@path": "/tracks"
             }
           },
           {
             "id": "track_item_template",
             "component": "Row",
-            "children": ["track_num", "track_art", "track_info", "track_duration"],
+            "children": {
+              "@child": ["track_num", "track_art", "track_info", "track_duration"]
+            },
             "align": "center"
           },
           {
@@ -85,7 +93,9 @@
           {
             "id": "track_info",
             "component": "Column",
-            "children": ["track_title", "track_artist"]
+            "children": {
+              "@child": ["track_title", "track_artist"]
+            }
           },
           {
             "id": "track_title",
