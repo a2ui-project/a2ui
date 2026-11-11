@@ -14,7 +14,12 @@
  * limitations under the License.
  */
 
-import {REACT_APP_BRIDGE_EVENT, type ReactAppBridgeEvent} from '@a2ui-labs/react-app';
+import {
+  REACT_APP_BRIDGE_EVENT,
+  REACT_APP_ERROR_EVENT,
+  type ReactAppBridgeEvent,
+  type ReactAppError,
+} from '@a2ui-labs/react-app';
 import {A2uiSurface} from '@a2ui/react';
 import {useEffect, useRef, useState} from 'react';
 import type {DemoSession, TurnState} from '../services/session';
@@ -42,8 +47,27 @@ export function TurnView({turn, session, showInternals}: TurnViewProps) {
     }
     const onBridge = (event: Event) =>
       session.recordBridgeEvent(turn.id, (event as CustomEvent<ReactAppBridgeEvent>).detail);
+    const onAppError = (event: Event) => {
+      const error = (event as CustomEvent<ReactAppError>).detail;
+      const card = (event.target as Element | null)?.closest('[data-surface-id]');
+      const surfaceId = card?.getAttribute('data-surface-id') ?? null;
+      const app = session
+        .getTurns()
+        .find(candidate => candidate.id === turn.id)
+        ?.debug?.reactApps.find(candidate => candidate.surfaceId === surfaceId);
+      session.recordAppError(turn.id, {
+        surfaceId,
+        componentId: app?.id ?? null,
+        phase: error.phase,
+        message: error.message,
+      });
+    };
     root.addEventListener(REACT_APP_BRIDGE_EVENT, onBridge);
-    return () => root.removeEventListener(REACT_APP_BRIDGE_EVENT, onBridge);
+    root.addEventListener(REACT_APP_ERROR_EVENT, onAppError);
+    return () => {
+      root.removeEventListener(REACT_APP_BRIDGE_EVENT, onBridge);
+      root.removeEventListener(REACT_APP_ERROR_EVENT, onAppError);
+    };
   }, [session, turn.id]);
 
   const thinking =
@@ -58,13 +82,15 @@ export function TurnView({turn, session, showInternals}: TurnViewProps) {
       data-status={turn.status}
     >
       <p className={`turn-prompt turn-prompt-${turn.kind}`}>
-        {turn.kind === 'action' ? (
+        {turn.kind === 'prompt' ? (
+          turn.prompt
+        ) : (
           <>
-            <span className="turn-prompt-label">Pressed</span>
+            <span className="turn-prompt-label">
+              {turn.kind === 'action' ? 'Pressed' : 'Automatic'}
+            </span>
             {turn.prompt}
           </>
-        ) : (
-          turn.prompt
         )}
       </p>
       <div className="turn-answer">
@@ -97,10 +123,30 @@ export function TurnView({turn, session, showInternals}: TurnViewProps) {
         {turn.pendingApp && (
           <AppSkeleton title={turn.pendingApp.title} height={turn.pendingApp.height} />
         )}
-        {turn.error && (
-          <p className="turn-note turn-error" role="alert" data-testid="turn-error">
-            {turn.error.split('\n')[0]}
+        {turn.superseded.length > 0 && (
+          <p className="turn-note turn-note-quiet" data-testid="superseded-note">
+            A later answer rewrote this interface; it now shows there.
           </p>
+        )}
+        {turn.problems.map(problem => (
+          <p key={problem} className="turn-note turn-error" role="alert" data-testid="turn-problem">
+            {problem}
+          </p>
+        ))}
+        {turn.error && (
+          <div className="turn-note turn-error" role="alert" data-testid="turn-error">
+            <p>{turn.error.split('\n')[0]}</p>
+            {turn.error.includes('\n') && (
+              <ul className="turn-error-details">
+                {turn.error
+                  .split('\n')
+                  .slice(1)
+                  .map(line => (
+                    <li key={line}>{line}</li>
+                  ))}
+              </ul>
+            )}
+          </div>
         )}
         {turn.status !== 'streaming' && (
           <section className="internals" data-testid="internals" data-open={internalsOpen}>

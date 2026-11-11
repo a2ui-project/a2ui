@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Sequence
+import json
 from typing import Literal
 
 from react_app_demo_agent.model import ChatMessage, ModelCall, Usage
@@ -42,9 +43,13 @@ BAD_APP = GOOD_APP.replace('import { useData } from "a2ui";', 'import _ from "lo
 
 
 class ScriptedModel:
-    """Answers each attempt with a fixed text, cut into small chunks."""
+    """Answers each attempt with a fixed text, cut into small chunks.
 
-    def __init__(self, *answers: str) -> None:
+    An answer that is an exception instance is raised after the first half of
+    `GOOD_APP`, the way a dropped connection fails mid-stream.
+    """
+
+    def __init__(self, *answers: str | Exception) -> None:
         self.answers = list(answers)
         self.histories: list[list[ChatMessage]] = []
 
@@ -65,15 +70,22 @@ class ScriptedModel:
         attempt: int,
     ) -> ModelCall:
         self.histories.append(list(history))
-        text = self.answers[attempt - 1]
+        answer = self.answers[attempt - 1]
         return ModelCall(
-            chunks=_chunks(text), usage=Usage(prompt_tokens=10, output_tokens=5)
+            chunks=_chunks(answer), usage=Usage(prompt_tokens=10, output_tokens=5)
         )
 
 
-async def _chunks(text: str) -> AsyncIterator[str]:
-    for i in range(0, len(text), 17):
-        yield text[i : i + 17]
+async def _chunks(answer: str | Exception) -> AsyncIterator[str]:
+    if isinstance(answer, Exception):
+        yield GOOD_APP[: GOOD_APP.index("planner =")]
+        raise answer
+    for i in range(0, len(answer), 17):
+        yield answer[i : i + 17]
+
+
+def _messages(events: list[SseEvent]) -> list[dict[str, object]]:
+    return [e.data["message"] for e in events if e.event == "a2ui"]
 
 
 async def _run(model: ScriptedModel, conversation: Conversation) -> list[SseEvent]:
@@ -143,6 +155,85 @@ async def test_a_later_turn_can_update_an_earlier_surface() -> None:
     update = '<a2ui>\nsurface("trip")\ntitle = Text(text="## Your trip")\n</a2ui>'
     events = await _run(ScriptedModel(update), conversation)
 
-    messages = [e.data["message"] for e in events if e.event == "a2ui"]
-    assert messages and all("createSurface" not in m for m in messages)
+    messages = _messages(events)
+    # The Text streams progressively: partial values first, then the full one.
+    assert all(list(m) == ["version", "updateComponents"] for m in messages)
+    assert messages[-1] == {
+        "version": "1.0",
+        "updateComponents": {
+            "surfaceId": "trip",
+            "components": [{
+                "id": "title",
+                "component": "Text",
+                "catalogId": (
+                    "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+                ),
+                "text": "## Your trip",
+            }],
+        },
+    }
     assert events[-1].data["ok"] is True
+
+
+async def test_rewriting_an_earlier_surface_replaces_it() -> None:
+    conversation = Conversation("c1")
+    await _run(ScriptedModel(GOOD_APP), conversation)
+    rewrite = GOOD_APP.replace('"## Trip"', '"## Trip, take two"')
+    events = await _run(ScriptedModel(rewrite), conversation)
+
+    messages = _messages(events)
+    delete = messages.index({"version": "1.0", "deleteSurface": {"surfaceId": "trip"}})
+    create = next(i for i, m in enumerate(messages) if "createSurface" in m)
+    assert delete < create
+    assert events[-1].data["ok"] is True
+    debug = next(e for e in events if e.event == "debug").data
+    assert debug["attempts"][0]["replacedSurfaces"] == ["trip"]
+    creates = [m for m in conversation.committed if "createSurface" in m]
+    assert len(creates) == 1
+    assert "take two" in json.dumps(conversation.committed)
+
+
+async def test_a_failed_attempt_restores_the_surfaces_it_changed() -> None:
+    conversation = Conversation("c1")
+    await _run(ScriptedModel(GOOD_APP), conversation)
+    turn_one = list(conversation.committed)
+    bad_update = (
+        '<a2ui>\nsurface("trip")\ntitle = Text(text="## Changed")\nplanner ='
+        ' ReactApp(title="Reorder", height=300, source=r"""\nimport _ from'
+        ' "lodash";\nexport default function App() { return null; }\n""")\n</a2ui>'
+    )
+    events = await _run(ScriptedModel(bad_update, bad_update), conversation)
+
+    restores = [i for i, e in enumerate(events) if e.event == "restore_surface"]
+    assert len(restores) == 2  # One per failed attempt.
+    after = events[restores[0] + 1 : restores[0] + 1 + 1 + len(turn_one)]
+    assert [e.data["message"] for e in after] == [
+        {"version": "1.0", "deleteSurface": {"surfaceId": "trip"}},
+        *turn_one,
+    ]
+    assert conversation.committed == turn_one
+    assert events[-1].data["ok"] is False
+
+
+async def test_a_model_failure_rolls_back_and_still_reports_the_turn() -> None:
+    conversation = Conversation("c1")
+    events = await _run(ScriptedModel(RuntimeError("503 overloaded")), conversation)
+
+    kinds = [e.event for e in events]
+    assert "retry" not in kinds
+    error = next(e for e in events if e.event == "error")
+    assert "503 overloaded" in error.data["message"]
+    assert kinds[-2:] == ["debug", "done"]
+    assert events[-1].data["ok"] is False
+    created = [m for m in _messages(events) if "createSurface" in m]
+    deleted = [m for m in _messages(events) if "deleteSurface" in m]
+    assert len(created) == len(deleted) == 1
+
+
+async def test_client_notes_reach_the_next_turn_once() -> None:
+    model = ScriptedModel(GOOD_APP, GOOD_APP)
+    conversation = Conversation("c1", notes=["REACT_APP_ERROR on surface trip: boom"])
+    await _run(model, conversation)
+
+    assert "boom" in model.histories[0][-1].text
+    assert conversation.notes == []

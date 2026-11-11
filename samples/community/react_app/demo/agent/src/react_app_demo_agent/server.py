@@ -22,14 +22,21 @@ import logging
 import time
 from typing import Any
 
+from a2ui.core import A2uiValidationError
 from a2ui.rpc import RendererToAgentMessageProcessor
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 from .model import ModelClient
 from .prompt import build_catalogs, build_system_prompt
-from .turn import Conversation, SseEvent, TurnRunner, action_prompt
+from .turn import (
+    Conversation,
+    SseEvent,
+    TurnRunner,
+    action_prompt,
+    app_error_prompt,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -37,11 +44,12 @@ _MAX_CONVERSATIONS = 200
 
 
 class ChatRequest(BaseModel):
-    """A user prompt or a button press."""
+    """A user prompt, a button press, or a request to repair an app that failed."""
 
     conversationId: str
     text: str | None = None
     action: dict[str, Any] | None = None
+    appError: dict[str, Any] | None = None
 
 
 class RendererMessageRequest(BaseModel):
@@ -92,6 +100,9 @@ def create_app(model: ModelClient) -> FastAPI:
         if request.action is not None:
             text = action_prompt(request.action)
             key = f"action:{request.action.get('name')}"
+        elif request.appError is not None:
+            text = app_error_prompt(request.appError)
+            key = f"app_error:{request.appError.get('surfaceId')}"
         elif request.text and request.text.strip():
             text = key = request.text.strip()
         else:
@@ -103,10 +114,36 @@ def create_app(model: ModelClient) -> FastAPI:
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
-    @app.post("/api/renderer-message")
-    async def renderer_message(request: RendererMessageRequest) -> dict[str, Any]:
+    @app.post("/api/renderer-message", response_model=None)
+    async def renderer_message(
+        request: RendererMessageRequest,
+    ) -> dict[str, Any] | JSONResponse:
         started = time.perf_counter()
-        result = await renderer_messages.process_message(request.message)
+        error = request.message.get("error")
+        if isinstance(error, dict):
+            # An error the page saw (an app that crashed, a message it rejected): the
+            # model hears about it at the start of the next turn.
+            note = (
+                f"{error.get('code', 'ERROR')} on surface {error.get('surfaceId')}:"
+                f" {error.get('message')}"
+            )
+            if request.conversationId:
+                conversation(request.conversationId).notes.append(note)
+            logger.warning(
+                "client_error",
+                extra={
+                    "json": {
+                        "event": "client_error",
+                        "conversationId": request.conversationId,
+                        "error": error,
+                    }
+                },
+            )
+            return {"handled": True, "replies": []}
+        try:
+            result = await renderer_messages.process_message(request.message)
+        except A2uiValidationError as e:
+            return JSONResponse(status_code=400, content={"error": str(e)})
         replies = [
             r.model_dump(by_alias=True, exclude_none=True) for r in result.replies
         ]

@@ -93,6 +93,10 @@ export const test = base.extend<{frameErrors: string[]}>({
   ],
 });
 
+/** The follow-up of the loan use case: it rewrites the app, so it exercises surface replacement. */
+export const LOAN_FOLLOW_UP =
+  'Make it a line chart instead, and add a toggle between 10 and 15 years.';
+
 export function useCase(id: UseCase['id']): UseCase {
   return USE_CASES.find(candidate => candidate.id === id)!;
 }
