@@ -16,6 +16,17 @@ import 'package:triage/triage.dart';
 
 import '../github/json.dart';
 
+/// The repository whose issues and pull requests the triage UI triages.
+const String a2uiRepository = 'a2ui-project/a2ui';
+
+/// The repository whose pull requests the triage UI triages together with
+/// the items of [a2uiRepository]. See `ui.blueprint.md`.
+const String genuiRepository = 'flutter/genui';
+
+/// An issue or a pull request: its repository, such as
+/// `a2ui-project/a2ui`, and its number there.
+typedef ItemRef = ({String repository, int number});
+
 /// The label that the flagger adds to the items that need triage.
 const String needsTriageLabel = 'status: needs-triage';
 
@@ -63,6 +74,7 @@ enum SuggestionStatus {
 final class TriageItem {
   const TriageItem({
     required this.id,
+    this.repository = a2uiRepository,
     required this.number,
     required this.title,
     required this.url,
@@ -117,11 +129,13 @@ final class TriageItem {
       }
     }
 
+    final url = node['url']! as String;
     return TriageItem(
       id: node['id']! as String,
+      repository: Uri.parse(url).pathSegments.take(2).join('/'),
       number: node['number']! as int,
       title: node['title']! as String,
-      url: node['url']! as String,
+      url: url,
       isPullRequest: isPullRequest,
       isOpen: node['state'] == 'OPEN',
       isMerged: node['state'] == 'MERGED',
@@ -157,6 +171,9 @@ final class TriageItem {
 
   /// The GraphQL node id.
   final String id;
+
+  /// The repository, such as `a2ui-project/a2ui`.
+  final String repository;
   final int number;
   final String title;
   final String url;
@@ -178,8 +195,9 @@ final class TriageItem {
   /// The title of the item's milestone, or null if it has none.
   final String? milestone;
 
-  /// For an issue, the open pull requests that close it. For a pull request,
-  /// the issues it closes.
+  /// For an issue, the numbers of the open pull requests that close it. For
+  /// a pull request, the numbers of the issues it closes. They are in the
+  /// item's [repository].
   final List<int> linkedItems;
 
   final SuggestionStatus suggestionStatus;
@@ -206,8 +224,25 @@ final class TriageItem {
     (true, true) => ItemKind.prWithoutIssues,
   };
 
-  /// "Issue #12" or "PR #12".
-  String get name => '${isPullRequest ? 'PR' : 'Issue'} #$number';
+  ItemRef get ref => (repository: repository, number: number);
+
+  /// The item with [number] in the item's repository, such as one of
+  /// [linkedItems].
+  ItemRef refTo(int number) => (repository: repository, number: number);
+
+  /// "#12" for an item in [a2uiRepository], and "genui #12" for an item in
+  /// another repository.
+  String get shortName => '$_repositoryPrefix#$number';
+
+  /// "Issue #12" or "PR #12" for an item in [a2uiRepository], and
+  /// "genui PR #12" for an item in another repository.
+  String get name =>
+      '$_repositoryPrefix${isPullRequest ? 'PR' : 'Issue'} #$number';
+
+  /// The repository's name and a space, or nothing for [a2uiRepository].
+  String get _repositoryPrefix => repository == a2uiRepository
+      ? ''
+      : '${repository.split('/').last} ';
 
   /// A comment is a triage bot comment if it starts with the triage bot
   /// prefix and a team member or a bot posted it. See `core.blueprint.md`.
