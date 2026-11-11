@@ -121,7 +121,7 @@ A suggestion is **current** when nothing happened on the item after the suggesti
 
 ## The `TriageSuggestion` component
 
-The component is defined in [triage_suggestion.dart](../../pkgs/triage/lib/src/triage_item/triage_suggestion.dart). Its properties:
+The component is defined in [triage_suggestion.dart](../../pkgs/triage/lib/src/advisor/triage_suggestion.dart). Its properties:
 
 1. `summary` (required): what the item is about, in plain English.
 2. `reason`: why the item is flagged for triage, in plain English, such as "This issue has external input but no priority label yet." It is the reason that the [flagger](../../../triage/blueprints/flagging.blueprint.md) gives for the item, as [flag_reason.mts](../../../triage/flagging/flag_reason.mts) prints it, and is omitted when the flagger does not flag the item.

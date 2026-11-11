@@ -12,6 +12,6 @@ The triage automation consists of:
 
 ## Dart packages
 
-The code of a Dart package is in `lib/src/`, with one folder per feature, named like the feature's blueprint in [`features/`](features/). For example, `lib/src/triage_item/` implements [triage_item.blueprint.md](features/triage_item.blueprint.md). Code that several features use goes in `lib/src/shared/`.
+The code of a Dart package is in `lib/src/`, with one folder per feature, named like the feature's blueprint in [`features/`](features/). For example, `lib/src/advisor/` implements [advisor.blueprint.md](features/advisor.blueprint.md). Code that several features use goes in `lib/src/shared/`.
 
 Tests mirror this layout in `test/`.

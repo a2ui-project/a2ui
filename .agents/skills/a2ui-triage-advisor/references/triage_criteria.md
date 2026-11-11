@@ -1,6 +1,6 @@
 # Triage criteria for the advisor
 
-This document says how to turn an issue or a PR into a [`TriageSuggestion`](../../../../tools/internal/triage_new/pkgs/triage/lib/src/triage_item/triage_suggestion.dart). It adds advisor rules to the canonical sources; where they disagree, the canonical sources win:
+This document says how to turn an issue or a PR into a [`TriageSuggestion`](../../../../tools/internal/triage_new/pkgs/triage/lib/src/advisor/triage_suggestion.dart). It adds advisor rules to the canonical sources; where they disagree, the canonical sources win:
 
 1. [triage.md](../../../../docs/contributing/triage/triage.md): goals of triage, priority definitions (`P0` to `P3`), and how to triage a PR.
 2. [labels.md](../../../../docs/contributing/triage/labels.md): triage labels and who manages each one.

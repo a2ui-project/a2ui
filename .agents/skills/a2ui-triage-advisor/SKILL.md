@@ -91,7 +91,7 @@ Decide what the triager should do, following [triage_criteria.md](references/tri
 
 ## Step 6: Fill in the suggestion
 
-The [`TriageSuggestion`](../../../tools/internal/triage_new/pkgs/triage/lib/src/triage_item/triage_suggestion.dart) component has these properties:
+The [`TriageSuggestion`](../../../tools/internal/triage_new/pkgs/triage/lib/src/advisor/triage_suggestion.dart) component has these properties:
 
 1. `summary` (required): what the item is about, in one or two sentences, for a triager who has not read it.
 2. `reason`: why the item is flagged for triage. Copy it unchanged from the output of `flag_reason.mts` in step 2, and omit it when the output has `null`. Do not work out the reason yourself: the script uses the same code as the flagger, so the two always agree.
