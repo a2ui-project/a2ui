@@ -198,18 +198,16 @@ export const COMPONENTS_DATA_V09: ComponentCategory[] = [
   "component": "List",
   "direction": "vertical",
   "children": {
-    "template": {
-      "componentId": "list-item",
-      "dataBinding": "/items"
-    }
+    "componentId": "list-item",
+    "path": "/items"
   }
 }`,
         props: [
           {
             name: 'children',
             description:
-              'Child component IDs or template for list items. Use template with dataBinding to render items from data.',
-            type: 'string[] | template',
+              'Child component IDs or dynamic child list object ({ componentId, path }) to render items from data.',
+            type: 'string[] | { componentId: string; path: string }',
           },
           {
             name: 'direction',
@@ -421,13 +419,13 @@ export const COMPONENTS_DATA_V09: ComponentCategory[] = [
         usage: `{
   "id": "icon-1",
   "component": "Icon",
-  "name": "check_circle"
+  "name": "check"
 }`,
         props: [
           {
             name: 'name',
             description:
-              'The Material Icon name (e.g., "check_circle", "home", "settings"). Uses snake_case naming.',
+              'The Material Icon name (e.g., "check", "home", "settings"). Uses camelCase naming.',
             type: 'string | { path: string }',
           },
         ],
@@ -454,7 +452,7 @@ export const COMPONENTS_DATA_V09: ComponentCategory[] = [
             {
               id: 'icon-3',
               component: 'Icon',
-              name: 'check_circle',
+              name: 'check',
             } as A2UIComponent,
             {
               id: 'icon-4',
@@ -670,14 +668,13 @@ export const COMPONENTS_DATA_V09: ComponentCategory[] = [
       },
       {
         name: 'DateTimeInput',
-        description: 'Date and/or time picker with configurable format output.',
+        description: 'Date and/or time picker with ISO 8601 value binding.',
         usage: `{
   "id": "datetime-1",
   "component": "DateTimeInput",
   "value": { "path": "/event/startDate" },
   "enableDate": true,
-  "enableTime": true,
-  "outputFormat": "YYYY-MM-DD HH:mm"
+  "enableTime": true
 }`,
         props: [
           {
@@ -702,11 +699,6 @@ export const COMPONENTS_DATA_V09: ComponentCategory[] = [
             description: 'Whether to show the time picker.',
             type: 'boolean',
             default: 'true',
-          },
-          {
-            name: 'outputFormat',
-            description: 'Format string for the output value (e.g., "YYYY-MM-DD").',
-            type: 'string',
           },
           {
             name: 'min',
@@ -740,24 +732,23 @@ export const COMPONENTS_DATA_V09: ComponentCategory[] = [
         usage: `{
   "id": "choice-1",
   "component": "ChoicePicker",
-  "options": { "path": "/form/country" },
+  "value": { "path": "/form/country" },
   "variant": "mutuallyExclusive",
-  "choices": [
+  "options": [
     { "label": "United States", "value": "US" },
     { "label": "Canada", "value": "CA" },
     { "label": "Mexico", "value": "MX" }
-  ],
-  "maxAllowedSelections": 1
+  ]
 }`,
         props: [
           {
-            name: 'options',
+            name: 'value',
             description: 'Currently selected value(s). Bound to a data path for two-way binding.',
             type: 'string[] | { path: string }',
           },
           {
-            name: 'choices',
-            description: 'Array of available choices with label and value.',
+            name: 'options',
+            description: 'Array of available options with label and value.',
             type: 'array',
           },
           {
@@ -775,14 +766,9 @@ export const COMPONENTS_DATA_V09: ComponentCategory[] = [
           },
           {
             name: 'filterable',
-            description: 'Whether choices can be filtered by typing.',
+            description: 'Whether options can be filtered by typing.',
             type: 'boolean',
             default: 'false',
-          },
-          {
-            name: 'maxAllowedSelections',
-            description: 'Maximum number of selections allowed. Use 1 for single-select behavior.',
-            type: 'number',
           },
         ],
         // No preview — ChoicePicker requires live data binding for options.
@@ -804,9 +790,9 @@ export const COMPONENTS_DATA_V09: ComponentCategory[] = [
   "action": {
     "event": {
       "name": "submit",
-      "context": [
-        { "key": "formId", "value": "contact-form" }
-      ]
+      "context": {
+        "formId": "contact-form"
+      }
     }
   }
 }`,
@@ -1049,4 +1035,67 @@ export const COMPONENTS_DATA_V09: ComponentCategory[] = [
       },
     ],
   },
+];
+
+// Canonical A2UI v0.9 basic catalog Icon names (camelCase)
+export const MATERIAL_ICONS = [
+  'accountCircle',
+  'add',
+  'arrowBack',
+  'arrowForward',
+  'attachFile',
+  'calendarToday',
+  'call',
+  'camera',
+  'check',
+  'close',
+  'delete',
+  'download',
+  'edit',
+  'event',
+  'error',
+  'fastForward',
+  'favorite',
+  'favoriteOff',
+  'folder',
+  'help',
+  'home',
+  'info',
+  'locationOn',
+  'lock',
+  'lockOpen',
+  'mail',
+  'menu',
+  'moreVert',
+  'moreHoriz',
+  'notificationsOff',
+  'notifications',
+  'pause',
+  'payment',
+  'person',
+  'phone',
+  'photo',
+  'play',
+  'print',
+  'refresh',
+  'rewind',
+  'search',
+  'send',
+  'settings',
+  'share',
+  'shoppingCart',
+  'skipNext',
+  'skipPrevious',
+  'star',
+  'starHalf',
+  'starOff',
+  'stop',
+  'upload',
+  'visibility',
+  'visibilityOff',
+  'volumeDown',
+  'volumeMute',
+  'volumeOff',
+  'volumeUp',
+  'warning',
 ];

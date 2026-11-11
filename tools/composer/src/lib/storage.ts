@@ -24,9 +24,18 @@ localforage.config({
   storeName: 'widgets',
 });
 
+function isValidV09Widget(widget: unknown): widget is Widget {
+  if (!widget || typeof widget !== 'object') return false;
+  const w = widget as Partial<Widget>;
+  if (w.specVersion !== '0.9' || !Array.isArray(w.components)) return false;
+  return w.components.every(
+    comp => comp && typeof comp === 'object' && typeof comp.component === 'string',
+  );
+}
+
 export async function getWidgets(): Promise<Widget[]> {
   const widgets = await localforage.getItem<Widget[]>(WIDGETS_KEY);
-  return widgets || [];
+  return (widgets || []).filter(isValidV09Widget);
 }
 
 export async function saveWidget(widget: Widget): Promise<void> {

@@ -49,7 +49,7 @@ function toStreamChunks(messages: any[]): StreamChunk[] {
       index: i,
       wire,
       message: msg,
-      isClient: !!msg.action || !!msg.clientEvent,
+      isClient: !!msg.action,
       bytes: new TextEncoder().encode(wire).length,
     };
   });
@@ -72,12 +72,14 @@ function toLifecycleEvents(messages: any[]): LifecycleEvent[] {
       events.push({chunkIndex: i, summary: `${count} components updated`, type: 'components'});
     }
     if (msg.updateDataModel) {
-      const value = msg.updateDataModel.value;
-      const keys = value && typeof value === 'object' ? Object.keys(value) : [];
-      events.push({chunkIndex: i, summary: `Data model: ${keys.join(', ')}`, type: 'data'});
+      const {path, value} = msg.updateDataModel;
+      const keys =
+        value && typeof value === 'object' && !Array.isArray(value) ? Object.keys(value) : [];
+      const target = keys.length > 0 ? keys.join(', ') : path || '/';
+      events.push({chunkIndex: i, summary: `Data model: ${target}`, type: 'data'});
     }
     if (msg.action) {
-      const name = msg.action?.name || 'action';
+      const name = msg.action.name || 'action';
       events.push({chunkIndex: i, summary: `User action: ${name}`, type: 'action'});
     }
     if (msg.deleteSurface) {

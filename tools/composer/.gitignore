@@ -51,6 +51,7 @@ __pycache__
 
 # Auto-generated gallery data (from scripts/sync-gallery.mjs)
 src/data/gallery/v09/generated.ts
+src/data/theater/generated.ts
 
 # OpenNext
 .open-next

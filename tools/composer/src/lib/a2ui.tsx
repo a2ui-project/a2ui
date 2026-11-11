@@ -48,6 +48,7 @@ export function A2UIViewer({components, ...props}: A2UIViewerProps) {
       components={components as Array<{id: string; component: string; [key: string]: unknown}>}
       data={props.data}
       onAction={props.onAction}
+      className={props.className}
     />
   );
 }

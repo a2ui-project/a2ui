@@ -44,9 +44,10 @@ export interface V09ViewerProps {
   components: V09Component[];
   data?: Record<string, unknown>;
   onAction?: (action: unknown) => void;
+  className?: string;
 }
 
-export function V09Viewer({root, components, data = {}, onAction}: V09ViewerProps) {
+export function V09Viewer({root, components, data = {}, onAction, className}: V09ViewerProps) {
   const surface = useMemo(() => {
     const processor = new MessageProcessor<ReactCatalogComponent>(
       [basicCatalog],
@@ -92,13 +93,25 @@ export function V09Viewer({root, components, data = {}, onAction}: V09ViewerProp
       });
     }
 
-    processor.processMessages(messages);
-
-    return processor.model.getSurface(SURFACE_ID);
+    try {
+      processor.processMessages(messages);
+      return processor.model.getSurface(SURFACE_ID);
+    } catch (error) {
+      console.error('A2UI V09Viewer validation error:', error);
+      return undefined;
+    }
   }, [root, components, data, onAction]);
 
   if (!surface) {
     return <div style={{color: 'gray', padding: '8px'}}>No surface created</div>;
+  }
+
+  if (className) {
+    return (
+      <div className={className}>
+        <A2uiSurface surface={surface} />
+      </div>
+    );
   }
 
   return <A2uiSurface surface={surface} />;

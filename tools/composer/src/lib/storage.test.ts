@@ -55,6 +55,33 @@ describe('storage', () => {
       const widgets = await getWidgets();
       expect(widgets).toEqual([mockWidget]);
     });
+
+    it('should filter out legacy widgets with unsupported specVersion or non-string component discriminators', async () => {
+      const legacySpecWidget = {
+        ...mockWidget,
+        id: 'legacy-spec',
+        specVersion: 'legacy',
+      };
+      const legacyComponentShapeWidget = {
+        ...mockWidget,
+        id: 'legacy-shape',
+        components: [{id: 'root', component: {Text: {text: 'hello'}}}],
+      };
+      const validV09Widget: Widget = {
+        ...mockWidget,
+        id: 'valid-v09',
+        components: [{id: 'root', component: 'Text', text: 'hello'}],
+      };
+
+      vi.mocked(localforage.getItem).mockResolvedValue([
+        legacySpecWidget,
+        legacyComponentShapeWidget,
+        validV09Widget,
+      ]);
+
+      const widgets = await getWidgets();
+      expect(widgets).toEqual([validV09Widget]);
+    });
   });
 
   describe('saveWidget', () => {

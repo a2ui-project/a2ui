@@ -11,7 +11,7 @@
     "lint:fix": "eslint --fix",
     "test": "wireit",
     "test:watch": "vitest",
-    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "format": "prettier --write .",
     "clean": "wireit",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
@@ -84,6 +84,8 @@
         "../../typescript/renderers/react:build"
       ],
       "files": [
+        "scripts/sync-gallery.mjs",
+        "../../specification/v0_9/catalogs/basic/examples/*.json",
         "src/**/*",
         "public/**/*",
         "tsconfig.json",

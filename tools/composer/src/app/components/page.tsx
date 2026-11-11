@@ -214,7 +214,7 @@ function ComponentContent({
 }
 
 export default function ComponentsPage() {
-  const {specVersion, isLoaded} = useSpecVersion();
+  const {specVersion} = useSpecVersion();
   const componentsData = COMPONENTS_DATA_V09;
   const [selectedComponent, setSelectedComponent] = useState('Row');
 
@@ -230,9 +230,7 @@ export default function ComponentsPage() {
         onSelect={setSelectedComponent}
         data={componentsData}
       />
-      {isLoaded && component && (
-        <ComponentContent component={component} specVersion={specVersion} />
-      )}
+      {component && <ComponentContent component={component} specVersion={specVersion} />}
     </div>
   );
 }

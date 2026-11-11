@@ -24,21 +24,62 @@ export interface A2UISurfaceState {
   data: Record<string, any>;
 }
 
+function applyUpdateDataModel(
+  data: Record<string, any>,
+  update: {path?: string; value?: any},
+): Record<string, any> {
+  const {path, value} = update;
+  if (!path || path === '/') {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      return {...data, ...value};
+    }
+    return data;
+  }
+
+  const parts = path.split('/').filter(Boolean);
+  if (parts.length === 0) return data;
+
+  const next: Record<string, any> = structuredClone(data);
+  let curr: any = next;
+  for (let i = 0; i < parts.length - 1; i++) {
+    const key = parts[i]!;
+    if (curr[key] === undefined || curr[key] === null || typeof curr[key] !== 'object') {
+      const nextKey = parts[i + 1]!;
+      curr[key] = /^\d+$/.test(nextKey) ? [] : {};
+    }
+    curr = curr[key];
+  }
+
+  const lastKey = parts[parts.length - 1]!;
+  if (value === undefined) {
+    if (Array.isArray(curr) && /^\d+$/.test(lastKey)) {
+      curr.splice(Number(lastKey), 1);
+    } else {
+      delete curr[lastKey];
+    }
+  } else {
+    curr[lastKey] = value;
+  }
+
+  return next;
+}
+
 /**
  * Transform a stream of A2UI v0.9 messages into
  * the props format that A2UIViewer expects.
  */
 export function useA2UISurface(messages: any[]): A2UISurfaceState {
   return useMemo(() => {
-    let root = 'root';
+    const root = 'root';
     const componentsMap = new Map<string, A2UIComponent>();
     let data: Record<string, any> = {};
 
     for (const msg of messages) {
       if (!msg) continue;
 
-      if (msg.createSurface) {
-        root = msg.createSurface.root || 'root';
+      if (msg.createSurface || msg.deleteSurface) {
+        componentsMap.clear();
+        data = {};
       }
 
       if (msg.updateComponents) {
@@ -51,10 +92,7 @@ export function useA2UISurface(messages: any[]): A2UISurfaceState {
       }
 
       if (msg.updateDataModel) {
-        const value = msg.updateDataModel.value;
-        if (value && typeof value === 'object' && !Array.isArray(value)) {
-          data = {...data, ...value};
-        }
+        data = applyUpdateDataModel(data, msg.updateDataModel);
       }
     }
 

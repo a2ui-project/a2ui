@@ -14,18 +14,4 @@
  * limitations under the License.
  */
 
-import flightStatus from '../../../../../specification/v0_9/catalogs/basic/examples/01_flight-status.json';
-import restaurantCard from '../../../../../specification/v0_9/catalogs/basic/examples/20_restaurant-card.json';
-import contactCard from '../../../../../specification/v0_9/catalogs/basic/examples/25_contact-card.json';
-import liveInvitationBuilder from '../../../../../specification/v0_9/catalogs/basic/examples/30_live-invitation-builder.json';
-import incrementalDashboard from '../../../../../specification/v0_9/catalogs/basic/examples/31_incremental-dashboard.json';
-
-export const scenarios = {
-  'incremental-dashboard': incrementalDashboard.messages,
-  'live-invitation-builder': liveInvitationBuilder.messages,
-  'flight-status': flightStatus.messages,
-  'restaurant-card': restaurantCard.messages,
-  'contact-card': contactCard.messages,
-};
-
-export type ScenarioId = keyof typeof scenarios;
+export {scenarios, type ScenarioId} from './generated';
