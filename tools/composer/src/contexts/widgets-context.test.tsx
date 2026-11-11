@@ -30,7 +30,7 @@ describe('WidgetsContext', () => {
   const mockWidget: Widget = {
     id: '1',
     name: 'Test Widget',
-    specVersion: '0.8',
+    specVersion: '0.9',
     createdAt: new Date(),
     updatedAt: new Date(),
     root: 'root',
@@ -63,7 +63,7 @@ describe('WidgetsContext', () => {
               addWidget({
                 id: '2',
                 name: 'New',
-                specVersion: '0.8',
+                specVersion: '0.9',
                 createdAt: new Date(),
                 updatedAt: new Date(),
                 root: 'root',

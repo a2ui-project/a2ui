@@ -25,10 +25,7 @@
 import {useSpecVersion} from '@/contexts/spec-version-context';
 import type {SpecVersion} from '@/types/widget';
 
-const VERSIONS: {value: SpecVersion; label: string}[] = [
-  {value: '0.8', label: 'v0.8'},
-  {value: '0.9', label: 'v0.9'},
-];
+const VERSIONS: {value: SpecVersion; label: string}[] = [{value: '0.9', label: 'v0.9'}];
 
 export function VersionSelector() {
   const {specVersion, setSpecVersion} = useSpecVersion();

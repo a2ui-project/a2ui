@@ -79,7 +79,7 @@ export default function TheaterPage() {
     const url = readURL();
     return url.scenario && url.scenario in scenarios
       ? (url.scenario as ScenarioId)
-      : 'restaurant-booking';
+      : 'incremental-dashboard';
   });
 
   const {

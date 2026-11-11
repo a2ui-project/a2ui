@@ -18,9 +18,7 @@
 
 import {useState} from 'react';
 import {cn} from '@/lib/utils';
-import {COMPONENTS_DATA} from '@/lib/components-data';
-import {COMPONENTS_DATA_V09} from '@/lib/components-data-v09';
-import type {ComponentDoc} from '@/lib/components-data';
+import {COMPONENTS_DATA_V09, type ComponentDoc} from '@/lib/components-data-v09';
 import {A2UIViewer} from '@/lib/a2ui';
 import {useSpecVersion} from '@/contexts/spec-version-context';
 import type {SpecVersion} from '@/types/widget';
@@ -32,7 +30,7 @@ function ComponentSidebar({
 }: {
   selectedComponent: string;
   onSelect: (name: string) => void;
-  data: typeof COMPONENTS_DATA;
+  data: typeof COMPONENTS_DATA_V09;
 }) {
   return (
     <nav className="w-48 shrink-0 border-r border-border overflow-auto">
@@ -217,7 +215,7 @@ function ComponentContent({
 
 export default function ComponentsPage() {
   const {specVersion, isLoaded} = useSpecVersion();
-  const componentsData = specVersion === '0.9' ? COMPONENTS_DATA_V09 : COMPONENTS_DATA;
+  const componentsData = COMPONENTS_DATA_V09;
   const [selectedComponent, setSelectedComponent] = useState('Row');
 
   // Find the selected component

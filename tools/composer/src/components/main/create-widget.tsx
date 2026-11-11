@@ -28,25 +28,6 @@ import type {Widget} from '@/types/widget';
 import type {A2UIComponent} from '@/types/widget';
 import {parseRobustJSON} from '@/lib/json-parser';
 
-const DEFAULT_COMPONENTS_V08: A2UIComponent[] = [
-  {
-    id: 'root',
-    component: {
-      Card: {
-        child: 'content',
-      },
-    },
-  },
-  {
-    id: 'content',
-    component: {
-      Text: {
-        text: {path: '/title'},
-      },
-    },
-  },
-];
-
 const DEFAULT_COMPONENTS_V09: A2UIComponent[] = [
   {
     id: 'root',
@@ -66,11 +47,11 @@ export function CreateWidget() {
   const router = useRouter();
   const {addWidget} = useWidgets();
   const {specVersion} = useSpecVersion();
-  const agentId = specVersion === '0.9' ? 'v09' : 'v08';
+  const agentId = 'v09';
   const {agent} = useAgent({agentId});
   const {copilotkit} = useCopilotKit();
 
-  const defaultComponents = specVersion === '0.9' ? DEFAULT_COMPONENTS_V09 : DEFAULT_COMPONENTS_V08;
+  const defaultComponents = DEFAULT_COMPONENTS_V09;
 
   const [inputValue, setInputValue] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);

@@ -31,7 +31,7 @@ describe('storage', () => {
   const mockWidget: Widget = {
     id: '1',
     name: 'Test Widget',
-    specVersion: '0.8',
+    specVersion: '0.9',
     createdAt: new Date(),
     updatedAt: new Date(),
     root: 'root',

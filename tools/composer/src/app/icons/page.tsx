@@ -168,11 +168,8 @@ const MATERIAL_ICONS = [
   'bar_chart',
 ];
 
-function iconComponent(name: string, specVersion: SpecVersion): A2UIComponent[] {
-  if (specVersion === '0.9') {
-    return [{id: 'icon', component: 'Icon', name}];
-  }
-  return [{id: 'icon', component: {Icon: {name: {literalString: name}}}}];
+function iconComponent(name: string): A2UIComponent[] {
+  return [{id: 'icon', component: 'Icon', name}];
 }
 
 function IconCard({
@@ -197,11 +194,7 @@ function IconCard({
       )}
     >
       <div className="flex h-12 w-12 items-center justify-center scale-[2]">
-        <A2UIViewer
-          root="icon"
-          components={iconComponent(name, specVersion)}
-          specVersion={specVersion}
-        />
+        <A2UIViewer root="icon" components={iconComponent(name)} specVersion={specVersion} />
       </div>
       <span className="text-xs text-muted-foreground truncate w-full text-center">{name}</span>
     </button>
@@ -214,7 +207,7 @@ export default function IconsPage() {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async (name: string) => {
-    const code = `{ "Icon": { "name": { "literalString": "${name}" } } }`;
+    const code = `{ "id": "icon", "component": "Icon", "name": "${name}" }`;
     await navigator.clipboard.writeText(code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
