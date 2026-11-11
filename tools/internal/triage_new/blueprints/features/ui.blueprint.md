@@ -122,7 +122,7 @@ Ann cannot triage an item in a couple of minutes, or the suggestion says that th
 Ann goes through the **Needs team input** group with other team members. For each item:
 
 1. If they can triage it in a couple of minutes, Ann adjusts the suggestion and clicks **Apply**.
-2. Otherwise, they pick an expert in the area. Ann adds `status: assigned-for-triage` to the labels, adds the expert to the assignees, and clicks **Apply**.
+2. Otherwise, they pick an expert in the area. The advisor suggests one from the commit history of the affected area (see [triage criteria](../../../../../.agents/skills/a2ui-triage-advisor/references/triage_criteria.md#rules-for-every-item)). Ann adds `status: assigned-for-triage` to the labels, adds the expert to the assignees, and clicks **Apply**.
 
 In both cases, the tool removes `status: needs-team-input` from the item.
 
