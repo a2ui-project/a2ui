@@ -19,6 +19,7 @@
  * - the sandbox proxy pages of @a2ui-labs/react-app at /a2ui-sandbox/,
  * - the ReactApp runtime at /a2ui-sandbox/react-app/v1/ (with the CORS headers app frames need),
  * - the agent at /api, proxied to DEMO_AGENT_URL (default http://127.0.0.1:8787).
+ * It listens on DEMO_CLIENT_HOST:DEMO_CLIENT_PORT (default 127.0.0.1:5317).
  */
 import {createReadStream, readFileSync, statSync} from 'node:fs';
 import {createRequire} from 'node:module';
@@ -32,6 +33,24 @@ const require = createRequire(import.meta.url);
 const clientDir = dirname(fileURLToPath(import.meta.url));
 const sandboxDir = join(dirname(require.resolve('@a2ui-labs/react-app')), 'sandbox');
 const agentUrl = process.env['DEMO_AGENT_URL'] ?? 'http://127.0.0.1:8787';
+const host = process.env['DEMO_CLIENT_HOST'] ?? '127.0.0.1';
+const port = Number(process.env['DEMO_CLIENT_PORT'] ?? 5317);
+/**
+ * Host headers the server accepts besides localhost: DEMO_ALLOWED_HOSTS (comma-separated), or any
+ * host when the server listens beyond loopback, so the page opens by machine name.
+ */
+const allowedHosts: true | string[] = process.env['DEMO_ALLOWED_HOSTS']
+  ? process.env['DEMO_ALLOWED_HOSTS'].split(',').map(name => name.trim())
+  : ['127.0.0.1', 'localhost', '::1'].includes(host)
+    ? []
+    : true;
+const serverOptions = {
+  host,
+  port,
+  strictPort: true,
+  allowedHosts,
+  proxy: {'/api': {target: agentUrl, changeOrigin: true}},
+};
 
 const SANDBOX_BASE = '/a2ui-sandbox/';
 const RUNTIME_BASE = '/a2ui-sandbox/react-app/v1/';
@@ -100,16 +119,6 @@ export default defineConfig({
     alias: {react: single('react'), 'react-dom': single('react-dom'), lit: single('lit')},
     dedupe: ['react', 'react-dom', 'lit', '@a2ui/web_core'],
   },
-  server: {
-    host: '127.0.0.1',
-    port: Number(process.env['DEMO_CLIENT_PORT'] ?? 5317),
-    strictPort: true,
-    proxy: {'/api': {target: agentUrl, changeOrigin: true}},
-  },
-  preview: {
-    host: '127.0.0.1',
-    port: Number(process.env['DEMO_CLIENT_PORT'] ?? 5317),
-    strictPort: true,
-    proxy: {'/api': {target: agentUrl, changeOrigin: true}},
-  },
+  server: serverOptions,
+  preview: serverOptions,
 });

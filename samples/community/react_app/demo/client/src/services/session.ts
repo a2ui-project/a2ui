@@ -74,6 +74,18 @@ export interface TurnState {
   readonly mode: string | null;
 }
 
+/**
+ * A random conversation id. `crypto.randomUUID` only exists in secure contexts, and the demo is
+ * also opened over plain HTTP by machine name, so this falls back to `getRandomValues`.
+ */
+function newConversationId(): string {
+  if (typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
 /** Converts an epoch-milliseconds agent timestamp to this page's `performance.now()` clock. */
 function toPerformanceTime(epochMs: number): number {
   return epochMs - performance.timeOrigin;
@@ -86,7 +98,7 @@ function humanize(name: string): string {
 
 /** The conversation store, read by React through `useSyncExternalStore`. */
 export class DemoSession {
-  readonly conversationId = crypto.randomUUID();
+  readonly conversationId = newConversationId();
   readonly processor: MessageProcessor<ReactCatalogComponent>;
   private turns: readonly TurnState[] = [];
   private readonly bridgeLogs = new Map<string, BridgeLog>();
