@@ -213,6 +213,107 @@ struct DataContextTests {
     #expect(context.resolveDynamicValue(call) == .integer(2))
     #expect(mockHandler.lastRequestedCatalogID == nil)
   }
+
+  @Test func v10DynamicValueRejectsPropertyDirectivesAndUnescapesDoubledKeys() throws {
+    let mockHandler = MockFunctionHandler()
+    let context = DataContext(
+      dataModel: DataModel(initial: ["name": "Ada"]),
+      path: "/",
+      functionHandler: mockHandler,
+      protocolVersion: .v10
+    )
+
+    for key in ["@child", "@action", "@functionCall"] {
+      let rejected: JSONValue = .object([key: .string("bad")])
+      #expect(context.resolveDynamicValue(rejected) == .null)
+      #expect(throws: A2UIValidationError.self) {
+        try DataContext.validateReservedDirectives([key])
+      }
+    }
+    #expect(mockHandler.capturedErrors.count == 3)
+
+    let escaped: JSONValue = [
+      "@@child": "litChild",
+      "@@action": ["name": "litAction"],
+      "@@functionCall": ["@@call": "litCall"],
+      "bound": ["@path": "/name"],
+    ]
+    let expected: JSONValue = [
+      "@child": "litChild",
+      "@action": ["name": "litAction"],
+      "@functionCall": ["@call": "litCall"],
+      "bound": "Ada",
+    ]
+    #expect(context.resolveDynamicValue(escaped) == expected)
+  }
+
+  @Test func v10ResolveActionSupportsAtActionAndLegacyEvent() {
+    let mockHandler = MockFunctionHandler()
+    let dataModel = DataModel(initial: ["item": "book", "label": "Submitting book"])
+    let context = DataContext(
+      dataModel: dataModel,
+      path: "/",
+      functionHandler: mockHandler,
+      protocolVersion: .v10
+    )
+
+    let atAction: JSONValue = [
+      "@action": [
+        "name": "submit",
+        "userMessage": ["@path": "/label"],
+        "context": [
+          "item": ["@path": "/item"],
+          "@@child": "literal",
+        ],
+      ]
+    ]
+    let resolvedAt = context.resolveAction(atAction)
+    #expect(
+      resolvedAt
+        == [
+          "@action": [
+            "name": "submit",
+            "userMessage": "Submitting book",
+            "context": [
+              "item": "book",
+              "@child": "literal",
+            ],
+          ]
+        ]
+    )
+
+    let legacyEvent: JSONValue = [
+      "event": [
+        "name": "submit",
+        "context": ["item": ["@path": "/item"]],
+      ]
+    ]
+    let resolvedLegacy = context.resolveAction(legacyEvent)
+    #expect(
+      resolvedLegacy
+        == [
+          "event": [
+            "name": "submit",
+            "context": ["item": "book"],
+          ]
+        ]
+    )
+
+    // Without `.v10`, `resolveAction` leaves `@action` and `@@`-prefixed keys literal.
+    for version: A2UIProtocolVersion? in [nil, .v09] {
+      let nonV10Context = DataContext(
+        dataModel: dataModel,
+        path: "/",
+        functionHandler: mockHandler,
+        protocolVersion: version
+      )
+      #expect(nonV10Context.resolveAction(atAction) == atAction)
+      let escapedEvent: JSONValue = [
+        "event": ["name": "submit", "context": ["@@child": "literal"]]
+      ]
+      #expect(nonV10Context.resolveAction(escapedEvent) == escapedEvent)
+    }
+  }
 }
 
 @MainActor
@@ -220,10 +321,15 @@ private final class MockFunctionHandler: FunctionHandler {
   var functionToReturn: (any FunctionImplementation)? = nil
   var lastRequestedName: String? = nil
   var lastRequestedCatalogID: String? = nil
+  var capturedErrors: [(error: any Error, functionName: String)] = []
 
   func function(named name: String, catalogID: String?) -> (any FunctionImplementation)? {
     lastRequestedName = name
     lastRequestedCatalogID = catalogID
     return functionToReturn
+  }
+
+  func handleFunctionError(_ error: any Error, functionName: String) {
+    capturedErrors.append((error: error, functionName: functionName))
   }
 }

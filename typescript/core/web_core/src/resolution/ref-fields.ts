@@ -28,6 +28,34 @@ export interface ChildRefAnalysisOptions {
   childListRefNames: ReadonlySet<string>;
   /** Optional set of string property names recognized as single child references (e.g. in v0.8 schemas without $ref). */
   childPropertyNames?: ReadonlySet<string>;
+  /** Whether v1.0 `@`-prefixed component directive schemas (`@child`, `@path`, `@action`, `@functionCall`) apply. */
+  readonly atLeastV10?: boolean;
+  /** Enables `@`-prefixed schema directive detection when protocol version is inferred from context. */
+  readonly includeAtDirectives?: boolean;
+}
+
+const v10DirectivesOptionsCache = new WeakMap<ChildRefAnalysisOptions, ChildRefAnalysisOptions>();
+
+/**
+ * Returns whether child-ref schema helpers should recognize v1.0 `@child`/`@path`/`@action`/`@functionCall` objects.
+ */
+export function usesAtDirectives(options?: ChildRefAnalysisOptions): boolean {
+  return Boolean(options?.atLeastV10 || options?.includeAtDirectives);
+}
+
+/**
+ * Returns a memoized copy of `options` with `atLeastV10: true` so WeakMap caches keyed by `options` keep hit identity.
+ */
+export function withV10Directives(options: ChildRefAnalysisOptions): ChildRefAnalysisOptions {
+  if (options.atLeastV10) {
+    return options;
+  }
+  let cached = v10DirectivesOptionsCache.get(options);
+  if (!cached) {
+    cached = Object.freeze({...options, atLeastV10: true});
+    v10DirectivesOptionsCache.set(options, cached);
+  }
+  return cached;
 }
 
 /**
@@ -233,20 +261,72 @@ export function getUnionOptions(schema: z.ZodTypeAny): z.ZodTypeAny[] | undefine
 
 /**
  * Returns whether an unwrapped `ZodObject` matches a dynamic child-list template
- * shape (`{ componentId, path | @path | dataBinding }` or v0.8 `explicitList`/`template`).
+ * shape (`{ '@child', '@path' }`, legacy `{ componentId, path | @path | dataBinding }`, or v0.8 `explicitList`/`template`).
  */
-export function isTemplateRefObject(schema: z.ZodTypeAny): boolean {
+export function isTemplateRefObject(
+  schema: z.ZodTypeAny,
+  options?: ChildRefAnalysisOptions,
+): boolean {
   if (schema?._def?.typeName !== 'ZodObject') {
     return false;
   }
+  const includeAt = usesAtDirectives(options);
   const shape = (schema as z.AnyZodObject).shape as Record<string, z.ZodTypeAny>;
   return Boolean(
+    (includeAt && Object.hasOwn(shape, '@child') && Object.hasOwn(shape, '@path')) ||
+    // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
     (Object.hasOwn(shape, 'componentId') &&
       (Object.hasOwn(shape, 'path') ||
-        Object.hasOwn(shape, '@path') ||
+        (includeAt && Object.hasOwn(shape, '@path')) ||
         Object.hasOwn(shape, 'dataBinding'))) ||
     Object.hasOwn(shape, 'explicitList') ||
     Object.hasOwn(shape, 'template'),
+  );
+}
+
+/**
+ * Returns whether an unwrapped `ZodObject` matches a v1.0 single-child directive
+ * wrapper (`{ '@child': ComponentId }`, without `@path`).
+ */
+export function isSingleChildRefObject(
+  schema: z.ZodTypeAny,
+  visited = new Set<z.ZodTypeAny>(),
+  options?: ChildRefAnalysisOptions,
+): boolean {
+  if (!usesAtDirectives(options) || schema?._def?.typeName !== 'ZodObject') {
+    return false;
+  }
+  const shape = (schema as z.AnyZodObject).shape as Record<string, z.ZodTypeAny>;
+  if (!Object.hasOwn(shape, '@child') || Object.hasOwn(shape, '@path')) {
+    return false;
+  }
+  return canHoldSingleRef(unwrapZodField(shape['@child']), new Set(visited), options);
+}
+
+/**
+ * Returns whether an unwrapped `ZodObject` matches a v1.0 static child-list directive
+ * wrapper (`{ '@child': ComponentId[] }`, without `@path`).
+ */
+export function isStaticListChildRefObject(
+  schema: z.ZodTypeAny,
+  visited = new Set<z.ZodTypeAny>(),
+  options?: ChildRefAnalysisOptions,
+): boolean {
+  if (!usesAtDirectives(options) || schema?._def?.typeName !== 'ZodObject') {
+    return false;
+  }
+  const shape = (schema as z.AnyZodObject).shape as Record<string, z.ZodTypeAny>;
+  if (!Object.hasOwn(shape, '@child') || Object.hasOwn(shape, '@path')) {
+    return false;
+  }
+  const childField = unwrapZodField(shape['@child']);
+  if (childField.schema?._def?.typeName !== 'ZodArray') {
+    return false;
+  }
+  const elementField = unwrapZodField(childField.schema._def.type as z.ZodTypeAny);
+  return (
+    canHoldSingleRef(elementField, new Set(visited), options) ||
+    isTemplateRefObject(elementField.schema, options)
   );
 }
 
@@ -935,7 +1015,7 @@ function classifyExplicitProperty(
     if (unionKind) {
       mergeRefKind(merged, 'prop', unionKind);
     }
-    if (marksChildList(field, options) || isChildListUnion(field.schema)) {
+    if (marksChildList(field, options) || isChildListUnion(field.schema, undefined, options)) {
       mergeRefKind(merged, 'prop', {kind: 'list'});
     } else if (marksComponentId(field, options)) {
       mergeRefKind(merged, 'prop', {kind: 'single'});
@@ -943,11 +1023,18 @@ function classifyExplicitProperty(
     return merged.get('prop');
   }
 
-  if (marksChildList(field, options) || isTemplateRefObject(field.schema)) {
+  if (
+    marksChildList(field, options) ||
+    isTemplateRefObject(field.schema, options) ||
+    isStaticListChildRefObject(field.schema, nextVisited, options)
+  ) {
     return {kind: 'list'};
   }
 
-  if (marksComponentId(field, options)) {
+  if (
+    marksComponentId(field, options) ||
+    isSingleChildRefObject(field.schema, nextVisited, options)
+  ) {
     return {kind: 'single'};
   }
 
@@ -1244,8 +1331,8 @@ function hasNonChildRefMarker(
   return !marksComponentId(field, options) && !marksChildList(field, options);
 }
 
-function isDynamicBindingObject(schema: z.ZodTypeAny): boolean {
-  if (schema?._def?.typeName !== 'ZodObject' || isTemplateRefObject(schema)) {
+function isDynamicBindingObject(schema: z.ZodTypeAny, options?: ChildRefAnalysisOptions): boolean {
+  if (schema?._def?.typeName !== 'ZodObject' || isTemplateRefObject(schema, options)) {
     return false;
   }
   const shape = (schema as z.AnyZodObject).shape as Record<string, z.ZodTypeAny>;
@@ -1286,7 +1373,10 @@ function isDynamicValueUnion(
         hasExplicitChildMarker = true;
         return;
       }
-      if (hasNonChildRefMarker(unwrapped, options) || isDynamicBindingObject(unwrapped.schema)) {
+      if (
+        hasNonChildRefMarker(unwrapped, options) ||
+        isDynamicBindingObject(unwrapped.schema, options)
+      ) {
         hasDynamicBranch = true;
       }
       const nestedOptions = getUnionOptions(unwrapped.schema);
@@ -1371,6 +1461,8 @@ function canHoldSingleRef(
     case 'ZodAny':
     case 'ZodUnknown':
       return true;
+    case 'ZodObject':
+      return isSingleChildRefObject(field.schema, new Set(visited), options);
     case 'ZodPipeline': {
       const def = field.schema._def as {in: z.ZodTypeAny; out: z.ZodTypeAny};
       const inField = unwrapZodField(def['in']);
@@ -1440,11 +1532,14 @@ function canHoldListRef(
       const element = unwrapZodField(field.schema._def.type as z.ZodTypeAny);
       return (
         canHoldSingleRef(element, new Set(visited), options, allowDynamicValue) ||
-        isTemplateRefObject(element.schema)
+        isTemplateRefObject(element.schema, options)
       );
     }
     case 'ZodObject':
-      return isTemplateRefObject(field.schema);
+      return (
+        isTemplateRefObject(field.schema, options) ||
+        isStaticListChildRefObject(field.schema, new Set(visited), options)
+      );
     case 'ZodPipeline': {
       const def = field.schema._def as {in: z.ZodTypeAny; out: z.ZodTypeAny};
       const inField = unwrapZodField(def['in']);
@@ -1557,7 +1652,11 @@ function canHoldObjectElement(field: UnwrappedZodField, visited: Set<z.ZodTypeAn
 }
 
 /** Matches the binder's STRUCTURAL detection for `ChildList`-shaped unions. */
-function isChildListUnion(schema: z.ZodTypeAny, visited = new Set<z.ZodTypeAny>()): boolean {
+function isChildListUnion(
+  schema: z.ZodTypeAny,
+  visited = new Set<z.ZodTypeAny>(),
+  childOptions?: ChildRefAnalysisOptions,
+): boolean {
   const options = getUnionOptions(schema);
   if (!options) {
     return false;
@@ -1578,10 +1677,13 @@ function isChildListUnion(schema: z.ZodTypeAny, visited = new Set<z.ZodTypeAny>(
     for (const s of unwrapped.traversed) {
       nextVisited.add(s);
     }
-    if (isTemplateRefObject(unwrapped.schema)) {
+    if (
+      isTemplateRefObject(unwrapped.schema, childOptions) ||
+      isStaticListChildRefObject(unwrapped.schema, nextVisited, childOptions)
+    ) {
       return true;
     }
-    if (isChildListUnion(unwrapped.schema, nextVisited)) {
+    if (isChildListUnion(unwrapped.schema, nextVisited, childOptions)) {
       return true;
     }
     if (unwrapped.schema?._def?.typeName === 'ZodPipeline') {
@@ -1589,9 +1691,9 @@ function isChildListUnion(schema: z.ZodTypeAny, visited = new Set<z.ZodTypeAny>(
       const inField = unwrapZodField(def['in']);
       if (
         !inField.hasTransform &&
-        canHoldListRef(inField, new Set(nextVisited)) &&
-        (isTemplateRefObject(unwrapZodField(def['out']).schema) ||
-          isChildListUnion(unwrapZodField(def['out']).schema, nextVisited))
+        canHoldListRef(inField, new Set(nextVisited), childOptions) &&
+        (isTemplateRefObject(unwrapZodField(def['out']).schema, childOptions) ||
+          isChildListUnion(unwrapZodField(def['out']).schema, nextVisited, childOptions))
       ) {
         return true;
       }

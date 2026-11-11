@@ -18,10 +18,15 @@ from collections.abc import Callable, Mapping
 import copy
 import functools
 import re
+import types
 from typing import (
+    Annotated,
     Any,
     Final,
     Type,
+    Union,
+    get_args,
+    get_origin,
 )
 
 import jsonschema.exceptions
@@ -32,6 +37,7 @@ from ..catalog import (
     Catalog,
     get_custom_envelope_properties,
     get_declared_component_properties,
+    get_declared_properties_at_path,
     is_component_checkable,
     is_system_function_name,
     system_functions_for,
@@ -43,9 +49,24 @@ from ..common.uax31 import is_valid_uax31_identifier
 from ..exceptions import A2uiCatalogError, A2uiErrorDetail, A2uiValidationError
 from ..processing.format_pydantic_error import format_validation_error, to_json_pointer
 from ..schema import ProtocolVersion
-from ..schema.common_types_schema import get_common_types_catalog_defs
+from ..schema.common_types import (
+    ComponentReference,
+    DataBinding as BaseDataBinding,
+    FunctionCall as BaseFunctionCall,
+    ListReference,
+    SingleReference,
+    TemplateChildList,
+)
+from ..schema.common_types_schema import (
+    get_all_dynamic_type_names,
+    get_common_types_catalog_defs,
+)
 from ..schema.v1_0 import common_types as v1_0_common_types
 from .schema_validator import SchemaValidator
+
+_RELAXED_POINTER_RE: Final[re.Pattern[str]] = re.compile(
+    r"^(?:(?:\/(?:[^~\/]|~[01])*)*|(?:[^~\/]|~[01])+(?:\/(?:[^~\/]|~[01])*)*)$"
+)
 
 
 class ValidationConfig(BaseModel):
@@ -296,6 +317,542 @@ def nested_call_runs_in_catalog(
     return bool(call_catalog_id == catalog_id)
 
 
+def _ref_target_name(ref: str) -> str:
+    hash_idx = ref.rfind("#")
+    tail = ref[hash_idx + 1 :] if hash_idx != -1 else ref
+    parts = [p for p in tail.split("/") if p]
+    return parts[-1] if parts else ""
+
+
+def _unwrap_annotation(tp: Any) -> Any:
+    while True:
+        if type(tp).__name__ == "TypeAliasType":
+            tp = tp.__value__
+        elif get_origin(tp) is Annotated:
+            tp = get_args(tp)[0]
+        else:
+            return tp
+
+
+def _iter_union_branches(tp: Any) -> list[Any]:
+    tp = _unwrap_annotation(tp)
+    origin = get_origin(tp)
+    if origin is Union or origin is types.UnionType:
+        out: list[Any] = []
+        for b in get_args(tp):
+            if b is not type(None):
+                out.extend(_iter_union_branches(b))
+        return out
+    return [tp] if tp is not None and tp is not type(None) else []
+
+
+def _is_pydantic_dynamic_type(tp: Any) -> bool:
+    branches = _iter_union_branches(tp)
+    if not branches:
+        return False
+    return any(
+        isinstance(b, type)
+        and issubclass(
+            b,
+            (
+                BaseDataBinding,
+                BaseFunctionCall,
+                v1_0_common_types.DataBinding,
+                v1_0_common_types.FunctionCall,
+            ),
+        )
+        for b in branches
+    )
+
+
+def _pydantic_slot_kind(tp: Any) -> tuple[str | None, bool]:
+    """Returns `(slot_kind, expects_at_envelope)` for a Pydantic field annotation.
+
+    `slot_kind` is `'single_child'`, `'child_list'`, `'action'`, or `None`.
+    """
+    branches = _iter_union_branches(tp)
+    for b in branches:
+        if isinstance(b, type) and issubclass(b, SingleReference):
+            return "single_child", False
+        if isinstance(b, type) and issubclass(b, BaseModel):
+            fields_by_alias = {
+                (f.alias or fname): f for fname, f in b.model_fields.items()
+            }
+            aliases = set(fields_by_alias.keys())
+            if issubclass(b, ComponentReference) and not issubclass(b, ListReference):
+                return "single_child", ("@child" in aliases)
+            if issubclass(b, (ListReference, TemplateChildList)):
+                return "child_list", ("@child" in aliases)
+            if aliases == {"@child"}:
+                child_ann = _unwrap_annotation(fields_by_alias["@child"].annotation)
+                if get_origin(child_ann) is list:
+                    return "child_list", True
+                return "single_child", True
+            if aliases == {"@child", "@path"}:
+                return "child_list", True
+            if "@action" in aliases or "@functionCall" in aliases:
+                return "action", True
+            if aliases in ({"event"}, {"functionCall"}):
+                return "action", False
+        if get_origin(b) is list:
+            args = get_args(b)
+            if args:
+                elem = _unwrap_annotation(args[0])
+                if isinstance(elem, type) and issubclass(elem, SingleReference):
+                    return "child_list", False
+    return None, False
+
+
+def _deref_json_schema(schema: Any, defs: Mapping[str, Any]) -> dict[str, Any]:
+    seen: set[str] = set()
+    cur = schema
+    while isinstance(cur, dict) and isinstance(cur.get("$ref"), str):
+        ref = cur["$ref"]
+        if ref in seen:
+            break
+        seen.add(ref)
+        name = _ref_target_name(ref)
+        if name in defs and isinstance(defs[name], dict):
+            cur = defs[name]
+        else:
+            break
+    return cur if isinstance(cur, dict) else {}
+
+
+def _schema_has_at_key(schema: Any, defs: Mapping[str, Any], at_key: str) -> bool:
+    s = _deref_json_schema(schema, defs)
+    props = s.get("properties")
+    if isinstance(props, dict) and at_key in props:
+        return True
+    for comb in ("oneOf", "anyOf", "allOf"):
+        branches = s.get(comb)
+        if isinstance(branches, list) and any(
+            _schema_has_at_key(b, defs, at_key) for b in branches
+        ):
+            return True
+    return False
+
+
+def _is_json_schema_dynamic(schema: Any, defs: Mapping[str, Any]) -> bool:
+    if not isinstance(schema, dict):
+        return False
+    ref = schema.get("$ref")
+    if isinstance(ref, str):
+        name = _ref_target_name(ref)
+        if name in ({"DataBinding", "FunctionCall"} | get_all_dynamic_type_names()):
+            return True
+    s = _deref_json_schema(schema, defs)
+    for comb in ("oneOf", "anyOf"):
+        branches = s.get(comb)
+        if isinstance(branches, list) and any(
+            isinstance(b, dict)
+            and isinstance(b.get("$ref"), str)
+            and _ref_target_name(b["$ref"]) in ("DataBinding", "FunctionCall")
+            for b in branches
+        ):
+            return True
+    return False
+
+
+def _json_schema_slot_kind(
+    schema: Any, defs: Mapping[str, Any]
+) -> tuple[str | None, bool, bool]:
+    """Returns `(slot_kind, expects_at_envelope, allows_template)` for a JSON schema."""
+    if not isinstance(schema, dict):
+        return None, False, False
+    ref = schema.get("$ref")
+    if isinstance(ref, str):
+        name = _ref_target_name(ref)
+        if name == "ComponentId":
+            return "single_child", False, False
+        if name == "Child":
+            return "single_child", _schema_has_at_key(schema, defs, "@child"), False
+        if name == "ChildList":
+            return "child_list", _schema_has_at_key(schema, defs, "@child"), True
+        if name == "Action":
+            expects_at = _schema_has_at_key(
+                schema, defs, "@action"
+            ) or _schema_has_at_key(schema, defs, "@functionCall")
+            return "action", expects_at, False
+
+    s = _deref_json_schema(schema, defs)
+    for comb in ("allOf", "oneOf", "anyOf"):
+        branches = s.get(comb)
+        if isinstance(branches, list):
+            for b in branches:
+                kind, expects_at, allows_tpl = _json_schema_slot_kind(b, defs)
+                if kind is not None:
+                    return kind, expects_at, allows_tpl
+
+    props = s.get("properties")
+    if isinstance(props, dict):
+        if "@child" in props:
+            at_c = props["@child"]
+            if "@path" in props or (
+                isinstance(at_c, dict) and at_c.get("type") == "array"
+            ):
+                return "child_list", True, ("@path" in props)
+            return "single_child", True, False
+        if "componentId" in props and ("path" in props or "dataBinding" in props):
+            return "child_list", False, True
+        if len(props) == 1 and ("@action" in props or "@functionCall" in props):
+            return "action", True, False
+        if len(props) == 1 and ("event" in props or "functionCall" in props):
+            return "action", False, False
+
+    if s.get("type") == "array" and isinstance(s.get("items"), dict):
+        item_kind, item_expects_at, _ = _json_schema_slot_kind(s["items"], defs)
+        if item_kind == "single_child" and not item_expects_at:
+            return "child_list", False, False
+
+    return None, False, False
+
+
+def _normalize_slot_value(
+    val: Any,
+    slot_kind: str,
+    expects_at: bool,
+    allows_template: bool,
+    prop_path: str,
+    comp_id: str,
+    failed_prefixes: set[str],
+    rewrites: list[tuple[str, str]],
+) -> Any:
+    """Dual-read normalizes a single v1.0 Child, ChildList, or Action value."""
+    # TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+    full_prefix = f"components.{comp_id}.{prop_path}"
+    has_directive_err = any(
+        ep == full_prefix or ep.startswith(f"{full_prefix}.") for ep in failed_prefixes
+    )
+    if slot_kind == "single_child":
+        if expects_at:
+            if isinstance(val, str) and val:
+                return {"@child": val}
+            if has_directive_err and isinstance(val, dict) and "@child" in val:
+                return {"@child": "__invalid_placeholder__"}
+        else:
+            if (
+                isinstance(val, dict)
+                and set(val.keys()) == {"@child"}
+                and isinstance(val.get("@child"), str)
+                and val["@child"]
+            ):
+                return val["@child"]
+            if has_directive_err and isinstance(val, dict) and "@child" in val:
+                return "__invalid_placeholder__"
+        return val
+
+    if slot_kind == "child_list":
+        if expects_at:
+            if isinstance(val, list) and all(isinstance(x, str) and x for x in val):
+                return {"@child": list(val)}
+            if (
+                isinstance(val, dict)
+                and set(val.keys()) == {"componentId", "path"}
+                and isinstance(val.get("componentId"), str)
+                and val["componentId"]
+                and isinstance(val.get("path"), str)
+                and val["path"]
+            ):
+                rewrites.append((f"{full_prefix}.@child", f"{full_prefix}.componentId"))
+                rewrites.append((f"{full_prefix}.@path", f"{full_prefix}.path"))
+                return {"@child": val["componentId"], "@path": val["path"]}
+            if has_directive_err and isinstance(val, dict) and "@child" in val:
+                return {"@child": ["__invalid_placeholder__"]}
+        else:
+            if (
+                isinstance(val, dict)
+                and set(val.keys()) == {"@child"}
+                and isinstance(val.get("@child"), list)
+                and all(isinstance(x, str) and x for x in val["@child"])
+            ):
+                return list(val["@child"])
+            if (
+                allows_template
+                and isinstance(val, dict)
+                and set(val.keys()) == {"@child", "@path"}
+                and isinstance(val.get("@child"), str)
+                and val["@child"]
+                and isinstance(val.get("@path"), str)
+                and val["@path"]
+            ):
+                rewrites.append((f"{full_prefix}.componentId", f"{full_prefix}.@child"))
+                rewrites.append((f"{full_prefix}.path", f"{full_prefix}.@path"))
+                return {"componentId": val["@child"], "path": val["@path"]}
+            if has_directive_err and isinstance(val, dict) and "@child" in val:
+                return ["__invalid_placeholder__"]
+        return val
+
+    if slot_kind == "action":
+        if expects_at:
+            if (
+                isinstance(val, dict)
+                and set(val.keys()) == {"event"}
+                and isinstance(val.get("event"), dict)
+            ):
+                rewrites.append((f"{full_prefix}.@action", f"{full_prefix}.event"))
+                return {"@action": val["event"]}
+            if (
+                isinstance(val, dict)
+                and set(val.keys()) == {"functionCall"}
+                and isinstance(val.get("functionCall"), dict)
+            ):
+                rewrites.append(
+                    (f"{full_prefix}.@functionCall", f"{full_prefix}.functionCall")
+                )
+                return {"@functionCall": val["functionCall"]}
+            if (
+                has_directive_err
+                and isinstance(val, dict)
+                and ("@action" in val or "@functionCall" in val)
+            ):
+                return {"@action": {"name": "__invalid_placeholder__"}}
+        else:
+            if (
+                isinstance(val, dict)
+                and set(val.keys()) == {"@action"}
+                and isinstance(val.get("@action"), dict)
+            ):
+                if has_directive_err:
+                    return {"event": {"name": "__invalid_placeholder__"}}
+                rewrites.append((f"{full_prefix}.event", f"{full_prefix}.@action"))
+                return {"event": val["@action"]}
+            if (
+                isinstance(val, dict)
+                and set(val.keys()) == {"@functionCall"}
+                and isinstance(val.get("@functionCall"), dict)
+            ):
+                if has_directive_err:
+                    return {"event": {"name": "__invalid_placeholder__"}}
+                rewrites.append(
+                    (f"{full_prefix}.functionCall", f"{full_prefix}.@functionCall")
+                )
+                return {"functionCall": val["@functionCall"]}
+            if (
+                has_directive_err
+                and isinstance(val, dict)
+                and ("@action" in val or "@functionCall" in val)
+            ):
+                return {"event": {"name": "__invalid_placeholder__"}}
+        return val
+
+    return val
+
+
+def _apply_path_rewrites(
+    errors: list[A2uiErrorDetail], rewrites: list[tuple[str, str]]
+) -> list[A2uiErrorDetail]:
+    if not rewrites:
+        return errors
+    out: list[A2uiErrorDetail] = []
+    for d in errors:
+        new_path = d.path
+        for src, dst in rewrites:
+            if new_path == src:
+                new_path = dst
+                break
+            if new_path.startswith(f"{src}."):
+                new_path = f"{dst}{new_path[len(src):]}"
+                break
+        if new_path != d.path:
+            out.append(
+                A2uiErrorDetail(
+                    path=new_path,
+                    code=d.code,
+                    message=d.message,
+                    surface_id=d.surface_id,
+                )
+            )
+        else:
+            out.append(d)
+    return out
+
+
+def _normalize_v10_model_props(
+    model_cls: Type[BaseModel],
+    props: dict[str, Any],
+    comp_id: str,
+    prefix: str,
+    failed_prefixes: set[str],
+    rewrites: list[tuple[str, str]],
+) -> dict[str, Any]:
+    # TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+    out = dict(props)
+    field_by_key: dict[str, Any] = {}
+    for fname, finfo in model_cls.model_fields.items():
+        field_by_key[fname] = finfo
+        if finfo.alias:
+            field_by_key[finfo.alias] = finfo
+    for k, v in list(out.items()):
+        field_info = field_by_key.get(k)
+        if field_info is None:
+            continue
+        sub_path = f"{prefix}.{k}" if prefix else k
+        kind, expects_at = _pydantic_slot_kind(field_info.annotation)
+        if kind is not None:
+            out[k] = _normalize_slot_value(
+                v,
+                kind,
+                expects_at,
+                True,
+                sub_path,
+                comp_id,
+                failed_prefixes,
+                rewrites,
+            )
+            continue
+        for branch in _iter_union_branches(field_info.annotation):
+            if isinstance(branch, type) and issubclass(branch, BaseModel):
+                if isinstance(v, dict):
+                    out[k] = _normalize_v10_model_props(
+                        branch,
+                        v,
+                        comp_id,
+                        sub_path,
+                        failed_prefixes,
+                        rewrites,
+                    )
+                    break
+            elif get_origin(branch) is list and isinstance(v, list):
+                args = get_args(branch)
+                if args:
+                    elem = _unwrap_annotation(args[0])
+                    elem_kind, elem_expects_at = _pydantic_slot_kind(elem)
+                    if elem_kind is not None:
+                        out[k] = [
+                            _normalize_slot_value(
+                                item,
+                                elem_kind,
+                                elem_expects_at,
+                                True,
+                                f"{sub_path}.{i}",
+                                comp_id,
+                                failed_prefixes,
+                                rewrites,
+                            )
+                            for i, item in enumerate(v)
+                        ]
+                        break
+                    if isinstance(elem, type) and issubclass(elem, BaseModel):
+                        out[k] = [
+                            _normalize_v10_model_props(
+                                elem,
+                                item,
+                                comp_id,
+                                f"{sub_path}.{i}",
+                                failed_prefixes,
+                                rewrites,
+                            )
+                            if isinstance(item, dict)
+                            else item
+                            for i, item in enumerate(v)
+                        ]
+                        break
+    return out
+
+
+def _collect_json_schema_properties(
+    schema: Any, defs: Mapping[str, Any]
+) -> dict[str, Any]:
+    s = _deref_json_schema(schema, defs)
+    merged: dict[str, Any] = {}
+    for comb in ("allOf", "anyOf", "oneOf"):
+        branches = s.get(comb)
+        if isinstance(branches, list):
+            for b in branches:
+                merged.update(_collect_json_schema_properties(b, defs))
+    props = s.get("properties")
+    if isinstance(props, dict):
+        merged.update(props)
+    return merged
+
+
+def _normalize_v10_json_schema_props(
+    schema: Any,
+    defs: Mapping[str, Any],
+    props: dict[str, Any],
+    comp_id: str,
+    prefix: str,
+    failed_prefixes: set[str],
+    rewrites: list[tuple[str, str]],
+) -> dict[str, Any]:
+    # TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+    out = dict(props)
+    prop_schemas = _collect_json_schema_properties(schema, defs)
+    for k, v in list(out.items()):
+        p_schema = prop_schemas.get(k)
+        if not isinstance(p_schema, dict):
+            continue
+        sub_path = f"{prefix}.{k}" if prefix else k
+        kind, expects_at, allows_tpl = _json_schema_slot_kind(p_schema, defs)
+        if kind is not None:
+            out[k] = _normalize_slot_value(
+                v,
+                kind,
+                expects_at,
+                allows_tpl,
+                sub_path,
+                comp_id,
+                failed_prefixes,
+                rewrites,
+            )
+            continue
+        deref_p = _deref_json_schema(p_schema, defs)
+        if isinstance(v, dict) and (
+            deref_p.get("type") == "object"
+            or "properties" in deref_p
+            or "allOf" in deref_p
+        ):
+            out[k] = _normalize_v10_json_schema_props(
+                deref_p,
+                defs,
+                v,
+                comp_id,
+                sub_path,
+                failed_prefixes,
+                rewrites,
+            )
+        elif isinstance(v, list) and isinstance(deref_p.get("items"), dict):
+            item_s = deref_p["items"]
+            i_kind, i_expects_at, i_allows_tpl = _json_schema_slot_kind(item_s, defs)
+            if i_kind is not None:
+                out[k] = [
+                    _normalize_slot_value(
+                        item,
+                        i_expects_at and i_kind or i_kind,
+                        i_expects_at,
+                        i_allows_tpl,
+                        f"{sub_path}.{i}",
+                        comp_id,
+                        failed_prefixes,
+                        rewrites,
+                    )
+                    for i, item in enumerate(v)
+                ]
+            else:
+                deref_item = _deref_json_schema(item_s, defs)
+                if (
+                    deref_item.get("type") == "object"
+                    or "properties" in deref_item
+                    or "allOf" in deref_item
+                ):
+                    out[k] = [
+                        _normalize_v10_json_schema_props(
+                            deref_item,
+                            defs,
+                            item,
+                            comp_id,
+                            f"{sub_path}.{i}",
+                            failed_prefixes,
+                            rewrites,
+                        )
+                        if isinstance(item, dict)
+                        else item
+                        for i, item in enumerate(v)
+                    ]
+    return out
+
+
 class PayloadValidator:
     """Validates A2UI payloads against catalog JSON schema definitions."""
 
@@ -448,6 +1005,7 @@ class PayloadValidator:
                 "",
                 errors,
                 custom_props,
+                comp_type=comp_type if isinstance(comp_type, str) else None,
             )
             if errors:
                 self._raise_component_validation_errors(
@@ -667,13 +1225,36 @@ class PayloadValidator:
             else getattr(target_comp, "model_class", None)
         )
 
+        dynamic_top_props = self._collect_component_dynamic_props(
+            target_comp, target_cat, model_cls
+        )
+        nested_errors: list[A2uiErrorDetail] = []
+        self._validate_nested_functions(
+            comp_id or "unknown",
+            comp_catalog_id,
+            comp,
+            "",
+            nested_errors,
+            custom_props,
+            dynamic_top_props=dynamic_top_props,
+            comp_type=comp_type if isinstance(comp_type, str) else None,
+        )
+        failed_prefixes = {d.path for d in nested_errors}
+
+        schema_errors: list[A2uiErrorDetail] = []
         if (
             model_cls
             and isinstance(model_cls, type)
             and issubclass(model_cls, BaseModel)
         ):
             self._validate_model_component(
-                model_cls, comp_for_schema, comp_id, allow_unknown, errors
+                model_cls,
+                comp_for_schema,
+                comp_id,
+                allow_unknown,
+                schema_errors,
+                at_least_v10=at_least_v10,
+                failed_prefixes=failed_prefixes,
             )
         elif isinstance(getattr(target_comp, "schema", None), dict) or isinstance(
             target_comp, dict
@@ -684,7 +1265,9 @@ class PayloadValidator:
                 comp_for_schema,
                 comp_id,
                 allow_unknown,
-                errors,
+                schema_errors,
+                at_least_v10=at_least_v10,
+                failed_prefixes=failed_prefixes,
             )
         else:
             raise A2uiCatalogError(
@@ -692,14 +1275,16 @@ class PayloadValidator:
                 surface_id=surface_id,
             )
 
-        self._validate_nested_functions(
-            comp_id or "unknown",
-            comp_catalog_id,
-            comp,
-            "",
-            errors,
-            custom_props,
-        )
+        if nested_errors and schema_errors:
+            seen_err = {(d.path, d.code, d.message) for d in nested_errors}
+            errors.extend(nested_errors)
+            for sd in schema_errors:
+                if (sd.path, sd.code, sd.message) not in seen_err:
+                    errors.append(sd)
+        else:
+            errors.extend(schema_errors)
+            errors.extend(nested_errors)
+
         if errors:
             self._raise_component_validation_errors(
                 errors, comp_id, component_index, surface_id
@@ -773,6 +1358,47 @@ class PayloadValidator:
                 return to_json_pointer(f"components.{component_index}.{rest}")
         return to_json_pointer(detail_path)
 
+    def _collect_component_dynamic_props(
+        self,
+        target_comp: Any,
+        target_cat: Any,
+        model_cls: Type[BaseModel] | None,
+    ) -> frozenset[str]:
+        """Returns top-level component property names typed as DynamicValue/Dynamic*."""
+        dyn: set[str] = set()
+        if (
+            model_cls
+            and isinstance(model_cls, type)
+            and issubclass(model_cls, BaseModel)
+        ):
+            for fname, finfo in model_cls.model_fields.items():
+                if _is_pydantic_dynamic_type(finfo.annotation):
+                    dyn.add(finfo.alias or fname)
+            return frozenset(dyn)
+        comp_schema = (
+            _resolved_entry_schema(target_cat, "component", target_comp)
+            if hasattr(target_comp, "schema") and isinstance(target_comp.schema, dict)
+            else target_comp
+            if isinstance(target_comp, dict)
+            else None
+        )
+        if isinstance(comp_schema, dict):
+            base_schema = (
+                getattr(target_cat, "validation_schema", {}) or {} if target_cat else {}
+            )
+            defs = (
+                dict(base_schema.get("$defs", {}))
+                if isinstance(base_schema, dict)
+                else {}
+            )
+            defs.update(comp_schema.get("$defs", {}))
+            for k, p_schema in _collect_json_schema_properties(
+                comp_schema, defs
+            ).items():
+                if _is_json_schema_dynamic(p_schema, defs):
+                    dyn.add(k)
+        return frozenset(dyn)
+
     def _validate_model_component(
         self,
         model_cls: Type[BaseModel],
@@ -780,6 +1406,9 @@ class PayloadValidator:
         comp_id: str | None,
         allow_unknown: bool,
         errors: list[A2uiErrorDetail],
+        *,
+        at_least_v10: bool = False,
+        failed_prefixes: set[str] | None = None,
     ) -> None:
         """Validates a component payload against a Pydantic BaseModel schema.
 
@@ -807,6 +1436,16 @@ class PayloadValidator:
             comp_id,
             errors,
         )
+        rewrites: list[tuple[str, str]] = []
+        if at_least_v10:
+            props = _normalize_v10_model_props(
+                model_cls,
+                props,
+                comp_id or "unknown",
+                "",
+                failed_prefixes or set(),
+                rewrites,
+            )
         try:
             model_cls.model_validate(props)
         except ValidationError as e:
@@ -816,7 +1455,7 @@ class PayloadValidator:
                 allow_unknown_extra=allow_unknown,
                 match_jsonschema_missing_path=True,
             )
-            errors.extend(component_errors)
+            errors.extend(_apply_path_rewrites(component_errors, rewrites))
 
     @staticmethod
     def _strip_envelope_keys(
@@ -861,6 +1500,9 @@ class PayloadValidator:
         comp_id: str | None,
         allow_unknown: bool,
         errors: list[A2uiErrorDetail],
+        *,
+        at_least_v10: bool = False,
+        failed_prefixes: set[str] | None = None,
     ) -> None:
         """Validates a component against a JSON Schema dict definition."""
         comp_schema = (
@@ -945,13 +1587,25 @@ class PayloadValidator:
                 comp_id,
                 errors,
             )
+            rewrites: list[tuple[str, str]] = []
+            if at_least_v10:
+                props = _normalize_v10_json_schema_props(
+                    full_schema,
+                    full_schema.get("$defs", {}),
+                    props,
+                    comp_id or "unknown",
+                    "",
+                    failed_prefixes or set(),
+                    rewrites,
+                )
             schema_errors = sorted(validator.iter_errors(props), key=lambda e: e.path)
+            raw_details: list[A2uiErrorDetail] = []
             for err in schema_errors:
                 err_code = self._map_json_schema_error_code(err.validator)
                 if allow_unknown and _is_unknown_property_error(err):
                     continue
                 path_str = ".".join(str(p) for p in err.path)
-                errors.append(
+                raw_details.append(
                     A2uiErrorDetail(
                         path=f"components.{comp_id or 'unknown'}.{path_str}"
                         if path_str
@@ -960,6 +1614,7 @@ class PayloadValidator:
                         message=err.message,
                     )
                 )
+            errors.extend(_apply_path_rewrites(raw_details, rewrites))
         except referencing.exceptions.Unresolvable as ref_err:
             errors.append(
                 A2uiErrorDetail(
@@ -969,6 +1624,363 @@ class PayloadValidator:
                 )
             )
 
+    def _validate_v10_child_directive(
+        self, val: dict[str, Any], call_path: str, errors: list[A2uiErrorDetail]
+    ) -> None:
+        """Validates a v1.0 `@child` envelope dictionary."""
+        for extra_k in val:
+            if extra_k not in ("@child", "@path"):
+                errors.append(
+                    A2uiErrorDetail(
+                        path=call_path,
+                        code="extra_field",
+                        message=(
+                            "Additional properties are not allowed"
+                            f" ('{extra_k}' was unexpected)"
+                        ),
+                    )
+                )
+        child_val = val.get("@child")
+        if "@path" in val:
+            path_val = val.get("@path")
+            if not isinstance(path_val, str):
+                errors.append(
+                    A2uiErrorDetail(
+                        path=f"{call_path}.@path",
+                        code="type_mismatch",
+                        message="'@path' must be a non-empty string",
+                    )
+                )
+            elif not path_val or not _RELAXED_POINTER_RE.fullmatch(path_val):
+                errors.append(
+                    A2uiErrorDetail(
+                        path=f"{call_path}.@path",
+                        code="invalid_value",
+                        message=f"Invalid '@path' in template child list: '{path_val}'",
+                    )
+                )
+            if not isinstance(child_val, str):
+                errors.append(
+                    A2uiErrorDetail(
+                        path=f"{call_path}.@child",
+                        code="type_mismatch",
+                        message=(
+                            "'@child' must be a non-empty string when '@path' is"
+                            " specified"
+                        ),
+                    )
+                )
+            elif not child_val:
+                errors.append(
+                    A2uiErrorDetail(
+                        path=f"{call_path}.@child",
+                        code="invalid_value",
+                        message="'@child' must be a non-empty string",
+                    )
+                )
+            return
+
+        if isinstance(child_val, str):
+            if not child_val:
+                errors.append(
+                    A2uiErrorDetail(
+                        path=f"{call_path}.@child",
+                        code="invalid_value",
+                        message="'@child' must be a non-empty string",
+                    )
+                )
+        elif isinstance(child_val, list):
+            for idx, item in enumerate(child_val):
+                if not isinstance(item, str):
+                    errors.append(
+                        A2uiErrorDetail(
+                            path=f"{call_path}.@child.{idx}",
+                            code="type_mismatch",
+                            message="'@child' list items must be strings",
+                        )
+                    )
+                elif not item:
+                    errors.append(
+                        A2uiErrorDetail(
+                            path=f"{call_path}.@child.{idx}",
+                            code="invalid_value",
+                            message="'@child' list items must be non-empty strings",
+                        )
+                    )
+        else:
+            errors.append(
+                A2uiErrorDetail(
+                    path=f"{call_path}.@child",
+                    code="type_mismatch",
+                    message="'@child' must be a non-empty string or list of strings",
+                )
+            )
+
+    def _validate_v10_dynamic_binding_or_call_shape(
+        self, val: dict[str, Any], call_path: str, errors: list[A2uiErrorDetail]
+    ) -> None:
+        """Checks structural shape of `@path` or `@call` inside DynamicValue."""
+        if "@path" in val:
+            for ek in val:
+                if ek != "@path":
+                    errors.append(
+                        A2uiErrorDetail(
+                            path=call_path,
+                            code="extra_field",
+                            message=(
+                                "Additional properties are not allowed"
+                                f" ('{ek}' was unexpected)"
+                            ),
+                        )
+                    )
+            p_val = val.get("@path")
+            if not isinstance(p_val, str):
+                errors.append(
+                    A2uiErrorDetail(
+                        path=f"{call_path}.@path",
+                        code="type_mismatch",
+                        message="'@path' must be a string",
+                    )
+                )
+            elif p_val and not _RELAXED_POINTER_RE.fullmatch(p_val):
+                errors.append(
+                    A2uiErrorDetail(
+                        path=f"{call_path}.@path",
+                        code="invalid_value",
+                        message=f"Invalid path syntax: '{p_val}'",
+                    )
+                )
+        elif "@call" in val:
+            for ek in val:
+                if ek not in ("@call", "args", "catalogId"):
+                    errors.append(
+                        A2uiErrorDetail(
+                            path=call_path,
+                            code="extra_field",
+                            message=(
+                                "Additional properties are not allowed"
+                                f" ('{ek}' was unexpected)"
+                            ),
+                        )
+                    )
+            if not isinstance(val.get("@call"), str):
+                errors.append(
+                    A2uiErrorDetail(
+                        path=f"{call_path}.@call",
+                        code="type_mismatch",
+                        message="'@call' must be a string",
+                    )
+                )
+
+    def _validate_v10_action_directive(
+        self,
+        comp_id: str,
+        comp_catalog_id: Any,
+        val: dict[str, Any],
+        path: str,
+        call_path: str,
+        errors: list[A2uiErrorDetail],
+        custom_props: frozenset[str],
+    ) -> None:
+        """Validates a v1.0 `@action` envelope dictionary and walks its dynamic fields."""
+        for extra_k in val:
+            if extra_k != "@action":
+                errors.append(
+                    A2uiErrorDetail(
+                        path=call_path,
+                        code="extra_field",
+                        message=(
+                            "Additional properties are not allowed"
+                            f" ('{extra_k}' was unexpected)"
+                        ),
+                    )
+                )
+        act = val.get("@action")
+        act_call_path = f"{call_path}.@action"
+        act_rel_path = f"{path}.@action" if path else "@action"
+        if not isinstance(act, dict):
+            errors.append(
+                A2uiErrorDetail(
+                    path=act_call_path,
+                    code="type_mismatch",
+                    message="'@action' must be an object",
+                )
+            )
+            return
+
+        for ek in act:
+            if ek not in ("name", "userMessage", "context"):
+                errors.append(
+                    A2uiErrorDetail(
+                        path=act_call_path,
+                        code="extra_field",
+                        message=(
+                            "Additional properties are not allowed"
+                            f" ('{ek}' was unexpected)"
+                        ),
+                    )
+                )
+        if "name" not in act:
+            errors.append(
+                A2uiErrorDetail(
+                    path=act_call_path,
+                    code="missing_field",
+                    message="'name' is a required property",
+                )
+            )
+        elif not isinstance(act["name"], str):
+            errors.append(
+                A2uiErrorDetail(
+                    path=f"{act_call_path}.name",
+                    code="type_mismatch",
+                    message="Action 'name' must be a non-empty string",
+                )
+            )
+        elif not act["name"]:
+            errors.append(
+                A2uiErrorDetail(
+                    path=f"{act_call_path}.name",
+                    code="invalid_value",
+                    message="Action 'name' must be a non-empty string",
+                )
+            )
+
+        if "userMessage" in act:
+            um = act["userMessage"]
+            um_call_path = f"{act_call_path}.userMessage"
+            if um is None or isinstance(um, (bool, int, float, list)):
+                errors.append(
+                    A2uiErrorDetail(
+                        path=um_call_path,
+                        code="type_mismatch",
+                        message="Action 'userMessage' must be a DynamicString",
+                    )
+                )
+            elif isinstance(um, dict) and "@path" not in um and "@call" not in um:
+                errors.append(
+                    A2uiErrorDetail(
+                        path=um_call_path,
+                        code="type_mismatch",
+                        message=(
+                            "Action 'userMessage' object must be a DataBinding or"
+                            " FunctionCall"
+                        ),
+                    )
+                )
+            self._validate_nested_functions(
+                comp_id,
+                comp_catalog_id,
+                um,
+                f"{act_rel_path}.userMessage",
+                errors,
+                custom_props,
+                in_dynamic_value=True,
+            )
+
+        if "context" in act:
+            ctx = act["context"]
+            ctx_call_path = f"{act_call_path}.context"
+            if not isinstance(ctx, dict):
+                errors.append(
+                    A2uiErrorDetail(
+                        path=ctx_call_path,
+                        code="type_mismatch",
+                        message="Action 'context' must be an object",
+                    )
+                )
+            else:
+                for ck, cv in ctx.items():
+                    if cv is None:
+                        errors.append(
+                            A2uiErrorDetail(
+                                path=f"{ctx_call_path}.{ck}",
+                                code="type_mismatch",
+                                message="Action context value must not be null",
+                            )
+                        )
+                    self._validate_nested_functions(
+                        comp_id,
+                        comp_catalog_id,
+                        cv,
+                        f"{act_rel_path}.context.{ck}",
+                        errors,
+                        custom_props,
+                        in_dynamic_value=True,
+                    )
+
+    def _validate_v10_function_call_directive(
+        self,
+        comp_id: str,
+        comp_catalog_id: Any,
+        val: dict[str, Any],
+        path: str,
+        call_path: str,
+        errors: list[A2uiErrorDetail],
+        custom_props: frozenset[str],
+    ) -> None:
+        """Validates a v1.0 `@functionCall` envelope dictionary."""
+        for extra_k in val:
+            if extra_k != "@functionCall":
+                errors.append(
+                    A2uiErrorDetail(
+                        path=call_path,
+                        code="extra_field",
+                        message=(
+                            "Additional properties are not allowed"
+                            f" ('{extra_k}' was unexpected)"
+                        ),
+                    )
+                )
+        fc = val.get("@functionCall")
+        fc_call_path = f"{call_path}.@functionCall"
+        fc_rel_path = f"{path}.@functionCall" if path else "@functionCall"
+        if not isinstance(fc, dict):
+            errors.append(
+                A2uiErrorDetail(
+                    path=fc_call_path,
+                    code="type_mismatch",
+                    message="'@functionCall' must be a FunctionCall object",
+                )
+            )
+            return
+        if "@call" not in fc:
+            errors.append(
+                A2uiErrorDetail(
+                    path=fc_call_path,
+                    code="missing_field",
+                    message="'@call' is a required property",
+                )
+            )
+        elif not isinstance(fc.get("@call"), str):
+            errors.append(
+                A2uiErrorDetail(
+                    path=f"{fc_call_path}.@call",
+                    code="type_mismatch",
+                    message="'@call' must be a string",
+                )
+            )
+        for ek in fc:
+            if ek not in ("@call", "args", "catalogId"):
+                errors.append(
+                    A2uiErrorDetail(
+                        path=fc_call_path,
+                        code="extra_field",
+                        message=(
+                            "Additional properties are not allowed"
+                            f" ('{ek}' was unexpected)"
+                        ),
+                    )
+                )
+        self._validate_nested_functions(
+            comp_id,
+            comp_catalog_id,
+            fc,
+            fc_rel_path,
+            errors,
+            custom_props,
+            in_dynamic_value=False,
+        )
+
     def _validate_nested_functions(
         self,
         comp_id: str,
@@ -977,8 +1989,13 @@ class PayloadValidator:
         path: str,
         errors: list[A2uiErrorDetail],
         custom_props: frozenset[str] = frozenset(),
+        *,
+        in_dynamic_value: bool = False,
+        dynamic_top_props: frozenset[str] = frozenset(),
+        comp_type: str | None = None,
+        path_segments: tuple[str | int, ...] = (),
     ) -> None:
-        """Recursively validates nested function calls.
+        """Recursively validates nested function calls and `@` protocol directives.
 
         From v1.0, a call to a reserved `@` system function (such as `@index`)
         belongs to no catalog: it must not name a `catalogId`, and it is
@@ -1008,6 +2025,8 @@ class PayloadValidator:
             path: The value's path in the component.
             errors: Collects the errors found.
             custom_props: Custom component properties overriding v1.0 mixin names.
+            in_dynamic_value: Whether `val` is inside a DynamicValue expression.
+            dynamic_top_props: Top-level component properties typed as DynamicValue/Dynamic*.
         """
         ver = getattr(self.catalog, "protocol_version", None)
         at_least_v10 = bool(ver and is_at_least_version(ver, ProtocolVersion.V1_0))
@@ -1016,7 +2035,11 @@ class PayloadValidator:
                 f"components.{comp_id}.{path}" if path else f"components.{comp_id}"
             )
             if at_least_v10:
-                from ..resolution.data_context import validate_reserved_directives
+                from ..resolution.data_context import (
+                    RESERVED_DIRECTIVES,
+                    RESERVED_PROPERTY_DIRECTIVES,
+                    validate_reserved_directives,
+                )
 
                 keys_to_check = (
                     [
@@ -1033,8 +2056,15 @@ class PayloadValidator:
                     if path == ""
                     else val.keys()
                 )
+                allowed_dirs = (
+                    RESERVED_DIRECTIVES
+                    if (in_dynamic_value or path == "")
+                    else RESERVED_PROPERTY_DIRECTIVES
+                )
                 try:
-                    validate_reserved_directives(keys_to_check, ver)
+                    validate_reserved_directives(
+                        keys_to_check, ver, allowed_directives=allowed_dirs
+                    )
                 except A2uiValidationError as e:
                     errors.append(
                         A2uiErrorDetail(
@@ -1043,17 +2073,77 @@ class PayloadValidator:
                             message=str(e),
                         )
                     )
+                    if in_dynamic_value:
+                        return
+
+                if path != "" and not in_dynamic_value:
+                    if "@child" in val:
+                        self._validate_v10_child_directive(val, call_path, errors)
+                        return
+                    if "@action" in val:
+                        self._validate_v10_action_directive(
+                            comp_id,
+                            comp_catalog_id,
+                            val,
+                            path,
+                            call_path,
+                            errors,
+                            custom_props,
+                        )
+                        return
+                    if "@functionCall" in val:
+                        self._validate_v10_function_call_directive(
+                            comp_id,
+                            comp_catalog_id,
+                            val,
+                            path,
+                            call_path,
+                            errors,
+                            custom_props,
+                        )
+                        return
+
+                if in_dynamic_value and ("@path" in val or "@call" in val):
+                    self._validate_v10_dynamic_binding_or_call_shape(
+                        val, call_path, errors
+                    )
+
                 fn_name = val.get("@call")
+                rejected_v10_dirs: set[str] = set()
             else:
+                rejected_v10_dirs = set()
+                if any(d in val for d in ("@child", "@action", "@functionCall")):
+                    declared_at_path = (
+                        get_declared_properties_at_path(
+                            self.catalog, comp_type, path_segments
+                        )
+                        if isinstance(comp_type, str)
+                        else frozenset()
+                    )
+                    for v10_dir in ("@child", "@action", "@functionCall"):
+                        if v10_dir in val and v10_dir not in declared_at_path:
+                            errors.append(
+                                A2uiErrorDetail(
+                                    path=f"{call_path}.{v10_dir}",
+                                    code="extra_field",
+                                    message=(
+                                        f"Directive '{v10_dir}' is only"
+                                        " supported in v1.0 and later"
+                                    ),
+                                )
+                            )
+                            rejected_v10_dirs.add(v10_dir)
                 fn_name = val.get("call") or val.get("function")
+
             # From v1.0 any string name is checked, so an empty one is
             # reported as an invalid identifier rather than skipped.
+            is_fn_call = isinstance(fn_name, str) and (at_least_v10 or bool(fn_name))
             if isinstance(fn_name, str) and (at_least_v10 or fn_name):
                 self._validate_nested_call(
                     fn_name, val, call_path, comp_catalog_id, at_least_v10, ver, errors
                 )
             for k, v in val.items():
-                if k in ("id", "component"):
+                if k in ("id", "component") or k in rejected_v10_dirs:
                     continue
                 if path == "" and at_least_v10:
                     if k in ("@catalogId", "@metadata"):
@@ -1063,6 +2153,11 @@ class PayloadValidator:
                     if k == "metadata" and "metadata" not in custom_props:
                         continue
                 child_path = f"{path}.{k}" if path else k
+                child_in_dyn = (
+                    in_dynamic_value
+                    or k in dynamic_top_props
+                    or (is_fn_call and k == "args")
+                )
                 self._validate_nested_functions(
                     comp_id,
                     comp_catalog_id,
@@ -1070,10 +2165,17 @@ class PayloadValidator:
                     child_path,
                     errors,
                     custom_props,
+                    in_dynamic_value=child_in_dyn,
+                    comp_type=comp_type,
+                    path_segments=(*path_segments, k),
                 )
         elif isinstance(val, list):
             for idx, item in enumerate(val):
                 child_path = f"{path}.{idx}"
+                is_check_list = at_least_v10 and (
+                    path == "@checks"
+                    or (path == "checks" and "checks" not in custom_props)
+                )
                 self._validate_nested_functions(
                     comp_id,
                     comp_catalog_id,
@@ -1081,6 +2183,12 @@ class PayloadValidator:
                     child_path,
                     errors,
                     custom_props,
+                    in_dynamic_value=in_dynamic_value,
+                    dynamic_top_props=(
+                        frozenset({"condition"}) if is_check_list else frozenset()
+                    ),
+                    comp_type=comp_type,
+                    path_segments=(*path_segments, idx),
                 )
 
     def _validate_nested_call(

@@ -690,7 +690,11 @@ export class SurfaceModel<
       return;
     }
 
-    const eventPayload = extractActionTarget(payload);
+    const atLeastV10 = isAtLeastVersion(
+      this.protocolVersion ?? this.defaultCatalog?.protocolVersion,
+      '1.0',
+    );
+    const eventPayload = extractActionTarget(payload, atLeastV10);
     if (!eventPayload) {
       return;
     }
@@ -850,7 +854,20 @@ function isCancellation(e: unknown): boolean {
  * @param payload Raw action payload object.
  * @returns The unwrapped action object, or `null` if none is present.
  */
-function extractActionTarget(payload: Record<string, any>): Record<string, any> | null {
+function extractActionTarget(
+  payload: Record<string, any>,
+  atLeastV10: boolean,
+): Record<string, any> | null {
+  if (
+    atLeastV10 &&
+    '@action' in payload &&
+    payload['@action'] &&
+    typeof payload['@action'] === 'object' &&
+    !Array.isArray(payload['@action'])
+  ) {
+    return payload['@action'];
+  }
+  // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
   if ('event' in payload && payload.event && typeof payload.event === 'object') {
     return payload.event;
   }

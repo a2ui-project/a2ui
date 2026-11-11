@@ -878,4 +878,646 @@ struct PayloadValidatorTests {
     }
     #expect(error.details.map(\.path) == ["@catalogId"])
   }
+
+  // MARK: - v1.0 @child, @action, and @functionCall Validation
+
+  private func makeBareV10DualReadCatalog() throws -> AnyCatalog {
+    let commonURI = Self.commonTypesURI
+    let cardSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "component": { "const": "Card" },
+            "child": { "$ref": "\(commonURI)#/$defs/Child" }
+          },
+          "required": ["component", "child"],
+          "additionalProperties": false
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let columnSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "component": { "const": "Column" },
+            "children": { "$ref": "\(commonURI)#/$defs/ChildList" }
+          },
+          "required": ["component", "children"],
+          "additionalProperties": false
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let tabsSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "component": { "const": "Tabs" },
+            "tabs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "title": { "$ref": "\(commonURI)#/$defs/DynamicString" },
+                  "child": { "$ref": "\(commonURI)#/$defs/Child" }
+                },
+                "required": ["title", "child"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["component", "tabs"],
+          "additionalProperties": false
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let buttonSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "allOf": [
+            { "$ref": "\(commonURI)#/$defs/Checkable" },
+            {
+              "properties": {
+                "component": { "const": "Button" },
+                "child": { "$ref": "\(commonURI)#/$defs/Child" },
+                "action": { "$ref": "\(commonURI)#/$defs/Action" }
+              },
+              "required": ["component", "child", "action"]
+            }
+          ]
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let textSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "component": { "const": "Text" },
+            "text": { "$ref": "\(commonURI)#/$defs/DynamicString" },
+            "details": { "$ref": "\(commonURI)#/$defs/DynamicValue" }
+          },
+          "required": ["component", "text"],
+          "additionalProperties": false
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    return Catalog(
+      id: "dual-read-bare",
+      protocolVersion: .v10,
+      components: [
+        AnyComponentAPI(name: "Card", schema: cardSchema),
+        AnyComponentAPI(name: "Column", schema: columnSchema),
+        AnyComponentAPI(name: "Tabs", schema: tabsSchema),
+        AnyComponentAPI(name: "Button", schema: buttonSchema),
+        AnyComponentAPI(name: "Text", schema: textSchema),
+      ],
+      functions: [MockAddFunction()]
+    ).eraseToAnyCatalog()
+  }
+
+  private func makeAtEnvelopeV10Catalog() throws -> AnyCatalog {
+    let commonURI = Self.commonTypesURI
+    let defsBlock = """
+      "$defs": {
+        "Child": {
+          "type": "object",
+          "properties": { "@child": { "type": "string", "minLength": 1 } },
+          "required": ["@child"],
+          "additionalProperties": false
+        },
+        "ChildList": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "@child": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+              },
+              "required": ["@child"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "@child": { "type": "string", "minLength": 1 },
+                "@path": { "type": "string", "minLength": 1 }
+              },
+              "required": ["@child", "@path"],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "Action": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "@action": {
+                  "type": "object",
+                  "properties": {
+                    "name": { "type": "string", "minLength": 1 },
+                    "userMessage": { "$ref": "\(commonURI)#/$defs/DynamicString" },
+                    "context": { "type": "object" }
+                  },
+                  "required": ["name"],
+                  "additionalProperties": false
+                }
+              },
+              "required": ["@action"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "@functionCall": { "$ref": "\(commonURI)#/$defs/FunctionCall" }
+              },
+              "required": ["@functionCall"],
+              "additionalProperties": false
+            }
+          ]
+        }
+      }
+      """
+    let cardSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          \(defsBlock),
+          "properties": {
+            "component": { "const": "Card" },
+            "child": { "$ref": "#/$defs/Child" }
+          },
+          "required": ["component", "child"],
+          "additionalProperties": false
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let columnSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          \(defsBlock),
+          "properties": {
+            "component": { "const": "Column" },
+            "children": { "$ref": "#/$defs/ChildList" }
+          },
+          "required": ["component", "children"],
+          "additionalProperties": false
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let buttonSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          \(defsBlock),
+          "properties": {
+            "component": { "const": "Button" },
+            "child": { "$ref": "#/$defs/Child" },
+            "action": { "$ref": "#/$defs/Action" }
+          },
+          "required": ["component", "child", "action"],
+          "additionalProperties": false
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    return Catalog(
+      id: "dual-read-at",
+      protocolVersion: .v10,
+      components: [
+        AnyComponentAPI(name: "Card", schema: cardSchema),
+        AnyComponentAPI(name: "Column", schema: columnSchema),
+        AnyComponentAPI(name: "Button", schema: buttonSchema),
+      ],
+      functions: [MockAddFunction()]
+    ).eraseToAnyCatalog()
+  }
+
+  @Test func validateComponentV10AcceptsAtDirectivesAndLegacyDualRead() throws {
+    let bareValidator = PayloadValidator(
+      catalog: try makeBareV10DualReadCatalog(),
+      config: ValidationConfig(protocolVersion: .v10)
+    )
+    let atValidator = PayloadValidator(
+      catalog: try makeAtEnvelopeV10Catalog(),
+      config: ValidationConfig(protocolVersion: .v10)
+    )
+
+    for validator in [bareValidator, atValidator] {
+      try validator.validateComponent([
+        "id": .string("c1"),
+        "component": .string("Card"),
+        "child": .object(["@child": .string("t1")]),
+      ])
+      try validator.validateComponent([
+        "id": .string("c2"),
+        "component": .string("Card"),
+        "child": .string("t1"),
+      ])
+      try validator.validateComponent([
+        "id": .string("col1"),
+        "component": .string("Column"),
+        "children": .object(["@child": .array([.string("a"), .string("b")])]),
+      ])
+      try validator.validateComponent([
+        "id": .string("col2"),
+        "component": .string("Column"),
+        "children": .object(["@child": .string("tpl"), "@path": .string("/items")]),
+      ])
+      try validator.validateComponent([
+        "id": .string("col3"),
+        "component": .string("Column"),
+        "children": .object(["componentId": .string("tpl"), "path": .string("/items")]),
+      ])
+      try validator.validateComponent([
+        "id": .string("b1"),
+        "component": .string("Button"),
+        "child": .object(["@child": .string("t1")]),
+        "action": .object([
+          "@action": .object([
+            "name": .string("submit"),
+            "userMessage": .object(["@path": .string("/msg")]),
+            "context": .object([
+              "sum": .object([
+                "@call": .string("add"),
+                "args": .object(["a": .integer(1), "b": .integer(2)]),
+              ])
+            ]),
+          ])
+        ]),
+      ])
+      try validator.validateComponent([
+        "id": .string("b2"),
+        "component": .string("Button"),
+        "child": .string("t1"),
+        "action": .object([
+          "@functionCall": .object([
+            "@call": .string("add"),
+            "args": .object(["a": .integer(1), "b": .integer(2)]),
+          ])
+        ]),
+      ])
+    }
+
+    // Nested array-of-objects (`Tabs.tabs[i].child`) normalizes cleanly too.
+    try bareValidator.validateComponent([
+      "id": .string("tabs"),
+      "component": .string("Tabs"),
+      "tabs": .array([
+        .object([
+          "title": .string("First"),
+          "child": .object(["@child": .string("t1")]),
+        ])
+      ]),
+    ])
+  }
+
+  @Test func validateComponentV10AtChildValidationFailuresHaveExactPaths() throws {
+    let validator = PayloadValidator(
+      catalog: try makeBareV10DualReadCatalog(),
+      config: ValidationConfig(protocolVersion: .v10)
+    )
+
+    let badChildren: [(value: JSONValue, expectedPath: String)] = [
+      (.object(["@child": .string("")]), "child/@child"),
+      (.object(["@child": .integer(123)]), "child/@child"),
+      (.object(["@child": .array([.string("a"), .string("")])]), "child/@child/1"),
+      (.object(["@child": .array([.string("a"), .integer(42)])]), "child/@child/1"),
+      (.object(["@child": .string("a"), "extra": .integer(1)]), "child/extra"),
+      (.object(["@child": .array([.string("a")]), "@path": .string("/items")]), "child/@child"),
+      (.object(["@child": .string("tpl"), "@path": .string("")]), "child/@path"),
+      (.object(["@child": .string("tpl"), "@path": .integer(1)]), "child/@path"),
+    ]
+    for (badValue, expectedPath) in badChildren {
+      let err = try #require(throws: A2UIValidationError.self) {
+        try validator.validateComponent([
+          "id": .string("root"),
+          "component": .string("Card"),
+          "child": badValue,
+        ])
+      }
+      #expect(err.details.map(\.path) == [expectedPath])
+    }
+  }
+
+  @Test func validateComponentV10AtActionAndFunctionCallValidationAndDynamicSeparation() throws {
+    let validator = PayloadValidator(
+      catalog: try makeBareV10DualReadCatalog(),
+      config: ValidationConfig(protocolVersion: .v10)
+    )
+
+    // Missing and empty `name` inside `@action`.
+    let missingName = try #require(throws: A2UIValidationError.self) {
+      try validator.validateComponent([
+        "id": .string("b1"),
+        "component": .string("Button"),
+        "child": .object(["@child": .string("t1")]),
+        "action": .object(["@action": .object([:])]),
+      ])
+    }
+    #expect(missingName.details.map(\.path) == ["action/@action/name"])
+
+    let extraActionKey = try #require(throws: A2UIValidationError.self) {
+      try validator.validateComponent([
+        "id": .string("b1"),
+        "component": .string("Button"),
+        "child": .object(["@child": .string("t1")]),
+        "action": .object([
+          "@action": .object(["name": .string("go"), "bogus": .integer(1)])
+        ]),
+      ])
+    }
+    #expect(extraActionKey.details.map(\.path) == ["action/@action/bogus"])
+
+    // Unescaped `@child` / `@action` / `@functionCall` inside DynamicValue & `@action.context`
+    // and `FunctionCall.args` are rejected as `INVALID_RESERVED_KEY`.
+    for directive in ["@child", "@action", "@functionCall"] {
+      let inDynamicDetails = try #require(throws: A2UIValidationError.self) {
+        try validator.validateComponent([
+          "id": .string("txt"),
+          "component": .string("Text"),
+          "text": .string("hi"),
+          "details": .object([
+            "nested": .array([.object([directive: .string("x")])])
+          ]),
+        ])
+      }
+      #expect(inDynamicDetails.details.contains { $0.code == "INVALID_RESERVED_KEY" })
+
+      let inActionContext = try #require(throws: A2UIValidationError.self) {
+        try validator.validateComponent([
+          "id": .string("btn"),
+          "component": .string("Button"),
+          "child": .object(["@child": .string("t1")]),
+          "action": .object([
+            "@action": .object([
+              "name": .string("go"),
+              "context": .object(["bad": .object([directive: .string("x")])]),
+            ])
+          ]),
+        ])
+      }
+      #expect(inActionContext.details.contains { $0.code == "INVALID_RESERVED_KEY" })
+
+      let inFunctionArgs = try #require(throws: A2UIValidationError.self) {
+        try validator.validateComponent([
+          "id": .string("btn"),
+          "component": .string("Button"),
+          "child": .object(["@child": .string("t1")]),
+          "action": .object([
+            "@functionCall": .object([
+              "@call": .string("add"),
+              "args": .object(["a": .object([directive: .string("x")]), "b": .integer(1)]),
+            ])
+          ]),
+        ])
+      }
+      #expect(inFunctionArgs.details.contains { $0.code == "INVALID_RESERVED_KEY" })
+    }
+
+    // Escaped `@@child`, `@@action`, `@@functionCall` validate cleanly inside DynamicValue.
+    try validator.validateComponent([
+      "id": .string("txt"),
+      "component": .string("Text"),
+      "text": .string("hi"),
+      "details": .object([
+        "@@child": .string("c"),
+        "@@action": .string("a"),
+        "@@functionCall": .string("f"),
+      ]),
+    ])
+  }
+
+  @Test(arguments: [A2UIProtocolVersion.v09, .v091])
+  func validateComponentPreV10RejectsAtChildActionFunctionCallEvenOnOpenSchemas(
+    version: A2UIProtocolVersion
+  ) throws {
+    let openSchema = try Schema(instance: #"{"type": "object"}"#)
+    let catalog = Catalog(
+      id: "pre-v10",
+      protocolVersion: version,
+      components: [AnyComponentAPI(name: "Box", schema: openSchema)]
+    ).eraseToAnyCatalog()
+    let relaxedValidator = PayloadValidator(
+      catalog: catalog,
+      config: ValidationConfig(allowUnknownElements: true, protocolVersion: version)
+    )
+
+    for (prop, val) in [
+      ("child", JSONValue.object(["@child": .string("t1")])),
+      ("action", JSONValue.object(["@action": .object(["name": .string("go")])])),
+      ("action", JSONValue.object(["@functionCall": .object(["@call": .string("f")])])),
+    ] {
+      #expect(throws: A2UIValidationError.self) {
+        try relaxedValidator.validateComponent([
+          "id": .string("root"),
+          "component": .string("Box"),
+          prop: val,
+        ])
+      }
+      #expect(throws: A2UIValidationError.self) {
+        try relaxedValidator.validateComponent([
+          "id": .string("root"),
+          "component": .string("UnknownWidget"),
+          prop: val,
+        ])
+      }
+    }
+  }
+
+  @Test func graphTopologyExtractsAtChildSchemaLessAndStripsCompositionPointers() throws {
+    let customSchema = try Schema(
+      instance: #"{"type": "object", "additionalProperties": true}"#
+    )
+    let restrictedCat = Catalog(
+      id: "comp-test",
+      protocolVersion: .v10,
+      components: [
+        AnyComponentAPI(
+          name: "Box",
+          schema: customSchema,
+          allowedChildren: ["Text"]
+        ),
+        AnyComponentAPI(name: "Text", schema: customSchema),
+        AnyComponentAPI(name: "Video", schema: customSchema),
+      ]
+    ).eraseToAnyCatalog()
+
+    // Schema-less extraction on unknown element skips `@@child`, `@action`, `@call`.
+    let unknownComp: [String: JSONValue] = [
+      "id": .string("root"),
+      "component": .string("UnknownShell"),
+      "sections": .array([
+        .object([
+          "body": .object(["@child": .string("b1")]),
+          "items": .object(["@child": .string("tpl"), "@path": .string("/items")]),
+        ])
+      ]),
+      "meta": .object(["@@child": .string("ignoredLiteral")]),
+      "onTap": .object([
+        "@action": .object(["name": .string("tap"), "context": .object(["k": .string("v")])])
+      ]),
+    ]
+    let refs = GraphTopologyValidator.extractReferences(from: unknownComp)
+    #expect(refs.map(\.referenceID) == ["b1", "tpl"])
+    #expect(refs.map(\.field) == ["sections/0/body", "sections/0/items/@child"])
+
+    // Template UNALLOWED_CHILD strips trailing `/@child`.
+    let err = try #require(throws: A2UIValidationError.self) {
+      try GraphTopologyValidator.validate(
+        components: [
+          [
+            "id": .string("root"),
+            "component": .string("Box"),
+            "children": .object(["@child": .string("v1"), "@path": .string("/items")]),
+          ],
+          [
+            "id": .string("v1"),
+            "component": .string("Video"),
+          ],
+        ],
+        rootID: "root",
+        config: .strict,
+        catalogs: [restrictedCat.id: restrictedCat],
+        defaultCatalogID: restrictedCat.id
+      )
+    }
+    #expect(err.details.map(\.code) == ["UNALLOWED_CHILD"])
+    #expect(err.details.map(\.path) == ["/components/0/children"])
+  }
+
+  @Test(arguments: [A2UIProtocolVersion.v09, .v091])
+  func validateComponentPreV10AllowsExplicitlyDeclaredDirectiveProperties(
+    version: A2UIProtocolVersion
+  ) throws {
+    let customPre10Schema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "component": { "const": "CustomPre10" },
+            "@child": { "type": "string" },
+            "slot": {
+              "type": "object",
+              "properties": {
+                "@action": { "type": "string" },
+                "@functionCall": { "type": "string" }
+              },
+              "additionalProperties": false
+            }
+          },
+          "required": ["component"]
+        }
+        """
+    )
+    let catalog = Catalog(
+      id: "pre-v10-custom",
+      protocolVersion: version,
+      components: [AnyComponentAPI(name: "CustomPre10", schema: customPre10Schema)]
+    ).eraseToAnyCatalog()
+    let validator = PayloadValidator(
+      catalog: catalog,
+      config: ValidationConfig(allowUnknownElements: true, protocolVersion: version)
+    )
+
+    // Schema-declared `@child`, `@action`, and `@functionCall` pass on pre-1.0.
+    try validator.validateComponent([
+      "id": .string("root"),
+      "component": .string("CustomPre10"),
+      "@child": .string("literal"),
+      "slot": .object([
+        "@action": .string("literalAction"),
+        "@functionCall": .string("literalFn"),
+      ]),
+    ])
+
+    // GraphTopologyValidator.extractReferences must not misclassify unversioned pre-1.0
+    // schemas lacking "v0_9"/"v0_8" markers as v1.0.
+    let noMarkerPre10 = GraphTopologyValidator.extractReferences(
+      from: [
+        "id": .string("root"),
+        "component": .string("CustomPre10"),
+        "note": .object(["@child": .string("notAChild")]),
+      ],
+      schema: customPre10Schema.jsonValue,
+      protocolVersion: version
+    )
+    #expect(noMarkerPre10.isEmpty)
+
+    let inferredPlainPre10 = GraphTopologyValidator.extractReferences(
+      from: [
+        "id": .string("root"),
+        "component": .string("Plain"),
+        "note": .object(["@child": .string("notAChild")]),
+      ],
+      schema: try Schema(
+        instance: #"{"type": "object", "properties": {"title": {"type": "string"}}}"#
+      ).jsonValue
+    )
+    #expect(inferredPlainPre10.isEmpty)
+  }
+
+  @Test func validateComponentV10KeepsUnschematizedEventObjectsAndChecksActionSiblings() throws {
+    let customSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "component": { "const": "EventCard" },
+            "action": { "$ref": "\(Self.commonTypesURI)#/$defs/Action" },
+            "details": { "type": "object", "additionalProperties": true }
+          }
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let catalog = Catalog(
+      id: "event-card",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI(name: "EventCard", schema: customSchema)],
+      functions: [MockAddFunction()]
+    ).eraseToAnyCatalog()
+    let validator = PayloadValidator(
+      catalog: catalog,
+      config: ValidationConfig(allowUnknownElements: true, protocolVersion: .v10)
+    )
+
+    // An unschematized `{event: {name: "..."}}` outside an Action slot allows `@child` inside it.
+    try validator.validateComponent([
+      "id": .string("root"),
+      "component": .string("EventCard"),
+      "details": .object([
+        "event": .object([
+          "name": .string("Concert"),
+          "performer": .object(["@child": .string("p1")]),
+        ])
+      ]),
+    ])
+
+    // Inside a schema-typed Action slot, invalid nested calls in non-context keys are validated.
+    let badExtraInEvent = try #require(throws: A2UIValidationError.self) {
+      try validator.validateComponent([
+        "id": .string("root"),
+        "component": .string("EventCard"),
+        "action": .object([
+          "event": .object([
+            "name": .string("go"),
+            "extra": .object(["@call": .string("add"), "args": .object(["a": .integer(1)])]),
+          ])
+        ]),
+      ])
+    }
+    #expect(!badExtraInEvent.details.isEmpty)
+  }
 }

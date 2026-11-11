@@ -35,9 +35,11 @@ RefFields extractRefFields(
   Schema schema, {
   Map<String, Object?> document = const {},
   Map<String, Object?>? commonTypes,
+  bool atLeastV10 = false,
 }) =>
     ReferenceSchemaReader(
       schema.value,
       document: document,
       commonTypes: commonTypes,
+      atLeastV10: atLeastV10,
     ).fields();

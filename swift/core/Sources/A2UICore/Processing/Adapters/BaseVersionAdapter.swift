@@ -456,16 +456,23 @@ open class BaseVersionAdapter: VersionAdapter, @unchecked Sendable {
     if let path = dictionary[pathKey]?.stringValue ?? dictionary["path"]?.stringValue {
       try validateDynamicPathSyntax(path, at: state.currentPath)
     }
+    if version.isAtLeastV10 {
+      if let callName = dictionary["@call"]?.stringValue,
+        !UnicodeIdentifierValidator.isValidFunctionIdentifier(callName)
+      {
+        try throwInvalidFunctionIdentifier(callName, at: state.currentPath)
+      }
+      return dictionary["@call"]?.stringValue != nil
+        ? state.functionDepth + 1
+        : state.functionDepth
+    }
 
-    let callKey = version.isAtLeastV10 ? "@call" : "call"
-    if let callName = dictionary[callKey]?.stringValue ?? dictionary["call"]?.stringValue,
+    if let callName = dictionary["call"]?.stringValue,
       !UnicodeIdentifierValidator.isValidFunctionIdentifier(callName)
     {
       try throwInvalidFunctionIdentifier(callName, at: state.currentPath)
     }
-
-    let isFunctionCall =
-      dictionary[callKey] != nil || dictionary["call"] != nil || dictionary["function"] != nil
+    let isFunctionCall = dictionary["call"] != nil || dictionary["function"] != nil
     return isFunctionCall ? state.functionDepth + 1 : state.functionDepth
   }
 

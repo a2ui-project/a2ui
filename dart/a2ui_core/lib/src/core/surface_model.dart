@@ -16,6 +16,7 @@ import 'dart:async';
 
 import '../primitives/errors.dart';
 import '../primitives/event_notifier.dart';
+import '../primitives/protocol_version.dart';
 import '../primitives/reactivity.dart';
 import '../primitives/semver.dart';
 import '../primitives/uax31.dart';
@@ -359,8 +360,17 @@ class SurfaceModel<T extends ComponentApi> {
     Map<String, Object?>? metadata,
   }) async {
     validateMetadata(metadata);
+    final bool atLeastV10 = protocolVersion != null &&
+        (A2uiProtocolVersion.tryParseSemVer(protocolVersion!)
+                ?.isAtLeast(A2uiProtocolVersion.v1_0) ??
+            false);
     final Map<String, dynamic> event;
-    if (payload.containsKey('event') && payload['event'] is Map) {
+    if (atLeastV10 &&
+        payload.containsKey('@action') &&
+        payload['@action'] is Map) {
+      event = Map<String, dynamic>.from(payload['@action'] as Map);
+    } else if (payload.containsKey('event') && payload['event'] is Map) {
+      // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
       event = Map<String, dynamic>.from(payload['event'] as Map);
     } else if (payload.containsKey('name')) {
       event = payload;

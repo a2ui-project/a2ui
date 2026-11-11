@@ -775,6 +775,133 @@ class NodeResolver<T extends ComponentApi> {
       }
     }
 
+    final bool atLeastV10 =
+        record.node.context?.dataContext.atLeastV10 ?? false;
+    final Map<String, dynamic>? rawProps = record.componentModel?.properties;
+    if (atLeastV10 && rawProps != null && _hasAtChildDirective(rawProps)) {
+      Object? materializeAtChild(
+        Object? resolvedVal,
+        Object? rawVal,
+        String slotPath,
+        int? listIndex,
+        String? subKey,
+      ) {
+        if (resolvedVal is ComponentNode) return resolvedVal;
+        if (rawVal is Map && rawVal.containsKey('@child')) {
+          final slot = (slotPath, listIndex, subKey);
+          if (resolvedVal is String && resolvedVal.isNotEmpty) {
+            return resolveChild(slot, resolvedVal, record.node.dataPath);
+          }
+          if (resolvedVal is List) {
+            if (resolvedVal.every((e) => e is ComponentNode)) {
+              return resolvedVal;
+            }
+            final listSlotPath = subKey != null
+                ? (listIndex != null
+                    ? '$slotPath/$listIndex/$subKey'
+                    : '$slotPath/$subKey')
+                : (listIndex != null ? '$slotPath/$listIndex' : slotPath);
+            final int count = resolvedVal.length > maxDynamicChildListSize
+                ? maxDynamicChildListSize
+                : resolvedVal.length;
+            return List<Object?>.generate(count, (index) {
+              final Object? item = resolvedVal[index];
+              if (item is ComponentNode) return item;
+              if (item is ChildNode) {
+                return resolveChild(
+                  (listSlotPath, item.index, null),
+                  item.id,
+                  item.basePath,
+                  index: item.index,
+                );
+              }
+              if (item is String && item.isNotEmpty) {
+                return resolveChild(
+                  (listSlotPath, null, null),
+                  item,
+                  record.node.dataPath,
+                );
+              }
+              return item;
+            });
+          }
+          return resolvedVal;
+        }
+        if (rawVal is List && resolvedVal is List) {
+          final baseSlot = subKey != null
+              ? (listIndex != null
+                  ? '$slotPath/$listIndex/$subKey'
+                  : '$slotPath/$subKey')
+              : (listIndex != null ? '$slotPath/$listIndex' : slotPath);
+          final int len = resolvedVal.length < rawVal.length
+              ? resolvedVal.length
+              : rawVal.length;
+          List<Object?>? out;
+          for (var i = 0; i < len; i++) {
+            if (!_hasAtChildDirective(rawVal[i])) continue;
+            final Object? nextItem = materializeAtChild(
+              resolvedVal[i],
+              rawVal[i],
+              baseSlot,
+              i,
+              null,
+            );
+            if (!identical(nextItem, resolvedVal[i])) {
+              out ??= List<Object?>.from(resolvedVal);
+              out[i] = nextItem;
+            }
+          }
+          return out ?? resolvedVal;
+        }
+        if (rawVal is Map && resolvedVal is Map) {
+          final baseSlot = subKey != null
+              ? (listIndex != null
+                  ? '$slotPath/$listIndex/$subKey'
+                  : '$slotPath/$subKey')
+              : slotPath;
+          final int? nextListIndex = subKey != null ? null : listIndex;
+          Map<String, Object?>? out;
+          for (final MapEntry<Object?, Object?> entry in rawVal.entries) {
+            final Object? k = entry.key;
+            if (k is! String || !_hasAtChildDirective(entry.value)) continue;
+            final String resolvedKey = k.startsWith('@@') ? k.substring(1) : k;
+            if (!resolvedVal.containsKey(resolvedKey)) continue;
+            final Object? prevSub = resolvedVal[resolvedKey];
+            final Object? nextSub = materializeAtChild(
+              prevSub,
+              entry.value,
+              baseSlot,
+              nextListIndex,
+              resolvedKey,
+            );
+            if (!identical(nextSub, prevSub)) {
+              out ??= Map<String, Object?>.from(resolvedVal);
+              out[resolvedKey] = nextSub;
+            }
+          }
+          return out ?? resolvedVal;
+        }
+        return resolvedVal;
+      }
+
+      for (final MapEntry<String, dynamic> rawEntry in rawProps.entries) {
+        final String rawKey = rawEntry.key;
+        final String outKey =
+            rawKey.startsWith('@@') ? rawKey.substring(1) : rawKey;
+        if (!next.containsKey(outKey) ||
+            !_hasAtChildDirective(rawEntry.value)) {
+          continue;
+        }
+        next[outKey] = materializeAtChild(
+          next[outKey],
+          rawEntry.value,
+          outKey,
+          null,
+          null,
+        );
+      }
+    }
+
     if (!identical(_records[record.node], record)) return;
     final retired = <MutableComponentNode<T>>[];
     for (final MapEntry<_EdgeKey, MutableComponentNode<T>> edge
@@ -816,6 +943,21 @@ class NodeResolver<T extends ComponentApi> {
     for (final child in retired) {
       _disposeNode(child);
     }
+  }
+
+  static bool _hasAtChildDirective(Object? raw) {
+    if (raw is List) return raw.any(_hasAtChildDirective);
+    if (raw is Map) {
+      if (raw.containsKey('@child')) return true;
+      if (raw.containsKey('@path') ||
+          raw.containsKey('@call') ||
+          raw.containsKey('@action') ||
+          raw.containsKey('@functionCall')) {
+        return false;
+      }
+      return raw.values.any(_hasAtChildDirective);
+    }
+    return false;
   }
 
   /// Finds descriptors left after supported child references were materialized.

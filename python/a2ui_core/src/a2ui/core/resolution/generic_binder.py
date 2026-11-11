@@ -29,6 +29,7 @@ from ..schema._dynamic_types import (
 from ..schema.common_types_schema import get_all_dynamic_type_names
 from ..schema.v1_0 import ValidationResult
 from .component_context import ComponentContext
+from .data_context import unescape_object_key
 from .validation_result_coercion import coerce_dynamic_boolean
 
 
@@ -270,6 +271,11 @@ def _classify_container(
     if schema_type == "object" or "properties" in schema:
         props = schema.get("properties")
         if isinstance(props, dict):
+            if "@child" in props and set(props.keys()) <= {"@child", "@path"}:
+                return BehaviorNode(BehaviorType.STRUCTURAL)
+            if len(props) == 1 and ("@action" in props or "@functionCall" in props):
+                return BehaviorNode(BehaviorType.ACTION)
+            # TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
             if "componentId" in props and ("path" in props or "dataBinding" in props):
                 return BehaviorNode(BehaviorType.STRUCTURAL)
             if "explicitList" in props or "template" in props:
@@ -350,6 +356,17 @@ def _schema_defs(catalog: Any, schema: Any) -> dict[str, Any]:
     return defs
 
 
+def _match_bare_structural_or_action(val: Mapping[str, Any]) -> BehaviorNode | None:
+    """Matches pre-1.0 bare template child lists and `{event}` / `{functionCall}` actions."""
+    if "componentId" in val and ("path" in val or "dataBinding" in val):
+        return BehaviorNode(BehaviorType.STRUCTURAL)
+    # Like each branch of the spec's `Action`, an inline action has `event`
+    # or `functionCall` as its only key.
+    if len(val) == 1 and ("event" in val or "functionCall" in val):
+        return BehaviorNode(BehaviorType.ACTION)
+    return None
+
+
 def _classify_value_fallback(
     key: str, val: Any, at_least_v10: bool = False
 ) -> BehaviorNode:
@@ -368,18 +385,23 @@ def _classify_value_fallback(
     if isinstance(val, dict):
         if "condition" in val:
             return BehaviorNode(BehaviorType.CHECKABLE)
-        if "componentId" in val and ("path" in val or "dataBinding" in val):
-            return BehaviorNode(BehaviorType.STRUCTURAL)
         if at_least_v10:
+            if "@child" in val and set(val.keys()) <= {"@child", "@path"}:
+                return BehaviorNode(BehaviorType.STRUCTURAL)
+            if len(val) == 1 and ("@action" in val or "@functionCall" in val):
+                return BehaviorNode(BehaviorType.ACTION)
+            # TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+            legacy_node = _match_bare_structural_or_action(val)
+            if legacy_node is not None:
+                return legacy_node
             if "@path" in val or "@call" in val:
                 return BehaviorNode(BehaviorType.DYNAMIC)
         else:
+            bare_node = _match_bare_structural_or_action(val)
+            if bare_node is not None:
+                return bare_node
             if "path" in val or "call" in val:
                 return BehaviorNode(BehaviorType.DYNAMIC)
-        # Like each branch of the spec's `Action`, an inline action has `event`
-        # or `functionCall` as its only key.
-        if len(val) == 1 and ("event" in val or "functionCall" in val):
-            return BehaviorNode(BehaviorType.ACTION)
         shape = {
             k: _classify_value_fallback(k, v, at_least_v10=at_least_v10)
             for k, v in val.items()
@@ -498,17 +520,37 @@ class GenericBinder:
         is_sync: bool,
     ) -> dict[str, Any]:
         result: dict[str, Any] = {}
+        at_least_v10 = self.context.data_context.at_least_v10
 
         ordered_items = sorted(
             val_obj.items(),
             key=lambda kv: (0 if kv[0] in ("checks", "@checks") else 1),
         )
         for k, v in ordered_items:
-            child_behavior = shape.get(k) or _classify_value_fallback(
-                k, v, at_least_v10=self.context.data_context.at_least_v10
-            )
-            result[k] = self._resolve_and_bind(
-                v, child_behavior, result, k, [*path, k], is_sync
+            out_k = unescape_object_key(k) if at_least_v10 else k
+            if at_least_v10 and k.startswith("@@"):
+                result[out_k] = self._bind_v10_schemaless(v, [*path, out_k], is_sync)
+                continue
+            child_behavior = shape.get(k)
+            if child_behavior is None:
+                if at_least_v10 and not (
+                    k in ("checks", "@checks")
+                    and isinstance(v, list)
+                    and (
+                        k == "@checks"
+                        or not v
+                        or (isinstance(v[0], dict) and "condition" in v[0])
+                    )
+                ):
+                    result[out_k] = self._bind_v10_schemaless(
+                        v, [*path, out_k], is_sync
+                    )
+                    continue
+                child_behavior = _classify_value_fallback(
+                    k, v, at_least_v10=at_least_v10
+                )
+            result[out_k] = self._resolve_and_bind(
+                v, child_behavior, result, out_k, [*path, out_k], is_sync
             )
 
         self._generate_two_way_setters(val_obj, shape, result)
@@ -548,9 +590,13 @@ class GenericBinder:
                     "@path" if self.context.data_context.at_least_v10 else "path"
                 )
                 path_val = raw_val.get(binding_key)
-                if isinstance(path_val, str) and (
-                    self.context.data_context.at_least_v10
-                    or "componentId" not in raw_val
+                if (
+                    isinstance(path_val, str)
+                    and "@child" not in raw_val
+                    and (
+                        self.context.data_context.at_least_v10
+                        or "componentId" not in raw_val
+                    )
                 ):
                     self.context.data_context.set(path_val, new_value)
 
@@ -576,14 +622,10 @@ class GenericBinder:
             )
 
         if behavior.type == BehaviorType.ACTION:
-            return self._bind_action(value, path)
+            return self._bind_action(value, path) if isinstance(value, dict) else value
 
         if behavior.type == BehaviorType.STRUCTURAL:
-            return (
-                self._bind_structural_template(value, path, is_sync)
-                if self.expand_templates and isinstance(value, dict)
-                else value
-            )
+            return self._bind_structural(value, path, is_sync)
 
         if behavior.type == BehaviorType.CHECKABLE:
             return self._bind_checkable(value, parent_dict, path, is_sync)
@@ -594,6 +636,89 @@ class GenericBinder:
         if behavior.type == BehaviorType.OBJECT and isinstance(value, dict):
             return self._bind_object(value, behavior.shape or {}, path, is_sync)
 
+        if self.context.data_context.at_least_v10:
+            return self._bind_v10_schemaless(value, path, is_sync)
+
+        return value
+
+    def _bind_structural(self, value: Any, path: list[str], is_sync: bool) -> Any:
+        if (
+            self.context.data_context.at_least_v10
+            and isinstance(value, dict)
+            and "@child" in value
+        ):
+            if (
+                "@path" in value
+                and isinstance(value.get("@child"), str)
+                and isinstance(value.get("@path"), str)
+            ):
+                return self._bind_at_child_template(
+                    value["@child"], value["@path"], path, is_sync
+                )
+            if "@path" not in value:
+                if isinstance(value.get("@child"), str):
+                    return value["@child"]
+                if isinstance(value.get("@child"), list):
+                    return list(value["@child"])
+        # TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+        return (
+            self._bind_structural_template(value, path, is_sync)
+            if self.expand_templates and isinstance(value, dict)
+            else value
+        )
+
+    def _bind_v10_schemaless(self, value: Any, path: list[str], is_sync: bool) -> Any:
+        if isinstance(value, dict):
+            if "@child" in value and set(value.keys()) <= {"@child", "@path"}:
+                if (
+                    "@path" in value
+                    and isinstance(value.get("@child"), str)
+                    and isinstance(value.get("@path"), str)
+                ):
+                    return self._bind_at_child_template(
+                        value["@child"], value["@path"], path, is_sync
+                    )
+                if "@path" not in value:
+                    if isinstance(value.get("@child"), str):
+                        return value["@child"]
+                    if isinstance(value.get("@child"), list):
+                        return list(value["@child"])
+            if len(value) == 1 and (
+                ("@action" in value and isinstance(value["@action"], dict))
+                or (
+                    "@functionCall" in value
+                    and isinstance(value["@functionCall"], dict)
+                )
+            ):
+                return self._bind_action(value, path)
+            if (
+                "@path" in value
+                and isinstance(value.get("@path"), str)
+                and "@child" not in value
+            ) or ("@call" in value and isinstance(value.get("@call"), str)):
+                return self._bind_dynamic_value(value, path, is_sync)
+            # TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+            if (
+                self.expand_templates
+                and "componentId" in value
+                and ("path" in value or "@path" in value)
+            ):
+                return self._bind_structural_template(value, path, is_sync)
+            if len(value) == 1 and (
+                ("event" in value and isinstance(value["event"], dict))
+                or ("functionCall" in value and isinstance(value["functionCall"], dict))
+            ):
+                return self._bind_action(value, path)
+            out: dict[str, Any] = {}
+            for k, v in value.items():
+                out_k = unescape_object_key(k)
+                out[out_k] = self._bind_v10_schemaless(v, [*path, out_k], is_sync)
+            return out
+        if isinstance(value, list):
+            return [
+                self._bind_v10_schemaless(item, [*path, str(i)], is_sync)
+                for i, item in enumerate(value)
+            ]
         return value
 
     def _bind_array(
@@ -604,6 +729,12 @@ class GenericBinder:
         is_sync: bool,
     ) -> Any:
         if not isinstance(value, list):
+            if (
+                self.context.data_context.at_least_v10
+                and isinstance(value, dict)
+                and "@child" in value
+            ):
+                return self._bind_structural(value, path, is_sync)
             return value
         elem_behavior = behavior.element or BehaviorNode(BehaviorType.STATIC)
         return [
@@ -613,15 +744,55 @@ class GenericBinder:
             for i, item in enumerate(value)
         ]
 
+    def _bind_at_child_template(
+        self, comp_id: str, template_path: str, path: list[str], is_sync: bool
+    ) -> list[dict[str, Any]]:
+        binding_expr = {"@path": template_path}
+
+        def map_items(arr: Any) -> list[dict[str, Any]]:
+            if not isinstance(arr, list):
+                return []
+            list_ctx = self.context.data_context.nested(template_path)
+            return [
+                {
+                    "id": comp_id,
+                    "basePath": list_ctx.nested(str(i)).path.rstrip("/") or "/",
+                }
+                for i in range(len(arr))
+            ]
+
+        def on_change(new_val: Any) -> None:
+            self._update_deep_value(path, map_items(new_val))
+            self._notify()
+
+        bound = self.context.data_context.subscribe_dynamic_value(
+            binding_expr, on_change
+        )
+        if not is_sync:
+            self.data_listeners.append(bound)
+        else:
+            bound.unsubscribe()
+        return map_items(bound.value)
+
     def _bind_structural_template(
         self, value: dict[str, Any], path: list[str], is_sync: bool
     ) -> Any:
+        if (
+            self.context.data_context.at_least_v10
+            and "@child" in value
+            and isinstance(value.get("@child"), str)
+            and isinstance(value.get("@path"), str)
+        ):
+            return self._bind_at_child_template(
+                value["@child"], value["@path"], path, is_sync
+            )
+        # TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
         template_obj = value.get("template") if "template" in value else value
         if not isinstance(template_obj, dict) or "componentId" not in template_obj:
             return value
         comp_id = template_obj.get("componentId")
         template_path = (
-            template_obj.get("@path")
+            template_obj.get("@path") or template_obj.get("path")
             if self.context.data_context.at_least_v10
             else template_obj.get("path") or template_obj.get("dataBinding")
         )
@@ -710,11 +881,14 @@ class GenericBinder:
 
         def closure(metadata: dict[str, Any] | None = None) -> Any:
             if isinstance(value, dict):
-                fc = (
-                    value["functionCall"]
-                    if isinstance(value.get("functionCall"), dict)
-                    else value
-                )
+                at_least_v10 = self.context.data_context.at_least_v10
+                if at_least_v10 and isinstance(value.get("@functionCall"), dict):
+                    fc: dict[str, Any] = value["@functionCall"]
+                elif isinstance(value.get("functionCall"), dict):
+                    # TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+                    fc = value["functionCall"]
+                else:
+                    fc = value
                 call_name = fc.get("@call") or fc.get("call")
                 if isinstance(call_name, str):
                     # Runs as an action: a local function that raises is an
@@ -726,6 +900,8 @@ class GenericBinder:
                         return result.peek() if hasattr(result, "peek") else None
                     return result
             resolved = self.context.data_context.resolve_action(value)
+            if resolved is None:
+                return None
             return self.context.dispatch_action(resolved, metadata=metadata)
 
         self._action_closures[cache_key] = (value, closure)

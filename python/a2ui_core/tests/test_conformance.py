@@ -1124,7 +1124,13 @@ def _indexed_suffix_for_path(data_path: str) -> str | None:
 
 
 def _extract_template_binding(p_val: Any) -> tuple[str, str] | None:
-    if not isinstance(p_val, dict) or "componentId" not in p_val:
+    if not isinstance(p_val, dict):
+        return None
+    if "@child" in p_val and "@path" in p_val:
+        if isinstance(p_val["@child"], str) and isinstance(p_val["@path"], str):
+            return p_val["@child"], p_val["@path"]
+        return None
+    if "componentId" not in p_val:
         return None
     raw_tpl_path = p_val.get("@path") or p_val.get("path")
     if not isinstance(raw_tpl_path, str):
@@ -1139,6 +1145,20 @@ def _resolve_template_children(
     resolve_one: Callable[[str, str, str], None],
 ) -> None:
     for p_val in list(props.values()):
+        if isinstance(p_val, list):
+            for i, item in enumerate(p_val):
+                if (
+                    isinstance(item, dict)
+                    and isinstance(item.get("id"), str)
+                    and isinstance(item.get("basePath"), str)
+                ):
+                    scoped_path = item["basePath"]
+                    tpl_comp_id = item["id"]
+                    resolve_one(tpl_comp_id, scoped_path, f"{tpl_comp_id}_{i}")
+                    resolve_one(
+                        tpl_comp_id, scoped_path, f"{tpl_comp_id}-[{scoped_path}]"
+                    )
+            continue
         tpl_info = _extract_template_binding(p_val)
         if tpl_info is None:
             continue

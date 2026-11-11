@@ -82,14 +82,15 @@ export class ComponentBinder {
     key: string,
     rawVal: unknown,
   ): BoundProperty<unknown> {
+    const atLeastV10 = Boolean(node.context?.dataContext.atLeastV10);
     const valueSignal = computed(() =>
-      this.unwrapNodePropValue(key, getValue(node.props)[key], node.dataPath),
+      this.unwrapNodePropValue(key, getValue(node.props)[key], node.dataPath, atLeastV10),
     );
     assertAngularSignal(valueSignal);
     return {
       value: valueSignal as AngularSignal<unknown>,
       raw: rawVal,
-      template: this.extractNodeTemplate(key, rawVal),
+      template: this.extractNodeTemplate(key, rawVal, atLeastV10),
       onUpdate: (newValue: unknown) => {
         const binding = peekValue(node.props)[key];
         if (binding instanceof ResolvedBinding && isWritable(binding)) {
@@ -99,17 +100,25 @@ export class ComponentBinder {
     };
   }
 
-  private extractNodeTemplate(key: string, rawVal: unknown): ComponentTemplate | undefined {
-    if (key !== 'children' || !isChildListTemplateObject(rawVal)) {
+  private extractNodeTemplate(
+    key: string,
+    rawVal: unknown,
+    atLeastV10: boolean,
+  ): ComponentTemplate | undefined {
+    if (key !== 'children') {
       return undefined;
     }
-    const path = rawVal['@path'] ?? rawVal.path;
-    return rawVal.componentId && path ? {id: rawVal.componentId, path} : undefined;
+    return extractChildListTemplate(rawVal, atLeastV10);
   }
 
-  private unwrapNodePropValue(key: string, val: unknown, defaultBasePath: string): unknown {
+  private unwrapNodePropValue(
+    key: string,
+    val: unknown,
+    defaultBasePath: string,
+    atLeastV10: boolean,
+  ): unknown {
     if (val instanceof ResolvedBinding) {
-      return this.unwrapNodePropValue(key, val.value, defaultBasePath);
+      return this.unwrapNodePropValue(key, val.value, defaultBasePath, atLeastV10);
     }
     if (isComponentNode(val)) {
       return toChild(val);
@@ -117,18 +126,20 @@ export class ComponentBinder {
     if (Array.isArray(val)) {
       if (key === 'children') {
         return val.map(item =>
-          isComponentNode(item) ? toChild(item) : this.normalizeChildItem(item, defaultBasePath),
+          isComponentNode(item)
+            ? toChild(item)
+            : this.normalizeChildItem(item, defaultBasePath, atLeastV10),
         );
       }
-      return val.map(item => this.unwrapNodePropValue(key, item, defaultBasePath));
+      return val.map(item => this.unwrapNodePropValue(key, item, defaultBasePath, atLeastV10));
     }
     if (['child', 'trigger', 'content'].includes(key)) {
-      return this.normalizeChildItem(val, defaultBasePath);
+      return this.normalizeChildItem(val, defaultBasePath, atLeastV10);
     }
     if (val && typeof val === 'object' && Object.getPrototypeOf(val) === Object.prototype) {
       const out: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(val)) {
-        out[k] = this.unwrapNodePropValue(k, v, defaultBasePath);
+        out[k] = this.unwrapNodePropValue(k, v, defaultBasePath, atLeastV10);
       }
       return out;
     }
@@ -201,16 +212,54 @@ export class ComponentBinder {
     context: ComponentContext,
     cleanups: Array<() => void>,
   ): BoundProperty<unknown> {
-    const isChildListTemplate =
-      value && typeof value === 'object' && 'componentId' in value && 'path' in value;
-    const isBoundPath =
-      value && typeof value === 'object' && 'path' in value && !('componentId' in value);
+    const atLeastV10 = isAtLeastVersion(
+      context.dataContext.surface?.protocolVersion ??
+        context.dataContext.surface?.defaultCatalog?.protocolVersion,
+      '1.0',
+    );
+    const templateInfo = extractChildListTemplate(value, atLeastV10);
+    const boundPath =
+      value && typeof value === 'object' && !Array.isArray(value) && !templateInfo
+        ? atLeastV10
+          ? typeof value['@path'] === 'string' && !('@child' in value)
+            ? (value['@path'] as string)
+            : undefined
+          : typeof value.path === 'string' && !('componentId' in value)
+            ? (value.path as string)
+            : undefined
+        : undefined;
+    const isActionProp =
+      value &&
+      typeof value === 'object' &&
+      !Array.isArray(value) &&
+      ((atLeastV10 && ('@action' in value || '@functionCall' in value)) ||
+        // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+        'event' in value ||
+        'functionCall' in value);
+    const isChildWrapper =
+      atLeastV10 &&
+      value &&
+      typeof value === 'object' &&
+      !Array.isArray(value) &&
+      '@child' in value &&
+      !templateInfo;
 
-    const baseSignal = isChildListTemplate
-      ? this.createChildListSignal(value, context, cleanups)
-      : context.dataContext.resolveSignal(value);
+    const baseSignal = templateInfo
+      ? this.createChildListSignal(templateInfo, context, cleanups)
+      : isChildWrapper
+        ? computed(() => value['@child'])
+        : isActionProp
+          ? computed(() => value)
+          : context.dataContext.resolveSignal(value);
 
-    const {valueSignal, template} = this.transformStructuralSignal(key, value, baseSignal, context);
+    const {valueSignal, template} = this.transformStructuralSignal(
+      key,
+      value,
+      templateInfo,
+      baseSignal,
+      context,
+      atLeastV10,
+    );
 
     if (valueSignal?.unsubscribe) {
       cleanups.push(() => valueSignal.unsubscribe!());
@@ -220,29 +269,36 @@ export class ComponentBinder {
       value: valueSignal as AngularSignal<unknown>,
       raw: value,
       template,
-      onUpdate: isBoundPath
-        ? (newValue: unknown) => context.dataContext.set(value.path, newValue)
-        : () => {}, // No-op for non-bound values
+      onUpdate:
+        boundPath !== undefined
+          ? (newValue: unknown) => context.dataContext.set(boundPath, newValue)
+          : () => {}, // No-op for non-bound values
     };
   }
 
   private createChildListSignal(
-    value: {componentId: string; path: string},
+    template: {id: string; path: string},
     context: ComponentContext,
     cleanups: Array<() => void>,
   ) {
-    const listSig = context.dataContext.resolveSignal({path: value.path});
+    const atLeastV10 = isAtLeastVersion(
+      context.dataContext.surface?.protocolVersion ??
+        context.dataContext.surface?.defaultCatalog?.protocolVersion,
+      '1.0',
+    );
+    const listBinding = atLeastV10 ? {'@path': template.path} : {path: template.path};
+    const listSig = context.dataContext.resolveSignal(listBinding);
     if (listSig?.unsubscribe) {
       cleanups.push(() => listSig.unsubscribe!());
     }
     assertAngularSignal(listSig);
 
-    const listContext = context.dataContext.nested(value.path);
+    const listContext = context.dataContext.nested(template.path);
     return computed(() => {
       const arr = listSig();
       const currentArr = Array.isArray(arr) ? arr : [];
       return currentArr.map((_, i) => ({
-        id: value.componentId,
+        id: template.id,
         basePath: listContext.nested(String(i)).path,
       }));
     });
@@ -250,31 +306,32 @@ export class ComponentBinder {
 
   private transformStructuralSignal(
     key: string,
-    value: any,
+    _value: any,
+    template: ComponentTemplate | undefined,
     valueSignal: any,
     context: ComponentContext,
+    atLeastV10: boolean,
   ): {valueSignal: any; template: ComponentTemplate | undefined} {
     if (['child', 'trigger', 'content'].includes(key)) {
       assertAngularSignal(valueSignal);
       return {
         template: undefined,
         valueSignal: computed(() =>
-          this.normalizeChildItem(valueSignal(), context.dataContext.path),
+          this.normalizeChildItem(valueSignal(), context.dataContext.path, atLeastV10),
         ),
       };
     }
 
     if (key === 'children') {
       assertAngularSignal(valueSignal);
-      const id = value?.componentId;
-      const path = value?.path;
-      const template = id && path ? {id, path} : undefined;
       return {
         template,
         valueSignal: computed(() => {
           const val = valueSignal();
           const arr = Array.isArray(val) ? val : [];
-          return arr.map(item => this.normalizeChildItem(item, context.dataContext.path));
+          return arr.map(item =>
+            this.normalizeChildItem(item, context.dataContext.path, atLeastV10),
+          );
         }),
       };
     }
@@ -282,10 +339,19 @@ export class ComponentBinder {
     return {valueSignal, template: undefined};
   }
 
-  private normalizeChildItem(val: unknown, basePath: string): unknown {
+  private normalizeChildItem(val: unknown, basePath: string, atLeastV10: boolean): unknown {
     if (!val) return null;
-    if (typeof val === 'object' && 'id' in val) {
-      return val;
+    if (typeof val === 'object') {
+      if ('id' in val) {
+        return val;
+      }
+      if (
+        atLeastV10 &&
+        '@child' in val &&
+        typeof (val as Record<string, unknown>)['@child'] === 'string'
+      ) {
+        return {id: (val as Record<string, unknown>)['@child'], basePath};
+      }
     }
     return {id: val, basePath};
   }
@@ -372,14 +438,23 @@ function toChild(node: ComponentNode): Child {
   return {id: node.componentId, basePath: node.dataPath, node};
 }
 
-function isChildListTemplateObject(
+function extractChildListTemplate(
   value: unknown,
-): value is {componentId: string; path?: string; '@path'?: string} {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    !Array.isArray(value) &&
-    Object.hasOwn(value, 'componentId') &&
-    (Object.hasOwn(value, 'path') || Object.hasOwn(value, '@path'))
-  );
+  atLeastV10: boolean,
+): {id: string; path: string} | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return undefined;
+  }
+  const obj = value as Record<string, unknown>;
+  if (atLeastV10 && typeof obj['@child'] === 'string' && typeof obj['@path'] === 'string') {
+    return obj['@child'] && obj['@path'] ? {id: obj['@child'], path: obj['@path']} : undefined;
+  }
+  // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+  if (typeof obj['componentId'] === 'string') {
+    const path = atLeastV10 && typeof obj['@path'] === 'string' ? obj['@path'] : obj['path'];
+    if (typeof path === 'string' && obj['componentId'] && path) {
+      return {id: obj['componentId'], path};
+    }
+  }
+  return undefined;
 }

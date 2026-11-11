@@ -23,8 +23,11 @@ import {
   extractRefDefName,
   extractRefFields,
   getUnionOptions,
+  isSingleChildRefObject,
+  isStaticListChildRefObject,
   isTemplateRefObject,
   unwrapZodField,
+  usesAtDirectives,
 } from '../resolution/ref-fields.js';
 import type {Catalog, ComponentApi, FunctionApi} from './types.js';
 
@@ -133,13 +136,38 @@ function checkJsonSchemaRef(
     typeof schema.properties === 'object' && schema.properties !== null
       ? (schema.properties as Record<string, unknown>)
       : undefined;
+  const includeAt = usesAtDirectives(options);
+  if (
+    includeAt &&
+    schema.type === 'object' &&
+    props &&
+    Object.hasOwn(props, '@child') &&
+    !Object.hasOwn(props, '@path')
+  ) {
+    const childProp = props['@child'];
+    if (childProp && typeof childProp === 'object') {
+      const childSchema = childProp as Record<string, unknown>;
+      if (childSchema.type === 'array') {
+        return {isChild: false, isChildList: true};
+      }
+      const nested = checkJsonSchemaRef(childSchema, options);
+      if (nested.isChildList) {
+        return {isChild: false, isChildList: true};
+      }
+      if (nested.isChild || childSchema.type === 'string') {
+        return {isChild: true, isChildList: false};
+      }
+    }
+  }
   if (
     schema.type === 'object' &&
     props &&
-    ((Object.hasOwn(props, 'componentId') &&
-      (Object.hasOwn(props, 'path') ||
-        Object.hasOwn(props, '@path') ||
-        Object.hasOwn(props, 'dataBinding'))) ||
+    ((includeAt && Object.hasOwn(props, '@child') && Object.hasOwn(props, '@path')) ||
+      // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+      (Object.hasOwn(props, 'componentId') &&
+        (Object.hasOwn(props, 'path') ||
+          (includeAt && Object.hasOwn(props, '@path')) ||
+          Object.hasOwn(props, 'dataBinding'))) ||
       Object.hasOwn(props, 'explicitList') ||
       Object.hasOwn(props, 'template'))
   ) {
@@ -419,8 +447,15 @@ function analyzeSchemaNode(
     return analyzeIntersectedSchemas(pipeIn, pipeOut, options, nextPath);
   }
 
-  if (isTemplateRefObject(current)) {
+  if (
+    isTemplateRefObject(current, options) ||
+    isStaticListChildRefObject(current, undefined, options)
+  ) {
     return {isChild: false, isChildList: true};
+  }
+
+  if (isSingleChildRefObject(current, undefined, options)) {
+    return {isChild: true, isChildList: false};
   }
 
   return {isChild: false, isChildList: false};

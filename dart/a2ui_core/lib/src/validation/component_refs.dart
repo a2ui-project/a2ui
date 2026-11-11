@@ -109,59 +109,159 @@ bool _checked(RefKind kind) => switch (kind) {
       SingleRef() => true,
     };
 
+const Set<String> _skippedTopLevelRefKeys = {
+  'id',
+  'component',
+  'catalogId',
+  '@catalogId',
+  'metadata',
+  '@metadata',
+  'accessibility',
+  '@accessibility',
+  'checks',
+  '@checks',
+};
+
+const Set<String> _nonChildDirectives = {
+  '@path',
+  '@call',
+  '@action',
+  '@functionCall',
+  '@metadata',
+  '@catalogId',
+  '@accessibility',
+  '@checks',
+};
+
 /// Lists every component [component] references, in declaration order.
 ///
+/// On v1.0 surfaces ([atLeastV10]), extracts `@child` references schema-lessly
+/// across all component properties at arbitrary nesting depth, while also
+/// extracting legacy bare references declared in [fields]. On pre-1.0 surfaces,
 /// [fields] describes the component type; a type with no reference properties
 /// yields nothing.
 Iterable<ComponentReference> componentReferences(
   Map<String, Object?> component,
-  ComponentRefFields? fields,
-) sync* {
-  if (fields == null) return;
+  ComponentRefFields? fields, {
+  bool atLeastV10 = false,
+}) sync* {
+  if (!atLeastV10 && fields == null) return;
   for (final MapEntry<String, Object?> entry in component.entries) {
-    if (!fields.single.contains(entry.key) &&
-        !fields.list.contains(entry.key)) {
+    final String key = entry.key;
+    if (_skippedTopLevelRefKeys.contains(key) ||
+        (atLeastV10 && key.startsWith('@@'))) {
       continue;
     }
-    yield* _pointers(entry.value, entry.key, fields);
+    final bool inSingle = fields?.single.contains(key) ?? false;
+    final bool inList = fields?.list.contains(key) ?? false;
+    final Set<String>? nestedKeys = fields?.nested[key];
+    if (!atLeastV10 && !inSingle && !inList) {
+      continue;
+    }
+    yield* _pointers(
+      entry.value,
+      key,
+      inSchemaSingle: inSingle,
+      inSchemaList: inList,
+      schemaNestedKeys: nestedKeys,
+      atLeastV10: atLeastV10,
+    );
   }
 }
 
 Iterable<ComponentReference> _pointers(
   Object? value,
-  String path,
-  ComponentRefFields fields,
-) sync* {
-  if (value is String) {
+  String path, {
+  required bool inSchemaSingle,
+  required bool inSchemaList,
+  required Set<String>? schemaNestedKeys,
+  required bool atLeastV10,
+}) sync* {
+  if (atLeastV10 && value is Map) {
+    if (value.containsKey('@child')) {
+      final Object? childVal = value['@child'];
+      if (value.containsKey('@path')) {
+        if (value.length == 2 &&
+            childVal is String &&
+            childVal.isNotEmpty &&
+            value['@path'] is String &&
+            (value['@path'] as String).isNotEmpty) {
+          yield ComponentReference(childVal, '$path.@child');
+        }
+        return;
+      }
+      if (value.length == 1) {
+        if (childVal is String && childVal.isNotEmpty) {
+          yield ComponentReference(childVal, path);
+        } else if (childVal is List) {
+          for (var i = 0; i < childVal.length; i++) {
+            final Object? item = childVal[i];
+            if (item is String && item.isNotEmpty) {
+              yield ComponentReference(item, '$path[$i]');
+            }
+          }
+        }
+      }
+      return;
+    }
+    if (value.keys.any(_nonChildDirectives.contains)) {
+      return;
+    }
+  }
+
+  // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+  if ((inSchemaSingle || inSchemaList) && value is String) {
     yield ComponentReference(value, path);
     return;
   }
 
   if (value is List) {
     for (var index = 0; index < value.length; index++) {
-      yield* _pointers(value[index], '$path[$index]', fields);
+      yield* _pointers(
+        value[index],
+        '$path[$index]',
+        inSchemaSingle: false,
+        inSchemaList: inSchemaList,
+        schemaNestedKeys: schemaNestedKeys,
+        atLeastV10: atLeastV10,
+      );
     }
     return;
   }
 
   if (value is Map) {
-    final Map<String, Object?> node = value.cast<String, Object?>();
     // A `ChildList` template names its component through `componentId` and
     // its data through `path`. An object with only one of them is a literal,
     // not a template, and references nothing.
-    if (node['componentId'] case final String templateId
-        when node['path'] is String) {
-      yield ComponentReference(templateId, '$path.componentId');
+    // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+    if (inSchemaList &&
+        value['componentId'] is String &&
+        value['path'] is String) {
+      yield ComponentReference(
+        value['componentId']! as String,
+        '$path.componentId',
+      );
       return;
     }
-    final String property = path.split('[').first.split('.').first;
-    final Set<String>? allowed = fields.nested[property];
-    if (allowed != null && !path.contains('.')) {
-      for (final MapEntry<String, Object?> entry in node.entries) {
-        if (allowed.contains(entry.key)) {
-          yield* _pointers(entry.value, '$path.${entry.key}', fields);
-        }
+    for (final MapEntry<Object?, Object?> entry in value.entries) {
+      final Object? key = entry.key;
+      if (key is! String) continue;
+      if (atLeastV10 && key.startsWith('@')) {
+        continue;
       }
+      final bool isNestedSchemaField =
+          schemaNestedKeys != null && schemaNestedKeys.contains(key);
+      if (!isNestedSchemaField && !atLeastV10) {
+        continue;
+      }
+      yield* _pointers(
+        entry.value,
+        '$path.$key',
+        inSchemaSingle: isNestedSchemaField,
+        inSchemaList: isNestedSchemaField,
+        schemaNestedKeys: null,
+        atLeastV10: atLeastV10,
+      );
     }
   }
 }

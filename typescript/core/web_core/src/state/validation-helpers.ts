@@ -195,7 +195,11 @@ function batchGraph<T extends ComponentApi>(
       {defaultCatalogSchema: surface.defaultCatalog?.components.get(type)?.schema},
     );
     const children = Array.from(
-      getComponentReferences({...properties, id, component: type}, catalog.componentRefMap),
+      getComponentReferences(
+        {...properties, id, component: type},
+        catalog.componentRefMap,
+        surface.protocolVersion ?? catalog.protocolVersion,
+      ),
       ([childId]) => childId,
     );
     batch.children.set(id, children);
@@ -423,6 +427,7 @@ function validateChildConstraints(
         const normalizedField = rawField
           .replace(/\[(\d+)\]/g, '/$1')
           .replace(/\./g, '/')
+          .replace(/\/(?:componentId|@child)$/, '')
           .replace(/^\/+/, '');
         path = `/components/${compIndex}${normalizedField ? `/${normalizedField}` : ''}`;
       } else {
@@ -481,7 +486,13 @@ function buildCompositionTopology<T extends ComponentApi>(
       typeMap.set(id, compType);
     }
     const compDef = {id, component: compType, ...props};
-    const refs = Array.from(getComponentReferences(compDef, compCatalog as Catalog<ComponentApi>));
+    const refs = Array.from(
+      getComponentReferences(
+        compDef,
+        compCatalog as Catalog<ComponentApi>,
+        surface.protocolVersion ?? compCatalog.protocolVersion,
+      ),
+    );
     if (refs.length > 0) {
       childMap.set(
         id,

@@ -15,13 +15,7 @@
  */
 
 import {z} from 'zod';
-import {CatalogInterface} from '../catalog/types.js';
-import {isAtLeastVersion} from '../common/semver.js';
-import {isValidUax31Identifier} from '../common/uax31.js';
-import {A2uiErrorDetail, A2uiValidationError} from '../errors.js';
-import {formatZodIssue} from '../processing/format-zod-issue.js';
-import {getKnownSchemaKeys} from '../resolution/data-context.js';
-import {AccessibilityAttributesSchema, ComponentCommonSchema} from '../types/common-types.js';
+
 import {
   AT_COMPONENT_MIXIN_KEYS,
   ComponentMixinLayout,
@@ -30,11 +24,37 @@ import {
   componentMixinLayout,
   splitComponentEnvelope,
 } from '../catalog/component_envelope.js';
+import {isChildListSchema, isChildSchema} from '../catalog/reference-map.js';
+import {CatalogInterface} from '../catalog/types.js';
 import {validateMetadata} from '../common/metadata.js';
+import {isAtLeastVersion} from '../common/semver.js';
+import {isValidUax31Identifier} from '../common/uax31.js';
+import {A2uiErrorDetail, A2uiValidationError} from '../errors.js';
+import {formatZodIssue} from '../processing/format-zod-issue.js';
+import {
+  getKnownSchemaKeys,
+  RESERVED_DATA_DIRECTIVES,
+  RESERVED_PROPERTY_DIRECTIVES,
+  validateReservedDirectives,
+} from '../resolution/data-context.js';
+import {type BehaviorNode, scrapeComponentBehavior} from '../resolution/generic-binder.js';
+import {
+  extractRefDefName,
+  getUnionOptions,
+  isSingleChildRefObject,
+  isStaticListChildRefObject,
+  isTemplateRefObject,
+  unwrapZodField,
+  withV10Directives,
+} from '../resolution/ref-fields.js';
+import {AccessibilityAttributesSchema, ComponentCommonSchema} from '../types/common-types.js';
 import {MAX_FUNCTION_CALL_ARGS} from '../types/helpers.js';
 import {IndexApi} from '../v1_0/functions/system_functions.js';
+import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
 import type {ValidationConfig} from './integrity-checker.js';
-import {validateReservedDirectives} from '../resolution/data-context.js';
+
+const V10_AT_CHILD_REF_OPTIONS = withV10Directives(V10_CHILD_REF_OPTIONS);
+const PRE_V10_FORBIDDEN_AT_DIRECTIVES = new Set(['@child', '@action', '@functionCall']);
 
 /**
  * Looks up a reserved `@`-prefixed system function, which belongs to no
@@ -276,9 +296,9 @@ export class PayloadValidator {
         );
       }
       // The component's properties can't be checked without its schema, but
-      // the function calls in them still run, so they are checked all the
-      // same. `MessageProcessor` relies on this for the calls it leaves to
-      // component validation.
+      // the v1.0 directives and function calls in them still run, so they are
+      // checked all the same. `MessageProcessor` relies on this for the calls
+      // it leaves to component validation.
       this.validateEnvelopeMixins(
         split.mixins,
         undefined,
@@ -287,31 +307,53 @@ export class PayloadValidator {
         id,
         componentCatalogId,
       );
+      if (this.enforceIdentifiers) {
+        this.validateV10Directives(properties, undefined, componentType, id);
+      } else {
+        this.validatePreV10AtDirectives(properties, undefined, componentType, id);
+      }
       if (!options?.skipNestedFunctions) {
         this.validateNestedFunctions(properties, componentCatalogId);
       }
       return;
     }
 
+    const behavior = this.enforceIdentifiers
+      ? scrapeComponentBehavior(componentApi.schema, V10_AT_CHILD_REF_OPTIONS)
+      : undefined;
+    const layout = this.enforceIdentifiers ? componentMixinLayout(componentApi.schema) : undefined;
+
     if (this.enforceIdentifiers) {
       this.validateEnvelopeMixins(
         split.mixins,
-        componentMixinLayout(componentApi.schema),
+        layout,
         properties,
         componentType,
         id,
         componentCatalogId,
       );
+      this.validateV10Directives(properties, behavior, componentType, id, '', false, layout);
     } else {
-      this.validateLegacyAccessibility(
+      const knownKeys = getKnownSchemaKeys(componentApi.schema);
+      const legacyAccessibilitySchema =
+        !knownKeys?.has('accessibility') && 'accessibility' in properties
+          ? AccessibilityAttributesSchema
+          : undefined;
+      this.validatePreV10AtDirectives(
         properties,
-        getKnownSchemaKeys(componentApi.schema),
+        componentApi.schema,
         componentType,
         id,
+        '',
+        legacyAccessibilitySchema,
       );
+      this.validateLegacyAccessibility(properties, knownKeys, componentType, id);
     }
 
-    const result = componentApi.schema.safeParse(properties);
+    const schemaProps = this.enforceIdentifiers
+      ? normalizePropsForSchema(properties, componentApi.schema)
+      : properties;
+    const result = componentApi.schema.safeParse(schemaProps);
     if (!result.success) {
       const formattedErrors = result.error.errors.map(formatZodIssue).join(', ');
       const details = zodIssuesToDetails(result.error.issues);
@@ -325,7 +367,7 @@ export class PayloadValidator {
       );
     }
     if (!options?.skipNestedFunctions) {
-      this.validateNestedFunctions(properties, componentCatalogId);
+      this.validateNestedFunctions(properties, componentCatalogId, '', behavior, false, layout);
     }
   }
 
@@ -420,7 +462,7 @@ export class PayloadValidator {
             path,
             subject,
           );
-          this.validateNestedFunctions(mixin.value, componentCatalogId, path);
+          this.validateNestedFunctions(mixin.value, componentCatalogId, path, undefined, true);
           break;
         case 'checks':
           if (layout) {
@@ -432,7 +474,7 @@ export class PayloadValidator {
               {path},
             );
           }
-          this.validateNestedFunctions(mixin.value, componentCatalogId, path);
+          this.validateNestedFunctions(mixin.value, componentCatalogId, path, undefined, true);
           break;
         default:
           break;
@@ -553,14 +595,489 @@ export class PayloadValidator {
     }
   }
 
+  private validatePreV10AtDirectives(
+    val: unknown,
+    schemaOrSchemas: z.ZodTypeAny | readonly z.ZodTypeAny[] | undefined,
+    componentType: string,
+    id: string,
+    currentPath = '',
+    legacyAccessibilitySchema?: z.ZodTypeAny,
+  ): void {
+    if (val === null || typeof val !== 'object') {
+      return;
+    }
+    const baseSchemas =
+      schemaOrSchemas === undefined
+        ? undefined
+        : Array.isArray(schemaOrSchemas)
+          ? schemaOrSchemas
+          : [schemaOrSchemas];
+    const expanded = baseSchemas ? expandPreV10Schemas(baseSchemas, val) : undefined;
+
+    if (Array.isArray(val)) {
+      const elemSchemas: z.ZodTypeAny[] = [];
+      if (expanded) {
+        for (const s of expanded) {
+          if (s._def?.typeName === 'ZodArray') {
+            elemSchemas.push(s._def.type as z.ZodTypeAny);
+          }
+        }
+      }
+      const nextSchemas = elemSchemas.length > 0 ? elemSchemas : undefined;
+      for (let i = 0; i < val.length; i++) {
+        this.validatePreV10AtDirectives(
+          val[i],
+          nextSchemas,
+          componentType,
+          id,
+          `${currentPath}/${i}`,
+        );
+      }
+      return;
+    }
+
+    const record = val as Record<string, unknown>;
+    const objSchemas: z.AnyZodObject[] = [];
+    const recordValueSchemas: z.ZodTypeAny[] = [];
+    if (expanded) {
+      for (const s of expanded) {
+        const typeName = s._def?.typeName as string | undefined;
+        if (typeName === 'ZodObject') {
+          objSchemas.push(s as z.AnyZodObject);
+        } else if (typeName === 'ZodRecord' && (s._def as {valueType?: z.ZodTypeAny}).valueType) {
+          recordValueSchemas.push((s._def as {valueType: z.ZodTypeAny}).valueType);
+        }
+      }
+    }
+
+    for (const [k, v] of Object.entries(record)) {
+      const propPath = `${currentPath}/${k}`;
+      const explicitPropSchemas: z.ZodTypeAny[] = [];
+      for (const objSchema of objSchemas) {
+        const shape = (
+          typeof objSchema.shape === 'function' ? objSchema.shape() : objSchema.shape
+        ) as Record<string, z.ZodTypeAny>;
+        if (Object.hasOwn(shape, k)) {
+          explicitPropSchemas.push(shape[k]);
+        }
+      }
+      if (PRE_V10_FORBIDDEN_AT_DIRECTIVES.has(k) && explicitPropSchemas.length === 0) {
+        throwComponentValidationErrorAt(
+          propPath,
+          `Directive '${k}' is only supported from A2UI v1.0 and is not declared by component '${componentType}' (${id}).`,
+        );
+      }
+      let nextSchemas: readonly z.ZodTypeAny[] | undefined;
+      if (explicitPropSchemas.length > 0) {
+        nextSchemas = explicitPropSchemas;
+      } else if (currentPath === '' && k === 'accessibility' && legacyAccessibilitySchema) {
+        nextSchemas = [legacyAccessibilitySchema];
+      } else if (expanded) {
+        const fallbackSchemas: z.ZodTypeAny[] = [...recordValueSchemas];
+        for (const objSchema of objSchemas) {
+          const catchall = (objSchema._def as {catchall?: z.ZodTypeAny}).catchall;
+          if (catchall && catchall._def?.typeName !== 'ZodNever') {
+            fallbackSchemas.push(catchall);
+          }
+        }
+        nextSchemas = fallbackSchemas.length > 0 ? fallbackSchemas : undefined;
+      }
+      this.validatePreV10AtDirectives(v, nextSchemas, componentType, id, propPath);
+    }
+  }
+
+  private validateV10Directives(
+    val: unknown,
+    behavior: BehaviorNode | undefined,
+    componentType: string,
+    id: string,
+    currentPath = '',
+    inDynamicValue = false,
+    layout?: ComponentMixinLayout,
+  ): void {
+    if (Array.isArray(val)) {
+      if (behavior?.type === 'CHECKABLE') {
+        for (let i = 0; i < val.length; i++) {
+          const rule = val[i];
+          const rulePath = `${currentPath}/${i}`;
+          if (isPlainRecord(rule)) {
+            this.validateV10Directives(rule, undefined, componentType, id, rulePath, true, layout);
+          }
+        }
+        return;
+      }
+      const elemBehavior = behavior?.type === 'ARRAY' ? behavior.element : undefined;
+      for (let i = 0; i < val.length; i++) {
+        this.validateV10Directives(
+          val[i],
+          elemBehavior,
+          componentType,
+          id,
+          `${currentPath}/${i}`,
+          inDynamicValue,
+          layout,
+        );
+      }
+      return;
+    }
+
+    if (!isPlainRecord(val)) {
+      return;
+    }
+
+    const keys = Object.keys(val);
+    const isDynamicContext = inDynamicValue || behavior?.type === 'DYNAMIC';
+
+    if (currentPath === '') {
+      rethrowAt('/', () =>
+        validateReservedDirectives(
+          keys.filter(key => !AT_COMPONENT_MIXIN_KEYS.has(key)),
+          this.catalog.protocolVersion,
+          RESERVED_DATA_DIRECTIVES,
+        ),
+      );
+      const shape = behavior?.type === 'OBJECT' ? behavior.shape : undefined;
+      const catchall = behavior?.type === 'OBJECT' ? behavior.catchall : undefined;
+      for (const [k, v] of Object.entries(val)) {
+        if (AT_COMPONENT_MIXIN_KEYS.has(k)) {
+          if (k === '@accessibility' || k === '@checks') {
+            this.validateV10Directives(v, undefined, componentType, id, `/${k}`, true, layout);
+          }
+          continue;
+        }
+        if ((k === 'accessibility' || k === 'checks') && !layout?.customKeys.has(k)) {
+          this.validateV10Directives(v, undefined, componentType, id, `/${k}`, true, layout);
+          continue;
+        }
+        const childBehavior = shape && Object.hasOwn(shape, k) ? shape[k] : catchall;
+        this.validateV10Directives(v, childBehavior, componentType, id, `/${k}`, false, layout);
+      }
+      return;
+    }
+
+    rethrowAt(currentPath, () =>
+      validateReservedDirectives(
+        keys,
+        this.catalog.protocolVersion,
+        isDynamicContext ? RESERVED_DATA_DIRECTIVES : RESERVED_PROPERTY_DIRECTIVES,
+      ),
+    );
+
+    if (isDynamicContext) {
+      this.validateDynamicObjectDirectives(val, keys, componentType, id, currentPath);
+      return;
+    }
+
+    if (Object.hasOwn(val, '@child')) {
+      validateAtChildDirective(val, keys, componentType, id, currentPath);
+      return;
+    }
+
+    if (Object.hasOwn(val, '@action')) {
+      this.validateAtActionDirective(val, keys, componentType, id, currentPath);
+      return;
+    }
+
+    if (Object.hasOwn(val, '@functionCall')) {
+      this.validateAtFunctionCallDirective(val, keys, componentType, id, currentPath);
+      return;
+    }
+
+    // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+    if (behavior?.type === 'ACTION') {
+      if (Object.hasOwn(val, 'event') && isPlainRecord(val['event'])) {
+        const ev = val['event'];
+        if ('userMessage' in ev && ev['userMessage'] !== undefined) {
+          this.validateV10Directives(
+            ev['userMessage'],
+            undefined,
+            componentType,
+            id,
+            `${currentPath}/event/userMessage`,
+            true,
+            layout,
+          );
+        }
+        if ('context' in ev && isPlainRecord(ev['context'])) {
+          for (const [ck, cv] of Object.entries(ev['context'])) {
+            this.validateV10Directives(
+              cv,
+              undefined,
+              componentType,
+              id,
+              `${currentPath}/event/context/${ck}`,
+              true,
+              layout,
+            );
+          }
+        }
+        return;
+      }
+      if (Object.hasOwn(val, 'functionCall') && isPlainRecord(val['functionCall'])) {
+        const fnVal = val['functionCall'];
+        if (Object.hasOwn(fnVal, '@call')) {
+          this.validateCallDirectiveArgs(fnVal, componentType, id, `${currentPath}/functionCall`);
+        } else if (isPlainRecord(fnVal['args'])) {
+          for (const [ak, av] of Object.entries(fnVal['args'])) {
+            this.validateV10Directives(
+              av,
+              undefined,
+              componentType,
+              id,
+              `${currentPath}/functionCall/args/${ak}`,
+              true,
+              layout,
+            );
+          }
+        }
+        return;
+      }
+    }
+
+    if (Object.hasOwn(val, '@call')) {
+      if (Object.hasOwn(val, '@path')) {
+        throwComponentValidationErrorAt(
+          currentPath,
+          `Invalid dynamic directive in component '${componentType}' (${id}): '@path' and '@call' cannot appear on the same object.`,
+        );
+      }
+      this.validateCallDirectiveArgs(val, componentType, id, currentPath);
+      return;
+    }
+
+    if (Object.hasOwn(val, '@path')) {
+      if (typeof val['@path'] !== 'string' || val['@path'].length === 0) {
+        throwComponentValidationErrorAt(
+          currentPath,
+          `Invalid '@path' directive in component '${componentType}' (${id}): '@path' must be a non-empty string.`,
+        );
+      }
+      return;
+    }
+
+    const shape = behavior?.type === 'OBJECT' ? behavior.shape : undefined;
+    const catchall = behavior?.type === 'OBJECT' ? behavior.catchall : undefined;
+    for (const [k, v] of Object.entries(val)) {
+      const childBehavior = shape && Object.hasOwn(shape, k) ? shape[k] : catchall;
+      this.validateV10Directives(
+        v,
+        childBehavior,
+        componentType,
+        id,
+        `${currentPath}/${k}`,
+        false,
+        layout,
+      );
+    }
+  }
+
+  private validateDynamicObjectDirectives(
+    val: Record<string, unknown>,
+    keys: string[],
+    componentType: string,
+    id: string,
+    currentPath: string,
+  ): void {
+    if (Object.hasOwn(val, '@path') && Object.hasOwn(val, '@call')) {
+      throwComponentValidationErrorAt(
+        currentPath,
+        `Invalid dynamic directive in component '${componentType}' (${id}): '@path' and '@call' cannot appear on the same object.`,
+      );
+    }
+    if (Object.hasOwn(val, '@call')) {
+      this.validateCallDirectiveArgs(val, componentType, id, currentPath);
+      return;
+    }
+    for (const k of keys) {
+      this.validateV10Directives(val[k], undefined, componentType, id, `${currentPath}/${k}`, true);
+    }
+  }
+
+  private validateCallDirectiveArgs(
+    val: Record<string, unknown>,
+    componentType: string,
+    id: string,
+    currentPath: string,
+  ): void {
+    if (typeof val['@call'] !== 'string') {
+      throwComponentValidationErrorAt(
+        currentPath,
+        `Invalid '@call' directive in component '${componentType}' (${id}): '@call' must be a string.`,
+      );
+    }
+    if (
+      'catalogId' in val &&
+      val['catalogId'] !== undefined &&
+      typeof val['catalogId'] !== 'string'
+    ) {
+      throwComponentValidationErrorAt(
+        `${currentPath}/catalogId`,
+        nonStringCatalogIdMessage(val['@call']),
+      );
+    }
+    if (isPlainRecord(val['args'])) {
+      for (const [ak, av] of Object.entries(val['args'])) {
+        this.validateV10Directives(
+          av,
+          undefined,
+          componentType,
+          id,
+          `${currentPath}/args/${ak}`,
+          true,
+        );
+      }
+    }
+  }
+
+  private validateAtActionDirective(
+    val: Record<string, unknown>,
+    keys: string[],
+    componentType: string,
+    id: string,
+    currentPath: string,
+  ): void {
+    if (keys.length !== 1) {
+      throwComponentValidationErrorAt(
+        currentPath,
+        `Invalid '@action' directive in component '${componentType}' (${id}): '@action' must be the only key in the object.`,
+      );
+    }
+    const inner = val['@action'];
+    if (!isPlainRecord(inner)) {
+      throwComponentValidationErrorAt(
+        currentPath,
+        `Invalid '@action' directive in component '${componentType}' (${id}): value must be an object.`,
+      );
+    }
+    rethrowAt(`${currentPath}/@action`, () =>
+      validateReservedDirectives(
+        Object.keys(inner),
+        this.catalog.protocolVersion,
+        RESERVED_DATA_DIRECTIVES,
+      ),
+    );
+    for (const k of Object.keys(inner)) {
+      if (k !== 'name' && k !== 'userMessage' && k !== 'context') {
+        throwComponentValidationErrorAt(
+          `${currentPath}/@action/${k}`,
+          `Invalid '@action' directive in component '${componentType}' (${id}): unrecognized key '${k}'.`,
+        );
+      }
+    }
+    if (typeof inner['name'] !== 'string' || inner['name'].length === 0) {
+      throwComponentValidationErrorAt(
+        currentPath,
+        `Invalid '@action' directive in component '${componentType}' (${id}): 'name' must be a non-empty string.`,
+      );
+    }
+    if ('userMessage' in inner && inner['userMessage'] !== undefined) {
+      const msg = inner['userMessage'];
+      if (typeof msg !== 'string' && !isPlainRecord(msg)) {
+        throwComponentValidationErrorAt(
+          `${currentPath}/@action/userMessage`,
+          `Invalid '@action' userMessage in component '${componentType}' (${id}): must be a DynamicString.`,
+        );
+      }
+      this.validateV10Directives(
+        msg,
+        undefined,
+        componentType,
+        id,
+        `${currentPath}/@action/userMessage`,
+        true,
+      );
+    }
+    if ('context' in inner && inner['context'] !== undefined) {
+      const ctx = inner['context'];
+      if (!isPlainRecord(ctx)) {
+        throwComponentValidationErrorAt(
+          `${currentPath}/@action/context`,
+          `Invalid '@action' context in component '${componentType}' (${id}): 'context' must be an object.`,
+        );
+      }
+      rethrowAt(`${currentPath}/@action/context`, () =>
+        validateReservedDirectives(
+          Object.keys(ctx),
+          this.catalog.protocolVersion,
+          RESERVED_DATA_DIRECTIVES,
+        ),
+      );
+      for (const [ck, cv] of Object.entries(ctx)) {
+        this.validateV10Directives(
+          cv,
+          undefined,
+          componentType,
+          id,
+          `${currentPath}/@action/context/${ck}`,
+          true,
+        );
+      }
+    }
+  }
+
+  private validateAtFunctionCallDirective(
+    val: Record<string, unknown>,
+    keys: string[],
+    componentType: string,
+    id: string,
+    currentPath: string,
+  ): void {
+    if (keys.length !== 1) {
+      throwComponentValidationErrorAt(
+        currentPath,
+        `Invalid '@functionCall' directive in component '${componentType}' (${id}): '@functionCall' must be the only key in the object.`,
+      );
+    }
+    const inner = val['@functionCall'];
+    if (!isPlainRecord(inner)) {
+      throwComponentValidationErrorAt(
+        currentPath,
+        `Invalid '@functionCall' directive in component '${componentType}' (${id}): value must be an object.`,
+      );
+    }
+    rethrowAt(`${currentPath}/@functionCall`, () =>
+      validateReservedDirectives(
+        Object.keys(inner),
+        this.catalog.protocolVersion,
+        RESERVED_DATA_DIRECTIVES,
+      ),
+    );
+    this.validateCallDirectiveArgs(inner, componentType, id, `${currentPath}/@functionCall`);
+  }
+
   private validateNestedFunctions(
     val: unknown,
     componentCatalogId: string | undefined,
     currentPath = '',
+    behavior?: BehaviorNode,
+    inDynamicValue = false,
+    layout?: ComponentMixinLayout,
+    actionContextKind?: 'atAction' | 'legacyEvent',
   ): void {
     if (Array.isArray(val)) {
+      if (behavior?.type === 'CHECKABLE') {
+        for (let i = 0; i < val.length; i++) {
+          this.validateNestedFunctions(
+            val[i],
+            componentCatalogId,
+            `${currentPath}/${i}`,
+            undefined,
+            true,
+            layout,
+          );
+        }
+        return;
+      }
+      const elemBehavior = behavior?.type === 'ARRAY' ? behavior.element : undefined;
       for (let i = 0; i < val.length; i++) {
-        this.validateNestedFunctions(val[i], componentCatalogId, `${currentPath}/${i}`);
+        this.validateNestedFunctions(
+          val[i],
+          componentCatalogId,
+          `${currentPath}/${i}`,
+          elemBehavior,
+          inDynamicValue,
+          layout,
+        );
       }
       return;
     }
@@ -570,6 +1087,7 @@ export class PayloadValidator {
     }
 
     const record = val as Record<string, unknown>;
+    const isDynamicContext = inDynamicValue || behavior?.type === 'DYNAMIC';
     if (this.enforceIdentifiers) {
       // The component envelope mixins (`@metadata` and the like) are allowed
       // at the root of a component only; nested anywhere else they are
@@ -578,6 +1096,11 @@ export class PayloadValidator {
       validateReservedDirectives(
         currentPath === '' ? keys.filter(key => !AT_COMPONENT_MIXIN_KEYS.has(key)) : keys,
         this.catalog.protocolVersion,
+        currentPath === ''
+          ? RESERVED_DATA_DIRECTIVES
+          : isDynamicContext
+            ? RESERVED_DATA_DIRECTIVES
+            : RESERVED_PROPERTY_DIRECTIVES,
       );
     }
     const rawName = this.enforceIdentifiers
@@ -594,8 +1117,50 @@ export class PayloadValidator {
       }
     }
 
+    const shape = behavior?.type === 'OBJECT' ? behavior.shape : undefined;
+    const catchall = behavior?.type === 'OBJECT' ? behavior.catchall : undefined;
+    const isCallRecord = this.enforceIdentifiers
+      ? Object.hasOwn(record, '@call')
+      : typeof record['call'] === 'string' || typeof record['function'] === 'string';
+
     for (const [k, v] of Object.entries(record)) {
-      this.validateNestedFunctions(v, componentCatalogId, `${currentPath}/${k}`);
+      const nextChildBehavior =
+        currentPath === '' && AT_COMPONENT_MIXIN_KEYS.has(k)
+          ? undefined
+          : shape && Object.hasOwn(shape, k)
+            ? shape[k]
+            : catchall;
+      const isRootMixinDynamic =
+        currentPath === '' &&
+        (k === '@accessibility' ||
+          k === '@checks' ||
+          ((k === 'accessibility' || k === 'checks') && !layout?.customKeys.has(k)));
+      const nextActionKind =
+        this.enforceIdentifiers && Object.hasOwn(record, '@action') && k === '@action'
+          ? 'atAction'
+          : behavior?.type === 'ACTION' && k === 'event'
+            ? 'legacyEvent'
+            : undefined;
+      const isActionDynamicField =
+        (actionContextKind === 'atAction' || actionContextKind === 'legacyEvent') &&
+        (k === 'context' || k === 'userMessage');
+      const isLegacyActionFnSlot = behavior?.type === 'ACTION' && k === 'functionCall';
+      const nextInDynamic =
+        isDynamicContext ||
+        isRootMixinDynamic ||
+        (isCallRecord && k === 'args') ||
+        isActionDynamicField ||
+        isLegacyActionFnSlot ||
+        nextChildBehavior?.type === 'DYNAMIC';
+      this.validateNestedFunctions(
+        v,
+        componentCatalogId,
+        `${currentPath}/${k}`,
+        nextChildBehavior,
+        nextInDynamic,
+        layout,
+        nextActionKind,
+      );
     }
   }
 
@@ -745,6 +1310,350 @@ function zodIssuesToDetails(issues: readonly z.ZodIssue[], prefix = ''): A2uiErr
 function stripStructuralKeys(comp: Record<string, unknown>): Record<string, unknown> {
   const {id: _id, component: _component, ...properties} = comp;
   return properties;
+}
+
+function isPlainRecord(val: unknown): val is Record<string, unknown> {
+  return typeof val === 'object' && val !== null && !Array.isArray(val);
+}
+
+function throwComponentValidationErrorAt(path: string, message: string): never {
+  const normPath = path || '/';
+  throw new A2uiValidationError(
+    message,
+    [{path: normPath, code: 'invalid_value', message}],
+    'VALIDATION_ERROR',
+    {path: normPath},
+  );
+}
+
+function validateAtChildDirective(
+  val: Record<string, unknown>,
+  keys: string[],
+  componentType: string,
+  id: string,
+  currentPath: string,
+): void {
+  const childVal = val['@child'];
+  if (keys.length === 1) {
+    if (typeof childVal === 'string') {
+      if (childVal.length === 0) {
+        throwComponentValidationErrorAt(
+          currentPath,
+          `Invalid '@child' directive in component '${componentType}' (${id}): '@child' must be a non-empty string.`,
+        );
+      }
+      return;
+    }
+    if (Array.isArray(childVal)) {
+      for (const entry of childVal) {
+        if (typeof entry !== 'string' || entry.length === 0) {
+          throwComponentValidationErrorAt(
+            currentPath,
+            `Invalid '@child' directive list in component '${componentType}' (${id}): all entries must be non-empty strings.`,
+          );
+        }
+      }
+      return;
+    }
+    throwComponentValidationErrorAt(
+      currentPath,
+      `Invalid '@child' directive in component '${componentType}' (${id}): '@child' must be a non-empty string or string array.`,
+    );
+  }
+
+  if (keys.length === 2 && Object.hasOwn(val, '@path')) {
+    const pathVal = val['@path'];
+    if (typeof childVal !== 'string' || childVal.length === 0) {
+      throwComponentValidationErrorAt(
+        currentPath,
+        `Invalid '@child' template directive in component '${componentType}' (${id}): '@child' must be a non-empty string when paired with '@path'.`,
+      );
+    }
+    if (typeof pathVal !== 'string' || pathVal.length === 0) {
+      throwComponentValidationErrorAt(
+        currentPath,
+        `Invalid '@child' template directive in component '${componentType}' (${id}): '@path' must be a non-empty string.`,
+      );
+    }
+    return;
+  }
+
+  throwComponentValidationErrorAt(
+    currentPath,
+    `Invalid '@child' directive in component '${componentType}' (${id}): unexpected key combination (${keys.join(', ')}).`,
+  );
+}
+
+function isActionSchemaNode(schema: z.ZodTypeAny, visited = new Set<z.ZodTypeAny>()): boolean {
+  const field = unwrapZodField(schema);
+  if (Array.from(field.traversed).some(s => visited.has(s))) return false;
+  const nextVisited = new Set(visited);
+  for (const s of field.traversed) nextVisited.add(s);
+
+  const defName = field.firstRefDefName || extractRefDefName(schema.description ?? '');
+  if (defName === 'Action') return true;
+
+  const current = field.schema;
+  const typeName = current?._def?.typeName as string | undefined;
+  if (typeName === 'ZodObject') {
+    const shape = (current as z.AnyZodObject).shape as Record<string, z.ZodTypeAny>;
+    const keys = Object.keys(shape);
+    return (
+      keys.length === 1 &&
+      (keys[0] === 'event' ||
+        keys[0] === 'functionCall' ||
+        keys[0] === '@action' ||
+        keys[0] === '@functionCall')
+    );
+  }
+  const unionOptions = getUnionOptions(current);
+  if (unionOptions) {
+    return unionOptions.some(opt => isActionSchemaNode(opt, nextVisited));
+  }
+  if (typeName === 'ZodIntersection') {
+    const def = current._def as {left: z.ZodTypeAny; right: z.ZodTypeAny};
+    return isActionSchemaNode(def.left, nextVisited) || isActionSchemaNode(def.right, nextVisited);
+  }
+  if (typeName === 'ZodPipeline') {
+    const def = current._def as {in: z.ZodTypeAny; out: z.ZodTypeAny};
+    return isActionSchemaNode(def.in, nextVisited) || isActionSchemaNode(def.out, nextVisited);
+  }
+  return false;
+}
+
+function isChildSlotSchema(schema: z.ZodTypeAny): boolean {
+  if (isChildSchema(schema, V10_AT_CHILD_REF_OPTIONS)) {
+    return true;
+  }
+  const field = unwrapZodField(schema);
+  if (isSingleChildRefObject(field.schema, undefined, V10_AT_CHILD_REF_OPTIONS)) {
+    return true;
+  }
+  const defName = field.firstRefDefName;
+  return Boolean(defName && V10_AT_CHILD_REF_OPTIONS.childRefNames?.has(defName));
+}
+
+function isChildListSlotSchema(schema: z.ZodTypeAny): boolean {
+  if (isChildListSchema(schema, V10_AT_CHILD_REF_OPTIONS)) {
+    return true;
+  }
+  const field = unwrapZodField(schema);
+  if (
+    isTemplateRefObject(field.schema, V10_AT_CHILD_REF_OPTIONS) ||
+    isStaticListChildRefObject(field.schema, undefined, V10_AT_CHILD_REF_OPTIONS)
+  ) {
+    return true;
+  }
+  const defName = field.firstRefDefName;
+  return Boolean(
+    field.refs.has('child-list') ||
+    (defName && V10_AT_CHILD_REF_OPTIONS.childListRefNames?.has(defName)),
+  );
+}
+
+// TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+function normalizeValueForSchema(
+  val: unknown,
+  schema: z.ZodTypeAny,
+  visited = new Set<z.ZodTypeAny>(),
+): unknown {
+  if (val === undefined || val === null || !schema) {
+    return val;
+  }
+
+  const field = unwrapZodField(schema);
+  const current = field.schema;
+  if (!current?._def || visited.has(current)) {
+    return val;
+  }
+  const nextVisited = new Set(visited);
+  nextVisited.add(current);
+
+  if (isActionSchemaNode(schema) && isPlainRecord(val)) {
+    if (schema.safeParse(val).success) {
+      return val;
+    }
+    const keys = Object.keys(val);
+    if (keys.length === 1) {
+      if (Object.hasOwn(val, '@action')) {
+        const candidate = {event: val['@action']};
+        if (schema.safeParse(candidate).success) return candidate;
+      } else if (Object.hasOwn(val, '@functionCall')) {
+        const candidate = {functionCall: val['@functionCall']};
+        if (schema.safeParse(candidate).success) return candidate;
+      } else if (Object.hasOwn(val, 'event')) {
+        const candidate = {'@action': val['event']};
+        if (schema.safeParse(candidate).success) return candidate;
+      } else if (Object.hasOwn(val, 'functionCall')) {
+        const candidate = {'@functionCall': val['functionCall']};
+        if (schema.safeParse(candidate).success) return candidate;
+      }
+    }
+    return val;
+  }
+
+  if (isChildListSlotSchema(schema)) {
+    if (!schema.safeParse(val).success) {
+      if (isPlainRecord(val) && Object.hasOwn(val, '@child')) {
+        if (Array.isArray(val['@child']) && schema.safeParse(val['@child']).success) {
+          return val['@child'];
+        }
+        if (typeof val['@child'] === 'string' && typeof val['@path'] === 'string') {
+          const legacyPathCandidate = {componentId: val['@child'], path: val['@path']};
+          if (schema.safeParse(legacyPathCandidate).success) return legacyPathCandidate;
+          const v10PathCandidate = {componentId: val['@child'], '@path': val['@path']};
+          if (schema.safeParse(v10PathCandidate).success) return v10PathCandidate;
+        }
+      } else if (Array.isArray(val) && val.every(item => typeof item === 'string')) {
+        const candidate = {'@child': val};
+        if (schema.safeParse(candidate).success) return candidate;
+      } else if (
+        isPlainRecord(val) &&
+        typeof val['componentId'] === 'string' &&
+        typeof (val['@path'] ?? val['path']) === 'string'
+      ) {
+        const candidate = {
+          '@child': val['componentId'],
+          '@path': (val['@path'] ?? val['path']) as string,
+        };
+        if (schema.safeParse(candidate).success) return candidate;
+      }
+    }
+  }
+
+  if (isChildSlotSchema(schema)) {
+    if (!schema.safeParse(val).success) {
+      if (
+        isPlainRecord(val) &&
+        Object.hasOwn(val, '@child') &&
+        !Object.hasOwn(val, '@path') &&
+        typeof val['@child'] === 'string' &&
+        schema.safeParse(val['@child']).success
+      ) {
+        return val['@child'];
+      }
+      if (typeof val === 'string' && schema.safeParse({'@child': val}).success) {
+        return {'@child': val};
+      }
+    }
+    return val;
+  }
+
+  const typeName = current._def.typeName as string | undefined;
+  if (typeName === 'ZodArray' && Array.isArray(val)) {
+    const elemSchema = current._def.type as z.ZodTypeAny;
+    return val.map(item => normalizeValueForSchema(item, elemSchema, nextVisited));
+  }
+
+  if (typeName === 'ZodObject' && isPlainRecord(val)) {
+    const shape = (current as z.AnyZodObject).shape as Record<string, z.ZodTypeAny>;
+    const rawCatchall = (current._def as {catchall?: z.ZodTypeAny})['catchall'];
+    const catchall =
+      rawCatchall && rawCatchall._def?.typeName !== 'ZodNever' ? rawCatchall : undefined;
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(val)) {
+      const childSchema = Object.hasOwn(shape, k) ? shape[k] : catchall;
+      out[k] = childSchema ? normalizeValueForSchema(v, childSchema, nextVisited) : v;
+    }
+    return out;
+  }
+
+  if (typeName === 'ZodRecord' && isPlainRecord(val)) {
+    const valueType = (current._def as {valueType?: z.ZodTypeAny})['valueType'];
+    if (!valueType) return val;
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(val)) {
+      out[k] = normalizeValueForSchema(v, valueType, nextVisited);
+    }
+    return out;
+  }
+
+  if (typeName === 'ZodIntersection') {
+    const def = current._def as {left: z.ZodTypeAny; right: z.ZodTypeAny};
+    const leftNorm = normalizeValueForSchema(val, def.left, nextVisited);
+    return normalizeValueForSchema(leftNorm, def.right, nextVisited);
+  }
+
+  if (typeName === 'ZodPipeline') {
+    const def = current._def as {in: z.ZodTypeAny; out: z.ZodTypeAny};
+    const inField = unwrapZodField(def.in);
+    if (inField.hasTransform) {
+      return normalizeValueForSchema(val, def.in, nextVisited);
+    }
+    const inNorm = normalizeValueForSchema(val, def.in, nextVisited);
+    return normalizeValueForSchema(inNorm, def.out, nextVisited);
+  }
+
+  const unionOptions = getUnionOptions(current);
+  if (unionOptions) {
+    if (schema.safeParse(val).success) {
+      return val;
+    }
+    for (const opt of unionOptions) {
+      const candidate = normalizeValueForSchema(val, opt, nextVisited);
+      if (opt.safeParse(candidate).success) {
+        return candidate;
+      }
+    }
+  }
+
+  return val;
+}
+
+function expandPreV10Schemas(
+  schemas: readonly z.ZodTypeAny[],
+  val: unknown,
+  visited = new Set<z.ZodTypeAny>(),
+): z.ZodTypeAny[] {
+  const result: z.ZodTypeAny[] = [];
+  for (const s of schemas) {
+    const field = unwrapZodField(s);
+    let seen = false;
+    for (const t of field.traversed) {
+      if (visited.has(t)) {
+        seen = true;
+        break;
+      }
+    }
+    if (seen) continue;
+    const nextVisited = new Set(visited);
+    for (const t of field.traversed) {
+      nextVisited.add(t);
+    }
+    const current = field.schema;
+    const typeName = current?._def?.typeName as string | undefined;
+    const unionOpts = getUnionOptions(current);
+    if (unionOpts) {
+      const matching = unionOpts.filter(opt => opt.safeParse(val).success);
+      result.push(
+        ...expandPreV10Schemas(matching.length > 0 ? matching : unionOpts, val, nextVisited),
+      );
+    } else if (typeName === 'ZodIntersection') {
+      const def = current._def as {left: z.ZodTypeAny; right: z.ZodTypeAny};
+      result.push(...expandPreV10Schemas([def.left, def.right], val, nextVisited));
+    } else if (typeName === 'ZodPipeline') {
+      const def = current._def as {in: z.ZodTypeAny; out: z.ZodTypeAny};
+      const inField = unwrapZodField(def.in);
+      result.push(
+        ...expandPreV10Schemas(
+          inField.hasTransform ? [def.in] : [def.in, def.out],
+          val,
+          nextVisited,
+        ),
+      );
+    } else if (current) {
+      result.push(current);
+    }
+  }
+  return result;
+}
+
+function normalizePropsForSchema(
+  properties: Record<string, unknown>,
+  schema: z.ZodTypeAny,
+): Record<string, unknown> {
+  const normalized = normalizeValueForSchema(properties, schema);
+  return isPlainRecord(normalized) ? normalized : properties;
 }
 
 /**

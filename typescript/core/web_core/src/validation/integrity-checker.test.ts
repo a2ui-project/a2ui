@@ -463,4 +463,108 @@ describe('Integrity Verification', () => {
       assert.strictEqual(recursionErr.name, 'A2uiRecursionError');
     });
   });
+
+  describe('v1.0 schema-less @child extraction', () => {
+    it('extracts @child single, list, template, and nested refs without duplicates or false positives', () => {
+      const refMap = buildComponentRefMap(BASIC_COMPONENTS, V10_CHILD_REF_OPTIONS);
+
+      const openRefs = Array.from(
+        getComponentReferences(
+          {
+            'id': 'root',
+            'component': 'CustomShell',
+            'label': 'plain_string_not_child',
+            'header': {'@child': 'hdr'},
+            'list': {'@child': ['c1', 'c2']},
+            'items': {'@child': 'tpl', '@path': '/rows'},
+            'sections': [{title: 'S1', body: {'@child': 'b1'}}],
+            'meta': {'@@child': 'not_a_child'},
+            'dyn': {'@path': '/foo', 'extra': {'@child': 'ignored_inside_dyn'}},
+            'onClick': {'@action': {name: 'go', context: {k: {'@@child': 'lit'}}}},
+            '@metadata': {note: 'envelope'},
+          },
+          refMap,
+          '1.0',
+        ),
+      );
+
+      assert.deepEqual(openRefs, [
+        ['hdr', 'header'],
+        ['c1', 'list/0'],
+        ['c2', 'list/1'],
+        ['tpl', 'items/@child'],
+        ['b1', 'sections/0/body'],
+      ]);
+
+      // Schematized Tabs with @child should not double-extract.
+      const tabsRefs = Array.from(
+        getComponentReferences(
+          {
+            id: 'tabs',
+            component: 'Tabs',
+            tabs: [
+              {title: 'First', child: {'@child': 't1'}},
+              {title: 'Second', child: 't2'},
+            ],
+          },
+          refMap,
+          '1.0',
+        ),
+      );
+      assert.deepEqual(tabsRefs, [
+        ['t1', 'tabs/0/child'],
+        ['t2', 'tabs[1].child'],
+      ]);
+
+      // Pre-1.0 protocol versions must NOT run schema-less @child extraction.
+      const v09Refs = Array.from(
+        getComponentReferences(
+          {
+            id: 'root',
+            component: {OpenComp: {header: {'@child': 'hdr'}}},
+          },
+          refMap,
+          '0.9',
+        ),
+      );
+      assert.deepEqual(v09Refs, []);
+
+      // Flat components passed with a bare ComponentRefMap and omitted protocolVersion
+      // must NOT default to v1.0 schema-less extraction.
+      const unversionedFlatRefs = Array.from(
+        getComponentReferences(
+          {
+            id: 'root',
+            component: 'OpenComp',
+            header: {'@child': 'hdr'},
+          },
+          refMap,
+        ),
+      );
+      assert.deepEqual(unversionedFlatRefs, []);
+    });
+
+    it('detects @child objects in ref-fields schema helpers for PR 2 readiness only on v1.0+', () => {
+      const pr2Schema = z.object({
+        single: z.object({'@child': z.string()}),
+        list: z.union([
+          z.object({'@child': z.array(z.string())}),
+          z.object({'@child': z.string(), '@path': z.string()}),
+        ]),
+      });
+      const pr2Catalog = new Catalog('https://example.com/pr2.json', '1.0', [
+        {name: 'Pr2Box', schema: pr2Schema},
+      ]);
+      const refs = pr2Catalog.componentRefMap['Pr2Box'];
+      assert.ok(refs.singleRefs.has('single'));
+      assert.ok(refs.listRefs.has('list'));
+
+      const v09Catalog = new Catalog('https://example.com/v09-pr2.json', '0.9', [
+        {name: 'V09Box', schema: pr2Schema},
+      ]);
+      const v09Refs = v09Catalog.componentRefMap['V09Box'];
+      assert.strictEqual(v09Refs.singleRefs.has('single'), false);
+      assert.strictEqual(v09Refs.listRefs.has('list'), false);
+    });
+  });
 });

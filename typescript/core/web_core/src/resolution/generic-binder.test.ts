@@ -2787,3 +2787,208 @@ describe('GenericBinder @accessibility mirror', () => {
     surface.dispose();
   });
 });
+
+describe('GenericBinder v1.0 @child, @action, and @functionCall directives', () => {
+  it('dual-reads @child, @action, @functionCall, and schema-less open properties while unescaping @@ keys', async () => {
+    const fnCalls: unknown[] = [];
+    const catalog = new Catalog(
+      'https://example.com/v10-binder.json',
+      '1.0',
+      [
+        {
+          name: 'OpenWidget',
+          schema: z.object({}).passthrough(),
+        },
+      ],
+      [
+        {
+          name: 'openUrl',
+          returnType: 'string',
+          schema: z.object({url: z.string()}),
+          execute: (args: Record<string, unknown>) => {
+            fnCalls.push(args);
+            return String(args.url);
+          },
+        } as any,
+      ],
+    );
+
+    const surface = new SurfaceModel('s1', catalog);
+    const dispatchedActions: unknown[] = [];
+    surface.onAction.subscribe(act => {
+      dispatchedActions.push(act);
+    });
+
+    surface.dataModel.set('/heading', 'Initial');
+    surface.dataModel.set('/rows', [{id: 1}, {id: 2}]);
+    surface.dataModel.set('/targetUrl', 'https://a2ui.org');
+
+    surface.componentsModel.addComponent(
+      new ComponentModel(
+        'root',
+        'OpenWidget',
+        {
+          header: {'@child': 'hdr'},
+          list: {'@child': ['c1', 'c2']},
+          items: {'@child': 'tpl', '@path': '/rows'},
+          sections: [{body: {'@child': 'b1'}}],
+          title: {'@path': '/heading'},
+          computed: {'@call': 'openUrl', args: {url: {'@path': '/targetUrl'}}},
+          onSave: {
+            '@action': {
+              name: 'save',
+              userMessage: {'@path': '/heading'},
+              context: {heading: {'@path': '/heading'}},
+            },
+          },
+          onOpen: {
+            '@functionCall': {
+              '@call': 'openUrl',
+              args: {url: 'https://clicked.example'},
+            },
+          },
+          meta: {'@@child': 'not_a_node', '@@action': 'literal'},
+        },
+        catalog,
+      ),
+    );
+
+    const binder = new GenericBinder<Record<string, any>>(
+      new ComponentContext(surface, 'root'),
+      z.object({}).passthrough(),
+    );
+    const sub = binder.subscribe(() => {});
+
+    assert.strictEqual(binder.snapshot.header, 'hdr');
+    assert.deepStrictEqual(binder.snapshot.list, ['c1', 'c2']);
+    assert.deepStrictEqual(binder.snapshot.items, [
+      {id: 'tpl', basePath: '/rows/0'},
+      {id: 'tpl', basePath: '/rows/1'},
+    ]);
+    assert.deepStrictEqual(binder.snapshot.sections, [{body: 'b1'}]);
+    assert.strictEqual(binder.snapshot.title, 'Initial');
+    assert.strictEqual(binder.snapshot.computed, 'https://a2ui.org');
+    assert.deepStrictEqual(binder.snapshot.meta, {
+      '@child': 'not_a_node',
+      '@action': 'literal',
+    });
+
+    // Neither @action nor @functionCall ran eagerly at bind time (only computed ran during bind).
+    assert.strictEqual(dispatchedActions.length, 0);
+    assert.ok(fnCalls.length >= 1);
+    assert.strictEqual(
+      fnCalls.filter(call => (call as {url?: unknown}).url === 'https://clicked.example').length,
+      0,
+    );
+    assert.strictEqual(typeof binder.snapshot.onSave, 'function');
+    assert.strictEqual(typeof binder.snapshot.onOpen, 'function');
+
+    // Data updates flow reactively into template children and open @path properties.
+    surface.dataModel.set('/heading', 'Updated');
+    surface.dataModel.set('/rows', [{id: 1}]);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual(binder.snapshot.title, 'Updated');
+    assert.deepStrictEqual(binder.snapshot.items, [{id: 'tpl', basePath: '/rows/0'}]);
+
+    // Invoking @functionCall executes the function without emitting an action event.
+    await binder.snapshot.onOpen();
+    assert.strictEqual(
+      fnCalls.filter(call => (call as {url?: unknown}).url === 'https://clicked.example').length,
+      1,
+    );
+    assert.strictEqual(dispatchedActions.length, 0);
+
+    // Invoking @action resolves context + userMessage lazily and emits an ActionPayload.
+    await binder.snapshot.onSave();
+    assert.strictEqual(dispatchedActions.length, 1);
+    assert.strictEqual((dispatchedActions[0] as any).name, 'save');
+    assert.strictEqual((dispatchedActions[0] as any).userMessage, 'Updated');
+    assert.deepStrictEqual((dispatchedActions[0] as any).context, {heading: 'Updated'});
+
+    // Verify PR 2-style @child / @action schemas are typed by ResolveA2uiProps without breaking types.
+    type Pr2Props = ResolveA2uiProps<{
+      single: {'@child': string};
+      list: {'@child': string[]} | {'@child': string; '@path': string};
+      act:
+        | {'@action': {name: string; context?: Record<string, unknown>}}
+        | {'@functionCall': Record<string, unknown>};
+    }>;
+    const typeCheck: Pr2Props = {
+      single: 'hdr',
+      list: ['c1', {id: 'tpl', basePath: '/rows/0'}],
+      act: async () => {},
+    };
+    assert.strictEqual(typeCheck.single, 'hdr');
+
+    sub.unsubscribe();
+    binder.dispose();
+    surface.dispose();
+  });
+
+  it('does not treat @child, @action, @functionCall, @path, or @call as directives on pre-1.0 surfaces', async () => {
+    const fnCalls: unknown[] = [];
+    const openV09Schema = z
+      .object({
+        customAction: z.object({'@action': z.object({name: z.string()})}).optional(),
+      })
+      .passthrough();
+    const v09Catalog = new Catalog(
+      'https://example.com/v09-binder.json',
+      '0.9',
+      [{name: 'OpenV09', schema: openV09Schema}],
+      [
+        {
+          name: 'ping',
+          returnType: 'string',
+          schema: z.object({}),
+          execute: (args: Record<string, unknown>) => {
+            fnCalls.push(args);
+            return 'pong';
+          },
+        } as any,
+      ],
+    );
+    const surface = new SurfaceModel('s-v09', v09Catalog);
+    const dispatchedActions: unknown[] = [];
+    surface.onAction.subscribe(act => {
+      dispatchedActions.push(act);
+    });
+    surface.dataModel.set('/heading', 'FromModel');
+
+    surface.componentsModel.addComponent(
+      new ComponentModel(
+        'root',
+        'OpenV09',
+        {
+          childSlot: {'@child': 'hdr'},
+          fnSlot: {'@functionCall': {'@call': 'ping', args: {}}},
+          customAction: {'@action': {name: 'custom'}},
+          openAtPath: {'@path': '/heading'},
+          openAtCall: {'@call': 'ping'},
+          meta: {'@@child': 'stays_escaped'},
+        },
+        v09Catalog,
+      ),
+    );
+
+    const binder = new GenericBinder<Record<string, any>>(
+      new ComponentContext(surface, 'root'),
+      openV09Schema,
+    );
+    const sub = binder.subscribe(() => {});
+
+    assert.deepStrictEqual(binder.snapshot.childSlot, {'@child': 'hdr'});
+    assert.deepStrictEqual(binder.snapshot.fnSlot, {'@functionCall': {'@call': 'ping', args: {}}});
+    assert.deepStrictEqual(binder.snapshot.customAction, {'@action': {name: 'custom'}});
+    assert.strictEqual(typeof binder.snapshot.customAction, 'object');
+    assert.deepStrictEqual(binder.snapshot.openAtPath, {'@path': '/heading'});
+    assert.deepStrictEqual(binder.snapshot.openAtCall, {'@call': 'ping'});
+    assert.deepStrictEqual(binder.snapshot.meta, {'@@child': 'stays_escaped'});
+    assert.strictEqual(fnCalls.length, 0);
+    assert.strictEqual(dispatchedActions.length, 0);
+
+    sub.unsubscribe();
+    binder.dispose();
+    surface.dispose();
+  });
+});

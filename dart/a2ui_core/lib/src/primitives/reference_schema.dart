@@ -81,6 +81,7 @@ final class ComponentRefMap {
     Map<String, Map<String, Object?>> componentSchemas, {
     Map<String, Object?> document = const {},
     Map<String, Object?>? commonTypes,
+    bool atLeastV10 = false,
   }) : _byType = Map.unmodifiable({
           for (final MapEntry<String, Map<String, Object?>> entry
               in componentSchemas.entries)
@@ -88,6 +89,7 @@ final class ComponentRefMap {
               entry.value,
               document: document,
               commonTypes: commonTypes,
+              atLeastV10: atLeastV10,
             ).fields(),
         });
 
@@ -127,10 +129,14 @@ class ReferenceSchemaReader {
   /// counts as a child list.
   final bool structuralChildLists;
 
+  /// Whether v1.0 `@child` reference object shapes are recognized.
+  final bool atLeastV10;
+
   ReferenceSchemaReader(
     this.root, {
     this.document = const {},
     this.structuralChildLists = true,
+    this.atLeastV10 = false,
     Map<String, Object?>? commonTypes,
   }) : commonTypes = commonTypes ?? _defaultCommonTypes;
 
@@ -231,7 +237,11 @@ class ReferenceSchemaReader {
   /// branch is an array of marked ids, as in an inlined `ChildList`: that
   /// branch identifies the property as a child list on its own.
   RefKind? referenceKind(List<Map<String, Object?>> schemas) {
-    if (_marks(schemas, r'/$defs/ChildList')) return const ListRef();
+    if (_marks(schemas, r'/$defs/ChildList') ||
+        (atLeastV10 && schemas.any(_isAtChildListShape))) {
+      return const ListRef();
+    }
+    // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
     if (structuralChildLists && schemas.any(_isChildListShape)) {
       final List<Map<String, Object?>> itemSchemas = this.schemas(
         items(schemas),
@@ -242,7 +252,8 @@ class ReferenceSchemaReader {
       );
     }
     if (_marks(schemas, r'/$defs/ComponentId') ||
-        _marks(schemas, r'/$defs/Child')) {
+        _marks(schemas, r'/$defs/Child') ||
+        (atLeastV10 && schemas.any(_isAtSingleChildShape))) {
       return const SingleRef();
     }
     return null;
@@ -359,10 +370,29 @@ bool _isCheckRuleShape(Map<String, Object?> schema) {
       properties['message'] != null;
 }
 
+/// Recognizes a v1.0 single `@child` reference object schema.
+bool _isAtSingleChildShape(Map<String, Object?> schema) {
+  final Object? properties = schema['properties'];
+  if (properties is! Map || !properties.containsKey('@child')) return false;
+  if (properties.containsKey('@path')) return false;
+  final Object? childProp = properties['@child'];
+  return childProp is! Map || childProp['type'] != 'array';
+}
+
+/// Recognizes a v1.0 `@child` list or `@child`+`@path` template object schema.
+bool _isAtChildListShape(Map<String, Object?> schema) {
+  final Object? properties = schema['properties'];
+  if (properties is! Map || !properties.containsKey('@child')) return false;
+  if (properties.containsKey('@path')) return true;
+  final Object? childProp = properties['@child'];
+  return childProp is Map && childProp['type'] == 'array';
+}
+
 /// Recognizes a child-list template by its shape, for catalogs that declare
 /// one without a `$ref` or `commonTypesRef` marker. The test is deliberately
 /// structural, so it also matches any unrelated object schema that declares
 /// both property names.
+// TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
 bool _isChildListShape(Map<String, Object?> schema) {
   final Object? properties = schema['properties'];
   return properties is Map &&

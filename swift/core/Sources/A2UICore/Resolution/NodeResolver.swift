@@ -1540,7 +1540,16 @@ public final class NodeResolver: Sendable {
     data: JSONValue,
     recurseIntoChildren: Bool = true
   ) -> (any Resolved)? {
-    guard let childID = value.stringValue else { return nil }
+    let childID: String?
+    if atLeastV10, let dict = value.objectValue, dict.count == 1,
+      let unwrapped = dict["@child"]?.stringValue, !unwrapped.isEmpty
+    {
+      childID = unwrapped
+    } else {
+      // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+      childID = value.stringValue
+    }
+    guard let childID else { return nil }
     let effectiveSuffix = instanceSuffix ?? index.map { "\($0)" }
     let childInstanceID = effectiveSuffix.map { "\(childID)_\($0)" } ?? childID
     return resolveChildReference(
@@ -1591,6 +1600,24 @@ public final class NodeResolver: Sendable {
       )
     }
     if let object = value.objectValue {
+      if atLeastV10 {
+        return resolveV10StandardObject(
+          object: object,
+          rawValue: value,
+          schema: schema,
+          basePath: basePath,
+          index: index,
+          instanceSuffix: instanceSuffix,
+          componentID: componentID,
+          propertyKey: propertyKey,
+          slotLocation: slotLocation,
+          visited: visited,
+          components: components,
+          data: data,
+          checks: checks,
+          recurseIntoChildren: recurseIntoChildren
+        )
+      }
       let objectProperties = extractPropertiesSchema(from: schema)
       if !objectProperties.isEmpty {
         return resolveStandardObjectProperty(
@@ -1611,6 +1638,81 @@ public final class NodeResolver: Sendable {
       }
     }
     return resolvePrimitiveValue(value)
+  }
+
+  private func resolveV10StandardObject(
+    object: OrderedDictionary<String, JSONValue>,
+    rawValue: JSONValue,
+    schema: JSONValue,
+    basePath: String?,
+    index: Int?,
+    instanceSuffix: String?,
+    componentID: String,
+    propertyKey: String,
+    slotLocation: SlotLocation,
+    visited: Set<String>,
+    components: [String: ComponentModel],
+    data: JSONValue,
+    checks: [ResolvedCheck],
+    recurseIntoChildren: Bool
+  ) -> (any Resolved)? {
+    if object["@child"] != nil {
+      if object.count == 1, let childID = object["@child"]?.stringValue, !childID.isEmpty {
+        return resolveComponentIDProperty(
+          value: rawValue,
+          slotLocation: slotLocation,
+          basePath: basePath,
+          index: index,
+          instanceSuffix: instanceSuffix,
+          visited: visited,
+          components: components,
+          data: data,
+          recurseIntoChildren: recurseIntoChildren
+        )
+      }
+      return resolveChildList(
+        rawValue,
+        basePath: basePath,
+        index: index,
+        instanceSuffix: instanceSuffix,
+        componentID: componentID,
+        slotLocation: slotLocation,
+        visited: visited,
+        components: components,
+        data: data,
+        recurseIntoChildren: recurseIntoChildren
+      )
+    }
+    if object["@action"] != nil || object["@functionCall"] != nil {
+      return resolveAction(
+        rawValue,
+        checks: checks,
+        basePath: basePath,
+        index: index,
+        componentID: componentID,
+        data: data
+      )
+    }
+    if (object.count == 1 && object["@path"]?.stringValue != nil)
+      || object["@call"]?.stringValue != nil
+    {
+      return resolveDynamicValueBinding(rawValue, basePath: basePath, index: index, data: data)
+    }
+    return resolveStandardObjectProperty(
+      object: object,
+      objectProperties: extractPropertiesSchema(from: schema),
+      basePath: basePath,
+      index: index,
+      instanceSuffix: instanceSuffix,
+      componentID: componentID,
+      propertyKey: propertyKey,
+      slotLocation: slotLocation,
+      visited: visited,
+      components: components,
+      data: data,
+      checks: checks,
+      recurseIntoChildren: recurseIntoChildren
+    )
   }
 
   private func resolveStandardArrayProperty(
@@ -1678,13 +1780,20 @@ public final class NodeResolver: Sendable {
     recurseIntoChildren: Bool = true
   ) -> ResolvedDictionary {
     var resolvedObject: [String: any Resolved] = [:]
-    let bindingKey = atLeastV10 ? "@path" : "path"
-    for (key, propertyValue) in object {
-      let nestedPropSchema = objectProperties[key] ?? .boolean(true)
+    for (rawKey, propertyValue) in object {
+      let key = atLeastV10 ? DataContext.unescapeObjectKey(rawKey) : rawKey
+      let nestedPropSchema = objectProperties[rawKey] ?? objectProperties[key] ?? .boolean(true)
       let classified = classifySchema(nestedPropSchema)
-      let nestedPropType: PropertyType =
-        (classified == .standard && propertyValue.objectValue?[bindingKey] != nil)
-        ? .dynamicValue : classified
+      let nestedPropType: PropertyType
+      if atLeastV10 {
+        nestedPropType = classified
+      } else {
+        nestedPropType =
+          (classified == .standard
+            && propertyValue.objectValue?["path"] != nil
+            && propertyValue.objectValue?["componentId"] == nil)
+          ? .dynamicValue : classified
+      }
       if let resolvedValue = resolveProperty(
         value: propertyValue,
         schema: nestedPropSchema,
@@ -2117,6 +2226,10 @@ public final class NodeResolver: Sendable {
   }
 
   private func extractEventActionObject(_ dict: [String: JSONValue]) -> [String: JSONValue]? {
+    if atLeastV10, dict.count == 1, let wrapped = dict["@action"]?.dictionaryValue {
+      return wrapped
+    }
+    // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
     if let wrapped = dict["event"]?.dictionaryValue { return wrapped }
     if dict["name"]?.stringValue != nil { return dict }
     return nil
@@ -2127,6 +2240,12 @@ public final class NodeResolver: Sendable {
     dict: [String: JSONValue],
     callKey: String
   ) -> JSONValue? {
+    if atLeastV10, dict.count == 1,
+      let wrapped = value["@functionCall"], wrapped.dictionaryValue != nil
+    {
+      return wrapped
+    }
+    // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
     if let wrapped = value["functionCall"], wrapped.dictionaryValue != nil { return wrapped }
     if dict[callKey]?.stringValue != nil { return value }
     return nil
@@ -2350,7 +2469,8 @@ public final class NodeResolver: Sendable {
       }
       switch resolveActionValue(value, in: context, actionCache: actionCache) {
       case .resolved(let resolved):
-        resolvedContext[key] = resolved
+        let outKey = atLeastV10 ? DataContext.unescapeObjectKey(key) : key
+        resolvedContext[outKey] = resolved
       case .pending(let calls):
         resumeAction(after: calls, in: actionCache, resume)
         return
@@ -2517,6 +2637,7 @@ public final class NodeResolver: Sendable {
   ) -> [Node]? {
     switch value {
     case .array(let arr):
+      // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
       return resolveStaticChildList(
         arr,
         slotLocation: slotLocation,
@@ -2529,6 +2650,39 @@ public final class NodeResolver: Sendable {
         recurseIntoChildren: recurseIntoChildren
       )
     case .object(let dict):
+      if atLeastV10, dict["@child"] != nil {
+        if dict.count == 1, let arr = dict["@child"]?.arrayValue {
+          return resolveStaticChildList(
+            arr,
+            slotLocation: slotLocation,
+            basePath: basePath,
+            index: index,
+            instanceSuffix: instanceSuffix,
+            visited: visited,
+            components: components,
+            data: data,
+            recurseIntoChildren: recurseIntoChildren
+          )
+        }
+        if dict.count == 2,
+          let templateID = dict["@child"]?.stringValue, !templateID.isEmpty,
+          let pathStr = dict["@path"]?.stringValue, !pathStr.isEmpty
+        {
+          return expandTemplateChildList(
+            templateID: templateID,
+            pathStr: pathStr,
+            slotLocation: slotLocation,
+            basePath: basePath,
+            instanceSuffix: instanceSuffix,
+            visited: visited,
+            components: components,
+            data: data,
+            recurseIntoChildren: recurseIntoChildren
+          )
+        }
+        return nil
+      }
+      // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
       return resolveTemplateChildList(
         dict,
         slotLocation: slotLocation,
@@ -2595,6 +2749,30 @@ public final class NodeResolver: Sendable {
     else {
       return nil
     }
+    return expandTemplateChildList(
+      templateID: templateID,
+      pathStr: pathStr,
+      slotLocation: slotLocation,
+      basePath: basePath,
+      instanceSuffix: instanceSuffix,
+      visited: visited,
+      components: components,
+      data: data,
+      recurseIntoChildren: recurseIntoChildren
+    )
+  }
+
+  private func expandTemplateChildList(
+    templateID: String,
+    pathStr: String,
+    slotLocation: SlotLocation,
+    basePath: String?,
+    instanceSuffix: String?,
+    visited: Set<String>,
+    components: [String: ComponentModel],
+    data: JSONValue,
+    recurseIntoChildren: Bool = true
+  ) -> [Node] {
     let absPath = JSONValue.absolutePath(for: pathStr, in: basePath)
     let normalizedTemplatePath = normalizePath(absPath)
     guard let dataItems = data[normalizedTemplatePath]?.arrayValue else {

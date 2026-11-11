@@ -32,6 +32,7 @@ from ..common.metadata import (
     normalize_metadata,
     validate_metadata,
 )
+from ..common.semver import is_at_least_version
 from ..common.uax31 import is_valid_uax31_identifier
 from ..exceptions import (
     A2uiCatalogError,
@@ -514,9 +515,20 @@ class SurfaceModel:
             return
         import datetime
 
+        at_least_v10 = bool(
+            self.protocol_version
+            and is_at_least_version(self.protocol_version, ProtocolVersion.V1_0)
+        )
         event_payload = payload
         catalog_id: str | None = payload.get("catalogId")
-        if "event" in payload and isinstance(payload["event"], dict):
+        if (
+            at_least_v10
+            and "@action" in payload
+            and isinstance(payload["@action"], dict)
+        ):
+            event_payload = payload["@action"]
+        elif "event" in payload and isinstance(payload["event"], dict):
+            # TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
             event_payload = payload["event"]
         elif "name" in payload:
             event_payload = payload

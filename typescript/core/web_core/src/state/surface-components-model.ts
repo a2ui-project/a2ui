@@ -36,6 +36,7 @@ import {
 export class SurfaceComponentsModel {
   private components: Map<string, ComponentModel> = new Map();
   private refMap?: ComponentRefMap;
+  private protocolVersion?: string;
 
   private readonly _onCreated = new EventEmitter<ComponentModel>();
   private readonly _onDeleted = new EventEmitter<string>();
@@ -62,8 +63,12 @@ export class SurfaceComponentsModel {
    * @param catalogOrRefMap Catalog instance or ComponentRefMap.
    */
   setCatalog(catalogOrRefMap: Catalog<any, any> | ComponentRefMap): void {
-    this.refMap =
-      catalogOrRefMap instanceof Catalog ? catalogOrRefMap.componentRefMap : catalogOrRefMap;
+    if (catalogOrRefMap instanceof Catalog) {
+      this.refMap = catalogOrRefMap.componentRefMap;
+      this.protocolVersion = catalogOrRefMap.protocolVersion;
+    } else {
+      this.refMap = catalogOrRefMap;
+    }
   }
 
   /**
@@ -205,7 +210,13 @@ export class SurfaceComponentsModel {
     const refMap: ComponentRefMap = comp.catalog.components.size
       ? comp.catalog.componentRefMap
       : (this.refMap ?? comp.catalog.componentRefMap);
-    return Array.from(getComponentReferences(comp.componentTree, refMap));
+    return Array.from(
+      getComponentReferences(
+        comp.componentTree,
+        refMap,
+        comp.catalog?.protocolVersion ?? this.protocolVersion,
+      ),
+    );
   }
 
   /**

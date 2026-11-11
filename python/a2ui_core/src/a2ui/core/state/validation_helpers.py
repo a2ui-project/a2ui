@@ -359,12 +359,19 @@ def _format_child_constraint_pointer(
     """Formats the RFC 6901 JSON Pointer for an allowedChildren violation."""
     comp_idx = batch_index_map.get(comp_id) if batch_index_map else None
     base_seg = str(comp_idx) if comp_idx is not None else comp_id
-    dot_path = (
-        f"components.{base_seg}.{field_path}"
-        if field_path
-        else f"components.{base_seg}"
-    )
-    return to_json_pointer(dot_path)
+    base_ptr = to_json_pointer(f"components.{base_seg}")
+    if not field_path:
+        return base_ptr
+    if "/" in field_path or "~0" in field_path or "~1" in field_path:
+        rel_ptr = field_path if field_path.startswith("/") else f"/{field_path}"
+        rel_ptr = re.sub(r"\[(\d+)\]", r"/\1", rel_ptr)
+    else:
+        rel_ptr = to_json_pointer(field_path)
+    if rel_ptr.endswith("/componentId"):
+        rel_ptr = rel_ptr[: -len("/componentId")]
+    elif rel_ptr.endswith("/@child"):
+        rel_ptr = rel_ptr[: -len("/@child")]
+    return f"{base_ptr}{rel_ptr}"
 
 
 def check_allowed_children(

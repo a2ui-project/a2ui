@@ -1154,6 +1154,23 @@ void main() {
         });
       },
     );
+
+    test(
+      'componentReferences handles maps with non-string keys on v1.0',
+      () {
+        final List<ComponentReference> refs = componentReferences(
+          {
+            'data': <Object?, Object?>{
+              1: 'one',
+              'nested': {'@child': 'leaf'},
+            },
+          },
+          const ComponentRefFields(),
+          atLeastV10: true,
+        ).toList();
+        expect(refs.map((r) => '${r.field}:${r.id}'), ['data.nested:leaf']);
+      },
+    );
   });
 
   group('JSON pointer array traversal', () {

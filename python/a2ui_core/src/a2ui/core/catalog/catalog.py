@@ -1425,6 +1425,167 @@ def get_declared_component_properties(
     return frozenset(declared_props)
 
 
+def _expand_schema_nodes(
+    schema: Any,
+    defs: Mapping[str, Any],
+    components: Mapping[str, Any] | None = None,
+    visited_refs: set[str] | None = None,
+) -> list[Mapping[str, Any]]:
+    """Yields `schema` plus subschemas reached via `$ref`, `allOf`, `anyOf`, `oneOf`."""
+    if not isinstance(schema, Mapping):
+        return []
+    if visited_refs is None:
+        visited_refs = set()
+    nodes: list[Mapping[str, Any]] = [schema]
+    ref = schema.get("$ref")
+    if isinstance(ref, str) and ref not in visited_refs:
+        target: Any = None
+        if "#/$defs/" in ref:
+            def_path = ref.split("#/$defs/", 1)[1].split("/")
+            curr: Any = defs.get(def_path[0])
+            for seg in def_path[1:]:
+                if isinstance(curr, Mapping) and seg in curr:
+                    curr = curr[seg]
+                else:
+                    curr = None
+                    break
+            target = curr
+        elif ref.startswith("#/components/") and components is not None:
+            comp_path = ref[len("#/components/") :].split("/")
+            curr = components.get(comp_path[0])
+            for seg in comp_path[1:]:
+                if isinstance(curr, Mapping) and seg in curr:
+                    curr = curr[seg]
+                else:
+                    curr = None
+                    break
+            target = curr
+        if isinstance(target, Mapping):
+            next_visited = visited_refs | {ref}
+            nodes.extend(_expand_schema_nodes(target, defs, components, next_visited))
+    for combiner in ("allOf", "anyOf", "oneOf"):
+        branches = schema.get(combiner)
+        if isinstance(branches, list):
+            for branch in branches:
+                nodes.extend(
+                    _expand_schema_nodes(branch, defs, components, visited_refs)
+                )
+    return nodes
+
+
+def get_declared_properties_at_path(
+    catalog: Any,
+    comp_type: str | None,
+    path_segments: Sequence[str | int] = (),
+) -> frozenset[str]:
+    """Returns property names explicitly declared at `path_segments` in `comp_type`'s schema."""
+    if catalog is None or not comp_type or not isinstance(comp_type, str):
+        return frozenset()
+    comp_entry = (
+        catalog.get_component(comp_type)
+        if hasattr(catalog, "get_component")
+        else getattr(catalog, "components", {}).get(comp_type)
+        if isinstance(getattr(catalog, "components", None), Mapping)
+        else None
+    )
+    model_cls = (
+        getattr(comp_entry, "schema", None)
+        if isinstance(getattr(comp_entry, "schema", None), type)
+        and issubclass(getattr(comp_entry, "schema"), BaseModel)
+        else getattr(comp_entry, "model_class", None)
+    )
+    root_schema: Mapping[str, Any] | None = None
+    if isinstance(model_cls, type) and issubclass(model_cls, BaseModel):
+        root_schema = model_cls.model_json_schema(by_alias=True)
+    else:
+        entry_schema = getattr(comp_entry, "schema", None)
+        if isinstance(entry_schema, Mapping):
+            root_schema = entry_schema
+        elif isinstance(comp_entry, Mapping):
+            root_schema = comp_entry
+        if root_schema is None:
+            val_schema = getattr(catalog, "validation_schema", None)
+            if isinstance(val_schema, Mapping):
+                comps = val_schema.get("components")
+                if isinstance(comps, Mapping) and isinstance(
+                    comps.get(comp_type), Mapping
+                ):
+                    root_schema = comps[comp_type]
+    if not isinstance(root_schema, Mapping):
+        return frozenset()
+
+    defs: dict[str, Any] = {}
+    val_schema = getattr(catalog, "validation_schema", None)
+    components_map: Mapping[str, Any] | None = None
+    if isinstance(val_schema, Mapping):
+        val_defs = val_schema.get("$defs")
+        if isinstance(val_defs, Mapping):
+            defs.update(val_defs)
+        val_comps = val_schema.get("components")
+        if isinstance(val_comps, Mapping):
+            components_map = val_comps
+    cat_defs = getattr(catalog, "defs", None)
+    if isinstance(cat_defs, Mapping):
+        defs.update(cat_defs)
+    own_defs = root_schema.get("$defs")
+    if isinstance(own_defs, Mapping):
+        defs.update(own_defs)
+
+    current_schemas: list[Mapping[str, Any]] = [root_schema]
+    for seg in path_segments:
+        next_schemas: list[Mapping[str, Any]] = []
+        expanded: list[Mapping[str, Any]] = []
+        for sub in current_schemas:
+            expanded.extend(_expand_schema_nodes(sub, defs, components_map))
+        if isinstance(seg, int):
+            for node in expanded:
+                prefix_items = node.get("prefixItems")
+                if (
+                    isinstance(prefix_items, list)
+                    and 0 <= seg < len(prefix_items)
+                    and isinstance(prefix_items[seg], Mapping)
+                ):
+                    next_schemas.append(prefix_items[seg])
+                else:
+                    items = node.get("items")
+                    if isinstance(items, Mapping):
+                        next_schemas.append(items)
+        else:
+            for node in expanded:
+                props = node.get("properties")
+                if isinstance(props, Mapping) and seg in props:
+                    prop_sub = props[seg]
+                    if isinstance(prop_sub, Mapping):
+                        next_schemas.append(prop_sub)
+            if not next_schemas:
+                for node in expanded:
+                    add_props = node.get("additionalProperties")
+                    if isinstance(add_props, Mapping):
+                        next_schemas.append(add_props)
+        if not next_schemas:
+            return frozenset()
+        current_schemas = next_schemas
+
+    declared: set[str] = set()
+    for sub in current_schemas:
+        for node in _expand_schema_nodes(sub, defs, components_map):
+            props = node.get("properties")
+            if isinstance(props, Mapping):
+                declared.update(props.keys())
+    if (
+        not path_segments
+        and isinstance(model_cls, type)
+        and issubclass(model_cls, BaseModel)
+    ):
+        for field_name, field in model_cls.model_fields.items():
+            declared.add(field_name)
+            if field.alias:
+                declared.add(field.alias)
+            if isinstance(field.validation_alias, str):
+                declared.add(field.validation_alias)
+    return frozenset(declared)
+
+
 TComponent = TypeVar("TComponent", bound=ComponentApi, default=Any, covariant=True)
 TFunction = TypeVar("TFunction", bound=FunctionApi, default=Any, covariant=True)
 

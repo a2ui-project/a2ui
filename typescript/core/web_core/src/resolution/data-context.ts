@@ -249,8 +249,20 @@ export function unescapeObjectKey(key: string): string {
   return key.startsWith('@@') ? key.slice(1) : key;
 }
 
+/** Recognized reserved protocol directives in v1.0 dynamic value objects. */
+export const RESERVED_DATA_DIRECTIVES = new Set(['@path', '@call']);
+
+/** Recognized reserved protocol directives in v1.0 component property objects. */
+export const RESERVED_PROPERTY_DIRECTIVES = new Set([
+  '@path',
+  '@call',
+  '@child',
+  '@action',
+  '@functionCall',
+]);
+
 /** Recognized reserved protocol directives in v1.0 dynamic objects. */
-const RESERVED_DIRECTIVES = new Set(['@path', '@call']);
+const RESERVED_DIRECTIVES = RESERVED_DATA_DIRECTIVES;
 
 /**
  * Validates that any single-'@' prefixed keys in an object are recognized protocol directives.
@@ -259,17 +271,22 @@ const RESERVED_DIRECTIVES = new Set(['@path', '@call']);
  *
  * @param keys The keys of the object to validate.
  * @param protocolVersion The protocol specification version.
+ * @param allowedDirectives Optional set of allowed single-'@' directives (defaults to DynamicValue directives).
  * @throws {A2uiValidationError} If an unrecognized single-'@' key is found in v1.0.
  */
-export function validateReservedDirectives(keys: Iterable<string>, protocolVersion?: string): void {
+export function validateReservedDirectives(
+  keys: Iterable<string>,
+  protocolVersion?: string,
+  allowedDirectives: ReadonlySet<string> = RESERVED_DIRECTIVES,
+): void {
   if (!isAtLeastVersion(protocolVersion, '1.0')) {
     return;
   }
   for (const key of keys) {
-    if (isSingleAtKey(key) && !RESERVED_DIRECTIVES.has(key)) {
+    if (isSingleAtKey(key) && !allowedDirectives.has(key)) {
       throw new A2uiValidationError(
         `Unrecognized reserved protocol directive '${key}' in v1.0 dynamic object. Reserved keys must be in ${Array.from(
-          RESERVED_DIRECTIVES,
+          allowedDirectives,
         ).join(', ')}, or escaped with prefix doubling (e.g. '@${key}').`,
         undefined,
         'INVALID_RESERVED_KEY',
@@ -544,10 +561,18 @@ export class DataContext {
    * @returns Whether the object represents a valid data binding for this context's protocol version.
    */
   private isDataBindingObject(val: Record<string, unknown>): boolean {
-    const hasPath = this.atLeastV10
-      ? '@path' in val && typeof val['@path'] === 'string'
-      : 'path' in val && typeof val.path === 'string';
-    return hasPath && !('componentId' in val);
+    if (this.atLeastV10) {
+      return (
+        '@path' in val &&
+        typeof val['@path'] === 'string' &&
+        !('componentId' in val) &&
+        !('@child' in val) &&
+        !('@call' in val) &&
+        !('@action' in val) &&
+        !('@functionCall' in val)
+      );
+    }
+    return 'path' in val && typeof val.path === 'string' && !('componentId' in val);
   }
 
   /**
@@ -675,6 +700,10 @@ export class DataContext {
     }
 
     const rec = value as Record<string, unknown>;
+
+    if (this.atLeastV10 && (this.isDataBindingObject(rec) || this.isFunctionCallObject(rec))) {
+      validateReservedDirectives(Object.keys(rec), this.surfaceProtocolVersion);
+    }
 
     if (this.isDataBindingObject(rec)) {
       const bindingPath = (rec['@path'] ?? rec.path) as string;
@@ -956,6 +985,10 @@ export class DataContext {
     }
 
     const rec = value as Record<string, unknown>;
+
+    if (this.atLeastV10 && (this.isDataBindingObject(rec) || this.isFunctionCallObject(rec))) {
+      validateReservedDirectives(Object.keys(rec), this.surfaceProtocolVersion);
+    }
 
     // 2. Path Check
     if (this.isDataBindingObject(rec)) {
@@ -1299,16 +1332,30 @@ export class DataContext {
     action: Record<string, unknown>,
     options?: {userActivation?: boolean},
   ): unknown {
-    let callTarget = 'functionCall' in action ? (action as any).functionCall : action;
+    let callTarget: unknown;
+    if (
+      this.atLeastV10 &&
+      '@functionCall' in action &&
+      action['@functionCall'] &&
+      typeof action['@functionCall'] === 'object'
+    ) {
+      callTarget = action['@functionCall'];
+    } else if ('functionCall' in action) {
+      // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+      callTarget = (action as any).functionCall;
+    } else {
+      callTarget = action;
+    }
     if (callTarget && typeof callTarget === 'object') {
-      const callName = (callTarget['@call'] ?? callTarget.call) as string | undefined;
+      const targetRec = callTarget as Record<string, unknown>;
+      const callName = (
+        this.atLeastV10 ? (targetRec['@call'] ?? targetRec.call) : targetRec.call
+      ) as string | undefined;
       if (typeof callName === 'string') {
         callTarget =
-          this.atLeastV10 && !('@call' in callTarget)
-            ? {'@call': callName, ...callTarget}
-            : !this.atLeastV10 && !('call' in callTarget)
-              ? {call: callName, ...callTarget}
-              : callTarget;
+          this.atLeastV10 && !('@call' in targetRec)
+            ? {'@call': callName, ...targetRec}
+            : targetRec;
       }
     }
     const userActivated = options?.userActivation ?? true;
@@ -1344,6 +1391,24 @@ export class DataContext {
     action: Action | Record<string, unknown>,
     options?: {userActivation?: boolean},
   ): Action | unknown {
+    if (
+      this.atLeastV10 &&
+      '@action' in action &&
+      typeof action['@action'] === 'object' &&
+      action['@action'] !== null &&
+      !Array.isArray(action['@action'])
+    ) {
+      const resolvedEvent = this.resolveActionEventObject(
+        action['@action'] as Record<string, unknown>,
+        options,
+      );
+      const withAction = (ev: Record<string, unknown> | undefined) =>
+        ev === undefined ? undefined : {...action, '@action': ev};
+      return isThenable(resolvedEvent)
+        ? Promise.resolve(resolvedEvent).then(withAction)
+        : withAction(resolvedEvent);
+    }
+    // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
     if ('event' in action && typeof action.event === 'object' && action.event !== null) {
       const resolvedEvent = this.resolveActionEventObject(
         action.event as Record<string, unknown>,
@@ -1355,10 +1420,21 @@ export class DataContext {
         ? Promise.resolve(resolvedEvent).then(withEvent)
         : withEvent(resolvedEvent);
     }
+    // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
     if ('name' in action) {
       return this.resolveActionEventObject(action as Record<string, unknown>, options);
     }
-    if ('functionCall' in action || 'call' in action || '@call' in action) {
+    if (
+      (this.atLeastV10 &&
+        '@functionCall' in action &&
+        typeof action['@functionCall'] === 'object' &&
+        action['@functionCall'] !== null &&
+        !Array.isArray(action['@functionCall'])) ||
+      // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+      'functionCall' in action ||
+      'call' in action ||
+      (this.atLeastV10 && '@call' in action)
+    ) {
       return this.executeActionFunctionCall(action as Record<string, unknown>, options);
     }
     return action;

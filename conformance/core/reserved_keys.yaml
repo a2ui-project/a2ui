@@ -284,3 +284,485 @@
             component: CustomCard
             details:
               "@metadata": "literal-value"
+
+# ------------------------------------------------------------------------------
+# v1.0 @child, @action, and @functionCall directives and @@ escaping (#2791)
+# ------------------------------------------------------------------------------
+
+- name: test_reserved_at_child_single_valid
+  features: [F-CORE-11]
+  description: >-
+    Valid v1.0 single child reference using the reserved @child wrapper object.
+  catalog:
+    protocolVersion: "1.0"
+  action: validate
+  payload:
+    - version: "1.0"
+      createSurface:
+        surfaceId: s1
+        catalogId: basic
+        components:
+          - id: root
+            component: Card
+            child:
+              "@child": "txt"
+          - id: txt
+            component: Text
+            text: "Hello"
+
+- name: test_reserved_at_child_list_valid
+  features: [F-CORE-11]
+  description: >-
+    Valid v1.0 static child list using the reserved @child wrapper object.
+  catalog:
+    protocolVersion: "1.0"
+  action: validate
+  payload:
+    - version: "1.0"
+      createSurface:
+        surfaceId: s1
+        catalogId: basic
+        components:
+          - id: root
+            component: Column
+            children:
+              "@child": ["a", "b"]
+          - id: a
+            component: Text
+            text: "First"
+          - id: b
+            component: Text
+            text: "Second"
+
+- name: test_reserved_at_child_template_valid
+  features: [F-CORE-13, F-CORE-16]
+  description: >-
+    Valid v1.0 dynamic template child list using @child and @path.
+  catalog:
+    protocolVersion: "1.0"
+  action: validate
+  payload:
+    - version: "1.0"
+      createSurface:
+        surfaceId: s1
+        catalogId: basic
+        components:
+          - id: root
+            component: List
+            children:
+              "@child": "tpl"
+              "@path": "/items"
+          - id: tpl
+            component: Text
+            text:
+              "@path": "label"
+
+- name: test_reserved_at_action_valid
+  features: [F-CORE-23]
+  description: >-
+    Valid v1.0 agent event action using the reserved @action wrapper object.
+  catalog:
+    protocolVersion: "1.0"
+  action: validate
+  payload:
+    - version: "1.0"
+      createSurface:
+        surfaceId: s1
+        catalogId: basic
+        components:
+          - id: root
+            component: Button
+            child:
+              "@child": "lbl"
+            action:
+              "@action":
+                name: "submit"
+                context:
+                  x:
+                    "@path": "/x"
+          - id: lbl
+            component: Text
+            text: "Submit"
+
+- name: test_reserved_at_function_call_valid
+  features: [F-CORE-28, F-CORE-34]
+  description: >-
+    Valid v1.0 function call action using the reserved @functionCall wrapper object.
+  catalog:
+    protocolVersion: "1.0"
+  action: validate
+  payload:
+    - version: "1.0"
+      createSurface:
+        surfaceId: s1
+        catalogId: basic
+        components:
+          - id: root
+            component: Button
+            child:
+              "@child": "lbl"
+            action:
+              "@functionCall":
+                "@call": "openUrl"
+                args:
+                  url: "https://a2ui.org"
+          - id: lbl
+            component: Text
+            text: "Open"
+
+- name: test_plain_object_escaped_doubled_at_child_action_function_call
+  features: [F-CORE-16]
+  description: >-
+    Literal @child, @action, and @functionCall keys escaped with prefix doubling
+    (@@child, @@action, @@functionCall) validate successfully inside DynamicValue.
+  catalog:
+    catalogId: custom
+    protocolVersion: "1.0"
+    components:
+      CustomCard:
+        type: object
+        properties:
+          details:
+            $ref: "common_types.json#/$defs/DynamicValue"
+  action: validate
+  payload:
+    - version: "1.0"
+      createSurface:
+        surfaceId: s1
+        catalogId: custom
+        components:
+          - id: root
+            component: CustomCard
+            details:
+              "@@child": "literal-node"
+              "@@action":
+                name: "literal-event"
+              "@@functionCall":
+                call: "literal-fn"
+
+- name: test_escaped_doubled_at_child_action_function_call_unescaping
+  features: [F-CORE-16]
+  description: >-
+    Verifies that doubled-@ keys ('@@child', '@@action', '@@functionCall') inside
+    a DynamicValue plain object unescape to literal '@child', '@action', and
+    '@functionCall' during dynamic evaluation in v1.0.
+  catalog:
+    catalogId: custom
+    protocolVersion: "1.0"
+    components:
+      CustomCard:
+        type: object
+        properties:
+          details:
+            $ref: "common_types.json#/$defs/DynamicValue"
+  action: process_messages
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: s1
+        catalogId: custom
+        components:
+          - id: root
+            component: CustomCard
+            details:
+              "@@child": "literal-node"
+              "@@action":
+                name: "literal-event"
+              "@@functionCall":
+                call: "literal-fn"
+  expect:
+    surfaces:
+      s1:
+        components:
+          - id: root
+            component: CustomCard
+            details:
+              "@child": "literal-node"
+              "@action":
+                name: "literal-event"
+              "@functionCall":
+                call: "literal-fn"
+
+- name: test_disallowed_unescaped_at_child_in_dynamic_value
+  features: [F-CORE-16]
+  description: >-
+    Unescaped @child is a structural directive, not a DynamicValue expression,
+    and must be rejected inside a DynamicValue property unless escaped as @@child.
+  catalog:
+    catalogId: custom
+    protocolVersion: "1.0"
+    components:
+      CustomCard:
+        type: object
+        properties:
+          details:
+            $ref: "common_types.json#/$defs/DynamicValue"
+  action: validate
+  payload:
+    - version: "1.0"
+      createSurface:
+        surfaceId: s1
+        catalogId: custom
+        components:
+          - id: root
+            component: CustomCard
+            details:
+              "@child": "x"
+  expectError:
+    category: "ValidationError"
+
+- name: test_disallowed_unescaped_at_action_in_dynamic_value
+  features: [F-CORE-16]
+  description: >-
+    Unescaped @action is an interaction directive, not a DynamicValue expression,
+    and must be rejected inside a DynamicValue property unless escaped as @@action.
+  catalog:
+    catalogId: custom
+    protocolVersion: "1.0"
+    components:
+      CustomCard:
+        type: object
+        properties:
+          details:
+            $ref: "common_types.json#/$defs/DynamicValue"
+  action: validate
+  payload:
+    - version: "1.0"
+      createSurface:
+        surfaceId: s1
+        catalogId: custom
+        components:
+          - id: root
+            component: CustomCard
+            details:
+              "@action":
+                name: "go"
+  expectError:
+    category: "ValidationError"
+
+- name: test_disallowed_unescaped_at_function_call_in_dynamic_value
+  features: [F-CORE-16]
+  description: >-
+    Unescaped @functionCall is an interaction directive, not a DynamicValue
+    expression, and must be rejected inside a DynamicValue property.
+  catalog:
+    catalogId: custom
+    protocolVersion: "1.0"
+    components:
+      CustomCard:
+        type: object
+        properties:
+          details:
+            $ref: "common_types.json#/$defs/DynamicValue"
+    functions:
+      openUrl:
+        type: object
+        returnType: void
+        requiresUserActivation: true
+        properties:
+          "@call": {const: openUrl}
+          args:
+            type: object
+            properties:
+              url: {type: string}
+            required: [url]
+            additionalProperties: false
+        required: ["@call", args]
+  action: validate
+  payload:
+    - version: "1.0"
+      createSurface:
+        surfaceId: s1
+        catalogId: custom
+        components:
+          - id: root
+            component: CustomCard
+            details:
+              "@functionCall":
+                "@call": "openUrl"
+                args:
+                  url: "https://a2ui.org"
+  expectError:
+    category: "ValidationError"
+
+- name: test_disallowed_unescaped_directives_in_at_action_context
+  features: [F-CORE-23]
+  description: >-
+    Unescaped @child, @action, and @functionCall nested inside @action.context
+    (which expects DynamicValue entries) must fail validation.
+  catalog:
+    protocolVersion: "1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s1
+            catalogId: basic
+            components:
+              - id: root
+                component: Button
+                child:
+                  "@child": "lbl"
+                action:
+                  "@action":
+                    name: "submit"
+                    context:
+                      nested:
+                        "@child": "lbl"
+              - id: lbl
+                component: Text
+                text: "Go"
+      expectError:
+        category: "ValidationError"
+    - payload:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s2
+            catalogId: basic
+            components:
+              - id: root
+                component: Button
+                child:
+                  "@child": "lbl"
+                action:
+                  "@action":
+                    name: "submit"
+                    context:
+                      nested:
+                        "@functionCall":
+                          "@call": "openUrl"
+                          args:
+                            url: "https://a2ui.org"
+              - id: lbl
+                component: Text
+                text: "Go"
+      expectError:
+        category: "ValidationError"
+
+- name: test_malformed_at_child_envelopes_error
+  features: [F-CORE-11, F-CORE-42]
+  description: >-
+    Rejects malformed @child envelopes: non-string/non-array @child value,
+    mixing array @child with @path, and extra unknown keys alongside @child.
+  catalog:
+    protocolVersion: "1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s1
+            catalogId: basic
+            components:
+              - id: root
+                component: Card
+                child:
+                  "@child": 123
+      expectError:
+        category: "ValidationError"
+    - payload:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s2
+            catalogId: basic
+            components:
+              - id: root
+                component: List
+                children:
+                  "@child": ["a"]
+                  "@path": "/items"
+              - id: a
+                component: Text
+                text: "Item"
+      expectError:
+        category: "ValidationError"
+    - payload:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s3
+            catalogId: basic
+            components:
+              - id: root
+                component: Card
+                child:
+                  "@child": "a"
+                  extra: 1
+              - id: a
+                component: Text
+                text: "Item"
+      expectError:
+        category: "ValidationError"
+
+- name: test_malformed_at_action_envelopes_error
+  features: [F-CORE-23, F-CORE-42]
+  description: >-
+    Rejects malformed @action envelopes: missing required name and extra
+    unrecognized keys inside @action.
+  catalog:
+    protocolVersion: "1.0"
+  action: validate
+  steps:
+    - payload:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s1
+            catalogId: basic
+            components:
+              - id: root
+                component: Button
+                child:
+                  "@child": "lbl"
+                action:
+                  "@action": {}
+              - id: lbl
+                component: Text
+                text: "Go"
+      expectError:
+        category: "ValidationError"
+    - payload:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s2
+            catalogId: basic
+            components:
+              - id: root
+                component: Button
+                child:
+                  "@child": "lbl"
+                action:
+                  "@action":
+                    name: "x"
+                    extra: 1
+              - id: lbl
+                component: Text
+                text: "Go"
+      expectError:
+        category: "ValidationError"
+
+- name: test_malformed_at_function_call_envelope_error
+  features: [F-CORE-28, F-CORE-42]
+  description: >-
+    Rejects a malformed @functionCall envelope whose inner object is not a
+    valid FunctionCall.
+  catalog:
+    protocolVersion: "1.0"
+  action: validate
+  payload:
+    - version: "1.0"
+      createSurface:
+        surfaceId: s1
+        catalogId: basic
+        components:
+          - id: root
+            component: Button
+            child:
+              "@child": "lbl"
+            action:
+              "@functionCall":
+                notACall: 1
+          - id: lbl
+            component: Text
+            text: "Go"
+  expectError:
+    category: "ValidationError"

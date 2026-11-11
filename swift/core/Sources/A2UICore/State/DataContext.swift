@@ -90,15 +90,31 @@ public final class DataContext {
     protocolVersion?.isAtLeastV10 ?? false
   }
 
+  nonisolated static let reservedDataDirectives: Set<String> = ["@path", "@call"]
+  nonisolated static let reservedPropertyDirectives: Set<String> = [
+    "@path", "@call", "@child", "@action", "@functionCall",
+  ]
+
   public nonisolated static func validateReservedDirectives<S: Sequence>(_ keys: S) throws
   where S.Element == String {
+    try validateDirectives(keys, allowed: reservedDataDirectives, pathPrefix: "")
+  }
+
+  nonisolated static func validateDirectives<S: Sequence>(
+    _ keys: S,
+    allowed: Set<String>,
+    pathPrefix: String
+  ) throws where S.Element == String {
     for key in keys {
-      if key.hasPrefix("@") && !key.hasPrefix("@@") && key != "@path" && key != "@call" {
+      if key.hasPrefix("@") && !key.hasPrefix("@@") && !allowed.contains(key) {
+        let allowedList = allowed.sorted().joined(separator: ", ")
+        let errorPath = pathPrefix.isEmpty ? "/\(key)" : "\(pathPrefix)/\(key)"
         throw A2UIValidationError(
-          "Unrecognized reserved protocol directive '\(key)' in v1.0 dynamic object. Reserved keys must be in @path, @call, or escaped with prefix doubling.",
+          "Unrecognized reserved protocol directive '\(key)' in v1.0 object. "
+            + "Reserved keys must be in \(allowedList), or escaped with prefix doubling.",
           details: [
             A2UIErrorDetail(
-              path: "/\(key)",
+              path: errorPath,
               code: "INVALID_RESERVED_KEY",
               message: "Unrecognized reserved protocol directive '\(key)'"
             )
@@ -172,6 +188,24 @@ public final class DataContext {
         return evaluateFunctionCall(name: callName, dict: dict)
       } else if allowUnprefixedDirectives, let callName = dict["call"]?.stringValue {
         return evaluateFunctionCall(name: callName, dict: dict)
+      }
+
+      if atLeastV10,
+        let invalidKey = dict.keys.first(where: { $0.hasPrefix("@") && !$0.hasPrefix("@@") })
+      {
+        let error = A2UIValidationError(
+          "Unrecognized reserved protocol directive '\(invalidKey)' in v1.0 dynamic value.",
+          details: [
+            A2UIErrorDetail(
+              path: "/\(invalidKey)",
+              code: "INVALID_RESERVED_KEY",
+              message: "Unrecognized reserved protocol directive '\(invalidKey)'"
+            )
+          ]
+        )
+        functionHandler?.handleFunctionError(error, functionName: invalidKey)
+        recordFailedCall()
+        return .null
       }
 
       var resultDict: OrderedDictionary<String, JSONValue> = [:]
@@ -702,42 +736,48 @@ public final class DataContext {
         ])
       ])
     case .object(let dict):
-      if let eventVal = dict["event"], case .object(let eventDict) = eventVal {
-        var resolvedEvent = eventDict
-        if let ctxVal = eventDict["context"], case .object(let ctxDict) = ctxVal {
-          var resolvedCtx = OrderedDictionary<String, JSONValue>()
-          for (k, v) in ctxDict {
-            resolvedCtx[k] = resolveDynamicValue(v)
-          }
-          resolvedEvent["context"] = .object(resolvedCtx)
-        } else {
-          resolvedEvent["context"] = .object([:])
-        }
-        if let msgVal = eventDict["userMessage"] {
-          resolvedEvent["userMessage"] = resolveDynamicValue(msgVal)
-        }
+      let allowAtPrefix = atLeastV10
+      if allowAtPrefix, let actionVal = dict["@action"], case .object(let actionDict) = actionVal {
         var newDict = dict
-        newDict["event"] = .object(resolvedEvent)
+        newDict["@action"] = .object(
+          resolveEventActionDictionary(actionDict, allowAtPrefix: allowAtPrefix)
+        )
+        return .object(newDict)
+      } else if let eventVal = dict["event"], case .object(let eventDict) = eventVal {
+        // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+        var newDict = dict
+        newDict["event"] = .object(
+          resolveEventActionDictionary(eventDict, allowAtPrefix: allowAtPrefix)
+        )
         return .object(newDict)
       } else if dict["name"] != nil {
-        var resolvedAction = dict
-        if let ctxVal = dict["context"], case .object(let ctxDict) = ctxVal {
-          var resolvedCtx = OrderedDictionary<String, JSONValue>()
-          for (k, v) in ctxDict {
-            resolvedCtx[k] = resolveDynamicValue(v)
-          }
-          resolvedAction["context"] = .object(resolvedCtx)
-        } else {
-          resolvedAction["context"] = .object([:])
-        }
-        if let msgVal = dict["userMessage"] {
-          resolvedAction["userMessage"] = resolveDynamicValue(msgVal)
-        }
-        return .object(resolvedAction)
+        // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+        return .object(resolveEventActionDictionary(dict, allowAtPrefix: allowAtPrefix))
       }
       return action
     default:
       return action
     }
+  }
+
+  private func resolveEventActionDictionary(
+    _ eventDict: OrderedDictionary<String, JSONValue>,
+    allowAtPrefix: Bool
+  ) -> OrderedDictionary<String, JSONValue> {
+    var resolved = eventDict
+    if let ctxVal = eventDict["context"], case .object(let ctxDict) = ctxVal {
+      var resolvedCtx = OrderedDictionary<String, JSONValue>()
+      for (k, v) in ctxDict {
+        let outKey = allowAtPrefix ? Self.unescapeObjectKey(k) : k
+        resolvedCtx[outKey] = resolveDynamicValue(v)
+      }
+      resolved["context"] = .object(resolvedCtx)
+    } else {
+      resolved["context"] = .object([:])
+    }
+    if let msgVal = eventDict["userMessage"] {
+      resolved["userMessage"] = resolveDynamicValue(msgVal)
+    }
+    return resolved
   }
 }

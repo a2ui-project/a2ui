@@ -2622,6 +2622,401 @@ struct NodeResolverTests {
     )
     #expect(updatedRoot == fullResolver.resolveTree())
   }
+
+  // MARK: - v1.0 @child, @action, @functionCall & Schema-less Resolution
+
+  @Test func v10AtChildStaticListTemplateTabsAndDeferredActionsResolve() throws {
+    let commonURI = "https://a2ui.org/specification/v1_0/common_types.json"
+    let cardSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "component": { "const": "Card" },
+            "child": { "$ref": "\(commonURI)#/$defs/Child" }
+          }
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let listSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "component": { "const": "List" },
+            "children": { "$ref": "\(commonURI)#/$defs/ChildList" }
+          }
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let tabsSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "component": { "const": "Tabs" },
+            "tabs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "title": { "$ref": "\(commonURI)#/$defs/DynamicString" },
+                  "child": { "$ref": "\(commonURI)#/$defs/Child" }
+                }
+              }
+            }
+          }
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let buttonSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "component": { "const": "Button" },
+            "child": { "$ref": "\(commonURI)#/$defs/Child" },
+            "action": { "$ref": "\(commonURI)#/$defs/Action" }
+          }
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let textSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "component": { "const": "Text" },
+            "text": { "$ref": "\(commonURI)#/$defs/DynamicString" }
+          }
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+
+    let tracker = ActionInvocationTracker()
+    let fn = RecordedActivationFunction(tracker: tracker)
+    let catalog = Catalog(
+      id: "v10-directives",
+      protocolVersion: .v10,
+      components: [
+        AnyComponentAPI(name: "Card", schema: cardSchema),
+        AnyComponentAPI(name: "List", schema: listSchema),
+        AnyComponentAPI(name: "Tabs", schema: tabsSchema),
+        AnyComponentAPI(name: "Button", schema: buttonSchema),
+        AnyComponentAPI(name: "Text", schema: textSchema),
+      ],
+      functions: [fn]
+    )
+
+    let handler = ExpressionErrorCaptureHandler()
+    let components = SurfaceComponentsModel(components: [
+      "root": ComponentModel(
+        id: "root",
+        type: "List",
+        properties: [
+          "children": .object([
+            "@child": .array([.string("card"), .string("tabs"), .string("itemsList")])
+          ])
+        ]
+      ),
+      "card": ComponentModel(
+        id: "card",
+        type: "Card",
+        properties: ["child": .object(["@child": .string("btn")])]
+      ),
+      "btn": ComponentModel(
+        id: "btn",
+        type: "Button",
+        properties: [
+          "child": .object(["@child": .string("btnLabel")]),
+          "action": .object([
+            "@action": .object([
+              "name": .string("save"),
+              "userMessage": .object(["@path": .string("/msg")]),
+              "context": .object([
+                "val": .object(["@path": .string("/val")]),
+                "@@child": .string("literalKey"),
+              ]),
+            ])
+          ]),
+        ]
+      ),
+      "btnLabel": ComponentModel(
+        id: "btnLabel",
+        type: "Text",
+        properties: ["text": .string("Go")]
+      ),
+      "tabs": ComponentModel(
+        id: "tabs",
+        type: "Tabs",
+        properties: [
+          "tabs": .array([
+            .object(["title": .string("First"), "child": .object(["@child": .string("fnBtn")])])
+          ])
+        ]
+      ),
+      "fnBtn": ComponentModel(
+        id: "fnBtn",
+        type: "Button",
+        properties: [
+          "child": .object(["@child": .string("btnLabel")]),
+          "action": .object([
+            "@functionCall": .object([
+              "@call": .string("recordAction"),
+              "args": .object(["value": .object(["@path": .string("/val")])]),
+            ])
+          ]),
+        ]
+      ),
+      "itemsList": ComponentModel(
+        id: "itemsList",
+        type: "List",
+        properties: [
+          "children": .object(["@child": .string("itemText"), "@path": .string("/items")])
+        ]
+      ),
+      "itemText": ComponentModel(
+        id: "itemText",
+        type: "Text",
+        properties: ["text": .object(["@path": .string("name")])]
+      ),
+    ])
+
+    let dataModel = DataModel(
+      initial: .object([
+        "msg": .string("Saved!"),
+        "val": .string("42"),
+        "items": .array([.object(["name": .string("A")]), .object(["name": .string("B")])]),
+      ])
+    )
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: components,
+      dataModel: dataModel,
+      actionHandler: handler,
+      protocolVersion: .v10
+    )
+
+    let root = try #require(resolver.resolveTree())
+    // Neither `@action` nor `@functionCall` should evaluate eagerly during tree resolution.
+    #expect(handler.capturedActions.isEmpty)
+    #expect(tracker.recordedValues.isEmpty)
+
+    let topChildren = root.children(for: "children")
+    #expect(topChildren.count == 3)
+    let cardNode = topChildren[0]
+    let btnNode = try #require(cardNode.child(for: "child"))
+    #expect(btnNode.child(for: "child")?.string(for: "text") == "Go")
+
+    let tabsNode = topChildren[1]
+    let tabItems = try #require(tabsNode.array(for: "tabs"))
+    let firstTab = try #require(tabItems[0] as? ResolvedDictionary)
+    let fnBtnNode = try #require(firstTab["child"] as? Node)
+
+    let templateList = topChildren[2]
+    #expect(templateList.children(for: "children").map { $0.string(for: "text") } == ["A", "B"])
+
+    // Invoke `@action` with user activation: evaluates context + unescapes `@@child` -> `@child`.
+    let eventAction = try #require(btnNode.action(for: "action", userActivation: true))
+    eventAction()
+    #expect(handler.capturedActions.count == 1)
+    if case .event(let name, let context, let userMessage) = handler.capturedActions[0].identity {
+      #expect(name == "save")
+      #expect(userMessage == "Saved!")
+      #expect(context?["val"] == .string("42"))
+      #expect(context?["@child"] == .string("literalKey"))
+    } else {
+      Issue.record("Expected event identity")
+    }
+
+    // Invoke `@functionCall` without vs with user activation.
+    let unactivatedFn = try #require(fnBtnNode.action(for: "action", userActivation: false))
+    unactivatedFn()
+    #expect(tracker.recordedValues.isEmpty)
+    #expect(handler.capturedErrors.count == 1)
+
+    let activatedFn = try #require(fnBtnNode.action(for: "action", userActivation: true))
+    activatedFn()
+    #expect(tracker.recordedValues == ["42"])
+  }
+
+  @Test func v10SchemaLessCustomShellResolutionAndPlaceholderBehavior() throws {
+    let openSchema = try Schema(
+      instance: #"{"type": "object", "additionalProperties": true}"#
+    )
+    let tracker = ActionInvocationTracker()
+    let fn = RecordedActivationFunction(tracker: tracker)
+    let catalog = Catalog(
+      id: "open-shell",
+      protocolVersion: .v10,
+      components: [
+        AnyComponentAPI(name: "CustomShell", schema: openSchema),
+        AnyComponentAPI(name: "Label", schema: openSchema),
+      ],
+      functions: [fn, UpperCaseTestFunction()]
+    )
+
+    let handler = ExpressionErrorCaptureHandler()
+    let components = SurfaceComponentsModel(components: [
+      "root": ComponentModel(
+        id: "root",
+        type: "CustomShell",
+        properties: [
+          "header": .object(["@child": .string("hdr")]),
+          "missingChild": .object(["@child": .string("notArrivedYet")]),
+          "unknownCompChild": .object(["@child": .string("mystery")]),
+          "items": .object(["@child": .string("rowTpl"), "@path": .string("/items")]),
+          "sections": .array([
+            .object(["body": .object(["@child": .string("secBody")])])
+          ]),
+          "title": .object(["@path": .string("/heading")]),
+          "computed": .object([
+            "@call": .string("upper"),
+            "args": .object(["value": .object(["@path": .string("/heading")])]),
+          ]),
+          "onSave": .object(["@action": .object(["name": .string("save")])]),
+          "onOpen": .object([
+            "@functionCall": .object([
+              "@call": .string("recordAction"),
+              "args": .object(["value": .string("clicked")]),
+            ])
+          ]),
+          "meta": .object([
+            "@@child": .string("not_a_node"),
+            "@@action": .string("literal"),
+          ]),
+        ]
+      ),
+      "hdr": ComponentModel(id: "hdr", type: "Label", properties: ["text": .string("Header")]),
+      "mystery": ComponentModel(id: "mystery", type: "MissingType", properties: [:]),
+      "rowTpl": ComponentModel(
+        id: "rowTpl",
+        type: "Label",
+        properties: ["text": .object(["@path": .string("name")])]
+      ),
+      "secBody": ComponentModel(
+        id: "secBody",
+        type: "CustomShell",
+        properties: ["backRef": .object(["@child": .string("root")])]
+      ),
+    ])
+
+    let dataModel = DataModel(
+      initial: .object([
+        "heading": .string("Initial Title"),
+        "items": .array([.object(["name": .string("One")]), .object(["name": .string("Two")])]),
+      ])
+    )
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: components,
+      dataModel: dataModel,
+      actionHandler: handler,
+      protocolVersion: .v10
+    )
+
+    let root = try #require(resolver.resolveTree())
+    #expect(root.child(for: "header")?.string(for: "text") == "Header")
+    #expect(root.child(for: "missingChild")?.state == .pending)
+    #expect(root.child(for: "unknownCompChild")?.state == .unknownType)
+    #expect(root.children(for: "items").map { $0.string(for: "text") } == ["One", "Two"])
+
+    let sections = try #require(root.array(for: "sections"))
+    let firstSection = try #require(sections[0] as? ResolvedDictionary)
+    let secBody = try #require(firstSection["body"] as? Node)
+    #expect(secBody.child(for: "backRef")?.state == .cyclic)
+
+    // Unannotated `@path` produces a writable binding; `@call` produces a read-only binding.
+    let titleBinding = try #require(root.properties["title"] as? DataBinding<JSONValue>)
+    #expect(titleBinding.value == .string("Initial Title"))
+    #expect(root.string(for: "computed") == "INITIAL TITLE")
+    titleBinding.set(.string("Updated Title"))
+    #expect(dataModel.get("/heading") == .string("Updated Title"))
+
+    // Escaped `@@child` and `@@action` unescape without creating child nodes or actions.
+    let meta = try #require(root.dictionary(for: "meta"))
+    #expect(meta["@child"] as? String == "not_a_node")
+    #expect(meta["@action"] as? String == "literal")
+    #expect(root.action(for: "meta", userActivation: true) == nil)
+    #expect(!root.allChildNodes.contains { $0.id == "not_a_node" })
+
+    // Template updates reactively on data model changes.
+    dataModel.set(
+      "/items",
+      value: .array([
+        .object(["name": .string("One")]),
+        .object(["name": .string("Two")]),
+        .object(["name": .string("Three")]),
+      ])
+    )
+    let updatedRoot = try #require(resolver.resolveTree())
+    #expect(
+      updatedRoot.children(for: "items").map { $0.string(for: "text") } == ["One", "Two", "Three"]
+    )
+    #expect(updatedRoot.string(for: "computed") == "UPDATED TITLE")
+
+    // Deferred actions run on trigger without premature errors.
+    let treeErrorCodes = Set(genericErrors(handler).map(\.code))
+    #expect(treeErrorCodes == ["UNKNOWN_COMPONENT_TYPE", "CYCLIC_REFERENCE"])
+    #expect(handler.capturedErrors.count == genericErrors(handler).count)
+    handler.capturedErrors.removeAll()
+    #expect(handler.capturedActions.isEmpty)
+    let onSave = try #require(updatedRoot.action(for: "onSave", userActivation: true))
+    onSave()
+    #expect(handler.capturedActions.count == 1)
+    let onOpen = try #require(updatedRoot.action(for: "onOpen", userActivation: true))
+    onOpen()
+    #expect(handler.capturedErrors.isEmpty)
+    #expect(tracker.recordedValues.contains("clicked"))
+  }
+}
+
+@MainActor
+private final class ActionInvocationTracker: Sendable {
+  var recordedValues: [String] = []
+}
+
+private struct UpperCaseTestFunction: FunctionImplementation {
+  let api = FunctionAPI(
+    name: "upper",
+    returnType: .string,
+    schema: try! Schema(
+      instance: #"{"type": "object", "properties": {"value": {"type": "string"}}}"#
+    )
+  )
+
+  @MainActor
+  func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
+    .string((arguments["value"]?.stringValue ?? "").uppercased())
+  }
+}
+
+private struct RecordedActivationFunction: FunctionImplementation {
+  let tracker: ActionInvocationTracker
+  let api = FunctionAPI(
+    name: "recordAction",
+    returnType: .string,
+    schema: try! Schema(
+      instance: #"{"type": "object", "properties": {"value": {"type": "string"}}}"#
+    ),
+    requiresUserActivation: true
+  )
+
+  @MainActor
+  func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
+    let val = arguments["value"]?.stringValue ?? ""
+    tracker.recordedValues.append(val)
+    return .string(val)
+  }
 }
 
 @MainActor

@@ -59,6 +59,40 @@ struct ComponentGraphBatchCheckTests {
     #expect(outcomes == [true, false])
   }
 
+  @Test func atChildEnvelopesMatchWholeSurfaceInIncrementalBatchCheck() throws {
+    let atColumn: ([String], String) -> [String: JSONValue] = { children, id in
+      [
+        "id": .string(id),
+        "component": "Column",
+        "children": .object(["@child": .array(children.map { .string($0) })]),
+      ]
+    }
+    let atCard: (String, String) -> [String: JSONValue] = { id, child in
+      ["id": .string(id), "component": "Card", "child": .object(["@child": .string(child)])]
+    }
+    let atTemplateColumn: (String, String) -> [String: JSONValue] = { id, tpl in
+      [
+        "id": .string(id),
+        "component": "Column",
+        "children": .object(["@child": .string(tpl), "@path": .string("/items")]),
+      ]
+    }
+
+    // Valid progressive tree arrival followed by cycle and unallowed-child rejections.
+    let outcomes = try expectSameOutcomes(
+      [
+        [atCard("a", "b")],
+        [text("b")],
+        [atColumn(["a"], "root")],
+        [atTemplateColumn("col", "b")],
+        [atCard("cycle", "cycle")],
+        [atCard("badCard", "col")],
+      ],
+      catalog: try compositionCatalog()
+    )
+    #expect(outcomes == [true, true, true, true, false, false])
+  }
+
   @Test func containerRewrittenToDropDisallowedChild() throws {
     let outcomes = try expectSameOutcomes(
       [
@@ -405,9 +439,10 @@ struct ComponentGraphBatchCheckTests {
   ) throws -> AnyCatalog {
     let listSchema = try Schema(
       instance: """
-        {"type": "object", "properties": {"children": {"type": "array",
-          "description": "REF:common_types.json#/$defs/ChildList", "items": {"type": "string"}}}}
-        """
+        {"type": "object", "properties": {"children": {
+          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/ChildList"}}}
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
     )
     let childSchema = try Schema(
       instance: """

@@ -1441,3 +1441,84 @@
             metadata:
               extensions:
                 com_example_trace: "t1"
+
+# --- v1.0 @child, @action, and @functionCall rejected on v0.9 (#2791) ---
+
+- name: test_v09_rejects_v10_at_child_envelope
+  description: >-
+    Tests that v1.0 @child wrapper objects are rejected on a v0.9 surface where
+    Child expects a bare ComponentId string.
+  action: process_messages
+  protocolVersion: "v0.9"
+  catalogPaths:
+    - "specification/v0_9/catalogs/basic/catalog.json"
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s_v09_at_child"
+        catalogId: "test-catalog"
+    - version: "v0.9"
+      updateComponents:
+        surfaceId: "s_v09_at_child"
+        components:
+          - id: "root"
+            component: "Card"
+            child:
+              "@child": "t1"
+          - id: "t1"
+            component: "Text"
+            text: "Hello"
+  expectError:
+    category: "ValidationError"
+
+- name: test_v09_rejects_v10_at_action_and_at_function_call_envelopes
+  description: >-
+    Tests that v1.0 @action and @functionCall wrapper objects are rejected on a
+    v0.9 surface where Action expects event or functionCall.
+  action: process_messages
+  protocolVersion: "v0.9"
+  catalogPaths:
+    - "specification/v0_9/catalogs/basic/catalog.json"
+  steps:
+    - messages:
+        - version: "v0.9"
+          createSurface:
+            surfaceId: "s_v09_at_action"
+            catalogId: "test-catalog"
+        - version: "v0.9"
+          updateComponents:
+            surfaceId: "s_v09_at_action"
+            components:
+              - id: "root"
+                component: "Button"
+                child: "lbl"
+                action:
+                  "@action":
+                    name: "submit"
+              - id: "lbl"
+                component: "Text"
+                text: "Submit"
+      expectError:
+        category: "ValidationError"
+    - messages:
+        - version: "v0.9"
+          createSurface:
+            surfaceId: "s_v09_at_fc"
+            catalogId: "test-catalog"
+        - version: "v0.9"
+          updateComponents:
+            surfaceId: "s_v09_at_fc"
+            components:
+              - id: "root"
+                component: "Button"
+                child: "lbl"
+                action:
+                  "@functionCall":
+                    call: "openUrl"
+                    args:
+                      url: "https://a2ui.org"
+              - id: "lbl"
+                component: "Text"
+                text: "Open"
+      expectError:
+        category: "ValidationError"
