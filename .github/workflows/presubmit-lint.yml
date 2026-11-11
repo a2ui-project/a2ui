@@ -93,6 +93,29 @@ jobs:
         uses: dart-lang/setup-dart@65eb853c7ba17dde3be364c3d2858773e7144260 # v1.7.2
         with:
           sdk: stable
+      - name: Use HKPS for Swift GPG keyserver requests
+        # SwiftyLab/setup-swift v1.14.2 calls `gpg --keyserver hkp://keyserver.ubuntu.com`,
+        # which times out on port 11371 on GitHub-hosted Ubuntu runners
+        # (https://github.com/SwiftyLab/setup-swift/issues/560).
+        run: |
+          REAL_GPG="$(command -v gpg)"
+          SHIM_DIR="$RUNNER_TEMP/swift-gpg"
+          mkdir -p "$SHIM_DIR"
+          {
+            echo '#!/usr/bin/env bash'
+            echo 'set -euo pipefail'
+            echo 'args=()'
+            echo 'for arg in "$@"; do'
+            echo '  if [[ "$arg" == "hkp://keyserver.ubuntu.com" ]]; then'
+            echo '    args+=("hkps://keyserver.ubuntu.com:443")'
+            echo '  else'
+            echo '    args+=("$arg")'
+            echo '  fi'
+            echo 'done'
+            printf 'exec timeout --kill-after=10s 60s %q "${args[@]}"\n' "$REAL_GPG"
+          } > "$SHIM_DIR/gpg"
+          chmod +x "$SHIM_DIR/gpg"
+          echo "$SHIM_DIR" >> "$GITHUB_PATH"
       - name: Set up Swift
         uses: SwiftyLab/setup-swift@d60245579ea3836a3f2fa65ebbe1e8891d577c76 # v1.14.2
         with:
