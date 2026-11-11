@@ -93,10 +93,12 @@ jobs:
         uses: dart-lang/setup-dart@65eb853c7ba17dde3be364c3d2858773e7144260 # v1.7.2
         with:
           sdk: stable
-      - name: Use HKPS for Swift GPG keyserver requests
-        # SwiftyLab/setup-swift v1.14.2 calls `gpg --keyserver hkp://keyserver.ubuntu.com`,
-        # which times out on port 11371 on GitHub-hosted Ubuntu runners
-        # (https://github.com/SwiftyLab/setup-swift/issues/560).
+      - name: Fetch Swift GPG keys from swift.org over HTTPS
+        # SwiftyLab/setup-swift v1.14.2 refreshes keys from `hkp://keyserver.ubuntu.com`,
+        # which stalls from GitHub-hosted Azure Ubuntu runners
+        # (https://github.com/SwiftyLab/setup-swift/issues/560). Fulfill keyserver
+        # requests directly from swift.org's HTTPS keyring while forwarding all
+        # other `gpg` invocations (`--verify`, etc.) untouched.
         run: |
           REAL_GPG="$(command -v gpg)"
           SHIM_DIR="$RUNNER_TEMP/swift-gpg"
@@ -104,15 +106,13 @@ jobs:
           {
             echo '#!/usr/bin/env bash'
             echo 'set -euo pipefail'
-            echo 'args=()'
             echo 'for arg in "$@"; do'
             echo '  if [[ "$arg" == "hkp://keyserver.ubuntu.com" ]]; then'
-            echo '    args+=("hkps://keyserver.ubuntu.com:443")'
-            echo '  else'
-            echo '    args+=("$arg")'
+            printf '    curl -fsSL --retry 3 https://www.swift.org/keys/all-keys.asc | %q --import\n' "$REAL_GPG"
+            echo '    exit 0'
             echo '  fi'
             echo 'done'
-            printf 'exec timeout --kill-after=10s 60s %q "${args[@]}"\n' "$REAL_GPG"
+            printf 'exec %q "$@"\n' "$REAL_GPG"
           } > "$SHIM_DIR/gpg"
           chmod +x "$SHIM_DIR/gpg"
           echo "$SHIM_DIR" >> "$GITHUB_PATH"
