@@ -50,7 +50,7 @@
             "value": {
               "@path": "/formData/email"
             },
-            "checks": [
+            "@checks": [
               {
                 "condition": {
                   "@call": "email",
@@ -71,7 +71,7 @@
             "value": {
               "@path": "/formData/phone"
             },
-            "checks": [
+            "@checks": [
               {
                 "condition": {
                   "@call": "regex",
@@ -93,7 +93,7 @@
             "value": {
               "@path": "/formData/zip"
             },
-            "checks": [
+            "@checks": [
               {
                 "condition": {
                   "@call": "regex",
@@ -125,7 +125,7 @@
             "id": "submit_btn",
             "component": "Button",
             "child": "submit_btn_text",
-            "checks": [
+            "@checks": [
               {
                 "condition": {
                   "@call": "and",

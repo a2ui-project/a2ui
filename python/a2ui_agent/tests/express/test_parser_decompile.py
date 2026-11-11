@@ -285,7 +285,7 @@ class TestExpressParser(unittest.TestCase):
             {"extensions": {}},
         )
         self.assertEqual(
-            compiled_dicts[0]["createSurface"]["components"][0]["metadata"],
+            compiled_dicts[0]["createSurface"]["components"][0]["@metadata"],
             {"extensions": {}},
         )
         decompiled = decompiler.decompile(compiled)

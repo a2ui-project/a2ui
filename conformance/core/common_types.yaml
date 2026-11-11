@@ -70,17 +70,17 @@
         category: ValidationError
 
 - name: test_v10_component_metadata_only_holds_extensions
-  description: ComponentCommon.metadata accepts an extensions object and rejects any other key.
+  description: ComponentCommon `@metadata` accepts an extensions object and rejects any other key.
   action: validate_common_type
   protocolVersion: "1.0"
   definition: ComponentCommon
   steps:
-    - value: {id: "c1", metadata: {extensions: {vendor: {tag: 1}}}}
-    - value: {id: "c1", metadata: {}}
-    - value: {id: "c1", metadata: {owner: "me"}}
+    - value: {id: "c1", "@metadata": {extensions: {vendor: {tag: 1}}}}
+    - value: {id: "c1", "@metadata": {}}
+    - value: {id: "c1", "@metadata": {owner: "me"}}
       expectError:
         category: ValidationError
-    - value: {id: "c1", metadata: {extensions: {"bad-key": 1}}}
+    - value: {id: "c1", "@metadata": {extensions: {"bad-key": 1}}}
       expectError:
         category: ValidationError
 
@@ -193,12 +193,12 @@
         category: ValidationError
 
 - name: test_v10_component_common_rejects_null_catalog_id
-  description: ComponentCommon rejects null for its optional catalogId string.
+  description: ComponentCommon rejects null for its optional `@catalogId` string.
   action: validate_common_type
   protocolVersion: "1.0"
   definition: ComponentCommon
   steps:
-    - value: {id: "c1", catalogId: null}
+    - value: {id: "c1", "@catalogId": null}
       expectError:
         category: ValidationError
 

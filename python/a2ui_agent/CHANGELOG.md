@@ -1,5 +1,26 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: (v1_0) Emit `@catalogId`, `@metadata`, `@accessibility`,
+  and `@checks` on v1.0 components across `ExpressCompiler`,
+  `AtomCompiler`, `ElementalCompiler`, `MacroExpander`, `RendererState`, and the
+  v1.0 Pydantic builder models (`a2ui.builder.v1_0`), while keeping Python
+  builder keyword arguments (`catalog_id=`, `accessibility=`, `extensions=`,
+  `checks=`) and v0.9 wire keys unchanged. `ExpressDecompiler`,
+  `AtomDecompiler`, and `ElementalDecompiler` read both `@`-prefixed and legacy
+  bare component envelope keys on v1.0 payloads when the component schema does
+  not declare a custom property with the same bare name
+  ([#1376](https://github.com/a2ui-project/a2ui/issues/1376),
+  [#3403](https://github.com/a2ui-project/a2ui/issues/3403),
+  [#3466](https://github.com/a2ui-project/a2ui/issues/3466),
+  [#3626](https://github.com/a2ui-project/a2ui/issues/3626),
+  [#4012](https://github.com/a2ui-project/a2ui/issues/4012),
+  [#4044](https://github.com/a2ui-project/a2ui/pull/4044)).
+- Add `read_renderer_capabilities(metadata, version)` in `a2ui.utils` to extract
+  and validate version-keyed renderer capability dictionaries from transport
+  metadata (`a2uiRendererCapabilities` in v1.0 and `a2uiClientCapabilities` in
+  v0.8, v0.9, and v0.9.1).
+  [#4013](https://github.com/a2ui-project/a2ui/pull/4013)
+
 ## 0.11.0 (2026-11-10)
 
 - **BREAKING CHANGE**: (v1_0) `validate_payload` and `RendererState.apply`

@@ -89,9 +89,18 @@ interface CheckProps {
   validationResults?: CheckValidationResult[];
 }
 
-/** The binder can add some properties to the Props object. This util adds them to the type. */
+/**
+ * The binder can add some properties to the Props object. This util adds them to the type.
+ *
+ * A component with check rules, `checks` below v1.0 or `@checks` from v1.0, gets the
+ * validation props.
+ */
 export type ExtendedProps<ComponentProps extends {[key: string]: unknown}> =
-  'checks' extends keyof ComponentProps ? ComponentProps & CheckProps : ComponentProps;
+  'checks' extends keyof ComponentProps
+    ? ComponentProps & CheckProps
+    : '@checks' extends keyof ComponentProps
+      ? ComponentProps & CheckProps
+      : ComponentProps;
 
 /**
  * Utility to convert a component Api Type to the props Type, where the

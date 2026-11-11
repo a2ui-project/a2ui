@@ -499,10 +499,13 @@ public final class V10VersionAdapter: BaseVersionAdapter, @unchecked Sendable {
           ]
         )
       }
-      if let rawMetadata = comp["metadata"] {
+      // `@metadata` is always the metadata mixin. Legacy bare `metadata` may instead be a
+      // property that the component's schema declares, so the message processor checks it once
+      // the component's catalog is known.
+      if let rawMetadata = comp["@metadata"] {
         _ = try MetadataValidator.validate(
           rawMetadata,
-          pathPrefix: "messages.0.\(action).components.\(index).metadata"
+          pathPrefix: "messages.0.\(action).components.\(index).@metadata"
         )
       }
     }

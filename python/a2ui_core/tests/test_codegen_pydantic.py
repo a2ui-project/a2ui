@@ -1182,7 +1182,7 @@ def test_common_types_generation_is_deterministic():
         ("v1_0", "Surface", {"component": None}),
         ("v1_0", "Surface", {"child": None}),
         ("v1_0", "IndexSystemFunction", {"call": "@index", "args": None}),
-        ("v1_0", "ComponentCommon", {"id": "a", "catalogId": None}),
+        ("v1_0", "ComponentCommon", {"id": "a", "@catalogId": None}),
         ("v1_0", "ComponentCommon", {"id": "a", "catalog_id": None}),
         ("v0_9", "ComponentCommon", {"id": "a", "accessibility": None}),
         ("v0_9", "FunctionCall", {"call": "fn", "args": {"a": None}}),

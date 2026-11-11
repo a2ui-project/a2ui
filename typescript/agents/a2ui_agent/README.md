@@ -9,16 +9,18 @@ This package targets A2UI protocol **v0.9** and **v1.0**, and supports the **Dir
 Load your catalogs once at startup and create an `A2uiGenerator`. On each turn, create a request processor for the client's capabilities, include its `promptSnippet` in your system prompt, and pass the model's response to `parseResponse`:
 
 ```ts
-import {A2uiGenerator, CatalogConfig, type RendererCapabilities} from '@a2ui/agent';
+import {A2uiGenerator, CatalogConfig, readRendererCapabilities} from '@a2ui/agent';
 
 // 1. Load catalogs and build the generator once at startup.
 const componentCatalog = CatalogConfig.fromPath('path/to/catalog.json');
 const generator = new A2uiGenerator([componentCatalog]);
 
-// 2. Per request, negotiate active catalogs for the client's capabilities.
-const capabilities: RendererCapabilities = {
-  v1_0: {supportedCatalogIds: [componentCatalog.catalog.id]},
-};
+// 2. Per request, extract client capabilities from transport metadata.
+const capabilities = readRendererCapabilities(requestMetadata);
+if (!capabilities) {
+  // Client did not request A2UI on this turn; reply with plain text.
+  return;
+}
 const processor = generator.createProcessor(capabilities);
 
 // 3. Append processor.promptSnippet to your LLM system prompt, then parse the reply.

@@ -65,6 +65,11 @@ When creating or modifying Swift source files, agents must adhere to
   propagation.
 - **Swift Testing**: Use `import Testing`, `@Test`, `#expect`, and `try #require(...)`.
 - **No `@testable import`**: Test only the public API surface.
+- **Changelog updates**: When changing `public` APIs or consumer-visible behavior in library
+  products (`A2UISwiftCore`, `A2UISwiftUI`, `BasicCatalog`, `BasicCatalogSwiftUI`), add an entry
+  under `## Unreleased` in [CHANGELOG.md](CHANGELOG.md) following
+  [update-changelog](../.agents/skills/update-changelog/SKILL.md). Exclude changes confined to
+  `swift/sample/`, tests, or internal refactors.
 
 ---
 

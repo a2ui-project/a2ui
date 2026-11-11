@@ -1798,9 +1798,13 @@ describe('MessageProcessor', () => {
       assert.strictEqual(proc.getSurface('s')?.componentsModel.get('root')?.catalog, base);
     });
 
-    it('keeps the existing catalog on a same-type update below v1.0', () => {
-      const v09Base = new Catalog<ComponentApi>('v09-base', '0.9', [textApi]);
-      const v09Custom = new Catalog<ComponentApi>('v09-custom', '0.9', [textApi]);
+    it('treats catalogId as an ordinary component property below v1.0 (#4012)', () => {
+      const textWithCatalogId: ComponentApi = {
+        name: 'Text',
+        schema: z.object({text: z.any(), catalogId: z.string().optional()}).strict(),
+      };
+      const v09Base = new Catalog<ComponentApi>('v09-base', '0.9', [textWithCatalogId]);
+      const v09Custom = new Catalog<ComponentApi>('v09-custom', '0.9', [textWithCatalogId]);
       const proc = new MessageProcessor<ComponentApi>([v09Base, v09Custom]);
       proc.processMessages([
         {version: 'v0.9', createSurface: {surfaceId: 's', catalogId: 'v09-base'}},
@@ -1811,18 +1815,30 @@ describe('MessageProcessor', () => {
             components: [{id: 'root', component: 'Text', catalogId: 'v09-custom', text: 'Hi'}],
           },
         },
-        {
-          version: 'v0.9',
-          updateComponents: {
-            surfaceId: 's',
-            components: [{id: 'root', component: 'Text', text: 'Bye'}],
-          },
-        },
-      ]);
+      ] as any);
 
       const root = proc.getSurface('s')?.componentsModel.get('root');
-      assert.strictEqual(root?.catalog, v09Custom);
-      assert.deepStrictEqual(root?.properties, {text: 'Bye'});
+      assert.strictEqual(root?.catalog, v09Base);
+      assert.deepStrictEqual(root?.properties, {catalogId: 'v09-custom', text: 'Hi'});
+
+      // A component that doesn't declare it rejects the property.
+      const strictProc = new MessageProcessor<ComponentApi>([
+        new Catalog<ComponentApi>('v09-strict', '0.9', [textApi]),
+      ]);
+      assert.throws(
+        () =>
+          strictProc.processMessages([
+            {version: 'v0.9', createSurface: {surfaceId: 's', catalogId: 'v09-strict'}},
+            {
+              version: 'v0.9',
+              updateComponents: {
+                surfaceId: 's',
+                components: [{id: 'root', component: 'Text', catalogId: 'v09-strict', text: 'Hi'}],
+              },
+            },
+          ] as any),
+        A2uiValidationError,
+      );
     });
 
     it('still falls back to a registered catalog for version-less and v0.8 surfaces', () => {
@@ -2962,6 +2978,335 @@ describe('MessageProcessor', () => {
       assert.strictEqual(callCount, 4);
       assert.strictEqual(actionLog.length, 2);
       assert.strictEqual(errorLog.length, 2);
+    });
+  });
+});
+
+describe('MessageProcessor component envelope mixins', () => {
+  /** A catalog whose `GcbpTable` declares its own `metadata` and `catalogId`. */
+  function gcbpCatalog(catalogId: string, protocolVersion: string): Catalog<ComponentApi> {
+    return Catalog.fromJson({
+      catalogId,
+      protocolVersion,
+      components: {
+        GcbpTable: {
+          type: 'object',
+          properties: {
+            metadata: {
+              type: 'object',
+              properties: {pageNumber: {type: 'number'}, pageSize: {type: 'number'}},
+              additionalProperties: false,
+            },
+            catalogId: {type: 'string'},
+            accessibility: {type: 'string'},
+          },
+          additionalProperties: false,
+        },
+        Field: {
+          type: 'object',
+          allOf: [
+            {$ref: 'common_types.json#/$defs/Checkable'},
+            {type: 'object', properties: {label: {type: 'string'}}},
+          ],
+          unevaluatedProperties: false,
+        },
+      },
+    }) as Catalog<ComponentApi>;
+  }
+
+  describe('below v1.0', () => {
+    it('keeps metadata and catalogId as properties across full and partial updates (#4012)', () => {
+      const proc = new MessageProcessor<ComponentApi>([gcbpCatalog('gcbp', '0.9')], undefined, {
+        validationConfig: STRICT_VALIDATION,
+      });
+      proc.processMessages([
+        {version: 'v0.9', createSurface: {surfaceId: 's', catalogId: 'gcbp'}},
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 's',
+            components: [
+              {
+                id: 'root',
+                component: 'GcbpTable',
+                metadata: {pageNumber: 0, pageSize: 10},
+                catalogId: 'source-a',
+              },
+            ],
+          },
+        },
+      ] as any);
+      const root = () => proc.getSurface('s')!.componentsModel.get('root')!;
+      assert.deepStrictEqual(root().properties, {
+        metadata: {pageNumber: 0, pageSize: 10},
+        catalogId: 'source-a',
+      });
+      assert.strictEqual(root().metadata, undefined);
+      assert.strictEqual(root().catalog.id, 'gcbp');
+
+      proc.processMessages([
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 's',
+            components: [{id: 'root', metadata: {pageNumber: 1, pageSize: 10}, catalogId: 'b'}],
+          },
+        },
+      ] as any);
+      assert.deepStrictEqual(root().properties, {
+        metadata: {pageNumber: 1, pageSize: 10},
+        catalogId: 'b',
+      });
+      assert.strictEqual(root().metadata, undefined);
+      proc.dispose();
+    });
+
+    it('rejects @-prefixed envelope keys', () => {
+      const proc = new MessageProcessor<ComponentApi>([gcbpCatalog('gcbp', '0.9')]);
+      assert.throws(
+        () =>
+          proc.processMessages([
+            {version: 'v0.9', createSurface: {surfaceId: 's', catalogId: 'gcbp'}},
+            {
+              version: 'v0.9',
+              updateComponents: {
+                surfaceId: 's',
+                components: [
+                  {id: 'root', component: 'GcbpTable', '@metadata': {extensions: {com_a: 1}}},
+                ],
+              },
+            },
+          ] as any),
+        A2uiValidationError,
+      );
+      proc.dispose();
+    });
+  });
+
+  describe('from v1.0', () => {
+    function process(proc: MessageProcessor<ComponentApi>, components: unknown[]): void {
+      proc.processMessages([
+        {version: '1.0', updateComponents: {surfaceId: 's', components}},
+      ] as any);
+    }
+
+    function v10Processor(...catalogs: Catalog<ComponentApi>[]): MessageProcessor<ComponentApi> {
+      const proc = new MessageProcessor<ComponentApi>(catalogs, undefined, {
+        validationConfig: STRICT_VALIDATION,
+      });
+      proc.processMessages([
+        {version: '1.0', createSurface: {surfaceId: 's', catalogId: catalogs[0].id}},
+      ] as any);
+      return proc;
+    }
+
+    it('stores @-prefixed mixins in the component model', () => {
+      const proc = v10Processor(gcbpCatalog('main', '1.0'), gcbpCatalog('other', '1.0'));
+      process(proc, [
+        {
+          'id': 'root',
+          'component': 'Field',
+          'label': 'Email',
+          '@catalogId': 'other',
+          '@metadata': {extensions: {com_example_trace: 't1'}},
+          '@accessibility': {label: 'Email address'},
+          '@checks': [{condition: true, message: 'Required'}],
+        },
+      ]);
+      const root = proc.getSurface('s')!.componentsModel.get('root')!;
+      assert.strictEqual(root.catalog.id, 'other');
+      assert.deepStrictEqual(root.metadata, {extensions: {com_example_trace: 't1'}});
+      assert.deepStrictEqual(root.properties, {
+        'label': 'Email',
+        '@accessibility': {label: 'Email address'},
+        '@checks': [{condition: true, message: 'Required'}],
+      });
+      proc.dispose();
+    });
+
+    it('reads legacy bare mixins the component schema does not declare', () => {
+      const proc = v10Processor(gcbpCatalog('main', '1.0'), gcbpCatalog('other', '1.0'));
+      process(proc, [
+        {
+          id: 'root',
+          component: 'Field',
+          label: 'Email',
+          catalogId: 'other',
+          metadata: {extensions: {com_example_trace: 't1'}},
+          accessibility: {label: 'Email address'},
+          checks: [{condition: true, message: 'Required'}],
+        },
+      ]);
+      const root = proc.getSurface('s')!.componentsModel.get('root')!;
+      assert.strictEqual(root.catalog.id, 'other');
+      assert.deepStrictEqual(root.metadata, {extensions: {com_example_trace: 't1'}});
+      assert.deepStrictEqual(root.properties, {
+        'label': 'Email',
+        '@accessibility': {label: 'Email address'},
+        '@checks': [{condition: true, message: 'Required'}],
+      });
+      proc.dispose();
+    });
+
+    it('keeps custom properties beside the @-prefixed mixins (#1376)', () => {
+      const proc = v10Processor(gcbpCatalog('main', '1.0'));
+      process(proc, [
+        {
+          'id': 'root',
+          'component': 'GcbpTable',
+          'metadata': {pageNumber: 0},
+          'catalogId': 'not-a-catalog',
+          'accessibility': 'compact',
+          '@metadata': {extensions: {com_example_vendor: 'acme'}},
+          '@accessibility': {label: 'Table'},
+        },
+      ]);
+      const root = proc.getSurface('s')!.componentsModel.get('root')!;
+      assert.strictEqual(root.catalog.id, 'main');
+      assert.deepStrictEqual(root.metadata, {extensions: {com_example_vendor: 'acme'}});
+      assert.deepStrictEqual(root.properties, {
+        'metadata': {pageNumber: 0},
+        'catalogId': 'not-a-catalog',
+        'accessibility': 'compact',
+        '@accessibility': {label: 'Table'},
+      });
+      proc.dispose();
+    });
+
+    it('reads a legacy bare catalogId by the default catalog for routing and storage', () => {
+      // `Text` declares no `catalogId` in the surface default, so a bare
+      // `catalogId` routes the component, even though the target catalog's
+      // `Text` declares a `catalogId` property of its own.
+      const plainText: ComponentApi = {name: 'Text', schema: z.object({text: z.any()}).strict()};
+      const textWithCatalogId: ComponentApi = {
+        name: 'Text',
+        schema: z.object({text: z.any(), catalogId: z.string().optional()}).strict(),
+      };
+      const proc = v10Processor(
+        new Catalog<ComponentApi>('main', '1.0', [plainText]),
+        new Catalog<ComponentApi>('other', '1.0', [textWithCatalogId]),
+      );
+      process(proc, [{id: 'root', component: 'Text', text: 'Hi', catalogId: 'other'}]);
+      const root = proc.getSurface('s')!.componentsModel.get('root')!;
+      assert.strictEqual(root.catalog.id, 'other');
+      assert.deepStrictEqual(root.properties, {text: 'Hi'});
+      proc.dispose();
+    });
+
+    it('serializes @metadata when an optional custom metadata is omitted', () => {
+      const chart: ComponentApi = {
+        name: 'Chart',
+        schema: z.object({title: z.string(), metadata: z.string().optional()}).strict(),
+      };
+      const proc = v10Processor(new Catalog<ComponentApi>('main', '1.0', [chart]));
+      process(proc, [
+        {
+          'id': 'root',
+          'component': 'Chart',
+          'title': 'Sales',
+          '@metadata': {extensions: {com_example_trace: 't1'}},
+        },
+      ]);
+      const root = proc.getSurface('s')!.componentsModel.get('root')!;
+      assert.deepStrictEqual(root.properties, {title: 'Sales'});
+      assert.deepStrictEqual(root.componentTree, {
+        'id': 'root',
+        'component': 'Chart',
+        'title': 'Sales',
+        '@metadata': {extensions: {com_example_trace: 't1'}},
+      });
+      proc.dispose();
+    });
+
+    it('keeps a bare metadata declared in a union option as a property', () => {
+      const widget: ComponentApi = {
+        name: 'Widget',
+        schema: z.union([
+          z.object({kind: z.literal('a'), metadata: z.string().optional()}).strict(),
+          z.object({kind: z.literal('b'), label: z.string().optional()}).strict(),
+        ]),
+      };
+      const proc = v10Processor(new Catalog<ComponentApi>('main', '1.0', [widget]));
+      process(proc, [
+        {
+          'id': 'root',
+          'component': 'Widget',
+          'kind': 'a',
+          'metadata': 'x',
+          '@metadata': {extensions: {com_example_trace: 't1'}},
+        },
+      ]);
+      const root = proc.getSurface('s')!.componentsModel.get('root')!;
+      assert.deepStrictEqual(root.properties, {kind: 'a', metadata: 'x'});
+      assert.deepStrictEqual(root.metadata, {extensions: {com_example_trace: 't1'}});
+      proc.dispose();
+    });
+
+    it('rejects @metadata with invalid extension keys and conflicting mixins', () => {
+      const proc = v10Processor(gcbpCatalog('main', '1.0'));
+      assert.throws(
+        () =>
+          process(proc, [
+            {'id': 'root', 'component': 'Field', '@metadata': {extensions: {'a.b': 1}}},
+          ]),
+        A2uiValidationError,
+      );
+      assert.throws(
+        () =>
+          process(proc, [
+            {
+              'id': 'root',
+              'component': 'Field',
+              '@accessibility': {label: 'New'},
+              'accessibility': {label: 'Old'},
+            },
+          ]),
+        (err: unknown) => {
+          assert.ok(err instanceof A2uiValidationError);
+          assert.match(
+            err.message,
+            /cannot specify both '@accessibility' and legacy 'accessibility'/,
+          );
+          assert.match(err.details[0].path, /\/@accessibility$/);
+          return true;
+        },
+      );
+      proc.dispose();
+    });
+
+    it('evaluates @checks into validation props without exposing the rules', () => {
+      const cat = gcbpCatalog('main', '1.0');
+      const proc = new MessageProcessor<ComponentApi>([cat]);
+      let resolver: NodeResolver | undefined;
+      proc.model.onSurfaceCreated.subscribe(surface => {
+        resolver = new NodeResolver(surface, cat);
+      });
+      proc.processMessages([
+        {version: '1.0', createSurface: {surfaceId: 's', catalogId: 'main'}},
+        {
+          version: '1.0',
+          updateComponents: {
+            surfaceId: 's',
+            components: [
+              {
+                'id': 'root',
+                'component': 'Field',
+                '@accessibility': {label: 'Email address'},
+                '@checks': [{condition: false, message: 'Required'}],
+              },
+            ],
+          },
+        },
+      ] as any);
+      const props = peekValue(peekValue(resolver!.rootNode)!.props);
+      assert.strictEqual(props['isValid'], false);
+      assert.deepStrictEqual(props['validationErrors'], ['Required']);
+      assert.ok(!('@checks' in props));
+      const accessibility = props['@accessibility'] as Record<string, unknown>;
+      const label = accessibility['label'];
+      assert.strictEqual(label instanceof ResolvedBinding ? label.value : label, 'Email address');
+      resolver?.dispose();
+      proc.dispose();
     });
   });
 });

@@ -1,8 +1,20 @@
 # [a2ui_cli](https://pub.dev/packages/a2ui_cli) Changelog
 
+## Unreleased
+
+- (v1_0) Filter `@catalogId`, `@metadata`, and `@accessibility` from component
+  builder properties in `CatalogAnalyzer`, detect checkable components from
+  `@checks`, and emit `serialization_alias="@checks"` and
+  `validation_alias=AliasChoices("@checks", "checks")` on generated Python v1.0
+  checkable component builders while preserving custom component properties
+  named `metadata`, `catalogId`, `accessibility`, or `checks`
+  ([#3466](https://github.com/a2ui-project/a2ui/issues/3466),
+  [#4012](https://github.com/a2ui-project/a2ui/issues/4012),
+  [#4044](https://github.com/a2ui-project/a2ui/pull/4044)).
+
 ## 0.3.0
 
-- **Breaking:** Requires `a2ui_core` `^0.6.0` (`a2ui_cli` exposes `a2ui_core`
+- **Breaking:** Requires `a2ui_core` `^0.7.0` (`a2ui_cli` exposes `a2ui_core`
   types in its public API).
 
 - Added `a2ui lint` (`LintCommand`, `lintCatalog`, `CatalogLintFinding`, and `LintSeverity`) to validate catalog JSON schemas against deterministic protocol rules with JSON Pointer locations, including v1.0 Unicode UAX 31 identifiers, component and function discriminators, the reserved `Surface` component name, v1.0 `requiresUserActivation` caller constraints, and redundant `ComponentCommon` or `FunctionCommon` wrapping ([#3831](https://github.com/a2ui-project/a2ui/pull/3831)).
