@@ -16,7 +16,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:triage/triage.dart';
 import 'package:triage_ui/src/github/github_client.dart';
 import 'package:triage_ui/src/github_item.dart';
-import 'package:triage_ui/src/model/genui_pull_request.dart';
 import 'package:triage_ui/src/model/triage_controller.dart';
 import 'package:triage_ui/src/model/triage_item.dart';
 
@@ -50,6 +49,10 @@ void main() {
     for (final i in items) i.number,
   ];
 
+  List<String> names(List<TriageItem> items) => [
+    for (final i in items) i.shortName,
+  ];
+
   GitHubItem url(String path) =>
       GitHubItem.tryParse('https://github.com/a2ui-project/a2ui/$path')!;
 
@@ -64,43 +67,72 @@ void main() {
     expect(numbers(controller.orderedItems), [11, 10, 20, 21, 40, 41]);
     expect(controller.selected, isNull);
     expect(controller.remaining, 6);
-    expect(controller.repositoryInfo.labels, contains('P1'));
-    expect(numbers(controller.relatedInQueue(controller.item(11)!)), [20]);
+    expect(controller.repositoryInfo(a2uiRepository).labels, contains('P1'));
+    expect(numbers(controller.relatedInQueue(controller.item(a2ui(11))!)), [
+      20,
+    ]);
   });
 
-  test('loads the PRs on genui, least recently updated first, and loads '
-      'them again on refresh', () async {
-    github.genuiPullRequests = [
-      genuiPullRequestNode(7, updatedAt: day(3), author: 'octocat'),
-      genuiPullRequestNode(5, updatedAt: day(2)),
-    ];
+  test('triages the PRs on genui in the same groups as the items of a2ui, '
+      'and changes them on genui', () async {
+    github.genuiItems
+      // The same number as an issue on a2ui.
+      ..[10] = itemNode(
+        10,
+        repository: genuiRepository,
+        pr: true,
+        createdAt: day(3),
+      )
+      ..[11] = itemNode(
+        11,
+        repository: genuiRepository,
+        pr: true,
+        labels: [needsTeamInputLabel],
+        createdAt: day(6),
+      )
+      // Issues on genui are not in the queue.
+      ..[12] = itemNode(12, repository: genuiRepository);
 
     await controller.start();
 
-    expect([for (final pr in controller.genuiPullRequests) pr.number], [5, 7]);
-    final GenuiPullRequest pr = controller.genuiPullRequests.last;
-    expect(pr.title, 'Genui PR 7');
-    expect(pr.url, 'https://github.com/flutter/genui/pull/7');
-    expect(pr.author, 'octocat');
-    // They are not in the queue.
-    expect(controller.remaining, 6);
-    expect(controller.item(7), isNull);
+    expect(names(controller.newItems), [
+      '#11',
+      '#10',
+      '#20',
+      '#21',
+      'genui #10',
+    ]);
+    expect(names(controller.teamInputItems), ['#40', '#41', 'genui #11']);
+    expect(controller.remaining, 8);
+    expect(controller.item(genui(10))!.name, 'genui PR #10');
+    expect(controller.item(a2ui(10))!.name, 'Issue #10');
+    expect(
+      controller.repositoryInfo(genuiRepository).labels,
+      isNot(contains('type: bug')),
+    );
 
-    // Selecting a PR on genui and an item of the queue replace each other.
-    controller.select(10);
-    controller.selectGenuiPullRequest(7);
-    expect(controller.selected, isNull);
-    expect(controller.selectedGenuiPullRequest!.title, 'Genui PR 7');
-    controller.select(10);
-    expect(controller.selectedGenuiPullRequest, isNull);
-    controller.selectGenuiPullRequest(7);
+    controller
+      ..select(genui(10))
+      ..draftFor(
+        controller.item(genui(10))!,
+        const TriageSuggestion(addedLabels: ['P2'], reply: 'Thanks!'),
+      );
+    await controller.apply(controller.item(genui(10))!);
 
-    github.genuiPullRequests = [genuiPullRequestNode(8)];
-    await controller.refresh();
+    expect(github.calls, [
+      'POST flutter/genui/issues/10/comments {"body":"Thanks!"}',
+      'POST flutter/genui/issues/10/labels {"labels":["P2"]}',
+    ]);
+    expect(controller.session.isApplied(genui(10)), isTrue);
+    expect(controller.session.isApplied(a2ui(10)), isFalse);
+    expect(controller.item(genui(10))!.labels, contains('P2'));
+    expect(controller.item(a2ui(10))!.labels, isNot(contains('P2')));
 
-    expect([for (final pr in controller.genuiPullRequests) pr.number], [8]);
-    // The selected PR no longer needs triage.
-    expect(controller.selectedGenuiPullRequest, isNull);
+    await controller.open(
+      GitHubItem.tryParse('https://github.com/flutter/genui/issues/12')!,
+    );
+    expect(controller.selected!.name, 'genui Issue #12');
+    expect(names(controller.opened), ['genui #12']);
   });
 
   test('lists the items with a suggestion first', () async {
@@ -127,7 +159,7 @@ void main() {
 
   test('deselects the selected item', () async {
     await controller.start();
-    controller.select(11);
+    controller.select(a2ui(11));
 
     controller.deselect();
 
@@ -141,13 +173,13 @@ void main() {
       ..items[12] = itemNode(12, createdAt: day(5), linked: [31])
       ..items[31] = itemNode(31, pr: true, labels: [], linked: [12]);
     await controller.start();
-    final TriageItem issue = controller.item(12)!;
+    final TriageItem issue = controller.item(a2ui(12))!;
 
     expect(numbers(controller.group(issue)), [12]);
     await controller.loadLinked(issue);
     expect(numbers(controller.group(issue)), [12, 31]);
     // Item 11 is linked to PR 20, which is in the queue.
-    expect(numbers(controller.group(controller.item(11)!)), [11, 20]);
+    expect(numbers(controller.group(controller.item(a2ui(11))!)), [11, 20]);
   });
 
   test('reports a failure to connect, and can try again', () async {
@@ -187,25 +219,25 @@ void main() {
 
   test('applies the draft, then selects the next item', () async {
     await controller.start();
-    controller.select(10);
+    controller.select(a2ui(10));
     final TriageItem item = controller.selected!;
     controller.draftFor(item, const TriageSuggestion(addedLabels: ['P2']));
 
     await controller.apply(item);
 
-    expect(controller.lastResult(10)!.succeeded, isTrue);
-    expect(controller.session.isApplied(10), isTrue);
+    expect(controller.lastResult(a2ui(10))!.succeeded, isTrue);
+    expect(controller.session.isApplied(a2ui(10)), isTrue);
     expect(controller.selected!.number, 20);
     expect(controller.remaining, 5);
     // The item shows its new labels, and stays in its place until a refresh.
-    expect(controller.item(10)!.labels, contains('P2'));
+    expect(controller.item(a2ui(10))!.labels, contains('P2'));
     expect(numbers(controller.newItems), [11, 10, 20, 21]);
   });
 
   test('keeps a failed item selected, and posts its reply once', () async {
     github.unassignable.add('stranger');
     await controller.start();
-    controller.select(10);
+    controller.select(a2ui(10));
     final TriageItem item = controller.selected!;
     controller.draftFor(
       item,
@@ -213,14 +245,14 @@ void main() {
     );
 
     await controller.apply(item);
-    expect(controller.lastResult(10)!.succeeded, isFalse);
+    expect(controller.lastResult(a2ui(10))!.succeeded, isFalse);
     expect(controller.selected!.number, 10);
-    expect(controller.session.isApplied(10), isFalse);
+    expect(controller.session.isApplied(a2ui(10)), isFalse);
 
     controller.draftFor(item, const TriageSuggestion()).newAssignees = [];
-    await controller.apply(controller.item(10)!);
+    await controller.apply(controller.item(a2ui(10))!);
 
-    expect(controller.lastResult(10)!.succeeded, isTrue);
+    expect(controller.lastResult(a2ui(10))!.succeeded, isTrue);
     expect(github.calls.where((c) => c.contains('comments')), hasLength(1));
   });
 
@@ -228,8 +260,11 @@ void main() {
       'items', () async {
     await controller.start();
     controller
-      ..draftFor(controller.item(10)!, const TriageSuggestion(reply: 'A'))
-      ..draftFor(controller.item(11)!, const TriageSuggestion(reply: 'B'));
+      ..draftFor(controller.item(a2ui(10))!, const TriageSuggestion(reply: 'A'))
+      ..draftFor(
+        controller.item(a2ui(11))!,
+        const TriageSuggestion(reply: 'B'),
+      );
     github
       ..change(10, (item) => item['title'] = 'Renamed')
       ..change(20, (item) => item['labels'] = {'nodes': <Object?>[]})
@@ -239,67 +274,76 @@ void main() {
 
     // Item 10 was updated last, so it moves after 50.
     expect(numbers(controller.newItems), [11, 50, 10, 21]);
-    expect(controller.changedOnGitHub(10), isTrue);
-    expect(controller.changedOnGitHub(11), isFalse);
-    expect(controller.item(10)!.title, 'Renamed');
+    expect(controller.changedOnGitHub(a2ui(10)), isTrue);
+    expect(controller.changedOnGitHub(a2ui(11)), isFalse);
+    expect(controller.item(a2ui(10))!.title, 'Renamed');
     const empty = TriageSuggestion();
-    expect(controller.draftFor(controller.item(10)!, empty).reply.text, '');
-    expect(controller.draftFor(controller.item(11)!, empty).reply.text, 'B');
+    expect(
+      controller.draftFor(controller.item(a2ui(10))!, empty).reply.text,
+      '',
+    );
+    expect(
+      controller.draftFor(controller.item(a2ui(11))!, empty).reply.text,
+      'B',
+    );
   });
 
   test('refresh does not take the triager own changes for others', () async {
     await controller.start();
     controller.draftFor(
-      controller.item(10)!,
+      controller.item(a2ui(10))!,
       const TriageSuggestion(addedLabels: ['P2']),
     );
-    await controller.apply(controller.item(10)!);
+    await controller.apply(controller.item(a2ui(10))!);
 
     await controller.refresh();
 
-    expect(controller.changedOnGitHub(10), isFalse);
+    expect(controller.changedOnGitHub(a2ui(10)), isFalse);
   });
 
   test('applying to an item that needs team input removes the label, and '
       'keeps the item in its group', () async {
     await controller.start();
     controller.draftFor(
-      controller.item(40)!,
+      controller.item(a2ui(40))!,
       const TriageSuggestion(addedLabels: ['P2']),
     );
 
-    await controller.apply(controller.item(40)!);
+    await controller.apply(controller.item(a2ui(40))!);
 
     expect(github.calls, [
       'DELETE issues/40/labels/status%3A%20needs-team-input',
       'POST issues/40/labels {"labels":["P2"]}',
     ]);
-    expect(controller.item(40)!.needsTeamInput, isFalse);
+    expect(controller.item(a2ui(40))!.needsTeamInput, isFalse);
     expect(numbers(controller.teamInputItems), [40, 41]);
-    expect(controller.session.isApplied(40), isTrue);
+    expect(controller.session.isApplied(a2ui(40)), isTrue);
     expect(controller.report(), contains('removed status: needs-team-input'));
   });
 
   test('applying a suggestion that adds the label keeps it', () async {
     await controller.start();
     controller.draftFor(
-      controller.item(40)!,
+      controller.item(a2ui(40))!,
       const TriageSuggestion(addedLabels: [needsTeamInputLabel]),
     );
 
-    await controller.apply(controller.item(40)!);
+    await controller.apply(controller.item(a2ui(40))!);
 
     expect(github.calls, [
       'POST issues/40/labels {"labels":["status: needs-team-input"]}',
     ]);
-    expect(controller.session.isSentToTeam(40), isTrue);
+    expect(controller.session.isSentToTeam(a2ui(40)), isTrue);
   });
 
   test('sends an item to the team', () async {
     await controller.start();
-    controller.select(10);
+    controller.select(a2ui(10));
 
-    await controller.sendToTeam(controller.item(10)!, comment: 'Thoughts.');
+    await controller.sendToTeam(
+      controller.item(a2ui(10))!,
+      comment: 'Thoughts.',
+    );
 
     expect(github.calls, [
       'POST issues/10/labels {"labels":["status: needs-team-input"]}',
@@ -309,7 +353,7 @@ void main() {
     expect(numbers(controller.teamInputItems), [10, 40, 41]);
     expect(controller.selected!.number, 20);
     expect(controller.remaining, 5);
-    expect(controller.session.isSentToTeam(10), isTrue);
+    expect(controller.session.isSentToTeam(a2ui(10)), isTrue);
     expect(controller.report(), contains('Sent 1 issue to the team.'));
   });
 
@@ -317,7 +361,7 @@ void main() {
     await controller.start();
     await controller.open(url('issues/30'));
 
-    await controller.sendToTeam(controller.item(30)!);
+    await controller.sendToTeam(controller.item(a2ui(30))!);
 
     expect(github.calls, [
       'POST issues/30/labels {"labels":["status: needs-team-input"]}',
@@ -330,11 +374,14 @@ void main() {
     github.failing.add('POST issues/10/labels');
     await controller.start();
 
-    await controller.sendToTeam(controller.item(10)!, comment: 'Thoughts.');
+    await controller.sendToTeam(
+      controller.item(a2ui(10))!,
+      comment: 'Thoughts.',
+    );
 
     expect(controller.error, contains('Could not add'));
     expect(github.calls.where((c) => c.contains('comments')), isEmpty);
-    expect(controller.session.isSentToTeam(10), isFalse);
+    expect(controller.session.isSentToTeam(a2ui(10)), isFalse);
     expect(numbers(controller.newItems), [11, 10, 20, 21]);
   });
 }

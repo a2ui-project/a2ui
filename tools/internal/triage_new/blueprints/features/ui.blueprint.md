@@ -23,16 +23,17 @@ The triager can drag the divider between the items and the details to resize the
 
 ### Items
 
-The list of items, in groups:
+The list of items holds the issues and PRs of [`a2ui-project/a2ui`](https://github.com/a2ui-project/a2ui), and the PRs of [`flutter/genui`](https://github.com/flutter/genui), together in the same groups:
 
 1. **New**: open items with `status: needs-triage` and without `status: needs-team-input`.
 2. **Needs team input**: open items with `status: needs-team-input`.
-3. **Not in the queue**: items that the triager opened from a [suggestion comment](advisor.blueprint.md#the-suggestion-comment) and that are in neither group above.
-4. **PRs on genui**: open PRs in [`flutter/genui`](https://github.com/flutter/genui) with `status: needs-triage`, least recently updated first. Each PR shows its number, title and when it was last updated. The tool does not triage these PRs, and they do not count in the number of items that need triage. When the triager selects one, the details show a card that is not editable: the PR's title, with a link to it on GitHub, its age, when it was last updated, its author, labels and assignees.
+3. **Not in the queue**: items that the triager opened from a [suggestion comment](advisor.blueprint.md#the-suggestion-comment) or by URL, and that are in neither group above.
 
-The first three groups list issues with open PRs first, then issues without open PRs, then PRs with linked issues, then PRs without linked issues. Each of these lists starts with the items that have a suggestion, current or outdated, and then the items without one. Within each of these, the least recently updated item comes first.
+An item in `flutter/genui` shows "genui" before its number, as in "genui #12", because the two repositories number their items separately. The tool triages it as an item in `a2ui-project/a2ui`, except that its changes go to `flutter/genui`, and its label, assignee and milestone choices are those of `flutter/genui`. The advisor comments only on `a2ui-project/a2ui`, so items in `flutter/genui` have no suggestion.
 
-Each of the first three groups has a subgroup for each type of item it has. An open PR of an issue is any open PR linked to close the issue, whoever opened it. Closed and merged PRs do not count. The groups and the subgroups start collapsed. When the tool selects an item itself, such as an item opened from its suggestion comment or the next item after **Apply**, the list expands the item's group and subgroup, and scrolls to the item.
+The groups list issues with open PRs first, then issues without open PRs, then PRs with linked issues, then PRs without linked issues. Each of these lists starts with the items that have a suggestion, current or outdated, and then the items without one. Within each of these, the least recently updated item comes first.
+
+Each group has a subgroup for each type of item it has. An open PR of an issue is any open PR linked to close the issue, whoever opened it. Closed and merged PRs do not count. The groups and the subgroups start collapsed. When the tool selects an item itself, such as an item opened from its suggestion comment or the next item after **Apply**, the list expands the item's group and subgroup, and scrolls to the item.
 
 An item's flags show:
 
@@ -50,7 +51,7 @@ Issues are green and PRs are orange, in every group. Each type of item has its o
 
 ### Details
 
-Tabs at the top: one for the selected item, and one for each linked PR or issue, whether or not it needs triage. An issue can have several linked PRs, and a PR several linked issues. A tab shows the item's icon and number, and a blue dot when the triager edited its suggestion.
+Tabs at the top: one for the selected item, and one for each linked PR or issue, whether or not it needs triage. An issue can have several linked PRs, and a PR several linked issues. A tab shows the item's icon and number, with "genui" before the number for an item in `flutter/genui`, and a blue dot when the triager edited its suggestion.
 
 Each tab shows its item and its editable suggestion, on the page background, without a card frame.
 

@@ -25,7 +25,7 @@ environment:
 dependencies:
   a2ui_agent:
     path: ../../../../../dart/a2ui_agent
-  a2ui_core: ^0.6.0
+  a2ui_core: ^0.7.0
   json_schema_builder: ^0.1.7
 
 dev_dependencies:

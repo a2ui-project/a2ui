@@ -87,10 +87,10 @@ Triaged 5 items: 4 issues and 1 PR.
       ..recordSentToTeam(item(2, 'B', pr: true), comment: 'Why?')
       ..recordSentToTeam(item(3, 'C'));
 
-    expect(session.isApplied(2), isFalse);
-    expect(session.isSentToTeam(2), isTrue);
-    expect(session.isHandled(2), isTrue);
-    expect(session.isSentToTeam(1), isFalse);
+    expect(session.isApplied(a2ui(2)), isFalse);
+    expect(session.isSentToTeam(a2ui(2)), isTrue);
+    expect(session.isHandled(a2ui(2)), isTrue);
+    expect(session.isSentToTeam(a2ui(1)), isFalse);
     expect(session.report(stillNeedTriage: 3), '''
 Triaged 1 item: 1 issue.
 Sent 1 issue and 1 PR to the team.

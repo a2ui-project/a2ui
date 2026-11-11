@@ -21,6 +21,7 @@ void main() {
       'https://github.com/a2ui-project/a2ui/issues/1235',
     )!;
 
+    expect(item.repository, 'a2ui-project/a2ui');
     expect(item.isPullRequest, isFalse);
     expect(item.number, 1235);
   });
@@ -34,11 +35,22 @@ void main() {
     expect(item.number, 4026);
   });
 
-  test('rejects URLs that are not a2ui issues or pull requests', () {
+  test('parses a pull request URL on genui', () {
+    final GitHubItem item = GitHubItem.tryParse(
+      'https://github.com/flutter/genui/pull/45',
+    )!;
+
+    expect(item.repository, 'flutter/genui');
+    expect(item.isPullRequest, isTrue);
+    expect(item.number, 45);
+  });
+
+  test('rejects URLs that are not issues or pull requests on a2ui or '
+      'genui', () {
     for (final url in [
       '',
       '1235',
-      'https://github.com/flutter/genui/issues/1',
+      'https://github.com/flutter/flutter/issues/1',
       'https://github.com/a2ui-project/a2ui/issues/0',
       'https://github.com/a2ui-project/a2ui/issues/12x',
       'https://github.com/a2ui-project/a2ui/issues/1/comments',

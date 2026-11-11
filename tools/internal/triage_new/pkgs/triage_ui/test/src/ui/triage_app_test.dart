@@ -83,7 +83,7 @@ void main() {
       },
     );
     await tester.runAsync(controller.start);
-    if (selectFirst) controller.select(10);
+    if (selectFirst) controller.select(a2ui(10));
     await tester.pumpWidget(TriageApp(controller: controller));
     await tester.pumpAndSettle();
   }
@@ -202,7 +202,7 @@ void main() {
 
     await tester.tap(find.widgetWithText(FilledButton, 'Apply').first);
     await tester.pump();
-    for (var i = 0; i < 100 && controller.isApplying(10); i++) {
+    for (var i = 0; i < 100 && controller.isApplying(a2ui(10)); i++) {
       await tester.pump(const Duration(milliseconds: 10));
     }
     await tester.pumpAndSettle();
@@ -273,7 +273,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(apply);
     await tester.pump();
-    for (var i = 0; i < 100 && controller.isApplying(10); i++) {
+    for (var i = 0; i < 100 && controller.isApplying(a2ui(10)); i++) {
       await tester.pump(const Duration(milliseconds: 10));
     }
     await tester.pumpAndSettle();
@@ -502,7 +502,8 @@ void main() {
     await tester.pump();
     for (
       var i = 0;
-      i < 100 && (controller.isApplying(10) || controller.isApplying(20));
+      i < 100 &&
+          (controller.isApplying(a2ui(10)) || controller.isApplying(a2ui(20)));
       i++
     ) {
       await tester.pump(const Duration(milliseconds: 10));
@@ -610,52 +611,40 @@ void main() {
     expect((tile.shape! as RoundedRectangleBorder).side.width, 2);
   });
 
-  testWidgets('shows a PR on genui in a card that is not editable', (
-    tester,
-  ) async {
-    github.genuiPullRequests = [
-      genuiPullRequestNode(
-        7,
-        title: 'Add a Slider',
-        author: 'octocat',
-        labels: {needsTriageLabel: null, 'P1': 'b60205'},
-        assignees: ['hubot'],
-      ),
-    ];
-    await pumpApp(tester);
-    expect(controller.selected!.number, 10);
+  testWidgets('triages a PR on genui in the same groups as the items of '
+      'a2ui', (tester) async {
+    github.genuiItems[7] = itemNode(
+      7,
+      repository: genuiRepository,
+      pr: true,
+      title: 'Add a Slider',
+      createdAt: day(3),
+    );
+    await pumpApp(tester, selectFirst: false);
 
-    expect(find.text('PRs on genui (1)'), findsOneWidget);
-    expect(inList('#7 Add a Slider'), findsNothing);
-    await expand(tester, 'PRs on genui (1)');
-    expect(find.byTooltip('PR on genui'), findsOneWidget);
-
-    await tester.tap(inList('#7 Add a Slider'));
+    expect(find.text('4 items need triage'), findsOneWidget);
+    await expand(tester, 'New (4)');
+    await expand(tester, 'PRs without issues (1)');
+    await tester.tap(inList('genui #7 Add a Slider'));
     await tester.pumpAndSettle();
 
-    expect(controller.selected, isNull);
-    expect(controller.selectedGenuiPullRequest!.number, 7);
+    expect(controller.selected!.ref, genui(7));
+    expect(find.widgetWithText(Tab, 'genui #7'), findsOneWidget);
     expect(find.text('genui PR #7: Add a Slider'), findsOneWidget);
-    expect(find.text('Author: octocat.'), findsOneWidget);
-    expect(find.text('Assignees: hubot.'), findsOneWidget);
-    final DecoratedBox p1 = tester.widget(
-      find.ancestor(of: find.text('P1'), matching: find.byType(DecoratedBox)),
-    );
-    expect((p1.decoration as BoxDecoration).color, const Color(0xFFB60205));
-    expect(find.text('Open the PR'), findsOneWidget);
-    // Nothing to edit or apply.
-    expect(find.byType(TextField), findsNothing);
-    expect(find.widgetWithText(FilledButton, 'Apply'), findsNothing);
-    expect(
-      find.widgetWithText(OutlinedButton, 'Needs team input'),
-      findsNothing,
-    );
 
-    // A second click on the PR deselects it.
-    await tester.tap(inList('#7 Add a Slider'));
+    await tester.tap(find.text('P1').first);
     await tester.pumpAndSettle();
-    expect(controller.selectedGenuiPullRequest, isNull);
-    expect(find.text('Select an item.'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Apply').first);
+    await tester.pump();
+    for (var i = 0; i < 100 && controller.isApplying(genui(7)); i++) {
+      await tester.pump(const Duration(milliseconds: 10));
+    }
+    await tester.pumpAndSettle();
+
+    expect(github.calls, [
+      'POST flutter/genui/issues/7/labels {"labels":["P1"]}',
+    ]);
+    expect(find.text('3 items need triage'), findsOneWidget);
   });
 
   testWidgets('the divider resizes the item list', (tester) async {

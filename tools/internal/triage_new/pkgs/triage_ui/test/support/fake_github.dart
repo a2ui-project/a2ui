@@ -20,6 +20,12 @@ import 'package:triage_ui/src/github/github_client.dart';
 import 'package:triage_ui/src/github/triage_service.dart';
 import 'package:triage_ui/src/model/triage_item.dart';
 
+/// The item with [number] in [a2uiRepository].
+ItemRef a2ui(int number) => (repository: a2uiRepository, number: number);
+
+/// The item with [number] in [genuiRepository].
+ItemRef genui(int number) => (repository: genuiRepository, number: number);
+
 /// The time the fake items are created at, and later times.
 DateTime day(int n) => DateTime.utc(2026, 11, n);
 
@@ -72,9 +78,11 @@ Map<String, Object?> labeledEvent(String label, DateTime at) => {
   'label': {'name': label},
 };
 
-/// A GraphQL node of an issue, or of a pull request if [pr].
+/// A GraphQL node of an issue, or of a pull request if [pr], in
+/// [repository].
 Map<String, Object?> itemNode(
   int number, {
+  String repository = a2uiRepository,
   bool pr = false,
   String? title,
   DateTime? createdAt,
@@ -93,10 +101,10 @@ Map<String, Object?> itemNode(
   Map<String, Object?> nodes(List<Object?> list) => {'nodes': list};
   return {
     '__typename': pr ? 'PullRequest' : 'Issue',
-    'id': '${pr ? 'PR' : 'I'}_$number',
+    'id': _id(repository, number, pr: pr),
     'number': number,
     'title': title ?? 'Item $number',
-    'url': 'https://github.com/a2ui-project/a2ui/$kind/$number',
+    'url': 'https://github.com/$repository/$kind/$number',
     'createdAt': (createdAt ?? day(1)).toIso8601String(),
     'updatedAt': (updatedAt ?? createdAt ?? day(1)).toIso8601String(),
     'lastEditedAt': lastEditedAt?.toIso8601String(),
@@ -118,48 +126,35 @@ Map<String, Object?> itemNode(
   };
 }
 
-/// A GraphQL node of a pull request in `flutter/genui`.
-Map<String, Object?> genuiPullRequestNode(
-  int number, {
-  String? title,
-  DateTime? updatedAt,
-  String? author,
-  Map<String, String?> labels = const {needsTriageLabel: null},
-  List<String> assignees = const [],
-}) => {
-  'number': number,
-  'title': title ?? 'Genui PR $number',
-  'url': 'https://github.com/flutter/genui/pull/$number',
-  'createdAt': day(1).toIso8601String(),
-  'updatedAt': (updatedAt ?? day(1)).toIso8601String(),
-  'author': author == null ? null : {'login': author},
-  'labels': {
-    'nodes': [
-      for (final MapEntry(:key, :value) in labels.entries)
-        {'name': key, 'color': value},
-    ],
-  },
-  'assignees': {
-    'nodes': [
-      for (final login in assignees) {'login': login},
-    ],
-  },
-};
+/// The GraphQL node id of an item, such as `I_12` for an issue in
+/// [a2uiRepository], or `genui_PR_7` for a pull request in
+/// [genuiRepository].
+String _id(String repository, int number, {required bool pr}) =>
+    '${repository == a2uiRepository ? '' : 'genui_'}${pr ? 'PR' : 'I'}_$number';
 
 /// GitHub, as far as the triage UI uses it, with items held in memory.
 ///
 /// Records each change as a line in [calls], such as
-/// `POST issues/12/labels ["P1"]`.
+/// `POST issues/12/labels ["P1"]` for an item in [a2uiRepository], and
+/// `POST flutter/genui/issues/7/labels ["P1"]` for an item in
+/// [genuiRepository].
 class FakeGitHub {
-  FakeGitHub(List<Map<String, Object?>> items)
-    : items = {for (final i in items) i['number']! as int: i};
+  FakeGitHub(
+    List<Map<String, Object?>> items, {
+    List<Map<String, Object?>> genuiItems = const [],
+  }) : items = {for (final i in items) i['number']! as int: i},
+       genuiItems = {for (final i in genuiItems) i['number']! as int: i};
 
+  /// The items in [a2uiRepository], by number.
   final Map<int, Map<String, Object?>> items;
+
+  /// The items in [genuiRepository], by number.
+  final Map<int, Map<String, Object?>> genuiItems;
+
   final List<String> calls = [];
 
-  /// The open pull requests in `flutter/genui` with `status: needs-triage`,
-  /// as [genuiPullRequestNode]s.
-  List<Map<String, Object?>> genuiPullRequests = [];
+  Map<int, Map<String, Object?>> _itemsOf(String repository) =>
+      repository == genuiRepository ? genuiItems : items;
 
   /// Logins that GitHub silently does not assign.
   final Set<String> unassignable = {};
@@ -175,6 +170,16 @@ class FakeGitHub {
     'P2',
     'P3',
     'type: bug',
+    needsTriageLabel,
+    needsTeamInputLabel,
+  ];
+
+  /// The labels of [genuiRepository].
+  List<String> genuiLabels = [
+    'P0',
+    'P1',
+    'P2',
+    'P3',
     needsTriageLabel,
     needsTeamInputLabel,
   ];
@@ -204,8 +209,14 @@ class FakeGitHub {
       );
     }
 
-    final String issuePath = path.replaceFirst('repos/a2ui-project/a2ui/', '');
-    final line = '${request.method} $issuePath';
+    final String repository = path.startsWith('repos/$genuiRepository/')
+        ? genuiRepository
+        : a2uiRepository;
+    final Map<int, Map<String, Object?>> items = _itemsOf(repository);
+    final String issuePath = path.replaceFirst('repos/$repository/', '');
+    final line = repository == a2uiRepository
+        ? '${request.method} $issuePath'
+        : '${request.method} $repository/$issuePath';
     calls.add(body == null ? line : '$line ${jsonEncode(body)}');
     if (failing.contains(line)) {
       return _json({'message': 'Server error'}, status: 500);
@@ -270,29 +281,25 @@ class FakeGitHub {
   }
 
   http.Response _graphql(String query, Map<String, Object?> variables) {
-    if (query.contains('search(') &&
-        (variables['query']! as String).contains('repo:flutter/genui ')) {
-      return _json({
-        'data': {
-          'search': {
-            'pageInfo': {'hasNextPage': false, 'endCursor': null},
-            'nodes': genuiPullRequests,
-          },
-        },
-      });
-    }
+    final String repository = variables['owner'] == null
+        ? a2uiRepository
+        : '${variables['owner']}/${variables['name']}';
     if (query.contains('search(')) {
+      final searchQuery = variables['query']! as String;
       final String label = RegExp(
         r'label:"([^"]+)"',
-      ).firstMatch(variables['query']! as String)!.group(1)!;
+      ).firstMatch(searchQuery)!.group(1)!;
+      final bool genui = searchQuery.contains('repo:$genuiRepository ');
       return _json({
         'data': {
           'search': {
             'pageInfo': {'hasNextPage': false, 'endCursor': null},
             'nodes': [
-              for (final item in items.values)
+              for (final item in (genui ? genuiItems : items).values)
                 if (item['state'] == 'OPEN' &&
-                    _names(item, 'labels', 'name').contains(label))
+                    _names(item, 'labels', 'name').contains(label) &&
+                    (!searchQuery.contains('is:pr') ||
+                        item['__typename'] == 'PullRequest'))
                   item,
             ],
           },
@@ -302,7 +309,9 @@ class FakeGitHub {
     if (query.contains('issueOrPullRequest')) {
       return _json({
         'data': {
-          'repository': {'issueOrPullRequest': items[variables['number']]},
+          'repository': {
+            'issueOrPullRequest': _itemsOf(repository)[variables['number']],
+          },
         },
       });
     }
@@ -312,7 +321,9 @@ class FakeGitHub {
           'repository': {
             'labels': {
               'nodes': [
-                for (final l in labels) {'name': l, 'color': labelColors[l]},
+                for (final l
+                    in repository == genuiRepository ? genuiLabels : labels)
+                  {'name': l, 'color': labelColors[l]},
               ],
             },
             'assignableUsers': {
@@ -335,7 +346,9 @@ class FakeGitHub {
       return _json({
         'data': {
           'repository': {
-            'issue': {'id': 'I_${variables['number']}'},
+            'issue': {
+              'id': _id(repository, variables['number']! as int, pr: false),
+            },
           },
         },
       });
@@ -343,9 +356,10 @@ class FakeGitHub {
     if (query.contains('closeIssue') || query.contains('closePullRequest')) {
       calls.add('close ${jsonEncode(variables)}');
       final id = variables['id']! as String;
-      final Map<String, Object?> item = items.values.firstWhere(
-        (i) => i['id'] == id,
-      );
+      final Map<String, Object?> item = [
+        ...items.values,
+        ...genuiItems.values,
+      ].firstWhere((i) => i['id'] == id);
       _touch(item);
       item['state'] = 'CLOSED';
       return _json({'data': <String, Object?>{}});
@@ -364,9 +378,14 @@ class FakeGitHub {
     ).toIso8601String();
   }
 
-  /// Changes the item with [number] as if someone did on GitHub.
-  void change(int number, void Function(Map<String, Object?> item) edit) {
-    final Map<String, Object?> item = items[number]!;
+  /// Changes the item with [number] in [repository] as if someone did on
+  /// GitHub.
+  void change(
+    int number,
+    void Function(Map<String, Object?> item) edit, {
+    String repository = a2uiRepository,
+  }) {
+    final Map<String, Object?> item = _itemsOf(repository)[number]!;
     edit(item);
     _touch(item);
   }
