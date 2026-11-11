@@ -4,7 +4,7 @@
 
 - Failed `DataModel.set` calls leave the existing data and observers unchanged,
   including writes rejected after traversing missing containers or null entries.
-  [#5](https://github.com/lighthuska-lab/a2ui/pull/5)
+  [#4180](https://github.com/a2ui-project/a2ui/pull/4180)
 
 ## 0.6.0 (2026-11-10)
 
