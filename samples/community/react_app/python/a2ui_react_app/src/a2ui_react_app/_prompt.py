@@ -78,7 +78,10 @@ _RULES = '''## ReactApp: custom interactive apps
 
 _FUNCTIONS_INTRO = (
     "Call these with `callFunction(name, args)` or `useFunction(name, args)`,"
-    " passing plain JSON values as `args`. Agent functions run on the"
+    " passing plain JSON values as `args`. Only the names below are functions:"
+    " `setData`, `getData` and the rest of the `a2ui` module are imported and"
+    " called directly, never through `callFunction`, and never listed in"
+    " `functions`. Agent functions run on the"
     " server and can take a few seconds, so show a loading state while they"
     " run."
 )

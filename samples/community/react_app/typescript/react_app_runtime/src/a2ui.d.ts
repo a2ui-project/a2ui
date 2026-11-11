@@ -189,8 +189,10 @@ declare module 'a2ui' {
     onSelect?: (datum: {[field: string]: unknown} | null) => void;
     /**
      * Listeners for Vega signals, keyed by signal name. A Vega-Lite selection parameter named
-     * `brush` is a signal named `brush`; its value maps each field to the selected range, for
-     * example `{x: [10, 40]}`, and is `{}` when the selection is cleared.
+     * `brush` is a signal named `brush`; its value maps each selected field to its range, for
+     * example `{amount: [10, 40]}`, and is `{}` when the selection is cleared. With a `timeUnit`
+     * Vega names the key `<timeUnit>_<field>` (`yearmonth_date`); the chart also adds the plain
+     * field name (`date`), so read `value.date`. Temporal ranges are timestamps in milliseconds.
      */
     onSignal?: {[signal: string]: (value: unknown) => void};
     /** Height in CSS pixels. Defaults to the spec's height, else 240. */

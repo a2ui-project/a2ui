@@ -71,6 +71,27 @@ export function themeConfig(theme: Theme): Record<string, unknown> {
   };
 }
 
+const TIME_UNIT_KEY =
+  /^(?:utc)?(?:year|quarter|month|week|day|dayofyear|date|hours|minutes|seconds|milliseconds)+_(.+)$/;
+
+/**
+ * Adds the plain field name next to each `<timeUnit>_<field>` key of a selection value
+ * (`yearmonth_date` also gives `date`), so apps can read the field they encoded.
+ */
+export function withPlainFieldNames(value: unknown): unknown {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return value;
+  }
+  const out: Record<string, unknown> = {...(value as Record<string, unknown>)};
+  for (const [key, entry] of Object.entries(value)) {
+    const field = TIME_UNIT_KEY.exec(key)?.[1];
+    if (field && !(field in out)) {
+      out[field] = entry;
+    }
+  }
+  return out;
+}
+
 function datasetsOf(data: VegaChartProps['data']): Array<[string, unknown[]]> {
   return Object.entries(data ?? {}).filter((entry): entry is [string, unknown[]] =>
     Array.isArray(entry[1]),
@@ -154,7 +175,7 @@ export function VegaChart(props: VegaChartProps): ReactElement {
         for (const name of signalNames ? signalNames.split(',') : []) {
           try {
             result.view.addSignalListener(name, (_name, value) => {
-              callbacks.current.onSignal?.[name]?.(value);
+              callbacks.current.onSignal?.[name]?.(withPlainFieldNames(value));
             });
           } catch {
             console.warn(`VegaChart: the spec has no signal named "${name}".`);
