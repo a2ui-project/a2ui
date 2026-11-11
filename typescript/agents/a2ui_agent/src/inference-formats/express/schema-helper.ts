@@ -665,7 +665,7 @@ export class CatalogSchemaHelper {
           customEnvelope.add(mixinName);
         }
       }
-      if (isStandardCheckable) {
+      if (customEnvelope.has('checks') && this.isCheckRuleArraySchema(props.checks)) {
         customEnvelope.delete('checks');
       }
       if (customEnvelope.has('catalogId') && isStandardCatalogIdSchema(props.catalogId)) {
@@ -688,7 +688,7 @@ export class CatalogSchemaHelper {
           excluded.add(mixinName);
         }
       }
-      if (isStandardCheckable) {
+      if (isStandardCheckable && !customEnvelope.has('checks')) {
         excluded.add('checks');
       }
 
@@ -699,9 +699,13 @@ export class CatalogSchemaHelper {
         }
       }
 
-      if (isStandardCheckable) {
+      if (isStandardCheckable && !customEnvelope.has('checks')) {
         orderedKeys.push('checks');
-      } else if (inheritedCheckProp && !orderedKeys.includes(inheritedCheckProp)) {
+      } else if (
+        inheritedCheckProp &&
+        !customEnvelope.has(inheritedCheckProp) &&
+        !orderedKeys.includes(inheritedCheckProp)
+      ) {
         orderedKeys.push(inheritedCheckProp);
       }
 

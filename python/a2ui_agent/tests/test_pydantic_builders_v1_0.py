@@ -661,6 +661,7 @@ def test_v1_0_custom_subclass_default_catalog_id_preserves_wire_alias() -> None:
         metadata_2: str = Field(alias="metadata")
         catalog_id_2: str | None = Field(default=None, alias="catalogId")
         accessibility_2: str | None = Field(default=None, alias="accessibility")
+        extensions_2: str | None = Field(default=None, alias="extensions")
 
     custom_node = CustomEnvelopeProps.model_validate({
         "component": "CustomEnvelopeProps",
@@ -668,6 +669,7 @@ def test_v1_0_custom_subclass_default_catalog_id_preserves_wire_alias() -> None:
         "metadata": "custom-meta",
         "catalogId": "custom-cat",
         "accessibility": "custom-a11y",
+        "extensions": "custom-ext",
         "@catalogId": custom_cid,
         "@accessibility": {"label": "A11y label"},
         "@metadata": {"extensions": {"trace": {"step": 1}}},
@@ -675,6 +677,7 @@ def test_v1_0_custom_subclass_default_catalog_id_preserves_wire_alias() -> None:
     assert custom_node.metadata_2 == "custom-meta"
     assert custom_node.catalog_id_2 == "custom-cat"
     assert custom_node.accessibility_2 == "custom-a11y"
+    assert custom_node.extensions_2 == "custom-ext"
     assert custom_node.catalog_id == custom_cid
     assert custom_node.accessibility == AccessibilityAttributes(label="A11y label")
     assert custom_node.extensions == {"trace": {"step": 1}}
@@ -687,4 +690,5 @@ def test_v1_0_custom_subclass_default_catalog_id_preserves_wire_alias() -> None:
         "metadata": "custom-meta",
         "catalogId": "custom-cat",
         "accessibility": "custom-a11y",
+        "extensions": "custom-ext",
     }]

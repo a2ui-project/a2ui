@@ -196,7 +196,7 @@ class MessageReader {
     final bool replaceLegacyCatalogId =
         !component.containsKey('@catalogId') &&
         component.containsKey('catalogId') &&
-        !hasCustomCatalogId;
+        !defaultHasCustomCatalogId;
     // Given its catalog's id, the validator checks the calls that name that
     // catalog, and the others are checked below, each against its own.
     validator.validateComponent({
@@ -247,12 +247,11 @@ class MessageReader {
     String catalogId,
     String component,
     String property,
-  ) => switch (_validators[catalogId]?.catalog
-      .resolvedComponentSchema(component)
-      ?.value['properties']) {
-    final Map<Object?, Object?> props => props.containsKey(property),
-    _ => false,
-  };
+  ) =>
+      _validators[catalogId]?.catalog
+          .customComponentProperties(component)
+          .contains(property) ??
+      false;
 
   /// The validator of the active catalog [catalogId], which [subject] names.
   ///

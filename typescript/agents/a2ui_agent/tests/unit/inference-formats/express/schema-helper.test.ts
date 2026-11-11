@@ -726,5 +726,33 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
         new Set(['metadata', 'accessibility', 'checks', 'catalogId']),
       );
     });
+
+    it('preserves a custom checks property on a v1.0 Checkable component', () => {
+      const cat = Catalog.fromJson({
+        catalogId: 'test_checkable_custom_checks',
+        protocolVersion: '1.0',
+        components: {
+          ScoreInput: {
+            type: 'object',
+            allOf: [
+              {$ref: 'common_types.json#/$defs/Checkable'},
+              {
+                type: 'object',
+                properties: {
+                  component: {const: 'ScoreInput'},
+                  checks: {type: 'integer'},
+                  label: {type: 'string'},
+                },
+                required: ['component', 'checks'],
+              },
+            ],
+          },
+        },
+      });
+      const helper = new CatalogSchemaHelper(cat, '1.0');
+      expect(helper.isCheckable('ScoreInput')).toBe(true);
+      expect(helper.getCustomEnvelopeProperties('ScoreInput').has('checks')).toBe(true);
+      expect(helper.getComponentProperties('ScoreInput')).toEqual(['checks', 'label']);
+    });
   });
 });

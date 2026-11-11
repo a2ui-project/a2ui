@@ -171,11 +171,16 @@ class ComponentBuilderNode(CoreComponentBuilderNode):
                 cls.model_fields["accessibility"] = new_a11y
                 needs_rebuild = True
 
-        if "metadata" in custom_wire_aliases:
+        if "metadata" in custom_wire_aliases or "extensions" in custom_wire_aliases:
             ext_field = cls.model_fields.get("extensions")
-            at_only_ext_alias = AliasChoices(
-                "extensions",
-                AliasPath("@metadata", "extensions"),
+            choices: list[str | AliasPath] = []
+            if "extensions" not in custom_wire_aliases:
+                choices.append("extensions")
+            choices.append(AliasPath("@metadata", "extensions"))
+            if "metadata" not in custom_wire_aliases:
+                choices.append(AliasPath("metadata", "extensions"))
+            at_only_ext_alias: str | AliasPath | AliasChoices = (
+                choices[0] if len(choices) == 1 else AliasChoices(*choices)
             )
             if (
                 ext_field is not None

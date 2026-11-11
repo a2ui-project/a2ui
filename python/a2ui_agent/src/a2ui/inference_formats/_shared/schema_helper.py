@@ -304,7 +304,9 @@ class CatalogSchemaHelper:
             # checks slot, and a `catalogId` with the standard mixin schema is
             # the catalog override.
             custom_envelope = {k for k in ENVELOPE_MIXIN_NAMES if k in props}
-            if is_checkable:
+            if "checks" in custom_envelope and _is_standard_checks_schema(
+                props["checks"]
+            ):
                 custom_envelope.discard("checks")
             if "catalogId" in custom_envelope and _is_standard_catalog_id_schema(
                 props["catalogId"]
@@ -337,7 +339,7 @@ class CatalogSchemaHelper:
             excluded.update(
                 {"catalogId", "metadata", "accessibility"} - custom_envelope
             )
-            if is_checkable:
+            if is_checkable and "checks" not in custom_envelope:
                 excluded.add("checks")
             ordered_keys = [k for k in props if k not in excluded]
 
@@ -349,9 +351,9 @@ class CatalogSchemaHelper:
                 if enum_val:
                     self.component_property_enums[(name, k)] = enum_val
 
-            # If it's checkable, add checks at the end, once, even when the
-            # component also defines it itself.
-            if is_checkable:
+            # If it's checkable, add checks at the end, once, unless the
+            # component defines a custom non-CheckRule checks property itself.
+            if is_checkable and "checks" not in custom_envelope:
                 ordered_keys.append("checks")
 
             self.component_properties[name] = ordered_keys

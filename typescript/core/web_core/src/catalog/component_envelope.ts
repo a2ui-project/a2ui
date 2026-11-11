@@ -276,13 +276,7 @@ export function componentMixinLayout(schema: z.ZodTypeAny | undefined): Componen
       schemaKeys.set(key, atKey);
       // A mixin such as Checkable can declare both its `@`-prefixed and its
       // legacy bare key. Only a bare key with some other schema is custom.
-      if (
-        bare &&
-        !bare.every(
-          ({schema: prop}) =>
-            standardMixinSchemas.has(prop) || standardMixinSchemas.has(unwrapProperty(prop)),
-        )
-      ) {
+      if (bare && !bare.every(({schema: prop}) => standardMixinSchemas.has(prop))) {
         customKeys.add(key);
       }
     } else if (bare) {

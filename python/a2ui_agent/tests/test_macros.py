@@ -2076,3 +2076,44 @@ def test_v10_union_branch_type_error_fallback_and_typed_dict_coercion():
                 instance_id="s1",
                 protocol_version="1.0",
             )
+
+
+def test_stamp_lowered_primitives_respects_custom_catalog_id_property():
+    """Verifies _stamp_lowered_primitives stamps @catalogId even when a lowered primitive sets a custom bare catalogId property."""
+    custom_cat = Catalog.from_json({
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "catalogId": "https://example.com/custom_badge_cat.json",
+        "protocolVersion": "1.0",
+        "components": {
+            "CatalogBadge": {
+                "type": "object",
+                "allOf": [
+                    {"$ref": "common_types.json#/$defs/ComponentCommon"},
+                    {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "CatalogBadge"},
+                            "catalogId": {"type": "string"},
+                        },
+                        "required": ["component", "catalogId"],
+                    },
+                ],
+                "unevaluatedProperties": False,
+            },
+        },
+    })
+    expander = MacroExpander(base_catalogs=[custom_cat], protocol_version="1.0")
+    prims = [{
+        "id": "b1",
+        "component": "CatalogBadge",
+        "catalogId": "custom-prop-val",
+    }]
+    expander._stamp_lowered_primitives(
+        prims,
+        surface_id="s1",
+        transport_surface_catalog_id=None,
+        surface_known=True,
+        is_v1_0=True,
+    )
+    assert prims[0]["@catalogId"] == "https://example.com/custom_badge_cat.json"
+    assert prims[0]["catalogId"] == "custom-prop-val"

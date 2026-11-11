@@ -1105,4 +1105,50 @@ describe('Catalog.fromJson & schema_loader', () => {
       '@checks': [{condition: true, message: 'Must pass'}],
     });
   });
+
+  it('omits @-prefixed envelope mixins from pre-1.0 JSON catalog component schemas', () => {
+    const v09Catalog = Catalog.fromJson(
+      {
+        catalogId: 'https://example.com/v09_checkable.json',
+        protocolVersion: '0.9',
+        components: {
+          Field: {
+            type: 'object',
+            allOf: [
+              {$ref: 'common_types.json#/$defs/ComponentCommon'},
+              {$ref: 'common_types.json#/$defs/Checkable'},
+              {
+                type: 'object',
+                properties: {
+                  component: {const: 'Field'},
+                  label: {type: 'string'},
+                },
+                required: ['component', 'label'],
+              },
+            ],
+            unevaluatedProperties: false,
+          },
+        },
+      },
+      '0.9',
+    );
+    const shape = (v09Catalog.components.get('Field')!.schema as z.ZodObject<any>).shape;
+    assert.ok('accessibility' in shape);
+    assert.ok('checks' in shape);
+    assert.ok(!('@accessibility' in shape));
+    assert.ok(!('@metadata' in shape));
+    assert.ok(!('@checks' in shape));
+
+    const v09Validator = new PayloadValidator(v09Catalog, STRICT_VALIDATION);
+    assert.throws(
+      () =>
+        v09Validator.validateComponent({
+          id: 'f1',
+          component: 'Field',
+          label: 'Name',
+          '@checks': [{condition: true, message: 'No v1.0 @checks on v0.9'}],
+        }),
+      A2uiValidationError,
+    );
+  });
 });

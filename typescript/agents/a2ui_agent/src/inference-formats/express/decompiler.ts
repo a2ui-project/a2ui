@@ -860,7 +860,7 @@ export class ExpressDecompiler {
         continue;
       }
       const arg =
-        checkProp && propName === checkProp
+        checkProp && propName === checkProp && !customEnvelope.has(checkProp)
           ? this.formatCheckPropertyArg(
               propName,
               checkProp === 'checks'
@@ -876,7 +876,7 @@ export class ExpressDecompiler {
               compName,
               propName,
               properties,
-              checkProp,
+              checkProp && !customEnvelope.has(checkProp) ? checkProp : undefined,
               varNames,
               helper,
               surfaceCatalogId,
@@ -888,6 +888,20 @@ export class ExpressDecompiler {
     }
 
     this.trimTrailingPlaceholders(argsReprs);
+
+    if (checkProp === 'checks' && customEnvelope.has('checks')) {
+      const checkArg = this.formatCheckPropertyArg(
+        'checks',
+        getEnvelopeValue(comp, 'checks', this.isV1, customEnvelope),
+        comp,
+        varNames,
+        surfaceCatalogId,
+        false,
+      );
+      if (checkArg !== undefined && checkArg !== '_') {
+        argsReprs.push(checkArg);
+      }
+    }
 
     if (emitCatalogId !== undefined) {
       argsReprs.push(`catalogId=${decompileString(emitCatalogId)}`);

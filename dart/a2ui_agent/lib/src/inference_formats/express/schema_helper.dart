@@ -348,6 +348,8 @@ bool _isStandardAccessibilitySchema(Map<String, Object?> propSchema) {
 }
 
 bool _isStandardMetadataSchema(Map<String, Object?> propSchema) {
+  final Object? ref = propSchema[r'$ref'] ?? propSchema['commonTypesRef'];
+  if (ref is String && ref.endsWith('/ComponentCommonMetadata')) return true;
   final Map<String, Object?> props = _properties(propSchema);
   return props.length == 1 &&
       props.containsKey('extensions') &&

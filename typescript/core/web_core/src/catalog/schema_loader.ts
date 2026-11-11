@@ -797,6 +797,7 @@ type ComponentSubSchema =
 function componentCommonMixinProperties(isAtLeastV10: boolean): Record<string, z.ZodTypeAny> {
   const properties: Record<string, z.ZodTypeAny> = {};
   for (const [key, schema] of Object.entries(ComponentCommonSchema.shape)) {
+    if (!isAtLeastV10 && key.startsWith('@')) continue;
     const bareKey = key.replace(/^@/, '');
     if (bareKey === 'id' || bareKey === 'catalogId') continue;
     if (bareKey === 'metadata' && !isAtLeastV10) continue;
@@ -866,6 +867,7 @@ function collectComponentSubSchemas(
           if (mirror instanceof z.ZodObject) {
             const properties: Record<string, z.ZodTypeAny> = {};
             for (const [key, prop] of Object.entries(mirror.shape as z.ZodRawShape)) {
+              if (!isAtLeastV10 && key.startsWith('@')) continue;
               properties[key] = markStandardMixinSchema(prop);
             }
             mixins.push({kind: 'zod', properties});

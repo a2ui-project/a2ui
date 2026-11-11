@@ -80,7 +80,11 @@ def _rename_keys(node: Any) -> Any:
             key_str = str(k)
             if is_child_list:
                 new_k = key_str
-            elif is_component and key_str in COMPONENT_RESERVED_KEYS:
+            elif (
+                is_component
+                and key_str in COMPONENT_RESERVED_KEYS
+                and COMPONENT_RESERVED_KEYS[key_str] not in node
+            ):
                 new_k = COMPONENT_RESERVED_KEYS[key_str]
             else:
                 new_k = RESERVED_KEYS.get(key_str, key_str)

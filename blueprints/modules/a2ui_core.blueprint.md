@@ -969,7 +969,7 @@ From v1.0 the optional component envelope mixins use reserved `@` keys at the ro
 - **Transition dual-read.** During the v1.0 transition, a v1.0 component may still carry a legacy bare `catalogId`, `accessibility`, `metadata`, or `checks`. Read it as the envelope key when the component schema does not declare a property of that name. A component that carries both `@foo` and bare `foo` for the same envelope key raises `A2uiValidationError`.
 - **Validation.** `@metadata` is checked against `ComponentCommon.@metadata` (an `extensions` map with UAX #31 keys), `@catalogId` must be a string, `@accessibility` against `AccessibilityAttributes`, and `@checks` is allowed only on a component whose schema composes `Checkable`. Nested function calls inside `@accessibility` and `@checks` resolve and validate like calls in properties.
 - **Root only.** The `@` exemption covers only the four envelope keys at the component root. A single-`@` key such as `"@metadata"` inside nested dynamic data (an `Action.event.context` value, a literal map) is still an `INVALID_RESERVED_KEY` unless escaped as `"@@metadata"`.
-- **Serialization.** On v1.0 surfaces, `ComponentModel.componentTree` and `toJson()` emit `@catalogId` and `@metadata`, never the bare keys.
+- **Serialization.** On v1.0 surfaces, `ComponentModel.componentTree` (`component_tree`) emits `@metadata`, and Dart's `ComponentModel.toJson()` emits `@catalogId` and `@metadata`, never the bare keys.
 - **Pre-1.0 surfaces are unchanged.** v0.8, v0.9, and v0.9.1 keep bare `accessibility` and `checks`. A bare `metadata` or `catalogId` on a pre-1.0 component is an ordinary property, and an `@`-prefixed envelope key is rejected by the strict component schema.
 
 #### Validation Implementation Matrix

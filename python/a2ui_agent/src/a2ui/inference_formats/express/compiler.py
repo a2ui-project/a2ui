@@ -1989,7 +1989,12 @@ class ExpressCompiler:
             }
 
         sibling_value_path = None
-        non_check_properties = [p for p in properties if p != "checks"]
+        custom_envelope = comp_helper.get_custom_envelope_properties(comp_name)
+        non_check_properties = (
+            properties
+            if "checks" in custom_envelope
+            else [p for p in properties if p != "checks"]
+        )
         raw_checks = []
 
         # Collect (prop_name, arg_val) pairs from positional and keyword args
@@ -2126,7 +2131,11 @@ class ExpressCompiler:
             if prop_name == "value" and _resolves_to_path(arg, raw_symbols):
                 sibling_value_path = mapped_val
 
-        if raw_checks and "checks" not in properties:
+        if (
+            raw_checks
+            and "checks" not in properties
+            and not comp_helper.component_is_checkable.get(comp_name, False)
+        ):
             raise ExpressValidationError(
                 f"Component '{comp_name}' does not declare a 'checks' property,"
                 " so it cannot take checks."
@@ -2145,7 +2154,9 @@ class ExpressCompiler:
 
         ctx.active_value_path = None
         for req_prop in comp_helper.get_component_required(comp_name):
-            if req_prop not in comp_dict and req_prop not in ("checks", "@checks"):
+            if req_prop not in comp_dict and (
+                req_prop not in ("checks", "@checks") or req_prop in custom_envelope
+            ):
                 raise ExpressValidationError(
                     f"Component '{comp_name}' missing required property '{req_prop}'."
                 )

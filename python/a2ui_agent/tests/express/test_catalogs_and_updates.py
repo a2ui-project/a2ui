@@ -1092,3 +1092,68 @@ def test_multi_catalog_prompt_rules_explain_catalog_selection() -> None:
     assert f"# Catalog `{PRIMARY}`\n" in instructions
     assert f"# Catalog `{SECONDARY}`\n" in instructions
     assert "(default)" not in instructions
+
+
+def test_decompile_rejects_empty_at_catalog_id_and_preserves_custom_checks_on_checkable() -> (
+    None
+):
+    cat = Catalog.from_json({
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "catalogId": "test/checkable_custom",
+        "protocolVersion": "1.0",
+        "components": {
+            "ScoreInput": {
+                "type": "object",
+                "allOf": [
+                    {"$ref": "common_types.json#/$defs/ComponentCommon"},
+                    {"$ref": "common_types.json#/$defs/Checkable"},
+                    {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "ScoreInput"},
+                            "checks": {"type": "integer"},
+                            "value": {"$ref": "common_types.json#/$defs/DynamicString"},
+                        },
+                        "required": ["component", "checks"],
+                    },
+                ],
+                "unevaluatedProperties": False,
+            },
+        },
+        "functions": {
+            "nonEmpty": _fn("value"),
+        },
+    })
+    p = ExpressParser([cat])
+    with pytest.raises(
+        ExpressValidationError, match="missing required property 'checks'"
+    ):
+        ExpressCompiler([cat]).compile("root = ScoreInput()")
+
+    compiled = to_message_dicts(
+        p.compile('root = ScoreInput(3, $/score, ?nonEmpty("Required"))')
+    )
+    assert compiled[0]["createSurface"]["components"][0] == {
+        "id": "root",
+        "component": "ScoreInput",
+        "checks": 3,
+        "value": {"@path": "/score"},
+        "@checks": [{
+            "condition": {
+                "@call": "nonEmpty",
+                "args": {"value": {"@path": "/score"}},
+            },
+            "message": "Required",
+        }],
+    }
+    assert (
+        p.decompile(to_message_models(compiled))
+        == 'surface("main")\nroot = ScoreInput(3, $/score, ?nonEmpty("Required"))'
+    )
+
+    decompiler = ExpressDecompiler([cat], version="1.0")
+    with pytest.raises(ExpressValidationError, match="invalid '@catalogId'"):
+        decompiler._component_catalog_id(
+            {"id": "root", "component": "ScoreInput", "@catalogId": ""},
+            "test/checkable_custom",
+        )

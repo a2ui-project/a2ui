@@ -2144,9 +2144,11 @@ export class ExpressCompiler {
 
     // Sanctioned departure §5.2 item 4: check-rule property
     const checkPropName = compHelper.getCheckRuleProperty(compName);
-    const nonCheckProperties = checkPropName
-      ? properties.filter(p => p !== checkPropName)
-      : properties;
+    const customEnvelope = compHelper.getCustomEnvelopeProperties(compName);
+    const nonCheckProperties =
+      checkPropName && !customEnvelope.has(checkPropName)
+        ? properties.filter(p => p !== checkPropName)
+        : properties;
 
     const rawChecks: ExpressCheckNode[] = [];
     const propArgPairs: Array<[string, unknown]> = [];
@@ -2317,7 +2319,7 @@ export class ExpressCompiler {
       if (
         reqProp === 'id' ||
         reqProp === 'component' ||
-        reqProp === 'checks' ||
+        (reqProp === 'checks' && !customEnvelope.has('checks')) ||
         reqProp === '@checks'
       ) {
         continue;

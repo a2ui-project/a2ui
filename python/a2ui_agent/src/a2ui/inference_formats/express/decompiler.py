@@ -704,7 +704,11 @@ class ExpressDecompiler:
 
             for prop_idx, prop_name in enumerate(properties):
                 keyword = use_keyword_args and prop_idx > positional_until
-                if prop_name == "checks":
+                if (
+                    prop_name == "checks"
+                    and "checks" not in custom_envelope
+                    and comp_helper.component_is_checkable.get(comp_name, False)
+                ):
                     checks_val = (
                         get_envelope_value(
                             c,
@@ -742,11 +746,34 @@ class ExpressDecompiler:
                 elif not keyword:
                     # Only append "_" if a later regular property has a value
                     if any(
-                        p != "checks" and p in c for p in properties[prop_idx + 1 :]
+                        (p != "checks" or "checks" in custom_envelope) and p in c
+                        for p in properties[prop_idx + 1 :]
                     ):
                         args_reprs.append("_")
 
             _strip_trailing_placeholders(args_reprs)
+
+            if "checks" in custom_envelope and comp_helper.component_is_checkable.get(
+                comp_name, False
+            ):
+                checks_val = (
+                    get_envelope_value(
+                        c,
+                        "checks",
+                        at_least_v10=self._v1,
+                        custom_properties=custom_envelope,
+                    )
+                    or []
+                )
+                if checks_val:
+                    check_reprs = [
+                        self._decompile_check(rc, c, var_names, surface_cat_id)
+                        for rc in checks_val
+                    ]
+                    if len(check_reprs) == 1:
+                        args_reprs.append(check_reprs[0])
+                    else:
+                        args_reprs.append(f"[{', '.join(check_reprs)}]")
 
             if write_cat_id is not None:
                 args_reprs.append(f"catalogId={_decompile_string(write_cat_id)}")
@@ -781,7 +808,12 @@ class ExpressDecompiler:
             return override if isinstance(override, str) else None
         if "@catalogId" in component:
             override = component["@catalogId"]
-            return override if isinstance(override, str) else None
+            if not isinstance(override, str) or not override:
+                raise ExpressValidationError(
+                    f"Component '{component.get('id', '<unknown>')}' has an invalid"
+                    f" '@catalogId': {override!r}."
+                )
+            return override
         legacy = component.get("catalogId")
         if not isinstance(legacy, str):
             return None

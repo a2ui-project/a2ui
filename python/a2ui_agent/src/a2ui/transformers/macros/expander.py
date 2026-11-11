@@ -32,6 +32,7 @@ from a2ui.core import (
     CatalogApi,
 )
 from a2ui.core.schema import AgentToRendererMessage, ProtocolVersion
+from a2ui.inference_formats._shared.schema_helper import CatalogSchemaHelper
 from a2ui.transformers.macros.macro import (
     MacroVersionFamily,
     _MacroMetadata,
@@ -259,6 +260,7 @@ class MacroExpander:
         )
         self.catalog_id: str | None = catalog_id
         self._catalog_base_components: dict[str, set[str]] = {}
+        self._catalog_helpers: dict[str, CatalogSchemaHelper] = {}
         self._registered_base_catalog_ids: list[str] = []
         if catalog_id is not None:
             self._catalog_base_components[catalog_id] = set()
@@ -280,6 +282,10 @@ class MacroExpander:
         comps_map = schema.get(CATALOG_COMPONENTS_KEY, {})
         if isinstance(comps_map, Mapping):
             self._catalog_base_components[catalog.catalog_id] = set(comps_map.keys())
+            try:
+                self._catalog_helpers[catalog.catalog_id] = CatalogSchemaHelper(catalog)
+            except Exception:
+                pass
             if catalog.catalog_id not in self._registered_base_catalog_ids:
                 self._registered_base_catalog_ids.append(catalog.catalog_id)
 
@@ -575,10 +581,7 @@ class MacroExpander:
             return
 
         for prim in primitives:
-            if (
-                not isinstance(prim, dict)
-                or get_envelope_value(prim, "catalogId", at_least_v10=True) is not None
-            ):
+            if not isinstance(prim, dict):
                 continue
             p_name = prim.get("component")
             if not isinstance(p_name, str):
@@ -593,12 +596,31 @@ class MacroExpander:
             ):
                 continue
 
+            owners = [
+                cid
+                for cid in self._registered_base_catalog_ids
+                if p_name in self._catalog_base_components.get(cid, set())
+            ]
+            custom_props: frozenset[str] = frozenset()
+            if owners and all(
+                cid in self._catalog_helpers
+                and "catalogId"
+                in self._catalog_helpers[cid].get_custom_envelope_properties(p_name)
+                for cid in owners
+            ):
+                custom_props = frozenset({"catalogId"})
+            if (
+                get_envelope_value(
+                    prim,
+                    "catalogId",
+                    at_least_v10=True,
+                    custom_properties=custom_props,
+                )
+                is not None
+            ):
+                continue
+
             if transport_surface_catalog_id is None:
-                owners = [
-                    cid
-                    for cid in self._registered_base_catalog_ids
-                    if p_name in self._catalog_base_components.get(cid, set())
-                ]
                 if len(owners) == 1:
                     prim["@catalogId"] = owners[0]
                 elif len(owners) > 1:
@@ -622,11 +644,6 @@ class MacroExpander:
                     transport_surface_catalog_id, set()
                 )
             ):
-                owners = [
-                    cid
-                    for cid in self._registered_base_catalog_ids
-                    if p_name in self._catalog_base_components.get(cid, set())
-                ]
                 if len(owners) == 1:
                     prim["@catalogId"] = owners[0]
                 elif len(owners) > 1:
