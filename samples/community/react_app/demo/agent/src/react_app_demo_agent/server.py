@@ -196,23 +196,26 @@ def create_app(model: ModelClient) -> FastAPI:
         msg = {
             "version": "1.0",
             "callAgentFunction": {
-                "callId": f"tool_exec_{int(time.time() * 1000)}",
-                "function": request.name,
-                "args": request.args,
+                "surfaceId": "tools_explorer",
+                "functionCallId": f"tool_exec_{int(time.time() * 1000)}",
+                "callFunction": {
+                    "@call": request.name,
+                    "args": request.args,
+                },
             },
         }
         res = await renderer_messages.process_message(msg)
         duration_ms = round((time.perf_counter() - started) * 1000, 2)
         for reply in res.replies:
             dumped = reply.model_dump(by_alias=True, exclude_none=True)
-            if "agentFunctionResponse" in dumped:
-                resp = dumped["agentFunctionResponse"]
-                if "error" in resp:
+            resp = dumped.get("agentFunctionResponse") or dumped.get("agent_function_response")
+            if resp:
+                if resp.get("error"):
                     return {"ok": False, "error": resp["error"], "durationMs": duration_ms}
                 return {
                     "ok": True,
                     "function": request.name,
-                    "result": resp.get("result"),
+                    "result": resp.get("value") if "value" in resp else resp.get("result"),
                     "durationMs": duration_ms,
                 }
         return {"ok": False, "error": "Function did not return a response", "durationMs": duration_ms}
