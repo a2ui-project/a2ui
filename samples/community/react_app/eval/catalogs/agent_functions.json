@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/labs/react_app/eval/agent_functions/v1/catalog.json",
+  "protocolVersion": "1.0",
+  "title": "ReactApp eval agent functions",
+  "description": "Agent functions of the ReactApp use cases. They run on the agent: a renderer that has no implementation sends each call to the agent with callAgentFunction.",
+  "catalogId": "https://a2ui.org/labs/react_app/eval/agent_functions/v1/catalog.json",
+  "components": {},
+  "functions": {
+    "estimateTravelTime": {
+      "type": "object",
+      "description": "Runs on the agent. Estimates the total travel time in minutes to visit the stops in the given order, walking or by public transport. Takes a second or two.",
+      "returnType": "number",
+      "properties": {
+        "@call": {
+          "const": "estimateTravelTime"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "stops": {
+              "type": "array",
+              "description": "The stops in visiting order. Each stop is an object with `id` and `name`.",
+              "items": {
+                "type": "object"
+              }
+            }
+          },
+          "required": ["stops"],
+          "unevaluatedProperties": false
+        }
+      },
+      "required": ["@call", "args"]
+    },
+    "querySales": {
+      "type": "object",
+      "description": "Runs on the agent. Returns the sales orders of a region between two dates, as a list of objects with `id`, `customer`, `date` and `amount`, newest first, at most 500. Takes a second or two.",
+      "returnType": "array",
+      "properties": {
+        "@call": {
+          "const": "querySales"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "region": {
+              "type": "string",
+              "description": "The sales region, for example `EMEA`, `AMER` or `APAC`."
+            },
+            "from": {
+              "type": "string",
+              "description": "First day of the range, as an ISO date (YYYY-MM-DD)."
+            },
+            "to": {
+              "type": "string",
+              "description": "Last day of the range, as an ISO date (YYYY-MM-DD)."
+            }
+          },
+          "required": ["region", "from", "to"],
+          "unevaluatedProperties": false
+        }
+      },
+      "required": ["@call", "args"]
+    }
+  },
+  "$defs": {
+    "anyComponent": {
+      "not": {}
+    },
+    "anyFunction": {
+      "oneOf": [
+        {
+          "$ref": "#/functions/estimateTravelTime"
+        },
+        {
+          "$ref": "#/functions/querySales"
+        }
+      ]
+    }
+  }
+}
