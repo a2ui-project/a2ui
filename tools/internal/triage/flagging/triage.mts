@@ -139,8 +139,9 @@ export const isBot = (user: User | null | undefined): boolean =>
   user != null && (user.type === 'Bot' || /\[bot\]$/.test(user.login || ''));
 
 // Opens a comment that the triage tooling posts from a maintainer's account,
-// such as a triage suggestion: `**From triage bot:**`, bold or plain.
-const TRIAGE_BOT_PREFIX = /^\s*(\*\*)?From triage bot:/;
+// such as a triage suggestion: `**From triage bot:**`, in either Markdown bold
+// form or plain.
+const TRIAGE_BOT_PREFIX = /^\s*(\*\*|__)?From triage bot:/;
 
 /**
  * True for a comment a maintainer posted on behalf of the triage tooling. Such

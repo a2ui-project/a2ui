@@ -144,6 +144,7 @@ describe('isBot', () => {
 describe('isTriageBotComment', () => {
   it('detects the prefix on a maintainer comment, bold or plain', () => {
     assert.equal(isTriageBotComment(comment({body: '**From triage bot:**\n\nText'})), true);
+    assert.equal(isTriageBotComment(comment({body: '__From triage bot:__\n\nText'})), true);
     assert.equal(isTriageBotComment(comment({body: 'From triage bot: text'})), true);
   });
 
