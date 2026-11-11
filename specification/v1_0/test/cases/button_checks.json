@@ -18,7 +18,7 @@
                   "name": "submit"
                 }
               },
-              "checks": [
+              "@checks": [
                 {
                   "condition": {
                     "@call": "and",
@@ -118,7 +118,7 @@
                   "name": "submit"
                 }
               },
-              "checks": [
+              "@checks": [
                 {
                   "condition": {
                     "@call": "required",
@@ -157,7 +157,7 @@
                   "name": "submit"
                 }
               },
-              "checks": [
+              "@checks": [
                 {
                   "condition": {
                     "@call": "and",

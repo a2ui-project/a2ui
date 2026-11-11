@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from collections import deque
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 import copy
 from dataclasses import dataclass
 import re
@@ -943,8 +943,65 @@ def _close_function_call(entry: Any, return_type: str) -> None:
             required.append("args")
 
 
-_COMPONENT_ENVELOPE_KEYS = frozenset({"id", "component", "catalogId"})
+_COMPONENT_ENVELOPE_KEYS = frozenset({"id", "component", "catalogId", "@catalogId"})
+_BASE_COMPONENT_ENVELOPE_KEYS = frozenset({"id", "component"})
+_ENVELOPE_MIXIN_CANDIDATE_KEYS: Final[frozenset[str]] = frozenset(
+    {"metadata", "catalogId", "accessibility", "checks"}
+)
+_COMPONENT_AT_MIXIN_KEYS: Final[frozenset[str]] = frozenset(
+    {"@metadata", "@catalogId", "@accessibility", "@checks"}
+)
 _STANDARD_MIXIN_DEFS = frozenset({"ComponentCommon", "Checkable"})
+
+
+def _is_standard_mixin_property_schema(
+    prop_name: str, prop_schema: Any, *, has_inline_id: bool = False
+) -> bool:
+    """Returns whether `prop_schema` is the standard ComponentCommon/Checkable mixin schema for `prop_name`.
+
+    A `$ref` to `AccessibilityAttributes`, `Checkable`, `CheckRule`, or
+    `ComponentCommonMetadata` is always the standard mixin. A bare `catalogId`
+    or `metadata` declared inline is the standard mixin only where
+    `ComponentCommon` was inlined: when the same `properties` block also
+    declares `id` (`has_inline_id`), and the property has the standard shape
+    (a string `catalogId`, or an object `metadata` whose only property is
+    `extensions`). Otherwise it is a property the component declares itself.
+
+    Args:
+        prop_name: The property's key.
+        prop_schema: The property's schema.
+        has_inline_id: Whether the `properties` block that declares the
+            property also declares `id`.
+    """
+    if not isinstance(prop_schema, Mapping):
+        return False
+    ref = prop_schema.get("$ref")
+    if prop_name in ("accessibility", "@accessibility"):
+        return isinstance(ref, str) and ref.endswith("/AccessibilityAttributes")
+    if prop_name in ("checks", "@checks"):
+        if isinstance(ref, str) and ref.endswith("/Checkable"):
+            return True
+        items = prop_schema.get("items")
+        return (
+            isinstance(items, Mapping)
+            and isinstance(items.get("$ref"), str)
+            and items["$ref"].endswith("/CheckRule")
+        )
+    if prop_name in ("metadata", "@metadata"):
+        if isinstance(ref, str) and ref.endswith("/ComponentCommonMetadata"):
+            return True
+        props = prop_schema.get("properties")
+        return (
+            (has_inline_id or prop_name == "@metadata")
+            and prop_schema.get("type") == "object"
+            and isinstance(props, Mapping)
+            and set(props.keys()) == {"extensions"}
+        )
+    if prop_name in ("catalogId", "@catalogId"):
+        return (has_inline_id or prop_name == "@catalogId") and prop_schema.get(
+            "type"
+        ) == "string"
+    return False
 
 
 def _normalize_function_args_closure(entry: Any) -> None:
@@ -1122,6 +1179,250 @@ def _collect_component_sub_schemas(
         else:
             common_inline.append(own_piece)
     return mixins, local, common_inline, specific_inline
+
+
+def get_custom_envelope_properties(
+    catalog: Any, comp_type: str | None
+) -> frozenset[str]:
+    """Returns which of `{'metadata', 'catalogId', 'accessibility', 'checks'}`
+    are declared as custom component properties by `comp_type` in `catalog`
+    (rather than inherited from `ComponentCommon` or `Checkable`).
+
+    A property declared in any `allOf`, `anyOf`, or `oneOf` branch counts. On a
+    v1.0 surface, a bare key that isn't custom is read as the legacy form of
+    its `@`-prefixed envelope mixin.
+
+    TODO(#4082): remove the legacy bare v1.0 mixin fallback. It only exists so
+    agents still sending bare v1.0 keys keep working during the transition.
+    """
+    if catalog is None or not comp_type or not isinstance(comp_type, str):
+        return frozenset()
+    comp_entry = (
+        catalog.get_component(comp_type)
+        if hasattr(catalog, "get_component")
+        else getattr(catalog, "components", {}).get(comp_type)
+        if isinstance(getattr(catalog, "components", None), Mapping)
+        else None
+    )
+    model_cls = (
+        getattr(comp_entry, "schema", None)
+        if isinstance(getattr(comp_entry, "schema", None), type)
+        and issubclass(getattr(comp_entry, "schema"), BaseModel)
+        else getattr(comp_entry, "model_class", None)
+    )
+    if isinstance(model_cls, type) and issubclass(model_cls, BaseModel):
+        custom: set[str] = set()
+        for name, field in model_cls.model_fields.items():
+            wire_key = field.alias or name
+            if wire_key not in _ENVELOPE_MIXIN_CANDIDATE_KEYS:
+                continue
+            inherited = False
+            for base in model_cls.__mro__[1:]:
+                if base.__name__ in (
+                    "ComponentCommon",
+                    "CatalogComponentCommon",
+                    "Checkable",
+                ):
+                    base_fields = getattr(base, "model_fields", {})
+                    if (
+                        name in base_fields
+                        and base_fields[name].annotation == field.annotation
+                    ):
+                        inherited = True
+                        break
+            if not inherited:
+                custom.add(wire_key)
+        return frozenset(custom)
+
+    entry_schema = getattr(comp_entry, "schema", None)
+    raw_schema = (
+        entry_schema
+        if isinstance(entry_schema, Mapping)
+        else comp_entry
+        if isinstance(comp_entry, Mapping)
+        else None
+    )
+    if raw_schema is None:
+        val_schema = getattr(catalog, "validation_schema", None)
+        if isinstance(val_schema, Mapping):
+            comps = val_schema.get("components")
+            if isinstance(comps, Mapping) and isinstance(comps.get(comp_type), Mapping):
+                raw_schema = comps[comp_type]
+    if not isinstance(raw_schema, Mapping):
+        return frozenset()
+
+    local_defs = (
+        catalog.defs if isinstance(getattr(catalog, "defs", None), Mapping) else {}
+    )
+    custom_props: set[str] = set()
+    for piece_props in _declared_property_blocks(raw_schema, local_defs, set()):
+        for key in _ENVELOPE_MIXIN_CANDIDATE_KEYS:
+            if key in piece_props and not _is_standard_mixin_property_schema(
+                key, piece_props[key], has_inline_id="id" in piece_props
+            ):
+                custom_props.add(key)
+    return frozenset(custom_props)
+
+
+def _declared_property_blocks(
+    schema: Any, local_defs: Mapping[str, Any], visited: set[str]
+) -> Iterator[Mapping[str, Any]]:
+    """Yields every `properties` block a component schema declares.
+
+    Follows local `$ref`s (other than the standard `ComponentCommon` and
+    `Checkable` mixins) and `allOf`, `anyOf`, and `oneOf` branches, so a
+    property declared in any branch of a combiner is found.
+    """
+    if not isinstance(schema, Mapping):
+        return
+    props = schema.get("properties")
+    if isinstance(props, Mapping):
+        yield props
+    ref = schema.get("$ref")
+    if isinstance(ref, str):
+        def_name = _local_def_name(ref)
+        if def_name is None and "#/$defs/" in ref:
+            def_name = ref.split("#/$defs/")[-1].split("/")[0]
+        if (
+            def_name is not None
+            and def_name not in _STANDARD_MIXIN_DEFS
+            and def_name in local_defs
+            and def_name not in visited
+        ):
+            visited.add(def_name)
+            yield from _declared_property_blocks(
+                local_defs[def_name], local_defs, visited
+            )
+    for combiner in ("allOf", "anyOf", "oneOf"):
+        branches = schema.get(combiner)
+        if isinstance(branches, list):
+            for branch in branches:
+                yield from _declared_property_blocks(branch, local_defs, visited)
+
+
+def _schema_references_checkable(
+    schema: Any, local_defs: Mapping[str, Any], visited: set[str]
+) -> bool:
+    if not isinstance(schema, Mapping):
+        return False
+    ref = schema.get("$ref")
+    if isinstance(ref, str):
+        if ref.endswith("/Checkable") or ref == "common_types.json#/$defs/Checkable":
+            return True
+        def_name = _local_def_name(ref)
+        if def_name and def_name in local_defs and def_name not in visited:
+            visited.add(def_name)
+            if _schema_references_checkable(local_defs[def_name], local_defs, visited):
+                return True
+    props = schema.get("properties")
+    if isinstance(props, Mapping):
+        if "@checks" in props:
+            return True
+        if "checks" in props and _is_standard_mixin_property_schema(
+            "checks", props["checks"]
+        ):
+            return True
+    all_of = schema.get("allOf")
+    if isinstance(all_of, list):
+        return any(
+            _schema_references_checkable(sub, local_defs, visited) for sub in all_of
+        )
+    return False
+
+
+def is_component_checkable(catalog: Any, comp_type: str | None) -> bool:
+    """Returns whether `comp_type` in `catalog` supports the `Checkable` mixin."""
+    if catalog is None or not comp_type or not isinstance(comp_type, str):
+        return False
+    comp_entry = (
+        catalog.get_component(comp_type)
+        if hasattr(catalog, "get_component")
+        else getattr(catalog, "components", {}).get(comp_type)
+        if isinstance(getattr(catalog, "components", None), Mapping)
+        else None
+    )
+    model_cls = (
+        getattr(comp_entry, "schema", None)
+        if isinstance(getattr(comp_entry, "schema", None), type)
+        and issubclass(getattr(comp_entry, "schema"), BaseModel)
+        else getattr(comp_entry, "model_class", None)
+    )
+    if isinstance(model_cls, type) and issubclass(model_cls, BaseModel):
+        return any(base.__name__ == "Checkable" for base in model_cls.__mro__)
+
+    entry_schema = getattr(comp_entry, "schema", None)
+    raw_schema = (
+        entry_schema
+        if isinstance(entry_schema, Mapping)
+        else comp_entry
+        if isinstance(comp_entry, Mapping)
+        else None
+    )
+    if raw_schema is None:
+        val_schema = getattr(catalog, "validation_schema", None)
+        if isinstance(val_schema, Mapping):
+            comps = val_schema.get("components")
+            if isinstance(comps, Mapping) and isinstance(comps.get(comp_type), Mapping):
+                raw_schema = comps[comp_type]
+    if not isinstance(raw_schema, Mapping):
+        return False
+
+    local_defs = (
+        catalog.defs if isinstance(getattr(catalog, "defs", None), Mapping) else {}
+    )
+    return _schema_references_checkable(raw_schema, local_defs, set())
+
+
+def get_declared_component_properties(
+    catalog: Any, comp_type: str | None
+) -> frozenset[str]:
+    """Returns all property names declared on `comp_type` in `catalog`."""
+    if catalog is None or not comp_type or not isinstance(comp_type, str):
+        return frozenset()
+    comp_entry = (
+        catalog.get_component(comp_type)
+        if hasattr(catalog, "get_component")
+        else getattr(catalog, "components", {}).get(comp_type)
+        if isinstance(getattr(catalog, "components", None), Mapping)
+        else None
+    )
+    model_cls = (
+        getattr(comp_entry, "schema", None)
+        if isinstance(getattr(comp_entry, "schema", None), type)
+        and issubclass(getattr(comp_entry, "schema"), BaseModel)
+        else getattr(comp_entry, "model_class", None)
+    )
+    if isinstance(model_cls, type) and issubclass(model_cls, BaseModel):
+        declared: set[str] = set()
+        for field_name, field in model_cls.model_fields.items():
+            declared.add(field_name)
+            if field.alias:
+                declared.add(field.alias)
+            if isinstance(field.validation_alias, str):
+                declared.add(field.validation_alias)
+        return frozenset(declared)
+
+    declared_props: set[str] = set()
+    val_schema = getattr(catalog, "validation_schema", None)
+    if isinstance(val_schema, Mapping):
+        comps = val_schema.get("components")
+        if isinstance(comps, Mapping) and isinstance(comps.get(comp_type), Mapping):
+            props = comps[comp_type].get("properties")
+            if isinstance(props, Mapping):
+                declared_props.update(props.keys())
+    entry_schema = getattr(comp_entry, "schema", None)
+    raw_schema = (
+        entry_schema
+        if isinstance(entry_schema, Mapping)
+        else comp_entry
+        if isinstance(comp_entry, Mapping)
+        else None
+    )
+    if isinstance(raw_schema, Mapping):
+        props = raw_schema.get("properties")
+        if isinstance(props, Mapping):
+            declared_props.update(props.keys())
+    return frozenset(declared_props)
 
 
 TComponent = TypeVar("TComponent", bound=ComponentApi, default=Any, covariant=True)
@@ -2080,29 +2381,44 @@ class Catalog(Generic[TComponent, TFunction]):
             req_set: set[str] = set()
             comp_const = name
 
-            for piece in pieces:
-                piece_desc = piece.get("description")
-                if isinstance(piece_desc, str) and piece_desc:
-                    description = piece_desc
-                piece_props = piece.get("properties")
-                if isinstance(piece_props, Mapping):
-                    comp_prop = piece_props.get("component")
-                    if isinstance(comp_prop, Mapping) and isinstance(
-                        comp_prop.get("const"), str
-                    ):
-                        comp_const = comp_prop["const"]
-                    for prop_name, prop_schema in piece_props.items():
-                        if prop_name in _COMPONENT_ENVELOPE_KEYS:
-                            continue
-                        raw_props[prop_name] = copy.deepcopy(prop_schema)
-                piece_req = piece.get("required")
-                if isinstance(piece_req, list):
-                    for req_name in piece_req:
-                        if (
-                            isinstance(req_name, str)
-                            and req_name not in _COMPONENT_ENVELOPE_KEYS
+            for is_mixin, group in (
+                (True, mixins),
+                (False, local),
+                (False, common_inline),
+                (False, specific_inline),
+            ):
+                skip_keys = (
+                    _COMPONENT_ENVELOPE_KEYS
+                    if is_mixin
+                    else _BASE_COMPONENT_ENVELOPE_KEYS
+                )
+                for piece in group:
+                    piece_desc = piece.get("description")
+                    if isinstance(piece_desc, str) and piece_desc:
+                        description = piece_desc
+                    piece_props = piece.get("properties")
+                    if isinstance(piece_props, Mapping):
+                        comp_prop = piece_props.get("component")
+                        if isinstance(comp_prop, Mapping) and isinstance(
+                            comp_prop.get("const"), str
                         ):
-                            req_set.add(req_name)
+                            comp_const = comp_prop["const"]
+                        for prop_name, prop_schema in piece_props.items():
+                            if prop_name in skip_keys or (
+                                prop_name in ("catalogId", "@catalogId")
+                                and _is_standard_mixin_property_schema(
+                                    prop_name,
+                                    prop_schema,
+                                    has_inline_id="id" in piece_props,
+                                )
+                            ):
+                                continue
+                            raw_props[prop_name] = copy.deepcopy(prop_schema)
+                    piece_req = piece.get("required")
+                    if isinstance(piece_req, list):
+                        for req_name in piece_req:
+                            if isinstance(req_name, str) and req_name not in skip_keys:
+                                req_set.add(req_name)
 
             ordered_props: dict[str, Any] = {}
             for group in (specific_inline, local, common_inline, mixins):
@@ -2960,7 +3276,10 @@ class Catalog(Generic[TComponent, TFunction]):
                 )
             if validate_identifiers and isinstance(schema.get("properties"), Mapping):
                 for prop_name in schema["properties"]:
-                    if not is_valid_uax31_identifier(prop_name):
+                    if (
+                        prop_name not in _COMPONENT_AT_MIXIN_KEYS
+                        and not is_valid_uax31_identifier(prop_name)
+                    ):
                         raise A2uiCatalogError(
                             f"Invalid UAX #31 property identifier: '{prop_name}' in"
                             f" component '{name}'"
