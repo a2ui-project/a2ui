@@ -26,8 +26,8 @@ from typing import Any
 SALES_REGIONS = ("North America", "EMEA", "APAC", "LATAM")
 """The regions `querySales` knows, as the prompt lists them."""
 
-MAX_SALES_ROWS = 500
-"""The most rows one `querySales` call returns."""
+MAX_SALES_ROWS = 1000
+"""The most rows one `querySales` call returns; a whole year of every region fits."""
 
 _SALES_YEAR = 2025
 
@@ -141,12 +141,16 @@ def estimate_travel_time(stops: Sequence[Any]) -> int:
     return round(minutes)
 
 
+_ALL_REGIONS = "*"
+
+
 def _normalize_region(region: Any) -> str | None:
-    """The canonical region name, or None for all regions."""
+    """The canonical region name, `_ALL_REGIONS`, or None for an unknown region."""
     if not isinstance(region, str) or region.strip().lower() in ("", "all", "*"):
-        return None
+        return _ALL_REGIONS
     key = region.strip().lower()
-    return _REGION_ALIASES.get(key, region.strip())
+    known = {name.lower(): name for name in SALES_REGIONS}
+    return _REGION_ALIASES.get(key) or known.get(key)
 
 
 def _parse_date(value: Any, *, end: bool) -> dt.date | None:
@@ -195,7 +199,8 @@ def query_sales(region: Any, start: Any, end: Any) -> list[dict[str, Any]]:
     """Orders of a region between two dates, both included, oldest first.
 
     Args:
-        region: A region name or alias; empty or `All` for every region.
+        region: A region name or alias; empty or `All` for every region. An
+            unknown region has no orders.
         start: The first day, as an ISO date, a `YYYY-MM` month or epoch ms.
         end: The last day, in the same forms.
 
@@ -204,7 +209,9 @@ def query_sales(region: Any, start: Any, end: Any) -> list[dict[str, Any]]:
         `customer`, `product` and `amount`.
     """
     wanted = _normalize_region(region)
-    regions = SALES_REGIONS if wanted is None else (wanted,)
+    if wanted is None:
+        return []
+    regions = SALES_REGIONS if wanted == _ALL_REGIONS else (wanted,)
     first = _parse_date(start, end=False) or dt.date(_SALES_YEAR, 1, 1)
     last = _parse_date(end, end=True) or dt.date(_SALES_YEAR, 12, 31)
     if first > last:

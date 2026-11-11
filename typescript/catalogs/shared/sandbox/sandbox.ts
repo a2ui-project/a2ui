@@ -36,6 +36,15 @@
  * so the effective policy is the intersection of the proxy page's, the injected one and the
  * author's. The proxy also keeps a single code path regardless of where it is served.
  *
+ * The injected CSP binds only the document the proxy loads, so the proxy also keeps the inner frame
+ * on that document. Before it loads inline HTML, it adds a `frame-src` policy to its own page,
+ * which the browser checks on every navigation of the inner frame, including the ones the content
+ * starts itself: a navigation to another network, `data:` or `blob:` document is refused before
+ * anything is requested. As a second line, the proxy treats any further `load` of the inner frame,
+ * or a `frame-src` violation, as the frame leaving its content. It then replaces the frame, stops
+ * relaying in both directions and reports {@link SandboxErrorCode.InnerFrameNavigated} to the
+ * host, until the host sends a new resource.
+ *
  * `sandbox_main.ts` is the bundle entry point; it calls {@link startSandboxProxy} with the real
  * `window` and `document`. Everything else in this file is side-effect free so tests can import it.
  */
@@ -48,7 +57,48 @@ export const RESOURCE_READY_NOTIFICATION = 'ui/notifications/sandbox-resource-re
 export const A2uiSandboxMessageType = {
   SandboxProxyReady: 'a2ui_sandbox_proxy_ready',
   SandboxResourceReady: 'a2ui_sandbox_resource_ready',
+  SandboxError: 'a2ui_sandbox_error',
 } as const;
+
+/**
+ * Method of the standard MCP logging notification. The proxy reports its errors to an MCP Apps host
+ * with it, because every `AppBridge` surfaces it (`onloggingmessage`).
+ */
+export const LOGGING_MESSAGE_NOTIFICATION = 'notifications/message';
+
+/** `logger` of the logging notifications the proxy sends, which tells them apart from the app's. */
+export const SANDBOX_PROXY_LOGGER = 'a2ui-sandbox-proxy';
+
+/** Errors the proxy reports to the host. */
+export const SandboxErrorCode = {
+  /**
+   * The inner frame left the document the host sent: the content navigated it, reloaded it or
+   * tried to. The proxy has dropped the frame and relays nothing until the host sends a new
+   * resource.
+   */
+  InnerFrameNavigated: 'inner_frame_navigated',
+} as const;
+
+export type SandboxErrorCode = (typeof SandboxErrorCode)[keyof typeof SandboxErrorCode];
+
+/**
+ * Builds the messages that report an error to the host: the flat A2UI envelope and an MCP logging
+ * notification at level `error`, each with the same `code` and `message`. The proxy posts both, as
+ * it does for proxy-ready; each host ignores the framing it does not use.
+ */
+export function createSandboxErrorMessages(
+  code: SandboxErrorCode,
+  message: string,
+): [a2ui: Record<string, unknown>, mcp: Record<string, unknown>] {
+  return [
+    {type: A2uiSandboxMessageType.SandboxError, code, message},
+    {
+      jsonrpc: '2.0',
+      method: LOGGING_MESSAGE_NOTIFICATION,
+      params: {level: 'error', logger: SANDBOX_PROXY_LOGGER, data: {code, message}},
+    },
+  ];
+}
 
 /**
  * Sandbox flags of the inner iframe when the host does not provide its own. `allow-same-origin`
@@ -168,6 +218,12 @@ function sanitizeCspDomains(domains: readonly string[] | undefined): string[] {
     .filter(entry => entry.length > 0 && !/[;"'\s]/.test(entry));
 }
 
+/** The `frame-src` source list for a resource: its `frameDomains`, or `'none'` without any. */
+function frameSourceList(csp: SandboxCsp | undefined): string {
+  const frameDomains = sanitizeCspDomains(csp?.frameDomains);
+  return frameDomains.length > 0 ? frameDomains.join(' ') : "'none'";
+}
+
 /**
  * Compiles the Content Security Policy directive string injected into an inner `srcdoc` frame.
  * Defaults to a deny-by-default policy with `connect-src 'none'` and `frame-src 'none'`, and
@@ -176,12 +232,11 @@ function sanitizeCspDomains(domains: readonly string[] | undefined): string[] {
 export function buildInnerCspContent(csp?: SandboxCsp): string {
   const connectDomains = sanitizeCspDomains(csp?.connectDomains);
   const resourceDomains = sanitizeCspDomains(csp?.resourceDomains);
-  const frameDomains = sanitizeCspDomains(csp?.frameDomains);
   const baseUriDomains = sanitizeCspDomains(csp?.baseUriDomains);
 
   const resourceSuffix = resourceDomains.length > 0 ? ` ${resourceDomains.join(' ')}` : '';
   const connectSrc = connectDomains.length > 0 ? connectDomains.join(' ') : "'none'";
-  const frameSrc = frameDomains.length > 0 ? frameDomains.join(' ') : "'none'";
+  const frameSrc = frameSourceList(csp);
   const baseUri = baseUriDomains.length > 0 ? `'self' ${baseUriDomains.join(' ')}` : "'self'";
 
   return (
@@ -198,6 +253,18 @@ export function buildInnerCspContent(csp?: SandboxCsp): string {
       "form-action 'none'",
     ].join('; ') + ';'
   );
+}
+
+/**
+ * Compiles the policy the proxy adds to its own page before it loads inline HTML. A page's
+ * `frame-src` applies to every navigation of its child frames, including the ones a child starts
+ * itself, so this policy keeps the inner frame on its `srcdoc` document (`about:srcdoc` is not
+ * subject to `frame-src`). The `srcdoc` document inherits the policy, so it lists the same
+ * `frameDomains` as the injected policy's `frame-src` and leaves the content's own nested frames
+ * as they were.
+ */
+export function buildProxyFramePolicy(csp?: SandboxCsp): string {
+  return `frame-src ${frameSourceList(csp)};`;
 }
 
 /**
@@ -247,16 +314,21 @@ export interface SandboxProxyWindow {
   readonly self: unknown;
   readonly top: {readonly location: {readonly href: string}} | null;
   readonly parent: SandboxProxyMessageTarget | null;
-  readonly location: {readonly href: string; readonly search: string};
+  readonly location: {readonly href: string; readonly search: string; reload(): void};
   addEventListener(type: 'message', listener: (event: MessageEvent) => void): void;
 }
 
 /** The subset of `Document` the proxy uses; tests provide a controlled instance. */
 export interface SandboxProxyDocument {
   readonly referrer: string;
+  readonly head: Pick<HTMLElement, 'appendChild'>;
   readonly body: Pick<HTMLElement, 'appendChild'>;
-  createElement(tagName: 'iframe'): HTMLIFrameElement;
+  createElement<K extends 'iframe' | 'meta'>(tagName: K): HTMLElementTagNameMap[K];
   querySelector(selectors: string): Element | null;
+  addEventListener(
+    type: 'securitypolicyviolation',
+    listener: (event: SecurityPolicyViolationEvent) => void,
+  ): void;
 }
 
 /**
@@ -353,6 +425,19 @@ function readResourcePayload(raw: unknown): SandboxResourcePayload {
   };
 }
 
+/** Creates an inner iframe with the given sandbox flags and permissions policy. */
+function createInnerFrame(
+  doc: SandboxProxyDocument,
+  sandbox: string,
+  allow: string,
+): HTMLIFrameElement {
+  const frame = doc.createElement('iframe');
+  frame.style.cssText = 'width:100%; height:100%; border:none;';
+  frame.setAttribute('sandbox', sandbox);
+  frame.setAttribute('allow', allow);
+  return frame;
+}
+
 /**
  * Runs the proxy: validates the embedding context, creates the sandboxed inner iframe, relays
  * messages between the host and the inner frame, and tells the host it is ready.
@@ -368,6 +453,10 @@ function readResourcePayload(raw: unknown): SandboxResourcePayload {
  *    reach the top window. That check only passes when the proxy is served from an origin other
  *    than the host page's; hosts that serve it from their own origin (the default) pass the query
  *    parameter, which the host-side configuration does for them.
+ *
+ * Each resource the host sends replaces the inner frame with a fresh one. The proxy relays
+ * messages for that frame until it leaves the document the host sent (see the file overview),
+ * then drops it and reports {@link SandboxErrorCode.InnerFrameNavigated}.
  */
 export function startSandboxProxy(env: SandboxProxyEnvironment): void {
   const {window: win, document: doc} = env;
@@ -417,11 +506,79 @@ export function startSandboxProxy(env: SandboxProxyEnvironment): void {
     throw new Error('This file is only to be used in an iframe sandbox.');
   }
 
-  const inner = doc.createElement('iframe');
-  inner.style.cssText = 'width:100%; height:100%; border:none;';
-  inner.setAttribute('sandbox', DEFAULT_INNER_SANDBOX);
-  inner.setAttribute('allow', buildPermissionsPolicy());
+  // The inner frame of the current resource. Every resource gets a fresh frame, so a load or a
+  // message of an earlier document is never taken for the current one, and the frame has no
+  // session history the content could go back through.
+  let inner = createInnerFrame(doc, DEFAULT_INNER_SANDBOX, buildPermissionsPolicy());
   doc.body.appendChild(inner);
+  // Whether messages flow between the host and the inner frame. Turned off when the inner frame
+  // leaves the document the host sent, and on again when the host sends a new resource.
+  let relaying = true;
+  // The `frame-src` policy this page has added to itself, if any. A page can add policies but
+  // never remove one, so a resource that needs a different policy gets a fresh proxy page.
+  let framePolicy: string | null = null;
+
+  const replaceInnerFrame = (next: HTMLIFrameElement) => {
+    inner.remove();
+    doc.body.appendChild(next);
+    inner = next;
+  };
+
+  const stopAfterNavigation = (frame: HTMLIFrameElement) => {
+    if (frame !== inner || !relaying) {
+      return;
+    }
+    relaying = false;
+    // Removing the frame discards the document it navigated to and anything still running there.
+    replaceInnerFrame(createInnerFrame(doc, DEFAULT_INNER_SANDBOX, buildPermissionsPolicy()));
+    const message =
+      'The sandboxed content navigated away from the document the host sent; the sandbox stopped relaying its messages.';
+    console.error(`[Sandbox] ${message}`);
+    for (const report of createSandboxErrorMessages(
+      SandboxErrorCode.InnerFrameNavigated,
+      message,
+    )) {
+      parent.postMessage(report, expectedHostOrigin);
+    }
+  };
+
+  // The inner frame is this page's only child frame, so a `frame-src` violation here is the inner
+  // frame trying to navigate to a document the policy refuses.
+  doc.addEventListener('securitypolicyviolation', event => {
+    if (event.effectiveDirective === 'frame-src') {
+      stopAfterNavigation(inner);
+    }
+  });
+
+  const loadResource = ({html, url, sandbox, permissions, csp}: SandboxResourcePayload) => {
+    const next = createInnerFrame(
+      doc,
+      resolveInnerSandbox(sandbox, html !== undefined),
+      buildPermissionsPolicy(buildAllowAttribute(permissions)),
+    );
+    let loads = 0;
+    next.addEventListener('load', () => {
+      if (next !== inner) {
+        return;
+      }
+      loads += 1;
+      if (loads === 1) {
+        // The target origin is "*" because a sandboxed iframe without 'allow-same-origin' has
+        // an opaque ("null") origin, which no specific target origin can match.
+        next.contentWindow?.postMessage({type: 'sandbox-init'}, '*');
+      } else {
+        // Without a new resource from the host, only a navigation or a reload loads it again.
+        stopAfterNavigation(next);
+      }
+    });
+    if (html !== undefined) {
+      next.srcdoc = injectCspMeta(html, csp);
+    } else if (url !== undefined) {
+      next.src = url;
+    }
+    replaceInnerFrame(next);
+    relaying = true;
+  };
 
   win.addEventListener('message', event => {
     if (event.source === parent) {
@@ -441,32 +598,36 @@ export function startSandboxProxy(env: SandboxProxyEnvironment): void {
         isRecord(data) && data['type'] === A2uiSandboxMessageType.SandboxResourceReady;
 
       if (isMcpResourceReady || isA2uiResourceReady) {
-        const {html, url, sandbox, permissions, csp} = readResourcePayload(
-          isMcpResourceReady ? data['params'] : data,
-        );
-        inner.setAttribute('sandbox', resolveInnerSandbox(sandbox, html !== undefined));
-        inner.setAttribute('allow', buildPermissionsPolicy(buildAllowAttribute(permissions)));
-
-        const sendInit = () => {
-          // The target origin is "*" because a sandboxed iframe without 'allow-same-origin' has
-          // an opaque ("null") origin, which no specific target origin can match.
-          inner.contentWindow?.postMessage({type: 'sandbox-init'}, '*');
-        };
-
-        if (html !== undefined) {
-          inner.onload = sendInit;
-          inner.removeAttribute('src');
-          inner.srcdoc = injectCspMeta(html, csp);
-        } else if (url !== undefined) {
-          inner.onload = sendInit;
-          inner.removeAttribute('srcdoc');
-          inner.src = url;
+        const resource = readResourcePayload(isMcpResourceReady ? data['params'] : data);
+        if (resource.html === undefined && resource.url === undefined) {
+          return;
         }
-      } else if (inner.contentWindow) {
+        // An external URL brings its own policies and network access, so only inline HTML needs
+        // the page policy that keeps the frame on its document.
+        const requiredPolicy =
+          resource.html !== undefined ? buildProxyFramePolicy(resource.csp) : null;
+        if (framePolicy !== null && requiredPolicy !== framePolicy) {
+          // The new resource would run under both policies. A fresh page starts without one, and
+          // the host sends the resource again when the page announces itself.
+          win.location.reload();
+          return;
+        }
+        if (requiredPolicy !== null && framePolicy === null) {
+          const meta = doc.createElement('meta');
+          meta.httpEquiv = 'Content-Security-Policy';
+          meta.content = requiredPolicy;
+          doc.head.appendChild(meta);
+          framePolicy = requiredPolicy;
+        }
+        loadResource(resource);
+      } else if (relaying && inner.contentWindow) {
         // Same rationale as above: only "*" reaches an opaque-origin window.
         inner.contentWindow.postMessage(event.data, '*', event.ports ? [...event.ports] : []);
       }
     } else if (event.source === inner.contentWindow) {
+      if (!relaying) {
+        return;
+      }
       // Without 'allow-same-origin' the inner frame's origin serializes to the string "null", so
       // that value must be accepted; the identity check on `event.source` above is what
       // authenticates the inner frame.

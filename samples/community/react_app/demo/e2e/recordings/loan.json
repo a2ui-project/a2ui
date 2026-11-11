@@ -6,201 +6,433 @@
       "model": "gemini-3.5-flash",
       "chunks": [
         {
-          "t": 1733.8,
+          "t": 1729.7,
           "text": "Here is"
         },
         {
-          "t": 1828.4,
-          "text": " an interactive amortization viewer that lets you adjust the interest rate and payment amount, see the remaining balance over"
+          "t": 1765.9,
+          "text": " an interactive amortization plan for your $250,000 loan.\n\n<a"
         },
         {
-          "t": 1908.2,
-          "text": " 10 years, and click any year to see the exact remaining balance.\n\n<a2ui>\nsurface(\""
+          "t": 1871.6,
+          "text": "2ui>\nsurface(\"loan\")\n$/loan/principal = 250000\n$/loan"
         },
         {
-          "t": 1970.0,
-          "text": "loan\")\n$/loan/principal = 250000\n$/loan/rate = 5\n"
+          "t": 1976.7,
+          "text": "/rate = 5\n$/loan/annualPayment = 30000\n$/loan/selectedYear"
         },
         {
-          "t": 2045.0,
-          "text": "$/loan/annualPayment = 30000\n$/loan/selectedYear = 0\n$/loan"
+          "t": 2084.5,
+          "text": " = 0\n$/loan/selectedYearSummary = \"Click a bar in the chart to select a year.\"\n\nroot ="
         },
         {
-          "t": 2173.5,
-          "text": "/selectedYearSummary = \"Click a bar in the chart to inspect a specific year.\"\n\nroot = Column([heading, principal_text,"
+          "t": 2222.1,
+          "text": " Column([heading, rate_slider, payment_slider, chart, summary_text, email_button])\n\nheading = Text(text=\""
         },
         {
-          "t": 2274.2,
-          "text": " rate_slider, payment_slider, chart, summary_card, email_button])\nheading = Text(\"## Loan"
+          "t": 2341.6,
+          "text": "## $250,000 Loan Amortization\")\n\nrate_slider = Slider(label=\"Interest Rate (%)"
         },
         {
-          "t": 2353.7,
-          "text": " Amortization Plan\")\nprincipal_text = Text(formatString(\"Principal: ${formatCurrency(value:${/"
+          "t": 2461.3,
+          "text": "\", min=1, max=15, value=$/loan/rate)\npayment_slider = Slider("
         },
         {
-          "t": 2427.2,
-          "text": "loan/principal}, currency:'USD')}\"))\nrate_slider = Slider(label=\"Interest Rate (%)\", min="
+          "t": 2606.2,
+          "text": "label=\"Annual Payment ($)\", min=10000, max=60000, steps=50,"
         },
         {
-          "t": 2547.1,
-          "text": "1, max=15, value=$/loan/rate)\npayment_slider = Slider(label=\"Annual"
+          "t": 2724.6,
+          "text": " value=$/loan/annualPayment)\n\nchart = ReactApp(\n  source=r\"\"\"import { useEffect, useMemo,"
         },
         {
-          "t": 2599.2,
-          "text": " Payment (USD)\", min=10000, max=60000, value=$/loan/annualPayment"
+          "t": 2831.6,
+          "text": " useState } from \"react\";\nimport { Card, Stack, Text, VegaChart, callFunction, setData, theme"
         },
         {
-          "t": 2685.8,
-          "text": ")\n\nchart = ReactApp(source=r\"\"\"import { useEffect, useMemo, useState } from \"react\";"
+          "t": 2924.4,
+          "text": ", useData } from \"a2ui\";\n\ntype Row = { year: number; balance: number; label"
         },
         {
-          "t": 2759.3,
-          "text": "\nimport { Card, Stack, Text, VegaChart, callFunction, setData, theme, useData } from \""
+          "t": 3044.0,
+          "text": ": string };\n\nfunction schedule(principal: number, ratePct: number, payment: number) {\n  const"
         },
         {
-          "t": 2831.2,
-          "text": "a2ui\";\n\ntype Row = { year: number; balance: number; label: string };\n\nfunction schedule"
+          "t": 3155.0,
+          "text": " rows: { year: number; balance: number }[] = [];\n  let balance = principal;\n  for (let year = "
         },
         {
-          "t": 2907.7,
-          "text": "(principal: number, ratePct: number, payment: number) {\n  const rows: { year: number"
+          "t": 3253.8,
+          "text": "1; year <= 10; year++) {\n    balance = Math.max(0, balance * ("
         },
         {
-          "t": 2982.4,
-          "text": "; balance: number }[] = [];\n  let balance = principal;\n  for (let year = 1"
+          "t": 3342.8,
+          "text": "1 + ratePct / 100) - payment);\n    rows.push({ year, balance: Math"
         },
         {
-          "t": 3100.5,
-          "text": "; year <= 10; year++) {\n    balance = Math.max(0, balance * (1"
+          "t": 3437.3,
+          "text": ".round(balance) });\n  }\n  return rows;\n}\n\nexport default function App() {\n"
         },
         {
-          "t": 3129.8,
-          "text": " + ratePct / 100) - payment);\n    rows.push({ year, balance: Math."
+          "t": 3534.8,
+          "text": "  const [principal] = useData<number>(\"/loan/principal\", 250000);"
         },
         {
-          "t": 3220.3,
-          "text": "round(balance) });\n  }\n  return rows;\n}\n\nexport default function App() {\n  "
+          "t": 3647.5,
+          "text": "\n  const [rate] = useData<number>(\"/loan/rate\", 5);\n  const ["
         },
         {
-          "t": 3362.0,
-          "text": "const [principal] = useData<number>(\"/loan/principal\", 250000);\n"
+          "t": 3752.3,
+          "text": "payment] = useData<number>(\"/loan/annualPayment\", 30000);\n  const"
         },
         {
-          "t": 3393.6,
-          "text": "  const [rate] = useData<number>(\"/loan/rate\", 5);\n  const [payment"
+          "t": 3832.7,
+          "text": " [selectedYear, setSelectedYear] = useData<number>(\"/loan/selectedYear\", 0);\n\n  "
         },
         {
-          "t": 3460.7,
-          "text": "] = useData<number>(\"/loan/annualPayment\", 30000);\n  const ["
+          "t": 3963.1,
+          "text": "const rawBalances = useMemo(() => schedule(principal, rate, payment), [principal, rate, payment]);\n  const"
         },
         {
-          "t": 3553.4,
-          "text": "selectedYear, setSelectedYear] = useData<number>(\"/loan/selectedYear\", 0);\n  const"
+          "t": 4080.3,
+          "text": " [rows, setRows] = useState<Row[]>([]);\n\n  useEffect(() => {\n    let active = true;\n    Promise"
         },
         {
-          "t": 3624.6,
-          "text": " balances = useMemo(() => schedule(principal, rate, payment), [principal, rate, payment]);\n  const"
+          "t": 4181.1,
+          "text": ".all(\n      rawBalances.map((b) => callFunction<string>(\"formatCurrency\", { value:"
         },
         {
-          "t": 3683.8,
-          "text": " [rows, setRows] = useState<Row[]>([]);\n\n  useEffect(() => {\n    let current ="
+          "t": 4277.1,
+          "text": " b.balance, currency: \"USD\" }))\n    ).then((formatted) => {\n      if (active"
         },
         {
-          "t": 3760.0,
-          "text": " true;\n    Promise.all(\n      balances.map((b) => callFunction<string>(\"formatCurrency"
+          "t": 4398.3,
+          "text": ") {\n        setRows(rawBalances.map((b, i) => ({ ...b, label: formatted"
         },
         {
-          "t": 3858.6,
-          "text": "\", { value: b.balance, currency: \"USD\" }))\n    ).then((labels) => {\n      if"
+          "t": 4474.7,
+          "text": "[i] })));\n      }\n    });\n    return () => { active = false; };\n  "
         },
         {
-          "t": 3925.6,
-          "text": " (current) setRows(balances.map((b, i) => ({ ...b, label: labels[i"
+          "t": 4600.6,
+          "text": "}, [rawBalances]);\n\n  useEffect(() => {\n    const found = rows.find((r) => r.year ==="
         },
         {
-          "t": 4019.6,
-          "text": "] })));\n    });\n    return () => {\n      current = false;\n    };\n  }, ["
+          "t": 4703.9,
+          "text": " selectedYear);\n    if (found) {\n      setData(\"/loan/selectedYearSummary\", `Year ${found"
         },
         {
-          "t": 4101.6,
-          "text": "balances]);\n\n  useEffect(() => {\n    const row = rows.find((r) => r.year ==="
+          "t": 4837.3,
+          "text": ".year}: ${found.label} remaining balance`);\n    }\n  }, [rows, selectedYear]);\n\n  const spec"
         },
         {
-          "t": 4217.9,
-          "text": " selectedYear);\n    if (row) {\n      setData(\"/loan/selectedYearSummary\", `Year ${row"
-        },
-        {
-          "t": 4277.0,
-          "text": ".year}: ${row.label} remaining balance`);\n    }\n  }, [rows, selectedYear]);\n\n  const spec"
-        },
-        {
-          "t": 4342.0,
+          "t": 4941.0,
           "text": " = {\n    data: { name: \"table\" },\n    mark: { type: \"bar\", cursor"
         },
         {
-          "t": 4434.7,
-          "text": ": \"pointer\" },\n    encoding: {\n      x: { field: \"year\", type: \"ordinal"
+          "t": 5071.5,
+          "text": ": \"pointer\" },\n    encoding: {\n      x: { field: \"year\", type: \"ordinal\", title: \""
         },
         {
-          "t": 4494.4,
-          "text": "\", title: \"Year\" },\n      y: { field: \"balance\", type: \"quantitative\", title:"
+          "t": 5158.6,
+          "text": "Year\" },\n      y: { field: \"balance\", type: \"quantitative\", title: \"Remaining Balance ($"
         },
         {
-          "t": 4591.8,
-          "text": " \"Remaining Balance ($)\" },\n      tooltip: [{ field: \"year\", title: \"Year\" }, { field: \"label"
+          "t": 5306.4,
+          "text": ")\" },\n      tooltip: [\n        { field: \"year\", title: \"Year\" },\n        { field: \"label"
         },
         {
-          "t": 4697.1,
-          "text": "\", title: \"Remaining Balance\" }],\n      color: {\n        condition: { test: `datum.year"
+          "t": 5407.8,
+          "text": "\", title: \"Remaining Balance\" }\n      ],\n      color: {\n        condition: { test: "
         },
         {
-          "t": 4806.7,
-          "text": " === ${selectedYear}`, value: theme.colors.primary },\n        value: theme.colors.secondary,\n      },\n    },"
+          "t": 5521.3,
+          "text": "`datum.year === ${selectedYear}`, value: theme.colors.primary },\n        value: theme.colors."
         },
         {
-          "t": 4886.8,
-          "text": "\n  };\n\n  return (\n    <Card title=\"10-Year Remaining Balance\">\n      <Stack"
+          "t": 5629.9,
+          "text": "secondary\n      }\n    }\n  };\n\n  return (\n    <Card title=\"10-Year Balance Projection\">"
         },
         {
-          "t": 5447.8,
-          "text": " gap={2}>\n        <VegaChart\n          spec={spec}\n          data={{ table: rows }}\n          height={22"
+          "t": 5736.9,
+          "text": "\n      <Stack gap={2}>\n        <VegaChart\n          spec={spec}\n          data={{ table"
         },
         {
-          "t": 5468.8,
-          "text": "0}\n          onSelect={(datum) => datum && setSelectedYear(datum.year as number)}\n        />"
+          "t": 5877.9,
+          "text": ": rows }}\n          height={220}\n          onSelect={(datum) => datum && setSelectedYear(datum.year"
         },
         {
-          "t": 5503.1,
-          "text": "\n        <Text variant=\"caption\" tone=\"muted\">Click on any bar to see details for that year.</Text>"
+          "t": 6020.4,
+          "text": " as number)}\n        />\n        <Text variant=\"caption\" tone=\"muted\">Select any bar to highlight and"
         },
         {
-          "t": 5525.1,
-          "text": "\n      </Stack>\n    </Card>\n  );\n}\n\"\"\", title=\"Balance Schedule Chart\", height=3"
+          "t": 6192.5,
+          "text": " view details below.</Text>\n      </Stack>\n    </Card>\n  );\n}\n\"\"\",\n  title=\""
         },
         {
-          "t": 5550.2,
-          "text": "20, dataPaths=[\"/loan\"], functions=[\"formatCurrency\"])\n\nsummary_card = Card(summary_text)\nsummary_"
+          "t": 6263.2,
+          "text": "10-Year Balance Projection\",\n  height=320,\n  dataPaths=[\"/loan\"],\n"
         },
         {
-          "t": 5568.5,
-          "text": "text = Text($/loan/selectedYearSummary)\n\nemail_label = Text(\"Email Me This Plan\")\nemail_button"
+          "t": 6362.2,
+          "text": "  functions=[\"formatCurrency\"]\n)\n\nsummary_text = Text(text=$/loan/selectedYearSummary)"
         },
         {
-          "t": 5603.6,
-          "text": " = Button(child=email_label, variant=\"primary\", action=Event(\"emailPlan\", {principal: $/loan/principal,"
+          "t": 6469.0,
+          "text": "\n\nbtn_text = Text(text=\"Email Me This Plan\")\nemail_button = Button(\n  child"
         },
         {
-          "t": 5676.7,
-          "text": " rate: $/loan/rate, annualPayment: $/loan/annualPayment, selectedYear: $/loan/selectedYear"
+          "t": 6611.9,
+          "text": "=btn_text,\n  variant=\"primary\",\n  action=Event(\"emailPlan\", {\n    principal: $/loan/"
         },
         {
-          "t": 5781.0,
-          "text": "}, userMessage=\"Emailing the amortization plan to you...\"))\n</a2ui>"
+          "t": 6696.9,
+          "text": "principal,\n    rate: $/loan/rate,\n    annualPayment: $/loan/annualPayment,\n    "
+        },
+        {
+          "t": 6814.5,
+          "text": "selectedYear: $/loan/selectedYear\n  })\n)\n</a2ui>"
         }
       ],
       "usage": {
-        "promptTokens": 13599,
-        "outputTokens": 1164,
+        "promptTokens": 14021,
+        "outputTokens": 1150,
+        "thoughtsTokens": 0
+      }
+    },
+    {
+      "key": "Make it a line chart instead, and add a toggle between 10 and 15 years.",
+      "attempt": 1,
+      "model": "gemini-3.5-flash",
+      "chunks": [
+        {
+          "t": 1295.9,
+          "text": "I have"
+        },
+        {
+          "t": 1390.7,
+          "text": " updated the loan amortization view to use a line chart with points and added a toggle to switch between a"
+        },
+        {
+          "t": 1516.2,
+          "text": " 10-year and 15-year projection.\n\n<a2ui>\nsurface(\"loan\")\n$/loan/"
+        },
+        {
+          "t": 1621.9,
+          "text": "principal = 250000\n$/loan/rate = 5\n$/loan/annualPayment ="
+        },
+        {
+          "t": 1755.2,
+          "text": " 30000\n$/loan/years = 10\n$/loan/selectedYear = 0\n$/loan/selected"
+        },
+        {
+          "t": 1826.5,
+          "text": "YearSummary = \"Click a point on the line chart to select a year.\"\n\nroot = Column([heading, rate"
+        },
+        {
+          "t": 1925.7,
+          "text": "_slider, payment_slider, years_picker, chart, summary_text, email_button])\n\nheading ="
+        },
+        {
+          "t": 2019.2,
+          "text": " Text(text=\"## $250,000 Loan Amortization\")\n\nrate_slider = Slider"
+        },
+        {
+          "t": 2133.2,
+          "text": "(label=\"Interest Rate (%)\", min=1, max=15, value=$/loan/rate)\n"
+        },
+        {
+          "t": 2224.4,
+          "text": "payment_slider = Slider(label=\"Annual Payment ($)\", min=10000, max=60"
+        },
+        {
+          "t": 2321.9,
+          "text": "000, steps=50, value=$/loan/annualPayment)\n\nyears_picker = ChoicePicker"
+        },
+        {
+          "t": 2453.0,
+          "text": "(\n  label=\"Projection Period\",\n  variant=\"mutuallyExclusive\",\n  options=[{label: \"10 Years"
+        },
+        {
+          "t": 2546.4,
+          "text": "\", value: \"10\"}, {label: \"15 Years\", value: \"15\"}],\n  "
+        },
+        {
+          "t": 2705.9,
+          "text": "value=$/loan/years,\n  displayStyle=\"chips\"\n)\n\nchart = ReactApp(\n  source"
+        },
+        {
+          "t": 2769.7,
+          "text": "=r\"\"\"import { useEffect, useMemo, useState } from \"react\";\nimport { Card, Stack, Text"
+        },
+        {
+          "t": 2871.8,
+          "text": ", VegaChart, callFunction, setData, theme, useData } from \"a2ui\";\n\ntype Row ="
+        },
+        {
+          "t": 2973.2,
+          "text": " { year: number; balance: number; label: string };\n\nfunction schedule(principal: number, ratePct:"
+        },
+        {
+          "t": 3066.1,
+          "text": " number, payment: number, years: number) {\n  const rows: { year: number; balance: number"
+        },
+        {
+          "t": 3191.3,
+          "text": " }[] = [];\n  let balance = principal;\n  for (let year = 1; year <= years"
+        },
+        {
+          "t": 3263.3,
+          "text": "; year++) {\n    balance = Math.max(0, balance * (1 + ratePct / 1"
+        },
+        {
+          "t": 3372.6,
+          "text": "00) - payment);\n    rows.push({ year, balance: Math.round(balance) });\n"
+        },
+        {
+          "t": 3470.3,
+          "text": "  }\n  return rows;\n}\n\nexport default function App() {\n  const [principal] = use"
+        },
+        {
+          "t": 3569.5,
+          "text": "Data<number>(\"/loan/principal\", 250000);\n  const [rate] ="
+        },
+        {
+          "t": 3674.6,
+          "text": " useData<number>(\"/loan/rate\", 5);\n  const [payment] = useData<number"
+        },
+        {
+          "t": 3802.1,
+          "text": ">(\"/loan/annualPayment\", 30000);\n  const [yearsVal] = useData<string"
+        },
+        {
+          "t": 3979.8,
+          "text": " | string[]>(\"/loan/years\", \"10\");\n  const [selectedYear, setSelectedYear] = useData<number"
+        },
+        {
+          "t": 4075.0,
+          "text": ">(\"/loan/selectedYear\", 0);\n\n  const numYears = useMemo(() => {\n    const"
+        },
+        {
+          "t": 4176.2,
+          "text": " val = Array.isArray(yearsVal) ? yearsVal[0] : yearsVal;\n    return parseInt("
+        },
+        {
+          "t": 4269.6,
+          "text": "val || \"10\", 10);\n  }, [yearsVal]);\n\n  const rawBalances = use"
+        },
+        {
+          "t": 4364.1,
+          "text": "Memo(() => schedule(principal, rate, payment, numYears), [principal, rate, payment, numYears]);"
+        },
+        {
+          "t": 4468.6,
+          "text": "\n  const [rows, setRows] = useState<Row[]>([]);\n\n  useEffect(() => {\n    "
+        },
+        {
+          "t": 4559.9,
+          "text": "let active = true;\n    Promise.all(\n      rawBalances.map((b) => callFunction<"
+        },
+        {
+          "t": 4652.3,
+          "text": "string>(\"formatCurrency\", { value: b.balance, currency: \"USD\" }))\n    ).then((formatted"
+        },
+        {
+          "t": 4755.2,
+          "text": ") => {\n      if (active) {\n        setRows(rawBalances.map((b, i)"
+        },
+        {
+          "t": 4844.1,
+          "text": " => ({ ...b, label: formatted[i] })));\n      }\n    });\n    return () =>"
+        },
+        {
+          "t": 4974.5,
+          "text": " { active = false; };\n  }, [rawBalances]);\n\n  useEffect(() => {\n    const found ="
+        },
+        {
+          "t": 5043.5,
+          "text": " rows.find((r) => r.year === selectedYear);\n    if (found) {\n      setData"
+        },
+        {
+          "t": 5138.3,
+          "text": "(\"/loan/selectedYearSummary\", `Year ${found.year}: ${found.label} remaining balance`);\n    "
+        },
+        {
+          "t": 5232.7,
+          "text": "}\n  }, [rows, selectedYear]);\n\n  const spec = {\n    data: { name: \""
+        },
+        {
+          "t": 5352.4,
+          "text": "table\" },\n    mark: { type: \"line\", point: { size: 60, cursor: \"pointer"
+        },
+        {
+          "t": 5467.6,
+          "text": "\" }, interpolate: \"monotone\" },\n    encoding: {\n      x: { field: \"year\","
+        },
+        {
+          "t": 5594.4,
+          "text": " type: \"ordinal\", title: \"Year\" },\n      y: { field: \"balance\", type: \""
+        },
+        {
+          "t": 5659.9,
+          "text": "quantitative\", title: \"Remaining Balance ($)\" },\n      tooltip: [\n        { field: \"year\", title"
+        },
+        {
+          "t": 5787.9,
+          "text": ": \"Year\" },\n        { field: \"label\", title: \"Remaining Balance\" }\n      ],\n"
+        },
+        {
+          "t": 5881.9,
+          "text": "      color: { value: theme.colors.primary }\n    }\n  };\n\n  return (\n    <Card title={`${num"
+        },
+        {
+          "t": 5973.1,
+          "text": "Years}-Year Balance Projection`}>\n      <Stack gap={2}>\n        <VegaChart\n          spec={"
+        },
+        {
+          "t": 6071.7,
+          "text": "spec}\n          data={{ table: rows }}\n          height={220}\n          onSelect={(datum"
+        },
+        {
+          "t": 6162.4,
+          "text": ") => datum && setSelectedYear(datum.year as number)}\n        />\n        <Text variant=\"caption\""
+        },
+        {
+          "t": 6296.7,
+          "text": " tone=\"muted\">Click any data point on the line to see the balance below.</Text>\n      </Stack>\n    </Card"
+        },
+        {
+          "t": 6372.9,
+          "text": ">\n  );\n}\n\"\"\",\n  title=\"Balance Projection Chart\",\n  height=320,"
+        },
+        {
+          "t": 6471.4,
+          "text": "\n  dataPaths=[\"/loan\"],\n  functions=[\"formatCurrency\"]\n)\n\nsummary_text = Text("
+        },
+        {
+          "t": 6563.4,
+          "text": "text=$/loan/selectedYearSummary)\n\nbtn_text = Text(text=\"Email Me This Plan\")\n"
+        },
+        {
+          "t": 6658.8,
+          "text": "email_button = Button(\n  child=btn_text,\n  variant=\"primary\",\n  action="
+        },
+        {
+          "t": 6744.6,
+          "text": "Event(\"emailPlan\", {\n    principal: $/loan/principal,\n    rate: $/loan/rate,"
+        },
+        {
+          "t": 6839.3,
+          "text": "\n    annualPayment: $/loan/annualPayment,\n    years: $/loan/years,\n    selectedYear"
+        },
+        {
+          "t": 6928.7,
+          "text": ": $/loan/selectedYear\n  })\n)\n</a2ui>"
+        }
+      ],
+      "usage": {
+        "promptTokens": 15194,
+        "outputTokens": 1340,
         "thoughtsTokens": 0
       }
     },

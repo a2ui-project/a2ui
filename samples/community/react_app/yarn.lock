@@ -5,7 +5,7 @@ __metadata:
   version: 8
   cacheKey: 10c0
 
-"@a2ui-labs/react-app-demo-client@workspace:demo/client":
+"@a2ui-labs/react-app-demo-client@workspace:*, @a2ui-labs/react-app-demo-client@workspace:demo/client":
   version: 0.0.0-use.local
   resolution: "@a2ui-labs/react-app-demo-client@workspace:demo/client"
   dependencies:
@@ -39,6 +39,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@a2ui-labs/react-app-demo-e2e@workspace:demo/e2e"
   dependencies:
+    "@a2ui-labs/react-app-demo-client": "workspace:*"
     "@playwright/test": "npm:1.58.1"
     "@types/node": "npm:^25.9.3"
     eslint: "npm:^10.4.1"

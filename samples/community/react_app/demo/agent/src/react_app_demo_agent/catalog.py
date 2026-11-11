@@ -67,7 +67,7 @@ def demo_catalog() -> CatalogApi:
                 },
                 description=(
                     "Agent function. Total travel minutes between the stops, in"
-                    " order. Answers in about 100 ms."
+                    " order. Answers in about 120 ms."
                 ),
             ),
             AgentFunction(
@@ -93,9 +93,10 @@ def demo_catalog() -> CatalogApi:
                     "required": ["region", "from", "to"],
                 },
                 description=(
-                    "Agent function. The 2025 orders of a region between two"
-                    " dates, oldest first, at most 500. Each order is {id, date,"
-                    " region, customer, product, amount}."
+                    "Agent function. The 2025 orders of a region between two dates,"
+                    " oldest first, at most 1000 (a whole year of every region fits)."
+                    " An unknown region has none. Each order is {id, date, region,"
+                    " customer, product, amount}."
                 ),
             ),
         ],

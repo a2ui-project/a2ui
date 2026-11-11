@@ -52,5 +52,13 @@ def test_query_sales_accepts_months_and_all_regions() -> None:
     assert all(row["date"].startswith("2025-02") for row in rows)
 
 
-def test_query_sales_caps_the_rows() -> None:
-    assert len(mock_data.query_sales("", None, None)) == mock_data.MAX_SALES_ROWS
+def test_query_sales_covers_the_whole_year_for_every_region() -> None:
+    rows = mock_data.query_sales("All", "2025-01-01", "2025-12-31")
+
+    assert len(rows) <= mock_data.MAX_SALES_ROWS
+    assert {row["date"][:7] for row in rows} == {f"2025-{m:02d}" for m in range(1, 13)}
+    assert {row["region"] for row in rows} == set(mock_data.SALES_REGIONS)
+
+
+def test_query_sales_has_no_orders_for_an_unknown_region() -> None:
+    assert mock_data.query_sales("Mars", "2025-01-01", "2025-12-31") == []

@@ -18,7 +18,7 @@
  * The three use cases of docs/use_cases.md, end to end: the prompt, the native components, real
  * UI in the app frame, interactions in both directions, the explanation panels and the latency.
  */
-import {expect, test} from '@playwright/test';
+import {expect} from '@playwright/test';
 import {
   appFrame,
   bridgeEntries,
@@ -28,12 +28,16 @@ import {
   dataModels,
   dragAndDrop,
   entriesAfter,
+  LOAN_FOLLOW_UP,
+  MODE,
   lastSeq,
   moveNativeSlider,
   nativeText,
   recordLatency,
   runUseCase,
   screenshots,
+  test,
+  turnSnapshot,
   waitForAppRendered,
 } from './helpers';
 
@@ -71,12 +75,18 @@ test('loan explorer: sliders redraw the chart, a bar click updates the page', as
   const modelBefore = await dataModels(page, turnId);
   const clickSeq = await lastSeq(page, turnId);
   await marks.nth(3).click();
-  await expect
-    .poll(
-      async () =>
-        (await nativeText(turn)) !== textBefore || (await dataModels(page, turnId)) !== modelBefore,
-    )
-    .toBe(true);
+  if (MODE === 'recorded') {
+    // The recorded app writes the selected year's summary, which a native Text shows.
+    await expect.poll(() => nativeText(turn)).not.toBe(textBefore);
+  } else {
+    await expect
+      .poll(
+        async () =>
+          (await nativeText(turn)) !== textBefore ||
+          (await dataModels(page, turnId)) !== modelBefore,
+      )
+      .toBe(true);
+  }
   expect(
     entriesAfter(await bridgeEntries(page, turnId), clickSeq, 'data/set').length,
   ).toBeGreaterThan(0);
@@ -204,6 +214,11 @@ test('sales explorer: a brush selection queries the agent and fills the page', a
     entry => entry.request?.method === 'function/call' && entry.method === 'result',
   );
   expect(queries.length).toBeGreaterThan(0);
+  if (MODE === 'recorded') {
+    // The recorded app queries the agent for the brushed range and a native Text summarises it.
+    expect(entriesAfter(afterBrush, seq, 'function/call').length).toBeGreaterThan(0);
+    expect(await nativeText(turn)).not.toBe(textBefore);
+  }
   testInfo.annotations.push({
     type: 'querySales',
     description:
@@ -214,4 +229,30 @@ test('sales explorer: a brush selection queries the agent and fills the page', a
   expect.soft(checkpoints['T7']! - checkpoints['T4']!).toBeLessThan(RENDER_BUDGET_MS);
   await screenshots(page, turn, 'sales');
   await checkPanels(turn, {bridgeMethods: ['function/call', 'data/set']});
+});
+
+test('follow-up: a second turn rewrites the loan app without errors', async ({page}, testInfo) => {
+  const {turn, turnId} = await runUseCase(page, 'loan');
+  await waitForAppRendered(page, turnId);
+
+  await page.getByTestId('prompt-input').fill(LOAN_FOLLOW_UP);
+  await page.getByTestId('prompt-input').press('Enter');
+  const followUp = page.getByTestId('turn').nth(1);
+  await expect(followUp).toHaveAttribute('data-status', /done|error/, {timeout: 150_000});
+  const followUpId = (await followUp.getAttribute('data-turn-id'))!;
+  const snapshot = await turnSnapshot(page, followUpId);
+  expect(snapshot.error, `follow-up error: ${snapshot.error}`).toBeNull();
+  testInfo.annotations.push({type: 'retries', description: String(snapshot.debug?.retries)});
+
+  // The newest interface has a working chart, in the turn that now shows it.
+  const owner = page
+    .locator('[data-testid=turn]', {has: page.locator('[data-testid=surface]')})
+    .last();
+  await expect(chartMarks(appFrame(owner)).first()).toBeVisible({timeout: 30_000});
+  const moved = await turn.locator('[data-testid=surface]').count();
+  if (moved === 0) {
+    // The loan surface was rewritten: turn 1 says where it went.
+    await expect(turn.getByTestId('superseded-note')).toBeVisible();
+  }
+  await screenshots(page, followUp, 'loan-follow-up');
 });
