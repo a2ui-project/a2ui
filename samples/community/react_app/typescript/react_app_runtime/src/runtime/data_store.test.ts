@@ -15,7 +15,7 @@
  */
 
 import {describe, expect, it} from 'vitest';
-import {AppDataStore, jsonEqual, type DataTransport} from './data_store.js';
+import {AppDataStore, findNonJson, jsonEqual, type DataTransport} from './data_store.js';
 
 interface Deferred<T> {
   promise: Promise<T>;
@@ -64,6 +64,33 @@ class ManualTransport implements DataTransport {
 }
 
 const tick = () => new Promise(resolve => setTimeout(resolve, 0));
+
+describe('findNonJson', () => {
+  it('accepts JSON values, undefined and null-prototype objects', () => {
+    expect(findNonJson({a: [1, 'two', null, true, {b: undefined}]})).toBeUndefined();
+    expect(findNonJson(undefined)).toBeUndefined();
+    expect(findNonJson(Object.assign(Object.create(null) as object, {a: 1}))).toBeUndefined();
+  });
+
+  it('names the first value JSON cannot carry, with its pointer', () => {
+    const cycle: {self?: unknown} = {};
+    cycle.self = cycle;
+
+    expect(findNonJson(new Date(0))).toBe('the value is a Date');
+    expect(findNonJson({trip: {start: new Date(0)}})).toBe('/trip/start is a Date');
+    expect(findNonJson({list: [1, () => 2]})).toBe('/list/1 is a function');
+    expect(findNonJson({'a/b': new Map()})).toBe('/a~1b is a Map');
+    expect(findNonJson([Number.NaN])).toBe('/0 is NaN');
+    expect(findNonJson({n: 1n})).toBe('/n is a bigint');
+    expect(findNonJson(cycle)).toBe('/self is a circular reference');
+  });
+
+  it('accepts the same object twice when it is not its own ancestor', () => {
+    const shared = {a: 1};
+
+    expect(findNonJson({x: shared, y: shared})).toBeUndefined();
+  });
+});
 
 describe('jsonEqual', () => {
   it('compares with JSON semantics', () => {
@@ -154,6 +181,23 @@ describe('AppDataStore', () => {
 
     expect(notified).toBe(2);
     expect(store.has('/a')).toBe(false);
+  });
+
+  it('rejects a value that is not JSON without touching the store or the host', async () => {
+    const transport = new ManualTransport();
+    const errors: unknown[] = [];
+    const store = new AppDataStore(transport, (_path, error) => errors.push(error));
+    store.seed({'/a': 1}, ['/a']);
+
+    await expect(store.write('/a', {when: new Date(0)})).rejects.toThrow(
+      "Can't write /a: values must be JSON (plain objects, arrays, strings, finite numbers," +
+        ' booleans and null), but /when is a Date.',
+    );
+
+    expect(store.get('/a')).toBe(1);
+    expect(transport.sets).toEqual([]);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toBeInstanceOf(TypeError);
   });
 
   it('re-reads the path from the host when the last write fails', async () => {

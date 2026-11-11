@@ -22,6 +22,7 @@ before they are sent to the renderer.
 
 from __future__ import annotations
 
+from ._bindings import BINDINGS_MODULE, ReactAppBindings, react_app_bindings
 from ._catalog import (
     REACT_APP_CATALOG_ID,
     react_app_catalog,
@@ -39,12 +40,15 @@ from ._transformer import ReactAppTransformer
 
 __all__ = [
     "ALLOWED_MODULES",
+    "BINDINGS_MODULE",
     "REACT_APP_CATALOG_ID",
+    "ReactAppBindings",
     "ReactAppDiagnostic",
     "ReactAppDiagnosticCode",
     "ReactAppTransformer",
     "ReactAppValidationError",
     "check_react_app",
+    "react_app_bindings",
     "react_app_catalog",
     "react_app_examples",
     "react_app_prompt",

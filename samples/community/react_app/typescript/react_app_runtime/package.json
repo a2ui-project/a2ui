@@ -22,8 +22,8 @@
     "test": "tsc -p tsconfig.json --noEmit && vitest run",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format": "prettier --write --ignore-path ../../.prettierignore .",
+    "format:check": "prettier --check --ignore-path ../../.prettierignore ."
   },
   "dependencies": {
     "react": "^19.2.7",
