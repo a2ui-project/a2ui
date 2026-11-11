@@ -49,7 +49,7 @@
         },
         "compiled": {
           "type": "string",
-          "description": "The app compiled to plain JavaScript (an ES module). Set by the agent server after it checks `source`; never write this property yourself. When present, the frame runs it and skips compiling `source` in the browser."
+          "description": "The app compiled to plain JavaScript (an ES module) by the agent server (`ReactAppTransformer` strips any value the model sets and fills this in when a compiler is configured); never write this property yourself. When present, the frame runs it inside the same sandbox and CSP as `source`, skipping the in-browser transpile."
         }
       },
       "required": ["component", "source"]

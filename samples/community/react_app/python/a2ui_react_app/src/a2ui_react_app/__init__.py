@@ -16,8 +16,8 @@
 
 `ReactApp` lets a model write a small React app inline in its response. This
 package gives the agent the ReactApp catalog and examples, the prompt fragment
-that teaches a model to write apps, and a transformer that checks the apps
-before they are sent to the renderer.
+that teaches a model to write apps, and a transformer that checks and compiles
+the apps before they are sent to the renderer.
 """
 
 from __future__ import annotations
@@ -35,21 +35,37 @@ from ._checks import (
     ReactAppValidationError,
     check_react_app,
 )
+from ._compiler import (
+    CompileDiagnostic,
+    CompileResult,
+    ReactAppCompiler,
+    default_worker_path,
+)
 from ._prompt import react_app_prompt
 from ._source import ReactAppSourceFacts, react_app_source_facts
-from ._transformer import ReactAppTransformer
+from ._transformer import (
+    ReactAppCompile,
+    ReactAppTransformer,
+    ReactAppTransportResult,
+)
 
 __all__ = [
     "ALLOWED_MODULES",
     "BINDINGS_MODULE",
+    "CompileDiagnostic",
+    "CompileResult",
     "REACT_APP_CATALOG_ID",
     "ReactAppBindings",
+    "ReactAppCompile",
+    "ReactAppCompiler",
     "ReactAppDiagnostic",
     "ReactAppDiagnosticCode",
     "ReactAppSourceFacts",
     "ReactAppTransformer",
+    "ReactAppTransportResult",
     "ReactAppValidationError",
     "check_react_app",
+    "default_worker_path",
     "react_app_bindings",
     "react_app_catalog",
     "react_app_examples",

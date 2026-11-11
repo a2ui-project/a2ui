@@ -117,6 +117,7 @@ export async function start(): Promise<void> {
 
   const config = readConfig(document);
   const title = config.title ?? 'App';
+  const requestedPaths = findDataPaths(config.compiled ?? config.source);
 
   const fail = (phase: ErrorPhase, card: Omit<ErrorCardProps, 'title'>, error?: unknown) => {
     const details = toErrorDetails(error ?? new Error(card.message));
@@ -136,7 +137,7 @@ export async function start(): Promise<void> {
       {
         protocolVersion: PROTOCOL_VERSION,
         runtimeVersion: RUNTIME_VERSION,
-        paths: findDataPaths(config.source),
+        paths: requestedPaths,
       },
       DEFAULT_REQUEST_TIMEOUT_MS,
     );
@@ -157,7 +158,7 @@ export async function start(): Promise<void> {
   const denied = new Set(init.deniedPaths ?? []);
   session.store.seed(
     snapshot,
-    findDataPaths(config.source).filter(path => !denied.has(path)),
+    requestedPaths.filter(path => !denied.has(path)),
   );
 
   let code = config.compiled;

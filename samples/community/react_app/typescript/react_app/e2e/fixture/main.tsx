@@ -162,6 +162,12 @@ function singleAppMessages(surfaceId: string, props: Record<string, unknown>): u
   ];
 }
 
+const compiledBindingsApp =
+  exampleName === 'bindings_compiled'
+    ? ((await (await fetch('/.generated/compiled_bindings_app.json')).json()) as {compiled: string})
+        .compiled
+    : undefined;
+
 /** Fixture apps the page can render instead of the main fixture, with `?example=<name>`. */
 const FIXTURE_APPS: Record<string, () => unknown[]> = {
   bindings: () =>
@@ -170,6 +176,14 @@ const FIXTURE_APPS: Record<string, () => unknown[]> = {
       height: 160,
       functions: ['estimateTravelTime', 'formatCurrency'],
       source: BINDINGS_APP_SOURCE,
+    }),
+  bindings_compiled: () =>
+    singleAppMessages('bindings', {
+      title: 'Bindings app',
+      height: 160,
+      functions: ['estimateTravelTime', 'formatCurrency'],
+      source: BINDINGS_APP_SOURCE,
+      ...(compiledBindingsApp ? {compiled: compiledBindingsApp} : {}),
     }),
   gesture: () =>
     singleAppMessages('gesture', {

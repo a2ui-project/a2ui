@@ -221,7 +221,7 @@ test.describe('catalog examples in the real double iframe', () => {
   });
 });
 
-test.describe('typed bindings', () => {
+test.describe('typed bindings and server compile', () => {
   test('a2ui:bindings calls round-trip through the module the frame makes', async ({page}) => {
     await page.goto(`/?runtime=${encodeURIComponent(RUNTIME_ORIGIN)}&example=bindings`);
     const frame = appFrame(page);
@@ -230,5 +230,24 @@ test.describe('typed bindings', () => {
     await expect(frame.getByTestId('binding-minutes')).toHaveText('50');
     await expect(frame.getByTestId('binding-price')).toHaveText('$42.00');
     expect(await page.evaluate(() => window.fixture.errors)).toEqual([]);
+  });
+
+  test('an app sent with compiled code skips the frame transpile', async ({page}) => {
+    const transpileChunks: string[] = [];
+    page.on('request', request => {
+      if (/\/chunks\/transpile-/.test(request.url())) {
+        transpileChunks.push(request.url());
+      }
+    });
+    await page.goto(`/?runtime=${encodeURIComponent(RUNTIME_ORIGIN)}&example=bindings_compiled`);
+    const frame = appFrame(page);
+
+    await expect(frame.getByTestId('binding-minutes')).toHaveText('50');
+    await expect(frame.getByTestId('binding-price')).toHaveText('$42.00');
+    await expect.poll(() => page.evaluate(() => window.fixture.rendered.length)).toBe(1);
+    const [rendered] = await page.evaluate(() => window.fixture.rendered);
+    expect(rendered.timings['transpileMs']).toBe(0);
+    expect(transpileChunks).toEqual([]);
+    console.log(`compiled app: iframe ready -> ui/rendered: ${rendered.frameReadyToRenderedMs} ms`);
   });
 });

@@ -19,7 +19,7 @@
  * @a2ui/react comes from the monorepo through a portal, and would otherwise resolve its own.
  */
 import {build} from 'esbuild';
-import {existsSync, mkdirSync, readFileSync} from 'node:fs';
+import {existsSync, mkdirSync, readFileSync, writeFileSync} from 'node:fs';
 import {createRequire} from 'node:module';
 import {dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -55,3 +55,20 @@ await build({
   loader: {'.woff2': 'dataurl'},
   logLevel: 'warning',
 });
+
+// The bindings fixture app, compiled the way the agent server does, so the page can send it in
+// `compiled` and the test can check that the frame skips its own transpile.
+const {createReactAppCompiler} = await import('@a2ui-labs/react-app-compiler');
+const {BINDINGS_APP_SOURCE, BINDINGS_DECLARATIONS} = await import('./fixture/bindings_app.mjs');
+const result = createReactAppCompiler().compile(BINDINGS_APP_SOURCE, {
+  bindings: BINDINGS_DECLARATIONS,
+});
+if (!result.ok) {
+  throw new Error(
+    `The bindings fixture app doesn't compile: ${JSON.stringify(result.diagnostics)}`,
+  );
+}
+writeFileSync(
+  join(outDir, 'compiled_bindings_app.json'),
+  JSON.stringify({compiled: result.compiled, timings: result.timings}),
+);

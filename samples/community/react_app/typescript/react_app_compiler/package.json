@@ -1,0 +1,42 @@
+{
+  "name": "@a2ui-labs/react-app-compiler",
+  "version": "0.1.0",
+  "description": "Server-side compiler of ReactApp sources: Sucrase transform plus a warm TypeScript type check against the a2ui module and generated bindings, as a library and a stdio JSON-lines worker.",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/compiler.js",
+  "types": "./dist/compiler.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/compiler.d.ts",
+      "default": "./dist/compiler.js"
+    },
+    "./worker": "./dist/worker.js"
+  },
+  "bin": "./dist/worker.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "tsc -p tsconfig.json && vitest run",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write --ignore-path ../../.prettierignore .",
+    "format:check": "prettier --check --ignore-path ../../.prettierignore ."
+  },
+  "dependencies": {
+    "@a2ui-labs/react-app-runtime": "workspace:*",
+    "@types/react": "^19.2.17",
+    "sucrase": "^3.35.1",
+    "typescript": "5.9.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "eslint": "^10.4.1",
+    "gts": "^7.0.0",
+    "prettier": "^3.8.4",
+    "vitest": "^4.1.8"
+  }
+}

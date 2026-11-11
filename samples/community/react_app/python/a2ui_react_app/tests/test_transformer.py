@@ -143,7 +143,6 @@ def test_valid_messages_pass_unchanged() -> None:
         ({"dataPaths": [7]}, "invalid_data_paths", "dataPaths"),
         ({"functions": "formatCurrency"}, "invalid_functions", "functions"),
         ({"functions": ["formatCurrency", 3]}, "invalid_functions", "functions"),
-        ({"compiled": "export default () => null;"}, "compiled_set", "compiled"),
         ({"height": 0}, "invalid_height", "height"),
         ({"height": -10}, "invalid_height", "height"),
         ({"height": "tall"}, "invalid_height", "height"),
@@ -164,10 +163,16 @@ def test_each_failure_raises(props: dict[str, Any], code: str, prop: str) -> Non
     assert raised.value.details[0].surface_id == "s"
 
 
+def test_check_react_app_flags_compiled_when_called_directly() -> None:
+    assert [(d.code, d.property_name) for d in check_react_app(_app(compiled="x"))] == [
+        ("compiled_set", "compiled")
+    ]
+
+
 def test_error_message_lists_every_problem() -> None:
     transformer = ReactAppTransformer(on_error="raise")
     turn = _turn(
-        _app(source="import x from './x';", compiled="x"),
+        _app(source="import x from './x';", functions="bad"),
         _app(id="other", height=-1),
     )
 
@@ -180,7 +185,7 @@ def test_error_message_lists_every_problem() -> None:
         message
     )
     assert "imports `./x`" in message
-    assert "ReactApp 'app' on surface 's', `compiled`:" in message
+    assert "ReactApp 'app' on surface 's', `functions`:" in message
     assert "ReactApp 'other' on surface 's', `height`:" in message
 
 
@@ -188,14 +193,14 @@ def test_passthrough_logs_and_keeps_the_message(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     transformer = ReactAppTransformer()
-    turn = _turn(_app(compiled="x"))
+    turn = _turn(_app(height=0))
 
     with caplog.at_level(logging.WARNING):
         result = transformer.transform_to_transport(turn)
 
     assert result == turn
-    assert "`compiled`" in caplog.text
-    assert [d.code for d in transformer.check(turn)] == ["compiled_set"]
+    assert "`height`" in caplog.text
+    assert [d.code for d in transformer.check(turn)] == ["invalid_height"]
 
 
 def test_check_returns_structured_diagnostics() -> None:
@@ -262,8 +267,8 @@ def test_data_paths_accept_escaped_pointers_but_not_the_root() -> None:
 
 def test_skips_components_of_other_catalogs() -> None:
     transformer = ReactAppTransformer(on_error="raise")
-    other = _app(catalogId="https://example.com/catalog.json", compiled="x")
-    unannotated = _app(catalogId=None, compiled="x")
+    other = _app(catalogId="https://example.com/catalog.json", height=0)
+    unannotated = _app(catalogId=None, height=0)
 
     assert transformer.check(_turn(other)) == []
     # The surface's default catalog is the basic catalog, which owns it.
@@ -277,7 +282,7 @@ def test_checks_unannotated_components_on_react_app_surfaces() -> None:
             "version": "1.0",
             "updateComponents": {
                 "surfaceId": "s",
-                "components": [_app(catalogId=None, compiled="x")],
+                "components": [_app(catalogId=None, height=0)],
             },
         },
     ])
@@ -298,7 +303,7 @@ def test_remembers_surfaces_until_they_are_deleted() -> None:
             "version": "1.0",
             "updateComponents": {
                 "surfaceId": "s",
-                "components": [_app(catalogId=None, compiled="x")],
+                "components": [_app(catalogId=None, height=0)],
             },
         },
     ])
@@ -320,7 +325,7 @@ def test_surface_catalogs_leave_the_instance_state_alone() -> None:
             "version": "1.0",
             "updateComponents": {
                 "surfaceId": "s",
-                "components": [_app(catalogId=None, compiled="x")],
+                "components": [_app(catalogId=None, height=0)],
             },
         },
     ])
@@ -332,8 +337,8 @@ def test_checks_components_in_create_surface() -> None:
     turn = to_message_models([
         {
             "version": "1.0",
-            "createSurface": {"surfaceId": "s", "components": [_app(compiled="x")]},
+            "createSurface": {"surfaceId": "s", "components": [_app(height=0)]},
         },
     ])
 
-    assert [d.code for d in ReactAppTransformer().check(turn)] == ["compiled_set"]
+    assert [d.code for d in ReactAppTransformer().check(turn)] == ["invalid_height"]

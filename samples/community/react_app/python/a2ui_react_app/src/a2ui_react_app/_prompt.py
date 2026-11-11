@@ -94,7 +94,7 @@ $/loan/years = 15
 
 _BINDINGS_SECTION = """### Typed functions: `a2ui:bindings`
 
-Import the functions the app calls from `a2ui:bindings` instead of naming them in `callFunction`. Each one takes the function's arguments as one object and returns a promise of its result, and the declarations below give the types of both. Import only names declared there. For results that follow app state, keep using `useFunction`.
+Import the functions the app calls from `a2ui:bindings` instead of naming them in `callFunction`. Each one takes the function's arguments as one object and returns a promise of its result, and a wrong name or argument fails the server's type check before the app ships. For results that follow app state, keep using `useFunction`.
 
 ```ts
 import { formatCurrency } from "a2ui:bindings";

@@ -41,3 +41,10 @@ export default function App() {
   );
 }
 `;
+
+export const BINDINGS_DECLARATIONS = `declare module 'a2ui:bindings' {
+  import type { CallFunctionOptions } from 'a2ui';
+  export function estimateTravelTime(args: { stops: string[] }, options?: CallFunctionOptions): Promise<number>;
+  export function formatCurrency(args: { value: number; currency: string; decimals?: number; grouping?: boolean }, options?: CallFunctionOptions): Promise<string>;
+}
+`;
