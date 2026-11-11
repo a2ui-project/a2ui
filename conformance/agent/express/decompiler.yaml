@@ -198,13 +198,13 @@
         components:
           - id: "root"
             component: "Column"
-            catalogId: "conformance/simplified"
+            "@catalogId": "conformance/simplified"
             children:
               componentId: "itemRow"
               path: "/items"
           - id: "itemRow"
             component: "Text"
-            catalogId: "conformance/simplified"
+            "@catalogId": "conformance/simplified"
             text:
               "@call": "@index"
               args:
@@ -562,7 +562,7 @@
 
 - name: test_decompile_express_two_surfaces_in_two_catalogs
   features: [F-AGT-47]
-  description: Two surfaces built from two active catalogs write back out without surface-level catalog arguments when component names are unique across the catalogs, and recompiling restores both surfaces with per-component catalogIds.
+  description: Two surfaces built from two active catalogs write back out without surface-level catalog arguments when component names are unique across the catalogs, and recompiling restores both surfaces with per-component `@catalogId` values.
   action: decompile
   args:
     format: express
@@ -576,7 +576,7 @@
         components:
           - id: "root"
             component: "Text"
-            catalogId: "conformance/simplified"
+            "@catalogId": "conformance/simplified"
             text: "Summary"
     - version: "1.0"
       createSurface:
@@ -584,7 +584,7 @@
         components:
           - id: "root"
             component: "Chart"
-            catalogId: "conformance/custom"
+            "@catalogId": "conformance/custom"
             values: [1, 2]
             caption: "Q1"
   expect_contains:
@@ -867,7 +867,7 @@
             label: "Name"
             value:
               "@path": "/name"
-            checks:
+            "@checks":
               - condition:
                   "@call": "required"
                   args:
@@ -895,7 +895,7 @@
             label: "Zip"
             value:
               "@path": "/zip"
-            checks:
+            "@checks":
               - condition:
                   "@call": "regex"
                   args:
@@ -924,7 +924,7 @@
             label: "Zip"
             value:
               "@path": "/zip"
-            checks:
+            "@checks":
               - condition:
                   "@call": "regex"
                   args:
@@ -953,7 +953,7 @@
             label: "Zip"
             value:
               "@path": "/zip"
-            checks:
+            "@checks":
               - condition:
                   "@call": "required"
                   args:
@@ -986,7 +986,7 @@
           - id: "root"
             component: "TextField"
             label: "Name"
-            checks:
+            "@checks":
               - condition:
                   "@call": "required"
                   args:
@@ -1153,4 +1153,197 @@
               other: 1
   expect_contains:
     - 'root = Probe({"@path": "/a", other: 1})'
+  expect_round_trip: true
+
+# --- v1.0 component envelope mixins ---
+#
+# A v1.0 component carries its envelope mixins as `@catalogId`, `@metadata`,
+# `@accessibility`, and `@checks`, so a custom component property named
+# `catalogId`, `metadata`, `accessibility`, or `checks` never collides with
+# them. The compiler emits only the `@` keys. During the v1.0 transition a
+# decompiler also reads a legacy bare key when the component's schema does not
+# declare a custom property of that name; recompiling such a block yields the
+# `@` key. The legacy cases below are removed when that fallback is dropped.
+
+- name: test_decompile_express_component_metadata_writes_extensions
+  description: A v1.0 component's `@metadata` envelope writes out as the `extensions=` keyword argument and round-trips back to `@metadata`.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+            "@metadata":
+              extensions:
+                trace: "t1"
+  expect_contains:
+    - 'extensions={trace: "t1"}'
+  expect_round_trip: true
+
+- name: test_decompile_express_legacy_bare_metadata_on_v1_0
+  description: During the v1.0 transition, a legacy bare `metadata` on a v1.0 component whose schema declares no `metadata` property is read as the envelope mixin, and recompiling emits `@metadata`.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+            metadata:
+              extensions:
+                trace: "t1"
+  expect_contains:
+    - 'extensions={trace: "t1"}'
+  expect_round_trip: false
+  expect_recompiled:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/simplified"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+            "@metadata":
+              extensions:
+                trace: "t1"
+
+- name: test_decompile_express_legacy_bare_checks_on_v1_0
+  description: During the v1.0 transition, a legacy bare `checks` on a checkable v1.0 component whose schema declares no `checks` property is read as the `@checks` mixin, and recompiling emits `@checks`.
+  action: decompile
+  args:
+    format: express
+    catalog: "test_data/catalogs/forms_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/forms"
+        components:
+          - id: "root"
+            component: "TextField"
+            label: "Name"
+            value:
+              "@path": "/name"
+            checks:
+              - condition:
+                  "@call": "required"
+                  args:
+                    value:
+                      "@path": "/name"
+                message: "Name is required"
+  expect_contains:
+    - 'root = TextField("Name", $/name, ?required("Name is required"))'
+  expect_round_trip: false
+  expect_recompiled:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        catalogId: "conformance/forms"
+        components:
+          - id: "root"
+            component: "TextField"
+            label: "Name"
+            value:
+              "@path": "/name"
+            "@checks":
+              - condition:
+                  "@call": "required"
+                  args:
+                    value:
+                      "@path": "/name"
+                message: "Name is required"
+
+- name: test_decompile_express_legacy_bare_catalog_id_on_v1_0
+  description: During the v1.0 transition, a legacy bare `catalogId` on a v1.0 component whose schema declares no `catalogId` property is read as the `@catalogId` mixin, and recompiling emits `@catalogId`.
+  action: decompile
+  args:
+    format: express
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Chart"
+            catalogId: "conformance/custom"
+            values: [1, 2]
+            caption: "Q1"
+  expect_contains:
+    - 'surface("s1")'
+    - 'root = Chart([1, 2], "Q1")'
+  expect_round_trip: false
+  expect_recompiled:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Chart"
+            "@catalogId": "conformance/custom"
+            values: [1, 2]
+            caption: "Q1"
+
+- name: test_decompile_express_custom_metadata_and_catalog_id_properties_beside_mixins
+  description: A v1.0 component whose catalog declares its own `metadata` and `catalogId` properties writes them out as ordinary arguments, while `@catalogId` and `@metadata` write out as the `catalogId=` and `extensions=` envelope keywords, and the block round-trips with both forms intact.
+  action: decompile
+  args:
+    format: express
+    catalogs:
+      - catalogId: "conformance/cat_a"
+        protocolVersion: "1.0"
+        components:
+          Badge:
+            type: object
+            properties:
+              component: {const: "Badge"}
+              label: {$ref: "common_types.json#/$defs/DynamicString"}
+            required: ["component", "label"]
+      - catalogId: "conformance/cat_b"
+        protocolVersion: "1.0"
+        components:
+          Badge:
+            type: object
+            properties:
+              component: {const: "Badge"}
+              count: {$ref: "common_types.json#/$defs/DynamicNumber"}
+              metadata: {type: string}
+              catalogId: {type: string}
+            required: ["component", "count"]
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Badge"
+            "@catalogId": "conformance/cat_b"
+            count: 42
+            metadata: "custom-meta"
+            catalogId: "custom-cat"
+            "@metadata":
+              extensions:
+                source: "agent"
+  expect_contains:
+    - 'surface("s1")'
+    - '"custom-meta"'
+    - '"custom-cat"'
+    - 'catalogId="conformance/cat_b"'
+    - 'extensions={source: "agent"}'
   expect_round_trip: true

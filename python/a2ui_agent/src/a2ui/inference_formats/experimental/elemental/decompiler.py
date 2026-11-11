@@ -25,6 +25,7 @@ from typing import Any, Literal
 
 from a2ui.constants import A2UI_INFERENCE_CLOSE_TAG, A2UI_INFERENCE_OPEN_TAG
 from a2ui.core import CatalogApi
+from a2ui.core.common import is_at_least_version
 from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_formats._shared import (
     CatalogSchemaHelper,
@@ -34,6 +35,11 @@ from a2ui.inference_formats._shared import (
     coalesce_surface_messages,
 )
 from a2ui.inference_formats.express import SurfaceOperation
+from a2ui.utils.component_envelope import (
+    ENVELOPE_MIXIN_NAMES,
+    envelope_read_key,
+    get_envelope_value,
+)
 
 from .compiler import TAG_PREFIX, UPDATE_ATTR
 
@@ -168,6 +174,10 @@ class ElementalDecompiler:
         self._catalogs = check_mixed_catalogs(catalogs)
         self.helpers = build_catalog_helpers(self._catalogs)
         self._multi = len(self._catalogs) > 1
+        # From v1.0 the component envelope mixin keys carry an `@` prefix.
+        self._at_least_v10 = is_at_least_version(
+            self._catalogs[0].protocol_version, "1.0"
+        )
         # The catalog that a component or call without a `catalogId` comes
         # from in the message being decompiled: the surface's `createSurface`
         # catalog, or the single catalog. None when neither is known, so each
@@ -260,6 +270,64 @@ class ElementalDecompiler:
                 "component", comp["component"], comp.get("catalogId")
             )
         ]
+
+    def _custom_envelope(
+        self, catalog_id: str | None, comp_name: str
+    ) -> frozenset[str]:
+        """Returns the envelope mixin names a component declares as its own."""
+        helper = self.helpers.get(catalog_id) if catalog_id else None
+        if helper is None or comp_name not in helper.components:
+            return frozenset()
+        return helper.get_custom_envelope_properties(comp_name)
+
+    def _to_markup_keys(self, comp: dict[str, Any]) -> dict[str, Any]:
+        """Returns a v1.0 component with its envelope properties under bare names.
+
+        The markup names `catalogId`, `checks`, `metadata` and `accessibility`
+        bare. Each is read from its `@` key, else from the legacy bare key
+        unless the component declares a property of that bare name. An `@` key
+        whose bare name the component declares is dropped, as the markup
+        cannot write both. Components before v1.0 are returned unchanged.
+        """
+        if not self._at_least_v10:
+            return comp
+        comp_name = str(comp.get("component", ""))
+        try:
+            default_catalog = self._actual_catalog_id("component", comp_name, None)
+        except ValueError:
+            default_catalog = None
+        catalog_id = get_envelope_value(
+            comp,
+            "catalogId",
+            at_least_v10=True,
+            custom_properties=self._custom_envelope(default_catalog, comp_name),
+        )
+        custom = self._custom_envelope(
+            catalog_id if isinstance(catalog_id, str) else default_catalog, comp_name
+        )
+        read_keys = {
+            envelope_read_key(comp, name, at_least_v10=True, custom_properties=custom)
+            for name in ENVELOPE_MIXIN_NAMES
+            if name != "catalogId" and name not in custom
+        }
+        out: dict[str, Any] = {}
+        for k, v in comp.items():
+            if k in ("catalogId", "@catalogId"):
+                continue
+            if k in read_keys:
+                out[k.removeprefix("@")] = v
+            elif k.removeprefix("@") in ENVELOPE_MIXIN_NAMES and (
+                k.startswith("@") or k not in custom
+            ):
+                # An envelope property the markup does not write: a legacy
+                # duplicate of an `@` key, or an `@` key whose bare name the
+                # component declares.
+                continue
+            else:
+                out[k] = v
+        if catalog_id:
+            out["catalogId"] = catalog_id
+        return out
 
     def wrap_decompiled_blocks(self, blocks: list[str]) -> str:
         wrapped_blocks = [
@@ -403,6 +471,7 @@ class ElementalDecompiler:
         data_model: dict[str, Any],
         is_update: bool,
     ) -> str:
+        components = [self._to_markup_keys(c) for c in components]
         self.id_to_component = {c["id"]: c for c in components}
         self.comp_ids = set(self.id_to_component.keys())
 

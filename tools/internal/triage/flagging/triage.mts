@@ -18,7 +18,7 @@
 // waiting-for-author-response' labels across all open issues and PRs.
 //
 // For detailed rules and documentation on how the triage automation works, see:
-// https://github.com/a2ui-project/a2ui/blob/main/blueprints/devtools/triage_flagging.blueprint.md
+// https://github.com/a2ui-project/a2ui/blob/main/tools/internal/triage/blueprints/flagging.blueprint.md
 //
 // Implementation notes:
 // - Items are selected by query, but the query alone is not trusted: GitHub's
@@ -28,10 +28,91 @@
 //   A PR event would otherwise run the PR's copy, and two copies with different
 //   rules undo each other's labels on every run.
 
+// The shapes below cover only the fields this script reads. The workflow passes
+// the real Octokit client and context from `actions/github-script`.
+
+export interface User {
+  login?: string;
+  type?: string;
+}
+
+/** An issue or PR, as `issues.listForRepo` and `issues.get` return it. */
+export interface Item {
+  number: number;
+  state?: string;
+  html_url?: string;
+  created_at: string;
+  author_association: string;
+  // A deleted account surfaces as a null `user`.
+  user: User | null;
+  labels?: (string | {name: string})[];
+  assignees?: readonly unknown[] | null;
+  // Present only on PRs.
+  pull_request?: unknown;
+  // The number of top-level comments.
+  comments?: number;
+}
+
+/** An issue comment, PR review or inline review comment, as the API returns it. */
+export interface RawContribution {
+  // Reviews have `submitted_at` instead.
+  created_at?: string;
+  submitted_at?: string;
+  author_association: string;
+  user: User | null;
+}
+
+/** A contribution in the common shape `toEvent` gives it. */
+export interface Contribution {
+  createdAt: string;
+  association: string;
+  user: User | null;
+}
+
+/** An entry in an item's event history, as `issues.listEvents` returns it. */
+export interface IssueEvent {
+  event: string;
+  label?: {name: string};
+  created_at: string;
+}
+
+type Params = Record<string, unknown>;
+type Endpoint = (params: Params) => Promise<unknown>;
+
+export interface GitHub {
+  paginate<T>(endpoint: Endpoint, params: Params): Promise<T[]>;
+  rest: {
+    issues: {
+      listForRepo: Endpoint;
+      listComments: Endpoint;
+      listEvents: Endpoint;
+      get(params: Params): Promise<{data: Item}>;
+      addLabels(params: Params): Promise<unknown>;
+      removeLabel(params: Params): Promise<unknown>;
+    };
+    pulls: {
+      listReviews: Endpoint;
+      listReviewComments: Endpoint;
+    };
+  };
+}
+
+export interface Context {
+  repo: {owner: string; repo: string};
+}
+
+interface Client {
+  github: GitHub;
+  owner: string;
+  repo: string;
+}
+
 export const WAITING_LABEL = 'status: waiting-for-author-response';
 export const FLAG_LABEL = 'status: needs-triage';
 export const ASSIGNED_FOR_TRIAGE_LABEL = 'status: assigned-for-triage';
-export const PRIORITY_LABELS = ['P0', 'P1', 'P2', 'P3', 'P4'];
+export const PRIORITY_LABELS = ['P0', 'P1', 'P2', 'P3'] as const;
+
+export type Priority = (typeof PRIORITY_LABELS)[number];
 
 // Days an item may carry ASSIGNED_FOR_TRIAGE_LABEL before it is flagged
 // (step 2).
@@ -39,12 +120,11 @@ export const TRIAGE_ASSIGNMENT_DAYS = 14;
 
 // Priorities urgent enough that an unassigned issue is flagged immediately
 // (step 3). Every entry must be one of PRIORITY_LABELS.
-export const ASSIGNEE_REQUIRED_PRIORITIES = new Set(['P0', 'P1']);
+export const ASSIGNEE_REQUIRED_PRIORITIES: ReadonlySet<Priority> = new Set<Priority>(['P0', 'P1']);
 
 // Days of inactivity before an assigned issue is considered stale (step 3).
-// Keys must be a subset of PRIORITY_LABELS; priorities absent here are never
-// flagged for staleness.
-export const STALE_DAYS = {P0: 1, P1: 30};
+// Priorities absent here are never flagged for staleness.
+export const STALE_DAYS: Partial<Record<Priority, number>> = {P0: 1, P1: 30};
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -53,33 +133,33 @@ const MAINTAINER_ASSOCIATIONS = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
 
 // A deleted account surfaces as a null `user`; treat that as a human so their
 // past contributions still count, rather than silently classifying them as a bot.
-export const isBot = user =>
-  Boolean(user) && (user.type === 'Bot' || /\[bot\]$/.test(user.login || ''));
+export const isBot = (user: User | null | undefined): boolean =>
+  user != null && (user.type === 'Bot' || /\[bot\]$/.test(user.login || ''));
 
 // True for anyone outside the team, bots included: an issue a workflow files or
 // a PR dependabot opens needs triage as much as one from an outside human.
 // Takes anything with `association`: a normalized contribution or the result of
 // `lastHumanContribution`.
-const isExternal = ({association}) => !MAINTAINER_ASSOCIATIONS.has(association);
+const isExternal = ({association}: {association: string}): boolean =>
+  !MAINTAINER_ASSOCIATIONS.has(association);
 
-const labelNames = item =>
+const labelNames = (item: Pick<Item, 'labels'>): string[] =>
   (item.labels || []).map(label => (typeof label === 'string' ? label : label.name));
 
-const ageInDays = (isoTimestamp, now) => (now - new Date(isoTimestamp).getTime()) / DAY_MS;
+const ageInDays = (isoTimestamp: string, now: number): number =>
+  (now - new Date(isoTimestamp).getTime()) / DAY_MS;
 
 /**
- * Returns the most recent human contribution to an item: either its newest
- * non-bot contribution (a comment, or — on PRs — a review or inline review
- * comment), or, if there are none, the opening post itself. Used both to measure
- * staleness and to decide whether an external author is still awaiting a
- * maintainer response.
+ * Returns the most recent human contribution to an issue: either its newest
+ * non-bot comment, or, if there are none, the opening post itself. Used both to
+ * measure staleness and to decide whether an external contributor is still
+ * awaiting a maintainer response.
  *
- * `contributions` is the merged, normalized event list from `fetchContributions`.
- * On PRs it comes from three different endpoints so it is not sorted; the scan
- * picks the latest regardless of order.
+ * `contributions` is the normalized event list from `fetchContributions`. The
+ * scan picks the latest regardless of order.
  */
-export function lastHumanContribution(item, contributions) {
-  let latest = {
+export function lastHumanContribution(item: Item, contributions: Contribution[]): Contribution {
+  let latest: Contribution = {
     createdAt: item.created_at,
     association: item.author_association,
     user: item.user,
@@ -101,6 +181,10 @@ export function lastHumanContribution(item, contributions) {
  * once at or after `waitingSince`, the moment the label was added. Used to clear
  * the label.
  *
+ * Anyone outside the team counts, not only the author: an author sometimes
+ * opens an issue and goes quiet while others continue the discussion, and their
+ * replies need the team's attention too.
+ *
  * Maintainer contributions never count: the team asked the question, so its own
  * follow-ups do not answer it. Bot contributions do not count either, although
  * bots are external: a bot cannot answer the question. Neither do contributions
@@ -111,7 +195,10 @@ export function lastHumanContribution(item, contributions) {
  * `labelsAddedAt`. The label is then left for a human to clear rather than
  * guessed at.
  */
-export function externalHasResponded(contributions, waitingSince) {
+export function externalHasResponded(
+  contributions: Contribution[],
+  waitingSince: string | null,
+): boolean {
   if (!waitingSince) return false;
   return contributions.some(
     event => event.createdAt >= waitingSince && isExternal(event) && !isBot(event.user),
@@ -125,7 +212,12 @@ export function externalHasResponded(contributions, waitingSince) {
  * `assignedForTriageSince` is when ASSIGNED_FOR_TRIAGE_LABEL was last added, or
  * null when that could not be read — see `labelsAddedAt`.
  */
-export function flagReason(item, contributions, now, assignedForTriageSince = null) {
+export function flagReason(
+  item: Item,
+  contributions: Contribution[],
+  now: number,
+  assignedForTriageSince: string | null = null,
+): string | null {
   const labels = labelNames(item);
   const isPR = Boolean(item.pull_request);
   const assigneeCount = item.assignees?.length ?? 0;
@@ -150,21 +242,22 @@ export function flagReason(item, contributions, now, assignedForTriageSince = nu
     return null;
   }
 
-  const latest = lastHumanContribution(item, contributions);
   const openedByExternal = isExternal({association: item.author_association});
 
   // Step 4: PRs. Only external contributors' PRs are watched; maintainers
-  // manage their own, so an internally-authored PR is never flagged. There is
-  // no grace period: a PR counts as needing triage from the moment the author
-  // has the last word, opening it included.
+  // manage their own, so an internally-authored PR is never flagged. An
+  // external PR needs triage until a team member takes it on by being
+  // assigned; a team comment alone does not take it off the queue. A PR
+  // waiting on its author has already left at step 1.
   if (isPR) {
-    if (!openedByExternal) {
+    if (!openedByExternal || assigneeCount > 0) {
       return null;
     }
-    return isExternal(latest) ? 'no maintainer has responded to the author.' : null;
+    return 'this external PR has no assignee.';
   }
 
   // Step 3: issues.
+  const latest = lastHumanContribution(item, contributions);
   const priority = PRIORITY_LABELS.find(p => labels.includes(p));
 
   // The team manages its own issues, so a missing priority matters only once
@@ -177,7 +270,7 @@ export function flagReason(item, contributions, now, assignedForTriageSince = nu
   // work goes quiet beyond its priority's threshold, or when outside input
   // still lacks a priority.
   if (assigneeCount > 0) {
-    const threshold = STALE_DAYS[priority];
+    const threshold = priority && STALE_DAYS[priority];
     if (threshold !== undefined && ageInDays(latest.createdAt, now) > threshold) {
       const unit = threshold === 1 ? 'day' : 'days';
       return `this ${priority} issue has had no human activity for more than ${threshold} ${unit}.`;
@@ -186,7 +279,7 @@ export function flagReason(item, contributions, now, assignedForTriageSince = nu
   }
 
   // Urgent work with nobody on it.
-  if (ASSIGNEE_REQUIRED_PRIORITIES.has(priority)) {
+  if (priority && ASSIGNEE_REQUIRED_PRIORITIES.has(priority)) {
     return `this ${priority} issue has no assignee.`;
   }
 
@@ -194,8 +287,8 @@ export function flagReason(item, contributions, now, assignedForTriageSince = nu
     return noPriorityReason;
   }
 
-  // The last word on the issue is an external one. Like PRs, this carries no
-  // grace period: it fires as soon as the comment lands.
+  // The last word on the issue is an external one. This carries no grace
+  // period: it fires as soon as the comment lands.
   if (isExternal(latest)) {
     return 'the latest contribution is from an external contributor and has gone unanswered.';
   }
@@ -211,8 +304,8 @@ const BATCH_SIZE = 10;
  * Maps `items` through async `fn` in concurrent batches of `BATCH_SIZE` rather
  * than all at once, bounding the number of in-flight requests.
  */
-async function mapInBatches(items, fn) {
-  const results = [];
+async function mapInBatches<T, R>(items: T[], fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = [];
   for (let i = 0; i < items.length; i += BATCH_SIZE) {
     const batch = items.slice(i, i + BATCH_SIZE);
     results.push(...(await Promise.all(batch.map(fn))));
@@ -223,8 +316,8 @@ async function mapInBatches(items, fn) {
 // Normalizes the different GitHub contribution shapes into a common
 // `{createdAt, association, user}` event. Reviews stamp their submission time in
 // `submitted_at`; issue and inline review comments use `created_at`.
-const toEvent = contribution => ({
-  createdAt: contribution.created_at || contribution.submitted_at,
+const toEvent = (contribution: RawContribution): Contribution => ({
+  createdAt: (contribution.created_at || contribution.submitted_at)!,
   association: contribution.author_association,
   user: contribution.user,
 });
@@ -233,18 +326,30 @@ const toEvent = contribution => ({
  * Gathers every human-visible contribution to an item as a flat list of
  * normalized events. For issues that is just the top-level comments. PRs also
  * accrue formal reviews and inline review comments, which live on separate
- * endpoints: a maintainer often responds by submitting a review or leaving
- * inline comments without a separate top-level comment, so considering only
- * issue comments would wrongly treat the PR as unanswered. A failure for one
+ * endpoints: an author often answers a request by replying in a review thread
+ * without a separate top-level comment, so considering only issue comments
+ * would leave WAITING_LABEL on a PR that has been answered. A failure for one
  * source must not abort the whole run, so errors fall back to an empty list for
  * that source.
  */
-async function fetchContributions({github, owner, repo}, item) {
+async function fetchContributions(
+  {github, owner, repo}: Client,
+  item: Item,
+): Promise<Contribution[]> {
   const number = item.number;
 
-  const fetchAll = async (label, endpoint, params) => {
+  const fetchAll = async (
+    label: string,
+    endpoint: Endpoint,
+    params: Params,
+  ): Promise<RawContribution[]> => {
     try {
-      return await github.paginate(endpoint, {owner, repo, per_page: 100, ...params});
+      return await github.paginate<RawContribution>(endpoint, {
+        owner,
+        repo,
+        per_page: 100,
+        ...params,
+      });
     } catch (error) {
       console.error(`Failed to fetch ${label} for #${number}:`, error);
       return [];
@@ -280,10 +385,14 @@ async function fetchContributions({github, owner, repo}, item) {
  * first round must not clear the second. Likewise, re-adding
  * ASSIGNED_FOR_TRIAGE_LABEL starts a new triage assignment.
  */
-async function labelsAddedAt({github, owner, repo}, item, names) {
-  const addedAt = {};
+async function labelsAddedAt(
+  {github, owner, repo}: Client,
+  item: Item,
+  names: string[],
+): Promise<Record<string, string>> {
+  const addedAt: Record<string, string> = {};
   try {
-    const events = await github.paginate(github.rest.issues.listEvents, {
+    const events = await github.paginate<IssueEvent>(github.rest.issues.listEvents, {
       owner,
       repo,
       issue_number: item.number,
@@ -291,7 +400,7 @@ async function labelsAddedAt({github, owner, repo}, item, names) {
     });
     for (const event of events) {
       const name = event.label?.name;
-      if (event.event !== 'labeled' || !names.includes(name)) continue;
+      if (event.event !== 'labeled' || !name || !names.includes(name)) continue;
       if (!addedAt[name] || event.created_at > addedAt[name]) {
         addedAt[name] = event.created_at;
       }
@@ -309,14 +418,20 @@ async function labelsAddedAt({github, owner, repo}, item, names) {
   return addedAt;
 }
 
-export default async function issueTriage({github, context}) {
+export default async function issueTriage({
+  github,
+  context,
+}: {
+  github: GitHub;
+  context: Context;
+}): Promise<void> {
   console.log('A2UI triage-flag reconciliation started');
 
   const {owner, repo} = context.repo;
   const now = Date.now();
 
   // `listForRepo` returns both issues and PRs; PRs carry a `pull_request` key.
-  const openItems = await github.paginate(github.rest.issues.listForRepo, {
+  const openItems = await github.paginate<Item>(github.rest.issues.listForRepo, {
     owner,
     repo,
     state: 'open',
@@ -328,14 +443,16 @@ export default async function issueTriage({github, context}) {
   // for items carrying a label whose age matters, so it costs an extra call on
   // those alone.
   const itemsWithContributions = await mapInBatches(openItems, async item => {
-    const client = {github, owner, repo};
+    const client: Client = {github, owner, repo};
     const labels = labelNames(item);
     const timedLabels = [WAITING_LABEL, ASSIGNED_FOR_TRIAGE_LABEL].filter(name =>
       labels.includes(name),
     );
     const [contributions, addedAt] = await Promise.all([
       fetchContributions(client, item),
-      timedLabels.length > 0 ? labelsAddedAt(client, item, timedLabels) : {},
+      timedLabels.length > 0
+        ? labelsAddedAt(client, item, timedLabels)
+        : ({} as Record<string, string>),
     ]);
     return {
       item,

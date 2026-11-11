@@ -457,7 +457,7 @@ surface("s1")
               'id': 'root',
               'component': 'Text',
               'text': 'Hello',
-              'metadata': {
+              '@metadata': {
                 'extensions': {'comp_ext': true},
               },
             },
@@ -494,7 +494,7 @@ surface("s1")
             'id': 'root',
             'component': 'Text',
             'text': 'Hello',
-            'metadata': {
+            '@metadata': {
               'extensions': {'comp_ext': 42},
             },
           },

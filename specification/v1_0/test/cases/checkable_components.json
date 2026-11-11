@@ -16,7 +16,7 @@
               "value": {
                 "@path": "/formData/email"
               },
-              "checks": [
+              "@checks": [
                 {
                   "condition": {
                     "@call": "required",
@@ -71,7 +71,7 @@
               "value": {
                 "@path": "/formData/interests"
               },
-              "checks": [
+              "@checks": [
                 {
                   "condition": {
                     "@call": "length",
@@ -107,7 +107,7 @@
               "value": {
                 "@path": "/formData/rating"
               },
-              "checks": [
+              "@checks": [
                 {
                   "condition": {
                     "@call": "numeric",
@@ -141,7 +141,7 @@
               "value": {
                 "@path": "/formData/agreed"
               },
-              "checks": [
+              "@checks": [
                 {
                   "condition": {
                     "@call": "required",
@@ -174,7 +174,7 @@
               "value": {
                 "@path": "/formData/date"
               },
-              "checks": [
+              "@checks": [
                 {
                   "condition": {
                     "@call": "required",
@@ -207,7 +207,7 @@
               "value": {
                 "@path": "/formData/phone"
               },
-              "checks": [
+              "@checks": [
                 {
                   "condition": {
                     "@call": "regex",
@@ -241,7 +241,7 @@
               "value": {
                 "@path": "/formData/pw"
               },
-              "checks": [
+              "@checks": [
                 {
                   "condition": {
                     "@call": "length",
@@ -278,7 +278,7 @@
               "value": {
                 "@path": "/formData/score"
               },
-              "checks": [
+              "@checks": [
                 {
                   "condition": {
                     "@call": "numeric",
@@ -313,7 +313,7 @@
               "value": {
                 "@path": "/formData/code"
               },
-              "checks": [
+              "@checks": [
                 {
                   "condition": {
                     "@call": "and",
@@ -383,7 +383,7 @@
               "value": {
                 "@path": "/formData/email"
               },
-              "checks": [
+              "@checks": [
                 {
                   "condition": {
                     "@call": "email",
@@ -415,7 +415,7 @@
               "value": {
                 "@path": "/formData/name"
               },
-              "checks": [
+              "@checks": [
                 {
                   "condition": {
                     "@call": "formatString",
@@ -462,7 +462,7 @@
               "value": {
                 "@path": "/formData/interests"
               },
-              "checks": [
+              "@checks": [
                 {
                   "condition": {
                     "@call": "length",

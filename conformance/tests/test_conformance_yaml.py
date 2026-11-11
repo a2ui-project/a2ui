@@ -905,3 +905,85 @@ def test_agent_suite_schemas_reject_invalid_cases(invalid_case):
 def test_handle_rpc_lifecycle_schema_rejects_invalid_cases(invalid_case):
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate(instance=[invalid_case], schema=SCHEMA)
+
+
+@pytest.mark.parametrize(
+    "valid_case",
+    [
+        {
+            "name": "read_caps_valid_expect",
+            "action": "read_renderer_capabilities",
+            "args": {
+                "version": "1.0",
+                "metadata": {
+                    "a2uiRendererCapabilities": {
+                        "1.0": {"supportedCatalogIds": ["cat-1"]}
+                    }
+                },
+            },
+            "expect": {"1.0": {"supportedCatalogIds": ["cat-1"]}},
+        },
+        {
+            "name": "read_caps_valid_null",
+            "action": "read_renderer_capabilities",
+            "args": {"version": "v0.9", "metadata": None},
+            "expect": None,
+        },
+        {
+            "name": "read_caps_valid_error",
+            "action": "read_renderer_capabilities",
+            "args": {
+                "version": "1.0",
+                "metadata": {"a2uiRendererCapabilities": "bad"},
+            },
+            "expect_error": {"category": "CatalogError"},
+        },
+    ],
+)
+def test_read_renderer_capabilities_schema_accepts_valid_cases(valid_case):
+    VALIDATOR.validate([valid_case])
+
+
+@pytest.mark.parametrize(
+    "invalid_case",
+    [
+        {
+            "name": "read_caps_missing_args",
+            "action": "read_renderer_capabilities",
+            "expect": None,
+        },
+        {
+            "name": "read_caps_missing_version",
+            "action": "read_renderer_capabilities",
+            "args": {"metadata": {}},
+            "expect": None,
+        },
+        {
+            "name": "read_caps_missing_metadata",
+            "action": "read_renderer_capabilities",
+            "args": {"version": "1.0"},
+            "expect": None,
+        },
+        {
+            "name": "read_caps_unknown_arg",
+            "action": "read_renderer_capabilities",
+            "args": {"version": "1.0", "metadata": {}, "extra": True},
+            "expect": None,
+        },
+        {
+            "name": "read_caps_missing_expectation",
+            "action": "read_renderer_capabilities",
+            "args": {"version": "1.0", "metadata": {}},
+        },
+        {
+            "name": "read_caps_both_expect_and_error",
+            "action": "read_renderer_capabilities",
+            "args": {"version": "1.0", "metadata": {}},
+            "expect": None,
+            "expect_error": {"category": "CatalogError"},
+        },
+    ],
+)
+def test_read_renderer_capabilities_schema_rejects_invalid_cases(invalid_case):
+    with pytest.raises(jsonschema.ValidationError):
+        VALIDATOR.validate([invalid_case])
