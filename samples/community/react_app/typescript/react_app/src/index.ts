@@ -46,7 +46,11 @@ export {
   DEFAULT_RUNTIME_BASE_URL,
   configureReactApp,
   getReactAppConfig,
+  inlineRuntimeAsDataUrls,
+  loadRuntime,
   resetReactAppConfig,
+  resolveRuntimeBaseUrl,
+  type LoadedRuntime,
   type ReactAppConfig,
   type ReactAppRuntimeManifest,
 } from './react_app_config.js';

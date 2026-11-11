@@ -162,7 +162,8 @@ describe('runtime configuration', () => {
     expect(runtime.manifest).toBe(MANIFEST);
   });
 
-  it('fetches manifest.json once per base URL', async () => {
+  it('fetches manifest.json once per base URL when inlineDataUrls is false', async () => {
+    configureReactApp({inlineDataUrls: false});
     let fetches = 0;
     const fetchImpl = (async (url: string) => {
       fetches++;
@@ -173,8 +174,58 @@ describe('runtime configuration', () => {
     const [first, second] = await Promise.all([loadRuntime(fetchImpl), loadRuntime(fetchImpl)]);
 
     expect(first.manifest).toEqual(MANIFEST);
+    expect(first.inlineDataUrls).toBeFalse();
     expect(second).toBe(first);
     expect(fetches).toBe(1);
+  });
+
+  it('inlines runtime modules, chunks and stylesheet as data: URLs by default for a relative runtimeBaseUrl', async () => {
+    const base = new URL('/a2ui-sandbox/react-app/v1/', document.baseURI).href;
+    const files: Record<string, string> = {
+      [`${base}manifest.json`]: JSON.stringify({
+        ...MANIFEST,
+        chunks: ['./chunks/lazy-DDDD4444.js'],
+      }),
+      [`${base}react-AAAA1111.js`]:
+        'import {shared} from "./chunks/shared-EEEE5555.js"; export default shared;\n',
+      [`${base}a2ui-runtime-BBBB2222.js`]:
+        'import React from "react"; export async function start() { return import("./chunks/lazy-DDDD4444.js"); }\n',
+      [`${base}chunks/shared-EEEE5555.js`]: 'export const shared = "react-19";\n',
+      [`${base}chunks/lazy-DDDD4444.js`]:
+        'import {shared} from "./shared-EEEE5555.js"; export const lazy = shared;\n',
+      [`${base}a2ui-lite-CCCC3333.css`]: 'body { margin: 0; }\n',
+    };
+    const requested: string[] = [];
+    const fetchImpl = (async (url: string) => {
+      requested.push(url);
+      const body = files[url];
+      if (body === undefined) {
+        return new Response('not found', {status: 404});
+      }
+      return new Response(body);
+    }) as unknown as typeof fetch;
+
+    const runtime = await loadRuntime(fetchImpl);
+
+    expect(runtime.inlineDataUrls).toBeTrue();
+    expect(runtime.manifest.preload).toEqual([]);
+    expect(runtime.manifest.stylesheet).toMatch(/^data:text\/css;base64,/);
+    const imports = runtime.manifest.importMap.imports;
+    expect(imports['react']).toMatch(/^data:text\/javascript;base64,/);
+    expect(imports['a2ui-runtime']).toMatch(/^data:text\/javascript;base64,/);
+    expect(imports['a2ui-chunk/chunks/shared-EEEE5555.js']).toMatch(
+      /^data:text\/javascript;base64,/,
+    );
+    expect(imports['a2ui-chunk/chunks/lazy-DDDD4444.js']).toMatch(/^data:text\/javascript;base64,/);
+    // Relative imports inside both entry and chunk files now point to the shared bare specifier.
+    const decode = (dataUrl: string) => atob(dataUrl.split(',')[1]);
+    expect(decode(imports['react'])).toContain('from "a2ui-chunk/chunks/shared-EEEE5555.js"');
+    expect(decode(imports['a2ui-runtime'])).toContain(
+      'import("a2ui-chunk/chunks/lazy-DDDD4444.js")',
+    );
+    expect(decode(imports['a2ui-chunk/chunks/lazy-DDDD4444.js'])).toContain(
+      'from "a2ui-chunk/chunks/shared-EEEE5555.js"',
+    );
   });
 });
 

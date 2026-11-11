@@ -41,6 +41,8 @@ export interface ReactAppRuntimeManifest {
   readonly stylesheet: string;
   /** Module files the first render needs, for `<link rel="modulepreload">`. */
   readonly preload: readonly string[];
+  /** Shared and lazy chunk files (`./chunks/*.js`), for hosts that inline the runtime as `data:` URLs. */
+  readonly chunks?: readonly string[];
 }
 
 /** Directory of the built runtime: the files to serve at `.../react-app/v1/`. */
