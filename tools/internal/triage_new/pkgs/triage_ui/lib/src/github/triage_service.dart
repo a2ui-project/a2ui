@@ -14,7 +14,6 @@
 
 import 'package:triage/triage.dart';
 
-import '../model/genui_pull_request.dart';
 import '../model/triage_item.dart';
 import 'github_client.dart';
 import 'json.dart';
@@ -41,61 +40,43 @@ final class RepositoryInfo {
   final Map<String, int> milestones;
 }
 
-/// Reads and changes the items of `a2ui-project/a2ui` on GitHub.
+/// Reads and changes the items of [a2uiRepository] and [genuiRepository] on
+/// GitHub.
 class TriageService {
   TriageService(this._client);
 
-  static const String owner = 'a2ui-project';
-  static const String name = 'a2ui';
-
-  /// The repository whose pull requests that need triage the list shows,
-  /// without editing them.
-  static const String genuiRepository = 'flutter/genui';
-
   final GitHubClient _client;
 
-  static const Map<String, Object?> _repository = {
-    'owner': owner,
-    'name': name,
-  };
+  /// The `owner` and `name` variables of a query about [repository].
+  static Map<String, Object?> _variables(String repository) {
+    final [String owner, String name] = repository.split('/');
+    return {'owner': owner, 'name': name};
+  }
 
-  String _issuePath(int number) => 'repos/$owner/$name/issues/$number';
+  String _issuePath(ItemRef item) =>
+      'repos/${item.repository}/issues/${item.number}';
 
   /// The open items with `status: needs-triage` or
-  /// `status: needs-team-input`.
+  /// `status: needs-team-input`: the issues and pull requests in
+  /// [a2uiRepository], and the pull requests in [genuiRepository].
   Future<List<TriageItem>> fetchQueue() async {
-    final (
-      List<TriageItem> needTriage,
-      List<TriageItem> needTeamInput,
-    ) = await (
-      _searchItems('label:"$needsTriageLabel"'),
-      _searchItems('label:"$needsTeamInputLabel"'),
-    ).wait;
-    final Set<int> found = {for (final i in needTriage) i.number};
+    final List<List<TriageItem>> found = await [
+      for (final label in [needsTriageLabel, needsTeamInputLabel]) ...[
+        _searchItems('repo:$a2uiRepository is:open label:"$label"'),
+        _searchItems('repo:$genuiRepository is:pr is:open label:"$label"'),
+      ],
+    ].wait;
+    final seen = <ItemRef>{};
     return [
-      ...needTriage,
-      for (final i in needTeamInput)
-        if (!found.contains(i.number)) i,
+      for (final items in found)
+        for (final i in items)
+          if (seen.add(i.ref)) i,
     ];
   }
 
-  /// The open pull requests in [genuiRepository] with
-  /// `status: needs-triage`.
-  Future<List<GenuiPullRequest>> fetchGenuiPullRequests() async => [
-    for (final Map<String, Object?> node in await _search(
-      genuiPullRequestsQuery,
-      'repo:$genuiRepository is:pr is:open label:"$needsTriageLabel"',
-    ))
-      GenuiPullRequest.fromGraphQL(node),
-  ];
-
-  /// The open items in the repository that match [filter], a GitHub search
-  /// filter.
-  Future<List<TriageItem>> _searchItems(String filter) async => [
-    for (final Map<String, Object?> node in await _search(
-      searchQuery,
-      'repo:$owner/$name is:open $filter',
-    ))
+  /// The items that match [query], a GitHub search query.
+  Future<List<TriageItem>> _searchItems(String query) async => [
+    for (final Map<String, Object?> node in await _search(searchQuery, query))
       TriageItem.fromGraphQL(node),
   ];
 
@@ -122,19 +103,21 @@ class TriageService {
     return nodes;
   }
 
-  /// The item with [number], or null if there is none.
-  Future<TriageItem?> fetchItem(int number) async {
+  /// The item that [item] refers to, or null if there is none.
+  Future<TriageItem?> fetchItem(ItemRef item) async {
     final Map<String, Object?> data = await _client.graphql(itemQuery, {
-      ..._repository,
-      'number': number,
+      ..._variables(item.repository),
+      'number': item.number,
     });
     final Object? node = asMap(data['repository'])['issueOrPullRequest'];
     return node == null ? null : TriageItem.fromGraphQL(asMap(node));
   }
 
-  Future<RepositoryInfo> fetchRepositoryInfo() async {
+  /// The labels, assignable people and open milestones of [name], such as
+  /// `a2ui-project/a2ui`.
+  Future<RepositoryInfo> fetchRepositoryInfo(String name) async {
     final Map<String, Object?> repository = asMap(
-      (await _client.graphql(repositoryQuery, _repository))['repository'],
+      (await _client.graphql(repositoryQuery, _variables(name)))['repository'],
     );
     final List<Map<String, Object?>> labels = nodesOf(repository['labels']);
     return RepositoryInfo(
@@ -159,19 +142,19 @@ class TriageService {
 
   /// Sets the milestone with [milestone] number on the item, or removes
   /// the item's milestone if [milestone] is null.
-  Future<void> setMilestone(int number, int? milestone) =>
-      _client.rest('PATCH', _issuePath(number), {'milestone': milestone});
+  Future<void> setMilestone(ItemRef item, int? milestone) =>
+      _client.rest('PATCH', _issuePath(item), {'milestone': milestone});
 
-  Future<void> postComment(int number, String body) =>
-      _client.rest('POST', '${_issuePath(number)}/comments', {'body': body});
+  Future<void> postComment(ItemRef item, String body) =>
+      _client.rest('POST', '${_issuePath(item)}/comments', {'body': body});
 
   /// Removes [labels], skipping the ones the item does not have.
-  Future<void> removeLabels(int number, List<String> labels) async {
+  Future<void> removeLabels(ItemRef item, List<String> labels) async {
     for (final label in labels) {
       try {
         await _client.rest(
           'DELETE',
-          '${_issuePath(number)}/labels/${Uri.encodeComponent(label)}',
+          '${_issuePath(item)}/labels/${Uri.encodeComponent(label)}',
         );
       } on GitHubException catch (e) {
         if (e.statusCode != 404) rethrow;
@@ -179,22 +162,19 @@ class TriageService {
     }
   }
 
-  Future<void> addLabels(int number, List<String> labels) =>
-      _client.rest('POST', '${_issuePath(number)}/labels', {'labels': labels});
+  Future<void> addLabels(ItemRef item, List<String> labels) =>
+      _client.rest('POST', '${_issuePath(item)}/labels', {'labels': labels});
 
-  Future<void> removeAssignees(int number, List<String> logins) => _client.rest(
-    'DELETE',
-    '${_issuePath(number)}/assignees',
-    {'assignees': logins},
-  );
+  Future<void> removeAssignees(ItemRef item, List<String> logins) => _client
+      .rest('DELETE', '${_issuePath(item)}/assignees', {'assignees': logins});
 
   /// Assigns [logins] to the item.
   ///
   /// GitHub skips the people it cannot assign without an error, so this
   /// throws a [GitHubException] that names them.
-  Future<void> addAssignees(int number, List<String> logins) async {
+  Future<void> addAssignees(ItemRef item, List<String> logins) async {
     final Map<String, Object?> issue = asMap(
-      await _client.rest('POST', '${_issuePath(number)}/assignees', {
+      await _client.rest('POST', '${_issuePath(item)}/assignees', {
         'assignees': logins,
       }),
     );
@@ -229,7 +209,7 @@ class TriageService {
     if (closeAs == TriageCloseReason.duplicate && duplicateOf != null) {
       final Object? issue = asMap(
         (await _client.graphql(issueIdQuery, {
-          ..._repository,
+          ..._variables(item.repository),
           'number': duplicateOf,
         }))['repository'],
       )['issue'];
