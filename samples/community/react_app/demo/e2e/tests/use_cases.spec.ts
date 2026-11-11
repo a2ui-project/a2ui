@@ -18,7 +18,7 @@
  * The three use cases of docs/use_cases.md, end to end: the prompt, the native components, real
  * UI in the app frame, interactions in both directions, the explanation panels and the latency.
  */
-import {expect, test} from '@playwright/test';
+import {expect} from '@playwright/test';
 import {
   appFrame,
   bridgeEntries,
@@ -34,6 +34,7 @@ import {
   recordLatency,
   runUseCase,
   screenshots,
+  test,
   waitForAppRendered,
 } from './helpers';
 
