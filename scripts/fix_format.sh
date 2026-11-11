@@ -40,6 +40,7 @@ for arg in "$@"; do
       SKIP_PRETTIER=true
       SKIP_PYTHON=true
       SKIP_DART=true
+      SKIP_SWIFT=false
       SKIP_KOTLIN=true
       ;;
     --skip-prettier)
