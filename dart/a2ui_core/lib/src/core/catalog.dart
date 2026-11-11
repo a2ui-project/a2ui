@@ -2103,19 +2103,19 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
                   r'$ref': r'common_types.json#/$defs/ComponentId',
                   'commonTypesRef': r'common_types.json#/$defs/ComponentId',
                 },
-                'accessibility': {
+                (atLeastV1 ? '@accessibility' : 'accessibility'): {
                   r'$ref': r'common_types.json#/$defs/AccessibilityAttributes',
                   'commonTypesRef':
                       r'common_types.json#/$defs/AccessibilityAttributes',
                 },
-                if (atLeastV1) 'metadata': _componentMetadataV1_0(),
+                if (atLeastV1) '@metadata': _componentMetadataV1_0(),
               },
               'required': ['id'],
             });
           } else if (_isCheckableRef(ref)) {
             commonSubs.add({
               'properties': {
-                'checks': {
+                (atLeastV1 ? '@checks' : 'checks'): {
                   'type': 'array',
                   'description': atLeastV1
                       ? _checksDescriptionV1_0()

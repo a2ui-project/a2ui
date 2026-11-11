@@ -85,7 +85,9 @@ for (const types of [CommonTypes, V09CommonTypes, V10CommonTypes]) {
   for (const [key, prop] of Object.entries(types.ComponentCommonSchema.shape)) {
     if (key !== 'id') markStandardMixinSchema(prop as z.ZodTypeAny);
   }
-  markStandardMixinSchema(types.CheckableSchema.shape.checks);
+  for (const prop of Object.values(types.CheckableSchema.shape)) {
+    markStandardMixinSchema(prop as z.ZodTypeAny);
+  }
   markStandardMixinSchema(types.CheckRuleSchema);
   markStandardMixinSchema(types.AccessibilityAttributesSchema);
 }
@@ -272,7 +274,11 @@ export function componentMixinLayout(schema: z.ZodTypeAny | undefined): Componen
     const bare = declared.get(key);
     if (declared.has(atKey)) {
       schemaKeys.set(key, atKey);
-      if (bare) customKeys.add(key);
+      // A mixin such as Checkable can declare both its `@`-prefixed and its
+      // legacy bare key. Only a bare key with some other schema is custom.
+      if (bare && !bare.every(({schema: prop}) => standardMixinSchemas.has(prop))) {
+        customKeys.add(key);
+      }
     } else if (bare) {
       if (bare.every(declaration => isStandardMixinProperty(schema, key, declaration))) {
         schemaKeys.set(key, key);

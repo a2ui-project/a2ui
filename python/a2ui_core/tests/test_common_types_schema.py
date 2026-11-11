@@ -35,6 +35,7 @@ from referencing import Registry, Resource
 from a2ui.core.catalog import Catalog, get_common_types_schema_map
 from a2ui.core.common import to_protocol_version
 from a2ui.core.schema import ProtocolVersion
+
 # `test_dynamic_type_index_matches_specification` checks how the schema
 # builder classifies dynamic value defs. That index is an internal detail with
 # no public entry point, and its effect on catalogs is too indirect to pin
@@ -139,7 +140,7 @@ def test_models_round_trip_through_generated_schema(version: str) -> None:
     if "Extensions" in defs:
         cases.append((
             "ComponentCommon",
-            {"id": "comp_header", "metadata": {"extensions": {"ünïcode_tag": 1}}},
+            {"id": "comp_header", "@metadata": {"extensions": {"ünïcode_tag": 1}}},
         ))
     for def_name, instance in cases:
         adapter = TypeAdapter(defs[def_name])
@@ -156,7 +157,7 @@ def test_models_round_trip_through_generated_schema(version: str) -> None:
         # The key pattern rejects a key that is not a UAX #31 identifier.
         with pytest.raises(ValidationError):
             validator_for("ComponentCommon").validate(
-                {"id": "comp_header", "metadata": {"extensions": {"bad-key": 1}}}
+                {"id": "comp_header", "@metadata": {"extensions": {"bad-key": 1}}}
             )
 
 

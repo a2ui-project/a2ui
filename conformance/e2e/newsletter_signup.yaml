@@ -51,7 +51,7 @@
             \ inbox.\",\n          \"variant\": \"body\"\n        },\n        {\n    \
             \      \"id\": \"emailInput\",\n          \"component\": \"TextField\",\n\
             \          \"label\": \"Email Address\",\n          \"value\": {\n       \
-            \     \"@path\": \"/email\"\n          },\n          \"checks\": [\n     \
+            \     \"@path\": \"/email\"\n          },\n          \"@checks\": [\n     \
             \       {\n              \"condition\": {\n                \"@call\": \"email\"\
             ,\n                \"args\": {\n                  \"value\": {\n         \
             \           \"@path\": \"/email\"\n                  }\n                }\n\
@@ -129,7 +129,7 @@
                     label: Email Address
                     value:
                       "@path": /email
-                    checks:
+                    "@checks":
                       - condition:
                           "@call": email
                           args:

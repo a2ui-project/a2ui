@@ -1,5 +1,19 @@
 # [a2ui_agent](https://pub.dev/packages/a2ui_agent) Changelog
 
+## Unreleased
+
+- **Breaking:** (v1_0) Emit `@catalogId`, `@metadata`, `@accessibility`, and
+  `@checks` on v1.0 components in `ExpressCompiler`, `DirectJsonResponseStream`,
+  `MessageReader`, and `RendererState`, while keeping v0.9 component output
+  bare. `ExpressDecompiler` reads both `@`-prefixed and legacy bare component
+  envelope keys on v1.0 payloads when the component schema does not declare a
+  custom property with the same bare name
+  ([#1376](https://github.com/a2ui-project/a2ui/issues/1376),
+  [#3403](https://github.com/a2ui-project/a2ui/issues/3403),
+  [#3466](https://github.com/a2ui-project/a2ui/issues/3466),
+  [#4012](https://github.com/a2ui-project/a2ui/issues/4012),
+  [#4044](https://github.com/a2ui-project/a2ui/pull/4044)).
+
 ## 0.3.0
 
 - **Breaking:** Requires `a2ui_core` `^0.7.0`, whose types this library
