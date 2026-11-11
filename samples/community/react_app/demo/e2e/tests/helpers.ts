@@ -30,7 +30,13 @@ import {
   type Page,
   type TestInfo,
 } from '@playwright/test';
-import {SALES_USE_CASE, USE_CASES, type UseCase} from '@a2ui-labs/react-app-demo-client/use_cases';
+import {
+  LOAN_USE_CASE,
+  SALES_USE_CASE,
+  TRIP_USE_CASE,
+  USE_CASES,
+  type UseCase,
+} from '@a2ui-labs/react-app-demo-client/use_cases';
 
 export const MODE: 'live' | 'recorded' =
   process.env['DEMO_E2E_MODE'] === 'live' ? 'live' : 'recorded';
@@ -101,7 +107,10 @@ export const LOAN_FOLLOW_UP =
   'Make it a line chart instead, and add a toggle between 10 and 15 years.';
 
 export function useCase(id: UseCase['id']): UseCase {
-  return USE_CASES.find(candidate => candidate.id === id) ?? (id === 'sales' ? SALES_USE_CASE : undefined)!;
+  return (
+    USE_CASES.find(candidate => candidate.id === id) ??
+    (id === 'loan' ? LOAN_USE_CASE : id === 'trip' ? TRIP_USE_CASE : SALES_USE_CASE)
+  );
 }
 
 /** Opens the demo, checks the first-load state, and runs a use case's prompt to completion. */
@@ -114,7 +123,13 @@ export async function runUseCase(
   // Everything that explains the system starts collapsed.
   await expect(page.getByTestId('about-panel')).toHaveCount(0);
   await expect(page.getByTestId('show-internals').locator('input')).not.toBeChecked();
-  await page.getByTestId(`chip-${id}`).click();
+  const chip = page.getByTestId(`chip-${id}`);
+  if ((await chip.count()) > 0) {
+    await chip.click();
+  } else {
+    await page.getByTestId('composer-input').fill(useCase(id).prompt);
+    await page.getByTestId('composer-send').click();
+  }
   const turn = page.getByTestId('turn').last();
   await expect(turn).toHaveAttribute('data-status', /done|error/, {timeout: TURN_TIMEOUT});
   const turnId = (await turn.getAttribute('data-turn-id'))!;

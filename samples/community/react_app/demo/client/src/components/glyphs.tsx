@@ -14,10 +14,24 @@
  * limitations under the License.
  */
 
-/** Line-drawn glyphs for the use-case cards: a balance curve, a route, a brushed scatter. */
-export function UseCaseGlyph({id}: {id: 'loan' | 'trip' | 'sales' | 'retire' | 'retirement'}) {
+/** Line-drawn glyphs for the use-case cards: a balance curve, a route, a brushed scatter, a color palette. */
+export function UseCaseGlyph({
+  id,
+}: {
+  id: 'loan' | 'trip' | 'sales' | 'retire' | 'retirement' | 'website' | 'style';
+}) {
   return (
     <svg className="glyph" viewBox="0 0 40 28" aria-hidden="true">
+      {(id === 'website' || id === 'style') && (
+        <>
+          <rect x="5" y="4" width="30" height="20" rx="2" className="glyph-rule" />
+          <line x1="5" y1="9" x2="35" y2="9" className="glyph-rule" />
+          <circle cx="11" cy="16" r="2.2" />
+          <circle cx="18" cy="16" r="2.2" />
+          <circle cx="25" cy="16" r="2.2" />
+          <rect x="29" y="14" width="4" height="4" rx="0.5" className="glyph-brush" />
+        </>
+      )}
       {id === 'loan' && (
         <>
           <path d="M3 25 H37" className="glyph-rule" />

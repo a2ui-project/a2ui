@@ -43,10 +43,14 @@ _RULES = '''## ReactApp: custom interactive apps
 
 ### When to use it
 
-- Use `ReactApp` only for interactive UI that the native components can't express: custom charts with interactions, drag and drop, brushing, canvases, timers and games.
-- Build everything else from native components: headings, labels, sliders, text fields, buttons and lists. Don't rebuild them inside the app.
-- Connect the app and the native components through shared data model paths. A native component bound to `$/loan/rate` and an app that calls `useData('/loan/rate', 5)` read and write the same value. Give those paths initial values in the data model.
-- Put data you already have, such as tool results, lists and chart series, in the data model (for example `$/sales/points = [...]`) and read it in the app with `useData`. Don't copy data into the source.
+- Use `ReactApp` only for interactive UI that the native components can't express: custom charts with interactions, drag and drop, brushing, canvases, timers, games, color pickers, and rich interactive data explorers.
+- Layouts are flexible and do not need to follow a rigid format of chips at the top and the app below:
+  * **Embedded widget within a native form**: A form can use native A2UI dropdowns or ChoicePickers for selections (e.g. typography, layout style), embed a specialized `ReactApp` widget (e.g. a color palette picker or interactive swatch) that writes to data model paths (`setData`), and place a native A2UI call-to-action `Button` at the bottom (`action=Event("submitPlan", ...)`) that submits the combined form configuration.
+  * **Standalone interactive app**: When appropriate, the `ReactApp` can contain all its own controls, sliders, and visualizations (e.g. multi-decade retirement planners, interactive physics playgrounds, or calculators) without outer controls.
+  * **Data explorer with drill-down**: The app calls agent functions (`queryCompanies`, `querySales`) to slice/sort large datasets and renders row action buttons (`dispatchAction`) to drill down.
+- Build standard static headings, labels, and form controls from native components when suitable, and use `ReactApp` for the dynamic parts.
+- Connect the app and the native components through shared data model paths. A native component bound to `$/website/font` and an app reading or writing `/website/font` share the same data model. Give those paths initial values in the data model.
+- Put data you already have, such as tool results, lists and chart series, in the data model (for example `$/sales/points = [...]`) and read it in the app with `useData`. Don't copy large datasets into the source.
 - List the paths the app reads and writes in `dataPaths`, the functions it calls in `functions`, and the actions it dispatches in `actions`. Never set `compiled`.
 
 ### Writing the source
