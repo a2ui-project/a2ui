@@ -18,7 +18,7 @@
 export function UseCaseGlyph({
   id,
 }: {
-  id: 'loan' | 'trip' | 'sales' | 'retire' | 'retirement' | 'website' | 'style';
+  id: 'loan' | 'trip' | 'sales' | 'retire' | 'retirement' | 'website' | 'style' | 'companies';
 }) {
   return (
     <svg className="glyph" viewBox="0 0 40 28" aria-hidden="true">
@@ -55,7 +55,7 @@ export function UseCaseGlyph({
           <circle cx="34" cy="7" r="2.4" />
         </>
       )}
-      {id === 'sales' && (
+      {(id === 'sales' || id === 'companies') && (
         <>
           <rect x="13" y="4" width="13" height="20" className="glyph-brush" />
           {[

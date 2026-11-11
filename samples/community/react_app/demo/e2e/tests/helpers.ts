@@ -127,8 +127,10 @@ export async function runUseCase(
   if ((await chip.count()) > 0) {
     await chip.click();
   } else {
-    await page.getByTestId('composer-input').fill(useCase(id).prompt);
-    await page.getByTestId('composer-send').click();
+    const input = page.getByTestId('prompt-input').or(page.getByTestId('composer-input'));
+    await input.fill(useCase(id).prompt);
+    const send = page.getByTestId('send').or(page.getByTestId('composer-send'));
+    await send.click();
   }
   const turn = page.getByTestId('turn').last();
   await expect(turn).toHaveAttribute('data-status', /done|error/, {timeout: TURN_TIMEOUT});

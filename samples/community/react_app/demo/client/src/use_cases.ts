@@ -17,7 +17,7 @@
 /** The use cases offered as suggested starter prompts. */
 
 export interface UseCase {
-  readonly id: 'retire' | 'website' | 'sales' | 'loan' | 'trip';
+  readonly id: 'retire' | 'website' | 'companies' | 'sales' | 'loan' | 'trip';
   readonly title: string;
   readonly blurb: string;
   readonly prompt: string;
@@ -38,7 +38,7 @@ export const USE_CASES: readonly UseCase[] = [
     prompt: 'Help me style a website',
   },
   {
-    id: 'sales',
+    id: 'companies',
     title: 'Sortable sales explorer',
     blurb: 'Sortable table querying agent data functions with Explore buttons to drill down.',
     prompt:
@@ -62,4 +62,10 @@ export const TRIP_USE_CASE: UseCase = {
     "I'm visiting the Louvre, Montmartre, the Eiffel Tower and Notre-Dame tomorrow. Let me drag them into the order I want and tell me how long the travel takes. Then let me book that order.",
 };
 
-export const SALES_USE_CASE: UseCase = USE_CASES[2]!;
+export const SALES_USE_CASE: UseCase = {
+  id: 'sales',
+  title: 'Sales explorer',
+  blurb: 'Brush a month range to see every order in that window.',
+  prompt:
+    'Plot our 2025 sales by month and amount for each region. Let me drag over the chart to pick a region and a few months, and list the matching orders below.',
+};
