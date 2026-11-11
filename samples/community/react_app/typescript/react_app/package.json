@@ -23,7 +23,7 @@
     "build": "yarn copy-shared && tsc -p tsconfig.json && node scripts/build-sandbox.mjs",
     "test": "yarn build && tsc -p tsconfig.test.json && karma start karma.conf.cjs --single-run=true && yarn test:e2e",
     "test:unit": "yarn copy-shared && tsc -p tsconfig.test.json && karma start karma.conf.cjs --single-run=true",
-    "test:e2e": "yarn workspace @a2ui-labs/react-app-runtime build && tsc -p e2e/tsconfig.json && node e2e/build-fixture.mjs && playwright test",
+    "test:e2e": "yarn workspace @a2ui-labs/react-app-runtime build && yarn workspace @a2ui-labs/react-app-compiler build && tsc -p e2e/tsconfig.json && node e2e/build-fixture.mjs && playwright test",
     "lint": "yarn copy-shared && eslint .",
     "lint:fix": "yarn copy-shared && eslint . --fix",
     "format": "prettier --write .",
@@ -37,6 +37,7 @@
     "lit": "^3.3.3"
   },
   "devDependencies": {
+    "@a2ui-labs/react-app-compiler": "workspace:*",
     "@a2ui-labs/react-app-runtime": "workspace:*",
     "@a2ui/react": "*",
     "@a2ui/web_core": "*",

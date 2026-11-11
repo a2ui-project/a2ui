@@ -56,6 +56,9 @@ ReactAppDiagnosticCode = Literal[
     "unknown_function",
     "unlisted_use",
     "missing_allowlist",
+    "compile_error",
+    "type_error",
+    "compile_unavailable",
 ]
 
 # `import x from "m"`, `import {a, b} from "m"`, `import "m"`, `export ... from "m"`.
