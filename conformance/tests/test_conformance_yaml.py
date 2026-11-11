@@ -689,7 +689,7 @@ def test_agent_suite_schemas_accept_valid_cases(valid_case):
                             "effect": {"setData": {"path": "/started", "value": True}},
                         }
                     },
-                    "actionPayload": {"functionCall": {"@call": "finish"}},
+                    "actionPayload": {"@functionCall": {"@call": "finish"}},
                     "inboundResponseError": {
                         "code": "EXECUTION_ERROR",
                         "message": "Remote step failed",

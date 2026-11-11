@@ -318,7 +318,7 @@ This catalog imports only `Text` from the Basic Catalog to build a simple Popup 
           "type": "object",
           "description": "A modal overlay that displays an icon and text.",
           "properties": {
-            "text": {"$ref": "common_types.json#/$defs/ComponentId"}
+            "text": {"$ref": "common_types.json#/$defs/Child"}
           },
           "required": ["text"]
         }

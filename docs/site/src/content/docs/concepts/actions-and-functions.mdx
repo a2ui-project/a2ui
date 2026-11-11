@@ -16,11 +16,11 @@ An action determines how user interaction is handled:
 - An event notifies the agent of user intent by sending an outbound [`action`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/action) message. Use an event when the agent needs to decide what happens next and stream UI or data updates back to the client (such as confirming an order or booking a reservation).
 - A function invokes a registered catalog operation directly without starting a new agent conversation turn. The function can execute locally on the renderer (such as opening a link with [`openUrl`](/specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json/functions/openUrl)) or run remotely on the agent via [`callAgentFunction`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/callAgentFunction) to perform a discrete backend check (such as verifying inventory).
 
-See [`Action`](/specification/v1.0/schemas/#common_types.json/$defs/Action) in the protocol schema for the action structure.
+See [`Action`](/specification/v1.0/schemas/#common_types.json/$defs/Action) in the protocol schema for the action structure. Wrapping handlers in `@action` and `@functionCall` marks them as deferred interaction closures so parsers do not evaluate expressions or bindings eagerly during render, even without a catalog schema.
 
 | Aspect          | Event                                             | Function                                                |
 | :-------------- | :------------------------------------------------ | :------------------------------------------------------ |
-| Action property | `action.event`                                    | `action.functionCall`                                   |
+| Action property | `@action` (`action.event` in v0.9.1)              | `@functionCall` (`action.functionCall` in v0.9.1)       |
 | Purpose         | Prompts the agent to process intent and update UI | Triggers specific logic on the renderer or agent        |
 | Triggered by    | A user gesture on a component action              | Actions, property bindings, validation checks, or agent |
 | Runs on         | The agent, after an `action` message              | The renderer, or the agent via `callAgentFunction`      |
@@ -29,7 +29,7 @@ See [`Action`](/specification/v1.0/schemas/#common_types.json/$defs/Action) in t
 
 <Aside type="note" title="Differences in v0.9.1">
 
-In v0.9.1 ([`Action`](/specification/v0.9.1/schemas/#common_types.json/$defs/Action)), `action.event` does not support `userMessage`, and `action.functionCall` uses `"call"` instead of `"@call"` and executes only locally on the renderer.
+In v0.9.1 ([`Action`](/specification/v0.9.1/schemas/#common_types.json/$defs/Action)), event actions use `"event"` (without `userMessage`), and function actions use `"functionCall"` with `"call"` instead of `"@call"` and execute only locally on the renderer.
 
 </Aside>
 
@@ -58,10 +58,10 @@ The following example shows a confirmation `Button` declaration and the outbound
 {
   "id": "confirm_button",
   "component": "Button",
-  "child": "confirm_label",
+  "child": {"@child": "confirm_label"},
   "variant": "primary",
   "action": {
-    "event": {
+    "@action": {
       "name": "confirmReservation",
       "userMessage": {
         "@call": "formatString",
@@ -226,10 +226,10 @@ A component action can execute a function directly instead of sending an event t
 {
   "id": "help_link",
   "component": "Button",
-  "child": "help_text",
+  "child": {"@child": "help_text"},
   "variant": "borderless",
   "action": {
-    "functionCall": {
+    "@functionCall": {
       "@call": "openUrl",
       "args": {
         "url": "https://support.example.com/billing"

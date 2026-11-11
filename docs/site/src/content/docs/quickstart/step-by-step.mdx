@@ -3,7 +3,7 @@ title: Step-by-Step Walkthrough
 description: Run Travel A2UI yourself, with a React web client, a Flutter mobile client or both, then learn how A2UI works from what is on screen, with screenshots and real output.
 ---
 
-import {Steps} from '@astrojs/starlight/components';
+import {Steps, Tabs, TabItem} from '@astrojs/starlight/components';
 
 Run the app first, then read the second half with it open: every idea there is
 something you can see on screen. The app is [samples/travel-a2ui](https://github.com/a2ui-project/labs/tree/main/samples/travel-a2ui)
@@ -189,9 +189,32 @@ fare = FlightOption($airline,
 On the server, the **A2UI agent SDK** reads the Express as the model streams
 it, turns it into **A2UI messages** and checks each against the catalog. The
 messages are JSON: `createSurface`, `updateComponents`, `updateDataModel` and
-`deleteSurface`. Here is the component list one of these blocks became (trimmed
-to ids and links): each component names its children by id, starting from
+`deleteSurface`. Here is the component list one of these blocks becomes (trimmed
+to IDs and links): each component references its children by ID, starting from
 `root`.
+
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0">
+
+```json
+[
+  {
+    "id": "root",
+    "component": "Column",
+    "children": {"@child": ["head", "list"]}
+  },
+  {"id": "head", "component": "Text", "text": "### Flights to Madrid"},
+  {"id": "fare", "component": "FlightOption"},
+  {
+    "id": "list",
+    "component": "List",
+    "children": {"@child": "fare", "@path": "/flights"}
+  }
+]
+```
+
+  </TabItem>
+  <TabItem label="v0.9.1">
 
 ```json
 [
@@ -205,6 +228,9 @@ to ids and links): each component names its children by id, starting from
   }
 ]
 ```
+
+  </TabItem>
+</Tabs>
 
 In the client, a **MessageProcessor** from the A2UI SDK applies the messages:
 it keeps each surface's components and data, fills in bound values, runs

@@ -115,9 +115,13 @@ function boardSurfaceMessages(board: Board): Record<string, unknown>[] {
           {
             id: 'root',
             component: 'Column',
-            children: ['summary', 'selection_text', 'quick_add_card', 'board'],
+            children: {'@child': ['summary', 'selection_text', 'quick_add_card', 'board']},
           },
-          {id: 'summary', component: 'Row', children: ['todo_count', 'wip_badge', 'done_count']},
+          {
+            id: 'summary',
+            component: 'Row',
+            children: {'@child': ['todo_count', 'wip_badge', 'done_count']},
+          },
           {
             id: 'todo_count',
             component: 'Text',
@@ -150,16 +154,16 @@ function boardSurfaceMessages(board: Board): Record<string, unknown>[] {
               "(selection.title && join('', ['Selected: ', selection.title, (selection.column && join('', [' in ', selection.column]) || ''), (selection.assignee && selection.due && join('', [' (', selection.assignee, ', due ', selection.due, ')']) || selection.assignee && join('', [' (', selection.assignee, ')']) || selection.due && join('', [' (due ', selection.due, ')']) || '')])) || 'No card selected'",
             ),
           },
-          {id: 'quick_add_card', component: 'Card', child: 'quick_add_col'},
+          {id: 'quick_add_card', component: 'Card', child: {'@child': 'quick_add_col'}},
           {
             id: 'quick_add_col',
             component: 'Column',
-            children: ['quick_add_row'],
+            children: {'@child': ['quick_add_row']},
           },
           {
             id: 'quick_add_row',
             component: 'Row',
-            children: ['quick_add_title', 'quick_add_assignee', 'quick_add_button'],
+            children: {'@child': ['quick_add_title', 'quick_add_assignee', 'quick_add_button']},
           },
           {
             id: 'quick_add_title',
@@ -176,10 +180,10 @@ function boardSurfaceMessages(board: Board): Record<string, unknown>[] {
           {
             id: 'quick_add_button',
             component: 'Button',
-            child: 'quick_add_button_label',
+            child: {'@child': 'quick_add_button_label'},
             variant: 'primary',
             action: {
-              functionCall: mcpCall('updateDataModel', {
+              '@functionCall': mcpCall('updateDataModel', {
                 updates: transform(
                   mcpCall('callMcpTool', {
                     name: 'create_task',
@@ -535,17 +539,17 @@ describe('KanbanHost', () => {
           updateComponents: {
             surfaceId: 'kanban',
             components: [
-              {id: 'root', component: 'Column', children: ['workspace_tabs']},
+              {id: 'root', component: 'Column', children: {'@child': ['workspace_tabs']}},
               {
                 id: 'workspace_tabs',
                 component: 'Tabs',
                 tabs: [
-                  {title: 'Sprint Board', child: 'board_card'},
-                  {title: 'Sprint Summary & Selection', child: 'selection_card'},
+                  {title: 'Sprint Board', child: {'@child': 'board_card'}},
+                  {title: 'Sprint Summary & Selection', child: {'@child': 'selection_card'}},
                 ],
               },
-              {id: 'board_card', component: 'Card', child: 'board'},
-              {id: 'selection_card', component: 'Card', child: 'selection_text'},
+              {id: 'board_card', component: 'Card', child: {'@child': 'board'}},
+              {id: 'selection_card', component: 'Card', child: {'@child': 'selection_text'}},
             ],
           },
         },

@@ -76,21 +76,48 @@ def is_action_slot(schema: Any) -> bool:
     """Checks whether a property schema is an Action slot.
 
     A property is an action slot when its schema references the common `Action`
-    def, directly or through `oneOf`/`anyOf`/`allOf`.
+    def, directly or through `oneOf`/`anyOf`/`allOf`, or inlines `@action` /
+    `@functionCall` wrapper objects.
 
     Args:
         schema: The property JSON schema to inspect.
 
     Returns:
-        True if the schema references the common `Action` type.
+        True if the schema represents the common `Action` type.
     """
     if not isinstance(schema, dict):
         return False
     if _common_def_name(schema.get("$ref")) == "Action":
         return True
+    props = schema.get("properties")
+    if isinstance(props, dict) and (
+        set(props) == {"@action"} or set(props) == {"@functionCall"}
+    ):
+        return True
     for key in ("allOf", "oneOf", "anyOf"):
         subs = schema.get(key)
         if isinstance(subs, list) and any(is_action_slot(sub) for sub in subs):
+            return True
+    return False
+
+
+def schema_expects_at_child(schema: Any) -> bool:
+    """Checks whether a property schema expects a v1.0 `@child` wrapper object.
+
+    Returns True when `schema` references `Child` or `ChildList` (or declares
+    `@child` directly), and False for bare `ComponentId` string slots.
+    """
+    if not isinstance(schema, dict):
+        return False
+    ref = schema.get("$ref")
+    if isinstance(ref, str) and ref.rsplit("/", 1)[-1] in ("Child", "ChildList"):
+        return True
+    props = schema.get("properties")
+    if isinstance(props, dict) and "@child" in props:
+        return True
+    for key in ("allOf", "oneOf", "anyOf"):
+        subs = schema.get(key)
+        if isinstance(subs, list) and any(schema_expects_at_child(sub) for sub in subs):
             return True
     return False
 
@@ -525,6 +552,19 @@ class CatalogSchemaHelper:
                     if "Child" in ref or "ComponentId" in ref:
                         return "Child"
                     if "Action" in ref:
+                        return "Action"
+                props = s.get("properties")
+                if isinstance(props, dict):
+                    if "@child" in props:
+                        child_prop = props["@child"]
+                        if "@path" in props or (
+                            isinstance(child_prop, dict)
+                            and child_prop.get("type") == "array"
+                        ):
+                            return "ChildList"
+                        if set(props) == {"@child"}:
+                            return "Child"
+                    if set(props) == {"@action"} or set(props) == {"@functionCall"}:
                         return "Action"
                 for k in ("oneOf", "anyOf", "allOf"):
                     if k in s and isinstance(s[k], list):

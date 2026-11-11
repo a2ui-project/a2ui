@@ -14,7 +14,9 @@
         {
           "id": "root",
           "component": "Column",
-          "children": ["title_heading", "item_list"]
+          "children": {
+            "@child": ["title_heading", "item_list"]
+          }
         },
         {
           "id": "title_heading",
@@ -28,19 +30,23 @@
           "component": "List",
           "direction": "vertical",
           "children": {
-            "componentId": "item_card_template",
-            "path": "/items"
+            "@child": "item_card_template",
+            "@path": "/items"
           }
         },
         {
           "id": "item_card_template",
           "component": "Card",
-          "child": "card_layout"
+          "child": {
+            "@child": "card_layout"
+          }
         },
         {
           "id": "card_layout",
           "component": "Row",
-          "children": ["card_image", "card_details"]
+          "children": {
+            "@child": ["card_image", "card_details"]
+          }
         },
         {
           "id": "card_image",
@@ -53,13 +59,15 @@
         {
           "id": "card_details",
           "component": "Column",
-          "children": [
-            "template_name",
-            "template_rating",
-            "template_detail",
-            "template_link",
-            "template_book_button"
-          ]
+          "children": {
+            "@child": [
+              "template_name",
+              "template_rating",
+              "template_detail",
+              "template_link",
+              "template_book_button"
+            ]
+          }
         },
         {
           "id": "template_name",
@@ -92,10 +100,12 @@
         {
           "id": "template_book_button",
           "component": "Button",
-          "child": "book_now_text",
+          "child": {
+            "@child": "book_now_text"
+          },
           "variant": "primary",
           "action": {
-            "event": {
+            "@action": {
               "name": "book_restaurant",
               "context": {
                 "restaurantName": {

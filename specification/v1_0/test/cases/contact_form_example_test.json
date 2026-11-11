@@ -23,19 +23,21 @@
             {
               "id": "root",
               "component": "Column",
-              "children": [
-                "first_name_label",
-                "first_name_field",
-                "last_name_label",
-                "last_name_field",
-                "email_label",
-                "email_field",
-                "phone_label",
-                "phone_field",
-                "notes_label",
-                "notes_field",
-                "submit_button"
-              ]
+              "children": {
+                "@child": [
+                  "first_name_label",
+                  "first_name_field",
+                  "last_name_label",
+                  "last_name_field",
+                  "email_label",
+                  "email_field",
+                  "phone_label",
+                  "phone_field",
+                  "notes_label",
+                  "notes_field",
+                  "submit_button"
+                ]
+              }
             },
             {
               "id": "first_name_label",
@@ -128,10 +130,10 @@
             {
               "id": "submit_button",
               "component": "Button",
-              "child": "submit_button_label",
+              "child": {"@child": "submit_button_label"},
               "variant": "primary",
               "action": {
-                "event": {
+                "@action": {
                   "name": "submitContactForm"
                 }
               }

@@ -18,22 +18,30 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main_column"
+            "child": {
+              "@child": "main_column"
+            }
           },
           {
             "id": "main_column",
             "component": "Column",
-            "children": ["header_row", "divider", "actions"]
+            "children": {
+              "@child": ["header_row", "divider", "actions"]
+            }
           },
           {
             "id": "header_row",
             "component": "Row",
-            "children": ["date_col", "events_col"]
+            "children": {
+              "@child": ["date_col", "events_col"]
+            }
           },
           {
             "id": "date_col",
             "component": "Column",
-            "children": ["day_name", "day_number"],
+            "children": {
+              "@child": ["day_name", "day_number"]
+            },
             "align": "start"
           },
           {
@@ -67,14 +75,16 @@
             "id": "events_col",
             "component": "Column",
             "children": {
-              "path": "/events",
-              "componentId": "event_template"
+              "@child": "event_template",
+              "@path": "/events"
             }
           },
           {
             "id": "event_template",
             "component": "Column",
-            "children": ["event_title", "event_time"]
+            "children": {
+              "@child": ["event_title", "event_time"]
+            }
           },
           {
             "id": "event_title",
@@ -99,7 +109,9 @@
           {
             "id": "actions",
             "component": "Row",
-            "children": ["add_btn", "discard_btn"]
+            "children": {
+              "@child": ["add_btn", "discard_btn"]
+            }
           },
           {
             "id": "add_btn_text",
@@ -109,9 +121,11 @@
           {
             "id": "add_btn",
             "component": "Button",
-            "child": "add_btn_text",
+            "child": {
+              "@child": "add_btn_text"
+            },
             "action": {
-              "event": {
+              "@action": {
                 "name": "add",
                 "context": {}
               }
@@ -125,9 +139,11 @@
           {
             "id": "discard_btn",
             "component": "Button",
-            "child": "discard_btn_text",
+            "child": {
+              "@child": "discard_btn_text"
+            },
             "action": {
-              "event": {
+              "@action": {
                 "name": "discard",
                 "context": {}
               }

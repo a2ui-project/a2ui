@@ -167,11 +167,14 @@ function runCase(testCase: LoadedCase, version: SuiteVersion): void {
   assertKnownKeys(testCase, PARSE_CHUNK_CASE_KEYS, 'parse_chunk case');
   const isLowered = version === 'v0.9-lowered';
   const injId = isLowered ? injectedCatalogId(testCase) : undefined;
+  const args = testCase.args as unknown as StreamingArgs;
+  const v10Catalogs = isLowered
+    ? catalogPaths(args).map(file => loadCatalogFromRelativePath(file, false))
+    : [];
   const toExpected = (parts: StreamPart[]) => {
     const dicts = parts.map(partToDict);
-    return isLowered ? liftParts(dicts, {injectedCatalogId: injId}) : dicts;
+    return isLowered ? liftParts(dicts, {injectedCatalogId: injId, catalogs: v10Catalogs}) : dicts;
   };
-  const args = testCase.args as unknown as StreamingArgs;
   assertKnownKeys(
     args as unknown as Record<string, unknown>,
     PARSE_CHUNK_ARGS_KEYS,

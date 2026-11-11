@@ -153,13 +153,13 @@
           - id: "root"
             component: "Column"
             children:
-              componentId: "dept_col"
-              path: "/departments"
+              "@child": "dept_col"
+              "@path": "/departments"
           - id: "dept_col"
             component: "Column"
             children:
-              componentId: "emp_txt"
-              path: "employees"
+              "@child": "emp_txt"
+              "@path": "employees"
           - id: "emp_txt"
             component: "Text"
             text:
@@ -167,7 +167,8 @@
   expect_contains:
     - '"/departments"'
     - '"employees"'
-    - '"componentId"'
+    - '"@child"'
+    - '"@path"'
   expect_round_trip: true
 
 - name: test_decompile_json_call_renderer_function
@@ -224,7 +225,8 @@
         components:
           - id: "root"
             component: "Card"
-            child: "body"
+            child:
+              "@child": "body"
           - id: "body"
             component: "Text"
             text: "Details"
@@ -253,7 +255,8 @@
           - id: "root"
             component: "Column"
             catalogId: "conformance/simplified"
-            children: ["title", "chart"]
+            children:
+              "@child": ["title", "chart"]
           - id: "title"
             component: "Text"
             catalogId: "conformance/simplified"
@@ -286,7 +289,8 @@
         components:
           - id: "root"
             component: "Column"
-            children: ["bound_txt", "fn_txt"]
+            children:
+              "@child": ["bound_txt", "fn_txt"]
           - id: "bound_txt"
             component: "Text"
             text:
@@ -321,9 +325,10 @@
         components:
           - id: "root"
             component: "Button"
-            child: "lbl"
+            child:
+              "@child": "lbl"
             action:
-              event:
+              "@action":
                 name: "save_item"
                 context:
                   itemId:
@@ -332,7 +337,7 @@
             component: "Text"
             text: "Save"
   expect_contains:
-    - '"event"'
+    - '"@action"'
     - '"save_item"'
     - '"/item/id"'
   expect_round_trip: true
@@ -354,9 +359,10 @@
         components:
           - id: "root"
             component: "Button"
-            child: "lbl"
+            child:
+              "@child": "lbl"
             action:
-              functionCall:
+              "@functionCall":
                 "@call": "openUrl"
                 args:
                   url: "https://example.com"
@@ -364,7 +370,7 @@
             component: "Text"
             text: "Open"
   expect_contains:
-    - '"functionCall"'
+    - '"@functionCall"'
     - '"openUrl"'
     - '"https://example.com"'
   expect_round_trip: true

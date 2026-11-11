@@ -204,10 +204,10 @@
             components:
               - id: "root"
                 component: "Column"
-                children: ["c1"]
+                children: {"@child": ["c1"]}
               - id: "c1"
                 component: "Column"
-                children: ["root"]
+                children: {"@child": ["root"]}
       expectError: "Circular component reference"
 
 - name: test_v10_topology_dangling_child_reference_error
@@ -230,7 +230,7 @@
             components:
               - id: "root"
                 component: "Column"
-                children: ["missing_child"]
+                children: {"@child": ["missing_child"]}
       expectError: "Dangling reference"
 
 - name: test_v10_topology_self_reference_error
@@ -253,7 +253,7 @@
             components:
               - id: "root"
                 component: "Column"
-                children: ["root"]
+                children: {"@child": ["root"]}
       expectError: "Self-reference detected"
 
 - name: test_v10_topology_orphaned_component_error
@@ -385,9 +385,9 @@
             components:
               - id: "root"
                 component: "Button"
-                child: "t1"
+                child: {"@child": "t1"}
                 action:
-                  functionCall:
+                  "@functionCall":
                     "@call": "unknownFunc"
                     args:
                       arg: "val"
@@ -402,7 +402,7 @@
           error:
             code: "VALIDATION_FAILED"
             surfaceId: "s1"
-            path: "/components/0/action/functionCall"
+            path: "/components/0/action/@functionCall"
             message: "unknownFunc"
 
 - name: test_v10_multiple_action_envelope_error
@@ -449,7 +449,8 @@
               - id: "root"
                 component: "Column"
                 children:
-                  - "123invalid_id"
+                  "@child":
+                    - "123invalid_id"
               - id: "123invalid_id"
                 component: "Text"
                 text: "Invalid ID"
@@ -490,8 +491,8 @@
               - id: root
                 component: List
                 children:
-                  componentId: item
-                  path: /items
+                  "@child": item
+                  "@path": /items
               - id: item
                 component: Text
                 text: Reachable
@@ -516,8 +517,8 @@
               - id: root
                 component: List
                 children:
-                  componentId: missing_id
-                  path: /items
+                  "@child": missing_id
+                  "@path": /items
               - id: item
                 component: Text
                 text: Unused
@@ -569,172 +570,172 @@
             components:
               - id: root
                 component: Card
-                child: c0
+                child: {"@child": c0}
               - id: c0
                 component: Card
-                child: c1
+                child: {"@child": c1}
               - id: c1
                 component: Card
-                child: c2
+                child: {"@child": c2}
               - id: c2
                 component: Card
-                child: c3
+                child: {"@child": c3}
               - id: c3
                 component: Card
-                child: c4
+                child: {"@child": c4}
               - id: c4
                 component: Card
-                child: c5
+                child: {"@child": c5}
               - id: c5
                 component: Card
-                child: c6
+                child: {"@child": c6}
               - id: c6
                 component: Card
-                child: c7
+                child: {"@child": c7}
               - id: c7
                 component: Card
-                child: c8
+                child: {"@child": c8}
               - id: c8
                 component: Card
-                child: c9
+                child: {"@child": c9}
               - id: c9
                 component: Card
-                child: c10
+                child: {"@child": c10}
               - id: c10
                 component: Card
-                child: c11
+                child: {"@child": c11}
               - id: c11
                 component: Card
-                child: c12
+                child: {"@child": c12}
               - id: c12
                 component: Card
-                child: c13
+                child: {"@child": c13}
               - id: c13
                 component: Card
-                child: c14
+                child: {"@child": c14}
               - id: c14
                 component: Card
-                child: c15
+                child: {"@child": c15}
               - id: c15
                 component: Card
-                child: c16
+                child: {"@child": c16}
               - id: c16
                 component: Card
-                child: c17
+                child: {"@child": c17}
               - id: c17
                 component: Card
-                child: c18
+                child: {"@child": c18}
               - id: c18
                 component: Card
-                child: c19
+                child: {"@child": c19}
               - id: c19
                 component: Card
-                child: c20
+                child: {"@child": c20}
               - id: c20
                 component: Card
-                child: c21
+                child: {"@child": c21}
               - id: c21
                 component: Card
-                child: c22
+                child: {"@child": c22}
               - id: c22
                 component: Card
-                child: c23
+                child: {"@child": c23}
               - id: c23
                 component: Card
-                child: c24
+                child: {"@child": c24}
               - id: c24
                 component: Card
-                child: c25
+                child: {"@child": c25}
               - id: c25
                 component: Card
-                child: c26
+                child: {"@child": c26}
               - id: c26
                 component: Card
-                child: c27
+                child: {"@child": c27}
               - id: c27
                 component: Card
-                child: c28
+                child: {"@child": c28}
               - id: c28
                 component: Card
-                child: c29
+                child: {"@child": c29}
               - id: c29
                 component: Card
-                child: c30
+                child: {"@child": c30}
               - id: c30
                 component: Card
-                child: c31
+                child: {"@child": c31}
               - id: c31
                 component: Card
-                child: c32
+                child: {"@child": c32}
               - id: c32
                 component: Card
-                child: c33
+                child: {"@child": c33}
               - id: c33
                 component: Card
-                child: c34
+                child: {"@child": c34}
               - id: c34
                 component: Card
-                child: c35
+                child: {"@child": c35}
               - id: c35
                 component: Card
-                child: c36
+                child: {"@child": c36}
               - id: c36
                 component: Card
-                child: c37
+                child: {"@child": c37}
               - id: c37
                 component: Card
-                child: c38
+                child: {"@child": c38}
               - id: c38
                 component: Card
-                child: c39
+                child: {"@child": c39}
               - id: c39
                 component: Card
-                child: c40
+                child: {"@child": c40}
               - id: c40
                 component: Card
-                child: c41
+                child: {"@child": c41}
               - id: c41
                 component: Card
-                child: c42
+                child: {"@child": c42}
               - id: c42
                 component: Card
-                child: c43
+                child: {"@child": c43}
               - id: c43
                 component: Card
-                child: c44
+                child: {"@child": c44}
               - id: c44
                 component: Card
-                child: c45
+                child: {"@child": c45}
               - id: c45
                 component: Card
-                child: c46
+                child: {"@child": c46}
               - id: c46
                 component: Card
-                child: c47
+                child: {"@child": c47}
               - id: c47
                 component: Card
-                child: c48
+                child: {"@child": c48}
               - id: c48
                 component: Card
-                child: c49
+                child: {"@child": c49}
               - id: c49
                 component: Card
-                child: c50
+                child: {"@child": c50}
               - id: c50
                 component: Card
-                child: c51
+                child: {"@child": c51}
               - id: c51
                 component: Card
-                child: c52
+                child: {"@child": c52}
               - id: c52
                 component: Card
-                child: c53
+                child: {"@child": c53}
               - id: c53
                 component: Card
-                child: c54
+                child: {"@child": c54}
               - id: c54
                 component: Card
-                child: c55
+                child: {"@child": c55}
               - id: c55
                 component: Text
                 text: Leaf
@@ -761,127 +762,127 @@
             components:
               - id: root
                 component: Card
-                child: c0
+                child: {"@child": c0}
               - id: c0
                 component: Card
-                child: c1
+                child: {"@child": c1}
               - id: c1
                 component: Card
-                child: c2
+                child: {"@child": c2}
               - id: c2
                 component: Card
-                child: c3
+                child: {"@child": c3}
               - id: c3
                 component: Card
-                child: c4
+                child: {"@child": c4}
               - id: c4
                 component: Card
-                child: c5
+                child: {"@child": c5}
               - id: c5
                 component: Card
-                child: c6
+                child: {"@child": c6}
               - id: c6
                 component: Card
-                child: c7
+                child: {"@child": c7}
               - id: c7
                 component: Card
-                child: c8
+                child: {"@child": c8}
               - id: c8
                 component: Card
-                child: c9
+                child: {"@child": c9}
               - id: c9
                 component: Card
-                child: c10
+                child: {"@child": c10}
               - id: c10
                 component: Card
-                child: c11
+                child: {"@child": c11}
               - id: c11
                 component: Card
-                child: c12
+                child: {"@child": c12}
               - id: c12
                 component: Card
-                child: c13
+                child: {"@child": c13}
               - id: c13
                 component: Card
-                child: c14
+                child: {"@child": c14}
               - id: c14
                 component: Card
-                child: c15
+                child: {"@child": c15}
               - id: c15
                 component: Card
-                child: c16
+                child: {"@child": c16}
               - id: c16
                 component: Card
-                child: c17
+                child: {"@child": c17}
               - id: c17
                 component: Card
-                child: c18
+                child: {"@child": c18}
               - id: c18
                 component: Card
-                child: c19
+                child: {"@child": c19}
               - id: c19
                 component: Card
-                child: c20
+                child: {"@child": c20}
               - id: c20
                 component: Card
-                child: c21
+                child: {"@child": c21}
               - id: c21
                 component: Card
-                child: c22
+                child: {"@child": c22}
               - id: c22
                 component: Card
-                child: c23
+                child: {"@child": c23}
               - id: c23
                 component: Card
-                child: c24
+                child: {"@child": c24}
               - id: c24
                 component: Card
-                child: c25
+                child: {"@child": c25}
               - id: c25
                 component: Card
-                child: c26
+                child: {"@child": c26}
               - id: c26
                 component: Card
-                child: c27
+                child: {"@child": c27}
               - id: c27
                 component: Card
-                child: c28
+                child: {"@child": c28}
               - id: c28
                 component: Card
-                child: c29
+                child: {"@child": c29}
               - id: c29
                 component: Card
-                child: c30
+                child: {"@child": c30}
               - id: c30
                 component: Card
-                child: c31
+                child: {"@child": c31}
               - id: c31
                 component: Card
-                child: c32
+                child: {"@child": c32}
               - id: c32
                 component: Card
-                child: c33
+                child: {"@child": c33}
               - id: c33
                 component: Card
-                child: c34
+                child: {"@child": c34}
               - id: c34
                 component: Card
-                child: c35
+                child: {"@child": c35}
               - id: c35
                 component: Card
-                child: c36
+                child: {"@child": c36}
               - id: c36
                 component: Card
-                child: c37
+                child: {"@child": c37}
               - id: c37
                 component: Card
-                child: c38
+                child: {"@child": c38}
               - id: c38
                 component: Card
-                child: c39
+                child: {"@child": c39}
               - id: c39
                 component: Card
-                child: c40
+                child: {"@child": c40}
               - id: c40
                 component: Text
                 text: Leaf
@@ -909,7 +910,7 @@
             components:
               - id: root
                 component: Card
-                child: child_a
+                child: {"@child": child_a}
               - id: child_a
                 component: Text
                 text: Hello A
@@ -919,7 +920,7 @@
             components:
               - id: root
                 component: Card
-                child: child_b
+                child: {"@child": child_b}
               - id: child_b
                 component: Text
                 text: Hello B
@@ -979,10 +980,11 @@
               - id: root
                 component: Column
                 children:
-                  - card
+                  "@child":
+                    - card
               - id: card
                 component: Card
-                child: text
+                child: {"@child": text}
               - id: text
                 component: Text
                 text: Initial
@@ -992,7 +994,7 @@
             components:
               - id: card
                 component: Card
-                child: text
+                child: {"@child": text}
               - id: text
                 component: Text
                 text: Updated
@@ -1017,10 +1019,11 @@
               - id: root
                 component: Column
                 children:
-                  - card
+                  "@child":
+                    - card
               - id: card
                 component: Card
-                child: text
+                child: {"@child": text}
               - id: text
                 component: Text
                 text: Initial
@@ -1030,7 +1033,7 @@
             components:
               - id: card
                 component: Card
-                child: card
+                child: {"@child": card}
       expectError:
         category: ValidationError
         message: Self-reference detected
@@ -1055,10 +1058,11 @@
               - id: root
                 component: Column
                 children:
-                  - card
+                  "@child":
+                    - card
               - id: card
                 component: Card
-                child: text
+                child: {"@child": text}
               - id: text
                 component: Text
                 text: Initial
@@ -1068,10 +1072,10 @@
             components:
               - id: card
                 component: Card
-                child: loop
+                child: {"@child": loop}
               - id: loop
                 component: Card
-                child: card
+                child: {"@child": card}
       expectError:
         category: ValidationError
         message: Circular reference detected
@@ -1096,10 +1100,11 @@
               - id: root
                 component: Column
                 children:
-                  - card
+                  "@child":
+                    - card
               - id: card
                 component: Card
-                child: text
+                child: {"@child": text}
               - id: text
                 component: Text
                 text: Initial
@@ -1431,9 +1436,9 @@
                 component: Tabs
                 tabs:
                   - title: Overview
-                    child: tab_one
+                    child: {"@child": tab_one}
                   - title: Details
-                    child: missing_tab
+                    child: {"@child": missing_tab}
               - id: tab_one
                 component: Text
                 text: First
@@ -1644,7 +1649,7 @@
         message: "Circular reference detected"
 
 - name: test_v10_child_list_template_missing_path_error
-  description: Tests that a ChildList template object missing its required 'path' property fails schema validation in v1.0.
+  description: Tests that a ChildList template object missing its required '@path' property fails schema validation in v1.0.
   action: validate
   protocolVersion: "1.0"
   catalogPaths:
@@ -1663,7 +1668,7 @@
               - id: root
                 component: List
                 children:
-                  componentId: item
+                  "@child": item
               - id: item
                 component: Text
                 text: Item
@@ -1774,154 +1779,154 @@
             components:
               - id: root
                 component: Card
-                child: c0
+                child: {"@child": c0}
               - id: c0
                 component: Card
-                child: c1
+                child: {"@child": c1}
               - id: c1
                 component: Card
-                child: c2
+                child: {"@child": c2}
               - id: c2
                 component: Card
-                child: c3
+                child: {"@child": c3}
               - id: c3
                 component: Card
-                child: c4
+                child: {"@child": c4}
               - id: c4
                 component: Card
-                child: c5
+                child: {"@child": c5}
               - id: c5
                 component: Card
-                child: c6
+                child: {"@child": c6}
               - id: c6
                 component: Card
-                child: c7
+                child: {"@child": c7}
               - id: c7
                 component: Card
-                child: c8
+                child: {"@child": c8}
               - id: c8
                 component: Card
-                child: c9
+                child: {"@child": c9}
               - id: c9
                 component: Card
-                child: c10
+                child: {"@child": c10}
               - id: c10
                 component: Card
-                child: c11
+                child: {"@child": c11}
               - id: c11
                 component: Card
-                child: c12
+                child: {"@child": c12}
               - id: c12
                 component: Card
-                child: c13
+                child: {"@child": c13}
               - id: c13
                 component: Card
-                child: c14
+                child: {"@child": c14}
               - id: c14
                 component: Card
-                child: c15
+                child: {"@child": c15}
               - id: c15
                 component: Card
-                child: c16
+                child: {"@child": c16}
               - id: c16
                 component: Card
-                child: c17
+                child: {"@child": c17}
               - id: c17
                 component: Card
-                child: c18
+                child: {"@child": c18}
               - id: c18
                 component: Card
-                child: c19
+                child: {"@child": c19}
               - id: c19
                 component: Card
-                child: c20
+                child: {"@child": c20}
               - id: c20
                 component: Card
-                child: c21
+                child: {"@child": c21}
               - id: c21
                 component: Card
-                child: c22
+                child: {"@child": c22}
               - id: c22
                 component: Card
-                child: c23
+                child: {"@child": c23}
               - id: c23
                 component: Card
-                child: c24
+                child: {"@child": c24}
               - id: c24
                 component: Card
-                child: c25
+                child: {"@child": c25}
               - id: c25
                 component: Card
-                child: c26
+                child: {"@child": c26}
               - id: c26
                 component: Card
-                child: c27
+                child: {"@child": c27}
               - id: c27
                 component: Card
-                child: c28
+                child: {"@child": c28}
               - id: c28
                 component: Card
-                child: c29
+                child: {"@child": c29}
               - id: c29
                 component: Card
-                child: c30
+                child: {"@child": c30}
               - id: c30
                 component: Card
-                child: c31
+                child: {"@child": c31}
               - id: c31
                 component: Card
-                child: c32
+                child: {"@child": c32}
               - id: c32
                 component: Card
-                child: c33
+                child: {"@child": c33}
               - id: c33
                 component: Card
-                child: c34
+                child: {"@child": c34}
               - id: c34
                 component: Card
-                child: c35
+                child: {"@child": c35}
               - id: c35
                 component: Card
-                child: c36
+                child: {"@child": c36}
               - id: c36
                 component: Card
-                child: c37
+                child: {"@child": c37}
               - id: c37
                 component: Card
-                child: c38
+                child: {"@child": c38}
               - id: c38
                 component: Card
-                child: c39
+                child: {"@child": c39}
               - id: c39
                 component: Card
-                child: c40
+                child: {"@child": c40}
               - id: c40
                 component: Card
-                child: c41
+                child: {"@child": c41}
               - id: c41
                 component: Card
-                child: c42
+                child: {"@child": c42}
               - id: c42
                 component: Card
-                child: c43
+                child: {"@child": c43}
               - id: c43
                 component: Card
-                child: c44
+                child: {"@child": c44}
               - id: c44
                 component: Card
-                child: c45
+                child: {"@child": c45}
               - id: c45
                 component: Card
-                child: c46
+                child: {"@child": c46}
               - id: c46
                 component: Card
-                child: c47
+                child: {"@child": c47}
               - id: c47
                 component: Card
-                child: c48
+                child: {"@child": c48}
               - id: c48
                 component: Card
-                child: c49
+                child: {"@child": c49}
               - id: c49
                 component: Text
                 text: Leaf
@@ -1945,157 +1950,157 @@
             components:
               - id: root
                 component: Card
-                child: c0
+                child: {"@child": c0}
               - id: c0
                 component: Card
-                child: c1
+                child: {"@child": c1}
               - id: c1
                 component: Card
-                child: c2
+                child: {"@child": c2}
               - id: c2
                 component: Card
-                child: c3
+                child: {"@child": c3}
               - id: c3
                 component: Card
-                child: c4
+                child: {"@child": c4}
               - id: c4
                 component: Card
-                child: c5
+                child: {"@child": c5}
               - id: c5
                 component: Card
-                child: c6
+                child: {"@child": c6}
               - id: c6
                 component: Card
-                child: c7
+                child: {"@child": c7}
               - id: c7
                 component: Card
-                child: c8
+                child: {"@child": c8}
               - id: c8
                 component: Card
-                child: c9
+                child: {"@child": c9}
               - id: c9
                 component: Card
-                child: c10
+                child: {"@child": c10}
               - id: c10
                 component: Card
-                child: c11
+                child: {"@child": c11}
               - id: c11
                 component: Card
-                child: c12
+                child: {"@child": c12}
               - id: c12
                 component: Card
-                child: c13
+                child: {"@child": c13}
               - id: c13
                 component: Card
-                child: c14
+                child: {"@child": c14}
               - id: c14
                 component: Card
-                child: c15
+                child: {"@child": c15}
               - id: c15
                 component: Card
-                child: c16
+                child: {"@child": c16}
               - id: c16
                 component: Card
-                child: c17
+                child: {"@child": c17}
               - id: c17
                 component: Card
-                child: c18
+                child: {"@child": c18}
               - id: c18
                 component: Card
-                child: c19
+                child: {"@child": c19}
               - id: c19
                 component: Card
-                child: c20
+                child: {"@child": c20}
               - id: c20
                 component: Card
-                child: c21
+                child: {"@child": c21}
               - id: c21
                 component: Card
-                child: c22
+                child: {"@child": c22}
               - id: c22
                 component: Card
-                child: c23
+                child: {"@child": c23}
               - id: c23
                 component: Card
-                child: c24
+                child: {"@child": c24}
               - id: c24
                 component: Card
-                child: c25
+                child: {"@child": c25}
               - id: c25
                 component: Card
-                child: c26
+                child: {"@child": c26}
               - id: c26
                 component: Card
-                child: c27
+                child: {"@child": c27}
               - id: c27
                 component: Card
-                child: c28
+                child: {"@child": c28}
               - id: c28
                 component: Card
-                child: c29
+                child: {"@child": c29}
               - id: c29
                 component: Card
-                child: c30
+                child: {"@child": c30}
               - id: c30
                 component: Card
-                child: c31
+                child: {"@child": c31}
               - id: c31
                 component: Card
-                child: c32
+                child: {"@child": c32}
               - id: c32
                 component: Card
-                child: c33
+                child: {"@child": c33}
               - id: c33
                 component: Card
-                child: c34
+                child: {"@child": c34}
               - id: c34
                 component: Card
-                child: c35
+                child: {"@child": c35}
               - id: c35
                 component: Card
-                child: c36
+                child: {"@child": c36}
               - id: c36
                 component: Card
-                child: c37
+                child: {"@child": c37}
               - id: c37
                 component: Card
-                child: c38
+                child: {"@child": c38}
               - id: c38
                 component: Card
-                child: c39
+                child: {"@child": c39}
               - id: c39
                 component: Card
-                child: c40
+                child: {"@child": c40}
               - id: c40
                 component: Card
-                child: c41
+                child: {"@child": c41}
               - id: c41
                 component: Card
-                child: c42
+                child: {"@child": c42}
               - id: c42
                 component: Card
-                child: c43
+                child: {"@child": c43}
               - id: c43
                 component: Card
-                child: c44
+                child: {"@child": c44}
               - id: c44
                 component: Card
-                child: c45
+                child: {"@child": c45}
               - id: c45
                 component: Card
-                child: c46
+                child: {"@child": c46}
               - id: c46
                 component: Card
-                child: c47
+                child: {"@child": c47}
               - id: c47
                 component: Card
-                child: c48
+                child: {"@child": c48}
               - id: c48
                 component: Card
-                child: c49
+                child: {"@child": c49}
               - id: c49
                 component: Card
-                child: c50
+                child: {"@child": c50}
               - id: c50
                 component: Text
                 text: Leaf
@@ -2361,7 +2366,7 @@
               - id: root
                 component: Trigger
                 action:
-                  functionCall:
+                  "@functionCall":
                     "@call": getTide
     - messages:
         - version: "1.0"
@@ -2375,7 +2380,7 @@
               - id: root
                 component: Trigger
                 action:
-                  functionCall:
+                  "@functionCall":
                     "@call": getMoonPhase
       expectError:
         category: ValidationError
@@ -2385,7 +2390,7 @@
           error:
             code: VALIDATION_FAILED
             surfaceId: s2
-            path: "/components/0/action/functionCall"
+            path: "/components/0/action/@functionCall"
             message: "agentOnly"
 
 - name: test_v10_agent_only_function_cross_catalog_and_nested_error

@@ -297,9 +297,10 @@
               - id: root
                 component: Column
                 children:
-                  - "and_field"
-                  - "or_field"
-                  - "not_field"
+                  "@child":
+                    - "and_field"
+                    - "or_field"
+                    - "not_field"
               - id: and_field
                 component: TextField
                 label: "And Field"

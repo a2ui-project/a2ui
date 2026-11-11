@@ -14,21 +14,25 @@
         {
           "id": "root",
           "component": "Card",
-          "child": "confirmation_column"
+          "child": {
+            "@child": "confirmation_column"
+          }
         },
         {
           "id": "confirmation_column",
           "component": "Column",
-          "children": [
-            "confirm_title",
-            "confirm_image",
-            "divider1",
-            "confirm_details",
-            "divider2",
-            "confirm_dietary",
-            "divider3",
-            "confirm_text"
-          ]
+          "children": {
+            "@child": [
+              "confirm_title",
+              "confirm_image",
+              "divider1",
+              "confirm_details",
+              "divider2",
+              "confirm_dietary",
+              "divider3",
+              "confirm_text"
+            ]
+          }
         },
         {
           "id": "confirm_title",

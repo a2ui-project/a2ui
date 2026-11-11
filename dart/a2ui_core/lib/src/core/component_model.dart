@@ -241,11 +241,18 @@ class SurfaceComponentsModel {
   final Catalog<ComponentApi, FunctionApi>? _catalog;
 
   Map<String, ComponentRefFields>? _refFields;
+  bool? _atLeastV10Override;
 
   /// Creates an empty model whose graph queries find child references through
   /// [catalog]'s reference properties, or find none when [catalog] is null.
-  SurfaceComponentsModel({Catalog<ComponentApi, FunctionApi>? catalog})
-      : _catalog = catalog;
+  ///
+  /// When [atLeastV10] is set, it determines whether child references follow
+  /// v1.0 `@child` directive rules even when [catalog] is null.
+  SurfaceComponentsModel({
+    Catalog<ComponentApi, FunctionApi>? catalog,
+    bool? atLeastV10,
+  })  : _catalog = catalog,
+        _atLeastV10Override = atLeastV10;
 
   /// Which properties hold child references, per component type.
   ///
@@ -433,9 +440,22 @@ class SurfaceComponentsModel {
       ];
 
   bool get _atLeastV10 =>
-      _catalog != null &&
-      _catalog.protocolVersion != null &&
-      _catalog.protocolVersion!.isAtLeast(A2uiProtocolVersion.v1_0);
+      _atLeastV10Override ??
+      (_catalog != null &&
+          _catalog.protocolVersion != null &&
+          _catalog.protocolVersion!.isAtLeast(A2uiProtocolVersion.v1_0));
+
+  /// Overrides whether graph queries treat child references as v1.0 `@child`
+  /// directives, e.g. on a defaultless surface updated via `MessageProcessor`.
+  @internal
+  set atLeastV10(bool value) {
+    if (_atLeastV10Override == value) return;
+    _atLeastV10Override = value;
+    // The cached component graph bound was computed for the old ref rules.
+    _bound = null;
+    _boundAt = -1;
+    _changes++;
+  }
 
   Iterable<ComponentReference> _referencesOf(String id) {
     final ComponentModel? component = _components[id];

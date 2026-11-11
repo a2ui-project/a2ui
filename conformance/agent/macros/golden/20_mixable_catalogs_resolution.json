@@ -14,7 +14,9 @@
         {
           "component": "Column",
           "id": "root",
-          "children": ["brand_text", "basic_text"]
+          "children": {
+            "@child": ["brand_text", "basic_text"]
+          }
         },
         {
           "component": "Text",
@@ -25,7 +27,9 @@
         {
           "component": "Card",
           "id": "brand_text",
-          "child": "brand_text__text_1"
+          "child": {
+            "@child": "brand_text__text_1"
+          }
         },
         {
           "component": "Text",

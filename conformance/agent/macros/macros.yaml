@@ -105,8 +105,7 @@ custom_catalogs:
         properties:
           component: {const: "BrandBox"}
           id: {type: "string"}
-          child:
-            {$ref: "https://a2ui.org/specification/v1_0/json/common_types.json#/$defs/ComponentId"}
+          child: {$ref: "https://a2ui.org/specification/v1_0/json/common_types.json#/$defs/Child"}
         required: ["component", "id", "child"]
     $defs:
       anyComponent:
@@ -127,8 +126,7 @@ custom_catalogs:
         properties:
           component: {const: "BrandBox"}
           id: {type: "string"}
-          child:
-            {$ref: "https://a2ui.org/specification/v1_0/json/common_types.json#/$defs/ComponentId"}
+          child: {$ref: "https://a2ui.org/specification/v1_0/json/common_types.json#/$defs/Child"}
         required: ["component", "id", "child"]
     $defs:
       anyComponent:
@@ -178,8 +176,7 @@ custom_catalogs:
         properties:
           component: {const: "ChartCard"}
           id: {type: "string"}
-          child:
-            {$ref: "https://a2ui.org/specification/v1_0/json/common_types.json#/$defs/ComponentId"}
+          child: {$ref: "https://a2ui.org/specification/v1_0/json/common_types.json#/$defs/Child"}
         required: ["component", "id", "child"]
       ChartGrid:
         type: "object"
@@ -217,8 +214,7 @@ custom_catalogs:
         properties:
           component: {const: "BrandBox"}
           id: {type: "string"}
-          child:
-            {$ref: "https://a2ui.org/specification/v1_0/json/common_types.json#/$defs/ComponentId"}
+          child: {$ref: "https://a2ui.org/specification/v1_0/json/common_types.json#/$defs/Child"}
         required: ["component", "id", "child"]
     $defs:
       anyComponent:
@@ -1064,8 +1060,9 @@ tests:
       - component: "Column"
         id: "root"
         children:
-          - "btn_basic"
-          - "btn_standalone"
+          "@child":
+            - "btn_basic"
+            - "btn_standalone"
       - component: "ActionButton"
         id: "btn_basic"
         label: "Submit"
@@ -1097,8 +1094,9 @@ tests:
       - component: "Column"
         id: "root"
         children:
-          - "brand_text"
-          - "basic_text"
+          "@child":
+            - "brand_text"
+            - "basic_text"
       - component: "Text"
         id: "brand_text"
         "@catalogId": "https://example.com/brand.json"
@@ -1119,8 +1117,9 @@ tests:
       - component: "Column"
         id: "root"
         children:
-          - "metric_path"
-          - "metric_call"
+          "@child":
+            - "metric_path"
+            - "metric_call"
       - component: "BoundMetric"
         id: "metric_path"
         label: "CPU Usage"
@@ -1308,9 +1307,10 @@ tests:
       - component: "Row"
         id: "root"
         children:
-          - "ann_badge"
-          - "decl_a11y"
-          - "weighted_card"
+          "@child":
+            - "ann_badge"
+            - "decl_a11y"
+            - "weighted_card"
       - component: "AnnotatedBadge"
         id: "ann_badge"
         status: "ok"
@@ -1417,13 +1417,15 @@ tests:
         - id: "ok_badge__row_1"
           component: "Row"
           children:
-            - "ok_badge__text_1"
-            - "ok_badge__text_2"
+            "@child":
+              - "ok_badge__text_1"
+              - "ok_badge__text_2"
           justify: "start"
           align: "stretch"
         - id: "ok_badge"
           component: "Card"
-          child: "ok_badge__row_1"
+          child:
+            "@child": "ok_badge__row_1"
 
   - id: "33b_error_on_error_raise_surfaces_validation_error"
     description: "MacroExpander with on_error='raise' raises ValidationError when a macro fails coercion or raises a runtime validation error"
@@ -1462,8 +1464,9 @@ tests:
               component: "FooPanel"
               "@catalogId": "https://example.com/catalogs/foo/v1/catalog.json"
               children:
-                - "baz_1"
-                - "extra_bar_btn"
+                "@child":
+                  - "baz_1"
+                  - "extra_bar_btn"
             - id: "baz_1"
               component: "BazMacro"
               "@catalogId": "https://example.com/catalogs/baz_macros.json"
@@ -1479,7 +1482,7 @@ tests:
               "@catalogId": "https://example.com/catalogs/bar/v1/catalog.json"
               label: "Cancel"
               action:
-                event:
+                "@action":
                   name: "cancel_clicked"
       - version: "1.0"
         createSurface:
@@ -1571,8 +1574,9 @@ tests:
             - id: "root"
               component: "Column"
               children:
-                - "t_basic"
-                - "t_brand"
+                "@child":
+                  - "t_basic"
+                  - "t_brand"
             - id: "t_basic"
               component: "Text"
               text: "Plain basic text"
@@ -1597,8 +1601,9 @@ tests:
               component: "Column"
               "@catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
               children:
-                - "t_recreated"
-                - "b_null_cid"
+                "@child":
+                  - "t_recreated"
+                  - "b_null_cid"
             - id: "t_recreated"
               component: "Text"
               text: "Default brand surface text"
@@ -1757,8 +1762,9 @@ tests:
             - id: "root"
               component: "Column"
               children:
-                - "p_cat_a"
-                - "p_cat_b"
+                "@child":
+                  - "p_cat_a"
+                  - "p_cat_b"
             - id: "p_cat_a"
               component: "ProductCard"
               "@catalogId": "https://example.com/catalog_a.json"
@@ -1827,8 +1833,9 @@ tests:
             - id: "root"
               component: "ChartGrid"
               children:
-                - "c_brand"
-                - "c_plain"
+                "@child":
+                  - "c_brand"
+                  - "c_plain"
             - id: "c_brand"
               component: "Chart"
               "@catalogId": "https://example.com/brand.json"

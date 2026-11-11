@@ -6,11 +6,11 @@ Use these exact positional signatures to instantiate components. Do not output p
   - description: A description of the audio, such as a title or summary.
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
 • Button(child (static), variant? (static), action (static), weight? (static), checks? (static))
-  - child: The ID of the child component. Use a 'Text' component for a labeled button. Only use an 'Icon' if the requirements explicitly ask for an icon-only button.
+  - child: A reference ({"@child": "<id>"}) to the child component. Use a 'Text' component for a labeled button. Only use an 'Icon' if the requirements explicitly ask for an icon-only button.
   - variant: A hint for the button style. If omitted, a default button style is used. 'primary' indicates this is the main call-to-action button. 'borderless' means the button has no visual border or background, making its child content appear like a clickable link. Must be one of: 'default', 'primary', 'borderless'
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
 • Card(child (static), weight? (static))
-  - child: The ID of the single child component to be rendered inside the card. To display multiple elements, you MUST wrap them in a layout component (like Column or Row) and pass that container's ID here. Do NOT pass multiple IDs or a non-existent ID.
+  - child: A reference ({"@child": "<id>"}) to the single child component to be rendered inside the card. To display multiple elements, you MUST wrap them in a layout component (like Column or Row) and reference that container's ID here. Do NOT pass multiple IDs or a non-existent ID.
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
 • CheckBox(label, value, weight? (static), checks? (static))
   - label: The text to display next to the checkbox.
@@ -30,7 +30,7 @@ Use these exact positional signatures to instantiate components. Do not output p
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
 • Column(children, justify? (static), align? (static), weight? (static))
   - Description: A layout component that arranges its children vertically. To create a grid layout, nest Rows within this Column.
-  - children: Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list. Children cannot be defined inline, they must be referred to by ID.
+  - children: Defines the children. Use {"@child": [...]} for a fixed set of children, or {"@child": "<templateId>", "@path": "/path"} to generate children from a data list. Children cannot be defined inline, they must be referred to by ID.
   - justify: Defines the arrangement of children along the main axis (vertically). Use 'spaceBetween' to push items to the edges (e.g. header at top, footer at bottom), or 'start'/'end'/'center' to pack them together. Must be one of: 'start', 'center', 'end', 'spaceBetween', 'spaceAround', 'spaceEvenly', 'stretch'
   - align: Defines the alignment of children along the cross axis (horizontally). This is similar to the CSS 'align-items' property. Must be one of: 'center', 'end', 'start', 'stretch'
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
@@ -55,17 +55,17 @@ Use these exact positional signatures to instantiate components. Do not output p
   - variant: A hint for the image size and style. Must be one of: 'icon', 'avatar', 'smallFeature', 'mediumFeature', 'largeFeature', 'header'
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
 • List(children, direction? (static), align? (static), weight? (static))
-  - children: Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list.
+  - children: Defines the children. Use {"@child": [...]} for a fixed set of children, or {"@child": "<templateId>", "@path": "/path"} to generate children from a data list.
   - direction: The direction in which the list items are laid out. Must be one of: 'vertical', 'horizontal'
   - align: Defines the alignment of children along the cross axis. Must be one of: 'start', 'center', 'end', 'stretch'
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
 • Modal(trigger (static), content (static), weight? (static))
-  - trigger: The ID of the component that opens the modal when interacted with (e.g., a button).
-  - content: The ID of the component to be displayed inside the modal.
+  - trigger: A reference ({"@child": "<id>"}) to the component that opens the modal when interacted with (e.g., a button).
+  - content: A reference ({"@child": "<id>"}) to the component to be displayed inside the modal.
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
 • Row(children, justify? (static), align? (static), weight? (static))
   - Description: A layout component that arranges its children horizontally. To create a grid layout, nest Columns within this Row.
-  - children: Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list. Children cannot be defined inline, they must be referred to by ID.
+  - children: Defines the children. Use {"@child": [...]} for a fixed set of children, or {"@child": "<templateId>", "@path": "/path"} to generate children from a data list. Children cannot be defined inline, they must be referred to by ID.
   - justify: Defines the arrangement of children along the main axis (horizontally). Use 'spaceBetween' to push items to the edges, or 'start'/'end'/'center' to pack them together. Must be one of: 'center', 'end', 'spaceAround', 'spaceBetween', 'spaceEvenly', 'start', 'stretch'
   - align: Defines the alignment of children along the cross axis (vertically). This is similar to the CSS 'align-items' property, but uses camelCase values (e.g., 'start'). Must be one of: 'start', 'center', 'end', 'stretch'
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
@@ -80,7 +80,7 @@ Use these exact positional signatures to instantiate components. Do not output p
   - tabs: An array of objects, where each object defines a tab with a title and a child component.
     List of maps keys:
     * title - The tab title.
-    * child - The ID of the child component.
+    * child - A reference ({"@child": "<id>"}) to the child component.
   - weight: The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
 • Text(text, variant? (static), weight? (static))
   - text: The text content to display. While simple Markdown formatting is supported (i.e. without HTML, images, or links), utilizing dedicated UI components is generally preferred for a richer and more structured presentation.

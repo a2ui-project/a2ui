@@ -84,7 +84,7 @@ struct V10LogicalCheckTests {
         id: "root",
         type: "Button",
         properties: [
-          "child": .string("login_btn_text"),
+          "child": .object(["@child": .string("login_btn_text")]),
           "checks": .array([
             .object([
               "condition": .object([
@@ -108,7 +108,7 @@ struct V10LogicalCheckTests {
               "message": .string("Please fix errors before signing in"),
             ])
           ]),
-          "action": .object(["event": .object(["name": .string("login")])]),
+          "action": .object(["@action": .object(["name": .string("login")])]),
         ]
       )
     )

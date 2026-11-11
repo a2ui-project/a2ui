@@ -100,8 +100,8 @@ struct StateEngineV10Tests {
         type: "Card",
         properties: [
           "children": .object([
-            "componentId": .string("task_item"),
-            "path": .string("/tasks"),
+            "@child": .string("task_item"),
+            "@path": .string("/tasks"),
           ])
         ]
       )
@@ -256,8 +256,8 @@ struct StateEngineV10Tests {
 
     // Valid layout
     let validComponents: [[String: JSONValue]] = [
-      ["id": "root", "component": "AppLayout", "child": "container1"],
-      ["id": "container1", "component": "Container", "child": "btn1"],
+      ["id": "root", "component": "AppLayout", "child": ["@child": "container1"]],
+      ["id": "container1", "component": "Container", "child": ["@child": "btn1"]],
       ["id": "btn1", "component": "Button"],
     ]
 
@@ -269,7 +269,7 @@ struct StateEngineV10Tests {
 
     // Invalid: AppLayout has parent Container (AppLayout only allowed under Surface)
     let invalidParentComponents: [[String: JSONValue]] = [
-      ["id": "root", "component": "Container", "child": "nested_layout"],
+      ["id": "root", "component": "Container", "child": ["@child": "nested_layout"]],
       ["id": "nested_layout", "component": "AppLayout"],
     ]
 
@@ -283,8 +283,8 @@ struct StateEngineV10Tests {
 
     // Invalid: Container cannot have child AppLayout (Container only allows Button)
     let invalidChildComponents: [[String: JSONValue]] = [
-      ["id": "root", "component": "AppLayout", "child": "container1"],
-      ["id": "container1", "component": "Container", "child": "app_child"],
+      ["id": "root", "component": "AppLayout", "child": ["@child": "container1"]],
+      ["id": "container1", "component": "Container", "child": ["@child": "app_child"]],
       ["id": "app_child", "component": "AppLayout"],
     ]
 
@@ -473,7 +473,7 @@ struct StateEngineV10Tests {
         type: "Button",
         properties: [
           "action": .object([
-            "functionCall": .object([
+            "@functionCall": .object([
               "@call": .string("openUrl"),
               "args": .object(["url": .string("https://a2ui.org")]),
             ])

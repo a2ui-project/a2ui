@@ -13,10 +13,12 @@
         {
           "component": "Button",
           "id": "btn_1",
-          "child": "btn_1__text_1",
+          "child": {
+            "@child": "btn_1__text_1"
+          },
           "variant": "primary",
           "action": {
-            "event": {
+            "@action": {
               "name": "submit_form"
             }
           }

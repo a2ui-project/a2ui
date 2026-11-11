@@ -21,7 +21,7 @@ v0.9.1 or v1.0).
 The grammar for A2UI Express is defined in Express.g4.
 """
 
-from collections.abc import Container, Iterable, Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field, replace
 import json
 import re
@@ -39,6 +39,7 @@ from a2ui.inference_formats._shared import (
     catalogs_protocol_version,
     check_mixed_catalogs,
     is_action_slot,
+    schema_expects_at_child,
     surface_catalog_id,
     to_message_models,
 )
@@ -300,7 +301,10 @@ def _schema_allows_databinding(schema: Any) -> bool:
     if "properties" in schema and (
         "path" in schema["properties"] or "@path" in schema["properties"]
     ):
-        if "componentId" not in schema["properties"]:
+        if (
+            "componentId" not in schema["properties"]
+            and "@child" not in schema["properties"]
+        ):
             return True
     if "items" in schema:
         if _schema_allows_databinding(schema["items"]):
@@ -350,12 +354,30 @@ def _binding_path(v: Any, path_key: str) -> str | None:
 
     `path_key` is the binding key of the target version: `@path` in v1.0 and
     later, `path` before. A plain `path` key in v1.0 is data. A child list
-    template (`{"componentId": ..., "path": ...}`) is not a data binding.
+    template (`{"@child": ..., "@path": ...}` or `{"componentId": ..., "path": ...}`)
+    is not a data binding.
     """
-    if not isinstance(v, dict) or "componentId" in v:
+    if not isinstance(v, dict) or "componentId" in v or "@child" in v:
         return None
     val = v.get(path_key)
     return val if isinstance(val, str) else None
+
+
+def _wrap_v10_child_slot(
+    ref_type: str | None,
+    value: Any,
+    *,
+    at_least_v10: bool,
+    expects_at_child: bool = True,
+) -> Any:
+    """Wraps compiled v1.0 `Child` strings and `ChildList` arrays under `@child`."""
+    if not at_least_v10 or not expects_at_child or value is None:
+        return value
+    if ref_type == "Child" and isinstance(value, str):
+        return {"@child": value}
+    if ref_type == "ChildList" and isinstance(value, list):
+        return {"@child": value}
+    return value
 
 
 def _resolves_to_path(node: Any, raw_symbols: dict[str, Any]) -> bool:
@@ -2124,7 +2146,17 @@ class ExpressCompiler:
                         f" property '{prop_name}' of component '{comp_name}'."
                         f" Allowed values are: {enum_vals}"
                     )
-            comp_dict[prop_name] = mapped_val
+            expects_at_child = schema_expects_at_child(prop_schema) or (
+                prop_schema is None
+                and not comp_helper.common_types_loaded
+                and prop_name in ("child", "children")
+            )
+            comp_dict[prop_name] = _wrap_v10_child_slot(
+                prop_type,
+                mapped_val,
+                at_least_v10=ctx.at_least_v10,
+                expects_at_child=expects_at_child,
+            )
 
             # Only a `$path` value binds the checks; a map literal shaped like
             # a binding is data.
@@ -2327,12 +2359,13 @@ class ExpressCompiler:
                 )
             event_dict["userMessage"] = user_message
 
+        action_event_key = "@action" if ctx.at_least_v10 else "event"
         if len(fn_args) == 2:
             context_node = fn_args[1]
         elif "context" in fn_kwargs:
             context_node = fn_kwargs["context"]
         else:
-            return {"event": event_dict}
+            return {action_event_key: event_dict}
 
         raw_context = self._compile_value(context_node, raw_symbols, ctx)
         # A context written in the DSL is kept even when it is empty.
@@ -2344,7 +2377,7 @@ class ExpressCompiler:
                 if isinstance(item, dict):
                     compiled_context.update(item)
         event_dict["context"] = compiled_context
-        return {"event": event_dict}
+        return {action_event_key: event_dict}
 
     def _compile_value(
         self,
@@ -2460,7 +2493,7 @@ class ExpressCompiler:
                 entry_is_action = is_action or (
                     entry_slot is not None and is_action_slot(entry_slot.schema)
                 )
-                dict_res[k] = self._compile_value(
+                compiled_entry = self._compile_value(
                     v,
                     raw_symbols,
                     ctx,
@@ -2470,6 +2503,19 @@ class ExpressCompiler:
                         entry_ref_type == "ChildList" and isinstance(v, list)
                     ),
                     slot=entry_slot,
+                )
+                entry_expects_at_child = entry_slot is not None and (
+                    schema_expects_at_child(entry_slot.schema)
+                    or (
+                        not entry_slot.helper.common_types_loaded
+                        and k in ("child", "children")
+                    )
+                )
+                dict_res[k] = _wrap_v10_child_slot(
+                    entry_ref_type,
+                    compiled_entry,
+                    at_least_v10=ctx.at_least_v10,
+                    expects_at_child=entry_expects_at_child,
                 )
             return dict_res
 
@@ -2482,7 +2528,7 @@ class ExpressCompiler:
             item_is_action = is_action or (
                 item_slot is not None and is_action_slot(item_slot.schema)
             )
-            return [
+            compiled_items = [
                 self._compile_value(
                     item,
                     raw_symbols,
@@ -2498,6 +2544,18 @@ class ExpressCompiler:
                 )
                 for idx, item in enumerate(val)
             ]
+            if (
+                ctx.at_least_v10
+                and not allow_list_component_refs
+                and item_ref_type == "Child"
+                and item_slot is not None
+                and schema_expects_at_child(item_slot.schema)
+            ):
+                return [
+                    _wrap_v10_child_slot("Child", item, at_least_v10=True)
+                    for item in compiled_items
+                ]
+            return compiled_items
 
         return val
 
@@ -2532,7 +2590,8 @@ class ExpressCompiler:
             comp_id_val = self._compile_value(
                 fn_args[1], raw_symbols, ctx, is_action, allow_component_ref=True
             )
-            # A child list template keeps the plain `path` key in every version.
+            if ctx.at_least_v10:
+                return {"@child": comp_id_val, "@path": template_path}
             return {"path": template_path, "componentId": comp_id_val}
 
         if fn_name == "Event":
@@ -2584,9 +2643,10 @@ class ExpressCompiler:
             res_expr["catalogId"] = write_cat_id
         res_expr["args"] = compiled_args
 
-        # Wrap in functionCall only if inside an action field
+        # Wrap in @functionCall (v1.0+) or functionCall (pre-1.0) only inside an action slot
         if is_action:
-            return {"functionCall": res_expr}
+            fc_key = "@functionCall" if ctx.at_least_v10 else "functionCall"
+            return {fc_key: res_expr}
         return res_expr
 
     def _compile_system_call(
@@ -2617,7 +2677,8 @@ class ExpressCompiler:
         if compiled_args:
             res_expr["args"] = compiled_args
         if is_action:
-            return {"functionCall": res_expr}
+            fc_key = "@functionCall" if ctx.at_least_v10 else "functionCall"
+            return {fc_key: res_expr}
         return res_expr
 
     def _system_function_helper(

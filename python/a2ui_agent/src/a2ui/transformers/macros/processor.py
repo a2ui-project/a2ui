@@ -125,24 +125,30 @@ def _coerce_action(
 ) -> builder_v0_9.Action | builder_v1_0.Action:
     """Builds an Action from the shapes inference output uses for one.
 
-    Four spellings show up in practice and all mean the same thing: the wire
-    form ``{"event": {"name": ...}}``, the abbreviated
-    ``{"event": "name", "userMessage": ..., "context": ...}``, a bare event
-    body ``{"name": ..., "context": ..., "userMessage": ...}``, and a bare
-    function call ``{"@call": ...}`` (v1.0) or ``{"call": ...}`` (v0.9).
-    Anything else - notably ``{"functionCall": ...}`` - is already the wire
-    form and is handed to Pydantic to validate.
+    On v1.0, accepts wire ``{"@action": {"name": ...}}`` /
+    ``{"@functionCall": ...}``, legacy ``{"event": ...}`` /
+    ``{"functionCall": ...}``, abbreviated ``{"@action"|"event": "name", ...}``,
+    bare event bodies ``{"name": ..., "context": ...}``, and bare function
+    calls ``{"@call": ...}``.
     """
-    has_fc = bool({"functionCall", "function_call"} & value.keys())
-    inner = value.get("event")
     if use_v1_0:
-        if isinstance(inner, str) and not has_fc:
-            event_payload = {k: v for k, v in value.items() if k != "event"}
+        has_fc = bool({"@functionCall", "functionCall", "function_call"} & value.keys())
+        # TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+        inner = value.get("@action")
+        inner_key = "@action" if "@action" in value else None
+        if inner_key is None and "event" in value:
+            inner = value.get("event")
+            inner_key = "event"
+        if isinstance(inner, str) and inner_key is not None and not has_fc:
+            event_payload = {k: v for k, v in value.items() if k != inner_key}
             event_payload["name"] = inner
             return builder_v1_0.Action(
                 event=builder_v1_0.ActionEvent.model_validate(event_payload)
             )
-        if not ({"event", "functionCall", "function_call"} & value.keys()):
+        if not (
+            {"@action", "event", "@functionCall", "functionCall", "function_call"}
+            & value.keys()
+        ):
             if "@call" in value:
                 return builder_v1_0.Action(
                     function_call=builder_v1_0.FunctionCall.model_validate(value)
@@ -152,6 +158,8 @@ def _coerce_action(
             )
         return builder_v1_0.Action.model_validate(value)
 
+    has_fc = bool({"functionCall", "function_call"} & value.keys())
+    inner = value.get("event")
     if isinstance(inner, str) and not has_fc:
         event_payload = {k: v for k, v in value.items() if k != "event"}
         event_payload["name"] = inner
@@ -317,17 +325,46 @@ def _coerce_value(
     is_any = raw_t is Any
     binding_key = "@path" if use_v1_0 else "path"
     call_key = "@call" if use_v1_0 else "call"
-    expected_dcl_keys = {"path", "componentId"} if use_v1_0 else {"path", "template"}
 
-    # 1. Coerce single child slot from string ID to ComponentRef
-    if isinstance(p_val, str) and _is_single_child_slot_type(raw_t):
-        return ComponentRef(id=p_val)
+    # 1. Coerce single child slot from {"@child": id} (v1.0) or bare string ID
+    if _is_single_child_slot_type(raw_t):
+        if (
+            use_v1_0
+            and isinstance(p_val, dict)
+            and set(p_val.keys()) == {"@child"}
+            and isinstance(p_val["@child"], str)
+        ):
+            return ComponentRef(id=p_val["@child"])
+        # TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+        if isinstance(p_val, str):
+            return ComponentRef(id=p_val)
 
-    # 2. Coerce child slot list from sequence of IDs to ComponentRefs
-    if isinstance(p_val, (list, tuple)) and _is_component_sequence_type(raw_t):
-        return [ComponentRef(id=x) if isinstance(x, str) else x for x in p_val]
+    # 2. Coerce child slot list from {"@child": [...]} (v1.0) or sequence of IDs
+    if _is_component_sequence_type(raw_t):
+        if (
+            use_v1_0
+            and isinstance(p_val, dict)
+            and set(p_val.keys()) == {"@child"}
+            and isinstance(p_val["@child"], list)
+        ):
+            return [
+                ComponentRef(id=x) if isinstance(x, str) else x for x in p_val["@child"]
+            ]
+        # TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+        if isinstance(p_val, (list, tuple)):
+            return [ComponentRef(id=x) if isinstance(x, str) else x for x in p_val]
 
-    # 3. Coerce DynamicChildList dictionary: {"path": "/...", "componentId": "..."}
+    # 3. Coerce DynamicChildList dictionary:
+    # v1.0 wire {"@child": "...", "@path": "/..."}, or legacy bare {"componentId": "...", "path": "/..."}
+    # TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+    is_at_tpl = (
+        use_v1_0
+        and isinstance(p_val, dict)
+        and set(p_val.keys()) == {"@child", "@path"}
+    )
+    is_bare_tpl = isinstance(p_val, dict) and (
+        "componentId" in p_val or "template" in p_val
+    )
     if (
         isinstance(p_val, dict)
         and not _is_dict_only_type(raw_t)
@@ -335,11 +372,15 @@ def _coerce_value(
         and (
             (
                 _is_type_from(raw_t, _DYNAMIC_CHILD_LIST_TYPES)
-                and ("componentId" in p_val or "template" in p_val)
+                and (is_at_tpl or is_bare_tpl)
             )
             or (
                 is_any
-                and set(p_val.keys()) == expected_dcl_keys
+                and (
+                    set(p_val.keys()) == {"@child", "@path"}
+                    or set(p_val.keys())
+                    == ({"path", "componentId"} if use_v1_0 else {"path", "template"})
+                )
                 and all(isinstance(v, str) and bool(v) for v in p_val.values())
             )
         )
@@ -348,7 +389,11 @@ def _coerce_value(
             builder_v1_0.DynamicChildList if use_v1_0 else builder_v0_9.DynamicChildList
         )
         dcl_payload = dict(p_val)
-        tmpl_key = "componentId" if "componentId" in dcl_payload else "template"
+        tmpl_key = (
+            "@child"
+            if "@child" in dcl_payload
+            else ("componentId" if "componentId" in dcl_payload else "template")
+        )
         tmpl = dcl_payload.get(tmpl_key)
         if isinstance(tmpl, str):
             dcl_payload[tmpl_key] = ComponentRef(id=tmpl)

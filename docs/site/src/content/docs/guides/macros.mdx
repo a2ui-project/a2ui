@@ -113,14 +113,14 @@ root = FlightCard("OS 87", "Vienna to New York", $/flight/status)
         {
           "component": "Column",
           "id": "root__column_1",
-          "children": ["root__text_1", "root__text_2", "root__text_3"],
+          "children": {"@child": ["root__text_1", "root__text_2", "root__text_3"]},
           "justify": "start",
           "align": "stretch"
         },
         {
           "component": "Card",
           "id": "root",
-          "child": "root__column_1"
+          "child": {"@child": "root__column_1"}
         }
       ],
       "dataModel": {
@@ -471,7 +471,7 @@ The table below lists the most common parameter annotations (showing v1.0 schema
 | `Literal[...]` or `Enum` (with `str` values)                            | `enum`                                                                                                    | Static literal value (`Enum` parameters arrive as raw `str`, not `Enum` members).                           |
 | `Sequence[V]`, `dict[str, V]`                                           | `array`, `object`                                                                                         | List or dict with elements converted to `V`.                                                                |
 | `DynamicString`, `DynamicNumber`, `DynamicBoolean`, `DynamicStringList` | [`DynamicString`](/specification/v1.0/schemas/#common_types.json/$defs/DynamicString) and related types   | Literal value, `DataBinding`, or `FunctionCall`.                                                            |
-| `Action`                                                                | [`Action`](/specification/v1.0/schemas/#common_types.json/$defs/Action)                                   | `Action` built from an event object or function call.                                                       |
+| `Action`                                                                | [`Action`](/specification/v1.0/schemas/#common_types.json/$defs/Action)                                   | `Action` built from an `@action` event or `@functionCall` (`event` or `functionCall` in v0.9.1).            |
 | `Child` or component class                                              | [`Child`](/specification/v1.0/schemas/#common_types.json/$defs/Child) (`ComponentId` in v0.9.1)           | `ComponentRef` pointing to another component ID.                                                            |
 | `ChildList` or `Sequence[Child]`                                        | [`ChildList`](/specification/v1.0/schemas/#common_types.json/$defs/ChildList)                             | List of `ComponentRef` items; `ChildList` (not `Sequence[Child]`) also accepts `DynamicChildList` bindings. |
 | `CheckRule` or `Sequence[CheckRule]`                                    | [`CheckRule`](/specification/v1.0/schemas/#common_types.json/$defs/CheckRule) (or `array` of `CheckRule`) | `CheckRule` instance(s) for input validation.                                                               |

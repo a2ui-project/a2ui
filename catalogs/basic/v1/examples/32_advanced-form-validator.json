@@ -18,19 +18,23 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main_column"
+            "child": {
+              "@child": "main_column"
+            }
           },
           {
             "id": "main_column",
             "component": "Column",
-            "children": [
-              "welcome_text",
-              "email_field",
-              "phone_field",
-              "zip_field",
-              "terms_checkbox",
-              "submit_btn"
-            ],
+            "children": {
+              "@child": [
+                "welcome_text",
+                "email_field",
+                "phone_field",
+                "zip_field",
+                "terms_checkbox",
+                "submit_btn"
+              ]
+            },
             "align": "stretch"
           },
           {
@@ -124,7 +128,9 @@
           {
             "id": "submit_btn",
             "component": "Button",
-            "child": "submit_btn_text",
+            "child": {
+              "@child": "submit_btn_text"
+            },
             "@checks": [
               {
                 "condition": {
@@ -172,7 +178,7 @@
               }
             ],
             "action": {
-              "event": {
+              "@action": {
                 "name": "register",
                 "context": {
                   "data": {

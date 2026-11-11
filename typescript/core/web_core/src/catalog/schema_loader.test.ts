@@ -23,6 +23,14 @@ import {A2uiCatalogError, A2uiValidationError} from '../errors.js';
 import {Catalog} from './types.js';
 import {analyzeChildRefSchema} from './reference-map.js';
 import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
+import {
+  ActionSchema as V10ActionSchema,
+  ChildListSchema as V10ChildListSchema,
+  ChildSchema as V10ChildSchema,
+  DynamicValueSchema as V10DynamicValueSchema,
+  TemplateChildListSchema as V10TemplateChildListSchema,
+} from '../v1_0/schema/index.js';
+import {DynamicValueSchema as SupersetDynamicValueSchema} from '../types/common-types.js';
 import {STRICT_VALIDATION} from '../validation/integrity-checker.js';
 import {PayloadValidator} from '../validation/payload-validator.js';
 
@@ -1149,6 +1157,91 @@ describe('Catalog.fromJson & schema_loader', () => {
           '@checks': [{condition: true, message: 'No v1.0 @checks on v0.9'}],
         }),
       A2uiValidationError,
+    );
+  });
+
+  it('enforces v1.0 @child, @action, and @functionCall on generated v1_0 schemas while superset CommonSchemas dual-accepts across versions', () => {
+    // Generated strict v1.0 schemas accept @-prefixed directives and reject legacy bare shapes.
+    assert.strictEqual(V10ChildSchema.safeParse({'@child': 'c1'}).success, true);
+    assert.strictEqual(V10ChildSchema.safeParse('c1').success, false);
+    assert.strictEqual(V10ChildListSchema.safeParse({'@child': ['c1', 'c2']}).success, true);
+    assert.strictEqual(
+      V10ChildListSchema.safeParse({'@child': 'tpl', '@path': '/items'}).success,
+      true,
+    );
+    assert.strictEqual(V10ChildListSchema.safeParse(['c1', 'c2']).success, false);
+    assert.strictEqual(
+      V10ChildListSchema.safeParse({componentId: 'tpl', path: '/items'}).success,
+      false,
+    );
+    assert.strictEqual(
+      V10TemplateChildListSchema.safeParse({'@child': 'tpl', '@path': '/items'}).success,
+      true,
+    );
+    assert.strictEqual(
+      V10TemplateChildListSchema.safeParse({componentId: 'tpl', path: '/items'}).success,
+      false,
+    );
+    assert.strictEqual(V10ActionSchema.safeParse({'@action': {name: 'submit'}}).success, true);
+    assert.strictEqual(
+      V10ActionSchema.safeParse({'@functionCall': {'@call': 'openUrl'}}).success,
+      true,
+    );
+    assert.strictEqual(V10ActionSchema.safeParse({event: {name: 'submit'}}).success, false);
+    assert.strictEqual(
+      V10ActionSchema.safeParse({functionCall: {'@call': 'openUrl'}}).success,
+      false,
+    );
+    assert.strictEqual(V10DynamicValueSchema.safeParse({'@child': 'c1'}).success, false);
+    assert.strictEqual(V10DynamicValueSchema.safeParse({'@action': {name: 'go'}}).success, false);
+    assert.strictEqual(
+      V10DynamicValueSchema.safeParse({'@functionCall': {'@call': 'fn'}}).success,
+      false,
+    );
+    assert.strictEqual(V10DynamicValueSchema.safeParse({'@unknown': 1}).success, false);
+    assert.strictEqual(V10DynamicValueSchema.safeParse({'@@child': 'escaped'}).success, true);
+    assert.strictEqual(SupersetDynamicValueSchema.safeParse({'@child': 'c1'}).success, false);
+    assert.strictEqual(
+      SupersetDynamicValueSchema.safeParse({'@action': {name: 'go'}}).success,
+      false,
+    );
+    assert.strictEqual(
+      SupersetDynamicValueSchema.safeParse({'@functionCall': {'@call': 'fn'}}).success,
+      false,
+    );
+
+    // JSON catalog schemas loaded via CommonSchemas validate v1.0 directives natively.
+    const v1Catalog = Catalog.fromJson({
+      catalogId: 'https://example.com/v10_directives.json',
+      protocolVersion: '1.0',
+      components: {
+        Panel: {
+          type: 'object',
+          properties: {
+            component: {const: 'Panel'},
+            child: {$ref: 'common_types.json#/$defs/Child'},
+            children: {$ref: 'common_types.json#/$defs/ChildList'},
+            action: {$ref: 'common_types.json#/$defs/Action'},
+          },
+          required: ['component'],
+        },
+      },
+    });
+    const panelSchema = v1Catalog.components.get('Panel')!.schema;
+    assert.strictEqual(
+      panelSchema.safeParse({
+        child: {'@child': 'c1'},
+        children: {'@child': 'tpl', '@path': '/items'},
+        action: {'@action': {name: 'save', userMessage: 'Saving'}},
+      }).success,
+      true,
+    );
+    assert.strictEqual(
+      panelSchema.safeParse({
+        children: {'@child': ['c1', 'c2']},
+        action: {'@functionCall': {'@call': 'ping'}},
+      }).success,
+      true,
     );
   });
 });

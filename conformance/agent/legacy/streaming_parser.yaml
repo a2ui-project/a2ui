@@ -3338,7 +3338,7 @@
               createSurface:
                 surfaceId: "main"
                 catalogId: "https://a2ui.org/catalogs/basic"
-    - input: '{"version": "1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Column", "children": ["t1", "m1"]}, {"id": "t1", "component": "Text", "text": "Users"}, {"id": "m1", "@catalogId": "https://a2ui.org/catalogs/custom", "component": "CustomMetric"'
+    - input: '{"version": "1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Column", "children": {"@child": ["t1", "m1"]}}, {"id": "t1", "component": "Text", "text": "Users"}, {"id": "m1", "@catalogId": "https://a2ui.org/catalogs/custom", "component": "CustomMetric"'
       expect: []
     - input: ', "value": 42}'
       expect:
@@ -3353,7 +3353,8 @@
                     value: 42
                   - id: "root"
                     component: "Column"
-                    children: ["t1", "m1"]
+                    children:
+                      "@child": ["t1", "m1"]
                   - id: "t1"
                     component: "Text"
                     text: "Users"
@@ -3445,7 +3446,7 @@
               createSurface:
                 surfaceId: "main"
                 catalogId: "https://a2ui.org/catalogs/basic"
-    - input: '{"version": "1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Column", "children": ["m1"]}, {"id": "m1", "component": "CustomMetric", "value": 42'
+    - input: '{"version": "1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Column", "children": {"@child": ["m1"]}}, {"id": "m1", "component": "CustomMetric", "value": 42'
       expect: []
     - input: ', "@catalogId": "https://a2ui.org/catalogs/custom"}'
       expect:
@@ -3460,7 +3461,8 @@
                     "@catalogId": "https://a2ui.org/catalogs/custom"
                   - id: "root"
                     component: "Column"
-                    children: ["m1"]
+                    children:
+                      "@child": ["m1"]
     - input: "]}}]</a2ui-json>"
       expect: []
 

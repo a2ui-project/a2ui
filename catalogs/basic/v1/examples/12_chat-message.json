@@ -18,17 +18,23 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main_column"
+            "child": {
+              "@child": "main_column"
+            }
           },
           {
             "id": "main_column",
             "component": "Column",
-            "children": ["header", "divider", "messages_list"]
+            "children": {
+              "@child": ["header", "divider", "messages_list"]
+            }
           },
           {
             "id": "header",
             "component": "Row",
-            "children": ["channel_icon", "channel_name"],
+            "children": {
+              "@child": ["channel_icon", "channel_name"]
+            },
             "align": "center"
           },
           {
@@ -51,15 +57,17 @@
             "id": "messages_list",
             "component": "Column",
             "children": {
-              "path": "/messages",
-              "componentId": "message_template"
+              "@child": "message_template",
+              "@path": "/messages"
             },
             "align": "start"
           },
           {
             "id": "message_template",
             "component": "Row",
-            "children": ["msg_avatar", "msg_content"],
+            "children": {
+              "@child": ["msg_avatar", "msg_content"]
+            },
             "align": "start"
           },
           {
@@ -74,12 +82,16 @@
           {
             "id": "msg_content",
             "component": "Column",
-            "children": ["msg_header", "msg_text"]
+            "children": {
+              "@child": ["msg_header", "msg_text"]
+            }
           },
           {
             "id": "msg_header",
             "component": "Row",
-            "children": ["msg_username", "msg_time"],
+            "children": {
+              "@child": ["msg_username", "msg_time"]
+            },
             "align": "center"
           },
           {

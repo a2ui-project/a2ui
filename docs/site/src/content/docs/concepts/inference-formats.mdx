@@ -66,12 +66,14 @@ When the compiler reads that `<a2ui>` block, it flattens the nested tree and ass
         {
           "id": "root",
           "component": "Card",
-          "child": "root_child"
+          "child": {"@child": "root_child"}
         },
         {
           "id": "root_child",
           "component": "Column",
-          "children": ["root_child_children_0", "root_child_children_1", "root_child_children_2"]
+          "children": {
+            "@child": ["root_child_children_0", "root_child_children_1", "root_child_children_2"]
+          }
         },
         {
           "id": "root_child_children_0",
@@ -87,9 +89,9 @@ When the compiler reads that `<a2ui>` block, it flattens the nested tree and ass
         {
           "id": "root_child_children_2",
           "component": "Button",
-          "child": "root_child_children_2_child",
+          "child": {"@child": "root_child_children_2_child"},
           "action": {
-            "event": {
+            "@action": {
               "name": "check_in",
               "context": {
                 "flight": {"@path": "/flight/number"}

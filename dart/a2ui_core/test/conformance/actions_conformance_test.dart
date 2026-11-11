@@ -210,10 +210,13 @@ Future<void> _executeActionPayload(
   String sourceComponentId, {
   Map<String, Object?>? metadata,
 }) async {
+  final Object? rawFnCall = rawAction is Map
+      ? (rawAction['@functionCall'] ?? rawAction['functionCall'])
+      : null;
   if (rawAction is Map &&
-      (rawAction['functionCall'] is Map || context.isFunctionCall(rawAction))) {
-    final fc = rawAction['functionCall'] is Map
-        ? Map<String, Object?>.from(rawAction['functionCall']! as Map)
+      (rawFnCall is Map || context.isFunctionCall(rawAction))) {
+    final fc = rawFnCall is Map
+        ? Map<String, Object?>.from(rawFnCall)
         : Map<String, Object?>.from(rawAction);
     try {
       await context.evaluateFunctionCall(fc);

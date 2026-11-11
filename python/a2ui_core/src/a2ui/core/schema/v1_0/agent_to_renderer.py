@@ -23,6 +23,7 @@ from .._json_schema import INLINE_DEF_MARKER, SchemaKeywords, SpecAllOf, def_ref
 from .common_types import StrictBaseModel, CallId, ComponentCommon, Extensions, FunctionCall, FunctionResponse
 from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE
 
+
 Component = TypeAliasType(
     "Component",
     Annotated[

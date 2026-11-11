@@ -374,7 +374,8 @@
               - id: "root"
                 component: "Column"
                 children:
-                  - "helloText"
+                  "@child":
+                    - "helloText"
               - id: "helloText"
                 component: "Text"
                 text: "Welcome to Express"
@@ -406,9 +407,10 @@
                 text: "Submit"
               - id: "btn_1"
                 component: "Button"
-                child: "text_1"
+                child:
+                  "@child": "text_1"
                 action:
-                  event:
+                  "@action":
                     name: "submit"
                     context: {}
 
@@ -438,13 +440,15 @@
               - id: "root"
                 component: "Column"
                 children:
-                  - "node_0"
-                  - "node_1"
+                  "@child":
+                    - "node_0"
+                    - "node_1"
               - id: "node_1"
                 component: "Button"
-                child: "node_2"
+                child:
+                  "@child": "node_2"
                 action:
-                  event:
+                  "@action":
                     name: "submit"
               - id: "node_2"
                 component: "Text"

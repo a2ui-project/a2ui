@@ -168,11 +168,11 @@ struct AgentOnlyFunctionTests {
       value = .array([.object(["condition": call, "message": .string("Blocked")])])
     case "onClick":
       key = property
-      value = .object(["functionCall": call])
+      value = .object(["@functionCall": call])
     case "onClickContext":
       key = "onClick"
       value = .object([
-        "event": .object(["name": .string("submit"), "context": .object(["flag": call])])
+        "@action": .object(["name": .string("submit"), "context": .object(["flag": call])])
       ])
     default:
       key = property
@@ -184,8 +184,8 @@ struct AgentOnlyFunctionTests {
   /// A call held in a component is a renderer call, so validation rejects one to an
   /// `agentOnly` function at the call's location, before any binding is evaluated.
   @Test(arguments: [
-    ("label", "label"), ("checks", "checks/0/condition"), ("onClick", "onClick/functionCall"),
-    ("onClickContext", "onClick/event/context/flag"),
+    ("label", "label"), ("checks", "checks/0/condition"), ("onClick", "onClick/@functionCall"),
+    ("onClickContext", "onClick/@action/context/flag"),
   ])
   func validationRejectsAgentOnlyFunctionInComponent(property: String, path: String) throws {
     let validator = PayloadValidator(

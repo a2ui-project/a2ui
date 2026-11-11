@@ -18,12 +18,16 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main_column"
+            "child": {
+              "@child": "main_column"
+            }
           },
           {
             "id": "main_column",
             "component": "Column",
-            "children": ["title_text", "markdown_content"],
+            "children": {
+              "@child": ["title_text", "markdown_content"]
+            },
             "align": "stretch"
           },
           {

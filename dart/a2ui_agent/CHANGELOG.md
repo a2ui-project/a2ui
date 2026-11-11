@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Breaking:** (v1_0) Emit `{"@child": ...}`, `{"@child": [...]}`,
+  `{"@child": ..., "@path": ...}`, `{"@action": ...}`, and
+  `{"@functionCall": ...}` on v1.0 components in `ExpressCompiler` and strip
+  trailing newlines inside `@child` component references in
+  `DirectJsonFormatFactory` (`JsonReader`), while keeping pre-1.0 component
+  output bare. `ExpressDecompiler` reads both `@`-prefixed and legacy bare
+  `Child`, `ChildList`, and `Action` forms on v1.0 components
+  ([#4171](https://github.com/a2ui-project/a2ui/pull/4171)).
 - **Breaking:** (v1_0) Emit `@catalogId`, `@metadata`, `@accessibility`, and
   `@checks` on v1.0 components in `ExpressCompiler`, `DirectJsonResponseStream`,
   `MessageReader`, and `RendererState`, while keeping v0.9 component output

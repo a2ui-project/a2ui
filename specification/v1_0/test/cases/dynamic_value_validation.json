@@ -235,6 +235,91 @@
           ]
         }
       }
+    },
+    {
+      "description": "DynamicValue: Valid plain object with escaped @@child, @@action, and @@functionCall keys",
+      "valid": true,
+      "data": {
+        "version": "1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "root",
+              "component": "TestComponent",
+              "value": {
+                "@@child": "lit_child",
+                "@@action": "lit_action",
+                "@@functionCall": "lit_call"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "DynamicValue: Invalid unescaped @child directive",
+      "valid": false,
+      "data": {
+        "version": "1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "root",
+              "component": "TestComponent",
+              "value": {
+                "@child": "other_component"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "DynamicValue: Invalid unescaped @action directive",
+      "valid": false,
+      "data": {
+        "version": "1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "root",
+              "component": "TestComponent",
+              "value": {
+                "@action": {
+                  "name": "submit"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "DynamicValue: Invalid unescaped @functionCall directive",
+      "valid": false,
+      "data": {
+        "version": "1.0",
+        "createSurface": {
+          "surfaceId": "test_surface",
+          "components": [
+            {
+              "id": "root",
+              "component": "TestComponent",
+              "value": {
+                "@functionCall": {
+                  "@call": "openUrl",
+                  "args": {
+                    "url": "https://example.com"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
     }
   ]
 }

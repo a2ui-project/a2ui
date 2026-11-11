@@ -175,6 +175,21 @@ export const ChildListSchema = markChildRef(
             .describe('The path to the list of component property objects in the data model.'),
         })
         .describe('A template for generating a dynamic list of children.'),
+      z
+        .object({
+          '@child': z.array(ComponentIdSchema),
+        })
+        .strict()
+        .describe('A static list of child component IDs.'),
+      z
+        .object({
+          '@child': ComponentIdSchema,
+          '@path': z
+            .string()
+            .describe('The path to the list of component property objects in the data model.'),
+        })
+        .strict()
+        .describe('A template for generating a dynamic list of children from a data model list.'),
     ])
     .describe('REF:common_types.json#/$defs/ChildList'),
   'child-list',
@@ -194,7 +209,14 @@ export const DynamicValueSchema = z
       .record(z.string(), z.unknown())
       .refine(
         obj =>
-          !obj || (!('@path' in obj) && !('path' in obj) && !('@call' in obj) && !('call' in obj)),
+          !obj ||
+          (!('@path' in obj) &&
+            !('path' in obj) &&
+            !('@call' in obj) &&
+            !('call' in obj) &&
+            !('@child' in obj) &&
+            !('@action' in obj) &&
+            !('@functionCall' in obj)),
       ),
   ])
   .describe(
@@ -280,7 +302,7 @@ export const ActionSchema = z
       .describe('Executes a local client-side function.'),
     z
       .object({
-        'event': z
+        '@action': z
           .object({
             'name': z.string().describe('The name of the action to be dispatched to the agent.'),
             'userMessage': DynamicStringSchema.optional(),
@@ -298,7 +320,7 @@ export const ActionSchema = z
       .describe('Triggers an agent-side event.'),
     z
       .object({
-        'functionCall': FunctionCallSchema,
+        '@functionCall': FunctionCallSchema,
       })
       .strict()
       .describe('Executes a renderer or agent-side function.'),
@@ -315,8 +337,20 @@ export const CallIdSchema = z
 /** REF:common_types.json#/$defs/CallId|The unique identifier for a function call. */
 export type CallId = z.infer<typeof CallIdSchema>;
 
-export const ChildSchema = ComponentIdSchema;
-/** REF:common_types.json#/$defs/Child|A reference to a single child component ID. */
+export const ChildSchema = markChildRef(
+  z
+    .union([
+      ComponentIdSchema,
+      z
+        .object({
+          '@child': ComponentIdSchema,
+        })
+        .strict(),
+    ])
+    .describe('REF:common_types.json#/$defs/Child|A reference to a single child component.'),
+  'component-id',
+);
+/** REF:common_types.json#/$defs/Child|A reference to a single child component. */
 export type Child = z.infer<typeof ChildSchema>;
 
 export const FunctionCommonSchema = z

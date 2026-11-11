@@ -792,15 +792,15 @@ Agents send [`createSurface`](../../concepts/messages/#createsurface) followed b
     "updateComponents": {
       "surfaceId": "order_summary",
       "components": [
-        {"id": "root", "component": "Card", "child": "col"},
-        {"id": "col", "component": "Column", "children": ["headline", "confirm_btn"]},
+        {"id": "root", "component": "Card", "child": {"@child": "col"}},
+        {"id": "col", "component": "Column", "children": {"@child": ["headline", "confirm_btn"]}},
         {"id": "headline", "component": "Text", "text": {"@path": "/summaryText"}},
         {
           "id": "confirm_btn",
           "component": "Button",
-          "child": "confirm_label",
+          "child": {"@child": "confirm_label"},
           "action": {
-            "event": {"name": "confirm_order", "context": {"orderId": {"@path": "/orderId"}}}
+            "@action": {"name": "confirm_order", "context": {"orderId": {"@path": "/orderId"}}}
           }
         },
         {"id": "confirm_label", "component": "Text", "text": "Confirm order"}

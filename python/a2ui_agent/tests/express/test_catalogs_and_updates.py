@@ -162,7 +162,7 @@ panel = Panel("Head", Text("inline"), ?sharedFn("a", "b", {catalogId: "test/prim
         "id": "root",
         "component": "Column",
         "@catalogId": PRIMARY,
-        "children": ["panel"],
+        "children": {"@child": ["panel"]},
     }
     assert comps["panel"] == {
         "id": "panel",
@@ -179,7 +179,7 @@ panel = Panel("Head", Text("inline"), ?sharedFn("a", "b", {catalogId: "test/prim
             "message": "Sharedfn check failed",
         }],
         "action": {
-            "functionCall": {
+            "@functionCall": {
                 "@call": "secOnly",
                 "catalogId": SECONDARY,
                 "args": {"limit": 3},
@@ -251,7 +251,7 @@ def test_explicit_catalog_id_wins_over_lookup_by_name(
     )
     root = messages[0]["createSurface"]["components"][0]
     assert root["action"] == {
-        "functionCall": {
+        "@functionCall": {
             "@call": "sharedFn",
             "catalogId": SECONDARY,
             "args": {"firstSecondary": "c", "secondSecondary": "d"},
@@ -555,10 +555,10 @@ item = Input($name, ?required, action=sharedFn($/a, "b"))
 """
     v1 = to_message_dicts(ExpressCompiler([_primary()]).compile(dsl))
     comps = {c["id"]: c for c in v1[0]["createSurface"]["components"]}
-    assert comps["root"]["children"] == {"path": "/items", "componentId": "item"}
+    assert comps["root"]["children"] == {"@child": "item", "@path": "/items"}
     assert comps["item"]["value"] == {"@path": "name"}
-    assert comps["item"]["action"]["functionCall"]["@call"] == "sharedFn"
-    assert comps["item"]["action"]["functionCall"]["args"]["firstPrimary"] == {
+    assert comps["item"]["action"]["@functionCall"]["@call"] == "sharedFn"
+    assert comps["item"]["action"]["@functionCall"]["args"]["firstPrimary"] == {
         "@path": "/a"
     }
 
@@ -1157,3 +1157,139 @@ def test_decompile_rejects_empty_at_catalog_id_and_preserves_custom_checks_on_ch
             {"id": "root", "component": "ScoreInput", "@catalogId": ""},
             "test/checkable_custom",
         )
+
+
+def test_v1_0_express_child_action_dual_read_and_custom_non_collision() -> None:
+    """Verifies v1.0 @child/@action/@functionCall emission, bare dual-read, and custom bare properties."""
+    from a2ui.core import Catalog as CoreCatalog
+    from a2ui.inference_formats.express import ExpressCompiler
+
+    cat = CoreCatalog.from_json(
+        {
+            "catalogId": "test/child_action_custom",
+            "components": {
+                "Text": {"properties": {"text": {"type": "string"}}},
+                "SlotHost": {
+                    "properties": {
+                        "content": {"$ref": "common_types.json#/$defs/Child"},
+                        "items": {"$ref": "common_types.json#/$defs/ChildList"},
+                        "refId": {"$ref": "common_types.json#/$defs/ComponentId"},
+                        "onClick": {"$ref": "common_types.json#/$defs/Action"},
+                    }
+                },
+                "CustomData": {
+                    "properties": {
+                        "child": {"type": "string"},
+                        "children": {"type": "array", "items": {"type": "string"}},
+                        "event": {"type": "object"},
+                        "functionCall": {"type": "string"},
+                        "componentId": {"type": "string"},
+                        "tplMap": {"type": "object"},
+                    }
+                },
+            },
+            "functions": {
+                "ping": {
+                    "returnType": "void",
+                    "properties": {
+                        "args": {
+                            "type": "object",
+                            "properties": {"x": {"type": "string"}},
+                            "required": ["x"],
+                        }
+                    },
+                }
+            },
+        },
+        protocol_version="1.0",
+        catalog_id="test/child_action_custom",
+    )
+    compiler = ExpressCompiler([cat], version="1.0")
+    decompiler = ExpressDecompiler([cat], version="1.0")
+
+    # 1. Compile emits @child / @child+@path / @action / @functionCall and keeps ComponentId bare
+    dsl = (
+        'surface("s1")\nleaf = Text("Hi")\ntpl = Text("Row")\nroot = SlotHost(leaf,'
+        ' _template($/rows, tpl), refId=leaf, onClick=Event("tap"))\nalt ='
+        ' SlotHost(leaf, [leaf], refId="tpl", onClick=ping("ok"))\n'
+    )
+    compiled = [
+        m.model_dump(by_alias=True, exclude_none=True) for m in compiler.compile(dsl)
+    ]
+    comps = {c["id"]: c for c in compiled[0]["createSurface"]["components"]}
+    assert comps["root"]["content"] == {"@child": "leaf"}
+    assert comps["root"]["items"] == {"@child": "tpl", "@path": "/rows"}
+    assert comps["root"]["refId"] == "leaf"
+    assert comps["root"]["onClick"] == {"@action": {"name": "tap"}}
+    assert comps["alt"]["items"] == {"@child": ["leaf"]}
+    assert comps["alt"]["onClick"] == {
+        "@functionCall": {"@call": "ping", "args": {"x": "ok"}}
+    }
+
+    # 2. Legacy bare Child, ChildList, template, and Action dual-read (# TODO(#4168))
+    legacy_messages = to_message_models([{
+        "version": "1.0",
+        "createSurface": {
+            "surfaceId": "s1",
+            "components": [
+                {"id": "leaf", "component": "Text", "text": "Hi"},
+                {"id": "tpl", "component": "Text", "text": "Row"},
+                {
+                    "id": "root",
+                    "component": "SlotHost",
+                    "content": "leaf",
+                    "items": {"componentId": "tpl", "path": "/rows"},
+                    "refId": "leaf",
+                    "onClick": {"event": {"name": "tap"}},
+                },
+                {
+                    "id": "alt",
+                    "component": "SlotHost",
+                    "content": "leaf",
+                    "items": ["leaf"],
+                    "onClick": {"functionCall": {"@call": "ping", "args": {"x": "ok"}}},
+                },
+            ],
+        },
+    }])
+    recompiled_dsl = decompiler.decompile(legacy_messages)
+    recompiled = [
+        m.model_dump(by_alias=True, exclude_none=True)
+        for m in compiler.compile(recompiled_dsl)
+    ]
+    recomps = {c["id"]: c for c in recompiled[0]["createSurface"]["components"]}
+    assert recomps["root"]["content"] == {"@child": "leaf"}
+    assert recomps["root"]["items"] == {"@child": "tpl", "@path": "/rows"}
+    assert recomps["root"]["refId"] == "leaf"
+    assert recomps["root"]["onClick"] == {"@action": {"name": "tap"}}
+    assert recomps["alt"]["items"] == {"@child": ["leaf"]}
+    assert recomps["alt"]["onClick"] == {
+        "@functionCall": {"@call": "ping", "args": {"x": "ok"}}
+    }
+
+    # 3. Custom bare properties with non-Child/Action schemas stay literal across decompile/compile
+    custom_payload = {
+        "version": "1.0",
+        "createSurface": {
+            "surfaceId": "s2",
+            "catalogId": "test/child_action_custom",
+            "components": [{
+                "id": "root",
+                "component": "CustomData",
+                "child": "not_a_ref",
+                "children": ["plain"],
+                "event": {"name": "analytics", "kind": "custom"},
+                "functionCall": "raw_string",
+                "componentId": "literal_id",
+                "tplMap": {"componentId": "a", "path": "/b"},
+            }],
+        },
+    }
+    custom_dsl = decompiler.decompile(to_message_models([custom_payload]))
+    assert "Event(" not in custom_dsl
+    assert "_template(" not in custom_dsl
+    round_tripped = [
+        m.model_dump(by_alias=True, exclude_none=True)
+        for m in compiler.compile(custom_dsl)
+    ]
+    assert round_tripped == [custom_payload]

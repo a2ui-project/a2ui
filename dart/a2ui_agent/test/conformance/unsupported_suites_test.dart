@@ -15,6 +15,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
 
 import 'suites.dart';
@@ -229,6 +230,300 @@ void main() {
             },
           ]),
         );
+      },
+    );
+  });
+
+  group('Stage 2B conformance harness lowering and lifting', () {
+    test('SuiteTextLowerer lowers @child, @action, and @functionCall '
+        'across chunks', () {
+      final lowerer = SuiteTextLowerer(catalogId: 'cat:v09');
+      const chunks = <String>[
+        '<a2ui-json>[{"version": "1.0", '
+            '"createSurface": {"surfaceId": "s1"}, ',
+        '"updateComponents": {"surfaceId": "s1", "components": [',
+        '{"id": "card", "component": "Card", "child": {"@child": "bo',
+        'dy"}}, {"id": "list", "component": "List", '
+            '"children": {"@child": "tpl"',
+        ', "@path": "/items"}}, {"id": "btn", "component": "Button", '
+            '"action": ',
+        '{"@action": {"name": "go", "context": {"x": {"@path": "/x"}}}}}, ',
+        '{"id": "btn2", "component": "Button", "action": {"@functionCall": ',
+        '{"@call": "openUrl", "args": {"url": "https://a2ui.org"}}}}]}}, ',
+        '{"version": "1.0", "updateDataModel": {"surfaceId": "s1", ',
+        '"path": "/x", "value": {"@@child": "keep", '
+            '"@child": "literal"}}}]</a2ui-json>',
+      ];
+      final lowered = StringBuffer();
+      for (final chunk in chunks) {
+        lowered.write(lowerer.feed(chunk));
+      }
+      lowered.write(lowerer.close());
+
+      final raw = lowered.toString();
+      expect(raw, startsWith('<a2ui-json>'));
+      expect(raw, endsWith('</a2ui-json>'));
+      final parsed =
+          jsonDecode(
+                raw.substring(
+                  '<a2ui-json>'.length,
+                  raw.length - '</a2ui-json>'.length,
+                ),
+              )!
+              as List<Object?>;
+
+      expect((parsed[0]! as Map)['version'], 'v0.9');
+      expect(
+        ((parsed[0]! as Map)['createSurface']! as Map)['catalogId'],
+        'cat:v09',
+      );
+      final comps =
+          ((parsed[0]! as Map)['updateComponents']! as Map)['components']!
+              as List<Object?>;
+      expect(comps[0], {'id': 'card', 'component': 'Card', 'child': 'body'});
+      expect(comps[1], {
+        'id': 'list',
+        'component': 'List',
+        'children': {'componentId': 'tpl', 'path': '/items'},
+      });
+      expect(comps[2], {
+        'id': 'btn',
+        'component': 'Button',
+        'action': {
+          'event': {
+            'name': 'go',
+            'context': {
+              'x': {'path': '/x'},
+            },
+          },
+        },
+      });
+      expect(comps[3], {
+        'id': 'btn2',
+        'component': 'Button',
+        'action': {
+          'functionCall': {
+            'call': 'openUrl',
+            'args': {'url': 'https://a2ui.org'},
+          },
+        },
+      });
+      expect(((parsed[1]! as Map)['updateDataModel']! as Map)['value'], {
+        '@@child': 'keep',
+        '@child': 'literal',
+      });
+    });
+
+    test('lowerText handles curly quotes in version/keys and raw newlines '
+        'inside @child', () {
+      const smartQuoted =
+          '[{“version”: “1.0”, “deleteSurface”: {“surfaceId”: “s1”}}]';
+      expect(
+        lowerText(smartQuoted),
+        '[{“version”: “v0.9”, “deleteSurface”: {“surfaceId”: “s1”}}]',
+      );
+
+      const typographicText =
+          '[{"version": "1.0", "updateComponents": {"surfaceId": "s1", '
+          '"components": [{"id": "root", "component": "Text", '
+          '"text": "Willkommen im „Café Central“"}]}}]';
+      expect(
+        lowerText(typographicText),
+        '[{"version": "v0.9", "updateComponents": {"surfaceId": "s1", '
+        '"components": [{"id": "root", "component": "Text", '
+        '"text": "Willkommen im „Café Central“"}]}}]',
+      );
+
+      const rawNewlineChild =
+              '[{"version": "1.0", "updateComponents": {"surfaceId": "s1", '
+              '"components": [{"id": "root", "component": "Card", '
+              '"child": {"@child": "bo\ndy"}}, '
+              '{"id": "list", "component": "List", '
+              '"children": {"@child": "t\npl", "@path": "/items"}}]}}]',
+          expectedLowered =
+              '[{"version": "v0.9", "updateComponents": {"surfaceId": "s1", '
+              '"components": [{"id": "root", "component": "Card", '
+              '"child": "bo\ndy"}, '
+              '{"id": "list", "component": "List", '
+              '"children": {"componentId": "t\npl", "path": "/items"}}]}}]';
+      final String result = lowerText(rawNewlineChild);
+      expect(result, expectedLowered);
+    });
+
+    test(
+      'liftMessages lifts v0.9 Child, ChildList, Action, and nested Tabs Child '
+      'using v1.0 catalog',
+      () {
+        final CatalogApi v1Catalog = Catalog.fromJson({
+          'catalogId': 'test:v1',
+          'protocolVersion': '1.0',
+          'components': {
+            'Card': {
+              'type': 'object',
+              'properties': {
+                'component': {'const': 'Card'},
+                'child': {r'$ref': r'common_types.json#/$defs/Child'},
+              },
+            },
+            'Column': {
+              'type': 'object',
+              'properties': {
+                'component': {'const': 'Column'},
+                'children': {r'$ref': r'common_types.json#/$defs/ChildList'},
+              },
+            },
+            'Button': {
+              'type': 'object',
+              'properties': {
+                'component': {'const': 'Button'},
+                'child': {r'$ref': r'common_types.json#/$defs/Child'},
+                'action': {r'$ref': r'common_types.json#/$defs/Action'},
+              },
+            },
+            'Tabs': {
+              'type': 'object',
+              'properties': {
+                'component': {'const': 'Tabs'},
+                'tabs': {
+                  'type': 'array',
+                  'items': {
+                    'type': 'object',
+                    'properties': {
+                      'title': {'type': 'string'},
+                      'child': {r'$ref': r'common_types.json#/$defs/Child'},
+                    },
+                  },
+                },
+              },
+            },
+          },
+        });
+
+        final List<AgentToRendererMessage> v09Messages =
+            AgentToRendererMessage.parseAll([
+              {
+                'version': 'v0.9',
+                'createSurface': {'surfaceId': 's1', 'catalogId': 'test:v1'},
+              },
+              {
+                'version': 'v0.9',
+                'updateComponents': {
+                  'surfaceId': 's1',
+                  'components': [
+                    {'id': 'card', 'component': 'Card', 'child': 'col'},
+                    {
+                      'id': 'col',
+                      'component': 'Column',
+                      'children': ['btn', 'btn2'],
+                    },
+                    {
+                      'id': 'list',
+                      'component': 'Column',
+                      'children': {'componentId': 'tpl', 'path': '/items'},
+                    },
+                    {
+                      'id': 'btn',
+                      'component': 'Button',
+                      'child': 'lbl',
+                      'action': {
+                        'event': {
+                          'name': 'save',
+                          'context': {
+                            'x': {'path': '/x'},
+                          },
+                        },
+                      },
+                    },
+                    {
+                      'id': 'btn2',
+                      'component': 'Button',
+                      'child': 'lbl2',
+                      'action': {
+                        'functionCall': {
+                          'call': 'openUrl',
+                          'args': {'url': 'https://a2ui.org'},
+                        },
+                      },
+                    },
+                    {
+                      'id': 'tabs',
+                      'component': 'Tabs',
+                      'tabs': [
+                        {'title': 'One', 'child': 'pane1'},
+                      ],
+                    },
+                  ],
+                },
+              },
+            ], protocolVersion: A2uiProtocolVersion.v0_9).messages;
+
+        final List<Object?> lifted = liftMessages(
+          v09Messages,
+          join: true,
+          injectedCatalogId: 'test:v1',
+          catalogs: [v1Catalog],
+        );
+        expect(lifted, [
+          {
+            'version': '1.0',
+            'createSurface': {
+              'surfaceId': 's1',
+              'components': [
+                {
+                  'id': 'card',
+                  'component': 'Card',
+                  'child': {'@child': 'col'},
+                },
+                {
+                  'id': 'col',
+                  'component': 'Column',
+                  'children': {
+                    '@child': ['btn', 'btn2'],
+                  },
+                },
+                {
+                  'id': 'list',
+                  'component': 'Column',
+                  'children': {'@child': 'tpl', '@path': '/items'},
+                },
+                {
+                  'id': 'btn',
+                  'component': 'Button',
+                  'child': {'@child': 'lbl'},
+                  'action': {
+                    '@action': {
+                      'name': 'save',
+                      'context': {
+                        'x': {'@path': '/x'},
+                      },
+                    },
+                  },
+                },
+                {
+                  'id': 'btn2',
+                  'component': 'Button',
+                  'child': {'@child': 'lbl2'},
+                  'action': {
+                    '@functionCall': {
+                      '@call': 'openUrl',
+                      'args': {'url': 'https://a2ui.org'},
+                    },
+                  },
+                },
+                {
+                  'id': 'tabs',
+                  'component': 'Tabs',
+                  'tabs': [
+                    {
+                      'title': 'One',
+                      'child': {'@child': 'pane1'},
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        ]);
       },
     );
   });

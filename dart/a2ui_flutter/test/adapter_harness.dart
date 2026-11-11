@@ -1133,8 +1133,11 @@ Future<void> _executeProgrammaticInvoke(
     targetId,
   )!;
   final Object? rawAction = node.context!.componentModel.properties[propName];
-  if (rawAction is Map && rawAction['functionCall'] is Map) {
-    final fc = Map<String, dynamic>.from(rawAction['functionCall'] as Map);
+  final Object? rawFunctionCall = rawAction is Map
+      ? (rawAction['@functionCall'] ?? rawAction['functionCall'])
+      : null;
+  if (rawFunctionCall is Map) {
+    final fc = Map<String, dynamic>.from(rawFunctionCall);
     try {
       await node.context!.dataContext.evaluateFunctionCall(fc);
     } on A2uiExpressionError catch (error) {

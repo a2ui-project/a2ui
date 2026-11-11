@@ -4,14 +4,14 @@ This guide explains how A2UI handles user interactions. Components use the `acti
 
 ## Action Architecture
 
-Actions allow UI components to trigger behavior defined in the [`Action`](../../../specification/v1_0/json/common_types.json#L301-L347) schema in `common_types.json`. Actions can trigger:
+Actions allow UI components to trigger behavior defined in the [`Action`](../../../specification/v1_0/json/common_types.json#L325-L371) schema in `common_types.json`. Actions can trigger:
 
 1.  **Events**: Dispatched to the Agent for processing (executed on Agent, e.g., clicking "Submit").
-2.  **Functions**: Executed entirely on the renderer using [`FunctionCall`](../../../specification/v1_0/json/common_types.json#L252-L271) (executed on Renderer, e.g., opening a URL).
+2.  **Functions**: Executed entirely on the renderer using [`FunctionCall`](../../../specification/v1_0/json/common_types.json#L276-L295) (executed on Renderer, e.g., opening a URL).
 
 ### 1. Functions (Local)
 
-Functions execute immediate behavior on the renderer without a network round-trip. The agent is not informed of local function calls. They use the `functionCall` keyword.
+Functions execute immediate behavior on the renderer without a network round-trip. The agent is not informed of local function calls. They use `@functionCall` in v1.0 (`functionCall` in v0.9.1) so parsers treat the call as a deferred interaction closure without needing a catalog schema.
 
 === "v1.0"
 
@@ -19,9 +19,9 @@ Functions execute immediate behavior on the renderer without a network round-tri
     {
       "id": "help-btn",
       "component": "Button",
-      "child": "help-text",
+      "child": {"@child": "help-text"},
       "action": {
-        "functionCall": {
+        "@functionCall": {
           "@call": "openUrl",
           "args": {"url": "https://a2ui.org/help"}
         }
@@ -52,7 +52,7 @@ Common uses for Functions include:
 
 ### 2. Events (Agent)
 
-Events send data to the agent for processing. They use the `event` keyword.
+Events send data to the agent for processing. They use `@action` in v1.0 (`event` in v0.9.1).
 
 Components like `Button` expose an `action` property. Here is how an Event is wired:
 
@@ -62,9 +62,9 @@ Components like `Button` expose an `action` property. Here is how an Event is wi
     {
       "id": "submit-btn",
       "component": "Button",
-      "child": "btn-text",
+      "child": {"@child": "btn-text"},
       "action": {
-        "event": {
+        "@action": {
           "name": "submit_reservation",
           "context": {
             "time": {"@path": "/reservationTime"},
@@ -101,7 +101,7 @@ NOTE: **Context vs. Data Model**: While the Data Model represents the entire sta
 
 ### Basic Catalog Function Validation (Checks)
 
-The basic catalog defines a limited set of checks that can be performed on the renderer. Interactive components can define a list of `@checks` (`checks` in v0.9.1, using the [`Checkable`](../../../specification/v1_0/json/common_types.json#L289-L301) schema in `common_types.json`). For a `Button`, if any check fails, the button is **automatically disabled** on the renderer.
+The basic catalog defines a limited set of checks that can be performed on the renderer. Interactive components can define a list of `@checks` (`checks` in v0.9.1, using the [`Checkable`](../../../specification/v1_0/json/common_types.json#L312-L324) schema in `common_types.json`). For a `Button`, if any check fails, the button is **automatically disabled** on the renderer.
 
 - **UX Focus**: Validation checks are designed to manage **UI State (User Experience)** by preventing invalid interactions before they happen. They are not a replacement for **Data Integrity** checks, which must still be performed on the agent.
 
@@ -113,7 +113,7 @@ This allows the UI to enforce requirements (like a non-empty field) before the u
     {
       "id": "submit-button",
       "component": "Button",
-      "child": "submit-text",
+      "child": {"@child": "submit-text"},
       "@checks": [
         {
           "condition": {
@@ -123,7 +123,7 @@ This allows the UI to enforce requirements (like a non-empty field) before the u
           "message": "Party size is required"
         }
       ],
-      "action": {"event": {"name": "submit_booking"}}
+      "action": {"@action": {"name": "submit_booking"}}
     }
     ```
 
@@ -166,13 +166,13 @@ This separation allows for a robust form submission pattern:
 
 - **Binding**: A `TextField` is bound to `/reservationTime`.
 - **Interaction**: The user types "7:00 PM". The local model at `/reservationTime` is updated instantly.
-- **Submission**: The user clicks a "Book" button. The button's Event resolves the `path: "/reservationTime"` from the local model and sends the current value to the agent.
+- **Submission**: The user clicks a "Book" button. The button's event (`@action` in v1.0, `event` in v0.9.1) resolves `@path` / `path` `"/reservationTime"` from the local model and sends the current value to the agent.
 
 ## User Interaction Flow
 
 When a user interacts with a component (e.g., clicks a button):
 
-1.  **Resolve**: The renderer resolves all `path` references in the `context` against the local **Data Model**.
+1.  **Resolve**: The renderer resolves all `@path` (`path` in v0.9.1) references in `context` against the local **Data Model**.
 2.  **Construct**: The renderer builds an `action` payload conforming to [`renderer_to_agent.json`](../../../specification/v1_0/json/renderer_to_agent.json) (v1.0) or [`client_to_server.json`](../../../specification/v0_9_1/json/client_to_server.json) (v0.9.1).
 3.  **Dispatch**: The payload is sent via the chosen transport (e.g., A2A, WebSockets).
 
@@ -464,7 +464,7 @@ A2UI is designed with secure, sandboxed communication as a core principle. Becau
 
 ### Sandboxed Execution
 
-A core selling point of A2UI is security through restriction. By prohibiting arbitrary code execution (like injecting raw JavaScript) from the agent, A2UI ensures that agents can only trigger pre-registered behaviors. The `functionCall` mechanism acts as a safe, sandboxed way for the agent to interact with the renderer's environment without exposing the user to malicious scripts.
+A core selling point of A2UI is security through restriction. By prohibiting arbitrary code execution (like injecting raw JavaScript) from the agent, A2UI ensures that agents can only trigger pre-registered behaviors. The `@functionCall` mechanism (`functionCall` in v0.9.1) provides a safe, sandboxed way for the agent to interact with the renderer's environment without exposing the user to malicious scripts.
 
 ### Data Model Isolation and Orchestrator Routing
 
@@ -607,9 +607,9 @@ This example shows a button that explicitly gathers the data it needs to send.
     {
       "id": "submit-button",
       "component": "Button",
-      "child": "submit-text",
+      "child": {"@child": "submit-text"},
       "action": {
-        "event": {
+        "@action": {
           "name": "submit_booking",
           "context": {
             "partySize": {"@path": "/partySize"},

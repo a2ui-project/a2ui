@@ -18,12 +18,16 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main_column"
+            "child": {
+              "@child": "main_column"
+            }
           },
           {
             "id": "main_column",
             "component": "Column",
-            "children": ["title", "time_row", "location_row", "description", "divider", "actions"]
+            "children": {
+              "@child": ["title", "time_row", "location_row", "description", "divider", "actions"]
+            }
           },
           {
             "id": "title",
@@ -35,7 +39,9 @@
           {
             "id": "time_row",
             "component": "Row",
-            "children": ["time_icon", "time_text"],
+            "children": {
+              "@child": ["time_icon", "time_text"]
+            },
             "align": "center"
           },
           {
@@ -57,7 +63,9 @@
           {
             "id": "location_row",
             "component": "Row",
-            "children": ["location_icon", "location_text"],
+            "children": {
+              "@child": ["location_icon", "location_text"]
+            },
             "align": "center"
           },
           {
@@ -88,7 +96,9 @@
           {
             "id": "actions",
             "component": "Row",
-            "children": ["accept_btn", "decline_btn"]
+            "children": {
+              "@child": ["accept_btn", "decline_btn"]
+            }
           },
           {
             "id": "accept_btn_text",
@@ -98,9 +108,11 @@
           {
             "id": "accept_btn",
             "component": "Button",
-            "child": "accept_btn_text",
+            "child": {
+              "@child": "accept_btn_text"
+            },
             "action": {
-              "event": {
+              "@action": {
                 "name": "accept",
                 "context": {}
               }
@@ -114,9 +126,11 @@
           {
             "id": "decline_btn",
             "component": "Button",
-            "child": "decline_btn_text",
+            "child": {
+              "@child": "decline_btn_text"
+            },
             "action": {
-              "event": {
+              "@action": {
                 "name": "decline",
                 "context": {}
               }

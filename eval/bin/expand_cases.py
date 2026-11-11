@@ -200,6 +200,9 @@ def mutate_pruned(sample: dict[str, Any], version_dir: str) -> dict[str, Any] | 
 
 def build_initial_state(version: str, catalog_id: str) -> list[dict[str, Any]]:
     """Builds the seed surface: a root Column holding one Text heading."""
+    children: Any = (
+        ["heading"] if version.startswith("v0.") else {"@child": ["heading"]}
+    )
     return [
         {
             "version": version,
@@ -216,7 +219,7 @@ def build_initial_state(version: str, catalog_id: str) -> list[dict[str, Any]]:
                     {
                         "id": "root",
                         "component": "Column",
-                        "children": ["heading"],
+                        "children": children,
                     },
                     {"id": "heading", "component": "Text", "text": "Welcome"},
                 ],

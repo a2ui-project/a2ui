@@ -35,9 +35,32 @@ from utils import (
     version_to_underscore,
 )
 
-# Python type expressions for the `ChildList` union branches, in spec `oneOf` order:
-# a static list of component IDs, then a data-bound template.
+# Python type expressions for the pre-1.0 `ChildList` union branches, in spec `oneOf`
+# order: a static list of component IDs, then a data-bound template.
 _CHILD_LIST_BRANCHES: tuple[str, str] = ("list[ComponentId]", "TemplateChildList")
+
+# Explicit branch suffix overrides when `<Def><Property>` would repeat `<Def>`
+# (for example `Action`'s `@action` event wrapper uses `ActionEvent` instead of `ActionAction`).
+_WRAPPER_BRANCH_NAMES: dict[tuple[str, str], str] = {
+    ("Action", "@action"): "Event",
+}
+
+
+def _uses_base_child(defs: dict[str, Any]) -> bool:
+    """Returns whether `Child` uses the hand-maintained pre-1.0 string alias."""
+    spec = defs.get("Child")
+    return not isinstance(spec, dict) or "properties" not in spec
+
+
+def _uses_base_child_list(defs: dict[str, Any]) -> bool:
+    """Returns whether `ChildList` uses the pre-1.0 array-or-template union."""
+    spec = defs.get("ChildList")
+    if not isinstance(spec, dict):
+        return True
+    branches = spec.get("oneOf")
+    return not isinstance(branches, list) or any(
+        isinstance(b, dict) and b.get("type") == "array" for b in branches
+    )
 
 
 def _describe_type_expr(expr: str, description: Any) -> str:
@@ -63,7 +86,14 @@ def _common_types_manifest_entry(
 
     expr = name
     union_items = spec.get("oneOf")
-    if name == "ChildList" and isinstance(union_items, list) and union_items:
+    if (
+        name == "ChildList"
+        and isinstance(union_items, list)
+        and union_items
+        and any(
+            isinstance(it, dict) and it.get("type") == "array" for it in union_items
+        )
+    ):
         static_branch = _describe_type_expr(
             _CHILD_LIST_BRANCHES[0], union_items[0].get("description")
         )
@@ -407,17 +437,37 @@ def generate_common_types(
     defs = common_data.get("$defs", {})
 
     base_symbols = get_base_common_symbols()
-    # Dynamic value unions are regenerated per version so their FunctionCall
-    # branch binds to the versioned FunctionCall model.
-    versioned_symbols = {"ComponentCommon", "DataBinding", "FunctionCall"} | {
-        name for name, spec in defs.items() if is_dynamic_def(spec)
-    }
+    # Dynamic value unions and @-directive wrapper types are regenerated per version so
+    # they bind to the version's FunctionCall and @-keyed models instead of pre-1.0 shapes.
+    versioned_symbols = {
+        "Child",
+        "ChildList",
+        "ComponentCommon",
+        "DataBinding",
+        "FunctionCall",
+        "TemplateChildList",
+    } | {name for name, spec in defs.items() if is_dynamic_def(spec)}
+    uses_base_child = _uses_base_child(defs)
+    uses_base_child_list = _uses_base_child_list(defs)
     # Any class/type defined in base common_types.py is imported and not repeated in versioned folders
     imports_from_common = [
         s
         for s in base_symbols
         if s not in versioned_symbols
-        or (s in versioned_symbols and s not in defs)
+        or (s == "Child" and uses_base_child)
+        or (s in ("ChildList", "TemplateChildList") and uses_base_child_list)
+        or (
+            s
+            not in (
+                "Child",
+                "ChildList",
+                "ComponentCommon",
+                "DataBinding",
+                "TemplateChildList",
+            )
+            and s in versioned_symbols
+            and s not in defs
+        )
         or (
             s == "ComponentCommon"
             and (
@@ -478,7 +528,7 @@ def generate_common_types(
     codegen.known_local_refs = known_local_refs
 
     def _claim_name(name: str) -> None:
-        if name in defs or name in base_symbols or name in claimed_names:
+        if name in defs or name in imports_from_common or name in claimed_names:
             raise ValueError(f"Generated name {name} collides with another symbol")
         claimed_names.add(name)
         known_local_refs.add(name)
@@ -717,6 +767,8 @@ def generate_common_types(
         inline: bool = False,
         helper_prefix: str | None = None,
         inline_helpers: bool = True,
+        base_class: str = _SPEC_BASE_MODEL,
+        helper_names: dict[str, str] | None = None,
     ) -> None:
         """Compiles an object def into a model, with helper models for nested objects.
 
@@ -743,7 +795,9 @@ def generate_common_types(
                 and prop.get("type") == "object"
                 and "properties" in prop
             ):
-                helper_name = f"{helper_prefix or name}{to_pascal_case(prop_name)}"
+                helper_name = (
+                    helper_names.get(prop_name) if helper_names else None
+                ) or f"{helper_prefix or name}{to_pascal_case(prop_name)}"
                 _claim_name(helper_name)
                 _compile_model(helper_name, prop, inline=inline_helpers)
                 ref: dict[str, Any] = {"$ref": f"#/$defs/{helper_name}"}
@@ -758,9 +812,7 @@ def generate_common_types(
         )
         if open_in_spec and name not in _SUBCLASSED_DEFS:
             model_spec["additionalProperties"] = True
-        model_code = codegen.compile_object_def(
-            name, model_spec, base_class=_SPEC_BASE_MODEL
-        )
+        model_code = codegen.compile_object_def(name, model_spec, base_class=base_class)
         common_blocks.append(
             _with_schema_keywords(
                 model_code, _schema_keywords_code(name, spec, inline)
@@ -822,8 +874,9 @@ def generate_common_types(
 
         Each branch becomes a model named `<Name><Property>Wrapper`, and a
         nested object it wraps becomes a model named `<Name><Property>`, for
-        example `ActionEventWrapper` and `ActionEvent`. These are separate defs
-        in catalogs, which reference them.
+        example `ActionEventWrapper` and `ActionEvent`. `_WRAPPER_BRANCH_NAMES`
+        avoids repeating `<Name>` when a directive key matches it (`@action`).
+        These are separate defs in catalogs, which reference them.
 
         Raises:
             ValueError: If the def has keywords next to its `oneOf`, or a
@@ -832,14 +885,57 @@ def generate_common_types(
         _check_def_keywords(name, spec, {"description", "oneOf"})
         members = []
         for prop_name, branch in branches:
-            wrapper_name = f"{name}{to_pascal_case(prop_name)}Wrapper"
+            suffix = _WRAPPER_BRANCH_NAMES.get(
+                (name, prop_name), to_pascal_case(prop_name)
+            )
+            wrapper_name = f"{name}{suffix}Wrapper"
             _claim_name(wrapper_name)
+            helper_names = {prop_name: f"{name}{suffix}"}
             _compile_model(
-                wrapper_name, branch, helper_prefix=name, inline_helpers=False
+                wrapper_name,
+                branch,
+                helper_prefix=name,
+                inline_helpers=False,
+                helper_names=helper_names,
             )
             members.append(wrapper_name)
         # A named alias, so a field's JSON schema references the def by name
         # as the specification does, instead of inlining the union.
+        imports.type_alias_type = True
+        common_blocks.append(
+            f"{name} = TypeAliasType({python_literal(name)}, {' | '.join(members)})"
+        )
+
+    def _compile_child_list_union(name: str, spec: dict[str, Any]) -> None:
+        """Compiles the v1.0 `@child` `ChildList` `oneOf` into `ListReference` models."""
+        _check_def_keywords(name, spec, {"description", "oneOf"})
+        branches = spec.get("oneOf")
+        if not isinstance(branches, list) or not branches:
+            raise ValueError(f"Unsupported ChildList union in {name}: {spec}")
+        members = []
+        list_base = f"{_SPEC_BASE_MODEL}, ListReference"
+        for branch in branches:
+            props = branch.get("properties") if isinstance(branch, dict) else None
+            if not (
+                isinstance(branch, dict)
+                and branch.get("type") == "object"
+                and isinstance(props, dict)
+                and branch.get("additionalProperties") is False
+            ):
+                raise ValueError(f"Unsupported ChildList branch in {name}: {branch}")
+            if (
+                set(props) == {"@child"}
+                and isinstance(props["@child"], dict)
+                and props["@child"].get("type") == "array"
+            ):
+                branch_name = "StaticChildList"
+            elif set(props) == {"@child", "@path"}:
+                branch_name = "TemplateChildList"
+            else:
+                raise ValueError(f"Unsupported ChildList branch in {name}: {branch}")
+            _claim_name(branch_name)
+            _compile_model(branch_name, branch, base_class=list_base)
+            members.append(branch_name)
         imports.type_alias_type = True
         common_blocks.append(
             f"{name} = TypeAliasType({python_literal(name)}, {' | '.join(members)})"
@@ -993,6 +1089,11 @@ def generate_common_types(
         if name in processed:
             return
 
+        if name == "ChildList" and not uses_base_child_list:
+            _compile_child_list_union(name, spec)
+            processed.add(name)
+            return
+
         wrapper_branches = _wrapper_union_branches(spec)
         if wrapper_branches:
             _compile_wrapper_union(name, spec, wrapper_branches)
@@ -1025,7 +1126,12 @@ def generate_common_types(
         if "patternProperties" in spec and "properties" not in spec:
             common_blocks.append(_pattern_keyed_object_code(name, spec))
         elif "properties" in spec or spec.get("type") == "object":
-            _compile_model(name, spec)
+            base_class = (
+                f"{_SPEC_BASE_MODEL}, ComponentReference"
+                if name == "Child"
+                else _SPEC_BASE_MODEL
+            )
+            _compile_model(name, spec, base_class=base_class)
         elif "oneOf" in spec or "anyOf" in spec or "allOf" in spec:
             common_blocks.append(codegen.compile_union_def(name, spec))
         elif "enum" in spec:

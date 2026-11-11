@@ -28,7 +28,7 @@
             components:
               - id: root
                 component: Column
-                children: [t1]
+                children: {"@child": [t1]}
               - id: t1
                 component: Text
                 text: "Hello World"
@@ -69,7 +69,7 @@
             components:
               - id: root
                 component: Row
-                children: [invalid_header]
+                children: {"@child": [invalid_header]}
               - id: invalid_header
                 component: ColumnHeader
   expectError:
@@ -153,7 +153,7 @@
             components:
               - id: root
                 component: RestrictedBox
-                children: [v1]
+                children: {"@child": [v1]}
               - id: v1
                 component: Video
   expectError:
@@ -210,7 +210,7 @@
             components:
               - id: root
                 component: Box
-                children: [h]
+                children: {"@child": [h]}
               - id: h
                 component: Header
     - payload: &drop_header_from_box
@@ -220,7 +220,7 @@
             components:
               - id: root
                 component: Box
-                children: []
+                children: {"@child": []}
   expect:
     surfaces:
       s1:
@@ -303,7 +303,7 @@
                 component: Card
               - id: box
                 component: Box
-                children: [root]
+                children: {"@child": [root]}
       expectError:
         category: "ValidationError"
         code: "UNALLOWED_PARENT"
@@ -342,13 +342,13 @@
             components:
               - id: root
                 component: Box
-                children: [card, b]
+                children: {"@child": [card, b]}
               - id: card
                 component: Card
-                children: [h]
+                children: {"@child": [h]}
               - id: b
                 component: Box
-                children: [h]
+                children: {"@child": [h]}
               - id: h
                 component: Header
       expectError:
@@ -372,13 +372,13 @@
             components:
               - id: root
                 component: Box
-                children: [b, card]
+                children: {"@child": [b, card]}
               - id: b
                 component: Box
-                children: [h]
+                children: {"@child": [h]}
               - id: card
                 component: Card
-                children: [h]
+                children: {"@child": [h]}
               - id: h
                 component: Header
       expectError:

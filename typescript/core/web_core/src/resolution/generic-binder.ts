@@ -1131,18 +1131,14 @@ type IsSingleChild<T> =
  */
 type ChildListLike = ChildList | {'@child': string[]} | {'@child': string; '@path': string};
 
-type IsChildList<T> = [NonNullable<T>] extends [ChildList]
-  ? Extract<ChildList, {componentId: string}> extends NonNullable<T>
-    ? true
-    : false
-  : [NonNullable<T>] extends [ChildListLike]
-    ? Extract<
-        NonNullable<T>,
-        {componentId: string} | {'@child': string; '@path': string}
-      > extends never
-      ? false
-      : true
-    : false;
+type IsChildList<T> = [NonNullable<T>] extends [ChildListLike]
+  ? Extract<
+      NonNullable<T>,
+      {componentId: string} | {'@child': string; '@path': string}
+    > extends never
+    ? false
+    : true
+  : false;
 
 /**
  * Resolved reference to a child component with its unique identifier and data context path.

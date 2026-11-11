@@ -14,7 +14,9 @@
           "id": "root",
           "component": "FooPanel",
           "@catalogId": "https://example.com/catalogs/foo/v1/catalog.json",
-          "children": ["baz_1", "extra_bar_btn"]
+          "children": {
+            "@child": ["baz_1", "extra_bar_btn"]
+          }
         },
         {
           "component": "FooHeader",
@@ -36,7 +38,7 @@
           "@catalogId": "https://example.com/catalogs/bar/v1/catalog.json",
           "label": "Deploy",
           "action": {
-            "event": {
+            "@action": {
               "name": "deploy_clicked",
               "userMessage": "Deploy release"
             }
@@ -46,7 +48,9 @@
           "component": "FooPanel",
           "id": "baz_1",
           "@catalogId": "https://example.com/catalogs/foo/v1/catalog.json",
-          "children": ["baz_1__fooheader_1", "baz_1__barbadge_1", "baz_1__barbutton_1"]
+          "children": {
+            "@child": ["baz_1__fooheader_1", "baz_1__barbadge_1", "baz_1__barbutton_1"]
+          }
         },
         {
           "id": "extra_bar_btn",
@@ -54,7 +58,7 @@
           "@catalogId": "https://example.com/catalogs/bar/v1/catalog.json",
           "label": "Cancel",
           "action": {
-            "event": {
+            "@action": {
               "name": "cancel_clicked"
             }
           }
@@ -97,7 +101,7 @@
           "@catalogId": "https://example.com/catalogs/bar/v1/catalog.json",
           "label": "Promote",
           "action": {
-            "event": {
+            "@action": {
               "name": "promote_clicked"
             }
           }
@@ -106,11 +110,13 @@
           "component": "FooPanel",
           "id": "baz_themed",
           "@catalogId": "https://example.com/catalogs/foo/v1/catalog.json",
-          "children": [
-            "baz_themed__fooheader_1",
-            "baz_themed__barbadge_1",
-            "baz_themed__barbutton_1"
-          ]
+          "children": {
+            "@child": [
+              "baz_themed__fooheader_1",
+              "baz_themed__barbadge_1",
+              "baz_themed__barbutton_1"
+            ]
+          }
         }
       ]
     }

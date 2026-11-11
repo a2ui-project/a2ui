@@ -32,12 +32,12 @@ export const ActionMessageSchema = z
         'name': z
           .string()
           .describe(
-            "The name of the action, taken from the component's action.event.name property.",
+            "The name of the action, taken from the component's action.@action.name property.",
           ),
         'userMessage': z
           .string()
           .describe(
-            "An optional human-readable string describing the action performed by the user, taken from the component's action.event.userMessage property after resolving bindings.",
+            "An optional human-readable string describing the action performed by the user, taken from the component's action.@action.userMessage property after resolving bindings.",
           )
           .optional(),
         'surfaceId': z
@@ -55,7 +55,7 @@ export const ActionMessageSchema = z
         'context': z
           .record(z.string(), z.any())
           .describe(
-            "A JSON object containing the key-value pairs from the component's action.event.context, after resolving all data bindings.",
+            "A JSON object containing the key-value pairs from the component's action.@action.context, after resolving all data bindings.",
           ),
         'metadata': z
           .object({'extensions': ExtensionsSchema.optional()})

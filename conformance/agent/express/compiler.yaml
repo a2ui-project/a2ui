@@ -154,7 +154,8 @@
         components:
           - id: "root"
             component: "Column"
-            children: ["größe"]
+            children:
+              "@child": ["größe"]
           - id: "größe"
             component: "Text"
             text: "x"
@@ -177,7 +178,8 @@
         components:
           - id: "root"
             component: "Card"
-            child: "body"
+            child:
+              "@child": "body"
           - id: "body"
             component: "Text"
             text: "Hello"
@@ -198,7 +200,8 @@
         components:
           - id: "root"
             component: "Card"
-            child: "root_child"
+            child:
+              "@child": "root_child"
           - id: "root_child"
             component: "Text"
             text: "Hello"
@@ -294,7 +297,8 @@
         components:
           - id: "root"
             component: "Column"
-            children: ["greeting", "farewell"]
+            children:
+              "@child": ["greeting", "farewell"]
           - id: "greeting"
             component: "Text"
             text: "Hello"
@@ -320,8 +324,8 @@
           - id: "root"
             component: "Column"
             children:
-              componentId: "itemRow"
-              path: "/items"
+              "@child": "itemRow"
+              "@path": "/items"
           - id: "itemRow"
             component: "Text"
             text:
@@ -345,8 +349,8 @@
           - id: "root"
             component: "Column"
             children:
-              componentId: "itemRow"
-              path: "/items"
+              "@child": "itemRow"
+              "@path": "/items"
           - id: "itemRow"
             component: "Text"
             text:
@@ -370,8 +374,8 @@
           - id: "root"
             component: "Column"
             children:
-              componentId: "itemRow"
-              path: "/items"
+              "@child": "itemRow"
+              "@path": "/items"
           - id: "itemRow"
             component: "Text"
             text:
@@ -397,8 +401,8 @@
           - id: "root"
             component: "Column"
             children:
-              componentId: "itemRow"
-              path: "/items"
+              "@child": "itemRow"
+              "@path": "/items"
           - id: "itemRow"
             component: "Text"
             text:
@@ -426,8 +430,8 @@
             component: "Column"
             "@catalogId": "conformance/simplified"
             children:
-              componentId: "itemRow"
-              path: "/items"
+              "@child": "itemRow"
+              "@path": "/items"
           - id: "itemRow"
             component: "Text"
             "@catalogId": "conformance/simplified"
@@ -468,8 +472,8 @@
           - id: "root"
             component: "Column"
             children:
-              componentId: "itemRow"
-              path: "/items"
+              "@child": "itemRow"
+              "@path": "/items"
           - id: "itemRow"
             component: "Text"
             text:
@@ -691,9 +695,10 @@
         components:
           - id: "root"
             component: "Button"
-            child: "label"
+            child:
+              "@child": "label"
             action:
-              event:
+              "@action":
                 name: "submit"
           - id: "label"
             component: "Text"
@@ -716,9 +721,10 @@
         components:
           - id: "root"
             component: "Button"
-            child: "label"
+            child:
+              "@child": "label"
             action:
-              event:
+              "@action":
                 name: "submit"
                 context:
                   itemId: "42"
@@ -743,9 +749,10 @@
         components:
           - id: "root"
             component: "Button"
-            child: "label"
+            child:
+              "@child": "label"
             action:
-              event:
+              "@action":
                 name: "reply"
                 userMessage: "Replying now"
           - id: "label"
@@ -769,9 +776,10 @@
         components:
           - id: "root"
             component: "Button"
-            child: "label"
+            child:
+              "@child": "label"
             action:
-              event:
+              "@action":
                 name: "reply"
                 userMessage:
                   "@path": "/draft/message"
@@ -798,9 +806,10 @@
         components:
           - id: "root"
             component: "Button"
-            child: "label"
+            child:
+              "@child": "label"
             action:
-              event:
+              "@action":
                 name: "reply"
                 userMessage:
                   "@call": "formatString"
@@ -839,9 +848,10 @@
         components:
           - id: "root"
             component: "Button"
-            child: "label"
+            child:
+              "@child": "label"
             action:
-              event:
+              "@action":
                 name: "submit"
                 context:
                   itemId: "42"
@@ -866,9 +876,10 @@
         components:
           - id: "root"
             component: "Button"
-            child: "label"
+            child:
+              "@child": "label"
             action:
-              event:
+              "@action":
                 name: "go"
                 context:
                   greeting:
@@ -933,16 +944,16 @@
             items:
               - label: "Docs"
                 action:
-                  functionCall:
+                  "@functionCall":
                     "@call": "openUrl"
                     args:
                       url: "https://a2ui.org"
               - label: "Go"
                 action:
-                  event:
+                  "@action":
                     name: "go"
             primary:
-              functionCall:
+              "@functionCall":
                 "@call": "openUrl"
                 args:
                   url: "https://a2ui.org/start"
@@ -967,7 +978,7 @@
             items:
               - label: "Docs"
                 action:
-                  functionCall:
+                  "@functionCall":
                     "@call": "openUrl"
                     args:
                       url: "https://a2ui.org"
@@ -1241,9 +1252,10 @@
         components:
           - id: "root"
             component: "Button"
-            child: "label"
+            child:
+              "@child": "label"
             action:
-              functionCall:
+              "@functionCall":
                 "@call": "openUrl"
                 args:
                   url: "https://example.com"
@@ -1269,9 +1281,10 @@
         components:
           - id: "root"
             component: "Button"
-            child: "label"
+            child:
+              "@child": "label"
             action:
-              event:
+              "@action":
                 name: "submit"
                 context:
                   itemId: "42"
@@ -1300,18 +1313,21 @@
         components:
           - id: "root"
             component: "Column"
-            children: ["save", "send"]
+            children:
+              "@child": ["save", "send"]
           - id: "save"
             component: "Button"
-            child: "saveLabel"
+            child:
+              "@child": "saveLabel"
             action:
-              event:
+              "@action":
                 name: "submit"
           - id: "send"
             component: "Button"
-            child: "sendLabel"
+            child:
+              "@child": "sendLabel"
             action:
-              event:
+              "@action":
                 name: "submit"
           - id: "saveLabel"
             component: "Text"
@@ -1393,7 +1409,8 @@
         components:
           - id: "root"
             component: "Column"
-            children: ["first", "second"]
+            children:
+              "@child": ["first", "second"]
           - id: "first"
             component: "Text"
             text: "One"
@@ -1420,7 +1437,8 @@
         components:
           - id: "root"
             component: "Card"
-            child: "body"
+            child:
+              "@child": "body"
           - id: "body"
             component: "Text"
             text: "Hello"
@@ -1443,8 +1461,8 @@
           - id: "root"
             component: "Column"
             children:
-              componentId: "nameRow"
-              path: "/names"
+              "@child": "nameRow"
+              "@path": "/names"
           - id: "nameRow"
             component: "Text"
             text:
@@ -1891,7 +1909,8 @@
               "@path": "/user/name"
           - id: "root"
             component: "Card"
-            child: "greeting_label"
+            child:
+              "@child": "greeting_label"
 
 - name: test_compile_express_triple_quoted_strings_not_corrupted_by_line_joins
   description: Triple-quoted strings containing newlines, commas, parentheses, assignments, and $/ paths are kept verbatim without line-join rewrites.
@@ -1925,7 +1944,8 @@
             text: "Price in $/\nmonth"
           - id: "root"
             component: "Column"
-            children: ["c1", "c2", "c3"]
+            children:
+              "@child": ["c1", "c2", "c3"]
 
 - name: test_compile_express_missing_comma_between_defined_variables_is_a_parse_error
   description: Two defined variable names separated by a newline without a comma inside a list fail to parse even when their concatenation is also a defined variable.
@@ -1964,7 +1984,8 @@
             weight: 2
           - id: "root"
             component: "Column"
-            children: ["t"]
+            children:
+              "@child": ["t"]
             weight: 1
 
 - name: test_compile_express_positional_number_does_not_skip_non_enum_optional_property
@@ -2027,7 +2048,8 @@
         components:
           - id: "root"
             component: "Card"
-            child: "root_child"
+            child:
+              "@child": "root_child"
           - id: "root_child"
             component: "Text"
             text: "Hello"

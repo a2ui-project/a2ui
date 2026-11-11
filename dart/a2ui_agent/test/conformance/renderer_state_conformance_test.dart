@@ -69,9 +69,11 @@ void _runCase(Map<String, Object?> testCase, SuiteVersion version) {
     _knownKeys['case:renderer_state_turns']!,
     'case:renderer_state_turns',
   );
-  final List<CatalogApi> catalogs = version.catalogs({
+  final Map<String, Object?> catalogArgs = {
     'catalogs': testCase['catalogs'] ?? const [_defaultCatalogPath],
-  });
+  };
+  final List<CatalogApi> catalogs = version.catalogs(catalogArgs);
+  final List<CatalogApi> liftCatalogs = version.liftCatalogs(catalogArgs);
   final String? injectedId = version == SuiteVersion.v0_9
       ? catalogs.first.id
       : null;
@@ -116,7 +118,12 @@ void _runCase(Map<String, Object?> testCase, SuiteVersion version) {
     applyTurn();
     if (turn['expect_surfaces']
         case final Map<String, Object?> expectSurfaces) {
-      _assertExpectedSurfaces(state, expectSurfaces, version);
+      _assertExpectedSurfaces(
+        state,
+        expectSurfaces,
+        version,
+        liftCatalogs: liftCatalogs,
+      );
     }
   }
 }
@@ -124,8 +131,9 @@ void _runCase(Map<String, Object?> testCase, SuiteVersion version) {
 void _assertExpectedSurfaces(
   RendererState state,
   Map<String, Object?> expectSurfaces,
-  SuiteVersion version,
-) {
+  SuiteVersion version, {
+  List<CatalogApi> liftCatalogs = const [],
+}) {
   expect(state.surfaceIds.toSet(), expectSurfaces.keys.toSet());
   for (final MapEntry<String, Object?>(:String key, :Object? value)
       in expectSurfaces.entries) {
@@ -150,7 +158,12 @@ void _assertExpectedSurfaces(
         expect(comp, isNotNull, reason: 'Missing component $compId on $key');
         expect({
           'component': comp!.type,
-          ...version.liftProperties(comp.properties),
+          ...version.liftProperties(
+            comp.properties,
+            componentType: comp.type,
+            catalogId: comp.catalog ?? surface.defaultCatalog?.id,
+            catalogs: liftCatalogs,
+          ),
         }, expectedComp);
       }
     }

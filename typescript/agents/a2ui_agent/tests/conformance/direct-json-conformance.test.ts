@@ -27,7 +27,7 @@ import {
   RawResponsePart,
   ResponsePart,
 } from '../../src/index.js';
-import {AgentToRendererMessage} from '../../src/internal/web-core.js';
+import {AgentToRendererMessage, CatalogApi} from '../../src/internal/web-core.js';
 import {CONFORMANCE_ROOT, loadCases} from './loader.js';
 import {
   firstCatalogId,
@@ -163,8 +163,11 @@ function assertPartsMatch(
   expectedParts: Array<Record<string, unknown>>,
   lower = false,
   injId?: string,
+  catalogs: readonly CatalogApi[] = [],
 ): void {
-  const liftedActual = lower ? liftParts(actualParts, {injectedCatalogId: injId}) : actualParts;
+  const liftedActual = lower
+    ? liftParts(actualParts, {injectedCatalogId: injId, catalogs})
+    : actualParts;
   expect(liftedActual.length).toBe(expectedParts.length);
   for (let i = 0; i < liftedActual.length; i++) {
     const actual = liftedActual[i];
@@ -174,6 +177,27 @@ function assertPartsMatch(
     } else {
       expect(actual.a2ui).toEqual(expected.a2ui);
     }
+  }
+}
+
+function lowerDecompiledFragment(fragment: string, isLowered: boolean): string {
+  if (!isLowered) return fragment;
+  switch (fragment) {
+    case '"@action"':
+      return '"event"';
+    case '"@functionCall"':
+      return '"functionCall"';
+    case '"@path"':
+      return '"path"';
+    case '"@call"':
+      return '"call"';
+    // In Direct JSON, `"@child"` in decompiler assertions corresponds to the
+    // `@child` key inside template ChildList objects (`{"componentId": ...,
+    // "path": ...}` in v0.9).
+    case '"@child"':
+      return '"componentId"';
+    default:
+      return fragment;
   }
 }
 
@@ -201,6 +225,9 @@ forEachSuiteVersion(
       catalogPaths.push('test_data/catalogs/simplified_catalog_v1_0.json');
     }
     const catalogs = catalogPaths.map(p => loadCatalogFromRelativePath(p, isLowered));
+    const v10Catalogs = isLowered
+      ? catalogPaths.map(p => loadCatalogFromRelativePath(p, false))
+      : catalogs;
     const parser = new DirectJsonParser(catalogs);
     const injId = isLowered ? injectedCatalogId(testCase) : undefined;
 
@@ -220,7 +247,7 @@ forEachSuiteVersion(
 
       const rawCompiled = compileChecked(parser, payload);
       const compiled = isLowered
-        ? liftMessages(rawCompiled, {injectedCatalogId: injId})
+        ? liftMessages(rawCompiled, {injectedCatalogId: injId, catalogs: v10Catalogs})
         : rawCompiled;
 
       if (testCase.expect_present) {
@@ -252,7 +279,7 @@ forEachSuiteVersion(
 
       if (testCase.expect_contains) {
         for (const fragment of testCase.expect_contains as string[]) {
-          expect(notation).toContain(fragment);
+          expect(notation).toContain(lowerDecompiledFragment(fragment, isLowered));
         }
       }
 
@@ -261,6 +288,7 @@ forEachSuiteVersion(
         const lifted = isLowered
           ? liftMessages(recompiled, {
               injectedCatalogId: hasExplicitCatalogId ? undefined : defaultCatId,
+              catalogs: v10Catalogs,
             })
           : recompiled;
         expect(lifted).toEqual(origMessages);
@@ -319,7 +347,13 @@ forEachSuiteVersion(
       }
 
       const parts = parser.parseResponse(payload, {wrapped});
-      assertPartsMatch(parts, testCase.expect as Array<Record<string, unknown>>, isLowered, injId);
+      assertPartsMatch(
+        parts,
+        testCase.expect as Array<Record<string, unknown>>,
+        isLowered,
+        injId,
+        v10Catalogs,
+      );
     } else {
       throw new Error(`Unsupported action in direct_json conformance: ${action}`);
     }

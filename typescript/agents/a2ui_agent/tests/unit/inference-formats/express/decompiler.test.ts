@@ -362,7 +362,7 @@ describe('ExpressDecompiler', () => {
             {
               id: 'root',
               component: 'Card',
-              child: 'true',
+              child: {'@child': 'true'},
             },
             {
               id: 'true',
@@ -433,7 +433,7 @@ describe('ExpressDecompiler', () => {
             {
               id: 'root',
               component: 'Column',
-              children: ['entête', '見出し_1'],
+              children: {'@child': ['entête', '見出し_1']},
             },
             {
               id: 'entête',
@@ -491,20 +491,21 @@ describe('ExpressDecompiler', () => {
     });
 
     it('still treats absent or null fields as empty', () => {
+      expect(decompileButton({'@action': {name: 'go'}})).toContain('Event("go")');
+      expect(decompileButton({'@action': {name: 'go', context: null}})).toContain('Event("go")');
       expect(decompileButton({event: {name: 'go'}})).toContain('Event("go")');
-      expect(decompileButton({event: {name: 'go', context: null}})).toContain('Event("go")');
     });
 
     it('preserves an explicit empty context on Event("go", {}) across decompile and compile', () => {
       const {catalog, version} = getCatalogInfo('simplified');
-      const action = {event: {name: 'go', context: {}}};
+      const action = {'@action': {name: 'go', context: {}}};
       const msg = {
         version: '1.0',
         createSurface: {
           surfaceId: 's1',
           catalogId: catalog.id,
           components: [
-            {id: 'root', component: 'Button', child: 'label', action},
+            {id: 'root', component: 'Button', child: {'@child': 'label'}, action},
             {id: 'label', component: 'Text', text: 'Go'},
           ],
         },
@@ -517,14 +518,14 @@ describe('ExpressDecompiler', () => {
 
     it('escapes event names so they compile back unchanged', () => {
       const {catalog, version} = getCatalogInfo('simplified');
-      const action = {event: {name: 'say "hi" \\ bye', context: {k: 1}}};
+      const action = {'@action': {name: 'say "hi" \\ bye', context: {k: 1}}};
       const msg = {
         version: '1.0',
         createSurface: {
           surfaceId: 's1',
           catalogId: catalog.id,
           components: [
-            {id: 'root', component: 'Button', child: 'label', action},
+            {id: 'root', component: 'Button', child: {'@child': 'label'}, action},
             {id: 'label', component: 'Text', text: 'Go'},
           ],
         },
@@ -538,24 +539,24 @@ describe('ExpressDecompiler', () => {
     });
 
     it('writes userMessage= and compiles it back unchanged', () => {
-      expect(decompileButton({event: {name: 'reply', userMessage: 'Replying now'}})).toContain(
+      expect(decompileButton({'@action': {name: 'reply', userMessage: 'Replying now'}})).toContain(
         'Event("reply", userMessage="Replying now")',
       );
       expect(
         decompileButton({
-          event: {name: 'reply', userMessage: {'@path': '/draft'}, context: {id: 1}},
+          '@action': {name: 'reply', userMessage: {'@path': '/draft'}, context: {id: 1}},
         }),
       ).toContain('Event("reply", {id: 1}, userMessage=$/draft)');
 
       const {catalog, version} = getCatalogInfo('simplified');
-      const action = {event: {name: 'reply', userMessage: 'Replying now', context: {id: 1}}};
+      const action = {'@action': {name: 'reply', userMessage: 'Replying now', context: {id: 1}}};
       const msg = {
         version: '1.0',
         createSurface: {
           surfaceId: 's1',
           catalogId: catalog.id,
           components: [
-            {id: 'root', component: 'Button', child: 'label', action},
+            {id: 'root', component: 'Button', child: {'@child': 'label'}, action},
             {id: 'label', component: 'Text', text: 'Go'},
           ],
         },
@@ -593,7 +594,10 @@ describe('ExpressDecompiler', () => {
     it('writes a function call userMessage and compiles it back unchanged', () => {
       const {catalog, version} = getCatalogInfo('simplified');
       const action = {
-        event: {name: 'reply', userMessage: {'@call': 'formatString', args: {value: 'Hi ${/n}'}}},
+        '@action': {
+          name: 'reply',
+          userMessage: {'@call': 'formatString', args: {value: 'Hi ${/n}'}},
+        },
       };
       const msg = {
         version: '1.0',
@@ -601,7 +605,7 @@ describe('ExpressDecompiler', () => {
           surfaceId: 's1',
           catalogId: catalog.id,
           components: [
-            {id: 'root', component: 'Button', child: 'label', action},
+            {id: 'root', component: 'Button', child: {'@child': 'label'}, action},
             {id: 'label', component: 'Text', text: 'Go'},
           ],
         },
@@ -613,6 +617,84 @@ describe('ExpressDecompiler', () => {
         recompiled[0] as unknown as {createSurface: {components: Array<Record<string, unknown>>}}
       ).createSurface.components;
       expect(components.find(c => c.id === 'root')?.action).toEqual(action);
+    });
+
+    it('dual-reads v1.0 @child/@action/@functionCall directives and legacy bare shapes (#4168)', () => {
+      const catalog = loadBasicCatalog('1.0');
+      const version = '1.0';
+      const decompiler = new ExpressDecompiler([catalog], version);
+      const parser = new ExpressParser([catalog], 's1', version);
+
+      const canonical = {
+        version: '1.0',
+        createSurface: {
+          surfaceId: 's1',
+          catalogId: catalog.id,
+          components: [
+            {id: 'root', component: 'Column', children: {'@child': ['list', 'btn', 'tabs']}},
+            {id: 'list', component: 'List', children: {'@child': 'row', '@path': '/items'}},
+            {id: 'row', component: 'Text', text: {'@path': 'name'}},
+            {
+              id: 'btn',
+              component: 'Button',
+              child: {'@child': 'btn_label'},
+              action: {'@functionCall': {'@call': 'openUrl', args: {url: 'https://a2ui.org'}}},
+            },
+            {id: 'btn_label', component: 'Text', text: 'Docs'},
+            {
+              id: 'tabs',
+              component: 'Tabs',
+              tabs: [{title: 'First', child: {'@child': 'tab_body'}}],
+            },
+            {id: 'tab_body', component: 'Text', text: 'Inside tab'},
+          ],
+        },
+      } as unknown as AgentToRendererMessage;
+      const legacy = {
+        version: '1.0',
+        createSurface: {
+          surfaceId: 's1',
+          catalogId: catalog.id,
+          components: [
+            {id: 'root', component: 'Column', children: ['list', 'btn', 'tabs']},
+            {id: 'list', component: 'List', children: {componentId: 'row', path: '/items'}},
+            {id: 'row', component: 'Text', text: {'@path': 'name'}},
+            {
+              id: 'btn',
+              component: 'Button',
+              child: 'btn_label',
+              action: {functionCall: {'@call': 'openUrl', args: {url: 'https://a2ui.org'}}},
+            },
+            {id: 'btn_label', component: 'Text', text: 'Docs'},
+            {
+              id: 'tabs',
+              component: 'Tabs',
+              tabs: [{title: 'First', child: 'tab_body'}],
+            },
+            {id: 'tab_body', component: 'Text', text: 'Inside tab'},
+          ],
+        },
+      } as unknown as AgentToRendererMessage;
+
+      const dslCanonical = decompiler.decompile([canonical]);
+      const dslLegacy = decompiler.decompile([legacy]);
+      expect(dslLegacy).toBe(dslCanonical);
+      expect(dslCanonical).toContain('_template($/items, row)');
+      expect(dslCanonical).toContain('openUrl("https://a2ui.org")');
+      expect(parser.compile(dslCanonical)).toEqual([canonical]);
+
+      // Plain DynamicValue maps with extra keys named `event` or `functionCall` stay map literals.
+      const nonAction = {
+        version: '1.0',
+        createSurface: {
+          surfaceId: 's1',
+          catalogId: catalog.id,
+          components: [{id: 'root', component: 'Text', text: {label: 'x', event: {id: 1}}}],
+        },
+      } as unknown as AgentToRendererMessage;
+      const nonActionDsl = decompiler.decompile([nonAction]);
+      expect(nonActionDsl).toContain('{label: "x", event: {id: 1}}');
+      expect(nonActionDsl).not.toContain('Event(');
     });
   });
 

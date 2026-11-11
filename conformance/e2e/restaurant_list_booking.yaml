@@ -30,74 +30,126 @@
         card.
       modelChunks:
         direct_json:
-          - "Here are 3 Italian restaurants in New York.
+          - |-
+            Here are 3 Italian restaurants in New York.
 
-
-            <a"
+            <a
           - "2ui-json>
 
             "
-          - "[\n  {\n    \"version\": \"1.0\",\n    \"createSurface\": {\n      \"surfaceId\"\
-            : \"restaurants\",\n      \"catalogId\": \"https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json\"\
-            ,\n      \"sendDataModel\": true,\n      \"components\": [\n        {\n  \
-            \        \"id\": \"root\",\n          \"component\": \"List\",\n         \
-            \ \"children\": {\n            \"path\": \"/restaurants\",\n            \"\
-            componentId\": \"restaurantCard\"\n          }\n        },\n        {\n  \
-            \        \"id\": \"restaurantCard\",\n          \"component\": \"Card\",\n\
-            \          \"child\": \"cardBody\"\n        },\n        {\n          \"id\"\
-            : \"cardBody\",\n          \"component\": \"Column\",\n          \"children\"\
-            : [\n            \"restaurantName\",\n            \"restaurantCuisine\",\n\
-            \            \"bookButton\"\n          ]\n        },\n        {\n        \
-            \  \"id\": \"restaurantName\",\n          \"component\": \"Text\",\n     \
-            \     \"text\": {\n            \"@path\": \"name\"\n          }\n        },\n\
-            \        {\n          \"id\": \"restaurantCuisine\",\n          \"component\"\
-            : \"Text\",\n          \"text\": {\n            \"@path\": \"cuisine\"\n \
-            \         },\n          \"variant\": \"caption\"\n        },\n        {\n\
-            \          \"id\": \"bookButton\",\n          \"component\": \"Button\",\n\
-            \          \"variant\": \"primary\",\n          \"child\": \"bookButtonLabel\"\
-            ,\n          \"action\": {\n            \"event\": {\n              \"name\"\
-            : \"book_restaurant\",\n              \"context\": {\n                \"restaurantName\"\
-            : {\n                  \"@path\": \"name\"\n                }\n          \
-            \    }\n            }\n          }\n        },\n        {\n          \"id\"\
-            : \"bookButtonLabel\",\n          \"component\": \"Text\",\n          \"text\"\
-            : \"Book Now\"\n        }\n      ],\n      \"dataModel\": {\n        \"restaurants\"\
-            : [\n          {\n            \"name\": \"Osteria Bella\",\n            \"\
-            cuisine\": \"Italian\"\n          },\n          {\n            \"name\": \"\
-            Trattoria Roma\",\n            \"cuisine\": \"Roman Pasta\"\n          },\n\
-            \          {\n            \"name\": \"Villa Napoli\",\n            \"cuisine\"\
-            : \"Wood-Fired Pizza\"\n          }\n        ]\n      }\n    }\n  }\n]\n</a2ui-json>\n"
+          - |
+            [
+              {
+                "version": "1.0",
+                "createSurface": {
+                  "surfaceId": "restaurants",
+                  "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+                  "sendDataModel": true,
+                  "components": [
+                    {
+                      "id": "root",
+                      "component": "List",
+                      "children": {
+                        "@child": "restaurantCard",
+                        "@path": "/restaurants"
+                      }
+                    },
+                    {
+                      "id": "restaurantCard",
+                      "component": "Card",
+                      "child": {
+                        "@child": "cardBody"
+                      }
+                    },
+                    {
+                      "id": "cardBody",
+                      "component": "Column",
+                      "children": {
+                        "@child": [
+                          "restaurantName",
+                          "restaurantCuisine",
+                          "bookButton"
+                        ]
+                      }
+                    },
+                    {
+                      "id": "restaurantName",
+                      "component": "Text",
+                      "text": {
+                        "@path": "name"
+                      }
+                    },
+                    {
+                      "id": "restaurantCuisine",
+                      "component": "Text",
+                      "text": {
+                        "@path": "cuisine"
+                      },
+                      "variant": "caption"
+                    },
+                    {
+                      "id": "bookButton",
+                      "component": "Button",
+                      "variant": "primary",
+                      "child": {
+                        "@child": "bookButtonLabel"
+                      },
+                      "action": {
+                        "@action": {
+                          "name": "book_restaurant",
+                          "context": {
+                            "restaurantName": {
+                              "@path": "name"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "id": "bookButtonLabel",
+                      "component": "Text",
+                      "text": "Book Now"
+                    }
+                  ],
+                  "dataModel": {
+                    "restaurants": [
+                      {
+                        "name": "Osteria Bella",
+                        "cuisine": "Italian"
+                      },
+                      {
+                        "name": "Trattoria Roma",
+                        "cuisine": "Roman Pasta"
+                      },
+                      {
+                        "name": "Villa Napoli",
+                        "cuisine": "Wood-Fired Pizza"
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+            </a2ui-json>
         express:
-          - "Here are 3 Italian restaurants in New York.
+          - |-
+            Here are 3 Italian restaurants in New York.
 
-
-            <a"
+            <a
           - "2ui>
 
             "
-          - 'surface("restaurants", sendDataModel=true)
-
-            $/restaurants = [{name: "Osteria Bella", cuisine: "Italian"}, {name: "Trattoria
-            Roma", cuisine: "Roman Pasta"}, {name: "Villa Napoli", cuisine: "Wood-Fired
-            Pizza"}]
-
+          - |
+            surface("restaurants", sendDataModel=true)
+            $/restaurants = [{name: "Osteria Bella", cuisine: "Italian"}, {name: "Trattoria Roma", cuisine: "Roman Pasta"}, {name: "Villa Napoli", cuisine: "Wood-Fired Pizza"}]
             root = List(_template($/restaurants, restaurantCard))
-
             restaurantCard = Card(cardBody)
-
             cardBody = Column([restaurantName, restaurantCuisine, bookButton])
-
             restaurantName = Text($name)
-
             restaurantCuisine = Text($cuisine, "caption")
-
-            bookButton = Button(bookButtonLabel, "primary", Event("book_restaurant", {restaurantName:
-            $name}))
-
+            bookButton = Button(bookButtonLabel, "primary", Event("book_restaurant", {restaurantName: $name}))
             bookButtonLabel = Text("Book Now")
-
             </a2ui>
-
-            '
       expectWire:
         - text: Here are 3 Italian restaurants in New York.
         - a2ui:
@@ -110,17 +162,19 @@
                   - id: root
                     component: List
                     children:
-                      path: /restaurants
-                      componentId: restaurantCard
+                      "@child": restaurantCard
+                      "@path": /restaurants
                   - id: restaurantCard
                     component: Card
-                    child: cardBody
+                    child:
+                      "@child": cardBody
                   - id: cardBody
                     component: Column
                     children:
-                      - restaurantName
-                      - restaurantCuisine
-                      - bookButton
+                      "@child":
+                        - restaurantName
+                        - restaurantCuisine
+                        - bookButton
                   - id: restaurantName
                     component: Text
                     text:
@@ -133,9 +187,10 @@
                   - id: bookButton
                     component: Button
                     variant: primary
-                    child: bookButtonLabel
+                    child:
+                      "@child": bookButtonLabel
                     action:
-                      event:
+                      "@action":
                         name: book_restaurant
                         context:
                           restaurantName:
@@ -228,78 +283,127 @@
     - userText: null
       modelChunks:
         direct_json:
-          - "Choose your reservation details for Osteria Bella.
+          - |-
+            Choose your reservation details for Osteria Bella.
 
-
-            <a"
+            <a
           - "2ui-json>
 
             "
-          - "[\n  {\n    \"version\": \"1.0\",\n    \"updateComponents\": {\n      \"\
-            surfaceId\": \"restaurants\",\n      \"components\": [\n        {\n      \
-            \    \"id\": \"root\",\n          \"component\": \"Card\",\n          \"child\"\
-            : \"bookingForm\"\n        },\n        {\n          \"id\": \"bookingForm\"\
-            ,\n          \"component\": \"Column\",\n          \"children\": [\n     \
-            \       \"bookingTitle\",\n            \"reservationDate\",\n            \"\
-            partySizeInput\",\n            \"confirmBookingBtn\"\n          ]\n      \
-            \  },\n        {\n          \"id\": \"bookingTitle\",\n          \"component\"\
-            : \"Text\",\n          \"text\": \"### Book a table at Osteria Bella\"\n \
-            \       },\n        {\n          \"id\": \"reservationDate\",\n          \"\
-            component\": \"DateTimeInput\",\n          \"value\": {\n            \"@path\"\
-            : \"/booking/date\"\n          },\n          \"enableDate\": true,\n     \
-            \     \"enableTime\": true,\n          \"label\": \"Reservation Date & Time\"\
-            \n        },\n        {\n          \"id\": \"partySizeInput\",\n         \
-            \ \"component\": \"TextField\",\n          \"label\": \"Party Size\",\n  \
-            \        \"value\": {\n            \"@path\": \"/booking/partySize\"\n   \
-            \       }\n        },\n        {\n          \"id\": \"confirmBookingBtn\"\
-            ,\n          \"component\": \"Button\",\n          \"variant\": \"primary\"\
-            ,\n          \"child\": \"confirmBookingLabel\",\n          \"action\": {\n\
-            \            \"event\": {\n              \"name\": \"submit_booking\",\n \
-            \             \"context\": {\n                \"restaurantName\": {\n    \
-            \              \"@path\": \"/booking/restaurantName\"\n                },\n\
-            \                \"date\": {\n                  \"@path\": \"/booking/date\"\
-            \n                },\n                \"partySize\": {\n                 \
-            \ \"@path\": \"/booking/partySize\"\n                }\n              }\n\
-            \            }\n          }\n        },\n        {\n          \"id\": \"confirmBookingLabel\"\
-            ,\n          \"component\": \"Text\",\n          \"text\": \"Confirm Booking\"\
-            \n        }\n      ]\n    }\n  },\n  {\n    \"version\": \"1.0\",\n    \"\
-            updateDataModel\": {\n      \"surfaceId\": \"restaurants\",\n      \"path\"\
-            : \"/booking\",\n      \"value\": {\n        \"restaurantName\": \"Osteria\
-            \ Bella\",\n        \"date\": \"2026-05-15T19:30:00Z\",\n        \"partySize\"\
-            : \"2\"\n      }\n    }\n  }\n]\n</a2ui-json>\n"
+          - |
+            [
+              {
+                "version": "1.0",
+                "updateComponents": {
+                  "surfaceId": "restaurants",
+                  "components": [
+                    {
+                      "id": "root",
+                      "component": "Card",
+                      "child": {
+                        "@child": "bookingForm"
+                      }
+                    },
+                    {
+                      "id": "bookingForm",
+                      "component": "Column",
+                      "children": {
+                        "@child": [
+                          "bookingTitle",
+                          "reservationDate",
+                          "partySizeInput",
+                          "confirmBookingBtn"
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bookingTitle",
+                      "component": "Text",
+                      "text": "### Book a table at Osteria Bella"
+                    },
+                    {
+                      "id": "reservationDate",
+                      "component": "DateTimeInput",
+                      "value": {
+                        "@path": "/booking/date"
+                      },
+                      "enableDate": true,
+                      "enableTime": true,
+                      "label": "Reservation Date & Time"
+                    },
+                    {
+                      "id": "partySizeInput",
+                      "component": "TextField",
+                      "label": "Party Size",
+                      "value": {
+                        "@path": "/booking/partySize"
+                      }
+                    },
+                    {
+                      "id": "confirmBookingBtn",
+                      "component": "Button",
+                      "variant": "primary",
+                      "child": {
+                        "@child": "confirmBookingLabel"
+                      },
+                      "action": {
+                        "@action": {
+                          "name": "submit_booking",
+                          "context": {
+                            "restaurantName": {
+                              "@path": "/booking/restaurantName"
+                            },
+                            "date": {
+                              "@path": "/booking/date"
+                            },
+                            "partySize": {
+                              "@path": "/booking/partySize"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "id": "confirmBookingLabel",
+                      "component": "Text",
+                      "text": "Confirm Booking"
+                    }
+                  ]
+                }
+              },
+              {
+                "version": "1.0",
+                "updateDataModel": {
+                  "surfaceId": "restaurants",
+                  "path": "/booking",
+                  "value": {
+                    "restaurantName": "Osteria Bella",
+                    "date": "2026-05-15T19:30:00Z",
+                    "partySize": "2"
+                  }
+                }
+              }
+            ]
+            </a2ui-json>
         express:
-          - "Choose your reservation details for Osteria Bella.
+          - |-
+            Choose your reservation details for Osteria Bella.
 
-
-            <a"
+            <a
           - "2ui>
 
             "
-          - 'surface("restaurants", update=true)
-
-            $/booking = {restaurantName: "Osteria Bella", date: "2026-05-15T19:30:00Z",
-            partySize: "2"}
-
+          - |
+            surface("restaurants", update=true)
+            $/booking = {restaurantName: "Osteria Bella", date: "2026-05-15T19:30:00Z", partySize: "2"}
             root = Card(bookingForm)
-
             bookingForm = Column([bookingTitle, reservationDate, partySizeInput, confirmBookingBtn])
-
             bookingTitle = Text("### Book a table at Osteria Bella")
-
-            reservationDate = DateTimeInput($/booking/date, true, true, label="Reservation
-            Date & Time")
-
+            reservationDate = DateTimeInput($/booking/date, true, true, label="Reservation Date & Time")
             partySizeInput = TextField("Party Size", $/booking/partySize)
-
-            confirmBookingBtn = Button(confirmBookingLabel, "primary", Event("submit_booking",
-            {restaurantName: $/booking/restaurantName, date: $/booking/date, partySize:
-            $/booking/partySize}))
-
+            confirmBookingBtn = Button(confirmBookingLabel, "primary", Event("submit_booking", {restaurantName: $/booking/restaurantName, date: $/booking/date, partySize: $/booking/partySize}))
             confirmBookingLabel = Text("Confirm Booking")
-
             </a2ui>
-
-            '
       expectWire:
         - text: Choose your reservation details for Osteria Bella.
         - a2ui:
@@ -309,14 +413,16 @@
                 components:
                   - id: root
                     component: Card
-                    child: bookingForm
+                    child:
+                      "@child": bookingForm
                   - id: bookingForm
                     component: Column
                     children:
-                      - bookingTitle
-                      - reservationDate
-                      - partySizeInput
-                      - confirmBookingBtn
+                      "@child":
+                        - bookingTitle
+                        - reservationDate
+                        - partySizeInput
+                        - confirmBookingBtn
                   - id: bookingTitle
                     component: Text
                     text: "### Book a table at Osteria Bella"
@@ -335,9 +441,10 @@
                   - id: confirmBookingBtn
                     component: Button
                     variant: primary
-                    child: confirmBookingLabel
+                    child:
+                      "@child": confirmBookingLabel
                     action:
-                      event:
+                      "@action":
                         name: submit_booking
                         context:
                           restaurantName:
@@ -406,47 +513,68 @@
     - userText: null
       modelChunks:
         direct_json:
-          - "Your reservation at Osteria Bella is confirmed!
+          - |-
+            Your reservation at Osteria Bella is confirmed!
 
-
-            <a"
+            <a
           - "2ui-json>
 
             "
-          - "[\n  {\n    \"version\": \"1.0\",\n    \"updateComponents\": {\n      \"\
-            surfaceId\": \"restaurants\",\n      \"components\": [\n        {\n      \
-            \    \"id\": \"root\",\n          \"component\": \"Card\",\n          \"child\"\
-            : \"confirmedCol\"\n        },\n        {\n          \"id\": \"confirmedCol\"\
-            ,\n          \"component\": \"Column\",\n          \"children\": [\n     \
-            \       \"confirmedHeading\",\n            \"confirmedDetails\"\n        \
-            \  ]\n        },\n        {\n          \"id\": \"confirmedHeading\",\n   \
-            \       \"component\": \"Text\",\n          \"text\": \"### Reservation Confirmed\"\
-            \n        },\n        {\n          \"id\": \"confirmedDetails\",\n       \
-            \   \"component\": \"Text\",\n          \"text\": \"Your table for 4 at Osteria\
-            \ Bella on 2026-05-15T19:30:00Z is booked.\",\n          \"variant\": \"body\"\
-            \n        }\n      ]\n    }\n  }\n]\n</a2ui-json>\n"
+          - |
+            [
+              {
+                "version": "1.0",
+                "updateComponents": {
+                  "surfaceId": "restaurants",
+                  "components": [
+                    {
+                      "id": "root",
+                      "component": "Card",
+                      "child": {
+                        "@child": "confirmedCol"
+                      }
+                    },
+                    {
+                      "id": "confirmedCol",
+                      "component": "Column",
+                      "children": {
+                        "@child": [
+                          "confirmedHeading",
+                          "confirmedDetails"
+                        ]
+                      }
+                    },
+                    {
+                      "id": "confirmedHeading",
+                      "component": "Text",
+                      "text": "### Reservation Confirmed"
+                    },
+                    {
+                      "id": "confirmedDetails",
+                      "component": "Text",
+                      "text": "Your table for 4 at Osteria Bella on 2026-05-15T19:30:00Z is booked.",
+                      "variant": "body"
+                    }
+                  ]
+                }
+              }
+            ]
+            </a2ui-json>
         express:
-          - "Your reservation at Osteria Bella is confirmed!
+          - |-
+            Your reservation at Osteria Bella is confirmed!
 
-
-            <a"
+            <a
           - "2ui>
 
             "
-          - 'surface("restaurants", update=true)
-
+          - |
+            surface("restaurants", update=true)
             root = Card(confirmedCol)
-
             confirmedCol = Column([confirmedHeading, confirmedDetails])
-
             confirmedHeading = Text("### Reservation Confirmed")
-
-            confirmedDetails = Text("Your table for 4 at Osteria Bella on 2026-05-15T19:30:00Z
-            is booked.", "body")
-
+            confirmedDetails = Text("Your table for 4 at Osteria Bella on 2026-05-15T19:30:00Z is booked.", "body")
             </a2ui>
-
-            '
       expectWire:
         - text: Your reservation at Osteria Bella is confirmed!
         - a2ui:
@@ -456,12 +584,14 @@
                 components:
                   - id: root
                     component: Card
-                    child: confirmedCol
+                    child:
+                      "@child": confirmedCol
                   - id: confirmedCol
                     component: Column
                     children:
-                      - confirmedHeading
-                      - confirmedDetails
+                      "@child":
+                        - confirmedHeading
+                        - confirmedDetails
                   - id: confirmedHeading
                     component: Text
                     text: "### Reservation Confirmed"

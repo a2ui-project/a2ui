@@ -208,10 +208,20 @@ class CatalogAnalyzer {
           isRequired: isRequired,
         );
       }
-      if (defName == 'ComponentId' || (_isV10 && defName == 'Child')) {
+      if ((!_isV10 && defName == 'ComponentId') ||
+          (_isV10 && defName == 'Child')) {
         return PropertyDescriptor(
           name: propName,
           type: const ComponentRefType(),
+          description: cleanDescription,
+          defaultValue: defaultValue,
+          isRequired: isRequired,
+        );
+      }
+      if (_isV10 && defName == 'ComponentId') {
+        return PropertyDescriptor(
+          name: propName,
+          type: const PrimitiveType(PrimitiveKind.string),
           description: cleanDescription,
           defaultValue: defaultValue,
           isRequired: isRequired,
@@ -439,7 +449,7 @@ class CatalogAnalyzer {
           '';
       final String itemDef = itemRef.isNotEmpty ? itemRef.split('/').last : '';
 
-      if (itemDef == 'ComponentId' || (_isV10 && itemDef == 'Child')) {
+      if (!_isV10 && itemDef == 'ComponentId') {
         return PropertyDescriptor(
           name: propName,
           type: const ComponentListType(),

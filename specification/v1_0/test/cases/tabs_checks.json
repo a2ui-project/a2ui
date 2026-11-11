@@ -32,7 +32,7 @@
               "tabs": [
                 {
                   "title": "Tab 1",
-                  "child": "txt1"
+                  "child": {"@child": "txt1"}
                 }
               ]
             },

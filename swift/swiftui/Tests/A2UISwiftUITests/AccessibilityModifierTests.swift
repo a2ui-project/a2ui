@@ -79,10 +79,10 @@ struct AccessibilityModifierTests {
 
   @Test func explicitLabelAndDescriptionMapToLabelAndHint() async throws {
     let (_, surface) = try await makeSurface(components: [
-      ["id": "root", "component": "Column", "children": ["btn1"]],
+      ["id": "root", "component": "Column", "children": ["@child": ["btn1"]]],
       [
-        "id": "btn1", "component": "Button", "child": "btn1_text",
-        "action": ["event": ["name": "mute"]],
+        "id": "btn1", "component": "Button", "child": ["@child": "btn1_text"],
+        "action": ["@action": ["name": "mute"]],
         "accessibility": [
           "label": "Mute Notifications",
           "description": "Silences notifications about this conversation",
@@ -144,7 +144,9 @@ struct AccessibilityModifierTests {
   @Test func hiddenHidesTheComponent() async throws {
     let (_, surface) = try await makeSurface(components: [
       [
-        "id": "root", "component": "Column", "children": ["visible_text", "decorative_icon"],
+        "id": "root",
+        "component": "Column",
+        "children": ["@child": ["visible_text", "decorative_icon"]],
         "accessibility": ["hidden": true],
       ],
       ["id": "visible_text", "component": "Text", "text": "Visible Content"],
@@ -183,7 +185,7 @@ struct AccessibilityModifierTests {
 
   @Test func assertiveLiveRegionAnnouncesItsLabel() async throws {
     let (_, surface) = try await makeSurface(components: [
-      ["id": "root", "component": "Column", "children": ["alert_box"]],
+      ["id": "root", "component": "Column", "children": ["@child": ["alert_box"]]],
       [
         "id": "alert_box", "component": "Text", "text": "Connection Lost!",
         "accessibility": ["label": "Critical Alert", "live": "assertive"],
@@ -199,7 +201,7 @@ struct AccessibilityModifierTests {
     let (processor, surface) = try await makeSurface(
       components: [
         [
-          "id": "root", "component": "Column", "children": ["status_text"],
+          "id": "root", "component": "Column", "children": ["@child": ["status_text"]],
           "accessibility": ["label": ["@path": "/status"], "live": "polite"],
         ],
         ["id": "status_text", "component": "Text", "text": "Sync"],
@@ -249,7 +251,7 @@ struct AccessibilityModifierTests {
   @Test func componentsWithAccessibilityRender() async throws {
     let (_, surface) = try await makeSurface(components: [
       [
-        "id": "root", "component": "Column", "children": ["title", "name", "agree"],
+        "id": "root", "component": "Column", "children": ["@child": ["title", "name", "agree"]],
         "accessibility": ["label": "Profile form"],
       ],
       [
@@ -279,18 +281,22 @@ struct AccessibilityModifierTests {
   @Test func labeledContainersAndMediaRender() async throws {
     let (_, surface) = try await makeSurface(
       components: [
-        ["id": "root", "component": "Column", "children": ["empty_row", "card", "list"]],
         [
-          "id": "empty_row", "component": "Row", "children": [],
+          "id": "root",
+          "component": "Column",
+          "children": ["@child": ["empty_row", "card", "list"]],
+        ],
+        [
+          "id": "empty_row", "component": "Row", "children": ["@child": [String]()],
           "accessibility": ["label": "Empty row"],
         ],
         [
-          "id": "card", "component": "Card", "child": "card_column",
+          "id": "card", "component": "Card", "child": ["@child": "card_column"],
           "accessibility": ["label": "Order summary"],
         ],
         [
           "id": "card_column", "component": "Column",
-          "children": ["photo", "star", "volume", "when"],
+          "children": ["@child": ["photo", "star", "volume", "when"]],
         ],
         [
           "id": "photo", "component": "Image", "url": "https://example.com/a.png",
@@ -309,7 +315,7 @@ struct AccessibilityModifierTests {
           "enableDate": true, "accessibility": ["label": "Delivery date"],
         ],
         [
-          "id": "list", "component": "List", "children": ["item"],
+          "id": "list", "component": "List", "children": ["@child": ["item"]],
           "accessibility": ["label": "Items"],
         ],
         ["id": "item", "component": "Text", "text": "One"],

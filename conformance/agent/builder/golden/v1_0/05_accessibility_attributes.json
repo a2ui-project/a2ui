@@ -17,10 +17,12 @@
             "label": "Submit Application",
             "description": "Transmits all form entries to the review server"
           },
-          "child": "accessible_button__btn_label",
+          "child": {
+            "@child": "accessible_button__btn_label"
+          },
           "variant": "default",
           "action": {
-            "event": {
+            "@action": {
               "name": "submit_application"
             }
           }

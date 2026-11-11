@@ -124,7 +124,7 @@ Interactive input components (such as `TextField`, `CheckBox`, or `Slider`) bind
 
 ### Referencing the data model in events
 
-Component events ([`action.event`](/specification/v1.0/schemas/#common_types.json/$defs/Action)) can include data model references inside their `context` object. When the user triggers the event (for example, by clicking a button to submit a form), the renderer resolves each path against the local data model and sends the current values in the outbound [`action`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/action) message:
+Component events (`@action` in [`Action`](/specification/v1.0/schemas/#common_types.json/$defs/Action); `event` in v0.9.1) can include data model references inside their `context` object. When the user triggers the event (for example, by clicking a button to submit a form), the renderer resolves each path against the local data model and sends the current values in the outbound [`action`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/action) message:
 
 <Tabs syncKey="protocol-version">
   <TabItem label="v1.0">
@@ -133,9 +133,9 @@ Component events ([`action.event`](/specification/v1.0/schemas/#common_types.jso
 {
   "id": "submitButton",
   "component": "Button",
-  "child": "submitLabel",
+  "child": {"@child": "submitLabel"},
   "action": {
-    "event": {
+    "@action": {
       "name": "submit_reservation",
       "context": {
         "email": {"@path": "/reservation/guestEmail"}
@@ -169,7 +169,7 @@ Component events ([`action.event`](/specification/v1.0/schemas/#common_types.jso
 
 ### Displaying dynamic lists of data
 
-Container components whose `children` property uses [`ChildList`](/specification/v1.0/schemas/#common_types.json/$defs/ChildList) (such as `Column`, `Row`, or `List`) can either take a static array of child component IDs (`["item1", "item2"]`) or generate children dynamically from a list in the data model using a template object with `path` and `componentId` (`ChildList` uses the property name `"path"` in both v1.0 and v0.9.1).
+Container components whose `children` property uses [`ChildList`](/specification/v1.0/schemas/#common_types.json/$defs/ChildList) (such as `Column`, `Row`, or `List`) can either take a static list of child component IDs (`{"@child": ["item1", "item2"]}` in v1.0; `["item1", "item2"]` in v0.9.1) or generate children dynamically from a list in the data model using a template object (`{"@child": "itemCard", "@path": "/items"}` in v1.0; `{"componentId": "itemCard", "path": "/items"}` in v0.9.1).
 
 When a container binds to a list path (such as `"/guests"`), the renderer repeats the template component once for each item in the array and creates a local data scope for that item:
 
@@ -201,8 +201,8 @@ The following example populates a `/guests` list in the data model and renders e
           "id": "root",
           "component": "Column",
           "children": {
-            "path": "/guests",
-            "componentId": "guestRow"
+            "@child": "guestRow",
+            "@path": "/guests"
           }
         },
         {
@@ -268,7 +268,7 @@ When a user edits an input component, two-way bindings update the surface data m
 
 ### Events
 
-Include data model references in `action.event.context` to send specific values (such as form fields) when the user triggers an [`action`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/action) event. When the user clicks the `submitButton` component shown earlier, the renderer resolves each bound path against the local data model and sends the resolved `action` message to the agent. This is best when you want to send data model state to an agent to reason over and process:
+Include data model references in `@action.context` (`action.event.context` in v0.9.1) to send specific values (such as form fields) when the user triggers an [`action`](/specification/v1.0/schemas/#renderer_to_agent.json/properties/action) event. When the user clicks the `submitButton` component shown earlier, the renderer resolves each bound path against the local data model and sends the resolved `action` message to the agent. This is best when you want to send data model state to an agent to reason over and process:
 
 <Tabs syncKey="protocol-version">
   <TabItem label="v1.0">
@@ -311,7 +311,7 @@ Include data model references in `action.event.context` to send specific values 
 
 ### Agent functions
 
-In v1.0, an interactive component such as a submit button can use `action.functionCall` to trigger an agent-side function (`callAgentFunction`) with arguments bound to paths in the data model. This is best when you want to send data model state directly to programmatic code on the agent side:
+In v1.0, an interactive component such as a submit button can use `@functionCall` (`functionCall` in v0.9.1) to trigger an agent-side function (`callAgentFunction`) with arguments bound to paths in the data model. This is best when you want to send data model state directly to programmatic code on the agent side:
 
 <Tabs syncKey="protocol-version">
   <TabItem label="v1.0">
@@ -320,9 +320,9 @@ In v1.0, an interactive component such as a submit button can use `action.functi
 {
   "id": "saveButton",
   "component": "Button",
-  "child": "saveLabel",
+  "child": {"@child": "saveLabel"},
   "action": {
-    "functionCall": {
+    "@functionCall": {
       "@call": "saveReservation",
       "args": {
         "email": {"@path": "/reservation/guestEmail"}

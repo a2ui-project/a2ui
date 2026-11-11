@@ -412,11 +412,11 @@ CommonSchemas.functionCall]`, and raw JSON Schemas may `$ref` the absolute
   the action context and runs as a user activation.
 - Child references must be top-level properties, or properties of the
   objects in a top-level array (like `Tabs`'s `tabs[].child`), declared with
-  `CommonSchemas.componentId` / `childList` (v0.9) or a `$ref` to
-  `common_types.json#/$defs/Child` / `ChildList` (v1.0). Otherwise the
-  builder receives id strings, except for a plain string `child` or a plain
-  string-array `children`, which are resolved by name. Wrap each child you decorate in
-  `KeyedSubtree(key: NodeKey(child.instanceId), ...)`.
+  `CommonSchemas.componentId` / `childList` (v0.9) or `CommonSchemasV1.child` /
+  `childList` (or a `$ref` to `common_types.json#/$defs/Child` / `ChildList`)
+  (v1.0). Otherwise the builder receives raw values, except for a plain string
+  `child` or a plain string-array `children`, which are resolved by name. Wrap
+  each child you decorate in `KeyedSubtree(key: NodeKey(child.instanceId), ...)`.
 - `isImplicitlyFlexible` and `exampleData` have no equivalent. Give widgets a
   bound with `LimitedBox`. genui never put `exampleData` into prompts, so
   moving examples into `CatalogImplementation(instructions:)` changes what the
@@ -688,26 +688,27 @@ import 'package:json_schema_builder/json_schema_builder.dart' hide ValidationRes
 
 #### Schemas: `A2uiSchemas` → `CommonSchemas` (v0.9) / `CommonSchemasV1` (v1.0)
 
-| `A2uiSchemas.`                   | v0.9 `CommonSchemas.`                                                             | v1.0                                                               |
-| -------------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| `stringReference()`              | `dynamicString`                                                                   | `CommonSchemasV1.dynamicString`                                    |
-| `stringReference(enumValues:)`   | `Schema.string(enumValues:)` for literal-only, or an `allOf` with `dynamicString` | same                                                               |
-| `numberReference()`              | `dynamicNumber`                                                                   | `CommonSchemasV1.dynamicNumber`                                    |
-| `booleanReference()`             | `dynamicBoolean`                                                                  | `CommonSchemasV1.dynamicBoolean`                                   |
-| `stringArrayReference()`         | `dynamicStringList`                                                               | `CommonSchemasV1.dynamicStringList`                                |
-| `propertyReference()`            | `dynamicValue`                                                                    | `CommonSchemasV1.dynamicValue`                                     |
-| `listOrReference(items: X)`      | `Schema.combined(anyOf: [Schema.list(items: X), dataBinding, functionCall])`      | same, from `CommonSchemasV1`                                       |
-| `dataBindingSchema()`            | `dataBinding` (`{path}`)                                                          | `CommonSchemasV1.dataBinding` (`{@path}`)                          |
-| `functionCall()`                 | `functionCall` (`{call, args, returnType}`)                                       | `CommonSchemasV1.functionCall` (`{@call, args, catalogId}`)        |
-| `componentReference()`           | `componentId`                                                                     | `Schema.fromMap({r'$ref': r'common_types.json#/$defs/Child'})`     |
-| `componentArrayReference()`      | `childList`                                                                       | `Schema.fromMap({r'$ref': r'common_types.json#/$defs/ChildList'})` |
-| `action()`                       | `action`                                                                          | `Schema.fromMap({r'$ref': r'common_types.json#/$defs/Action'})`    |
-| `checkable()` as `'checks': ...` | `Schema.list(items: CommonSchemas.checkRule)`                                     | `Schema.list(items: CommonSchemasV1.checkRule)`                    |
-| `validationCheck()`              | `checkRule`                                                                       | `CommonSchemasV1.checkRule`                                        |
-| (none)                           | `accessibilityAttributes`, `componentCommon`                                      | same on `CommonSchemasV1`                                          |
+| `A2uiSchemas.`                   | v0.9 `CommonSchemas.`                                                             | v1.0                                                          |
+| -------------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `stringReference()`              | `dynamicString`                                                                   | `CommonSchemasV1.dynamicString`                               |
+| `stringReference(enumValues:)`   | `Schema.string(enumValues:)` for literal-only, or an `allOf` with `dynamicString` | same                                                          |
+| `numberReference()`              | `dynamicNumber`                                                                   | `CommonSchemasV1.dynamicNumber`                               |
+| `booleanReference()`             | `dynamicBoolean`                                                                  | `CommonSchemasV1.dynamicBoolean`                              |
+| `stringArrayReference()`         | `dynamicStringList`                                                               | `CommonSchemasV1.dynamicStringList`                           |
+| `propertyReference()`            | `dynamicValue`                                                                    | `CommonSchemasV1.dynamicValue`                                |
+| `listOrReference(items: X)`      | `Schema.combined(anyOf: [Schema.list(items: X), dataBinding, functionCall])`      | same, from `CommonSchemasV1`                                  |
+| `dataBindingSchema()`            | `dataBinding` (`{path}`)                                                          | `CommonSchemasV1.dataBinding` (`{@path}`)                     |
+| `functionCall()`                 | `functionCall` (`{call, args, returnType}`)                                       | `CommonSchemasV1.functionCall` (`{@call, args, catalogId}`)   |
+| `componentReference()`           | `componentId`                                                                     | `CommonSchemasV1.child` (`{@child}`)                          |
+| `componentArrayReference()`      | `childList`                                                                       | `CommonSchemasV1.childList` (`{@child}` or `{@child, @path}`) |
+| `action()`                       | `action`                                                                          | `CommonSchemasV1.action` (`{@action}` or `{@functionCall}`)   |
+| `checkable()` as `'checks': ...` | `Schema.list(items: CommonSchemas.checkRule)`                                     | `Schema.list(items: CommonSchemasV1.checkRule)`               |
+| `validationCheck()`              | `checkRule`                                                                       | `CommonSchemasV1.checkRule`                                   |
+| (none)                           | `accessibilityAttributes`, `componentCommon`                                      | same on `CommonSchemasV1`                                     |
 
-`CommonSchemasV1` has no `action`, `componentId` or `childList` member; use
-the `$ref` forms. A child reference declared as plain `Schema.string()` is
+`CommonSchemasV1` has no `componentId` member; use `CommonSchemasV1.child`
+(or the `$ref` forms to `common_types.json#/$defs/Child`, `ChildList`, and
+`Action`). A child reference declared as plain `Schema.string()` is
 not resolved to a node and the builder receives the id string. Note that
 `A2uiSchemas.checkable()` returned `S.list(items: validationCheck())` for the
 `'checks'` property itself, whereas `CommonSchemas.checkable` is an enclosing
@@ -1380,8 +1381,8 @@ final rating = ComponentImplementation(
     properties: {
       'label': CommonSchemas.dynamicString,
       'value': CommonSchemas.dynamicNumber,
-      'checks': Schema.list(items: CommonSchemas.checkRule), // feeds props.isValid
-      'onChanged': CommonSchemas.action, // v1.0: Schema.fromMap({r'$ref': r'common_types.json#/$defs/Action'})
+      'checks': Schema.list(items: CommonSchemas.checkRule), // feeds props.isValid (v1.0: CommonSchemasV1.checkRule)
+      'onChanged': CommonSchemas.action, // v1.0: CommonSchemasV1.action
     },
     required: ['value'],
   ),
@@ -1480,8 +1481,8 @@ final panel = ComponentImplementation(
     properties: {
       // Child references: top-level properties of the common types, or such
       // properties of the objects in a top-level array (like Tabs's tabs[].child).
-      'header': CommonSchemas.componentId, // v1.0: Schema.fromMap({r'$ref': r'common_types.json#/$defs/Child'})
-      'children': CommonSchemas.childList, // v1.0: Schema.fromMap({r'$ref': r'common_types.json#/$defs/ChildList'})
+      'header': CommonSchemas.componentId, // v1.0: CommonSchemasV1.child
+      'children': CommonSchemas.childList, // v1.0: CommonSchemasV1.childList
     },
     required: ['children'],
   ),
@@ -1502,7 +1503,7 @@ final panel = ComponentImplementation(
 );
 ```
 
-Template children (`{"componentId": ..., "path": "/items"}`) arrive already
+Template children (v0.9: `{"componentId": ..., "path": "/items"}`; v1.0: `{"@child": ..., "@path": "/items"}`) arrive already
 expanded, one node per item with its own data scope. `buildChild(child)` is
 already keyed; the `KeyedSubtree` is needed only when the child is wrapped.
 A child's weight is `ComponentProps(child.props.peek()).number('weight')`.
@@ -1639,7 +1640,7 @@ class SelectTabFunction extends FunctionImplementation {
   }
 }
 // Agent invokes it as a Button action: {"functionCall": {"call": "selectTab", "args": {"tab": "x"}}} on v0.9,
-// {"functionCall": {"@call": "selectTab", "args": {"tab": "x"}}} on v1.0.
+// {"@functionCall": {"@call": "selectTab", "args": {"tab": "x"}}} on v1.0.
 ```
 
 Most side effects need no function at all: the app handles the action in

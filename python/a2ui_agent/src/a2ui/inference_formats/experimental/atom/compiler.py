@@ -54,6 +54,7 @@ from a2ui.inference_formats._shared import (
     catalogs_defining,
     check_mixed_catalogs,
     normalize_prompt_example_messages,
+    schema_expects_at_child,
     surface_catalog_id,
     to_message_models,
 )
@@ -212,11 +213,13 @@ def child_props(
     ]
     child_list = next(
         (k for k in prop_keys if helper.get_property_type(comp_type, k) == "ChildList"),
-        "children" if "children" in prop_keys else None,
+        "children"
+        if ("children" in prop_keys and not helper.common_types_loaded)
+        else None,
     )
     single = next(
         (k for k in prop_keys if helper.get_property_type(comp_type, k) == "Child"),
-        "child" if "child" in prop_keys else None,
+        "child" if ("child" in prop_keys and not helper.common_types_loaded) else None,
     )
     return prop_keys, child_list, single
 
@@ -1084,7 +1087,8 @@ class AtomCompiler:
             if is_symbol(head):
                 name = str(head)
                 if name.lower() == "event":
-                    return {"event": self._compile_event(val)}
+                    event_key = "@action" if self._at_least_v10 else "event"
+                    return {event_key: self._compile_event(val)}
                 if name == "@path" and len(val) >= 2:
                     return self._binding(str(val[1]))
                 found = self._resolve_function(val)
@@ -1096,7 +1100,12 @@ class AtomCompiler:
                     }
                     if emit_cat is not None:
                         call["catalogId"] = emit_cat
-                    return {"functionCall": call} if is_action else call
+                    if is_action:
+                        fc_key = (
+                            "@functionCall" if self._at_least_v10 else "functionCall"
+                        )
+                        return {fc_key: call}
+                    return call
             return [self._resolve_val(item) for item in val]
         if isinstance(val, str) and not is_keyword(val):
             path = self._path_of(val)
@@ -1351,6 +1360,24 @@ class AtomCompiler:
             comp[envelope_key("catalogId", self._at_least_v10)] = emit_cat
         custom_envelope = comp_helper.get_custom_envelope_properties(comp_type)
 
+        def wrap_child_slot(slot_key: str, value: Any) -> Any:
+            if not self._at_least_v10 or value is None:
+                return value
+            slot_schema = comp_helper.get_property_schema(comp_type, slot_key)
+            expects_at_child = schema_expects_at_child(slot_schema) or (
+                slot_schema is None
+                and not comp_helper.common_types_loaded
+                and slot_key in ("child", "children")
+            )
+            if not expects_at_child:
+                return value
+            kind = comp_helper.get_property_type(comp_type, slot_key)
+            if kind == "Child" and isinstance(value, str):
+                return {"@child": value}
+            if kind == "ChildList" and isinstance(value, list):
+                return {"@child": value}
+            return value
+
         def wire_key(key: str) -> str:
             # Envelope mixin properties (`checks`, `metadata`, ...) take the
             # `@`-prefixed wire key from v1.0 unless the component declares a
@@ -1412,19 +1439,37 @@ class AtomCompiler:
                 elif key in _COMPONENT_TEMPLATE_PATH_KEYS and key not in prop_keys:
                     items_path_var = self._resolve_val(val)
                 elif (
-                    key in (child_list_prop, "children")
+                    key == child_list_prop
                     or comp_helper.get_property_type(comp_type, key) == "ChildList"
+                    or (not comp_helper.common_types_loaded and key == "children")
                 ) and isinstance(val, list):
                     items = [val] if self._is_component_form(val) else val
-                    if key == (child_list_prop or "children"):
-                        add_child_items(items, wrap_strings=False)
-                    else:
-                        before = len(children)
-                        add_child_items(items, wrap_strings=False)
-                        comp[key] = children[before:]
-                        del children[before:]
+                    before = len(children)
+                    add_child_items(items, wrap_strings=False)
+                    child_ids = children[before:]
+                    del children[before:]
+                    slot_schema = comp_helper.get_property_schema(comp_type, key)
+                    expects_at = schema_expects_at_child(slot_schema) or (
+                        slot_schema is None
+                        and not comp_helper.common_types_loaded
+                        and key == "children"
+                    )
+                    comp[key] = (
+                        {"@child": child_ids}
+                        if self._at_least_v10 and expects_at
+                        else child_ids
+                    )
                 elif self._is_component_form(val):
-                    comp[key] = self._compile_component(val, block)
+                    cid = self._compile_component(val, block)
+                    slot_schema = comp_helper.get_property_schema(comp_type, key)
+                    expects_at = schema_expects_at_child(slot_schema) or (
+                        slot_schema is None
+                        and not comp_helper.common_types_loaded
+                        and key in ("child", "children")
+                    )
+                    comp[key] = (
+                        {"@child": cid} if self._at_least_v10 and expects_at else cid
+                    )
                 elif isinstance(val, list) and (
                     item_schema := self._object_list_item_schema(
                         comp_helper, comp_type, key
@@ -1445,9 +1490,10 @@ class AtomCompiler:
                     )
                 else:
                     resolved = self._resolve_val(val, is_action=is_action_prop(key))
-                    comp[wire_key(key)] = self._coerce_object_list(
+                    resolved = self._coerce_object_list(
                         comp_helper, comp_type, key, resolved
                     )
+                    comp[wire_key(key)] = wrap_child_slot(key, resolved)
                 continue
 
             if isinstance(item, list) and item:
@@ -1478,7 +1524,8 @@ class AtomCompiler:
                     action_key = next(
                         (k for k in prop_keys if is_action_prop(k)), "action"
                     )
-                    comp[action_key] = {"event": self._compile_event(item)}
+                    event_key = "@action" if self._at_least_v10 else "event"
+                    comp[action_key] = {event_key: self._compile_event(item)}
                 elif head == "template":
                     template = self._compile_template(item, block)
                 elif self._is_component_form(item):
@@ -1489,8 +1536,9 @@ class AtomCompiler:
                     and self._is_value_form(item)
                 ):
                     pkey = prop_keys[pos_arg_index]
-                    comp[wire_key(pkey)] = self._resolve_val(
-                        item, is_action=is_action_prop(pkey)
+                    comp[wire_key(pkey)] = wrap_child_slot(
+                        pkey,
+                        self._resolve_val(item, is_action=is_action_prop(pkey)),
                     )
                     pos_arg_index += 1
                 elif isinstance(item, Form) and is_symbol(item[0]):
@@ -1509,8 +1557,9 @@ class AtomCompiler:
                         children.append(wrapped)
             elif pos_arg_index < len(prop_keys):
                 pkey = prop_keys[pos_arg_index]
-                comp[wire_key(pkey)] = self._resolve_val(
-                    item, is_action=is_action_prop(pkey)
+                comp[wire_key(pkey)] = wrap_child_slot(
+                    pkey,
+                    self._resolve_val(item, is_action=is_action_prop(pkey)),
                 )
                 pos_arg_index += 1
             i += 1
@@ -1527,15 +1576,34 @@ class AtomCompiler:
                     None,
                 )
             target = template_target or child_list_prop or "children"
-            comp[target] = {
-                "componentId": template["componentId"],
-                "path": self._normalize_path_str(raw_path),
-            }
+            if self._at_least_v10:
+                comp[target] = {
+                    "@child": template["componentId"],
+                    "@path": self._normalize_path_str(raw_path),
+                }
+            else:
+                comp[target] = {
+                    "componentId": template["componentId"],
+                    "path": self._normalize_path_str(raw_path),
+                }
         elif children:
             target = positional_child_target(
                 len(children), prop_keys, child_list_prop, single_child_prop
             )
-            comp[target] = children[0] if target == single_child_prop else children
+            target_schema = comp_helper.get_property_schema(comp_type, target)
+            expects_at_child = schema_expects_at_child(target_schema) or (
+                target_schema is None
+                and not comp_helper.common_types_loaded
+                and target in ("child", "children")
+            )
+            if self._at_least_v10 and expects_at_child:
+                comp[target] = (
+                    {"@child": children[0]}
+                    if target == single_child_prop
+                    else {"@child": children}
+                )
+            else:
+                comp[target] = children[0] if target == single_child_prop else children
 
         self._finalize_component(comp, comp_type, comp_helper)
         block.components.insert(0, comp)
@@ -1550,10 +1618,30 @@ class AtomCompiler:
                 continue
             schema = helper.get_property_schema(comp_type, key) or {}
             kind = ref_kind(schema)
-            if (kind == "Child" or key == "child") and isinstance(value, list):
+            if (
+                kind == "Child" or (not helper.common_types_loaded and key == "child")
+            ) and isinstance(value, list):
                 if len(value) == 1:
-                    comp[key] = value[0]
+                    expects_at = schema_expects_at_child(schema) or (
+                        not helper.common_types_loaded and key == "child"
+                    )
+                    comp[key] = (
+                        {"@child": value[0]}
+                        if self._at_least_v10 and expects_at
+                        else value[0]
+                    )
                 elif not value:
+                    del comp[key]
+                continue
+            if (
+                kind == "Child"
+                and isinstance(value, dict)
+                and set(value) == {"@child"}
+                and isinstance(value["@child"], list)
+            ):
+                if len(value["@child"]) == 1:
+                    comp[key] = {"@child": value["@child"][0]}
+                elif not value["@child"]:
                     del comp[key]
                 continue
             if schema.get("type") in ("number", "integer") and isinstance(value, str):
@@ -1601,6 +1689,9 @@ class AtomCompiler:
         """
         props: dict[str, Any] = item_schema["properties"]
         child_keys = [k for k, s in props.items() if ref_kind(s) == "Child"]
+        wrapped_child_keys = {
+            k for k in child_keys if schema_expects_at_child(props[k])
+        }
         other_keys = [k for k in props if k not in child_keys]
         result: list[dict[str, Any]] = []
         for entry in val:
@@ -1614,11 +1705,23 @@ class AtomCompiler:
                     key if key in child_keys else (child_keys[0] if child_keys else key)
                 )
                 if target:
-                    obj[target] = self._compile_component(child_expr, block)
+                    cid = self._compile_component(child_expr, block)
+                    obj[target] = (
+                        {"@child": cid}
+                        if self._at_least_v10 and target in wrapped_child_keys
+                        else cid
+                    )
 
             def put_value(value: Any, key: str | None = None) -> None:
                 if key in props:
-                    obj[key] = self._resolve_val(value)
+                    resolved_v = self._resolve_val(value)
+                    if (
+                        self._at_least_v10
+                        and key in wrapped_child_keys
+                        and isinstance(resolved_v, str)
+                    ):
+                        resolved_v = {"@child": resolved_v}
+                    obj[key] = resolved_v
                     return
                 target = next((k for k in other_keys if k not in obj), key)
                 if target:

@@ -18,18 +18,24 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main_column"
+            "child": {
+              "@child": "main_column"
+            }
           },
           {
             "id": "main_column",
             "component": "Column",
-            "children": ["temp_row", "location", "description", "forecast_row"],
+            "children": {
+              "@child": ["temp_row", "location", "description", "forecast_row"]
+            },
             "align": "center"
           },
           {
             "id": "temp_row",
             "component": "Row",
-            "children": ["temp_high", "temp_low"],
+            "children": {
+              "@child": ["temp_high", "temp_low"]
+            },
             "align": "start"
           },
           {
@@ -74,15 +80,17 @@
             "id": "forecast_row",
             "component": "Row",
             "children": {
-              "path": "/forecast",
-              "componentId": "forecast_day_template"
+              "@child": "forecast_day_template",
+              "@path": "/forecast"
             },
             "justify": "spaceAround"
           },
           {
             "id": "forecast_day_template",
             "component": "Column",
-            "children": ["day_name", "day_icon", "day_temp"],
+            "children": {
+              "@child": ["day_name", "day_icon", "day_temp"]
+            },
             "align": "center"
           },
           {

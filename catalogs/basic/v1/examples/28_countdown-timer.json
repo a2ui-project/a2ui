@@ -18,12 +18,16 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main_column"
+            "child": {
+              "@child": "main_column"
+            }
           },
           {
             "id": "main_column",
             "component": "Column",
-            "children": ["event_name", "countdown_row", "target_date"],
+            "children": {
+              "@child": ["event_name", "countdown_row", "target_date"]
+            },
             "align": "center"
           },
           {
@@ -36,13 +40,17 @@
           {
             "id": "countdown_row",
             "component": "Row",
-            "children": ["days_col", "hours_col", "minutes_col"],
+            "children": {
+              "@child": ["days_col", "hours_col", "minutes_col"]
+            },
             "justify": "spaceAround"
           },
           {
             "id": "days_col",
             "component": "Column",
-            "children": ["days_value", "days_label"],
+            "children": {
+              "@child": ["days_value", "days_label"]
+            },
             "align": "center"
           },
           {
@@ -61,7 +69,9 @@
           {
             "id": "hours_col",
             "component": "Column",
-            "children": ["hours_value", "hours_label"],
+            "children": {
+              "@child": ["hours_value", "hours_label"]
+            },
             "align": "center"
           },
           {
@@ -80,7 +90,9 @@
           {
             "id": "minutes_col",
             "component": "Column",
-            "children": ["minutes_value", "minutes_label"],
+            "children": {
+              "@child": ["minutes_value", "minutes_label"]
+            },
             "align": "center"
           },
           {

@@ -14,23 +14,23 @@ Cross-language conformance suite verifying that A2UI macro expansion, parameter 
 
 Each entry under `macros[].parameters` declares a `type` key (plus optional `enum`, `default`, and `required: false`). Implementations map these types to synthesized JSON Schema properties and runtime argument coercions as follows:
 
-| YAML `type`           | Synthesized JSON Schema                                                | Runtime coercion                                                                                                |
-| :-------------------- | :--------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------- |
-| `string`              | `{type: "string"}` (plus `enum` when declared)                         | Primitive string (dict bindings rejected).                                                                      |
-| `integer`             | `{type: "integer"}`                                                    | Primitive integer (booleans and dict bindings rejected).                                                        |
-| `number`              | `{type: "number"}`                                                     | Primitive number (booleans and dict bindings rejected).                                                         |
-| `boolean`             | `{type: "boolean"}`                                                    | Primitive boolean (interpolated lowercase as `"true"` / `"false"` in `${...}`).                                 |
-| `component`           | `common_types.json#/$defs/Child` (v1.0) or `ComponentId` (v0.9)        | Component ID string coerced to a `ComponentRef`.                                                                |
-| `component_list`      | `common_types.json#/$defs/ChildList`                                   | Static array of component ID strings coerced to `ComponentRef` items (rejects template maps).                   |
-| `child_list`          | `common_types.json#/$defs/ChildList`                                   | Static ID array or `DynamicChildList` template map (`{path, componentId}` in v1.0, `{path, template}` in v0.9). |
-| `action`              | `common_types.json#/$defs/Action`                                      | Event name string, shorthand event/call map, or full `Action` map coerced to `Action`.                          |
-| `dynamic_string`      | `common_types.json#/$defs/DynamicString`                               | Literal string, `@path` / `path` `DataBinding`, or `@call` / `call` `FunctionCall`.                             |
-| `dynamic_number`      | `common_types.json#/$defs/DynamicNumber`                               | Literal number, `DataBinding`, or `FunctionCall`.                                                               |
-| `dynamic_boolean`     | `common_types.json#/$defs/DynamicBoolean`                              | Literal boolean, `DataBinding`, or `FunctionCall`.                                                              |
-| `dynamic_string_list` | `common_types.json#/$defs/DynamicStringList`                           | String array, `DataBinding`, or `FunctionCall`.                                                                 |
-| `dynamic_value`       | `common_types.json#/$defs/DynamicValue`                                | `DataBinding` or `FunctionCall`, preserving plain `path` and `call` maps in v1.0 as `LiteralObject` values.     |
-| `check_rule_list`     | `{type: "array", items: {$ref: "common_types.json#/$defs/CheckRule"}}` | Array of `CheckRule` objects.                                                                                   |
-| `accessibility`       | `common_types.json#/$defs/AccessibilityAttributes`                     | `AccessibilityAttributes` object passed to the macro instead of merging onto the root.                          |
+| YAML `type`           | Synthesized JSON Schema                                                | Runtime coercion                                                                                                                               |
+| :-------------------- | :--------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------- |
+| `string`              | `{type: "string"}` (plus `enum` when declared)                         | Primitive string (dict bindings rejected).                                                                                                     |
+| `integer`             | `{type: "integer"}`                                                    | Primitive integer (booleans and dict bindings rejected).                                                                                       |
+| `number`              | `{type: "number"}`                                                     | Primitive number (booleans and dict bindings rejected).                                                                                        |
+| `boolean`             | `{type: "boolean"}`                                                    | Primitive boolean (interpolated lowercase as `"true"` / `"false"` in `${...}`).                                                                |
+| `component`           | `common_types.json#/$defs/Child` (v1.0) or `ComponentId` (v0.9)        | Component ID string coerced to a `ComponentRef`.                                                                                               |
+| `component_list`      | `common_types.json#/$defs/ChildList`                                   | Static array of component ID strings coerced to `ComponentRef` items (rejects template maps).                                                  |
+| `child_list`          | `common_types.json#/$defs/ChildList`                                   | Static ID array or `DynamicChildList` template map (`{"@child", "@path"}` or `{path, componentId}` input in v1.0; `{path, template}` in v0.9). |
+| `action`              | `common_types.json#/$defs/Action`                                      | Event name string, shorthand event/call map, or full `Action` map coerced to `Action`.                                                         |
+| `dynamic_string`      | `common_types.json#/$defs/DynamicString`                               | Literal string, `@path` / `path` `DataBinding`, or `@call` / `call` `FunctionCall`.                                                            |
+| `dynamic_number`      | `common_types.json#/$defs/DynamicNumber`                               | Literal number, `DataBinding`, or `FunctionCall`.                                                                                              |
+| `dynamic_boolean`     | `common_types.json#/$defs/DynamicBoolean`                              | Literal boolean, `DataBinding`, or `FunctionCall`.                                                                                             |
+| `dynamic_string_list` | `common_types.json#/$defs/DynamicStringList`                           | String array, `DataBinding`, or `FunctionCall`.                                                                                                |
+| `dynamic_value`       | `common_types.json#/$defs/DynamicValue`                                | `DataBinding` or `FunctionCall`, preserving plain `path` and `call` maps in v1.0 as `LiteralObject` values.                                    |
+| `check_rule_list`     | `{type: "array", items: {$ref: "common_types.json#/$defs/CheckRule"}}` | Array of `CheckRule` objects.                                                                                                                  |
+| `accessibility`       | `common_types.json#/$defs/AccessibilityAttributes`                     | `AccessibilityAttributes` object passed to the macro instead of merging onto the root.                                                         |
 
 ### Macro template AST sentinels
 

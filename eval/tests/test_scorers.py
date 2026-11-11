@@ -544,26 +544,41 @@ def test_stage2_recognises_alternative_shapes() -> None:
         "version": "1.0",
         "updateComponents": {
             "surfaceId": "main",
-            "components": [{
-                "id": "root",
-                "component": "Button",
-                "catalogId": "custom",
-                "action": {"@call": "openUrl"},
-                "label": '{"path": "/cta"}',
-                "child": {
-                    "component": "Text",
-                    "action": {"functionCall": {"call": "noop"}},
+            "components": [
+                {
+                    "id": "root",
+                    "component": "Button",
+                    "catalogId": "custom",
+                    "action": {"@call": "openUrl"},
+                    "label": '{"path": "/cta"}',
+                    "child": {
+                        "component": "Text",
+                        "action": {"functionCall": {"call": "noop"}},
+                    },
                 },
-            }],
+                {
+                    "id": "v1_btn",
+                    "component": "Button",
+                    "@catalogId": "v1_cat",
+                    "child": {"@child": "v1_txt"},
+                    "action": {"@action": {"name": "v1_submit"}},
+                },
+                {
+                    "id": "v1_btn_fc",
+                    "component": "Button",
+                    "child": {"@child": "v1_txt"},
+                    "action": {"@functionCall": {"@call": "v1_open"}},
+                },
+            ],
         },
     }]
     failures = evaluate_stage2_assertions(
         messages,
         {
             "required_components": ["Button", "Text"],
-            "required_actions": ["openUrl", "noop"],
+            "required_actions": ["openUrl", "noop", "v1_submit", "v1_open"],
             "required_bindings": ["/cta"],
-            "catalog_ids": ["custom"],
+            "catalog_ids": ["custom", "v1_cat"],
         },
     )
     assert failures == []

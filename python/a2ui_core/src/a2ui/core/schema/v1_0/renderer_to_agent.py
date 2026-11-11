@@ -34,7 +34,7 @@ class A2uiRendererAction(StrictBaseModel):
     name: str = Field(
         ...,
         description=(
-            "The name of the action, taken from the component's action.event.name"
+            "The name of the action, taken from the component's action.@action.name"
             " property."
         ),
     )
@@ -43,8 +43,8 @@ class A2uiRendererAction(StrictBaseModel):
         alias="userMessage",
         description=(
             "An optional human-readable string describing the action performed by the"
-            " user, taken from the component's action.event.userMessage property after"
-            " resolving bindings."
+            " user, taken from the component's action.@action.userMessage property"
+            " after resolving bindings."
         ),
     )
     surface_id: str = Field(
@@ -67,7 +67,7 @@ class A2uiRendererAction(StrictBaseModel):
         ...,
         description=(
             "A JSON object containing the key-value pairs from the component's"
-            " action.event.context, after resolving all data bindings."
+            " action.@action.context, after resolving all data bindings."
         ),
     )
     metadata: ActionMetadata | None = Field(

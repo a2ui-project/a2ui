@@ -13,10 +13,12 @@
         {
           "component": "Button",
           "id": "action_col__btn_checkout",
-          "child": "action_col__txt_checkout",
+          "child": {
+            "@child": "action_col__txt_checkout"
+          },
           "variant": "primary",
           "action": {
-            "event": {
+            "@action": {
               "name": "order_checkout",
               "context": {
                 "cartId": "cart_99",
@@ -37,10 +39,12 @@
         {
           "component": "Button",
           "id": "action_col__btn_help",
-          "child": "action_col__txt_help",
+          "child": {
+            "@child": "action_col__txt_help"
+          },
           "variant": "default",
           "action": {
-            "functionCall": {
+            "@functionCall": {
               "@call": "openUrl",
               "args": {
                 "url": "https://a2ui.org/docs"
@@ -51,7 +55,9 @@
         {
           "component": "Column",
           "id": "action_col",
-          "children": ["action_col__btn_checkout", "action_col__btn_help"],
+          "children": {
+            "@child": ["action_col__btn_checkout", "action_col__btn_help"]
+          },
           "justify": "start",
           "align": "stretch"
         }

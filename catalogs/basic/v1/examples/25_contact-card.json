@@ -18,12 +18,16 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main_column"
+            "child": {
+              "@child": "main_column"
+            }
           },
           {
             "id": "main_column",
             "component": "Column",
-            "children": ["avatar_image", "name", "title", "divider", "contact_info", "actions"],
+            "children": {
+              "@child": ["avatar_image", "name", "title", "divider", "contact_info", "actions"]
+            },
             "align": "center"
           },
           {
@@ -57,12 +61,16 @@
           {
             "id": "contact_info",
             "component": "Column",
-            "children": ["phone_row", "email_row", "location_row"]
+            "children": {
+              "@child": ["phone_row", "email_row", "location_row"]
+            }
           },
           {
             "id": "phone_row",
             "component": "Row",
-            "children": ["phone_icon", "phone_text"],
+            "children": {
+              "@child": ["phone_icon", "phone_text"]
+            },
             "align": "center"
           },
           {
@@ -81,7 +89,9 @@
           {
             "id": "email_row",
             "component": "Row",
-            "children": ["email_icon", "email_text"],
+            "children": {
+              "@child": ["email_icon", "email_text"]
+            },
             "align": "center"
           },
           {
@@ -100,7 +110,9 @@
           {
             "id": "location_row",
             "component": "Row",
-            "children": ["location_icon", "location_text"],
+            "children": {
+              "@child": ["location_icon", "location_text"]
+            },
             "align": "center"
           },
           {
@@ -119,7 +131,9 @@
           {
             "id": "actions",
             "component": "Row",
-            "children": ["call_btn", "message_btn"]
+            "children": {
+              "@child": ["call_btn", "message_btn"]
+            }
           },
           {
             "id": "call_btn_text",
@@ -129,9 +143,11 @@
           {
             "id": "call_btn",
             "component": "Button",
-            "child": "call_btn_text",
+            "child": {
+              "@child": "call_btn_text"
+            },
             "action": {
-              "event": {
+              "@action": {
                 "name": "call",
                 "context": {}
               }
@@ -145,9 +161,11 @@
           {
             "id": "message_btn",
             "component": "Button",
-            "child": "message_btn_text",
+            "child": {
+              "@child": "message_btn_text"
+            },
             "action": {
-              "event": {
+              "@action": {
                 "name": "message",
                 "context": {}
               }

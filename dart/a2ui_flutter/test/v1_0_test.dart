@@ -86,7 +86,7 @@ void main() {
         {
           'id': 'root',
           'component': 'List',
-          'children': {'componentId': 'item', 'path': '/items'},
+          'children': {'@child': 'item', '@path': '/items'},
         },
         {
           'id': 'item',
@@ -113,9 +113,9 @@ void main() {
         {
           'id': 'root',
           'component': 'Button',
-          'child': 'label',
+          'child': {'@child': 'label'},
           'action': {
-            'functionCall': {
+            '@functionCall': {
               '@call': 'openUrl',
               'args': {'url': 'https://example.com/docs'},
             },
@@ -155,7 +155,9 @@ void main() {
       {
         'id': 'root',
         'component': 'Column',
-        'children': ['name', 'send'],
+        'children': {
+          '@child': ['name', 'send'],
+        },
       },
       {
         'id': 'name',
@@ -169,9 +171,9 @@ void main() {
       {
         'id': 'send',
         'component': 'Button',
-        'child': 'sendLabel',
+        'child': {'@child': 'sendLabel'},
         'action': {
-          'event': {'name': 'send'},
+          '@action': {'name': 'send'},
         },
         'checks': [
           {'condition': condition, 'message': 'Name is required.'},
@@ -243,7 +245,9 @@ void main() {
           {
             'id': 'root',
             'component': 'Column',
-            'children': ['check', 'slider', 'picker', 'date'],
+            'children': {
+              '@child': ['check', 'slider', 'picker', 'date'],
+            },
           },
           {
             'id': 'check',
@@ -322,7 +326,9 @@ void main() {
         {
           'id': 'root',
           'component': 'Column',
-          'children': ['polite', 'assertive', 'off'],
+          'children': {
+            '@child': ['polite', 'assertive', 'off'],
+          },
         },
         {
           'id': 'assertive',
@@ -605,6 +611,33 @@ void main() {
         expect(find.byType(Image), findsNothing);
         expect(find.byIcon(Icons.videocam_off), findsOneWidget);
       });
+    });
+
+    // TODO(#4168): Remove once PR 1 dual-read support is retired.
+    testWidgets('still renders legacy bare child, children, and action forms', (
+      tester,
+    ) async {
+      final SurfaceHarness harness = await _pump(tester, [
+        {
+          'id': 'root',
+          'component': 'Column',
+          'children': ['btn'],
+        },
+        {
+          'id': 'btn',
+          'component': 'Button',
+          'child': 'label',
+          'action': {
+            'event': {'name': 'legacyTap'},
+          },
+        },
+        {'id': 'label', 'component': 'Text', 'text': 'Tap'},
+      ]);
+
+      await tester.tap(find.text('Tap'));
+      await tester.pump();
+
+      expect(harness.actions.single.name, 'legacyTap');
     });
   });
 }

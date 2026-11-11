@@ -788,7 +788,8 @@ Future<void> _runUiActionFallbackScenario(
     ComponentModel('root', 'Button', {}),
   ).dataContext;
   final actionPayload = scenario['actionPayload']! as Map<String, Object?>;
-  final functionCall = actionPayload['functionCall']! as Map<String, Object?>;
+  final functionCall = (actionPayload['@functionCall'] ??
+      actionPayload['functionCall'])! as Map<String, Object?>;
   final Future<Object?> resultFuture =
       context.evaluateFunctionCall(functionCall);
 

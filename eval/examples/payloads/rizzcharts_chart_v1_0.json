@@ -14,7 +14,9 @@
         {
           "id": "root",
           "component": "Column",
-          "children": ["chart_title", "sales_chart"]
+          "children": {
+            "@child": ["chart_title", "sales_chart"]
+          }
         },
         {
           "id": "chart_title",

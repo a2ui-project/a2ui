@@ -75,6 +75,13 @@ final Schema _probeSchema = Schema.combined(
   ],
 );
 
+final Schema _probeSchemaV1 = Schema.combined(
+  allOf: [
+    CommonSchemas.checkable,
+    Schema.object(properties: {'action': CommonSchemasV1.action}),
+  ],
+);
+
 /// Builds the catalogs of a case. `localFunctions` take this SDK's basic
 /// catalog implementations for the case's protocol version.
 List<_RendererCatalog> _catalogs(
@@ -181,6 +188,7 @@ Future<void> _runCase(ConformanceTestCase testCase) async {
           ).dataContext.resolveSignal(call);
           evaluations.add(() => value.value);
         case 'check' || 'action' || 'event':
+          final bool isV1 = version.isAtLeast(A2uiProtocolVersion.v1_0);
           final component = ComponentModel(
             id,
             'Probe',
@@ -190,9 +198,9 @@ Future<void> _runCase(ConformanceTestCase testCase) async {
                   {'condition': call, 'message': 'Check failed'},
                 ]
               else if (kind == 'event')
-                'action': {'event': call}
+                'action': {isV1 ? '@action' : 'event': call}
               else
-                'action': {'functionCall': call},
+                'action': {isV1 ? '@functionCall' : 'functionCall': call},
             },
             catalog: surface.defaultCatalog == null
                 ? processor.catalogs.first.id
@@ -201,7 +209,7 @@ Future<void> _runCase(ConformanceTestCase testCase) async {
           surface.componentsModel.addComponent(component);
           final binder = GenericBinder(
             ComponentContext(surface, component),
-            _probeSchema,
+            isV1 ? _probeSchemaV1 : _probeSchema,
           );
           addTearDown(binder.dispose);
           if (kind == 'check') {

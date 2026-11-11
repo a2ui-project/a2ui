@@ -605,8 +605,35 @@ class _Component {
 
   String _value(Object? value, Map<String, Object?>? schema) {
     if (isAction(schema) && value != null) return _action(value);
-    if (isComponentId(schema) && value is String) return _reference(value);
+    if (isComponentId(schema)) {
+      if (_v1 && isChild(schema)) {
+        if (value case {'@child': final String id} when value.length == 1) {
+          return _reference(id);
+        }
+        // TODO(#4168): Remove legacy v1.0 bare Child fallback.
+        if (value is String) return _reference(value);
+      } else if (value is String) {
+        return _reference(value);
+      }
+    }
     if (isChildList(schema)) {
+      if (_v1) {
+        if (value case {
+          '@child': final List<Object?> items,
+        } when value.length == 1 && items.every((Object? v) => v is String)) {
+          final Iterable<String> ids = items.cast<String>().map(_reference);
+          return '[${ids.join(', ')}]';
+        }
+        if (value case {
+          '@child': final String componentId,
+          '@path': final String path,
+        } when value.length == 2 && variables.containsKey(componentId)) {
+          if (_path(path) case final String written) {
+            return '_template($written, ${variables[componentId]!})';
+          }
+        }
+      }
+      // TODO(#4168): Remove legacy v1.0 bare ChildList fallback.
       if (value is List && value.every((Object? v) => v is String)) {
         final Iterable<String> ids = value.cast<String>().map(_reference);
         return '[${ids.join(', ')}]';
@@ -641,34 +668,50 @@ class _Component {
   /// `Event(name, context?, userMessage=?)` for an event, the call itself
   /// for a local function, and the map literal otherwise.
   String _action(Object value) {
-    switch (value) {
-      case {'event': final Map<Object?, Object?> event} when value.length == 1:
-        final Object? name = event['name'];
-        final Object? context = event['context'];
-        final Object? userMessage = event['userMessage'];
-        const keys = {'name', 'context', 'userMessage'};
-        final bool isEvent =
-            name is String &&
-            event.keys.every(keys.contains) &&
-            (context == null || (context is Map && context.isNotEmpty)) &&
-            // Before v1.0 an event has no userMessage, and the compiler
-            // rejects `userMessage=`, so the object stays a map literal.
-            (userMessage == null ||
-                (_v1 &&
-                    (userMessage is String ||
-                        _binding(_asMap(userMessage)) != null ||
-                        _call(_asMap(userMessage)) != null)));
-        if (isEvent) {
-          final arguments = <String>[
-            _string(name),
-            if (context != null) _value(context, null),
-            if (userMessage != null) 'userMessage=${_value(userMessage, null)}',
-          ];
-          return 'Event(${arguments.join(', ')})';
-        }
-      case {'functionCall': final Map<Object?, Object?> call}
-          when value.length == 1:
-        if (_call(call) case final String written) return written;
+    final Map<Object?, Object?>? event = switch (value) {
+      {'@action': final Map<Object?, Object?> e}
+          when _v1 && value.length == 1 =>
+        e,
+      // TODO(#4168): Remove legacy v1.0 bare Action fallback.
+      {'event': final Map<Object?, Object?> e} when value.length == 1 => e,
+      _ => null,
+    };
+    if (event != null) {
+      final Object? name = event['name'];
+      final Object? context = event['context'];
+      final Object? userMessage = event['userMessage'];
+      const keys = {'name', 'context', 'userMessage'};
+      final bool isEvent =
+          name is String &&
+          event.keys.every(keys.contains) &&
+          (context == null || (context is Map && context.isNotEmpty)) &&
+          // Before v1.0 an event has no userMessage, and the compiler
+          // rejects `userMessage=`, so the object stays a map literal.
+          (userMessage == null ||
+              (_v1 &&
+                  (userMessage is String ||
+                      _binding(_asMap(userMessage)) != null ||
+                      _call(_asMap(userMessage)) != null)));
+      if (isEvent) {
+        final arguments = <String>[
+          _string(name),
+          if (context != null) _value(context, null),
+          if (userMessage != null) 'userMessage=${_value(userMessage, null)}',
+        ];
+        return 'Event(${arguments.join(', ')})';
+      }
+    }
+    final Map<Object?, Object?>? call = switch (value) {
+      {'@functionCall': final Map<Object?, Object?> c}
+          when _v1 && value.length == 1 =>
+        c,
+      // TODO(#4168): Remove legacy v1.0 bare Action fallback.
+      {'functionCall': final Map<Object?, Object?> c} when value.length == 1 =>
+        c,
+      _ => null,
+    };
+    if (call != null) {
+      if (_call(call) case final String written) return written;
     }
     return _value(value, null);
   }

@@ -103,7 +103,7 @@ A sequence of self-contained JSON objects is streaming-friendly, easy for LLMs t
           {
             "id": "root",
             "component": "Column",
-            "children": ["header", "guests-field", "submit-btn"]
+            "children": {"@child": ["header", "guests-field", "submit-btn"]}
           },
           {
             "id": "header",
@@ -119,10 +119,10 @@ A sequence of self-contained JSON objects is streaming-friendly, easy for LLMs t
           {
             "id": "submit-btn",
             "component": "Button",
-            "child": "submit-text",
+            "child": {"@child": "submit-text"},
             "variant": "primary",
             "action": {
-              "event": {
+              "@action": {
                 "name": "confirm",
                 "context": {
                   "details": { "@path": "/reservation" }

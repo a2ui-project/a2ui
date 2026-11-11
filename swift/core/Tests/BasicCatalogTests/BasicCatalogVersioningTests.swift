@@ -54,8 +54,8 @@ struct BasicCatalogVersioningTests {
       {
         "id": "b1",
         "component": "Button",
-        "child": "t1",
-        "action": {"event": {"name": "tap"}},
+        "child": {"@child": "t1"},
+        "action": {"@action": {"name": "tap"}},
         "weight": 1.5
       }
       """

@@ -79,7 +79,7 @@ describe('ExpressCompiler', () => {
             surfaceId: 'default_surface',
             catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
             components: [
-              {id: 'root', component: 'Column', children: ['t'], weight: 2},
+              {id: 'root', component: 'Column', children: {'@child': ['t']}, weight: 2},
               {id: 't', component: 'Text', text: 'Hello'},
             ],
           },
@@ -96,8 +96,83 @@ describe('ExpressCompiler', () => {
             surfaceId: 'default_surface',
             catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
             components: [
-              {id: 'root', component: 'Card', child: 't'},
+              {id: 'root', component: 'Card', child: {'@child': 't'}},
               {id: 't', component: 'Text', text: 'Card body'},
+            ],
+          },
+        },
+      ]);
+    });
+
+    it('compiles forward ChildList variable refs, _template directives, and Action @functionCall on v1.0 vs bare on v0.9', () => {
+      const compilerV10 = new ExpressCompiler([basicCatalogV10], '1.0');
+      expect(
+        compilerV10.compile(
+          'root = Column(items)\nitems = [t1, l1]\nt1 = Text("Items")\nl1 = List(_template($/entries, row))\nrow = Text($name)\nb1 = Button(Text("Go"), action=openUrl("https://a2ui.org"))',
+        ),
+      ).toEqual([
+        {
+          version: '1.0',
+          createSurface: {
+            surfaceId: 'default_surface',
+            catalogId: basicCatalogV10.id,
+            components: [
+              {id: 'root', component: 'Column', children: {'@child': ['t1', 'l1']}},
+              {id: 't1', component: 'Text', text: 'Items'},
+              {
+                id: 'l1',
+                component: 'List',
+                children: {'@child': 'row', '@path': '/entries'},
+              },
+              {id: 'row', component: 'Text', text: {'@path': 'name'}},
+              {
+                id: 'b1',
+                component: 'Button',
+                child: {'@child': 'b1_child'},
+                action: {
+                  '@functionCall': {'@call': 'openUrl', args: {url: 'https://a2ui.org'}},
+                },
+              },
+              {id: 'b1_child', component: 'Text', text: 'Go'},
+            ],
+          },
+        },
+      ]);
+
+      const compilerV09 = new ExpressCompiler([basicCatalogV09], 'v0.9');
+      expect(
+        compilerV09.compile(
+          'root = Column(items)\nitems = [l1]\nl1 = List(_template($/entries, row))\nrow = Text($name)\nb1 = Button(Text("Go"), action=openUrl("https://a2ui.org"))',
+        ),
+      ).toEqual([
+        {
+          version: 'v0.9',
+          createSurface: {
+            surfaceId: 'default_surface',
+            catalogId: basicCatalogV09.id,
+          },
+        },
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 'default_surface',
+            components: [
+              {id: 'root', component: 'Column', children: ['l1']},
+              {
+                id: 'l1',
+                component: 'List',
+                children: {componentId: 'row', path: '/entries'},
+              },
+              {id: 'row', component: 'Text', text: {path: 'name'}},
+              {
+                id: 'b1',
+                component: 'Button',
+                child: 'b1_child',
+                action: {
+                  functionCall: {call: 'openUrl', args: {url: 'https://a2ui.org'}},
+                },
+              },
+              {id: 'b1_child', component: 'Text', text: 'Go'},
             ],
           },
         },
@@ -117,13 +192,13 @@ describe('ExpressCompiler', () => {
             surfaceId: 'default_surface',
             catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
             components: [
-              {id: 'root', component: 'Column', children: ['t1', 'b1']},
+              {id: 'root', component: 'Column', children: {'@child': ['t1', 'b1']}},
               {id: 't1', component: 'Text', text: 'Title', variant: 'body'},
               {
                 id: 'b1',
                 component: 'Button',
-                child: 'b1_child',
-                action: {event: {name: 'btn_click', context: {id: 1}}},
+                child: {'@child': 'b1_child'},
+                action: {'@action': {name: 'btn_click', context: {id: 1}}},
               },
               {id: 'b1_child', component: 'Text', text: 'Click'},
             ],
@@ -141,7 +216,11 @@ describe('ExpressCompiler', () => {
             surfaceId: 'default_surface',
             catalogId: 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
             components: [
-              {id: 'root', component: 'Column', children: ['root_children_0', 'root_children_1']},
+              {
+                id: 'root',
+                component: 'Column',
+                children: {'@child': ['root_children_0', 'root_children_1']},
+              },
               {id: 'root_children_0', component: 'Text', text: 'Line 1'},
               {id: 'root_children_1', component: 'Text', text: 'Line 2'},
             ],
@@ -313,7 +392,7 @@ c = Text("Content")
       const components = createSurface.components as Array<Record<string, unknown>>;
       const tabsComp = components.find(c => c.component === 'Tabs');
       expect(tabsComp).toBeDefined();
-      expect(tabsComp?.tabs).toEqual([{title: {'@path': '/tab_title'}, child: 'c'}]);
+      expect(tabsComp?.tabs).toEqual([{title: {'@path': '/tab_title'}, child: {'@child': 'c'}}]);
     });
 
     it('rejects databinding when nested item schema does NOT admit path (departure 5)', () => {
@@ -434,8 +513,8 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       const compiler = new ExpressCompiler([literalMapCatalog], '1.0');
       const [root] = createSurfaceComponents(
         compiler.compile('root = Probe({e: Event("go", {"__proto__": {polluted: true}, n: 1})})'),
-      ) as Array<{payload: {e: {event: {context: Record<string, unknown>}}}}>;
-      const context = root.payload.e.event.context;
+      ) as Array<{payload: {e: {'@action': {context: Record<string, unknown>}}}}>;
+      const context = root.payload.e['@action'].context;
 
       expect(Object.getPrototypeOf(context)).toBe(Object.prototype);
       expect(Object.keys(context)).toEqual(['__proto__', 'n']);
@@ -484,7 +563,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
         ),
       ) as Array<{action: unknown}>;
 
-      expect(root.action).toEqual({event: {name: 'reply', userMessage: 'Replying now'}});
+      expect(root.action).toEqual({'@action': {name: 'reply', userMessage: 'Replying now'}});
     });
 
     it('compiles a $path userMessage with a positional context', () => {
@@ -496,7 +575,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       ) as Array<{action: unknown}>;
 
       expect(root.action).toEqual({
-        event: {name: 'go', userMessage: {'@path': '/draft/message'}, context: {id: 1}},
+        '@action': {name: 'go', userMessage: {'@path': '/draft/message'}, context: {id: 1}},
       });
     });
 
@@ -506,7 +585,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
         compiler.compile('root = Button(Text("Go"), action=Event("go", context={id: 1}))'),
       ) as Array<{action: unknown}>;
 
-      expect(root.action).toEqual({event: {name: 'go', context: {id: 1}}});
+      expect(root.action).toEqual({'@action': {name: 'go', context: {id: 1}}});
     });
 
     it('keeps a function call inside an event context a plain call', () => {
@@ -518,7 +597,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       ) as Array<{action: unknown}>;
 
       expect(root.action).toEqual({
-        event: {
+        '@action': {
           name: 'go',
           context: {label: {'@call': 'formatString', args: {value: 'Hi ${/name}'}}},
         },
@@ -548,7 +627,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       ) as Array<{action: unknown}>;
 
       expect(root.action).toEqual({
-        event: {
+        '@action': {
           name: 'go',
           userMessage: {'@call': 'formatString', args: {value: 'Hi ${/name}'}},
         },
@@ -633,9 +712,9 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       expect(root.items).toEqual([
         {
           label: 'Docs',
-          action: {functionCall: {'@call': 'openUrl', args: {url: 'https://a2ui.org'}}},
+          action: {'@functionCall': {'@call': 'openUrl', args: {url: 'https://a2ui.org'}}},
         },
-        {label: 'Go', action: {event: {name: 'go'}}},
+        {label: 'Go', action: {'@action': {name: 'go'}}},
       ]);
     });
 
@@ -697,7 +776,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       expect(root.menu.items).toEqual([
         {
           label: 'Docs',
-          action: {functionCall: {'@call': 'openUrl', args: {url: 'https://a2ui.org'}}},
+          action: {'@functionCall': {'@call': 'openUrl', args: {url: 'https://a2ui.org'}}},
         },
       ]);
     });
@@ -713,7 +792,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       expect(root.items).toEqual([
         {
           label: 'Docs',
-          action: {functionCall: {'@call': 'openUrl', args: {url: 'https://a2ui.org'}}},
+          action: {'@functionCall': {'@call': 'openUrl', args: {url: 'https://a2ui.org'}}},
         },
       ]);
     });
@@ -755,7 +834,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
             catalogId: simplifiedCatalog.id,
             components: [
               {id: 'child', component: 'Text', text: 'Hi'},
-              {id: 'root', component: 'Column', children: ['child']},
+              {id: 'root', component: 'Column', children: {'@child': ['child']}},
             ],
           },
         },
@@ -791,7 +870,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
             surfaceId: 'default_surface',
             catalogId: simplifiedCatalog.id,
             components: [
-              {id: 'root', component: 'Column', children: ['title']},
+              {id: 'root', component: 'Column', children: {'@child': ['title']}},
               {id: 'title', component: 'Text', text: 'Hello'},
             ],
           },
@@ -906,7 +985,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
                 id: 'root',
                 component: 'Column',
                 '@catalogId': simplifiedCatalog.id,
-                children: ['g', 'f'],
+                children: {'@child': ['g', 'f']},
               },
               {
                 id: 'g',
@@ -959,7 +1038,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
                 id: 'root',
                 component: 'Column',
                 '@catalogId': simplifiedCatalog.id,
-                children: ['t1', 't2', 'tf'],
+                children: {'@child': ['t1', 't2', 'tf']},
               },
               {
                 id: 't1',
@@ -1049,7 +1128,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
             catalogId: simplifiedCatalog.id,
             sendDataModel: true,
             components: [
-              {id: 'root', component: 'Card', child: 'true'},
+              {id: 'root', component: 'Card', child: {'@child': 'true'}},
               {id: 'true', component: 'Text', text: 'Hello'},
             ],
           },
@@ -1206,7 +1285,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       expect(
         createSurfaceComponents(compiler.compile('root = Column([t])\nt = Text("hi")')),
       ).toEqual([
-        {id: 'root', component: 'Column', children: ['t']},
+        {id: 'root', component: 'Column', children: {'@child': ['t']}},
         {id: 't', component: 'Text', text: 'hi'},
       ]);
       expect(() => compiler.compile('root = Button(Text("Click"))')).toThrow(

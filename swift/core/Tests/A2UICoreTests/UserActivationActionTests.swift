@@ -104,7 +104,7 @@ struct UserActivationActionTests {
         type: "Button",
         properties: [
           "action": .object([
-            "functionCall": .object([
+            "@functionCall": .object([
               "@call": .string(functionName),
               "args": .object([:]),
             ])
@@ -298,7 +298,7 @@ struct UserActivationActionTests {
         type: "Button",
         properties: [
           "action": .object([
-            "event": .object([
+            "@action": .object([
               "name": .string("submit"),
               "context": .object(["secret": callExpression]),
             ])

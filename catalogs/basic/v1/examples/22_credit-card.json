@@ -18,17 +18,23 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main_column"
+            "child": {
+              "@child": "main_column"
+            }
           },
           {
             "id": "main_column",
             "component": "Column",
-            "children": ["card_type_row", "card_number", "card_details"]
+            "children": {
+              "@child": ["card_type_row", "card_number", "card_details"]
+            }
           },
           {
             "id": "card_type_row",
             "component": "Row",
-            "children": ["card_icon", "card_type"],
+            "children": {
+              "@child": ["card_icon", "card_type"]
+            },
             "justify": "spaceBetween",
             "align": "center"
           },
@@ -54,13 +60,17 @@
           {
             "id": "card_details",
             "component": "Row",
-            "children": ["holder_col", "expiry_col"],
+            "children": {
+              "@child": ["holder_col", "expiry_col"]
+            },
             "justify": "spaceBetween"
           },
           {
             "id": "holder_col",
             "component": "Column",
-            "children": ["holder_label", "holder_name"]
+            "children": {
+              "@child": ["holder_label", "holder_name"]
+            }
           },
           {
             "id": "holder_label",
@@ -79,7 +89,9 @@
           {
             "id": "expiry_col",
             "component": "Column",
-            "children": ["expiry_label", "expiry_date"],
+            "children": {
+              "@child": ["expiry_label", "expiry_date"]
+            },
             "align": "end"
           },
           {

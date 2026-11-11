@@ -86,7 +86,7 @@ Creating a `"flight_search"` surface:
       {
         "id": "root",
         "component": "Column",
-        "children": ["title", "flight_card"]
+        "children": {"@child": ["title", "flight_card"]}
       },
       {
         "id": "title",
@@ -96,7 +96,7 @@ Creating a `"flight_search"` surface:
       {
         "id": "flight_card",
         "component": "Card",
-        "child": "flight_info"
+        "child": {"@child": "flight_info"}
       },
       {
         "id": "flight_info",
@@ -170,7 +170,7 @@ Populating a surface with a `Column`, header `Text`, and interactive `Button`:
       {
         "id": "root",
         "component": "Column",
-        "children": ["header", "btn_select_lh458"]
+        "children": {"@child": ["header", "btn_select_lh458"]}
       },
       {
         "id": "header",
@@ -185,10 +185,10 @@ Populating a surface with a `Column`, header `Text`, and interactive `Button`:
       {
         "id": "btn_select_lh458",
         "component": "Button",
-        "child": "btn_select_label",
+        "child": {"@child": "btn_select_label"},
         "variant": "primary",
         "action": {
-          "event": {
+          "@action": {
             "name": "select_flight",
             "userMessage": "Selected flight LH458",
             "context": {
@@ -533,18 +533,18 @@ Renderer-to-agent messages report user interactions, invoke remote functions on 
   ]}
 />
 
-The `action` message notifies the agent that the user triggered an event action on an interactive component (such as clicking a `Button` configured with `action.event`). Before dispatching the message, the renderer resolves any data bindings inside `action.event.context` and `action.event.userMessage` against the local data model. In v1.0, `action` can also include optional renderer-side custom extensions under `metadata.extensions` ([`Extensions`](../../specification/v1.0/schemas/#common_types.json/$defs/Extensions)).
+The `action` message notifies the agent that the user triggered an event action on an interactive component (such as clicking a `Button` configured with `@action` in v1.0, or `action.event` in v0.9.1). Before dispatching the message, the renderer resolves any data bindings inside `@action.context` and `@action.userMessage` against the local data model. In v1.0, `action` can also include optional renderer-side custom extensions under `metadata.extensions` ([`Extensions`](../../specification/v1.0/schemas/#common_types.json/$defs/Extensions)).
 
 #### Properties
 
 | Property            | Type   | Required        | Description                                                                                                                                          |
 | :------------------ | :----- | :-------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`              | string | Yes             | Event name declared on the component's `action.event.name`.                                                                                          |
+| `name`              | string | Yes             | Event name declared on the component's `@action.name` (`action.event.name` in v0.9.1).                                                               |
 | `surfaceId`         | string | Yes             | Surface ID where the interaction originated.                                                                                                         |
 | `sourceComponentId` | string | Yes             | Component `id` that triggered the action.                                                                                                            |
 | `timestamp`         | string | Yes             | ISO 8601 date-time string indicating when the event occurred.                                                                                        |
-| `context`           | object | Yes             | Resolved key-value dictionary from `action.event.context` with all data bindings evaluated to current values.                                        |
-| `userMessage`       | string | Optional (v1.0) | Human-readable string resolved from `action.event.userMessage`, suitable for adding to LLM conversation history.                                     |
+| `context`           | object | Yes             | Resolved key-value dictionary from `@action.context` (`action.event.context` in v0.9.1) with all data bindings evaluated to current values.          |
+| `userMessage`       | string | Optional (v1.0) | Human-readable string resolved from `@action.userMessage`, suitable for adding to LLM conversation history.                                          |
 | `metadata`          | object | Optional (v1.0) | Action-level extensions container with optional `extensions` ([`Extensions`](../../specification/v1.0/schemas/#common_types.json/$defs/Extensions)). |
 
 #### Example

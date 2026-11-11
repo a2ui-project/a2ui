@@ -56,6 +56,7 @@ from a2ui.inference_formats._shared import (
     catalogs_defining,
     check_mixed_catalogs,
     coalesce_surface_messages,
+    is_action_slot,
 )
 from a2ui.utils.component_envelope import (
     ENVELOPE_MIXIN_NAMES,
@@ -348,10 +349,56 @@ class AtomDecompiler:
                 return "list"
             if kind == "Child":
                 return "single"
+            return None
         if key == "children":
             return "list"
         if key == "child":
             return "single"
+        return None
+
+    def _unwrap_single_child(self, v: Any) -> str | None:
+        if (
+            self._at_least_v10
+            and isinstance(v, Mapping)
+            and set(v) == {"@child"}
+            and isinstance(v["@child"], str)
+        ):
+            return v["@child"]
+        # TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+        if isinstance(v, str):
+            return v
+        return None
+
+    def _unwrap_child_list(self, v: Any) -> list[Any] | None:
+        if (
+            self._at_least_v10
+            and isinstance(v, Mapping)
+            and set(v) == {"@child"}
+            and isinstance(v["@child"], list)
+        ):
+            return list(v["@child"])
+        # TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+        if isinstance(v, list):
+            return list(v)
+        return None
+
+    def _unwrap_template(self, v: Any) -> tuple[str, str] | None:
+        if not isinstance(v, Mapping):
+            return None
+        if (
+            self._at_least_v10
+            and set(v) == {"@child", "@path"}
+            and isinstance(v["@child"], str)
+            and isinstance(v["@path"], str)
+        ):
+            return v["@child"], v["@path"]
+        # TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+        if (
+            set(v) == {"componentId", "path"}
+            and isinstance(v["componentId"], str)
+            and isinstance(v["path"], str)
+        ):
+            return v["componentId"], v["path"]
         return None
 
     def _referenced_ids(
@@ -364,21 +411,27 @@ class AtomDecompiler:
                 if k in ("id", "component") or self._is_envelope_key(c, k, surface_cat):
                     continue
                 kind = self._child_kind(c, k, surface_cat)
-                if isinstance(v, Mapping) and isinstance(v.get("componentId"), str):
-                    refs.add(v["componentId"])
-                elif kind == "single" and isinstance(v, str) and v in ids:
-                    refs.add(v)
-                elif kind == "list" and isinstance(v, list):
-                    refs.update(x for x in v if isinstance(x, str) and x in ids)
+                if kind == "list":
+                    tpl = self._unwrap_template(v)
+                    if tpl is not None:
+                        refs.add(tpl[0])
+                        continue
+                    items = self._unwrap_child_list(v)
+                    if items is not None:
+                        refs.update(x for x in items if isinstance(x, str) and x in ids)
+                elif kind == "single":
+                    cid = self._unwrap_single_child(v)
+                    if cid is not None and cid in ids:
+                        refs.add(cid)
                 elif isinstance(v, list):
                     child_keys = self._object_child_keys(c, k, surface_cat)
                     for entry in v:
                         if isinstance(entry, Mapping):
-                            refs.update(
-                                x
-                                for ek, x in entry.items()
-                                if ek in child_keys and isinstance(x, str) and x in ids
-                            )
+                            for ek, x in entry.items():
+                                if ek in child_keys:
+                                    cid = self._unwrap_single_child(x)
+                                    if cid is not None and cid in ids:
+                                        refs.add(cid)
         return refs
 
     def _object_child_keys(
@@ -487,17 +540,16 @@ class AtomDecompiler:
                 # `@` key.
                 continue
             kind = self._child_kind(comp, k, surface_cat)
-            if (
-                isinstance(v, Mapping)
-                and set(v) == {"componentId", "path"}
-                and nestable(v["componentId"])
-            ):
-                node = sub(v["componentId"])
+            tpl = self._unwrap_template(v) if kind == "list" else None
+            single_cid = self._unwrap_single_child(v) if kind == "single" else None
+            child_ids = self._unwrap_child_list(v) if kind == "list" else None
+            if tpl is not None and nestable(tpl[0]):
+                node = sub(tpl[0])
                 parts.append(
-                    f":{k} (template :items {self._format_path(v['path'])}\n{node})"
+                    f":{k} (template :items {self._format_path(tpl[1])}\n{node})"
                 )
-            elif kind == "single" and nestable(v):
-                node = sub(v)
+            elif kind == "single" and single_cid is not None and nestable(single_cid):
+                node = sub(single_cid)
                 target = positional_child_target(
                     1, prop_keys, child_list_prop, single_child_prop
                 )
@@ -505,19 +557,27 @@ class AtomDecompiler:
                     child_nodes.append(node)
                 else:
                     parts.append(f":{k} {node.strip()}")
-            elif kind == "list" and isinstance(v, list) and v and any(map(nestable, v)):
+            elif kind == "single" and single_cid is not None:
+                parts.append(f":{k} {_q(single_cid)}")
+            elif (
+                kind == "list"
+                and child_ids is not None
+                and child_ids
+                and any(map(nestable, child_ids))
+            ):
                 target = positional_child_target(
-                    len(v), prop_keys, child_list_prop, single_child_prop
+                    len(child_ids), prop_keys, child_list_prop, single_child_prop
                 )
-                if target == k and all(map(nestable, v)):
-                    child_nodes.extend(sub(cid) for cid in v)
+                if target == k and all(map(nestable, child_ids)):
+                    child_nodes.extend(sub(cid) for cid in child_ids)
                 else:
                     items = [
-                        sub(cid).strip() if nestable(cid) else _q(cid) for cid in v
+                        sub(cid).strip() if nestable(cid) else _q(cid)
+                        for cid in child_ids
                     ]
                     parts.append(f":{k} [{' '.join(items)}]")
-            elif kind == "list" and isinstance(v, list):
-                parts.append(f":{k} [{' '.join(_q(cid) for cid in v)}]")
+            elif kind == "list" and child_ids is not None:
+                parts.append(f":{k} [{' '.join(_q(cid) for cid in child_ids)}]")
             elif isinstance(v, list) and (
                 child_keys := self._object_child_keys(comp, k, surface_cat)
             ):
@@ -527,7 +587,15 @@ class AtomDecompiler:
                 )
                 parts.append(f":{k} [{entries}]")
             else:
-                parts.append(f":{k} {self._format_val(v, surface_cat)}")
+                slot_schema = (
+                    helper.get_property_schema(comp_type, k)
+                    if helper is not None and comp_type in helper.components
+                    else None
+                )
+                parts.append(
+                    f":{k}"
+                    f" {self._format_val(v, surface_cat, is_action=is_action_slot(slot_schema))}"
+                )
 
         head = f"{pad}({' '.join(parts)}"
         if not child_nodes:
@@ -546,10 +614,12 @@ class AtomDecompiler:
             return self._format_val(entry, surface_cat)
         parts = ["(item"]
         for k, v in entry.items():
-            if k in child_keys and nestable(v):
-                parts.append(f":{k} {sub(v).strip()}")
-            else:
-                parts.append(f":{k} {self._format_val(v, surface_cat)}")
+            if k in child_keys:
+                cid = self._unwrap_single_child(v)
+                if cid is not None and nestable(cid):
+                    parts.append(f":{k} {sub(cid).strip()}")
+                    continue
+            parts.append(f":{k} {self._format_val(v, surface_cat)}")
         return " ".join(parts) + ")"
 
     # ------------------------------------------------------------------
@@ -639,20 +709,49 @@ class AtomDecompiler:
             val.get("@call", val.get("call")), str
         )
 
-    def _format_val(self, val: Any, surface_cat: str | None) -> str:
+    def _format_val(
+        self,
+        val: Any,
+        surface_cat: str | None,
+        *,
+        is_action: bool = False,
+    ) -> str:
         """Formats a component property value.
 
         Args:
             val: The value.
             surface_cat: The surface catalog, or None when the surface has
                 none. A function call without a `catalogId` uses it.
+            is_action: Whether this property expects an `Action` union.
         """
         if isinstance(val, Mapping):
             if len(val) == 1 and isinstance(val.get("@path", val.get("path")), str):
                 return self._format_path(val.get("@path", val.get("path")))
-            if set(val) == {"event"} and isinstance(val["event"], Mapping):
+            if (
+                self._at_least_v10
+                and set(val) == {"@action"}
+                and isinstance(val["@action"], Mapping)
+            ):
+                return self._format_event(val["@action"], surface_cat)
+            if (
+                (not self._at_least_v10 or is_action)
+                and set(val) == {"event"}
+                and isinstance(val["event"], Mapping)
+            ):
+                # TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
                 return self._format_event(val["event"], surface_cat)
-            if set(val) == {"functionCall"} and self._is_call(val["functionCall"]):
+            if (
+                self._at_least_v10
+                and set(val) == {"@functionCall"}
+                and self._is_call(val["@functionCall"])
+            ):
+                return self._format_function_call(val["@functionCall"], surface_cat)
+            if (
+                (not self._at_least_v10 or is_action)
+                and set(val) == {"functionCall"}
+                and self._is_call(val["functionCall"])
+            ):
+                # TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
                 return self._format_function_call(val["functionCall"], surface_cat)
             if self._is_call(val) and set(val) <= {
                 "@call",

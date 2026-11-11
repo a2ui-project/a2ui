@@ -1201,11 +1201,11 @@ surface("s1")
       return (components.first as Map)['action'];
     }
 
-    test('compiles userMessage to the v1.0 event field', () {
+    test('compiles userMessage to the v1.0 @action field', () {
       expect(
         action('root = Button(label, Event("reply", userMessage="Replying"))'),
         {
-          'event': {'name': 'reply', 'userMessage': 'Replying'},
+          '@action': {'name': 'reply', 'userMessage': 'Replying'},
         },
       );
     });
@@ -1216,7 +1216,7 @@ surface("s1")
           r'root = Button(label, Event("go", {id: 1}, userMessage=$/draft))',
         ),
         {
-          'event': {
+          '@action': {
             'name': 'go',
             'userMessage': {'@path': '/draft'},
             'context': {'id': 1},
@@ -1227,7 +1227,7 @@ surface("s1")
 
     test('accepts context= as a keyword argument', () {
       expect(action('root = Button(label, Event("go", context={id: 1}))'), {
-        'event': {
+        '@action': {
           'name': 'go',
           'context': {'id': 1},
         },
@@ -1262,7 +1262,7 @@ surface("s1")
           'userMessage=openUrl("https://a2ui.org")))',
         ),
         {
-          'event': {
+          '@action': {
             'name': 'go',
             'userMessage': {
               '@call': 'openUrl',
@@ -1371,14 +1371,14 @@ surface("s1")
     const Map<String, Object?> docs = {
       'label': 'Docs',
       'action': {
-        'functionCall': {
+        '@functionCall': {
           '@call': 'openUrl',
           'args': {'url': 'https://a2ui.org'},
         },
       },
     };
 
-    test('wraps a function call in functionCall inside a list item', () {
+    test('wraps a function call in @functionCall inside a list item', () {
       expect(
         items(
           'root = Links([{label: "Docs", action: openUrl("https://a2ui.org")}, '
@@ -1389,7 +1389,7 @@ surface("s1")
           {
             'label': 'Go',
             'action': {
-              'event': {'name': 'go'},
+              '@action': {'name': 'go'},
             },
           },
         ],
@@ -1433,7 +1433,7 @@ surface("s1")
       'required': ['@call', 'args'],
     };
     const Map<String, Object?> wrappedOpenUrl = {
-      'functionCall': {
+      '@functionCall': {
         '@call': 'openUrl',
         'args': {'url': 'https://a2ui.org'},
       },
@@ -1616,11 +1616,59 @@ surface("s1")
               'args': {'url': 'https://a2ui.org'},
             },
             'action': {
-              'event': {'name': 'go'},
+              '@action': {'name': 'go'},
             },
           },
         ],
       );
+    });
+
+    test('wraps v1.0 Child, ChildList, template, and nested Child', () {
+      final CatalogApi basic = BasicCatalog.v1_0();
+      final List<AgentToRendererMessage> compiled = ExpressCompiler([basic])
+          .compile(r'''
+        kids = [Text("A"), Text("B")]
+        tpl = Text($name)
+        t1 = Text("One")
+        root = Column([
+          Card(Text("Leaf")),
+          List(_template($/items, tpl)),
+          Tabs([{title: "Tab1", child: t1}]),
+          Column(kids)
+        ])
+        ''');
+      final components =
+          (compiled.single.toJson()['createSurface']! as Map)['components']!
+              as List;
+      final byId = <String, Map<String, Object?>>{
+        for (final Object? item in components)
+          ((item! as Map)['id']! as String): (item as Map)
+              .cast<String, Object?>(),
+      };
+      expect(byId['root']!['children'], {
+        '@child': [
+          'root_children_0',
+          'root_children_1',
+          'root_children_2',
+          'root_children_3',
+        ],
+      });
+      expect(byId['root_children_0']!['child'], {
+        '@child': 'root_children_0_child',
+      });
+      expect(byId['root_children_1']!['children'], {
+        '@child': 'tpl',
+        '@path': '/items',
+      });
+      expect(byId['root_children_2']!['tabs'], [
+        {
+          'title': 'Tab1',
+          'child': {'@child': 't1'},
+        },
+      ]);
+      expect(byId['root_children_3']!['children'], {
+        '@child': ['root_children_3_children_0', 'root_children_3_children_1'],
+      });
     });
   });
 }

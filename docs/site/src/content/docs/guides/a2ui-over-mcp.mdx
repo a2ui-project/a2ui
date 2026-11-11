@@ -162,12 +162,12 @@ In `v1.0`, protocol messages set `"version": "1.0"`, data bindings use `{"@path"
         {
           "id": "root",
           "component": "Card",
-          "child": "main_column"
+          "child": {"@child": "main_column"}
         },
         {
           "id": "main_column",
           "component": "Column",
-          "children": ["recipe_title", "cook_time"]
+          "children": {"@child": ["recipe_title", "cook_time"]}
         },
         {
           "id": "recipe_title",
@@ -564,10 +564,10 @@ An interactive A2UI component (such as a **Get Recipe** button on another surfac
 {
   "id": "submit_button",
   "component": "Button",
-  "child": "submit_button_text",
+  "child": {"@child": "submit_button_text"},
   "variant": "primary",
   "action": {
-    "functionCall": {
+    "@functionCall": {
       "@call": "callMcpTool",
       "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
       "args": {
@@ -714,7 +714,7 @@ ui_resource = types.EmbeddedResource(
 
 ## Full bidirectional A2UI transport over MCP
 
-In Steps 1 to 3 above, UI buttons invoke domain MCP tools (`get_recipe_a2ui`) directly through `callMcpTool`. When an application instead uses MCP as its sole agent-to-renderer transport (without a separate A2A or AG-UI channel), the client also advertises its supported catalogs to the server and forwards generic `action.event` and renderer error payloads through dedicated MCP tools.
+In Steps 1 to 3 above, UI buttons invoke domain MCP tools (`get_recipe_a2ui`) directly through `callMcpTool`. When an application instead uses MCP as its sole agent-to-renderer transport (without a separate A2A or AG-UI channel), the client also advertises its supported catalogs to the server and forwards generic `@action` (`action.event` in `v0.9.1`) and renderer error payloads through dedicated MCP tools.
 
 ### Negotiate supported catalogs
 
@@ -847,11 +847,11 @@ When an HTTP MCP server handles each request without session state, pass the sam
 
 ### Forward user actions and client errors as MCP tools
 
-When a component uses `functionCall` with `callMcpTool` (as in Step 3), the client calls the target MCP tool directly. Alternatively, components can emit an A2UI [`action`](../../specification/v1.0/schemas/#renderer_to_agent.json/properties/action) event (see [Actions and Functions](../../concepts/actions-and-functions/)), and the host application can forward both user actions and renderer [`error`](../../specification/v1.0/schemas/#renderer_to_agent.json/properties/error) events to dedicated MCP tools on the server.
+When a component uses `@functionCall` (`functionCall` in v0.9.1) with `callMcpTool` (as in Step 3), the client calls the target MCP tool directly. Alternatively, components can emit an A2UI [`action`](../../specification/v1.0/schemas/#renderer_to_agent.json/properties/action) event (see [Actions and Functions](../../concepts/actions-and-functions/)), and the host application can forward both user actions and renderer [`error`](../../specification/v1.0/schemas/#renderer_to_agent.json/properties/error) events to dedicated MCP tools on the server.
 
-#### Forward `action.event` payloads to `a2ui_action`
+#### Forward user action payloads to `a2ui_action`
 
-Declare an `action.event` on a `Button` with data-bound `context` entries:
+Declare an `@action` (`action.event` in v0.9.1) on a `Button` with data-bound `context` entries:
 
 <Tabs syncKey="protocol-version">
   <TabItem label="v1.0">
@@ -860,9 +860,9 @@ Declare an `action.event` on a `Button` with data-bound `context` entries:
 {
   "id": "confirm_button",
   "component": "Button",
-  "child": "confirm_button_text",
+  "child": {"@child": "confirm_button_text"},
   "action": {
-    "event": {
+    "@action": {
       "name": "confirm_booking",
       "context": {
         "start": {"@path": "/dates/start"},

@@ -511,6 +511,16 @@ import {markChildRef} from './child-ref-helpers.js';
   z.string().describe('${desc}'),
   'component-id',
 )`;
+    } else if (name === 'Child') {
+      zodCode = `markChildRef(
+  z.union([
+    ComponentIdSchema,
+    z.object({
+      '@child': ComponentIdSchema,
+    }).strict(),
+  ]).describe('${desc}'),
+  'component-id',
+)`;
     } else if (name === 'ChildList') {
       zodCode = `markChildRef(
   z.union([
@@ -519,6 +529,13 @@ import {markChildRef} from './child-ref-helpers.js';
       'componentId': ComponentIdSchema,
       'path': z.string().describe('The path to the list of component property objects in the data model.'),
     }).describe('A template for generating a dynamic list of children.'),
+    z.object({
+      '@child': z.array(ComponentIdSchema),
+    }).strict().describe('A static list of child component IDs.'),
+    z.object({
+      '@child': ComponentIdSchema,
+      '@path': z.string().describe('The path to the list of component property objects in the data model.'),
+    }).strict().describe('A template for generating a dynamic list of children from a data model list.'),
   ]).describe('${desc}'),
   'child-list',
 )`;
@@ -598,7 +615,7 @@ import {markChildRef} from './child-ref-helpers.js';
       if (name === 'DynamicValue') {
         zodCode = zodCode.replace(
           'z.record(z.string(), z.unknown())',
-          "z.record(z.string(), z.unknown()).refine(obj => !obj || (!('@path' in obj) && !('path' in obj) && !('@call' in obj) && !('call' in obj)))",
+          "z.record(z.string(), z.unknown()).refine(obj => !obj || (!('@path' in obj) && !('path' in obj) && !('@call' in obj) && !('call' in obj) && !('@child' in obj) && !('@action' in obj) && !('@functionCall' in obj)))",
         );
       }
     }

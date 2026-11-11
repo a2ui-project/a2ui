@@ -286,7 +286,12 @@ function expectSnippet(
 function assertPartsMatch(
   actualParts: ResponsePart[],
   expectedParts: Array<Record<string, unknown>>,
-  options: {isLowered?: boolean; isExpress?: boolean; injId?: string} = {},
+  options: {
+    isLowered?: boolean;
+    isExpress?: boolean;
+    injId?: string;
+    catalogs?: readonly CatalogApi[];
+  } = {},
 ): void {
   expect(actualParts.length).toBe(expectedParts.length);
   for (let i = 0; i < actualParts.length; i++) {
@@ -299,6 +304,7 @@ function assertPartsMatch(
         ? (liftMessages(actual.a2ui, {
             join: options.isExpress,
             injectedCatalogId: options.isExpress ? undefined : options.injId,
+            catalogs: options.catalogs,
           }) as unknown as AgentToRendererMessage[])
         : actual.a2ui;
       expect(sortComponentsById(actualMessages)).toEqual(
@@ -514,6 +520,11 @@ function runFormatCase(testCase: LoadedCase, version: SuiteVersion = 'v1.0'): vo
     const isExpress = effectiveFormat === 'express';
     const injId =
       isLowered && !isExpress ? injectedCatalogId(testCase, DEFAULT_CATALOG) : undefined;
+    const v10Catalogs = isLowered
+      ? ((args.catalogs as unknown[]) || []).map(
+          entry => loadCatalogConfig(entry, false).transformedCatalog,
+        )
+      : [];
 
     const thenParse = testCase.then_parse as Record<string, unknown> | undefined;
     if (thenParse) {
@@ -534,13 +545,14 @@ function runFormatCase(testCase: LoadedCase, version: SuiteVersion = 'v1.0'): vo
           isLowered,
           isExpress,
           injId,
+          catalogs: v10Catalogs,
         });
       }
     }
 
     const thenStream = testCase.then_stream as ThenStream | undefined;
     if (thenStream) {
-      runThenStream(processor, thenStream, {isLowered, isExpress, injId});
+      runThenStream(processor, thenStream, {isLowered, isExpress, injId, catalogs: v10Catalogs});
     }
   } else {
     throw new Error(`Unsupported action: ${action}`);
@@ -568,7 +580,12 @@ interface ThenStream {
 function runThenStream(
   processor: A2uiRequestProcessor,
   thenStream: ThenStream,
-  options: {isLowered?: boolean; isExpress?: boolean; injId?: string} = {},
+  options: {
+    isLowered?: boolean;
+    isExpress?: boolean;
+    injId?: string;
+    catalogs?: readonly CatalogApi[];
+  } = {},
 ): void {
   assertKnownKeys(
     thenStream as unknown as Record<string, unknown>,

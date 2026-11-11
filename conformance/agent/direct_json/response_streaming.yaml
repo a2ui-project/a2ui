@@ -616,7 +616,7 @@
               createSurface:
                 surfaceId: "s1"
                 catalogId: "conformance/simplified"
-    - input: '<a2ui-json>[{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Card", "child": "body"}, {"id": "body", "component": "Text", "text": "Hel'
+    - input: '<a2ui-json>[{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Card", "child": {"@child": "body"}}, {"id": "body", "component": "Text", "text": "Hel'
       expect:
         - a2ui:
             - version: "1.0"
@@ -625,7 +625,8 @@
                 components:
                   - id: "root"
                     component: "Card"
-                    child: "body"
+                    child:
+                      "@child": "body"
     - input: 'lo"}]}}]</a2ui-json>'
       expect:
         - a2ui:
@@ -635,7 +636,8 @@
                 components:
                   - id: "root"
                     component: "Card"
-                    child: "body"
+                    child:
+                      "@child": "body"
                   - id: "body"
                     component: "Text"
                     text: "Hello"
@@ -900,9 +902,9 @@
               createSurface:
                 surfaceId: "s1"
                 catalogId: "conformance/simplified"
-    - input: '<a2ui-json>[{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Card", "child": "bo'
+    - input: '<a2ui-json>[{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Card", "child": {"@child": "bo'
       expect: []
-    - input: 'dy"}, {"id": "body", "component": "Text", "text": "Hello"}]}}]</a2ui-json>'
+    - input: 'dy"}}, {"id": "body", "component": "Text", "text": "Hello"}]}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: "1.0"
@@ -911,7 +913,8 @@
                 components:
                   - id: "root"
                     component: "Card"
-                    child: "body"
+                    child:
+                      "@child": "body"
                   - id: "body"
                     component: "Text"
                     text: "Hello"
@@ -932,9 +935,9 @@
               createSurface:
                 surfaceId: "s1"
                 catalogId: "conformance/simplified"
-    - input: '<a2ui-json>[{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Column", "children": ["one", "tw'
+    - input: '<a2ui-json>[{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Column", "children": {"@child": ["one", "tw'
       expect: []
-    - input: 'o"]}, {"id": "one", "component": "Text", "text": "One"}, {"id": "two", "component": "Text", "text": "Two"}]}}]</a2ui-json>'
+    - input: 'o"]}}, {"id": "one", "component": "Text", "text": "One"}, {"id": "two", "component": "Text", "text": "Two"}]}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: "1.0"
@@ -943,7 +946,8 @@
                 components:
                   - id: "root"
                     component: "Column"
-                    children: ["one", "two"]
+                    children:
+                      "@child": ["one", "two"]
                   - id: "one"
                     component: "Text"
                     text: "One"
@@ -967,9 +971,9 @@
               createSurface:
                 surfaceId: "s1"
                 catalogId: "conformance/simplified"
-    - input: '<a2ui-json>[{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Column", "children": {"componentId": "row"'
+    - input: '<a2ui-json>[{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Column", "children": {"@child": "row"'
       expect: []
-    - input: ', "path": "/items"}}, {"id": "row", "component": "Text", "text": "Item"}]}}]</a2ui-json>'
+    - input: ', "@path": "/items"}}, {"id": "row", "component": "Text", "text": "Item"}]}}]</a2ui-json>'
       expect:
         - a2ui:
             - version: "1.0"
@@ -979,8 +983,8 @@
                   - id: "root"
                     component: "Column"
                     children:
-                      componentId: "row"
-                      path: "/items"
+                      "@child": "row"
+                      "@path": "/items"
                   - id: "row"
                     component: "Text"
                     text: "Item"
@@ -1759,7 +1763,7 @@
     catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     progressive_keys: ["greeting", "text"]
   steps:
-    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified", "components": [{"id": "root", "component": "Card", "child": "body"}'
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified", "components": [{"id": "root", "component": "Card", "child": {"@child": "body"}}'
       expect: []
     - input: ', {"id": "body", "component": "Text", "text": "Hel'
       expect: []
@@ -1775,7 +1779,8 @@
                 components:
                   - id: "root"
                     component: "Card"
-                    child: "body"
+                    child:
+                      "@child": "body"
                   - id: "body"
                     component: "Text"
                     text: "Hello"
@@ -4303,7 +4308,7 @@
               createSurface:
                 surfaceId: "main"
                 catalogId: "conformance/simplified"
-    - input: '{"version": "1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Column", "children": ["t1", "m1"]}, {"id": "t1", "component": "Text", "text": "Users"}, {"id": "m1", "@catalogId": "conformance/custom", "component": "Gauge"'
+    - input: '{"version": "1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Column", "children": {"@child": ["t1", "m1"]}}, {"id": "t1", "component": "Text", "text": "Users"}, {"id": "m1", "@catalogId": "conformance/custom", "component": "Gauge"'
       expect:
         - a2ui:
             - version: "1.0"
@@ -4313,8 +4318,9 @@
                   - id: "root"
                     component: "Column"
                     children:
-                      - "t1"
-                      - "m1"
+                      "@child":
+                        - "t1"
+                        - "m1"
                   - id: "t1"
                     component: "Text"
                     text: "Users"
@@ -4328,8 +4334,9 @@
                   - id: "root"
                     component: "Column"
                     children:
-                      - "t1"
-                      - "m1"
+                      "@child":
+                        - "t1"
+                        - "m1"
                   - id: "t1"
                     component: "Text"
                     text: "Users"
@@ -4385,7 +4392,7 @@
               createSurface:
                 surfaceId: "main"
                 catalogId: "conformance/simplified"
-    - input: '{"version": "1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Column", "children": ["m1"]}, {"id": "m1", "component": "Gauge", "value": 42'
+    - input: '{"version": "1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Column", "children": {"@child": ["m1"]}}, {"id": "m1", "component": "Gauge", "value": 42'
       expect:
         - a2ui:
             - version: "1.0"
@@ -4395,7 +4402,8 @@
                   - id: "root"
                     component: "Column"
                     children:
-                      - "m1"
+                      "@child":
+                        - "m1"
     - input: ', "@catalogId": "conformance/custom"}'
       expect:
         - a2ui:
@@ -4406,7 +4414,8 @@
                   - id: "root"
                     component: "Column"
                     children:
-                      - "m1"
+                      "@child":
+                        - "m1"
                   - id: "m1"
                     component: "Gauge"
                     value: 42

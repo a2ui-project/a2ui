@@ -217,7 +217,7 @@ export const RowApi = {
     z
       .object({
         'children': ChildListSchema.describe(
-          'REF:#/$defs/ChildList|Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list. Children cannot be defined inline, they must be referred to by ID.',
+          'REF:#/$defs/ChildList|Defines the children. Use {"@child": [...]} for a fixed set of children, or {"@child": "<templateId>", "@path": "/path"} to generate children from a data list. Children cannot be defined inline, they must be referred to by ID.',
         ),
         'justify': z
           .enum(['center', 'end', 'spaceAround', 'spaceBetween', 'spaceEvenly', 'start', 'stretch'])
@@ -249,7 +249,7 @@ export const ColumnApi = {
     z
       .object({
         'children': ChildListSchema.describe(
-          'REF:#/$defs/ChildList|Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list. Children cannot be defined inline, they must be referred to by ID.',
+          'REF:#/$defs/ChildList|Defines the children. Use {"@child": [...]} for a fixed set of children, or {"@child": "<templateId>", "@path": "/path"} to generate children from a data list. Children cannot be defined inline, they must be referred to by ID.',
         ),
         'justify': z
           .enum(['start', 'center', 'end', 'spaceBetween', 'spaceAround', 'spaceEvenly', 'stretch'])
@@ -281,7 +281,7 @@ export const ListApi = {
     z
       .object({
         'children': ChildListSchema.describe(
-          'REF:#/$defs/ChildList|Defines the children. Use an array of strings for a fixed set of children, or a template object to generate children from a data list.',
+          'REF:#/$defs/ChildList|Defines the children. Use {"@child": [...]} for a fixed set of children, or {"@child": "<templateId>", "@path": "/path"} to generate children from a data list.',
         ),
         'direction': z
           .enum(['vertical', 'horizontal'])
@@ -306,7 +306,7 @@ export const CardApi = {
     z
       .object({
         'child': ChildSchema.describe(
-          "REF:#/$defs/Child|The ID of the single child component to be rendered inside the card. To display multiple elements, you MUST wrap them in a layout component (like Column or Row) and pass that container's ID here. Do NOT pass multiple IDs or a non-existent ID.",
+          'REF:#/$defs/Child|A reference ({"@child": "<id>"}) to the single child component to be rendered inside the card. To display multiple elements, you MUST wrap them in a layout component (like Column or Row) and reference that container\'s ID here. Do NOT pass multiple IDs or a non-existent ID.',
         ),
         'weight': WeightSchema.optional(),
       })
@@ -325,7 +325,9 @@ export const TabsApi = {
             spec(
               z.object({
                 'title': DynamicStringSchema.describe('REF:#/$defs/DynamicString|The tab title.'),
-                'child': ChildSchema.describe('REF:#/$defs/Child|The ID of the child component.'),
+                'child': ChildSchema.describe(
+                  'REF:#/$defs/Child|A reference ({"@child": "<id>"}) to the child component.',
+                ),
               }),
               {closure: 'additionalProperties'},
             ),
@@ -347,10 +349,10 @@ export const ModalApi = {
     z
       .object({
         'trigger': ChildSchema.describe(
-          'REF:#/$defs/Child|The ID of the component that opens the modal when interacted with (e.g., a button).',
+          'REF:#/$defs/Child|A reference ({"@child": "<id>"}) to the component that opens the modal when interacted with (e.g., a button).',
         ),
         'content': ChildSchema.describe(
-          'REF:#/$defs/Child|The ID of the component to be displayed inside the modal.',
+          'REF:#/$defs/Child|A reference ({"@child": "<id>"}) to the component to be displayed inside the modal.',
         ),
         'weight': WeightSchema.optional(),
       })
@@ -386,7 +388,7 @@ export const ButtonApi = {
           .describe('A list of validation check rules to perform on the component.')
           .optional(),
         'child': ChildSchema.describe(
-          "REF:#/$defs/Child|The ID of the child component. Use a 'Text' component for a labeled button. Only use an 'Icon' if the requirements explicitly ask for an icon-only button.",
+          'REF:#/$defs/Child|A reference ({"@child": "<id>"}) to the child component. Use a \'Text\' component for a labeled button. Only use an \'Icon\' if the requirements explicitly ask for an icon-only button.',
         ),
         'variant': z
           .enum(['default', 'primary', 'borderless'])
@@ -627,7 +629,7 @@ export const BASIC_CATALOG_DOCUMENT_OPTIONS = {
   title: 'A2UI Basic Catalog',
   description: 'Unified catalog of basic A2UI components and functions.',
   instructions:
-    'For layout, use the Row and Column components to organize other components.\n\n## Catalog Guidelines\n\n1. String Concatenation & Formatting: A2UI does not support binary operators like \'+\' or formatting symbols. To concatenate strings or dynamically inject data bindings into text, you must use the catalog function `formatString(value)` where the value string contains placeholders formatted as `${expression}`:\n   formatString("Hello ${/user/name}")\n\n2. Strict Hierarchy: You must strictly adhere to the requested component nesting and hierarchy. If the prompt specifies that a component is \'inside\' or \'contained in\' another component, you MUST place it as a child of that specific component, not as a sibling or in a different container.\n\n3. Validation Checks: When components support validation checks, specify any custom error messages directly as the \'message\' inside the check. Do NOT create separate text-display components to display validation errors.\n\n## Examples\n\nExample 1: Dynamic text form\n```json\n[\n  {\n    "version": "1.0",\n    "createSurface": {\n      "surfaceId": "main",\n      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",\n      "components": [\n        {\n          "id": "root",\n          "component": "Column",\n          "children": ["repField", "valueField"]\n        },\n        {\n          "id": "repField",\n          "component": "TextField",\n          "label": "Representative",\n          "value": {"@path": "/form/rep"},\n          "placeholder": "Enter name"\n        },\n        {\n          "id": "valueField",\n          "component": "TextField",\n          "label": "Deal Value",\n          "value": {"@path": "/form/value"},\n          "placeholder": "0.00",\n          "variant": "number",\n          "@checks": [\n            {\n              "condition": {\n                "@call": "required",\n                "args": {"value": {"@path": "/form/value"}}\n              },\n              "message": "Deal value is required."\n            }\n          ]\n        }\n      ],\n      "dataModel": {\n        "form": {\n          "rep": "John Doe",\n          "value": 1500.00\n        }\n      }\n    }\n  }\n]\n```\n\nExample 2: Dynamic list with templates\n```json\n[\n  {\n    "version": "1.0",\n    "createSurface": {\n      "surfaceId": "main",\n      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",\n      "components": [\n        {\n          "id": "root",\n          "component": "Card",\n          "child": "breedList"\n        },\n        {\n          "id": "breedList",\n          "component": "List",\n          "children": {\n            "path": "/breeds",\n            "componentId": "breedTemplate"\n          },\n          "direction": "horizontal"\n        },\n        {\n          "id": "breedTemplate",\n          "component": "Image",\n          "url": {"@path": "url"}\n        }\n      ],\n      "dataModel": {\n        "breeds": [\n          {\n            "url": "https://example.com/poodle.jpg"\n          },\n          {\n            "url": "https://example.com/lab.jpg"\n          }\n        ]\n      }\n    }\n  }\n]\n```',
+    'For layout, use the Row and Column components to organize other components.\n\n## Catalog Guidelines\n\n1. String Concatenation & Formatting: A2UI does not support binary operators like \'+\' or formatting symbols. To concatenate strings or dynamically inject data bindings into text, you must use the catalog function `formatString(value)` where the value string contains placeholders formatted as `${expression}`:\n   formatString("Hello ${/user/name}")\n\n2. Strict Hierarchy: You must strictly adhere to the requested component nesting and hierarchy. If the prompt specifies that a component is \'inside\' or \'contained in\' another component, you MUST place it as a child of that specific component, not as a sibling or in a different container.\n\n3. Validation Checks: When components support validation checks, specify any custom error messages directly as the \'message\' inside the check. Do NOT create separate text-display components to display validation errors.\n\n## Examples\n\nExample 1: Dynamic text form\n```json\n[\n  {\n    "version": "1.0",\n    "createSurface": {\n      "surfaceId": "main",\n      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",\n      "components": [\n        {\n          "id": "root",\n          "component": "Column",\n          "children": {"@child": ["repField", "valueField"]}\n        },\n        {\n          "id": "repField",\n          "component": "TextField",\n          "label": "Representative",\n          "value": {"@path": "/form/rep"},\n          "placeholder": "Enter name"\n        },\n        {\n          "id": "valueField",\n          "component": "TextField",\n          "label": "Deal Value",\n          "value": {"@path": "/form/value"},\n          "placeholder": "0.00",\n          "variant": "number",\n          "@checks": [\n            {\n              "condition": {\n                "@call": "required",\n                "args": {"value": {"@path": "/form/value"}}\n              },\n              "message": "Deal value is required."\n            }\n          ]\n        }\n      ],\n      "dataModel": {\n        "form": {\n          "rep": "John Doe",\n          "value": 1500.00\n        }\n      }\n    }\n  }\n]\n```\n\nExample 2: Dynamic list with templates\n```json\n[\n  {\n    "version": "1.0",\n    "createSurface": {\n      "surfaceId": "main",\n      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",\n      "components": [\n        {\n          "id": "root",\n          "component": "Card",\n          "child": {"@child": "breedList"}\n        },\n        {\n          "id": "breedList",\n          "component": "List",\n          "children": {\n            "@child": "breedTemplate",\n            "@path": "/breeds"\n          },\n          "direction": "horizontal"\n        },\n        {\n          "id": "breedTemplate",\n          "component": "Image",\n          "url": {"@path": "url"}\n        }\n      ],\n      "dataModel": {\n        "breeds": [\n          {\n            "url": "https://example.com/poodle.jpg"\n          },\n          {\n            "url": "https://example.com/lab.jpg"\n          }\n        ]\n      }\n    }\n  }\n]\n```',
   declaredProtocolVersion: '1.0',
   commonTypesUri: 'common_types.json',
 } satisfies CatalogDocumentOptions;

@@ -143,14 +143,20 @@
         category: ValidationError
 
 - name: test_v10_dynamic_value_object_branches_are_exclusive
-  description: A DynamicValue object is a literal object only when it has no @path, @call or unescaped single-@ key, so an invalid binding or call is not accepted as a literal.
+  description: A DynamicValue object is a literal object only when it has no @path, @call, @child, @action, @functionCall or unescaped single-@ key, so an invalid binding, call, or directive is not accepted as a literal.
   action: validate_common_type
   protocolVersion: "1.0"
   definition: DynamicValue
   steps:
     - value: {label: "x"}
     - value: {path: "/a"}
+    - value: {child: "c1"}
+    - value: {action: {name: "go"}}
+    - value: {functionCall: {call: "now"}}
     - value: {"@@path": "/a"}
+    - value: {"@@child": "c1"}
+    - value: {"@@action": {name: "go"}}
+    - value: {"@@functionCall": {"@call": "now"}}
     - value: {"@path": "/a"}
     - value: {"@call": "now"}
     - value: {"@path": "/a", extra: 1}
@@ -162,7 +168,91 @@
     - value: {"@call": "now", "@path": "/a"}
       expectError:
         category: ValidationError
+    - value: {"@child": "c1"}
+      expectError:
+        category: ValidationError
+    - value: {"@action": {name: "go"}}
+      expectError:
+        category: ValidationError
+    - value: {"@functionCall": {"@call": "now"}}
+      expectError:
+        category: ValidationError
     - value: {"@unknown": 1}
+      expectError:
+        category: ValidationError
+
+- name: test_v10_child_is_at_child_id
+  features: [F-CORE-13]
+  description: Child requires an object with @child holding a component ID string and no extra keys.
+  action: validate_common_type
+  protocolVersion: "1.0"
+  definition: Child
+  steps:
+    - value: {"@child": "header"}
+    - value: "header"
+      expectError:
+        category: ValidationError
+    - value: {}
+      expectError:
+        category: ValidationError
+    - value: {"@child": ["header"]}
+      expectError:
+        category: ValidationError
+    - value: {"@child": "header", extra: 1}
+      expectError:
+        category: ValidationError
+
+- name: test_v10_child_list_is_ids_or_template
+  features: [F-CORE-13]
+  description: ChildList is either an object with @child array of component IDs or a template with @child and @path.
+  action: validate_common_type
+  protocolVersion: "1.0"
+  definition: ChildList
+  steps:
+    - value: {"@child": ["header", "body"]}
+    - value: {"@child": "row", "@path": "/items"}
+    - value: ["header", "body"]
+      expectError:
+        category: ValidationError
+    - value: {componentId: "row", path: "/items"}
+      expectError:
+        category: ValidationError
+    - value: "header"
+      expectError:
+        category: ValidationError
+    - value: {"@child": "row"}
+      expectError:
+        category: ValidationError
+    - value: {"@child": ["row"], "@path": "/items"}
+      expectError:
+        category: ValidationError
+    - value: {"@child": "row", "@path": "/items", extra: 1}
+      expectError:
+        category: ValidationError
+
+- name: test_v10_action_is_at_action_or_at_function_call
+  features: [F-CORE-23, F-CORE-28]
+  description: Action holds exactly one of @action and @functionCall.
+  action: validate_common_type
+  protocolVersion: "1.0"
+  definition: Action
+  steps:
+    - value: {"@action": {name: "submit"}}
+    - value: {"@action": {name: "submit", userMessage: "Go", context: {k: {"@path": "/x"}}}}
+    - value: {"@functionCall": {"@call": "openUrl", args: {url: "https://example.com"}}}
+    - value: {}
+      expectError:
+        category: ValidationError
+    - value: {event: {name: "submit"}}
+      expectError:
+        category: ValidationError
+    - value: {functionCall: {"@call": "now"}}
+      expectError:
+        category: ValidationError
+    - value: {"@action": {}}
+      expectError:
+        category: ValidationError
+    - value: {"@action": {name: "submit"}, "@functionCall": {"@call": "now"}}
       expectError:
         category: ValidationError
 

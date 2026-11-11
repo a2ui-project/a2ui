@@ -25,26 +25,34 @@
         {
           "component": "Row",
           "id": "nested_1__row_1",
-          "children": ["nested_1__text_2", "nested_1__text_3"],
+          "children": {
+            "@child": ["nested_1__text_2", "nested_1__text_3"]
+          },
           "justify": "start",
           "align": "stretch"
         },
         {
           "component": "Card",
           "id": "nested_1__card_1",
-          "child": "nested_1__row_1"
+          "child": {
+            "@child": "nested_1__row_1"
+          }
         },
         {
           "component": "Column",
           "id": "nested_1__column_1",
-          "children": ["nested_1__text_1", "nested_1__card_1"],
+          "children": {
+            "@child": ["nested_1__text_1", "nested_1__card_1"]
+          },
           "justify": "start",
           "align": "stretch"
         },
         {
           "component": "Card",
           "id": "nested_1",
-          "child": "nested_1__column_1"
+          "child": {
+            "@child": "nested_1__column_1"
+          }
         }
       ]
     }

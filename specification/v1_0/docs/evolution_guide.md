@@ -18,17 +18,17 @@ Version 1.0 differs from 0.9 in the following ways:
 - The `functions` field in catalog meta-schemas (`catalog_definition.json`) is now formalized as a JSON object map of function name to its definition, matching the map structure used in catalog files.
 - Standard JSON Schema metadata fields (`$schema`, `$id`, `title`, and `description`) are supported in catalogs, preventing validation failures on inline catalogs with strict property checks.
 - Identifier naming rules across all catalog entities (component names, function names, and argument keys) must conform to Unicode Standard Annex #31 (UAX #31).
-- Reserved `@` prefix across protocol keys (`@path` for data bindings, `@call` for function calls, `@index` for template iteration, and `@metadata`, `@catalogId`, `@accessibility`, `@checks` for flat component envelope mixin keys). Plain objects containing `"path"` or `"call"` keys are treated as literal dictionary values and are no longer intercepted as dynamic directives, and custom catalog components may freely declare `"metadata"`, `"catalogId"`, `"accessibility"`, or `"checks"` properties without colliding with the component envelope. Unknown single-`@` keys (`^@([^@]|$)`) in dynamic objects are disallowed, and literal `@` keys in plain objects are escaped via prefix doubling (`"@@path"` → `"@path"`).
+- Reserved `@` prefix across protocol keys (`@path` for data bindings and template paths, `@call` for function calls, `@index` for template iteration, `@child` for component child references and template lists, `@action` and `@functionCall` for action handlers, and `@metadata`, `@catalogId`, `@accessibility`, `@checks` for flat component envelope mixin keys). Plain objects containing `"path"`, `"call"`, `"child"`, `"event"`, or `"functionCall"` keys are treated as literal dictionary values and are no longer intercepted as directives, and custom catalog components may freely declare `"metadata"`, `"catalogId"`, `"accessibility"`, or `"checks"` properties without colliding with the component envelope. Unknown single-`@` keys (`^@([^@]|$)`) in dynamic objects are disallowed (and `@child`, `@action`, `@functionCall` are disallowed inside `DynamicValue` positions), and literal `@` keys in plain objects are escaped via prefix doubling (`"@@path"` → `"@path"`, `"@@child"` → `"@child"`).
 
   > [!WARNING]
-  > Do not migrate v0.9 payloads with a blanket find-and-replace of `"path":` → `"@path":` or `"call":` → `"@call":`. Only `DataBinding` and `FunctionCall` positions take the prefix. And at the component root, prefix the component envelope mixin keys (`"@metadata"`, `"@catalogId"`, `"@accessibility"`, `"@checks"`), leaving `"id"`, `"component"`, and `FunctionCall.catalogId` unprefixed. These keep their unprefixed form in v1.0:
+  > Do not migrate v0.9 payloads with a blanket find-and-replace of `"path":` → `"@path":` or `"call":` → `"@call":`. Take care to prefix or wrap only the protocol slots: `DataBinding` (`{"@path": ...}`), `FunctionCall` (`{"@call": ...}`), `Child` (`{"@child": "<id>"}`), `ChildList` (`{"@child": ["<id1>", "<id2>"]}` or `{"@child": "<templateId>", "@path": "/items"}`), `Action` (`{"@action": ...}` or `{"@functionCall": ...}`), and flat component root envelope mixin keys (`"@metadata"`, `"@catalogId"`, `"@accessibility"`, `"@checks"`). These keep their unprefixed form in v1.0:
   >
-  > - `ChildList` template objects: `{"componentId": "itemTemplate", "path": "/items"}`.
+  > - Component identity and type keys (`"id"`, `"component"`), and `FunctionCall.args`.
   > - The `updateDataModel` message envelope's `path` field, which is a message parameter rather than a data binding.
-  > - Any `"call"` that is ordinary data rather than a directive, such as the `call` entry in the basic catalog's `Icon` name enum.
+  > - Any `"call"` or `"event"` that is ordinary data rather than a directive, such as the `"call"` and `"event"` entries in the basic catalog's `Icon` name enum.
   > - `FunctionCall.catalogId`, `createSurface.catalogId`, `createSurface.metadata`, `action.metadata`, and `ComponentDefinition.metadata`, which live inside dedicated message or directive envelopes rather than flat component property maps.
   >
-  > Rewrite only the objects a renderer evaluates as a `DynamicValue`. In those objects, every key that needs a literal leading `@` must be escaped by doubling it, whatever follows the prefix: `"@@type"` for a literal `"@type"`, `"@@"` for a literal `"@"`. An unescaped leading `@` is reserved for protocol directives and is rejected.
+  > Inside `DynamicValue` objects (such as `FunctionCall.args` or `@action.context`), every key that needs a literal leading `@` must be escaped by doubling it, whatever follows the prefix: `"@@type"` for a literal `"@type"`, `"@@child"` for a literal `"@child"`, `"@@"` for a literal `"@"`. An unescaped leading `@` is reserved for protocol directives and is rejected.
 
 - Standardized the names of core architectural components, renaming "client" to _renderer_ and "server" to _agent_ (e.g., `server_to_client` schemas are renamed to `agent_to_renderer`), because A2UI is sometimes generated on clients, and rendering sometimes happens on servers, making those terms ambiguous.
 - Catalogs can now define composition constraints (`allowedParents` and `allowedChildren`) on component definitions, using `"Surface"` as the canonical root component type. Because JSON Schema cannot natively restrict child component types across a flat adjacency list of ID references, these rules allow catalogs to declare valid parent-child relationships without altering the wire format.
@@ -74,9 +74,9 @@ Version 1.0 differs from 0.9 in the following ways:
 - Added `agentFunctionResponse` message structure (`AgentFunctionResponseMessage`) to `agent_to_renderer.json` so agents can return execution results or error payloads for renderer-initiated function calls (referencing `common_types.json#/$defs/FunctionResponse`).
 - Updated the `createSurface` message (`CreateSurfaceMessage`) to remove the `theme` field, allowed passing initial `components` and `dataModel` directly inside the payload, made `catalogId` an optional parameter that acts as the surface's default catalog, and added optional surface-level `metadata` (containing `extensions`).
 - Added an optional `@catalogId` property to `ComponentCommon` and `catalogId` property to `FunctionCall` in `common_types.json` to enable mixing catalogs and explicitly designating the catalog on individual components or function calls.
-- Added an optional `userMessage` (`DynamicString`) property to `Action.event` in `common_types.json`, resolved by the renderer into the outbound `action` message.
+- Added an optional `userMessage` (`DynamicString`) property to `Action.@action` in `common_types.json`, resolved by the renderer into the outbound `action` message.
 - Added `$defs/Extensions` to `common_types.json` and added optional `@metadata` (containing `extensions`, `$ref: "#/$defs/Extensions"`) to `ComponentCommon`, while renaming `ComponentCommon.accessibility` to `@accessibility` and `Checkable.checks` to `@checks`.
-- Added `$defs/Child` (`"$ref": "#/$defs/ComponentId"`), `$defs/FunctionCommon`, and `$defs/IndexSystemFunction` to `common_types.json`.
+- Added `$defs/Child` (`{"@child": <ComponentId>}`), `$defs/FunctionCommon`, and `$defs/IndexSystemFunction` to `common_types.json`, and updated `$defs/ChildList` and `$defs/Action` to wrap child references (`@child` / `@child` + `@path`) and action handlers (`@action` / `@functionCall`) in `@`-prefixed objects.
 - Added the `Component` definition in `agent_to_renderer.json` (referenced by `ComponentsList`) to compose `ComponentCommon` (`$ref: "common_types.json#/$defs/ComponentCommon"`) and updated `FunctionCall` in `common_types.json` to compose `FunctionCommon` (`$ref: "#/$defs/FunctionCommon"`), so base component and function call properties are validated at the envelope level regardless of catalog structure.
 - Updated all protocol version references and envelopes from `v0.9` or `v0.9.1` to `1.0`.
 
@@ -84,7 +84,7 @@ Version 1.0 differs from 0.9 in the following ways:
 
 - Added `callAgentFunction` message structure to support renderer-initiated remote function execution requests sent to the agent.
 - Added `rendererFunctionResponse` renderer-to-agent message structure to return function execution results (`value`) or failure payloads (`error`), referencing `common_types.json#/$defs/FunctionResponse`.
-- Added optional `userMessage` (string, resolved from `Action.event.userMessage`) and `metadata` (containing `extensions`, `$ref: "common_types.json#/$defs/Extensions"`) to the renderer-to-agent `action` message in `renderer_to_agent.json`.
+- Added optional `userMessage` (string, resolved from `Action.@action.userMessage`) and `metadata` (containing `extensions`, `$ref: "common_types.json#/$defs/Extensions"`) to the renderer-to-agent `action` message in `renderer_to_agent.json`.
 - Updated renderer `error` messages to support `functionCallId` when reporting function execution failures, enforcing mutual exclusivity with `surfaceId`.
 - Added `"UNALLOWED_PARENT"` and `"UNALLOWED_CHILD"` error code values to `renderer_to_agent.json` for reporting validation errors when a component is placed under an unallowed parent or an unallowed child is placed inside a container.
 - Updated all protocol version references from `v0.9` or `v0.9.1` to `1.0`.
@@ -148,11 +148,33 @@ v1.0 moves these keys into the reserved `@` namespace:
 
 - `id` and `component` stay unprefixed.
 - On v1.0 surfaces, a catalog component may declare its own `metadata`, `catalogId`, `accessibility`, or `checks` property. It is an ordinary catalog property, separate from the `@` envelope key of the same name.
-- The prefix applies only at the root of a component object. A single-`@` key such as `"@metadata"` inside nested dynamic data (for example, an `Action.event.context` value or a literal map) is still rejected with `INVALID_RESERVED_KEY` unless escaped as `"@@metadata"`.
+- The prefix applies only at the root of a component object. A single-`@` key such as `"@metadata"` inside nested dynamic data (for example, an `Action.@action.context` value or a literal map) is still rejected with `INVALID_RESERVED_KEY` unless escaped as `"@@metadata"`.
 - Keys in dedicated message or directive envelopes stay unprefixed: `createSurface.catalogId`, `createSurface.metadata`, `FunctionCall.catalogId`, `action.metadata`, catalog-level `catalogId` and `metadata`, and `ComponentDefinition.metadata`.
 - Pre-1.0 protocol versions (v0.8, v0.9, and v0.9.1) are unchanged. They keep bare `accessibility` and `checks`, treat a bare `metadata` or `catalogId` on a component as an ordinary property, and reject `@`-prefixed envelope keys.
 
 During the transition from early v1.0 drafts, renderers and Core SDKs still accept a legacy bare `catalogId`, `metadata`, `accessibility`, or `checks` on a v1.0 component when the component's schema does not declare a property of that name, and reject a component that carries both the `@` key and the bare key. Agent SDKs emit only the `@` keys. New payloads should use only the `@` keys.
+
+### 2.10. Child references and action directives
+
+In v0.9 and v0.9.1, child slots (`Child` / `ComponentId` and `ChildList`) and interaction handlers (`Action`) had no `@`-prefixed marker on the wire. A parser or node resolver without the component's catalog schema could not tell whether a string or array was a child component edge or plain data, could not distinguish `{"event": ...}` from a literal map, and risked eagerly evaluating `{"@call": ...}` inside `functionCall` or subscribing eagerly to `context` paths at render time instead of creating a deferred action closure.
+
+v1.0 wraps both constructs in `@`-prefixed objects (`common_types.json`):
+
+| Construct         | v0.9.1 / bare form                                      | v1.0 wire shape                                          | Defined in  |
+| ----------------- | ------------------------------------------------------- | -------------------------------------------------------- | ----------- |
+| Single child      | `"header_text"`                                         | `{"@child": "header_text"}`                              | `Child`     |
+| Static child list | `["item_1", "item_2"]`                                  | `{"@child": ["item_1", "item_2"]}`                       | `ChildList` |
+| Template list     | `{"componentId": "row_tpl", "path": "/items"}`          | `{"@child": "row_tpl", "@path": "/items"}`               | `ChildList` |
+| Agent event       | `{"event": {"name": "submit", "context": {...}}}`       | `{"@action": {"name": "submit", "context": {...}}}`      | `Action`    |
+| Function call     | `{"functionCall": {"@call": "openUrl", "args": {...}}}` | `{"@functionCall": {"@call": "openUrl", "args": {...}}}` | `Action`    |
+
+- **Schema-less tree inspection:** Because every child reference carries `@child` (whether a single ID, a static ID array, or a template paired with `@path`), graph walkers and composition validators can extract all parent-to-child edges across standard slots (`child`, `children`, `trigger`, `content`, `tabs[i].child`) and custom slot names even when no component schema is loaded. Using `@child` + `@path` for templates also leaves room to pair `@child` with `@call` in future extensions without introducing a separate template keyword such as `@each`.
+- **Schema-less deferred actions:** Wrapping handlers in `@action` and `@functionCall` marks them as deferred interaction closures so schema-less resolvers do not eagerly evaluate `context`, `userMessage`, or the inner `@call` during render.
+- **`DynamicValue` separation and `@@` escaping:** Inside `DynamicValue` positions (such as `@action.context`, `@action.userMessage`, `FunctionCall.args`, and `CheckRule.condition`), only `@path` and `@call` are valid directives. Unescaped `@child`, `@action`, and `@functionCall` keys are rejected in `DynamicValue`, while doubled prefixes (`"@@child"`, `"@@action"`, `"@@functionCall"`) pass validation and unescape to literal `@` keys in resolved plain objects.
+- **Unchanged fields:** Component `id`, `component`, `FunctionCall.args`, `FunctionCall.catalogId`, and `DataBinding.@path` keep their existing shapes.
+- **Pre-1.0 versions:** v0.8, v0.9, and v0.9.1 payloads are unchanged and do not treat `@child`, `@action`, or `@functionCall` as protocol directives.
+
+During the transition window, renderers and Core SDKs dual-read both `@`-prefixed envelopes and bare `Child`, `ChildList`, and `Action` forms on v1.0 surfaces when a component schema is present (removal tracked in [#4168](https://github.com/a2ui-project/a2ui/issues/4168)), while Agent SDKs emit only the `@`-prefixed directives. New v1.0 payloads should use only `@child`, `@action`, and `@functionCall`.
 
 ## 3. Migration guide
 
@@ -165,6 +187,7 @@ This section outlines the steps required to migrate existing applications and co
 - Remove the `theme` field from `createSurface` messages. You can pass initial `components`, `dataModel`, and optional `metadata.extensions` directly in the `createSurface` payload, and `catalogId` is now optional (acting as the default catalog for that surface).
 - When mixing components from multiple catalogs, specify the optional `@catalogId` on individual components or `catalogId` on function calls.
 - Prefix component-level envelope mixin keys on flat component objects with `@`: `@metadata`, `@catalogId`, `@accessibility`, and `@checks` (`id` and `component` remain unprefixed).
+- Wrap child references in `{"@child": "<id>"}` (single child), `{"@child": ["<id1>", "<id2>"]}` (static child list), or `{"@child": "<templateId>", "@path": "/items"}` (dynamic template), and wrap `Action` payloads in `{"@action": {...}}` or `{"@functionCall": {...}}`.
 - Formalize the `functions` property in catalog definitions as a JSON object map keyed by function name.
 - Remove the `$defs/theme` catalog definition and the `primaryColor` field.
 - Ensure all generated catalog entity names conform to UAX #31 identifier rules.
@@ -180,6 +203,7 @@ This section outlines the steps required to migrate existing applications and co
 - Implement multi-catalog mixing by supporting components and function calls from any catalog in `supportedCatalogIds` or negotiated `inlineCatalogs`. All catalogs mixed within a surface must use the same A2UI specification version.
 - Implement component and function resolution order: (1) explicit component `@catalogId` or function call `catalogId`, (2) surface default `catalogId`, (3) error if neither exists (no fallback to capabilities).
 - Read component envelope mixins from `@catalogId`, `@accessibility`, `@metadata`, and `@checks` on v1.0 surfaces, and pass a catalog-declared bare `catalogId`, `accessibility`, `metadata`, or `checks` property to the component as an ordinary property (see [Component envelope mixin keys](#29-component-envelope-mixin-keys)).
+- Unwrap `@child` (single, static list, and `{"@child", "@path"}` templates) and `@action` / `@functionCall` handlers on v1.0 surfaces, including schema-lessly in open or unannotated components, while keeping the transitional bare fallback when a schema is present until [#4168](https://github.com/a2ui-project/a2ui/issues/4168).
 - Implement function execution by adding support for parsing `callRendererFunction` messages from the agent, checking authorized callers in the catalog (`allowedCallers`), rejecting invalid calls with `INVALID_FUNCTION_CALL`, and returning `rendererFunctionResponse` messages.
 - Implement renderer-initiated function calls by sending `callAgentFunction` messages to the agent and handling incoming `agentFunctionResponse` messages.
 - Support simultaneous version handling during session initialization by inspecting the `version` property (e.g., `"1.0"`) to route payloads to version-specific controllers.
@@ -194,6 +218,7 @@ This section outlines the steps required to migrate existing applications and co
 
 - **Set catalog protocol version**: Catalogs targeting v1.0 must specify `"protocolVersion": "1.0"` in the catalog root.
 - **Custom properties may reuse envelope names**: v1.0 components may declare their own `metadata`, `catalogId`, `accessibility`, or `checks` property, because the envelope mixins use the `@` keys.
+- **Reference standard child and action types**: Use `common_types.json#/$defs/Child`, `common_types.json#/$defs/ChildList`, and `common_types.json#/$defs/Action` for child slots and interaction handlers so schema-less walkers and generated SDKs agree on `@child`, `@action`, and `@functionCall`.
 - **Use relative standard type references**: Replace version-qualified schema URLs (`https://a2ui.org/specification/v1_0/common_types.json#/$defs/...`) with unversioned relative targets (`common_types.json#/$defs/...`).
-- **Breaking changes from v0.9 to v1.0**: Catalogs authored for v0.9 cannot be used directly with v1.0 protocol runtimes due to breaking structural changes (such as composing `ComponentCommon` at the envelope level, returning `ValidationResult` objects from check functions, and declaring caller and composition constraints).
+- **Breaking changes from v0.9 to v1.0**: Catalogs authored for v0.9 cannot be used directly with v1.0 protocol runtimes due to breaking structural changes (such as composing `ComponentCommon` at the envelope level, wrapping `Child`, `ChildList`, and `Action` in `@`-prefixed directives, returning `ValidationResult` objects from check functions, and declaring caller and composition constraints).
 - **Future forward compatibility**: Using unversioned relative references allows v1.0 catalogs to potentially work against future protocol versions without requiring catalog authors to rewrite `$ref` URLs.

@@ -397,9 +397,9 @@ In your A2UI JSON, add an `action` to a component:
     {
       "id": "confirm-button",
       "component": "Button",
-      "child": "confirm-button-text",
+      "child": {"@child": "confirm-button-text"},
       "action": {
-        "event": {
+        "@action": {
           "name": "confirm_booking",
           "context": {
             "start": {

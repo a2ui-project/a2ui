@@ -18,12 +18,16 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main_column"
+            "child": {
+              "@child": "main_column"
+            }
           },
           {
             "id": "main_column",
             "component": "Column",
-            "children": ["restaurant_image", "content"]
+            "children": {
+              "@child": ["restaurant_image", "content"]
+            }
           },
           {
             "id": "restaurant_image",
@@ -36,12 +40,16 @@
           {
             "id": "content",
             "component": "Column",
-            "children": ["name_row", "cuisine", "rating_row", "details_row"]
+            "children": {
+              "@child": ["name_row", "cuisine", "rating_row", "details_row"]
+            }
           },
           {
             "id": "name_row",
             "component": "Row",
-            "children": ["restaurant_name", "price_range"],
+            "children": {
+              "@child": ["restaurant_name", "price_range"]
+            },
             "justify": "spaceBetween",
             "align": "center"
           },
@@ -71,7 +79,9 @@
           {
             "id": "rating_row",
             "component": "Row",
-            "children": ["star_icon", "rating", "reviews"],
+            "children": {
+              "@child": ["star_icon", "rating", "reviews"]
+            },
             "align": "center"
           },
           {
@@ -98,7 +108,9 @@
           {
             "id": "details_row",
             "component": "Row",
-            "children": ["distance", "delivery_time"]
+            "children": {
+              "@child": ["distance", "delivery_time"]
+            }
           },
           {
             "id": "distance",

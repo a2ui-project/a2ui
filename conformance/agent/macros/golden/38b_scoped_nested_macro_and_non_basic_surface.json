@@ -27,19 +27,25 @@
           "component": "BrandBox",
           "id": "root__innerbadgescoped_1",
           "@catalogId": "https://example.com/brand.json",
-          "child": "root__innerbadgescoped_1__text_1"
+          "child": {
+            "@child": "root__innerbadgescoped_1__text_1"
+          }
         },
         {
           "component": "Column",
           "id": "root__column_1",
-          "children": ["root__text_1", "root__innerbadgescoped_1"],
+          "children": {
+            "@child": ["root__text_1", "root__innerbadgescoped_1"]
+          },
           "justify": "start",
           "align": "stretch"
         },
         {
           "component": "Card",
           "id": "root",
-          "child": "root__column_1"
+          "child": {
+            "@child": "root__column_1"
+          }
         }
       ]
     }
@@ -59,7 +65,9 @@
         {
           "id": "root",
           "component": "ChartGrid",
-          "children": ["c_brand", "c_plain"]
+          "children": {
+            "@child": ["c_brand", "c_plain"]
+          }
         },
         {
           "component": "Chart",
@@ -69,7 +77,9 @@
         {
           "component": "ChartCard",
           "id": "c_brand",
-          "child": "c_brand__chart_1"
+          "child": {
+            "@child": "c_brand__chart_1"
+          }
         },
         {
           "id": "c_plain",

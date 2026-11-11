@@ -18,17 +18,23 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main_column"
+            "child": {
+              "@child": "main_column"
+            }
           },
           {
             "id": "main_column",
             "component": "Column",
-            "children": ["header", "tracking_number", "divider", "steps_list", "eta"]
+            "children": {
+              "@child": ["header", "tracking_number", "divider", "steps_list", "eta"]
+            }
           },
           {
             "id": "header",
             "component": "Row",
-            "children": ["package_icon", "title"],
+            "children": {
+              "@child": ["package_icon", "title"]
+            },
             "align": "center"
           },
           {
@@ -57,14 +63,16 @@
             "id": "steps_list",
             "component": "Column",
             "children": {
-              "path": "/steps",
-              "componentId": "step_item_template"
+              "@child": "step_item_template",
+              "@path": "/steps"
             }
           },
           {
             "id": "step_item_template",
             "component": "Row",
-            "children": ["step_icon", "step_text"],
+            "children": {
+              "@child": ["step_icon", "step_text"]
+            },
             "align": "center"
           },
           {
@@ -85,7 +93,9 @@
           {
             "id": "eta",
             "component": "Row",
-            "children": ["eta_icon", "eta_text"],
+            "children": {
+              "@child": ["eta_icon", "eta_text"]
+            },
             "align": "center"
           },
           {

@@ -59,7 +59,7 @@ A2UI: JSON messages describing UI that:
             {
               "id": "root",
               "component": "Column",
-              "children": ["title", "datetime", "submit-btn"]
+              "children": {"@child": ["title", "datetime", "submit-btn"]}
             },
             {
               "id": "title",
@@ -80,10 +80,10 @@ A2UI: JSON messages describing UI that:
             {
               "id": "submit-btn",
               "component": "Button",
-              "child": "submit-text",
+              "child": {"@child": "submit-text"},
               "variant": "primary",
               "action": {
-                "event": { "name": "confirm_booking" }
+                "@action": { "name": "confirm_booking" }
               }
             }
           ]

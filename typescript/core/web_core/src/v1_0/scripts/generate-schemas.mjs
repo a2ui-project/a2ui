@@ -75,7 +75,10 @@ function generateCommonTypes() {
       const typePart = parts[1] || 'ChildList = z.infer<typeof ChildListSchema>';
       code = `export const ChildListSchema = markChildRef(\n  ${schemaExp},\n  'child-list',\n);\nexport type ${typePart}`;
     } else if (name === 'Child') {
-      code = `export const ChildSchema = ComponentIdSchema;\nexport type Child = z.infer<typeof ChildSchema>;`;
+      const parts = code.split('\nexport type ');
+      const schemaExp = parts[0].replace(`export const ChildSchema = `, '').trim();
+      const typePart = parts[1] || 'Child = z.infer<typeof ChildSchema>';
+      code = `export const ChildSchema = markChildRef(\n  ${schemaExp},\n  'component-id',\n);\nexport type ${typePart}`;
     } else if (name === 'DataBinding') {
       code = `export const DataBindingSchema = z
   .object({
@@ -149,7 +152,7 @@ export type IndexSystemFunction = z.infer<typeof IndexSystemFunctionSchema>;`;
     if (name === 'DynamicValue') {
       code = code.replace(
         'z.record(z.string(), z.any())',
-        "z.record(z.string(), z.unknown()).refine((obj) => !obj || (!('@path' in obj) && !('path' in obj) && !('@call' in obj) && !('call' in obj)))",
+        "z.record(z.string(), z.unknown()).refine((obj) => !obj || (!('@path' in obj) && !('path' in obj) && !('@call' in obj) && !('call' in obj) && !('@child' in obj) && !('@action' in obj) && !('@functionCall' in obj) && !Object.keys(obj).some((k) => /^@([^@]|$)/.test(k))))",
       );
     }
 

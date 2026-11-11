@@ -169,15 +169,17 @@ void _createFormat(Map<String, Object?> testCase, SuiteVersion version) {
     expect(format.createParser(), isNot(same(format.createParser())));
   }
   if (expected['parser_state_isolated'] == true) {
+    final SuiteTextLowerer lowerer = version.openTextLowerer();
     final List<String> chunks = [
       for (final Object? chunk in args['probe_chunks']! as List<Object?>)
-        version.text(chunk! as String),
+        lowerer.feed(chunk! as String),
     ];
+    final List<CatalogApi> liftCatalogs = version.liftCatalogs(args);
     List<Object?> read(Parser parser) {
       final ResponseStream stream = parser.openStream();
       return [
         for (final String chunk in chunks)
-          version.partsJson(stream.feed(chunk)),
+          version.partsJson(stream.feed(chunk), catalogs: liftCatalogs),
       ];
     }
 
@@ -250,10 +252,12 @@ void _createProcessor(Map<String, Object?> testCase, SuiteVersion version) {
     expect(_describe(generator), before);
   }
 
+  final List<CatalogApi> liftCatalogs = version.liftCatalogs(args);
   if (testCase['then_parse'] case final Map<String, Object?> parse) {
     assertKnownKeys(parse, _knownKeys['then_parse']!, 'then_parse');
     List<Object?> parseResponse() => version.partsJson(
       processor.parseResponse(version.text(parse['input']! as String)),
+      catalogs: liftCatalogs,
     );
     if (parse['expect_error'] case final Object error) {
       expectThrowsCategory(parseResponse, error);
@@ -263,7 +267,7 @@ void _createProcessor(Map<String, Object?> testCase, SuiteVersion version) {
   }
 
   if (testCase['then_stream'] case final Map<String, Object?> streamed) {
-    _thenStream(processor, streamed, version);
+    _thenStream(processor, streamed, version, liftCatalogs);
   }
 }
 
@@ -275,21 +279,34 @@ void _thenStream(
   A2uiRequestProcessor processor,
   Map<String, Object?> streamed,
   SuiteVersion version,
+  List<CatalogApi> liftCatalogs,
 ) {
   assertKnownKeys(streamed, _knownKeys['then_stream']!, 'then_stream');
   final ResponseStream stream = processor.openStream();
+  final SuiteTextLowerer lowerer = version.openTextLowerer();
   for (final entry in streamed['steps']! as List<Object?>) {
     final step = entry! as Map<String, Object?>;
     assertKnownKeys(step, _knownKeys['then_stream:step']!, 'then_stream:step');
-    final String chunk = version.text(step['input']! as String);
-    List<Object?> feed() => version.partsJson(stream.feed(chunk));
+    final String chunk = lowerer.feed(step['input']! as String);
+    List<Object?> feed() =>
+        version.partsJson(stream.feed(chunk), catalogs: liftCatalogs);
     if (step['expect_error'] case final Object error) {
       expectThrowsCategory(feed, error);
       return;
     }
     expect(feed(), step['expect']);
   }
-  List<Object?> close() => version.partsJson(stream.close());
+  List<Object?> close() {
+    final String tail = lowerer.close();
+    final List<StreamPart> tailParts = tail.isEmpty
+        ? const []
+        : stream.feed(tail);
+    return version.partsJson([
+      ...tailParts,
+      ...stream.close(),
+    ], catalogs: liftCatalogs);
+  }
+
   if (streamed['expect_error'] case final Object error) {
     expectThrowsCategory(close, error);
     return;

@@ -18,12 +18,16 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main_column"
+            "child": {
+              "@child": "main_column"
+            }
           },
           {
             "id": "main_column",
             "component": "Column",
-            "children": ["poster", "content", "trailer_modal"]
+            "children": {
+              "@child": ["poster", "content", "trailer_modal"]
+            }
           },
           {
             "id": "poster",
@@ -36,12 +40,16 @@
           {
             "id": "content",
             "component": "Column",
-            "children": ["title_row", "genre", "rating_row", "runtime", "watch_trailer_btn"]
+            "children": {
+              "@child": ["title_row", "genre", "rating_row", "runtime", "watch_trailer_btn"]
+            }
           },
           {
             "id": "title_row",
             "component": "Row",
-            "children": ["movie_title", "year"],
+            "children": {
+              "@child": ["movie_title", "year"]
+            },
             "align": "start"
           },
           {
@@ -70,7 +78,9 @@
           {
             "id": "rating_row",
             "component": "Row",
-            "children": ["star_icon", "rating_value"],
+            "children": {
+              "@child": ["star_icon", "rating_value"]
+            },
             "align": "center"
           },
           {
@@ -89,7 +99,9 @@
           {
             "id": "runtime",
             "component": "Row",
-            "children": ["time_icon", "runtime_text"],
+            "children": {
+              "@child": ["time_icon", "runtime_text"]
+            },
             "align": "center"
           },
           {
@@ -113,9 +125,11 @@
           {
             "id": "watch_trailer_btn",
             "component": "Button",
-            "child": "watch_trailer_btn_text",
+            "child": {
+              "@child": "watch_trailer_btn_text"
+            },
             "action": {
-              "event": {
+              "@action": {
                 "name": "open_trailer"
               }
             }
@@ -123,8 +137,12 @@
           {
             "id": "trailer_modal",
             "component": "Modal",
-            "trigger": "watch_trailer_btn",
-            "content": "trailer_video"
+            "trigger": {
+              "@child": "watch_trailer_btn"
+            },
+            "content": {
+              "@child": "trailer_video"
+            }
           },
           {
             "id": "trailer_video",

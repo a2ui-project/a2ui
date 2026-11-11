@@ -18,12 +18,16 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main_column"
+            "child": {
+              "@child": "main_column"
+            }
           },
           {
             "id": "main_column",
             "component": "Column",
-            "children": ["player_image", "player_info", "divider", "stats_row"],
+            "children": {
+              "@child": ["player_image", "player_info", "divider", "stats_row"]
+            },
             "align": "center"
           },
           {
@@ -37,7 +41,9 @@
           {
             "id": "player_info",
             "component": "Column",
-            "children": ["player_name", "player_details"],
+            "children": {
+              "@child": ["player_name", "player_details"]
+            },
             "align": "center"
           },
           {
@@ -50,7 +56,9 @@
           {
             "id": "player_details",
             "component": "Row",
-            "children": ["player_number", "player_team"],
+            "children": {
+              "@child": ["player_number", "player_team"]
+            },
             "align": "center"
           },
           {
@@ -75,13 +83,17 @@
           {
             "id": "stats_row",
             "component": "Row",
-            "children": ["stat1", "stat2", "stat3"],
+            "children": {
+              "@child": ["stat1", "stat2", "stat3"]
+            },
             "justify": "spaceAround"
           },
           {
             "id": "stat1",
             "component": "Column",
-            "children": ["stat1_value", "stat1_label"],
+            "children": {
+              "@child": ["stat1_value", "stat1_label"]
+            },
             "align": "center"
           },
           {
@@ -102,7 +114,9 @@
           {
             "id": "stat2",
             "component": "Column",
-            "children": ["stat2_value", "stat2_label"],
+            "children": {
+              "@child": ["stat2_value", "stat2_label"]
+            },
             "align": "center"
           },
           {
@@ -123,7 +137,9 @@
           {
             "id": "stat3",
             "component": "Column",
-            "children": ["stat3_value", "stat3_label"],
+            "children": {
+              "@child": ["stat3_value", "stat3_label"]
+            },
             "align": "center"
           },
           {

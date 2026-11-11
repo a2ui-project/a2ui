@@ -317,8 +317,13 @@ void _runChunks(Map<String, Object?> testCase, SuiteVersion version) {
   final args = testCase['args']! as Map<String, Object?>;
   final bool wrapped = args['wrapped'] as bool? ?? true;
   final String? catalogId = version.injectedCatalog(testCase);
-  List<Object?> lift(List<StreamPart> parts) =>
-      version.partsJson(parts, injectedCatalogId: catalogId, join: true);
+  final List<CatalogApi> liftCatalogs = version.liftCatalogs(args);
+  List<Object?> lift(List<StreamPart> parts) => version.partsJson(
+    parts,
+    injectedCatalogId: catalogId,
+    join: true,
+    catalogs: liftCatalogs,
+  );
   final Parser parser = _format(testCase, version).createParser();
   final ResponseReader<StreamPart> stream =
       args['after_rejected_block'] == 'continue'
@@ -434,6 +439,7 @@ Object? _perform(Map<String, Object?> testCase, SuiteVersion version) {
   final args = testCase['args']! as Map<String, Object?>;
   final InferenceFormat format = _format(testCase, version);
   final input = testCase['input'] as String?;
+  final List<CatalogApi> liftCatalogs = version.liftCatalogs(args);
   switch (testCase['action']) {
     case 'generate_prompt_snippet':
       return format.promptGenerator.generate();
@@ -455,6 +461,7 @@ Object? _perform(Map<String, Object?> testCase, SuiteVersion version) {
       return version.messagesJson(
         format.createParser().compile(input!),
         join: true,
+        catalogs: liftCatalogs,
       );
     case 'decompile':
       return format.createParser().decompile(
@@ -467,6 +474,7 @@ Object? _perform(Map<String, Object?> testCase, SuiteVersion version) {
           wrapped: args['wrapped'] as bool? ?? true,
         ),
         join: true,
+        catalogs: liftCatalogs,
       );
     default:
       throw UnsupportedError('Unknown action ${testCase['action']}');
@@ -513,11 +521,15 @@ void _checkDecompiled(
       in (testCase['expect_absent'] as List<Object?>?) ?? const []) {
     expect(output, isNot(contains(text)));
   }
+  final List<CatalogApi> liftCatalogs = version.liftCatalogs(
+    testCase['args']! as Map<String, Object?>,
+  );
   if (testCase['expect_round_trip'] == true) {
     expect(
       version.messagesJson(
         _format(testCase, version).createParser().compile(output),
         join: true,
+        catalogs: liftCatalogs,
       ),
       testCase['messages'],
       reason: 'Express written:\n$output',
@@ -528,6 +540,7 @@ void _checkDecompiled(
       version.messagesJson(
         _format(testCase, version).createParser().compile(output),
         join: true,
+        catalogs: liftCatalogs,
       ),
       expected,
       reason: 'Express written:\n$output',

@@ -12,9 +12,9 @@
             {
               "id": "btn1",
               "component": "Button",
-              "child": "txt1",
+              "child": {"@child": "txt1"},
               "action": {
-                "event": {
+                "@action": {
                   "name": "submit"
                 }
               },
@@ -82,9 +82,9 @@
             {
               "id": "btn2",
               "component": "Button",
-              "child": "txt2",
+              "child": {"@child": "txt2"},
               "action": {
-                "event": {
+                "@action": {
                   "name": "submit"
                 }
               },
@@ -112,9 +112,9 @@
             {
               "id": "btn3",
               "component": "Button",
-              "child": "txt3",
+              "child": {"@child": "txt3"},
               "action": {
-                "event": {
+                "@action": {
                   "name": "submit"
                 }
               },
@@ -151,9 +151,9 @@
             {
               "id": "btn4",
               "component": "Button",
-              "child": "txt4",
+              "child": {"@child": "txt4"},
               "action": {
-                "event": {
+                "@action": {
                   "name": "submit"
                 }
               },
@@ -190,9 +190,9 @@
             {
               "id": "btn_primary",
               "component": "Button",
-              "child": "txt_primary",
+              "child": {"@child": "txt_primary"},
               "action": {
-                "event": {
+                "@action": {
                   "name": "submit"
                 }
               },
@@ -218,9 +218,9 @@
             {
               "id": "btn_borderless",
               "component": "Button",
-              "child": "txt_borderless",
+              "child": {"@child": "txt_borderless"},
               "action": {
-                "event": {
+                "@action": {
                   "name": "cancel"
                 }
               },
@@ -246,9 +246,9 @@
             {
               "id": "btn_dep",
               "component": "Button",
-              "child": "txt_dep",
+              "child": {"@child": "txt_dep"},
               "action": {
-                "event": {
+                "@action": {
                   "name": "submit"
                 }
               },
@@ -274,9 +274,9 @@
             {
               "id": "btn_dn",
               "component": "Button",
-              "child": "txt_dn",
+              "child": {"@child": "txt_dn"},
               "action": {
-                "event": {
+                "@action": {
                   "name": "submit_deal",
                   "userMessage": "Saved deal"
                 }
@@ -285,9 +285,9 @@
             {
               "id": "btn_path",
               "component": "Button",
-              "child": "txt_dn",
+              "child": {"@child": "txt_dn"},
               "action": {
-                "event": {
+                "@action": {
                   "name": "submit_deal",
                   "userMessage": {
                     "@path": "/form/userMsg"

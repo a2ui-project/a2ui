@@ -33,7 +33,11 @@ from .catalogs import (
     surface_catalog_id,
 )
 from .coalesce import CoalescedMessage, coalesce_surface_messages
-from .schema_helper import CatalogSchemaHelper, is_action_slot
+from .schema_helper import (
+    CatalogSchemaHelper,
+    is_action_slot,
+    schema_expects_at_child,
+)
 
 __all__ = [
     "CatalogSchemaHelper",
@@ -46,6 +50,7 @@ __all__ = [
     "coalesce_surface_messages",
     "is_action_slot",
     "normalize_prompt_example_messages",
+    "schema_expects_at_child",
     "surface_catalog_id",
     "to_message_dicts",
     "to_message_models",

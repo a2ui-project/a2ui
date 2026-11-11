@@ -795,7 +795,7 @@
       surfaceId: "main_surface"
       catalogId: "store_catalog"
       actionPayload:
-        functionCall:
+        "@functionCall":
           "@call": "undeclaredAgentAction"
           catalogId: "store_catalog"
           args:
@@ -828,8 +828,9 @@
         - id: "root"
           component: "Column"
           children:
-            - "bound_text"
-            - "sibling_text"
+            "@child":
+              - "bound_text"
+              - "sibling_text"
         - id: "bound_text"
           component: "Text"
           text:
@@ -930,7 +931,7 @@
               path: "/finished"
               value: true
       actionPayload:
-        functionCall:
+        "@functionCall":
           "@call": "finish"
           catalogId: "store_catalog"
           args:

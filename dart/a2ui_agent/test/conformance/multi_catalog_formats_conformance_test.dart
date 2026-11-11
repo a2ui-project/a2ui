@@ -96,21 +96,27 @@ InferenceFormat _format(Map<String, Object?> testCase, SuiteVersion version) {
 /// Performs the call a case names, with its result in the suite's
 /// vocabulary.
 Object? _perform(Map<String, Object?> testCase, SuiteVersion version) {
+  final args = testCase['args']! as Map<String, Object?>;
   final InferenceFormat format = _format(testCase, version);
   final input = testCase['input'] as String?;
+  final List<CatalogApi> liftCatalogs = version.liftCatalogs(args);
   switch (testCase['action']) {
     case 'create_format':
       return null;
     case 'compile':
       return version.messagesJson(
         compileChecked(format.createParser(), input!),
+        catalogs: liftCatalogs,
       );
     case 'decompile':
       return format.createParser().decompile(
         version.messages(testCase['messages']! as List<Object?>),
       );
     case 'parse_response':
-      return version.partsJson(format.createParser().parseResponse(input!));
+      return version.partsJson(
+        format.createParser().parseResponse(input!),
+        catalogs: liftCatalogs,
+      );
     default:
       throw UnsupportedError('Unknown action ${testCase['action']}');
   }
@@ -137,7 +143,12 @@ void _checkDecompiled(
       output,
     );
     expect(
-      version.messagesJson(recompiled),
+      version.messagesJson(
+        recompiled,
+        catalogs: version.liftCatalogs(
+          testCase['args']! as Map<String, Object?>,
+        ),
+      ),
       testCase['messages'],
       reason: 'Written:\n$output',
     );

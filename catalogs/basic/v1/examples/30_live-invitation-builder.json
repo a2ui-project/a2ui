@@ -18,7 +18,9 @@
           {
             "id": "root",
             "component": "Column",
-            "children": ["header", "main_content"],
+            "children": {
+              "@child": ["header", "main_content"]
+            },
             "align": "stretch"
           },
           {
@@ -29,19 +31,23 @@
           {
             "id": "main_content",
             "component": "Row",
-            "children": ["editor_col", "preview_col"],
+            "children": {
+              "@child": ["editor_col", "preview_col"]
+            },
             "align": "start"
           },
           {
             "id": "editor_col",
             "component": "Column",
-            "children": [
-              "editor_title",
-              "event_name_input",
-              "guest_input",
-              "date_input",
-              "location_picker"
-            ],
+            "children": {
+              "@child": [
+                "editor_title",
+                "event_name_input",
+                "guest_input",
+                "date_input",
+                "location_picker"
+              ]
+            },
             "weight": 1,
             "align": "stretch"
           },
@@ -103,7 +109,9 @@
           {
             "id": "preview_col",
             "component": "Column",
-            "children": ["preview_title", "invitation_card"],
+            "children": {
+              "@child": ["preview_title", "invitation_card"]
+            },
             "weight": 1,
             "align": "center"
           },
@@ -116,18 +124,22 @@
           {
             "id": "invitation_card",
             "component": "Card",
-            "child": "invitation_content"
+            "child": {
+              "@child": "invitation_content"
+            }
           },
           {
             "id": "invitation_content",
             "component": "Column",
-            "children": [
-              "invite_image",
-              "invite_event_name",
-              "invite_guest_row",
-              "invite_date_text",
-              "invite_location_text"
-            ],
+            "children": {
+              "@child": [
+                "invite_image",
+                "invite_event_name",
+                "invite_guest_row",
+                "invite_date_text",
+                "invite_location_text"
+              ]
+            },
             "align": "center"
           },
           {
@@ -146,7 +158,9 @@
           {
             "id": "invite_guest_row",
             "component": "Row",
-            "children": ["invite_for_text", "invite_guest_name"],
+            "children": {
+              "@child": ["invite_for_text", "invite_guest_name"]
+            },
             "align": "center"
           },
           {

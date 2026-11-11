@@ -70,8 +70,8 @@
           - id: root
             component: List
             children:
-              componentId: itemTemplate
-              path: "/items"
+              "@child": itemTemplate
+              "@path": "/items"
           - id: itemTemplate
             component: Text
             text:

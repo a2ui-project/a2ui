@@ -205,10 +205,12 @@ Add or update components within a surface.
           {
             "id": "root",
             "component": "Column",
-            "children": [
-              "header",
-              "body"
-            ]
+            "children": {
+              "@child": [
+                "header",
+                "body"
+              ]
+            }
           },
           {
             "id": "header",
@@ -218,7 +220,9 @@ Add or update components within a surface.
           {
             "id": "body",
             "component": "Card",
-            "child": "content"
+            "child": {
+              "@child": "content"
+            }
           },
           {
             "id": "content",

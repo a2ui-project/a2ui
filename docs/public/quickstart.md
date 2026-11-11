@@ -191,11 +191,11 @@ The restaurant finder sample sends v0.9.1 messages. The v1.0 tab shows the same 
       "updateComponents": {
         "surfaceId": "main",
         "components": [
-          {"id": "root", "component": "Column", "children": ["header", "date-picker", "submit-btn"]},
+          {"id": "root", "component": "Column", "children": {"@child": ["header", "date-picker", "submit-btn"]}},
           {"id": "header", "component": "Text", "text": "# Book Your Table"},
           {"id": "date-picker", "component": "DateTimeInput", "label": "Select Date", "value": {"@path": "/reservation/date"}, "enableDate": true},
           {"id": "submit-text", "component": "Text", "text": "Confirm Reservation"},
-          {"id": "submit-btn", "component": "Button", "child": "submit-text", "variant": "primary", "action": {"event": {"name": "confirm_booking"}}}
+          {"id": "submit-btn", "component": "Button", "child": {"@child": "submit-text"}, "variant": "primary", "action": {"@action": {"name": "confirm_booking"}}}
         ]
       }}
     ```

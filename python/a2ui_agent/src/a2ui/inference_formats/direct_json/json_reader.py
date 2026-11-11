@@ -174,6 +174,8 @@ _NEWLINE_STRIPPED_KEYS = frozenset({
     "id",
     "component",
     "child",
+    # The v1.0 child reference key.
+    "@child",
     "surfaceId",
     "catalogId",
     # The v1.0 component-level catalog override.
@@ -379,7 +381,7 @@ class _Reader:
                     obj[key] = self._array(
                         whole_items=self._partial and key in self.whole_item_keys,
                         strip_item_newlines=(
-                            key == "children" and not self._in_data_model
+                            key in ("children", "@child") and not self._in_data_model
                         ),
                     )
                 elif not self._at_end and self.text[self._i] == "{":

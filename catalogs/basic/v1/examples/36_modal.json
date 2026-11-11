@@ -18,7 +18,9 @@
           {
             "id": "root",
             "component": "Column",
-            "children": ["title", "modal_comp"]
+            "children": {
+              "@child": ["title", "modal_comp"]
+            }
           },
           {
             "id": "title",
@@ -28,8 +30,12 @@
           {
             "id": "modal_comp",
             "component": "Modal",
-            "trigger": "open_btn",
-            "content": "modal_content"
+            "trigger": {
+              "@child": "open_btn"
+            },
+            "content": {
+              "@child": "modal_content"
+            }
           },
           {
             "id": "open_btn_text",
@@ -39,9 +45,11 @@
           {
             "id": "open_btn",
             "component": "Button",
-            "child": "open_btn_text",
+            "child": {
+              "@child": "open_btn_text"
+            },
             "action": {
-              "event": {
+              "@action": {
                 "name": "openModalEvent",
                 "context": {}
               }
@@ -50,7 +58,9 @@
           {
             "id": "modal_content",
             "component": "Column",
-            "children": ["modal_text"]
+            "children": {
+              "@child": ["modal_text"]
+            }
           },
           {
             "id": "modal_text",

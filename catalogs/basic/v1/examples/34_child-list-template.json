@@ -18,12 +18,16 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main_column"
+            "child": {
+              "@child": "main_column"
+            }
           },
           {
             "id": "main_column",
             "component": "Column",
-            "children": ["title_text", "item_list"],
+            "children": {
+              "@child": ["title_text", "item_list"]
+            },
             "align": "stretch"
           },
           {
@@ -35,14 +39,16 @@
             "id": "item_list",
             "component": "List",
             "children": {
-              "componentId": "item_row",
-              "path": "/items"
+              "@child": "item_row",
+              "@path": "/items"
             }
           },
           {
             "id": "item_row",
             "component": "Row",
-            "children": ["item_name", "qty_label", "item_qty"]
+            "children": {
+              "@child": ["item_name", "qty_label", "item_qty"]
+            }
           },
           {
             "id": "item_name",

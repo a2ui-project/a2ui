@@ -101,7 +101,7 @@ def _collect_dict_facts(node: Mapping[str, Any], facts: _PayloadFacts) -> None:
     elif isinstance(component, Mapping):
         # v0.8 shape: {"component": {"Button": {...}}}
         facts.component_types.update(str(k) for k in component)
-    catalog_id = node.get("catalogId")
+    catalog_id = node.get("@catalogId") or node.get("catalogId")
     if isinstance(catalog_id, str):
         facts.catalog_ids.add(catalog_id)
     for key in ("path", "@path"):
@@ -131,7 +131,13 @@ def _written_paths(prefix: str, value: Any) -> set[str]:
 
 
 def _collect_action_names(node: Mapping[str, Any], facts: _PayloadFacts) -> None:
-    """Records action names in their `event`, `functionCall` and `@call` forms."""
+    """Records action names in their `@action`, `event`, `functionCall` and `@call` forms."""
+    at_action = node.get("@action")
+    if isinstance(at_action, Mapping) and isinstance(at_action.get("name"), str):
+        facts.action_names.add(at_action["name"])
+    at_fc = node.get("@functionCall")
+    if isinstance(at_fc, Mapping) and isinstance(at_fc.get("@call"), str):
+        facts.action_names.add(at_fc["@call"])
     event = node.get("event")
     if isinstance(event, Mapping) and isinstance(event.get("name"), str):
         facts.action_names.add(event["name"])

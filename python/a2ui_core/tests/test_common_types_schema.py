@@ -133,15 +133,25 @@ def test_models_round_trip_through_generated_schema(version: str) -> None:
             "CheckRule",
             {"condition": {path_key: "/form/valid"}, "message": "Required field"},
         ),
-        ("ChildList", ["header", "body"]),
-        ("ChildList", {"componentId": "row_template", "path": "/items"}),
-        ("Action", {"event": {"name": "submit"}}),
     ]
-    if "Extensions" in defs:
-        cases.append((
-            "ComponentCommon",
-            {"id": "comp_header", "@metadata": {"extensions": {"ünïcode_tag": 1}}},
-        ))
+    if version == "v1_0":
+        cases.extend([
+            ("Child", {"@child": "comp_header"}),
+            ("ChildList", {"@child": ["header", "body"]}),
+            ("ChildList", {"@child": "row_template", "@path": "/items"}),
+            ("Action", {"@action": {"name": "submit"}}),
+            ("Action", {"@functionCall": {"@call": "fetchData"}}),
+            (
+                "ComponentCommon",
+                {"id": "comp_header", "@metadata": {"extensions": {"ünïcode_tag": 1}}},
+            ),
+        ])
+    else:
+        cases.extend([
+            ("ChildList", ["header", "body"]),
+            ("ChildList", {"componentId": "row_template", "path": "/items"}),
+            ("Action", {"event": {"name": "submit"}}),
+        ])
     for def_name, instance in cases:
         adapter = TypeAdapter(defs[def_name])
         dumped = adapter.dump_python(

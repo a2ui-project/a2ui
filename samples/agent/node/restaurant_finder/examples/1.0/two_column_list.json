@@ -14,7 +14,9 @@
         {
           "id": "root",
           "component": "Column",
-          "children": ["title_heading", "restaurant_list"]
+          "children": {
+            "@child": ["title_heading", "restaurant_list"]
+          }
         },
         {
           "id": "title_heading",
@@ -28,24 +30,30 @@
           "component": "List",
           "direction": "vertical",
           "children": {
-            "componentId": "row_template",
-            "path": "/items"
+            "@child": "row_template",
+            "@path": "/items"
           }
         },
         {
           "id": "row_template",
           "component": "Row",
-          "children": ["card_template_left", "card_template_right"]
+          "children": {
+            "@child": ["card_template_left", "card_template_right"]
+          }
         },
         {
           "id": "card_template_left",
           "component": "Card",
-          "child": "card_layout_left"
+          "child": {
+            "@child": "card_layout_left"
+          }
         },
         {
           "id": "card_layout_left",
           "component": "Column",
-          "children": ["template_image_left", "card_details_left"]
+          "children": {
+            "@child": ["template_image_left", "card_details_left"]
+          }
         },
         {
           "id": "template_image_left",
@@ -58,12 +66,14 @@
         {
           "id": "card_details_left",
           "component": "Column",
-          "children": [
-            "template_name_left",
-            "template_rating_left",
-            "template_detail_left",
-            "template_book_button_left"
-          ]
+          "children": {
+            "@child": [
+              "template_name_left",
+              "template_rating_left",
+              "template_detail_left",
+              "template_book_button_left"
+            ]
+          }
         },
         {
           "id": "template_name_left",
@@ -89,9 +99,11 @@
         {
           "id": "template_book_button_left",
           "component": "Button",
-          "child": "book_now_text_left",
+          "child": {
+            "@child": "book_now_text_left"
+          },
           "action": {
-            "event": {
+            "@action": {
               "name": "book_restaurant",
               "context": {
                 "restaurantName": {
@@ -115,12 +127,16 @@
         {
           "id": "card_template_right",
           "component": "Card",
-          "child": "card_layout_right"
+          "child": {
+            "@child": "card_layout_right"
+          }
         },
         {
           "id": "card_layout_right",
           "component": "Column",
-          "children": ["template_image_right", "card_details_right"]
+          "children": {
+            "@child": ["template_image_right", "card_details_right"]
+          }
         },
         {
           "id": "template_image_right",
@@ -133,12 +149,14 @@
         {
           "id": "card_details_right",
           "component": "Column",
-          "children": [
-            "template_name_right",
-            "template_rating_right",
-            "template_detail_right",
-            "template_book_button_right"
-          ]
+          "children": {
+            "@child": [
+              "template_name_right",
+              "template_rating_right",
+              "template_detail_right",
+              "template_book_button_right"
+            ]
+          }
         },
         {
           "id": "template_name_right",
@@ -164,9 +182,11 @@
         {
           "id": "template_book_button_right",
           "component": "Button",
-          "child": "book_now_text_right",
+          "child": {
+            "@child": "book_now_text_right"
+          },
           "action": {
-            "event": {
+            "@action": {
               "name": "book_restaurant",
               "context": {
                 "restaurantName": {

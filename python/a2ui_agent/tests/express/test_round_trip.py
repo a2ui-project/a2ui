@@ -225,7 +225,7 @@ def test_v1_rejects_non_identifier_component_id(decompiler):
 def test_v1_reserved_word_id_is_derived(compiler, decompiler):
     messages = [
         _create([
-            {"id": "root", "component": "Row", "children": ["true", "_"]},
+            {"id": "root", "component": "Row", "children": {"@child": ["true", "_"]}},
             {"id": "true", "component": "Text", "text": "keyword"},
             {"id": "_", "component": "Text", "text": "placeholder"},
         ])
@@ -246,7 +246,7 @@ def test_unicode_identifiers_round_trip(compiler, decompiler):
             {
                 "id": "root",
                 "component": "Column",
-                "children": ["größe", "名前", combining_id],
+                "children": {"@child": ["größe", "名前", combining_id]},
             },
             {"id": "größe", "component": "Text", "text": "Size"},
             {"id": "名前", "component": "Text", "text": "Name"},
@@ -269,7 +269,7 @@ def test_out_of_scope_references(compiler, decompiler):
             {
                 "id": "card",
                 "component": "Column",
-                "children": ["earlier_title", "earlier-body"],
+                "children": {"@child": ["earlier_title", "earlier-body"]},
             },
         ])
     ]
@@ -378,8 +378,8 @@ def test_empty_event_context_round_trips(compiler, decompiler):
             {
                 "id": "root",
                 "component": "Button",
-                "child": "label",
-                "action": {"event": {"name": "go", "context": {}}},
+                "child": {"@child": "label"},
+                "action": {"@action": {"name": "go", "context": {}}},
             },
         ])
     ]

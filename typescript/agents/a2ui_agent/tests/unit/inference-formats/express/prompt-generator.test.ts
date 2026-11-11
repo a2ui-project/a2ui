@@ -373,7 +373,7 @@ describe('ExpressPromptGenerator', () => {
     it('stamps no catalogId on a system function call in an updateComponents example', () => {
       const cat = loadConformanceCatalog('simplified_catalog_v1_0.json');
       const components = [
-        {id: 'root', component: 'Column', children: {path: '/items', componentId: 'row'}},
+        {id: 'root', component: 'Column', children: {'@child': 'row', '@path': '/items'}},
         {id: 'row', component: 'Text', text: {'@call': '@index'}},
       ];
       const examples = {

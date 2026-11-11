@@ -18,12 +18,16 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main_row"
+            "child": {
+              "@child": "main_row"
+            }
           },
           {
             "id": "main_row",
             "component": "Row",
-            "children": ["status_checkbox", "content", "priority"],
+            "children": {
+              "@child": ["status_checkbox", "content", "priority"]
+            },
             "align": "start"
           },
           {
@@ -37,7 +41,9 @@
           {
             "id": "content",
             "component": "Column",
-            "children": ["title", "description", "meta_row"]
+            "children": {
+              "@child": ["title", "description", "meta_row"]
+            }
           },
           {
             "id": "title",
@@ -57,7 +63,9 @@
           {
             "id": "meta_row",
             "component": "Row",
-            "children": ["due_date_input", "project"],
+            "children": {
+              "@child": ["due_date_input", "project"]
+            },
             "align": "center"
           },
           {

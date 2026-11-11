@@ -1178,6 +1178,26 @@ def _resolve_surface_components(surface: Any) -> dict[str, dict[str, Any]]:
     from a2ui.core.resolution import ComponentContext, GenericBinder
 
     resolved: dict[str, dict[str, Any]] = {}
+    if surface.components_model.get("root") is None:
+        return resolved
+
+    def _walk_prop_nodes(val: Any) -> None:
+        if hasattr(val, "value"):
+            val = val.value
+        if hasattr(val, "component_id"):
+            path = getattr(val, "data_path", "/") or "/"
+            idx = _indexed_suffix_for_path(path)
+            if idx:
+                _resolve_one(val.component_id, path, f"{val.component_id}_{idx}")
+                _resolve_one(val.component_id, path, f"{val.component_id}-[{path}]")
+            else:
+                _resolve_one(val.component_id, path, val.component_id)
+        elif isinstance(val, list):
+            for item in val:
+                _walk_prop_nodes(item)
+        elif isinstance(val, dict):
+            for sub in val.values():
+                _walk_prop_nodes(sub)
 
     def _resolve_one(comp_id: str, data_path: str, instance_key: str) -> None:
         if instance_key in resolved:
@@ -1192,24 +1212,25 @@ def _resolve_surface_components(surface: Any) -> dict[str, dict[str, Any]]:
         props = dict(binder.current_props)
         binder.dispose()
 
-        _resolve_template_children(surface, ctx, props, _resolve_one)
-
-        idx_suffix = _indexed_suffix_for_path(data_path)
-        if idx_suffix:
-            for child_id, _ in comp.get_child_references(
-                set(surface.components_model.keys)
-            ):
-                _resolve_one(child_id, data_path, f"{child_id}_{idx_suffix}")
-                _resolve_one(child_id, data_path, f"{child_id}-[{data_path}]")
-
         resolved[instance_key] = {
             "type": comp.type,
             "props": props,
         }
 
-    for comp_id, _ in list(surface.components_model.entries):
-        _resolve_one(comp_id, "/", comp_id)
+        _resolve_template_children(surface, ctx, props, _resolve_one)
+        _walk_prop_nodes(props)
 
+        idx_suffix = _indexed_suffix_for_path(data_path)
+        for child_id, _ in comp.get_child_references(
+            set(surface.components_model.keys)
+        ):
+            if idx_suffix:
+                _resolve_one(child_id, data_path, f"{child_id}_{idx_suffix}")
+                _resolve_one(child_id, data_path, f"{child_id}-[{data_path}]")
+            else:
+                _resolve_one(child_id, data_path, child_id)
+
+    _resolve_one("root", "/", "root")
     return resolved
 
 
@@ -1270,7 +1291,11 @@ def _assert_single_component_state(
         surface.protocol_version
         and is_at_least_version(surface.protocol_version, ProtocolVersion.V1_0)
     )
-    node_props = node_info["props"] if node_info else {}
+    node_props = (
+        node_info["props"]
+        if node_info
+        else (comp.properties if comp is not None else {})
+    )
     skip_keys = {"id", "component", "@metadata"}
     if not is_at_least_v10:
         if "metadata" in c_exp and comp is not None:
@@ -1281,8 +1306,6 @@ def _assert_single_component_state(
         # ended up with.
         assert comp is not None
         assert comp.metadata == c_exp["@metadata"]
-    if not node_info:
-        return
     for p_key, p_val in c_exp.items():
         if p_key in skip_keys:
             continue

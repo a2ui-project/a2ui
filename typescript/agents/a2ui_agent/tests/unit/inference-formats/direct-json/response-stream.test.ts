@@ -202,7 +202,7 @@ describe('DirectJsonResponseStream', () => {
       `{"version": "1.0", "createSurface": {"surfaceId": "surface-1", "catalogId": "${basicV10.id}"}}, `,
       `{"version": "1.0", "createSurface": {"surfaceId": "surface-2", "catalogId": "${CUSTOM_ID}"}}, `,
       '{"version": "1.0", "updateComponents": {"surfaceId": "surface-1", "components": [{"id": "root", "component": "Text", "text": "Surface 1"}]}}, ',
-      '{"version": "1.0", "updateComponents": {"surfaceId": "surface-2", "components": [{"id": "root", "component": "CustomCard", "child": "m1"}, ',
+      '{"version": "1.0", "updateComponents": {"surfaceId": "surface-2", "components": [{"id": "root", "component": "CustomCard", "child": {"@child": "m1"}}, ',
       '{"id": "m1", "component": "CustomMetric", "value": 99}]}}]' + CLOSE,
     ]);
 
@@ -210,9 +210,31 @@ describe('DirectJsonResponseStream', () => {
       {id: 'root', component: 'Text', text: 'Surface 1'},
     ]);
     expect(componentsFor(messages, 'surface-2').slice(-2)).toEqual([
-      {id: 'root', component: 'CustomCard', child: 'm1'},
+      {id: 'root', component: 'CustomCard', child: {'@child': 'm1'}},
       {id: 'm1', component: 'CustomMetric', value: 99},
     ]);
+  });
+
+  it('strips raw newlines inside @child directive strings and arrays outside dataModel', () => {
+    const parser = new DirectJsonParser([basicV10]);
+    const body =
+      `[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "${basicV10.id}"}}, ` +
+      '{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [' +
+      '{"id": "root", "component": "Column", "children": {"@child": ["c\n1", "t1"]}}, ' +
+      '{"id": "c1", "component": "Card", "child": {"@child": "t\n1"}}, ' +
+      '{"id": "t1", "component": "Text", "text": "line\nbreak"}]}}, ' +
+      '{"version": "1.0", "updateDataModel": {"surfaceId": "s1", "value": {"note": {"@child": "keep\nnewline"}}}}]';
+
+    const streamed = stream(parser, [OPEN + body + CLOSE]);
+    expect(componentsFor(streamed, 's1')).toEqual([
+      {id: 'root', component: 'Column', children: {'@child': ['c1', 't1']}},
+      {id: 'c1', component: 'Card', child: {'@child': 't1'}},
+      {id: 't1', component: 'Text', text: 'line\nbreak'},
+    ]);
+    const dataMsg = streamed.find(m => 'updateDataModel' in m) as {
+      updateDataModel: {value: {note: {'@child': string}}};
+    };
+    expect(dataMsg.updateDataModel.value.note['@child']).toBe('keep\nnewline');
   });
 
   it('throws on the chunk that closes an invalid v1.0 component', () => {
@@ -225,10 +247,10 @@ describe('DirectJsonResponseStream', () => {
         `[{"version": "1.0", "createSurface": {"surfaceId": "main", "catalogId": "${basicV10.id}"}}, `,
     );
     const parts = opened.feed(
-      '{"version": "1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Column", "children": ["a", "b"]}, ',
+      '{"version": "1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Column", "children": {"@child": ["a", "b"]}}, ',
     );
     expect(componentsFor(messagesOf(parts), 'main')).toEqual([
-      {id: 'root', component: 'Column', children: ['a', 'b']},
+      {id: 'root', component: 'Column', children: {'@child': ['a', 'b']}},
     ]);
 
     expect(() => opened.feed('{"id": "a", "component": "Bogus"}, ')).toThrow(A2uiValidationError);

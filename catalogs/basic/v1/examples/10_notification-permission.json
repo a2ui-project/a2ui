@@ -18,12 +18,16 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "main_column"
+            "child": {
+              "@child": "main_column"
+            }
           },
           {
             "id": "main_column",
             "component": "Column",
-            "children": ["icon", "title", "description", "actions"],
+            "children": {
+              "@child": ["icon", "title", "description", "actions"]
+            },
             "align": "center"
           },
           {
@@ -51,7 +55,9 @@
           {
             "id": "actions",
             "component": "Row",
-            "children": ["yes_btn", "no_btn"],
+            "children": {
+              "@child": ["yes_btn", "no_btn"]
+            },
             "justify": "center"
           },
           {
@@ -62,9 +68,11 @@
           {
             "id": "yes_btn",
             "component": "Button",
-            "child": "yes_btn_text",
+            "child": {
+              "@child": "yes_btn_text"
+            },
             "action": {
-              "event": {
+              "@action": {
                 "name": "accept",
                 "context": {}
               }
@@ -78,9 +86,11 @@
           {
             "id": "no_btn",
             "component": "Button",
-            "child": "no_btn_text",
+            "child": {
+              "@child": "no_btn_text"
+            },
             "action": {
-              "event": {
+              "@action": {
                 "name": "decline",
                 "context": {}
               }

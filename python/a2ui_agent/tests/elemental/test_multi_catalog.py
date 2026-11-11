@@ -142,7 +142,7 @@ def test_hand_written_second_catalog_component(parser: ElementalParser) -> None:
         "id": "root",
         "component": "Column",
         "@catalogId": PRI,
-        "children": ["n", "w", "p"],
+        "children": {"@child": ["n", "w", "p"]},
     }
     assert comps["n"] == {
         "id": "n",
@@ -196,7 +196,7 @@ def test_container_tags_are_looked_up_per_catalog(
 </body>""",
     )
     comps = _components(messages)
-    assert comps["root"]["children"] == ["leaf", "after", "holder"]
+    assert comps["root"]["children"] == {"@child": ["leaf", "after", "holder"]}
     assert comps["holder"]["child"] == "inside"
 
 
@@ -609,7 +609,7 @@ def test_attribute_values_with_quotes_round_trip(
                         "id": "root",
                         "component": "Column",
                         "@catalogId": PRI,
-                        "children": [_ODD, "t2"],
+                        "children": {"@child": [_ODD, "t2"]},
                     },
                 ],
                 "dataModel": {"k": _ODD},
@@ -970,3 +970,141 @@ def test_catalog_instructions_replaces_indented_json_with_re_sub() -> None:
     assert "```html" in result
     assert "<ui-text" in result
     assert "```json" not in result
+
+
+def test_v1_0_elemental_child_action_dual_read_and_custom_non_collision() -> None:
+    """Verifies Elemental v1.0 @child/@action/@functionCall emission, bare dual-read, and custom props."""
+    from a2ui.core import Catalog as CoreCatalog
+    from a2ui.inference_formats.experimental.elemental import ElementalParser
+
+    cat = CoreCatalog.from_json(
+        {
+            "catalogId": "test/elemental_child_action",
+            "components": {
+                "Text": {"properties": {"text": {"type": "string"}}},
+                "SlotBox": {
+                    "properties": {
+                        "content": {"$ref": "common_types.json#/$defs/Child"},
+                        "children": {"$ref": "common_types.json#/$defs/ChildList"},
+                        "refId": {"$ref": "common_types.json#/$defs/ComponentId"},
+                        "onClick": {"$ref": "common_types.json#/$defs/Action"},
+                    }
+                },
+                "CustomProps": {
+                    "properties": {
+                        "child": {"type": "string"},
+                        "children": {"type": "array", "items": {"type": "string"}},
+                        "event": {"type": "object"},
+                        "functionCall": {"type": "object"},
+                    }
+                },
+            },
+            "functions": {
+                "customFn": {
+                    "returnType": "void",
+                    "properties": {
+                        "args": {
+                            "type": "object",
+                            "properties": {"x": {"type": "string"}},
+                            "required": ["x"],
+                        }
+                    },
+                }
+            },
+        },
+        protocol_version="1.0",
+        catalog_id="test/elemental_child_action",
+    )
+    parser = ElementalParser([cat])
+
+    # 1. Compile canonical directives and keep ComponentId bare
+    html = (
+        '<body id="main">'
+        '<ui-slot-box id="root" path="{$/rows}">'
+        "<template>"
+        '<ui-slot-box id="tpl" ref-id="leaf" onclick="{Event(\'go\')}">'
+        '<ui-text slot="content" id="leaf">Hi</ui-text>'
+        "</ui-slot-box>"
+        "</template>"
+        "</ui-slot-box>"
+        "</body>"
+    )
+    compiled = _compile(parser, html)
+    comps = {c["id"]: c for c in compiled[0]["createSurface"]["components"]}
+    assert comps["root"]["children"] == {"@child": "tpl", "@path": "/rows"}
+    assert comps["tpl"]["content"] == {"@child": "leaf"}
+    assert comps["tpl"]["refId"] == "leaf"
+    assert comps["tpl"]["onClick"] == {"@action": {"name": "go", "context": {}}}
+
+    # 2. Legacy bare Child, ChildList, template, and Action dual-read (# TODO(#4168))
+    legacy_payload = [{
+        "version": "1.0",
+        "createSurface": {
+            "surfaceId": "main",
+            "components": [
+                {"id": "leaf", "component": "Text", "text": "Hi"},
+                {"id": "tpl", "component": "Text", "text": "Row"},
+                {
+                    "id": "root",
+                    "component": "SlotBox",
+                    "children": ["single_box", "tpl_box", "fn_box"],
+                },
+                {
+                    "id": "single_box",
+                    "component": "SlotBox",
+                    "content": "leaf",
+                    "refId": "leaf",
+                    "onClick": {"event": {"name": "go"}},
+                },
+                {
+                    "id": "tpl_box",
+                    "component": "SlotBox",
+                    "children": {"componentId": "tpl", "path": "/rows"},
+                },
+                {
+                    "id": "fn_box",
+                    "component": "SlotBox",
+                    "children": ["leaf"],
+                    "onClick": {
+                        "functionCall": {"@call": "customFn", "args": {"x": "ok"}}
+                    },
+                },
+            ],
+        },
+    }]
+    decompiled = parser.decompile(to_message_models(legacy_payload))
+    recompiled = _compile(parser, decompiled)
+    recomps = {c["id"]: c for c in recompiled[0]["createSurface"]["components"]}
+    assert recomps["root"]["children"] == {
+        "@child": ["single_box", "tpl_box", "fn_box"]
+    }
+    assert recomps["single_box"]["content"] == {"@child": "leaf"}
+    assert recomps["single_box"]["refId"] == "leaf"
+    assert recomps["single_box"]["onClick"] == {
+        "@action": {"name": "go", "context": {}}
+    }
+    assert recomps["tpl_box"]["children"] == {"@child": "tpl", "@path": "/rows"}
+    assert recomps["fn_box"]["children"] == {"@child": ["leaf"]}
+    assert recomps["fn_box"]["onClick"] == {
+        "@functionCall": {"@call": "customFn", "args": {"x": "ok"}}
+    }
+
+    # 3. Custom bare properties stay literal on v1.0
+    custom_payload = [{
+        "version": "1.0",
+        "createSurface": {
+            "surfaceId": "main",
+            "catalogId": "test/elemental_child_action",
+            "components": [{
+                "id": "root",
+                "component": "CustomProps",
+                "child": "plain",
+                "children": ["a", "b"],
+                "event": {"topic": "billing"},
+                "functionCall": {"label": "raw"},
+            }],
+        },
+    }]
+    custom_html = parser.decompile(to_message_models(custom_payload))
+    assert "Event(" not in custom_html
+    assert _compile(parser, custom_html) == custom_payload

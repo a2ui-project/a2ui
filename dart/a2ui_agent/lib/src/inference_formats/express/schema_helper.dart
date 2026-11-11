@@ -402,11 +402,13 @@ Map<String, Object?> _properties(Map<String, Object?> schema) =>
       _ => const {},
     };
 
-/// The name a `$ref` points at, such as `DynamicString`, or null.
-String? _refName(Map<String, Object?> schema) => switch (schema[r'$ref']) {
-  final String ref => ref.substring(ref.lastIndexOf('/') + 1),
-  _ => null,
-};
+/// The name a `$ref` or `commonTypesRef` points at, such as `DynamicString`,
+/// or null.
+String? _refName(Map<String, Object?> schema) =>
+    switch (schema[r'$ref'] ?? schema['commonTypesRef']) {
+      final String ref => ref.substring(ref.lastIndexOf('/') + 1),
+      _ => null,
+    };
 
 /// The subschemas of a combinator, flattened one level.
 Iterable<Map<String, Object?>> _alternatives(Map<String, Object?> schema) => [
@@ -437,10 +439,16 @@ bool allowsBinding(Map<String, Object?>? schema) {
 /// `Child`.
 bool isComponentId(Map<String, Object?>? schema) =>
     schema != null &&
-    switch (_refName(schema)) {
-      'ComponentId' || 'Child' => true,
-      _ => false,
-    };
+    (switch (_refName(schema)) {
+          'ComponentId' || 'Child' => true,
+          _ => false,
+        } ||
+        _alternatives(schema).any(isComponentId));
+
+/// Whether [schema] is a v1.0 single-child directive (`Child`).
+bool isChild(Map<String, Object?>? schema) =>
+    schema != null &&
+    (_refName(schema) == 'Child' || _alternatives(schema).any(isChild));
 
 /// Whether [schema] is a list of children: component ids, or a template that
 /// repeats one component over a list in the data model.
@@ -450,7 +458,8 @@ bool isChildList(Map<String, Object?>? schema) =>
 
 /// Whether [schema] is an action: an event for the agent, or a local call.
 bool isAction(Map<String, Object?>? schema) =>
-    schema != null && _refName(schema) == 'Action';
+    schema != null &&
+    (_refName(schema) == 'Action' || _alternatives(schema).any(isAction));
 
 /// The values an enum property admits, or null.
 List<Object?>? enumOf(Map<String, Object?>? schema) {

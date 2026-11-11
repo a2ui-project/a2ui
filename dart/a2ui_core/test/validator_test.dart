@@ -1606,7 +1606,7 @@ void v1RulesTests() {
         () => validator.validateComponent({
           'id': 's',
           'component': 'Slot',
-          'child': 'leaf',
+          'child': {'@child': 'leaf'},
           'label': {'path': '/name'},
         }),
         returnsNormally,

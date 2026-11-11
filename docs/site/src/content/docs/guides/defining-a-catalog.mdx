@@ -516,7 +516,7 @@ Once registered on both sides, your agent can combine basic layout components an
       {
         "id": "root",
         "component": "Column",
-        "children": ["heading", "build_badge"]
+        "children": {"@child": ["heading", "build_badge"]}
       },
       {
         "id": "heading",
@@ -998,7 +998,7 @@ val pricingCatalog =
 
 ### Child slots and layout constraints
 
-Components that host nested widgets reference [`ChildList`](../../specification/v1.0/schemas/#common_types.json/$defs/ChildList) (an array of child IDs or a data-bound collection template) or [`ComponentId`](../../specification/v1.0/schemas/#common_types.json/$defs/ComponentId) (a single child slot).
+Components that host nested widgets reference [`ChildList`](../../specification/v1.0/schemas/#common_types.json/$defs/ChildList) (a `@child` array of child IDs or a `{"@child", "@path"}` collection template in v1.0; a plain array or `{"componentId", "path"}` template in v0.9.1) or [`Child`](../../specification/v1.0/schemas/#common_types.json/$defs/Child) (`ComponentId` in v0.9.1) for a single child slot. Using `Child`, `ChildList`, and [`Action`](../../specification/v1.0/schemas/#common_types.json/$defs/Action) from `common_types.json` ensures renderers and topology validators can inspect parent-child edges and deferred closures even without loading the catalog schema.
 
 In v1.0, a [`ComponentDefinition`](../../specification/v1.0/schemas/#catalog_definition.json/$defs/ComponentDefinition) can also constrain placement with `allowedParents` (for example, `["Column", "List"]`, or `["Surface"]` for root-only modals) and `allowedChildren` (`["Button"]`). `"Surface"` is reserved and cannot be used as a component name, and v1.0 identifiers must follow Unicode UAX #31 without a leading `@`.
 
@@ -1107,8 +1107,8 @@ final productCard = ComponentImplementation(
       'component': Schema.string(enumValues: ['ProductCard']),
       'name': CommonSchemasV1.dynamicString,
       'price': CommonSchemasV1.dynamicNumber,
-      'children': CommonSchemas.childList,
-      'onSelect': CommonSchemas.action,
+      'children': CommonSchemasV1.childList,
+      'onSelect': CommonSchemasV1.action,
     },
     required: ['component', 'name', 'price'],
   ),
@@ -1305,7 +1305,7 @@ let productCardSchema = try! Schema(
         "component": { "const": "ProductCard" },
         "name": { "type": ["string", "object"] },
         "price": { "type": ["number", "object"] },
-        "children": { "type": ["array", "object"] },
+        "children": { "type": "object" },
         "onSelect": { "type": "object" }
       },
       "required": ["component", "name", "price"]
@@ -1679,8 +1679,8 @@ Agents can set `@accessibility` (or `accessibility` in v0.9 and v0.9.1) on any c
 {
   "id": "close_button",
   "component": "Button",
-  "child": "close_icon",
-  "action": {"event": {"name": "close_dialog"}},
+  "child": {"@child": "close_icon"},
+  "action": {"@action": {"name": "close_dialog"}},
   "@accessibility": {
     "label": "Close dialog",
     "description": {"@path": "/dialog/unsavedWarning"}
@@ -1707,7 +1707,7 @@ Agents can set `@accessibility` (or `accessibility` in v0.9 and v0.9.1) on any c
   </TabItem>
 </Tabs>
 
-Notice that v1.0 uses `@accessibility` and `@path`, whereas v0.9.1 uses `accessibility` and `path`.
+Notice that v1.0 uses `@child`, `@action`, `@accessibility`, and `@path`, whereas v0.9.1 uses bare `child`, `action.event`, `accessibility`, and `path`.
 
 In your native component implementation, map resolved `AccessibilityAttributes` and visible child text or titles to platform accessibility APIs. Use WAI-ARIA attributes on the web, `Semantics` widgets in Flutter, and `.accessibilityLabel` or `.accessibilityHint` modifiers in SwiftUI. When an instance sets `@accessibility.label` or `@accessibility.description` (or `accessibility.label` and `accessibility.description` in v0.9 and v0.9.1), let those values override any label inferred from visible text (see [Catalog-Agnostic Accessibility Requirements](../../specification/v1.0-a2ui/#catalog-agnostic-accessibility-requirements)).
 

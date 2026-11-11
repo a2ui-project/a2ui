@@ -46,21 +46,21 @@
             components:
               - id: "root"
                 component: "Column"
-                children: ["header_card", "action_row"]
+                children: {"@child": ["header_card", "action_row"]}
               - id: "header_card"
                 component: "Card"
-                child: "title_text"
+                child: {"@child": "title_text"}
               - id: "title_text"
                 component: "Text"
                 text: "Welcome to A2UI"
               - id: "action_row"
                 component: "Row"
-                children: ["primary_btn", "secondary_text"]
+                children: {"@child": ["primary_btn", "secondary_text"]}
               - id: "primary_btn"
                 component: "Button"
-                child: "primary_btn_label"
+                child: {"@child": "primary_btn_label"}
                 action:
-                  event:
+                  "@action":
                     name: "get_started"
               - id: "primary_btn_label"
                 component: "Text"
@@ -111,7 +111,7 @@
             components:
               - id: "root"
                 component: "Card"
-                child: "greeting_text"
+                child: {"@child": "greeting_text"}
               - id: "greeting_text"
                 component: "Text"
                 text:
@@ -143,7 +143,7 @@
             components:
               - id: "root"
                 component: "Card"
-                child: "deferred_text"
+                child: {"@child": "deferred_text"}
       expectViewTree:
         id: "root"
         type: "Card"
@@ -192,8 +192,8 @@
               - id: "root"
                 component: "List"
                 children:
-                  componentId: "item_row"
-                  path: "/items"
+                  "@child": "item_row"
+                  "@path": "/items"
               - id: "item_row"
                 component: "Text"
                 text:
@@ -274,7 +274,7 @@
             components:
               - id: "root"
                 component: "Column"
-                children: ["name_input", "preview_text"]
+                children: {"@child": ["name_input", "preview_text"]}
               - id: "name_input"
                 component: "TextField"
                 label: "Username"
@@ -330,12 +330,12 @@
             components:
               - id: "root"
                 component: "Row"
-                children: ["event_btn", "func_btn"]
+                children: {"@child": ["event_btn", "func_btn"]}
               - id: "event_btn"
                 component: "Button"
-                child: "event_btn_label"
+                child: {"@child": "event_btn_label"}
                 action:
-                  event:
+                  "@action":
                     name: "buy_item"
                     context:
                       sku:
@@ -345,9 +345,9 @@
                 text: "Buy"
               - id: "func_btn"
                 component: "Button"
-                child: "func_btn_label"
+                child: {"@child": "func_btn_label"}
                 action:
-                  functionCall:
+                  "@functionCall":
                     "@call": "incrementCounter"
                     args:
                       path: "/counter"
@@ -400,9 +400,9 @@
             components:
               - id: "root"
                 component: "Button"
-                child: "link_label"
+                child: {"@child": "link_label"}
                 action:
-                  functionCall:
+                  "@functionCall":
                     "@call": "openUrl"
                     args:
                       url: "https://example.com"
@@ -459,7 +459,7 @@
             components:
               - id: "root"
                 component: "Column"
-                children: ["heading_text", "custom_badge"]
+                children: {"@child": ["heading_text", "custom_badge"]}
               - id: "heading_text"
                 component: "Text"
                 text: "System Status"
@@ -509,7 +509,7 @@
             components:
               - id: "root"
                 component: "Column"
-                children: ["email_input", "nickname_input", "phone_input"]
+                children: {"@child": ["email_input", "nickname_input", "phone_input"]}
               - id: "email_input"
                 component: "TextField"
                 label: "Email"
@@ -585,21 +585,21 @@
             components:
               - id: "root"
                 component: "Column"
-                children: ["implicit_btn", "explicit_btn", "live_banner", "hidden_note"]
+                children: {"@child": ["implicit_btn", "explicit_btn", "live_banner", "hidden_note"]}
               - id: "implicit_btn"
                 component: "Button"
-                child: "implicit_btn_text"
+                child: {"@child": "implicit_btn_text"}
                 action:
-                  event:
+                  "@action":
                     name: "save"
               - id: "implicit_btn_text"
                 component: "Text"
                 text: "Save Changes"
               - id: "explicit_btn"
                 component: "Button"
-                child: "explicit_btn_text"
+                child: {"@child": "explicit_btn_text"}
                 action:
-                  event:
+                  "@action":
                     name: "close"
                 accessibility:
                   label: "Close Dialog"
@@ -650,7 +650,7 @@
             components:
               - id: "root"
                 component: "Card"
-                child: "body_text"
+                child: {"@child": "body_text"}
               - id: "body_text"
                 component: "Text"
                 text: "Theme Independent v1.0"
@@ -681,12 +681,12 @@
             components:
               - id: "root"
                 component: "Column"
-                children: ["unknown_widget", "cycle_card"]
+                children: {"@child": ["unknown_widget", "cycle_card"]}
               - id: "unknown_widget"
                 component: "UnregisteredFutureWidget"
               - id: "cycle_card"
                 component: "Card"
-                child: "root"
+                child: {"@child": "root"}
       expectViewTree:
         id: "root"
         type: "Column"
@@ -738,7 +738,7 @@
             components:
               - id: "root"
                 component: "Card"
-                child: "status_text"
+                child: {"@child": "status_text"}
               - id: "status_text"
                 component: "Text"
                 text:
@@ -772,7 +772,7 @@
             components:
               - id: "root"
                 component: "Card"
-                child: "status_text"
+                child: {"@child": "status_text"}
               - id: "status_text"
                 component: "Text"
                 text:
@@ -811,7 +811,7 @@
             components:
               - id: "root"
                 component: "Card"
-                child: "field"
+                child: {"@child": "field"}
               - id: "field"
                 component: "TextField"
                 label: "Note"
@@ -868,7 +868,7 @@
             components:
               - id: "root"
                 component: "Column"
-                children: ["kept_child", "old_child"]
+                children: {"@child": ["kept_child", "old_child"]}
               - id: "kept_child"
                 component: "Text"
                 text:
@@ -895,7 +895,7 @@
             components:
               - id: "root"
                 component: "Column"
-                children: ["kept_child"]
+                children: {"@child": ["kept_child"]}
       expectDisposedNodes:
         - "old_child"
       expectViewTree:
@@ -931,11 +931,12 @@
               - id: "root"
                 component: "Column"
                 children:
-                  - "agree_box"
-                  - "choice_picker"
-                  - "level_slider"
-                  - "when_input"
-                  - "summary_text"
+                  "@child":
+                    - "agree_box"
+                    - "choice_picker"
+                    - "level_slider"
+                    - "when_input"
+                    - "summary_text"
               - id: "agree_box"
                 component: "CheckBox"
                 label: "Agree"
@@ -1142,10 +1143,11 @@
               - id: "root"
                 component: "Column"
                 children:
-                  - "hero_img"
-                  - "intro_video"
-                  - "podcast_audio"
-                  - "status_icon"
+                  "@child":
+                    - "hero_img"
+                    - "intro_video"
+                    - "podcast_audio"
+                    - "status_icon"
               - id: "hero_img"
                 component: "Image"
                 url:
@@ -1224,9 +1226,9 @@
                 component: "Tabs"
                 tabs:
                   - title: "First"
-                    child: "tab_one_text"
+                    child: {"@child": "tab_one_text"}
                   - title: "Second"
-                    child: "tab_two_text"
+                    child: {"@child": "tab_two_text"}
               - id: "tab_one_text"
                 component: "Text"
                 text: "First tab content"
@@ -1270,13 +1272,13 @@
             components:
               - id: "root"
                 component: "Modal"
-                trigger: "open_btn"
-                content: "modal_body"
+                trigger: {"@child": "open_btn"}
+                content: {"@child": "modal_body"}
               - id: "open_btn"
                 component: "Button"
-                child: "open_btn_text"
+                child: {"@child": "open_btn_text"}
                 action:
-                  event:
+                  "@action":
                     name: "open_modal"
               - id: "open_btn_text"
                 component: "Text"
@@ -1338,9 +1340,10 @@
               - id: "root"
                 component: "Column"
                 children:
-                  - "sep"
-                  - "vol_slider"
-                  - "dt_input"
+                  "@child":
+                    - "sep"
+                    - "vol_slider"
+                    - "dt_input"
               - id: "sep"
                 component: "Divider"
                 axis: "vertical"
@@ -1410,12 +1413,12 @@
             components:
               - id: "root"
                 component: "Column"
-                children: ["btn"]
+                children: {"@child": ["btn"]}
               - id: "btn"
                 component: "Button"
-                child: "btn_label"
+                child: {"@child": "btn_label"}
                 action:
-                  functionCall:
+                  "@functionCall":
                     "@call": "incrementCounter"
                     args:
                       path: "/counter"

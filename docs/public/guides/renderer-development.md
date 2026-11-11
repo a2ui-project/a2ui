@@ -75,6 +75,8 @@ This section details the fundamental mechanics of the A2UI protocol. A compliant
         - If using A2A, every A2A `Message` sent to the server must include an `a2uiRendererCapabilities` object in the `metadata` field of the A2A `Message`.
     - **Data Binding Resolution**:
         - Resolve `{"@path": "..."}` bindings and `{"@call": "..."}` function calls.
+    - **Child References & Deferred Actions**:
+        - Unwrap `{"@child": "<id>"}`, `{"@child": ["<id>", ...]}`, and `{"@child": "<templateId>", "@path": "..."}` references, plus `{"@action": ...}` and `{"@functionCall": ...}` handlers (including schema-lessly on open or unannotated components). During the v1.0 transition, renderers also dual-read bare child/action shapes when a schema is present.
 
 === "v0.9.1"
 
@@ -118,7 +120,7 @@ To ensure a consistent user experience across platforms, A2UI defines a basic se
     - **Video**: Support the `posterUrl` property to display a preview image.
     - **TextField**: Support the `placeholder` property. `value` is required, and `validationRegexp` is removed in favor of `@checks` with the `regex` function.
     - **Slider**: Support the `steps` property to snap to discrete values.
-    - **Envelope keys**: Read `@catalogId`, `@accessibility`, `@metadata`, and `@checks` (instead of bare `accessibility` and `checks`). A custom component can declare its own `catalogId`, `accessibility`, `metadata`, or `checks` property, which is an ordinary property.
+    - **Envelope keys and directives**: Read `@catalogId`, `@accessibility`, `@metadata`, `@checks`, `@child`, `@action`, and `@functionCall` (instead of bare keys). A custom component can declare its own `catalogId`, `accessibility`, `metadata`, or `checks` property as an ordinary property.
 
 === "v0.9.1"
 

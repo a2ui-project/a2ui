@@ -1159,7 +1159,9 @@ void main() {
           'id': 'root',
           'component': 'Column',
           '@catalogId': basic.id,
-          'children': ['root_children_0'],
+          'children': {
+            '@child': ['root_children_0'],
+          },
         },
         {
           'id': 'root_children_0',
@@ -1253,7 +1255,9 @@ void main() {
                 'id': 'root',
                 'component': 'Column',
                 '@catalogId': basic.id,
-                'children': ['name', 'gauge'],
+                'children': {
+                  '@child': ['name', 'gauge'],
+                },
               },
               {
                 'id': 'name',

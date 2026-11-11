@@ -1014,7 +1014,7 @@ def test_v1_0_express_format_end_to_end_with_macros():
 
     btn = [c for c in comps if c["component"] == "Button"][0]
     assert btn["action"] == {
-        "event": {
+        "@action": {
             "name": "launch_clicked",
             "userMessage": "Launch now",
         }
@@ -1187,7 +1187,7 @@ def test_v1_0_mixable_catalogs_foo_bar_baz_macro_with_express():
     assert by_id["summary_card__fooheader_1"]["title"] == {"@path": "/release/headline"}
     assert by_id["summary_card__baraction_1"]["@catalogId"] == bar_cid
     assert by_id["summary_card__baraction_1"]["action"] == {
-        "event": {
+        "@action": {
             "name": "deploy_clicked",
             "userMessage": "Deploy release",
         }
@@ -2117,3 +2117,73 @@ def test_stamp_lowered_primitives_respects_custom_catalog_id_property():
     )
     assert prims[0]["@catalogId"] == "https://example.com/custom_badge_cat.json"
     assert prims[0]["catalogId"] == "custom-prop-val"
+
+
+def test_v1_0_macro_child_action_dual_read_and_custom_non_collision() -> None:
+    """Verifies v1.0 macro @child/@action/@functionCall coercion, legacy bare dual-read, and custom props."""
+
+    @macro
+    def SlotActionMacro(
+        content: builder_v1_0.Child,
+        items: builder_v1_0.ChildList,
+        action: builder_v1_0.Action,
+        event: dict[str, str],
+        component_id: str,
+    ) -> builder_v1_0.Column:
+        return builder_v1_0.Column(
+            children=[
+                builder_v1_0.Button(child=content, action=action),
+                builder_v1_0.List(children=items),
+                builder_v1_0.Text(text=f"{event['tag']}:{component_id}"),
+            ]
+        )
+
+    exp = MacroExpander([SlotActionMacro], on_error="raise")
+
+    # 1. Canonical @-prefixed wire inputs + custom bare event/componentId
+    canonical_out = exp.processor.expand(
+        "SlotActionMacro",
+        {
+            "content": {"@child": "inner_btn"},
+            "items": {"@child": "row_tpl", "@path": "/items"},
+            "action": {"@action": {"name": "go"}},
+            "event": {"tag": "v1"},
+            "component_id": "bare_comp_id",
+        },
+        instance_id="m1",
+        protocol_version="1.0",
+    )
+    by_id = {c["id"]: c for c in canonical_out}
+    btn = next(c for c in canonical_out if c["component"] == "Button")
+    lst = next(c for c in canonical_out if c["component"] == "List")
+    txt = next(c for c in canonical_out if c["component"] == "Text")
+    assert by_id["m1"]["children"] == {"@child": [btn["id"], lst["id"], txt["id"]]}
+    assert btn["child"] == {"@child": "inner_btn"}
+    assert btn["action"] == {"@action": {"name": "go"}}
+    assert lst["children"] == {"@child": "row_tpl", "@path": "/items"}
+    assert txt["text"] == "v1:bare_comp_id"
+
+    # 2. Legacy bare inputs dual-read (# TODO(#4168)) and emit @-prefixed primitives
+    legacy_out = exp.processor.expand(
+        "SlotActionMacro",
+        {
+            "content": "legacy_child",
+            "items": {"componentId": "legacy_tpl", "path": "/legacy"},
+            "action": {
+                "functionCall": {"@call": "openUrl", "args": {"url": "https://a.test"}}
+            },
+            "event": {"tag": "leg"},
+            "component_id": "raw_id",
+        },
+        instance_id="m2",
+        protocol_version="1.0",
+    )
+    btn2 = next(c for c in legacy_out if c["component"] == "Button")
+    lst2 = next(c for c in legacy_out if c["component"] == "List")
+    txt2 = next(c for c in legacy_out if c["component"] == "Text")
+    assert btn2["child"] == {"@child": "legacy_child"}
+    assert btn2["action"] == {
+        "@functionCall": {"@call": "openUrl", "args": {"url": "https://a.test"}}
+    }
+    assert lst2["children"] == {"@child": "legacy_tpl", "@path": "/legacy"}
+    assert txt2["text"] == "leg:raw_id"

@@ -175,12 +175,12 @@ Here is the initial surface payload returned by `open_counter_app`:
         {
           "id": "root",
           "component": "Card",
-          "child": "main_column"
+          "child": {"@child": "main_column"}
         },
         {
           "id": "main_column",
           "component": "Column",
-          "children": ["title_text", "count_text", "increment_button"]
+          "children": {"@child": ["title_text", "count_text", "increment_button"]}
         },
         {
           "id": "title_text",
@@ -205,10 +205,10 @@ Here is the initial surface payload returned by `open_counter_app`:
         {
           "id": "increment_button",
           "component": "Button",
-          "child": "increment_button_text",
+          "child": {"@child": "increment_button_text"},
           "variant": "primary",
           "action": {
-            "event": {
+            "@action": {
               "name": "increase_counter",
               "context": {
                 "step": 1

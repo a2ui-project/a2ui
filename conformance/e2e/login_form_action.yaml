@@ -30,69 +30,115 @@
         In" button.
       modelChunks:
         direct_json:
-          - "Please sign in below.
+          - |-
+            Please sign in below.
 
-
-            <a"
+            <a
           - "2ui-json>
 
             "
-          - "[\n  {\n    \"version\": \"1.0\",\n    \"createSurface\": {\n      \"surfaceId\"\
-            : \"login\",\n      \"catalogId\": \"https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json\"\
-            ,\n      \"sendDataModel\": true,\n      \"components\": [\n        {\n  \
-            \        \"id\": \"root\",\n          \"component\": \"Card\",\n         \
-            \ \"child\": \"form\"\n        },\n        {\n          \"id\": \"form\",\n\
-            \          \"component\": \"Column\",\n          \"children\": [\n       \
-            \     \"heading\",\n            \"emailField\",\n            \"passwordField\"\
-            ,\n            \"signInButton\"\n          ]\n        },\n        {\n    \
-            \      \"id\": \"heading\",\n          \"component\": \"Text\",\n        \
-            \  \"text\": \"### Sign in to your account\"\n        },\n        {\n    \
-            \      \"id\": \"emailField\",\n          \"component\": \"TextField\",\n\
-            \          \"label\": \"Email\",\n          \"value\": {\n            \"@path\"\
-            : \"/email\"\n          }\n        },\n        {\n          \"id\": \"passwordField\"\
-            ,\n          \"component\": \"TextField\",\n          \"label\": \"Password\"\
-            ,\n          \"value\": {\n            \"@path\": \"/password\"\n        \
-            \  },\n          \"variant\": \"obscured\"\n        },\n        {\n      \
-            \    \"id\": \"signInButton\",\n          \"component\": \"Button\",\n   \
-            \       \"variant\": \"primary\",\n          \"child\": \"signInLabel\",\n\
-            \          \"action\": {\n            \"event\": {\n              \"name\"\
-            : \"sign_in\",\n              \"context\": {\n                \"email\": {\n\
-            \                  \"@path\": \"/email\"\n                }\n            \
-            \  }\n            }\n          }\n        },\n        {\n          \"id\"\
-            : \"signInLabel\",\n          \"component\": \"Text\",\n          \"text\"\
-            : \"Sign In\"\n        }\n      ],\n      \"dataModel\": {\n        \"email\"\
-            : \"\",\n        \"password\": \"\"\n      }\n    }\n  }\n]\n</a2ui-json>\n"
+          - |
+            [
+              {
+                "version": "1.0",
+                "createSurface": {
+                  "surfaceId": "login",
+                  "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
+                  "sendDataModel": true,
+                  "components": [
+                    {
+                      "id": "root",
+                      "component": "Card",
+                      "child": {
+                        "@child": "form"
+                      }
+                    },
+                    {
+                      "id": "form",
+                      "component": "Column",
+                      "children": {
+                        "@child": [
+                          "heading",
+                          "emailField",
+                          "passwordField",
+                          "signInButton"
+                        ]
+                      }
+                    },
+                    {
+                      "id": "heading",
+                      "component": "Text",
+                      "text": "### Sign in to your account"
+                    },
+                    {
+                      "id": "emailField",
+                      "component": "TextField",
+                      "label": "Email",
+                      "value": {
+                        "@path": "/email"
+                      }
+                    },
+                    {
+                      "id": "passwordField",
+                      "component": "TextField",
+                      "label": "Password",
+                      "value": {
+                        "@path": "/password"
+                      },
+                      "variant": "obscured"
+                    },
+                    {
+                      "id": "signInButton",
+                      "component": "Button",
+                      "variant": "primary",
+                      "child": {
+                        "@child": "signInLabel"
+                      },
+                      "action": {
+                        "@action": {
+                          "name": "sign_in",
+                          "context": {
+                            "email": {
+                              "@path": "/email"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "id": "signInLabel",
+                      "component": "Text",
+                      "text": "Sign In"
+                    }
+                  ],
+                  "dataModel": {
+                    "email": "",
+                    "password": ""
+                  }
+                }
+              }
+            ]
+            </a2ui-json>
         express:
-          - "Please sign in below.
+          - |-
+            Please sign in below.
 
-
-            <a"
+            <a
           - "2ui>
 
             "
-          - 'surface("login", sendDataModel=true)
-
+          - |
+            surface("login", sendDataModel=true)
             $/email = ""
-
             $/password = ""
-
             root = Card(form)
-
             form = Column([heading, emailField, passwordField, signInButton])
-
             heading = Text("### Sign in to your account")
-
             emailField = TextField("Email", $/email)
-
             passwordField = TextField("Password", $/password, variant="obscured")
-
             signInButton = Button(signInLabel, "primary", Event("sign_in", {email: $/email}))
-
             signInLabel = Text("Sign In")
-
             </a2ui>
-
-            '
       expectWire:
         - text: Please sign in below.
         - a2ui:
@@ -104,14 +150,16 @@
                 components:
                   - id: root
                     component: Card
-                    child: form
+                    child:
+                      "@child": form
                   - id: form
                     component: Column
                     children:
-                      - heading
-                      - emailField
-                      - passwordField
-                      - signInButton
+                      "@child":
+                        - heading
+                        - emailField
+                        - passwordField
+                        - signInButton
                   - id: heading
                     component: Text
                     text: "### Sign in to your account"
@@ -129,9 +177,10 @@
                   - id: signInButton
                     component: Button
                     variant: primary
-                    child: signInLabel
+                    child:
+                      "@child": signInLabel
                     action:
-                      event:
+                      "@action":
                         name: sign_in
                         context:
                           email:
@@ -197,45 +246,68 @@
     - userText: null
       modelChunks:
         direct_json:
-          - "You are now signed in.
+          - |-
+            You are now signed in.
 
-
-            <a"
+            <a
           - "2ui-json>
 
             "
-          - "[\n  {\n    \"version\": \"1.0\",\n    \"updateComponents\": {\n      \"\
-            surfaceId\": \"login\",\n      \"components\": [\n        {\n          \"\
-            id\": \"root\",\n          \"component\": \"Card\",\n          \"child\":\
-            \ \"confirmation\"\n        },\n        {\n          \"id\": \"confirmation\"\
-            ,\n          \"component\": \"Column\",\n          \"children\": [\n     \
-            \       \"signedInTitle\",\n            \"signedInDetail\"\n          ]\n\
-            \        },\n        {\n          \"id\": \"signedInTitle\",\n          \"\
-            component\": \"Text\",\n          \"text\": \"### Welcome back!\"\n      \
-            \  },\n        {\n          \"id\": \"signedInDetail\",\n          \"component\"\
-            : \"Text\",\n          \"text\": \"Signed in as ada@example.com.\",\n    \
-            \      \"variant\": \"body\"\n        }\n      ]\n    }\n  }\n]\n</a2ui-json>\n"
+          - |
+            [
+              {
+                "version": "1.0",
+                "updateComponents": {
+                  "surfaceId": "login",
+                  "components": [
+                    {
+                      "id": "root",
+                      "component": "Card",
+                      "child": {
+                        "@child": "confirmation"
+                      }
+                    },
+                    {
+                      "id": "confirmation",
+                      "component": "Column",
+                      "children": {
+                        "@child": [
+                          "signedInTitle",
+                          "signedInDetail"
+                        ]
+                      }
+                    },
+                    {
+                      "id": "signedInTitle",
+                      "component": "Text",
+                      "text": "### Welcome back!"
+                    },
+                    {
+                      "id": "signedInDetail",
+                      "component": "Text",
+                      "text": "Signed in as ada@example.com.",
+                      "variant": "body"
+                    }
+                  ]
+                }
+              }
+            ]
+            </a2ui-json>
         express:
-          - "You are now signed in.
+          - |-
+            You are now signed in.
 
-
-            <a"
+            <a
           - "2ui>
 
             "
-          - 'surface("login", update=true)
-
+          - |
+            surface("login", update=true)
             root = Card(confirmation)
-
             confirmation = Column([signedInTitle, signedInDetail])
-
             signedInTitle = Text("### Welcome back!")
-
             signedInDetail = Text("Signed in as ada@example.com.", "body")
-
             </a2ui>
-
-            '
       expectWire:
         - text: You are now signed in.
         - a2ui:
@@ -245,12 +317,14 @@
                 components:
                   - id: root
                     component: Card
-                    child: confirmation
+                    child:
+                      "@child": confirmation
                   - id: confirmation
                     component: Column
                     children:
-                      - signedInTitle
-                      - signedInDetail
+                      "@child":
+                        - signedInTitle
+                        - signedInDetail
                   - id: signedInTitle
                     component: Text
                     text: "### Welcome back!"

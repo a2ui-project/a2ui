@@ -14,7 +14,9 @@
         {
           "component": "Column",
           "id": "root",
-          "children": ["metric_path", "metric_call"]
+          "children": {
+            "@child": ["metric_path", "metric_call"]
+          }
         },
         {
           "component": "Text",
@@ -33,14 +35,18 @@
         {
           "component": "Column",
           "id": "metric_path__column_1",
-          "children": ["metric_path__text_1", "metric_path__text_2"],
+          "children": {
+            "@child": ["metric_path__text_1", "metric_path__text_2"]
+          },
           "justify": "start",
           "align": "stretch"
         },
         {
           "component": "Card",
           "id": "metric_path",
-          "child": "metric_path__column_1"
+          "child": {
+            "@child": "metric_path__column_1"
+          }
         },
         {
           "component": "Text",
@@ -62,14 +68,18 @@
         {
           "component": "Column",
           "id": "metric_call__column_1",
-          "children": ["metric_call__text_1", "metric_call__text_2"],
+          "children": {
+            "@child": ["metric_call__text_1", "metric_call__text_2"]
+          },
           "justify": "start",
           "align": "stretch"
         },
         {
           "component": "Card",
           "id": "metric_call",
-          "child": "metric_call__column_1"
+          "child": {
+            "@child": "metric_call__column_1"
+          }
         }
       ]
     }

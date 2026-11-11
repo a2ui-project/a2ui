@@ -18,7 +18,9 @@
           {
             "id": "root",
             "component": "Card",
-            "child": "tabs_container"
+            "child": {
+              "@child": "tabs_container"
+            }
           },
           {
             "id": "tabs_container",
@@ -26,22 +28,30 @@
             "tabs": [
               {
                 "title": "Overview",
-                "child": "overview_col"
+                "child": {
+                  "@child": "overview_col"
+                }
               },
               {
                 "title": "Ingredients",
-                "child": "ingredients_list"
+                "child": {
+                  "@child": "ingredients_list"
+                }
               },
               {
                 "title": "Instructions",
-                "child": "instructions_list"
+                "child": {
+                  "@child": "instructions_list"
+                }
               }
             ]
           },
           {
             "id": "overview_col",
             "component": "Column",
-            "children": ["recipe_image", "overview_content"]
+            "children": {
+              "@child": ["recipe_image", "overview_content"]
+            }
           },
           {
             "id": "recipe_image",
@@ -54,7 +64,9 @@
           {
             "id": "overview_content",
             "component": "Column",
-            "children": ["title", "rating_row", "times_row", "servings"]
+            "children": {
+              "@child": ["title", "rating_row", "times_row", "servings"]
+            }
           },
           {
             "id": "title",
@@ -66,7 +78,9 @@
           {
             "id": "rating_row",
             "component": "Row",
-            "children": ["star_icon", "rating", "review_count"],
+            "children": {
+              "@child": ["star_icon", "rating", "review_count"]
+            },
             "align": "center"
           },
           {
@@ -96,12 +110,16 @@
           {
             "id": "times_row",
             "component": "Row",
-            "children": ["prep_time", "cook_time"]
+            "children": {
+              "@child": ["prep_time", "cook_time"]
+            }
           },
           {
             "id": "prep_time",
             "component": "Row",
-            "children": ["prep_icon", "prep_text"],
+            "children": {
+              "@child": ["prep_icon", "prep_text"]
+            },
             "align": "center"
           },
           {
@@ -120,7 +138,9 @@
           {
             "id": "cook_time",
             "component": "Row",
-            "children": ["cook_icon", "cook_text"],
+            "children": {
+              "@child": ["cook_icon", "cook_text"]
+            },
             "align": "center"
           },
           {
@@ -148,16 +168,16 @@
             "id": "ingredients_list",
             "component": "Column",
             "children": {
-              "path": "/ingredients",
-              "componentId": "item_template"
+              "@child": "item_template",
+              "@path": "/ingredients"
             }
           },
           {
             "id": "instructions_list",
             "component": "Column",
             "children": {
-              "path": "/instructions",
-              "componentId": "item_template"
+              "@child": "item_template",
+              "@path": "/instructions"
             }
           },
           {

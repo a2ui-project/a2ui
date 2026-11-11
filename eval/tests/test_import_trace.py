@@ -49,17 +49,17 @@ GOLDEN_PAYLOAD = (
                     {
                         "id": "root",
                         "component": "Column",
-                        "children": ["name", "go"],
+                        "children": {"@child": ["name", "go"]},
                     },
                     {
                         "id": "name",
                         "component": "TextField",
-                        "value": {"path": "/form/name"},
+                        "value": {"@path": "/form/name"},
                     },
                     {
                         "id": "go",
                         "component": "Button",
-                        "action": {"event": {"name": "submit_form"}},
+                        "action": {"@action": {"name": "submit_form"}},
                     },
                 ],
             },

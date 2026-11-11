@@ -85,6 +85,16 @@ def test_same_outcome_different_model_ids_and_text_wording(base_scenario):
                         f"custom-{x}" if isinstance(x, str) else rename_ids(x)
                         for x in v
                     ]
+                elif k == "@child":
+                    if isinstance(v, str):
+                        res[k] = "root" if v == "root" else f"custom-{v}"
+                    elif isinstance(v, list):
+                        res[k] = [
+                            f"custom-{x}" if isinstance(x, str) else rename_ids(x)
+                            for x in v
+                        ]
+                    else:
+                        res[k] = rename_ids(v)
                 elif k == "sourceComponentId":
                     res[k] = f"custom-{v}"
                 elif k == "targetNode":
@@ -116,7 +126,12 @@ def test_changed_outcome_missing_button(base_scenario):
     # Remove subscribeBtn from Column children
     for c in t0_wire[1]["a2ui"][0]["createSurface"]["components"]:
         if c["id"] == "container":
-            c["children"] = [x for x in c["children"] if x != "subscribeBtn"]
+            if isinstance(c["children"], dict) and "@child" in c["children"]:
+                c["children"]["@child"] = [
+                    x for x in c["children"]["@child"] if x != "subscribeBtn"
+                ]
+            else:
+                c["children"] = [x for x in c["children"] if x != "subscribeBtn"]
 
     modified_outcome = outcome_of(modified)
     assert golden_outcome != modified_outcome
@@ -144,7 +159,7 @@ def test_changed_outcome_different_action_name(base_scenario):
     t0_wire = modified["turns"][0]["expectWire"]
     for c in t0_wire[1]["a2ui"][0]["createSurface"]["components"]:
         if c["id"] == "subscribeBtn":
-            c["action"]["event"]["name"] = "register_for_newsletter"
+            c["action"]["@action"]["name"] = "register_for_newsletter"
 
     modified_outcome = outcome_of(modified)
     assert golden_outcome != modified_outcome
@@ -242,10 +257,10 @@ def test_preserves_surface_insertion_order_and_normalizes_paths_and_enabled(
                 {
                     "id": "root",
                     "component": "Button",
-                    "child": "lbl",
+                    "child": {"@child": "lbl"},
                     "disabled": False,
                     "action": {
-                        "event": {
+                        "@action": {
                             "name": "tap",
                             "context": {"mail": {"@path": "/customEmailPath"}},
                         }
@@ -265,7 +280,7 @@ def test_preserves_surface_insertion_order_and_normalizes_paths_and_enabled(
     rec_banner = recorded["turns"][0]["expectWire"][1]["a2ui"][0]["createSurface"]
     rec_banner["surfaceId"] = "a-renamed-banner"
     del rec_banner["components"][0]["disabled"]
-    rec_banner["components"][0]["action"]["event"]["context"]["mail"] = {
+    rec_banner["components"][0]["action"]["@action"]["context"]["mail"] = {
         "@path": "/otherMailPointer"
     }
 
@@ -294,7 +309,7 @@ def test_compare_cli_wildcard_and_structural_mode(
         if comp["id"] == "emailInput":
             comp["label"] = "Work Email"
         if comp["id"] == "subscribeBtn":
-            comp["action"]["event"]["name"] = "join_mailing_list"
+            comp["action"]["@action"]["name"] = "join_mailing_list"
 
     golden_file = tmp_path / "golden.yaml"
     recorded_file = tmp_path / "recorded.yaml"

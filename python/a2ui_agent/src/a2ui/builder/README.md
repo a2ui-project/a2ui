@@ -86,7 +86,7 @@ update_message = UpdateComponentsMessage(
 Protocol v1.0 components and models are available under `a2ui.builder.v1_0`. In v1.0:
 
 - Components like `Button` take a `child: Child` component slot (e.g. `Text`), `TextField` supports `placeholder`, `Slider` supports `steps`, and `Video` supports `poster_url` (`posterUrl`).
-- `DataBinding` serializes to `{"@path": "..."}` and `FunctionCall` to `{"@call": "..."}`.
+- `DataBinding` serializes to `{"@path": "..."}`, `FunctionCall` to `{"@call": "..."}`, `Child` to `{"@child": "..."}`, `ChildList` to `{"@child": [...]}` or `{"@child": "...", "@path": "..."}`, and `Action` to `{"@action": ...}` or `{"@functionCall": ...}`.
 - `CreateSurfaceMessage` allows direct bundling of initial `components` and `data_model`:
 
 ```python
@@ -178,7 +178,7 @@ Key characteristics:
 - Children: parameters annotated `Child` or `ChildList` accept nested `ComponentBuilderNode` instances, an external `ComponentRef`, or a `DynamicChildList` template. The annotation is what makes them resolve to ID references on the wire.
 - Properties: primitive properties accept static values, `DataBinding` instances, or `FunctionCall` objects.
 - Fields use Python `snake_case` names with a `serialization_alias` where the wire name differs, so `validation_regexp` emits as `validationRegexp`.
-- On v1.0 builders, the component envelope fields keep their Python names (`catalog_id`, `accessibility`, `extensions`, `checks`) and serialize under the `@`-prefixed wire keys `@catalogId`, `@accessibility`, `@metadata` and `@checks`. Validation also accepts the bare keys of payloads written before the cutover.
+- On v1.0 builders, component envelope fields keep their Python names (`catalog_id`, `accessibility`, `extensions`, `checks`), child slots keep `child`/`children` (`DynamicChildList.template`, `.path`), and actions keep `Action(event=..., function_call=...)`, while serializing under `@catalogId`, `@accessibility`, `@metadata`, `@checks`, `@child`, `@path`, `@action`, and `@functionCall`. Validation also accepts the bare keys of payloads written before the cutover.
 
 ### Function builder classes
 

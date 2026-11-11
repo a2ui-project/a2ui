@@ -57,8 +57,8 @@
                       "id": "root",
                       "component": "List",
                       "children": {
-                        "path": "/restaurants",
-                        "componentId": "restaurantCard"
+                        "componentId": "restaurantCard",
+                        "path": "/restaurants"
                       }
                     },
                     {
@@ -173,8 +173,8 @@
                   - id: root
                     component: List
                     children:
-                      path: /restaurants
                       componentId: restaurantCard
+                      path: /restaurants
                   - id: restaurantCard
                     component: Card
                     child: cardBody
