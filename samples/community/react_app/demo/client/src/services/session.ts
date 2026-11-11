@@ -131,6 +131,14 @@ export class DemoSession {
       action => this.sendAction(action),
       {outboundListener: message => this.forwardToAgent(message)},
     );
+    // Errors surfaces report (an app that failed, a sandbox that stopped it) go to the agent,
+    // which tells the model at the start of the next turn.
+    this.processor.model.onError.subscribe(
+      error =>
+        void sendRendererMessage(this.conversationId, {version: '1.0', error}).catch(
+          () => undefined,
+        ),
+    );
     this.processor.model.onSurfaceCreated.subscribe(surface => this.surfaceCreated(surface.id));
     this.processor.model.onSurfaceDeleted.subscribe(surfaceId => this.surfaceDeleted(surfaceId));
   }
@@ -182,9 +190,13 @@ export class DemoSession {
         conversationId: this.conversationId,
         appError: report,
       });
-      return;
     }
-    this.reportToAgent('REACT_APP_ERROR', report.surfaceId, report.message);
+    // Otherwise the element already reported the error to the agent through the surface.
+  }
+
+  /** Records that the sandbox stopped an app (for example, the app tried to navigate away). */
+  recordSandboxError(turnId: string, error: {code: string; message: string}): void {
+    this.addProblem(turnId, `The sandbox stopped the app: ${error.message}`);
   }
 
   /** Records a bridge event from a turn's ReactApp element, and the checkpoints it marks. */

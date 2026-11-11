@@ -27,6 +27,9 @@ import {AppSkeleton} from './AppSkeleton';
 import {Chevron} from './glyphs';
 import {InternalsPanel} from './internals/InternalsPanel';
 
+/** The DOM event the sandboxed frame element dispatches when the sandbox stops an app. */
+const SANDBOX_ERROR_EVENT = 'a2ui-sandbox-error';
+
 interface TurnViewProps {
   turn: TurnState;
   session: DemoSession;
@@ -62,11 +65,18 @@ export function TurnView({turn, session, showInternals}: TurnViewProps) {
         message: error.message,
       });
     };
+    const onSandboxError = (event: Event) =>
+      session.recordSandboxError(
+        turn.id,
+        (event as CustomEvent<{code: string; message: string}>).detail,
+      );
     root.addEventListener(REACT_APP_BRIDGE_EVENT, onBridge);
     root.addEventListener(REACT_APP_ERROR_EVENT, onAppError);
+    root.addEventListener(SANDBOX_ERROR_EVENT, onSandboxError);
     return () => {
       root.removeEventListener(REACT_APP_BRIDGE_EVENT, onBridge);
       root.removeEventListener(REACT_APP_ERROR_EVENT, onAppError);
+      root.removeEventListener(SANDBOX_ERROR_EVENT, onSandboxError);
     };
   }, [session, turn.id]);
 

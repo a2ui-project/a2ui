@@ -50,9 +50,9 @@ export function SourceTab({turn}: {turn: TurnState}) {
           </header>
           <dl className="source-facts">
             <dt>dataPaths</dt>
-            <dd>{app.dataPaths?.length ? app.dataPaths.join(', ') : 'any (no allowlist)'}</dd>
+            <dd>{app.dataPaths?.length ? app.dataPaths.join(', ') : 'none (denied by default)'}</dd>
             <dt>functions</dt>
-            <dd>{app.functions?.length ? app.functions.join(', ') : 'any (no allowlist)'}</dd>
+            <dd>{app.functions?.length ? app.functions.join(', ') : 'none (denied by default)'}</dd>
           </dl>
           <Code testId="react-source" tokens={highlightTsx(app.source)} lineNumbers />
         </section>
