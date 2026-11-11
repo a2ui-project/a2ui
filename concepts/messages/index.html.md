@@ -52,14 +52,14 @@ The `createSurface` message allocates a new UI surface identified by `surfaceId`
 
 #### Properties
 
-| Property        | Type    | Required                      | Description                                                                                                                                                                                      |
-| :-------------- | :------ | :---------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `surfaceId`     | string  | Yes                           | Unique identifier for the surface.                                                                                                                                                               |
-| `catalogId`     | string  | Optional (v1.0), Yes (v0.9.1) | Default catalog identifier for this surface (for example, `travel:flights`). In v1.0, individual components and function calls can specify their own `catalogId` when omitted here.              |
-| `sendDataModel` | boolean | Optional                      | When `true`, the renderer attaches the full surface data model in transport metadata (`a2uiRendererDataModel` in v1.0 / `a2uiClientDataModel` in v0.9.1) on every message to the creating agent. |
-| `components`    | array   | Optional (v1.0)               | Initial flat list of component definitions, allowing single-message surface creation.                                                                                                            |
-| `dataModel`     | object  | Optional (v1.0)               | Initial root data model JSON object for the surface.                                                                                                                                             |
-| `metadata`      | object  | Optional (v1.0)               | Surface-level extensions container with optional `extensions` ([`Extensions`](/specification/v1.0/schemas/#common_types.json/$defs/Extensions)).                                            |
+| Property        | Type    | Required                      | Description                                                                                                                                                                                                  |
+| :-------------- | :------ | :---------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `surfaceId`     | string  | Yes                           | Unique identifier for the surface.                                                                                                                                                                           |
+| `catalogId`     | string  | Optional (v1.0), Yes (v0.9.1) | Default catalog identifier for this surface (for example, `travel:flights`). In v1.0, individual components (`@catalogId`) and function calls (`catalogId`) can specify their own catalog when omitted here. |
+| `sendDataModel` | boolean | Optional                      | When `true`, the renderer attaches the full surface data model in transport metadata (`a2uiRendererDataModel` in v1.0 / `a2uiClientDataModel` in v0.9.1) on every message to the creating agent.             |
+| `components`    | array   | Optional (v1.0)               | Initial flat list of component definitions, allowing single-message surface creation.                                                                                                                        |
+| `dataModel`     | object  | Optional (v1.0)               | Initial root data model JSON object for the surface.                                                                                                                                                         |
+| `metadata`      | object  | Optional (v1.0)               | Surface-level extensions container with optional `extensions` ([`Extensions`](/specification/v1.0/schemas/#common_types.json/$defs/Extensions)).                                                        |
 
 > **Note**
   In v1.0, `catalogId` is optional, `components` and `dataModel` can be passed inline to initialize
@@ -142,7 +142,7 @@ Creating a `"flight_search"` surface:
   ]}
 />
 
-The `updateComponents` message adds or replaces component definitions in an existing surface. Relationships between components are expressed by ID references in a flat adjacency list rather than nested JSON trees, and one component in the surface must have `id: "root"`. In v1.0, individual component definitions in `components` can also carry optional component-level extensions via `metadata.extensions` ([`ComponentCommon`](/specification/v1.0/schemas/#common_types.json/$defs/ComponentCommon)).
+The `updateComponents` message adds or replaces component definitions in an existing surface. Relationships between components are expressed by ID references in a flat adjacency list rather than nested JSON trees, and one component in the surface must have `id: "root"`. In v1.0, individual component definitions in `components` can also carry optional component-level extensions via `@metadata.extensions` ([`ComponentCommon`](/specification/v1.0/schemas/#common_types.json/$defs/ComponentCommon)).
 
 #### Properties
 

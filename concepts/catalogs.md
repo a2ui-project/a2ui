@@ -12,7 +12,7 @@ In the diagram below, the renderer advertises the catalogs it supports through `
 
 ## Catalogs
 
-A catalog is a collection of components and functions that acts as a contract between an agent and a renderer. Both agents and renderers can support one or more catalogs at the same time: a renderer advertises its `supportedCatalogIds` when a session starts, and an agent can create surfaces against any of those catalogs or, in v1.0, combine components and functions from multiple catalogs on the same surface by setting `catalogId` on individual entries.
+A catalog is a collection of components and functions that acts as a contract between an agent and a renderer. Both agents and renderers can support one or more catalogs at the same time: a renderer advertises its `supportedCatalogIds` when a session starts, and an agent can create surfaces against any of those catalogs or, in v1.0, combine components and functions from multiple catalogs on the same surface by setting `@catalogId` on individual components and `catalogId` on individual function calls.
 
 Every catalog has a `catalogId` string, conventionally formatted as a URI such as `https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json` or `https://example.com/catalogs/travel/v1/catalog.json`, along with optional `instructions`, `components`, and `functions`. Both sides of the connection read from that contract:
 
@@ -31,8 +31,10 @@ Each entry in a catalog's `components` map is a JSON Schema that describes one c
 | Dynamic properties | `$ref` to `DynamicString`, `DynamicNumber`, `DynamicBoolean`, and so on | Accepts a literal value, a data binding (`@path` in v1.0, `path` in v0.9.1), or a function call (`@call` / `call`). |
 | Children           | `$ref` to `ComponentId` or `ChildList`                                  | Points to child components by ID so the surface stays a flat list instead of a nested tree.                         |
 | Placement rules    | `allowedParents`, `allowedChildren` (v1.0)                              | Limits where the component can appear in the layout.                                                                |
-| Validation         | `$ref` to `Checkable`                                                   | Adds a `checks` array of `{condition, message}` rules to an input.                                                  |
+| Validation         | `$ref` to `Checkable`                                                   | Adds a `@checks` array (`checks` in v0.9.1) of `{condition, message}` rules to an input.                            |
 | Actions            | `$ref` to `Action`                                                      | Says what happens when the user interacts with the component: send an event to the agent or call a function.        |
+
+In v1.0, the optional envelope keys that any component instance can carry (`@catalogId`, `@accessibility`, `@metadata`, and `@checks` on `Checkable` components) take the `@` prefix, so a custom component can declare its own `catalogId`, `accessibility`, `metadata`, or `checks` property as an ordinary property. In v0.9.1, the `accessibility` and `checks` envelope keys are bare.
 
 Here is a custom `FlightStatusCard` component schema in a catalog:
 
@@ -597,7 +599,7 @@ When a session starts, the renderer sends `supportedCatalogIds` to list the cata
 
 #### v1.0
 
-Set `catalogId` in `createSurface` to choose the surface's default catalog, then add `catalogId` on any component in `updateComponents` or function call (`@call`) that comes from another supported catalog.
+Set `catalogId` in `createSurface` to choose the surface's default catalog, then add `@catalogId` on any component in `updateComponents` (or `catalogId` on any function call, `@call`) that comes from another supported catalog.
 
 In this example, `salesDashboard` uses the basic catalog by default, and `chart` comes from a custom charts catalog:
 
@@ -620,7 +622,7 @@ In this example, `salesDashboard` uses the basic catalog by default, and `chart`
         {
           "id": "chart",
           "component": "BarChart",
-          "catalogId": "https://example.com/catalogs/charts/v1/catalog.json",
+          "@catalogId": "https://example.com/catalogs/charts/v1/catalog.json",
           "data": {"@path": "/sales"}
         }
       ]
@@ -632,7 +634,7 @@ In this example, `salesDashboard` uses the basic catalog by default, and `chart`
 <details>
 <summary>Edge cases when <code>createSurface.catalogId</code> is omitted</summary>
 
-`catalogId` in `createSurface` is optional. If a surface omits `createSurface.catalogId`, every component and function call on that surface must set its own `catalogId`. If an entry omits `catalogId` and the surface has no default `catalogId` either, the renderer rejects that component or function call rather than falling back to `supportedCatalogIds`. See [Mixable catalogs and component resolution logic](/specification/v1.0-a2ui/#mixable-catalogs-and-component-resolution-logic) for the full resolution rules.
+`catalogId` in `createSurface` is optional. If a surface omits `createSurface.catalogId`, every component must set its own `@catalogId` and every function call its own `catalogId`. If an entry omits its catalog ID and the surface has no default `catalogId` either, the renderer rejects that component or function call rather than falling back to `supportedCatalogIds`. See [Mixable catalogs and component resolution logic](/specification/v1.0-a2ui/#mixable-catalogs-and-component-resolution-logic) for the full resolution rules.
 
 </details>
 
