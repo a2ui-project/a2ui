@@ -320,7 +320,7 @@ class _Text extends StatelessWidget {
     spacing: 4,
     children: [
       Text(title, style: Theme.of(context).textTheme.titleSmall),
-      Text(text),
+      LinkifiedText(text),
     ],
   );
 }

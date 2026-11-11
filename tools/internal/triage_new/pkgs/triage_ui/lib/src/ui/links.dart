@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -94,6 +95,66 @@ class LinkText extends StatelessWidget {
         CopyLinkButton(url),
       ],
     );
+  }
+}
+
+/// The URLs in text: from `http://` or `https://` up to a space, a quote, a
+/// bracket or a backtick.
+final RegExp _url = RegExp(r'''https?://[^\s<>()\[\]{}"'`]+''');
+
+/// Punctuation that ends a sentence after a URL rather than belonging to it.
+final RegExp _trailingPunctuation = RegExp(r'[.,;:!?]+$');
+
+/// [text] with each URL in it as a link that opens in the browser.
+class LinkifiedText extends StatefulWidget {
+  const LinkifiedText(this.text, {super.key});
+
+  final String text;
+
+  @override
+  State<LinkifiedText> createState() => _LinkifiedTextState();
+}
+
+class _LinkifiedTextState extends State<LinkifiedText> {
+  final List<TapGestureRecognizer> _recognizers = [];
+
+  @override
+  void dispose() {
+    _disposeRecognizers();
+    super.dispose();
+  }
+
+  void _disposeRecognizers() {
+    for (final TapGestureRecognizer r in _recognizers) {
+      r.dispose();
+    }
+    _recognizers.clear();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _disposeRecognizers();
+    final ThemeData theme = Theme.of(context);
+    final linkStyle = TextStyle(
+      color: theme.colorScheme.primary,
+      decoration: TextDecoration.underline,
+      decorationColor: theme.colorScheme.primary,
+    );
+    final String text = widget.text;
+    final spans = <InlineSpan>[];
+    var start = 0;
+    for (final RegExpMatch match in _url.allMatches(text)) {
+      final String url = match[0]!.replaceFirst(_trailingPunctuation, '');
+      if (match.start > start) {
+        spans.add(TextSpan(text: text.substring(start, match.start)));
+      }
+      final recognizer = TapGestureRecognizer()..onTap = () => openUrl(url);
+      _recognizers.add(recognizer);
+      spans.add(TextSpan(text: url, style: linkStyle, recognizer: recognizer));
+      start = match.start + url.length;
+    }
+    if (start < text.length) spans.add(TextSpan(text: text.substring(start)));
+    return Text.rich(TextSpan(children: spans));
   }
 }
 

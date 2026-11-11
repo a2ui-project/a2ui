@@ -129,7 +129,7 @@ Rules for links in `summary`, `suggestion` and `reply`:
 
 ## Step 7: Format the comment
 
-Under the line "Triage suggestion:", the comment has two collapsed sections: **For humans**, with the suggestion in plain English and the command that opens the item in the triage UI, and **For agents**, with the suggestion for the triage UI. Both must say the same thing.
+Under the line "Triage suggestion:", the comment has two collapsed sections: **For humans**, with the suggestion in plain English and the command that opens the item in the triage UI, and **For software**, with the suggestion for the triage UI. Both must say the same thing.
 
 ````markdown
 **From triage bot:**
@@ -169,7 +169,7 @@ tools/internal/triage_new/triage_ui.sh <item URL>
 </details>
 
 <details>
-<summary>For agents</summary>
+<summary>For software</summary>
 
 ```
 <a2ui>
@@ -231,7 +231,7 @@ tools/internal/triage_new/triage_ui.sh https://github.com/a2ui-project/a2ui/issu
 </details>
 
 <details>
-<summary>For agents</summary>
+<summary>For software</summary>
 
 ```
 <a2ui>
@@ -284,7 +284,7 @@ tools/internal/triage_new/triage_ui.sh https://github.com/a2ui-project/a2ui/issu
 </details>
 
 <details>
-<summary>For agents</summary>
+<summary>For software</summary>
 
 ```
 <a2ui>

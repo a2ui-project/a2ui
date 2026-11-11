@@ -45,7 +45,7 @@ Text for people.
 </details>
 
 <details>
-<summary>For agents</summary>
+<summary>For software</summary>
 
 ```
 <a2ui>

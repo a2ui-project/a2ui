@@ -209,11 +209,14 @@ void main() {
 
     expect(github.calls, [
       'POST issues/10/comments {"body":"Thanks for the report."}',
+      'DELETE issues/10/labels/status%3A%20needs-triage',
       'POST issues/10/labels {"labels":["P2"]}',
       'POST issues/10/assignees {"assignees":["octocat"]}',
       'PATCH issues/10 {"milestone":10}',
+      'DELETE issues/20/labels/status%3A%20needs-triage',
     ]);
-    expect(find.text('2 items need triage'), findsOneWidget);
+    // Apply handles both tabs, the issue and its PR #20.
+    expect(find.text('1 item needs triage'), findsOneWidget);
     // The list shows the next item, #11, which is in another subgroup.
     await expand(tester, 'Issues with open PRs (1)');
     expect(find.byIcon(Icons.check_circle), findsOneWidget);
@@ -238,7 +241,9 @@ void main() {
       ..['milestone'] = {'title': 'November launch'};
     await pumpApp(tester);
 
-    // The priority is not among the labels to remove.
+    // The priority is not among the labels to remove, and
+    // `status: needs-triage` starts checked.
+    expect(find.byTooltip('Keep $needsTriageLabel'), findsOneWidget);
     expect(find.byTooltip('Remove type: bug'), findsOneWidget);
     expect(find.byTooltip('Remove P2'), findsNothing);
 
@@ -280,11 +285,13 @@ void main() {
 
     expect(github.calls, [
       'POST issues/10/comments {"body":"Thanks for the report."}',
+      'DELETE issues/10/labels/status%3A%20needs-triage',
       'DELETE issues/10/labels/type%3A%20bug',
       'DELETE issues/10/labels/P2',
       'DELETE issues/10/assignees {"assignees":["hubot"]}',
       'POST issues/10/assignees {"assignees":["octocat"]}',
       'PATCH issues/10 {"milestone":null}',
+      'DELETE issues/20/labels/status%3A%20needs-triage',
     ]);
   });
 
@@ -513,8 +520,10 @@ void main() {
     // The issue's suggestion and the PR's edits, in one click.
     expect(github.calls, [
       'POST issues/10/comments {"body":"Thanks for the report."}',
+      'DELETE issues/10/labels/status%3A%20needs-triage',
       'POST issues/10/labels {"labels":["P1"]}',
       'POST issues/10/assignees {"assignees":["octocat"]}',
+      'DELETE issues/20/labels/status%3A%20needs-triage',
       'POST issues/20/labels {"labels":["type: bug"]}',
     ]);
     expect(controller.selected!.number, 11);
@@ -642,6 +651,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(github.calls, [
+      'DELETE flutter/genui/issues/7/labels/status%3A%20needs-triage',
       'POST flutter/genui/issues/7/labels {"labels":["P1"]}',
     ]);
     expect(find.text('3 items need triage'), findsOneWidget);
@@ -661,7 +671,8 @@ void main() {
     expect(tester.getSize(list).width, greaterThan(500));
   });
 
-  testWidgets('an item without a suggestion starts empty', (tester) async {
+  testWidgets('an item without a suggestion starts removing only '
+      '"$needsTriageLabel"', (tester) async {
     await pumpApp(tester);
     await expand(tester, 'New (3)');
     await expand(tester, 'Issues without open PRs (1)');
@@ -669,8 +680,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('no suggestion yet'), findsNothing);
-    expect(find.text('Nothing to apply.'), findsOneWidget);
+    expect(find.byTooltip('Keep $needsTriageLabel'), findsOneWidget);
     final Finder apply = find.widgetWithText(FilledButton, 'Apply');
+    expect(tester.widget<FilledButton>(apply).onPressed, isNotNull);
+
+    // Without it, there is nothing to apply.
+    await tester.tap(find.byTooltip('Keep $needsTriageLabel'));
+    await tester.pump();
+    expect(find.text('Nothing to apply.'), findsOneWidget);
     expect(tester.widget<FilledButton>(apply).onPressed, isNull);
 
     await tester.tap(find.text('Close as duplicate'));

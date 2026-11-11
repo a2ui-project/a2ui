@@ -212,12 +212,16 @@ class TriageController extends ChangeNotifier {
   ApplyResult? lastResult(ItemRef item) => _results[item];
 
   /// The draft for [item], which starts as [initial], or as the item's
-  /// suggestion if [initial] is null.
+  /// suggestion if [initial] is null, and removes `status: needs-triage`
+  /// if the item has it.
   SuggestionDraft draftFor(TriageItem item, [TriageSuggestion? initial]) =>
       _drafts.putIfAbsent(
         item.ref,
         () => SuggestionDraft(
-          initial ?? item.suggestion?.suggestion ?? const TriageSuggestion(),
+          _withoutNeedsTriage(
+            item,
+            initial ?? item.suggestion?.suggestion ?? const TriageSuggestion(),
+          ),
         ),
       );
 
@@ -431,17 +435,27 @@ class TriageController extends ChangeNotifier {
     return true;
   }
 
+  /// Adds `status: needs-triage` to the labels that [suggestion] removes,
+  /// if [item] has the label.
+  static TriageSuggestion _withoutNeedsTriage(
+    TriageItem item,
+    TriageSuggestion suggestion,
+  ) => item.needsTriage ? _removing(suggestion, needsTriageLabel) : suggestion;
+
   /// Adds `status: needs-team-input` to the labels that [suggestion]
   /// removes, if [item] has the label and [suggestion] does not add it.
   static TriageSuggestion _withoutTeamInput(
     TriageItem item,
     TriageSuggestion suggestion,
-  ) {
-    if (!item.needsTeamInput ||
-        suggestion.addedLabels.contains(needsTeamInputLabel) ||
-        suggestion.removedLabels.contains(needsTeamInputLabel)) {
-      return suggestion;
-    }
+  ) =>
+      item.needsTeamInput &&
+          !suggestion.addedLabels.contains(needsTeamInputLabel)
+      ? _removing(suggestion, needsTeamInputLabel)
+      : suggestion;
+
+  /// [suggestion], removing [label] too.
+  static TriageSuggestion _removing(TriageSuggestion suggestion, String label) {
+    if (suggestion.removedLabels.contains(label)) return suggestion;
     return TriageSuggestion(
       summary: suggestion.summary,
       reason: suggestion.reason,
@@ -450,7 +464,7 @@ class TriageController extends ChangeNotifier {
       closeAs: suggestion.closeAs,
       duplicateOf: suggestion.duplicateOf,
       addedLabels: suggestion.addedLabels,
-      removedLabels: [...suggestion.removedLabels, needsTeamInputLabel],
+      removedLabels: [...suggestion.removedLabels, label],
       newAssignees: suggestion.newAssignees,
       removedAssignees: suggestion.removedAssignees,
       relatedIssues: suggestion.relatedIssues,

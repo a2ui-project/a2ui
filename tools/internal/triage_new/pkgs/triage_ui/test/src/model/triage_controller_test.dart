@@ -121,6 +121,7 @@ void main() {
 
     expect(github.calls, [
       'POST flutter/genui/issues/10/comments {"body":"Thanks!"}',
+      'DELETE flutter/genui/issues/10/labels/status%3A%20needs-triage',
       'POST flutter/genui/issues/10/labels {"labels":["P2"]}',
     ]);
     expect(controller.session.isApplied(genui(10)), isTrue);
@@ -312,13 +313,17 @@ void main() {
     await controller.apply(controller.item(a2ui(40))!);
 
     expect(github.calls, [
+      'DELETE issues/40/labels/status%3A%20needs-triage',
       'DELETE issues/40/labels/status%3A%20needs-team-input',
       'POST issues/40/labels {"labels":["P2"]}',
     ]);
     expect(controller.item(a2ui(40))!.needsTeamInput, isFalse);
     expect(numbers(controller.teamInputItems), [40, 41]);
     expect(controller.session.isApplied(a2ui(40)), isTrue);
-    expect(controller.report(), contains('removed status: needs-team-input'));
+    expect(
+      controller.report(),
+      contains('removed status: needs-triage and status: needs-team-input'),
+    );
   });
 
   test('applying a suggestion that adds the label keeps it', () async {
@@ -331,6 +336,7 @@ void main() {
     await controller.apply(controller.item(a2ui(40))!);
 
     expect(github.calls, [
+      'DELETE issues/40/labels/status%3A%20needs-triage',
       'POST issues/40/labels {"labels":["status: needs-team-input"]}',
     ]);
     expect(controller.session.isSentToTeam(a2ui(40)), isTrue);

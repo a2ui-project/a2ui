@@ -31,7 +31,7 @@ The Flutter renderer crashes.
 </details>
 
 <details>
-<summary>For agents</summary>
+<summary>For software</summary>
 
 ```
 <a2ui>

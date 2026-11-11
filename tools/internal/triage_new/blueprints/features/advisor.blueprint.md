@@ -31,7 +31,7 @@ The advisor finds who knows an area from the repository history: the people who 
 
 ## The suggestion comment
 
-The suggestion comment is a [triage bot](../core.blueprint.md#contributors) comment. Under the line "Triage suggestion:", it has two collapsed sections: **For humans**, with the suggestion in plain English and the command that opens the item in the triage UI, and **For agents**, with the suggestion as a component for the triage UI. Both sections say the same thing.
+The suggestion comment is a [triage bot](../core.blueprint.md#contributors) comment. Under the line "Triage suggestion:", it has two collapsed sections: **For humans**, with the suggestion in plain English and the command that opens the item in the triage UI, and **For software**, with the suggestion as a component for the triage UI. Both sections say the same thing.
 
 For example, the suggestion comment on an illustrative issue #1235:
 
@@ -69,7 +69,7 @@ tools/internal/triage_new/triage_ui.sh https://github.com/a2ui-project/a2ui/issu
 </details>
 
 <details>
-<summary>For agents</summary>
+<summary>For software</summary>
 
 ```
 <a2ui>
@@ -96,7 +96,7 @@ The parts of the comment, in order:
    2. The other properties that have values, as a numbered list: **Close as**, **Add labels**, **Remove labels**, **Assign**, **Unassign**, **Related issues** and **Related PRs**. An example of **Close as** is "Close as: duplicate of #1100".
    3. The `reply`, quoted, under **Reply**. The part is left out when there is no reply.
    4. The command that opens the item in the triage UI.
-3. The **For agents** section, collapsed: the component.
+3. The **For software** section, collapsed: the component.
 
 The component is written in [A2UI Express](../../../../../specification/inference_formats/express/Express.g4), as one `root = TriageSuggestion(...)` statement. The code fence makes GitHub show it as written, and the triage UI reads the text between `<a2ui>` and `</a2ui>`.
 
