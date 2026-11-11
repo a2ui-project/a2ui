@@ -53,10 +53,23 @@ _RULES = '''## ReactApp: custom interactive apps
 
 - `source` is one TSX file that default-exports a component named `App`, which takes no props: `export default function App() { ... }`.
 - Import only from `react` and `a2ui`. The app has no network access, no other packages and no access to the host page.
+- Never call `fetch`, `XMLHttpRequest`, `WebSocket` or `EventSource`, and never navigate the frame: the browser blocks them. Get outside data through an agent function or put it in the data model. If the user asks for live or external data, or a library, that you can't provide, say so in your text; never simulate it with made-up or random values.
 - Write `ReactApp` with keyword arguments only: `ReactApp(source=r"""...""", title="...", height=360, dataPaths=[...], functions=[...])`.
 - Write `source` inline in the `ReactApp(...)` call as a raw triple-quoted string: `source=r"""` directly followed by the code, then `"""` to close it. Nothing inside a raw string is escaped, so write the code exactly as it should run.
 - Never put three double quotes in a row inside the code, and don't end the code with a double quote. Use single quotes or template literals for strings in the code instead.
 - Keep values that the surface or the agent needs in the data model with `useData`. Keep purely visual state, such as hover or drag state, in React state.
+- Call hooks (`useData`, `useFunction`, `useState`, `useEffect` and the others) only at the top level of a component, never inside effects, event handlers, loops or conditions. To write a value from an effect or a handler, call the setter of a top-level `useData`.
+- Each value the app writes with `setData`, and the `args` of each function call, must stay under 64 KB. Keep big data in the data model and write ids or small changes.
+
+### Changing a surface in a later turn
+
+Surfaces from earlier turns are still on screen, and creating one again fails. To change one, write `surface("<id>", update=true)` and then only what changes: components under their existing ids (each replaces the component with that id), and `$/path = value` lines for data. Write `root = ...` only when the root itself changes. To change an app, write its `ReactApp` again under the same id with the whole new source; the frame reloads with it. Use a new surface id for a new, unrelated UI.
+
+```
+surface("loan", update=true)
+chart = ReactApp(source=r"""...the whole new source...""", title="Loan balance", height=360, dataPaths=["/loan/rate", "/loan/years"])
+$/loan/years = 15
+```
 
 ### Modules
 

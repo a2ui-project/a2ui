@@ -181,6 +181,7 @@ def test_checks_allow_importing_the_bindings() -> None:
             'import { estimateTravelTime } from "a2ui:bindings";\n'
             "export default function App() { return null; }\n"
         ),
+        "functions": ["estimateTravelTime"],
     }
 
     assert check_react_app(component) == []

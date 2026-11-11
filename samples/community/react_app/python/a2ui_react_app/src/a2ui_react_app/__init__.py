@@ -36,6 +36,7 @@ from ._checks import (
     check_react_app,
 )
 from ._prompt import react_app_prompt
+from ._source import ReactAppSourceFacts, react_app_source_facts
 from ._transformer import ReactAppTransformer
 
 __all__ = [
@@ -45,6 +46,7 @@ __all__ = [
     "ReactAppBindings",
     "ReactAppDiagnostic",
     "ReactAppDiagnosticCode",
+    "ReactAppSourceFacts",
     "ReactAppTransformer",
     "ReactAppValidationError",
     "check_react_app",
@@ -52,4 +54,5 @@ __all__ = [
     "react_app_catalog",
     "react_app_examples",
     "react_app_prompt",
+    "react_app_source_facts",
 ]

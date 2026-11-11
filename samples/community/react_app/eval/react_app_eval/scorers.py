@@ -93,17 +93,16 @@ def raw_completion(state: TaskState) -> str:
 
 
 def _merge(facts: Sequence[SourceFacts]) -> SourceFacts:
-    merged = SourceFacts()
-    for item in facts:
-        merged.read_paths |= item.read_paths
-        merged.written_paths |= item.written_paths
-        merged.functions |= item.functions
-        merged.actions |= item.actions
-        merged.a2ui_imports |= item.a2ui_imports
-        merged.uses_css_vars |= item.uses_css_vars
-        merged.uses_theme |= item.uses_theme
-        merged.hard_coded_colors += item.hard_coded_colors
-    return merged
+    return SourceFacts(
+        read_paths=frozenset().union(*(f.read_paths for f in facts)),
+        written_paths=frozenset().union(*(f.written_paths for f in facts)),
+        functions=frozenset().union(*(f.called_functions for f in facts)),
+        actions=frozenset().union(*(f.actions for f in facts)),
+        a2ui_imports=frozenset().union(*(f.a2ui_imports for f in facts)),
+        uses_css_vars=any(f.uses_css_vars for f in facts),
+        uses_theme=any(f.uses_theme for f in facts),
+        hard_coded_colors=sum(f.hard_coded_colors for f in facts),
+    )
 
 
 def _zero(keys: Sequence[str]) -> dict[str, float]:
