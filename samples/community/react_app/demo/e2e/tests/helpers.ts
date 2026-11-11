@@ -22,7 +22,14 @@
 import {mkdirSync, writeFileSync} from 'node:fs';
 import {dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {expect, type FrameLocator, type Locator, type Page, type TestInfo} from '@playwright/test';
+import {
+  test as base,
+  expect,
+  type FrameLocator,
+  type Locator,
+  type Page,
+  type TestInfo,
+} from '@playwright/test';
 import {USE_CASES, type UseCase} from '../../client/src/use_cases';
 
 export const MODE: 'live' | 'recorded' =
@@ -31,7 +38,7 @@ export const RESULTS_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '
 export const SCREENSHOT_DIR = process.env['SCREENSHOT_DIR'] ?? join(RESULTS_DIR, 'screens');
 const TURN_TIMEOUT = MODE === 'live' ? 150_000 : 60_000;
 
-/** A row of the client's bridge log (client/src/lib/bridge_log.ts). */
+/** A row of the client's bridge log (client/src/services/bridge_log.ts). */
 export interface BridgeEntry {
   seq: number;
   time: number;
@@ -60,6 +67,31 @@ declare global {
     };
   }
 }
+
+/**
+ * The tests' `test`: it fails a test when any frame (the page, the sandbox proxy or an app frame)
+ * logs a console error or throws an uncaught exception, such as a cross-origin SecurityError.
+ */
+export const test = base.extend<{frameErrors: string[]}>({
+  frameErrors: [
+    async ({page}, use) => {
+      const errors: string[] = [];
+      page.on('console', message => {
+        if (message.type() === 'error') {
+          errors.push(`console.error [${message.location().url}] ${message.text()}`);
+        }
+      });
+      page.on('pageerror', error => errors.push(`uncaught ${error.name}: ${error.message}`));
+      await use(errors);
+      expect(
+        errors.filter(error => /SecurityError|Blocked a frame/.test(error)),
+        'cross-origin access errors',
+      ).toEqual([]);
+      expect(errors, 'console errors and uncaught exceptions in any frame').toEqual([]);
+    },
+    {auto: true},
+  ],
+});
 
 export function useCase(id: UseCase['id']): UseCase {
   return USE_CASES.find(candidate => candidate.id === id)!;
