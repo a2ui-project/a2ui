@@ -42,7 +42,7 @@ export const USE_CASES: readonly UseCase[] = [
     title: 'Sortable sales explorer',
     blurb: 'Sortable table querying agent data functions with Explore buttons to drill down.',
     prompt:
-      'Give me a sortable table of all the companies and sales orders, with an explore button on each row',
+      'Show me a table of companies sortable by total spend with an explore button for each company',
   },
 ];
 
