@@ -15,7 +15,7 @@
  */
 
 import {describe, expect, it} from 'vitest';
-import {themeConfig, withPlainFieldNames} from './vega_chart.js';
+import {themeConfig, withDefaultDataset, withPlainFieldNames} from './vega_chart.js';
 import {theme} from './theme.js';
 
 describe('withPlainFieldNames', () => {
@@ -44,5 +44,20 @@ describe('themeConfig', () => {
 
     expect(config.mark.color).toBe(theme.colors.primary);
     expect(config.range.category[0]).toBe(theme.colors.primary);
+  });
+});
+
+describe('withDefaultDataset', () => {
+  it('binds the only named dataset to a spec without data', () => {
+    expect(withDefaultDataset({mark: 'bar'}, 'table')).toEqual({
+      mark: 'bar',
+      data: {name: 'table'},
+    });
+    expect(withDefaultDataset({mark: 'bar', data: {values: []}}, 'table')).toEqual({
+      mark: 'bar',
+      data: {values: []},
+    });
+    expect(withDefaultDataset({mark: 'bar'}, 'a,b')).toEqual({mark: 'bar'});
+    expect(withDefaultDataset({mark: 'bar'}, '')).toEqual({mark: 'bar'});
   });
 });

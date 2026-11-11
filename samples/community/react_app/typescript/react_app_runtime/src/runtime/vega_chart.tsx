@@ -92,6 +92,21 @@ export function withPlainFieldNames(value: unknown): unknown {
   return out;
 }
 
+/**
+ * A spec without top-level data, passed exactly one named dataset, reads that dataset: models
+ * often pass `data={{table: rows}}` and forget `data: {name: 'table'}` in the spec.
+ */
+export function withDefaultDataset(
+  spec: Record<string, unknown>,
+  datasetNames: string,
+): Record<string, unknown> {
+  const names = datasetNames ? datasetNames.split(',') : [];
+  if (spec['data'] !== undefined || names.length !== 1) {
+    return spec;
+  }
+  return {...spec, data: {name: names[0]}};
+}
+
 function datasetsOf(data: VegaChartProps['data']): Array<[string, unknown[]]> {
   return Object.entries(data ?? {}).filter((entry): entry is [string, unknown[]] =>
     Array.isArray(entry[1]),
@@ -131,6 +146,10 @@ export function VegaChart(props: VegaChartProps): ReactElement {
   const signalNames = Object.keys(onSignal ?? {})
     .sort()
     .join(',');
+  const datasetNames = datasetsOf(data)
+    .map(([name]) => name)
+    .sort()
+    .join(',');
 
   useEffect(() => {
     const element = container.current;
@@ -141,13 +160,16 @@ export function VegaChart(props: VegaChartProps): ReactElement {
     let finalize: (() => void) | undefined;
     const chartHeight =
       height ?? (typeof spec['height'] === 'number' ? spec['height'] : DEFAULT_HEIGHT);
-    const fullSpec: Record<string, unknown> = {
-      $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
-      width: 'container',
-      autosize: {type: 'fit', contains: 'padding'},
-      ...(JSON.parse(specKey) as Record<string, unknown>),
-      height: chartHeight,
-    };
+    const fullSpec = withDefaultDataset(
+      {
+        $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
+        width: 'container',
+        autosize: {type: 'fit', contains: 'padding'},
+        ...(JSON.parse(specKey) as Record<string, unknown>),
+        height: chartHeight,
+      },
+      datasetNames,
+    );
     loadVegaEmbed()
       .then(async module => {
         if (cancelled) {
@@ -207,7 +229,7 @@ export function VegaChart(props: VegaChartProps): ReactElement {
       finalize?.();
     };
     // `theme` is covered by `themeKey` and `spec` by `specKey`.
-  }, [specKey, themeKey, signalNames, height]);
+  }, [specKey, themeKey, signalNames, datasetNames, height]);
 
   // Runs after every render: `data` is usually an inline object, so only datasets whose array
   // changed are sent to the view.
