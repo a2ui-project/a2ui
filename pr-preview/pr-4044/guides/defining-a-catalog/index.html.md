@@ -12,6 +12,14 @@ If your agent and client share the same language and repository, you can define 
 
 In A2UI v1.0, your catalog works alongside the built-in [basic catalog](/specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json), so you keep standard layout widgets (`Column`, `Row`, `Text`, `Button`) and define only the custom widgets unique to your app. See [Catalogs](/concepts/catalogs/) for how catalog negotiation works at runtime.
 
+> **Note**
+  The experimental [Google Maps Platform Agentic UI
+  toolkit](https://developers.google.com/maps/ai/agentic-ui-toolkit) follows this pattern. Its
+  [`maps_catalog_extension.json`](https://github.com/googlemaps/a2ui/blob/main/agent/python_agent/shared/schema/maps_catalog_extension.json)
+  defines `GoogleMap` and `PlaceDetailsCompact` components, and its web client [registers
+  them](https://github.com/googlemaps/a2ui/blob/main/client/web/src/lit/catalog.ts) alongside the
+  basic catalog's components and functions under one `catalogId`.
+
 ## Step 1: Create a minimal catalog.json
 
 Create a file named `status_catalog.json` that defines a single `StatusBadge` component with two properties: a bindable `label` string and a `status` tone.

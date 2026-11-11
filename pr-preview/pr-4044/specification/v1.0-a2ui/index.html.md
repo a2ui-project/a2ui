@@ -1110,7 +1110,7 @@ The renderer supports a set of named **Functions** (e.g., `required`, `regex`, `
 
 ### Component Validation & Check Rules
 
-Input components (like `TextField`, `ChoicePicker`) and interactive elements (like `Button`) can define a list of `checks` (`CheckRule` objects).
+Input components (like `TextField`, `ChoicePicker`) and interactive elements (like `Button`) can define a list of `@checks` (`CheckRule` objects).
 
 A `CheckRule` contains a `condition` (a `DataBinding` path or a `FunctionCall`) and an optional fallback `message` string. The `condition` evaluates to either a `ValidationResult` object (defined in [`catalog_definition.json#/$defs/ValidationResult`](/specification/json/catalog_definition.json)) or a primitive `boolean`.
 
