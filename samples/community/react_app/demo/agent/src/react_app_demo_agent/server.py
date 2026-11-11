@@ -148,9 +148,9 @@ def create_app(model: ModelClient) -> FastAPI:
                 "name": "getOrderDetails",
                 "description": "Retrieves itemized line items, tracking numbers, shipping carrier, and fulfillment status for an order.",
                 "parameters": {
-                    "orderId": "String: Order ID (e.g. 'ORD-1001')",
+                    "orderId": "String: Order ID (e.g. 'NO-0100', 'EM-0101')",
                 },
-                "sampleArgs": {"orderId": "ORD-1001"},
+                "sampleArgs": {"orderId": "NO-0100"},
                 "returns": "Order Details object with line items and tracking status",
             },
             {
