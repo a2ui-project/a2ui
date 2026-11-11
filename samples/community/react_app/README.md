@@ -24,6 +24,7 @@ This folder is self-contained so it can move to the `a2ui/labs` repository.
 | [`typescript/react_app_runtime/`](typescript/react_app_runtime/) | `@a2ui-labs/react-app-runtime`: what runs in the app frame (React 19, the `a2ui` module, Sucrase, VegaChart, theming), built into content-hashed ES modules with an import map. Its [`src/a2ui.d.ts`](typescript/react_app_runtime/src/a2ui.d.ts) is the API the model writes against. |
 | [`typescript/react_app/`](typescript/react_app/)                 | `@a2ui-labs/react-app`: the host-side `ReactApp` component and catalog for web renderers, the bridge, and the Playwright fixture.                                                                                                                                                      |
 | [`python/a2ui_react_app/`](python/a2ui_react_app/)               | `a2ui-react-app`: the catalog, the prompt fragment and `ReactAppTransformer` for Python agents.                                                                                                                                                                                        |
+| [`scripts/`](scripts/)                                           | `video_upload.mjs`: converts demo recordings to `.mp4` and uploads them to GitHub `user-attachments` for PR descriptions.                                                                                                                                                              |
 
 ## How it fits together
 
