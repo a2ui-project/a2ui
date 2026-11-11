@@ -2,16 +2,6 @@
 
 ## Unreleased
 
-- Gate component-level `metadata` and `catalogId` envelope handling on v1.0+ surfaces so pre-1.0 surfaces (`v0.8`, `v0.9`, `v0.9.1`) treat `metadata` and `catalogId` as ordinary component properties in `PayloadValidator` and `MessageProcessor`, and accept `@metadata`, `@catalogId`, `@accessibility`, and `@checks` on v1.0 components while continuing to read legacy bare `metadata`, `catalogId`, `accessibility`, and `checks` when undeclared by the component schema. `PayloadValidator` now validates `@metadata.extensions` keys as UAX #31 identifiers and rejects components that specify both `@`-prefixed and legacy bare forms of the same mixin ([#1376](https://github.com/a2ui-project/a2ui/issues/1376), [#3466](https://github.com/a2ui-project/a2ui/issues/3466), [#4012](https://github.com/a2ui-project/a2ui/issues/4012), [#4037](https://github.com/a2ui-project/a2ui/pull/4037)).
-- (v1_0) `ComponentModel.toJson` writes a component's catalog and envelope
-  metadata as `@catalogId` and `@metadata`, so a bare `catalogId` or
-  `metadata` in its output is always one of the component's own properties.
-  `MessageProcessor` and `PayloadValidator` reject a legacy bare
-  `catalogId: null`, as they already did `@catalogId: null`
-  ([#4037](https://github.com/a2ui-project/a2ui/pull/4037)).
-- Rename `Catalog.toLegacyInlineCatalog()` to `Catalog.toV09InlineCatalog()`.
-  `toLegacyInlineCatalog()` remains as a deprecated alias
-  ([#4006](https://github.com/a2ui-project/a2ui/pull/4006)).
 - **Breaking:** (v1_0) `PayloadValidator.validateComponent`, and
   `MessageProcessor` for calls into another catalog, reject a call to a
   function whose `allowedCallers` is `agentOnly` in a property binding, a
@@ -24,6 +14,10 @@
   only `rendererOnly` or `rendererOrAgent` functions in components
   ([#3534](https://github.com/a2ui-project/a2ui/issues/3534),
   [#4008](https://github.com/a2ui-project/a2ui/pull/4008)).
+- Gate component `metadata` and `catalogId` envelope handling to v1.0+ surfaces so pre-1.0 surfaces treat them as ordinary component properties, support `@metadata`, `@catalogId`, `@accessibility`, and `@checks` on v1.0 components (with fallback to undeclared legacy bare names), and write `ComponentModel.toJson` catalog and envelope metadata as `@catalogId` and `@metadata`. `PayloadValidator` and `MessageProcessor` also validate `@metadata.extensions` keys as UAX #31 identifiers, reject `null` `@catalogId` / legacy `catalogId`, and reject components specifying both `@`-prefixed and bare forms of the same mixin ([#1376](https://github.com/a2ui-project/a2ui/issues/1376), [#3466](https://github.com/a2ui-project/a2ui/issues/3466), [#4012](https://github.com/a2ui-project/a2ui/issues/4012), [#4037](https://github.com/a2ui-project/a2ui/pull/4037)).
+- Rename `Catalog.toLegacyInlineCatalog()` to `Catalog.toV09InlineCatalog()`.
+  `toLegacyInlineCatalog()` remains as a deprecated alias
+  ([#4006](https://github.com/a2ui-project/a2ui/pull/4006)).
 - (v1_0) `MessageProcessor` checks a call nested in the arguments of a
   `callRendererFunction` that names no `catalogId` against the default catalog
   of the surface the message names, where the renderer runs it, rather than
