@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+- `formatDate` copies text in single quotes through as a literal and renders
+  `''` as an apostrophe, so `"MMM d 'at' h:mm a"` gives `Feb 2 at 3:17 PM`
+  instead of `Feb 2 'PMt' 3:17 PM`, and reads `EEE` and `EE` as the
+  abbreviated weekday instead of repeating it
+  ([#2937](https://github.com/a2ui-project/a2ui/issues/2937), [#3787](https://github.com/a2ui-project/a2ui/pull/3787)).
+- **Breaking:** (v0_9) `MessageProcessor` treats a component's `metadata` key
+  as an ordinary property on v0.9 surfaces, since v0.9 defines no component
+  metadata: it stays in `ComponentModel.properties`, is checked against the
+  component's schema only, and `ComponentModel.metadata` stays null. Before,
+  it was checked against the v1.0 metadata rules and moved out of the
+  properties. To migrate, read `metadata` from `properties` on v0.9
+  surfaces, or move to v1.0 for component metadata
+  ([#4137](https://github.com/a2ui-project/a2ui/issues/4137),
+  [#4140](https://github.com/a2ui-project/a2ui/pull/4140)).
+- `MessageProcessor` takes `unifiedOutbound` (`false` by default). When `true`,
+  `outboundListener` also receives an `ActionMessage` for each action emitted
+  on `model.onAction`, carrying the surface's protocol version; `onAction` and
+  `model.onAction` still fire. Setting `unifiedOutbound: true` without an
+  `outboundListener` throws `ArgumentError`
+  ([#4015](https://github.com/a2ui-project/a2ui/issues/4015),
+  [#4079](https://github.com/a2ui-project/a2ui/pull/4079)).
 - (v1_0) Function calls inside `${...}` template expressions of `formatString`
   now inherit the `catalogId` that the enclosing `formatString` call resolved
   to (preserving reserved `@`-prefixed system calls such as `${@index()}` as
@@ -228,11 +249,6 @@
   `DateTimeInput` now validates; previously it matched all three branches of
   the `oneOf` that tells them apart and was always rejected
   ([#3123](https://github.com/a2ui-project/a2ui/issues/3123)).
-- `formatDate` copies text in single quotes through as a literal and renders
-  `''` as an apostrophe, so `"MMM d 'at' h:mm a"` gives `Feb 2 at 3:17 PM`
-  instead of `Feb 2 'PMt' 3:17 PM`, and reads `EEE` and `EE` as the
-  abbreviated weekday instead of repeating it
-  ([#2937](https://github.com/a2ui-project/a2ui/issues/2937), [#3787](https://github.com/a2ui-project/a2ui/pull/3787)).
 
 ## 0.4.0
 

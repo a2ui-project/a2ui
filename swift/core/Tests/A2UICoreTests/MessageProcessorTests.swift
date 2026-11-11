@@ -951,6 +951,88 @@ struct MessageProcessorTests {
     #expect(surface.rootNode?.box.propsRevision == 0)
   }
 
+  @Test func componentMetadataIsAnOrdinaryPropertyBeforeV10() throws {
+    let cardSchema = try Schema(instance: "{\"type\": \"object\"}")
+    let processor = MessageProcessor(catalogs: [
+      Catalog(
+        id: "cat-v09",
+        protocolVersion: .v09,
+        components: [AnyComponentAPI(name: "Card", schema: cardSchema)]
+      ),
+      Catalog(
+        id: "cat-v10",
+        protocolVersion: .v10,
+        components: [AnyComponentAPI(name: "Card", schema: cardSchema)]
+      ),
+    ])
+
+    try processor.processMessages(
+      JSONValue.parse(
+        """
+        [
+          {
+            "version": "v0.9",
+            "createSurface": { "surfaceId": "s09", "catalogId": "cat-v09" }
+          },
+          {
+            "version": "v0.9",
+            "updateComponents": {
+              "surfaceId": "s09",
+              "components": [
+                {
+                  "id": "plain",
+                  "component": "Card",
+                  "metadata": { "source": "crm" }
+                },
+                {
+                  "id": "shaped",
+                  "component": "Card",
+                  "metadata": { "extensions": { "trace": "t1" } }
+                }
+              ]
+            }
+          }
+        ]
+        """
+      )
+    )
+    try processor.processMessages(
+      JSONValue.parse(
+        """
+        {
+          "version": "1.0",
+          "createSurface": {
+            "surfaceId": "s10",
+            "catalogId": "cat-v10",
+            "components": [
+              {
+                "id": "root",
+                "component": "Card",
+                "metadata": { "extensions": { "trace": "t1" } }
+              }
+            ]
+          }
+        }
+        """
+      )
+    )
+
+    let v09Components = try #require(processor.surfaceGroupModel["s09"]).componentsModel
+    let plain = try #require(v09Components.get("plain"))
+    #expect(plain.properties["metadata"] == .object(["source": .string("crm")]))
+    #expect(plain.metadata == nil)
+    let shaped = try #require(v09Components.get("shaped"))
+    #expect(
+      shaped.properties["metadata"]
+        == .object(["extensions": .object(["trace": .string("t1")])])
+    )
+    #expect(shaped.metadata == nil)
+
+    let v10Root = try #require(processor.surfaceGroupModel["s10"]?.componentsModel.get("root"))
+    #expect(v10Root.properties["metadata"] == nil)
+    #expect(v10Root.extensions == ["trace": .string("t1")])
+  }
+
   @Test func processPayloadResolvesLenientV10VersionOnError() throws {
     let handler = TestProcessorActionHandler()
     let catalogV09 = Catalog(
