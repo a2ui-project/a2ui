@@ -16,16 +16,28 @@
 
 /**
  * Stands in for a ReactApp while the model is still writing its source: a card shaped like a
- * small chart, so the page doesn't jump when the app arrives.
+ * small chart that blends seamlessly with surrounding A2UI content.
  */
-export function AppSkeleton({title, height}: {title: string | null; height: number | null}) {
+export function AppSkeleton({
+  title,
+  height,
+  embedded,
+}: {
+  title: string | null;
+  height: number | null;
+  embedded?: boolean;
+}) {
   const bodyHeight = Math.min(Math.max(height ?? 300, 180), 520);
   return (
-    <div className="app-skeleton" data-testid="app-skeleton" aria-busy="true">
+    <div
+      className={`app-skeleton${embedded ? ' app-skeleton-embedded' : ''}`}
+      data-testid="app-skeleton"
+      aria-busy="true"
+    >
       <div className="app-skeleton-head">
         <span className="app-skeleton-title">{title ?? 'Interactive app'}</span>
         <span className="app-skeleton-status">
-          writing app
+          custom component loading
           <span className="dots" aria-hidden="true" />
         </span>
       </div>

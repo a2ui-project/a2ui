@@ -127,11 +127,20 @@ export function TurnView({turn, session, showInternals}: TurnViewProps) {
               data-surface-id={surfaceId}
             >
               <A2uiSurface surface={surface} />
+              {turn.pendingApp && (
+                <AppSkeleton
+                  title={turn.pendingApp.title}
+                  height={turn.pendingApp.height}
+                  embedded
+                />
+              )}
             </div>
           ) : null;
         })}
-        {turn.pendingApp && (
-          <AppSkeleton title={turn.pendingApp.title} height={turn.pendingApp.height} />
+        {turn.surfaceIds.length === 0 && turn.pendingApp && (
+          <div className="surface-card">
+            <AppSkeleton title={turn.pendingApp.title} height={turn.pendingApp.height} />
+          </div>
         )}
         {turn.superseded.length > 0 && (
           <p className="turn-note turn-note-quiet" data-testid="superseded-note">

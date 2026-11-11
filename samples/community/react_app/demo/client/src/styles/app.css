@@ -619,13 +619,22 @@ code {
   animation: breathe 1.4s ease-in-out infinite;
 }
 
-/* Writing-app skeleton ---------------------------------------------------------------------- */
+/* Custom component loading skeleton ------------------------------------------------ */
 
 .app-skeleton {
-  border: 1px dashed var(--rule-strong);
+  border: var(--hairline);
   border-radius: var(--radius-2);
   background: var(--paper-card);
   padding: var(--s-3);
+  position: relative;
+  overflow: hidden;
+}
+
+.app-skeleton-embedded {
+  border: var(--hairline);
+  box-shadow: none;
+  background: rgba(244, 237, 225, 0.45);
+  margin-top: var(--s-3);
 }
 
 .app-skeleton-head {
@@ -645,6 +654,9 @@ code {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   color: var(--accent-deep);
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .app-skeleton-body {
@@ -653,6 +665,8 @@ code {
   gap: var(--s-2);
   border-bottom: var(--hairline);
   padding: 0 var(--s-2);
+  position: relative;
+  overflow: hidden;
 }
 
 .app-skeleton-bar {
@@ -660,6 +674,32 @@ code {
   border-radius: 2px 2px 0 0;
   background: var(--sage-tint);
   animation: breathe 1.6s ease-in-out infinite;
+}
+
+.app-skeleton-body::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.55) 50%,
+    transparent 100%
+  );
+  animation: shimmer-sweep 2s infinite ease-in-out;
+  pointer-events: none;
+}
+
+@keyframes shimmer-sweep {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
 }
 
 /* Internals --------------------------------------------------------------------------------- */
