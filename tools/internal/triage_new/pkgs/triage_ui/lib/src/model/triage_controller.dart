@@ -380,7 +380,8 @@ class TriageController extends ChangeNotifier {
   }
 
   /// Sends [item] to the team: adds `status: needs-team-input` and posts
-  /// [comment], if the triager wrote one. Does not apply the draft.
+  /// [comment] under [teamNoteHeading], if the triager wrote one. Does not
+  /// apply the draft, so the item stays open even if the draft closes it.
   ///
   /// On success, records the item in the session, moves it to the
   /// **Needs team input** group and, if it is selected, selects the next
@@ -421,7 +422,7 @@ class TriageController extends ChangeNotifier {
     var commented = comment != null;
     if (comment != null) {
       try {
-        await _service!.postComment(n, comment);
+        await _service!.postComment(n, '$teamNoteHeading$comment');
       } on GitHubException catch (e) {
         commented = false;
         _error =

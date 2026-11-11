@@ -63,7 +63,7 @@ Nothing is selected when the tool starts, unless it starts with an item from a s
 
 The editable suggestion is the triage UI's implementation of the [`TriageSuggestion`](advisor.blueprint.md#the-triagesuggestion-component) A2UI component. It renders the component from the item's suggestion comment, or an empty one when the item has no suggestion.
 
-The `summary`, the `reason` and the `suggestion` are shown as text, with each URL in them as a link that opens in the browser. The triager can change the other properties: the reply, how to close the item, the labels and the assignees. The triager also sets the item's priority, and its milestone, which the advisor does not suggest.
+The `summary`, the `reason` and the `suggestion` are shown as text, with each URL in them as a link that opens in the browser. Below them is the latest comment for the team, if the item has one: a comment by a team member that starts with `**From triager for team discussion:**`, as **Needs team input** posts it. It is shown the same way, without the heading, under "From @login for team discussion", so the team reads the triager's question together with the advisor's suggestion. The triager can change the other properties: the reply, how to close the item, the labels and the assignees. The triager also sets the item's priority, and its milestone, which the advisor does not suggest.
 
 1. The priority is a segmented button with `P0` to `P3`, without a field frame, with none or one of them selected. Selecting a priority adds its label and removes the item's other priority labels. Clicking the selected priority again removes them all. The other fields leave out the priority labels.
 2. The triager checks the labels, people and milestone to add in a dropdown: the repository's labels, the people who can be assigned, and its open milestones. An item has at most one milestone, so checking one in its dropdown unchecks the other. The dropdown lists the checked options first. A dropdown with more than 7 options has a search field at the top.
@@ -74,7 +74,7 @@ Labels have their colors from the repository, as on GitHub. The related issues a
 The buttons below the tabs:
 
 1. **Apply** applies the suggestion of each item in the tabs to it on GitHub, skipping the suggestions that change nothing. If an item has `status: needs-team-input` and its suggestion does not add it, the tool also removes that label, as [triage.md](../../../../../docs/contributing/triage/triage.md#second-line-triage-weekly-by-triager) asks once the item is triaged.
-2. **Needs team input** adds `status: needs-team-input` to the selected item and to the linked items that need triage, the ones that do not have the label yet, and posts the triager's comment on each, if they write one. It does not apply the suggestions. The button is shown only when one of these items does not have the label.
+2. **Needs team input** adds `status: needs-team-input` to the selected item and to the linked items that need triage, the ones that do not have the label yet, and posts the triager's comment on each, if they write one, under the heading `**From triager for team discussion:**` and a blank line. It does not apply the suggestions, so the items stay open even if a tab closes them, and the replies, labels and assignees in the tabs are not changed. The button's tooltip says so. The button is shown only when one of these items does not have the label.
 3. **Revert** undoes the triager's changes to the suggestions in all tabs. It is enabled when a tab has changes.
 
 ## CUJ
@@ -116,11 +116,11 @@ Someone commented on the item after the advisor did, so the suggestion is [outda
 
 ### Ask the team
 
-Ann cannot triage an item in a couple of minutes, or the suggestion says that the advisor could not decide. Ann clicks **Needs team input** and writes a comment for the team. The tool adds `status: needs-team-input`, posts the comment, and moves the item to the **Needs team input** group.
+Ann cannot triage an item in a couple of minutes, or the suggestion says that the advisor could not decide. Ann clicks **Needs team input** and writes a comment for the team. The tool adds `status: needs-team-input`, posts the comment under "From triager for team discussion", and moves the item to the **Needs team input** group. The item stays open, even if its suggestion closes it.
 
 ### Triage with the team
 
-Ann goes through the **Needs team input** group with other team members. For each item:
+Ann goes through the **Needs team input** group with other team members. For each item, the details show Ann's comment for the team below the advisor's suggestion. Then:
 
 1. If they can triage it in a couple of minutes, Ann adjusts the suggestion and clicks **Apply**.
 2. Otherwise, they pick an expert in the area. The advisor suggests one from the commit history of the affected area (see [Suggested assignees](advisor.blueprint.md#suggested-assignees)). Ann adds `status: assigned-for-triage` to the labels, adds the expert to the assignees, and clicks **Apply**.

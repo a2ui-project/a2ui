@@ -353,8 +353,11 @@ void main() {
 
     expect(github.calls, [
       'POST issues/10/labels {"labels":["status: needs-team-input"]}',
-      'POST issues/10/comments {"body":"Thoughts."}',
+      'POST issues/10/comments '
+          '{"body":"**From triager for team discussion:**\\n\\nThoughts."}',
     ]);
+    // The tool picks up the comment, to show it with the suggestion.
+    expect(controller.item(a2ui(10))!.teamNote?.text, 'Thoughts.');
     expect(numbers(controller.newItems), [11, 20, 21]);
     expect(numbers(controller.teamInputItems), [10, 40, 41]);
     expect(controller.selected!.number, 20);

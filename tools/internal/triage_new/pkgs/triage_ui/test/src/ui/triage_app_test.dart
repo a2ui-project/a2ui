@@ -466,15 +466,24 @@ void main() {
 
     expect(github.calls, [
       'POST issues/10/labels {"labels":["status: needs-team-input"]}',
-      'POST issues/10/comments {"body":"Is this a P0?"}',
+      'POST issues/10/comments '
+          '{"body":"**From triager for team discussion:**\\n\\nIs this a P0?"}',
       'POST issues/20/labels {"labels":["status: needs-team-input"]}',
-      'POST issues/20/comments {"body":"Is this a P0?"}',
+      'POST issues/20/comments '
+          '{"body":"**From triager for team discussion:**\\n\\nIs this a P0?"}',
     ]);
     expect(find.text('New (1)'), findsOneWidget);
     expect(find.text('Issue #11: Docs are unclear'), findsOneWidget);
     await expand(tester, 'Needs team input (2)');
     await expand(tester, 'Issues with open PRs (1)');
     expect(find.byIcon(Icons.groups), findsOneWidget);
+
+    // The comment shows with the suggestion.
+    await tester.tap(inList('#10 Flutter renderer crashes on an empty Row'));
+    await tester.pumpAndSettle();
+    expect(find.text('From @octocat for team discussion'), findsOneWidget);
+    expect(find.text('Is this a P0?'), findsOneWidget);
+    expect(find.text('Summary'), findsOneWidget);
   });
 
   testWidgets('marks edited tabs, reverts them, and applies all tabs '

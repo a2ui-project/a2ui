@@ -70,6 +70,12 @@ class SuggestionEditor extends StatelessWidget {
             if (summary != null) _Text('Summary', summary),
             if (reason != null) _Text('Why flagged for triage', reason),
             if (suggestion != null) _Text('Suggestion', suggestion),
+            if (item.teamNote case final TeamNote note)
+              _Text(
+                'From ${note.author == null ? 'triager' : '@${note.author}'} '
+                'for team discussion',
+                note.text,
+              ),
             _RelatedItems(item: item, draft: draft),
             const Divider(),
             TextField(

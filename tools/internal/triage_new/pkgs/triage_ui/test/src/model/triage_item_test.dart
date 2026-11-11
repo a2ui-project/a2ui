@@ -180,4 +180,38 @@ void main() {
     expect(item.suggestion, isNull);
     expect(item.suggestionError, isNotEmpty);
   });
+
+  test('reads the latest comment for team discussion from a team member', () {
+    final TriageItem item = read(
+      itemNode(
+        12,
+        comments: [
+          commentNode('${teamNoteHeading}Is this a P0?', at: day(2)),
+          commentNode(
+            '${teamNoteHeading}Or a P1?\r\n',
+            at: day(3),
+            login: 'hubot',
+          ),
+          commentNode(
+            '${teamNoteHeading}Not from the team.',
+            at: day(4),
+            association: 'NONE',
+          ),
+          commentNode(suggestion, at: day(5)),
+        ],
+      ),
+    );
+
+    expect(item.teamNote?.text, 'Or a P1?');
+    expect(item.teamNote?.author, 'hubot');
+    expect(item.suggestionStatus, SuggestionStatus.current);
+  });
+
+  test('has no comment for team discussion without the heading', () {
+    final TriageItem item = read(
+      itemNode(12, comments: [commentNode('Is this a P0?', at: day(2))]),
+    );
+
+    expect(item.teamNote, isNull);
+  });
 }

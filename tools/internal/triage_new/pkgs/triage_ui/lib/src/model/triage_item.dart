@@ -34,6 +34,11 @@ const String needsTriageLabel = 'status: needs-triage';
 /// discuss. See `docs/contributing/triage/triage.md`.
 const String needsTeamInputLabel = 'status: needs-team-input';
 
+/// The heading of the comment that the triager posts for the team with
+/// **Needs team input**. The triage UI shows the latest such comment with
+/// the item's suggestion. See `ui.blueprint.md`.
+const String teamNoteHeading = '**From triager for team discussion:**\n\n';
+
 /// The types of items, in the order the list shows them. See
 /// `ui.blueprint.md`.
 enum ItemKind {
@@ -92,6 +97,7 @@ final class TriageItem {
     this.suggestion,
     this.suggestionError,
     this.suggestionUrl,
+    this.teamNote,
   });
 
   /// Reads an `IssueFields` or `PullRequestFields` node of the triage UI's
@@ -105,6 +111,14 @@ final class TriageItem {
       if (_isTriageBotComment(comment) &&
           hasA2uiBlock(comment['body']! as String)) {
         suggestionComment = comment;
+        break;
+      }
+    }
+
+    TeamNote? teamNote;
+    for (final Map<String, Object?> comment in comments.reversed) {
+      if (TeamNote._tryParse(comment) case final TeamNote note) {
+        teamNote = note;
         break;
       }
     }
@@ -166,6 +180,7 @@ final class TriageItem {
       suggestion: suggestion,
       suggestionError: suggestionError,
       suggestionUrl: suggestionComment?['url'] as String?,
+      teamNote: teamNote,
     );
   }
 
@@ -213,6 +228,10 @@ final class TriageItem {
   /// The URL of the suggestion comment, if the item has one.
   final String? suggestionUrl;
 
+  /// The latest comment that a triager posted for the team with **Needs
+  /// team input**, if the item has one.
+  final TeamNote? teamNote;
+
   bool get needsTriage => labels.contains(needsTriageLabel);
 
   bool get needsTeamInput => labels.contains(needsTeamInputLabel);
@@ -248,13 +267,15 @@ final class TriageItem {
   static bool _isTriageBotComment(Map<String, Object?> comment) {
     if (!hasTriageBotPrefix(comment['body']! as String)) return false;
     final Object? author = comment['author'];
-    return const {
-          'OWNER',
-          'MEMBER',
-          'COLLABORATOR',
-        }.contains(comment['authorAssociation']) ||
+    return _isTeamMember(comment) ||
         (author != null && asMap(author)['__typename'] == 'Bot');
   }
+
+  static bool _isTeamMember(Map<String, Object?> comment) => const {
+    'OWNER',
+    'MEMBER',
+    'COLLABORATOR',
+  }.contains(comment['authorAssociation']);
 
   /// The times of the things that happened on the item, as
   /// `advisor.blueprint.md` lists them.
@@ -285,4 +306,33 @@ final class TriageItem {
       }
     }
   }
+}
+
+/// A comment that a triager posted for the team with **Needs team input**:
+/// a team member's comment that starts with [teamNoteHeading].
+final class TeamNote {
+  const TeamNote({required this.text, this.author, required this.url});
+
+  /// Reads a `Comments` node, or returns null if it is not a team note.
+  static TeamNote? _tryParse(Map<String, Object?> comment) {
+    final String body = (comment['body']! as String).replaceAll('\r\n', '\n');
+    if (!body.startsWith(teamNoteHeading) ||
+        !TriageItem._isTeamMember(comment)) {
+      return null;
+    }
+    return TeamNote(
+      text: body.substring(teamNoteHeading.length).trim(),
+      author: loginOf(comment['author']),
+      url: comment['url']! as String,
+    );
+  }
+
+  /// The comment without [teamNoteHeading].
+  final String text;
+
+  /// The login of the triager, or null for a deleted account.
+  final String? author;
+
+  /// The URL of the comment.
+  final String url;
 }

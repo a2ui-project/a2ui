@@ -76,7 +76,12 @@ class GroupActions extends StatelessWidget {
                 Tooltip(
                   message:
                       'Add "$needsTeamInputLabel" to $all, so that the team '
-                      'discusses them. The suggestions are not applied.',
+                      'discusses them, and post your comment for the team, '
+                      'if you write one, under "From triager for team '
+                      'discussion". The suggestions are not applied: '
+                      '$all stay open, even if a tab closes them, and the '
+                      'replies, labels and assignees in the tabs do not '
+                      'change.',
                   child: OutlinedButton(
                     onPressed: busy
                         ? null
@@ -167,8 +172,9 @@ class _TeamInputDialogState extends State<_TeamInputDialog> {
               labelText: 'Comment for the team',
               helperText:
                   'Optional. Posted from your account on '
-                  '${names.length == 1 ? 'the item' : 'each item'}. The '
-                  'suggestions are not applied.',
+                  '${names.length == 1 ? 'the item' : 'each item'}, under '
+                  '"From triager for team discussion". The suggestions '
+                  'are not applied, and the items stay open.',
               border: const OutlineInputBorder(),
               alignLabelWithHint: true,
             ),

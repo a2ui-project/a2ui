@@ -246,6 +246,11 @@ class FakeGitHub {
     _touch(item);
     switch ((request.method, match.group(2))) {
       case ('POST', 'comments'):
+        final comments = item['comments']! as Map<String, Object?>;
+        comments['nodes'] = [
+          ...comments['nodes']! as List<Object?>,
+          commentNode(json['body']! as String, at: DateTime.now()),
+        ];
         return _json({'id': 1}, status: 201);
       case ('POST', 'labels'):
         _edit(item, 'labels', 'name', add: _strings(json['labels']));
