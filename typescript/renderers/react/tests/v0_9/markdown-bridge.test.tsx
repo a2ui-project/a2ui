@@ -17,12 +17,9 @@
 import {describe, it, expect, afterEach, vi} from 'vitest';
 import {act, render, screen} from '@testing-library/react';
 import React, {createContext, useContext} from 'react';
-import {Catalog, ComponentModel, SurfaceModel} from '@a2ui/web_core/v0_9';
-import {
-  basicCatalog,
-  getMarkdownRenderer,
-  setMarkdownRenderer,
-} from '@a2ui/web_core/v0_9/basic_catalog';
+import {Catalog, ComponentModel, SurfaceModel} from '@a2ui/web_core';
+import {getMarkdownRenderer, setMarkdownRenderer} from '@a2ui/web_core/universal';
+import {basicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
 import {
   A2uiSurface,
   MarkdownComponentContext,

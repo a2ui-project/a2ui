@@ -81,7 +81,7 @@
     "test:react17": "./scripts/test-react17.sh",
     "test:react18": "./scripts/test-react18.sh",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "wireit",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx}\"",
@@ -150,8 +150,22 @@
         "dist/"
       ]
     },
+    "typecheck": {
+      "command": "tsc --noEmit",
+      "dependencies": [
+        "../../core/web_core:build",
+        "../markdown-it:build"
+      ],
+      "files": [
+        "src/**/*",
+        "tests/**/*",
+        "tsconfig.json"
+      ],
+      "output": []
+    },
     "test": {
       "dependencies": [
+        "typecheck",
         "test:unit",
         "test:integration"
       ]
