@@ -46,6 +46,104 @@ export function commonDefName(ref: unknown): string | undefined {
 }
 
 /**
+ * The four envelope mixin names that `ComponentCommon` and `Checkable` add to
+ * component objects (`id` and `component` stay bare in all protocol versions).
+ */
+export const ENVELOPE_MIXIN_NAMES = ['catalogId', 'metadata', 'accessibility', 'checks'] as const;
+
+/** The `@`-prefixed v1.0 wire keys for the component envelope mixins. */
+export const AT_ENVELOPE_MIXIN_KEYS: ReadonlySet<string> = new Set(
+  ENVELOPE_MIXIN_NAMES.map(name => `@${name}`),
+);
+
+const STANDARD_CATALOG_ID_DESCRIPTION =
+  'The catalog ID for this component, overriding any surface-level default catalogId.';
+
+const STANDARD_METADATA_DESCRIPTION = 'Optional component-level metadata for vendor extensions.';
+
+function isStandardCatalogIdSchema(schema: unknown): boolean {
+  return (
+    Boolean(schema) &&
+    typeof schema === 'object' &&
+    (schema as Record<string, unknown>).description === STANDARD_CATALOG_ID_DESCRIPTION
+  );
+}
+
+function isStandardMetadataSchema(schema: unknown): boolean {
+  if (!schema || typeof schema !== 'object') {
+    return false;
+  }
+  const s = schema as Record<string, unknown>;
+  if (s.description === STANDARD_METADATA_DESCRIPTION) {
+    return true;
+  }
+  const props = s.properties;
+  if (props && typeof props === 'object') {
+    const ext = (props as Record<string, unknown>).extensions;
+    if (
+      ext &&
+      typeof ext === 'object' &&
+      commonDefName((ext as Record<string, unknown>).$ref) === 'Extensions'
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function isStandardAccessibilitySchema(schema: unknown): boolean {
+  return (
+    Boolean(schema) &&
+    typeof schema === 'object' &&
+    commonDefName((schema as Record<string, unknown>).$ref) === 'AccessibilityAttributes'
+  );
+}
+
+/**
+ * Returns the wire key to write for an envelope mixin on a component object.
+ */
+export function envelopeKey(name: string, atLeastV10: boolean): string {
+  return atLeastV10 ? `@${name}` : name;
+}
+
+/**
+ * Returns the key under which `component` holds envelope mixin `name`, or undefined.
+ *
+ * On v1.0, prefers `@<name>`, falling back to legacy bare `<name>` only when `<name>`
+ * is not declared as a custom property of the component.
+ */
+export function envelopeReadKey(
+  component: Readonly<Record<string, unknown>>,
+  name: string,
+  atLeastV10: boolean,
+  customProperties?: ReadonlySet<string>,
+): string | undefined {
+  if (atLeastV10) {
+    const atKey = `@${name}`;
+    if (Object.hasOwn(component, atKey)) {
+      return atKey;
+    }
+    if (customProperties?.has(name)) {
+      return undefined;
+    }
+  }
+  return Object.hasOwn(component, name) ? name : undefined;
+}
+
+/**
+ * Reads an envelope mixin value from a component object, or returns undefined.
+ */
+export function getEnvelopeValue(
+  component: Readonly<Record<string, unknown>>,
+  name: string,
+  atLeastV10: boolean,
+  customProperties?: ReadonlySet<string>,
+): unknown {
+  const key = envelopeReadKey(component, name, atLeastV10, customProperties);
+  return key !== undefined ? component[key] : undefined;
+}
+
+/**
  * Checks whether a property schema is an Action slot.
  *
  * A property is an action slot when its schema references the common `Action` def,
@@ -233,6 +331,7 @@ export class CatalogSchemaHelper {
   private readonly checkRuleProperties = new Map<string, string>();
   private readonly inheritedCheckRulePropertyNames = new Map<string, string>();
   private readonly inheritedCheckRuleSchemas = new Map<string, Record<string, unknown>>();
+  private readonly customEnvelopeProperties = new Map<string, ReadonlySet<string>>();
   private readonly componentPropertyEnums = new Map<string, string[]>();
   private readonly functionProperties = new Map<string, string[]>();
   private readonly functionRequired = new Map<string, string[]>();
@@ -464,7 +563,12 @@ export class CatalogSchemaHelper {
         if (subObj.properties && typeof subObj.properties === 'object') {
           for (const [pk, pv] of Object.entries(subObj.properties as Record<string, unknown>)) {
             if (this.isCheckRuleArraySchema(pv)) {
-              ownCheckProp = pk;
+              if (pk === '@checks') {
+                ownCheckProp = 'checks';
+                this.inheritedCheckRuleSchemas.set(name, pv as Record<string, unknown>);
+              } else {
+                ownCheckProp = pk;
+              }
               break;
             }
           }
@@ -500,7 +604,7 @@ export class CatalogSchemaHelper {
                     ) {
                       const itemsRef = (propObj.items as Record<string, unknown>).$ref;
                       if (this.getCheckRuleDefName(itemsRef) === 'CheckRule') {
-                        inheritedCheckProp = pk;
+                        inheritedCheckProp = pk === '@checks' ? 'checks' : pk;
                         inheritedSchema = propObj;
                         break;
                       }
@@ -554,17 +658,54 @@ export class CatalogSchemaHelper {
         }
       }
 
-      // Filter out structural properties 'component' and 'id'
+      const isStandardCheckable = ownCheckProp === 'checks' || inheritedCheckProp === 'checks';
+      const customEnvelope = new Set<string>();
+      for (const mixinName of ENVELOPE_MIXIN_NAMES) {
+        if (Object.hasOwn(props, mixinName)) {
+          customEnvelope.add(mixinName);
+        }
+      }
+      if (customEnvelope.has('checks') && this.isCheckRuleArraySchema(props.checks)) {
+        customEnvelope.delete('checks');
+      }
+      if (customEnvelope.has('catalogId') && isStandardCatalogIdSchema(props.catalogId)) {
+        customEnvelope.delete('catalogId');
+      }
+      if (customEnvelope.has('metadata') && isStandardMetadataSchema(props.metadata)) {
+        customEnvelope.delete('metadata');
+      }
+      if (
+        customEnvelope.has('accessibility') &&
+        isStandardAccessibilitySchema(props.accessibility)
+      ) {
+        customEnvelope.delete('accessibility');
+      }
+      this.customEnvelopeProperties.set(name, customEnvelope);
+
+      const excluded = new Set<string>(['component', 'id', ...AT_ENVELOPE_MIXIN_KEYS]);
+      for (const mixinName of ['catalogId', 'metadata', 'accessibility'] as const) {
+        if (!customEnvelope.has(mixinName)) {
+          excluded.add(mixinName);
+        }
+      }
+      if (isStandardCheckable && !customEnvelope.has('checks')) {
+        excluded.add('checks');
+      }
+
       const orderedKeys: string[] = [];
       for (const k of Object.keys(props)) {
-        if (k !== 'component' && k !== 'id') {
+        if (!excluded.has(k)) {
           orderedKeys.push(k);
         }
       }
 
-      // If checkable via inheritance (b), append check-rule property at the end.
-      // Own check-rule properties (a) stay at their declared position in orderedKeys.
-      if (inheritedCheckProp && !orderedKeys.includes(inheritedCheckProp)) {
+      if (isStandardCheckable && !customEnvelope.has('checks')) {
+        orderedKeys.push('checks');
+      } else if (
+        inheritedCheckProp &&
+        !customEnvelope.has(inheritedCheckProp) &&
+        !orderedKeys.includes(inheritedCheckProp)
+      ) {
         orderedKeys.push(inheritedCheckProp);
       }
 
@@ -665,6 +806,16 @@ export class CatalogSchemaHelper {
    */
   getCheckRuleProperty(name: string): string | undefined {
     return this.checkRuleProperties.get(name);
+  }
+
+  /**
+   * Returns the bare envelope mixin names (`catalogId`, `metadata`,
+   * `accessibility`, `checks`) that the component declares as custom
+   * properties in its own schema rather than inheriting from `ComponentCommon`
+   * or `Checkable`.
+   */
+  getCustomEnvelopeProperties(name: string): ReadonlySet<string> {
+    return this.customEnvelopeProperties.get(name) ?? new Set();
   }
 
   /**
@@ -795,8 +946,14 @@ export class CatalogSchemaHelper {
     for (const subObj of this.orderedComponentSubSchemas(schema)) {
       if (subObj.properties && typeof subObj.properties === 'object') {
         const props = subObj.properties as Record<string, unknown>;
-        if (propertyName in props) {
-          const propVal = props[propertyName];
+        const lookupKey =
+          propertyName in props
+            ? propertyName
+            : propertyName === 'checks' && '@checks' in props
+              ? '@checks'
+              : undefined;
+        if (lookupKey !== undefined) {
+          const propVal = props[lookupKey];
           if (!propVal || typeof propVal !== 'object') {
             return undefined;
           }

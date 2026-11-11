@@ -64,7 +64,7 @@ Signals the renderer to create a surface and begin rendering it.
     | Property        | Type    | Required | Description                                                                                           |
     | --------------- | ------- | -------- | ----------------------------------------------------------------------------------------------------- |
     | `surfaceId`     | string  | ✅        | Unique identifier for this surface.                                                                   |
-    | `catalogId`     | string  | ❌        | Default catalog for components and function calls that don't set their own `catalogId`.               |
+    | `catalogId`     | string  | ❌        | Default catalog for components without `@catalogId` and function calls without `catalogId`.           |
     | `sendDataModel` | boolean | ❌        | If true, the renderer sends the surface's data model to the agent with every message.                 |
     | `components`    | array   | ❌        | Initial components for the surface.                                                                   |
     | `dataModel`     | object  | ❌        | Initial data model. When both are present, the renderer applies `dataModel` before `components`.      |
