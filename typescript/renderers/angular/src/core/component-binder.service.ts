@@ -15,6 +15,7 @@
  */
 
 import {Injectable, inject, Signal as AngularSignal, EnvironmentInjector} from '@angular/core';
+import {isAtLeastVersion} from '@a2ui/web_core';
 import {
   ComponentContext,
   type ComponentNode,
@@ -166,12 +167,22 @@ export class ComponentBinder {
     const props = context.componentModel.properties;
     const bound: Record<string, BoundProperty<unknown>> = {};
     const cleanups: Array<() => void> = [];
+    const checksKey = isAtLeastVersion(
+      context.dataContext.surface?.protocolVersion ??
+        context.dataContext.surface?.defaultCatalog?.protocolVersion,
+      '1.0',
+    )
+      ? '@checks'
+      : 'checks';
 
     for (const key of Object.keys(props)) {
       const value = props[key];
       bound[key] = this.bindProperty(key, value, context, cleanups);
 
-      if (key === 'checks') {
+      // Below v1.0 a component's check rules are `checks`; from v1.0 the
+      // processor stores them under `@checks`, while any bare `checks` entry
+      // is an ordinary custom component property.
+      if (key === checksKey) {
         const checkProps = this.bindChecks(value, context, cleanups);
         bound['isValid'] = checkProps.isValid;
         bound['validationErrors'] = checkProps.validationErrors;

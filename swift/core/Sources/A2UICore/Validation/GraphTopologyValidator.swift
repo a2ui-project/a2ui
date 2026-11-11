@@ -72,6 +72,22 @@ public enum GraphTopologyValidator {
     }
   }
 
+  /// Returns the catalog a component runs in: the one its `@catalogId` (or legacy `catalogId`)
+  /// names, else the default catalog.
+  static func componentCatalogID(
+    of component: [String: JSONValue],
+    defaultCatalogID: String?
+  ) -> String? {
+    component["@catalogId"]?.stringValue ?? component["catalogId"]?.stringValue
+      ?? defaultCatalogID
+  }
+
+  /// The component keys that never hold component references: the structural keys, and the
+  /// catalog id and metadata mixins.
+  private static let nonReferenceKeys: Set<String> = [
+    "id", "component", "catalogId", "@catalogId", "@metadata",
+  ]
+
   static func lookupComponentAPI(
     type: String,
     catalogID: String?,
@@ -111,7 +127,7 @@ public enum GraphTopologyValidator {
       guard let id = component["id"]?.stringValue,
         let type = component["component"]?.stringValue
       else { continue }
-      let catalogID = component["catalogId"]?.stringValue ?? defaultCatalogID
+      let catalogID = componentCatalogID(of: component, defaultCatalogID: defaultCatalogID)
       componentMeta[id] = ComponentMeta(type: type, catalogID: catalogID, index: index)
     }
 
@@ -252,7 +268,7 @@ public enum GraphTopologyValidator {
 
       let componentSchema: JSONValue?
       if let type = component["component"]?.stringValue {
-        let catalogID = component["catalogId"]?.stringValue ?? defaultCatalogID
+        let catalogID = componentCatalogID(of: component, defaultCatalogID: defaultCatalogID)
         componentSchema =
           lookupComponentAPI(
             type: type,
@@ -403,8 +419,7 @@ public enum GraphTopologyValidator {
     guard let schema else { return [] }
     var references: [Reference] = []
     let propertySchemas = extractPropertiesSchema(from: schema)
-    for (key, propertyValue) in component
-    where key != "id" && key != "component" && key != "catalogId" {
+    for (key, propertyValue) in component where !nonReferenceKeys.contains(key) {
       guard let propSchema = propertySchemas[key] else { continue }
       collectSchemaReferences(
         from: propertyValue,

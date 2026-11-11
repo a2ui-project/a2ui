@@ -127,8 +127,9 @@ void main() {
       final List<Map<String, Object?>> checkable = reader.schemas(
         <String, Object?>{r'$ref': r'common_types.json#/$defs/Checkable'},
       );
+      final Map<String, Object?> checkableProps = reader.properties(checkable);
       final List<Map<String, Object?>> checks = reader.schemas(
-        reader.properties(checkable)['checks'],
+        checkableProps['@checks'] ?? checkableProps['checks'],
       );
       expect(reader.isCheckable(checks), isTrue);
       return reader.schemas(reader.items(checks)).firstWhere(
@@ -2102,11 +2103,12 @@ void main() {
         'Extensions',
       );
       final metadata =
-          (common['properties']! as Map)['metadata'] as Map<String, Object?>;
+          (common['properties']! as Map)['@metadata'] as Map<String, Object?>;
 
-      expect(properties.keys, containsAll(['accessibility', 'metadata']));
+      expect(properties.keys, containsAll(['@accessibility', '@metadata']));
+      expect(properties.containsKey('@catalogId'), isFalse);
       expect(properties.containsKey('catalogId'), isFalse);
-      expect(properties['metadata'], {
+      expect(properties['@metadata'], {
         ...metadata,
         'properties': {
           'extensions': {
@@ -2398,6 +2400,89 @@ void main() {
       final props = requiredFn['properties']! as Map<String, Object?>;
       expect(props[r'@call'], {'const': 'required'});
       expect(props.containsKey('call'), isFalse);
+    });
+  });
+
+  group('Catalog.customComponentProperties', () {
+    /// The custom properties of a v1.0 component whose `properties` block
+    /// holds [properties], plus `id` when [inlineId].
+    Set<String> customOf(
+      Map<String, Object?> properties, {
+      required bool inlineId,
+    }) {
+      final CatalogApi catalog = Catalog.fromJson({
+        'catalogId': 'inline-mixins',
+        'protocolVersion': '1.0',
+        'components': {
+          'Box': {
+            'type': 'object',
+            'properties': {
+              if (inlineId) 'id': {'type': 'string'},
+              'component': {'const': 'Box'},
+              ...properties,
+            },
+          },
+        },
+      });
+      return catalog.customComponentProperties('Box');
+    }
+
+    const Map<String, Object?> standardMetadata = {
+      'type': 'object',
+      'properties': {
+        'extensions': {'type': 'object'},
+      },
+    };
+
+    test(
+        'reads an inline catalogId as the mixin only beside id and as a '
+        'string', () {
+      expect(
+        customOf({
+          'catalogId': {'type': 'string'},
+        }, inlineId: true),
+        isEmpty,
+      );
+      expect(
+        customOf({
+          'catalogId': {'type': 'integer'},
+        }, inlineId: true),
+        {'catalogId'},
+      );
+      expect(
+        customOf({
+          'catalogId': {'type': 'string'},
+        }, inlineId: false),
+        {'catalogId'},
+      );
+    });
+
+    test(
+        'reads an inline metadata as the mixin only beside id and as an '
+        'object holding only extensions', () {
+      expect(customOf({'metadata': standardMetadata}, inlineId: true), isEmpty);
+      expect(
+        customOf({
+          'metadata': {'type': 'string'},
+        }, inlineId: true),
+        {'metadata'},
+      );
+      expect(
+        customOf({
+          'metadata': {
+            'type': 'object',
+            'properties': {
+              'extensions': {'type': 'object'},
+              'pageNumber': {'type': 'number'},
+            },
+          },
+        }, inlineId: true),
+        {'metadata'},
+      );
+      expect(
+        customOf({'metadata': standardMetadata}, inlineId: false),
+        {'metadata'},
+      );
     });
   });
 }
