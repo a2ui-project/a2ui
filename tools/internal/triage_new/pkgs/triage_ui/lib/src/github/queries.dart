@@ -96,24 +96,6 @@ query($query: String!, $cursor: String) {
 ''' +
     _itemFragments;
 
-/// A page of the pull requests that match a search query, with the fields
-/// that the list shows for the pull requests in `flutter/genui`.
-const String genuiPullRequestsQuery = r'''
-query($query: String!, $cursor: String) {
-  search(query: $query, type: ISSUE, first: 50, after: $cursor) {
-    pageInfo { hasNextPage endCursor }
-    nodes {
-      ... on PullRequest {
-        number title url createdAt updatedAt
-        author { login }
-        labels(first: 50) { nodes { name color } }
-        assignees(first: 20) { nodes { login } }
-      }
-    }
-  }
-}
-''';
-
 /// One item, by number.
 const String itemQuery =
     r'''

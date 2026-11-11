@@ -21,7 +21,6 @@ import '../github/github_client.dart';
 import '../github/triage_service.dart';
 import '../github_item.dart';
 import 'applier.dart';
-import 'genui_pull_request.dart';
 import 'milestone_change.dart';
 import 'suggestion_draft.dart';
 import 'triage_item.dart';
@@ -40,31 +39,32 @@ class TriageController extends ChangeNotifier {
 
   final TriageSession session = TriageSession();
 
-  /// The items with `status: needs-triage` or `status: needs-team-input`.
+  /// The items with `status: needs-triage` or `status: needs-team-input`,
+  /// from all the repositories the UI triages.
   List<TriageItem> _queue = const [];
 
   /// The items in [_queue] that the list shows under **Needs team input**:
   /// the ones that had `status: needs-team-input` when they were loaded, and
   /// the ones that the triager sent to the team since. An item stays in its
   /// group until a refresh, even if the triager removes the label.
-  Set<int> _teamInput = const {};
+  Set<ItemRef> _teamInput = const {};
 
   /// When each item in [_queue] was last updated, as of the last load. The
   /// list is ordered by these times, so that the triager's own changes do
   /// not move items until a refresh.
-  Map<int, DateTime> _listedUpdatedAt = const {};
+  Map<ItemRef, DateTime> _listedUpdatedAt = const {};
 
   /// Items opened by URL that are not in the queue.
   List<TriageItem> _opened = const [];
 
-  List<GenuiPullRequest> _genuiPullRequests = const [];
+  /// The repositories whose items the UI triages.
+  static const List<String> repositories = [a2uiRepository, genuiRepository];
 
-  /// The open pull requests in `flutter/genui` that need triage, least
-  /// recently updated first. The tool shows them, but does not triage them.
-  List<GenuiPullRequest> get genuiPullRequests => _genuiPullRequests;
+  Map<String, RepositoryInfo> _repositoryInfo = const {};
 
-  RepositoryInfo _repositoryInfo = const RepositoryInfo();
-  RepositoryInfo get repositoryInfo => _repositoryInfo;
+  /// The labels, assignable people and milestones of [repository].
+  RepositoryInfo repositoryInfo(String repository) =>
+      _repositoryInfo[repository] ?? const RepositoryInfo();
 
   bool _loading = false;
 
@@ -79,26 +79,22 @@ class TriageController extends ChangeNotifier {
   /// Whether the controller reached GitHub and loaded the items once.
   bool get isConnected => _service != null;
 
-  int? _selected;
-
-  /// The number of the selected pull request in `flutter/genui`. At most
-  /// one of [_selected] and [_selectedGenui] is set.
-  int? _selectedGenui;
+  ItemRef? _selected;
   GitHubItem? _pendingOpen;
 
-  final Set<int> _changedOnGitHub = {};
-  final Map<int, SuggestionDraft> _drafts = {};
-  final Map<int, ApplyResult> _results = {};
-  final Set<int> _applying = {};
+  final Set<ItemRef> _changedOnGitHub = {};
+  final Map<ItemRef, SuggestionDraft> _drafts = {};
+  final Map<ItemRef, ApplyResult> _results = {};
+  final Set<ItemRef> _applying = {};
 
   /// The items in the **New** group, in the order the list shows them.
   List<TriageItem> get newItems =>
-      _sorted(_queue.where((i) => !_teamInput.contains(i.number)));
+      _sorted(_queue.where((i) => !_teamInput.contains(i.ref)));
 
   /// The items in the **Needs team input** group, in the order the list
   /// shows them.
   List<TriageItem> get teamInputItems =>
-      _sorted(_queue.where((i) => _teamInput.contains(i.number)));
+      _sorted(_queue.where((i) => _teamInput.contains(i.ref)));
 
   /// The items opened by URL that are not in the queue, in the order the
   /// triager opened them.
@@ -113,17 +109,9 @@ class TriageController extends ChangeNotifier {
 
   /// How many items in the queue the triager neither applied a suggestion
   /// to nor sent to the team.
-  int get remaining => _queue.where((i) => !session.isHandled(i.number)).length;
+  int get remaining => _queue.where((i) => !session.isHandled(i.ref)).length;
 
   TriageItem? get selected => _selected == null ? null : item(_selected!);
-
-  /// The selected pull request in `flutter/genui`, or null.
-  GenuiPullRequest? get selectedGenuiPullRequest {
-    for (final GenuiPullRequest pr in _genuiPullRequests) {
-      if (pr.number == _selectedGenui) return pr;
-    }
-    return null;
-  }
 
   var _revealCount = 0;
 
@@ -133,10 +121,10 @@ class TriageController extends ChangeNotifier {
   /// scrolled out of view.
   int get revealCount => _revealCount;
 
-  /// The loaded item with [number], or null.
-  TriageItem? item(int number) {
+  /// The loaded item that [ref] refers to, or null.
+  TriageItem? item(ItemRef ref) {
     for (final TriageItem i in [..._queue, ..._opened]) {
-      if (i.number == number) return i;
+      if (i.ref == ref) return i;
     }
     return null;
   }
@@ -145,22 +133,23 @@ class TriageController extends ChangeNotifier {
   /// or team input.
   List<TriageItem> relatedInQueue(TriageItem item) => [
     for (final TriageItem i in _queue)
-      if (item.linkedItems.contains(i.number) &&
+      if (i.repository == item.repository &&
+          item.linkedItems.contains(i.number) &&
           (i.needsTriage || i.needsTeamInput))
         i,
   ];
 
   /// The linked and related items that are neither in the queue nor opened
   /// by URL, loaded by [loadLinked] and [closedAs].
-  final Map<int, TriageItem> _linked = {};
+  final Map<ItemRef, TriageItem> _linked = {};
 
-  /// "merged" if the item with [number] is a merged pull request, "closed"
-  /// if it is closed otherwise, and null if it is open or not known yet.
+  /// "merged" if [ref] refers to a merged pull request, "closed" if the
+  /// item is closed otherwise, and null if it is open or not known yet.
   ///
   /// An item that is not loaded is loaded in the background, and the
   /// controller notifies its listeners once it is.
-  String? closedAs(int number) {
-    if (item(number) ?? _linked[number] case final TriageItem i) {
+  String? closedAs(ItemRef ref) {
+    if (item(ref) ?? _linked[ref] case final TriageItem i) {
       return i.isMerged
           ? 'merged'
           : i.isOpen
@@ -168,13 +157,13 @@ class TriageController extends ChangeNotifier {
           : 'closed';
     }
     if (_service != null) {
-      unawaited(_linkedFetches.putIfAbsent(number, () => _fetch(number)));
+      unawaited(_linkedFetches.putIfAbsent(ref, () => _fetch(ref)));
     }
     return null;
   }
 
-  /// The fetches that [loadLinked] and [closedAs] started, by number.
-  final Map<int, Future<void>> _linkedFetches = {};
+  /// The fetches that [loadLinked] and [closedAs] started, by item.
+  final Map<ItemRef, Future<void>> _linkedFetches = {};
 
   /// [item] and all the items linked to it, whether or not they need
   /// triage, which the details show as tabs and apply together.
@@ -182,15 +171,16 @@ class TriageController extends ChangeNotifier {
   /// A linked item that is not loaded yet is left out, and loaded in the
   /// background; the group includes it once it is.
   List<TriageItem> group(TriageItem item) {
-    final List<int> missing = [
-      for (final n in item.linkedItems)
-        if (this.item(n) == null && !_linked.containsKey(n)) n,
+    final List<ItemRef> linked = [
+      for (final n in item.linkedItems) item.refTo(n),
     ];
-    if (missing.isNotEmpty) unawaited(loadLinked(item));
+    if (linked.any((r) => this.item(r) == null && !_linked.containsKey(r))) {
+      unawaited(loadLinked(item));
+    }
     return [
       item,
-      for (final n in item.linkedItems)
-        if (this.item(n) ?? _linked[n] case final TriageItem linked) linked,
+      for (final r in linked)
+        if (this.item(r) ?? _linked[r] case final TriageItem i) i,
     ];
   }
 
@@ -198,13 +188,14 @@ class TriageController extends ChangeNotifier {
   /// for the ones that are being loaded.
   Future<void> loadLinked(TriageItem item) => Future.wait([
     for (final n in item.linkedItems)
-      if (this.item(n) == null) _linkedFetches.putIfAbsent(n, () => _fetch(n)),
+      if (item.refTo(n) case final ItemRef r when this.item(r) == null)
+        _linkedFetches.putIfAbsent(r, () => _fetch(r)),
   ]);
 
-  Future<void> _fetch(int number) async {
+  Future<void> _fetch(ItemRef ref) async {
     try {
-      if (await _service!.fetchItem(number) case final TriageItem linked) {
-        _linked[number] = linked;
+      if (await _service!.fetchItem(ref) case final TriageItem linked) {
+        _linked[ref] = linked;
         notifyListeners();
       }
     } on GitHubException {
@@ -212,19 +203,19 @@ class TriageController extends ChangeNotifier {
     }
   }
 
-  /// Whether a refresh found that [number] changed on GitHub, which reset
-  /// its draft.
-  bool changedOnGitHub(int number) => _changedOnGitHub.contains(number);
+  /// Whether a refresh found that [item] changed on GitHub, which reset its
+  /// draft.
+  bool changedOnGitHub(ItemRef item) => _changedOnGitHub.contains(item);
 
-  bool isApplying(int number) => _applying.contains(number);
+  bool isApplying(ItemRef item) => _applying.contains(item);
 
-  ApplyResult? lastResult(int number) => _results[number];
+  ApplyResult? lastResult(ItemRef item) => _results[item];
 
   /// The draft for [item], which starts as [initial], or as the item's
   /// suggestion if [initial] is null.
   SuggestionDraft draftFor(TriageItem item, [TriageSuggestion? initial]) =>
       _drafts.putIfAbsent(
-        item.number,
+        item.ref,
         () => SuggestionDraft(
           initial ?? item.suggestion?.suggestion ?? const TriageSuggestion(),
         ),
@@ -248,55 +239,46 @@ class TriageController extends ChangeNotifier {
   /// Connects to GitHub and loads the items.
   Future<void> start() => _load(() async {
     final TriageService service = await _connect();
-    final (
-      RepositoryInfo info,
-      List<TriageItem> queue,
-      List<GenuiPullRequest> genui,
-    ) = await (
-      service.fetchRepositoryInfo(),
+    final (List<RepositoryInfo> info, List<TriageItem> queue) = await (
+      [for (final r in repositories) service.fetchRepositoryInfo(r)].wait,
       service.fetchQueue(),
-      service.fetchGenuiPullRequests(),
     ).wait;
     _service = service;
-    _repositoryInfo = info;
+    _repositoryInfo = {
+      for (var k = 0; k < repositories.length; k++) repositories[k]: info[k],
+    };
     _setQueue(queue);
-    _setGenuiPullRequests(genui);
   }, then: _openPending);
 
-  /// Loads the queue again, the items opened by URL and the pull requests in
-  /// `flutter/genui`.
+  /// Loads the queue again and the items opened by URL.
   ///
   /// Resets the drafts of the items that changed on GitHub, so that the
   /// triager sees their current state.
   Future<void> refresh() => _load(() async {
     final TriageService service = _service!;
-    final (List<TriageItem> queue, List<GenuiPullRequest> genui) = await (
-      service.fetchQueue(),
-      service.fetchGenuiPullRequests(),
-    ).wait;
-    final Set<int> inQueue = {for (final i in queue) i.number};
+    final List<TriageItem> queue = await service.fetchQueue();
+    final Set<ItemRef> inQueue = {for (final i in queue) i.ref};
     final opened = <TriageItem>[];
     for (final TriageItem i in _opened) {
-      if (inQueue.contains(i.number)) continue;
-      final TriageItem? fresh = await service.fetchItem(i.number);
+      if (inQueue.contains(i.ref)) continue;
+      final TriageItem? fresh = await service.fetchItem(i.ref);
       if (fresh != null) opened.add(fresh);
     }
 
-    final Map<int, TriageItem> old = {
-      for (final i in [..._queue, ..._opened]) i.number: i,
+    final Map<ItemRef, TriageItem> old = {
+      for (final i in [..._queue, ..._opened]) i.ref: i,
     };
     _changedOnGitHub.clear();
     for (final i in [...queue, ...opened]) {
-      final TriageItem? before = old[i.number];
+      final TriageItem? before = old[i.ref];
       if (before != null && before.updatedAt != i.updatedAt) {
-        _changedOnGitHub.add(i.number);
-        _drafts.remove(i.number)?.dispose();
-        _results.remove(i.number);
+        _changedOnGitHub.add(i.ref);
+        _drafts.remove(i.ref)?.dispose();
+        _results.remove(i.ref);
       }
     }
     _setQueue(queue);
     _opened = opened;
-    _setGenuiPullRequests(genui);
     // Loaded again when the triager selects an item linked to them.
     _linked.clear();
     _linkedFetches.clear();
@@ -309,38 +291,29 @@ class TriageController extends ChangeNotifier {
       _pendingOpen = item;
       return;
     }
-    if (this.item(item.number) == null) {
+    if (this.item(item.ref) == null) {
       await _load(() async {
-        final TriageItem? fetched = await _service!.fetchItem(item.number);
+        final TriageItem? fetched = await _service!.fetchItem(item.ref);
         if (fetched == null) {
           throw GitHubException('${item.url} does not exist.');
         }
         _opened = [..._opened, fetched];
       });
     }
-    if (this.item(item.number) != null) {
+    if (this.item(item.ref) != null) {
       _revealCount++;
-      select(item.number);
+      select(item.ref);
     }
   }
 
-  void select(int number) {
-    _selected = number;
-    _selectedGenui = null;
-    notifyListeners();
-  }
-
-  /// Selects the pull request in `flutter/genui` with [number].
-  void selectGenuiPullRequest(int number) {
-    _selected = null;
-    _selectedGenui = number;
+  void select(ItemRef item) {
+    _selected = item;
     notifyListeners();
   }
 
   /// Selects nothing.
   void deselect() {
     _selected = null;
-    _selectedGenui = null;
     notifyListeners();
   }
 
@@ -372,7 +345,7 @@ class TriageController extends ChangeNotifier {
 
   /// Applies the draft for [item], and returns whether it succeeded.
   Future<bool> _applyOne(TriageItem item) async {
-    final int n = item.number;
+    final ItemRef n = item.ref;
     final TriageSuggestion suggestion = _withoutTeamInput(
       item,
       _drafts[n]!.toSuggestion(),
@@ -389,7 +362,7 @@ class TriageController extends ChangeNotifier {
       replyPosted: session.hasReplied(n),
       onReplyPosted: () => session.recordReplied(n),
       milestone: milestone,
-      milestones: _repositoryInfo.milestones,
+      milestones: repositoryInfo(item.repository).milestones,
     );
     _results[n] = result;
     if (result.succeeded) {
@@ -426,7 +399,7 @@ class TriageController extends ChangeNotifier {
 
   /// Sends [item] to the team, and returns whether it succeeded.
   Future<bool> _sendOne(TriageItem item, {String? comment}) async {
-    final int n = item.number;
+    final ItemRef n = item.ref;
     _applying.add(n);
     _results.remove(n);
     _error = null;
@@ -435,7 +408,9 @@ class TriageController extends ChangeNotifier {
     try {
       await _service!.addLabels(n, const [needsTeamInputLabel]);
     } on GitHubException catch (e) {
-      _error = 'Could not add "$needsTeamInputLabel" to #$n: ${e.message}';
+      _error =
+          'Could not add "$needsTeamInputLabel" to ${item.name}: '
+          '${e.message}';
       await _finish(n);
       return false;
     }
@@ -446,8 +421,8 @@ class TriageController extends ChangeNotifier {
       } on GitHubException catch (e) {
         commented = false;
         _error =
-            'Added "$needsTeamInputLabel" to #$n, but could not post the '
-            'comment: ${e.message}';
+            'Added "$needsTeamInputLabel" to ${item.name}, but could not '
+            'post the comment: ${e.message}';
       }
     }
     session.recordSentToTeam(item, comment: commented ? comment : null);
@@ -486,11 +461,11 @@ class TriageController extends ChangeNotifier {
   /// Moves [item] to the **Needs team input** group, from the queue or from
   /// the items opened by URL.
   void _moveToTeamInput(TriageItem item) {
-    final int n = item.number;
-    if (this.item(n) != null && !_queue.any((i) => i.number == n)) {
+    final ItemRef n = item.ref;
+    if (this.item(n) != null && !_queue.any((i) => i.ref == n)) {
       _opened = [
         for (final i in _opened)
-          if (i.number != n) i,
+          if (i.ref != n) i,
       ];
       _queue = [..._queue, item];
     }
@@ -498,17 +473,17 @@ class TriageController extends ChangeNotifier {
     _listedUpdatedAt = {n: item.updatedAt, ..._listedUpdatedAt};
   }
 
-  /// Loads the item with [number] again, and ends its apply.
-  Future<void> _finish(int number) async {
+  /// Loads [item] again, and ends its apply.
+  Future<void> _finish(ItemRef item) async {
     // Show the item as it is now, so that a refresh does not take the
     // triager's own changes for someone else's.
     try {
-      final TriageItem? fresh = await _service!.fetchItem(number);
+      final TriageItem? fresh = await _service!.fetchItem(item);
       if (fresh != null) _replace(fresh);
     } on GitHubException {
       // The item keeps its old state until the next refresh.
     }
-    _applying.remove(number);
+    _applying.remove(item);
     notifyListeners();
   }
 
@@ -516,35 +491,29 @@ class TriageController extends ChangeNotifier {
     _queue = queue;
     _teamInput = {
       for (final i in queue)
-        if (i.needsTeamInput) i.number,
+        if (i.needsTeamInput) i.ref,
     };
-    _listedUpdatedAt = {for (final i in queue) i.number: i.updatedAt};
-  }
-
-  void _setGenuiPullRequests(List<GenuiPullRequest> pullRequests) {
-    _genuiPullRequests = pullRequests.toList()
-      ..sort((a, b) => a.updatedAt.compareTo(b.updatedAt));
+    _listedUpdatedAt = {for (final i in queue) i.ref: i.updatedAt};
   }
 
   /// If one of [items] is selected, selects the next item after them that
   /// is not handled yet, in [order]: the list as it was before the items
   /// changed, since a change can move an item to another group.
   void _selectNextAfterGroup(List<TriageItem> items, List<TriageItem> order) {
-    if (items.any((i) => i.number == _selected)) {
-      _selectNextAfter(items.first.number, order);
+    if (items.any((i) => i.ref == _selected)) {
+      _selectNextAfter(items.first.ref, order);
     }
   }
 
-  void _selectNextAfter(int number, List<TriageItem> items) {
-    final int index = items.indexWhere((i) => i.number == number);
+  void _selectNextAfter(ItemRef item, List<TriageItem> items) {
+    final int index = items.indexWhere((i) => i.ref == item);
     final Iterable<TriageItem> candidates = [
       ...items.skip(index + 1),
       ...items.take(index),
     ];
     for (final i in candidates) {
-      if (!session.isHandled(i.number)) {
-        _selected = i.number;
-        _selectedGenui = null;
+      if (!session.isHandled(i.ref)) {
+        _selected = i.ref;
         _revealCount++;
         return;
       }
@@ -553,11 +522,11 @@ class TriageController extends ChangeNotifier {
 
   void _replace(TriageItem fresh) {
     List<TriageItem> replaced(List<TriageItem> items) => [
-      for (final i in items) i.number == fresh.number ? fresh : i,
+      for (final i in items) i.ref == fresh.ref ? fresh : i,
     ];
     _queue = replaced(_queue);
     _opened = replaced(_opened);
-    if (_linked.containsKey(fresh.number)) _linked[fresh.number] = fresh;
+    if (_linked.containsKey(fresh.ref)) _linked[fresh.ref] = fresh;
   }
 
   Future<void> _openPending() async {
@@ -586,8 +555,7 @@ class TriageController extends ChangeNotifier {
   /// [items] in the order `ui.blueprint.md` lists them: by kind, then the
   /// items with a suggestion first, then the least recently updated first.
   List<TriageItem> _sorted(Iterable<TriageItem> items) {
-    DateTime updatedAt(TriageItem i) =>
-        _listedUpdatedAt[i.number] ?? i.updatedAt;
+    DateTime updatedAt(TriageItem i) => _listedUpdatedAt[i.ref] ?? i.updatedAt;
     int withoutSuggestion(TriageItem i) => i.suggestion == null ? 1 : 0;
     return items.toList()..sort(
       (a, b) => a.kind != b.kind

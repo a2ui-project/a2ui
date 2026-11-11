@@ -240,9 +240,8 @@ final class TriageItem {
       '$_repositoryPrefix${isPullRequest ? 'PR' : 'Issue'} #$number';
 
   /// The repository's name and a space, or nothing for [a2uiRepository].
-  String get _repositoryPrefix => repository == a2uiRepository
-      ? ''
-      : '${repository.split('/').last} ';
+  String get _repositoryPrefix =>
+      repository == a2uiRepository ? '' : '${repository.split('/').last} ';
 
   /// A comment is a triage bot comment if it starts with the triage bot
   /// prefix and a team member or a bot posted it. See `core.blueprint.md`.

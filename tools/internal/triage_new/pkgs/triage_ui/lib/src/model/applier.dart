@@ -82,7 +82,7 @@ Future<ApplyResult> applySuggestion(
   MilestoneChange milestone = MilestoneChange.none,
   Map<String, int> milestones = const {},
 }) async {
-  final int n = item.number;
+  final ItemRef n = item.ref;
   final String? reply = suggestion.reply;
   final String? closeAs = suggestion.closeAs;
   final String? newMilestone = milestone.set;

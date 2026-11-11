@@ -73,7 +73,7 @@ GitHubItem? _initialItem(List<String> args) {
   if (item == null) {
     debugPrint(
       'Ignoring "${args.first}": it is not the URL of an issue or a pull '
-      'request in a2ui-project/a2ui.',
+      'request in a2ui-project/a2ui or flutter/genui.',
     );
   }
   return item;

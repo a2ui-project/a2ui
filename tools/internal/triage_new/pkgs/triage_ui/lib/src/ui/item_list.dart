@@ -14,7 +14,6 @@
 
 import 'package:flutter/material.dart';
 
-import '../model/genui_pull_request.dart';
 import '../model/triage_controller.dart';
 import '../model/triage_item.dart';
 import 'links.dart';
@@ -61,8 +60,7 @@ Color _shade(BuildContext context, MaterialColor color) =>
 Color kindBackground(Color color) => color.withValues(alpha: 0.08);
 
 /// The items, in the groups `ui.blueprint.md` describes: **New**, **Needs
-/// team input**, the items opened by URL that are not in the queue, and
-/// **PRs on genui**.
+/// team input**, and the items opened by URL that are not in the queue.
 ///
 /// The groups start collapsed. When the controller selects an item on its
 /// own, such as an item opened by URL, the list expands the item's group
@@ -82,7 +80,7 @@ class _ItemListState extends State<ItemList> {
   @override
   Widget build(BuildContext context) {
     final TriageController controller = TriageScope.of(context);
-    final int? selected = controller.selected?.number;
+    final ItemRef? selected = controller.selected?.ref;
     final sections = <(String, List<TriageItem>)>[
       ('New', controller.newItems),
       ('Needs team input', controller.teamInputItems),
@@ -92,7 +90,7 @@ class _ItemListState extends State<ItemList> {
       _revealCount = controller.revealCount;
       for (final (String title, List<TriageItem> items) in sections) {
         for (final i in items) {
-          if (i.number == selected) {
+          if (i.ref == selected) {
             _expanded.addAll([title, _subgroupKey(title, i.kind)]);
           }
         }
@@ -129,22 +127,10 @@ class _ItemListState extends State<ItemList> {
                     if (i.kind == kind) i,
                 ], selected: selected),
           ],
-          _GroupHeader(
-            '$_genuiTitle (${controller.genuiPullRequests.length})',
-            expanded: _expanded.contains(_genuiTitle),
-            onTap: () => setState(() {
-              if (!_expanded.remove(_genuiTitle)) _expanded.add(_genuiTitle);
-            }),
-          ),
-          if (_expanded.contains(_genuiTitle))
-            for (final GenuiPullRequest pr in controller.genuiPullRequests)
-              _GenuiPullRequestTile(pr, key: ValueKey(pr.url)),
         ],
       ),
     );
   }
-
-  static const String _genuiTitle = 'PRs on genui';
 
   /// The header of the subgroup of [kind] with [key], and its [items] if it
   /// is expanded. Nothing if there are no [items].
@@ -152,7 +138,7 @@ class _ItemListState extends State<ItemList> {
     String key,
     ItemKind kind,
     List<TriageItem> items, {
-    required int? selected,
+    required ItemRef? selected,
   }) {
     if (items.isEmpty) return const [];
     final bool expanded = _expanded.contains(key);
@@ -176,7 +162,7 @@ class _ItemListState extends State<ItemList> {
         for (final TriageItem item in items)
           _ItemTile(
             item,
-            key: item.number == selected ? _selectedKey : ValueKey(item.number),
+            key: item.ref == selected ? _selectedKey : ValueKey(item.ref),
           ),
     ];
   }
@@ -242,13 +228,13 @@ class _ItemTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final TriageController controller = TriageScope.of(context);
     final ThemeData theme = Theme.of(context);
-    final bool applied = controller.session.isApplied(item.number);
-    final bool sentToTeam = controller.session.isSentToTeam(item.number);
+    final bool applied = controller.session.isApplied(item.ref);
+    final bool sentToTeam = controller.session.isSentToTeam(item.ref);
     final (String kind, IconData icon, Color color) = kindStyle(
       context,
       item.kind,
     );
-    final selected = controller.selected?.number == item.number;
+    final selected = controller.selected?.ref == item.ref;
     // The selected item has a border. Its colors stay the same, so that the
     // kind's background still shows; ListTile.selected would change them.
     final tile = ListTile(
@@ -264,7 +250,7 @@ class _ItemTile extends StatelessWidget {
         child: Icon(icon, color: color, semanticLabel: kind),
       ),
       title: Text(
-        '#${item.number} ${item.title}',
+        '${item.shortName} ${item.title}',
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
       ),
@@ -312,53 +298,7 @@ class _ItemTile extends StatelessWidget {
           : null,
       // A second click on the selected item deselects it.
       onTap: () =>
-          selected ? controller.deselect() : controller.select(item.number),
-    );
-    return Semantics(selected: selected, child: tile);
-  }
-}
-
-/// A pull request in `flutter/genui`. Clicking it shows it in the details,
-/// where the tool does not triage it.
-class _GenuiPullRequestTile extends StatelessWidget {
-  const _GenuiPullRequestTile(this.pr, {super.key});
-
-  final GenuiPullRequest pr;
-
-  @override
-  Widget build(BuildContext context) {
-    final TriageController controller = TriageScope.of(context);
-    final Color color = _shade(context, Colors.orange);
-    final selected = controller.selectedGenuiPullRequest?.number == pr.number;
-    final tile = ListTile(
-      tileColor: kindBackground(color),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(6),
-        side: selected
-            ? BorderSide(color: Theme.of(context).colorScheme.primary, width: 2)
-            : BorderSide.none,
-      ),
-      leading: Tooltip(
-        message: 'PR on genui',
-        child: Icon(
-          Icons.call_merge,
-          color: color,
-          semanticLabel: 'PR on genui',
-        ),
-      ),
-      title: Text(
-        '#${pr.number} ${pr.title}',
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-      ),
-      subtitle: Padding(
-        padding: const EdgeInsets.only(top: 4),
-        child: Text('updated ${ago(pr.updatedAt)}'),
-      ),
-      // A second click on the selected PR deselects it.
-      onTap: () => selected
-          ? controller.deselect()
-          : controller.selectGenuiPullRequest(pr.number),
+          selected ? controller.deselect() : controller.select(item.ref),
     );
     return Semantics(selected: selected, child: tile);
   }

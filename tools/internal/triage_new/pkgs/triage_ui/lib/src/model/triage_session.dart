@@ -39,8 +39,8 @@ final class AppliedItem {
 
 /// What the triager did since the triage UI started.
 class TriageSession {
-  final Map<int, AppliedItem> _applied = {};
-  final Set<int> _replied = {};
+  final Map<ItemRef, AppliedItem> _applied = {};
+  final Set<ItemRef> _replied = {};
   var _version = 0;
   var _copiedVersion = 0;
 
@@ -48,15 +48,15 @@ class TriageSession {
   /// the triager applied them.
   Iterable<AppliedItem> get applied => _applied.values;
 
-  /// Whether the triager applied a suggestion to the item with [number]
-  /// that did not send it to the team.
-  bool isApplied(int number) => _applied[number]?.sentToTeam == false;
+  /// Whether the triager applied a suggestion to [item] that did not send
+  /// it to the team.
+  bool isApplied(ItemRef item) => _applied[item]?.sentToTeam == false;
 
-  bool isSentToTeam(int number) => _applied[number]?.sentToTeam ?? false;
+  bool isSentToTeam(ItemRef item) => _applied[item]?.sentToTeam ?? false;
 
-  /// Whether the triager applied a suggestion to the item with [number] or
-  /// sent it to the team.
-  bool isHandled(int number) => _applied.containsKey(number);
+  /// Whether the triager applied a suggestion to [item] or sent it to the
+  /// team.
+  bool isHandled(ItemRef item) => _applied.containsKey(item);
 
   /// Records that the triager applied [suggestion] to [item]. A later apply
   /// to the same item replaces the earlier one in the report.
@@ -66,8 +66,8 @@ class TriageSession {
     MilestoneChange milestone = MilestoneChange.none,
   }) {
     _applied
-      ..remove(item.number)
-      ..[item.number] = AppliedItem(item, suggestion, milestone: milestone);
+      ..remove(item.ref)
+      ..[item.ref] = AppliedItem(item, suggestion, milestone: milestone);
     _version++;
   }
 
@@ -78,9 +78,9 @@ class TriageSession {
     TriageSuggestion(addedLabels: const [needsTeamInputLabel], reply: comment),
   );
 
-  bool hasReplied(int number) => _replied.contains(number);
+  bool hasReplied(ItemRef item) => _replied.contains(item);
 
-  void recordReplied(int number) => _replied.add(number);
+  void recordReplied(ItemRef item) => _replied.add(item);
 
   /// Whether the triager applied items that the last copied report, if any,
   /// does not include.

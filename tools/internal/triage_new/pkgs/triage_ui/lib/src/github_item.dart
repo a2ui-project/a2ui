@@ -12,36 +12,47 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// An issue or a pull request in the `a2ui-project/a2ui` repository.
+import 'model/triage_item.dart';
+
+/// An issue or a pull request in [a2uiRepository] or [genuiRepository].
 final class GitHubItem {
   const GitHubItem._(
     this.url, {
+    required this.repository,
     required this.isPullRequest,
     required this.number,
   });
 
   static final RegExp _url = RegExp(
-    r'^https://github\.com/a2ui-project/a2ui/(issues|pull)/([0-9]+)$',
+    r'^https://github\.com/(a2ui-project/a2ui|flutter/genui)/(issues|pull)/'
+    r'([0-9]+)$',
   );
 
   /// Parses the URL of an issue or a pull request, such as
-  /// `https://github.com/a2ui-project/a2ui/issues/123`.
+  /// `https://github.com/a2ui-project/a2ui/issues/123` or
+  /// `https://github.com/flutter/genui/pull/45`.
   ///
   /// Returns null if [url] is not the URL of an issue or a pull request in
-  /// `a2ui-project/a2ui`.
+  /// [a2uiRepository] or [genuiRepository].
   static GitHubItem? tryParse(String url) {
     final RegExpMatch? match = _url.firstMatch(url);
     if (match == null) return null;
-    final int? number = int.tryParse(match.group(2)!);
+    final int? number = int.tryParse(match.group(3)!);
     if (number == null || number < 1) return null;
     return GitHubItem._(
       url,
-      isPullRequest: match.group(1) == 'pull',
+      repository: match.group(1)!,
+      isPullRequest: match.group(2) == 'pull',
       number: number,
     );
   }
 
   final String url;
+
+  /// The repository, such as `a2ui-project/a2ui`.
+  final String repository;
   final bool isPullRequest;
   final int number;
+
+  ItemRef get ref => (repository: repository, number: number);
 }

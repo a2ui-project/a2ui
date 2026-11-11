@@ -16,16 +16,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../github/triage_service.dart';
+import '../model/triage_item.dart';
 
-const String _repositoryUrl =
-    'https://github.com/${TriageService.owner}/${TriageService.name}';
+/// The URL of the issue that [item] refers to. GitHub redirects it if the
+/// item is a pull request.
+String issueUrl(ItemRef item) =>
+    'https://github.com/${item.repository}/issues/${item.number}';
 
-/// The URL of issue [number]. GitHub redirects it if [number] is a pull
-/// request.
-String issueUrl(int number) => '$_repositoryUrl/issues/$number';
-
-String pullRequestUrl(int number) => '$_repositoryUrl/pull/$number';
+/// The URL of the pull request that [item] refers to.
+String pullRequestUrl(ItemRef item) =>
+    'https://github.com/${item.repository}/pull/${item.number}';
 
 /// Opens [url] in the browser.
 Future<void> openUrl(String url) => launchUrl(Uri.parse(url));

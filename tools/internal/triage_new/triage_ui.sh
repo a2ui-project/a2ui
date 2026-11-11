@@ -27,12 +27,12 @@ set -euo pipefail
 
 # The port the triage UI listens on, on 127.0.0.1 only.
 readonly port=47123
-readonly item_pattern='^https://github\.com/a2ui-project/a2ui/(issues|pull)/[0-9]+$'
+readonly item_pattern='^https://github\.com/(a2ui-project/a2ui|flutter/genui)/(issues|pull)/[0-9]+$'
 
 if [[ $# -ne 1 || ! "$1" =~ $item_pattern ]]; then
   echo "Usage: $0 <item URL>" >&2
   echo "The URL must look like https://github.com/a2ui-project/a2ui/issues/123" >&2
-  echo "or https://github.com/a2ui-project/a2ui/pull/123." >&2
+  echo "or https://github.com/a2ui-project/a2ui/pull/123, or the same in flutter/genui." >&2
   exit 2
 fi
 readonly item="$1"

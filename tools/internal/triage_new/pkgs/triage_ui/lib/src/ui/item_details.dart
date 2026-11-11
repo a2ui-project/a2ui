@@ -15,7 +15,6 @@
 import 'package:flutter/material.dart';
 import 'package:triage/triage.dart';
 
-import '../model/genui_pull_request.dart';
 import '../model/suggestion_draft.dart';
 import '../model/triage_controller.dart';
 import '../model/triage_item.dart';
@@ -27,23 +26,14 @@ import 'suggestion_editor.dart';
 import 'suggestion_surface.dart';
 import 'triage_scope.dart';
 
-/// The selected item and the items linked to it that need triage, each in
-/// a tab with its editable suggestion, and the buttons that act on all of
-/// them. Or the selected pull request in `flutter/genui`, which is not
-/// editable.
+/// The selected item and the items linked to it, each in a tab with its
+/// editable suggestion, and the buttons that act on all of them.
 class ItemDetails extends StatelessWidget {
   const ItemDetails({super.key});
 
   @override
   Widget build(BuildContext context) {
     final TriageController controller = TriageScope.of(context);
-    if (controller.selectedGenuiPullRequest case final GenuiPullRequest pr) {
-      return ListView(
-        key: ValueKey(pr.url),
-        padding: const EdgeInsets.all(24),
-        children: [_GenuiPullRequestView(pr)],
-      );
-    }
     final TriageItem? item = controller.selected;
     if (item == null) {
       return const Center(child: Text('Select an item.'));
@@ -51,7 +41,7 @@ class ItemDetails extends StatelessWidget {
     final List<TriageItem> items = controller.group(item);
     return DefaultTabController(
       // A new controller when the items change, such as after a refresh.
-      key: ValueKey(items.map((i) => i.number).join(',')),
+      key: ValueKey(items.map((i) => i.url).join(',')),
       length: items.length,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -67,7 +57,7 @@ class ItemDetails extends StatelessWidget {
                 for (final i in items)
                   ListView(
                     padding: const EdgeInsets.all(24),
-                    children: [ItemView(key: ValueKey(i.number), item: i)],
+                    children: [ItemView(key: ValueKey(i.ref), item: i)],
                   ),
               ],
             ),
@@ -80,7 +70,7 @@ class ItemDetails extends StatelessWidget {
   }
 }
 
-/// The tab of [item]: its icon and number, and a blue dot if the triager
+/// The tab of [item]: its icon and short name, and a blue dot if the triager
 /// edited its suggestion.
 class _ItemTab extends StatelessWidget {
   const _ItemTab(this.item);
@@ -105,7 +95,7 @@ class _ItemTab extends StatelessWidget {
             spacing: 6,
             children: [
               Icon(icon, size: 18, color: color, semanticLabel: kind),
-              Text('#${item.number}'),
+              Text(item.shortName),
               if (draft.isEdited)
                 const Tooltip(
                   message: 'Edited',
@@ -166,7 +156,9 @@ class ItemView extends StatelessWidget {
                   LabelPill(
                     label,
                     colors: labelColors(
-                      controller.repositoryInfo.labelColors[label],
+                      controller
+                          .repositoryInfo(item.repository)
+                          .labelColors[label],
                     ),
                   ),
               ],
@@ -174,12 +166,12 @@ class ItemView extends StatelessWidget {
             Text('Assignees: ${none(item.assignees)}.'),
           ],
         ),
-        if (controller.session.isApplied(item.number))
+        if (controller.session.isApplied(item.ref))
           const _Notice(
             'You applied a suggestion to this item in this session.',
             icon: Icons.check_circle_outline,
           ),
-        if (controller.session.isSentToTeam(item.number))
+        if (controller.session.isSentToTeam(item.ref))
           const _Notice(
             'You sent this item to the team in this session.',
             icon: Icons.groups_outlined,
@@ -192,7 +184,7 @@ class ItemView extends StatelessWidget {
           )
         else if (!item.needsTriage)
           const _Notice('The item does not have "$needsTriageLabel".'),
-        if (controller.changedOnGitHub(item.number))
+        if (controller.changedOnGitHub(item.ref))
           const _Notice(
             'The item changed on GitHub, so the suggestion below shows '
             'its current state, and your edits to it are gone.',
@@ -222,60 +214,6 @@ class ItemView extends StatelessWidget {
           SuggestionSurface(item: item, payload: payload)
         else
           SuggestionEditor(item: item),
-      ],
-    );
-  }
-}
-
-/// A pull request in `flutter/genui`: what the triager should know about
-/// it, and a link to it. The tool does not triage it, so nothing is
-/// editable.
-class _GenuiPullRequestView extends StatelessWidget {
-  const _GenuiPullRequestView(this.pr);
-
-  final GenuiPullRequest pr;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      spacing: 12,
-      children: [
-        LinkText(
-          'genui PR #${pr.number}: ${pr.title}',
-          url: pr.url,
-          style: theme.textTheme.titleLarge,
-        ),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          spacing: 4,
-          children: [
-            Text('Age: ${age(pr.createdAt)}.'),
-            Text('Updated: ${ago(pr.updatedAt)}.'),
-            Text('Author: ${pr.author ?? 'a deleted account'}.'),
-            Wrap(
-              spacing: 6,
-              runSpacing: 4,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                const Text('Labels:'),
-                if (pr.labels.isEmpty) const Text('none.'),
-                for (final String label in pr.labels)
-                  LabelPill(label, colors: labelColors(pr.labelColors[label])),
-              ],
-            ),
-            Text(
-              'Assignees: '
-              '${pr.assignees.isEmpty ? 'none' : pr.assignees.join(', ')}.',
-            ),
-          ],
-        ),
-        _Notice(
-          'The tool does not triage PRs on genui. Triage it on GitHub.',
-          url: pr.url,
-          linkText: 'Open the PR',
-        ),
       ],
     );
   }

@@ -53,12 +53,13 @@ class SuggestionEditor extends StatelessWidget {
         final String? summary = draft.summary;
         final String? reason = draft.reason;
         final String? suggestion = draft.suggestion;
-        final bool applying = controller.isApplying(item.number);
-        final ApplyResult? result = controller.lastResult(item.number);
+        final bool applying = controller.isApplying(item.ref);
+        final ApplyResult? result = controller.lastResult(item.ref);
+        final RepositoryInfo info = controller.repositoryInfo(item.repository);
         LabelColors? colorsOf(String name) =>
-            labelColors(controller.repositoryInfo.labelColors[name]);
+            labelColors(info.labelColors[name]);
         final List<String> milestones = [
-          for (final String m in controller.repositoryInfo.milestones.keys)
+          for (final String m in info.milestones.keys)
             if (m != item.milestone) m,
         ];
         return Column(
@@ -160,7 +161,7 @@ class SuggestionEditor extends StatelessWidget {
               // The priority has a field of its own.
               values: _withoutPriorities(draft.addedLabels),
               options: _withoutPriorities([
-                for (final String label in controller.repositoryInfo.labels)
+                for (final String label in info.labels)
                   if (!item.labels.contains(label)) label,
               ]),
               onChanged: (List<String> v) => draft.addedLabels = [
@@ -182,7 +183,7 @@ class SuggestionEditor extends StatelessWidget {
               label: 'Assign',
               chooseTooltip: 'Choose people to assign',
               values: draft.newAssignees,
-              options: controller.repositoryInfo.assignableUsers,
+              options: info.assignableUsers,
               onChanged: (List<String> v) => draft.newAssignees = v,
             ),
             RemoveListField(
@@ -336,24 +337,27 @@ class _RelatedItems extends StatelessWidget {
     final TriageController controller = TriageScope.of(context);
     final int? duplicateOf = draft.toSuggestion().duplicateOf;
     // "(closed)" or "(merged)" once the item is known to be.
-    String closed(int n) => switch (controller.closedAs(n)) {
+    // The numbers are in the item's repository.
+    String closed(int n) => switch (controller.closedAs(item.refTo(n))) {
       final String state => ' ($state)',
       null => '',
     };
+    String issue(int n) => issueUrl(item.refTo(n));
+    String pullRequest(int n) => pullRequestUrl(item.refTo(n));
     final links = <(String, String)>[
       for (final int n in item.linkedItems)
         item.isPullRequest
-            ? ('Fixes issue #$n${closed(n)}', issueUrl(n))
-            : ('Fixed by PR #$n${closed(n)}', pullRequestUrl(n)),
+            ? ('Fixes issue #$n${closed(n)}', issue(n))
+            : ('Fixed by PR #$n${closed(n)}', pullRequest(n)),
       if (duplicateOf != null)
         (
           'Duplicate of #$duplicateOf${closed(duplicateOf)}',
-          issueUrl(duplicateOf),
+          issue(duplicateOf),
         ),
       for (final int n in draft.relatedIssues)
-        ('Issue #$n${closed(n)}', issueUrl(n)),
+        ('Issue #$n${closed(n)}', issue(n)),
       for (final int n in draft.relatedPrs)
-        ('PR #$n${closed(n)}', pullRequestUrl(n)),
+        ('PR #$n${closed(n)}', pullRequest(n)),
     ];
     if (links.isEmpty) return const SizedBox.shrink();
     return Column(

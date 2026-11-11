@@ -68,7 +68,7 @@ Future<void> _handle(
       response.statusCode = HttpStatus.badRequest;
       response.write(
         'Expected item=<URL of an issue or a pull request in '
-        'a2ui-project/a2ui>.',
+        'a2ui-project/a2ui or flutter/genui>.',
       );
     } else {
       onItem(item);

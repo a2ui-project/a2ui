@@ -36,7 +36,7 @@ class GroupActions extends StatelessWidget {
     return ListenableBuilder(
       listenable: Listenable.merge(drafts),
       builder: (context, _) {
-        final bool busy = items.any((i) => controller.isApplying(i.number));
+        final bool busy = items.any((i) => controller.isApplying(i.ref));
         final bool anyChanges = drafts.any((d) => d.hasChanges);
         final List<String> problems = [
           for (var k = 0; k < items.length; k++)
