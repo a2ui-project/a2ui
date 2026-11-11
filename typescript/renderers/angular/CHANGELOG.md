@@ -6,7 +6,7 @@
 - `ListComponent` hides the item of a child that renders nothing, so it leaves no empty marker or gap. `<a2ui-v09-component-host>` carries `data-a2ui-empty` while it renders nothing. [#2013](https://github.com/a2ui-project/a2ui/issues/2013)
 - Import core and universal symbols from `@a2ui/web_core` and `@a2ui/web_core/universal` instead of `@a2ui/web_core/v0_9/*` across `@a2ui/angular`'s version-agnostic `core/` and `catalog/` runtime, and strip both v0.9 (`{path}`, `{call}`) and v1.0 (`{'@path'}`, `{'@call'}`) dynamic AST branches in `ComponentApiToProps`. [#4182](https://github.com/a2ui-project/a2ui/pull/4182)
 - `AngularCatalog` adds `tagName` and `element` to plain `{...api, component}` entries in place, keeping entry identity. Universal elements now resolve their Angular `Injector` from the nearest `ComponentHostComponent`, then from the `A2uiRendererService` owning their surface, so several renderers can share a page. [#4129](https://github.com/a2ui-project/a2ui/pull/4129)
-- Add the optional `onElementConnected(element, context, injector)` field to `AngularComponentImplementation`. The nearest `ComponentHostComponent` calls it once when a universal element rendering that entry first connects, so hosts can decorate elements they do not own. [#4143](https://github.com/a2ui-project/a2ui/pull/4143)
+- Add the optional `onElementConnected(element, context, injector)` field to `AngularComponentImplementation`. The nearest `ComponentHostComponent` calls it once when a universal element rendering that entry first connects, whatever the element's base class, so hosts can decorate elements they do not own. [#4143](https://github.com/a2ui-project/a2ui/pull/4143)
 
 ## 0.14.0
 

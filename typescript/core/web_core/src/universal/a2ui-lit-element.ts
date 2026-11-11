@@ -35,6 +35,7 @@ import {nextNodeId} from '../resolution/node-id.js';
 import {ResolvedBinding} from '../resolution/resolved-binding.js';
 import {type ComponentId} from '../types/common-types.js';
 import {A2uiController} from './a2ui-controller.js';
+import {dispatchA2uiElementConnected} from './element_connected_event.js';
 import {
   type CheckableResolvedProps,
   hasValidationErrors,
@@ -58,15 +59,6 @@ interface LightDomStyleCacheEntry {
 // on it, because static fields are inherited: a subclass registered under another tag would reuse
 // the parent's sheet, which is scoped to the parent's tag and never matches the subclass.
 const lightDomStyleCache = new WeakMap<Function, LightDomStyleCacheEntry>();
-
-/**
- * Name of the event an `A2uiLitElement` dispatches the first time it is connected to the DOM with a
- * `node` or `context`. It bubbles and is composed, so host renderers can observe every element of a surface,
- * including the ones universal containers create, from a single ancestor. Listeners outside the
- * element's shadow tree see a retargeted `event.target`, so read the element from
- * `event.composedPath()[0]`.
- */
-export const A2UI_ELEMENT_CONNECTED_EVENT = 'a2ui-element-connected';
 
 /** The surface a child renders on, as its data context reports it. */
 type ChildSurface = NonNullable<ComponentContext['dataContext']['surface']>;
@@ -124,7 +116,6 @@ export abstract class A2uiLitElement<
   private _controller?: A2uiController<Api, Props>;
   private _controllerContext?: ComponentContext;
   private _controllerNode?: ComponentNode;
-  private connectedEventDispatched = false;
   private fallbackDomId?: string;
   private readonly _hostAccessibility = new HostAccessibility(this);
 
@@ -364,20 +355,7 @@ export abstract class A2uiLitElement<
   override connectedCallback() {
     super.connectedCallback();
     this.adoptLightDomStyles();
-    this.dispatchConnectedEvent();
-  }
-
-  private dispatchConnectedEvent() {
-    if (
-      !this.connectedEventDispatched &&
-      this.isConnected &&
-      (this.context ?? this.node?.context)
-    ) {
-      this.connectedEventDispatched = true;
-      this.dispatchEvent(
-        new CustomEvent(A2UI_ELEMENT_CONNECTED_EVENT, {bubbles: true, composed: true}),
-      );
-    }
+    dispatchA2uiElementConnected(this);
   }
 
   /**
@@ -555,7 +533,7 @@ export abstract class A2uiLitElement<
 
   protected override updated(changedProperties: PropertyValues) {
     super.updated(changedProperties);
-    this.dispatchConnectedEvent();
+    dispatchA2uiElementConnected(this);
     const props = this.controller?.props as CheckableResolvedProps | undefined;
     this.applyAccessibilityAttributes(resolveAccessibilityProps(props), props);
   }

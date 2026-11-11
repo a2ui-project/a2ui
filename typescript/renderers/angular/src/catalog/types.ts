@@ -48,8 +48,11 @@ export interface AngularComponentImplementation extends ComponentApi {
    * with the element, its context, and the injector of the enclosing `ComponentHostComponent`.
    *
    * Lets hosts decorate elements they do not own (for example, to add analytics attributes)
-   * without subclassing them. Only universal elements trigger it, so it applies only when
-   * `RendererConfiguration.useUniversalComponents` is enabled.
+   * without subclassing them. It runs for every universal element the renderers create, whatever
+   * its base class, and only universal elements trigger it, so it applies only when
+   * `RendererConfiguration.useUniversalComponents` is enabled. A custom container that is not an
+   * `A2uiLitElement` and creates child elements by hand reports each child by calling
+   * `dispatchA2uiElementConnected` from `@a2ui/web_core/universal` after inserting it.
    */
   readonly onElementConnected?: (
     element: HTMLElement,

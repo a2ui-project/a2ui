@@ -30,7 +30,8 @@ import {getValue, peekValue} from '../reactivity/signals.js';
 import {ComponentContext} from '../resolution/component-context.js';
 import {NodeResolver} from '../resolution/node-resolver.js';
 import {CheckableSchema} from '../v0_9/schema/common-types.js';
-import {A2UI_ELEMENT_CONNECTED_EVENT, A2uiLitElement} from './a2ui-lit-element.js';
+import {A2uiLitElement} from './a2ui-lit-element.js';
+import {A2UI_ELEMENT_CONNECTED_EVENT} from './element_connected_event.js';
 
 const MockTextApi = {
   name: 'Text',

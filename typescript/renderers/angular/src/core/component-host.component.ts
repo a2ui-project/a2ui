@@ -46,6 +46,7 @@ import {
 import {
   A2UI_ELEMENT_CONNECTED_EVENT,
   bindHostAccessibility,
+  dispatchA2uiElementConnected,
   isWebComponentImplementation,
   registerUniversalElement,
   type A2uiWebComponentElement,
@@ -446,6 +447,8 @@ export class ComponentHostComponent {
     el.node = node;
     this.mountedWcEl = el;
     this.elementRef.nativeElement.appendChild(el);
+    // Lit elements report themselves on connect; this covers elements of any other base class.
+    dispatchA2uiElementConnected(el);
   }
 
   /**

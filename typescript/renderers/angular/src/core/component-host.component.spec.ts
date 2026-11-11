@@ -897,6 +897,94 @@ describe('ComponentHostComponent', () => {
       nestedFixture.nativeElement.remove();
     });
 
+    it('calls onElementConnected once for plain HTMLElement universal elements', async () => {
+      class PlainElement extends HTMLElement {}
+      const onElementConnected = jasmine.createSpy('onElementConnected');
+      const plain: WebComponentImplementation &
+        Pick<AngularComponentImplementation, 'onElementConnected'> = {
+        name: 'Plain',
+        schema: z.object({}),
+        tagName: 'test-hook-plain-element',
+        element: PlainElement,
+        onElementConnected,
+      };
+      const plainCatalog = new AngularCatalog('plain-hook-catalog', '0.9', [A2uiColumn, plain]);
+
+      @Component({
+        selector: 'test-plain-hook-host',
+        imports: [SurfaceComponent],
+        providers: [
+          {
+            provide: A2UI_RENDERER_CONFIG,
+            useValue: {catalogs: [plainCatalog], useUniversalComponents: true},
+          },
+          A2uiRendererService,
+        ],
+        template:
+          '<a2ui-v09-surface surfaceId="plain-root" /><a2ui-v09-surface surfaceId="plain-child" />',
+      })
+      class TestPlainHookHostComponent {
+        readonly renderer = inject(A2uiRendererService);
+      }
+
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({imports: [TestPlainHookHostComponent]});
+      const plainFixture = TestBed.createComponent(TestPlainHookHostComponent);
+      document.body.appendChild(plainFixture.nativeElement);
+
+      plainFixture.componentInstance.renderer.processMessages([
+        {
+          version: 'v0.9',
+          createSurface: {surfaceId: 'plain-root', catalogId: 'plain-hook-catalog'},
+        },
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 'plain-root',
+            components: [{id: 'root', component: 'Plain'}],
+          },
+        },
+        {
+          version: 'v0.9',
+          createSurface: {surfaceId: 'plain-child', catalogId: 'plain-hook-catalog'},
+        },
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 'plain-child',
+            components: [
+              {id: 'root', component: 'Column', children: ['leaf']},
+              {id: 'leaf', component: 'Plain'},
+            ],
+          },
+        },
+      ]);
+      flush(plainFixture);
+      await settle();
+      flush(plainFixture);
+      await settle();
+
+      const [rootElement, childElement] = Array.from(
+        plainFixture.nativeElement.querySelectorAll('test-hook-plain-element'),
+      ) as HTMLElement[];
+      expect(rootElement.parentElement?.localName).toBe('a2ui-v09-component-host');
+      expect(childElement.closest(A2uiColumn.tagName)).toBeTruthy();
+      expect(onElementConnected.calls.allArgs()).toEqual([
+        [
+          rootElement,
+          jasmine.objectContaining({componentModel: jasmine.objectContaining({id: 'root'})}),
+          jasmine.anything(),
+        ],
+        [
+          childElement,
+          jasmine.objectContaining({componentModel: jasmine.objectContaining({id: 'leaf'})}),
+          jasmine.anything(),
+        ],
+      ]);
+      plainFixture.destroy();
+      plainFixture.nativeElement.remove();
+    });
+
     it('passes the dispatching element to onElementConnected when the event crosses a shadow root', () => {
       const onElementConnected = jasmine.createSpy('onElementConnected');
       const hookedCatalog = new AngularCatalog('shadow-hook-catalog', '0.9', [
