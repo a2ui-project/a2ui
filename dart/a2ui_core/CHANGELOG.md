@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- **Breaking:** (v0_9) `MessageProcessor` treats a component's `metadata` key
+  as an ordinary property on v0.9 surfaces, since v0.9 defines no component
+  metadata: it stays in `ComponentModel.properties`, is checked against the
+  component's schema only, and `ComponentModel.metadata` stays null. Before,
+  it was checked against the v1.0 metadata rules and moved out of the
+  properties. To migrate, read `metadata` from `properties` on v0.9
+  surfaces, or move to v1.0 for component metadata
+  ([#4137](https://github.com/a2ui-project/a2ui/issues/4137),
+  [#4140](https://github.com/a2ui-project/a2ui/pull/4140)).
+- `MessageProcessor` takes `unifiedOutbound` (`false` by default). When `true`,
+  `outboundListener` also receives an `ActionMessage` for each action emitted
+  on `model.onAction`, carrying the surface's protocol version; `onAction` and
+  `model.onAction` still fire. Setting `unifiedOutbound: true` without an
+  `outboundListener` throws `ArgumentError`
+  ([#4015](https://github.com/a2ui-project/a2ui/issues/4015),
+  [#4079](https://github.com/a2ui-project/a2ui/pull/4079)).
 - (v1_0) Function calls inside `${...}` template expressions of `formatString`
   now inherit the `catalogId` that the enclosing `formatString` call resolved
   to (preserving reserved `@`-prefixed system calls such as `${@index()}` as
@@ -28,6 +44,7 @@
   only `rendererOnly` or `rendererOrAgent` functions in components
   ([#3534](https://github.com/a2ui-project/a2ui/issues/3534),
   [#4008](https://github.com/a2ui-project/a2ui/pull/4008)).
+- (v1_0) Ignore `$`-prefixed JSON Schema keywords (such as `$comment` and `$defs`) when checking shorthand function parameter map keys against Unicode UAX 31 in `Catalog.fromJson` ([#3831](https://github.com/a2ui-project/a2ui/pull/3831)).
 - (v1_0) `MessageProcessor` checks a call nested in the arguments of a
   `callRendererFunction` that names no `catalogId` against the default catalog
   of the surface the message names, where the renderer runs it, rather than

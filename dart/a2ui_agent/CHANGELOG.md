@@ -1,5 +1,12 @@
 # [a2ui_agent](https://pub.dev/packages/a2ui_agent) Changelog
 
+## Unreleased
+
+- Add `readRendererCapabilities(metadata, version)`, `a2uiClientCapabilitiesKey`,
+  and `a2uiRendererCapabilitiesKey` to extract and validate
+  `A2uiRendererCapabilities` from transport metadata.
+  [#4013](https://github.com/a2ui-project/a2ui/pull/4013)
+
 ## 0.2.0
 
 - **Breaking:** Requires `a2ui_core` `^0.6.0`, whose types this library

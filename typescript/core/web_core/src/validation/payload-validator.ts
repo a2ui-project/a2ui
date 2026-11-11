@@ -21,7 +21,7 @@ import {isValidUax31Identifier} from '../common/uax31.js';
 import {A2uiErrorDetail, A2uiValidationError} from '../errors.js';
 import {formatZodIssue} from '../processing/format-zod-issue.js';
 import {getKnownSchemaKeys} from '../resolution/data-context.js';
-import {AccessibilityAttributesSchema, ComponentCommonSchema} from '../types/common-types.js';
+import {AccessibilityAttributesSchema} from '../types/common-types.js';
 import {MAX_FUNCTION_CALL_ARGS} from '../types/helpers.js';
 import {IndexApi} from '../v1_0/functions/system_functions.js';
 import type {ValidationConfig} from './integrity-checker.js';
@@ -32,7 +32,12 @@ import {validateReservedDirectives} from '../resolution/data-context.js';
  * component's property schema, and so must be removed before the payload is
  * checked against that schema.
  */
-const COMPONENT_ENVELOPE_KEYS = ['id', 'component', 'catalogId', 'metadata'] as const;
+const BASE_COMPONENT_ENVELOPE_KEYS: readonly string[] = ['id', 'component', 'catalogId'];
+/** From v1.0 `metadata` is the component's metadata rather than a property. */
+const V1_0_COMPONENT_ENVELOPE_KEYS: readonly string[] = [
+  ...BASE_COMPONENT_ENVELOPE_KEYS,
+  'metadata',
+];
 
 /**
  * Looks up a reserved `@`-prefixed system function, which belongs to no
@@ -166,6 +171,8 @@ export function nestedCallRunsInCatalog(
 export class PayloadValidator {
   /** Whether this catalog's protocol version mandates UAX #31 identifiers. */
   private readonly enforceIdentifiers: boolean;
+  /** Component keys that this catalog's protocol version keeps out of the properties. */
+  private readonly componentEnvelopeKeys: readonly string[];
 
   /**
    * Initializes a new `PayloadValidator`.
@@ -178,7 +185,11 @@ export class PayloadValidator {
     private readonly catalog: CatalogInterface<any, any>,
     private readonly config?: ValidationConfig,
   ) {
-    this.enforceIdentifiers = isAtLeastVersion(catalog.protocolVersion, '1.0');
+    const atLeastV1 = isAtLeastVersion(catalog.protocolVersion, '1.0');
+    this.enforceIdentifiers = atLeastV1;
+    this.componentEnvelopeKeys = atLeastV1
+      ? V1_0_COMPONENT_ENVELOPE_KEYS
+      : BASE_COMPONENT_ENVELOPE_KEYS;
   }
 
   /**
@@ -253,7 +264,7 @@ export class PayloadValidator {
     // `nestedCallRunsInCatalog`.
     const rawCatalogId = comp['catalogId'];
     const componentCatalogId = typeof rawCatalogId === 'string' ? rawCatalogId : undefined;
-    const properties = stripEnvelopeKeys(comp);
+    const properties = stripEnvelopeKeys(comp, this.componentEnvelopeKeys);
 
     const componentApi = this.catalog.components.get(componentType);
     if (!componentApi) {
@@ -620,12 +631,16 @@ function zodIssuesToDetails(issues: readonly z.ZodIssue[], prefix = ''): A2uiErr
  * Strips processor envelope keys from a component payload, returning only component properties.
  *
  * @param comp Raw component payload.
+ * @param envelopeKeys Keys of the catalog's protocol version that are not properties.
  * @returns New object holding only schema-described properties.
  */
-function stripEnvelopeKeys(comp: Record<string, unknown>): Record<string, unknown> {
+function stripEnvelopeKeys(
+  comp: Record<string, unknown>,
+  envelopeKeys: readonly string[],
+): Record<string, unknown> {
   const properties: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(comp)) {
-    if ((COMPONENT_ENVELOPE_KEYS as readonly string[]).includes(key)) continue;
+    if (envelopeKeys.includes(key)) continue;
     properties[key] = value;
   }
   return properties;
