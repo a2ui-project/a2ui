@@ -22,7 +22,7 @@
             "@path": "/form/emailPlaceholder"
           },
           "variant": "shortText",
-          "checks": [
+          "@checks": [
             {
               "condition": {
                 "@call": "required",

@@ -56,7 +56,7 @@
               "@path": "/email"
             },
             "label": "Email",
-            "checks": [
+            "@checks": [
               {
                 "condition": {
                   "@call": "required",
@@ -89,7 +89,7 @@
             },
             "label": "Password",
             "variant": "obscured",
-            "checks": [
+            "@checks": [
               {
                 "condition": {
                   "@call": "required",
@@ -124,7 +124,7 @@
             "id": "login_btn",
             "component": "Button",
             "child": "login_btn_text",
-            "checks": [
+            "@checks": [
               {
                 "condition": {
                   "@call": "and",

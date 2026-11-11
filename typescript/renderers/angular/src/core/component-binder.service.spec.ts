@@ -34,13 +34,15 @@ function createComponentContext({
   componentId = 'test-comp',
   componentType = 'TestComponent',
   data = {},
+  protocolVersion = '0.9',
 }: {
   properties: Record<string, unknown>;
   componentId?: string;
   componentType?: string;
   data?: Record<string, unknown>;
+  protocolVersion?: string;
 }): {context: ComponentContext; surface: SurfaceModel} {
-  const catalog = new Catalog('test-catalog', '0.9', []);
+  const catalog = new Catalog('test-catalog', protocolVersion, []);
   const surface = new SurfaceModel('test-surface', catalog);
 
   for (const [path, val] of Object.entries(data)) {
@@ -428,6 +430,42 @@ describe('ComponentBinder', () => {
       });
       expect(bound['isValid'].value()).toBe(true);
       expect(bound['validationErrors'].value()).toEqual([]);
+    });
+
+    it('binds @checks on v1.0 surfaces and leaves custom bare checks untouched', () => {
+      const {context, surface} = createComponentContext({
+        protocolVersion: '1.0',
+        properties: {
+          '@checks': [{condition: {'@path': '/form/ok'}, message: 'Must pass'}],
+          checks: [null, 'non_empty'],
+        },
+        data: {'/form/ok': false},
+      });
+
+      const bound = binder.bind(context);
+
+      expect(bound['checks'].value()).toEqual([null, 'non_empty']);
+      expect(bound['isValid'].value()).toBe(false);
+      expect(bound['validationErrors'].value()).toEqual(['Must pass']);
+
+      surface.dataModel.set('/form/ok', true);
+      expect(bound['isValid'].value()).toBe(true);
+      expect(bound['validationErrors'].value()).toEqual([]);
+    });
+
+    it('does not synthesize check signals from custom bare checks on v1.0 surfaces', () => {
+      const {context} = createComponentContext({
+        protocolVersion: '1.0',
+        properties: {
+          checks: [false, null],
+        },
+      });
+
+      const bound = binder.bind(context);
+
+      expect(bound['checks'].value()).toEqual([false, null]);
+      expect(bound['isValid']).toBeUndefined();
+      expect(bound['validationErrors']).toBeUndefined();
     });
   });
 

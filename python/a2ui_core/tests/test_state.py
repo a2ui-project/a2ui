@@ -1066,7 +1066,7 @@ def test_component_model_and_surface_model_metadata_api():
         "id": "c1",
         "component": "Text",
         "text": "Hello",
-        "metadata": {"extensions": {"a": 1}},
+        "@metadata": {"extensions": {"a": 1}},
     }
 
     # Defensive copy check
@@ -1233,3 +1233,64 @@ def test_component_model_and_surface_model_metadata_api():
     assert binder2_emissions[0][0]["text"] == "Updated"
     assert binder2_emissions[0][1] == {"extensions": {"atomic": True}}
     binder2.dispose()
+
+
+def test_component_tree_writes_at_metadata_when_schema_declares_optional_metadata():
+    from a2ui.core.catalog import Catalog
+
+    cat = Catalog.from_json(
+        {
+            "catalogId": "tree-cat",
+            "components": {
+                "Note": {
+                    "type": "object",
+                    "properties": {
+                        "text": {"type": "string"},
+                        "metadata": {"type": "string"},
+                    },
+                },
+            },
+        },
+        protocol_version="1.0",
+    )
+    comp = ComponentModel(
+        "c1", "Note", cat, {"text": "Hi"}, metadata={"extensions": {"a": 1}}
+    )
+    # The component omits its own `metadata`, so a bare key would be read back
+    # as that property.
+    assert comp.component_tree == {
+        "id": "c1",
+        "component": "Note",
+        "text": "Hi",
+        "@metadata": {"extensions": {"a": 1}},
+    }
+    comp.validate()
+
+
+def test_validate_components_update_writes_at_catalog_id_for_non_default_catalog():
+    from a2ui.core.catalog import Catalog
+    from a2ui.core.validation import ValidationConfig
+
+    def label_catalog(cat_id: str, extra: dict[str, Any]) -> Catalog:
+        return Catalog.from_json(
+            {
+                "catalogId": cat_id,
+                "components": {
+                    "Label": {
+                        "type": "object",
+                        "properties": {"text": {"type": "string"}, **extra},
+                    },
+                },
+            },
+            protocol_version="1.0",
+        )
+
+    main = label_catalog("main-cat", {})
+    other = label_catalog("other-cat", {"catalogId": {"type": "integer"}})
+    model = SurfaceComponentsModel(default_catalog=main)
+    # The routing catalog ID isn't validated as the `catalogId: integer`
+    # property the component omits.
+    model.validate_components_update(
+        [ComponentModel("root", "Label", other, {"text": "Hi"})],
+        config=ValidationConfig(),
+    )

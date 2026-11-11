@@ -32,7 +32,7 @@
                 label: "Email"
                 value:
                   "@path": "/email"
-                checks:
+                "@checks":
                   - condition:
                       "@call": "email"
                       args:
@@ -79,7 +79,7 @@
                 label: "Age"
                 value:
                   "@path": "/age"
-                checks:
+                "@checks":
                   - condition:
                       "@call": "numeric"
                       args:
@@ -135,7 +135,7 @@
                 label: "Password"
                 value:
                   "@path": "/password"
-                checks:
+                "@checks":
                   - condition:
                       "@path": "/warningCheck"
                   - condition:
@@ -183,7 +183,7 @@
                 label: "Corporate Email"
                 value:
                   "@path": "/email"
-                checks:
+                "@checks":
                   - condition:
                       "@call": "email"
                       args:
@@ -242,7 +242,7 @@
                 label: "Email"
                 value:
                   "@path": "/email"
-                checks:
+                "@checks":
                   - condition:
                       "@call": "email"
                       args:
@@ -305,7 +305,7 @@
                 label: "And Field"
                 value:
                   "@path": "/email"
-                checks:
+                "@checks":
                   - condition:
                       "@call": "and"
                       args:
@@ -321,7 +321,7 @@
                 label: "Or Field"
                 value:
                   "@path": "/email"
-                checks:
+                "@checks":
                   - condition:
                       "@call": "or"
                       args:
@@ -337,7 +337,7 @@
                 label: "Not Field"
                 value:
                   "@path": "/email"
-                checks:
+                "@checks":
                   - condition:
                       "@call": "not"
                       args:

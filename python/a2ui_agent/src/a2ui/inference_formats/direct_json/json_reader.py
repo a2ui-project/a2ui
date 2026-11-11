@@ -176,6 +176,8 @@ _NEWLINE_STRIPPED_KEYS = frozenset({
     "child",
     "surfaceId",
     "catalogId",
+    # The v1.0 component-level catalog override.
+    "@catalogId",
     "componentId",
 })
 

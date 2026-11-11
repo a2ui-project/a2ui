@@ -1176,6 +1176,194 @@
             component: "Text"
             text: "Hello v0.9.1"
 
+# --- Pre-1.0 Custom Component Properties Named metadata / catalogId (#4012) ---
+
+- name: test_v09_update_components_keeps_metadata_and_catalog_id_properties
+  description: >-
+    Tests that on a v0.9 surface, custom component properties named 'metadata'
+    (with arbitrary non-extensions keys) and 'catalogId' are preserved in
+    component properties across both initial creation and subsequent updates,
+    without being stripped or validated as v1.0 component envelope fields (#4012).
+  action: process_messages
+  protocolVersion: "v0.9"
+  catalogs:
+    - catalogId: gcbp-cat
+      components:
+        GcbpTable:
+          type: object
+          properties:
+            rows:
+              type: array
+              items:
+                type: object
+            metadata:
+              type: object
+              properties:
+                pageNumber:
+                  type: number
+                pageSize:
+                  type: number
+                totalSize:
+                  type: number
+              additionalProperties: false
+            catalogId:
+              type: string
+          required:
+            - component
+            - rows
+  steps:
+    - messages:
+        - version: "v0.9"
+          createSurface:
+            surfaceId: "s_gcbp"
+            catalogId: "gcbp-cat"
+        - version: "v0.9"
+          updateComponents:
+            surfaceId: "s_gcbp"
+            components:
+              - id: "root"
+                component: "GcbpTable"
+                rows:
+                  - id: "1"
+                    name: "Item A"
+                metadata:
+                  pageNumber: 0
+                  pageSize: 10
+                  totalSize: 25
+                catalogId: "source-catalog-a"
+      expect:
+        surfaces:
+          s_gcbp:
+            exists: true
+            components:
+              - id: "root"
+                component: "GcbpTable"
+                rows:
+                  - id: "1"
+                    name: "Item A"
+                metadata:
+                  pageNumber: 0
+                  pageSize: 10
+                  totalSize: 25
+                catalogId: "source-catalog-a"
+    - messages:
+        - version: "v0.9"
+          updateComponents:
+            surfaceId: "s_gcbp"
+            components:
+              - id: "root"
+                component: "GcbpTable"
+                rows:
+                  - id: "1"
+                    name: "Item A"
+                metadata:
+                  pageNumber: 1
+                  pageSize: 10
+                  totalSize: 25
+                catalogId: "source-catalog-b"
+      expect:
+        surfaces:
+          s_gcbp:
+            exists: true
+            components:
+              - id: "root"
+                component: "GcbpTable"
+                rows:
+                  - id: "1"
+                    name: "Item A"
+                metadata:
+                  pageNumber: 1
+                  pageSize: 10
+                  totalSize: 25
+                catalogId: "source-catalog-b"
+
+- name: test_v09_update_components_keeps_bound_metadata_property
+  description: >-
+    Tests that on a v0.9 surface, a custom component property named 'metadata'
+    bound via a v0.9 DataBinding ({path: '/tableData/metadata'}) resolves against
+    the surface data model without triggering v1.0 metadata envelope validation (#4012).
+  action: process_messages
+  protocolVersion: "v0.9"
+  catalogs:
+    - catalogId: gcbp-bound-cat
+      components:
+        GcbpTable:
+          type: object
+          properties:
+            metadata:
+              anyOf:
+                - type: object
+                  properties:
+                    pageNumber:
+                      type: number
+                    pageSize:
+                      type: number
+                    totalSize:
+                      type: number
+                  additionalProperties: false
+                - $ref: "common_types.json#/$defs/DataBinding"
+          required:
+            - component
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s_gcbp_bound"
+        catalogId: "gcbp-bound-cat"
+    - version: "v0.9"
+      updateDataModel:
+        surfaceId: "s_gcbp_bound"
+        path: "/tableData"
+        value:
+          metadata:
+            pageNumber: 2
+            pageSize: 25
+            totalSize: 100
+    - version: "v0.9"
+      updateComponents:
+        surfaceId: "s_gcbp_bound"
+        components:
+          - id: "root"
+            component: "GcbpTable"
+            metadata:
+              path: "/tableData/metadata"
+  expect:
+    surfaces:
+      s_gcbp_bound:
+        exists: true
+        components:
+          - id: "root"
+            component: "GcbpTable"
+            metadata:
+              pageNumber: 2
+              pageSize: 25
+              totalSize: 100
+
+- name: test_v09_rejects_at_prefixed_component_envelope_keys
+  description: >-
+    Tests that v1.0 @-prefixed component envelope keys (@metadata) are rejected
+    as unrecognized properties on a v0.9 surface when undeclared by the component schema.
+  action: process_messages
+  protocolVersion: "v0.9"
+  catalogPaths:
+    - "specification/v0_9/catalogs/basic/catalog.json"
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s_v09_at_meta"
+        catalogId: "test-catalog"
+    - version: "v0.9"
+      updateComponents:
+        surfaceId: "s_v09_at_meta"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+            "@metadata":
+              extensions:
+                com_example_trace: "t1"
+  expectError:
+    category: "ValidationError"
+
 # --- Component metadata (v1.0 only) ---
 
 - name: test_v09_metadata_is_an_ordinary_property

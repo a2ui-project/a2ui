@@ -101,7 +101,7 @@ NOTE: **Context vs. Data Model**: While the Data Model represents the entire sta
 
 ### Basic Catalog Function Validation (Checks)
 
-The basic catalog defines a limited set of checks that can be performed on the renderer. Interactive components can define a list of `checks` (using the [`Checkable`](../../../specification/v1_0/json/common_types.json#L288-L300) schema in `common_types.json`). For a `Button`, if any check fails, the button is **automatically disabled** on the renderer.
+The basic catalog defines a limited set of checks that can be performed on the renderer. Interactive components can define a list of `@checks` (`checks` in v0.9.1, using the [`Checkable`](../../../specification/v1_0/json/common_types.json#L289-L301) schema in `common_types.json`). For a `Button`, if any check fails, the button is **automatically disabled** on the renderer.
 
 - **UX Focus**: Validation checks are designed to manage **UI State (User Experience)** by preventing invalid interactions before they happen. They are not a replacement for **Data Integrity** checks, which must still be performed on the agent.
 
@@ -114,7 +114,7 @@ This allows the UI to enforce requirements (like a non-empty field) before the u
       "id": "submit-button",
       "component": "Button",
       "child": "submit-text",
-      "checks": [
+      "@checks": [
         {
           "condition": {
             "@call": "required",
