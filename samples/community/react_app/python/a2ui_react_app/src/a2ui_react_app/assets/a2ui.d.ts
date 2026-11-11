@@ -182,7 +182,7 @@ declare module 'a2ui' {
     /**
      * Named datasets, for data that changes often. Refer to one in the spec with
      * `data: {name: 'table'}` and pass `data={{table: rows}}`; a change updates the chart in place
-     * instead of redrawing it.
+     * instead of redrawing it. A spec without `data` reads the dataset when there is only one.
      */
     data?: {[name: string]: unknown[]};
     /** Called with the data row of a clicked mark, or `null` when the click hits no mark. */
