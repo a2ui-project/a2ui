@@ -1,5 +1,9 @@
 ## Unreleased
 
+- Gate component `metadata` and `catalogId` envelope handling to v1.0+ surfaces so pre-1.0 surfaces treat them as ordinary component properties, support `@metadata`, `@catalogId`, `@accessibility`, and `@checks` on v1.0 components (with fallback to undeclared legacy bare names), and write `ComponentModel.component_tree` envelope metadata under `@metadata`. `PayloadValidator` and `MessageProcessor` also validate `@metadata.extensions` keys as UAX #31 identifiers, reject `null` `@catalogId` / legacy `catalogId`, and reject components specifying both `@`-prefixed and bare forms of the same mixin ([#1376](https://github.com/a2ui-project/a2ui/issues/1376), [#3466](https://github.com/a2ui-project/a2ui/issues/3466), [#4012](https://github.com/a2ui-project/a2ui/issues/4012), [#4037](https://github.com/a2ui-project/a2ui/pull/4037)).
+
+## 0.6.0 (2026-11-10)
+
 - **BREAKING CHANGE**: (v1_0) Component validation
   (`PayloadValidator.validate_component`, and `MessageProcessor` for calls into
   another catalog) rejects a call to a function whose `allowedCallers` is

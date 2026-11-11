@@ -1585,3 +1585,143 @@ def test_v10_validate_function_checks_nested_call_envelope_only():
         validator.validate_function(
             "describe", {"text": {"@call": "formatString", "bogus": 1}}
         )
+
+
+def _v10_single_component_catalog(comp_schema: dict[str, Any]) -> Catalog:
+    return Catalog.from_json(
+        {"catalogId": "envelope-test-cat", "components": {"Widget": comp_schema}},
+        protocol_version="1.0",
+    )
+
+
+@pytest.mark.parametrize(
+    "combiner",
+    ["allOf", "anyOf", "oneOf"],
+)
+def test_get_custom_envelope_properties_reads_combiner_branches(combiner: str):
+    from a2ui.core.catalog import get_custom_envelope_properties
+
+    # The v1.0 `ComponentDefinition` only allows `oneOf`/`anyOf` inside an
+    # `allOf` member.
+    cat = _v10_single_component_catalog({
+        "type": "object",
+        "properties": {"text": {"type": "string"}},
+        "allOf": [{
+            combiner: [
+                {"properties": {"metadata": {"type": "string"}}},
+                {"properties": {"catalogId": {"type": "integer"}}},
+            ],
+        }],
+    })
+    assert get_custom_envelope_properties(cat, "Widget") == frozenset(
+        {"metadata", "catalogId"}
+    )
+
+
+def test_get_custom_envelope_properties_reads_local_def_in_one_of_branch():
+    from a2ui.core.catalog import get_custom_envelope_properties
+
+    cat = Catalog.from_json(
+        {
+            "catalogId": "envelope-test-cat",
+            "$defs": {
+                "PagedMixin": {"properties": {"metadata": {"type": "string"}}},
+            },
+            "components": {
+                "Widget": {
+                    "type": "object",
+                    "allOf": [{"oneOf": [{"$ref": "#/$defs/PagedMixin"}]}],
+                },
+            },
+        },
+        protocol_version="1.0",
+    )
+    assert get_custom_envelope_properties(cat, "Widget") == frozenset({"metadata"})
+
+
+_EXTENSIONS_ONLY_METADATA = {
+    "type": "object",
+    "properties": {"extensions": {"type": "object"}},
+}
+
+
+@pytest.mark.parametrize(
+    ("props", "expected_custom"),
+    [
+        # An inlined ComponentCommon: `id` beside the standard shapes.
+        (
+            {
+                "id": {"type": "string"},
+                "catalogId": {"type": "string"},
+                "metadata": _EXTENSIONS_ONLY_METADATA,
+            },
+            frozenset(),
+        ),
+        # `id` beside other shapes: the component's own properties.
+        (
+            {
+                "id": {"type": "string"},
+                "catalogId": {"type": "integer"},
+                "metadata": {"type": "string"},
+            },
+            frozenset({"catalogId", "metadata"}),
+        ),
+        # The standard shapes without `id`: the component's own properties.
+        (
+            {
+                "catalogId": {"type": "string"},
+                "metadata": _EXTENSIONS_ONLY_METADATA,
+            },
+            frozenset({"catalogId", "metadata"}),
+        ),
+    ],
+)
+def test_get_custom_envelope_properties_inline_mixin_needs_inline_id(
+    props: dict[str, Any], expected_custom: frozenset[str]
+):
+    from a2ui.core.catalog import get_custom_envelope_properties
+
+    cat = _v10_single_component_catalog({"type": "object", "properties": props})
+    assert get_custom_envelope_properties(cat, "Widget") == expected_custom
+
+
+def test_get_custom_envelope_properties_ignores_spec_description_without_inline_id():
+    from a2ui.core.catalog import get_custom_envelope_properties
+
+    cat = _v10_single_component_catalog({
+        "type": "object",
+        "properties": {
+            "catalogId": {
+                "type": "string",
+                "description": (
+                    "The catalog ID for this component, overriding any"
+                    " surface-level default catalogId."
+                ),
+            },
+        },
+    })
+    assert get_custom_envelope_properties(cat, "Widget") == frozenset({"catalogId"})
+
+
+def test_payload_validator_keeps_custom_property_declared_in_one_of_beside_any_of():
+    # `metadata` is only declared in the `oneOf` that sits beside an `anyOf`.
+    cat = _v10_single_component_catalog({
+        "type": "object",
+        "properties": {"text": {"type": "string"}},
+        "allOf": [{
+            "oneOf": [{
+                "properties": {"metadata": {"type": "string"}},
+                "required": ["metadata"],
+            }],
+            "anyOf": [{"properties": {"catalogId": {"type": "string"}}}],
+        }],
+        "required": ["component"],
+    })
+    PayloadValidator(cat, config=ValidationConfig()).validate_component({
+        "id": "root",
+        "component": "Widget",
+        "text": "Hi",
+        "metadata": "page-2",
+        "catalogId": "page-catalog",
+        "@metadata": {"extensions": {"trace": "t1"}},
+    })

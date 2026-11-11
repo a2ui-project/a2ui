@@ -27,6 +27,7 @@ import {
 import {childRefKindOf} from '../types/child-ref-helpers.js';
 import type {Action as V1Action, CheckRule as V1CheckRule} from '../v1_0/schema/common-types.js';
 import {extractRefDefName} from '../catalog/reference-map.js';
+import {componentMixinLayout} from '../catalog/component_envelope.js';
 import {
   coerceDynamicBoolean,
   isDynamicBooleanSchema,
@@ -79,6 +80,11 @@ export type BehaviorNode =
 
 const behaviorCache = new WeakMap<z.ZodTypeAny, BehaviorNode>();
 
+/** Key under which a v1.0 component stores its accessibility attributes. */
+const AT_ACCESSIBILITY = '@accessibility';
+/** Key under which a v1.0 component stores its check rules. */
+const AT_CHECKS = '@checks';
+
 /**
  * Traverses a Zod schema tree to build a `BehaviorNode` map.
  *
@@ -95,17 +101,33 @@ export function scrapeSchemaBehavior(schema: z.ZodTypeAny): BehaviorNode {
   }
   const behavior = getFieldBehavior(schema);
   const result: BehaviorNode =
-    behavior.type === 'OBJECT' && behavior.shape && !('accessibility' in behavior.shape)
-      ? {
-          ...behavior,
-          shape: {
-            ...behavior.shape,
-            accessibility: getFieldBehavior(AccessibilityAttributesSchema),
-          },
-        }
+    behavior.type === 'OBJECT' && behavior.shape
+      ? {...behavior, shape: withEnvelopeMixinBehaviors(behavior.shape)}
       : behavior;
   behaviorCache.set(schema, result);
   return result;
+}
+
+/**
+ * Adds the behaviors of the component envelope mixins a component's schema
+ * doesn't declare itself: `accessibility` (below v1.0, or a legacy v1.0
+ * payload), and the v1.0 `@accessibility` and `@checks`, under which
+ * `MessageProcessor` stores a v1.0 component's accessibility attributes and
+ * check rules.
+ *
+ * A component that declares its own `accessibility` keeps that behavior, so
+ * a custom property of that name is bound as the component declares it.
+ */
+function withEnvelopeMixinBehaviors(
+  shape: Record<string, BehaviorNode>,
+): Record<string, BehaviorNode> {
+  const accessibility = getFieldBehavior(AccessibilityAttributesSchema);
+  return {
+    ...shape,
+    ...(!('accessibility' in shape) ? {accessibility} : {}),
+    ...(!(AT_ACCESSIBILITY in shape) ? {[AT_ACCESSIBILITY]: accessibility} : {}),
+    ...(!(AT_CHECKS in shape) ? {[AT_CHECKS]: {type: 'CHECKABLE'}} : {}),
+  };
 }
 
 /**
@@ -469,13 +491,42 @@ export type ResolveA2uiProps<T> = (T extends object
       code?: string;
       severity: 'error' | 'warning' | 'info';
     }>;
-    accessibility?: {
-      label?: string;
-      description?: string;
-      live?: 'off' | 'polite' | 'assertive';
-      hidden?: boolean;
-    };
+    accessibility?: ResolvedAccessibility;
+    /** The v1.0 accessibility attributes, resolved. */
+    '@accessibility'?: ResolvedAccessibility;
   };
+
+/** Resolved accessibility attributes of a component. */
+export interface ResolvedAccessibility {
+  label?: string;
+  description?: string;
+  live?: 'off' | 'polite' | 'assertive';
+  hidden?: boolean;
+}
+
+/**
+ * Finalizes a component's resolved props: removes raw v1.0 `@checks` rules
+ * (which the binder has already evaluated into `isValid`, `validationErrors`,
+ * and `validationResults`) and, if `mirrorsAccessibility` is set, mirrors
+ * `@accessibility` onto `accessibility`.
+ *
+ * @param resolved The resolved props, if any.
+ * @param mirrorsAccessibility Whether the component's schema leaves
+ *   `accessibility` free for the mirror, by declaring no custom property of
+ *   that name.
+ * @returns The finalized resolved props.
+ */
+function finalizeResolvedProps(
+  resolved: unknown,
+  mirrorsAccessibility: boolean,
+): Record<string, unknown> {
+  if (!resolved || typeof resolved !== 'object') return {};
+  const {[AT_CHECKS]: _checks, ...rest} = resolved as Record<string, unknown>;
+  if (mirrorsAccessibility && AT_ACCESSIBILITY in rest) {
+    rest['accessibility'] = rest[AT_ACCESSIBILITY];
+  }
+  return rest;
+}
 
 /**
  * The maximum number of children materialized by dynamic ChildList templates.
@@ -514,6 +565,12 @@ export class GenericBinder<T> {
 
   private context: ComponentContext;
   private behaviorTree: BehaviorNode;
+  /**
+   * Whether `@accessibility` is mirrored onto `accessibility`. Decided by the
+   * schema, not the payload, so that a custom `accessibility` property the
+   * payload omits is not filled with the accessibility attributes.
+   */
+  private readonly mirrorsAccessibility: boolean;
   // Actions resolve to closures, which downstream value comparison cannot
   // inspect; reusing the closure while the raw payload is unchanged keeps
   // unchanged action props reference-identical across rebuilds.
@@ -535,6 +592,7 @@ export class GenericBinder<T> {
   constructor(context: ComponentContext, schema: z.ZodTypeAny) {
     this.context = context;
     this.behaviorTree = scrapeSchemaBehavior(schema);
+    this.mirrorsAccessibility = !componentMixinLayout(schema).customKeys.has('accessibility');
 
     if (this.behaviorTree.type !== 'OBJECT') {
       this.behaviorTree = {type: 'OBJECT', shape: {}};
@@ -546,7 +604,7 @@ export class GenericBinder<T> {
   private resolveInitialProps() {
     const props = this.context.componentModel.properties;
     const resolved = this.resolveAndBind(props, this.behaviorTree, [], true);
-    this.currentProps = (resolved ?? {}) as Partial<T>;
+    this.currentProps = finalizeResolvedProps(resolved, this.mirrorsAccessibility) as Partial<T>;
   }
 
   private connect() {
@@ -576,7 +634,7 @@ export class GenericBinder<T> {
     } finally {
       this.prevActionClosures = undefined;
     }
-    this.currentProps = (resolved ?? {}) as Partial<T>;
+    this.currentProps = finalizeResolvedProps(resolved, this.mirrorsAccessibility) as Partial<T>;
 
     this.notify();
   }
@@ -1022,7 +1080,14 @@ export class GenericBinder<T> {
   }
 
   private updateDeepValue(path: string[], newValue: unknown) {
-    this.currentProps = this.cloneAndUpdate(this.currentProps, path, newValue) as Partial<T>;
+    const updated = this.cloneAndUpdate(this.currentProps, path, newValue) as Record<
+      string,
+      unknown
+    >;
+    if (this.mirrorsAccessibility && path[0] === AT_ACCESSIBILITY && AT_ACCESSIBILITY in updated) {
+      updated['accessibility'] = updated[AT_ACCESSIBILITY];
+    }
+    this.currentProps = updated as Partial<T>;
   }
 
   private cloneAndUpdate(obj: unknown, path: string[], newValue: unknown): unknown {

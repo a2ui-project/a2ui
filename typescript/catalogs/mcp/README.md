@@ -109,7 +109,10 @@ const myCatalog = new Catalog(
   [ParseCsvImplementation],
 );
 
-const processor = new MessageProcessor([basicCatalog, mcpCatalog, myCatalog], onAction);
+const processor = new MessageProcessor([basicCatalog, mcpCatalog, myCatalog], undefined, {
+  outboundListener: send,
+  unifiedOutbound: true,
+});
 ```
 
 A payload calls it with that `catalogId`, and it composes with the MCP functions like any other call:
@@ -156,8 +159,9 @@ await client.connect(new SSEClientTransport(new URL('http://127.0.0.1:8000/sse')
 import {basicCatalog, MessageProcessor} from '@a2ui/web_core/v1_0';
 import {configureMcpCatalog, mcpCatalog} from '@a2ui/catalog-mcp';
 
-const processor = new MessageProcessor([basicCatalog, mcpCatalog], async action => {
-  console.log('A2UI action triggered:', action);
+const processor = new MessageProcessor([basicCatalog, mcpCatalog], undefined, {
+  outboundListener: send, // forward to your agent; feed its replies to processor.processMessages
+  unifiedOutbound: true,
 });
 
 configureMcpCatalog({
@@ -187,7 +191,8 @@ const processor = new MessageProcessor(
       [...basicCatalog.functions.values(), ...mcpCatalog.functions.values()],
     ),
   ],
-  onAction,
+  undefined,
+  {outboundListener: send, unifiedOutbound: true},
 );
 configureMcpCatalog({getMcpClientForTool: () => client, processor});
 ```

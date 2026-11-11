@@ -803,7 +803,7 @@ describe('Catalog.fromJson & schema_loader', () => {
       id: 'toggle1',
       component: 'Toggle',
       catalogId: 'https://example.com/precedence.json',
-      metadata: {source: 'test'},
+      metadata: {extensions: {source: 'test'}},
       size: 2,
     });
   });

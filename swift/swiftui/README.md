@@ -73,8 +73,9 @@ let customProfileImplementation = ComponentImplementation(api: UserCardAPI()) { 
 
 ### Accessibility
 
-`ComponentNodeView` applies each component's A2UI `accessibility` attributes to the rendered view,
-so custom components get them without extra work:
+`ComponentNodeView` applies each component's A2UI accessibility attributes (`@accessibility` in
+v1.0, `accessibility` before v1.0) to the rendered view, so custom components get them without
+extra work:
 
 - `label`: `accessibilityLabel`
 - `description`: `accessibilityHint`

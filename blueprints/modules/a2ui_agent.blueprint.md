@@ -87,7 +87,8 @@ a2ui_agent/
 │   ├── base                   # Abstract CatalogTransformer class
 │   └── pruning                # ComponentPruningTransformer, FunctionPruningTransformer
 └── utils/                     # Utility helpers layer
-    └── catalog_resolver       # resolve_catalogs capability resolution function
+    ├── catalog_resolver       # resolve_catalogs capability resolution function
+    └── renderer_capabilities  # read_renderer_capabilities transport metadata helper
 ```
 
 ---
@@ -831,14 +832,27 @@ def resolve_catalogs(
     pass
 ```
 
-#### `read_renderer_capabilities`
+#### `read_renderer_capabilities` (`a2ui.utils.renderer_capabilities`)
 
-`read_renderer_capabilities(metadata, version)` (TypeScript and Dart `readRendererCapabilities`) is transport-neutral. It returns the capabilities object under the version's key (`a2uiClientCapabilities` for v0.8 and v0.9, `a2uiRendererCapabilities` for v1.0, and the bare v0.8 entry), returns `None` when the key is absent (A2UI is off for the turn), ignores another version's key, and raises `A2uiCatalogError` for a non-mapping value or a malformed entry for that version.
+`read_renderer_capabilities(metadata, version)` (TypeScript and Dart `readRendererCapabilities`) is a transport-neutral helper that extracts and validates renderer capabilities from an inbound transport metadata mapping. Alongside it, the SDK exports the two transport metadata key constants:
+
+- `A2UI_CLIENT_CAPABILITIES_KEY = "a2uiClientCapabilities"` (Dart `a2uiClientCapabilitiesKey`): transport metadata key for v0.8, v0.9, and v0.9.1 client capabilities.
+- `A2UI_RENDERER_CAPABILITIES_KEY = "a2uiRendererCapabilities"` (Dart `a2uiRendererCapabilitiesKey`): transport metadata key for v1.0 and later renderer capabilities.
+
+Extraction and validation follow these rules:
+
+- For v1.0 and later, `read_renderer_capabilities` reads `a2uiRendererCapabilities` keyed by the canonical version string (`"1.0"`). For v0.9 and v0.9.1, it reads `a2uiClientCapabilities` keyed by `"v0.9"` (v0.9.1 reuses the `"v0.9"` capabilities key). Where an SDK supports deprecated v0.8, it reads `a2uiClientCapabilities` keyed by `"v0.8"` or normalizes a bare v0.8 entry (`{"supportedCatalogIds": [...]}`) to `{"v0.8": ...}`.
+- When `metadata` is `None`/`null`, when the target version's metadata key or version entry is absent, or when the metadata key or version entry holds `null`, the helper returns `None` (`undefined` / `null`), indicating A2UI is off for the turn. Another protocol version's metadata key is ignored.
+- Where the language allows untyped version arguments, the helper accepts `ProtocolVersion` or a version string, canonicalizes patch-zero SemVer strings (such as `"1.0.0"` to `"1.0"`), and raises `A2uiCatalogError` on unsupported or invalid version strings. It also raises `A2uiCatalogError` when `metadata`, the metadata key value, or the version entry is not a mapping / plain JSON object, when `supportedCatalogIds` is missing or not a list of strings, when the version entry contains unrecognized keys outside `supportedCatalogIds` and `inlineCatalogs`, or when `inlineCatalogs` is not a list of valid catalog documents with non-empty `catalogId` strings.
+- The returned version-keyed capabilities structure (`{"1.0": ...}`, `{"v0.9": ...}`, or `A2uiRendererCapabilities`) is accepted unchanged by `resolve_catalogs` and `A2uiGenerator.create_processor`.
 
 ```python
+A2UI_CLIENT_CAPABILITIES_KEY = "a2uiClientCapabilities"
+A2UI_RENDERER_CAPABILITIES_KEY = "a2uiRendererCapabilities"
+
 def read_renderer_capabilities(
     metadata: Optional[Mapping[str, Any]],
-    version: ProtocolVersion = ProtocolVersion.V1_0,
+    version: ProtocolVersion | str = ProtocolVersion.V1_0,
 ) -> Optional[A2uiRendererCapabilities]:
     """Reads and validates renderer capabilities for the given protocol version from a transport metadata mapping."""
     pass
@@ -1135,16 +1149,19 @@ To ensure behavioral parity across all SDK implementations (Python, Kotlin, etc.
 
 The suites covering this document live under `conformance/agent/`:
 
-| Suite                                 | Covers                                                                                          |
-| ------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `<format>/compiler.yaml`              | `Parser.compile`: what a block of that format means                                             |
-| `<format>/decompiler.yaml`            | `Parser.decompile`: how messages are written back into that format                              |
-| `<format>/response_parser.yaml`       | `Parser.wrap`, `unwrap` and `parse_response`: where a payload begins and ends                   |
-| `<format>/prompt_generator.yaml`      | `PromptGenerator.generate`: what the system prompt snippet has to tell the model                |
-| `direct_json/response_streaming.yaml` | `Parser.open_stream` and `ResponseStream`, for incremental Direct JSON streaming                |
-| `express/response_streaming.yaml`     | `Parser.open_stream` and `ResponseStream`, for incremental Express DSL streaming                |
-| `catalog_provider.yaml`               | `CatalogProvider.load` and the checks it makes on a document                                    |
-| `request_processor.yaml`              | `InferenceFormatFactory.create_format`, `A2uiGenerator.create_processor` and `resolve_catalogs` |
+| Suite                                 | Covers                                                                                           |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `<format>/compiler.yaml`              | `Parser.compile`: what a block of that format means                                              |
+| `<format>/decompiler.yaml`            | `Parser.decompile`: how messages are written back into that format                               |
+| `<format>/response_parser.yaml`       | `Parser.wrap`, `unwrap` and `parse_response`: where a payload begins and ends                    |
+| `<format>/prompt_generator.yaml`      | `PromptGenerator.generate`: what the system prompt snippet has to tell the model                 |
+| `direct_json/response_streaming.yaml` | `Parser.open_stream` and `ResponseStream`, for incremental Direct JSON streaming                 |
+| `express/response_streaming.yaml`     | `Parser.open_stream` and `ResponseStream`, for incremental Express DSL streaming                 |
+| `catalog_provider.yaml`               | `CatalogProvider.load` and the checks it makes on a document                                     |
+| `catalog_resolution.yaml`             | `resolve_catalogs`: capability matching, preference order, and inline catalog negotiation        |
+| `catalog_transformer.yaml`            | `ComponentPruningTransformer` and `FunctionPruningTransformer` allowlist filtering               |
+| `renderer_capabilities.yaml`          | `read_renderer_capabilities`: transport metadata extraction and entry validation across versions |
+| `request_processor.yaml`              | `InferenceFormatFactory.create_format`, `A2uiGenerator.create_processor` and `resolve_catalogs`  |
 
 Suites under `conformance/agent/legacy/` describe the earlier interface of `kotlin/agent_sdk_legacy`, which runs them. `python/a2ui_agent` implements the current interface above and runs none of them. The TypeScript agent harness runs the subset of `legacy/parser.yaml` and `legacy/inference_format.yaml` that the current suites do not supersede ([`loader.ts`](../../typescript/agents/a2ui_agent/tests/conformance/loader.ts)).
 
