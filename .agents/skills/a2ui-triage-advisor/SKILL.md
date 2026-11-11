@@ -113,6 +113,7 @@ Rules for the lists:
 3. Never add or remove `status: needs-triage`. The [flagger](../../../tools/internal/triage/blueprints/flagging.blueprint.md) manages it and would undo the change.
 4. Assign only logins that pass the assignee check in step 4, and that are not assigned yet.
 5. List a related item only if the suggestion says how it relates. Do not list the item itself, or the item in `duplicate_of`.
+6. For an open PR related to an issue, say whether it closes the issue. A PR closes it only when it is linked to close it, with `Fixes #<number>` or in the sidebar. A PR that only mentions the issue does not, so write that it is related but does not close the issue, such as "#4092 is related but does not close this issue".
 6. Do not repeat an entry in a list.
 
 Write `summary` and `suggestion` for the triager, and `reply` for the people on the item, following the natural-writing rules. In `suggestion`, state the action first, then why. Do not use filler such as "I hope this helps".

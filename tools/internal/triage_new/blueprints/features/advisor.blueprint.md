@@ -133,6 +133,6 @@ The component is defined in [triage_suggestion.dart](../../pkgs/triage/lib/src/a
 6. `duplicate_of`: the number of the item that this item duplicates. It is set only with `close_as: duplicate`.
 7. `added_labels` and `removed_labels`: labels to add and remove.
 8. `new_assignees` and `removed_assignees`: GitHub logins to assign and unassign.
-9. `related_issues` and `related_prs`: numbers of related issues and PRs, which the triager may want to read. The triage UI does not change them.
+9. `related_issues` and `related_prs`: numbers of related issues and PRs, which the triager may want to read. The triage UI does not change them. For an open PR related to an issue, the `suggestion` says whether the PR closes the issue. The triage UI counts a PR as an open PR of the issue only when the PR is linked to close it, so a PR that only mentions the issue is not one, and the suggestion says so.
 
 Item numbers refer to the item's own repository. An omitted list means none.
