@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/conformance/test_data/catalogs/custom_shell_catalog_v1_0.json",
+  "protocolVersion": "1.0",
+  "title": "Conformance CustomShell Open Catalog (v1.0)",
+  "description": "Defines an open CustomShell component with zero property schemas alongside a Text leaf and openUrl function, for testing schema-less v1.0 @child, @action, @functionCall, @path, and @@ unescaping resolution.",
+  "catalogId": "conformance/custom_shell",
+  "components": {
+    "CustomShell": {
+      "type": "object",
+      "description": "An open container with no declared property schemas.",
+      "properties": {
+        "component": { "const": "CustomShell" }
+      },
+      "required": ["component"],
+      "additionalProperties": true
+    },
+    "Text": {
+      "type": "object",
+      "description": "Displays a string value.",
+      "properties": {
+        "component": { "const": "Text" },
+        "text": { "$ref": "common_types.json#/$defs/DynamicString" }
+      },
+      "required": ["component", "text"]
+    }
+  },
+  "functions": {
+    "openUrl": {
+      "type": "object",
+      "description": "Opens a URL on user interaction.",
+      "returnType": "void",
+      "requiresUserActivation": true,
+      "properties": {
+        "@call": { "const": "openUrl" },
+        "args": {
+          "type": "object",
+          "properties": {
+            "url": { "$ref": "common_types.json#/$defs/DynamicString" }
+          },
+          "required": ["url"],
+          "unevaluatedProperties": false
+        }
+      },
+      "required": ["@call", "args"]
+    }
+  },
+  "$defs": {
+    "anyComponent": {
+      "oneOf": [
+        { "$ref": "#/components/CustomShell" },
+        { "$ref": "#/components/Text" }
+      ]
+    },
+    "anyFunction": {
+      "oneOf": [
+        { "$ref": "#/functions/openUrl" }
+      ]
+    }
+  }
+}

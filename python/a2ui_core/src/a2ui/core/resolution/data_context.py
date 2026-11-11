@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Container
 import copy
 from dataclasses import dataclass
 import inspect
@@ -369,20 +370,37 @@ def unescape_object_key(key: str) -> str:
 
 
 RESERVED_DIRECTIVES: Final[set[str]] = {"@path", "@call"}
+RESERVED_PROPERTY_DIRECTIVES: Final[set[str]] = {
+    "@path",
+    "@call",
+    "@child",
+    "@action",
+    "@functionCall",
+}
 
 
-def validate_reserved_directives(keys: Any, protocol_version: str | None) -> None:
-    """Validates that single-@ keys in a dynamic object are recognized directives."""
+def validate_reserved_directives(
+    keys: Any,
+    protocol_version: str | None,
+    *,
+    allowed_directives: Container[str] = RESERVED_DIRECTIVES,
+) -> None:
+    """Validates that single-@ keys in an object are recognized directives."""
     if not protocol_version or not is_at_least_version(
         protocol_version, ProtocolVersion.V1_0
     ):
         return
+    allowed_names = (
+        sorted(allowed_directives)
+        if isinstance(allowed_directives, (set, frozenset, list, tuple))
+        else sorted(RESERVED_DIRECTIVES)
+    )
     for k in keys:
-        if is_single_at_key(k) and k not in RESERVED_DIRECTIVES:
+        if isinstance(k, str) and is_single_at_key(k) and k not in allowed_directives:
             msg = (
                 f"Unrecognized reserved protocol directive '{k}' in v1.0 dynamic"
                 " object. Reserved keys must be in"
-                f" {', '.join(sorted(RESERVED_DIRECTIVES))}, or escaped with prefix"
+                f" {', '.join(allowed_names)}, or escaped with prefix"
                 f" doubling (e.g. '@{k}')."
             )
             raise A2uiValidationError(
@@ -713,10 +731,17 @@ class DataContext:
         at_least_v10 = self.at_least_v10
         proto_ver = self._surface_protocol_version()
 
+        if isinstance(value, dict) and at_least_v10:
+            validate_reserved_directives(value.keys(), proto_ver or "1.0")
+
         # 1. Handle Data Path binding dictionaries:
         # In v1.0: {"@path": "/user/name"}
         # In v0.9: {"path": "/user/name"}
-        if isinstance(value, dict) and "componentId" not in value:
+        if (
+            isinstance(value, dict)
+            and "componentId" not in value
+            and "@child" not in value
+        ):
             has_path = (
                 ("@path" in value and isinstance(value["@path"], str))
                 if at_least_v10
@@ -929,8 +954,10 @@ class DataContext:
                 "message": message,
             })
 
-    def _resolve_event_action(self, action: dict[str, Any]) -> Any:
-        evt = dict(action["event"])
+    def _resolve_event_action(
+        self, action: dict[str, Any], *, event_key: str = "event"
+    ) -> Any:
+        evt = dict(action[event_key])
         if not isinstance(evt.get("name"), str) or not evt.get("name"):
             self._emit_invalid_action_error(
                 "Action event is missing required string 'name'."
@@ -940,10 +967,10 @@ class DataContext:
         keys = list(context) if isinstance(context, dict) else []
         has_user_message = evt.get("userMessage") is not None
         items = [context[k] for k in keys] if isinstance(context, dict) else []
-        labels = [f"event.context.{k}" for k in keys]
+        labels = [f"{event_key}.context.{k}" for k in keys]
         if has_user_message:
             items.append(evt["userMessage"])
-            labels.append("event.userMessage")
+            labels.append(f"{event_key}.userMessage")
         values = self._resolve_action_values(items, labels)
         if values is None:
             return None
@@ -959,7 +986,7 @@ class DataContext:
                 )
                 return None
             evt["userMessage"] = resolved_um
-        return {**action, "event": evt}
+        return {**action, event_key: evt}
 
     def _resolve_function_call_action(
         self, action: dict[str, Any], fc: dict[str, Any], is_user_activated: bool
@@ -1010,6 +1037,10 @@ class DataContext:
         self._user_activated = is_user_activated
         self._is_action_execution = True
         try:
+            if self.at_least_v10 and isinstance(action.get("@action"), dict):
+                return self._resolve_event_action(action, event_key="@action")
+
+            # TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
             if isinstance(action.get("event"), dict):
                 return self._resolve_event_action(action)
 
@@ -1032,6 +1063,14 @@ class DataContext:
                     resolved["userMessage"] = values[-1]
                 return resolved
 
+            if self.at_least_v10 and "@functionCall" in action:
+                if isinstance(action.get("@functionCall"), dict):
+                    return self._resolve_function_call_action(
+                        action, action["@functionCall"], is_user_activated
+                    )
+                return self.resolve_dynamic_value(action["@functionCall"])
+
+            # TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
             if isinstance(action.get("functionCall"), dict):
                 return self._resolve_function_call_action(
                     action, action["functionCall"], is_user_activated
@@ -1088,7 +1127,11 @@ class DataContext:
         paths: set[str] = set()
 
         def _extract_paths(val: Any) -> None:
-            if isinstance(val, dict) and "componentId" not in val:
+            if (
+                isinstance(val, dict)
+                and "componentId" not in val
+                and "@child" not in val
+            ):
                 has_path = (
                     ("@path" in val and isinstance(val["@path"], str))
                     if self.at_least_v10

@@ -51,6 +51,7 @@ from ..catalog import (
     CatalogApi,
     get_custom_envelope_properties,
     get_declared_component_properties,
+    get_declared_properties_at_path,
     is_component_checkable,
     is_system_function_name,
 )
@@ -979,6 +980,9 @@ class MessageProcessor:
                 properties = {
                     k: v for k, v in comp_dict.items() if k not in ("id", "component")
                 }
+                self._reject_pre_v10_at_directives(
+                    comp_catalog, c_id, c_type, comp_idx, properties, surface_id
+                )
             else:
                 has_at_cat = "@catalogId" in comp_dict
                 has_bare_cat = "catalogId" in comp_dict
@@ -1217,6 +1221,74 @@ class MessageProcessor:
             else:
                 surface.components_model.add_component(new_comp)
         surface.components_model.components_update_applied(new_component_models)
+
+    @staticmethod
+    def _reject_pre_v10_at_directives(
+        catalog: Any,
+        comp_id: str,
+        comp_type: str,
+        comp_idx: int,
+        properties: dict[str, Any],
+        surface_id: str,
+    ) -> None:
+        """Rejects undeclared v1.0 `@child`, `@action`, and `@functionCall` keys on pre-1.0."""
+
+        def _walk(
+            val: Any,
+            dot_path: str,
+            ptr_path: str,
+            segments: tuple[str | int, ...],
+        ) -> None:
+            if isinstance(val, dict):
+                if any(d in val for d in ("@child", "@action", "@functionCall")):
+                    declared = get_declared_properties_at_path(
+                        catalog, comp_type, segments
+                    )
+                    for directive in ("@child", "@action", "@functionCall"):
+                        if directive in val and directive not in declared:
+                            err_dot = f"{dot_path}.{directive}"
+                            err_ptr = f"{ptr_path}/{directive}"
+                            msg = (
+                                f"Directive '{directive}' on component"
+                                f" '{comp_id}' is not supported before v1.0."
+                            )
+                            raise A2uiValidationError(
+                                msg,
+                                details=[
+                                    A2uiErrorDetail(
+                                        path=err_dot,
+                                        code="extra_field",
+                                        message=msg,
+                                        surface_id=surface_id,
+                                    )
+                                ],
+                                path=err_ptr,
+                                surface_id=surface_id,
+                            )
+                for k, v in val.items():
+                    if isinstance(k, str):
+                        esc = k.replace("~", "~0").replace("/", "~1")
+                        _walk(
+                            v,
+                            f"{dot_path}.{k}",
+                            f"{ptr_path}/{esc}",
+                            (*segments, k),
+                        )
+            elif isinstance(val, list):
+                for idx, item in enumerate(val):
+                    _walk(
+                        item,
+                        f"{dot_path}.{idx}",
+                        f"{ptr_path}/{idx}",
+                        (*segments, idx),
+                    )
+
+        _walk(
+            properties,
+            f"components.{comp_id}",
+            f"/components/{comp_idx}",
+            (),
+        )
 
     def _validate_nested_function_calls(
         self, surface: SurfaceModel, components: list[ComponentModel]

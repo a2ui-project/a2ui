@@ -600,4 +600,100 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
     );
     expect(container.querySelector('a2ui-basic-text')).toBeNull();
   });
+
+  it('renders v1.0 surfaces with @child, @action, and @functionCall directives', async () => {
+    const fnCalls: unknown[] = [];
+    const customCat = new Catalog(
+      V1_0_CATALOG_ID,
+      '1.0',
+      Array.from(basicCatalog.components.values()),
+      [
+        ...Array.from(basicCatalog.functions.values()),
+        {
+          name: 'customPing',
+          returnType: 'string',
+          schema: z.object({msg: z.string()}),
+          execute: (args: Record<string, unknown>) => {
+            fnCalls.push(args);
+            return String(args.msg);
+          },
+        } as any,
+      ],
+    );
+    const processor = new MessageProcessor([customCat]);
+    const dispatchedActions: Array<{name: string; context: Record<string, unknown>}> = [];
+    processor.processMessages([
+      {
+        version: '1.0',
+        createSurface: {surfaceId: 'directives-surface', catalogId: V1_0_CATALOG_ID},
+      },
+      {
+        version: '1.0',
+        updateDataModel: {surfaceId: 'directives-surface', path: '/items', value: [{name: 'RowA'}]},
+      },
+      {
+        version: '1.0',
+        updateComponents: {
+          surfaceId: 'directives-surface',
+          components: [
+            {
+              id: 'root',
+              component: 'Column',
+              children: {'@child': ['btn_ev', 'btn_fn', 'list_box']},
+            },
+            {
+              id: 'btn_ev',
+              component: 'Button',
+              child: {'@child': 'btn_ev_label'},
+              action: {'@action': {name: 'submit', context: {ok: true}}},
+            },
+            {id: 'btn_ev_label', component: 'Text', text: 'Submit'},
+            {
+              id: 'btn_fn',
+              component: 'Button',
+              child: {'@child': 'btn_fn_label'},
+              action: {'@functionCall': {'@call': 'customPing', args: {msg: 'hello'}}},
+            },
+            {id: 'btn_fn_label', component: 'Text', text: 'Ping'},
+            {
+              id: 'list_box',
+              component: 'List',
+              children: {'@child': 'row_tpl', '@path': '/items'},
+            },
+            {id: 'row_tpl', component: 'Text', text: {'@path': 'name'}},
+          ],
+        },
+      },
+    ]);
+
+    const surface = processor.model.getSurface('directives-surface')!;
+    surface.onAction.subscribe(evt => {
+      dispatchedActions.push(evt);
+    });
+
+    const {container} = render(<A2uiSurface surface={surface} />);
+    await waitFor(() => {
+      expect(container.textContent).toContain('Submit');
+      expect(container.textContent).toContain('Ping');
+      expect(container.textContent).toContain('RowA');
+    });
+
+    const buttons = Array.from(container.querySelectorAll('button'));
+    expect(buttons.length).toBe(2);
+
+    await act(async () => {
+      buttons[1].click();
+      await Promise.resolve();
+    });
+    expect(fnCalls).toEqual([{msg: 'hello'}]);
+    expect(dispatchedActions.length).toBe(0);
+
+    await act(async () => {
+      buttons[0].click();
+      await Promise.resolve();
+    });
+    expect(dispatchedActions.length).toBe(1);
+    expect(dispatchedActions[0].name).toBe('submit');
+    expect(dispatchedActions[0].context).toEqual({ok: true});
+  });
 });

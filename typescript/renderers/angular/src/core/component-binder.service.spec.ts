@@ -614,5 +614,66 @@ describe('ComponentBinder', () => {
       binder.unbind(bound);
       expect(unsubscribedCount).toBeGreaterThan(0);
     });
+
+    it('dual-reads v1.0 @child, @action, @functionCall, and @path bindings in bind()', () => {
+      const {context, surface} = createComponentContext({
+        protocolVersion: '1.0',
+        properties: {
+          child: {'@child': 'single-child'},
+          children: {'@child': 'item-tpl', '@path': '/items'},
+          label: {'@path': '/heading'},
+          onSave: {'@action': {name: 'save', context: {v: {'@path': '/heading'}}}},
+          onOpen: {'@functionCall': {'@call': 'ping', args: {}}},
+        },
+        data: {
+          '/heading': 'Initial',
+          '/items': [{id: 1}, {id: 2}],
+        },
+      });
+
+      const bound = binder.bind(context);
+      expect(bound['child'].value()).toEqual({id: 'single-child', basePath: '/'});
+      expect(bound['children'].template).toEqual({id: 'item-tpl', path: '/items'});
+      expect(bound['children'].value()).toEqual([
+        {id: 'item-tpl', basePath: '/items/0'},
+        {id: 'item-tpl', basePath: '/items/1'},
+      ]);
+      expect(bound['label'].value()).toBe('Initial');
+      bound['label'].onUpdate('Updated');
+      expect(surface.dataModel.get('/heading')).toBe('Updated');
+      expect(bound['onSave'].value()).toEqual({
+        '@action': {name: 'save', context: {v: {'@path': '/heading'}}},
+      });
+      expect(bound['onOpen'].value()).toEqual({
+        '@functionCall': {'@call': 'ping', args: {}},
+      });
+
+      binder.unbind(bound);
+      surface.dispose();
+    });
+
+    it('does not treat @child, @action, or @functionCall as directives on pre-1.0 surfaces', () => {
+      const {context, surface} = createComponentContext({
+        protocolVersion: '0.9',
+        properties: {
+          slot: {'@child': 'single-child'},
+          children: {'@child': 'item-tpl', '@path': '/items'},
+          action: {'@action': {name: 'save'}},
+          fn: {'@functionCall': {'@call': 'ping', args: {}}},
+        },
+        data: {
+          '/items': [{id: 1}],
+        },
+      });
+
+      const bound = binder.bind(context);
+      expect(bound['slot'].value()).toEqual({'@child': 'single-child'});
+      expect(bound['children'].template).toBeUndefined();
+      expect(bound['action'].value()).toEqual({'@action': {name: 'save'}});
+      expect(bound['fn'].value()).toEqual({'@functionCall': {'@call': 'ping', args: {}}});
+
+      binder.unbind(bound);
+      surface.dispose();
+    });
   });
 });

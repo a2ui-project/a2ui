@@ -39,7 +39,7 @@ import {V09_CHILD_REF_OPTIONS} from '../v0_9/standard_defs.js';
 import type {Action as V1Action, CheckRule as V1CheckRule} from '../v1_0/schema/common-types.js';
 import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
 import {ComponentContext} from './component-context.js';
-import {MAX_DYNAMIC_VALUE_DEPTH} from './data-context.js';
+import {MAX_DYNAMIC_VALUE_DEPTH, unescapeObjectKey} from './data-context.js';
 import {resolveSignalKeepingPending} from './data-context-internal.js';
 import {
   type ChildRefAnalysisOptions,
@@ -49,8 +49,12 @@ import {
   extractRefFields,
   getUnionOptions,
   isSingleChildPropertySchema,
+  isSingleChildRefObject,
+  isStaticListChildRefObject,
   isTemplateRefObject,
   unwrapZodField,
+  usesAtDirectives,
+  withV10Directives,
 } from './ref-fields.js';
 
 /** The outcome of one check rule. */
@@ -153,7 +157,7 @@ function resolveChildRefOptions(
     return undefined;
   }
   if (isAtLeastVersion(protocolVersion, '1.0')) {
-    return V10_CHILD_REF_OPTIONS;
+    return withV10Directives(V10_CHILD_REF_OPTIONS);
   }
   if (isAtLeastVersion(protocolVersion, '0.9')) {
     return V09_CHILD_REF_OPTIONS;
@@ -375,15 +379,34 @@ function isCheckableField(type: z.ZodTypeAny, unwrapped?: UnwrappedZodField): bo
   });
 }
 
-function isActionOption(option: z.ZodTypeAny): boolean {
+function isAtDirectiveActionObject(
+  current: z.ZodTypeAny,
+  options?: ChildRefAnalysisOptions,
+): boolean {
+  if (!usesAtDirectives(options) || current?._def?.typeName !== 'ZodObject') {
+    return false;
+  }
+  const shape = (current as z.AnyZodObject).shape as Record<string, z.ZodTypeAny>;
+  const keys = Object.keys(shape);
+  return keys.length === 1 && (keys[0] === '@action' || keys[0] === '@functionCall');
+}
+
+function isActionOption(option: z.ZodTypeAny, options?: ChildRefAnalysisOptions): boolean {
   if (getRefDefName(option) === 'Action') return true;
+  const includeAt = usesAtDirectives(options);
   return somePipelineLeaf(option, current => {
     if (current?._def?.typeName !== 'ZodObject') return false;
-    // Like each branch of the spec's `Action`, an inline action object has
-    // `event` or `functionCall` as its only key.
+    // Like each branch of the spec's `Action`, an action object has
+    // `@action`, `@functionCall`, or legacy `event` / `functionCall` as its only key.
     const shape = (current as z.AnyZodObject).shape as Record<string, z.ZodTypeAny>;
     const keys = Object.keys(shape);
-    return keys.length === 1 && (keys[0] === 'event' || keys[0] === 'functionCall');
+    return (
+      keys.length === 1 &&
+      ((includeAt && (keys[0] === '@action' || keys[0] === '@functionCall')) ||
+        // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+        keys[0] === 'event' ||
+        keys[0] === 'functionCall')
+    );
   });
 }
 
@@ -392,16 +415,16 @@ function isDynamicOption(option: z.ZodTypeAny, options?: ChildRefAnalysisOptions
   if (refDef === 'DataBinding' || refDef === 'FunctionCall' || refDef.startsWith('Dynamic')) {
     return true;
   }
+  const includeAt = usesAtDirectives(options);
   return somePipelineLeaf(option, current => {
     if (current?._def?.typeName !== 'ZodObject') return false;
     const shape = (current as z.AnyZodObject).shape as Record<string, z.ZodTypeAny>;
     const hasComponentId =
-      isTemplateRefObject(current) ||
+      isTemplateRefObject(current, options) ||
       Object.values(shape).some(prop => isSingleChildField(prop, options));
     return (
-      (Object.hasOwn(shape, '@path') ||
+      ((includeAt && (Object.hasOwn(shape, '@path') || Object.hasOwn(shape, '@call'))) ||
         Object.hasOwn(shape, 'path') ||
-        Object.hasOwn(shape, '@call') ||
         Object.hasOwn(shape, 'call')) &&
       !hasComponentId
     );
@@ -417,7 +440,12 @@ function isChildListOption(option: z.ZodTypeAny, options?: ChildRefAnalysisOptio
   ) {
     return true;
   }
-  return somePipelineLeaf(option, current => isTemplateRefObject(current));
+  return somePipelineLeaf(
+    option,
+    current =>
+      isTemplateRefObject(current, options) ||
+      isStaticListChildRefObject(current, undefined, options),
+  );
 }
 
 function isArrayOption(option: z.ZodTypeAny): boolean {
@@ -504,7 +532,7 @@ function matchUnionBehavior(
   options?: ChildRefAnalysisOptions,
 ): BehaviorNode | undefined {
   const flatOptions = flattenUnionOptions(unionOptions);
-  if (flatOptions.some(isActionOption)) return {type: 'ACTION'};
+  if (flatOptions.some(opt => isActionOption(opt, options))) return {type: 'ACTION'};
   if (flatOptions.some(opt => isDynamicOption(opt, options))) {
     const dynamicOptions = flatOptions.filter(opt => isDynamicOption(opt, options));
     const literalOptions = flatOptions.filter(opt => !isDynamicOption(opt, options));
@@ -1016,8 +1044,18 @@ function getFieldBehavior(
 
   // Recursive object scraping
   if (typeName === 'ZodObject') {
-    if (!inArray && isTemplateRefObject(current)) {
+    if (isAtDirectiveActionObject(current, options)) {
+      return {type: 'ACTION'};
+    }
+    if (
+      !inArray &&
+      (isTemplateRefObject(current, options) ||
+        isStaticListChildRefObject(current, undefined, options))
+    ) {
       return {type: 'STRUCTURAL'};
+    }
+    if (isSingleChildRefObject(current, undefined, options)) {
+      return CHILD_REF_STATIC_NODE;
     }
     const rawShape = (current as z.AnyZodObject).shape as Record<string, z.ZodTypeAny>;
     const rawCatchall = (current._def as {catchall?: z.ZodTypeAny})['catchall'];
@@ -1047,6 +1085,8 @@ type ActionLike =
   // The v1.0 `FunctionCall` schema infers as `any`, so its action variant is
   // `{functionCall?: any}` and needs its own entry.
   | V1Action
+  | {'@action': {name: string; userMessage?: unknown; context?: Record<string, unknown>}}
+  | {'@functionCall': Record<string, unknown>}
   | {event: {name: string; context?: Record<string, unknown>}}
   | {functionCall: {call: string; catalogId?: string; args?: Record<string, unknown>}}
   | {functionCall: {'@call': string; catalogId?: string; args?: Record<string, unknown>}};
@@ -1074,16 +1114,35 @@ type IsDynamic<T> = ({path: string} extends NonNullable<T> ? true : false) exten
             ? true
             : false;
 
+/** Evaluates to true if type T is a v1.0 `@child` single-child directive wrapper. */
+type IsSingleChild<T> =
+  HasStringIndex<NonNullable<T>> extends true
+    ? false
+    : [NonNullable<T>] extends [{'@child': string}]
+      ? {'@child': string} extends NonNullable<T>
+        ? true
+        : false
+      : false;
+
 /**
  * Evaluates to true if type T is a child list, which can be a template as well as a list of
  * component ids. A plain list of strings is not one: the binder resolves only properties
  * declared as child lists.
  */
+type ChildListLike = ChildList | {'@child': string[]} | {'@child': string; '@path': string};
+
 type IsChildList<T> = [NonNullable<T>] extends [ChildList]
   ? Extract<ChildList, {componentId: string}> extends NonNullable<T>
     ? true
     : false
-  : false;
+  : [NonNullable<T>] extends [ChildListLike]
+    ? Extract<
+        NonNullable<T>,
+        {componentId: string} | {'@child': string; '@path': string}
+      > extends never
+      ? false
+      : true
+    : false;
 
 /**
  * Resolved reference to a child component with its unique identifier and data context path.
@@ -1108,11 +1167,13 @@ export type ResolveA2uiProp<T> = [NonNullable<T>] extends [ActionLike]
     : ((options?: ActionDispatchOptions) => Promise<void>) | Extract<T, undefined>
   : IsChildList<T> extends true
     ? (string | ResolvedChildRef)[] | Extract<T, undefined>
-    : Exclude<T, DynamicTypes> extends never
-      ? unknown
-      : IsDynamic<T> extends true
-        ? Exclude<T, DynamicTypes>
-        : ResolveNested<T>;
+    : IsSingleChild<T> extends true
+      ? string | Extract<T, undefined>
+      : Exclude<T, DynamicTypes> extends never
+        ? unknown
+        : IsDynamic<T> extends true
+          ? Exclude<T, DynamicTypes>
+          : ResolveNested<T>;
 
 /**
  * Resolves the items of a list and the properties of an object, as the binder does.
@@ -1353,13 +1414,18 @@ export class GenericBinder<T> {
     if (typeof val !== 'object' || val === null) return val;
     if (depth > MAX_DYNAMIC_VALUE_DEPTH) return undefined;
 
-    if ('path' in val || 'call' in val || '@path' in val || '@call' in val) {
+    const atLeastV10 = this.context.dataContext.atLeastV10;
+    const isDynamicObj = atLeastV10
+      ? ('@path' in val && !('@child' in val)) || '@call' in val
+      : 'path' in val || 'call' in val;
+    if (isDynamicObj) {
       return this.context.dataContext.resolveDynamicValue(val, depth);
     }
     if (Array.isArray(val)) return val.map(item => this.resolveDeepSync(item, depth + 1));
     const res: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(val)) {
-      res[k] = this.resolveDeepSync(v, depth + 1);
+      const outKey = atLeastV10 ? unescapeObjectKey(k) : k;
+      res[outKey] = this.resolveDeepSync(v, depth + 1);
     }
     return res;
   }
@@ -1379,10 +1445,14 @@ export class GenericBinder<T> {
         return;
       }
       const valObj = value as Record<string, unknown>;
+      const atLeastV10 = this.context.dataContext.atLeastV10;
       const isFunctionCall =
+        (atLeastV10 &&
+          Boolean(valObj['@functionCall'] && typeof valObj['@functionCall'] === 'object')) ||
+        // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
         Boolean(valObj.functionCall && typeof valObj.functionCall === 'object') ||
         'call' in valObj ||
-        '@call' in valObj;
+        (atLeastV10 && '@call' in valObj);
       if (isFunctionCall) {
         await this.context.dataContext.resolveAction(value as Action | Record<string, unknown>, {
           userActivation: true,
@@ -1425,16 +1495,40 @@ export class GenericBinder<T> {
     value: unknown,
     path: string[],
     isSync: boolean,
-  ): ResolvedChildRef[] | unknown {
+  ): string | string[] | ResolvedChildRef[] | unknown {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
       return value;
     }
 
+    const atLeastV10 = this.context.dataContext.atLeastV10;
     const templateObj = value as Record<string, unknown>;
+    if (atLeastV10 && Object.hasOwn(templateObj, '@child')) {
+      const childVal = templateObj['@child'];
+      const pathVal = templateObj['@path'];
+      if (typeof childVal === 'string' && typeof pathVal === 'string') {
+        const bound = this.context.dataContext.subscribeDynamicValue({'@path': pathVal}, newVal => {
+          const resolvedChildren = this.mapTemplateChildren(newVal, childVal, pathVal);
+          this.updateDeepValue(path, resolvedChildren);
+          this.notify();
+        });
+        if (!isSync) {
+          this.dataListeners.push(() => bound.unsubscribe());
+        } else {
+          bound.unsubscribe();
+        }
+        return this.mapTemplateChildren(bound.value, childVal, pathVal);
+      }
+      if (typeof childVal === 'string' || Array.isArray(childVal)) {
+        return childVal;
+      }
+      return value;
+    }
+
+    // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
     const templatePath =
       typeof templateObj.path === 'string'
         ? templateObj.path
-        : typeof templateObj['@path'] === 'string'
+        : atLeastV10 && typeof templateObj['@path'] === 'string'
           ? templateObj['@path']
           : undefined;
     const templateComponentId =
@@ -1444,11 +1538,6 @@ export class GenericBinder<T> {
       return value;
     }
 
-    const atLeastV10 = isAtLeastVersion(
-      this.context.dataContext.surface?.protocolVersion ??
-        this.context.dataContext.surface?.defaultCatalog?.protocolVersion,
-      '1.0',
-    );
     const binding = atLeastV10 ? {'@path': templatePath} : {path: templatePath};
     const bound = this.context.dataContext.subscribeDynamicValue(binding, newVal => {
       const resolvedChildren = this.mapTemplateChildren(newVal, templateComponentId, templatePath);
@@ -1693,11 +1782,42 @@ export class GenericBinder<T> {
     const pathVal = rawObj[bindingKey];
     if (
       typeof pathVal === 'string' &&
+      !Object.hasOwn(rawObj, '@child') &&
       (this.context.dataContext.atLeastV10 || !Object.hasOwn(rawObj, 'componentId'))
     ) {
       return pathVal;
     }
     return undefined;
+  }
+
+  private resolveV10StaticValue(value: unknown, path: string[], isSync: boolean): unknown {
+    if (value === null || typeof value !== 'object') {
+      return value;
+    }
+    if (Array.isArray(value)) {
+      return value.map((item, idx) =>
+        this.resolveV10StaticValue(item, [...path, idx.toString()], isSync),
+      );
+    }
+    const rec = value as Record<string, unknown>;
+    if (Object.hasOwn(rec, '@child')) {
+      return this.bindStructuralTemplate(rec, path, isSync);
+    }
+    if (Object.hasOwn(rec, '@action') || Object.hasOwn(rec, '@functionCall')) {
+      return this.bindAction(rec, path);
+    }
+    if (
+      (Object.hasOwn(rec, '@path') && typeof rec['@path'] === 'string') ||
+      (Object.hasOwn(rec, '@call') && typeof rec['@call'] === 'string')
+    ) {
+      return this.bindDynamicValue(rec, path, isSync);
+    }
+    const out: Record<string, unknown> = {};
+    for (const [rawKey, v] of Object.entries(rec)) {
+      const outKey = unescapeObjectKey(rawKey);
+      out[outKey] = this.resolveV10StaticValue(v, [...path, outKey], isSync);
+    }
+    return out;
   }
 
   private bindObject(
@@ -1708,11 +1828,13 @@ export class GenericBinder<T> {
     catchall?: BehaviorNode,
   ): Record<string, unknown> {
     const result: Record<string, unknown> = {};
+    const atLeastV10 = this.context.dataContext.atLeastV10;
 
     // 1. Resolve all provided properties
     for (const [k, v] of Object.entries(valObj)) {
+      const outKey = atLeastV10 ? unescapeObjectKey(k) : k;
       const childBehavior = Object.hasOwn(shape, k) ? shape[k] : (catchall ?? {type: 'STATIC'});
-      result[k] = this.resolveAndBind(v, childBehavior, [...path, k], isSync, result);
+      result[outKey] = this.resolveAndBind(v, childBehavior, [...path, outKey], isSync, result);
     }
 
     // 2. Ensure all dynamic setters exist, even if the property wasn't provided in the payload
@@ -1778,12 +1900,17 @@ export class GenericBinder<T> {
         return this.bindCheckable(value, path, isSync, parentTarget);
 
       case 'STATIC':
-        return value;
+        return this.context.dataContext.atLeastV10
+          ? this.resolveV10StaticValue(value, path, isSync)
+          : value;
 
       case 'ARRAY':
         if (!Array.isArray(value)) {
-          return behavior.templateFallback
-            ? this.bindStructuralTemplate(value, path, isSync)
+          if (behavior.templateFallback) {
+            return this.bindStructuralTemplate(value, path, isSync);
+          }
+          return this.context.dataContext.atLeastV10
+            ? this.resolveV10StaticValue(value, path, isSync)
             : value;
         }
         return value.map((item, index) =>
@@ -1792,6 +1919,18 @@ export class GenericBinder<T> {
 
       case 'OBJECT':
         if (typeof value !== 'object' || Array.isArray(value)) return value;
+        if (this.context.dataContext.atLeastV10) {
+          const objVal = value as Record<string, unknown>;
+          if (
+            Object.hasOwn(objVal, '@child') ||
+            Object.hasOwn(objVal, '@action') ||
+            Object.hasOwn(objVal, '@functionCall') ||
+            (Object.hasOwn(objVal, '@path') && typeof objVal['@path'] === 'string') ||
+            (Object.hasOwn(objVal, '@call') && typeof objVal['@call'] === 'string')
+          ) {
+            return this.resolveV10StaticValue(objVal, path, isSync);
+          }
+        }
         return this.bindObject(
           value as Record<string, unknown>,
           behavior.shape,

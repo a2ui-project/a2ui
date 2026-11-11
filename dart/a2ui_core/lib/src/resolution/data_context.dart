@@ -255,7 +255,7 @@ class DataContext {
   bool isDataBinding(Object? value) {
     if (value is! Map) return false;
     return atLeastV10
-        ? value['@path'] is String
+        ? value['@path'] is String && !value.containsKey('@child')
         : value['path'] is String && !value.containsKey('componentId');
   }
 
@@ -400,6 +400,9 @@ class DataContext {
       return keepFailed ? _failedArg : null;
     }
     if (atLeastV10) {
+      if (value is Map) {
+        _validateReservedDirectives(value.keys);
+      }
       if (value is Map && value.containsKey('@path')) {
         final binding = DataBinding.fromJson(_asStringKeyedMap(value));
         return _readBinding(resolvePath(binding.path));
@@ -529,6 +532,9 @@ class DataContext {
       return signal(keepFailed ? _failedArg : null);
     }
     if (atLeastV10) {
+      if (value is Map) {
+        _validateReservedDirectives(value.keys);
+      }
       if (value is Map && value.containsKey('@path')) {
         final binding = DataBinding.fromJson(_asStringKeyedMap(value));
         return _watchBinding(resolvePath(binding.path));
@@ -1321,6 +1327,9 @@ class DataContext {
       return keepFailed ? _failedArg : null;
     }
     if (atLeastV10) {
+      if (value is Map) {
+        _validateReservedDirectives(value.keys);
+      }
       if (value is Map && value.containsKey('@path')) {
         final binding = DataBinding.fromJson(_asStringKeyedMap(value));
         return _readBinding(resolvePath(binding.path));
@@ -1661,7 +1670,10 @@ class DataContext {
     }
     if (action is! Map) return null;
     final map = Map<String, dynamic>.from(action);
-    final Object? eventObj = map['event'];
+    final bool usesAtAction = atLeastV10 && map['@action'] is Map;
+    // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+    final Object? eventObj = usesAtAction ? map['@action'] : map['event'];
+    final envelopeKey = usesAtAction ? '@action' : 'event';
     if (eventObj is Map) {
       final Object? name = eventObj['name'];
       if (name is! String || name.isEmpty) return null;
@@ -1672,11 +1684,11 @@ class DataContext {
       if (ev is Future<Map<String, dynamic>?>) {
         return ev.then((resolvedEv) {
           if (resolvedEv == null) return null;
-          return {...map, 'event': resolvedEv};
+          return {...map, envelopeKey: resolvedEv};
         });
       }
       if (ev == null) return null;
-      return {...map, 'event': ev};
+      return {...map, envelopeKey: ev};
     }
     if (map.containsKey('name')) {
       final Object? name = map['name'];
@@ -1696,7 +1708,12 @@ class DataContext {
     final result = Map<String, dynamic>.from(map);
     final Object? ctx = result['context'];
     final List<String> contextKeys = ctx is Map
-        ? [for (final Object? key in ctx.keys) key.toString()]
+        ? [
+            for (final Object? key in ctx.keys)
+              atLeastV10 && key.toString().startsWith('@@')
+                  ? key.toString().substring(1)
+                  : key.toString(),
+          ]
         : const <String>[];
     final bool hasUserMessage = result.containsKey('userMessage');
     Map<String, dynamic>? finish(List<Object?> values) {
@@ -1743,7 +1760,10 @@ class DataContext {
     }
     if (action is! Map) return null;
     final map = Map<String, dynamic>.from(action);
-    final Object? eventObj = map['event'];
+    final bool usesAtAction = atLeastV10 && map['@action'] is Map;
+    // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+    final Object? eventObj = usesAtAction ? map['@action'] : map['event'];
+    final envelopeKey = usesAtAction ? '@action' : 'event';
     if (eventObj is Map) {
       final Object? name = eventObj['name'];
       if (name is! String || name.isEmpty) return null;
@@ -1751,7 +1771,7 @@ class DataContext {
         Map<String, dynamic>.from(eventObj),
       );
       if (ev == null) return null;
-      return {...map, 'event': ev};
+      return {...map, envelopeKey: ev};
     }
     if (map.containsKey('name')) {
       final Object? name = map['name'];
@@ -1767,7 +1787,9 @@ class DataContext {
     if (ctx is Map) {
       result['context'] = <String, Object?>{
         for (final MapEntry<Object?, Object?> e in ctx.entries)
-          e.key.toString(): resolveDynamicValue(e.value),
+          (atLeastV10 && e.key.toString().startsWith('@@')
+              ? e.key.toString().substring(1)
+              : e.key.toString()): resolveDynamicValue(e.value),
       };
     } else {
       result['context'] = <String, Object?>{};

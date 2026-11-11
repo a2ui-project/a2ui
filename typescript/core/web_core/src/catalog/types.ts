@@ -27,6 +27,7 @@ import {findFailedArgument, isThenable, settleDeep} from '../common/settle_deep.
 import {assertUax31Identifier} from '../common/uax31.js';
 import {SpecVersion} from '../spec_versions.js';
 import {AgentFunction, bindAgentFunctionDefs, isAgentFunction} from './agent_function.js';
+import {withV10Directives} from '../resolution/ref-fields.js';
 import {getDeclaredSchemaKeys, isZodSchema, parseCatalogSchema} from './schema_loader.js';
 import type {JsonSchemaObject} from './spec_annotations.js';
 import {generateValidationSchema} from './schema_generator.js';
@@ -813,7 +814,7 @@ export class Catalog<
   get componentRefMap(): ComponentRefMap {
     if (!this._componentRefMap) {
       const options = isAtLeastVersion(this.protocolVersion, '1.0')
-        ? V10_CHILD_REF_OPTIONS
+        ? withV10Directives(V10_CHILD_REF_OPTIONS)
         : isAtLeastVersion(this.protocolVersion, '0.9')
           ? V09_CHILD_REF_OPTIONS
           : V08_CHILD_REF_OPTIONS;

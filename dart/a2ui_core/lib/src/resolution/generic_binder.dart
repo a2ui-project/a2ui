@@ -115,6 +115,7 @@ class GenericBinder {
       schema.value,
       document: catalog.validationSchema,
       commonTypes: catalog.commonTypesSchema,
+      atLeastV10: context.dataContext.atLeastV10,
     );
     _behaviorTree = _withEnvelopeMixins(
       _scrapeSchemaBehavior(schema.value),
@@ -245,13 +246,19 @@ class GenericBinder {
           return cached.closure;
         }
         Future<void> closure([ActionDispatchOptions? options]) async {
-          // The v0.9.1 and v1.0 `Action` schemas define only the
-          // `{functionCall: {call, args}}` and `{event: {name, ...}}` forms.
+          // The v0.9.1 and v1.0 `Action` schemas define the
+          // `{'@functionCall': {'@call', 'args'}}` / `{'@action': {'name', ...}}`
+          // and legacy `{'functionCall': ...}` / `{'event': ...}` forms.
           // The unwrapped `{call, args}` and `{name, ...}` forms are also
           // accepted on purpose, to match the TypeScript web_core binder.
           if (value is Map) {
-            final Object? fc =
-                value['functionCall'] is Map ? value['functionCall'] : value;
+            final bool atLeastV10 = context.dataContext.atLeastV10;
+            // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+            final Object? fc = (atLeastV10 && value['@functionCall'] is Map)
+                ? value['@functionCall']
+                : (value['functionCall'] is Map
+                    ? value['functionCall']
+                    : value);
             if (context.dataContext.isFunctionCall(fc)) {
               await _runLocalFunction(Map<String, dynamic>.from(fc as Map));
               return;
@@ -288,47 +295,7 @@ class GenericBinder {
         return closure;
 
       case Behavior.structural:
-        if (value is Map &&
-            value['path'] is String &&
-            value['componentId'] is String &&
-            value.keys.every((k) => k is String)) {
-          final tpl = ChildListTemplate.fromJson(
-            Map<String, dynamic>.from(value),
-          );
-          final ReadonlySignal<Object?> sig = context.dataContext.resolveSignal(
-            context.dataContext.bindingFor(tpl.path),
-          );
-
-          List<ChildNode> resolveChildren(Object? val) {
-            final List<Object?> list = val is List ? val.cast<Object?>() : [];
-            final DataContext nestedCtx = context.dataContext.nested(tpl.path);
-            final int count = list.length > maxDynamicChildListSize
-                ? maxDynamicChildListSize
-                : list.length;
-            return List.generate(
-              count,
-              (i) => ChildNode(
-                tpl.componentId,
-                nestedCtx.resolvePath(i.toString()),
-                index: i,
-              ),
-            );
-          }
-
-          final Object? current = isSync
-              ? sig.value
-              : _subscribe(sig, (newValue) {
-                  _updateDeepValue(path, resolveChildren(newValue));
-                });
-          return _disposed ? null : resolveChildren(current);
-        }
-        if (value is List) {
-          return value
-              .take(maxDynamicChildListSize)
-              .map((id) => ChildNode(id.toString(), context.dataContext.path))
-              .toList();
-        }
-        return value;
+        return _resolveStructural(value, path, isSync);
 
       case Behavior.checkable:
         // A non-list value is treated as no rules, as in web_core and the
@@ -438,6 +405,10 @@ class GenericBinder {
 
       case Behavior.object:
         if (value is! Map) return value;
+        final bool atLeastV10 = context.dataContext.atLeastV10;
+        if (atLeastV10 && path.isNotEmpty && _isV10DirectiveMap(value)) {
+          return _resolveV10DirectiveMap(value, path, isSync);
+        }
         final result = <String, dynamic>{};
         final Map<String, BehaviorNode> shape = behavior.shape ?? {};
 
@@ -445,17 +416,19 @@ class GenericBinder {
           final Object? rawKey = entry.key;
           if (rawKey is! String) continue;
           final String key = rawKey;
+          final String outKey =
+              atLeastV10 && key.startsWith('@@') ? key.substring(1) : key;
           final BehaviorNode childBehavior =
               shape[key] ?? BehaviorNode(Behavior.static);
           final Object? resolvedChild = _resolveAndBind(
             entry.value,
             childBehavior,
-            [...path, key],
+            [...path, outKey],
             isSync,
             parentResult: result,
           );
           if (childBehavior.type != Behavior.checkable) {
-            result[key] = resolvedChild;
+            result[outKey] = resolvedChild;
           }
         }
 
@@ -490,8 +463,162 @@ class GenericBinder {
             .toList();
 
       case Behavior.static:
+        if (!context.dataContext.atLeastV10 ||
+            !_containsV10DirectiveOrEscape(value)) {
+          return value;
+        }
+        if (value is Map) {
+          if (_isV10DirectiveMap(value)) {
+            return _resolveV10DirectiveMap(value, path, isSync);
+          }
+          final result = <String, dynamic>{};
+          for (final MapEntry<Object?, Object?> entry in value.entries) {
+            final Object? rawKey = entry.key;
+            if (rawKey is! String) continue;
+            final String outKey =
+                rawKey.startsWith('@@') ? rawKey.substring(1) : rawKey;
+            result[outKey] = _resolveAndBind(
+              entry.value,
+              BehaviorNode(Behavior.static),
+              [...path, outKey],
+              isSync,
+            );
+          }
+          return result;
+        }
+        if (value is List) {
+          return [
+            for (var i = 0; i < value.length; i++)
+              _resolveAndBind(
+                value[i],
+                BehaviorNode(Behavior.static),
+                [...path, i.toString()],
+                isSync,
+              ),
+          ];
+        }
         return value;
     }
+  }
+
+  Object? _resolveStructural(
+    Object? value,
+    List<String> path,
+    bool isSync,
+  ) {
+    final bool atLeastV10 = context.dataContext.atLeastV10;
+    if (atLeastV10 && value is Map && value.containsKey('@child')) {
+      final Object? childVal = value['@child'];
+      if (value['@path'] case final String tplPath
+          when childVal is String && value.length == 2) {
+        return _expandTemplateList(childVal, tplPath, path, isSync);
+      }
+      if (value.length == 1) {
+        if (childVal is String) return childVal;
+        if (childVal is List) {
+          return childVal
+              .take(maxDynamicChildListSize)
+              .map((id) => ChildNode(id.toString(), context.dataContext.path))
+              .toList();
+        }
+      }
+    }
+    // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+    if (value is Map &&
+        value['path'] is String &&
+        value['componentId'] is String &&
+        value.keys.every((k) => k is String)) {
+      final tpl = ChildListTemplate.fromJson(
+        Map<String, dynamic>.from(value),
+      );
+      return _expandTemplateList(tpl.componentId, tpl.path, path, isSync);
+    }
+    if (value is List) {
+      return value
+          .take(maxDynamicChildListSize)
+          .map((id) => ChildNode(id.toString(), context.dataContext.path))
+          .toList();
+    }
+    return value;
+  }
+
+  Object? _expandTemplateList(
+    String componentId,
+    String tplPath,
+    List<String> path,
+    bool isSync,
+  ) {
+    final ReadonlySignal<Object?> sig = context.dataContext.resolveSignal(
+      context.dataContext.bindingFor(tplPath),
+    );
+
+    List<ChildNode> resolveChildren(Object? val) {
+      final List<Object?> list = val is List ? val.cast<Object?>() : [];
+      final DataContext nestedCtx = context.dataContext.nested(tplPath);
+      final int count = list.length > maxDynamicChildListSize
+          ? maxDynamicChildListSize
+          : list.length;
+      return List.generate(
+        count,
+        (i) => ChildNode(
+          componentId,
+          nestedCtx.resolvePath(i.toString()),
+          index: i,
+        ),
+      );
+    }
+
+    final Object? current = isSync
+        ? sig.value
+        : _subscribe(sig, (newValue) {
+            _updateDeepValue(path, resolveChildren(newValue));
+          });
+    return _disposed ? null : resolveChildren(current);
+  }
+
+  static bool _isV10DirectiveMap(Map<Object?, Object?> value) =>
+      value.containsKey('@child') ||
+      value.containsKey('@action') ||
+      value.containsKey('@functionCall') ||
+      value.containsKey('@path') ||
+      value.containsKey('@call');
+
+  static bool _containsV10DirectiveOrEscape(Object? value) {
+    if (value is List) {
+      return value.any(_containsV10DirectiveOrEscape);
+    }
+    if (value is Map) {
+      for (final MapEntry<Object?, Object?> entry in value.entries) {
+        final Object? key = entry.key;
+        if (key is String && key.startsWith('@')) return true;
+        if (_containsV10DirectiveOrEscape(entry.value)) return true;
+      }
+    }
+    return false;
+  }
+
+  Object? _resolveV10DirectiveMap(
+    Map<Object?, Object?> value,
+    List<String> path,
+    bool isSync,
+  ) {
+    if (value.containsKey('@child')) {
+      return _resolveStructural(value, path, isSync);
+    }
+    if (value.containsKey('@action') || value.containsKey('@functionCall')) {
+      return _resolveAndBind(
+        value,
+        BehaviorNode(Behavior.action),
+        path,
+        isSync,
+      );
+    }
+    return _resolveAndBind(
+      value,
+      BehaviorNode(Behavior.dynamic),
+      path,
+      isSync,
+    );
   }
 
   void _updateDeepValue(List<String> path, Object? newValue) {
@@ -555,7 +682,7 @@ class GenericBinder {
     final List<Map<String, Object?>> schemasToInspect = _schemaReader.schemas(
       schema,
     );
-    if (_schemaReader.referenceKind(schemasToInspect) is ListRef) {
+    if (_schemaReader.referenceKind(schemasToInspect) != null) {
       return BehaviorNode(Behavior.structural);
     }
     // A recursive local alias can point back through a property or array.
@@ -584,13 +711,15 @@ class GenericBinder {
       return BehaviorNode(Behavior.dynamic);
     }
 
+    final bool atLeastV10 = context.dataContext.atLeastV10;
+
     // A component's own schema, the only one scraped without ancestors, is
     // never an action.
-    if (ancestors != null && schemasToInspect.any(_isInlineAction)) {
+    if (ancestors != null &&
+        schemasToInspect
+            .any((s) => _isInlineAction(s, atLeastV10: atLeastV10))) {
       return BehaviorNode(Behavior.action);
     }
-
-    final bool atLeastV10 = context.dataContext.atLeastV10;
     bool hasPath = schemasToInspect.any(
       (s) =>
           s['properties'] != null &&
@@ -804,12 +933,17 @@ Object? _snapshotBindingValue(Object? value) {
   return value;
 }
 
-/// Whether [schema] declares `event` or `functionCall` as its only property,
-/// like each branch of the spec's `Action`.
-bool _isInlineAction(Map<String, Object?> schema) {
+/// Whether [schema] declares `@action`, `@functionCall`, `event`, or
+/// `functionCall` as its only property, like each branch of the spec's
+/// `Action`.
+bool _isInlineAction(Map<String, Object?> schema, {required bool atLeastV10}) {
   final Object? properties = schema['properties'];
   return properties is Map &&
       properties.length == 1 &&
-      (properties.containsKey('event') ||
+      ((atLeastV10 &&
+              (properties.containsKey('@action') ||
+                  properties.containsKey('@functionCall'))) ||
+          // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+          properties.containsKey('event') ||
           properties.containsKey('functionCall'));
 }

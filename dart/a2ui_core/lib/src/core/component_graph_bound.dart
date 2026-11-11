@@ -36,12 +36,13 @@ class ComponentGraphBound {
   /// [refFields].
   factory ComponentGraphBound.of(
     Map<String, (String, Map<String, Object?>)> graph,
-    Map<String, ComponentRefFields> refFields,
-  ) {
+    Map<String, ComponentRefFields> refFields, {
+    bool atLeastV10 = false,
+  }) {
     final bound = ComponentGraphBound._();
     for (final MapEntry(key: String id, value: (String type, source))
         in graph.entries) {
-      bound._setChildren(id, type, source, refFields);
+      bound._setChildren(id, type, source, refFields, atLeastV10: atLeastV10);
     }
     // Children before parents, which ends since the graph has no cycle. A
     // component waits on the stack until its children have their heights.
@@ -107,14 +108,18 @@ class ComponentGraphBound {
     String id,
     String type,
     Map<String, Object?> source,
-    Map<String, ComponentRefFields> refFields,
-  ) {
+    Map<String, ComponentRefFields> refFields, {
+    bool atLeastV10 = false,
+  }) {
     for (final String child in _children[id] ?? const <String>[]) {
       _parents[child]?.remove(id);
     }
     final children = <String>[];
-    for (final ComponentReference reference
-        in componentReferences(source, refFields[type])) {
+    for (final ComponentReference reference in componentReferences(
+      source,
+      refFields[type],
+      atLeastV10: atLeastV10,
+    )) {
       final String child = reference.id;
       children.add(child);
       (_parents[child] ??= <String>{}).add(id);
@@ -135,8 +140,9 @@ class ComponentGraphBound {
     Map<String, (String, Map<String, Object?>)> batch,
     Map<String, ComponentRefFields> refFields,
     int limit,
-    bool Function(String id) held,
-  ) {
+    bool Function(String id) held, {
+    bool atLeastV10 = false,
+  }) {
     if (_maxHeight > limit) return false;
     for (final MapEntry(key: String type, value: ComponentRefFields? fields)
         in _fields.entries) {
@@ -146,7 +152,7 @@ class ComponentGraphBound {
 
     for (final MapEntry(key: String id, value: (String type, source))
         in batch.entries) {
-      _setChildren(id, type, source, refFields);
+      _setChildren(id, type, source, refFields, atLeastV10: atLeastV10);
       if ((_children[id] ?? const <String>[]).contains(id)) return false;
     }
     // Raises the bound of each component above one whose bound rose, until

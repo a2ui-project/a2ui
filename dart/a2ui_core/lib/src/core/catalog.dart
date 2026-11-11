@@ -510,6 +510,7 @@ class Catalog<C extends ComponentApi, F extends FunctionApi> {
     },
     document: validationSchema,
     commonTypes: commonTypesSchema,
+    atLeastV10: protocolVersion?.isAtLeast(A2uiProtocolVersion.v1_0) ?? false,
   );
 
   /// Throws [A2uiCatalogError] when two components or two functions share a

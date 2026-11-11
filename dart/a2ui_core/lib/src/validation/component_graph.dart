@@ -76,6 +76,16 @@ String referencePointer(String field) => [
           '/${segment.replaceAll('~', '~0').replaceAll('/', '~1')}',
     ].join();
 
+String _cleanReferencePointer(String pointer) {
+  if (pointer.endsWith('/componentId')) {
+    return pointer.substring(0, pointer.length - '/componentId'.length);
+  }
+  if (pointer.endsWith('/@child')) {
+    return pointer.substring(0, pointer.length - '/@child'.length);
+  }
+  return pointer;
+}
+
 /// Checks every parent-child edge among [components] and [existing] against
 /// [rules].
 ///
@@ -101,6 +111,7 @@ void checkCompositionConstraints(
   Iterable<Map<String, Object?>> existing = const [],
   String rootId = _rootComponentId,
   String? surfaceId,
+  bool atLeastV10 = false,
 }) {
   if (rules.isEmpty) return;
   final types = <String, String>{
@@ -126,6 +137,7 @@ void checkCompositionConstraints(
       pointer: pointer,
       childPointerOf: (String id) => batchPointers[id],
       surfaceId: surfaceId,
+      atLeastV10: atLeastV10,
     )
         case final A2uiValidationError error) {
       throw error;
@@ -163,6 +175,7 @@ bool compositionHoldsAfter(
   required String? Function(String id) typeOf,
   required Iterable<String> Function(String id) parentsOf,
   String rootId = _rootComponentId,
+  bool atLeastV10 = false,
 }) {
   if (rules.isEmpty) return true;
   final ids = <String>{
@@ -176,6 +189,7 @@ bool compositionHoldsAfter(
       rules,
       typeOf,
       rootId: rootId,
+      atLeastV10: atLeastV10,
     );
     if (error != null) return false;
   }
@@ -212,6 +226,7 @@ A2uiValidationError? _componentViolation(
   String? pointer,
   String? Function(String id)? childPointerOf,
   String? surfaceId,
+  bool atLeastV10 = false,
 }) {
   final Object? id = component['id'];
   final Object? type = component['component'];
@@ -244,11 +259,14 @@ A2uiValidationError? _componentViolation(
   for (final ComponentReference reference in _referencesOf(
     component,
     refFields,
+    atLeastV10: atLeastV10,
   )) {
     final String? childType = typeOf(reference.id);
     if (childType == null) continue;
-    final String? edgePath =
-        pointer == null ? null : '$pointer${referencePointer(reference.field)}';
+    final String? edgePath = pointer == null
+        ? null
+        : '$pointer'
+            '${_cleanReferencePointer(referencePointer(reference.field))}';
     final String? childPath = childPointerOf?.call(reference.id);
     if (_edgeViolation(
       id,
@@ -698,9 +716,14 @@ bool _inferUsesDirectives(Object? data) {
 
 Iterable<ComponentReference> _referencesOf(
   Map<String, Object?> component,
-  Map<String, ComponentRefFields> refFields,
-) {
+  Map<String, ComponentRefFields> refFields, {
+  bool atLeastV10 = false,
+}) {
   final Object? type = component['component'];
   if (type is! String) return const <ComponentReference>[];
-  return componentReferences(component, refFields[type]);
+  return componentReferences(
+    component,
+    refFields[type],
+    atLeastV10: atLeastV10,
+  );
 }

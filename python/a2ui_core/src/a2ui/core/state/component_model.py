@@ -31,6 +31,7 @@ from ..catalog.reference_map import (
     ComponentRefSpec,
     analyze_child_ref_schema,
     extract_child_refs_from_val,
+    extract_v10_at_child_references,
     COMPONENT_ID_KEY,
     CHILD_KEY,
 )
@@ -309,12 +310,50 @@ class ComponentModel:
             return
 
         target_catalog = catalog if catalog is not None else self.catalog
+        proto_ver = getattr(target_catalog, "protocol_version", None)
+        at_least_v10 = bool(
+            proto_ver and is_at_least_version(proto_ver, ProtocolVersion.V1_0)
+        )
         ref_spec = (
             target_catalog.get_component_ref_spec(self.type)
             if target_catalog is not None
             and hasattr(target_catalog, "get_component_ref_spec")
             else None
         )
+
+        if at_least_v10:
+            seen_slots: set[tuple[str, str]] = set()
+
+            def _canonical_slot(p: str) -> str:
+                norm = p.replace("[", "/").replace("]", "").replace(".", "/")
+                return "/".join(seg for seg in norm.split("/") if seg)
+
+            for ref_id, slot_ptr in extract_v10_at_child_references(props):
+                canon = (ref_id, _canonical_slot(slot_ptr))
+                if canon not in seen_slots:
+                    seen_slots.add(canon)
+                    yield ref_id, slot_ptr
+
+            # TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+            if ref_spec is not None and (ref_spec.single_refs or ref_spec.list_refs):
+                for ref_id, prop_path in ref_spec.extract_child_references(props):
+                    canon = (ref_id, _canonical_slot(prop_path))
+                    if canon not in seen_slots:
+                        seen_slots.add(canon)
+                        yield ref_id, prop_path
+            else:
+                for key, value in props.items():
+                    if key in ("id", "component") or not isinstance(
+                        value, ComponentReference
+                    ):
+                        continue
+                    for ref_id, sub_path in extract_child_refs_from_val(value):
+                        full_path = f"{key}.{sub_path}" if sub_path else key
+                        canon = (ref_id, _canonical_slot(full_path))
+                        if canon not in seen_slots:
+                            seen_slots.add(canon)
+                            yield ref_id, full_path
+            return
 
         if ref_spec is not None and (ref_spec.single_refs or ref_spec.list_refs):
             yield from ref_spec.extract_child_references(props)
@@ -323,8 +362,8 @@ class ComponentModel:
         # Fallback for legacy v0.8 protocol support where catalog schemas don't define formal ComponentId/ChildList refs
         # From v0.9 a catalog declares every child with a $ref, so a component it
         # declares with no reference props has no children to infer.
-        infer_refs = ref_spec is None or not is_at_least_version(
-            target_catalog.protocol_version, ProtocolVersion.V0_9
+        infer_refs = ref_spec is None or not (
+            proto_ver and is_at_least_version(proto_ver, ProtocolVersion.V0_9)
         )
         for key, value in props.items():
             if key in ("id", "component"):

@@ -1294,8 +1294,11 @@ public final class MessageProcessor: ObservableObject {
       catalogs: surface.catalogs,
       defaultCatalogID: surface.defaultCatalogID
     )?.schema.jsonValue
-    return GraphTopologyValidator.extractReferences(from: component, schema: schema)
-      .map(\.referenceID)
+    return GraphTopologyValidator.extractReferences(
+      from: component,
+      schema: schema,
+      isAtLeastV10: surface.protocolVersion.isAtLeastV10
+    ).map(\.referenceID)
   }
 
   private func validateBatchComponent(

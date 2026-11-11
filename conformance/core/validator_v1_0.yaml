@@ -2604,3 +2604,618 @@
                     message: "Should fail"
       expectError:
         category: ValidationError
+
+# ------------------------------------------------------------------------------
+# v1.0 @child, @action, and @functionCall topology & composition validation (#2791)
+# ------------------------------------------------------------------------------
+
+- name: test_v10_topology_at_child_valid_tree_across_all_slot_forms
+  features: [F-CORE-11, F-CORE-12, F-CORE-13]
+  description: >-
+    Tests that v1.0 strict topology validation accepts reachable components across
+    @child single slots, static lists, dynamic templates, and nested Tabs.tabs[i].child
+    array-of-objects, alongside @action and @functionCall on Button.
+  action: validate
+  protocolVersion: "1.0"
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s_valid_at_child
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s_valid_at_child
+            components:
+              - id: root
+                component: Card
+                child:
+                  "@child": tabsComp
+              - id: tabsComp
+                component: Tabs
+                tabs:
+                  - title: "Actions"
+                    child:
+                      "@child": actionCol
+                  - title: "Items"
+                    child:
+                      "@child": itemList
+              - id: actionCol
+                component: Column
+                children:
+                  "@child": [saveBtn, openBtn]
+              - id: saveBtn
+                component: Button
+                child:
+                  "@child": saveLbl
+                action:
+                  "@action":
+                    name: "save"
+                    context:
+                      item:
+                        "@path": "/selected"
+              - id: saveLbl
+                component: Text
+                text: "Save"
+              - id: openBtn
+                component: Button
+                child:
+                  "@child": openLbl
+                action:
+                  "@functionCall":
+                    "@call": openUrl
+                    args:
+                      url: "https://a2ui.org"
+              - id: openLbl
+                component: Text
+                text: "Open"
+              - id: itemList
+                component: List
+                children:
+                  "@child": rowTpl
+                  "@path": "/items"
+              - id: rowTpl
+                component: Text
+                text:
+                  "@path": "name"
+
+- name: test_v10_topology_at_child_cycle_detection_error
+  features: [F-CORE-12]
+  description: >-
+    Tests that circular references across @child single, static list, dynamic
+    template, and nested Tabs.tabs[i].child slots fail validation in v1.0 strict mode.
+  action: validate
+  protocolVersion: "1.0"
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s_cycle_single
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s_cycle_single
+            components:
+              - id: root
+                component: Card
+                child:
+                  "@child": c1
+              - id: c1
+                component: Card
+                child:
+                  "@child": root
+      expectError: "Circular component reference"
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s_cycle_list
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s_cycle_list
+            components:
+              - id: root
+                component: Column
+                children:
+                  "@child": [c1]
+              - id: c1
+                component: Column
+                children:
+                  "@child": [root]
+      expectError: "Circular component reference"
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s_cycle_tpl
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s_cycle_tpl
+            components:
+              - id: root
+                component: List
+                children:
+                  "@child": tplCard
+                  "@path": "/items"
+              - id: tplCard
+                component: Card
+                child:
+                  "@child": root
+      expectError: "Circular component reference"
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s_cycle_tabs
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s_cycle_tabs
+            components:
+              - id: root
+                component: Tabs
+                tabs:
+                  - title: "One"
+                    child:
+                      "@child": pane_1
+              - id: pane_1
+                component: Card
+                child:
+                  "@child": root
+      expectError: "Circular component reference"
+
+- name: test_v10_topology_at_child_dangling_target_error
+  features: [F-CORE-12]
+  description: >-
+    Tests that missing target component IDs across @child single, static list,
+    dynamic template, and nested Tabs.tabs[i].child slots fail validation in v1.0 strict mode.
+  action: validate
+  protocolVersion: "1.0"
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  strictMode: true
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s_dangling_single
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s_dangling_single
+            components:
+              - id: root
+                component: Card
+                child:
+                  "@child": missing_single
+      expectError: "Dangling reference"
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s_dangling_list
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s_dangling_list
+            components:
+              - id: root
+                component: Column
+                children:
+                  "@child": [missing_list_child]
+      expectError: "Dangling reference"
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s_dangling_tpl
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s_dangling_tpl
+            components:
+              - id: root
+                component: List
+                children:
+                  "@child": missing_tpl
+                  "@path": "/items"
+      expectError: "Dangling reference"
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s_dangling_tabs
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s_dangling_tabs
+            components:
+              - id: root
+                component: Tabs
+                tabs:
+                  - title: "Pane"
+                    child:
+                      "@child": missing_pane
+      expectError: "Dangling reference"
+
+- name: test_v10_composition_at_child_unallowed_child_standard_nested_and_custom_slots
+  features: [F-CORE-12]
+  description: >-
+    Verifies UNALLOWED_CHILD validation and exact slot JSON Pointer paths when
+    @child is used on standard slots (child, children list, children template),
+    nested array-of-objects (tabs/0/child), and custom slot names (header).
+  action: validate
+  protocolVersion: "1.0"
+  strictMode: true
+  catalog:
+    catalogId: comp_at_child_cat
+    components:
+      RestrictedCard:
+        type: object
+        allowedChildren: [Label]
+        properties:
+          id: {type: string}
+          component: {const: RestrictedCard}
+          child:
+            $ref: "common_types.json#/$defs/Child"
+        required: [component, child]
+      RestrictedBox:
+        type: object
+        allowedChildren: [Label]
+        properties:
+          id: {type: string}
+          component: {const: RestrictedBox}
+          children:
+            $ref: "common_types.json#/$defs/ChildList"
+        required: [component, children]
+      RestrictedTabs:
+        type: object
+        allowedChildren: [Label]
+        properties:
+          id: {type: string}
+          component: {const: RestrictedTabs}
+          tabs:
+            type: array
+            items:
+              type: object
+              properties:
+                title: {type: string}
+                child:
+                  $ref: "common_types.json#/$defs/Child"
+              required: [title, child]
+              additionalProperties: false
+        required: [component, tabs]
+      CustomHeaderShell:
+        type: object
+        allowedChildren: [Label]
+        properties:
+          id: {type: string}
+          component: {const: CustomHeaderShell}
+          header:
+            $ref: "common_types.json#/$defs/Child"
+        required: [component, header]
+      OpenHeaderShell:
+        type: object
+        allowedChildren: [Label]
+        properties:
+          component: {const: OpenHeaderShell}
+        required: [component]
+        additionalProperties: true
+      Label:
+        type: object
+        properties:
+          id: {type: string}
+          component: {const: Label}
+          text: {type: string}
+        required: [component]
+      Video:
+        type: object
+        properties:
+          id: {type: string}
+          component: {const: Video}
+        required: [component]
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s_single
+            catalogId: comp_at_child_cat
+            components:
+              - id: root
+                component: RestrictedCard
+                child:
+                  "@child": v1
+              - id: v1
+                component: Video
+      expectError:
+        category: ValidationError
+        code: UNALLOWED_CHILD
+        surfaceId: s_single
+        path: "/components/0/child"
+        rendererError:
+          version: "1.0"
+          error:
+            code: UNALLOWED_CHILD
+            surfaceId: s_single
+            path: "/components/0/child"
+            message: "RestrictedCard"
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s_list
+            catalogId: comp_at_child_cat
+            components:
+              - id: root
+                component: RestrictedBox
+                children:
+                  "@child": [v1]
+              - id: v1
+                component: Video
+      expectError:
+        category: ValidationError
+        code: UNALLOWED_CHILD
+        surfaceId: s_list
+        path: "/components/0/children/0"
+        rendererError:
+          version: "1.0"
+          error:
+            code: UNALLOWED_CHILD
+            surfaceId: s_list
+            path: "/components/0/children/0"
+            message: "RestrictedBox"
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s_tpl
+            catalogId: comp_at_child_cat
+            components:
+              - id: root
+                component: RestrictedBox
+                children:
+                  "@child": v1
+                  "@path": "/videos"
+              - id: v1
+                component: Video
+      expectError:
+        category: ValidationError
+        code: UNALLOWED_CHILD
+        surfaceId: s_tpl
+        path: "/components/0/children"
+        rendererError:
+          version: "1.0"
+          error:
+            code: UNALLOWED_CHILD
+            surfaceId: s_tpl
+            path: "/components/0/children"
+            message: "RestrictedBox"
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s_tabs
+            catalogId: comp_at_child_cat
+            components:
+              - id: root
+                component: RestrictedTabs
+                tabs:
+                  - title: "Tab 1"
+                    child:
+                      "@child": v1
+              - id: v1
+                component: Video
+      expectError:
+        category: ValidationError
+        code: UNALLOWED_CHILD
+        surfaceId: s_tabs
+        path: "/components/0/tabs/0/child"
+        rendererError:
+          version: "1.0"
+          error:
+            code: UNALLOWED_CHILD
+            surfaceId: s_tabs
+            path: "/components/0/tabs/0/child"
+            message: "RestrictedTabs"
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s_custom_slot
+            catalogId: comp_at_child_cat
+            components:
+              - id: root
+                component: CustomHeaderShell
+                header:
+                  "@child": v1
+              - id: v1
+                component: Video
+      expectError:
+        category: ValidationError
+        code: UNALLOWED_CHILD
+        surfaceId: s_custom_slot
+        path: "/components/0/header"
+        rendererError:
+          version: "1.0"
+          error:
+            code: UNALLOWED_CHILD
+            surfaceId: s_custom_slot
+            path: "/components/0/header"
+            message: "CustomHeaderShell"
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s_open_slot
+            catalogId: comp_at_child_cat
+            components:
+              - id: root
+                component: OpenHeaderShell
+                header:
+                  "@child": v1
+              - id: v1
+                component: Video
+      expectError:
+        category: ValidationError
+        code: UNALLOWED_CHILD
+        surfaceId: s_open_slot
+        path: "/components/0/header"
+        rendererError:
+          version: "1.0"
+          error:
+            code: UNALLOWED_CHILD
+            surfaceId: s_open_slot
+            path: "/components/0/header"
+            message: "OpenHeaderShell"
+
+- name: test_v10_composition_at_child_unallowed_parent_across_custom_and_nested_slots
+  features: [F-CORE-12]
+  description: >-
+    Verifies UNALLOWED_PARENT validation when a component with allowedParents
+    is referenced via @child from an unallowed parent's custom slot or nested
+    array-of-objects slot.
+  action: validate
+  protocolVersion: "1.0"
+  strictMode: true
+  catalog:
+    catalogId: comp_parent_at_child_cat
+    components:
+      ShellHeader:
+        type: object
+        allowedParents: [AllowedShell]
+        properties:
+          id: {type: string}
+          component: {const: ShellHeader}
+        required: [component]
+      AllowedShell:
+        type: object
+        properties:
+          component: {const: AllowedShell}
+        required: [component]
+        additionalProperties: true
+      WrongShell:
+        type: object
+        properties:
+          component: {const: WrongShell}
+        required: [component]
+        additionalProperties: true
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s_wrong_custom
+            catalogId: comp_parent_at_child_cat
+            components:
+              - id: root
+                component: WrongShell
+                header:
+                  "@child": hdr
+              - id: hdr
+                component: ShellHeader
+      expectError:
+        category: ValidationError
+        code: UNALLOWED_PARENT
+        surfaceId: s_wrong_custom
+        path: "/components/1"
+        rendererError:
+          version: "1.0"
+          error:
+            code: UNALLOWED_PARENT
+            surfaceId: s_wrong_custom
+            path: "/components/1"
+            message: "ShellHeader"
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s_wrong_nested
+            catalogId: comp_parent_at_child_cat
+            components:
+              - id: root
+                component: WrongShell
+                tabs:
+                  - title: "Tab"
+                    child:
+                      "@child": hdr
+              - id: hdr
+                component: ShellHeader
+      expectError:
+        category: ValidationError
+        code: UNALLOWED_PARENT
+        surfaceId: s_wrong_nested
+        path: "/components/1"
+        rendererError:
+          version: "1.0"
+          error:
+            code: UNALLOWED_PARENT
+            surfaceId: s_wrong_nested
+            path: "/components/1"
+            message: "ShellHeader"
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s_allowed_custom
+            catalogId: comp_parent_at_child_cat
+            components:
+              - id: root
+                component: AllowedShell
+                header:
+                  "@child": hdr
+              - id: hdr
+                component: ShellHeader
+
+- name: test_v10_unknown_nested_function_in_at_action_and_at_function_call_error
+  features: [F-CORE-28, F-CORE-42]
+  description: >-
+    Verifies that nested function validation walks inside @functionCall and
+    @action.context and rejects unknown functions on v1.0 surfaces.
+  action: validate
+  protocolVersion: "1.0"
+  catalogPaths:
+    - catalogs/basic/v1/catalog.json
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s_fc_unknown
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s_fc_unknown
+            components:
+              - id: root
+                component: Button
+                child:
+                  "@child": t1
+                action:
+                  "@functionCall":
+                    "@call": unknownActionFunc
+                    args:
+                      x: 1
+              - id: t1
+                component: Text
+                text: "Run"
+      expectError:
+        category: ValidationError
+        message: "unknownActionFunc"
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: s_ctx_unknown
+            catalogId: https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json
+        - version: "1.0"
+          updateComponents:
+            surfaceId: s_ctx_unknown
+            components:
+              - id: root
+                component: Button
+                child:
+                  "@child": t1
+                action:
+                  "@action":
+                    name: "submit"
+                    context:
+                      computed:
+                        "@call": unknownContextFunc
+              - id: t1
+                component: Text
+                text: "Submit"
+      expectError:
+        category: ValidationError
+        message: "unknownContextFunc"

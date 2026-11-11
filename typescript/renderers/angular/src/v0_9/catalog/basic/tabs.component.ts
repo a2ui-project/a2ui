@@ -16,6 +16,7 @@
 
 import {Component, computed, ChangeDetectionStrategy, signal} from '@angular/core';
 import {ComponentHostComponent} from '@a2ui/angular';
+import {isAtLeastVersion} from '@a2ui/web_core';
 import {BasicCatalogComponent} from './basic-catalog-component';
 import {TabsApi} from '@a2ui/web_core/v0_9/basic_catalog';
 
@@ -102,10 +103,24 @@ export class TabsComponent extends BasicCatalogComponent<typeof TabsApi> {
   readonly activeTab = computed(() => this.tabs()[this.activeTabIndex()]);
 
   protected readonly normalizedActiveTabChild = computed(() => {
-    const child = this.activeTab()?.child;
+    const child = this.activeTab()?.child as unknown;
     if (!child) return null;
-    if (typeof child === 'object' && child !== null && 'id' in child) {
-      return child as {id: string; basePath: string};
+    const surface = this.surface();
+    const atLeastV10 = isAtLeastVersion(
+      surface?.protocolVersion ?? surface?.defaultCatalog?.protocolVersion,
+      '1.0',
+    );
+    if (typeof child === 'object' && child !== null) {
+      if ('id' in child && typeof (child as {id: unknown}).id === 'string') {
+        return child as {id: string; basePath: string};
+      }
+      if (
+        atLeastV10 &&
+        '@child' in child &&
+        typeof (child as {'@child': unknown})['@child'] === 'string'
+      ) {
+        return {id: (child as {'@child': string})['@child'], basePath: this.dataContextPath()};
+      }
     }
     return {id: child as string, basePath: this.dataContextPath()};
   });

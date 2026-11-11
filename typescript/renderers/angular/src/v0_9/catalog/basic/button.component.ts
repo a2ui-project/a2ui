@@ -16,6 +16,7 @@
 
 import {Component, computed, ChangeDetectionStrategy} from '@angular/core';
 import {AccessibilityTargetDirective, ComponentHostComponent} from '@a2ui/angular';
+import {isAtLeastVersion} from '@a2ui/web_core';
 import {DataContext} from '@a2ui/web_core/v0_9';
 import {BasicCatalogComponent} from './basic-catalog-component';
 import {ButtonApi} from '@a2ui/web_core/v0_9/basic_catalog';
@@ -115,6 +116,20 @@ export class ButtonComponent extends BasicCatalogComponent<typeof ButtonApi> {
       const resolvedAction = dataContext.resolveAction(
         action as Parameters<DataContext['resolveAction']>[0],
       );
+      const atLeastV10 = isAtLeastVersion(
+        surface.protocolVersion ?? surface.defaultCatalog?.protocolVersion,
+        '1.0',
+      );
+      if (
+        typeof action === 'object' &&
+        action !== null &&
+        ((atLeastV10 && ('@functionCall' in action || '@call' in action)) ||
+          // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+          'functionCall' in action ||
+          'call' in action)
+      ) {
+        return;
+      }
       surface.dispatchAction(resolvedAction, this.componentId());
     }
   }

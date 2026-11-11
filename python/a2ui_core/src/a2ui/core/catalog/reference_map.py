@@ -40,6 +40,8 @@ from ..schema.common_types import (
 )
 
 # Reference property keys and schema type identifiers
+AT_CHILD_KEY: Final[str] = "@child"
+AT_PATH_KEY: Final[str] = "@path"
 COMPONENT_ID_KEY: Final[str] = "componentId"
 CHILD_KEY: Final[str] = "child"
 CHILDREN_KEY: Final[str] = "children"
@@ -47,6 +49,17 @@ CHILDREN_KEY: Final[str] = "children"
 COMPONENT_ID_TYPE: Final[str] = "ComponentId"
 CHILD_TYPE: Final[str] = "Child"
 CHILD_LIST_TYPE: Final[str] = "ChildList"
+
+_SKIP_AT_REF_DIRECTIVES: Final[frozenset[str]] = frozenset({
+    "@path",
+    "@call",
+    "@action",
+    "@functionCall",
+    "@metadata",
+    "@catalogId",
+    "@accessibility",
+    "@checks",
+})
 
 
 def _is_single_child_ref(ref: str) -> bool:
@@ -94,18 +107,96 @@ def extract_child_refs_from_val(val: Any) -> Iterator[tuple[str, str]]:
             for ref_id, sub_path in extract_child_refs_from_val(item):
                 yield ref_id, f"[{idx}]{'.' + sub_path if sub_path else ''}"
     elif isinstance(val, dict):
-        if (
+        if AT_CHILD_KEY in val:
+            at_child = val[AT_CHILD_KEY]
+            if AT_PATH_KEY in val:
+                if isinstance(at_child, str) and at_child:
+                    yield at_child, AT_CHILD_KEY
+            elif isinstance(at_child, str) and at_child:
+                yield at_child, ""
+            elif isinstance(at_child, list):
+                for idx, item in enumerate(at_child):
+                    if isinstance(item, str) and item:
+                        yield item, f"[{idx}]"
+        elif (
             COMPONENT_ID_KEY in val
             and isinstance(val[COMPONENT_ID_KEY], str)
             and val[COMPONENT_ID_KEY]
         ):
+            # TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
             yield val[COMPONENT_ID_KEY], COMPONENT_ID_KEY
         elif CHILD_KEY in val and isinstance(val[CHILD_KEY], str) and val[CHILD_KEY]:
             yield val[CHILD_KEY], CHILD_KEY
         else:
             for sub_k, sub_v in val.items():
+                if isinstance(sub_k, str) and sub_k.startswith("@@"):
+                    continue
                 for ref_id, sub_path in extract_child_refs_from_val(sub_v):
                     yield ref_id, f"{sub_k}{'.' + sub_path if sub_path else ''}"
+
+
+def extract_v10_at_child_references(
+    props: dict[str, Any],
+) -> Iterator[tuple[str, str]]:
+    """Schema-lessly extracts v1.0 `@child` references across component properties.
+
+    Yields `(component_id, slot_pointer)` pairs using slash-separated JSON Pointer
+    segments relative to the component (`"child"`, `"children/0"`,
+    `"children/@child"`, `"tabs/0/child"`), skipping dynamic/action/envelope `@`
+    directives and `@@`-escaped literal keys.
+    """
+    if not isinstance(props, dict):
+        return
+
+    def _walk(val: Any, slot_ptr: str) -> Iterator[tuple[str, str]]:
+        if isinstance(val, dict):
+            if any(k in val for k in ("@action", "@functionCall", "@call")):
+                return
+            if AT_PATH_KEY in val and AT_CHILD_KEY not in val:
+                return
+            if AT_CHILD_KEY in val:
+                child_val = val[AT_CHILD_KEY]
+                if AT_PATH_KEY in val:
+                    if isinstance(child_val, str) and child_val:
+                        yield (
+                            child_val,
+                            f"{slot_ptr}/{AT_CHILD_KEY}" if slot_ptr else AT_CHILD_KEY,
+                        )
+                elif isinstance(child_val, str):
+                    if child_val:
+                        yield child_val, slot_ptr
+                elif isinstance(child_val, list):
+                    for idx, item in enumerate(child_val):
+                        if isinstance(item, str) and item:
+                            yield (
+                                item,
+                                f"{slot_ptr}/{idx}" if slot_ptr else str(idx),
+                            )
+                return
+            for k, v in val.items():
+                if not isinstance(k, str):
+                    continue
+                if k.startswith("@@") or k in _SKIP_AT_REF_DIRECTIVES:
+                    continue
+                escaped_k = k.replace("~", "~0").replace("/", "~1")
+                next_ptr = f"{slot_ptr}/{escaped_k}" if slot_ptr else escaped_k
+                yield from _walk(v, next_ptr)
+        elif isinstance(val, list):
+            for idx, item in enumerate(val):
+                next_ptr = f"{slot_ptr}/{idx}" if slot_ptr else str(idx)
+                yield from _walk(item, next_ptr)
+
+    for key, value in props.items():
+        if not isinstance(key, str):
+            continue
+        if (
+            key in ("id", "component")
+            or key.startswith("@@")
+            or key in _SKIP_AT_REF_DIRECTIVES
+        ):
+            continue
+        escaped_key = key.replace("~", "~0").replace("/", "~1")
+        yield from _walk(value, escaped_key)
 
 
 def _unwrap_type(typ: Any) -> Any:
@@ -123,12 +214,38 @@ def _unwrap_type(typ: Any) -> Any:
             return typ
 
 
+def _is_pydantic_at_child_single_model(typ: type[BaseModel]) -> bool:
+    """Returns True if `typ` is a Pydantic model matching `{'@child': str}`."""
+    fields = {
+        (f.alias or fname): _unwrap_type(f.annotation)
+        for fname, f in typ.model_fields.items()
+    }
+    return set(fields.keys()) == {"@child"} and fields["@child"] is str
+
+
+def _is_pydantic_at_child_list_model(typ: type[BaseModel]) -> bool:
+    """Returns True if `typ` matches `{'@child': list[str]}` or `{'@child': str, '@path': str}`."""
+    fields = {
+        (f.alias or fname): _unwrap_type(f.annotation)
+        for fname, f in typ.model_fields.items()
+    }
+    if set(fields.keys()) == {"@child"}:
+        return get_origin(fields["@child"]) is list
+    if set(fields.keys()) == {"@child", "@path"}:
+        return fields["@child"] is str and fields["@path"] is str
+    return False
+
+
 def _is_pydantic_single_ref(typ: Any) -> bool:
     typ = _unwrap_type(typ)
     if typ is None:
         return False
-    if isinstance(typ, type) and issubclass(typ, SingleReference):
-        return True
+    if isinstance(typ, type) and issubclass(typ, ComponentReference):
+        if not issubclass(typ, ListReference):
+            return True
+    if isinstance(typ, type) and issubclass(typ, BaseModel):
+        if _is_pydantic_at_child_single_model(typ):
+            return True
     origin = get_origin(typ)
     if origin is Union or origin is types.UnionType:
         return any(_is_pydantic_single_ref(arg) for arg in get_args(typ))
@@ -141,13 +258,18 @@ def _is_pydantic_list_ref(typ: Any) -> tuple[bool, set[str]]:
         return False, set()
     if isinstance(typ, type) and issubclass(typ, (ListReference, TemplateChildList)):
         return True, set()
+    if isinstance(typ, type) and issubclass(typ, BaseModel):
+        if _is_pydantic_at_child_list_model(typ):
+            return True, set()
     origin = get_origin(typ)
     if origin is list:
         args = get_args(typ)
         if args:
             elem = _unwrap_type(args[0])
             if isinstance(elem, type):
-                if issubclass(elem, SingleReference):
+                if issubclass(elem, ComponentReference) and not issubclass(
+                    elem, ListReference
+                ):
                     return True, set()
                 if issubclass(elem, BaseModel):
                     nested = set()
@@ -179,6 +301,11 @@ def _is_single_child_json_schema(schema: Any) -> bool:
         if comb in schema and isinstance(schema[comb], list):
             if any(_is_single_child_json_schema(sub) for sub in schema[comb]):
                 return True
+    props = schema.get("properties")
+    if isinstance(props, dict) and AT_CHILD_KEY in props and AT_PATH_KEY not in props:
+        at_child_prop = props[AT_CHILD_KEY]
+        if isinstance(at_child_prop, dict) and at_child_prop.get("type") != "array":
+            return True
     return False
 
 
@@ -194,8 +321,15 @@ def _is_child_list_json_schema(schema: Any) -> bool:
                 return True
     props = schema.get("properties")
     if isinstance(props, dict):
+        if AT_CHILD_KEY in props:
+            at_child_prop = props[AT_CHILD_KEY]
+            if AT_PATH_KEY in props or (
+                isinstance(at_child_prop, dict) and at_child_prop.get("type") == "array"
+            ):
+                return True
         if "explicitList" in props or "template" in props:
             return True
+        # TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
         if "componentId" in props and ("path" in props or "dataBinding" in props):
             return True
     return False
@@ -355,11 +489,20 @@ class ComponentRefSpec:
                     if val:
                         yield val, key
                 elif isinstance(val, dict):
-                    if (
+                    if AT_CHILD_KEY in val:
+                        for ref_id, sub_path in extract_child_refs_from_val(val):
+                            full_path = (
+                                f"{key}{sub_path}"
+                                if sub_path.startswith("[")
+                                else (f"{key}.{sub_path}" if sub_path else key)
+                            )
+                            yield ref_id, full_path
+                    elif (
                         COMPONENT_ID_KEY in val
                         and isinstance(val[COMPONENT_ID_KEY], str)
                         and val[COMPONENT_ID_KEY]
                     ):
+                        # TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
                         yield val[COMPONENT_ID_KEY], f"{key}.{COMPONENT_ID_KEY}"
                     else:
                         for ref_id, sub_path in extract_child_refs_from_val(val):

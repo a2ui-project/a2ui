@@ -3213,16 +3213,24 @@ function collectResolvedNodes(surface) {
     // A child reference sits either directly on a property or one level down in
     // an array, which is how every catalog declares children. A reference
     // buried deeper in a plain object is not searched for.
-    for (const prop of Object.values(nodeProps)) {
-      const value = unwrap(prop);
+    const walkPropValue = val => {
+      const value = unwrap(val);
       if (Array.isArray(value)) {
         for (const entry of value) {
-          const item = unwrap(entry);
-          if (item && typeof item === 'object' && 'componentId' in item) walk(item);
+          walkPropValue(entry);
         }
-      } else if (value && typeof value === 'object' && 'componentId' in value) {
-        walk(value);
+      } else if (value && typeof value === 'object') {
+        if ('componentId' in value && 'instanceId' in value) {
+          walk(value);
+        } else {
+          for (const subVal of Object.values(value)) {
+            walkPropValue(subVal);
+          }
+        }
       }
+    };
+    for (const prop of Object.values(nodeProps)) {
+      walkPropValue(prop);
     }
   };
 
@@ -3366,8 +3374,15 @@ function normalizeComponentRefs(val) {
   if (Array.isArray(val)) {
     return val.map(item => normalizeComponentRefs(item));
   }
-  if (val && typeof val === 'object' && typeof val.componentId === 'string') {
-    return val.componentId;
+  if (val && typeof val === 'object') {
+    if (typeof val.componentId === 'string') {
+      return val.componentId;
+    }
+    const out = {};
+    for (const [k, v] of Object.entries(val)) {
+      out[k] = normalizeComponentRefs(v);
+    }
+    return out;
   }
   return val;
 }
@@ -3880,7 +3895,7 @@ const DISPATCH_ACTION_KNOWN_KEYS = {
     'useBasicCatalog',
     'userActivation',
   ]),
-  actionPayload: new Set(['context', 'event', 'functionCall', 'name']),
+  actionPayload: new Set(['@action', '@functionCall', 'context', 'event', 'functionCall', 'name']),
   expectDispatched: new Set([
     'context',
     'metadata',
@@ -3981,7 +3996,7 @@ async function validateDispatchActionTestCase(testCase) {
         if (
           resolved &&
           typeof resolved === 'object' &&
-          ('event' in resolved || 'name' in resolved)
+          ('@action' in resolved || 'event' in resolved || 'name' in resolved)
         ) {
           await surface.dispatchAction(resolved, sourceComponentId, metadata);
         }
@@ -4011,7 +4026,11 @@ async function validateDispatchActionTestCase(testCase) {
     }
 
     const resolved = ctx.resolveAction(actionPayload, {userActivation});
-    if (resolved && typeof resolved === 'object' && ('event' in resolved || 'name' in resolved)) {
+    if (
+      resolved &&
+      typeof resolved === 'object' &&
+      ('@action' in resolved || 'event' in resolved || 'name' in resolved)
+    ) {
       await surface.dispatchAction(resolved, sourceComponentId, metadata);
     }
 

@@ -16,6 +16,7 @@
 
 import {A2uiRecursionError, A2uiValidationError} from '../errors.js';
 import {Catalog, type ComponentApi} from '../catalog/types.js';
+import {isAtLeastVersion} from '../common/semver.js';
 import {ProtocolVersion} from '../processing/adapters/base.js';
 
 /** Maximum permitted nesting depth for JSON objects and array structures. */
@@ -74,6 +75,7 @@ function* extractPointers(
   currentPath: string,
   nestedKeys?: ReadonlySet<string>,
   inArray = false,
+  isAtLeastV10 = false,
 ): Generator<[string, string]> {
   if (typeof val === 'string') {
     yield [val, currentPath];
@@ -81,10 +83,18 @@ function* extractPointers(
     for (let idx = 0; idx < val.length; idx++) {
       const item = val[idx];
       const subPath = `${currentPath}[${idx}]`;
-      yield* extractPointers(item, subPath, nestedKeys, true);
+      yield* extractPointers(item, subPath, nestedKeys, true, isAtLeastV10);
     }
   } else if (typeof val === 'object' && val !== null) {
     const obj = val as Record<string, unknown>;
+    if (
+      isAtLeastV10 &&
+      (Object.hasOwn(obj, '@child') ||
+        Object.hasOwn(obj, '@action') ||
+        Object.hasOwn(obj, '@functionCall'))
+    ) {
+      return;
+    }
     const isTemplate =
       Object.hasOwn(obj, 'componentId') &&
       typeof obj['componentId'] === 'string' &&
@@ -105,7 +115,13 @@ function* extractPointers(
       // properties such as a tab title are not references.
       for (const subKey of nestedKeys) {
         if (Object.hasOwn(obj, subKey)) {
-          yield* extractPointers(obj[subKey], `${currentPath}.${subKey}`);
+          yield* extractPointers(
+            obj[subKey],
+            `${currentPath}.${subKey}`,
+            undefined,
+            false,
+            isAtLeastV10,
+          );
         }
       }
     } else if (isTemplate) {
@@ -119,7 +135,7 @@ function* extractPointers(
       return;
     } else {
       for (const [subKey, subVal] of Object.entries(obj)) {
-        yield* extractPointers(subVal, `${currentPath}.${subKey}`);
+        yield* extractPointers(subVal, `${currentPath}.${subKey}`, undefined, false, isAtLeastV10);
       }
     }
   }
@@ -129,11 +145,89 @@ function getOrCreateRefMap(catalog: Catalog<ComponentApi>): ComponentRefMap {
   return catalog.componentRefMap;
 }
 
+const SKIP_AT_CHILD_DIRECTIVE_KEYS = new Set([
+  '@path',
+  '@call',
+  '@action',
+  '@functionCall',
+  '@metadata',
+  '@catalogId',
+  '@accessibility',
+  '@checks',
+]);
+
+function* extractAtChildPointers(
+  val: unknown,
+  currentPath: string,
+  skipTopLevelEnvelopeKeys = false,
+): Generator<[string, string]> {
+  if (Array.isArray(val)) {
+    for (let idx = 0; idx < val.length; idx++) {
+      const subPath = currentPath ? `${currentPath}/${idx}` : String(idx);
+      yield* extractAtChildPointers(val[idx], subPath);
+    }
+    return;
+  }
+
+  if (typeof val !== 'object' || val === null) {
+    return;
+  }
+
+  const obj = val as Record<string, unknown>;
+  if (Object.hasOwn(obj, '@child')) {
+    const childVal = obj['@child'];
+    if (typeof childVal === 'string' && childVal.length > 0) {
+      if (Object.hasOwn(obj, '@path')) {
+        yield [childVal, currentPath ? `${currentPath}/@child` : '@child'];
+      } else {
+        yield [childVal, currentPath];
+      }
+    } else if (Array.isArray(childVal)) {
+      for (let idx = 0; idx < childVal.length; idx++) {
+        const entry = childVal[idx];
+        if (typeof entry === 'string' && entry.length > 0) {
+          yield [entry, currentPath ? `${currentPath}/${idx}` : String(idx)];
+        }
+      }
+    }
+    return;
+  }
+
+  if (
+    Object.hasOwn(obj, '@path') ||
+    Object.hasOwn(obj, '@call') ||
+    Object.hasOwn(obj, '@action') ||
+    Object.hasOwn(obj, '@functionCall')
+  ) {
+    return;
+  }
+
+  for (const [subKey, subVal] of Object.entries(obj)) {
+    if (subKey.startsWith('@@') || SKIP_AT_CHILD_DIRECTIVE_KEYS.has(subKey)) {
+      continue;
+    }
+    if (
+      skipTopLevelEnvelopeKeys &&
+      (subKey === 'id' ||
+        subKey === 'component' ||
+        subKey === 'metadata' ||
+        subKey === 'catalogId' ||
+        subKey === 'accessibility' ||
+        subKey === 'checks')
+    ) {
+      continue;
+    }
+    const nextPath = currentPath ? `${currentPath}/${subKey}` : subKey;
+    yield* extractAtChildPointers(subVal, nextPath);
+  }
+}
+
 /**
  * Extracts child component IDs referenced by a component property definition.
  *
  * @param component Component definition object containing properties and metadata.
  * @param catalogOrRefMap Mapping defining single and list reference fields per component type or Catalog instance.
+ * @param protocolVersion Optional protocol version controlling v1.0 schema-less `@child` extraction.
  * @yields Tuple of `[referencedId, propertyPath]` for each child reference found.
  *
  * @example
@@ -144,6 +238,7 @@ function getOrCreateRefMap(catalog: Catalog<ComponentApi>): ComponentRefMap {
 export function* getComponentReferences(
   component: Record<string, unknown>,
   catalogOrRefMap: Catalog<ComponentApi> | ComponentRefMap,
+  protocolVersion?: string,
 ): Generator<[string, string]> {
   if (!component || typeof component !== 'object') {
     return;
@@ -167,14 +262,25 @@ export function* getComponentReferences(
     return;
   }
 
+  const effectiveVersion =
+    protocolVersion ??
+    (catalogOrRefMap instanceof Catalog ? catalogOrRefMap.protocolVersion : undefined);
+  const isAtLeastV10 =
+    effectiveVersion !== undefined ? isAtLeastVersion(effectiveVersion, '1.0') : false;
+
+  if (isAtLeastV10) {
+    yield* extractAtChildPointers(props, '', props === component);
+  }
+
   const childRefs = refFieldsMap[compType];
   const singleRefs = childRefs ? childRefs.singleRefs : new Set<string>();
   const listRefs = childRefs ? childRefs.listRefs : new Set<string>();
   const nestedRefs = childRefs?.nestedRefs;
 
+  // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
   for (const [key, value] of Object.entries(props)) {
     if (singleRefs.has(key) || listRefs.has(key)) {
-      yield* extractPointers(value, key, nestedRefs?.[key]);
+      yield* extractPointers(value, key, nestedRefs?.[key], false, isAtLeastV10);
     }
   }
 }
@@ -249,9 +355,12 @@ function traverseRecursionAndPaths(item: unknown, globalDepth: number, funcDepth
     }
 
     const isFunctionCallWrapper =
-      Object.hasOwn(obj, 'functionCall') &&
-      typeof obj.functionCall === 'object' &&
-      obj.functionCall !== null;
+      (Object.hasOwn(obj, '@functionCall') &&
+        typeof obj['@functionCall'] === 'object' &&
+        obj['@functionCall'] !== null) ||
+      (Object.hasOwn(obj, 'functionCall') &&
+        typeof obj.functionCall === 'object' &&
+        obj.functionCall !== null);
     const isBareFunctionCall =
       (Object.hasOwn(obj, 'call') || Object.hasOwn(obj, '@call')) && Object.hasOwn(obj, 'args');
 
@@ -262,7 +371,7 @@ function traverseRecursionAndPaths(item: unknown, globalDepth: number, funcDepth
         );
       }
       for (const [k, v] of Object.entries(obj)) {
-        if (k === 'functionCall') {
+        if (k === 'functionCall' || k === '@functionCall') {
           traverseRecursionAndPaths(v, globalDepth + 1, funcDepth + 1);
         } else {
           traverseRecursionAndPaths(v, globalDepth + 1, funcDepth);

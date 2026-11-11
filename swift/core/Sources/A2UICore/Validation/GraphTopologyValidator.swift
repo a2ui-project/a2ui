@@ -88,6 +88,11 @@ public enum GraphTopologyValidator {
     "id", "component", "catalogId", "@catalogId", "@metadata",
   ]
 
+  /// Mixin keys at a v1.0 component root that never contain child references.
+  private static let atChildSkippedRootKeys: Set<String> = [
+    "id", "component", "catalogId", "@catalogId", "@metadata", "@accessibility", "@checks",
+  ]
+
   static func lookupComponentAPI(
     type: String,
     catalogID: String?,
@@ -216,7 +221,7 @@ public enum GraphTopologyValidator {
         let message =
           "Container '\(parentID)' (\(parentInfo.type)) cannot contain child "
           + "'\(childID)' (\(childInfo.type)). Allowed children: [\(allowedFormatted)]."
-        let pointerField = toJSONPointerSegment(ref.field)
+        let pointerField = Self.cleanCompositionPointer(toJSONPointerSegment(ref.field))
         let detail = A2UIErrorDetail(
           path: "/components/\(parentInfo.index)/\(pointerField)",
           code: "UNALLOWED_CHILD",
@@ -249,6 +254,16 @@ public enum GraphTopologyValidator {
       .replacingOccurrences(of: ".", with: "/")
   }
 
+  private static func cleanCompositionPointer(_ pointer: String) -> String {
+    if pointer.hasSuffix("/componentId") {
+      return String(pointer.dropLast("/componentId".count))
+    }
+    if pointer.hasSuffix("/@child") {
+      return String(pointer.dropLast("/@child".count))
+    }
+    return pointer
+  }
+
   private static func buildAdjacencyMap(
     from components: [[String: JSONValue]],
     config: ValidationConfig,
@@ -266,11 +281,17 @@ public enum GraphTopologyValidator {
       allComponentIDs.insert(componentID)
       adjacencyList[componentID] = []
 
+      let catalogID = componentCatalogID(of: component, defaultCatalogID: defaultCatalogID)
+      let componentCatalog = resolveComponentCatalog(
+        catalogID: catalogID,
+        catalogs: catalogs,
+        defaultCatalogID: defaultCatalogID
+      )
       let componentSchema: JSONValue?
       if let type = component["component"]?.stringValue {
-        let catalogID = componentCatalogID(of: component, defaultCatalogID: defaultCatalogID)
         componentSchema =
-          lookupComponentAPI(
+          componentCatalog?.components[type]?.schema.jsonValue
+          ?? lookupComponentAPI(
             type: type,
             catalogID: catalogID,
             catalogs: catalogs,
@@ -279,8 +300,16 @@ public enum GraphTopologyValidator {
       } else {
         componentSchema = nil
       }
+      let isAtLeastV10 =
+        config.protocolVersion?.isAtLeastV10
+        ?? componentCatalog?.isAtLeastV10
+        ?? (catalogs.map { !$0.isEmpty && $0.values.allSatisfy(\.isAtLeastV10) } ?? false)
 
-      let references = extractReferences(from: component, schema: componentSchema)
+      let references = extractReferences(
+        from: component,
+        schema: componentSchema,
+        isAtLeastV10: isAtLeastV10
+      )
       for reference in references {
         if reference.referenceID == componentID, !config.allowCyclicReferences {
           throw A2UIRecursionError(
@@ -416,14 +445,51 @@ public enum GraphTopologyValidator {
     from component: [String: JSONValue],
     schema: JSONValue? = nil
   ) -> [Reference] {
-    guard let schema else { return [] }
+    let isAtLeastV10: Bool
+    if let schema {
+      isAtLeastV10 = schemaHasV10Markers(schema, root: schema, visitedRefs: [])
+    } else {
+      isAtLeastV10 = true
+    }
+    return extractReferences(
+      from: component,
+      schema: schema,
+      isAtLeastV10: isAtLeastV10
+    )
+  }
+
+  /// Extracts component reference pointers from a component property dictionary under `version`.
+  public static func extractReferences(
+    from component: [String: JSONValue],
+    schema: JSONValue?,
+    protocolVersion: A2UIProtocolVersion
+  ) -> [Reference] {
+    extractReferences(
+      from: component,
+      schema: schema,
+      isAtLeastV10: protocolVersion.isAtLeastV10
+    )
+  }
+
+  static func extractReferences(
+    from component: [String: JSONValue],
+    schema: JSONValue?,
+    isAtLeastV10: Bool
+  ) -> [Reference] {
     var references: [Reference] = []
-    let propertySchemas = extractPropertiesSchema(from: schema)
+    if isAtLeastV10 {
+      collectV10AtChildReferences(from: component, schema: schema, into: &references)
+    }
+    guard let schema else { return references }
+    let rootSchema = schema
+    // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+    let propertySchemas = extractPropertiesSchema(from: schema, root: rootSchema)
     for (key, propertyValue) in component where !nonReferenceKeys.contains(key) {
       guard let propSchema = propertySchemas[key] else { continue }
       collectSchemaReferences(
         from: propertyValue,
         schema: propSchema,
+        root: rootSchema,
         path: key,
         into: &references
       )
@@ -431,18 +497,195 @@ public enum GraphTopologyValidator {
     return references
   }
 
-  private static func collectSchemaReferences(
+  private static func resolveComponentCatalog(
+    catalogID: String?,
+    catalogs: [String: AnyCatalog]?,
+    defaultCatalogID: String?
+  ) -> AnyCatalog? {
+    guard let catalogs, !catalogs.isEmpty else { return nil }
+    if let catalogID, let catalog = catalogs[catalogID] {
+      return catalog
+    }
+    if let defaultCatalogID, let catalog = catalogs[defaultCatalogID] {
+      return catalog
+    }
+    if catalogs.count == 1 {
+      return catalogs.values.first
+    }
+    return nil
+  }
+
+  private static func schemaHasV10Markers(
+    _ schema: JSONValue,
+    root: JSONValue,
+    visitedRefs: Set<String>
+  ) -> Bool {
+    if let schemaID = schema["$id"]?.stringValue,
+      schemaID.contains("/v1_0/") || schemaID == "common_types.json"
+    {
+      return true
+    }
+    if let ref = schema["$ref"]?.stringValue {
+      if ref.contains("/v0_9") || ref.contains("/v0_8") || ref.contains("common.json#") {
+        return false
+      }
+      if ref.contains("/v1_0/") || ref.hasPrefix("common_types.json#") {
+        return true
+      }
+      if ref.hasPrefix("#") {
+        var visited = visitedRefs
+        if visited.insert(ref).inserted,
+          let target = ComponentEnvelope.resolveLocalRef(ref, in: root),
+          schemaHasV10Markers(target, root: root, visitedRefs: visited)
+        {
+          return true
+        }
+      }
+    }
+    if let desc = schema["description"]?.stringValue, desc.hasPrefix("REF:common_types.json#") {
+      return true
+    }
+    if let props = schema["properties"]?.objectValue {
+      let v10Keys: Set<String> = ["@catalogId", "@metadata", "@accessibility", "@checks"]
+      if props.keys.contains(where: { v10Keys.contains($0) }) {
+        return true
+      }
+      if props.values.contains(where: {
+        schemaHasV10Markers($0, root: root, visitedRefs: visitedRefs)
+      }) {
+        return true
+      }
+    }
+    if let items = schema["items"],
+      schemaHasV10Markers(items, root: root, visitedRefs: visitedRefs)
+    {
+      return true
+    }
+    for combiner in ["allOf", "oneOf", "anyOf"] {
+      if let branches = schema[combiner]?.arrayValue,
+        branches.contains(where: {
+          schemaHasV10Markers($0, root: root, visitedRefs: visitedRefs)
+        })
+      {
+        return true
+      }
+    }
+    return false
+  }
+
+  private static func collectV10AtChildReferences(
+    from component: [String: JSONValue],
+    schema: JSONValue?,
+    into result: inout [Reference]
+  ) {
+    let bareMixins: Set<String> = ["metadata", "accessibility", "checks"]
+    for (key, propertyValue) in component {
+      guard !key.hasPrefix("@@"), !atChildSkippedRootKeys.contains(key) else { continue }
+      if bareMixins.contains(key),
+        let mixin = ComponentEnvelope.Mixin(rawValue: key),
+        !ComponentEnvelope.declaresOwnProperty(mixin, in: schema)
+      {
+        continue
+      }
+      let propSchema = schema.flatMap {
+        ComponentEnvelope.resolvedSubschema(forProperty: key, in: $0, root: $0)
+      }
+      collectAtChildReferences(
+        from: propertyValue,
+        schema: propSchema,
+        rootSchema: schema,
+        path: key,
+        into: &result
+      )
+    }
+  }
+
+  private static func collectAtChildReferences(
     from value: JSONValue,
-    schema: JSONValue,
+    schema: JSONValue?,
+    rootSchema: JSONValue?,
     path: String,
     into result: inout [Reference]
   ) {
-    if isChildListSchema(schema) {
+    if let schema, let rootSchema,
+      ComponentEnvelope.isPureDynamicSchema(schema, root: rootSchema)
+    {
+      return
+    }
+    switch value {
+    case .array(let items):
+      let itemSchema = rootSchema.flatMap { root in
+        schema.flatMap { ComponentEnvelope.resolvedArrayItemsSchema(in: $0, root: root) }
+      }
+      for (index, item) in items.enumerated() {
+        collectAtChildReferences(
+          from: item,
+          schema: itemSchema,
+          rootSchema: rootSchema,
+          path: "\(path)/\(index)",
+          into: &result
+        )
+      }
+    case .object(let dict):
+      if dict["@child"] != nil {
+        if dict["@path"] != nil {
+          if let templateID = dict["@child"]?.stringValue, !templateID.isEmpty {
+            result.append((templateID, "\(path)/@child"))
+          }
+        } else if let childID = dict["@child"]?.stringValue, !childID.isEmpty {
+          result.append((childID, path))
+        } else if let childIDs = dict["@child"]?.arrayValue {
+          for (index, item) in childIDs.enumerated() {
+            if let childID = item.stringValue, !childID.isEmpty {
+              result.append((childID, "\(path)/\(index)"))
+            }
+          }
+        }
+        return
+      }
+      if dict["@path"] != nil
+        || dict["@call"] != nil
+        || dict["@action"] != nil
+        || dict["@functionCall"] != nil
+      {
+        return
+      }
+      for (subKey, subValue) in dict where !subKey.hasPrefix("@@") {
+        let subSchema = rootSchema.flatMap { root in
+          schema.flatMap {
+            ComponentEnvelope.resolvedSubschema(forProperty: subKey, in: $0, root: root)
+          }
+        }
+        collectAtChildReferences(
+          from: subValue,
+          schema: subSchema,
+          rootSchema: rootSchema,
+          path: "\(path)/\(subKey)",
+          into: &result
+        )
+      }
+    default:
+      break
+    }
+  }
+
+  private static func collectSchemaReferences(
+    from value: JSONValue,
+    schema: JSONValue,
+    root: JSONValue,
+    path: String,
+    into result: inout [Reference]
+  ) {
+    // `@child` envelopes are already extracted by `collectV10AtChildReferences`.
+    if value.objectValue?["@child"] != nil {
+      return
+    }
+    if isChildListSchema(schema, root: root) {
       collectChildListReferences(from: value, path: path, into: &result)
       return
     }
 
-    if isSingleChildSchema(schema) {
+    if isSingleChildSchema(schema, root: root) {
       if let childID = value.stringValue {
         result.append((childID, path))
       }
@@ -451,11 +694,28 @@ public enum GraphTopologyValidator {
 
     // If the schema has an explicit $ref to another type (e.g. DynamicString, Action, CheckRule),
     // it is definitively not a child component reference.
-    guard schema["$ref"]?.stringValue == nil else {
+    if let ref = schema["$ref"]?.stringValue {
+      if ref.hasPrefix("#"),
+        let resolved = ComponentEnvelope.resolveLocalRef(ref, in: root)
+      {
+        collectNestedSchemaReferences(
+          from: value,
+          schema: resolved,
+          root: root,
+          path: path,
+          into: &result
+        )
+      }
       return
     }
 
-    collectNestedSchemaReferences(from: value, schema: schema, path: path, into: &result)
+    collectNestedSchemaReferences(
+      from: value,
+      schema: schema,
+      root: root,
+      path: path,
+      into: &result
+    )
   }
 
   private static func collectChildListReferences(
@@ -482,27 +742,33 @@ public enum GraphTopologyValidator {
   private static func collectNestedSchemaReferences(
     from value: JSONValue,
     schema: JSONValue,
+    root: JSONValue,
     path: String,
     into result: inout [Reference]
   ) {
     switch value {
     case .array(let array):
-      guard let itemsSchema = schema["items"] else { break }
+      guard let itemsSchema = ComponentEnvelope.resolvedArrayItemsSchema(in: schema, root: root)
+      else {
+        break
+      }
       for (index, item) in array.enumerated() {
         collectSchemaReferences(
           from: item,
           schema: itemsSchema,
+          root: root,
           path: "\(path)[\(index)]",
           into: &result
         )
       }
     case .object(let dict):
-      let subProperties = extractPropertiesSchema(from: schema)
+      let subProperties = extractPropertiesSchema(from: schema, root: root)
       for (key, propValue) in dict {
         guard let subSchema = subProperties[key] else { continue }
         collectSchemaReferences(
           from: propValue,
           schema: subSchema,
+          root: root,
           path: "\(path).\(key)",
           into: &result
         )
@@ -512,43 +778,34 @@ public enum GraphTopologyValidator {
     }
   }
 
-  private static func schemaRefName(_ schema: JSONValue) -> String? {
-    if let ref = schema["$ref"]?.stringValue {
-      return ref.split(separator: "/").last.map(String.init)
-    }
-    if let desc = schema["description"]?.stringValue, desc.hasPrefix("REF:") {
-      let ref = String(desc.dropFirst(4)).split(separator: "|").first.map(String.init) ?? ""
-      return ref.split(separator: "/").last.map(String.init)
-    }
-    return nil
-  }
-
-  private static func isChildListSchema(_ schema: JSONValue) -> Bool {
-    if schemaRefName(schema) == "ChildList" {
+  private static func isChildListSchema(
+    _ schema: JSONValue,
+    root: JSONValue,
+    visitedRefs: Set<String> = []
+  ) -> Bool {
+    if ComponentEnvelope.schemaRefName(schema) == "ChildList" {
       return true
     }
     if schema["type"]?.stringValue == "array", let items = schema["items"] {
-      if isSingleChildSchema(items) || isChildListSchema(items) {
-        return true
-      }
-    }
-    for combiner in ["oneOf", "anyOf", "allOf"] {
-      if let subSchemas = schema[combiner]?.arrayValue,
-        subSchemas.contains(where: { isChildListSchema($0) })
+      if isSingleChildSchema(items, root: root, visitedRefs: visitedRefs)
+        || isChildListSchema(items, root: root, visitedRefs: visitedRefs)
       {
         return true
       }
     }
-    return false
-  }
-
-  private static func isSingleChildSchema(_ schema: JSONValue) -> Bool {
-    if let refName = schemaRefName(schema), refName == "Child" || refName == "ComponentId" {
+    var visitedRefs = visitedRefs
+    if let ref = schema["$ref"]?.stringValue, ref.hasPrefix("#"),
+      visitedRefs.insert(ref).inserted,
+      let target = ComponentEnvelope.resolveLocalRef(ref, in: root),
+      isChildListSchema(target, root: root, visitedRefs: visitedRefs)
+    {
       return true
     }
     for combiner in ["oneOf", "anyOf", "allOf"] {
       if let subSchemas = schema[combiner]?.arrayValue,
-        subSchemas.contains(where: { isSingleChildSchema($0) })
+        subSchemas.contains(where: {
+          isChildListSchema($0, root: root, visitedRefs: visitedRefs)
+        })
       {
         return true
       }
@@ -556,17 +813,65 @@ public enum GraphTopologyValidator {
     return false
   }
 
-  private static func extractPropertiesSchema(from schemaJSON: JSONValue) -> [String: JSONValue] {
+  private static func isSingleChildSchema(
+    _ schema: JSONValue,
+    root: JSONValue,
+    visitedRefs: Set<String> = []
+  ) -> Bool {
+    if let refName = ComponentEnvelope.schemaRefName(schema),
+      refName == "Child" || refName == "ComponentId"
+    {
+      return true
+    }
+    var visitedRefs = visitedRefs
+    if let ref = schema["$ref"]?.stringValue, ref.hasPrefix("#"),
+      visitedRefs.insert(ref).inserted,
+      let target = ComponentEnvelope.resolveLocalRef(ref, in: root),
+      isSingleChildSchema(target, root: root, visitedRefs: visitedRefs)
+    {
+      return true
+    }
+    for combiner in ["oneOf", "anyOf", "allOf"] {
+      if let subSchemas = schema[combiner]?.arrayValue,
+        subSchemas.contains(where: {
+          isSingleChildSchema($0, root: root, visitedRefs: visitedRefs)
+        })
+      {
+        return true
+      }
+    }
+    return false
+  }
+
+  private static func extractPropertiesSchema(
+    from schemaJSON: JSONValue,
+    root: JSONValue,
+    visitedRefs: Set<String> = []
+  ) -> [String: JSONValue] {
     var result: [String: JSONValue] = [:]
     if let props = schemaJSON["properties"]?.objectValue {
       for (k, v) in props {
         result[k] = v
       }
     }
+    var visitedRefs = visitedRefs
+    if let ref = schemaJSON["$ref"]?.stringValue, ref.hasPrefix("#"),
+      visitedRefs.insert(ref).inserted,
+      let target = ComponentEnvelope.resolveLocalRef(ref, in: root)
+    {
+      let refProps = extractPropertiesSchema(from: target, root: root, visitedRefs: visitedRefs)
+      for (k, v) in refProps {
+        result[k] = v
+      }
+    }
     for combiner in ["allOf", "oneOf", "anyOf"] {
       if let subSchemas = schemaJSON[combiner]?.arrayValue {
         for subSchema in subSchemas {
-          let subProps = extractPropertiesSchema(from: subSchema)
+          let subProps = extractPropertiesSchema(
+            from: subSchema,
+            root: root,
+            visitedRefs: visitedRefs
+          )
           for (k, v) in subProps {
             result[k] = v
           }

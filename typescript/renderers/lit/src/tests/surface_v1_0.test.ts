@@ -507,4 +507,93 @@ describe('Lit v1.0 Surface & Catalog Integration', () => {
     assert.ok(textEl, 'Should render the root from its own catalog');
     assert.strictEqual(textEl.textContent?.trim(), 'Own catalog');
   });
+
+  it('renders a v1.0 surface using @child, @action, and @functionCall directives', async () => {
+    const openUrlCalls: unknown[] = [];
+    const customCat = new Catalog<LitComponentApi>(
+      basicCatalog.id,
+      '1.0',
+      Array.from(basicCatalog.components.values()),
+      [
+        ...Array.from(basicCatalog.functions.values()),
+        {
+          name: 'customPing',
+          returnType: 'string',
+          schema: z.object({msg: z.string()}),
+          execute: (args: Record<string, unknown>) => {
+            openUrlCalls.push(args);
+            return String(args.msg);
+          },
+        } as any,
+      ],
+    );
+    const processor = new MessageProcessor<LitComponentApi>([customCat]);
+    const dispatchedActions: Array<{name: string; context: Record<string, unknown>}> = [];
+    processor.processMessages([
+      {
+        version: '1.0',
+        createSurface: {surfaceId: 'directives-surface', catalogId: customCat.id},
+      },
+      {
+        version: '1.0',
+        updateDataModel: {surfaceId: 'directives-surface', path: '/items', value: [{name: 'A'}]},
+      },
+      {
+        version: '1.0',
+        updateComponents: {
+          surfaceId: 'directives-surface',
+          components: [
+            {
+              id: 'root',
+              component: 'Column',
+              children: {'@child': ['btn_ev', 'btn_fn', 'list_box']},
+            },
+            {
+              id: 'btn_ev',
+              component: 'Button',
+              child: {'@child': 'btn_ev_label'},
+              action: {'@action': {name: 'save', context: {ok: true}}},
+            },
+            {id: 'btn_ev_label', component: 'Text', text: 'Save'},
+            {
+              id: 'btn_fn',
+              component: 'Button',
+              child: {'@child': 'btn_fn_label'},
+              action: {'@functionCall': {'@call': 'customPing', args: {msg: 'hi'}}},
+            },
+            {id: 'btn_fn_label', component: 'Text', text: 'Ping'},
+            {
+              id: 'list_box',
+              component: 'List',
+              children: {'@child': 'row_tpl', '@path': '/items'},
+            },
+            {id: 'row_tpl', component: 'Text', text: {'@path': 'name'}},
+          ],
+        },
+      },
+    ]);
+
+    const surface = processor.model.getSurface('directives-surface')!;
+    surface.onAction.subscribe(act => {
+      dispatchedActions.push(act);
+    });
+
+    const el = await mountSurface(surface);
+    assert.ok(el.renderRoot.textContent?.includes('Save'));
+    assert.ok(el.renderRoot.textContent?.includes('Ping'));
+    assert.ok(el.renderRoot.textContent?.includes('A'));
+
+    const buttons = Array.from(el.renderRoot.querySelectorAll('button'));
+    assert.strictEqual(buttons.length, 2);
+    buttons[1].click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.deepStrictEqual(openUrlCalls, [{msg: 'hi'}]);
+    assert.strictEqual(dispatchedActions.length, 0);
+
+    buttons[0].click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual(dispatchedActions.length, 1);
+    assert.strictEqual(dispatchedActions[0].name, 'save');
+    assert.deepStrictEqual(dispatchedActions[0].context, {ok: true});
+  });
 });

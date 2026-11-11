@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import A2UIJSON
 import Foundation
 import OrderedJSON
 
@@ -271,6 +272,53 @@ struct ComponentEnvelope {
     return referencedDefinition(of: items) == "CheckRule"
   }
 
+  /// Returns the name of the definition that a schema's `$ref` or `REF:` description points to,
+  /// such as `AccessibilityAttributes` for `common_types.json#/$defs/AccessibilityAttributes`.
+  static func schemaRefName(_ schema: JSONValue) -> String? {
+    if let refName = referencedDefinition(of: schema) {
+      return refName
+    }
+    if let desc = schema["description"]?.stringValue, desc.hasPrefix("REF:") {
+      let ref = String(desc.dropFirst(4)).split(separator: "|").first.map(String.init) ?? ""
+      return ref.split(separator: "/").last.map(String.init)
+    }
+    return nil
+  }
+
+  /// Returns whether `schema` declares `propertyKey` directly or through combiners/`$ref`.
+  static func schemaContainsPropertyKey(
+    _ propertyKey: String,
+    in schema: JSONValue,
+    root: JSONValue,
+    visitedRefs: Set<String> = []
+  ) -> Bool {
+    if schema["properties"]?.objectValue?[propertyKey] != nil {
+      return true
+    }
+    var visitedRefs = visitedRefs
+    if let ref = schema["$ref"]?.stringValue, visitedRefs.insert(ref).inserted,
+      let resolved = resolveSchemaRef(ref, root: root),
+      schemaContainsPropertyKey(
+        propertyKey,
+        in: resolved.schema,
+        root: resolved.root,
+        visitedRefs: visitedRefs
+      )
+    {
+      return true
+    }
+    for combiner in ["allOf", "oneOf", "anyOf"] {
+      if let branches = schema[combiner]?.arrayValue,
+        branches.contains(where: {
+          schemaContainsPropertyKey(propertyKey, in: $0, root: root, visitedRefs: visitedRefs)
+        })
+      {
+        return true
+      }
+    }
+    return false
+  }
+
   /// Returns the name of the definition that a schema's `$ref` points to, such as
   /// `AccessibilityAttributes` for `common_types.json#/$defs/AccessibilityAttributes`.
   private static func referencedDefinition(of schema: JSONValue) -> String? {
@@ -278,8 +326,217 @@ struct ComponentEnvelope {
     return ref.split(separator: "/").last.map(String.init)
   }
 
+  /// Pure dynamic expression `$defs` names in `common_types.json` that must never carry
+  /// component-property directives such as `@child`, `@action`, or `@functionCall`.
+  private static let pureDynamicDefNames: Set<String> = [
+    "DynamicValue",
+    "DynamicString",
+    "DynamicNumber",
+    "DynamicBoolean",
+    "DynamicStringList",
+    "DataBinding",
+    "FunctionCall",
+  ]
+
+  /// Finds the schema of a property declared anywhere in `schema`, including via local or remote
+  /// `$ref`, `allOf`/`anyOf`/`oneOf`, or object-valued `additionalProperties`.
+  static func resolvedSubschema(
+    forProperty key: String,
+    in schema: JSONValue,
+    root: JSONValue,
+    visitedRefs: Set<String> = []
+  ) -> JSONValue? {
+    if let declared = declaredSubschemaWithoutWildcard(
+      forProperty: key,
+      in: schema,
+      root: root,
+      visitedRefs: visitedRefs
+    ) {
+      return declared
+    }
+    return additionalPropertiesSubschema(in: schema, root: root, visitedRefs: visitedRefs)
+  }
+
+  private static func declaredSubschemaWithoutWildcard(
+    forProperty key: String,
+    in schema: JSONValue,
+    root: JSONValue,
+    visitedRefs: Set<String>
+  ) -> JSONValue? {
+    if let direct = schema["properties"]?.objectValue?[key] {
+      return direct
+    }
+    var visitedRefs = visitedRefs
+    if let ref = schema["$ref"]?.stringValue, visitedRefs.insert(ref).inserted,
+      let resolved = resolveSchemaRef(ref, root: root),
+      let found = declaredSubschemaWithoutWildcard(
+        forProperty: key,
+        in: resolved.schema,
+        root: resolved.root,
+        visitedRefs: visitedRefs
+      )
+    {
+      return found
+    }
+    for combiner in ["allOf", "anyOf", "oneOf"] {
+      for subSchema in schema[combiner]?.arrayValue ?? [] {
+        if let found = declaredSubschemaWithoutWildcard(
+          forProperty: key,
+          in: subSchema,
+          root: root,
+          visitedRefs: visitedRefs
+        ) {
+          return found
+        }
+      }
+    }
+    return nil
+  }
+
+  private static func additionalPropertiesSubschema(
+    in schema: JSONValue,
+    root: JSONValue,
+    visitedRefs: Set<String>
+  ) -> JSONValue? {
+    if let additional = schema["additionalProperties"], additional.objectValue != nil {
+      return additional
+    }
+    var visitedRefs = visitedRefs
+    if let ref = schema["$ref"]?.stringValue, visitedRefs.insert(ref).inserted,
+      let resolved = resolveSchemaRef(ref, root: root),
+      let found = additionalPropertiesSubschema(
+        in: resolved.schema,
+        root: resolved.root,
+        visitedRefs: visitedRefs
+      )
+    {
+      return found
+    }
+    for combiner in ["allOf", "anyOf", "oneOf"] {
+      for subSchema in schema[combiner]?.arrayValue ?? [] {
+        if let found = additionalPropertiesSubschema(
+          in: subSchema,
+          root: root,
+          visitedRefs: visitedRefs
+        ) {
+          return found
+        }
+      }
+    }
+    return nil
+  }
+
+  /// Finds the `items` schema of an array schema, following `$ref` and combiners.
+  static func resolvedArrayItemsSchema(
+    in schema: JSONValue,
+    root: JSONValue,
+    visitedRefs: Set<String> = []
+  ) -> JSONValue? {
+    if let items = schema["items"] {
+      return items
+    }
+    var visitedRefs = visitedRefs
+    if let ref = schema["$ref"]?.stringValue, visitedRefs.insert(ref).inserted,
+      let resolved = resolveSchemaRef(ref, root: root),
+      let items = resolvedArrayItemsSchema(
+        in: resolved.schema,
+        root: resolved.root,
+        visitedRefs: visitedRefs
+      )
+    {
+      return items
+    }
+    for combiner in ["allOf", "anyOf", "oneOf"] {
+      for subSchema in schema[combiner]?.arrayValue ?? [] {
+        if let items = resolvedArrayItemsSchema(
+          in: subSchema,
+          root: root,
+          visitedRefs: visitedRefs
+        ) {
+          return items
+        }
+      }
+    }
+    return nil
+  }
+
+  /// Returns whether `schema` constrains a pure dynamic expression or value (`DynamicValue`,
+  /// `DynamicString`, `DynamicNumber`, `DynamicBoolean`, `DynamicStringList`, `DataBinding`,
+  /// or `FunctionCall`).
+  static func isPureDynamicSchema(
+    _ schema: JSONValue,
+    root: JSONValue,
+    visitedRefs: Set<String> = []
+  ) -> Bool {
+    var visitedRefs = visitedRefs
+    if let ref = schema["$ref"]?.stringValue {
+      if let defName = referencedDefinition(of: schema), pureDynamicDefNames.contains(defName) {
+        if ref.hasPrefix("#"), let target = resolveLocalRef(ref, in: root),
+          target != schema,
+          !isPureDynamicSchema(target, root: root, visitedRefs: visitedRefs)
+        {
+          return false
+        }
+        return true
+      }
+      if visitedRefs.insert(ref).inserted,
+        let resolved = resolveSchemaRef(ref, root: root),
+        isPureDynamicSchema(resolved.schema, root: resolved.root, visitedRefs: visitedRefs)
+      {
+        return true
+      }
+    }
+    if let allOf = schema["allOf"]?.arrayValue,
+      allOf.contains(where: {
+        isPureDynamicSchema($0, root: root, visitedRefs: visitedRefs)
+      })
+    {
+      return true
+    }
+    for combiner in ["oneOf", "anyOf"] {
+      if let subSchemas = schema[combiner]?.arrayValue, !subSchemas.isEmpty {
+        let hasDynamic = subSchemas.contains {
+          isPureDynamicSchema($0, root: root, visitedRefs: visitedRefs)
+        }
+        let allDynamicOrNull = subSchemas.allSatisfy {
+          $0["type"]?.stringValue == "null"
+            || isPureDynamicSchema($0, root: root, visitedRefs: visitedRefs)
+        }
+        if hasDynamic && allDynamicOrNull {
+          return true
+        }
+      }
+    }
+    return false
+  }
+
+  /// Resolves a `$ref` against `root` or the registered `A2UICommonSchema` documents.
+  static func resolveSchemaRef(
+    _ ref: String,
+    root: JSONValue
+  ) -> (schema: JSONValue, root: JSONValue)? {
+    if ref.hasPrefix("#") {
+      guard let target = resolveLocalRef(ref, in: root) else { return nil }
+      return (target, root)
+    }
+    guard let hashIndex = ref.firstIndex(of: "#") else { return nil }
+    let docURI = String(ref[..<hashIndex])
+    let fragment = String(ref[hashIndex...])
+    if let doc = A2UICommonSchema.allSchemas[docURI],
+      let target = resolveLocalRef(fragment, in: doc)
+    {
+      return (target, doc)
+    }
+    if (docURI.hasSuffix("/common_types.json") || docURI == "common_types.json"),
+      let target = resolveLocalRef(fragment, in: A2UICommonSchema.v10Document)
+    {
+      return (target, A2UICommonSchema.v10Document)
+    }
+    return nil
+  }
+
   /// Resolves a local `$ref` such as `#/$defs/Common` against the schema's root document.
-  private static func resolveLocalRef(_ ref: String, in root: JSONValue) -> JSONValue? {
+  static func resolveLocalRef(_ ref: String, in root: JSONValue) -> JSONValue? {
     guard ref == "#" || ref.hasPrefix("#/") else { return nil }
     var current = root
     let tokens = ref.dropFirst().split(separator: "/", omittingEmptySubsequences: false)

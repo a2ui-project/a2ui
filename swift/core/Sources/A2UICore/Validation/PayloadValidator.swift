@@ -143,6 +143,8 @@ public final class PayloadValidator: Sendable {
         try validateComponentNestedFunctions(
           in: component,
           envelope: envelope,
+          type: type,
+          componentSchema: nil,
           componentNamesCatalog: componentNamesCatalog
         )
         return
@@ -168,6 +170,8 @@ public final class PayloadValidator: Sendable {
     try validateComponentNestedFunctions(
       in: component,
       envelope: envelope,
+      type: type,
+      componentSchema: componentAPI.schema.jsonValue,
       componentNamesCatalog: componentNamesCatalog
     )
     try validateComponentSchema(
@@ -297,7 +301,6 @@ public final class PayloadValidator: Sendable {
         schema: schemaJSON
       )
     } else {
-      try rejectUndeclaredPrefixedMixins(in: component, type: type, schema: schemaJSON)
       // `accessibility` comes from `ComponentCommon`, so a component schema need not declare
       // it. When it doesn't, check it against `AccessibilityAttributes` and leave it out of the
       // component schema check, so a closed schema doesn't reject it.
@@ -390,21 +393,40 @@ public final class PayloadValidator: Sendable {
         declaresBare && !ComponentEnvelope.declaresOwnProperty(.checks, in: schema)
       instance[declaresPrefixed || !bareIsChecksMixin ? "@checks" : "checks"] = checks
     }
+    // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+    for key in Array(instance.keys) where key != "@checks" && key != "checks" {
+      if let value = instance[key],
+        let propSchema = ComponentEnvelope.resolvedSubschema(
+          forProperty: key,
+          in: schema,
+          root: schema
+        )
+      {
+        instance[key] = Self.normalizeV10ValueForSchema(
+          value,
+          schema: propSchema,
+          rootSchema: schema
+        )
+      }
+    }
     return instance
   }
 
-  /// Rejects the v1.0 `@`-prefixed component mixins on a component before v1.0, unless its
-  /// schema declares them as properties of its own. They are rejected even when unknown
-  /// properties are allowed, so that a v1.0 payload is not taken for a valid earlier one.
-  ///
-  /// - Throws: `A2UIValidationError` naming the first such key.
+  /// Rejects v1.0 `@`-prefixed component directives (`@child`, `@action`, `@functionCall`, and
+  /// mixins) on a component before v1.0, unless declared by the component schema.
   private func rejectUndeclaredPrefixedMixins(
     in component: [String: JSONValue],
     type: String,
-    schema: JSONValue
+    schema: JSONValue?
   ) throws {
+    let effectiveSchema = schema ?? .object([:])
     for key in ComponentEnvelope.prefixedKeys.sorted() where component[key] != nil {
-      guard !Self.schemaDeclaresProperty(key, in: schema, root: schema, visitedRefs: []) else {
+      guard !Self.schemaDeclaresProperty(
+        key,
+        in: effectiveSchema,
+        root: effectiveSchema,
+        visitedRefs: []
+      ) else {
         continue
       }
       let msg =
@@ -777,17 +799,36 @@ public final class PayloadValidator: Sendable {
     }
   }
 
+  private static let v10OnlyDirectives = ["@child", "@action", "@functionCall"]
+  private static let v10ActionKeys: Set<String> = ["name", "userMessage", "context"]
+  private static let v10FunctionCallKeys: Set<String> = ["@call", "args", "catalogId"]
+
+  private struct NestedValidationFrame {
+    let value: JSONValue
+    let path: String
+    let schema: JSONValue?
+    let rootSchema: JSONValue
+    let inDynamicValue: Bool
+  }
+
   private func validateComponentNestedFunctions(
     in component: [String: JSONValue],
     envelope: ComponentEnvelope?,
+    type: String,
+    componentSchema: JSONValue?,
     componentNamesCatalog: Bool
   ) throws {
+    if !enforceIdentifiers {
+      try rejectUndeclaredPrefixedMixins(in: component, type: type, schema: componentSchema)
+    }
     var skippedKeys: Set<String> = ["id", "component"]
     if let envelope {
       // The `@`-prefixed mixins are allowed at the root of a v1.0 component only; nested in a
       // property value they remain unrecognized reserved directives.
-      try DataContext.validateReservedDirectives(
-        component.keys.filter { !ComponentEnvelope.prefixedKeys.contains($0) }
+      try DataContext.validateDirectives(
+        component.keys.filter { !ComponentEnvelope.prefixedKeys.contains($0) },
+        allowed: DataContext.reservedDataDirectives,
+        pathPrefix: ""
       )
       // The catalog id and metadata hold no function calls.
       skippedKeys.formUnion([
@@ -800,10 +841,47 @@ public final class PayloadValidator: Sendable {
         }
       }
     }
+    let rootSchema = componentSchema ?? .object([:])
     for (key, propValue) in component where !skippedKeys.contains(key) {
+      if !enforceIdentifiers, Self.v10OnlyDirectives.contains(key),
+        !Self.schemaDeclaresProperty(key, in: rootSchema, root: rootSchema, visitedRefs: [])
+      {
+        let msg =
+          "Validation failed for component '\(type)': '\(key)' is a v1.0 directive "
+          + "and is not allowed before v1.0"
+        throw A2UIValidationError(
+          msg,
+          details: [A2UIErrorDetail(path: key, code: "invalid_value", message: msg)]
+        )
+      }
+      let isAccessibility =
+        key == ComponentEnvelope.Mixin.accessibility.prefixedKey
+        || (envelope != nil && key == envelope?.key(of: .accessibility))
+      let isChecks =
+        key == ComponentEnvelope.Mixin.checks.prefixedKey
+        || (envelope != nil && key == envelope?.key(of: .checks))
+      let propSchema: JSONValue?
+      let inDynamicValue: Bool
+      if isAccessibility || isChecks {
+        propSchema = nil
+        inDynamicValue = true
+      } else {
+        propSchema = componentSchema.flatMap {
+          ComponentEnvelope.resolvedSubschema(forProperty: key, in: $0, root: rootSchema)
+        }
+        inDynamicValue =
+          enforceIdentifiers
+          && (propSchema.map {
+            ComponentEnvelope.isPureDynamicSchema($0, root: rootSchema)
+          } ?? false)
+      }
       try validateNestedFunctions(
         in: propValue,
         propertyPath: key,
+        type: type,
+        schema: propSchema,
+        rootSchema: rootSchema,
+        inDynamicValue: inDynamicValue,
         componentNamesCatalog: componentNamesCatalog
       )
     }
@@ -812,67 +890,663 @@ public final class PayloadValidator: Sendable {
   private func validateNestedFunctions(
     in value: JSONValue,
     propertyPath: String = "",
+    type: String = "",
+    schema: JSONValue? = nil,
+    rootSchema: JSONValue = .object([:]),
+    inDynamicValue: Bool = false,
     componentNamesCatalog: Bool = false
   ) throws {
-    var stack: [(value: JSONValue, path: String)] = [(value, propertyPath)]
-    while let current = stack.popLast() {
-      switch current.value {
+    var stack: [NestedValidationFrame] = [
+      NestedValidationFrame(
+        value: value,
+        path: propertyPath,
+        schema: schema,
+        rootSchema: rootSchema,
+        inDynamicValue: inDynamicValue
+      )
+    ]
+    while let frame = stack.popLast() {
+      switch frame.value {
       case .array(let items):
-        appendArrayNestedItems(items, basePath: current.path, to: &stack)
+        let itemSchema = frame.schema.flatMap {
+          ComponentEnvelope.resolvedArrayItemsSchema(in: $0, root: frame.rootSchema)
+        }
+        let itemDynamic =
+          frame.inDynamicValue
+          || (enforceIdentifiers
+            && (itemSchema.map {
+              ComponentEnvelope.isPureDynamicSchema($0, root: frame.rootSchema)
+            } ?? false))
+        for (index, item) in items.enumerated().reversed() {
+          let itemPath = frame.path.isEmpty ? "\(index)" : "\(frame.path)/\(index)"
+          stack.append(
+            NestedValidationFrame(
+              value: item,
+              path: itemPath,
+              schema: itemSchema,
+              rootSchema: frame.rootSchema,
+              inDynamicValue: itemDynamic
+            )
+          )
+        }
       case .object(let dict):
-        try validateNestedObject(
-          dict,
-          propertyPath: current.path,
-          componentNamesCatalog: componentNamesCatalog
-        )
-        appendObjectNestedItems(dict, basePath: current.path, to: &stack)
+        if enforceIdentifiers {
+          try validateV10NestedObject(
+            dict,
+            frame: frame,
+            componentNamesCatalog: componentNamesCatalog,
+            pushFramesTo: &stack
+          )
+        } else {
+          try validatePreV10NestedObject(
+            dict,
+            frame: frame,
+            type: type,
+            componentNamesCatalog: componentNamesCatalog,
+            pushFramesTo: &stack
+          )
+        }
       default:
         break
       }
     }
   }
 
-  private func appendArrayNestedItems(
-    _ items: [JSONValue],
-    basePath: String,
-    to stack: inout [(value: JSONValue, path: String)]
-  ) {
-    for (index, item) in items.enumerated().reversed() {
-      let itemPath = basePath.isEmpty ? "\(index)" : "\(basePath)/\(index)"
-      stack.append((item, itemPath))
-    }
-  }
-
-  private func appendObjectNestedItems(
+  private func validatePreV10NestedObject(
     _ dict: OrderedDictionary<String, JSONValue>,
-    basePath: String,
-    to stack: inout [(value: JSONValue, path: String)]
-  ) {
-    for (subKey, propValue) in dict.reversed() {
-      let nextPath = basePath.isEmpty ? subKey : "\(basePath)/\(subKey)"
-      stack.append((propValue, nextPath))
-    }
-  }
-
-  private func validateNestedObject(
-    _ dict: OrderedDictionary<String, JSONValue>,
-    propertyPath: String,
-    componentNamesCatalog: Bool
+    frame: NestedValidationFrame,
+    type: String,
+    componentNamesCatalog: Bool,
+    pushFramesTo stack: inout [NestedValidationFrame]
   ) throws {
-    if enforceIdentifiers {
-      try DataContext.validateReservedDirectives(dict.keys)
+    for directive in Self.v10OnlyDirectives where dict[directive] != nil {
+      let declared =
+        frame.schema.map {
+          Self.schemaDeclaresProperty(directive, in: $0, root: frame.rootSchema, visitedRefs: [])
+        } ?? false
+      if !declared {
+        let errorPath = frame.path.isEmpty ? directive : "\(frame.path)/\(directive)"
+        let msg =
+          "Validation failed for component '\(type)': '\(directive)' is a v1.0 directive "
+          + "and is not allowed before v1.0"
+        throw A2UIValidationError(
+          msg,
+          details: [A2UIErrorDetail(path: errorPath, code: "invalid_value", message: msg)]
+        )
+      }
     }
-    let callValue = enforceIdentifiers ? dict["@call"] : (dict["call"] ?? dict["function"])
-    if let rawName = callValue?.stringValue,
-      enforceIdentifiers || !rawName.isEmpty
-    {
+    let callValue = dict["call"] ?? dict["function"]
+    if let rawName = callValue?.stringValue, !rawName.isEmpty {
       try validateSingleNestedCall(
         dict: dict,
         rawName: rawName,
-        propertyPath: propertyPath,
+        propertyPath: frame.path,
         componentNamesCatalog: componentNamesCatalog
       )
     }
+    for (subKey, propValue) in dict.reversed() {
+      let nextPath = frame.path.isEmpty ? subKey : "\(frame.path)/\(subKey)"
+      let subSchema = frame.schema.flatMap {
+        ComponentEnvelope.resolvedSubschema(
+          forProperty: subKey,
+          in: $0,
+          root: frame.rootSchema
+        )
+      }
+      stack.append(
+        NestedValidationFrame(
+          value: propValue,
+          path: nextPath,
+          schema: subSchema,
+          rootSchema: frame.rootSchema,
+          inDynamicValue: false
+        )
+      )
+    }
+  }
+
+  private func validateV10NestedObject(
+    _ dict: OrderedDictionary<String, JSONValue>,
+    frame: NestedValidationFrame,
+    componentNamesCatalog: Bool,
+    pushFramesTo stack: inout [NestedValidationFrame]
+  ) throws {
+    let allowed =
+      frame.inDynamicValue
+      ? DataContext.reservedDataDirectives
+      : DataContext.reservedPropertyDirectives
+    try DataContext.validateDirectives(dict.keys, allowed: allowed, pathPrefix: frame.path)
+
+    if frame.inDynamicValue {
+      if dict["@path"] != nil {
+        try validateAtPathDirective(dict, at: frame.path)
+        return
+      }
+      if dict["@call"]?.stringValue != nil {
+        try validateAtCallDirective(
+          dict,
+          at: frame.path,
+          componentNamesCatalog: componentNamesCatalog,
+          rootSchema: frame.rootSchema,
+          pushArgsTo: &stack
+        )
+        return
+      }
+      pushPlainObjectChildren(
+        dict,
+        frame: frame,
+        forceDynamic: true,
+        to: &stack
+      )
+      return
+    }
+
+    if dict["@child"] != nil {
+      try validateAtChildDirective(dict, at: frame.path)
+      return
+    }
+    if dict["@action"] != nil {
+      try validateAtActionDirective(
+        dict,
+        at: frame.path,
+        componentNamesCatalog: componentNamesCatalog,
+        rootSchema: frame.rootSchema,
+        pushFramesTo: &stack
+      )
+      return
+    }
+    if dict["@functionCall"] != nil {
+      try validateAtFunctionCallDirective(
+        dict,
+        at: frame.path,
+        componentNamesCatalog: componentNamesCatalog,
+        rootSchema: frame.rootSchema,
+        pushFramesTo: &stack
+      )
+      return
+    }
+    if dict["@path"] != nil {
+      try validateAtPathDirective(dict, at: frame.path)
+      return
+    }
+    if dict["@call"]?.stringValue != nil {
+      try validateAtCallDirective(
+        dict,
+        at: frame.path,
+        componentNamesCatalog: componentNamesCatalog,
+        rootSchema: frame.rootSchema,
+        pushArgsTo: &stack
+      )
+      return
+    }
+
+    // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+    let isActionSlot =
+      frame.schema.map { Self.isActionSlotSchema($0, root: frame.rootSchema) } ?? false
+    if isActionSlot, (dict["event"]?.objectValue != nil || dict["functionCall"] != nil) {
+      try validateLegacyActionEntries(dict, frame: frame, pushFramesTo: &stack)
+      return
+    }
+
+    pushPlainObjectChildren(
+      dict,
+      frame: frame,
+      forceDynamic: false,
+      to: &stack
+    )
+  }
+
+  private func pushPlainObjectChildren(
+    _ dict: OrderedDictionary<String, JSONValue>,
+    frame: NestedValidationFrame,
+    forceDynamic: Bool,
+    to stack: inout [NestedValidationFrame]
+  ) {
+    for (subKey, propValue) in dict.reversed() {
+      let nextPath = frame.path.isEmpty ? subKey : "\(frame.path)/\(subKey)"
+      let subSchema: JSONValue?
+      let subDynamic: Bool
+      if forceDynamic {
+        subSchema = nil
+        subDynamic = true
+      } else {
+        subSchema = frame.schema.flatMap {
+          ComponentEnvelope.resolvedSubschema(
+            forProperty: subKey,
+            in: $0,
+            root: frame.rootSchema
+          )
+        }
+        subDynamic =
+          subSchema.map { ComponentEnvelope.isPureDynamicSchema($0, root: frame.rootSchema) }
+          ?? false
+      }
+      stack.append(
+        NestedValidationFrame(
+          value: propValue,
+          path: nextPath,
+          schema: subSchema,
+          rootSchema: frame.rootSchema,
+          inDynamicValue: subDynamic
+        )
+      )
+    }
+  }
+
+  // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+  private func validateLegacyActionEntries(
+    _ dict: OrderedDictionary<String, JSONValue>,
+    frame: NestedValidationFrame,
+    pushFramesTo stack: inout [NestedValidationFrame]
+  ) throws {
+    let actionSchema = frame.schema
+    let root = frame.rootSchema
+    for (key, value) in dict.reversed() {
+      let nextPath = frame.path.isEmpty ? key : "\(frame.path)/\(key)"
+      if key == "event", let eventObj = value.objectValue {
+        let eventSchema = actionSchema.flatMap {
+          ComponentEnvelope.resolvedSubschema(forProperty: "event", in: $0, root: root)
+        }
+        try pushLegacyEventChildren(
+          eventObj,
+          at: nextPath,
+          eventSchema: eventSchema,
+          rootSchema: root,
+          to: &stack
+        )
+      } else if key == "functionCall" {
+        stack.append(
+          NestedValidationFrame(
+            value: value,
+            path: nextPath,
+            schema: nil,
+            rootSchema: root,
+            inDynamicValue: true
+          )
+        )
+      } else {
+        let subSchema = actionSchema.flatMap {
+          ComponentEnvelope.resolvedSubschema(forProperty: key, in: $0, root: root)
+        }
+        let subDynamic =
+          subSchema.map { ComponentEnvelope.isPureDynamicSchema($0, root: root) } ?? false
+        stack.append(
+          NestedValidationFrame(
+            value: value,
+            path: nextPath,
+            schema: subSchema,
+            rootSchema: root,
+            inDynamicValue: subDynamic
+          )
+        )
+      }
+    }
+  }
+
+  private func pushLegacyEventChildren(
+    _ eventObj: OrderedDictionary<String, JSONValue>,
+    at eventPath: String,
+    eventSchema: JSONValue?,
+    rootSchema: JSONValue,
+    to stack: inout [NestedValidationFrame]
+  ) throws {
+    if let ctxVal = eventObj["context"], let ctxObj = ctxVal.objectValue {
+      try DataContext.validateDirectives(
+        ctxObj.keys,
+        allowed: DataContext.reservedDataDirectives,
+        pathPrefix: "\(eventPath)/context"
+      )
+    }
+    for (subKey, subVal) in eventObj.reversed() {
+      let nextPath = "\(eventPath)/\(subKey)"
+      if subKey == "context" {
+        if let ctxObj = subVal.objectValue {
+          for (ctxKey, ctxEntry) in ctxObj.reversed() {
+            stack.append(
+              NestedValidationFrame(
+                value: ctxEntry,
+                path: "\(nextPath)/\(ctxKey)",
+                schema: nil,
+                rootSchema: rootSchema,
+                inDynamicValue: true
+              )
+            )
+          }
+        } else {
+          stack.append(
+            NestedValidationFrame(
+              value: subVal,
+              path: nextPath,
+              schema: nil,
+              rootSchema: rootSchema,
+              inDynamicValue: true
+            )
+          )
+        }
+      } else if subKey == "userMessage" {
+        stack.append(
+          NestedValidationFrame(
+            value: subVal,
+            path: nextPath,
+            schema: nil,
+            rootSchema: rootSchema,
+            inDynamicValue: true
+          )
+        )
+      } else {
+        let subSchema = eventSchema.flatMap {
+          ComponentEnvelope.resolvedSubschema(forProperty: subKey, in: $0, root: rootSchema)
+        }
+        let subDynamic =
+          subSchema.map { ComponentEnvelope.isPureDynamicSchema($0, root: rootSchema) } ?? false
+        stack.append(
+          NestedValidationFrame(
+            value: subVal,
+            path: nextPath,
+            schema: subSchema,
+            rootSchema: rootSchema,
+            inDynamicValue: subDynamic
+          )
+        )
+      }
+    }
+  }
+
+  private func validateAtPathDirective(
+    _ dict: OrderedDictionary<String, JSONValue>,
+    at path: String
+  ) throws {
+    for extraKey in dict.keys where extraKey != "@path" {
+      throw Self.directiveError(
+        path: "\(path)/\(extraKey)",
+        code: "invalid_value",
+        message: "Unexpected key '\(extraKey)' in '@path' binding"
+      )
+    }
+    guard dict["@path"]?.stringValue != nil else {
+      throw Self.directiveError(
+        path: "\(path)/@path",
+        code: "invalid_value",
+        message: "Field '@path' must be a string"
+      )
+    }
+  }
+
+  private func validateAtCallDirective(
+    _ dict: OrderedDictionary<String, JSONValue>,
+    at path: String,
+    componentNamesCatalog: Bool,
+    rootSchema: JSONValue,
+    pushArgsTo stack: inout [NestedValidationFrame]
+  ) throws {
+    guard let rawName = dict["@call"]?.stringValue, !rawName.isEmpty else {
+      let code = dict["@call"] == nil ? "missing_field" : "invalid_value"
+      throw Self.directiveError(
+        path: "\(path)/@call",
+        code: code,
+        message: "Field '@call' must be a non-empty string"
+      )
+    }
+    for extraKey in dict.keys where !Self.v10FunctionCallKeys.contains(extraKey) {
+      throw Self.directiveError(
+        path: "\(path)/\(extraKey)",
+        code: "invalid_value",
+        message: "Unexpected key '\(extraKey)' in function call"
+      )
+    }
+    if let argsVal = dict["args"] {
+      try Self.validateDynamicReservedKeys(in: argsVal, pathPrefix: "\(path)/args")
+    }
+    try validateSingleNestedCall(
+      dict: dict,
+      rawName: rawName,
+      propertyPath: path,
+      componentNamesCatalog: componentNamesCatalog
+    )
+    if let argsObj = dict["args"]?.objectValue {
+      let argsPath = "\(path)/args"
+      for (argKey, argVal) in argsObj.reversed() {
+        stack.append(
+          NestedValidationFrame(
+            value: argVal,
+            path: "\(argsPath)/\(argKey)",
+            schema: nil,
+            rootSchema: rootSchema,
+            inDynamicValue: true
+          )
+        )
+      }
+    }
+  }
+
+  private static func validateDynamicReservedKeys(
+    in value: JSONValue,
+    pathPrefix: String
+  ) throws {
+    var stack: [(value: JSONValue, path: String)] = [(value, pathPrefix)]
+    while let current = stack.popLast() {
+      switch current.value {
+      case .array(let items):
+        for (index, item) in items.enumerated().reversed() {
+          stack.append((item, "\(current.path)/\(index)"))
+        }
+      case .object(let dict):
+        try DataContext.validateDirectives(
+          dict.keys,
+          allowed: DataContext.reservedDataDirectives,
+          pathPrefix: current.path
+        )
+        for (subKey, subVal) in dict.reversed() {
+          stack.append((subVal, "\(current.path)/\(subKey)"))
+        }
+      default:
+        break
+      }
+    }
+  }
+
+  private func validateAtChildDirective(
+    _ dict: OrderedDictionary<String, JSONValue>,
+    at path: String
+  ) throws {
+    for extraKey in dict.keys where extraKey != "@child" && extraKey != "@path" {
+      throw Self.directiveError(
+        path: "\(path)/\(extraKey)",
+        code: "invalid_value",
+        message: "Unexpected key '\(extraKey)' in '@child' directive"
+      )
+    }
+    if dict["@path"] != nil {
+      guard let templateID = dict["@child"]?.stringValue, !templateID.isEmpty else {
+        throw Self.directiveError(
+          path: "\(path)/@child",
+          code: "invalid_value",
+          message: "Field '@child' must be a non-empty string when '@path' is specified"
+        )
+      }
+      guard let pathStr = dict["@path"]?.stringValue, !pathStr.isEmpty else {
+        throw Self.directiveError(
+          path: "\(path)/@path",
+          code: "invalid_value",
+          message: "Field '@path' in '@child' template must be a non-empty string"
+        )
+      }
+      return
+    }
+    switch dict["@child"] {
+    case .some(.string(let id)) where !id.isEmpty:
+      return
+    case .some(.array(let items)):
+      for (index, item) in items.enumerated() {
+        guard let id = item.stringValue, !id.isEmpty else {
+          throw Self.directiveError(
+            path: "\(path)/@child/\(index)",
+            code: "invalid_value",
+            message: "Each entry in '@child' list must be a non-empty component ID string"
+          )
+        }
+      }
+    default:
+      throw Self.directiveError(
+        path: "\(path)/@child",
+        code: "invalid_value",
+        message: "Field '@child' must be a non-empty component ID or array of component IDs"
+      )
+    }
+  }
+
+  private func validateAtActionDirective(
+    _ dict: OrderedDictionary<String, JSONValue>,
+    at path: String,
+    componentNamesCatalog: Bool,
+    rootSchema: JSONValue,
+    pushFramesTo stack: inout [NestedValidationFrame]
+  ) throws {
+    for extraKey in dict.keys where extraKey != "@action" {
+      throw Self.directiveError(
+        path: "\(path)/\(extraKey)",
+        code: "invalid_value",
+        message: "Unexpected key '\(extraKey)' beside '@action'"
+      )
+    }
+    guard let actionObj = dict["@action"]?.objectValue else {
+      throw Self.directiveError(
+        path: "\(path)/@action",
+        code: "invalid_value",
+        message: "Field '@action' must be an object"
+      )
+    }
+    let actionPath = "\(path)/@action"
+    for extraKey in actionObj.keys where !Self.v10ActionKeys.contains(extraKey) {
+      throw Self.directiveError(
+        path: "\(actionPath)/\(extraKey)",
+        code: "invalid_value",
+        message: "Unexpected key '\(extraKey)' in '@action' object"
+      )
+    }
+    if actionObj["name"] == nil {
+      throw Self.directiveError(
+        path: "\(actionPath)/name",
+        code: "missing_field",
+        message: "Missing required field 'name' in '@action'"
+      )
+    }
+    guard let name = actionObj["name"]?.stringValue, !name.isEmpty else {
+      throw Self.directiveError(
+        path: "\(actionPath)/name",
+        code: "invalid_value",
+        message: "Field 'name' in '@action' must be a non-empty string"
+      )
+    }
+    if let rawContext = actionObj["context"] {
+      let ctxPath = "\(actionPath)/context"
+      guard let ctxObj = rawContext.objectValue else {
+        throw Self.directiveError(
+          path: ctxPath,
+          code: "invalid_value",
+          message: "Field 'context' in '@action' must be an object"
+        )
+      }
+      try DataContext.validateDirectives(
+        ctxObj.keys,
+        allowed: DataContext.reservedDataDirectives,
+        pathPrefix: ctxPath
+      )
+      for (ctxKey, ctxVal) in ctxObj.reversed() {
+        stack.append(
+          NestedValidationFrame(
+            value: ctxVal,
+            path: "\(ctxPath)/\(ctxKey)",
+            schema: nil,
+            rootSchema: rootSchema,
+            inDynamicValue: true
+          )
+        )
+      }
+    }
+    if let userMsg = actionObj["userMessage"] {
+      let msgPath = "\(actionPath)/userMessage"
+      switch userMsg {
+      case .string:
+        break
+      case .object(let msgDict):
+        try DataContext.validateDirectives(
+          msgDict.keys,
+          allowed: DataContext.reservedDataDirectives,
+          pathPrefix: msgPath
+        )
+        if msgDict["@path"] != nil {
+          try validateAtPathDirective(msgDict, at: msgPath)
+        } else if msgDict["@call"] != nil {
+          try validateAtCallDirective(
+            msgDict,
+            at: msgPath,
+            componentNamesCatalog: componentNamesCatalog,
+            rootSchema: rootSchema,
+            pushArgsTo: &stack
+          )
+        } else {
+          throw Self.directiveError(
+            path: msgPath,
+            code: "invalid_value",
+            message: "Field 'userMessage' in '@action' must be a DynamicString"
+          )
+        }
+      default:
+        throw Self.directiveError(
+          path: msgPath,
+          code: "invalid_value",
+          message: "Field 'userMessage' in '@action' must be a DynamicString"
+        )
+      }
+    }
+  }
+
+  private func validateAtFunctionCallDirective(
+    _ dict: OrderedDictionary<String, JSONValue>,
+    at path: String,
+    componentNamesCatalog: Bool,
+    rootSchema: JSONValue,
+    pushFramesTo stack: inout [NestedValidationFrame]
+  ) throws {
+    for extraKey in dict.keys where extraKey != "@functionCall" {
+      throw Self.directiveError(
+        path: "\(path)/\(extraKey)",
+        code: "invalid_value",
+        message: "Unexpected key '\(extraKey)' beside '@functionCall'"
+      )
+    }
+    let fnPath = "\(path)/@functionCall"
+    guard let fnObj = dict["@functionCall"]?.objectValue else {
+      throw Self.directiveError(
+        path: fnPath,
+        code: "invalid_value",
+        message: "Field '@functionCall' must be an object"
+      )
+    }
+    try DataContext.validateDirectives(
+      fnObj.keys,
+      allowed: DataContext.reservedDataDirectives,
+      pathPrefix: fnPath
+    )
+    try validateAtCallDirective(
+      fnObj,
+      at: fnPath,
+      componentNamesCatalog: componentNamesCatalog,
+      rootSchema: rootSchema,
+      pushArgsTo: &stack
+    )
+  }
+
+  private static func directiveError(
+    path: String,
+    code: String,
+    message: String
+  ) -> A2UIValidationError {
+    A2UIValidationError(
+      message,
+      details: [A2UIErrorDetail(path: path, code: code, message: message)]
+    )
   }
 
   private func validateSingleNestedCall(
@@ -1013,7 +1687,8 @@ public final class PayloadValidator: Sendable {
     }
     var visitedRefs = visitedRefs
     if let ref = schema["$ref"]?.stringValue, ref.hasPrefix("#"),
-      visitedRefs.insert(ref).inserted, let target = resolveLocalRef(ref, in: root),
+      visitedRefs.insert(ref).inserted,
+      let target = ComponentEnvelope.resolveLocalRef(ref, in: root),
       schemaRequiresProperty(key, in: target, root: root, visitedRefs: visitedRefs)
     {
       return true
@@ -1042,7 +1717,8 @@ public final class PayloadValidator: Sendable {
     var visitedRefs = visitedRefs
     if let ref = schema["$ref"]?.stringValue {
       if ref.hasPrefix("#") {
-        if visitedRefs.insert(ref).inserted, let target = resolveLocalRef(ref, in: root),
+        if visitedRefs.insert(ref).inserted,
+          let target = ComponentEnvelope.resolveLocalRef(ref, in: root),
           schemaDeclaresProperty(key, in: target, root: root, visitedRefs: visitedRefs)
         {
           return true
@@ -1063,27 +1739,233 @@ public final class PayloadValidator: Sendable {
     return false
   }
 
-  /// Resolves a local `$ref` such as `#/$defs/Common` against the schema's root document.
-  private static func resolveLocalRef(_ ref: String, in root: JSONValue) -> JSONValue? {
-    guard ref == "#" || ref.hasPrefix("#/") else { return nil }
-    var current = root
-    let tokens = ref.dropFirst().split(separator: "/", omittingEmptySubsequences: false)
-    for rawToken in tokens.dropFirst() {
-      let token =
-        rawToken
-        .replacingOccurrences(of: "~1", with: "/")
-        .replacingOccurrences(of: "~0", with: "~")
-      if let next = current.objectValue?[token] {
-        current = next
-      } else if let items = current.arrayValue, let index = Int(token),
-        items.indices.contains(index)
-      {
-        current = items[index]
+  private enum V10SlotKind {
+    case singleChild(expectsAt: Bool)
+    case childList(expectsAt: Bool)
+    case componentIDArray
+    case action(expectsAt: Bool)
+  }
+
+  private static func isActionSlotSchema(_ schema: JSONValue, root: JSONValue) -> Bool {
+    if case .action = classifyV10Slot(schema, root: root) {
+      return true
+    }
+    return false
+  }
+
+  // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+  private static func normalizeV10ValueForSchema(
+    _ value: JSONValue,
+    schema: JSONValue,
+    rootSchema: JSONValue
+  ) -> JSONValue {
+    guard value != .null else { return value }
+    if let slotKind = classifyV10Slot(schema, root: rootSchema) {
+      return normalizeSlotValue(value, for: slotKind)
+    }
+    switch value {
+    case .array(let items):
+      guard let itemSchema = ComponentEnvelope.resolvedArrayItemsSchema(
+        in: schema,
+        root: rootSchema
+      ) else {
+        return value
+      }
+      return .array(
+        items.map { normalizeV10ValueForSchema($0, schema: itemSchema, rootSchema: rootSchema) }
+      )
+    case .object(let dict):
+      var updated = dict
+      for (key, propValue) in dict {
+        if let subSchema = ComponentEnvelope.resolvedSubschema(
+          forProperty: key,
+          in: schema,
+          root: rootSchema
+        ) {
+          updated[key] = normalizeV10ValueForSchema(
+            propValue,
+            schema: subSchema,
+            rootSchema: rootSchema
+          )
+        }
+      }
+      return .object(updated)
+    default:
+      return value
+    }
+  }
+
+  private static func normalizeSlotValue(
+    _ value: JSONValue,
+    for slotKind: V10SlotKind
+  ) -> JSONValue {
+    switch slotKind {
+    case .singleChild(let expectsAt):
+      if expectsAt {
+        if let id = value.stringValue {
+          return .object(["@child": .string(id)])
+        }
+      } else if let obj = value.objectValue, obj.count == 1, let id = obj["@child"]?.stringValue {
+        return .string(id)
+      }
+      return value
+
+    case .childList(let expectsAt):
+      if expectsAt {
+        switch value {
+        case .array:
+          return .object(["@child": value])
+        case .object(let obj)
+        where obj.count == 2 && obj["componentId"] != nil && obj["path"] != nil:
+          if let cid = obj["componentId"], let path = obj["path"] {
+            return .object(["@child": cid, "@path": path])
+          }
+          return value
+        default:
+          return value
+        }
       } else {
-        return nil
+        guard let obj = value.objectValue else { return value }
+        if obj.count == 1, let arr = obj["@child"]?.arrayValue {
+          return .array(arr)
+        }
+        if obj.count == 2, let tpl = obj["@child"], tpl.stringValue != nil, let p = obj["@path"] {
+          return .object(["componentId": tpl, "path": p])
+        }
+        return value
+      }
+
+    case .componentIDArray:
+      if let obj = value.objectValue, obj.count == 1, let arr = obj["@child"]?.arrayValue {
+        return .array(arr)
+      }
+      return value
+
+    case .action(let expectsAt):
+      guard let obj = value.objectValue, obj.count == 1 else { return value }
+      if expectsAt {
+        if let ev = obj["event"] {
+          return .object(["@action": ev])
+        }
+        if let fc = obj["functionCall"] {
+          return .object(["@functionCall": fc])
+        }
+      } else {
+        if let act = obj["@action"] {
+          return .object(["event": act])
+        }
+        if let fc = obj["@functionCall"] {
+          return .object(["functionCall": fc])
+        }
+      }
+      return value
+    }
+  }
+
+  private static func classifyV10Slot(
+    _ schema: JSONValue,
+    root: JSONValue,
+    visitedRefs: Set<String> = []
+  ) -> V10SlotKind? {
+    if let refName = ComponentEnvelope.schemaRefName(schema) {
+      let resolvedTarget =
+        schema["$ref"]?.stringValue.flatMap { ComponentEnvelope.resolveSchemaRef($0, root: root) }
+      let targetSchema = resolvedTarget?.schema ?? schema
+      let targetRoot = resolvedTarget?.root ?? root
+      let expectsAtChild = ComponentEnvelope.schemaContainsPropertyKey(
+        "@child",
+        in: targetSchema,
+        root: targetRoot
+      )
+      switch refName {
+      case "Action":
+        let expectsAt =
+          ComponentEnvelope.schemaContainsPropertyKey(
+            "@action",
+            in: targetSchema,
+            root: targetRoot
+          )
+          || ComponentEnvelope.schemaContainsPropertyKey(
+            "@functionCall",
+            in: targetSchema,
+            root: targetRoot
+          )
+        return .action(expectsAt: expectsAt)
+      case "ChildList":
+        if schema["type"]?.stringValue == "array" {
+          return .componentIDArray
+        }
+        return .childList(expectsAt: expectsAtChild)
+      case "Child", "ComponentId":
+        if schema["type"]?.stringValue == "array" {
+          return .componentIDArray
+        }
+        return .singleChild(expectsAt: expectsAtChild)
+      default:
+        break
       }
     }
-    return current
+
+    if schema["type"]?.stringValue == "array", let items = schema["items"],
+      case .singleChild = classifyV10Slot(items, root: root, visitedRefs: visitedRefs)
+    {
+      return .componentIDArray
+    }
+
+    if let props = schema["properties"]?.objectValue {
+      if props["@action"] != nil || props["@functionCall"] != nil {
+        return .action(expectsAt: true)
+      }
+      if props["event"] != nil || props["functionCall"] != nil {
+        if props["event"] != nil,
+          schema["required"]?.arrayValue?.contains(.string("event")) == true
+        {
+          return .action(expectsAt: false)
+        }
+        if props["functionCall"] != nil,
+          schema["required"]?.arrayValue?.contains(.string("functionCall")) == true
+        {
+          return .action(expectsAt: false)
+        }
+      }
+      if props["@child"] != nil {
+        if props["@path"] != nil || props["@child"]?["type"]?.stringValue == "array" {
+          return .childList(expectsAt: true)
+        }
+        return .singleChild(expectsAt: true)
+      }
+      if props["componentId"] != nil && props["path"] != nil {
+        return .childList(expectsAt: false)
+      }
+    }
+
+    var visitedRefs = visitedRefs
+    if let ref = schema["$ref"]?.stringValue, visitedRefs.insert(ref).inserted,
+      let resolved = ComponentEnvelope.resolveSchemaRef(ref, root: root),
+      let kind = classifyV10Slot(resolved.schema, root: resolved.root, visitedRefs: visitedRefs)
+    {
+      return kind
+    }
+
+    for combiner in ["oneOf", "anyOf"] {
+      if let branches = schema[combiner]?.arrayValue {
+        let nonNull = branches.filter { $0["type"]?.stringValue != "null" }
+        let kinds = nonNull.compactMap {
+          classifyV10Slot($0, root: root, visitedRefs: visitedRefs)
+        }
+        if kinds.count == nonNull.count, let first = kinds.first {
+          return first
+        }
+      }
+    }
+    if let allOf = schema["allOf"]?.arrayValue {
+      for branch in allOf {
+        if let kind = classifyV10Slot(branch, root: root, visitedRefs: visitedRefs) {
+          return kind
+        }
+      }
+    }
+    return nil
   }
 
   /// Returns the leaf errors of a schema error, leaving out the errors that name unknown
@@ -1151,7 +2033,7 @@ public final class PayloadValidator: Sendable {
       return nil
     }
     tokens.removeLast()
-    return resolveLocalRef("#" + tokens.joined(separator: "/"), in: document)
+    return ComponentEnvelope.resolveLocalRef("#" + tokens.joined(separator: "/"), in: document)
   }
 
   private func containsDynamicExpression(in args: [String: JSONValue]) -> Bool {

@@ -1467,6 +1467,114 @@ describe('DataContext', () => {
       const v09Ctx = new DataContext(v09Surface, '/');
       assert.doesNotThrow(() => v09Ctx.resolveDynamicValue({'@custom': 'allowed in 0.9'}));
     });
+
+    it('rejects @child, @action, and @functionCall inside DynamicValue and unescapes @@ forms', () => {
+      const invoked: unknown[] = [];
+      const cat = new Catalog(
+        'cat',
+        '1.0',
+        [],
+        [
+          {
+            name: 'doWork',
+            returnType: 'string',
+            schema: z.object({x: z.string()}),
+            execute: (args: Record<string, unknown>) => {
+              invoked.push(args);
+              return `done:${args.x}`;
+            },
+          } as any,
+        ],
+      );
+      const surface = new SurfaceModel('s1', cat);
+      surface.dataModel.set('/item/title', 'Widget');
+      const ctx = new DataContext(surface, '/');
+
+      for (const badDirective of [
+        {'@child': 'c1'},
+        {'@child': 'tpl', '@path': '/items'},
+        {'@action': {name: 'save'}},
+        {'@functionCall': {'@call': 'doWork', args: {x: '1'}}},
+        {'@call': 'doWork', '@child': 'c1'},
+      ]) {
+        assert.throws(
+          () => ctx.resolveDynamicValue(badDirective),
+          (err: any) => err instanceof A2uiValidationError && err.code === 'INVALID_RESERVED_KEY',
+        );
+        assert.throws(
+          () => ctx.subscribeDynamicValue(badDirective, () => {}),
+          (err: any) => err instanceof A2uiValidationError && err.code === 'INVALID_RESERVED_KEY',
+        );
+      }
+
+      assert.deepStrictEqual(
+        ctx.resolveDynamicValue({
+          '@@child': 'lit_child',
+          '@@action': 'lit_action',
+          '@@functionCall': 'lit_call',
+          title: {'@path': '/item/title'},
+        }),
+        {
+          '@child': 'lit_child',
+          '@action': 'lit_action',
+          '@functionCall': 'lit_call',
+          title: 'Widget',
+        },
+      );
+
+      const resolvedAction = ctx.resolveAction({
+        '@action': {
+          name: 'submit',
+          userMessage: {'@path': '/item/title'},
+          context: {title: {'@path': '/item/title'}, '@@child': 'ok'},
+        },
+      });
+      assert.deepStrictEqual(resolvedAction, {
+        '@action': {
+          name: 'submit',
+          userMessage: 'Widget',
+          context: {title: 'Widget', '@@child': 'ok'},
+        },
+      });
+
+      const fnResult = ctx.resolveAction({
+        '@functionCall': {'@call': 'doWork', args: {x: {'@path': '/item/title'}}},
+      });
+      assert.strictEqual(fnResult, 'done:Widget');
+      assert.deepStrictEqual(invoked, [{x: 'Widget'}]);
+      surface.dispose();
+    });
+
+    it('ignores @action, @functionCall, and @call directives in resolveAction pre-1.0', () => {
+      const v09Invoked: unknown[] = [];
+      const v09Catalog = new Catalog(
+        'https://example.com/v09-ctx.json',
+        '0.9',
+        [],
+        [
+          {
+            name: 'doWork',
+            returnType: 'string',
+            schema: z.object({x: z.string()}),
+            execute: (args: Record<string, unknown>) => {
+              v09Invoked.push(args);
+              return `done:${args.x}`;
+            },
+          } as any,
+        ],
+      );
+      const surface = new SurfaceModel('s-v09', v09Catalog);
+      const ctx = new DataContext(surface, '/');
+
+      const rawAction = {'@action': {name: 'submit', context: {k: {path: '/x'}}}};
+      assert.deepStrictEqual(ctx.resolveAction(rawAction), rawAction);
+      const rawFnCall = {'@functionCall': {'@call': 'doWork', args: {x: '1'}}};
+      assert.deepStrictEqual(ctx.resolveAction(rawFnCall), rawFnCall);
+      const rawCall = {'@call': 'doWork', args: {x: '1'}};
+      assert.deepStrictEqual(ctx.resolveAction(rawCall), rawCall);
+      assert.strictEqual(v09Invoked.length, 0);
+      surface.dispose();
+    });
   });
 });
 

@@ -3936,3 +3936,399 @@
             "@metadata":
               extensions:
                 com_example_trace: "t3"
+
+# ------------------------------------------------------------------------------
+# v1.0 @child, @action, and @functionCall message processing & schema-less graph checks (#2791)
+# ------------------------------------------------------------------------------
+
+- name: test_v10_process_messages_at_child_at_action_and_at_function_call
+  features: [F-CORE-02, F-CORE-11, F-CORE-12, F-CORE-13, F-CORE-23, F-CORE-28]
+  description: >-
+    Tests that v1.0 MessageProcessor accepts @child (single, static list, dynamic
+    template, and nested Tabs.tabs[i].child), @action, and @functionCall in strict
+    mode, and atomically aborts a subsequent update that introduces a cycle via @child.
+  action: process_messages
+  protocolVersion: "1.0"
+  strictMode: true
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "s_v10_directives"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            dataModel:
+              items:
+                - label: "Row 1"
+            components:
+              - id: "root"
+                component: "Tabs"
+                tabs:
+                  - title: "Main"
+                    child:
+                      "@child": "mainCol"
+                  - title: "List"
+                    child:
+                      "@child": "dynList"
+              - id: "mainCol"
+                component: "Column"
+                children:
+                  "@child": ["infoCard", "submitBtn", "linkBtn"]
+              - id: "infoCard"
+                component: "Card"
+                child:
+                  "@child": "infoText"
+              - id: "infoText"
+                component: "Text"
+                text: "Summary"
+              - id: "submitBtn"
+                component: "Button"
+                child:
+                  "@child": "submitLbl"
+                action:
+                  "@action":
+                    name: "submit"
+                    context:
+                      count: 1
+              - id: "submitLbl"
+                component: "Text"
+                text: "Submit"
+              - id: "linkBtn"
+                component: "Button"
+                child:
+                  "@child": "linkLbl"
+                action:
+                  "@functionCall":
+                    "@call": "openUrl"
+                    args:
+                      url: "https://a2ui.org"
+              - id: "linkLbl"
+                component: "Text"
+                text: "Docs"
+              - id: "dynList"
+                component: "List"
+                children:
+                  "@child": "rowText"
+                  "@path": "/items"
+              - id: "rowText"
+                component: "Text"
+                text:
+                  "@path": "label"
+      expect:
+        surfaces:
+          s_v10_directives:
+            exists: true
+            components:
+              - id: "root"
+                component: "Tabs"
+              - id: "mainCol"
+                component: "Column"
+              - id: "infoCard"
+                component: "Card"
+              - id: "infoText"
+                component: "Text"
+                text: "Summary"
+              - id: "submitBtn"
+                component: "Button"
+              - id: "submitLbl"
+                component: "Text"
+                text: "Submit"
+              - id: "linkBtn"
+                component: "Button"
+              - id: "linkLbl"
+                component: "Text"
+                text: "Docs"
+              - id: "dynList"
+                component: "List"
+              - id: "rowText"
+                component: "Text"
+    - messages:
+        - version: "1.0"
+          updateComponents:
+            surfaceId: "s_v10_directives"
+            components:
+              - id: "infoCard"
+                component: "Card"
+                child:
+                  "@child": "root"
+      expectError:
+        category: "IntegrityError"
+        surfaceId: "s_v10_directives"
+        rendererError:
+          version: "1.0"
+          error:
+            code: "RECURSION_LIMIT_EXCEEDED"
+            surfaceId: "s_v10_directives"
+            message: "Circular"
+
+- name: test_v10_composition_constraints_at_child_custom_and_nested_slots
+  features: [F-CORE-12]
+  description: >-
+    Verifies that MessageProcessor enforces allowedChildren and allowedParents
+    across @child references on custom slot names and nested array-of-objects slots.
+  action: process_messages
+  protocolVersion: "1.0"
+  strictMode: true
+  catalogs:
+    - catalogId: custom-slot-comp-v10
+      protocolVersion: "1.0"
+      components:
+        ShellFrame:
+          type: object
+          allowedChildren:
+            - NavHeader
+          properties:
+            component:
+              const: ShellFrame
+            header:
+              $ref: "common_types.json#/$defs/Child"
+            sections:
+              type: array
+              items:
+                type: object
+                properties:
+                  title:
+                    type: string
+                  body:
+                    $ref: "common_types.json#/$defs/Child"
+                required:
+                  - title
+                  - body
+                additionalProperties: false
+          required:
+            - component
+        OtherFrame:
+          type: object
+          properties:
+            component:
+              const: OtherFrame
+          required:
+            - component
+          additionalProperties: true
+        NavHeader:
+          type: object
+          allowedParents:
+            - ShellFrame
+          properties:
+            component:
+              const: NavHeader
+          required:
+            - component
+        PlainBadge:
+          type: object
+          properties:
+            component:
+              const: PlainBadge
+          required:
+            - component
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "s_unallowed_custom_child"
+            catalogId: "custom-slot-comp-v10"
+            components:
+              - id: "root"
+                component: "ShellFrame"
+                header:
+                  "@child": "badge"
+              - id: "badge"
+                component: "PlainBadge"
+      expectError:
+        category: "ValidationError"
+        surfaceId: "s_unallowed_custom_child"
+        rendererError:
+          version: "1.0"
+          error:
+            code: "UNALLOWED_CHILD"
+            surfaceId: "s_unallowed_custom_child"
+            path: "/components/0/header"
+            message: "ShellFrame"
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "s_unallowed_nested_child"
+            catalogId: "custom-slot-comp-v10"
+            components:
+              - id: "root"
+                component: "ShellFrame"
+                sections:
+                  - title: "Overview"
+                    body:
+                      "@child": "badge"
+              - id: "badge"
+                component: "PlainBadge"
+      expectError:
+        category: "ValidationError"
+        surfaceId: "s_unallowed_nested_child"
+        rendererError:
+          version: "1.0"
+          error:
+            code: "UNALLOWED_CHILD"
+            surfaceId: "s_unallowed_nested_child"
+            path: "/components/0/sections/0/body"
+            message: "ShellFrame"
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "s_unallowed_custom_parent"
+            catalogId: "custom-slot-comp-v10"
+            components:
+              - id: "root"
+                component: "OtherFrame"
+                header:
+                  "@child": "nav"
+              - id: "nav"
+                component: "NavHeader"
+      expectError:
+        category: "ValidationError"
+        surfaceId: "s_unallowed_custom_parent"
+        rendererError:
+          version: "1.0"
+          error:
+            code: "UNALLOWED_PARENT"
+            surfaceId: "s_unallowed_custom_parent"
+            path: "/components/1"
+            message: "NavHeader"
+
+- name: test_v10_schemaless_open_component_plain_strings_not_child_edges
+  features: [F-CORE-11, F-CORE-12]
+  description: >-
+    Tests that on an open v1.0 component with zero property schemas, @child
+    makes referenced children reachable while plain string properties ('title':
+    'missing_id', 'parentName': 'root') are not misinterpreted as dangling or
+    cyclic child references.
+  action: process_messages
+  protocolVersion: "1.0"
+  strictMode: true
+  catalogs:
+    - catalogId: open-shell-cat-v10
+      protocolVersion: "1.0"
+      components:
+        OpenShell:
+          type: object
+          properties:
+            component:
+              const: OpenShell
+          required:
+            - component
+          additionalProperties: true
+        LeafText:
+          type: object
+          properties:
+            component:
+              const: LeafText
+            text:
+              type: string
+          required:
+            - component
+            - text
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s_open_shell_ok"
+        catalogId: "open-shell-cat-v10"
+        components:
+          - id: "root"
+            component: "OpenShell"
+            title: "non_existent_component_id"
+            parentName: "root"
+            header:
+              "@child": "hdr"
+            sections:
+              - label: "root"
+                body:
+                  "@child": "sec_leaf"
+          - id: "hdr"
+            component: "LeafText"
+            text: "Header"
+          - id: "sec_leaf"
+            component: "LeafText"
+            text: "Section"
+  expect:
+    surfaces:
+      s_open_shell_ok:
+        exists: true
+        components:
+          - id: "root"
+            component: "OpenShell"
+          - id: "hdr"
+            component: "LeafText"
+            text: "Header"
+          - id: "sec_leaf"
+            component: "LeafText"
+            text: "Section"
+
+- name: test_v10_schemaless_unknown_component_at_child_cycle_dangling_and_plain_string
+  features: [F-CORE-12]
+  description: >-
+    Tests schema-less @child extraction on unknown component types when
+    allowUnknownElements is true: cycles and dangling references through unknown
+    components using @child are caught, whereas a plain string property ('title':
+    'orphan_leaf') is not treated as a child edge to make an orphan reachable.
+  action: process_messages
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  validationConfig:
+    allowUnknownElements: true
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "s_unk_cycle"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            components:
+              - id: "root"
+                component: "Card"
+                child:
+                  "@child": "unk"
+              - id: "unk"
+                component: "UnknownShellWidget"
+                customSlot:
+                  "@child": "root"
+      expectError:
+        category: "IntegrityError"
+        surfaceId: "s_unk_cycle"
+        rendererError:
+          version: "1.0"
+          error:
+            code: "RECURSION_LIMIT_EXCEEDED"
+            surfaceId: "s_unk_cycle"
+            message: "Circular"
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "s_unk_dangling"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            components:
+              - id: "root"
+                component: "Card"
+                child:
+                  "@child": "unk"
+              - id: "unk"
+                component: "UnknownShellWidget"
+                sections:
+                  - body:
+                      "@child": "missing_leaf"
+      expectError:
+        message: "Dangling reference"
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "s_unk_plain_str"
+            catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+            components:
+              - id: "root"
+                component: "Card"
+                child:
+                  "@child": "unk"
+              - id: "unk"
+                component: "UnknownShellWidget"
+                title: "orphan_leaf"
+              - id: "orphan_leaf"
+                component: "Text"
+                text: "Unreachable"
+      expectError:
+        message: "is not reachable from"

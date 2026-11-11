@@ -2537,4 +2537,135 @@ describe('NodeResolver dynamic and unannotated ref schemas (#3783)', () => {
     resolver.dispose();
     surface.dispose();
   });
+
+  it('materializes open schema-less v1.0 @child trees, writable @path bindings, deferred @action/@functionCall, and @@ escaping', async () => {
+    const fnInvocations: unknown[] = [];
+    const openShellSchema = z.object({}).passthrough();
+    const v1Catalog = new Catalog<ComponentApi>(
+      'v1-open-catalog',
+      '1.0',
+      [
+        {name: 'CustomShell', schema: openShellSchema},
+        {name: 'HeaderText', schema: z.object({text: z.string()})},
+        {name: 'RowText', schema: z.object({text: z.string()})},
+        {name: 'BodyBadge', schema: z.object({text: z.string()})},
+      ],
+      [
+        createFunctionImplementation(ShoutApi, args => {
+          fnInvocations.push(args);
+          return String(args.value).toUpperCase();
+        }),
+      ],
+    );
+
+    const surface = new SurfaceModel('v1-surf', v1Catalog);
+    const dispatchedActions: unknown[] = [];
+    surface.onAction.subscribe(act => {
+      dispatchedActions.push(act);
+    });
+
+    surface.dataModel.set('/heading', 'Initial Heading');
+    surface.dataModel.set('/rows', [{label: 'First Row'}, {label: 'Second Row'}]);
+
+    add(surface, 'hdr', 'HeaderText', {text: 'Shell Header'});
+    add(surface, 'tpl', 'RowText', {text: {'@path': 'label'}});
+    add(surface, 'b1', 'BodyBadge', {text: 'Section Body'});
+    add(surface, 'root', 'CustomShell', {
+      header: {'@child': 'hdr'},
+      items: {'@child': 'tpl', '@path': '/rows'},
+      sections: [{title: {'@path': '/heading'}, body: {'@child': 'b1'}}],
+      title: {'@path': '/heading'},
+      computed: {'@call': 'shout', args: {value: {'@path': '/heading'}}},
+      onSave: {
+        '@action': {
+          name: 'save',
+          userMessage: {'@path': '/heading'},
+          context: {heading: {'@path': '/heading'}},
+        },
+      },
+      onOpen: {
+        '@functionCall': {
+          '@call': 'shout',
+          args: {value: 'clicked'},
+        },
+      },
+      meta: {'@@child': 'not_a_node', '@@action': 'literal'},
+    });
+
+    const resolver = new NodeResolver(surface, v1Catalog);
+    const root = getValue(resolver.rootNode)!;
+    assert.ok(root);
+    assert.strictEqual(root.type, 'CustomShell');
+
+    // @child at top level, template list, and nested sections materialize into ComponentNodes.
+    const hdrNode = child(root, 'header');
+    assert.strictEqual(hdrNode.componentId, 'hdr');
+    assert.strictEqual(hdrNode.instanceId, 'hdr');
+    assert.strictEqual(props(hdrNode).text, 'Shell Header');
+
+    const itemNodes = props(root).items as ComponentNode[];
+    assert.strictEqual(itemNodes.length, 2);
+    assert.strictEqual(itemNodes[0].componentId, 'tpl');
+    assert.strictEqual(itemNodes[0].dataPath, '/rows/0');
+    assert.strictEqual(itemNodes[1].dataPath, '/rows/1');
+
+    const sections = props(root).sections as Array<Record<string, unknown>>;
+    assert.strictEqual(sections.length, 1);
+    assert.ok(sections[0].title instanceof WritableBinding);
+    assert.strictEqual((sections[0].title as WritableBinding<string>).value, 'Initial Heading');
+    assert.ok(isComponentNode(sections[0].body));
+    assert.strictEqual((sections[0].body as ComponentNode).componentId, 'b1');
+
+    // Open @path wraps into WritableBinding and @call wraps into read-only ResolvedBinding.
+    const titleBinding = props(root).title;
+    assert.ok(titleBinding instanceof WritableBinding);
+    assert.strictEqual(titleBinding.value, 'Initial Heading');
+    const computedBinding = props(root).computed;
+    assert.ok(computedBinding instanceof ResolvedBinding);
+    assert.strictEqual(computedBinding instanceof WritableBinding, false);
+    assert.strictEqual(computedBinding.value, 'INITIAL HEADING');
+
+    // @@child / @@action unescape without creating child nodes or action closures.
+    assert.deepStrictEqual(props(root).meta, {
+      '@child': 'not_a_node',
+      '@action': 'literal',
+    });
+
+    // Neither @action nor @functionCall executed during node resolution (only computed ran).
+    assert.strictEqual(dispatchedActions.length, 0);
+    assert.ok(fnInvocations.length >= 1);
+    assert.strictEqual(
+      fnInvocations.filter(args => (args as {value?: unknown}).value === 'clicked').length,
+      0,
+    );
+
+    // WritableBinding updates DataModel and propagates reactively to resolved props.
+    titleBinding.set('Renamed Heading');
+    await flush();
+    assert.strictEqual(surface.dataModel.get('/heading'), 'Renamed Heading');
+    assert.strictEqual((props(root).title as WritableBinding<string>).value, 'Renamed Heading');
+    assert.strictEqual((props(root).computed as ResolvedBinding<string>).value, 'RENAMED HEADING');
+
+    // @functionCall closure runs without dispatching an action event.
+    const onOpen = props(root).onOpen as () => Promise<void>;
+    assert.strictEqual(typeof onOpen, 'function');
+    await onOpen();
+    assert.strictEqual(
+      fnInvocations.filter(args => (args as {value?: unknown}).value === 'clicked').length,
+      1,
+    );
+    assert.strictEqual(dispatchedActions.length, 0);
+
+    // @action closure resolves lazily and dispatches an ActionPayload.
+    const onSave = props(root).onSave as () => Promise<void>;
+    assert.strictEqual(typeof onSave, 'function');
+    await onSave();
+    assert.strictEqual(dispatchedActions.length, 1);
+    assert.strictEqual((dispatchedActions[0] as any).name, 'save');
+    assert.strictEqual((dispatchedActions[0] as any).userMessage, 'Renamed Heading');
+    assert.deepStrictEqual((dispatchedActions[0] as any).context, {heading: 'Renamed Heading'});
+
+    resolver.dispose();
+    surface.dispose();
+  });
 });

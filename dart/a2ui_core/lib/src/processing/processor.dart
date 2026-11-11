@@ -1332,6 +1332,7 @@ class MessageProcessor<T extends ComponentApi> {
       catalogIds,
     );
     final ValidationConfig? config = _config;
+    final bool atLeastV10 = version.isAtLeast(A2uiProtocolVersion.v1_0);
     ComponentGraphBound? bound;
     if (config == null) {
       checkDuplicateComponentIds(resolved);
@@ -1341,6 +1342,7 @@ class MessageProcessor<T extends ComponentApi> {
         config,
         refFields,
         defaultRootId: surface.rootId,
+        atLeastV10: atLeastV10,
       );
     }
     // Composition constraints (`allowedParents` / `allowedChildren`) over the
@@ -1383,6 +1385,7 @@ class MessageProcessor<T extends ComponentApi> {
         typeOf: (String id) => types[id] ?? model.get(id)?.type,
         parentsOf: bound.parentsOf,
         rootId: surface.rootId,
+        atLeastV10: atLeastV10,
       )) {
         return (resolved: resolved, refFields: refFields, version: version);
       }
@@ -1402,6 +1405,7 @@ class MessageProcessor<T extends ComponentApi> {
       existing: existing,
       rootId: surface.rootId,
       surfaceId: surface.id,
+      atLeastV10: atLeastV10,
     );
 
     return (resolved: resolved, refFields: refFields, version: version);

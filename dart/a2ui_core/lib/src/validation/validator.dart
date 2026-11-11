@@ -19,6 +19,7 @@ import '../core/catalog.dart';
 import '../primitives/common_types_documents.dart' as documents;
 import '../primitives/errors.dart';
 import '../primitives/protocol_version.dart';
+import '../primitives/reference_schema.dart';
 import '../primitives/semver.dart';
 import '../primitives/uax31.dart';
 import 'component_graph.dart' show maxFunctionCallArgs;
@@ -56,6 +57,12 @@ const Map<String, Map<String, Object?>> _v1CommonEnvelopeTypes = {
       r'$ref': r'common_types.json#/$defs/CheckRule',
     },
   },
+  'dynamicString': {
+    r'$ref': r'common_types.json#/$defs/DynamicString',
+  },
+  'dynamicValue': {
+    r'$ref': r'common_types.json#/$defs/DynamicValue',
+  },
 };
 
 const List<(String, String)> _v1MixinKeyPairs = [
@@ -76,8 +83,17 @@ const Set<String> _v1AtEnvelopeKeys = {
 /// `@`, so `@@name` is an escaped literal key.
 final RegExp _reservedKey = RegExp(r'^@([^@]|$)');
 
-/// The reserved keys v1.0 defines.
-const Set<String> _reservedDirectives = {'@path', '@call'};
+/// The reserved keys v1.0 defines at component property positions.
+const Set<String> _reservedPropertyDirectives = {
+  '@path',
+  '@call',
+  '@child',
+  '@action',
+  '@functionCall',
+};
+
+/// The reserved keys v1.0 defines inside pure DynamicValue expressions.
+const Set<String> _reservedDataDirectives = {'@path', '@call'};
 
 /// Verifies an item in an agent-to-renderer payload.
 ///
@@ -301,6 +317,15 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
             (customProps.contains('catalogId') ? null : component['catalogId']))
         : null;
 
+    final ReferenceSchemaReader? schemaReader = schema != null
+        ? ReferenceSchemaReader(
+            schema.value,
+            document: _resolutionDocument,
+            commonTypes: commonTypesSchema,
+            atLeastV10: _v1,
+          )
+        : null;
+
     // Calls and reserved keys first, so their errors name the call rather
     // than the alternative of a dynamic type that failed to match.
     _validateNested(
@@ -309,6 +334,8 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       componentId: id,
       componentCatalogId: componentCatalogId,
       rendererCall: true,
+      subSchema: schema?.value,
+      schemaReader: schemaReader,
     );
 
     if (schema == null) {
@@ -324,10 +351,14 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
       return;
     }
 
+    final Map<String, Object?> schemaTarget = _v1
+        ? _normalizeTargetForSchema(target, schema.value, schemaReader!)
+        : target;
+
     _throwOnErrors(
       Schema.fromMap(
-        _withoutEnvelopeRequirements(schema.value, envelopeKeys, target),
-      ).validateSync(target, strictFormat: true),
+        _withoutEnvelopeRequirements(schema.value, envelopeKeys, schemaTarget),
+      ).validateSync(schemaTarget, strictFormat: true),
       "Component '$id' does not match the '$type' schema in catalog "
       "'${catalog.id}'",
     );
@@ -508,6 +539,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
           componentId: id,
           componentCatalogId: componentCatalogId,
           rendererCall: true,
+          inDynamicValue: true,
         );
       }
       _throwOnErrors(
@@ -590,6 +622,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
             ? '/args/${_escape(arg.key)}'
             : '$path/args/${_escape(arg.key)}',
         componentCatalogId: catalogIsDefault ? null : catalog.id,
+        inDynamicValue: true,
       );
     }
     _checkArgs(name, args, path: path);
@@ -784,6 +817,14 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     }
   }
 
+  static const List<String> _dynamicTypeNames = [
+    'DynamicValue',
+    'DynamicString',
+    'DynamicNumber',
+    'DynamicBoolean',
+    'DynamicStringList',
+  ];
+
   /// Walks [value], at JSON Pointer [path], checking each function call and,
   /// from v1.0, each object's reserved keys.
   ///
@@ -797,8 +838,28 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
     Object? componentId,
     Object? componentCatalogId,
     bool rendererCall = false,
+    bool inDynamicValue = false,
+    Object? subSchema,
+    ReferenceSchemaReader? schemaReader,
   }) {
+    var effectiveInDynamic = inDynamicValue;
+    List<Map<String, Object?>> branches = const [];
+    if (subSchema != null && schemaReader != null) {
+      branches = schemaReader.schemas(subSchema);
+      if (_v1 &&
+          path.isNotEmpty &&
+          !effectiveInDynamic &&
+          schemaReader.referenceKind(branches) == null &&
+          !schemaReader.referencesType(branches, 'Action') &&
+          _dynamicTypeNames
+              .any((t) => schemaReader.referencesType(branches, t))) {
+        effectiveInDynamic = true;
+      }
+    }
     if (value is List) {
+      final Object? itemSchema = branches.isNotEmpty && schemaReader != null
+          ? schemaReader.items(branches)
+          : null;
       for (var i = 0; i < value.length; i++) {
         _validateNested(
           value[i],
@@ -806,25 +867,97 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
           componentId: componentId,
           componentCatalogId: componentCatalogId,
           rendererCall: rendererCall,
+          inDynamicValue: effectiveInDynamic,
+          subSchema: itemSchema,
+          schemaReader: schemaReader,
         );
       }
       return;
     }
     if (value is! Map) return;
     final Map<String, Object?> object = value.cast<String, Object?>();
+    final Map<String, Object?> declaredProps =
+        branches.isNotEmpty && schemaReader != null
+            ? schemaReader.properties(branches)
+            : const <String, Object?>{};
+
+    if (!_v1) {
+      for (final key in const ['@child', '@action', '@functionCall']) {
+        if (object.containsKey(key) && !declaredProps.containsKey(key)) {
+          _throwDetail(
+            '$path/${_escape(key)}',
+            'invalid_value',
+            "Directive '$key' is not supported in protocol version "
+                "'${protocolVersion.jsonValue}'.",
+          );
+        }
+      }
+    }
 
     if (_v1) {
+      final Set<String> allowedDirectives = path.isEmpty
+          ? const <String>{}
+          : (effectiveInDynamic
+              ? _reservedDataDirectives
+              : _reservedPropertyDirectives);
       for (final String key in object.keys) {
-        if (_reservedKey.hasMatch(key) && !_reservedDirectives.contains(key)) {
+        if (_reservedKey.hasMatch(key) && !allowedDirectives.contains(key)) {
           throw A2uiValidationError(
             "Unrecognized reserved protocol directive '$key' in v1.0 dynamic "
             'object. Reserved keys must be in '
-            "${_reservedDirectives.join(', ')}, or escaped with prefix "
+            "${allowedDirectives.join(', ')}, or escaped with prefix "
             "doubling (e.g. '@$key').",
             code: 'INVALID_RESERVED_KEY',
             path: '$path/${_escape(key)}',
           );
         }
+      }
+    }
+
+    if (_v1 && path.isNotEmpty && !effectiveInDynamic) {
+      if (object.containsKey('@child')) {
+        _validateAtChild(object, path, componentId);
+        return;
+      }
+      if (object.containsKey('@action')) {
+        _validateAtAction(
+          object,
+          path,
+          componentId: componentId,
+          componentCatalogId: componentCatalogId,
+          rendererCall: rendererCall,
+        );
+        return;
+      }
+      if (object.containsKey('@functionCall')) {
+        _validateAtFunctionCall(
+          object,
+          path,
+          componentId: componentId,
+          componentCatalogId: componentCatalogId,
+          rendererCall: rendererCall,
+        );
+        return;
+      }
+      // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+      if (object.length == 1 &&
+          object['event'] is Map &&
+          schemaReader != null &&
+          _isActionSlotSchema(branches, schemaReader)) {
+        final Map<String, Object?> ev =
+            (object['event']! as Map).cast<String, Object?>();
+        for (final MapEntry<String, Object?> entry in ev.entries) {
+          _validateNested(
+            entry.value,
+            '$path/event/${_escape(entry.key)}',
+            componentId: componentId,
+            componentCatalogId: componentCatalogId,
+            rendererCall: rendererCall,
+            inDynamicValue:
+                entry.key == 'context' || entry.key == 'userMessage',
+          );
+        }
+        return;
       }
     }
 
@@ -855,6 +988,7 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
           componentId: componentId,
           componentCatalogId: componentCatalogId,
           rendererCall: rendererCall,
+          inDynamicValue: true,
         );
       }
 
@@ -887,8 +1021,476 @@ class PayloadValidator<C extends ComponentApi, F extends FunctionApi> {
         componentId: componentId,
         componentCatalogId: componentCatalogId,
         rendererCall: rendererCall,
+        inDynamicValue: effectiveInDynamic,
+        subSchema: declaredProps[entry.key],
+        schemaReader: schemaReader,
       );
     }
+  }
+
+  static void _validateAtChild(
+    Map<String, Object?> object,
+    String path,
+    Object? componentId,
+  ) {
+    for (final String key in object.keys) {
+      if (key != '@child' && key != '@path') {
+        _throwDetail(
+          '$path/${_escape(key)}',
+          'extra_forbidden',
+          "Component '$componentId' has unexpected field '$key' in '@child' "
+              'object.',
+        );
+      }
+    }
+    final Object? childVal = object['@child'];
+    if (object.containsKey('@path')) {
+      if (childVal is! String || childVal.isEmpty) {
+        _throwDetail(
+          '$path/@child',
+          'invalid_value',
+          "Component '$componentId' template '@child' must be a non-empty "
+              'string.',
+        );
+      }
+      final Object? pathVal = object['@path'];
+      if (pathVal is! String || pathVal.isEmpty) {
+        _throwDetail(
+          '$path/@path',
+          'invalid_value',
+          "Component '$componentId' template '@path' must be a non-empty "
+              'string.',
+        );
+      }
+      return;
+    }
+    if (childVal is String) {
+      if (childVal.isEmpty) {
+        _throwDetail(
+          '$path/@child',
+          'invalid_value',
+          "Component '$componentId' '@child' must be a non-empty string.",
+        );
+      }
+      return;
+    }
+    if (childVal is List) {
+      for (var i = 0; i < childVal.length; i++) {
+        final Object? item = childVal[i];
+        if (item is! String || item.isEmpty) {
+          _throwDetail(
+            '$path/@child/$i',
+            'invalid_value',
+            "Component '$componentId' '@child[$i]' must be a non-empty string.",
+          );
+        }
+      }
+      return;
+    }
+    _throwDetail(
+      '$path/@child',
+      'invalid_value',
+      "Component '$componentId' '@child' must be a string or list of strings.",
+    );
+  }
+
+  void _validateAtAction(
+    Map<String, Object?> object,
+    String path, {
+    required Object? componentId,
+    required Object? componentCatalogId,
+    required bool rendererCall,
+  }) {
+    for (final String key in object.keys) {
+      if (key != '@action') {
+        _throwDetail(
+          '$path/${_escape(key)}',
+          'extra_forbidden',
+          "Component '$componentId' has unexpected field '$key' alongside "
+              "'@action'.",
+        );
+      }
+    }
+    final Object? rawAction = object['@action'];
+    if (rawAction is! Map) {
+      _throwDetail(
+        '$path/@action',
+        'invalid_value',
+        "Component '$componentId' '@action' must be an object.",
+      );
+    }
+    final Map<String, Object?> actionMap = rawAction.cast<String, Object?>();
+    for (final String key in actionMap.keys) {
+      if (_reservedKey.hasMatch(key)) {
+        throw A2uiValidationError(
+          "Unrecognized reserved protocol directive '$key' in v1.0 '@action' "
+          'object.',
+          code: 'INVALID_RESERVED_KEY',
+          path: '$path/@action/${_escape(key)}',
+        );
+      }
+      if (key != 'name' && key != 'userMessage' && key != 'context') {
+        _throwDetail(
+          '$path/@action/${_escape(key)}',
+          'extra_forbidden',
+          "Component '$componentId' '@action' has unknown field '$key'.",
+        );
+      }
+    }
+    if (!actionMap.containsKey('name')) {
+      _throwDetail(
+        '$path/@action/name',
+        'missing_field',
+        "Component '$componentId' '@action' is missing required field 'name'.",
+      );
+    }
+    final Object? nameVal = actionMap['name'];
+    if (nameVal is! String || nameVal.isEmpty) {
+      _throwDetail(
+        '$path/@action/name',
+        'invalid_value',
+        "Component '$componentId' '@action.name' must be a non-empty string.",
+      );
+    }
+    if (actionMap.containsKey('userMessage')) {
+      final Object? userMsg = actionMap['userMessage'];
+      _validateNested(
+        userMsg,
+        '$path/@action/userMessage',
+        componentId: componentId,
+        componentCatalogId: componentCatalogId,
+        rendererCall: rendererCall,
+        inDynamicValue: true,
+      );
+      _throwOnErrors(
+        _resolvedEnvelopeSchemas['dynamicString']!.validateSync(
+          userMsg,
+          strictFormat: true,
+        ),
+        "Component '$componentId' has an invalid '@action.userMessage'",
+        path: '$path/@action/userMessage',
+      );
+    }
+    if (actionMap.containsKey('context')) {
+      final Object? ctx = actionMap['context'];
+      if (ctx is! Map) {
+        _throwDetail(
+          '$path/@action/context',
+          'invalid_value',
+          "Component '$componentId' '@action.context' must be an object.",
+        );
+      }
+      final Map<String, Object?> ctxMap = ctx.cast<String, Object?>();
+      for (final MapEntry<String, Object?> entry in ctxMap.entries) {
+        if (_reservedKey.hasMatch(entry.key)) {
+          throw A2uiValidationError(
+            "Unrecognized reserved protocol directive '${entry.key}' in v1.0 "
+            "'@action.context' object.",
+            code: 'INVALID_RESERVED_KEY',
+            path: '$path/@action/context/${_escape(entry.key)}',
+          );
+        }
+        _validateNested(
+          entry.value,
+          '$path/@action/context/${_escape(entry.key)}',
+          componentId: componentId,
+          componentCatalogId: componentCatalogId,
+          rendererCall: rendererCall,
+          inDynamicValue: true,
+        );
+        _throwOnErrors(
+          _resolvedEnvelopeSchemas['dynamicValue']!.validateSync(
+            entry.value,
+            strictFormat: true,
+          ),
+          "Component '$componentId' has an invalid "
+          "'@action.context.${entry.key}'",
+          path: '$path/@action/context/${_escape(entry.key)}',
+        );
+      }
+    }
+  }
+
+  void _validateAtFunctionCall(
+    Map<String, Object?> object,
+    String path, {
+    required Object? componentId,
+    required Object? componentCatalogId,
+    required bool rendererCall,
+  }) {
+    for (final String key in object.keys) {
+      if (key != '@functionCall') {
+        _throwDetail(
+          '$path/${_escape(key)}',
+          'extra_forbidden',
+          "Component '$componentId' has unexpected field '$key' alongside "
+              "'@functionCall'.",
+        );
+      }
+    }
+    final Object? rawFc = object['@functionCall'];
+    if (rawFc is! Map) {
+      _throwDetail(
+        '$path/@functionCall',
+        'invalid_value',
+        "Component '$componentId' '@functionCall' must be an object.",
+      );
+    }
+    final Map<String, Object?> fcMap = rawFc.cast<String, Object?>();
+    if (!fcMap.containsKey('@call')) {
+      _throwDetail(
+        '$path/@functionCall/@call',
+        'missing_field',
+        "Component '$componentId' '@functionCall' is missing required field "
+            "'@call'.",
+      );
+    }
+    final Object? callName = fcMap['@call'];
+    if (callName is! String || callName.isEmpty) {
+      _throwDetail(
+        '$path/@functionCall/@call',
+        'invalid_value',
+        "Component '$componentId' '@functionCall.@call' must be a non-empty "
+            'string.',
+      );
+    }
+    if (fcMap.containsKey('catalogId') && fcMap['catalogId'] is! String) {
+      _throwDetail(
+        '$path/@functionCall/catalogId',
+        'invalid_value',
+        "Component '$componentId' '@functionCall.catalogId' must be a string.",
+      );
+    }
+    if (fcMap.containsKey('args') && fcMap['args'] is! Map) {
+      _throwDetail(
+        '$path/@functionCall/args',
+        'invalid_value',
+        "Component '$componentId' '@functionCall.args' must be an object.",
+      );
+    }
+    final bool runsInThisCatalog = nestedCallRunsInCatalog(
+      fcMap['catalogId'],
+      catalog.id,
+      catalogIsDefault: componentCatalogId == null,
+    );
+    final Object? declared = runsInThisCatalog
+        ? (catalog.functions[callName]?.definition?['properties'])
+        : null;
+    for (final String key in fcMap.keys) {
+      if (_functionCallKeys.contains(key) ||
+          (declared is Map && declared.containsKey(key))) {
+        continue;
+      }
+      if (_reservedKey.hasMatch(key)) {
+        throw A2uiValidationError(
+          "Unrecognized reserved protocol directive '$key' in v1.0 "
+          "'@functionCall' object.",
+          code: 'INVALID_RESERVED_KEY',
+          path: '$path/@functionCall/${_escape(key)}',
+        );
+      }
+      _throwDetail(
+        '$path/@functionCall/${_escape(key)}',
+        'extra_forbidden',
+        "Function call '$callName' has no field '$key'.",
+      );
+    }
+    _validateNested(
+      fcMap,
+      '$path/@functionCall',
+      componentId: componentId,
+      componentCatalogId: componentCatalogId,
+      rendererCall: rendererCall,
+      inDynamicValue: true,
+    );
+  }
+
+  // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+  Map<String, Object?> _normalizeTargetForSchema(
+    Map<String, Object?> target,
+    Map<String, Object?> componentSchema,
+    ReferenceSchemaReader reader,
+  ) =>
+      _normalizeValueForSchema(
+        target,
+        componentSchema,
+        reader,
+        isRoot: true,
+      )! as Map<String, Object?>;
+
+  static Object? _normalizeValueForSchema(
+    Object? value,
+    Object? subSchema,
+    ReferenceSchemaReader reader, {
+    required bool isRoot,
+  }) {
+    final List<Map<String, Object?>> branches = reader.schemas(subSchema);
+    if (!isRoot) {
+      final bool isSingleRef = reader.referencesType(branches, 'ComponentId') ||
+          reader.referencesType(branches, 'Child') ||
+          branches.any(_isAtSingleChildBranch);
+      if (isSingleRef) {
+        final bool expectsAtSingle = branches.any(_isAtSingleChildBranch);
+        final bool expectsBareSingle =
+            branches.any((s) => s['type'] == 'string');
+        if (value is Map &&
+            value.length == 1 &&
+            value['@child'] is String &&
+            !expectsAtSingle &&
+            expectsBareSingle) {
+          return value['@child'];
+        }
+        // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+        if (value is String && !expectsBareSingle && expectsAtSingle) {
+          return <String, Object?>{'@child': value};
+        }
+      }
+
+      final bool isListRef = reader.referencesType(branches, 'ChildList') ||
+          branches.any(_isBareChildListBranch) ||
+          branches.any(_isAtChildListBranch);
+      if (isListRef) {
+        final bool expectsAtList = branches.any(_isAtChildListBranch);
+        final bool expectsBareList = branches.any(
+          (s) => s['type'] == 'array' || _isBareChildListBranch(s),
+        );
+        if (value is Map && !expectsAtList && expectsBareList) {
+          if (value.length == 1 && value['@child'] is List) {
+            return value['@child'];
+          }
+          if (value.length == 2 &&
+              value['@child'] is String &&
+              value['@path'] is String) {
+            return <String, Object?>{
+              'componentId': value['@child'],
+              'path': value['@path'],
+            };
+          }
+        }
+        // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+        if (!expectsBareList && expectsAtList) {
+          if (value is List) {
+            return <String, Object?>{'@child': value};
+          }
+          if (value is Map &&
+              value.length == 2 &&
+              value['componentId'] is String &&
+              value['path'] is String) {
+            return <String, Object?>{
+              '@child': value['componentId'],
+              '@path': value['path'],
+            };
+          }
+        }
+      }
+
+      final bool isAction = _isActionSlotSchema(branches, reader);
+      if (isAction) {
+        final bool expectsAtAction = branches.any(_isAtActionBranch);
+        final bool expectsBareAction = branches.any(_isBareActionBranch);
+        if (value is Map &&
+            value.length == 1 &&
+            !expectsAtAction &&
+            expectsBareAction) {
+          if (value['@action'] is Map) {
+            return <String, Object?>{'event': value['@action']};
+          }
+          if (value['@functionCall'] is Map) {
+            return <String, Object?>{'functionCall': value['@functionCall']};
+          }
+        }
+        // TODO(#4168): Remove legacy v1.0 bare Child/ChildList/Action fallback.
+        if (value is Map &&
+            value.length == 1 &&
+            !expectsBareAction &&
+            expectsAtAction) {
+          if (value['event'] is Map) {
+            return <String, Object?>{'@action': value['event']};
+          }
+          if (value['functionCall'] is Map) {
+            return <String, Object?>{'@functionCall': value['functionCall']};
+          }
+        }
+      }
+    }
+
+    if (value is Map) {
+      final Map<String, Object?> declaredProps = reader.properties(branches);
+      if (declaredProps.isEmpty) return value;
+      return <String, Object?>{
+        for (final MapEntry<Object?, Object?> entry in value.entries)
+          entry.key! as String: declaredProps.containsKey(entry.key)
+              ? _normalizeValueForSchema(
+                  entry.value,
+                  declaredProps[entry.key],
+                  reader,
+                  isRoot: false,
+                )
+              : entry.value,
+      };
+    }
+
+    if (value is List) {
+      final Object? itemSchema = reader.items(branches);
+      if (itemSchema == null) return value;
+      return <Object?>[
+        for (final Object? item in value)
+          _normalizeValueForSchema(item, itemSchema, reader, isRoot: false),
+      ];
+    }
+
+    return value;
+  }
+
+  static bool _hasSingleProp(Map<String, Object?> schema, String key) {
+    final Object? props = schema['properties'];
+    return props is Map && props.length == 1 && props.containsKey(key);
+  }
+
+  static bool _isActionSlotSchema(
+    List<Map<String, Object?>> branches,
+    ReferenceSchemaReader reader,
+  ) =>
+      reader.referencesType(branches, 'Action') ||
+      branches.any(_isAtActionBranch) ||
+      (branches.any((s) => _hasSingleProp(s, 'event')) &&
+          branches.any((s) => _hasSingleProp(s, 'functionCall')));
+
+  static bool _isAtSingleChildBranch(Map<String, Object?> schema) {
+    final Object? props = schema['properties'];
+    if (props is! Map || !props.containsKey('@child')) return false;
+    if (props.containsKey('@path')) return false;
+    final Object? childProp = props['@child'];
+    return childProp is! Map || childProp['type'] != 'array';
+  }
+
+  static bool _isAtChildListBranch(Map<String, Object?> schema) {
+    final Object? props = schema['properties'];
+    if (props is! Map || !props.containsKey('@child')) return false;
+    if (props.containsKey('@path')) return true;
+    final Object? childProp = props['@child'];
+    return childProp is Map && childProp['type'] == 'array';
+  }
+
+  static bool _isBareChildListBranch(Map<String, Object?> schema) {
+    final Object? props = schema['properties'];
+    return props is Map &&
+        props['componentId'] != null &&
+        props['path'] != null;
+  }
+
+  static bool _isAtActionBranch(Map<String, Object?> schema) {
+    final Object? props = schema['properties'];
+    return props is Map &&
+        props.length == 1 &&
+        (props.containsKey('@action') || props.containsKey('@functionCall'));
+  }
+
+  static bool _isBareActionBranch(Map<String, Object?> schema) {
+    final Object? props = schema['properties'];
+    return props is Map &&
+        props.length == 1 &&
+        (props.containsKey('event') || props.containsKey('functionCall'));
   }
 
   /// The one system function v1.0 defines in the reserved `@` namespace.

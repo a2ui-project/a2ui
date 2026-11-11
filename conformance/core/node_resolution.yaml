@@ -1037,3 +1037,355 @@
         nodes:
           root: {props: {value: {value: false, writable: true}}}
         emissions: {root: 1}
+
+- name: v10_directives_child_action_and_function_call
+  features: [F-CORE-11, F-CORE-13, F-CORE-15, F-CORE-17, F-CORE-23, F-CORE-28, F-CORE-45]
+  description: >-
+    Given a v1.0 surface using @child (single, static list, and dynamic template),
+    @action, and @functionCall, scoped relative @path writes update only the
+    targeted template item, @action context resolves at invoke time without
+    emitting on prior set_data, and @functionCall executes on invoke rather than
+    initial render.
+  action: resolve_nodes
+  fixture: test_data/node/v10_directives.yaml
+  expect:
+    nodes:
+      root:
+        component_id: root
+        type: Column
+        state: resolved
+        data_path: /
+        props:
+          children:
+            - {node: root/children/0}
+            - {node: root/children/1}
+            - {node: root/children/2}
+            - {node: root/children/3}
+      root/children/0:
+        component_id: headerCard
+        type: Card
+        state: resolved
+        props:
+          child: {node: root/children/0/child}
+      root/children/0/child:
+        component_id: headerText
+        type: Text
+        state: resolved
+        props:
+          text: {value: Directory, writable: false}
+      root/children/1:
+        component_id: peopleList
+        type: Column
+        state: resolved
+        props:
+          children:
+            - {node: root/children/1/children/0}
+            - {node: root/children/1/children/1}
+      root/children/1/children/0:
+        component_id: personField
+        type: TextField
+        state: resolved
+        data_path: /people/0
+        props:
+          label: {value: Name, writable: false}
+          value: {value: Ada, writable: true}
+      root/children/1/children/1:
+        component_id: personField
+        type: TextField
+        state: resolved
+        data_path: /people/1
+        props:
+          value: {value: Lin, writable: true}
+      root/children/2:
+        component_id: saveBtn
+        type: Button
+        state: resolved
+        props:
+          child: {node: root/children/2/child}
+          action: {action: true}
+      root/children/2/child:
+        component_id: saveLabel
+        type: Text
+        state: resolved
+        props:
+          text: {value: Save, writable: false}
+      root/children/3:
+        component_id: openBtn
+        type: Button
+        state: resolved
+        props:
+          child: {node: root/children/3/child}
+          action: {action: true}
+      root/children/3/child:
+        component_id: openLabel
+        type: Text
+        state: resolved
+        props:
+          text: {value: Open, writable: false}
+    events: []
+    functions: []
+  steps:
+    - op: write
+      node: root/children/1/children/0
+      property: value
+      value: Grace
+      expect:
+        nodes:
+          root: {}
+          root/children/0: {}
+          root/children/0/child: {}
+          root/children/1: {}
+          root/children/1/children/0:
+            props:
+              value: {value: Grace, writable: true}
+          root/children/1/children/1:
+            props:
+              value: {value: Lin, writable: true}
+          root/children/2: {}
+          root/children/2/child: {}
+          root/children/3: {}
+          root/children/3/child: {}
+        data:
+          /people/0/name: Grace
+          /people/1/name: Lin
+        emissions:
+          root/children/1/children/0: 1
+        same_nodes:
+          - root
+          - root/children/0
+          - root/children/0/child
+          - root/children/1
+          - root/children/1/children/0
+          - root/children/1/children/1
+          - root/children/2
+          - root/children/2/child
+          - root/children/3
+          - root/children/3/child
+    - op: set_data
+      path: /note
+      value: Ready
+      expect:
+        nodes:
+          root: {}
+          root/children/0: {}
+          root/children/0/child: {}
+          root/children/1: {}
+          root/children/1/children/0: {}
+          root/children/1/children/1: {}
+          root/children/2: {}
+          root/children/2/child: {}
+          root/children/3: {}
+          root/children/3/child: {}
+        emissions: {}
+        events: []
+        functions: []
+        same_nodes:
+          - root
+          - root/children/0
+          - root/children/0/child
+          - root/children/1
+          - root/children/1/children/0
+          - root/children/1/children/1
+          - root/children/2
+          - root/children/2/child
+          - root/children/3
+          - root/children/3/child
+    - op: invoke
+      node: root/children/2
+      property: action
+      expect:
+        nodes:
+          root: {}
+          root/children/0: {}
+          root/children/0/child: {}
+          root/children/1: {}
+          root/children/1/children/0: {}
+          root/children/1/children/1: {}
+          root/children/2: {}
+          root/children/2/child: {}
+          root/children/3: {}
+          root/children/3/child: {}
+        emissions: {}
+        events:
+          - name: save
+            source_component_id: saveBtn
+            context:
+              note: Ready
+        functions: []
+        same_nodes:
+          - root
+          - root/children/0
+          - root/children/0/child
+          - root/children/1
+          - root/children/1/children/0
+          - root/children/1/children/1
+          - root/children/2
+          - root/children/2/child
+          - root/children/3
+          - root/children/3/child
+    - op: invoke
+      node: root/children/3
+      property: action
+      expect:
+        nodes:
+          root: {}
+          root/children/0: {}
+          root/children/0/child: {}
+          root/children/1: {}
+          root/children/1/children/0: {}
+          root/children/1/children/1: {}
+          root/children/2: {}
+          root/children/2/child: {}
+          root/children/3: {}
+          root/children/3/child: {}
+        emissions: {}
+        events: []
+        functions:
+          - name: openUrl
+            args:
+              url: "https://a2ui.org"
+        same_nodes:
+          - root
+          - root/children/0
+          - root/children/0/child
+          - root/children/1
+          - root/children/1/children/0
+          - root/children/1/children/1
+          - root/children/2
+          - root/children/2/child
+          - root/children/3
+          - root/children/3/child
+
+- name: schemaless_v10_custom_shell_resolution
+  features: [F-CORE-11, F-CORE-13, F-CORE-16, F-CORE-17, F-CORE-23, F-CORE-28, F-CORE-45]
+  description: >-
+    Given an open v1.0 CustomShell component with zero declared property schemas,
+    custom @child slots (header, items template, nested sections[0].body) mount
+    live ComponentNodes, unschematized @path resolves to a writable binding,
+    unschematized @action and @functionCall resolve to deferred actions without
+    eager execution, and @@-escaped keys in meta unescape to literal strings
+    without mounting a node or action.
+  action: resolve_nodes
+  fixture: test_data/node/custom_shell_v1_0.yaml
+  expect:
+    nodes:
+      root:
+        component_id: root
+        type: CustomShell
+        state: resolved
+        data_path: /
+        props:
+          title: {value: Overview, writable: true}
+          header: {node: root/header}
+          items:
+            - {node: root/items/0}
+            - {node: root/items/1}
+          sections:
+            - title: {value: Details, writable: true}
+              body: {node: root/sections/0/body}
+          onSave: {action: true}
+          onOpen: {action: true}
+          meta:
+            "@child": not_a_node
+            "@action": literal
+      root/header:
+        component_id: hdr
+        type: Text
+        state: resolved
+        data_path: /
+        props:
+          text: {value: Header Text, writable: false}
+      root/items/0:
+        component_id: rowTpl
+        type: Text
+        state: resolved
+        data_path: /rows/0
+        props:
+          text: {value: First, writable: true}
+      root/items/1:
+        component_id: rowTpl
+        type: Text
+        state: resolved
+        data_path: /rows/1
+        props:
+          text: {value: Second, writable: true}
+      root/sections/0/body:
+        component_id: secBody
+        type: Text
+        state: resolved
+        data_path: /
+        props:
+          text: {value: Section Body, writable: false}
+    events: []
+    functions: []
+  steps:
+    - op: write
+      node: root
+      property: title
+      value: Updated Heading
+      expect:
+        nodes:
+          root:
+            props:
+              title: {value: Updated Heading, writable: true}
+          root/header: {}
+          root/items/0: {}
+          root/items/1: {}
+          root/sections/0/body: {}
+        data:
+          /heading: Updated Heading
+        emissions:
+          root: 1
+        events: []
+        functions: []
+        same_nodes:
+          - root
+          - root/header
+          - root/items/0
+          - root/items/1
+          - root/sections/0/body
+    - op: invoke
+      node: root
+      property: onSave
+      expect:
+        nodes:
+          root: {}
+          root/header: {}
+          root/items/0: {}
+          root/items/1: {}
+          root/sections/0/body: {}
+        emissions: {}
+        events:
+          - name: saved
+            source_component_id: root
+            context:
+              v: Updated Heading
+        functions: []
+        same_nodes:
+          - root
+          - root/header
+          - root/items/0
+          - root/items/1
+          - root/sections/0/body
+    - op: invoke
+      node: root
+      property: onOpen
+      expect:
+        nodes:
+          root: {}
+          root/header: {}
+          root/items/0: {}
+          root/items/1: {}
+          root/sections/0/body: {}
+        emissions: {}
+        events: []
+        functions:
+          - name: openUrl
+            args:
+              url: "https://example.test"
+        same_nodes:
+          - root
+          - root/header
+          - root/items/0
+          - root/items/1
+          - root/sections/0/body

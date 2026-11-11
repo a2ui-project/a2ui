@@ -16,6 +16,7 @@ import 'package:meta/meta.dart';
 
 import '../primitives/errors.dart';
 import '../primitives/event_notifier.dart';
+import '../primitives/protocol_version.dart';
 import '../primitives/reactivity.dart';
 import '../primitives/uax31.dart';
 import '../validation/component_graph.dart';
@@ -431,12 +432,18 @@ class SurfaceComponentsModel {
           reference.id,
       ];
 
+  bool get _atLeastV10 =>
+      _catalog != null &&
+      _catalog.protocolVersion != null &&
+      _catalog.protocolVersion!.isAtLeast(A2uiProtocolVersion.v1_0);
+
   Iterable<ComponentReference> _referencesOf(String id) {
     final ComponentModel? component = _components[id];
     if (component == null) return const <ComponentReference>[];
     return componentReferences(
       component.properties,
       refFields[component.type],
+      atLeastV10: _atLeastV10,
     );
   }
 
@@ -527,7 +534,9 @@ class SurfaceComponentsModel {
     ValidationConfig config,
     Map<String, ComponentRefFields> refFields, {
     String defaultRootId = 'root',
+    bool? atLeastV10,
   }) {
+    final bool useV10Refs = atLeastV10 ?? _atLeastV10;
     checkDuplicateComponentIds(components);
     // Each component of the batch as its type and the map its references are
     // read from.
@@ -570,6 +579,7 @@ class SurfaceComponentsModel {
           refFields,
           config.maxDepth ?? maxComponentDepth,
           has,
+          atLeastV10: useV10Refs,
         )) {
       _bound = bound;
       _boundBatch = components;
@@ -585,10 +595,18 @@ class SurfaceComponentsModel {
     };
     checkComponentGraph(candidate.keys.toSet(), (String id) {
       final (String type, Map<String, Object?> source) = candidate[id]!;
-      return componentReferences(source, refFields[type]);
+      return componentReferences(
+        source,
+        refFields[type],
+        atLeastV10: useV10Refs,
+      );
     }, config, defaultRootId: defaultRootId);
     if (bounded) {
-      _bound = ComponentGraphBound.of(candidate, refFields);
+      _bound = ComponentGraphBound.of(
+        candidate,
+        refFields,
+        atLeastV10: useV10Refs,
+      );
       _boundBatch = components;
     }
     return null;

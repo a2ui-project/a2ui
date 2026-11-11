@@ -36,7 +36,7 @@ from .component_node import (
     is_component_node,
     same_binding,
 )
-from .data_context import DataContext
+from .data_context import DataContext, unescape_object_key
 from .generic_binder import BehaviorNode, BehaviorType, GenericBinder
 from .resolved_binding import ResolvedBinding, WritableBinding
 
@@ -160,7 +160,7 @@ def _get_safe_child_list(val: Any) -> list[Any]:
 
 
 def _extract_binding_path(raw: Any, at_least_v10: bool) -> str | None:
-    if not isinstance(raw, dict) or "componentId" in raw:
+    if not isinstance(raw, dict) or "componentId" in raw or "@child" in raw:
         return None
     key = "@path" if at_least_v10 else "path"
     val = raw.get(key)
@@ -179,6 +179,19 @@ def _wrap_dynamic_object(
         if k and b.type == BehaviorType.DYNAMIC
     }
     raw_record = raw if isinstance(raw, dict) else {}
+    for rk in raw_record:
+        if isinstance(rk, str) and rk and not rk.startswith("@"):
+            cand = f"set{rk[0].upper() + rk[1:]}"
+            if cand not in raw_record and callable(value.get(cand)):
+                setter_names.add(cand)
+    raw_by_unescaped: dict[str, Any] = (
+        {
+            (unescape_object_key(rk) if isinstance(rk, str) else rk): rv
+            for rk, rv in raw_record.items()
+        }
+        if data_context.at_least_v10
+        else raw_record
+    )
     out: dict[str, Any] = {}
     for key, item in value.items():
         if key in setter_names or key in _SKIP_BINDER_KEYS:
@@ -194,9 +207,8 @@ def _wrap_dynamic_object(
             # value.
             continue
         child_behavior = child_behavior or BehaviorNode(BehaviorType.STATIC)
-        out[key] = _wrap_dynamic_values(
-            item, child_behavior, raw_record.get(key), data_context
-        )
+        raw_entry = raw_record[key] if key in raw_record else raw_by_unescaped.get(key)
+        out[key] = _wrap_dynamic_values(item, child_behavior, raw_entry, data_context)
     for key, child_behavior in shape.items():
         if child_behavior.type == BehaviorType.DYNAMIC and key not in out:
             out[key] = ResolvedBinding(None)
@@ -243,6 +255,43 @@ def _wrap_dynamic_values(
         return _wrap_dynamic_array(value, behavior, raw, data_context)
     if behavior.type == BehaviorType.OBJECT and isinstance(value, dict):
         return _wrap_dynamic_object(value, behavior.shape or {}, raw, data_context)
+    if behavior.type == BehaviorType.STATIC and data_context.at_least_v10:
+        if isinstance(raw, dict):
+            if "@child" in raw or "@action" in raw or "@functionCall" in raw:
+                return value
+            if "@path" in raw and isinstance(raw.get("@path"), str):
+                p_str = raw["@path"]
+
+                def _static_setter(new_val: Any) -> None:
+                    data_context.set(p_str, new_val)
+
+                return WritableBinding(value, _static_setter, p_str)
+            if "@call" in raw and isinstance(raw.get("@call"), str):
+                return ResolvedBinding(value)
+            if isinstance(value, dict):
+                raw_by_unescaped = {
+                    (unescape_object_key(rk) if isinstance(rk, str) else rk): rv
+                    for rk, rv in raw.items()
+                }
+                return {
+                    k: _wrap_dynamic_values(
+                        v,
+                        BehaviorNode(BehaviorType.STATIC),
+                        raw_by_unescaped.get(k),
+                        data_context,
+                    )
+                    for k, v in value.items()
+                }
+        elif isinstance(raw, list) and isinstance(value, list):
+            return [
+                _wrap_dynamic_values(
+                    item,
+                    BehaviorNode(BehaviorType.STATIC),
+                    raw[idx] if idx < len(raw) else None,
+                    data_context,
+                )
+                for idx, item in enumerate(value)
+            ]
     return value
 
 
@@ -779,7 +828,131 @@ class NodeResolver:
             else:
                 self._resolve_flat_ref_list(record, next_props, key, resolve_one)
 
+        at_least_v10 = bool(
+            record.node.context is not None
+            and record.node.context.data_context.at_least_v10
+        )
+        if at_least_v10 and record.component_model is not None:
+            self._resolve_schemaless_v10_child_refs(
+                record,
+                next_props,
+                record.component_model.properties,
+                resolve_one,
+            )
+
         return new_edges
+
+    def _resolve_schemaless_v10_child_refs(
+        self,
+        record: _NodeRecord,
+        next_props: dict[str, Any],
+        raw_props: dict[str, Any],
+        resolve_one: Any,
+    ) -> None:
+        def _walk(res_val: Any, raw_val: Any, slot: str) -> tuple[Any, bool]:
+            if is_component_node(res_val):
+                return res_val, False
+            if isinstance(raw_val, dict):
+                if any(k in raw_val for k in ("@action", "@functionCall", "@call")):
+                    return res_val, False
+                if "@path" in raw_val and "@child" not in raw_val:
+                    return res_val, False
+                if "@child" in raw_val and set(raw_val.keys()) <= {"@child", "@path"}:
+                    if "@path" in raw_val and isinstance(raw_val.get("@child"), str):
+                        if not isinstance(res_val, list) or all(
+                            is_component_node(item) for item in res_val
+                        ):
+                            return res_val, False
+                        out_tpl: list[Any] = []
+                        for item in res_val:
+                            if is_component_node(item):
+                                out_tpl.append(item)
+                            elif (
+                                isinstance(item, dict)
+                                and isinstance(item.get("id"), str)
+                                and isinstance(item.get("basePath"), str)
+                            ):
+                                out_tpl.append(
+                                    resolve_one(slot, item["id"], item["basePath"])
+                                )
+                            else:
+                                out_tpl.append(item)
+                        return out_tpl, True
+                    if "@path" not in raw_val:
+                        if isinstance(raw_val.get("@child"), str):
+                            if isinstance(res_val, str) and res_val:
+                                return (
+                                    resolve_one(slot, res_val, record.node.data_path),
+                                    True,
+                                )
+                            return res_val, False
+                        if isinstance(raw_val.get("@child"), list) and isinstance(
+                            res_val, list
+                        ):
+                            if all(is_component_node(item) for item in res_val):
+                                return res_val, False
+                            out_list = [
+                                item
+                                if is_component_node(item)
+                                else (
+                                    resolve_one(slot, item, record.node.data_path)
+                                    if isinstance(item, str) and item
+                                    else item
+                                )
+                                for item in res_val
+                            ]
+                            return out_list, True
+                    return res_val, False
+                if isinstance(res_val, dict):
+                    raw_by_unescaped = {
+                        (unescape_object_key(rk) if isinstance(rk, str) else rk): rv
+                        for rk, rv in raw_val.items()
+                        if rk
+                        not in ("@metadata", "@catalogId", "@accessibility", "@checks")
+                    }
+                    changed = False
+                    out_dict: dict[str, Any] = {}
+                    for k, v in res_val.items():
+                        if k in raw_by_unescaped:
+                            sub_slot = (
+                                f"{slot}.{_escape_id_part(k)}"
+                                if slot
+                                else _escape_id_part(k)
+                            )
+                            new_v, sub_changed = _walk(v, raw_by_unescaped[k], sub_slot)
+                            out_dict[k] = new_v
+                            if sub_changed:
+                                changed = True
+                        else:
+                            out_dict[k] = v
+                    return (out_dict, True) if changed else (res_val, False)
+            elif isinstance(raw_val, list) and isinstance(res_val, list):
+                changed = False
+                out_arr: list[Any] = []
+                for idx, res_item in enumerate(res_val):
+                    raw_item = raw_val[idx] if idx < len(raw_val) else None
+                    new_item, item_changed = _walk(res_item, raw_item, f"{slot}[{idx}]")
+                    out_arr.append(new_item)
+                    if item_changed:
+                        changed = True
+                return (out_arr, True) if changed else (res_val, False)
+            return res_val, False
+
+        raw_by_unescaped_top = {
+            (unescape_object_key(rk) if isinstance(rk, str) else rk): rv
+            for rk, rv in raw_props.items()
+            if rk not in ("@metadata", "@catalogId", "@accessibility", "@checks")
+        }
+        for key in sorted(raw_by_unescaped_top.keys()):
+            if key in _SKIP_BINDER_KEYS or key not in next_props:
+                continue
+            new_val, did_change = _walk(
+                next_props[key],
+                raw_by_unescaped_top[key],
+                _escape_id_part(key),
+            )
+            if did_change:
+                next_props[key] = new_val
 
     def _resolve_flat_ref_list(
         self,
@@ -834,9 +1007,28 @@ class NodeResolver:
             resolved_any = False
             for sub_k in sorted(sub_keys):
                 cid = entry.get(sub_k)
+                slot = f"{esc_key}[{idx}].{_escape_id_part(sub_k)}"
                 if isinstance(cid, str) and cid:
-                    slot = f"{esc_key}[{idx}].{_escape_id_part(sub_k)}"
                     entry[sub_k] = resolve_one(slot, cid, record.node.data_path)
+                    resolved_any = True
+                elif isinstance(cid, list):
+                    nested_items: list[Any] = []
+                    for n_item in cid:
+                        if isinstance(n_item, str) and n_item:
+                            nested_items.append(
+                                resolve_one(slot, n_item, record.node.data_path)
+                            )
+                        elif (
+                            isinstance(n_item, dict)
+                            and isinstance(n_item.get("id"), str)
+                            and isinstance(n_item.get("basePath"), str)
+                        ):
+                            nested_items.append(
+                                resolve_one(slot, n_item["id"], n_item["basePath"])
+                            )
+                        else:
+                            nested_items.append(n_item)
+                    entry[sub_k] = nested_items
                     resolved_any = True
             out_list.append(entry if resolved_any else item)
         next_props[key] = out_list
