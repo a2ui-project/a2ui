@@ -15,7 +15,7 @@
  */
 
 /** Line-drawn glyphs for the use-case cards: a balance curve, a route, a brushed scatter. */
-export function UseCaseGlyph({id}: {id: 'loan' | 'trip' | 'sales'}) {
+export function UseCaseGlyph({id}: {id: 'loan' | 'trip' | 'sales' | 'retire' | 'retirement'}) {
   return (
     <svg className="glyph" viewBox="0 0 40 28" aria-hidden="true">
       {id === 'loan' && (
@@ -24,6 +24,13 @@ export function UseCaseGlyph({id}: {id: 'loan' | 'trip' | 'sales'}) {
           {[6, 11, 16, 21, 26, 31].map((x, i) => (
             <rect key={x} x={x - 1.5} y={5 + i * 3} width="3" height={20 - i * 3} rx="0.5" />
           ))}
+        </>
+      )}
+      {(id === 'retire' || id === 'retirement') && (
+        <>
+          <path d="M3 25 H37" className="glyph-rule" />
+          <path d="M4 23 C 12 21, 16 6, 20 6 C 24 6, 28 20, 36 23" className="glyph-line" />
+          <circle cx="20" cy="6" r="2.4" />
         </>
       )}
       {id === 'trip' && (

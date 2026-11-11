@@ -30,7 +30,7 @@ import {
   type Page,
   type TestInfo,
 } from '@playwright/test';
-import {USE_CASES, type UseCase} from '@a2ui-labs/react-app-demo-client/use_cases';
+import {SALES_USE_CASE, USE_CASES, type UseCase} from '@a2ui-labs/react-app-demo-client/use_cases';
 
 export const MODE: 'live' | 'recorded' =
   process.env['DEMO_E2E_MODE'] === 'live' ? 'live' : 'recorded';
@@ -101,7 +101,7 @@ export const LOAN_FOLLOW_UP =
   'Make it a line chart instead, and add a toggle between 10 and 15 years.';
 
 export function useCase(id: UseCase['id']): UseCase {
-  return USE_CASES.find(candidate => candidate.id === id)!;
+  return USE_CASES.find(candidate => candidate.id === id) ?? (id === 'sales' ? SALES_USE_CASE : undefined)!;
 }
 
 /** Opens the demo, checks the first-load state, and runs a use case's prompt to completion. */

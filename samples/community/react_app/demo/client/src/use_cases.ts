@@ -17,7 +17,7 @@
 /** The three use cases of docs/use_cases.md, offered as suggested prompts. */
 
 export interface UseCase {
-  readonly id: 'loan' | 'trip' | 'sales';
+  readonly id: 'loan' | 'trip' | 'sales' | 'retire';
   readonly title: string;
   readonly blurb: string;
   readonly prompt: string;
@@ -39,10 +39,18 @@ export const USE_CASES: readonly UseCase[] = [
       "I'm visiting the Louvre, Montmartre, the Eiffel Tower and Notre-Dame tomorrow. Let me drag them into the order I want and tell me how long the travel takes. Then let me book that order.",
   },
   {
-    id: 'sales',
-    title: 'Sales explorer',
-    blurb: 'Brush across a chart; the agent queries the matching orders.',
+    id: 'retire',
+    title: 'Retirement planner',
+    blurb: '50-year accumulation & drawdown; color-coded phases and interactive sliders.',
     prompt:
-      'Plot our 2025 sales by month and amount for each region. Let me drag over the chart to pick a region and a few months, and list the matching orders below.',
+      "Plan my retirement over 50 years. I work for 20 years, then spend for 30, at a lower rate. Ensure I can adjust all variables. Color code the two parts of this",
   },
 ];
+
+export const SALES_USE_CASE: UseCase = {
+  id: 'sales',
+  title: 'Sales explorer',
+  blurb: 'Brush across a chart; the agent queries the matching orders.',
+  prompt:
+    'Plot our 2025 sales by month and amount for each region. Let me drag over the chart to pick a region and a few months, and list the matching orders below.',
+};
