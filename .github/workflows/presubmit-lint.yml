@@ -96,6 +96,15 @@ jobs:
       - name: Run enforce-formatting check
         run: ./scripts/fix_format.sh --check --skip-swift
 
+  format-check-swift:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run enforce-formatting check (Swift)
+        run: ./scripts/fix_format.sh --check --skip-prettier --skip-python --skip-dart --skip-kotlin
+
   workspace-lint:
     runs-on: ubuntu-latest
     steps:
