@@ -44,6 +44,7 @@
   only `rendererOnly` or `rendererOrAgent` functions in components
   ([#3534](https://github.com/a2ui-project/a2ui/issues/3534),
   [#4008](https://github.com/a2ui-project/a2ui/pull/4008)).
+- (v1_0) Ignore `$`-prefixed JSON Schema keywords (such as `$comment` and `$defs`) when checking shorthand function parameter map keys against Unicode UAX 31 in `Catalog.fromJson` ([#3831](https://github.com/a2ui-project/a2ui/pull/3831)).
 - (v1_0) `MessageProcessor` checks a call nested in the arguments of a
   `callRendererFunction` that names no `catalogId` against the default catalog
   of the surface the message names, where the renderer runs it, rather than
