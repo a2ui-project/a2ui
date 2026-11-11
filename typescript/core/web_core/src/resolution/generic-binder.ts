@@ -225,7 +225,11 @@ function isActionOption(option: z.ZodTypeAny): boolean {
   if (getRefDefName(option) === 'Action') return true;
   const current = unwrapZodSchema(option);
   const def = (current as any)._def;
-  return def?.typeName === 'ZodObject' && Boolean(def.shape?.().event);
+  if (def?.typeName !== 'ZodObject') return false;
+  // Like each branch of the spec's `Action`, an inline action object has
+  // `event` or `functionCall` as its only key.
+  const keys = Object.keys(def.shape?.() || {});
+  return keys.length === 1 && (keys[0] === 'event' || keys[0] === 'functionCall');
 }
 
 function isDynamicOption(option: z.ZodTypeAny): boolean {

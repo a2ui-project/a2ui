@@ -735,7 +735,7 @@ function zodIssuesToDetails(issues: readonly z.ZodIssue[], prefix = ''): A2uiErr
  * component that declares them keeps them as properties.
  *
  * @param comp Raw component payload.
- * @returns New object holding only schema-described properties.
+ * @returns New object without `id` or `component`.
  */
 function stripStructuralKeys(comp: Record<string, unknown>): Record<string, unknown> {
   const {id: _id, component: _component, ...properties} = comp;

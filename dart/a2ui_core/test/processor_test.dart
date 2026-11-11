@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:async';
+
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
@@ -1863,5 +1865,352 @@ void main() {
         resolver?.dispose();
       },
     );
+  });
+
+  group('MessageProcessor unifiedOutbound', () {
+    final Catalog<ComponentApi, FunctionImplementation> v09Catalog =
+        TestCatalog();
+    final Catalog<ComponentApi, FunctionImplementation> v10Catalog =
+        BasicCatalog.v1_0();
+
+    test('defaults to false and does not forward actions to outboundListener',
+        () async {
+      final outbound = <RendererToAgentMessage>[];
+      final actions = <A2uiRendererAction>[];
+      final processor = MessageProcessor<ComponentApi>(
+        catalogs: [v09Catalog, v10Catalog],
+        onAction: actions.add,
+        outboundListener: outbound.add,
+      );
+      addTearDown(processor.dispose);
+      expect(processor.unifiedOutbound, isFalse);
+
+      processor.processMessages({
+        'version': '1.0',
+        'createSurface': {'surfaceId': 's1', 'catalogId': v10Catalog.id},
+      });
+      final SurfaceModel<ComponentApi> surface =
+          processor.model.getSurface('s1')!;
+      await surface.dispatchAction({
+        'event': {
+          'name': 'submit',
+          'context': {'k': 'v'},
+        },
+      }, 'btn-1');
+
+      expect(actions, hasLength(1));
+      expect(actions.single.name, 'submit');
+      expect(outbound, isEmpty);
+
+      // Processing ErrorMessages still reach outboundListener as before.
+      processor.processMessagesWithErrors('not a valid payload');
+      expect(outbound, [isA<ErrorMessage>()]);
+    });
+
+    test('throws ArgumentError when unifiedOutbound is true without listener',
+        () {
+      expect(
+        () => MessageProcessor<ComponentApi>(
+          catalogs: [v09Catalog],
+          unifiedOutbound: true,
+        ),
+        throwsA(
+          isA<ArgumentError>().having(
+            (e) => e.name,
+            'name',
+            'unifiedOutbound',
+          ),
+        ),
+      );
+    });
+
+    test(
+        'forwards one ActionMessage per action on 1.0, v0.9, and v0.9.1 '
+        'surfaces while onAction still fires', () async {
+      final outbound = <RendererToAgentMessage>[];
+      final onActionCalls = <A2uiRendererAction>[];
+      final modelActionCalls = <A2uiRendererAction>[];
+      final processor = MessageProcessor<ComponentApi>(
+        catalogs: [v09Catalog, v10Catalog],
+        onAction: onActionCalls.add,
+        outboundListener: outbound.add,
+        unifiedOutbound: true,
+      );
+      addTearDown(processor.dispose);
+      processor.model.onAction.subscribe(modelActionCalls.add);
+
+      processor.processMessages([
+        {
+          'version': '1.0',
+          'createSurface': {'surfaceId': 's-10', 'catalogId': v10Catalog.id},
+        },
+        {
+          'version': 'v0.9',
+          'createSurface': {'surfaceId': 's-09', 'catalogId': v09Catalog.id},
+        },
+        {
+          'version': 'v0.9.1',
+          'createSurface': {'surfaceId': 's-091', 'catalogId': v09Catalog.id},
+        },
+      ]);
+
+      await processor.model.getSurface('s-10')!.dispatchAction(
+            {
+              'event': {
+                'name': 'submit',
+                'context': {'count': 1},
+                'userMessage': 'Submitted form',
+                'catalogId': v10Catalog.id,
+              },
+            },
+            'btn-10',
+            metadata: {
+              'extensions': {'traceId': 't-1'},
+            },
+          );
+      await processor.model.getSurface('s-09')!.dispatchAction(
+        {
+          'event': {
+            'name': 'cancel',
+            'context': <String, Object?>{},
+          },
+        },
+        'btn-09',
+      );
+      await processor.model.getSurface('s-091')!.dispatchAction(
+        {
+          'event': {
+            'name': 'retry',
+            'context': {'attempt': 2},
+            'catalogId': v09Catalog.id,
+          },
+        },
+        'btn-091',
+      );
+
+      expect(onActionCalls, hasLength(3));
+      expect(modelActionCalls, hasLength(3));
+      expect(outbound, hasLength(3));
+
+      final first = outbound[0] as ActionMessage;
+      expect(first.version, '1.0');
+      expect(first.action, same(onActionCalls[0]));
+      expect(first.toJson(), {
+        'version': '1.0',
+        'action': {
+          'name': 'submit',
+          'surfaceId': 's-10',
+          'sourceComponentId': 'btn-10',
+          'timestamp': first.action.timestamp.toUtc().toIso8601String(),
+          'context': {'count': 1},
+          'userMessage': 'Submitted form',
+          'catalogId': v10Catalog.id,
+          'metadata': {
+            'extensions': {'traceId': 't-1'},
+          },
+        },
+      });
+
+      final second = outbound[1] as ActionMessage;
+      expect(second.version, 'v0.9');
+      expect(second.action, same(onActionCalls[1]));
+      expect(second.toJson(), {
+        'version': 'v0.9',
+        'action': {
+          'name': 'cancel',
+          'surfaceId': 's-09',
+          'sourceComponentId': 'btn-09',
+          'timestamp': second.action.timestamp.toUtc().toIso8601String(),
+          'context': <String, Object?>{},
+        },
+      });
+
+      final third = outbound[2] as ActionMessage;
+      expect(third.version, 'v0.9.1');
+      expect(third.action, same(onActionCalls[2]));
+      expect(third.toJson(), {
+        'version': 'v0.9.1',
+        'action': {
+          'name': 'retry',
+          'surfaceId': 's-091',
+          'sourceComponentId': 'btn-091',
+          'timestamp': third.action.timestamp.toUtc().toIso8601String(),
+          'context': {'attempt': 2},
+          'catalogId': v09Catalog.id,
+        },
+      });
+    });
+
+    test(
+        'falls back to 1.0 when all catalogs are 1.0+ and v0.9 otherwise when '
+        'surface has no version or is no longer in model', () async {
+      final v10Outbound = <RendererToAgentMessage>[];
+      final v10Processor = MessageProcessor<ComponentApi>(
+        catalogs: [v10Catalog],
+        outboundListener: v10Outbound.add,
+        unifiedOutbound: true,
+      );
+      addTearDown(v10Processor.dispose);
+
+      final unversionedV10 = SurfaceModel<ComponentApi>('unversioned-v10');
+      v10Processor.model.addSurface(unversionedV10);
+      await unversionedV10.dispatchAction(
+        {'name': 'ping', 'context': <String, Object?>{}},
+        'c1',
+      );
+      expect((v10Outbound.single as ActionMessage).version, '1.0');
+
+      final v09Outbound = <RendererToAgentMessage>[];
+      late final MessageProcessor<ComponentApi> mixedProcessor;
+      mixedProcessor = MessageProcessor<ComponentApi>(
+        catalogs: [v09Catalog, v10Catalog],
+        onAction: (action) {
+          if (action.surfaceId == 'deleted-on-action') {
+            mixedProcessor.model.deleteSurface(action.surfaceId);
+          }
+        },
+        outboundListener: v09Outbound.add,
+        unifiedOutbound: true,
+      );
+      addTearDown(mixedProcessor.dispose);
+
+      final unversionedMixed = SurfaceModel<ComponentApi>('unversioned-mixed');
+      mixedProcessor.model.addSurface(unversionedMixed);
+      await unversionedMixed.dispatchAction(
+        {'name': 'ping', 'context': <String, Object?>{}},
+        'c1',
+      );
+      expect((v09Outbound.single as ActionMessage).version, 'v0.9');
+
+      // _forwardAction is subscribed before onAction, so when onAction removes
+      // the surface, _forwardAction still resolves the surface protocolVersion.
+      mixedProcessor.processMessages({
+        'version': '1.0',
+        'createSurface': {
+          'surfaceId': 'deleted-on-action',
+          'catalogId': v10Catalog.id,
+        },
+      });
+      final SurfaceModel<ComponentApi> transient =
+          mixedProcessor.model.getSurface('deleted-on-action')!;
+      await transient.dispatchAction(
+        {'name': 'close', 'context': <String, Object?>{}},
+        'c2',
+      );
+      expect(mixedProcessor.model.getSurface('deleted-on-action'), isNull);
+      expect(v09Outbound, hasLength(2));
+      expect((v09Outbound.last as ActionMessage).version, '1.0');
+    });
+
+    test(
+        'swallows synchronous throws and rejected futures from '
+        'outboundListener without breaking onAction subscribers', () async {
+      var mode = 'throw';
+      var listenerCalls = 0;
+      final onActionCalls = <A2uiRendererAction>[];
+      final laterSubscriberCalls = <A2uiRendererAction>[];
+      final processor = MessageProcessor<ComponentApi>(
+        catalogs: [v10Catalog],
+        onAction: onActionCalls.add,
+        outboundListener: (_) {
+          listenerCalls++;
+          if (mode == 'throw') {
+            throw StateError('sync listener failure');
+          }
+          if (mode == 'reject_object') {
+            return Future<Object?>.error(StateError('non-void future failure'));
+          }
+          return Future<void>.error(StateError('async listener failure'));
+        },
+        unifiedOutbound: true,
+      );
+      addTearDown(processor.dispose);
+      processor.model.onAction.subscribe(laterSubscriberCalls.add);
+
+      processor.processMessages({
+        'version': '1.0',
+        'createSurface': {'surfaceId': 's1', 'catalogId': v10Catalog.id},
+      });
+      final SurfaceModel<ComponentApi> surface =
+          processor.model.getSurface('s1')!;
+
+      await surface.dispatchAction(
+        {'name': 'first', 'context': <String, Object?>{}},
+        'btn',
+      );
+      mode = 'reject';
+      await surface.dispatchAction(
+        {'name': 'second', 'context': <String, Object?>{}},
+        'btn',
+      );
+      mode = 'reject_object';
+      await surface.dispatchAction(
+        {'name': 'third', 'context': <String, Object?>{}},
+        'btn',
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(listenerCalls, 3);
+      expect(
+        onActionCalls.map((a) => a.name),
+        ['first', 'second', 'third'],
+      );
+      expect(
+        laterSubscriberCalls.map((a) => a.name),
+        ['first', 'second', 'third'],
+      );
+    });
+
+    test(
+        'normalizes semver surface protocolVersion formats '
+        'with tryParseSemVer', () async {
+      final outbound = <RendererToAgentMessage>[];
+      final processor = MessageProcessor<ComponentApi>(
+        catalogs: [v09Catalog, v10Catalog],
+        outboundListener: outbound.add,
+        unifiedOutbound: true,
+      );
+      addTearDown(processor.dispose);
+
+      final semverSurface =
+          SurfaceModel<ComponentApi>('s-semver', protocolVersion: '0.9.1');
+      processor.model.addSurface(semverSurface);
+      await semverSurface.dispatchAction(
+        {'name': 'ping', 'context': <String, Object?>{}},
+        'btn',
+      );
+
+      expect((outbound.single as ActionMessage).version, 'v0.9.1');
+    });
+
+    test('forwards no ActionMessage or ErrorMessage after dispose', () async {
+      final outbound = <RendererToAgentMessage>[];
+      final processor = MessageProcessor<ComponentApi>(
+        catalogs: [v10Catalog],
+        outboundListener: outbound.add,
+        unifiedOutbound: true,
+      );
+      processor.processMessages({
+        'version': '1.0',
+        'createSurface': {'surfaceId': 's1', 'catalogId': v10Catalog.id},
+      });
+      final SurfaceModel<ComponentApi> surface =
+          processor.model.getSurface('s1')!;
+
+      processor.dispose();
+      await surface.dispatchAction(
+        {'name': 'after-dispose', 'context': <String, Object?>{}},
+        'btn',
+      );
+      processor.processMessagesWithErrors({
+        'version': '1.0',
+        'updateComponents': {
+          'surfaceId': 'missing-after-dispose',
+          'components': <Object?>[],
+        },
+      });
+
+      expect(outbound, isEmpty);
+    });
   });
 }

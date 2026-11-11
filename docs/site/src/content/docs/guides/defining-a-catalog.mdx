@@ -182,7 +182,7 @@ final generator = A2uiGenerator(
   </TabItem>
 </Tabs>
 
-Swift (`A2UISwiftCore` and `A2UISwiftUI`) and Kotlin (`androidx.a2ui` and `androidx.a2ui.compose`) are client-side renderer SDKs and do not include a server-side agent generator; see [How to Integrate with My Agent Server](../../guides/agent-integration/) for full backend setup.
+Swift (`A2UISwiftCore` and `A2UISwiftUI`) and Kotlin (`androidx.a2ui` and `androidx.a2ui.compose`) are client-side renderer SDKs and do not include a server-side agent generator; see [How to Integrate A2UI into an Agent](../../guides/agent-integration/) for full backend setup.
 
 ## Step 3: Register the widget on your client
 
@@ -1644,6 +1644,63 @@ Place shared scalar or enum schemas (such as `BadgeTone`) under `$defs` alongsid
 
   </TabItem>
 </Tabs>
+
+### Accessibility
+
+Accessible custom catalogs divide responsibility between the component schema and the native widget implementation. JSON Schema alone cannot tell whether a control gets its screen reader name from a schema property, visible child text, or fixed native code. Design each component schema around how much its meaning varies across instances.
+
+#### Generic vs. domain-specific components
+
+Generic, reusable controls such as `TextField`, `CheckBox`, and `Slider` need a `label` property in their component schema because their purpose changes per instance. Without a schema `label` property, the agent has no standard field to name what the user is editing or toggling.
+
+Domain-specific components such as `UsernameInput` or `SearchSubmitButton` already have a fixed purpose. Build their default accessible labels directly into the native widget implementation instead of exposing a schema `label` property. Omitting a redundant `label` property saves model tokens and prevents inconsistent model-generated text across screens.
+
+#### Inherited accessibility attributes and renderer mapping
+
+In v1.0, every component inherits the optional `accessibility` object from [`ComponentCommon`](../../specification/v1.0/schemas/#common_types.json/$defs/ComponentCommon) at the message envelope level. Do not redeclare `accessibility` or wrap v1.0 component definitions with `ComponentCommon`. In v0.9 and v0.9.1, reference [`ComponentCommon`](../../specification/v0.9.1/schemas/#common_types.json/$defs/ComponentCommon) once via `allOf` in each component schema without redeclaring `id` or `accessibility`.
+
+In v0.9, v0.9.1, and v1.0, [`AccessibilityAttributes`](../../specification/v1.0/schemas/#common_types.json/$defs/AccessibilityAttributes) provides `label` and `description`, and both accept literal strings, data bindings, or function calls. Version 1.0 also adds `live` (`"off"`, `"polite"`, or `"assertive"`) for live-region announcements and `hidden` for excluding decorative elements from assistive technologies.
+
+Agents can set `accessibility` on any component instance to supply or override assistive text when visual context is missing, such as an icon-only `Button`:
+
+<Tabs syncKey="protocol-version">
+  <TabItem label="v1.0">
+
+```json
+{
+  "id": "close_button",
+  "component": "Button",
+  "child": "close_icon",
+  "action": {"event": {"name": "close_dialog"}},
+  "accessibility": {
+    "label": "Close dialog",
+    "description": {"@path": "/dialog/unsavedWarning"}
+  }
+}
+```
+
+  </TabItem>
+  <TabItem label="v0.9.1">
+
+```json
+{
+  "id": "close_button",
+  "component": "Button",
+  "child": "close_icon",
+  "action": {"event": {"name": "close_dialog"}},
+  "accessibility": {
+    "label": "Close dialog",
+    "description": {"path": "/dialog/unsavedWarning"}
+  }
+}
+```
+
+  </TabItem>
+</Tabs>
+
+Notice that v1.0 data bindings use `@path`, whereas v0.9.1 bindings use `path`.
+
+In your native component implementation, map resolved `AccessibilityAttributes` and visible child text or titles to platform accessibility APIs. Use WAI-ARIA attributes on the web, `Semantics` widgets in Flutter, and `.accessibilityLabel` or `.accessibilityHint` modifiers in SwiftUI. When an instance sets `accessibility.label` or `accessibility.description`, let those values override any label inferred from visible text (see [Catalog-Agnostic Accessibility Requirements](../../specification/v1.0-a2ui/#catalog-agnostic-accessibility-requirements)).
 
 ### Schema parity tests in CI
 

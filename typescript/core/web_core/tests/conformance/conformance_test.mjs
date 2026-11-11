@@ -302,6 +302,10 @@ const UNIMPLEMENTED_ACTIONS = new Map([
   ['transform_catalog', 'catalog transformers are agent-side only'],
   ['provide_catalog', 'catalog providers are agent-side only'],
   ['resolve_catalogs', 'catalog resolution is agent-side only'],
+  [
+    'read_renderer_capabilities',
+    'reading renderer capabilities from transport metadata is agent-side only',
+  ],
   ['common_types_schema', 'no schema generation from models'],
   ['declare_agent_functions', 'agent functions are agent-side only'],
   ['handle_agent_function', 'agent functions are agent-side only'],

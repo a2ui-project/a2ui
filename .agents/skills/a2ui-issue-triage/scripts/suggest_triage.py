@@ -149,12 +149,11 @@ def guess_triage_heuristics(title, body):
     # Special Case: Weekly A2UI Compliance Report
     if "weekly a2ui compliance report" in text:
         labels.append("type: documentation")
-        priority = "P3"
-        action = "backlog"
+        priority = "None"
+        action = "close_invalid"
         reply = (
-            "As agreed, this has been assigned a P3 priority. Once the current"
-            " triage queue is cleared, we will begin reviewing AI-generated"
-            " issues."
+            "As agreed, we are closing this report: we need a better workflow to"
+            " make it easier to follow up on the findings."
         )
         return {
             "priority": priority,
@@ -185,22 +184,12 @@ def guess_triage_heuristics(title, body):
         reply = "Thanks. We will update the documentation."
     elif "feature" in text or "enhancement" in text or "request" in text:
         labels.append("type: feature/enhancement")
-        if "out of scope" in text or "not planned" in text:
-            priority = "P4"
-            action = "backlog"
-            reply = (
-                "Thanks for the suggestion. This falls outside the current scope"
-                " of the A2UI protocol roadmap.\n\nMarked as `P4`: we do not"
-                " plan to invest in it, and PRs against it will not be reviewed."
-                " Leaving it open as a record of the request — comment here if"
-                " you have new arguments to share."
-            )
-        else:
-            priority = "P3"
-            action = "backlog"
-            reply = (
-                "Thanks for the suggestion. We will evaluate this against our roadmap."
-            )
+        # Whether a request is out of scope takes reading the issue, not
+        # matching keywords, so it is left to the agent that reviews the
+        # suggestion.
+        priority = "P3"
+        action = "backlog"
+        reply = "Thanks for the suggestion. We will evaluate this against our roadmap."
     else:
         # Default to bug if not documentation/feature and contains words like error, fail, crash, bug
         if any(
