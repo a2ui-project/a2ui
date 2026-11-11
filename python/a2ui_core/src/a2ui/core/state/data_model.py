@@ -142,6 +142,47 @@ class DataModel:
                 return False
         return True
 
+    def _validate_set_path(self, path: str, tokens: list[str]) -> None:
+        """Checks traversal without creating containers in the live data."""
+        current: Any = self._data if self._data is not None else {}
+        for i, token in enumerate(tokens):
+            if isinstance(current, dict):
+                child = current.get(token)
+            elif isinstance(current, list):
+                if not NUMERIC_PATTERN.match(token):
+                    raise A2uiDataError(
+                        f"Cannot use non-numeric segment '{token}' on an array in path"
+                        f" '{path}'.",
+                        path=path,
+                    )
+                idx = int(token)
+                if idx > MAX_ARRAY_INDEX:
+                    raise A2uiDataError(
+                        f"Cannot set path '{path}': array index '{token}' exceeds"
+                        f" maximum supported index ({MAX_ARRAY_INDEX}).",
+                        path=path,
+                    )
+                child = current[idx] if idx < len(current) else None
+            else:
+                raise A2uiDataError(
+                    f"Cannot set path '{path}': the data model root is a primitive"
+                    " value.",
+                    path=path,
+                )
+
+            if i == len(tokens) - 1:
+                return
+            if child is not None and not isinstance(child, (dict, list)):
+                raise A2uiDataError(
+                    f"Cannot set path '{path}': segment '{token}' is a primitive"
+                    " value.",
+                    path=path,
+                )
+            if child is None:
+                current = [] if NUMERIC_PATTERN.match(tokens[i + 1]) else {}
+            else:
+                current = child
+
     def set(self, path: str, value: Any) -> "DataModel":
         """Sets a value atomically at a JSON Pointer path with auto-vivification.
 
@@ -164,6 +205,8 @@ class DataModel:
 
         if value is None and not self.has_path(path):
             return self
+
+        self._validate_set_path(path, tokens)
 
         # Snapshot old values for all currently watched paths before mutation
         old_values = {p: copy.deepcopy(self.get(p)) for p in self._listeners.keys()}
