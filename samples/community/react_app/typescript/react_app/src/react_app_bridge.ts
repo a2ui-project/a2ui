@@ -120,7 +120,7 @@ type ReactAppBridgeEventBody =
  * What the bridge reports to the page, for logs, panels and tests. `frameId` tells the frames of
  * a page apart: the element sets it to the surface id and the component id.
  */
-export type ReactAppBridgeEvent = ReactAppBridgeEventBody & {readonly frameId: string};
+export type ReactAppBridgeEvent = ReactAppBridgeEventBody & {readonly frameId?: string};
 
 /** How the bridge reaches the frame. */
 export interface ReactAppBridgeTransport {

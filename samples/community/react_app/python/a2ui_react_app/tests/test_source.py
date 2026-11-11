@@ -279,7 +279,8 @@ def test_transformer_fills_missing_allowlists_from_literals() -> None:
     transformer = ReactAppTransformer(on_error="raise")
     source = _source(
         "  const [rate, setRate] = useData('/loan/rate', 5);\n"
-        "  callFunction('formatCurrency', {value: rate});"
+        "  callFunction('formatCurrency', {value: rate});\n"
+        "  dispatchAction('done', {});"
     )
     turn = _turn(_app(source))
 
@@ -288,7 +289,7 @@ def test_transformer_fills_missing_allowlists_from_literals() -> None:
     app = to_message_dicts(out)[1]["updateComponents"]["components"][0]
     assert app["dataPaths"] == ["/loan/rate"]
     assert app["functions"] == ["formatCurrency"]
-    assert "actions" not in app
+    assert app["actions"] == ["done"]
     assert out[0] is turn[0]
     assert (
         "dataPaths"

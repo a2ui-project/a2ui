@@ -28,10 +28,15 @@ import {
 } from './react_app_bridge.js';
 import {getReactAppConfig, loadRuntime, type LoadedRuntime} from './react_app_config.js';
 import {ReactAppFrameHost} from './react_app_frame_host.js';
-import type {SandboxProtocol, SandboxResource} from './shared/sandbox/sandbox_bootstrap.js';
+import type {
+  SandboxError,
+  SandboxProtocol,
+  SandboxResource,
+} from './shared/sandbox/sandbox_bootstrap.js';
 import type {SandboxMode} from './shared/sandbox/sandbox_config.js';
 import {
   frameHeightFromProp,
+  SANDBOX_ERROR_EVENT,
   SandboxedFrameElement,
 } from './shared/sandbox/sandboxed_frame_element.js';
 import {readThemeTokens} from './theme_tokens.js';
@@ -138,6 +143,19 @@ class ReactAppElement extends SandboxedFrameElement<typeof ReactAppApi> {
   private readonly agentErrors = new AgentErrorReporter(error => {
     void this.context?.dataContext.surface?.dispatchError(error);
   });
+
+  constructor() {
+    super();
+    this.addEventListener(SANDBOX_ERROR_EVENT, event => {
+      const detail = (event as CustomEvent<SandboxError>).detail;
+      const appError = {phase: 'runtime' as const, message: detail.message};
+      this.dispatchReactAppEvent(REACT_APP_ERROR_EVENT, appError);
+      this.agentErrors.report(appError, this.resolveResource()?.html ?? '', {
+        surfaceId: this.context?.dataContext.surface?.id ?? '',
+        componentId: this.context?.componentModel.id ?? '',
+      });
+    });
+  }
 
   override connectedCallback() {
     super.connectedCallback();
