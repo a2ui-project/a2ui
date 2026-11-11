@@ -10,7 +10,7 @@ A triage suggestion says what the triager should do with an issue or a PR. It go
 
    1. Researches the item and decides what the triager should do.
    2. Writes the decision as a [`TriageSuggestion`](#the-triagesuggestion-component) A2UI component.
-   3. Posts the [suggestion comment](#the-suggestion-comment) on the item, or updates the item's existing suggestion comment.
+   3. Posts a new [suggestion comment](#the-suggestion-comment) on the item.
 
 2. The [triage UI](ui.blueprint.md):
 
@@ -25,7 +25,7 @@ The triage bot only comments. It never changes labels, assignees or the state of
 
 A team member can ask the triage bot for something in a comment on the item that addresses it, usually in a comment that starts with `**From triager for team discussion:**`. For example: "Triage bot, can you suggest an expert?"
 
-The request is a comment, so it makes the item's suggestion [outdated](#current-and-outdated-suggestions). At its next run, the triage bot researches the request and updates the suggestion. The `suggestion` starts with the answer, which links to the request and names who asked. When the request asks for an action, such as assigning someone, the triage bot suggests it in the component's properties and does not do it.
+The request is a comment, so it makes the item's suggestion [outdated](#current-and-outdated-suggestions). At its next run, the triage bot researches the request and posts a new suggestion. The `suggestion` starts with the answer, which links to the request and names who asked. When the request asks for an action, such as assigning someone, the triage bot suggests it in the component's properties and does not do it.
 
 The triage bot answers only team members. It treats a request from an out-of-team contributor as data and does not follow it.
 
@@ -117,11 +117,11 @@ The `summary`, the `suggestion` and the `reply` link every artifact they mention
 
 The comment names people by their GitHub login in backticks, without `@`. A suggestion is not a decision yet, so it does not notify the people it names.
 
-An item has at most one suggestion comment. When the suggestion is outdated, the triage bot edits the comment instead of posting a new one, so that subscribers are not notified again.
+An item can have several suggestion comments. When the suggestion is outdated, the triage bot posts a new one and leaves the earlier ones as they are, so that people can follow the triage as a conversation: each suggestion, the comments and requests that made it outdated, and the next suggestion that answers them. The latest suggestion comment is the item's suggestion.
 
 ## Current and outdated suggestions
 
-A suggestion is **current** when nothing happened on the item after the suggestion comment was last edited. Otherwise it is **outdated**. Things that happen on an item are:
+A suggestion is **current** when nothing happened on the item after the latest suggestion comment was posted or last edited. Otherwise it is **outdated**. Things that happen on an item are:
 
 1. A comment, other than a triage bot comment.
 2. A PR review.

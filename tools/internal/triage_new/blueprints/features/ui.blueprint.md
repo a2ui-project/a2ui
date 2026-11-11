@@ -29,7 +29,7 @@ The list of items holds the issues and PRs of [`a2ui-project/a2ui`](https://gith
 2. **Needs team input**: open items with `status: needs-team-input`.
 3. **Not in the queue**: items that the triager opened from a [suggestion comment](triage_bot.blueprint.md#the-suggestion-comment) or by URL, and that are in neither group above.
 
-The groups are set when the items load. An item that the triager sends to the team in this session stays in its group, and also shows in **Needs team input**, so it is listed twice until a refresh.
+The groups are set when the items load. An item that the triager sends to the team in this session stays in its group, and also shows in **Needs team input**, so it is listed twice until a refresh. The triager selects such an item in one of its groups, and only that copy shows as selected. The next item after **Apply** or **Needs team input** is the next one in that group that the triager has not handled yet, and after the end of the group, the next one in the groups below.
 
 An item in `flutter/genui` shows "genui" before its number, as in "genui #12", because the two repositories number their items separately. The tool triages it as an item in `a2ui-project/a2ui`, except that its changes go to `flutter/genui`, and its label, assignee and milestone choices are those of `flutter/genui`. The triage bot comments only on `a2ui-project/a2ui`, so items in `flutter/genui` have no suggestion.
 
@@ -68,7 +68,7 @@ Nothing is selected when the tool starts, unless it starts with an item from a s
 
 ### Editable suggestion
 
-The editable suggestion is the triage UI's implementation of the [`TriageSuggestion`](triage_bot.blueprint.md#the-triagesuggestion-component) A2UI component. It renders the component from the item's suggestion comment, or an empty one when the item has no suggestion.
+The editable suggestion is the triage UI's implementation of the [`TriageSuggestion`](triage_bot.blueprint.md#the-triagesuggestion-component) A2UI component. It renders the component from the item's latest suggestion comment, or an empty one when the item has no suggestion.
 
 The `summary`, the `reason` and the `suggestion` are shown as text in the left column, with each URL in them as a link that opens in the browser. Below them is the latest comment for the team, if the item has one: a comment by a team member that starts with `**From triager for team discussion:**`, as **Needs team input** posts it. It is shown the same way, without the heading, under "From @login for team discussion", so the team reads the triager's question together with the triage bot's suggestion. The triager can change the other properties: the reply, how to close the item, the labels and the assignees. The triager also sets the item's priority, and its milestone, which the triage bot does not suggest.
 

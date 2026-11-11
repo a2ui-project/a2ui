@@ -66,7 +66,6 @@ void main() {
     expect(controller.isConnected, isTrue);
     expect(numbers(controller.newItems), [11, 10, 20, 21]);
     expect(numbers(controller.teamInputItems), [40, 41]);
-    expect(numbers(controller.orderedItems), [11, 10, 20, 21, 40, 41]);
     expect(controller.selected, isNull);
     expect(controller.remaining, 6);
     expect(controller.repositoryInfo(a2uiRepository).labels, contains('P1'));
@@ -385,8 +384,8 @@ void main() {
     // The item stays in its group, and is also under Needs team input.
     expect(numbers(controller.newItems), [11, 10, 20, 21]);
     expect(numbers(controller.teamInputItems), [10, 40, 41]);
-    expect(numbers(controller.orderedItems), [11, 10, 20, 21, 40, 41]);
     expect(controller.selected!.number, 20);
+    expect(controller.selectedGroup, ItemGroup.newItems);
     expect(controller.remaining, 5);
     expect(controller.session.isSentToTeam(a2ui(10)), isTrue);
     expect(controller.report(), contains('Sent 1 issue to the team.'));
@@ -398,6 +397,26 @@ void main() {
     ]);
     expect(entry.steps.last.text, 'Thoughts.');
   });
+
+  test(
+    'selects the next item in the group in which the item was selected',
+    () async {
+      await controller.start();
+      await controller.sendToTeam(controller.item(a2ui(10))!);
+      // Listed in New and in Needs team input.
+      controller.select(a2ui(10));
+      expect(controller.selectedGroup, ItemGroup.newItems);
+      controller.select(a2ui(10), group: ItemGroup.teamInput);
+      final TriageItem item = controller.selected!;
+      controller.draftFor(item, const TriageSuggestion(addedLabels: ['P2']));
+
+      await controller.apply(item);
+
+      // Not #20, which comes after #10 in New.
+      expect(controller.selected!.number, 40);
+      expect(controller.selectedGroup, ItemGroup.teamInput);
+    },
+  );
 
   test('sends an item opened by URL to the team', () async {
     await controller.start();

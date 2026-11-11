@@ -489,6 +489,7 @@ void main() {
     await tester.tap(sent.last);
     await tester.pumpAndSettle();
     expect(sent, findsNWidgets(2));
+    expect(controller.selectedGroup, ItemGroup.teamInput);
     expect(find.text('From @octocat for team discussion'), findsOneWidget);
     expect(find.text('Is this a P0?'), findsOneWidget);
     expect(find.text('Summary'), findsOneWidget);

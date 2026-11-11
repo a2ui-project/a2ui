@@ -62,7 +62,8 @@ Color kindBackground(Color color) => color.withValues(alpha: 0.08);
 /// The items, in the groups `ui.blueprint.md` describes: **New**, **Needs
 /// team input**, and the items opened by URL that are not in the queue. An
 /// item that the triager sent to the team is in its own group and in
-/// **Needs team input**.
+/// **Needs team input**. The triager selects an item in one of its groups,
+/// and only that tile shows as selected.
 ///
 /// The groups start collapsed. When the controller selects an item on its
 /// own, such as an item opened by URL, the list expands the item's group
@@ -83,20 +84,18 @@ class _ItemListState extends State<ItemList> {
   Widget build(BuildContext context) {
     final TriageController controller = TriageScope.of(context);
     final ItemRef? selected = controller.selected?.ref;
-    final sections = <(String, List<TriageItem>)>[
-      ('New', controller.newItems),
-      ('Needs team input', controller.teamInputItems),
-      if (controller.opened.isNotEmpty) ('Not in the queue', controller.opened),
+    final ItemGroup? selectedGroup = controller.selectedGroup;
+    final sections = <(ItemGroup, String, List<TriageItem>)>[
+      (ItemGroup.newItems, 'New', controller.newItems),
+      (ItemGroup.teamInput, 'Needs team input', controller.teamInputItems),
+      if (controller.opened.isNotEmpty)
+        (ItemGroup.notInQueue, 'Not in the queue', controller.opened),
     ];
-    // The first group with the selected item, whose tile is the one to
-    // scroll to.
-    final String? selectedIn = [
-      for (final (String title, List<TriageItem> items) in sections)
-        if (items.any((i) => i.ref == selected)) title,
-    ].firstOrNull;
     if (controller.revealCount != _revealCount) {
       _revealCount = controller.revealCount;
-      for (final (String title, List<TriageItem> items) in sections) {
+      for (final (ItemGroup group, String title, List<TriageItem> items)
+          in sections) {
+        if (group != selectedGroup) continue;
         for (final i in items) {
           if (i.ref == selected) {
             _expanded.addAll([title, _subgroupKey(title, i.kind)]);
@@ -120,7 +119,8 @@ class _ItemListState extends State<ItemList> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          for (final (String title, List<TriageItem> items) in sections) ...[
+          for (final (ItemGroup group, String title, List<TriageItem> items)
+              in sections) ...[
             _GroupHeader(
               '$title (${items.length})',
               expanded: _expanded.contains(title),
@@ -130,21 +130,22 @@ class _ItemListState extends State<ItemList> {
             ),
             if (_expanded.contains(title))
               for (final ItemKind kind in ItemKind.values)
-                ..._subgroup(title, kind, [
+                ..._subgroup(group, title, kind, [
                   for (final i in items)
                     if (i.kind == kind) i,
-                ], selected: title == selectedIn ? selected : null),
+                ], selected: group == selectedGroup ? selected : null),
           ],
         ],
       ),
     );
   }
 
-  /// The header of the subgroup of [kind] in the group [title], and its
-  /// [items] if it is expanded. Nothing if there are no [items].
+  /// The header of the subgroup of [kind] in [group], titled [title], and
+  /// its [items] if it is expanded. Nothing if there are no [items].
   ///
   /// The tile of [selected] gets the key to scroll to.
   List<Widget> _subgroup(
+    ItemGroup group,
     String title,
     ItemKind kind,
     List<TriageItem> items, {
@@ -173,9 +174,10 @@ class _ItemListState extends State<ItemList> {
         for (final TriageItem item in items)
           _ItemTile(
             item,
+            group,
             key: item.ref == selected
                 ? _selectedKey
-                : ValueKey((title, item.ref)),
+                : ValueKey((group, item.ref)),
           ),
     ];
   }
@@ -233,9 +235,12 @@ class _GroupHeader extends StatelessWidget {
 }
 
 class _ItemTile extends StatelessWidget {
-  const _ItemTile(this.item, {super.key});
+  const _ItemTile(this.item, this.group, {super.key});
 
   final TriageItem item;
+
+  /// The group that lists this tile.
+  final ItemGroup group;
 
   @override
   Widget build(BuildContext context) {
@@ -247,7 +252,9 @@ class _ItemTile extends StatelessWidget {
       context,
       item.kind,
     );
-    final selected = controller.selected?.ref == item.ref;
+    final bool selected =
+        controller.selected?.ref == item.ref &&
+        controller.selectedGroup == group;
     // The selected item has a border. Its colors stay the same, so that the
     // kind's background still shows; ListTile.selected would change them.
     final tile = ListTile(
@@ -310,8 +317,9 @@ class _ItemTile extends StatelessWidget {
             )
           : null,
       // A second click on the selected item deselects it.
-      onTap: () =>
-          selected ? controller.deselect() : controller.select(item.ref),
+      onTap: () => selected
+          ? controller.deselect()
+          : controller.select(item.ref, group: group),
     );
     return Semantics(selected: selected, child: tile);
   }
