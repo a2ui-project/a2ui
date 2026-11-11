@@ -170,6 +170,8 @@ class _Parse:
     def __init__(self, fmt: ExpressFormat, state: RendererState) -> None:
         self.stream = fmt.create_parser().open_stream(state=state)
         self.transformer = ReactAppTransformer(on_error="raise")
+        # Lets the checks know which functions the catalogs declare, agent ones included.
+        self.transformer.transform_catalogs(fmt.catalogs)
 
 
 def action_prompt(action: dict[str, Any]) -> str:
