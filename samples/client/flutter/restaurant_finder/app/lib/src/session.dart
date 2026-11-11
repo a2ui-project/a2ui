@@ -104,6 +104,10 @@ class RestaurantSession extends ChangeNotifier {
     ]);
   }
 
+  /// Logs [error] and sends it to the agent, except while a request is in
+  /// flight, as genui did. The restaurant agent reads only actions, so
+  /// sending the error after the reply would clear the reply's surfaces and
+  /// send the agent an empty turn.
   void _onRendererError(A2uiRendererError error) {
     _logger.warning('Renderer error ${error.code}: ${error.message}');
     _sendMessageToAgent([
