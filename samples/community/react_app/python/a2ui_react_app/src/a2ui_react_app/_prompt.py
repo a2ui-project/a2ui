@@ -47,7 +47,7 @@ _RULES = '''## ReactApp: custom interactive apps
 - Build everything else from native components: headings, labels, sliders, text fields, buttons and lists. Don't rebuild them inside the app.
 - Connect the app and the native components through shared data model paths. A native component bound to `$/loan/rate` and an app that calls `useData('/loan/rate', 5)` read and write the same value. Give those paths initial values in the data model.
 - Put data you already have, such as tool results, lists and chart series, in the data model (for example `$/sales/points = [...]`) and read it in the app with `useData`. Don't copy data into the source.
-- List the paths the app reads and writes in `dataPaths`, and the functions it calls in `functions`. Never set `compiled`.
+- List the paths the app reads and writes in `dataPaths`, the functions it calls in `functions`, and the actions it dispatches in `actions`. Never set `compiled`.
 
 ### Writing the source
 
