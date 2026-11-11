@@ -2849,7 +2849,8 @@ function validateToJsonTestCase(testCase) {
  * require permissive validation so test vectors can evaluate message processor semantics,
  * surface lifecycles, and state handling without failing on strict component prop validation.
  *
- * Also includes non-standard component types like `CustomComponent` referenced by test cases.
+ * Also includes non-standard component types like `CustomComponent` and `PieChart`
+ * referenced by ad-hoc catalog test cases.
  */
 const flexibleComponents = [
   'Button',
@@ -2864,6 +2865,7 @@ const flexibleComponents = [
   'CheckBox',
   'ChoicePicker',
   'CustomComponent',
+  'PieChart',
 ].map(name => ({
   name,
   schema: z.object({}).passthrough(),
