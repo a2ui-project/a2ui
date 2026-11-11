@@ -68,6 +68,12 @@ interface UniversalComponentHostElement extends HTMLElement {
   injector?: Injector;
 }
 
+/**
+ * Connected events a `ComponentHostComponent` already handed to `onElementConnected`.
+ * Ancestor hosts skip these instead of stopping propagation, so other listeners still see them.
+ */
+const handledConnectedEvents = new WeakSet<Event>();
+
 /** The key of the component to render: an ID string or a {@link Child} reference. */
 export type ComponentKey = string | Child;
 
@@ -243,15 +249,18 @@ export class ComponentHostComponent {
 
   /**
    * Hands a universal element that connected below this host to its catalog entry's
-   * `onElementConnected` callback. The nearest host handles the event, so ancestors don't
-   * call the callback again.
+   * `onElementConnected` callback. The nearest host marks the event as handled, so ancestor
+   * hosts skip it while other listeners above can still observe it.
    */
   private readonly onElementConnected = (event: Event): void => {
-    const element = event.target as A2uiWebComponentElement | null;
+    if (handledConnectedEvents.has(event)) return;
+    // The event is composed, so `event.target` is retargeted to the outermost shadow host
+    // in this tree. The first entry of the composed path is the element that dispatched it.
+    const element = event.composedPath()[0] as A2uiWebComponentElement | undefined;
     const context = element?.context ?? element?.node?.context;
     const componentModel = context?.componentModel;
     if (!element || !context || !componentModel) return;
-    event.stopPropagation();
+    handledConnectedEvents.add(event);
     const catalog = componentModel.catalog as AngularCatalog;
     const entry = catalog?.components?.get(componentModel.type);
     entry?.onElementConnected?.(element, context, this.injector);

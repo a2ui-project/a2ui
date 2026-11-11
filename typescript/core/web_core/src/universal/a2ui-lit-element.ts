@@ -62,7 +62,9 @@ const lightDomStyleCache = new WeakMap<Function, LightDomStyleCacheEntry>();
 /**
  * Name of the event an `A2uiLitElement` dispatches the first time it is connected to the DOM with a
  * `node` or `context`. It bubbles and is composed, so host renderers can observe every element of a surface,
- * including the ones universal containers create, from a single ancestor.
+ * including the ones universal containers create, from a single ancestor. Listeners outside the
+ * element's shadow tree see a retargeted `event.target`, so read the element from
+ * `event.composedPath()[0]`.
  */
 export const A2UI_ELEMENT_CONNECTED_EVENT = 'a2ui-element-connected';
 

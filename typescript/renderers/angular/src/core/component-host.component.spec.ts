@@ -27,7 +27,7 @@ import {
   SurfaceModel,
   getValue,
 } from '@a2ui/web_core';
-import {WebComponentImplementation} from '@a2ui/web_core/universal';
+import {A2UI_ELEMENT_CONNECTED_EVENT, WebComponentImplementation} from '@a2ui/web_core/universal';
 import {ComponentIdSchema, DynamicStringSchema} from '@a2ui/web_core/v0_9';
 import {A2uiColumn, A2uiText} from '@a2ui/web_core/v0_9/basic_catalog';
 import {
@@ -815,6 +815,112 @@ describe('ComponentHostComponent', () => {
       ]);
       hookFixture.destroy();
       hookFixture.nativeElement.remove();
+    });
+
+    it('calls onElementConnected once when the element sits below nested component hosts', async () => {
+      @Component({
+        selector: 'test-hook-wrapper',
+        imports: [ComponentHostComponent],
+        template:
+          '<a2ui-v09-component-host [componentKey]="props.child.value()" [surfaceId]="surfaceId!" />',
+      })
+      class TestHookWrapperComponent {
+        @Input() props: any;
+        @Input() surfaceId?: string;
+        @Input() componentId?: string;
+        @Input() dataContextPath?: string;
+      }
+      const onElementConnected = jasmine.createSpy('onElementConnected');
+      const text: WebComponentImplementation &
+        Pick<AngularComponentImplementation, 'onElementConnected'> = {
+        ...A2uiText,
+        onElementConnected,
+      };
+      const nestedCatalog = new AngularCatalog('nested-hook-catalog', '0.9', [
+        createComponentImplementation(
+          {name: 'Wrapper', schema: z.object({child: ComponentIdSchema})},
+          TestHookWrapperComponent as unknown as Type<CatalogComponentInstance>,
+        ),
+        text,
+      ]);
+
+      @Component({
+        selector: 'test-nested-hook-host',
+        imports: [SurfaceComponent],
+        providers: [
+          {
+            provide: A2UI_RENDERER_CONFIG,
+            useValue: {catalogs: [nestedCatalog], useUniversalComponents: true},
+          },
+          A2uiRendererService,
+        ],
+        template: '<a2ui-v09-surface surfaceId="nested-hook" />',
+      })
+      class TestNestedHookHostComponent {
+        readonly renderer = inject(A2uiRendererService);
+      }
+
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({imports: [TestNestedHookHostComponent]});
+      const nestedFixture = TestBed.createComponent(TestNestedHookHostComponent);
+      document.body.appendChild(nestedFixture.nativeElement);
+
+      nestedFixture.componentInstance.renderer.processMessages([
+        {
+          version: 'v0.9',
+          createSurface: {surfaceId: 'nested-hook', catalogId: 'nested-hook-catalog'},
+        },
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 'nested-hook',
+            components: [
+              {id: 'root', component: 'Wrapper', child: 'title'},
+              {id: 'title', component: 'Text', text: 'Hi'},
+            ],
+          },
+        },
+      ]);
+      flush(nestedFixture);
+      await settle();
+      flush(nestedFixture);
+
+      const textElement: HTMLElement = nestedFixture.nativeElement.querySelector(A2uiText.tagName);
+      const innerHost = textElement.closest('a2ui-v09-component-host');
+      expect(innerHost?.parentElement?.closest('a2ui-v09-component-host')).toBeTruthy();
+      expect(onElementConnected).toHaveBeenCalledOnceWith(
+        textElement,
+        jasmine.objectContaining({componentModel: jasmine.objectContaining({id: 'title'})}),
+        jasmine.anything(),
+      );
+      nestedFixture.destroy();
+      nestedFixture.nativeElement.remove();
+    });
+
+    it('passes the dispatching element to onElementConnected when the event crosses a shadow root', () => {
+      const onElementConnected = jasmine.createSpy('onElementConnected');
+      const hookedCatalog = new AngularCatalog('shadow-hook-catalog', '0.9', [
+        {
+          ...createComponentImplementation(
+            TestTypeApi,
+            TestChildComponent as unknown as Type<CatalogComponentInstance>,
+          ),
+          onElementConnected,
+        },
+      ]);
+      const context = {
+        componentModel: new ComponentModel('inner', 'TestType', {}, hookedCatalog),
+      } as unknown as ComponentContext;
+      const shadowHost = document.createElement('div');
+      const inner = Object.assign(document.createElement('span'), {context});
+      shadowHost.attachShadow({mode: 'open'}).appendChild(inner);
+      fixture.nativeElement.appendChild(shadowHost);
+
+      inner.dispatchEvent(
+        new CustomEvent(A2UI_ELEMENT_CONNECTED_EVENT, {bubbles: true, composed: true}),
+      );
+
+      expect(onElementConnected).toHaveBeenCalledOnceWith(inner, context, jasmine.anything());
     });
   });
 });
