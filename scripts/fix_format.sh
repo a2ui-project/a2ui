@@ -26,9 +26,22 @@ failure() {
 trap 'failure' ERR
 
 CHECK_ONLY=false
-if [[ "${1:-}" == "--check" ]]; then
-  CHECK_ONLY=true
-fi
+SKIP_SWIFT=false
+for arg in "$@"; do
+  case "$arg" in
+    --check)
+      CHECK_ONLY=true
+      ;;
+    --skip-swift)
+      SKIP_SWIFT=true
+      ;;
+    *)
+      echo "Unknown option: $arg" >&2
+      echo "Usage: $0 [--check] [--skip-swift]" >&2
+      exit 2
+      ;;
+  esac
+done
 
 # Get repo root
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -113,18 +126,27 @@ else
   echo "Warning: dart command not found. Skipping Dart formatting."
 fi
 
-echo "Running swift-format..."
-if command -v swift-format >/dev/null 2>&1; then
-  SWIFT_PATHS=(Package.swift swift/)
-  if [ "$CHECK_ONLY" = true ]; then
-    echo "Linting Swift files..."
-    swift-format lint -r "${SWIFT_PATHS[@]}"
-  else
-    echo "Formatting Swift files..."
-    swift-format format -i -r "${SWIFT_PATHS[@]}"
+if [ "$SKIP_SWIFT" = false ]; then
+  echo "Running swift-format..."
+  SWIFT_FORMAT_CMD=()
+  if swift format --version >/dev/null 2>&1; then
+    SWIFT_FORMAT_CMD=(swift format)
+  elif command -v swift-format >/dev/null 2>&1; then
+    SWIFT_FORMAT_CMD=(swift-format)
   fi
-else
-  echo "Warning: swift-format command not found. Skipping Swift formatting."
+
+  if [ "${#SWIFT_FORMAT_CMD[@]}" -gt 0 ]; then
+    SWIFT_PATHS=(Package.swift swift/)
+    if [ "$CHECK_ONLY" = true ]; then
+      echo "Linting Swift files..."
+      "${SWIFT_FORMAT_CMD[@]}" lint --strict -r "${SWIFT_PATHS[@]}"
+    else
+      echo "Formatting Swift files..."
+      "${SWIFT_FORMAT_CMD[@]}" format -i -r "${SWIFT_PATHS[@]}"
+    fi
+  else
+    echo "Warning: swift format command not found. Skipping Swift formatting."
+  fi
 fi
 
 echo "Running ktfmt for Kotlin files..."

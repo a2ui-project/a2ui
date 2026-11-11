@@ -19,9 +19,7 @@ on:
   push:
     branches: [main]
     paths:
-      - "swift/core/**"
-      - "swift/swiftui/**"
-      - "swift/sample/**"
+      - "swift/**"
       - "conformance/**"
       - "Package.swift"
       - "specification/**"
@@ -30,9 +28,7 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - "swift/core/**"
-      - "swift/swiftui/**"
-      - "swift/sample/**"
+      - "swift/**"
       - "conformance/**"
       - "Package.swift"
       - "specification/**"
@@ -53,6 +49,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Check formatting
+        run: swift format lint --strict -r Package.swift swift/
       - name: Run tests
         env:
           A2UI_CONFORMANCE_MANIFEST_DIR: ${{ runner.temp }}/a2ui-manifest
