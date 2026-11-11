@@ -25,7 +25,9 @@ import 'unbounded_width.dart';
 import 'write_back.dart';
 
 /// Builds the basic `Slider` component: a [Slider] from `min` (default 0) to
-/// `max` (default 100 when absent) under its `label` and current `value`.
+/// `max` (default 100 when absent) under its `label` and current `value`. An
+/// infinite `min` or `max`, which a JSON number such as `-1e400` decodes to,
+/// counts as absent, as it does on an HTML range input.
 ///
 /// With `steps`, the slider moves in that many equal steps from `min`.
 /// Without it, a range that is a whole number from 2 to 1000 moves in steps
@@ -40,8 +42,12 @@ Widget buildSlider(
   ChildWidgetBuilder buildChild,
 ) {
   final ThemeData theme = Theme.of(context);
-  final double min = props.number('min') ?? 0;
-  final double max = math.max(min, props.number('max') ?? 100);
+  double? finite(String key) => switch (props.number(key)) {
+    final double n when n.isFinite => n,
+    _ => null,
+  };
+  final double min = finite('min') ?? 0;
+  final double max = math.max(min, finite('max') ?? 100);
   final double range = max - min;
   final int? steps = switch (props.number('steps')) {
     final double n when n.isFinite && n >= 1 && range > 0 && range.isFinite =>

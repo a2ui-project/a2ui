@@ -39,6 +39,14 @@ Map<String, Object?> _createSurface(
   },
 };
 
+/// A v1.0 `updateComponents` message carrying [components].
+Map<String, Object?> _updateComponents(
+  List<Map<String, Object?>> components,
+) => {
+  'version': '1.0',
+  'updateComponents': {'surfaceId': testSurfaceId, 'components': components},
+};
+
 /// Renders [components] on a v1.0 surface of [catalog], the v1.0 basic
 /// catalog unless given another.
 Future<SurfaceHarness> _pump(
@@ -606,5 +614,228 @@ void main() {
         expect(find.byIcon(Icons.videocam_off), findsOneWidget);
       });
     });
+  });
+
+  group('properties the agent got wrong', () {
+    // A literal is checked against the component's schema while the message
+    // is processed, so one of the wrong type is rejected before it reaches a
+    // widget. What a bound path holds is not checked, so the values a widget
+    // must survive arrive through bindings.
+
+    // Replaces a rendered Text with the component and expects the update to be
+    // rejected and reported, leaving the Text in place. The processor has no
+    // validation config: the schema check does not depend on one.
+    Future<void> expectRejected(
+      WidgetTester tester,
+      Map<String, Object?> component,
+    ) async {
+      final SurfaceHarness harness = await _pump(tester, [
+        {'id': 'root', 'component': 'Text', 'text': 'Before'},
+      ], validationConfig: null);
+
+      expect(
+        () => harness.process([
+          _updateComponents([
+            {'id': 'root', ...component},
+          ]),
+        ]),
+        throwsA(isA<A2uiValidationError>()),
+      );
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Before'), findsOneWidget);
+      expect(harness.errorCodes, ['VALIDATION_FAILED']);
+    }
+
+    Slider slider(WidgetTester tester) =>
+        tester.widget<Slider>(find.byType(Slider));
+
+    testWidgets('Slider shows a value above max at max', (tester) async {
+      await _pump(tester, [
+        {'id': 'root', 'component': 'Slider', 'value': 42, 'min': 0, 'max': 10},
+      ]);
+
+      expect(tester.takeException(), isNull);
+      expect(slider(tester).max, 10);
+      expect(slider(tester).value, 10);
+    });
+
+    testWidgets('Slider shows a max below min as an empty range', (
+      tester,
+    ) async {
+      await _pump(tester, [
+        {'id': 'root', 'component': 'Slider', 'value': 0, 'min': 0, 'max': -1},
+      ]);
+
+      expect(tester.takeException(), isNull);
+      expect(slider(tester).min, 0);
+      expect(slider(tester).max, 0);
+      expect(slider(tester).value, 0);
+    });
+
+    for (final (String name, Object? value) in [
+      ('a string', 'ten'),
+      ('a list', <Object?>[]),
+    ]) {
+      testWidgets('Slider starts at min when the bound value is $name', (
+        tester,
+      ) async {
+        await _pump(
+          tester,
+          [
+            {
+              'id': 'root',
+              'component': 'Slider',
+              'min': 2,
+              'max': 8,
+              'value': _bind('/volume'),
+            },
+          ],
+          dataModel: {'volume': value},
+        );
+
+        expect(tester.takeException(), isNull);
+        expect(slider(tester).value, 2);
+      });
+    }
+
+    Future<void> pumpTextField(WidgetTester tester, Object? value) => _pump(
+      tester,
+      [
+        {
+          'id': 'root',
+          'component': 'TextField',
+          'label': 'Name',
+          'value': _bind('/name'),
+        },
+      ],
+      dataModel: {'name': value},
+    );
+
+    String fieldText(WidgetTester tester) =>
+        tester.widget<TextField>(find.byType(TextField)).controller!.text;
+
+    testWidgets('TextField is empty when the bound value is a list', (
+      tester,
+    ) async {
+      await pumpTextField(tester, <Object?>[]);
+
+      expect(tester.takeException(), isNull);
+      expect(fieldText(tester), isEmpty);
+    });
+
+    testWidgets('TextField shows a bound number as text', (tester) async {
+      await pumpTextField(tester, 42);
+
+      expect(tester.takeException(), isNull);
+      expect(fieldText(tester), '42');
+    });
+
+    Future<void> pumpDateTimeInput(WidgetTester tester, Object? value) => _pump(
+      tester,
+      [
+        {'id': 'root', 'component': 'DateTimeInput', 'value': _bind('/date')},
+      ],
+      dataModel: {'date': value},
+    );
+
+    testWidgets('DateTimeInput is empty when the bound value is a list', (
+      tester,
+    ) async {
+      await pumpDateTimeInput(tester, <Object?>[]);
+
+      expect(tester.takeException(), isNull);
+      expect(
+        tester.widget<InputDecorator>(find.byType(InputDecorator)).isEmpty,
+        isTrue,
+      );
+    });
+
+    testWidgets('DateTimeInput renders a bound number', (tester) async {
+      await pumpDateTimeInput(tester, 42);
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(InputDecorator), findsOneWidget);
+    });
+
+    testWidgets('Tabs shows an empty title when the bound title is a list', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        [
+          {
+            'id': 'root',
+            'component': 'Tabs',
+            'tabs': [
+              {'title': _bind('/title'), 'child': 'inbox'},
+            ],
+          },
+          {'id': 'inbox', 'component': 'Text', 'text': 'Inbox'},
+        ],
+        dataModel: {'title': <Object?>[]},
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(tester.widget<Tab>(find.byType(Tab)).text, isEmpty);
+      expect(find.text('Inbox'), findsOneWidget);
+    });
+
+    for (final (String type, String name, Map<String, Object?> props) in [
+      ('Slider', 'a max that is a string', {'value': 0.5, 'max': 'ten'}),
+      ('Slider', 'a max that is a list', {'value': 0.5, 'max': <Object?>[]}),
+      ('Slider', 'a max bound to a path', {'value': 0.5, 'max': _bind('/max')}),
+      (
+        'Slider',
+        'checks that are a string',
+        {'value': 0.5, 'max': 1, 'checks': 'required'},
+      ),
+      (
+        'TextField',
+        'a variant that is a list',
+        {'label': 'Name', 'value': '', 'variant': <Object?>[]},
+      ),
+      (
+        'TextField',
+        'a variant that is a number',
+        {'label': 'Name', 'value': '', 'variant': 42},
+      ),
+      ('DateTimeInput', 'a value that is a number', {'value': 42}),
+      ('DateTimeInput', 'a value that is a list', {'value': <Object?>[]}),
+      (
+        'DateTimeInput',
+        'an enableDate that is a string',
+        {'value': '2026-01-15', 'enableDate': 'yes'},
+      ),
+      ('Tabs', 'tabs that are a string', {'tabs': 'one'}),
+      ('Tabs', 'tabs that are a number', {'tabs': 7}),
+      ('Tabs', 'a payload without tabs', {}),
+      ('Tabs', 'an empty list of tabs', {'tabs': <Object?>[]}),
+      (
+        'Tabs',
+        'a tab that names no child',
+        {
+          'tabs': [
+            {'title': 'One'},
+          ],
+        },
+      ),
+      (
+        'Tabs',
+        'a tab that is not an object',
+        {
+          'tabs': [
+            {'title': 'First', 'child': 'first'},
+            42,
+            {'title': 'Third', 'child': 'third'},
+          ],
+        },
+      ),
+    ]) {
+      testWidgets('$type rejects $name before it renders', (tester) async {
+        await expectRejected(tester, {'component': type, ...props});
+      });
+    }
   });
 }
