@@ -14,17 +14,17 @@
  * limitations under the License.
  */
 
-import {SurfaceModel} from '../state/surface-model.js';
-import {ComponentModel} from '../state/component-model.js';
 import {Catalog, ComponentApi, FunctionImplementation} from '../catalog/types.js';
+import {Subscription} from '../common/events.js';
+import {isAtLeastVersion} from '../common/semver.js';
+import {A2uiStateError} from '../errors.js';
+import {computed, getValue, peekValue, setValue, Signal, signal} from '../reactivity/signals.js';
+import {ComponentModel} from '../state/component-model.js';
+import {SurfaceModel} from '../state/surface-model.js';
+import {V08_CHILD_REF_OPTIONS} from '../v0_8/standard_defs.js';
+import {V09_CHILD_REF_OPTIONS} from '../v0_9/standard_defs.js';
+import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
 import {ComponentContext} from './component-context.js';
-import {DataContext} from './data-context.js';
-import {
-  BehaviorNode,
-  GenericBinder,
-  getSafeChildList,
-  scrapeSchemaBehavior,
-} from './generic-binder.js';
 import {
   ComponentNode,
   isComponentNode,
@@ -32,11 +32,15 @@ import {
   NodeProps,
   PLACEHOLDER_TYPE,
 } from './component-node.js';
+import {DataContext} from './data-context.js';
+import {
+  BehaviorNode,
+  GenericBinder,
+  getSafeChildList,
+  scrapeComponentBehavior,
+} from './generic-binder.js';
 import {extractRefFields, RefFields} from './ref-fields.js';
-import {ResolvedBinding, WritableBinding, sameBinding} from './resolved-binding.js';
-import {computed, getValue, Signal, signal, setValue, peekValue} from '../reactivity/signals.js';
-import {Subscription} from '../common/events.js';
-import {A2uiStateError} from '../errors.js';
+import {ResolvedBinding, sameBinding, WritableBinding} from './resolved-binding.js';
 
 const ROOT_COMPONENT_ID = 'root';
 const ROOT_DATA_PATH = '/';
@@ -354,7 +358,12 @@ export class NodeResolver<
       dataPath,
       parent?.context?.dataContext,
     );
-    const binder = new GenericBinder<NodeProps>(context, api.schema);
+    const refOptions = isAtLeastVersion(compCatalog.protocolVersion, '1.0')
+      ? V10_CHILD_REF_OPTIONS
+      : isAtLeastVersion(compCatalog.protocolVersion, '0.9')
+        ? V09_CHILD_REF_OPTIONS
+        : V08_CHILD_REF_OPTIONS;
+    const binder = new GenericBinder<NodeProps>(context, api.schema, refOptions);
     const record = this.registerNode(
       new MutableComponentNode(
         instanceIdFor(componentId, dataPath, occurrence),
@@ -371,8 +380,8 @@ export class NodeResolver<
         edgeKey,
         parent,
         occurrence,
-        refFields: extractRefFields(api.schema),
-        behavior: scrapeSchemaBehavior(api.schema),
+        refFields: extractRefFields(api.schema, refOptions),
+        behavior: scrapeComponentBehavior(api.schema, refOptions),
         componentModel: model,
         binder,
       },
@@ -612,24 +621,70 @@ export class NodeResolver<
         }
         case 'nested': {
           const value = next[key];
+          const slotKey = escapeIdPart(key);
+          if (typeof value === 'string' && value) {
+            next[key] = resolveChild(slotKey, value, record.node.dataPath);
+            break;
+          }
           if (!Array.isArray(value)) {
             break;
           }
-          next[key] = value.map((item, index) => {
+          const rawProp = modelProps?.[key];
+          const fromTemplate = rawProp !== undefined && !Array.isArray(rawProp);
+          const safeValue = getSafeChildList(value);
+          next[key] = safeValue.map((item, index) => {
+            if (typeof item === 'string' && item) {
+              return resolveChild(slotKey, item, record.node.dataPath);
+            }
             if (!item || typeof item !== 'object' || Array.isArray(item)) {
               return item;
             }
-            const entry = {...(item as Record<string, unknown>)};
+            const rawEntry = item as Record<string, unknown>;
+            if (fromTemplate) {
+              if (typeof rawEntry.id === 'string' && typeof rawEntry.basePath === 'string') {
+                return resolveChild(slotKey, rawEntry.id, rawEntry.basePath);
+              }
+              return item;
+            }
+            const hasNestedKey = Array.from(ref.keys).some(subKey =>
+              Object.hasOwn(rawEntry, subKey),
+            );
+            if (!hasNestedKey) {
+              return item;
+            }
+            const entry = {...rawEntry};
             let resolvedAny = false;
             for (const subKey of ref.keys) {
-              const childId = entry[subKey];
-              if (typeof childId === 'string' && childId) {
-                entry[subKey] = resolveChild(
-                  `${escapeIdPart(key)}[${index}].${escapeIdPart(subKey)}`,
-                  childId,
-                  record.node.dataPath,
-                );
+              const subVal = entry[subKey];
+              const subSlotKey = `${slotKey}[${index}].${escapeIdPart(subKey)}`;
+              if (typeof subVal === 'string' && subVal) {
+                entry[subKey] = resolveChild(subSlotKey, subVal, record.node.dataPath);
                 resolvedAny = true;
+              } else if (Array.isArray(subVal)) {
+                const safeSubVal = getSafeChildList(subVal);
+                let resolvedSubList = false;
+                const mappedSubVal = safeSubVal.map(subItem => {
+                  if (typeof subItem === 'string' && subItem) {
+                    resolvedSubList = true;
+                    return resolveChild(subSlotKey, subItem, record.node.dataPath);
+                  }
+                  if (subItem && typeof subItem === 'object' && !Array.isArray(subItem)) {
+                    const subEntry = subItem as Record<string, unknown>;
+                    if (typeof subEntry.id === 'string' && typeof subEntry.basePath === 'string') {
+                      resolvedSubList = true;
+                      return resolveChild(subSlotKey, subEntry.id, subEntry.basePath);
+                    }
+                    if (typeof subEntry.componentId === 'string' && subEntry.componentId) {
+                      resolvedSubList = true;
+                      return resolveChild(subSlotKey, subEntry.componentId, record.node.dataPath);
+                    }
+                  }
+                  return subItem;
+                });
+                if (resolvedSubList) {
+                  entry[subKey] = mappedSubVal;
+                  resolvedAny = true;
+                }
               }
             }
             return resolvedAny ? entry : item;
@@ -674,6 +729,11 @@ export class NodeResolver<
     const previous = peekValue(record.node.props);
     for (const key of Object.keys(wrapped)) {
       wrapped[key] = stabilize(previous[key], wrapped[key]);
+    }
+    if (next['accessibility'] !== undefined && next['accessibility'] === next['@accessibility']) {
+      // The binder's `accessibility` mirror shares the wrapped `@accessibility`
+      // and its writable bindings, which the payload declares only there.
+      wrapped['accessibility'] = wrapped['@accessibility'];
     }
     record.node.setProps(wrapped);
   }
@@ -761,6 +821,9 @@ function wrapDynamicValues(
   raw: unknown,
   dataContext: DataContext,
 ): unknown {
+  if (isComponentNode(value)) {
+    return value;
+  }
   switch (behavior.type) {
     case 'DYNAMIC': {
       const bindingKey = dataContext.atLeastV10 ? '@path' : 'path';
@@ -790,34 +853,42 @@ function wrapDynamicValues(
       if (!value || typeof value !== 'object' || Array.isArray(value)) {
         return value;
       }
+      const rawRecord =
+        raw && typeof raw === 'object' && !Array.isArray(raw)
+          ? (raw as Record<string, unknown>)
+          : {};
       const setterNames = new Set<string>();
       for (const [key, childBehavior] of Object.entries(behavior.shape)) {
         if (childBehavior.type === 'DYNAMIC') {
           setterNames.add(`set${key.charAt(0).toUpperCase()}${key.slice(1)}`);
         }
       }
-      const rawRecord =
-        raw && typeof raw === 'object' && !Array.isArray(raw)
-          ? (raw as Record<string, unknown>)
-          : {};
+      if (behavior.catchall?.type === 'DYNAMIC') {
+        for (const key of Object.keys(rawRecord)) {
+          if (!Object.hasOwn(behavior.shape, key) && key.length > 0) {
+            const setterName = `set${key.charAt(0).toUpperCase()}${key.slice(1)}`;
+            if (!Object.hasOwn(rawRecord, setterName)) {
+              setterNames.add(setterName);
+            }
+          }
+        }
+      }
       const out: Record<string, unknown> = {};
       for (const [key, item] of Object.entries(value)) {
         if (setterNames.has(key)) {
           continue;
         }
-        out[key] = wrapDynamicValues(
-          item,
-          behavior.shape[key] ?? {type: 'STATIC'},
-          rawRecord[key],
-          dataContext,
-        );
+        const childBehavior = Object.hasOwn(behavior.shape, key)
+          ? behavior.shape[key]
+          : (behavior.catchall ?? {type: 'STATIC'});
+        out[key] = wrapDynamicValues(item, childBehavior, rawRecord[key], dataContext);
       }
       // The binder guarantees every dynamic property a setter even when the
       // payload omits it. Represent an omitted one as a read-only binding of
       // undefined, at every nesting level, so consumers synthesizing setters
       // from bindings keep that guarantee.
       for (const [key, childBehavior] of Object.entries(behavior.shape)) {
-        if (childBehavior.type === 'DYNAMIC' && !(key in out)) {
+        if (childBehavior.type === 'DYNAMIC' && !Object.hasOwn(out, key)) {
           out[key] = new ResolvedBinding(undefined);
         }
       }
@@ -864,7 +935,7 @@ function stabilize(prev: unknown, next: unknown): unknown {
       for (const key of nextKeys) {
         const stabilized = stabilize(prev[key], next[key]);
         out[key] = stabilized;
-        if (!(key in prev) || !Object.is(stabilized, prev[key])) {
+        if (!Object.hasOwn(prev, key) || !Object.is(stabilized, prev[key])) {
           allSame = false;
         }
       }
@@ -889,8 +960,9 @@ const VALIDATION_STATE_KEYS = new Set(['isValid', 'validationErrors', 'validatio
 
 /**
  * Returns a copy of `resolved` containing only properties still present on
- * `rawProps`, plus binder-synthesized dynamic setters and validation state for
- * active `CHECKABLE` fields at each object schema level.
+ * `rawProps`, plus binder-synthesized dynamic setters, validation state for
+ * active `CHECKABLE` fields at each object schema level, and the binder's
+ * `accessibility` mirror of a kept `@accessibility`.
  */
 function pruneOmittedProps(
   resolved: Record<string, unknown>,
@@ -898,6 +970,7 @@ function pruneOmittedProps(
   behavior?: BehaviorNode,
 ): Record<string, unknown> {
   const shape = behavior?.type === 'OBJECT' ? behavior.shape : undefined;
+  const catchall = behavior?.type === 'OBJECT' ? behavior.catchall : undefined;
   let hasActiveCheckable = false;
   const dynamicSetterNames = new Set<string>();
   if (shape) {
@@ -914,6 +987,22 @@ function pruneOmittedProps(
       }
     }
   }
+  if (catchall) {
+    for (const key of Object.keys(rawProps)) {
+      if (shape && Object.hasOwn(shape, key)) {
+        continue;
+      }
+      if (catchall.type === 'DYNAMIC' && key.length > 0) {
+        dynamicSetterNames.add(`set${key.charAt(0).toUpperCase()}${key.slice(1)}`);
+      } else if (
+        catchall.type === 'CHECKABLE' &&
+        rawProps[key] !== undefined &&
+        rawProps[key] !== null
+      ) {
+        hasActiveCheckable = true;
+      }
+    }
+  }
 
   const out: Record<string, unknown> = {};
   for (const [key, val] of Object.entries(resolved)) {
@@ -923,7 +1012,18 @@ function pruneOmittedProps(
       }
       continue;
     }
-    out[key] = pruneOmittedValue(val, rawProps[key], shape?.[key]);
+    const childBehavior = shape && Object.hasOwn(shape, key) ? shape[key] : catchall;
+    out[key] = pruneOmittedValue(val, rawProps[key], childBehavior);
+  }
+  // `GenericBinder` mirrors `@accessibility` onto `accessibility` when the
+  // component declares no custom `accessibility`. The payload carries only
+  // `@accessibility`, so keep the mirror wherever its source is kept.
+  if (
+    Object.hasOwn(resolved, 'accessibility') &&
+    !Object.hasOwn(rawProps, 'accessibility') &&
+    Object.hasOwn(out, '@accessibility')
+  ) {
+    out['accessibility'] = out['@accessibility'];
   }
   return out;
 }

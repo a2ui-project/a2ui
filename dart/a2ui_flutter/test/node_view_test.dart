@@ -448,5 +448,31 @@ void main() {
 
       expect(log.probeStates, ['root']);
     });
+
+    testWidgets('reads v1.0 @accessibility and follows bound label', (
+      tester,
+    ) async {
+      final SemanticsHandle semantics = tester.ensureSemantics();
+      surface.dataModel.set('/label', 'Primary');
+      add('root', 'Text', {
+        'text': 'x',
+        '@accessibility': {
+          'label': {'path': '/label'},
+          'description': 'V1 description',
+        },
+      });
+      await pumpRoot(tester);
+      expect(
+        tester.getSemantics(find.bySemanticsLabel(RegExp('^Primary'))),
+        matchesSemantics(label: 'Primary\nx', hint: 'V1 description'),
+      );
+
+      surface.dataModel.set('/label', 'Updated');
+      await tester.pump();
+
+      expect(find.bySemanticsLabel(RegExp('^Primary')), findsNothing);
+      expect(find.bySemanticsLabel(RegExp('^Updated')), findsOneWidget);
+      semantics.dispose();
+    });
   });
 }

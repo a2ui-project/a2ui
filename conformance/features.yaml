@@ -592,13 +592,11 @@
 - id: F-AGT-18
   title: read_renderer_capabilities metadata extractor for v1.0 and v0.9
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#renderer-capabilities
-  blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#read_renderer_capabilities
+  blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#read_renderer_capabilities-a2uiutilsrenderer_capabilities
   claimedBy:
     - python-agent
     - ts-agent
     - dart-agent
-  uncovered: Covered by per-language read_renderer_capabilities unit tests pending
-    shared conformance action.
 - id: F-AGT-19
   title: DirectJsonFormat prompt generation, JSON fence stripping, and response parsing
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#usage-pattern-the-prompt-generate-validate-loop
@@ -691,7 +689,7 @@
 - id: F-AGT-30
   title: A2A capability extraction from request message metadata
   specAnchor: specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md#a2uirenderercapabilities
-  blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#read_renderer_capabilities
+  blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#read_renderer_capabilities-a2uiutilsrenderer_capabilities
   claimedBy:
     - python-a2a
   uncovered: Covered by Python A2A unit tests in python/a2ui_a2a/tests/.

@@ -64,14 +64,14 @@ graph LR
 | Node dispatcher           | Recursive view mapping each `ComponentNode` to its registered implementation (`node.impl`).                       |
 | Reactivity bridge         | Mapping core signals to framework-native change notifications.                                                    |
 | User input and actions    | Forwarding native events to `WritableBinding.set()` and invoking `NodeAction` closures synchronously on gestures. |
-| Accessibility mapping     | Applying resolved `accessibility` attributes and inferred semantics to the platform accessibility API.            |
+| Accessibility mapping     | Applying resolved `@accessibility` attributes and inferred semantics to the platform accessibility API.           |
 | Ambient context           | Propagating the surface handle and its catalogs down the view hierarchy.                                          |
 | Teardown lifecycle        | Disposing resolvers and subscriptions when views unmount.                                                         |
 
 ### What Core owns (Do not reimplement)
 
 - Protocol message parsing, schema validation, and catalog asset loading.
-- Catalog resolution for each component and function call: the item's own `catalogId`, then the surface default, then an error. There is no fallback to the catalogs in capabilities. The adapter never reads `catalogId`.
+- Catalog resolution for each component and function call: the item's own catalog ID (`@catalogId` on a v1.0 component, `catalogId` on a function call), then the surface default, then an error. There is no fallback to the catalogs in capabilities. The adapter never reads either key.
 - Data model storage, relative JSON pointer scoping, expressions, and function evaluation, including `@index` and the reserved `@path` / `@call` keys.
 - Function execution and RPC: local `functionCall` actions, `callRendererFunction` handling, `callAgentFunction` dispatch, `rendererFunctionResponse` emission, and the `allowedCallers` and `requiresUserActivation` checks.
 - Tree topology: parent-child links, template repeaters (`ChildList` expansions), placeholder stand-ins for pending components, cycle detection, and subtree cleanup.
@@ -104,7 +104,7 @@ Web adapters that share element implementations across frameworks follow the [un
 
 The adapter consumes `NodeResolver`, `ComponentNode`, `ResolvedBinding`, `WritableBinding`, and `NodeAction` as defined in the [node resolution feature blueprint](../features/node_resolution.blueprint.md). Core resolves bindings, child references, actions, and normalized check properties (`isValid`, `validationErrors`, `validationResults`) onto `node.props` before the adapter sees them.
 
-Envelope `metadata` reaches views through three separate channels, so that a telemetry or policy update never re-renders a view that only reads `props`:
+Envelope metadata (`@metadata` on a v1.0 component) reaches views through three separate channels, so that a telemetry or policy update never re-renders a view that only reads `props`:
 
 - Component instance metadata: the node's read-only reactive `metadata` value. The adapter exposes it through the same reactive primitive it uses for `props` (a hook return value, a lazily subscribed controller getter, a signal input, a listener, or an observed revision), and a view that never reads it never subscribes to it.
 - Catalog definition metadata: `node.impl.metadata`, static for the life of the node.
@@ -126,10 +126,12 @@ When a dynamic value or check depends on a function that runs asynchronously, a 
 
 ### Accessibility
 
-Every component at v1.0 or later may carry `accessibility.label`, `accessibility.description`, `accessibility.live`, and `accessibility.hidden`. `label`, `description`, and `hidden` are dynamic, so they arrive resolved like any other binding. The [protocol](../../specification/v1_0/docs/a2ui_protocol.md#catalog-agnostic-accessibility-requirements) requires every renderer to:
+Every component at v1.0 or later may carry `@accessibility.label`, `@accessibility.description`, `@accessibility.live`, and `@accessibility.hidden` (pre-1.0 components carry `accessibility.label` and `accessibility.description`). `label`, `description`, and `hidden` are dynamic, so they arrive resolved like any other binding. The [protocol](../../specification/v1_0/docs/a2ui_protocol.md#catalog-agnostic-accessibility-requirements) requires every renderer to:
 
 - map the four attributes to the platform's accessibility API (web: `aria-label`, `aria-description`, `aria-live`, `aria-hidden`; Flutter: `Semantics`; iOS: `accessibilityLabel` and friends);
-- infer defaults from visible text (a button's child text, a field's label) and let an explicit `accessibility` value override the inferred one.
+- infer defaults from visible text (a button's child text, a field's label) and let an explicit accessibility value override the inferred one.
+
+Read the protocol attributes from `props['@accessibility']` first and fall back to `props['accessibility']` only on pre-1.0 surfaces. On v1.0, `props['accessibility']` is free for a catalog component that declares its own `accessibility` property, and the adapter passes it to the implementation untouched.
 
 The mapping belongs in one place per adapter, such as the node dispatcher or a base class every implementation extends, so that custom implementations get it without extra work. The adapter does not validate the attributes; Core already has.
 
@@ -509,7 +511,7 @@ The repository maintains language-agnostic conformance tests in [`conformance/`]
 | **User activation**            | A `functionCall` action on an activation-gated function (`openUrl`) runs when fired from a native gesture and is refused when fired without one.                                                                                                                                                                |
 | **Multiple catalogs**          | A surface whose root and one descendant come from two different catalogs renders both, and each implementation receives props shaped by its own catalog's schema.                                                                                                                                               |
 | **Validation results**         | A check that returns `{valid: false, severity: "error", message}` disables the control and shows the message; one returning `severity: "warning"` leaves the control enabled; a boolean `false` behaves as an error.                                                                                            |
-| **Accessibility**              | `accessibility.label`, `description`, `live`, and `hidden` reach the platform accessibility API on the focusable element, and an explicit `label` overrides the inferred one.                                                                                                                                   |
+| **Accessibility**              | `@accessibility.label`, `description`, `live`, and `hidden` reach the platform accessibility API on the focusable element, an explicit `label` overrides the inferred one, and a custom v1.0 `accessibility` property reaches the implementation unchanged.                                                     |
 | **No theme on v1.0**           | A v1.0 surface exposes no theme and adapters never read one. A v1.0 `createSurface` that carried `theme` and was accepted under relaxed validation renders exactly as one without it.                                                                                                                           |
 | **Fallback States**            | Pending components, unknown component types and cyclic references render nothing and take no layout space (no gap, no flex share) without crashing, and the adapter reports nothing itself.                                                                                                                     |
 | **Custom Fallbacks**           | A surface's `pending` and `error` fallbacks render in place of unresolved nodes at the root, in nested containers and in every shared rendering path, receive the documented `info`, fall back to nothing when they return null (taking no layout space), and are replaced in place when the component arrives. |
