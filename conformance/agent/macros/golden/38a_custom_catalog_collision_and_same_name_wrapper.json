@@ -19,7 +19,7 @@
         {
           "id": "p_cat_a",
           "component": "ProductCard",
-          "catalogId": "https://example.com/catalog_a.json",
+          "@catalogId": "https://example.com/catalog_a.json",
           "sku": "SKU-1"
         },
         {
@@ -57,7 +57,7 @@
         {
           "component": "BrandBox",
           "id": "root__brandbox_1",
-          "catalogId": "https://example.com/catalog_a.json",
+          "@catalogId": "https://example.com/catalog_a.json",
           "child": "root__text_1"
         },
         {
@@ -95,7 +95,7 @@
         {
           "component": "BrandBox",
           "id": "root__innerbadgeinherited_1",
-          "catalogId": "https://example.com/catalog_a.json",
+          "@catalogId": "https://example.com/catalog_a.json",
           "child": "root__innerbadgeinherited_1__text_1"
         },
         {

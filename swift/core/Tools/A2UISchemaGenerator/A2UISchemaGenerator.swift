@@ -664,9 +664,9 @@ enum A2UISchemaGenerator {
       (rewriteRefs(compDef, isV10: true, localDefs: localDefs) as? [String: Any]) ?? compDef
     let commonProps: [String: Any] = [
       "id": ["$ref": "\(v10BaseURI)#/$defs/ComponentId"],
-      "catalogId": ["type": "string"],
-      "accessibility": ["$ref": "\(v10BaseURI)#/$defs/AccessibilityAttributes"],
-      "metadata": [
+      "@catalogId": ["type": "string"],
+      "@accessibility": ["$ref": "\(v10BaseURI)#/$defs/AccessibilityAttributes"],
+      "@metadata": [
         "type": "object",
         "properties": [
           "extensions": ["$ref": "\(v10BaseURI)#/$defs/Extensions"]
