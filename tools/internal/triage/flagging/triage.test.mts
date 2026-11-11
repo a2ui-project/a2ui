@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-// Tests for triage.mts. Run from the repository root with:
+// Tests for triage.mts.
+// Run from the repository root with:
 // node --test tools/internal/triage/flagging/triage.test.mts
 
 import assert from 'node:assert/strict';
