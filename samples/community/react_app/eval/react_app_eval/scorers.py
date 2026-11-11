@@ -68,6 +68,9 @@ REACT_APP_KEYS = (
 EXPRESS_KEYS = ("parses", "raw_strings", "literals", "roundtrip", "all")
 """Keys of the Express multi-line score."""
 
+_LONG_TEXT_NEWLINES = 2
+"""Newlines from which a value counts as code or long text that must be raw."""
+
 _STRUCTURAL_CODES = frozenset(
     {"forbidden_import", "missing_default_export", "triple_quote"}
 )
@@ -250,8 +253,8 @@ def _round_trip(
 def express_multiline_scorer(version: str = "1.0") -> Scorer:
     """Checks how the model wrote multi-line strings in Express.
 
-    Keys: `parses` (the completion compiled), `raw_strings` (every multi-line
-    value that can be raw was written as `r\"\"\"...\"\"\"`), `literals` (every
+    Keys: `parses` (the completion compiled), `raw_strings` (every value of
+    three or more lines that can be raw was written as `r\"\"\"...\"\"\"`), `literals` (every
     string of `expect.literals` appears verbatim in some value), `roundtrip`
     (decompiling and recompiling the payload keeps every string byte for byte),
     and `all`.
@@ -269,19 +272,22 @@ def express_multiline_scorer(version: str = "1.0") -> Scorer:
         problems: list[str] = []
         value: dict[str, float] = {"parses": 1.0}
 
-        multiline = [s for s in strings if "\n" in s]
+        # The prompt asks for raw strings for code and long multi-line text, so
+        # a short value with one `\n` escape may stay a regular string.
+        multiline = [s for s in strings if s.count("\n") >= _LONG_TEXT_NEWLINES]
         rawable = [s for s in multiline if '"""' not in s and not s.endswith('"')]
         not_raw = [s for s in rawable if f'r"""{s}"""' not in raw]
         needs_multiline = bool(expect.get("multiline"))
+        has_multiline = any("\n" in s for s in strings)
         value["raw_strings"] = float(
-            not not_raw and (bool(multiline) or not needs_multiline)
+            not not_raw and (has_multiline or not needs_multiline)
         )
         if not_raw:
             problems.append(
                 f'{len(not_raw)} multi-line value(s) not written as r"""…"""'
             )
-        if needs_multiline and not multiline:
-            problems.append("Expected a multi-line value; found none.")
+        if needs_multiline and not has_multiline:
+            problems.append("Expected a multi-line value, found none")
 
         missing = [
             lit

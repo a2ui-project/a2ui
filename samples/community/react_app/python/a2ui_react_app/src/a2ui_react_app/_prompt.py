@@ -43,12 +43,14 @@ _RULES = '''## ReactApp: custom interactive apps
 - Use `ReactApp` only for interactive UI that the native components can't express: custom charts with interactions, drag and drop, brushing, canvases, timers and games.
 - Build everything else from native components: headings, labels, sliders, text fields, buttons and lists. Don't rebuild them inside the app.
 - Connect the app and the native components through shared data model paths. A native component bound to `$/loan/rate` and an app that calls `useData('/loan/rate', 5)` read and write the same value. Give those paths initial values in the data model.
+- Put data you already have, such as tool results, lists and chart series, in the data model (for example `$/sales/points = [...]`) and read it in the app with `useData`. Don't copy data into the source.
 - List the paths the app reads and writes in `dataPaths`, and the functions it calls in `functions`. Never set `compiled`.
 
 ### Writing the source
 
 - `source` is one TSX file that default-exports a component named `App`, which takes no props: `export default function App() { ... }`.
 - Import only from `react` and `a2ui`. The app has no network access, no other packages and no access to the host page.
+- Write `ReactApp` with keyword arguments only: `ReactApp(source=r"""...""", title="...", height=360, dataPaths=[...], functions=[...])`.
 - Write `source` inline in the `ReactApp(...)` call as a raw triple-quoted string: `source=r"""` directly followed by the code, then `"""` to close it. Nothing inside a raw string is escaped, so write the code exactly as it should run.
 - Never put three double quotes in a row inside the code, and don't end the code with a double quote. Use single quotes or template literals for strings in the code instead.
 - Keep values that the surface or the agent needs in the data model with `useData`. Keep purely visual state, such as hover or drag state, in React state.
@@ -67,16 +69,16 @@ _RULES = '''## ReactApp: custom interactive apps
 ### Styling
 
 - Use the `a2ui` primitives (`Card`, `Button`, `Text`, `Slider`, `Stack`) and `theme`, so the app looks like the native components.
-- For custom CSS, use the theme variables, `var(--a2ui-*)`. Never hard-code colors or fonts.
-- Leave colors and fonts out of `VegaChart` specs; the chart takes them from the theme.
+- For custom CSS, use the theme variables, `var(--a2ui-*)`. Never hard-code colors or fonts: no `'#ccc'`, `'rgb(...)'` or font names in the code. Use `var(--a2ui-color-border)` for borders, `<Text tone="muted">` for secondary text and `var(--a2ui-color-primary)` for highlights.
+- Leave colors and fonts out of `VegaChart` specs, including `scale.range`: the chart takes them, and a palette for series, from the theme. Where a spec needs a literal color, use `theme.colors.primary` or `theme.colors.secondary`.
 
 ### Functions the app can call
 
 {functions}'''
 
 _FUNCTIONS_INTRO = (
-    "Call these with `callFunction(name, args)` or `useFunction(name, args,"
-    " deps)`, passing plain JSON values as `args`. Agent functions run on the"
+    "Call these with `callFunction(name, args)` or `useFunction(name, args)`,"
+    " passing plain JSON values as `args`. Agent functions run on the"
     " server and can take a few seconds, so show a loading state while they"
     " run."
 )

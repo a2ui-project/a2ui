@@ -10,7 +10,7 @@ Both suites reuse the runner's Express solver chain (`format_system_prompt`, gen
 | Suite | Checks (each one has its own pass rate) |
 | --- | --- |
 | `react_app_v1_0` | `present` (a ReactApp exists), `compiles` (Sucrase, as the frame runtime does), `typechecks` (TypeScript against `a2ui.d.ts` and `@types/react`; reported, not required), `paths` (the app reads or writes every path the sample expects), `functions` (it calls every function the sample expects), `imports` (only `react` and `a2ui`, a default export, no `"""`), `styling` (primitives, `theme` or `var(--a2ui-*)`, and no color literals) |
-| `express_multiline_v1_0` | `parses`, `raw_strings` (every multi-line value that can be raw was written `r"""..."""`), `literals` (the expected strings appear verbatim), `roundtrip` (decompiling and recompiling keeps every string byte for byte) |
+| `express_multiline_v1_0` | `parses`, `raw_strings` (every value of three or more lines that can be raw was written `r"""..."""`), `literals` (the expected strings appear verbatim), `roundtrip` (decompiling and recompiling keeps every string byte for byte) |
 
 A sample passes when Stage 1/2 pass, every hard check passes and the judge grades it C. The generator and the judge are both `gemini-3.5-flash`.
 

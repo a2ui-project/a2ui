@@ -196,7 +196,7 @@ def test_react_app_scorer_without_payload() -> None:
 
 
 def test_express_scorer_checks_raw_strings_literals_and_round_trip() -> None:
-    code = 'const s = `a ${b}`;\nconsole.log("x\\n");'
+    code = 'const s = `a ${b}`;\nconsole.log("x\\n");\nexport {s};'
     compiled = [{
         "version": "1.0",
         "createSurface": {
