@@ -104,6 +104,8 @@ String typeToPython(TypeDescriptor desc) {
           return 'float';
         case PrimitiveKind.boolean:
           return 'bool';
+        case PrimitiveKind.nullValue:
+          return 'None';
         case PrimitiveKind.any:
           return 'Any';
       }
@@ -117,9 +119,8 @@ String typeToPython(TypeDescriptor desc) {
       return 'AccessibilityAttributes';
     case ObjectModelType(:final name):
       return name;
-    case DynamicType(:final inner):
-      final String innerPy = typeToPython(inner);
-      return '$innerPy | DataBinding | FunctionCall';
+    case DynamicType() || UnionType():
+      return _unionMembers(desc).toSet().join(' | ');
     case ActionType():
       return 'Action';
     case DataBindingType():
@@ -130,7 +131,20 @@ String typeToPython(TypeDescriptor desc) {
       return 'Sequence[${typeToPython(elementType)}]';
     case MapType(:final valueType):
       return 'Mapping[str, ${typeToPython(valueType)}]';
+  }
+}
+
+Iterable<String> _unionMembers(TypeDescriptor desc) sync* {
+  switch (desc) {
     case UnionType(:final options):
-      return options.map(typeToPython).join(' | ');
+      for (final option in options) {
+        yield* _unionMembers(option);
+      }
+    case DynamicType(:final inner):
+      yield* _unionMembers(inner);
+      yield 'DataBinding';
+      yield 'FunctionCall';
+    default:
+      yield typeToPython(desc);
   }
 }

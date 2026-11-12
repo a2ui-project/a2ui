@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- **Breaking:** `EnumType.values` now preserves JSON scalar types as
+  `List<Object?>` rather than converting every value to a string. Python builders
+  accept integer and boolean enum literals and reject string substitutes and
+  boolean/number coercion; regenerate builders and pass the schema's value types.
+  Integral JSON numbers such as `1.0` generate integer literals without overflow.
+  The codegen file reader preserves exact signed 64-bit integral decimal tokens
+  before analysis and rejects numeric precision loss, overflow, and underflow
+  instead of silently changing catalog values.
+  Enum values that Python `Literal` cannot represent now fail generation explicitly.
+- Preserve `null` branches in generated Python annotations, including required
+  nullable properties, and deduplicate nested unions so repeated null branches
+  remain importable. Required nullable fields still require an explicit value.
+
 - (v1_0) Filter `@catalogId`, `@metadata`, and `@accessibility` from component
   builder properties in `CatalogAnalyzer`, detect checkable components from
   `@checks`, and emit `serialization_alias="@checks"` and

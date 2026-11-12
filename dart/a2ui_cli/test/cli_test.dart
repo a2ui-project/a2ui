@@ -73,6 +73,68 @@ void main() {
   );
 
   group('A2UI CLI Command & Option Parsing (cli_test.dart)', () {
+    test('rejects raw JSON numbers that would lose precision', () async {
+      final Directory dir = Directory.systemTemp.createTempSync('raw-numbers-');
+      try {
+        for (final token in [
+          '-9223372036854775809',
+          '9223372036854775808',
+          '1.0000000000000000001',
+          '0.99999999999999999999',
+          '1e309',
+          '1e-400',
+          '0.10000000000000000001',
+        ]) {
+          final input = File(p.join(dir.path, 'catalog.json'))
+            ..writeAsStringSync('''
+{
+  "catalogId": "precision",
+  "components": {
+    "Input": {
+      "properties": {"value": {"\\u0024ref": "#/\\u0024defs/Value"}},
+      "required": ["value"]
+    }
+  },
+  "\\u0024defs": {
+    "Value": {"type": "integer", "enum": [$token]}
+  }
+}
+''');
+          final output = File(p.join(dir.path, 'precision.py'));
+          final ({int exitCode, String stdout, String stderr}) result =
+              await _captureCli([
+                'codegen',
+                '-c',
+                input.path,
+                '-o',
+                output.path,
+              ]);
+          expect(result.exitCode, 1, reason: token);
+          expect(result.stderr, contains('precision'), reason: token);
+          expect(output.existsSync(), isFalse, reason: token);
+        }
+      } finally {
+        dir.deleteSync(recursive: true);
+      }
+    });
+
+    test('raw numeric normalization cannot repair invalid JSON', () async {
+      final Directory dir = Directory.systemTemp.createTempSync('raw-invalid-');
+      try {
+        final input = File(p.join(dir.path, 'catalog.json'))
+          ..writeAsStringSync(
+            '{"catalogId":"invalid","components":{},"bad":0.0.1}',
+          );
+        final output = File(p.join(dir.path, 'invalid.py'));
+        final ({int exitCode, String stdout, String stderr}) result =
+            await _captureCli(['codegen', '-c', input.path, '-o', output.path]);
+        expect(result.exitCode, 1);
+        expect(output.existsSync(), isFalse);
+      } finally {
+        dir.deleteSync(recursive: true);
+      }
+    });
+
     test('displays top-level help with --help and -h', () async {
       for (final flag in ['--help', '-h']) {
         final ({int exitCode, String stdout, String stderr}) result =

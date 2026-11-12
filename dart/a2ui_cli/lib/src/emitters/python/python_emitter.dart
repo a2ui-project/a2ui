@@ -258,8 +258,12 @@ class PythonEmitter {
     final Iterable<String> pydanticNames = [
       'AliasChoices',
       'BaseModel',
+      'BeforeValidator',
       'ConfigDict',
       'Field',
+      'StrictBool',
+      'StrictInt',
+      'TypeAdapter',
     ].where(used);
     if (pydanticNames.isNotEmpty) {
       lines.add('from pydantic import ${pydanticNames.join(', ')}');
@@ -284,11 +288,20 @@ class PythonEmitter {
       '# Types & Enums',
       _sectionRule,
       '#',
-      '# Catalog enums carry OPEN_ENUM metadata: the annotation stays the '
-          'strict Literal',
-      '# for authoring and type checking, and unknown values are only '
-          'accepted when',
-      '# parsing with a lenient validation context.',
+      if (catalog.enums.values.every(
+        (type) => type.values.every((value) => value is String),
+      )) ...[
+        '# Catalog enums carry OPEN_ENUM metadata: the annotation stays the '
+            'strict Literal',
+        '# for authoring and type checking, and unknown values are only '
+            'accepted when',
+        '# parsing with a lenient validation context.',
+      ] else ...[
+        '# String enums carry OPEN_ENUM metadata; other scalar enums validate '
+            'their JSON types.',
+        '# Unknown string enum values are accepted only in a lenient '
+            'validation context.',
+      ],
       '',
     ];
     for (final MapEntry<String, EnumType> entry in catalog.enums.entries) {
@@ -297,23 +310,62 @@ class PythonEmitter {
     return lines.join('\n');
   }
 
-  /// Emits `Name = Annotated[Literal[...], OPEN_ENUM]`, wrapped when it is
-  /// long.
-  String _enumAlias(String name, List<String> values) {
-    final List<String> rendered = values.map(_pyString).toList();
-    final oneLine =
-        '$name = Annotated[Literal[${rendered.join(', ')}], OPEN_ENUM]';
-    if (oneLine.length <= _lineWidth) return oneLine;
+  String _enumAlias(String name, List<Object?> values) {
+    final groups = <String, List<String>>{};
+    for (final value in values) {
+      // Comparing BigInts detects toInt's clamping; a double round trip can
+      // round the clamped value back to the original out-of-range double.
+      final Object? literal =
+          value is double &&
+              value.isFinite &&
+              value == value.truncateToDouble() &&
+              BigInt.from(value) == BigInt.from(value.toInt())
+          ? value.toInt()
+          : value;
+      // Python considers True == 1. Guard each scalar group before Literal
+      // validation so a boolean cannot satisfy a numeric catalog enum.
+      final String metadata = switch (literal) {
+        String() => 'OPEN_ENUM',
+        int() => 'BeforeValidator(TypeAdapter(StrictInt).validate_python)',
+        bool() => 'BeforeValidator(TypeAdapter(StrictBool).validate_python)',
+        null => '',
+        _ => throw UnsupportedError(
+          'Python enum $name requires string, signed 64-bit integer, boolean or null values; '
+          'cannot emit ${value.runtimeType} as a Literal.',
+        ),
+      };
+      groups
+          .putIfAbsent(metadata, () => [])
+          .add(literal == null ? 'None' : _pyDefault(literal)!);
+    }
+    if (groups.length == 1) {
+      final MapEntry<String, List<String>> entry = groups.entries.single;
+      return '$name = ${_enumAnnotation(entry.value, entry.key, prefixLength: name.length + 3)}';
+    }
+    return '$name = (\n'
+        '    ${groups.entries.map((entry) => _enumAnnotation(entry.value, entry.key)).join('\n    | ')}\n'
+        ')';
+  }
 
-    final indented = '    Literal[${rendered.join(', ')}], OPEN_ENUM';
+  String _enumAnnotation(
+    List<String> rendered,
+    String metadata, {
+    int prefixLength = 0,
+  }) {
+    final literal = 'Literal[${rendered.join(', ')}]';
+    if (metadata.isEmpty) return literal;
+    final oneLine = 'Annotated[$literal, $metadata]';
+    if (prefixLength + oneLine.length <= _lineWidth) return oneLine;
+
+    final indented = '    $literal, $metadata';
     if (indented.length <= _lineWidth) {
-      return '$name = Annotated[\n$indented\n]';
+      return 'Annotated[\n$indented\n]';
     }
 
     final String packed = _packValues(rendered, indent: 8);
-    return '$name = Annotated[\n'
+    return 'Annotated[\n'
         '    Literal[\n$packed\n    ],\n'
-        '    OPEN_ENUM,\n]';
+        '    $metadata,\n]';
   }
 
   /// Packs comma-separated values onto as few indented lines as fit the budget.

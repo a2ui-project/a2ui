@@ -295,9 +295,7 @@ class CatalogAnalyzer {
 
     // Check enum
     if (schema['enum'] is List) {
-      final List<String> values = (schema['enum'] as List)
-          .map((e) => e.toString())
-          .toList();
+      final values = List<Object?>.from(schema['enum'] as List);
       var preferred = '$parentName${capitalize(propName)}';
       if ((parentName == 'Row' || parentName == 'Column') &&
           (propName == 'justify' || propName == 'align')) {
@@ -396,9 +394,31 @@ class CatalogAnalyzer {
 
     // Check type
     final Object? typeRaw = schema['type'];
-    final typeStr = typeRaw is List
-        ? typeRaw.firstWhere((t) => t != 'null', orElse: () => 'any') as String?
-        : typeRaw as String?;
+    if (typeRaw is List && typeRaw.isNotEmpty) {
+      return PropertyDescriptor(
+        name: propName,
+        type: UnionType([
+          for (final Object? type in typeRaw)
+            _analyzePropertySchema(parentName, propName, {
+              ...schema,
+              'type': type,
+            }, isRequired: isRequired).type,
+        ]),
+        description: cleanDescription,
+        defaultValue: defaultValue,
+        isRequired: isRequired,
+      );
+    }
+    final String? typeStr = typeRaw is String ? typeRaw : null;
+    if (typeStr == 'null') {
+      return PropertyDescriptor(
+        name: propName,
+        type: const PrimitiveType(PrimitiveKind.nullValue),
+        description: cleanDescription,
+        defaultValue: defaultValue,
+        isRequired: isRequired,
+      );
+    }
     if (typeStr == 'string') {
       return PropertyDescriptor(
         name: propName,
@@ -592,7 +612,7 @@ class CatalogAnalyzer {
   ///
   /// `Row.justify` and `Column.justify` list the same values in a different
   /// order. They are the same type, and a `Literal` does not care about order.
-  static bool _sameValues(List<String> a, List<String> b) {
+  static bool _sameValues(List<Object?> a, List<Object?> b) {
     if (a.length != b.length) return false;
     return a.toSet().containsAll(b);
   }

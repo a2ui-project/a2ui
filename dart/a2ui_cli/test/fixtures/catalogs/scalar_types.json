@@ -1,0 +1,54 @@
+{
+  "catalogId": "scalar_types",
+  "protocolVersion": "v0.9.1",
+  "components": {
+    "ScalarInput": {
+      "properties": {
+        "count": {"type": "integer", "enum": [1, 2]},
+        "enabled": {"type": "boolean", "enum": [true]},
+        "label": {"type": "string", "enum": ["small", "large"]},
+        "mixed": {"enum": [1, false, "small", null]},
+        "value": {
+          "oneOf": [{"type": ["string", "null"]}, {"$ref": "#/$defs/DataBinding"}]
+        },
+        "optionalValue": {"type": ["string", "null"]},
+        "explicitNull": {
+          "anyOf": [{"type": "string"}, {"type": "null"}]
+        }
+      },
+      "required": ["count", "enabled", "label", "value", "explicitNull"]
+    },
+    "NullableInput": {
+      "properties": {
+        "value": {
+          "anyOf": [{"type": "null"}, {"type": ["null", "string"]}]
+        },
+        "onlyNull": {
+          "anyOf": [{"type": "null"}, {"anyOf": [{"type": "null"}, {"type": "null"}]}]
+        },
+        "optionalValue": {
+          "anyOf": [{"type": "null"}, {"type": ["null", "string"]}]
+        }
+      },
+      "required": ["value", "onlyNull"]
+    },
+    "IntegralInput": {
+      "properties": {
+        "count": {"type": "integer", "enum": [1.0, 2.0]},
+        "size": {
+          "type": "integer",
+          "enum": [9007199254740992.0, -9223372036854775808.0, 9223372036854774784.0]
+        }
+      },
+      "required": ["count", "size"]
+    }
+  },
+  "$defs": {
+    "DataBinding": {
+      "type": "object",
+      "properties": {"path": {"type": "string"}},
+      "required": ["path"],
+      "additionalProperties": false
+    }
+  }
+}
