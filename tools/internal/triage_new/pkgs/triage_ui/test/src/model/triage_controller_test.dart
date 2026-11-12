@@ -415,7 +415,7 @@ void main() {
         const TriageSuggestion(addedLabels: [needsTeamInputLabel]),
       );
       await controller.apply(controller.item(a2ui(10))!);
-      // Listed in New and in Needs team input.
+      // Listed in Needs triage and in Needs team input.
       controller.select(a2ui(10));
       expect(controller.selectedGroup, ItemGroup.newItems);
       controller.select(a2ui(10), group: ItemGroup.teamInput);
@@ -424,7 +424,7 @@ void main() {
 
       await controller.apply(item);
 
-      // Not #20, which comes after #10 in New.
+      // Not #20, which comes after #10 in Needs triage.
       expect(controller.selected!.number, 40);
       expect(controller.selectedGroup, ItemGroup.teamInput);
     },
@@ -481,7 +481,7 @@ void main() {
       controller.hideTriaged();
 
       expect(numbers(controller.newItems), [20, 21]);
-      // #11 was sent to the team, so it left only New.
+      // #11 was sent to the team, so it left only Needs triage.
       expect(numbers(controller.teamInputItems), [11, 41]);
       expect(controller.hasTriaged, isFalse);
       expect(controller.selected, isNull);

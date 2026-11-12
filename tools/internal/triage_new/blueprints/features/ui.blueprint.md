@@ -21,13 +21,13 @@ The triager can drag the divider between the items and the details to resize the
 1. The hamburger menu, with **Create report**.
 2. **Refresh**, which loads the items from GitHub again.
 3. **Hide triaged**, which takes the triaged items out of the list. See [Hide the triaged items](#hide-the-triaged-items).
-4. How many items of the queue the triager handled, out of all of them, as in "5/45". A handled item is one whose suggestion the triager applied, including the items sent to the team.
+4. How many items of the queue the triager has not handled yet, out of all of them, as in "40/45". A handled item is one whose suggestion the triager applied, including the items sent to the team.
 
 ### Items
 
 The list of items holds the issues and PRs of [`a2ui-project/a2ui`](https://github.com/a2ui-project/a2ui), and the PRs of [`flutter/genui`](https://github.com/flutter/genui), together in the same groups:
 
-1. **New**: open items with `status: needs-triage` and without `status: needs-team-input`.
+1. **Needs triage**: open items with `status: needs-triage` and without `status: needs-team-input`.
 2. **Needs team input**: open items with `status: needs-team-input`.
 3. **Not in the queue**: items that the triager opened from a [suggestion comment](triage_bot.blueprint.md#the-suggestion-comment) or by URL, and that are in neither group above.
 
@@ -37,7 +37,7 @@ An item in `flutter/genui` shows "genui" before its number, as in "genui #12", b
 
 The groups list issues with open PRs first, then issues without open PRs, then PRs with linked issues, then PRs without linked issues. Each of these lists starts with the items that have a suggestion, current or outdated, and then the items without one. Within each of these, the least recently updated item comes first.
 
-Each group and subgroup shows how many of its items the triager handled, out of all of them, as in "New (5/45)". Each group has a subgroup for each type of item it has. An open PR of an issue is any open PR linked to close the issue, whoever opened it. Closed and merged PRs do not count. The groups and the subgroups start collapsed. When the tool selects an item itself, such as an item opened from its suggestion comment or the next item after **Apply**, the list expands the item's group and subgroup, and scrolls to the item.
+Each group and subgroup shows how many of its items the triager has not handled yet, out of all of them, as in "Needs triage (40/45)". Each group has a subgroup for each type of item it has. An open PR of an issue is any open PR linked to close the issue, whoever opened it. Closed and merged PRs do not count. The groups and the subgroups start collapsed. When the tool selects an item itself, such as an item opened from its suggestion comment or the next item after **Apply**, the list expands the item's group and subgroup, and scrolls to the item.
 
 An item's flags show:
 
@@ -93,12 +93,12 @@ Ann is this week's triager.
 ### Go through the queue
 
 1. Ann wants to triage GitHub items and opens the tool from VS Code, with the `triage_ui` launch configuration.
-2. The header shows how many items Ann has handled, out of all of them: "0/45". The list on the left shows the **New** group, then the **Needs team input** group.
-3. Ann selects the first item in **New**. The details show its suggestion, with a tab for it and for each linked item that needs triage.
+2. The header shows how many items Ann has not handled yet, out of all of them: "45/45". The list on the left shows the **Needs triage** group, then the **Needs team input** group.
+3. Ann selects the first item in **Needs triage**. The details show its suggestion, with a tab for it and for each linked item that needs triage.
 4. Ann reads the summary, why the item is flagged and the suggestion, changes what to apply if needed, and clicks **Apply**.
 5. The tool selects the next item right away, so that Ann can read it while the tool applies the suggestion on GitHub. When the apply finishes, the list marks the item as applied.
 
-Ann is done with the **New** group when every item in it is applied or [needs team input](#ask-the-team).
+Ann is done with the **Needs triage** group when every item in it is applied or [needs team input](#ask-the-team).
 
 ### Adjust a suggestion
 
@@ -154,7 +154,7 @@ While Ann works, a new issue arrives, and a team member triages another item on 
 
 ### Hide the triaged items
 
-Ann has applied suggestions to a dozen items, and the list is long. Ann clicks **Hide triaged** in the header. Each group drops the items that Ann applied a suggestion to and that no longer belong to it as they are now. An issue that Ann sent to the team leaves **New** and stays in **Needs team input**. An item whose apply failed stays, so that Ann can try again. The next refresh sets the groups again. **Hide triaged** is disabled when no item would leave the list.
+Ann has applied suggestions to a dozen items, and the list is long. Ann clicks **Hide triaged** in the header. Each group drops the items that Ann applied a suggestion to and that no longer belong to it as they are now. An issue that Ann sent to the team leaves **Needs triage** and stays in **Needs team input**. An item whose apply failed stays, so that Ann can try again. The next refresh sets the groups again. **Hide triaged** is disabled when no item would leave the list.
 
 ### Create a report
 

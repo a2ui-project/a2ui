@@ -133,18 +133,18 @@ void main() {
   ) async {
     await pumpApp(tester);
 
-    expect(find.text('0/3'), findsOneWidget);
+    expect(find.text('3/3'), findsOneWidget);
     expect(find.text('Needs team input (0/0)'), findsOneWidget);
     // The groups start collapsed.
     expect(find.byType(ListTile), findsNothing);
 
-    await expand(tester, 'New (0/3)');
+    await expand(tester, 'Needs triage (3/3)');
     // So do the subgroups, which only show the kinds the group has.
     expect(find.byType(ListTile), findsNothing);
     expect(find.text('PRs without issues (0/0)'), findsNothing);
-    await expand(tester, 'Issues with open PRs (0/1)');
-    await expand(tester, 'Issues without open PRs (0/1)');
-    await expand(tester, 'PRs with issues (0/1)');
+    await expand(tester, 'Issues with open PRs (1/1)');
+    await expand(tester, 'Issues without open PRs (1/1)');
+    await expand(tester, 'PRs with issues (1/1)');
     expect(find.byTooltip('Issue with open PRs'), findsOneWidget);
     expect(find.byTooltip('Issue without open PRs'), findsOneWidget);
     expect(find.byTooltip('PR with issues'), findsOneWidget);
@@ -220,8 +220,8 @@ void main() {
       ],
     };
     await pumpApp(tester, selectFirst: false);
-    await expand(tester, 'Needs team input (0/1)');
-    await expand(tester, 'Issues without open PRs (0/1)');
+    await expand(tester, 'Needs team input (1/1)');
+    await expand(tester, 'Issues without open PRs (1/1)');
 
     expect(inList('#11 Docs are unclear'), findsOneWidget);
     expect(inList('needs team input'), findsNothing);
@@ -260,9 +260,9 @@ void main() {
       'DELETE issues/20/labels/status%3A%20needs-triage',
     ]);
     // Apply handles both tabs, the issue and its PR #20.
-    expect(find.text('2/3'), findsOneWidget);
+    expect(find.text('1/3'), findsOneWidget);
     // The list shows the next item, #11, which is in another subgroup.
-    await expand(tester, 'Issues with open PRs (1/1)');
+    await expand(tester, 'Issues with open PRs (0/1)');
     expect(find.byIcon(Icons.check_circle), findsOneWidget);
     expect(find.text('Issue #11: Docs are unclear'), findsOneWidget);
   });
@@ -271,8 +271,8 @@ void main() {
     tester,
   ) async {
     await pumpApp(tester);
-    await expand(tester, 'New (0/3)');
-    await expand(tester, 'Issues with open PRs (0/1)');
+    await expand(tester, 'Needs triage (3/3)');
+    await expand(tester, 'Issues with open PRs (1/1)');
     final Finder spinner = find.descendant(
       of: find.widgetWithText(
         ListTile,
@@ -303,9 +303,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(spinner, findsNothing);
     expect(find.byIcon(Icons.check_circle), findsOneWidget);
-    expect(find.text('2/3'), findsOneWidget);
-    expect(find.text('New (2/3)'), findsOneWidget);
-    expect(find.text('Issues with open PRs (1/1)'), findsOneWidget);
+    expect(find.text('1/3'), findsOneWidget);
+    expect(find.text('Needs triage (1/3)'), findsOneWidget);
+    expect(find.text('Issues with open PRs (0/1)'), findsOneWidget);
   });
 
   testWidgets('removes labels, assignees and the milestone with checkboxes, '
@@ -581,12 +581,12 @@ void main() {
     );
     // The items stay in their group, and are also under Needs team input,
     // marked as sent to the team in both.
-    expect(find.text('New (2/3)'), findsOneWidget);
+    expect(find.text('Needs triage (1/3)'), findsOneWidget);
     expect(find.text('Issue #11: Docs are unclear'), findsOneWidget);
-    await expand(tester, 'Needs team input (2/2)');
-    await expand(tester, 'Issues with open PRs (1/1)');
+    await expand(tester, 'Needs team input (0/2)');
+    await expand(tester, 'Issues with open PRs (0/1)');
     expect(find.byIcon(Icons.groups), findsOneWidget);
-    await tester.tap(find.text('Issues with open PRs (1/1)').first);
+    await tester.tap(find.text('Issues with open PRs (0/1)').first);
     await tester.pumpAndSettle();
     final Finder sent = inList('#10 Flutter renderer crashes on an empty Row');
     expect(sent, findsNWidgets(2));
@@ -695,7 +695,7 @@ void main() {
     // The next item is selected, which expands its group, and the list
     // marks the issue as failed.
     expect(controller.selected!.number, 11);
-    await expand(tester, 'Issues with open PRs (0/1)');
+    await expand(tester, 'Issues with open PRs (1/1)');
     expect(
       find.byTooltip('Some changes failed. Select the item to see which.'),
       findsOneWidget,
@@ -781,8 +781,8 @@ void main() {
     expect(controller.selected, isNull);
     expect(find.text('Select an item.'), findsOneWidget);
 
-    await expand(tester, 'New (0/3)');
-    await expand(tester, 'Issues without open PRs (0/1)');
+    await expand(tester, 'Needs triage (3/3)');
+    await expand(tester, 'Issues without open PRs (1/1)');
     await tester.tap(inList('#11 Docs are unclear'));
     await tester.pumpAndSettle();
     expect(controller.selected!.number, 11);
@@ -863,7 +863,7 @@ void main() {
     expect(find.text('#11 Docs are unclear'), findsNothing);
 
     // Again after the triager collapses the group.
-    await expand(tester, 'New (0/3)');
+    await expand(tester, 'Needs triage (3/3)');
     expect(find.byType(ListTile), findsNothing);
     await locate();
     expect(tile, findsOneWidget);
@@ -903,9 +903,9 @@ void main() {
     );
     await pumpApp(tester, selectFirst: false);
 
-    expect(find.text('0/4'), findsOneWidget);
-    await expand(tester, 'New (0/4)');
-    await expand(tester, 'PRs without issues (0/1)');
+    expect(find.text('4/4'), findsOneWidget);
+    await expand(tester, 'Needs triage (4/4)');
+    await expand(tester, 'PRs without issues (1/1)');
     await tester.tap(inList('genui #7 Add a Slider'));
     await tester.pumpAndSettle();
 
@@ -926,7 +926,7 @@ void main() {
       'DELETE flutter/genui/issues/7/labels/status%3A%20needs-triage',
       'POST flutter/genui/issues/7/labels {"labels":["P1"]}',
     ]);
-    expect(find.text('1/4'), findsOneWidget);
+    expect(find.text('3/4'), findsOneWidget);
   });
 
   testWidgets('the divider resizes the item list', (tester) async {
@@ -964,8 +964,8 @@ void main() {
     expect(tester.getSize(find.byType(ItemInfo).first).width, after);
 
     // So does another item.
-    await expand(tester, 'New (0/3)');
-    await expand(tester, 'Issues without open PRs (0/1)');
+    await expand(tester, 'Needs triage (3/3)');
+    await expand(tester, 'Issues without open PRs (1/1)');
     await tester.tap(inList('#11 Docs are unclear'));
     await tester.pumpAndSettle();
     expect(tester.getSize(find.byType(ItemInfo).first).width, after);
@@ -1009,8 +1009,8 @@ void main() {
   testWidgets('an item without a suggestion starts removing only '
       '"$needsTriageLabel"', (tester) async {
     await pumpApp(tester);
-    await expand(tester, 'New (0/3)');
-    await expand(tester, 'Issues without open PRs (0/1)');
+    await expand(tester, 'Needs triage (3/3)');
+    await expand(tester, 'Issues without open PRs (1/1)');
     await tester.tap(inList('#11 Docs are unclear'));
     await tester.pumpAndSettle();
 
@@ -1115,13 +1115,13 @@ void main() {
       tester,
       () => controller.applyAll(controller.group(controller.selected!)),
     );
-    expect(find.text('New (2/3)'), findsOneWidget);
+    expect(find.text('Needs triage (1/3)'), findsOneWidget);
     expect(hideButton().onPressed, isNotNull);
 
     await tester.tap(find.text('Hide triaged'));
     await tester.pumpAndSettle();
 
-    expect(find.text('New (0/1)'), findsOneWidget);
+    expect(find.text('Needs triage (1/1)'), findsOneWidget);
     expect(hideButton().onPressed, isNull);
   });
 }

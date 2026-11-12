@@ -30,8 +30,8 @@ import 'triage_session.dart';
 /// A group of the item list, as `ui.blueprint.md` describes. An item can be
 /// in two groups: its own and [teamInput].
 enum ItemGroup {
-  /// **New**: the items in the queue without `status: needs-team-input` when
-  /// they were loaded.
+  /// **Needs triage**: the items in the queue without
+  /// `status: needs-team-input` when they were loaded.
   newItems,
 
   /// **Needs team input**.
@@ -62,7 +62,8 @@ class TriageController extends ChangeNotifier {
   List<TriageItem> _queue = const [];
 
   /// The items in [_queue] that had `status: needs-team-input` when they
-  /// were loaded. The **New** group shows the other items in the queue.
+  /// were loaded. The **Needs triage** group shows the other items in the
+  /// queue.
   Set<ItemRef> _loadedTeamInput = const {};
 
   /// The items that the list shows under **Needs team input**: the ones in
@@ -119,7 +120,7 @@ class TriageController extends ChangeNotifier {
   final Map<ItemRef, List<LogEntry>> _logs = {};
   final Set<ItemRef> _applying = {};
 
-  /// The items in the **New** group, in the order the list shows them.
+  /// The items in the **Needs triage** group, in the order the list shows them.
   List<TriageItem> get newItems => _sorted(
     _queue.where(
       (i) =>
@@ -172,7 +173,7 @@ class TriageController extends ChangeNotifier {
 
   /// Takes out of each group the items that the triager applied a
   /// suggestion to and that no longer belong to it, until a refresh. An
-  /// item sent to the team leaves **New** and stays in **Needs team
+  /// item sent to the team leaves **Needs triage** and stays in **Needs team
   /// input**. Deselects the selected item if no group has it anymore.
   void hideTriaged() {
     _hidden = {
@@ -200,8 +201,8 @@ class TriageController extends ChangeNotifier {
     };
   }
 
-  /// How many items are in the queue: the items in **New** and **Needs team
-  /// input** when they loaded.
+  /// How many items are in the queue: the items in **Needs triage** and
+  /// **Needs team input** when they loaded.
   int get queueLength => _queue.length;
 
   /// How many items in the queue the triager did not apply a suggestion to.

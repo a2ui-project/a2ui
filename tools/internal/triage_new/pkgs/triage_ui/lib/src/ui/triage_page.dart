@@ -40,7 +40,7 @@ class _TriagePageState extends State<TriagePage> {
     final TriageController controller = TriageScope.of(context);
     final String? error = controller.error;
     final int total = controller.queueLength;
-    final int done = total - controller.remaining;
+    final int remaining = controller.remaining;
     // Every text on the page can be selected and copied.
     return SelectionArea(
       child: Scaffold(
@@ -94,9 +94,9 @@ class _TriagePageState extends State<TriagePage> {
                 padding: const EdgeInsets.only(right: 24),
                 child: Tooltip(
                   message:
-                      '$done of the $total items in the queue are triaged or '
-                      'sent to the team',
-                  child: Text('$done/$total'),
+                      '$remaining of the $total items in the queue are not '
+                      'triaged or sent to the team yet',
+                  child: Text('$remaining/$total'),
                 ),
               ),
             ],

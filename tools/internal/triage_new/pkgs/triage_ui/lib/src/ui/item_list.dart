@@ -58,10 +58,10 @@ Color _shade(BuildContext context, MaterialColor color) =>
 /// The background of an item of a kind with [color].
 Color kindBackground(Color color) => color.withValues(alpha: 0.08);
 
-/// The items, in the groups `ui.blueprint.md` describes: **New**, **Needs
-/// team input**, and the items opened by URL that are not in the queue. An
-/// item that the triager sent to the team is in its own group and in
-/// **Needs team input**. The triager selects an item in one of its groups,
+/// The items, in the groups `ui.blueprint.md` describes: **Needs triage**,
+/// **Needs team input**, and the items opened by URL that are not in the
+/// queue. An item that the triager sent to the team is in its own group and
+/// in **Needs team input**. The triager selects an item in one of its groups,
 /// and only that tile shows as selected.
 ///
 /// The groups start collapsed. When the controller selects an item on its
@@ -85,7 +85,7 @@ class _ItemListState extends State<ItemList> {
     final ItemRef? selected = controller.selected?.ref;
     final ItemGroup? selectedGroup = controller.selectedGroup;
     final sections = <(ItemGroup, String, List<TriageItem>)>[
-      (ItemGroup.newItems, 'New', controller.newItems),
+      (ItemGroup.newItems, 'Needs triage', controller.newItems),
       (ItemGroup.teamInput, 'Needs team input', controller.teamInputItems),
       if (controller.opened.isNotEmpty)
         (ItemGroup.notInQueue, 'Not in the queue', controller.opened),
@@ -182,13 +182,13 @@ class _ItemListState extends State<ItemList> {
   }
 }
 
-/// How many of [items] the triager handled, out of all of them, as in
-/// "5/45".
+/// How many of [items] the triager has not handled yet, out of all of
+/// them, as in "40/45".
 String _progress(TriageController controller, List<TriageItem> items) {
-  final int done = items
-      .where((i) => controller.session.isHandled(i.ref))
+  final int remaining = items
+      .where((i) => !controller.session.isHandled(i.ref))
       .length;
-  return '$done/${items.length}';
+  return '$remaining/${items.length}';
 }
 
 /// The key of the subgroup of [kind] in the group [title], in
