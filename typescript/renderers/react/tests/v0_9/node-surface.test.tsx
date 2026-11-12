@@ -18,15 +18,11 @@ import {describe, it, expect, beforeEach} from 'vitest';
 import React, {createContext, useContext} from 'react';
 import {render, screen, act, fireEvent, within} from '@testing-library/react';
 import {z} from 'zod';
+import {Catalog, ComponentModel, NodeResolver, SurfaceModel, getValue} from '@a2ui/web_core';
 import {
-  Catalog,
-  CommonSchemas,
-  ComponentModel,
-  NodeResolver,
-  SurfaceModel,
   ChildListSchema,
+  CommonSchemas,
   ComponentIdSchema,
-  getValue,
   type A2uiClientAction,
 } from '@a2ui/web_core/v0_9';
 import {

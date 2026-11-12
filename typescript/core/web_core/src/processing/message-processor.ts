@@ -251,7 +251,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * @throws {A2uiValidationError} If `options.unifiedOutbound` is true without `options.outboundListener`.
    */
   constructor(
-    catalogs: Catalog<any>[],
+    catalogs: Catalog<T, any>[],
     private actionHandler?: ActionListener,
     options?: MessageProcessorOptions,
   ) {
