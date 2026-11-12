@@ -22,6 +22,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-02
   title: updateComponents message handling (incremental add, replace, and root validation)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#updatecomponents
@@ -31,6 +32,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-03
   title: updateDataModel message handling (root replacement, JSON Pointer paths, and
     key deletion)
@@ -41,6 +43,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-04
   title: deleteSurface message handling and lifecycle resource cleanup
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#deletesurface
@@ -50,6 +53,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-05
   title: callRendererFunction inbound RPC message execution and response dispatch
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#callrendererfunction
@@ -59,6 +63,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-06
   title: agentFunctionResponse inbound RPC settlement for pending callAgentFunction
     requests
@@ -69,6 +74,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-07
   title: Protocol version discrimination and routing (v0.8, v0.9, v0.9.1, and v1.0)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#envelope-message-structure
@@ -78,6 +84,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-08
   title: Catalog structure and identification (catalogId, components, functions, and
     theme)
@@ -88,6 +95,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-09
   title: Catalog entity naming rules (UAX 31 identifier validation for components
     and functions)
@@ -98,6 +106,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-10
   title: Mixable catalogs and multi-catalog component and function resolution per
     surface
@@ -108,6 +117,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-11
   title: Adjacency-list UI composition model with flat component array and id/root
     references
@@ -118,6 +128,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-12
   title: Composition validation rules (root existence, dangling references, cycles,
     and orphans)
@@ -128,6 +139,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-13
   title: Dynamic child list templates (template.componentId and template.dataBinding
     for arrays and maps)
@@ -138,6 +150,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-14
   title: Root-scope RFC 6901 JSON Pointer path resolution
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#the-root-scope
@@ -147,6 +160,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-15
   title: Collection-scope relative path resolution within list templates
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#collection-scopes-relative-paths
@@ -156,6 +170,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-16
   title: Data binding syntax and normalization across v0.9 path and v1.0 @path forms
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#path-resolution-scope
@@ -165,6 +180,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-17
   title: Two-way input binding read/write contract and reactive local DataModel mutation
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#two-way-binding-input-components
@@ -174,6 +190,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-18
   title: Missing-path read/write semantics (null read resolution and auto-vivifying
     object/array writes)
@@ -184,6 +201,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-19
   title: formatString function with ${...} interpolation, data bindings, nested calls,
     and escaping
@@ -194,6 +212,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-20
   title: regex validation function and ReDoS safety check
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#the-regex-function
@@ -203,6 +222,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-21
   title: "@index contextual function with collection-scope restriction and step/offset
     arguments"
@@ -213,6 +233,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-22
   title: Built-in Basic Catalog functions (length, numeric, email, required, and,
     or, not, openUrl)
@@ -223,6 +244,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-23
   title: Outbound action event message formatting and context binding resolution (v0.9
     and v1.0)
@@ -233,6 +255,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-24
   title: Outbound callAgentFunction RPC request message generation
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#callagentfunction
@@ -242,6 +265,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-25
   title: Outbound rendererFunctionResponse RPC result and error message generation
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#rendererfunctionresponse
@@ -251,6 +275,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-26
   title: Outbound error event reporting (VALIDATION_FAILED, INTEGRITY_ERROR, EXPRESSION_ERROR)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#error
@@ -260,6 +285,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-27
   title: Component validation and CheckRule evaluation (ValidationResult and DynamicBoolean
     coercion)
@@ -270,6 +296,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-28
   title: Polymorphic function usage in UI content (dynamic bindings, CheckRule conditions,
     and actions)
@@ -280,6 +307,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-29
   title: Asynchronous function evaluation, pending states, and stale call cancellation
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#2-asynchronous-evaluation-pending-states
@@ -289,6 +317,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-30
   title: Function failure propagation and recovery rules across bindings, CheckRules,
     and actions
@@ -299,6 +328,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-31
   title: Renderer capabilities generation (v0.9 supportedCatalogIds and v1.0 catalogs/inlineCatalogs)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#renderer-capabilities
@@ -308,6 +338,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-32
   title: Renderer data model synchronization envelope (sendDataModel flag and clientDataModel
     output)
@@ -318,6 +349,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-33
   title: Catalog-agnostic accessibility metadata (accessibility.label and accessibility.description)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#catalog-agnostic-accessibility-requirements
@@ -338,6 +370,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-35
   title: Basic Catalog v1.0 schema modernization (Modal entryPointChild, Icon.name,
     CheckBox.value)
@@ -348,6 +381,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-36
   title: Transport decoupling across A2A, AG-UI, and MCP bindings
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#transport-decoupling
@@ -357,6 +391,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
   uncovered: Architectural boundary verified by transport extension suites and live
     E2E agent-renderer pairs rather than isolated core YAML cases.
 - id: F-CORE-37
@@ -369,6 +404,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-38
   title: ValidationConfig limits (maxComponentsPerSurface, maxComponentDepth, maxDataModelDepth,
     maxDataModelBytes)
@@ -379,6 +415,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-39
   title: RPC execution lifecycle safeguards (timeoutMs, maxPendingCalls, and userActivation
     gating)
@@ -389,6 +426,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-40
   title: Granular reactivity and observer isolation across surfaces, components, and
     data paths
@@ -399,6 +437,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-41
   title: GenericBinder two-way binding lifecycle, initial sync, and disposal
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#the-readwrite-contract
@@ -408,6 +447,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-42
   title: Canonical error codes and structured ValidationError reporting
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#standard-validation-error-format
@@ -417,6 +457,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-43
   title: Agent-side vs renderer-side MessageProcessor execution patterns and ExecutionContext
   specAnchor: specification/v1_0/docs/sdks_spec.md#a2ui-core-sdk-a2ui_core-a2uicore
@@ -426,6 +467,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
   uncovered: Covered by agent SDK processor and validator suites (F-AGT-09 and F-AGT-63)
     rather than standalone core YAML cases.
 - id: F-CORE-44
@@ -437,6 +479,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-CORE-45
   title: Node Resolution Layer (ResolvedNode, ChildList, NodeKey, ActionDispatcher,
     and resolve())
@@ -446,6 +489,7 @@
     - ts-web-core
     - dart-core
     - swift-core
+    - go-core
 - id: F-AGT-01
   title: CatalogTransformer base pipeline and sequential chaining
   specAnchor: specification/v1_0/docs/sdks_spec.md#inference-sdk-a2ui_inference-a2uiinference
@@ -454,6 +498,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-02
   title: ComponentPruningTransformer component filtering and dangling child reference
     rewriting
@@ -463,6 +508,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-03
   title: FunctionPruningTransformer function filtering and empty functions removal
   specAnchor: specification/v1_0/docs/sdks_spec.md#inference-sdk-a2ui_inference-a2uiinference
@@ -471,6 +517,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-04
   title: PromptGenerator template-method assembly (generate, generate_Format_instructions,
     generate_catalog_description, render_examples)
@@ -480,6 +527,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-05
   title: Multi-catalog prompt generation and format-level generate_prompt_snippet
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#mixable-catalogs-and-component-resolution-logic
@@ -488,6 +536,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-06
   title: Skill and SkillSet domain models, YAML frontmatter serialization, and scoped
     directory export
@@ -497,6 +546,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
   knownGaps:
     dart-agent: a2ui_agent for Dart does not implement the skill generation API.
 - id: F-AGT-07
@@ -508,6 +558,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-08
   title: ResponseStream incremental chunk parser (append, close, text_parts, a2ui_messages,parts)
   specAnchor: specification/v1_0/docs/sdks_spec.md#inference-sdk-a2ui_inference-a2uiinference
@@ -516,6 +567,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-09
   title: Validation layer delegation to Core MessageProcessor and PayloadValidator
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#standard-validation-error-format
@@ -524,6 +576,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-10
   title: Surface state tracking across turns during validation (RendererState integration)
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#composition-validation-rules
@@ -532,6 +585,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-11
   title: Agent-callable function validation during response parsing
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#callrendererfunction
@@ -540,6 +594,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-12
   title: InferenceFormat and InferenceFormatFactory registry and custom format registration
   specAnchor: specification/v1_0/docs/sdks_spec.md#inference-sdk-a2ui_inference-a2uiinference
@@ -548,6 +603,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-13
   title: CatalogProvider, FileSystemCatalogProvider, and ListCatalogProvider
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#the-component-catalog
@@ -556,6 +612,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-14
   title: CatalogConfig with CatalogTransformer pipeline and example loading
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#the-component-catalog
@@ -564,6 +621,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-15
   title: A2uiGenerator startup facade, catalog caching, and create_processor negotiation
   specAnchor: specification/v1_0/docs/sdks_spec.md#inference-sdk-a2ui_inference-a2uiinference
@@ -572,6 +630,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-16
   title: A2uiRequestProcessor per-request facade (generate_prompt_snippet, validate_examples,
     parse_response, parse_chunk)
@@ -581,6 +640,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-17
   title: resolve_catalogs capability negotiation for v0.9 and v1.0
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#renderer-capabilities
@@ -589,6 +649,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-18
   title: read_renderer_capabilities metadata extractor for v1.0 and v0.9
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#renderer-capabilities
@@ -597,6 +658,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-19
   title: DirectJsonFormat prompt generation, JSON fence stripping, and response parsing
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#usage-pattern-the-prompt-generate-validate-loop
@@ -605,6 +667,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-20
   title: DirectJsonResponseStream incremental top-level JSON object extraction across
     chunks
@@ -614,6 +677,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-21
   title: ExpressFormat prompt generation, compiler, and decompiler
   specAnchor: specification/proposals/express/a2ui_express.md#a2ui-express-technical-specification
@@ -622,6 +686,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-22
   title: ExpressResponseStream incremental streaming compilation and delta emission
   specAnchor: specification/proposals/express/a2ui_express.md#compilation-example
@@ -630,6 +695,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-23
   title: Express data model compilation and decompilation
   specAnchor: specification/proposals/express/a2ui_express.md#data-model-population
@@ -638,6 +704,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-24
   title: Express ANTLR4 grammar and parser parity across SDKs
   specAnchor: specification/proposals/express/a2ui_express.md#syntax-and-grammar
@@ -646,6 +713,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-25
   title: Legacy v0.8 A2uiSchemaManager and SendA2uiToClientToolset backward compatibility
   specAnchor: specification/v0_8/docs/a2ui_protocol.md
@@ -663,6 +731,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
   knownGaps:
     ts-agent: The fluent builder and macro APIs are Python-only helpers not implemented
       in TypeScript.
@@ -674,31 +743,37 @@
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#1-unified-architecture-overview
   claimedBy:
     - python-a2a
+    - go-a2a
 - id: F-AGT-28
   title: A2A DataPart serialization and deserialization with mimeType application/json+a2ui
   specAnchor: specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md#data-encoding
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#1-unified-architecture-overview
   claimedBy:
     - python-a2a
+    - go-a2a
 - id: F-AGT-29
   title: A2A part serialization and deserialization (a2ui_part_serde)
   specAnchor: specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md#data-encoding
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#1-unified-architecture-overview
   claimedBy:
     - python-a2a
+    - go-a2a
 - id: F-AGT-30
   title: A2A capability extraction from request message metadata
   specAnchor: specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md#a2uirenderercapabilities
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#read_renderer_capabilities-a2uiutilsrenderer_capabilities
   claimedBy:
     - python-a2a
-  uncovered: Covered by Python A2A unit tests in python/a2ui_a2a/tests/.
+    - go-a2a
+  uncovered: Covered by Python A2A unit tests in python/a2ui_a2a/tests/ and the Go
+    restaurant finder sample tests in samples/agent/go/restaurant_finder/.
 - id: F-AGT-31
   title: A2A extension activation header negotiation (try_activate_a2ui_extension)
   specAnchor: specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md#a2a-extension-activation
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#1-unified-architecture-overview
   claimedBy:
     - python-a2a
+    - go-a2a
 - id: F-AGT-32
   title: A2A AgentExtension builder with supportedCatalogIds and acceptsInlineCatalogs
     params
@@ -706,18 +781,21 @@
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#1-unified-architecture-overview
   claimedBy:
     - python-a2a
+    - go-a2a
 - id: F-AGT-33
   title: ADK SendA2uiToClientToolset dynamic system instructions and tool execution
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#usage-pattern-the-prompt-generate-validate-loop
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#5-agent-workflow-execution-walkthroughs
   claimedBy:
     - python-adk
+    - go-adk
 - id: F-AGT-34
   title: ADK A2uiEventConverter outbound stream part conversion
   specAnchor: specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md#agent-to-renderer-messages
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#5-agent-workflow-execution-walkthroughs
   claimedBy:
     - python-adk
+    - go-adk
 - id: F-AGT-35
   title: ADK A2uiSubagentMap surface ownership tracking, collision rejection, and
     data-model stripping
@@ -725,13 +803,17 @@
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#5-agent-workflow-execution-walkthroughs
   claimedBy:
     - python-adk
+    - go-adk
 - id: F-AGT-36
   title: ADK A2aAgentExecutor capability-aware request lifecycle
   specAnchor: specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md#processing-rules
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#5-agent-workflow-execution-walkthroughs
   claimedBy:
     - python-adk
-  uncovered: Covered by Python ADK unit tests and live E2E agent tests.
+    - go-adk
+  uncovered: Covered by Python ADK unit tests and live E2E agent tests, and by Go ADK in-process
+    executor pipeline tests (go/adk/pipeline_test.go and go/adk/adka2a_test.go) and the Go sample's
+    live E2E tests.
 - id: F-AGT-37
   title: RendererState multi-turn session tracking for surfaces, components, and data
     models
@@ -741,6 +823,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-38
   title: RendererState.of / attach binding to A2uiRequestProcessor across turns
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#composition-validation-rules
@@ -749,6 +832,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-39
   title: RendererState.data_model_for_surface and include_data_model prompt injection
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#renderer-data-model
@@ -767,6 +851,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
   knownGaps:
     python-agent: The Python Agent SDK has no renderer and does not implement StreamedAnswer.
 - id: F-AGT-41
@@ -777,6 +862,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-42
   title: Agent-side RPC execution loop (callAgentFunction -> agentFunctionResponse
     and callRendererFunction -> rendererFunctionResponse)
@@ -786,6 +872,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-43
   title: Legacy Kotlin A2uiAgent multi-turn streaming loop with tool registry
   specAnchor: specification/v0_9_1/docs/a2ui_protocol.md#protocol-overview-data-flow
@@ -801,6 +888,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-45
   title: DirectJSON streaming tolerance for invalid JSON and validation errors within
     a block
@@ -810,6 +898,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-46
   title: Express streaming compilation resilience when an earlier surface statement
     fails
@@ -819,6 +908,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-47
   title: Express decompile and recompile round-trip equivalence
   specAnchor: specification/proposals/express/a2ui_express.md#compilation-example
@@ -827,6 +917,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-48
   title: Prompt token overhead and scaling budgets across inference formats
   specAnchor: specification/proposals/express/a2ui_express.md#core-design-goals
@@ -835,11 +926,13 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
   knownGaps:
     python-agent: Timing suite runs separately in the python-performance job.
     ts-agent: Timing suite runs separately in the timing (@a2ui/agent) job.
     dart-agent: Timing suite runs separately in the dart_a2ui_agent (stable, performance)
       job.
+    go-agent: Timing suite runs separately in the go (timing) job.
 - id: F-AGT-49
   title: Catalog example validation against active negotiated catalogs during create_processor
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#usage-pattern-the-prompt-generate-validate-loop
@@ -848,6 +941,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-50
   title: Format-agnostic example normalization and ordering in PromptGenerator
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#usage-pattern-the-prompt-generate-validate-loop
@@ -856,6 +950,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-51
   title: Express inline createSurface compilation when components and dataModel precede
     children
@@ -865,6 +960,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-52
   title: Express component declaration field ordering (positional vs named properties,
     checks, and bindings)
@@ -874,6 +970,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-53
   title: Express function call compilation for local and agent-side functions
   specAnchor: specification/proposals/express/a2ui_express.md#nested-function-calls-and-actions
@@ -882,6 +979,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-54
   title: Builder API cross-surface ComponentRef rejection during build_components
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#ui-composition-the-adjacency-list-model
@@ -890,6 +988,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
   knownGaps:
     ts-agent: The fluent builder and macro APIs are Python-only helpers not implemented
       in TypeScript.
@@ -904,6 +1003,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-56
   title: RendererState turn lifecycle for deleteSurface and recreate with same surfaceId
   specAnchor: specification/v1_0/docs/a2ui_protocol.md#deletesurface
@@ -912,6 +1012,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-57
   title: Inbound renderer-to-agent action event parsing and model input formatting
     (v0.9 and v1.0)
@@ -921,6 +1022,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-58
   title: Inbound renderer-to-agent error event parsing and self-correction formatting
     (v0.9 and v1.0)
@@ -930,6 +1032,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-59
   title: Inbound a2uiRendererDataModel / a2uiClientDataModel extraction and RendererState
     sync
@@ -950,6 +1053,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-61
   title: Outbound callRendererFunction invocation and inbound rendererFunctionResponse
     correlation
@@ -959,6 +1063,7 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-62
   title: ADK a2ui_rpc_callback and a2ui_rpc_interceptor inbound DataPart routing for
     RPC, actions, and errors
@@ -966,8 +1071,9 @@
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#5-agent-workflow-execution-walkthroughs
   claimedBy:
     - python-adk
-  uncovered: Covered by Python ADK unit tests in python/a2ui_adk/tests/ and live E2E
-    agent servers.
+    - go-adk
+  uncovered: Covered by Python ADK unit tests in python/a2ui_adk/tests/, Go ADK unit
+    tests in go/adk/, and live E2E agent servers.
 - id: F-AGT-63
   title: Agent-side output validation rejecting undeclared components, undeclared
     functions, and broken graphs
@@ -977,13 +1083,16 @@
     - python-agent
     - ts-agent
     - dart-agent
+    - go-agent
 - id: F-AGT-64
   title: ADK A2uiPartConverter processor-aware GenAI-to-A2A part conversion and validation
   specAnchor: specification/v1_0/extensions/a2a/docs/a2ui_extension_specification.md#agent-to-renderer-messages
   blueprintAnchor: blueprints/modules/a2ui_agent.blueprint.md#5-agent-workflow-execution-walkthroughs
   claimedBy:
     - python-adk
-  uncovered: Covered by Python ADK unit and integration tests in python/a2ui_adk/tests/.
+    - go-adk
+  uncovered: Covered by Python ADK unit and integration tests in python/a2ui_adk/tests/
+    and by the go/adk event converter tests, which run the part converter.
 - id: F-RND-01
   title: Surface lifecycle rendering (createSurface, incremental updateComponents,
     deleteSurface)
