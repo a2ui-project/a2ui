@@ -202,43 +202,44 @@ for part in processor.parse_response(response_text):
 
 ## Sending messages to the client
 
-A2UI does not require a particular transport. Without the A2A extension, you can send each message as JSON over Server-Sent Events (SSE), WebSockets, or any other channel your client reads. `A2uiPart.a2ui` holds message models, so convert each one to a dictionary before you serialize it:
+A2UI does not require a particular transport. Without the A2A extension, you can send each message as JSON over Server-Sent Events (SSE), WebSockets, or any other channel your client reads. `A2uiPart.a2ui` holds message models, so convert each one to a dictionary before you serialize it with `json.dumps`:
 
 ```python
-import json
-
 from a2ui.parser import A2uiPart
 
 
-def to_json_lines(parts):
-    """Yields one JSON line per A2UI message, skipping plain text parts."""
+def message_payloads(parts):
+    """Yields each A2UI message in `parts` as a dictionary, skipping text parts."""
     for part in parts:
         if isinstance(part, A2uiPart):
             for message in part.a2ui:
-                payload = message.model_dump(by_alias=True, exclude_unset=True)
-                yield json.dumps(payload) + "\n"
+                yield message.model_dump(by_alias=True, exclude_unset=True)
 ```
 
 ### Stream the response
 
 `parse_response` needs the whole response. To show the UI while the model is still writing, open a stream with `processor.open_stream()`, pass each chunk of model text to `feed`, and call `close` after the last chunk. Both return the parts that are ready: text as it arrives, and A2UI messages once each message is complete and valid.
 
+If a block fails, `feed` or `close` raises `A2uiParseError` or `A2uiValidationError` (both subclasses of `A2uiError` in `a2ui.core`) and the stream ends. The error's `partial_results` holds the parts that were ready before the failure. The client already shows the messages from earlier chunks, so send these parts too before you ask the model to try again:
+
 ```python
+from a2ui.core import A2uiError
+
+
 async def stream_a2ui(model_chunks):
     """Reads the model's text chunks and yields validated A2UI messages."""
     stream = processor.open_stream()
-    async for chunk in model_chunks:
-        for part in stream.feed(chunk):
-            if isinstance(part, A2uiPart):
-                for message in part.a2ui:
-                    yield message.model_dump(by_alias=True, exclude_unset=True)
-    for part in stream.close():
-        if isinstance(part, A2uiPart):
-            for message in part.a2ui:
-                yield message.model_dump(by_alias=True, exclude_unset=True)
+    try:
+        async for chunk in model_chunks:
+            for payload in message_payloads(stream.feed(chunk)):
+                yield payload
+        for payload in message_payloads(stream.close()):
+            yield payload
+    except A2uiError as e:
+        for payload in message_payloads(getattr(e, "partial_results", [])):
+            yield payload
+        raise
 ```
-
-If a block fails, `feed` or `close` raises `A2uiParseError` or `A2uiValidationError` (both from `a2ui.core`) and the stream ends. The error's `partial_results` holds the parts that were ready before the failure. The client already shows the messages from earlier chunks, so send these parts too before you ask the model to try again.
 
 A minimal SSE endpoint with FastAPI looks like this, where `call_model` is any function that yields the model's text chunks:
 
