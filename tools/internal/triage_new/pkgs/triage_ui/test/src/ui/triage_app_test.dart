@@ -1093,8 +1093,6 @@ void main() {
     await pumpApp(tester);
     github.change(10, (item) => item['title'] = 'Renamed');
 
-    await tester.tap(find.byTooltip('Menu'));
-    await tester.pumpAndSettle();
     await settle(tester, () async {
       await tester.tap(find.text('Refresh'));
       await Future<void>.delayed(const Duration(milliseconds: 10));
@@ -1102,5 +1100,27 @@ void main() {
 
     expect(find.text('Issue #10: Renamed'), findsOneWidget);
     expect(find.textContaining('The item changed on GitHub'), findsOneWidget);
+  });
+  testWidgets('Hide triaged takes the applied items out of the list', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    TextButton hideButton() =>
+        tester.widget(find.widgetWithText(TextButton, 'Hide triaged'));
+    expect(hideButton().onPressed, isNull);
+
+    // Applies #10 and its PR #20.
+    await settle(
+      tester,
+      () => controller.applyAll(controller.group(controller.selected!)),
+    );
+    expect(find.text('New (2/3)'), findsOneWidget);
+    expect(hideButton().onPressed, isNotNull);
+
+    await tester.tap(find.text('Hide triaged'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('New (0/1)'), findsOneWidget);
+    expect(hideButton().onPressed, isNull);
   });
 }

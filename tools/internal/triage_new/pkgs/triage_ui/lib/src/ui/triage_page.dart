@@ -54,18 +54,6 @@ class _TriagePageState extends State<TriagePage> {
             menuChildren: [
               Tooltip(
                 message:
-                    'Load the items from GitHub again. Your edits are kept, '
-                    'except for items that changed on GitHub.',
-                child: MenuItemButton(
-                  leadingIcon: const Icon(Icons.refresh),
-                  onPressed: controller.isConnected && !controller.loading
-                      ? controller.refresh
-                      : null,
-                  child: const Text('Refresh'),
-                ),
-              ),
-              Tooltip(
-                message:
                     'Get the prompt that asks an agent for the triage report '
                     'of this session',
                 child: MenuItemButton(
@@ -78,7 +66,30 @@ class _TriagePageState extends State<TriagePage> {
           ),
           title: const Text('A2UI triage'),
           actions: [
-            if (controller.isConnected)
+            if (controller.isConnected) ...[
+              Tooltip(
+                message:
+                    'Load the items from GitHub again. Your edits are kept, '
+                    'except for items that changed on GitHub.',
+                child: TextButton.icon(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: controller.loading ? null : controller.refresh,
+                  label: const Text('Refresh'),
+                ),
+              ),
+              Tooltip(
+                message:
+                    'Hide the items that do not belong to '
+                    'the group after the applied editing.',
+                child: TextButton.icon(
+                  icon: const Icon(Icons.visibility_off_outlined),
+                  onPressed: controller.hasTriaged
+                      ? controller.hideTriaged
+                      : null,
+                  label: const Text('Hide triaged'),
+                ),
+              ),
+              const SizedBox(width: 16),
               Padding(
                 padding: const EdgeInsets.only(right: 24),
                 child: Tooltip(
@@ -88,6 +99,7 @@ class _TriagePageState extends State<TriagePage> {
                   child: Text('$done/$total'),
                 ),
               ),
+            ],
           ],
           bottom: controller.loading
               ? const PreferredSize(

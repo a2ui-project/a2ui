@@ -449,4 +449,68 @@ void main() {
     expect(numbers(controller.opened), [30]);
     expect(numbers(controller.teamInputItems), [30, 40, 41]);
   });
+  test(
+    'hides the applied items that left their group, until a refresh',
+    () async {
+      github.unassignable.add('stranger');
+      await controller.start();
+      expect(controller.hasTriaged, isFalse);
+      controller
+        ..draftFor(
+          controller.item(a2ui(10))!,
+          const TriageSuggestion(addedLabels: ['P2']),
+        )
+        ..draftFor(
+          controller.item(a2ui(11))!,
+          const TriageSuggestion(addedLabels: [needsTeamInputLabel]),
+        )
+        ..draftFor(
+          controller.item(a2ui(40))!,
+          const TriageSuggestion(addedLabels: ['P2']),
+        )
+        // Fails, so it is not triaged, though it loses "status: needs-triage".
+        ..draftFor(
+          controller.item(a2ui(21))!,
+          const TriageSuggestion(newAssignees: ['stranger']),
+        );
+      await controller.applyAll([
+        for (final n in [10, 11, 40, 21]) controller.item(a2ui(n))!,
+      ]);
+      controller.select(a2ui(10));
+      expect(controller.hasTriaged, isTrue);
+
+      controller.hideTriaged();
+
+      expect(numbers(controller.newItems), [20, 21]);
+      // #11 was sent to the team, so it left only New.
+      expect(numbers(controller.teamInputItems), [11, 41]);
+      expect(controller.hasTriaged, isFalse);
+      expect(controller.selected, isNull);
+
+      await controller.refresh();
+
+      expect(numbers(controller.newItems), [20]);
+      expect(numbers(controller.teamInputItems), [11, 41]);
+    },
+  );
+
+  test('hides an item opened by URL that the triager sent to the team only '
+      'from Not in the queue', () async {
+    await controller.start();
+    await controller.open(url('issues/30'));
+    controller.draftFor(
+      controller.item(a2ui(30))!,
+      const TriageSuggestion(addedLabels: [needsTeamInputLabel]),
+    );
+    await controller.apply(controller.item(a2ui(30))!);
+    controller.select(a2ui(30), group: ItemGroup.notInQueue);
+
+    controller.hideTriaged();
+
+    expect(controller.opened, isEmpty);
+    expect(numbers(controller.teamInputItems), [30, 40, 41]);
+    // Still selected, now in the group that has it.
+    expect(controller.selected!.number, 30);
+    expect(controller.selectedGroup, ItemGroup.teamInput);
+  });
 }

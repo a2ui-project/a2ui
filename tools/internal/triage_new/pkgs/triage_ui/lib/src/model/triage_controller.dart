@@ -80,6 +80,9 @@ class TriageController extends ChangeNotifier {
   /// Items opened by URL that are not in the queue.
   List<TriageItem> _opened = const [];
 
+  /// The items that [hideTriaged] took out of each group, until a refresh.
+  Set<(ItemGroup, ItemRef)> _hidden = const {};
+
   /// The repositories whose items the UI triages.
   static const List<String> repositories = [a2uiRepository, genuiRepository];
 
@@ -117,18 +120,31 @@ class TriageController extends ChangeNotifier {
   final Set<ItemRef> _applying = {};
 
   /// The items in the **New** group, in the order the list shows them.
-  List<TriageItem> get newItems =>
-      _sorted(_queue.where((i) => !_loadedTeamInput.contains(i.ref)));
+  List<TriageItem> get newItems => _sorted(
+    _queue.where(
+      (i) =>
+          !_loadedTeamInput.contains(i.ref) && _isShown(ItemGroup.newItems, i),
+    ),
+  );
 
   /// The items in the **Needs team input** group, in the order the list
   /// shows them. An item that the triager applied a suggestion that adds
   /// `status: needs-team-input` to is also in its own group.
-  List<TriageItem> get teamInputItems =>
-      _sorted([..._queue, ..._opened].where((i) => _teamInput.contains(i.ref)));
+  List<TriageItem> get teamInputItems => _sorted(
+    [..._queue, ..._opened].where(
+      (i) => _teamInput.contains(i.ref) && _isShown(ItemGroup.teamInput, i),
+    ),
+  );
 
   /// The items opened by URL that are not in the queue, in the order the
   /// triager opened them.
-  List<TriageItem> get opened => _opened;
+  List<TriageItem> get opened => [
+    for (final i in _opened)
+      if (_isShown(ItemGroup.notInQueue, i)) i,
+  ];
+
+  bool _isShown(ItemGroup group, TriageItem item) =>
+      !_hidden.contains((group, item.ref));
 
   /// The items in [group], in the order the list shows them.
   List<TriageItem> itemsIn(ItemGroup group) => switch (group) {
@@ -143,6 +159,46 @@ class TriageController extends ChangeNotifier {
     for (final ItemGroup g in ItemGroup.values)
       for (final TriageItem i in itemsIn(g)) (g, i),
   ];
+
+  /// The listed items that the triager applied a suggestion to, with the
+  /// group that they no longer belong to as they are now.
+  List<(ItemGroup, TriageItem)> get _triaged => [
+    for (final (ItemGroup g, TriageItem i) in _listed)
+      if (session.isHandled(i.ref) && !_belongsTo(g, i)) (g, i),
+  ];
+
+  /// Whether [hideTriaged] has items to hide.
+  bool get hasTriaged => _triaged.isNotEmpty;
+
+  /// Takes out of each group the items that the triager applied a
+  /// suggestion to and that no longer belong to it, until a refresh. An
+  /// item sent to the team leaves **New** and stays in **Needs team
+  /// input**. Deselects the selected item if no group has it anymore.
+  void hideTriaged() {
+    _hidden = {
+      ..._hidden,
+      for (final (ItemGroup g, TriageItem i) in _triaged) (g, i.ref),
+    };
+    if (_selected != null && selectedGroup == null) {
+      _selected = null;
+      _selectedGroup = null;
+    }
+    notifyListeners();
+  }
+
+  /// Whether [item], as it is now, belongs to [group], as `ui.blueprint.md`
+  /// defines the groups.
+  static bool _belongsTo(ItemGroup group, TriageItem item) {
+    final bool queued =
+        item.isOpen &&
+        (item.isPullRequest || item.repository == a2uiRepository) &&
+        (item.needsTriage || item.needsTeamInput);
+    return switch (group) {
+      ItemGroup.newItems => queued && !item.needsTeamInput,
+      ItemGroup.teamInput => queued && item.needsTeamInput,
+      ItemGroup.notInQueue => !queued,
+    };
+  }
 
   /// How many items are in the queue: the items in **New** and **Needs team
   /// input** when they loaded.
@@ -522,6 +578,7 @@ class TriageController extends ChangeNotifier {
         if (i.needsTeamInput) i.ref,
     };
     _teamInput = _loadedTeamInput;
+    _hidden = const {};
     _listedUpdatedAt = {for (final i in queue) i.ref: i.updatedAt};
   }
 

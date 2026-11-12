@@ -18,8 +18,10 @@ The triager can drag the divider between the items and the details to resize the
 
 ### Header
 
-1. The hamburger menu, with **Refresh** and **Create report**.
-2. How many items of the queue the triager handled, out of all of them, as in "5/45". A handled item is one whose suggestion the triager applied, including the items sent to the team.
+1. The hamburger menu, with **Create report**.
+2. **Refresh**, which loads the items from GitHub again.
+3. **Hide triaged**, which takes the triaged items out of the list. See [Hide the triaged items](#hide-the-triaged-items).
+4. How many items of the queue the triager handled, out of all of them, as in "5/45". A handled item is one whose suggestion the triager applied, including the items sent to the team.
 
 ### Items
 
@@ -29,7 +31,7 @@ The list of items holds the issues and PRs of [`a2ui-project/a2ui`](https://gith
 2. **Needs team input**: open items with `status: needs-team-input`.
 3. **Not in the queue**: items that the triager opened from a [suggestion comment](triage_bot.blueprint.md#the-suggestion-comment) or by URL, and that are in neither group above.
 
-The groups are set when the items load. An item that the triager adds `status: needs-team-input` to in this session stays in its group, and also shows in **Needs team input**, so it is listed twice until a refresh. The triager selects such an item in one of its groups, and only that copy shows as selected. The next item after **Apply** is the next one in that group that the triager has not handled yet, and after the end of the group, the next one in the groups below.
+The groups are set when the items load. An item that the triager adds `status: needs-team-input` to in this session stays in its group, and also shows in **Needs team input**, so it is listed twice until a refresh or **Hide triaged**. The triager selects such an item in one of its groups, and only that copy shows as selected. The next item after **Apply** is the next one in that group that the triager has not handled yet, and after the end of the group, the next one in the groups below.
 
 An item in `flutter/genui` shows "genui" before its number, as in "genui #12", because the two repositories number their items separately. The tool triages it as an item in `a2ui-project/a2ui`, except that its changes go to `flutter/genui`, and its label, assignee and milestone choices are those of `flutter/genui`. The triage bot comments only on `a2ui-project/a2ui`, so items in `flutter/genui` have no suggestion.
 
@@ -148,7 +150,11 @@ Ann clicks **Apply**, and GitHub refuses to assign one of the assignees. By then
 
 ### Refresh the queue
 
-While Ann works, a new issue arrives, and a team member triages another item on GitHub. Ann clicks **Refresh** in the hamburger menu. The list shows the new issue and drops the item that no longer has `status: needs-triage`. If the selected item changed on GitHub, the details show its current state, so Ann doesn't apply a suggestion to an old view of the item.
+While Ann works, a new issue arrives, and a team member triages another item on GitHub. Ann clicks **Refresh** in the header. The list shows the new issue and drops the item that no longer has `status: needs-triage`. If the selected item changed on GitHub, the details show its current state, so Ann doesn't apply a suggestion to an old view of the item.
+
+### Hide the triaged items
+
+Ann has applied suggestions to a dozen items, and the list is long. Ann clicks **Hide triaged** in the header. Each group drops the items that Ann applied a suggestion to and that no longer belong to it as they are now. An issue that Ann sent to the team leaves **New** and stays in **Needs team input**. An item whose apply failed stays, so that Ann can try again. The next refresh sets the groups again. **Hide triaged** is disabled when no item would leave the list.
 
 ### Create a report
 
