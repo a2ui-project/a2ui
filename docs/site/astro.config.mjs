@@ -126,7 +126,7 @@ export default defineConfig({
     starlight({
       title: 'A2UI',
       description:
-        'The open A2UI (Agent to User Interface) protocol and SDK suite for native, stateful generative user interfaces.',
+        'A2UI (Agent to User Interface) is an open-source generative UI framework, with a streaming protocol, native renderers for web and mobile, and agent SDKs in several languages.',
       logo: {
         light: './src/assets/A2UI_dark.svg',
         dark: './src/assets/A2UI_light.svg',

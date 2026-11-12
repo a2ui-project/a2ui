@@ -451,14 +451,178 @@ def test_envelope_inputs_not_mutated_and_failure_logs_error(caplog):
                     "component": "StatusBadge",
                     "id": "b1",
                     "status": "ok",
-                    "accessibility": a11y_input,
-                    "metadata": meta_input,
+                    "@accessibility": a11y_input,
+                    "@metadata": meta_input,
                 }],
             ),
         )
     ])
     assert a11y_input == {"label": "Server status badge"}
     assert meta_input == {"extensions": {"telemetry": {"traceId": "t1"}}}
+
+
+def _v10_update(components: list[dict[str, Any]]) -> UpdateComponentsMessageV10:
+    return UpdateComponentsMessageV10(
+        version="1.0",
+        updateComponents=UpdateComponentsV10(surfaceId="main", components=components),
+    )
+
+
+_CHECK_RULE_V10 = {"condition": {"@path": "/form/valid"}, "message": "Invalid"}
+
+
+def test_v10_envelope_fields_merge_onto_expanded_root_as_at_keys():
+    @macro
+    def StatusBadge(status: str) -> builder_v1_0.Card:
+        return builder_v1_0.Card(
+            child=builder_v1_0.Text(text=status),
+            accessibility=builder_v1_0.AccessibilityAttributes(description="Default"),
+            extensions={"macroMeta": {"source": "StatusBadge"}},
+        )
+
+    expected_a11y = {"description": "Default", "label": "Server status badge"}
+    expected_meta = {
+        "extensions": {
+            "macroMeta": {"source": "StatusBadge"},
+            "telemetry": {"traceId": "t1"},
+        }
+    }
+    envelope_inputs = {
+        "accessibility": {"label": "Server status badge"},
+        "metadata": {"extensions": {"telemetry": {"traceId": "t1"}}},
+        "checks": [_CHECK_RULE_V10],
+    }
+    expander = MacroExpander([StatusBadge], on_error="raise")
+
+    # The `@` keys and the legacy bare keys both lower to `@` keys on the root.
+    for prefix in ("@", ""):
+        out = expander.transform_to_transport([
+            _v10_update([{
+                "component": "StatusBadge",
+                "id": "b1",
+                "status": "ok",
+                **{f"{prefix}{k}": v for k, v in envelope_inputs.items()},
+            }])
+        ])
+        by_id = {c["id"]: c for c in out[0].update_components.components}
+        root = by_id["b1"]
+        assert root["component"] == "Card"
+        assert root["@accessibility"] == expected_a11y
+        assert root["@metadata"] == expected_meta
+        assert root["@checks"] == [_CHECK_RULE_V10]
+        assert not {"accessibility", "metadata", "checks", "catalogId"} & root.keys()
+
+    # The `@` key wins over a legacy bare key on the same instance.
+    out = expander.transform_to_transport([
+        _v10_update([{
+            "component": "StatusBadge",
+            "id": "b2",
+            "status": "ok",
+            "@accessibility": {"label": "New"},
+            "accessibility": {"label": "Legacy"},
+        }])
+    ])
+    root = {c["id"]: c for c in out[0].update_components.components}["b2"]
+    assert root["@accessibility"] == {"description": "Default", "label": "New"}
+    assert "accessibility" not in root
+
+
+def test_v10_declared_bare_param_is_not_an_envelope_field():
+    @macro
+    def Tagged(text: str, metadata: str) -> builder_v1_0.Text:
+        return builder_v1_0.Text(text=f"{text}:{metadata}")
+
+    out = MacroExpander([Tagged], on_error="raise").transform_to_transport([
+        _v10_update([{
+            "component": "Tagged",
+            "id": "t1",
+            "text": "hi",
+            "metadata": "m1",
+            "@metadata": {"extensions": {"trace": {"id": "x"}}},
+        }])
+    ])
+    (root,) = out[0].update_components.components
+    assert root["text"] == "hi:m1"
+    assert root["@metadata"] == {"extensions": {"trace": {"id": "x"}}}
+    assert "metadata" not in root
+
+
+def test_v10_macro_catalog_id_dual_read_and_primitive_stamping():
+    basic_cid = BasicCatalog("1.0").catalog_id
+    brand_cid = "https://example.com/brand.json"
+
+    @macro
+    def BrandBadge(label: str) -> builder_v1_0.Card:
+        return builder_v1_0.Card(child=builder_v1_0.Text(text=label))
+
+    expander = MacroExpander(
+        [BrandBadge],
+        catalog_id=brand_cid,
+        base_catalogs=[BasicCatalog("1.0")],
+        on_error="raise",
+    )
+    for cid_key in ("@catalogId", "catalogId"):
+        out = expander.transform_to_transport(
+            [
+                _v10_update([{
+                    "id": "b1",
+                    "component": "BrandBadge",
+                    cid_key: brand_cid,
+                    "label": "Hi",
+                }])
+            ],
+            surface_catalogs={"main": None},
+        )
+        comps = out[0].update_components.components
+        assert [c["component"] for c in comps] == ["Text", "Card"]
+        for comp in comps:
+            assert comp["@catalogId"] == basic_cid
+            assert "catalogId" not in comp
+
+    # A legacy bare catalogId does not override the `@catalogId` scope.
+    out = expander.transform_to_transport(
+        [
+            _v10_update([{
+                "id": "b2",
+                "component": "BrandBadge",
+                "@catalogId": "https://example.com/other.json",
+                "catalogId": brand_cid,
+                "label": "Hi",
+            }])
+        ],
+        surface_catalogs={"main": None},
+    )
+    assert out[0].update_components.components[0]["component"] == "BrandBadge"
+
+
+def test_v09_envelope_fields_stay_bare_on_expanded_root():
+    @macro
+    def Panel(title: str) -> Card:
+        return Card(child=Text(text=title))
+
+    check_rule = {"condition": True, "message": "Required"}
+    out = MacroExpander([Panel], on_error="raise").transform_to_transport([
+        UpdateComponentsMessage(
+            version="v0.9.1",
+            updateComponents=UpdateComponents(
+                surfaceId="main",
+                components=[{
+                    "component": "Panel",
+                    "id": "p1",
+                    "title": "Hello",
+                    "accessibility": {"label": "Panel"},
+                    "checks": [check_rule],
+                    "metadata": {"extensions": {"x": {}}},
+                }],
+            ),
+        )
+    ])
+    root = {c["id"]: c for c in out[0].update_components.components}["p1"]
+    assert root["component"] == "Card"
+    assert root["accessibility"] == {"label": "Panel"}
+    assert root["checks"] == [check_rule]
+    assert "metadata" not in root
+    assert not {k for k in root if k.startswith("@")}
 
 
 def test_scoped_logging_surface_catalogs_immutability_and_lru_eviction(caplog):
@@ -486,13 +650,13 @@ def test_scoped_logging_surface_catalogs_immutability_and_lru_eviction(caplog):
                 {
                     "id": "empty_cid",
                     "component": "BrandBadge",
-                    "catalogId": "",
+                    "@catalogId": "",
                     "label": "Empty",
                 },
                 {
                     "id": "int_cid",
                     "component": "BrandBadge",
-                    "catalogId": 123,
+                    "@catalogId": 123,
                     "label": "Int",
                 },
             ],
@@ -1011,17 +1175,17 @@ def test_v1_0_mixable_catalogs_foo_bar_baz_macro_with_express():
 
     assert "BazMacro" not in {c["component"] for c in comps}
     for comp in comps:
-        assert "catalogId" in comp
-        assert comp["catalogId"] != macro_catalog.catalog_id
+        assert "@catalogId" in comp
+        assert comp["@catalogId"] != macro_catalog.catalog_id
 
-    assert by_id["top_header"]["catalogId"] == foo_cid
-    assert by_id["status_badge"]["catalogId"] == bar_cid
-    assert by_id["root"]["catalogId"] == foo_cid
+    assert by_id["top_header"]["@catalogId"] == foo_cid
+    assert by_id["status_badge"]["@catalogId"] == bar_cid
+    assert by_id["root"]["@catalogId"] == foo_cid
     assert by_id["summary_card"]["component"] == "FooPanel"
-    assert by_id["summary_card"]["catalogId"] == foo_cid
-    assert by_id["summary_card__fooheader_1"]["catalogId"] == foo_cid
+    assert by_id["summary_card"]["@catalogId"] == foo_cid
+    assert by_id["summary_card__fooheader_1"]["@catalogId"] == foo_cid
     assert by_id["summary_card__fooheader_1"]["title"] == {"@path": "/release/headline"}
-    assert by_id["summary_card__baraction_1"]["catalogId"] == bar_cid
+    assert by_id["summary_card__baraction_1"]["@catalogId"] == bar_cid
     assert by_id["summary_card__baraction_1"]["action"] == {
         "event": {
             "name": "deploy_clicked",
@@ -1237,7 +1401,7 @@ def test_v1_0_catalog_submodels_and_noncanonical_unions_with_express():
                     {
                         "id": "root",
                         "component": "TabbedSelector",
-                        "catalogId": expander.macro_catalog_id,
+                        "@catalogId": expander.macro_catalog_id,
                         "tabs": [{
                             "title": {"@path": "/tabs/firstTitle"},
                             "child": "tab_body",
@@ -1339,7 +1503,7 @@ def test_macro_edge_cases_parameters_name_any_dict_and_single_root():
                 components=[{
                     "id": "root",
                     "component": "BannerMacro",
-                    "catalogId": brand_cid,
+                    "@catalogId": brand_cid,
                     "headline": "Plain text inside BannerMacro",
                 }],
             ),
@@ -1617,7 +1781,7 @@ def test_v10_unannotated_primitives_across_third_and_macro_default_surfaces():
                 components=[{
                     "id": "root",
                     "component": "OuterPanelScoped",
-                    "catalogId": brand_cid,
+                    "@catalogId": brand_cid,
                     "title": "ThemeTitle",
                 }],
             ),
@@ -1650,7 +1814,7 @@ def test_v10_unannotated_primitives_across_third_and_macro_default_surfaces():
                     {
                         "id": "root",
                         "component": "Column",
-                        "catalogId": basic_cid,
+                        "@catalogId": basic_cid,
                         "children": ["t1", "c1"],
                     },
                     {
@@ -1669,7 +1833,7 @@ def test_v10_unannotated_primitives_across_third_and_macro_default_surfaces():
     ])
     brand_by_id = {c["id"]: c for c in lowered_brand[1].update_components.components}
     assert brand_by_id["t1"]["component"] == "Card"
-    assert brand_by_id["t1"]["catalogId"] == basic_cid
+    assert brand_by_id["t1"]["@catalogId"] == basic_cid
     assert brand_by_id["t1__text_1"]["text"] == "[Brand] BrandDefault"
     assert brand_by_id["c1"]["component"] == "Card"
     mp.process_messages(
@@ -1719,7 +1883,7 @@ def test_v10_unannotated_primitives_across_third_and_macro_default_surfaces():
                 components=[{
                     "id": "root",
                     "component": "OuterSidecar",
-                    "catalogId": sidecar_exp.macro_catalog_id,
+                    "@catalogId": sidecar_exp.macro_catalog_id,
                     "title": "Revenue",
                 }],
             ),
@@ -1727,7 +1891,7 @@ def test_v10_unannotated_primitives_across_third_and_macro_default_surfaces():
     ])
     charts_comps = lowered_charts[1].update_components.components
     assert [c["component"] for c in charts_comps] == ["Text", "Text", "Column", "Card"]
-    assert all(c["catalogId"] == basic_cid for c in charts_comps)
+    assert all(c["@catalogId"] == basic_cid for c in charts_comps)
     mp_charts = MessageProcessor(
         [basic_cat, charts_cat],
         options=MessageProcessorOptions(validation_config=STRICT_VALIDATION),
@@ -1746,7 +1910,7 @@ def test_v10_unannotated_primitives_across_third_and_macro_default_surfaces():
                 components=[{
                     "id": "root",
                     "component": "Text",
-                    "catalogId": brand_cid,
+                    "@catalogId": brand_cid,
                     "text": "NoBaseCatalogs",
                 }],
             ),
@@ -1809,7 +1973,7 @@ def test_v10_extensions_schema_and_coercion():
         instance_id="e1",
         protocol_version="1.0",
     )
-    assert out[-1]["metadata"]["extensions"] == raw_ext
+    assert out[-1]["@metadata"]["extensions"] == raw_ext
 
     out_nested = exp.processor.expand(
         "ExtCard",
@@ -1912,3 +2076,44 @@ def test_v10_union_branch_type_error_fallback_and_typed_dict_coercion():
                 instance_id="s1",
                 protocol_version="1.0",
             )
+
+
+def test_stamp_lowered_primitives_respects_custom_catalog_id_property():
+    """Verifies _stamp_lowered_primitives stamps @catalogId even when a lowered primitive sets a custom bare catalogId property."""
+    custom_cat = Catalog.from_json({
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "catalogId": "https://example.com/custom_badge_cat.json",
+        "protocolVersion": "1.0",
+        "components": {
+            "CatalogBadge": {
+                "type": "object",
+                "allOf": [
+                    {"$ref": "common_types.json#/$defs/ComponentCommon"},
+                    {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "CatalogBadge"},
+                            "catalogId": {"type": "string"},
+                        },
+                        "required": ["component", "catalogId"],
+                    },
+                ],
+                "unevaluatedProperties": False,
+            },
+        },
+    })
+    expander = MacroExpander(base_catalogs=[custom_cat], protocol_version="1.0")
+    prims = [{
+        "id": "b1",
+        "component": "CatalogBadge",
+        "catalogId": "custom-prop-val",
+    }]
+    expander._stamp_lowered_primitives(
+        prims,
+        surface_id="s1",
+        transport_surface_catalog_id=None,
+        surface_known=True,
+        is_v1_0=True,
+    )
+    assert prims[0]["@catalogId"] == "https://example.com/custom_badge_cat.json"
+    assert prims[0]["catalogId"] == "custom-prop-val"

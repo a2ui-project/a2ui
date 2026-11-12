@@ -25,13 +25,8 @@
 
 import type React from 'react';
 import type {ZodTypeAny} from 'zod';
-import type {
-  A2uiMetadata,
-  ComponentApi,
-  ComponentContext,
-  ComponentNode,
-} from '@a2ui/web_core/v0_9';
-import type {WebComponentImplementation} from '@a2ui/web_core/v0_9/universal';
+import type {A2uiMetadata, ComponentApi, ComponentContext, ComponentNode} from '@a2ui/web_core';
+import type {WebComponentImplementation} from '@a2ui/web_core/universal';
 
 /** Renders a resolved child node, or falls back for an unresolved id. */
 export type NodeBuildChild = (

@@ -19,7 +19,7 @@ import SwiftUI
 /// @main entry point for the A2UI sample iOS gallery application.
 @main
 struct A2UISampleApp: App {
-  @StateObject private var galleryViewModel = GalleryViewModel()
+  @State private var galleryViewModel = GalleryViewModel()
 
   var body: some Scene {
     WindowGroup {

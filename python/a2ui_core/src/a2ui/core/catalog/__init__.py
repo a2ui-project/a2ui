@@ -25,7 +25,10 @@ from .catalog import (
     CatalogApi,
     FunctionsForm,
     ThemeLocation,
+    get_custom_envelope_properties,
+    get_declared_component_properties,
     inline_local_refs,
+    is_component_checkable,
     is_valid_uax31_identifier,
 )
 from .components import (
@@ -90,7 +93,10 @@ __all__ = [
     "get_agent_to_renderer_schema_map",
     "get_common_types_schema_json",
     "get_common_types_schema_map",
+    "get_custom_envelope_properties",
+    "get_declared_component_properties",
     "inline_local_refs",
+    "is_component_checkable",
     "is_system_function_name",
     "is_valid_uax31_identifier",
     "system_functions_for",
