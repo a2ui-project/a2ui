@@ -408,74 +408,142 @@ String? _refName(Map<String, Object?> schema) => switch (schema[r'$ref']) {
   _ => null,
 };
 
+Map<String, Object?>? _asStringMap(Object? raw) => switch (raw) {
+  final Map<String, Object?> map => map,
+  final Map<Object?, Object?> map => map.cast<String, Object?>(),
+  _ => null,
+};
+
 /// The subschemas of a combinator, flattened one level.
 Iterable<Map<String, Object?>> _alternatives(Map<String, Object?> schema) => [
   for (final String key in const ['oneOf', 'anyOf', 'allOf'])
     for (final Object? sub in schema[key] as List<Object?>? ?? const [])
-      if (sub is Map) sub.cast<String, Object?>(),
+      if (_asStringMap(sub) case final Map<String, Object?> map) map,
 ];
+
+bool _isFlattenedDataBinding(Map<String, Object?> schema) {
+  final Object? type = schema['type'];
+  if (type != null && type != 'object') return false;
+  final Map<String, Object?> props = _properties(schema);
+  return (props.containsKey('@path') || props.containsKey('path')) &&
+      !props.containsKey('componentId');
+}
 
 /// Whether a property of [schema] accepts a data binding.
 ///
 /// The shared types that do are named for it: `DataBinding`, the `Dynamic*`
-/// family and `ChildList`, whose template form carries a path.
-bool allowsBinding(Map<String, Object?>? schema) {
+/// family and `ChildList`, whose template form carries a path. Locally
+/// flattened `DataBinding` object schemas with `@path` or `path` are also
+/// recognized.
+bool allowsBinding(Map<String, Object?>? schema, [Set<Object>? visited]) {
   if (schema == null) return false;
-  final String? ref = _refName(schema);
-  if (ref != null &&
-      (ref == 'DataBinding' ||
-          ref.startsWith('Dynamic') ||
-          ref == 'ChildList')) {
-    return true;
+  final Set<Object> seen = visited ?? Set<Object>.identity();
+  if (!seen.add(schema)) return false;
+  try {
+    final String? ref = _refName(schema);
+    if (ref != null &&
+        (ref == 'DataBinding' ||
+            ref.startsWith('Dynamic') ||
+            ref == 'ChildList')) {
+      return true;
+    }
+    if (_isFlattenedDataBinding(schema)) return true;
+    return _alternatives(schema).any((sub) => allowsBinding(sub, seen));
+  } finally {
+    seen.remove(schema);
   }
-  return _alternatives(schema).any(allowsBinding);
 }
 
 /// Whether [schema] holds the id of another component.
 ///
 /// v0.9 names the shared type `ComponentId`; v1.0 names a single child
 /// `Child`.
-bool isComponentId(Map<String, Object?>? schema) =>
-    schema != null &&
-    switch (_refName(schema)) {
+bool isComponentId(Map<String, Object?>? schema, [Set<Object>? visited]) {
+  if (schema == null) return false;
+  final Set<Object> seen = visited ?? Set<Object>.identity();
+  if (!seen.add(schema)) return false;
+  try {
+    return switch (_refName(schema)) {
       'ComponentId' || 'Child' => true,
-      _ => false,
+      _ => _alternatives(schema).any((sub) => isComponentId(sub, seen)),
     };
+  } finally {
+    seen.remove(schema);
+  }
+}
 
 /// Whether [schema] is a list of children: component ids, or a template that
 /// repeats one component over a list in the data model.
-bool isChildList(Map<String, Object?>? schema) =>
-    schema != null &&
-    (_refName(schema) == 'ChildList' || _alternatives(schema).any(isChildList));
+bool isChildList(Map<String, Object?>? schema, [Set<Object>? visited]) {
+  if (schema == null) return false;
+  final Set<Object> seen = visited ?? Set<Object>.identity();
+  if (!seen.add(schema)) return false;
+  try {
+    return _refName(schema) == 'ChildList' ||
+        _alternatives(schema).any((sub) => isChildList(sub, seen));
+  } finally {
+    seen.remove(schema);
+  }
+}
 
 /// Whether [schema] is an action: an event for the agent, or a local call.
-bool isAction(Map<String, Object?>? schema) =>
-    schema != null && _refName(schema) == 'Action';
+bool isAction(Map<String, Object?>? schema, [Set<Object>? visited]) {
+  if (schema == null) return false;
+  final Set<Object> seen = visited ?? Set<Object>.identity();
+  if (!seen.add(schema)) return false;
+  try {
+    return _refName(schema) == 'Action' ||
+        _alternatives(schema).any((sub) => isAction(sub, seen));
+  } finally {
+    seen.remove(schema);
+  }
+}
 
 /// The values an enum property admits, or null.
-List<Object?>? enumOf(Map<String, Object?>? schema) {
+List<Object?>? enumOf(Map<String, Object?>? schema, [Set<Object>? visited]) {
   if (schema == null) return null;
-  if (schema['enum'] case final List<Object?> values) return values;
-  for (final Map<String, Object?> sub in _alternatives(schema)) {
-    if (enumOf(sub) case final List<Object?> values) return values;
+  final Set<Object> seen = visited ?? Set<Object>.identity();
+  if (!seen.add(schema)) return null;
+  try {
+    if (schema['enum'] case final List<Object?> values) return values;
+    for (final Map<String, Object?> sub in _alternatives(schema)) {
+      if (enumOf(sub, seen) case final List<Object?> values) return values;
+    }
+    return null;
+  } finally {
+    seen.remove(schema);
   }
-  return null;
+}
+
+bool _hasLabelAndValue(Map<String, Object?> sub, [Set<Object>? visited]) {
+  final Set<Object> seen = visited ?? Set<Object>.identity();
+  if (!seen.add(sub)) return false;
+  try {
+    final Map<String, Object?> properties = _properties(sub);
+    if (properties.containsKey('label') && properties.containsKey('value')) {
+      return true;
+    }
+    return _alternatives(sub).any((alt) => _hasLabelAndValue(alt, seen));
+  } finally {
+    seen.remove(sub);
+  }
 }
 
 /// Whether [schema] is a list of `{label, value}` options, which Express lets
 /// the model write as plain strings.
-bool expectsOptionObjects(Map<String, Object?>? schema) {
+bool expectsOptionObjects(
+  Map<String, Object?>? schema, [
+  Set<Object>? visited,
+]) {
   if (schema == null) return false;
-  if (schema['items'] case final Map<Object?, Object?> items) {
-    bool hasLabelAndValue(Map<String, Object?> sub) {
-      final Map<String, Object?> properties = _properties(sub);
-      if (properties.containsKey('label') && properties.containsKey('value')) {
-        return true;
-      }
-      return _alternatives(sub).any(hasLabelAndValue);
+  final Set<Object> seen = visited ?? Set<Object>.identity();
+  if (!seen.add(schema)) return false;
+  try {
+    if (_asStringMap(schema['items']) case final Map<String, Object?> items) {
+      return _hasLabelAndValue(items, seen);
     }
-
-    return hasLabelAndValue(items.cast<String, Object?>());
+    return _alternatives(schema).any((sub) => expectsOptionObjects(sub, seen));
+  } finally {
+    seen.remove(schema);
   }
-  return _alternatives(schema).any(expectsOptionObjects);
 }

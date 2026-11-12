@@ -13,6 +13,13 @@
   [#3466](https://github.com/a2ui-project/a2ui/issues/3466),
   [#4012](https://github.com/a2ui-project/a2ui/issues/4012),
   [#4044](https://github.com/a2ui-project/a2ui/pull/4044)).
+- `ExpressPromptGenerator` (`promptSnippet`) now traverses `oneOf`, `anyOf`,
+  `allOf`, and locally flattened `DataBinding`, `FunctionCall`, `ChildList`, and
+  `Action` wire envelopes when generating property map-key instructions and
+  `(static)` / `(component ID)` / `(action)` annotations, and aligns
+  post-description indented headings to `Map keys:` and `List of maps keys:`
+  ([#3400](https://github.com/a2ui-project/a2ui/issues/3400),
+  [#4184](https://github.com/a2ui-project/a2ui/pull/4184)).
 
 ## 0.3.0
 

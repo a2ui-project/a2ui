@@ -20,6 +20,13 @@
   metadata (`a2uiRendererCapabilities` in v1.0 and `a2uiClientCapabilities` in
   v0.8, v0.9, and v0.9.1).
   [#4013](https://github.com/a2ui-project/a2ui/pull/4013)
+- `ExpressPromptGenerator` now traverses `oneOf`, `anyOf`, `allOf`, and locally
+  flattened wire envelopes when extracting structured map-key instructions and
+  enum constraints, and `ExpressCompiler` now coerces literal string arrays into
+  `{label, value}` option objects on union properties that also admit data
+  bindings
+  ([#3400](https://github.com/a2ui-project/a2ui/issues/3400),
+  [#4184](https://github.com/a2ui-project/a2ui/pull/4184)).
 
 ## 0.11.0 (2026-11-10)
 

@@ -32,6 +32,8 @@ from a2ui.inference_formats._shared import (
     CatalogSchemaHelper,
     build_catalog_helpers,
     catalogs_defining,
+    combinator_subschemas,
+    common_def_name,
     normalize_prompt_example_messages,
     surface_catalog_id,
 )
@@ -226,39 +228,268 @@ def _multi_catalog_rules(helpers: Mapping[str, CatalogSchemaHelper]) -> str:
     return "\n".join(rules)
 
 
-def _schema_allows_databinding(prop_schema: Any) -> bool:
+def _is_direct_binding_prop_schema(prop_schema: dict[str, Any]) -> bool:
+    """Returns whether `prop_schema` directly declares a dynamic or data-binding shape."""
+    ref = prop_schema.get("$ref")
+    if isinstance(ref, str) and (
+        "DataBinding" in ref or "Dynamic" in ref or "ChildList" in ref
+    ):
+        return True
+    props = prop_schema.get("properties")
+    return (
+        isinstance(props, dict)
+        and ("@path" in props or "path" in props)
+        and "componentId" not in props
+    )
+
+
+def _schema_allows_databinding(
+    prop_schema: Any, visited: set[int] | None = None
+) -> bool:
     """Helper to check if a JSON schema allows data binding (DynamicString/DataBinding, etc)."""
     if not isinstance(prop_schema, dict):
         return False
-    if "$ref" in prop_schema:
-        ref = prop_schema["$ref"]
-        if "DataBinding" in ref or "Dynamic" in ref or "ChildList" in ref:
+    if visited is None:
+        visited = set()
+    obj_id = id(prop_schema)
+    if obj_id in visited:
+        return False
+    visited.add(obj_id)
+    try:
+        if _is_direct_binding_prop_schema(prop_schema):
             return True
-    if "oneOf" in prop_schema or "anyOf" in prop_schema or "allOf" in prop_schema:
-        subs = (
-            prop_schema.get("oneOf", [])
-            + prop_schema.get("anyOf", [])
-            + prop_schema.get("allOf", [])
+        return any(
+            _schema_allows_databinding(sub, visited)
+            for sub in combinator_subschemas(prop_schema)
         )
-        for sub in subs:
-            if _schema_allows_databinding(sub):
-                return True
-    return False
+    finally:
+        visited.remove(obj_id)
 
 
-def _get_schema_enum(prop_schema: Any) -> list[str] | None:
+def _get_schema_enum(
+    prop_schema: Any, visited: set[int] | None = None
+) -> list[str] | None:
     """Helper to recursively find enum definitions inside a JSON schema."""
     if not isinstance(prop_schema, dict):
         return None
-    if "enum" in prop_schema:
-        return [str(x) for x in prop_schema["enum"]]
-    if "oneOf" in prop_schema or "anyOf" in prop_schema:
-        subs = prop_schema.get("oneOf", []) + prop_schema.get("anyOf", [])
-        for sub in subs:
-            enum_val = _get_schema_enum(sub)
+    if visited is None:
+        visited = set()
+    obj_id = id(prop_schema)
+    if obj_id in visited:
+        return None
+    visited.add(obj_id)
+    try:
+        if isinstance(prop_schema.get("enum"), list):
+            return [str(x) for x in prop_schema["enum"]]
+        for sub in combinator_subschemas(prop_schema):
+            enum_val = _get_schema_enum(sub, visited)
             if enum_val:
                 return enum_val
+        return None
+    finally:
+        visited.remove(obj_id)
+
+
+def _has_wire_envelope_properties(s: dict[str, Any]) -> bool:
+    """Returns whether `s['properties']` has the shape of a protocol wire envelope."""
+    props = s.get("properties")
+    if not isinstance(props, dict):
+        return False
+    keys = set(props)
+    if keys in ({"@path"}, {"path"}, {"componentId", "path"}):
+        return True
+    if "@call" in keys or ("call" in keys and bool(keys & {"args", "returnType"})):
+        return True
+    reqs = s.get("required")
+    return (
+        keys in ({"event"}, {"functionCall"})
+        and isinstance(reqs, list)
+        and bool(keys & set(reqs))
+    )
+
+
+def _is_protocol_wire_envelope(
+    s: dict[str, Any], visited: set[int] | None = None
+) -> bool:
+    """Returns whether an object schema is an A2UI protocol wire envelope."""
+    if not isinstance(s, dict):
+        return False
+    if common_def_name(s.get("$ref")) is not None:
+        return True
+    if visited is None:
+        visited = set()
+    obj_id = id(s)
+    if obj_id in visited:
+        return False
+    visited.add(obj_id)
+    try:
+        all_of = s.get("allOf")
+        if isinstance(all_of, list) and any(
+            isinstance(sub, dict) and _is_protocol_wire_envelope(sub, visited)
+            for sub in all_of
+        ):
+            return True
+        return _has_wire_envelope_properties(s)
+    finally:
+        visited.remove(obj_id)
+
+
+def _merge_all_of_properties(
+    s: dict[str, Any], visited: set[int]
+) -> dict[str, Any] | None:
+    """Merges object properties across an `allOf` schema and its own `properties`."""
+    all_of = s.get("allOf")
+    if not isinstance(all_of, list):
+        return None
+    merged_props: dict[str, Any] = {}
+    for sub in all_of:
+        sub_props = _resolve_object_properties(sub, visited)
+        if sub_props:
+            merged_props.update(sub_props)
+    own_props = s.get("properties")
+    if isinstance(own_props, dict):
+        merged_props.update(own_props)
+    return merged_props if merged_props else None
+
+
+def _resolve_object_properties(
+    schema: Any, visited: set[int] | None = None
+) -> dict[str, Any] | None:
+    """Resolves the property map of an object schema, including combinators."""
+    if not isinstance(schema, dict):
+        return None
+    if visited is None:
+        visited = set()
+    obj_id = id(schema)
+    if obj_id in visited:
+        return None
+    visited.add(obj_id)
+    try:
+        if _is_protocol_wire_envelope(schema):
+            return None
+        merged = _merge_all_of_properties(schema, visited)
+        if merged is not None:
+            return merged
+        props = schema.get("properties")
+        if schema.get("type") in ("object", None) and isinstance(props, dict) and props:
+            return props
+        for sub in combinator_subschemas(schema, ("oneOf", "anyOf")):
+            resolved = _resolve_object_properties(sub, visited)
+            if resolved:
+                return resolved
+        return None
+    finally:
+        visited.remove(obj_id)
+
+
+def _direct_structured_property(
+    schema: dict[str, Any], visited: set[int]
+) -> tuple[Literal["object", "array"], dict[str, Any]] | None:
+    """Resolves a direct object or array-of-objects structured property."""
+    props = schema.get("properties")
+    if schema.get("type") in ("object", None) and isinstance(props, dict) and props:
+        return ("object", props)
+    if schema.get("type") == "array" and isinstance(schema.get("items"), dict):
+        item_props = _resolve_object_properties(schema["items"], visited)
+        if item_props:
+            return ("array", item_props)
     return None
+
+
+def _resolve_structured_property(
+    schema: Any, visited: set[int] | None = None
+) -> tuple[Literal["object", "array"], dict[str, Any]] | None:
+    """Resolves whether a property schema represents a map or list of maps."""
+    if not isinstance(schema, dict):
+        return None
+    if visited is None:
+        visited = set()
+    obj_id = id(schema)
+    if obj_id in visited or _is_protocol_wire_envelope(schema):
+        return None
+    if isinstance(schema.get("allOf"), list):
+        obj_props = _resolve_object_properties(schema, visited)
+        if obj_props:
+            return ("object", obj_props)
+    visited.add(obj_id)
+    try:
+        direct = _direct_structured_property(schema, visited)
+        if direct is not None:
+            return direct
+        for sub in combinator_subschemas(schema):
+            resolved = _resolve_structured_property(sub, visited)
+            if resolved:
+                return resolved
+        return None
+    finally:
+        visited.remove(obj_id)
+
+
+def _format_component_arg_label(
+    prop_name: str, is_required: bool, p_schema: dict[str, Any] | None
+) -> str:
+    """Formats one component signature argument with optionality and static/ID suffix."""
+    arg_label = f"{prop_name}{'' if is_required else '?'}"
+    ref = p_schema.get("$ref") if isinstance(p_schema, dict) else None
+    if isinstance(ref, str) and "ComponentId" in ref:
+        return f"{arg_label} (component ID)"
+    if not _schema_allows_databinding(p_schema):
+        return f"{arg_label} (static)"
+    return arg_label
+
+
+def _format_sub_key_lines(properties: Mapping[str, Any]) -> str:
+    """Formats nested map keys and their descriptions as bullet lines."""
+    lines: list[str] = []
+    for sub_k, sub_v in properties.items():
+        desc = sub_v.get("description", "") if isinstance(sub_v, Mapping) else ""
+        desc_suffix = f" - {desc}" if desc else ""
+        lines.append(f"    * {sub_k}{desc_suffix}")
+    return "\n".join(lines)
+
+
+def _append_structured_keys(
+    prop_name: str,
+    detail: str | None,
+    structured: tuple[Literal["object", "array"], dict[str, Any]],
+) -> str:
+    """Appends nested map or list-of-maps key descriptions to a property detail line."""
+    kind, sub_props = structured
+    sub_keys = _format_sub_key_lines(sub_props)
+    if kind == "object":
+        return (
+            f"{detail}\n    Map keys:\n{sub_keys}"
+            if detail
+            else f"  - {prop_name}: Map with keys:\n{sub_keys}"
+        )
+    return (
+        f"{detail}\n    List of maps keys:\n{sub_keys}"
+        if detail
+        else f"  - {prop_name}: List of maps with keys:\n{sub_keys}"
+    )
+
+
+def _format_component_property_detail(
+    prop_name: str, p_schema: dict[str, Any] | None
+) -> str | None:
+    """Formats the bullet detail line (and nested map keys) for a component property."""
+    if not isinstance(p_schema, dict):
+        return None
+    p_desc = p_schema.get("description")
+    enum_vals = _get_schema_enum(p_schema)
+    line_parts: list[str] = []
+    if p_desc:
+        line_parts.append(str(p_desc))
+    if enum_vals:
+        enum_vals_str = ", ".join(f"'{v}'" for v in enum_vals)
+        line_parts.append(f"Must be one of: {enum_vals_str}")
+    detail = f"  - {prop_name}: {' '.join(line_parts)}" if line_parts else None
+
+    if not enum_vals:
+        structured = _resolve_structured_property(p_schema)
+        if structured is not None:
+            return _append_structured_keys(prop_name, detail, structured)
+    return detail
 
 
 def _renderer_call_rule(callable_fns: Sequence[str]) -> str:
@@ -534,90 +765,16 @@ class ExpressPromptGenerator(PromptGenerator):
         for name in sorted(h.component_properties.keys()):
             props = h.get_component_properties(name)
             reqs = h.get_component_required(name)
-
-            # Retrieve component-level description
             comp_desc = h.get_component_description(name)
 
             ordered_args = []
             prop_details = []
             for p in props:
-                is_req = p in reqs
-                opt_suffix = "" if is_req else "?"
-
                 p_schema = h.get_property_schema(name, p)
-
-                # Determine signature argument label
-                arg_label = f"{p}{opt_suffix}"
-
-                is_component_id = False
-                if isinstance(p_schema, dict) and "$ref" in p_schema:
-                    if "ComponentId" in p_schema["$ref"]:
-                        is_component_id = True
-
-                if is_component_id:
-                    arg_label += " (component ID)"
-                elif not _schema_allows_databinding(p_schema):
-                    arg_label += " (static)"
-
-                ordered_args.append(arg_label)
-
-                # Retrieve parameter description
-                p_desc = (
-                    p_schema.get("description") if isinstance(p_schema, dict) else None
-                )
-                enum_vals = _get_schema_enum(p_schema)
-
-                # Build property detail description
-                if p_desc or enum_vals:
-                    p_line_parts = []
-                    if p_desc:
-                        p_line_parts.append(p_desc)
-                    if enum_vals:
-                        enum_vals_str = ", ".join([f"'{v}'" for v in enum_vals])
-                        p_line_parts.append(f"Must be one of: {enum_vals_str}")
-                    prop_details.append(f"  - {p}: {' '.join(p_line_parts)}")
-
-                # Fetch property schema and check if it has nested object structure
-                if isinstance(p_schema, dict):
-                    if p_schema.get("type") == "object" and "properties" in p_schema:
-                        sub_keys = []
-                        for sub_k, sub_v in p_schema["properties"].items():
-                            desc = sub_v.get("description", "")
-                            desc_suffix = f" - {desc}" if desc else ""
-                            sub_keys.append(f"    * {sub_k}{desc_suffix}")
-
-                        if prop_details and prop_details[-1].startswith(f"  - {p}:"):
-                            prop_details[-1] += "\n    Map keys:\n" + "\n".join(
-                                sub_keys
-                            )
-                        else:
-                            prop_details.append(
-                                f"  - {p}: Map with keys:\n" + "\n".join(sub_keys)
-                            )
-                    elif p_schema.get("type") == "array" and "items" in p_schema:
-                        items_schema = p_schema["items"]
-                        if (
-                            isinstance(items_schema, dict)
-                            and items_schema.get("type") == "object"
-                            and "properties" in items_schema
-                        ):
-                            sub_keys = []
-                            for sub_k, sub_v in items_schema["properties"].items():
-                                desc = sub_v.get("description", "")
-                                desc_suffix = f" - {desc}" if desc else ""
-                                sub_keys.append(f"    * {sub_k}{desc_suffix}")
-
-                            if prop_details and prop_details[-1].startswith(
-                                f"  - {p}:"
-                            ):
-                                prop_details[
-                                    -1
-                                ] += "\n    List of maps keys:\n" + "\n".join(sub_keys)
-                            else:
-                                prop_details.append(
-                                    f"  - {p}: List of maps with keys:\n"
-                                    + "\n".join(sub_keys)
-                                )
+                ordered_args.append(_format_component_arg_label(p, p in reqs, p_schema))
+                detail = _format_component_property_detail(p, p_schema)
+                if detail:
+                    prop_details.append(detail)
 
             sig = f"• {name}({', '.join(ordered_args)})"
             if comp_desc:

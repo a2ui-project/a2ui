@@ -699,6 +699,78 @@ class TestExpressEventAndNestedActionSlots(unittest.TestCase):
             [{"@call": "concat", "args": {"a": "a", "b": "b"}}],
         )
 
+    def test_option_object_coercion_with_one_of_databinding_and_local_defs(self):
+        """Coerces string option literals when options uses oneOf with DataBinding and local $defs item ref."""
+        union_options_catalog = Catalog.from_json(
+            {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "catalogId": "test/union_options",
+                "protocolVersion": "1.0",
+                "components": {
+                    "ToggleGroup": {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "ToggleGroup"},
+                            "options": {
+                                "oneOf": [
+                                    {
+                                        "type": "array",
+                                        "items": {"$ref": "#/$defs/SelectOption"},
+                                    },
+                                    {
+                                        "$ref": "common_types.json#/$defs/DataBinding",
+                                    },
+                                ],
+                            },
+                        },
+                        "required": ["component", "options"],
+                    },
+                },
+                "$defs": {
+                    "SelectOption": {
+                        "type": "object",
+                        "properties": {
+                            "label": {"$ref": "common_types.json#/$defs/DynamicString"},
+                            "value": {"type": "string"},
+                        },
+                        "required": ["label", "value"],
+                    },
+                },
+            },
+            protocol_version="1.0",
+        )
+        compiler = ExpressCompiler([union_options_catalog], version="1.0")
+        inline_messages = to_message_dicts(
+            compiler.compile('root = ToggleGroup(["Day", "Week"])')
+        )
+        self.assertEqual(
+            inline_messages[0]["createSurface"]["components"],
+            [
+                {
+                    "id": "root",
+                    "component": "ToggleGroup",
+                    "options": [
+                        {"label": "Day", "value": "Day"},
+                        {"label": "Week", "value": "Week"},
+                    ],
+                },
+            ],
+        )
+
+        bound_messages = to_message_dicts(
+            compiler.compile("root = ToggleGroup($/choices)")
+        )
+        self.assertEqual(
+            bound_messages[0]["createSurface"]["components"],
+            [
+                {
+                    "id": "root",
+                    "component": "ToggleGroup",
+                    "options": {"@path": "/choices"},
+                },
+            ],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
