@@ -11,6 +11,11 @@
   `A2UIChoicePicker` Dynamic Type scaling, multi-line `TextField(axis: .vertical)` for `longText`
   `A2UITextField`, and SVG path parsing improvements in `SVGPathParser` / `SVGPathShape`).
   [#4023](https://github.com/a2ui-project/a2ui/pull/4023)
+- Announce visible text changes in `live` regions: a live component or container now announces its
+  explicit `label` followed by the text its subtree reports with the new `.a2uiAccessibleText(_:)`
+  modifier (collected through `A2UIAccessibleTextKey`). `A2UIText` reports its text without
+  Markdown syntax, and custom components that render text can call the modifier too.
+  [#4021](https://github.com/a2ui-project/a2ui/pull/4021)
 
 ## 0.10.0
 
