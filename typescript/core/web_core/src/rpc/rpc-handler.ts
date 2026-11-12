@@ -16,7 +16,10 @@
 
 import {Catalog, FunctionImplementation} from '../catalog/types.js';
 import {DataContext} from '../resolution/data-context.js';
-import {resolveArgumentValue} from '../resolution/data-context-internal.js';
+import {
+  resolveArgumentValue,
+  withActiveCallCatalogId,
+} from '../resolution/data-context-internal.js';
 import {isSignal, getValue} from '../reactivity/signals.js';
 import {SurfaceModel} from '../state/surface-model.js';
 import {FunctionCall} from '../v1_0/schema/common-types.js';
@@ -25,9 +28,12 @@ import {
   AgentFunctionResponseMessage,
 } from '../v1_0/schema/agent-to-renderer.js';
 import {
-  RendererFunctionResponseMessage,
+  type ActionMessage,
   CallAgentFunctionMessage,
+  RendererFunctionResponseMessage,
 } from '../v1_0/schema/renderer-to-agent.js';
+import type {A2uiClientAction} from '../v0_9/schema/client-to-server.js';
+import type {RendererErrorMessage} from '../processing/message-error-mapper.js';
 import {isCatalogVersionCompatible} from '../processing/adapters/base.js';
 import {findFailedArgument, settleDeep} from '../common/settle_deep.js';
 import {PayloadValidator} from '../validation/payload-validator.js';
@@ -36,10 +42,25 @@ import {A2uiRpcError, RpcErrorCode} from '../errors.js';
 export {A2uiRpcError, RpcErrorCode};
 
 /**
+ * Outbound renderer-to-agent action message envelope across v0.9, v0.9.1, and v1.0.
+ */
+export type OutboundActionMessage =
+  | (Omit<ActionMessage, 'action'> & {action: ActionMessage['action'] & {catalogId?: string}})
+  | {
+      version: 'v0.9' | 'v0.9.1';
+      action: A2uiClientAction &
+        Pick<ActionMessage['action'], 'userMessage' | 'metadata'> & {catalogId?: string};
+    };
+
+/**
  * Callback function type receiving outbound renderer messages intended for the agent.
  */
 export type OutboundMessageListener = (
-  message: RendererFunctionResponseMessage | CallAgentFunctionMessage,
+  message:
+    | RendererFunctionResponseMessage
+    | CallAgentFunctionMessage
+    | OutboundActionMessage
+    | RendererErrorMessage,
 ) => void | Promise<void>;
 
 /**
@@ -190,11 +211,11 @@ export class RpcHandler {
     }
 
     const effectiveContext = this.ensureDataContext(context, resolved.catalog, functionCallId);
-    const resolvedArgsResult = this.resolveDynamicArguments(
-      args,
-      effectiveContext,
-      isUserActivated,
-    );
+    const scopedContext =
+      effectiveContext && resolved.catalog.id
+        ? withActiveCallCatalogId(effectiveContext, resolved.catalog.id, resolved.catalog)
+        : effectiveContext;
+    const resolvedArgsResult = this.resolveDynamicArguments(args, scopedContext, isUserActivated);
     if ('error' in resolvedArgsResult) {
       const errorResponse = this.createResponseError(
         functionCallId,
@@ -256,7 +277,7 @@ export class RpcHandler {
     const response = await this.executeFunctionSafely(
       resolved.funcImpl,
       parsedArgsResult.args,
-      effectiveContext,
+      scopedContext,
       functionCallId,
       version,
     );
@@ -467,9 +488,13 @@ export class RpcHandler {
   ): {funcImpl: FunctionImplementation; catalog: Catalog<any>} | {error: string} {
     let catalog: Catalog<any> | undefined;
     if (catalogId) {
+      const surfaceCatalog = context?.surface?.availableCatalogs?.get(catalogId);
+      const handlerCatalog = this.catalogs.find(c => c.id === catalogId);
+      const surfaceFunc = surfaceCatalog?.functions?.get(call);
       catalog =
-        context?.surface?.availableCatalogs?.get(catalogId) ??
-        this.catalogs.find(c => c.id === catalogId);
+        typeof (surfaceFunc as Partial<FunctionImplementation> | undefined)?.execute === 'function'
+          ? surfaceCatalog
+          : (handlerCatalog ?? surfaceCatalog);
       if (!catalog) {
         return {error: `Catalog not found: ${catalogId}`};
       }

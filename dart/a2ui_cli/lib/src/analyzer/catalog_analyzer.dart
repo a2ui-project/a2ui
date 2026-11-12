@@ -87,7 +87,15 @@ class CatalogAnalyzer {
 
     for (final MapEntry<String, dynamic> entry in rawProps.entries) {
       final String propName = entry.key;
-      if (propName == 'checks' || propName == 'isValid') {
+      if (propName == '@accessibility' ||
+          propName == '@metadata' ||
+          propName == '@catalogId') {
+        continue;
+      }
+      if (propName == 'isValid' ||
+          ((propName == 'checks' || propName == '@checks') &&
+              entry.value is Map &&
+              (entry.value as Map)['type'] == 'array')) {
         isCheckable = true;
       }
 

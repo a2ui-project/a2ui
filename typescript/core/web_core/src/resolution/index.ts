@@ -23,7 +23,18 @@
 
 export * from './component-context.js';
 export * from './data-context.js';
-export * from './generic-binder.js';
+export {
+  GenericBinder,
+  MAX_DYNAMIC_CHILD_LIST_SIZE,
+  getSafeChildList,
+  scrapeComponentBehavior,
+  scrapeSchemaBehavior,
+  type BehaviorNode,
+  type GenerateSetters,
+  type ResolveA2uiProp,
+  type ResolveA2uiProps,
+  type ResolvedChildRef,
+} from './generic-binder.js';
 export {
   /** The component type name used for pending and cyclic placeholder nodes. */
   PLACEHOLDER_TYPE,
@@ -39,7 +50,12 @@ export {
   type NodeState,
 } from './component-node.js';
 export * from './node-resolver.js';
-export * from './ref-fields.js';
+export {
+  extractRefFields,
+  type ChildRefAnalysisOptions,
+  type RefFields,
+  type RefKind,
+} from './ref-fields.js';
 export * from './resolved-binding.js';
 export type {
   /** Asynchronous markdown rendering function. */

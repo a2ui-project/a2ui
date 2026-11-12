@@ -38,11 +38,11 @@
         {
           "component": "Card",
           "id": "ann_badge",
-          "accessibility": {
+          "@accessibility": {
             "description": "Default badge description",
             "label": "Server status badge"
           },
-          "metadata": {
+          "@metadata": {
             "extensions": {
               "macroMeta": {
                 "source": "AnnotatedBadge"
@@ -63,7 +63,7 @@
         {
           "component": "Card",
           "id": "decl_a11y",
-          "accessibility": {
+          "@accessibility": {
             "label": "Custom: Passed as param"
           },
           "child": "decl_a11y__text_1"

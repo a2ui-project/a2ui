@@ -125,6 +125,36 @@ _SPECIAL_BEHAVIORS: Final[frozenset[BehaviorType]] = frozenset({
     BehaviorType.DYNAMIC,
 })
 
+_ACCESSIBILITY_BEHAVIOR: Final[BehaviorNode] = BehaviorNode(
+    BehaviorType.OBJECT,
+    shape={
+        "label": BehaviorNode(BehaviorType.DYNAMIC),
+        "description": BehaviorNode(BehaviorType.DYNAMIC),
+        "live": BehaviorNode(BehaviorType.STATIC),
+        "hidden": BehaviorNode(BehaviorType.DYNAMIC, is_boolean=True),
+    },
+)
+"""The behavior of the `AccessibilityAttributes` mixin."""
+
+
+def _with_envelope_mixin_behaviors(
+    shape: dict[str, BehaviorNode],
+) -> dict[str, BehaviorNode]:
+    """Adds the behaviors of the envelope mixins a component doesn't declare.
+
+    These are `accessibility` (below v1.0, or a legacy v1.0 payload), and the
+    v1.0 `@accessibility` and `@checks`, under which `MessageProcessor` stores
+    a v1.0 component's accessibility attributes and check rules.
+
+    A component that declares its own `accessibility` keeps that behavior, so
+    a custom property of that name is bound as the component declares it.
+    """
+    result = dict(shape)
+    result.setdefault("accessibility", _ACCESSIBILITY_BEHAVIOR)
+    result.setdefault("@accessibility", _ACCESSIBILITY_BEHAVIOR)
+    result.setdefault("@checks", BehaviorNode(BehaviorType.CHECKABLE))
+    return result
+
 
 def _merge_all_of_branch(
     branch: Any,
@@ -136,6 +166,7 @@ def _merge_all_of_branch(
         return None
     if _extract_ref_name(branch.get("$ref")) == "Checkable":
         merged_shape["checks"] = BehaviorNode(BehaviorType.CHECKABLE)
+        merged_shape["@checks"] = BehaviorNode(BehaviorType.CHECKABLE)
         return BehaviorNode(BehaviorType.CHECKABLE)
     node = classify_schema_behavior(branch, defs)
     if node.type == BehaviorType.OBJECT and node.shape:
@@ -159,6 +190,7 @@ def _classify_all_of(
                 merged_shape.update(node.shape)
             elif _extract_ref_name(branch.get("$ref")) == "Checkable":
                 merged_shape["checks"] = BehaviorNode(BehaviorType.CHECKABLE)
+                merged_shape["@checks"] = BehaviorNode(BehaviorType.CHECKABLE)
                 if first_special is None:
                     first_special = BehaviorNode(BehaviorType.CHECKABLE)
             elif node.type in _SPECIAL_BEHAVIORS and first_special is None:
@@ -169,6 +201,11 @@ def _classify_all_of(
         for k, v in own_props.items():
             if isinstance(v, dict):
                 merged_shape[k] = classify_schema_behavior(v, defs)
+    if (
+        "checks" in merged_shape
+        and merged_shape["checks"].type == BehaviorType.CHECKABLE
+    ):
+        merged_shape.setdefault("@checks", BehaviorNode(BehaviorType.CHECKABLE))
     if found_object or merged_shape:
         return BehaviorNode(BehaviorType.OBJECT, shape=merged_shape)
     return first_special
@@ -244,6 +281,8 @@ def _classify_container(
                 for k, v in props.items()
                 if isinstance(v, dict)
             }
+            if "checks" in shape and shape["checks"].type == BehaviorType.CHECKABLE:
+                shape.setdefault("@checks", BehaviorNode(BehaviorType.CHECKABLE))
             return BehaviorNode(BehaviorType.OBJECT, shape=shape)
 
     return None
@@ -315,11 +354,14 @@ def _classify_value_fallback(
     key: str, val: Any, at_least_v10: bool = False
 ) -> BehaviorNode:
     """Fallback classification derived dynamically from property key and value shapes."""
-    if key == "checks" or (
-        isinstance(val, list)
-        and val
-        and isinstance(val[0], dict)
-        and "condition" in val[0]
+    if (
+        key in ("checks", "@checks")
+        and isinstance(val, list)
+        and (
+            key == "@checks"
+            or not val
+            or (isinstance(val[0], dict) and "condition" in val[0])
+        )
     ):
         return BehaviorNode(BehaviorType.CHECKABLE)
 
@@ -342,6 +384,12 @@ def _classify_value_fallback(
             k: _classify_value_fallback(k, v, at_least_v10=at_least_v10)
             for k, v in val.items()
         }
+        if (
+            key in ("@accessibility", "accessibility")
+            and "hidden" in shape
+            and shape["hidden"].type == BehaviorType.DYNAMIC
+        ):
+            shape["hidden"] = BehaviorNode(BehaviorType.DYNAMIC, is_boolean=True)
         return BehaviorNode(BehaviorType.OBJECT, shape=shape)
 
     if isinstance(val, list):
@@ -403,6 +451,10 @@ class GenericBinder:
         )
         if self.behavior_tree.type != BehaviorType.OBJECT:
             self.behavior_tree = BehaviorNode(BehaviorType.OBJECT, shape={})
+        self.behavior_tree = BehaviorNode(
+            BehaviorType.OBJECT,
+            shape=_with_envelope_mixin_behaviors(self.behavior_tree.shape or {}),
+        )
 
         sub = self.context.component_model.on_updated.subscribe(
             lambda _: self._rebuild_all_bindings()
@@ -448,7 +500,8 @@ class GenericBinder:
         result: dict[str, Any] = {}
 
         ordered_items = sorted(
-            val_obj.items(), key=lambda kv: (0 if kv[0] == "checks" else 1)
+            val_obj.items(),
+            key=lambda kv: (0 if kv[0] in ("checks", "@checks") else 1),
         )
         for k, v in ordered_items:
             child_behavior = shape.get(k) or _classify_value_fallback(
@@ -469,6 +522,8 @@ class GenericBinder:
     ) -> None:
         candidate_keys = set(shape.keys()) | set(val_obj.keys())
         for k in candidate_keys:
+            if k.startswith("@"):
+                continue
             behavior = shape.get(k)
             raw_val = val_obj.get(k)
             is_dynamic = (

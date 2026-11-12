@@ -182,13 +182,19 @@ class ComponentModel {
   }
 
   /// Returns the component as the message that would create it.
+  ///
+  /// The component's catalog and envelope metadata, which only a v1.0
+  /// component carries, are always written as the v1.0 `@catalogId` and
+  /// `@metadata` mixins. A bare `catalogId` or `metadata` in the output is
+  /// always one of the component's own properties, so the output reads back
+  /// the same way whether or not its schema declares such a property.
   Map<String, dynamic> toJson() {
     return {
       ..._properties,
       'id': id,
       'component': type,
-      if (catalog != null) 'catalogId': catalog,
-      if (metadata != null) 'metadata': metadata,
+      if (catalog != null) '@catalogId': catalog,
+      if (metadata != null) '@metadata': metadata,
     };
   }
 }

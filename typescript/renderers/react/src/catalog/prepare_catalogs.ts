@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import type {Catalog, SurfaceModel} from '@a2ui/web_core/v0_9';
-import {isWebComponentImplementation} from '@a2ui/web_core/v0_9/universal';
+import type {Catalog, SurfaceModel} from '@a2ui/web_core';
+import {isWebComponentImplementation} from '@a2ui/web_core/universal';
 import type {ReactCatalogComponent} from '../react_component_implementation';
 import {toWebComponent} from './to_web_component';
 

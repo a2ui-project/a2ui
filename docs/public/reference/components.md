@@ -193,7 +193,7 @@ Visual separator line.
 
 Clickable button that triggers an action.
 
-**Properties:** `child` (component ID), `variant`, `action`, `checks`
+**Properties:** `child` (component ID), `variant`, `action`, `@checks` (`checks` in v0.9.1)
 
 ```json
 {
@@ -215,9 +215,9 @@ Text input field with optional validation.
 
 === "v1.0"
 
-    **Properties:** `label`, `value` (required), `placeholder`, `variant`, `checks`
+    **Properties:** `label`, `value` (required), `placeholder`, `variant`, `@checks`
 
-    `variant` values: `shortText`, `longText`, `number`, `obscured`. Use `checks` with the `regex` function to validate the input.
+    `variant` values: `shortText`, `longText`, `number`, `obscured`. Use `@checks` with the `regex` function to validate the input.
 
     ```json
     {
@@ -229,7 +229,7 @@ Text input field with optional validation.
       },
       "placeholder": "name@example.com",
       "variant": "shortText",
-      "checks": [
+      "@checks": [
         {
           "condition": {
             "@call": "email",
@@ -488,7 +488,7 @@ All components share:
 
 - `id` (required): Unique identifier within the surface.
 - `weight`: Flex-grow value when inside a Row or Column.
-- `accessibility`: Attributes for assistive technologies such as screen readers. There is no `role` key.
+- `@accessibility` (`accessibility` in v0.9.1): Attributes for assistive technologies such as screen readers. There is no `role` key.
     - v0.9.1 and later: `label` and `description`. Each takes a string or a dynamic value (a data binding or a function call).
     - v1.0 and later: adds `live` (`"off"`, `"polite"`, or `"assertive"`; default `"off"`) and `hidden` (a boolean or a dynamic value; default `false`). Any other key fails validation.
 
@@ -501,7 +501,7 @@ In these examples the label is static and the description comes from the data mo
       "id": "order_status",
       "component": "Text",
       "text": {"@path": "/order/status"},
-      "accessibility": {
+      "@accessibility": {
         "label": "Order status",
         "description": {"@path": "/order/statusDetails"},
         "live": "polite",
@@ -528,16 +528,17 @@ In these examples the label is static and the description comes from the data mo
 
 The component names and most properties are the same in v1.0 and v0.9.1. The differences are:
 
-| Aspect               | v1.0                                              | v0.9.1                                     |
-| -------------------- | ------------------------------------------------- | ------------------------------------------ |
-| Data binding         | `{ "@path": "/data" }`                            | `{ "path": "/data" }`                      |
-| Function call        | `{ "@call": "fn", "args": { ... } }`              | `{ "call": "fn", "args": { ... } }`        |
-| Text styling         | `variant`: `caption` or `body`; Markdown headings | `variant`: `h1` to `h5`, `caption`, `body` |
-| TextField validation | `checks` with the `regex` function                | `validationRegexp` or `checks`             |
-| TextField            | `value` required; adds `placeholder`              | `value` optional                           |
-| Video                | adds `posterUrl`                                  | `url` only                                 |
-| Slider               | adds `steps`                                      | `min`, `max`, `value`                      |
-| Accessibility        | adds `live` and `hidden`                          | `label` and `description`                  |
+| Aspect               | v1.0                                                   | v0.9.1                                     |
+| -------------------- | ------------------------------------------------------ | ------------------------------------------ |
+| Data binding         | `{ "@path": "/data" }`                                 | `{ "path": "/data" }`                      |
+| Function call        | `{ "@call": "fn", "args": { ... } }`                   | `{ "call": "fn", "args": { ... } }`        |
+| Envelope keys        | `@catalogId`, `@accessibility`, `@metadata`, `@checks` | `accessibility`, `checks`                  |
+| Text styling         | `variant`: `caption` or `body`; Markdown headings      | `variant`: `h1` to `h5`, `caption`, `body` |
+| TextField validation | `@checks` with the `regex` function                    | `validationRegexp` or `checks`             |
+| TextField            | `value` required; adds `placeholder`                   | `value` optional                           |
+| Video                | adds `posterUrl`                                       | `url` only                                 |
+| Slider               | adds `steps`                                           | `min`, `max`, `value`                      |
+| Accessibility        | adds `live` and `hidden`                               | `label` and `description`                  |
 
 See the [v1.0 evolution guide](../specification/v1.0-evolution-guide.md) for the full list of changes.
 

@@ -30,10 +30,10 @@ imported from a versioned path:
 import {A2uiSurface} from '@a2ui/react';
 import {MessageProcessor} from '@a2ui/web_core';
 
-// Basic catalog for v0.9 / v0.9.1:
-import {basicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
-// ...or for v1.0:
-// import {basicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+// Basic catalog for v1.0:
+import {basicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+// ...or for v0.9 and v0.9.1:
+// import {basicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
 ```
 
 The `@a2ui/react/v0_9` entry point still works but only re-exports the package
@@ -47,12 +47,12 @@ The React renderer works alongside the `MessageProcessor` from `@a2ui/web_core`.
 - **Surface** — an independent rendering area, uniquely identified by a string ID, that the agent creates and populates with components.
 - **Catalog** — the set of components (e.g. `Text`, `Column`, `Button`) available for a surface to use.
 
-The example below creates a processor with the `basicCatalog` from `@a2ui/web_core`, feeds it a sequence of hardcoded messages, and renders the resulting surface.
+The example below creates a processor with the `basicCatalog` from `@a2ui/web_core/catalogs/basic/v1`, feeds it a sequence of hardcoded messages, and renders the resulting surface.
 
 ```tsx
 import {useState, useEffect} from 'react';
 import {MessageProcessor} from '@a2ui/web_core';
-import {basicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
+import {basicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
 import {A2uiSurface} from '@a2ui/react';
 
 export default function App() {
@@ -92,22 +92,22 @@ export default function App() {
 // Here we hardcode them to show the message format.
 const sampleAgentMessages = [
   {
-    version: 'v0.9' as const,
+    version: '1.0' as const,
     createSurface: {surfaceId: 'main-chat', catalogId: basicCatalog.id},
   },
   {
-    version: 'v0.9' as const,
+    version: '1.0' as const,
     updateComponents: {
       surfaceId: 'main-chat',
       components: [
         {id: 'root', component: 'Column', children: ['greeting', 'description']},
-        {id: 'greeting', component: 'Text', text: {path: '/title'}},
-        {id: 'description', component: 'Text', text: {path: '/body'}},
+        {id: 'greeting', component: 'Text', text: {'@path': '/title'}},
+        {id: 'description', component: 'Text', text: {'@path': '/body'}},
       ],
     },
   },
   {
-    version: 'v0.9' as const,
+    version: '1.0' as const,
     updateDataModel: {
       surfaceId: 'main-chat',
       path: '/',
@@ -122,31 +122,31 @@ const sampleAgentMessages = [
 
 Running this example should display "Hello from A2UI!". The example demonstrates three message types:
 
-- [`createSurface`](../../../specification/v0_9/docs/a2ui_protocol.md#createsurface) initializes the rendering surface.
-- [`updateComponents`](../../../specification/v0_9/docs/a2ui_protocol.md#updatecomponents) defines the UI tree. Here, a `Column` containing two `Text` components.
-- [`updateDataModel`](../../../specification/v0_9/docs/a2ui_protocol.md#updatedatamodel) provides the data that the components reference via [`path` bindings](../../../specification/v0_9/docs/a2ui_protocol.md#path-resolution--scope) (e.g. `{ path: '/title' }` resolves to the `title` field in the data model).
+- [`createSurface`](../../../specification/v1_0/docs/a2ui_protocol.md#createsurface) initializes the rendering surface.
+- [`updateComponents`](../../../specification/v1_0/docs/a2ui_protocol.md#updatecomponents) defines the UI tree. Here, a `Column` containing two `Text` components.
+- [`updateDataModel`](../../../specification/v1_0/docs/a2ui_protocol.md#updatedatamodel) provides the data that the components reference via [`@path` bindings](../../../specification/v1_0/docs/a2ui_protocol.md#path-resolution--scope) (e.g. `{ '@path': '/title' }` resolves to the `title` field in the data model).
 
 ## Defining Custom Components
 
-A2UI v0.9 strictly separates a component's API (Schema) from its implementation.
+A2UI separates a component's API (Schema) from its implementation.
 
 ### 1. Define the Component API
 
-Use Zod to define the properties. Using `CommonSchemas` from `web_core` enables automatic binding for A2UI primitives.
+Use Zod to define the properties. Using `CommonSchemas` from `@a2ui/web_core/v1_0` (or `@a2ui/web_core/v0_9` for v0.9 catalogs) enables automatic binding for A2UI primitives.
 
 ```typescript
 import {z} from 'zod';
-import {CommonSchemas} from '@a2ui/web_core/v0_9';
+import {CommonSchemas} from '@a2ui/web_core/v1_0';
 
 export const MyProfileApi = {
   name: 'Profile',
   schema: z.object({
-    username: CommonSchemas.DynamicString, // Can be literal "Alice" or {path: "/user/name"}
+    username: CommonSchemas.DynamicString, // Can be literal "Alice" or {'@path': "/user/name"}
     bio: CommonSchemas.DynamicString,
     avatarUrl: CommonSchemas.DynamicString,
     onEdit: CommonSchemas.Action, // Resolves to a clickable () => void
     isEditable: CommonSchemas.DynamicBoolean,
-    // Add 'checks' if you want validation support (standard in v0.9 interactive components)
+    // Add 'checks' if you want validation support
     checks: CommonSchemas.Checkable.shape.checks,
   }),
 };
@@ -280,7 +280,7 @@ const myCheckFunc = createFunctionImplementation(
 // 2. Compose the catalog
 export const myCatalog = new Catalog(
   'https://example.com/catalogs/v1.json',
-  'v0.9', // Protocol version the catalog targets
+  '1.0', // Protocol version the catalog targets
   [MyProfile, RawInspector], // List of ReactComponentImplementation
   [myCheckFunc], // List of FunctionImplementation
 );
@@ -288,7 +288,7 @@ export const myCatalog = new Catalog(
 
 ## Basic Catalog Components
 
-`@a2ui/web_core/v0_9/basic_catalog` (v0.9) and `@a2ui/web_core/catalogs/basic/v1` (v1.0) each provide a `basicCatalog` with the same standard components. They are W3C Custom Elements, and the React renderer renders them as elements:
+`@a2ui/web_core/catalogs/basic/v1` (v1.0) and `@a2ui/web_core/v0_9/basic_catalog` (v0.9 and v0.9.1) each provide a `basicCatalog` with the same standard components. They are W3C Custom Elements, and the React renderer renders them as elements:
 
 - **Layout**: `Row`, `Column`, `List`, `Card`, `Tabs`, `Modal`, `Divider`
 - **Content**: `Text`, `Image`, `Icon`, `Video`, `AudioPlayer`
@@ -341,7 +341,7 @@ export const MyComponent = createComponentImplementation(MyComponentApi, ({props
 
 ## Legacy Support (v0.8)
 
-A2UI v0.8 is deprecated and maintained only for backward compatibility. It is available from the `@a2ui/react/v0_8` entry point. New projects should use the package root, which supports v0.9 and v1.0 with type-safe binders and logic functions.
+A2UI v0.8 is deprecated and maintained only for backward compatibility. It is available from the `@a2ui/react/v0_8` entry point. New projects should use the package root (`@a2ui/react`), which supports v1.0, v0.9.1, and v0.9 with type-safe binders and logic functions.
 
 ### Import and Usage
 
@@ -365,7 +365,7 @@ function LegacyApp() {
 }
 ```
 
-### Key Differences (v0.8 vs v0.9)
+### Key Differences (v0.8 vs v0.9 and later)
 
 | Feature         | v0.8 (Deprecated)                       | v0.9 and later                                                   |
 | :-------------- | :-------------------------------------- | :--------------------------------------------------------------- |
@@ -387,7 +387,7 @@ function TextField({node, surfaceId}) {
 }
 ```
 
-In v0.9, this is handled by the **Generic Binder** before the component even renders, resulting in cleaner, framework-native view code.
+In v0.9 and later, this is handled by the **Generic Binder** before the component even renders, resulting in cleaner, framework-native view code.
 
 ## Security
 
@@ -411,7 +411,7 @@ yarn install
 
 ```bash
 yarn build    # Build the package
-yarn dev      # Watch mode
+yarn demo     # Launch the interactive React explorer
 ```
 
 ### Type Check
@@ -434,68 +434,7 @@ Uses [Vitest](https://vitest.dev/) +
 [React Testing Library](https://testing-library.com/docs/react-testing-library/intro/).
 
 ```bash
-yarn test              # Run once
+yarn test          # Run typecheck, unit tests, and integration tests
+yarn test:unit     # Run unit tests once
 yarn test:watch    # Watch mode
 ```
-
-**Structure:** `tests/ ├── setup.ts # Initializes component catalog ├──
-helpers.tsx # TestWrapper, TestRenderer, message creators └── components/ #
-Component tests (*.test.tsx)`
-
-**Example:** ```tsx import { render, screen, fireEvent } from
-'@testing-library/react'; import { TestWrapper, TestRenderer,
-createSimpleMessages } from '../helpers';
-
-it('should dispatch action on click', () => { const onAction = vi.fn(); const
-messages = createSimpleMessages('btn-1', 'Button', { child: 'text-1', action: {
-name: 'submit' }, });
-
-render( <TestWrapper onAction={onAction}> <TestRenderer messages={messages} />
-</TestWrapper> );
-
-fireEvent.click(screen.getByRole('button'));
-expect(onAction).toHaveBeenCalled(); }); ```
-
-## Visual Parity Testing
-
-The React renderer maintains visual parity with the Lit renderer (reference
-implementation). A comprehensive test suite compares pixel-perfect screenshots
-between both renderers.
-
-### Running Visual Parity Tests
-
-```bash
-cd visual-parity
-yarn test
-```
-
-### Quick Commands
-
-```bash
-# Run all tests
-yarn test
-
-# Run specific component tests
-yarn test --grep "button"
-
-# Run with UI mode
-yarn test:ui
-
-# Start dev servers for manual inspection
-yarn dev
-# React: http://localhost:5001
-# Lit: http://localhost:5002
-```
-
-### Documentation
-
-- **[visual-parity/README.md](./visual-parity/README.md)** - Test suite usage
-  and fixture creation
-- **[visual-parity/PARITY.md](./visual-parity/PARITY.md)** - CSS
-  transformation approach and implementation status
-
-### Key Concepts
-
-1.  **Structural Mirroring**: React components mirror Lit's Shadow DOM structure
-2.  **CSS Selector Transformation**: `:host` → `.a2ui-surface .a2ui-{component}`
-3.  **Specificity Matching**: Uses `:where()` to match Lit's low specificity
