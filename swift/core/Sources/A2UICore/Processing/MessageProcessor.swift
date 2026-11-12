@@ -302,15 +302,14 @@ public final class MessageProcessor: ObservableObject {
       catalogDictionary["components"] = .object(componentsDictionary)
     }
 
-    if !catalog.functions.isEmpty {
-      if version.isAtLeastV10 {
-        let functionsDictionary = generateV10InlineFunctions(catalog)
-        if !functionsDictionary.isEmpty {
-          catalogDictionary["functions"] = .object(functionsDictionary)
-        }
-      } else {
-        catalogDictionary["functions"] = .array(generateV09InlineFunctions(catalog))
-      }
+    let functionsDictionary =
+      version.isAtLeastV10 && !catalog.functions.isEmpty
+      ? generateV10InlineFunctions(catalog)
+      : [:]
+    if !functionsDictionary.isEmpty {
+      catalogDictionary["functions"] = .object(functionsDictionary)
+    } else if !version.isAtLeastV10, !catalog.functions.isEmpty {
+      catalogDictionary["functions"] = .array(generateV09InlineFunctions(catalog))
     }
 
     if !version.isAtLeastV10, let themeSchema = catalog.themeSchema {
@@ -319,7 +318,40 @@ public final class MessageProcessor: ObservableObject {
       catalogDictionary["theme"] = processedTheme["properties"] ?? processedTheme
     }
 
+    if version.isAtLeastV10 {
+      // `catalog_definition.json` requires `$defs` to hold both unions, even for a catalog with
+      // no components or no functions.
+      catalogDictionary["$defs"] = .object([
+        "anyComponent": inlineCatalogUnion(
+          of: componentsDictionary.keys,
+          in: "components",
+          discriminator: "component"
+        ),
+        "anyFunction": inlineCatalogUnion(of: functionsDictionary.keys, in: "functions"),
+      ])
+    }
+
     return .object(catalogDictionary)
+  }
+
+  /// A `oneOf` of references to `#/<section>/<name>` for each name, or `{"not": {}}` when there
+  /// are none, since JSON Schema requires `oneOf` to be non-empty.
+  private func inlineCatalogUnion(
+    of names: some Collection<String>,
+    in section: String,
+    discriminator: String? = nil
+  ) -> JSONValue {
+    guard !names.isEmpty else { return .object(["not": .object([:])]) }
+    let refs: [JSONValue] = names.map { name in
+      let token = name.replacingOccurrences(of: "~", with: "~0")
+        .replacingOccurrences(of: "/", with: "~1")
+      return .object(["$ref": .string("#/\(section)/\(token)")])
+    }
+    var union: OrderedDictionary<String, JSONValue> = ["oneOf": .array(refs)]
+    if let discriminator {
+      union["discriminator"] = .object(["propertyName": .string(discriminator)])
+    }
+    return .object(union)
   }
 
   private func generateInlineComponents(
@@ -608,7 +640,10 @@ public final class MessageProcessor: ObservableObject {
     do {
       let adapter = try adapterFactory.resolveFromPayload(payload)
       envelopeVersion = adapter.version
-      operations = try adapter.extractOperations(from: payload)
+      operations = try adapter.extractOperations(
+        from: payload,
+        allowUnknownElements: validationConfig.allowUnknownElements
+      )
     } catch {
       let rawContext = extractRawEnvelopeContext(from: payload, error: error)
       let surfaceID = extractSurfaceID(from: error, fallback: rawContext.surfaceID ?? "")
@@ -790,7 +825,10 @@ public final class MessageProcessor: ObservableObject {
 
   private func adaptToOperations(_ message: AgentToRendererMessage) throws -> [InternalOperation] {
     let adapter = adapterFactory.getAdapter(for: message.version)
-    return try adapter.adaptMessage(message)
+    return try adapter.adaptMessage(
+      message,
+      allowUnknownElements: validationConfig.allowUnknownElements
+    )
   }
 
   private func extractSurfaceID(from error: Error, fallback: String) -> String {
