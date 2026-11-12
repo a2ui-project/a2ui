@@ -15,10 +15,10 @@
  */
 
 import {Component} from '@angular/core';
-import {ComponentApi, MessageProcessor} from '@a2ui/web_core/v0_9';
+import {ComponentApi, MessageProcessor} from '@a2ui/web_core';
+import {isWebComponentImplementation} from '@a2ui/web_core/universal';
 import {A2uiText} from '@a2ui/web_core/v0_9/basic_catalog';
 import {CommonSchemas} from '@a2ui/web_core/v1_0';
-import {isWebComponentImplementation} from '@a2ui/web_core/v0_9/universal';
 import {AngularCatalog, createComponentImplementation} from './types';
 import {UniversalOnlyComponent} from './universal_only.component';
 import {BASIC_COMPONENTS} from '../v0_9/catalog/basic/basic-catalog';

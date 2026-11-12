@@ -15,11 +15,8 @@
  */
 
 import {Type} from '@angular/core';
-import {Catalog, ComponentApi, FunctionImplementation} from '@a2ui/web_core/v0_9';
-import {
-  WebComponentImplementation,
-  isWebComponentImplementation,
-} from '@a2ui/web_core/v0_9/universal';
+import {Catalog, ComponentApi, FunctionImplementation} from '@a2ui/web_core';
+import {WebComponentImplementation, isWebComponentImplementation} from '@a2ui/web_core/universal';
 import {z} from 'zod';
 import {CatalogComponentInstance} from '../core/catalog_component_instance';
 import {componentApiFields, toWebComponent} from './to_web_component';

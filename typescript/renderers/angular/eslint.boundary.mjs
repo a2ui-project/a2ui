@@ -25,6 +25,14 @@ export const BOUNDARY_RESTRICTED = {
   ],
 };
 
+export const BOUNDARY_FORBIDDEN_PATTERNS = [
+  {
+    group: ['@a2ui/web_core/v0_9', '@a2ui/web_core/v0_9/*'],
+    message:
+      'Import from @a2ui/web_core or @a2ui/web_core/universal instead of @a2ui/web_core/v0_9 in @a2ui/angular version-agnostic runtime code.',
+  },
+];
+
 export const BOUNDARY_ALLOWLIST = [
   'src/catalog/angular_wc_host.ts',
   'src/core/component-binder.service.ts',

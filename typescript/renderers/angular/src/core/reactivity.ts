@@ -30,7 +30,7 @@ import {
   setSignalImplementation,
   Signal,
   _PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION,
-} from '@a2ui/web_core/v0_9';
+} from '@a2ui/web_core';
 
 let isAttached = false;
 
