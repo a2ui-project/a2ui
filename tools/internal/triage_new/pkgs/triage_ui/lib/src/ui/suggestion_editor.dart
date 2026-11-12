@@ -69,18 +69,24 @@ class SuggestionEditor extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           spacing: 16,
           children: [
-            TextField(
-              controller: draft.reply,
-              minLines: 2,
-              maxLines: 10,
-              decoration: const InputDecoration(
-                labelText: 'Reply',
-                helperText:
-                    'Posted from your account. Leave it empty to post '
-                    'nothing.',
-                border: OutlineInputBorder(),
-                alignLabelWithHint: true,
-              ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 8,
+              children: [
+                // Posted before the reply, as the reply's heading.
+                if (draft.addedLabels.contains(needsTeamInputLabel))
+                  const Text(teamNoteTitle),
+                TextField(
+                  controller: draft.reply,
+                  minLines: 2,
+                  maxLines: 10,
+                  decoration: const InputDecoration(
+                    labelText: 'Reply',
+                    border: OutlineInputBorder(),
+                    alignLabelWithHint: true,
+                  ),
+                ),
+              ],
             ),
             Wrap(
               spacing: 16,

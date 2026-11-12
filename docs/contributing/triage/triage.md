@@ -25,7 +25,7 @@ For each issue in the [first-line triage queue][not-first-line-handled]:
 1. Go through the [second-line triage queue][needs-triage-minus-waiting]. For each item:
 
     - If you can triage it in a couple of minutes, [triage it](#triage-an-item).
-    - Otherwise, add [status: needs-team-input][needs-team-input]. Optionally, add a comment with your thoughts, starting with `**From triager for team discussion:**`, so that the [triage UI](../../../tools/internal/triage_new/blueprints/features/ui.blueprint.md) shows it with the item's suggestion. To ask the triage bot a question or for help, address it in that comment, as in "Triage bot, ...?". The [triage bot](../../../tools/internal/triage_new/blueprints/features/triage_bot.blueprint.md#requests-to-the-triage-bot) answers in a comment that starts with `**From triage bot:**` at its next daily run.
+    - Otherwise, add [status: needs-team-input][needs-team-input]. Optionally, add a comment with your thoughts, starting with `**Requires team input. Note for the discussion:**`, so that the [triage UI](../../../tools/internal/triage_new/blueprints/features/ui.blueprint.md) shows it with the item's suggestion. To ask the triage bot a question or for help, address it in that comment, as in "Triage bot, ...?". The [triage bot](../../../tools/internal/triage_new/blueprints/features/triage_bot.blueprint.md#requests-to-the-triage-bot) answers in a comment that starts with `**From triage bot:**` at its next daily run.
 
 2. Go through [status: needs-team-input][needs-team-input] with other team members. For each item:
 

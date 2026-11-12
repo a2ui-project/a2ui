@@ -34,10 +34,15 @@ const String needsTriageLabel = 'status: needs-triage';
 /// discuss. See `docs/contributing/triage/triage.md`.
 const String needsTeamInputLabel = 'status: needs-team-input';
 
+/// The prefix of the comment that the triager posts for the team when they
+/// add [needsTeamInputLabel], as the triage UI shows it above the reply.
+const String teamNoteTitle = 'Requires team input. Note for the discussion:';
+
 /// The heading of the comment that the triager posts for the team when they
-/// add [needsTeamInputLabel]. The triage UI shows the latest such comment
-/// with the item's suggestion. See `docs/contributing/triage/triage.md`.
-const String teamNoteHeading = '**From triager for team discussion:**\n\n';
+/// add [needsTeamInputLabel]. The triage UI adds it to the reply when it
+/// applies the suggestion, and shows the latest such comment with the item's
+/// suggestion. See `docs/contributing/triage/triage.md`.
+const String teamNoteHeading = '**$teamNoteTitle**\n\n';
 
 /// The types of items, in the order the list shows them. See
 /// `ui.blueprint.md`.

@@ -34,11 +34,20 @@ class TriageApp extends StatelessWidget {
   );
 }
 
-/// A white background, and gray as the main color.
+/// A white background, gray as the main color, and large bold tab headers.
 final ThemeData _theme = ThemeData(
   colorScheme: ColorScheme.fromSeed(
     seedColor: Colors.grey,
     dynamicSchemeVariant: DynamicSchemeVariant.monochrome,
   ).copyWith(primary: Colors.grey.shade700, surface: Colors.white),
   scaffoldBackgroundColor: Colors.white,
+  tabBarTheme: const TabBarThemeData(
+    labelStyle: _tabLabelStyle,
+    unselectedLabelStyle: _tabLabelStyle,
+  ),
+);
+
+const TextStyle _tabLabelStyle = TextStyle(
+  fontSize: 16,
+  fontWeight: FontWeight.bold,
 );

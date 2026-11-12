@@ -544,7 +544,7 @@ void main() {
         controller.item(a2ui(10))!,
         const TriageSuggestion(
           addedLabels: [needsTeamInputLabel],
-          reply: '${teamNoteHeading}Is this a P0?',
+          reply: 'Is this a P0?',
         ),
       )
       ..draftFor(
@@ -553,6 +553,9 @@ void main() {
       )
       ..select(a2ui(10));
     await tester.pumpAndSettle();
+
+    // The prefix that Apply adds to the reply shows above it.
+    expect(find.text(teamNoteTitle), findsOneWidget);
 
     await tester.tap(find.widgetWithText(FilledButton, 'Apply to 2 items'));
     await tester.pump();
@@ -571,7 +574,8 @@ void main() {
       containsAll([
         'POST issues/10/labels {"labels":["status: needs-team-input"]}',
         'POST issues/10/comments '
-            '{"body":"**From triager for team discussion:**\\n\\nIs this a P0?"}',
+            '{"body":"**Requires team input. Note for the discussion:**'
+            '\\n\\nIs this a P0?"}',
         'POST issues/20/labels {"labels":["status: needs-team-input"]}',
       ]),
     );
@@ -595,7 +599,13 @@ void main() {
     expect(sent, findsNWidgets(2));
     expect(controller.selectedGroup, ItemGroup.teamInput);
     expect(find.text('From @octocat for team discussion'), findsOneWidget);
-    expect(find.text('Is this a P0?'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(ItemInfo),
+        matching: find.text('Is this a P0?'),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('marks edited tabs, reverts them, and applies all tabs '

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:triage/triage.dart';
 import 'package:triage_ui/src/model/applier.dart';
@@ -92,6 +94,26 @@ void main() {
       'POST issues/12/assignees {"assignees":["octocat"]}',
       'close {"id":"I_12","reason":"DUPLICATE","duplicateOf":"I_7"}',
     ]);
+  });
+
+  test('posts the reply under the team note heading when it adds '
+      '"status: needs-team-input"', () async {
+    final ApplyResult result = await apply(
+      13,
+      const TriageSuggestion(
+        reply: 'Is this a P0?',
+        addedLabels: [needsTeamInputLabel],
+      ),
+    );
+
+    const posted =
+        '**Requires team input. Note for the discussion:**\n\nIs this a P0?';
+    // The log shows the reply as posted.
+    expect(result.steps.first.text, posted);
+    expect(
+      github.calls.first,
+      'POST issues/13/comments ${jsonEncode({'body': posted})}',
+    );
   });
 
   test('closes a pull request without a reason', () async {
