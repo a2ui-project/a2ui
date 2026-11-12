@@ -153,6 +153,7 @@
     "typecheck": {
       "command": "tsc --noEmit",
       "dependencies": [
+        "build",
         "../../core/web_core:build",
         "../markdown-it:build"
       ],
