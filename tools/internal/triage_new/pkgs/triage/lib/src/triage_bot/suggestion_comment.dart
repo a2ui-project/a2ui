@@ -18,15 +18,34 @@ import 'package:a2ui_core/a2ui_core.dart';
 import 'suggestion.dart';
 import 'triage_suggestion.dart';
 
-/// The text that every triage bot comment starts with.
+/// The heading of a suggestion comment.
+const String suggestionHeading = '**Suggestion from triage bot:**';
+
+/// The heading of a triage bot comment that answers requests to the triage
+/// bot on an item with `status: needs-team-input`.
+const String responseHeading = '**Response from triage bot:**';
+
+/// The heading of the other triage bot comments, such as the staleness
+/// pinger's, and of the suggestion comments posted before
+/// [suggestionHeading].
 const String triageBotPrefix = '**From triage bot:**';
+
+/// The headings that a triage bot comment starts with. See
+/// `blueprints/core.blueprint.md`.
+const List<String> triageBotHeadings = [
+  suggestionHeading,
+  responseHeading,
+  triageBotPrefix,
+];
 
 /// Whether [body] starts the way a triage bot comment does.
 ///
 /// A comment is a triage bot comment only if a team member or a bot posted
 /// it as well, which the caller checks.
-bool hasTriageBotPrefix(String body) =>
-    body.trimLeft().startsWith(triageBotPrefix);
+bool hasTriageBotPrefix(String body) {
+  final String start = body.trimLeft();
+  return triageBotHeadings.any(start.startsWith);
+}
 
 /// Whether [body] has an `<a2ui>` block, as a suggestion comment does.
 bool hasA2uiBlock(String body) => _parser.hasFormatContent(body);

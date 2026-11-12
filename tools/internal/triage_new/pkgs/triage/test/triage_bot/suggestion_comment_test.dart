@@ -19,9 +19,7 @@ import 'package:triage/triage.dart';
 /// A suggestion comment like the one in triage_bot.blueprint.md.
 String comment(String component) =>
     '''
-**From triage bot:**
-
-Triage suggestion:
+**Suggestion from triage bot:**
 
 <details>
 <summary>For humans</summary>
@@ -142,6 +140,12 @@ root = TriageSuggestion(
     );
     expect(hasTriageBotPrefix(body), isTrue);
     expect(hasTriageBotPrefix('Thanks!\n$body'), isFalse);
+    expect(hasTriageBotPrefix('**Response from triage bot:**\n\nHi.'), isTrue);
+    // A suggestion comment posted before the suggestion heading.
+    expect(
+      hasTriageBotPrefix(body.replaceFirst(suggestionHeading, triageBotPrefix)),
+      isTrue,
+    );
     expect(hasA2uiBlock(body), isTrue);
     expect(hasA2uiBlock('**From triage bot:**\n\nPing.'), isFalse);
   });
