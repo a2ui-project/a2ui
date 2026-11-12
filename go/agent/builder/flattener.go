@@ -313,19 +313,34 @@ func (c *FlattenContext) dumpReflectedNode(node Node, componentID string) (map[s
 var envelopeCarrierType = reflect.TypeFor[EnvelopeAttributeCarrier]()
 
 func (c *FlattenContext) serializeCustomNodeStructFields(rv reflect.Value) (map[string]any, error) {
+	return c.serializeReflectedStructFields(rv, true)
+}
+
+func (c *FlattenContext) serializeStructFields(rv reflect.Value) (map[string]any, error) {
+	return c.serializeReflectedStructFields(rv, false)
+}
+
+func (c *FlattenContext) serializeReflectedStructFields(rv reflect.Value, skipEnvelopeCarriers bool) (map[string]any, error) {
 	rt := rv.Type()
-	out := make(map[string]any)
+	direct := make(map[string]any, rt.NumField())
+	var embeddedMaps []map[string]any
+
 	for i := range rt.NumField() {
 		sf := rt.Field(i)
-		if !sf.IsExported() {
+		if !sf.IsExported() && !sf.Anonymous {
+			continue
+		}
+		explicitName, omitEmpty, skip := parseJSONTag(sf)
+		if skip {
 			continue
 		}
 		fv := rv.Field(i)
-		if sf.Anonymous {
-			// Skip embedded ComponentNode / base catalog node wrappers whose envelope
-			// attributes were already serialized via EnvelopeAttributeCarrier.
-			if sf.Type.Implements(envelopeCarrierType) || reflect.PointerTo(sf.Type).Implements(envelopeCarrierType) {
-				// Still recurse into any user-defined fields declared on intermediate embedded structs.
+		if sf.Anonymous && explicitName == "" {
+			sfElem := sf.Type
+			if sfElem.Kind() == reflect.Pointer {
+				sfElem = sfElem.Elem()
+			}
+			if sfElem.Kind() == reflect.Struct {
 				nestedRV := fv
 				if nestedRV.Kind() == reflect.Pointer {
 					if nestedRV.IsNil() {
@@ -333,51 +348,29 @@ func (c *FlattenContext) serializeCustomNodeStructFields(rv reflect.Value) (map[
 					}
 					nestedRV = nestedRV.Elem()
 				}
-				if nestedRV.Kind() == reflect.Struct && nestedRV.Type().Name() != "ComponentNode" {
-					sub, err := c.serializeCustomNodeStructFields(nestedRV)
-					if err != nil {
-						return nil, err
-					}
-					for k, v := range sub {
-						out[k] = v
-					}
+				if skipEnvelopeCarriers &&
+					(sf.Type.Implements(envelopeCarrierType) || reflect.PointerTo(sf.Type).Implements(envelopeCarrierType)) &&
+					nestedRV.Type().Name() == "ComponentNode" {
+					// Envelope attributes on embedded ComponentNode were already serialized via EnvelopeAttributeCarrier.
+					continue
+				}
+				sub, err := c.serializeReflectedStructFields(nestedRV, skipEnvelopeCarriers)
+				if err != nil {
+					return nil, err
+				}
+				if len(sub) > 0 {
+					embeddedMaps = append(embeddedMaps, sub)
 				}
 				continue
 			}
 		}
-
-		wireName, omitEmpty, skip := parseJSONTag(sf)
-		if skip {
-			continue
-		}
-		if isOmittedFieldValue(fv, omitEmpty) {
-			continue
-		}
-		ser, err := c.SerializeValue(fv.Interface())
-		if err != nil {
-			return nil, err
-		}
-		if ser == nil {
-			continue
-		}
-		out[wireName] = ser
-	}
-	return out, nil
-}
-
-func (c *FlattenContext) serializeStructFields(rv reflect.Value) (map[string]any, error) {
-	rt := rv.Type()
-	out := make(map[string]any, rt.NumField())
-	for i := range rt.NumField() {
-		sf := rt.Field(i)
 		if !sf.IsExported() {
 			continue
 		}
-		wireName, omitEmpty, skip := parseJSONTag(sf)
-		if skip {
-			continue
+		wireName := explicitName
+		if wireName == "" {
+			wireName = lowerFirst(sf.Name)
 		}
-		fv := rv.Field(i)
 		if isOmittedFieldValue(fv, omitEmpty) {
 			continue
 		}
@@ -388,29 +381,47 @@ func (c *FlattenContext) serializeStructFields(rv reflect.Value) (map[string]any
 		if ser == nil {
 			continue
 		}
-		out[wireName] = ser
+		direct[wireName] = ser
+	}
+
+	if len(embeddedMaps) == 0 {
+		return direct, nil
+	}
+	counts := make(map[string]int)
+	for _, sub := range embeddedMaps {
+		for k := range sub {
+			counts[k]++
+		}
+	}
+	out := make(map[string]any, len(counts)+len(direct))
+	for _, sub := range embeddedMaps {
+		for k, v := range sub {
+			if counts[k] == 1 {
+				out[k] = v
+			}
+		}
+	}
+	for k, v := range direct {
+		out[k] = v
 	}
 	return out, nil
 }
 
-func parseJSONTag(sf reflect.StructField) (name string, omitEmpty bool, skip bool) {
+func parseJSONTag(sf reflect.StructField) (explicitName string, omitEmpty bool, skip bool) {
 	tag := sf.Tag.Get("json")
 	if tag == "-" {
 		return "", false, true
 	}
 	if tag != "" {
 		parts := strings.Split(tag, ",")
-		name = parts[0]
+		explicitName = parts[0]
 		for _, opt := range parts[1:] {
 			if opt == "omitempty" {
 				omitEmpty = true
 			}
 		}
 	}
-	if name == "" {
-		name = lowerFirst(sf.Name)
-	}
-	return name, omitEmpty, false
+	return explicitName, omitEmpty, false
 }
 
 func lowerFirst(s string) string {

@@ -269,3 +269,78 @@ func TestComponentTreeMarshalJSON(t *testing.T) {
 		t.Fatalf("unexpected ComponentTree JSON:\n got: %s\nwant: %s", raw, want)
 	}
 }
+
+type embeddedAxisMixin struct {
+	XAxis string `json:"xAxis"`
+	Title string `json:"title"`
+}
+
+type EmbeddedLegendMixin struct {
+	ShowLegend bool `json:"showLegend"`
+}
+
+type nestedChartConfig struct {
+	embeddedAxisMixin
+	*EmbeddedLegendMixin
+	TaggedEmbed EmbeddedLegendMixin `json:"taggedEmbed"`
+	Title       string              `json:"title"`
+}
+
+type embeddedChartNode struct {
+	customCatalogBase
+	embeddedAxisMixin
+	*EmbeddedLegendMixin
+	NamedMixin EmbeddedLegendMixin `json:"namedMixin"`
+	Title      string              `json:"title"`
+	Config     nestedChartConfig   `json:"config"`
+}
+
+func (embeddedChartNode) ComponentType() string { return "EmbeddedChart" }
+
+func TestAnonymousEmbeddedStructFlattening(t *testing.T) {
+	legendTrue := &EmbeddedLegendMixin{ShowLegend: true}
+	node := &embeddedChartNode{
+		embeddedAxisMixin:   embeddedAxisMixin{XAxis: "time", Title: "inner-node-title"},
+		EmbeddedLegendMixin: legendTrue,
+		NamedMixin:          EmbeddedLegendMixin{ShowLegend: false},
+		Title:               "outer-node-title",
+		Config: nestedChartConfig{
+			embeddedAxisMixin:   embeddedAxisMixin{XAxis: "latency", Title: "inner-cfg-title"},
+			EmbeddedLegendMixin: nil, // nil embedded pointer should be omitted
+			TaggedEmbed:         EmbeddedLegendMixin{ShowLegend: true},
+			Title:               "outer-cfg-title",
+		},
+	}
+	node.ID = "chart_1"
+
+	flat, err := builder.FlattenComponentTree(node, "")
+	if err != nil {
+		t.Fatalf("FlattenComponentTree failed: %v", err)
+	}
+	if len(flat) != 1 {
+		t.Fatalf("expected 1 component, got %d", len(flat))
+	}
+	got := flat[0]
+	if got["xAxis"] != "time" || got["showLegend"] != true || got["title"] != "outer-node-title" {
+		t.Fatalf("unexpected flattened custom node fields: %#v", got)
+	}
+	if _, hasRawMixinKey := got["embeddedAxisMixin"]; hasRawMixinKey {
+		t.Fatalf("anonymous embeddedAxisMixin was not flattened: %#v", got)
+	}
+	if _, hasPtrMixinKey := got["embeddedLegendMixin"]; hasPtrMixinKey {
+		t.Fatalf("anonymous EmbeddedLegendMixin pointer was not flattened: %#v", got)
+	}
+	wantNamed := map[string]any{"showLegend": false}
+	if !reflect.DeepEqual(got["namedMixin"], wantNamed) {
+		t.Fatalf("explicitly named field = %#v, want %#v", got["namedMixin"], wantNamed)
+	}
+
+	wantCfg := map[string]any{
+		"xAxis":       "latency",
+		"title":       "outer-cfg-title",
+		"taggedEmbed": map[string]any{"showLegend": true},
+	}
+	if !reflect.DeepEqual(got["config"], wantCfg) {
+		t.Fatalf("nested struct config = %#v, want %#v", got["config"], wantCfg)
+	}
+}

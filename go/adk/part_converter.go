@@ -149,14 +149,11 @@ func (c *PartConverter) Convert(part *genai.Part) ([]a2a.Part, error) {
 	}
 
 	// 4. Default GenAI -> A2A conversion (preserving A2UI DataParts encoded by ADK).
-	converted, err := convertDefaultGenAIPartToA2A(part)
+	converted, err := convertDefaultGenAIPartToA2AParts(part)
 	if err != nil {
 		return nil, err
 	}
-	if converted == nil {
-		return []a2a.Part{}, nil
-	}
-	return []a2a.Part{converted}, nil
+	return converted, nil
 }
 
 // parseContent parses an A2UI response into A2A parts. A response that fails to
@@ -223,31 +220,71 @@ func encodeDataPartToGenAI(dp a2a.DataPart) (*genai.Part, error) {
 }
 
 // DecodeGenAIPartA2UIMessages extracts A2UI messages from a GenAI Part carrying an ADK-tagged A2A DataPart.
-// Non-tagged parts (such as media blobs or plain text) and malformed JSON return nil without error.
+// Both single JSON objects (wrapped DataPart maps or direct A2UI envelopes) and JSON arrays of A2UI messages
+// are supported. Non-tagged parts (such as media blobs or plain text) and malformed JSON return nil without error.
 func DecodeGenAIPartA2UIMessages(part *genai.Part) []map[string]any {
 	rawJSON, ok := extractTaggedDataPartJSON(part)
 	if !ok {
 		return nil
 	}
-	var obj map[string]any
-	if err := json.Unmarshal(rawJSON, &obj); err != nil || obj == nil {
+	var val any
+	if err := json.Unmarshal(rawJSON, &val); err != nil || val == nil {
 		return nil
 	}
-	// Support both wrapped DataPart JSON ({"data": ..., "metadata": {"mimeType": ...}})
-	// and ADK-Go's direct Data map JSON ({"version": "1.0", "callAgentFunction": ...}).
-	if meta, ok := obj["metadata"].(map[string]any); ok {
-		if data, ok := obj["data"].(map[string]any); ok {
-			dp := a2a.DataPart{Data: data, Metadata: meta}
-			if a2aext.IsA2UIPart(dp) {
-				return []map[string]any{data}
-			}
+	return extractA2UIMessagesFromDecodedDataPart(val)
+}
+
+func extractA2UIMessagesFromDecodedDataPart(val any) []map[string]any {
+	switch typed := val.(type) {
+	case map[string]any:
+		// Support both wrapped DataPart JSON ({"data": ..., "metadata": {"mimeType": ...}})
+		// and ADK-Go's direct Data map JSON ({"version": "1.0", "callAgentFunction": ...}).
+		if msgs, isWrapped := unwrapTaggedDataPartA2UI(typed); isWrapped {
+			return msgs
+		}
+		if isA2UIEnvelopeMap(typed) {
+			return []map[string]any{typed}
+		}
+		return nil
+	case []any:
+		if len(typed) == 0 {
 			return nil
 		}
+		out := make([]map[string]any, 0, len(typed))
+		for _, item := range typed {
+			m, ok := item.(map[string]any)
+			if !ok {
+				return nil
+			}
+			if msgs, isWrapped := unwrapTaggedDataPartA2UI(m); isWrapped {
+				if len(msgs) == 0 {
+					return nil
+				}
+				out = append(out, msgs...)
+				continue
+			}
+			if !isA2UIEnvelopeMap(m) {
+				return nil
+			}
+			out = append(out, m)
+		}
+		return out
+	default:
+		return nil
 	}
-	if isA2UIEnvelopeMap(obj) {
-		return []map[string]any{obj}
+}
+
+func unwrapTaggedDataPartA2UI(obj map[string]any) ([]map[string]any, bool) {
+	meta, hasMeta := obj["metadata"].(map[string]any)
+	data, hasData := obj["data"].(map[string]any)
+	if !hasMeta || !hasData {
+		return nil, false
 	}
-	return nil
+	dp := a2a.DataPart{Data: data, Metadata: meta}
+	if a2aext.IsA2UIPart(dp) {
+		return []map[string]any{data}, true
+	}
+	return nil, true
 }
 
 func extractTaggedDataPartJSON(part *genai.Part) ([]byte, bool) {
@@ -280,34 +317,49 @@ func isA2UIEnvelopeMap(m map[string]any) bool {
 	return false
 }
 
-func convertDefaultGenAIPartToA2A(part *genai.Part) (a2a.Part, error) {
+func convertDefaultGenAIPartToA2AParts(part *genai.Part) ([]a2a.Part, error) {
 	if part == nil {
-		return nil, nil
+		return []a2a.Part{}, nil
 	}
 	if part.Text != "" {
 		tp := a2a.TextPart{Text: part.Text}
 		if part.Thought {
 			tp.Metadata = map[string]any{adkThoughtMetaKey: true}
 		}
-		return tp, nil
+		return []a2a.Part{tp}, nil
 	}
 	if rawJSON, ok := extractTaggedDataPartJSON(part); ok {
-		var obj map[string]any
-		if err := json.Unmarshal(rawJSON, &obj); err != nil {
+		var val any
+		if err := json.Unmarshal(rawJSON, &val); err != nil {
 			return nil, err
 		}
-		if meta, ok := obj["metadata"].(map[string]any); ok {
-			if data, ok := obj["data"].(map[string]any); ok {
-				return a2a.DataPart{Data: data, Metadata: meta}, nil
+		switch typed := val.(type) {
+		case map[string]any:
+			if meta, ok := typed["metadata"].(map[string]any); ok {
+				if data, ok := typed["data"].(map[string]any); ok {
+					return []a2a.Part{a2a.DataPart{Data: data, Metadata: meta}}, nil
+				}
 			}
+			if isA2UIEnvelopeMap(typed) {
+				return []a2a.Part{a2aext.CreateA2UIPart(typed, "")}, nil
+			}
+			return []a2a.Part{a2a.DataPart{Data: typed}}, nil
+		case []any:
+			msgs := extractA2UIMessagesFromDecodedDataPart(typed)
+			if len(msgs) == 0 {
+				return nil, fmt.Errorf("adk: tagged DataPart JSON array does not contain A2UI message objects")
+			}
+			out := make([]a2a.Part, len(msgs))
+			for i, m := range msgs {
+				out[i] = a2aext.CreateA2UIPart(m, "")
+			}
+			return out, nil
+		default:
+			return nil, fmt.Errorf("adk: unsupported tagged DataPart JSON value %T", val)
 		}
-		if isA2UIEnvelopeMap(obj) {
-			return a2aext.CreateA2UIPart(obj, ""), nil
-		}
-		return a2a.DataPart{Data: obj}, nil
 	}
 	if part.FileData != nil {
-		return a2a.FilePart{
+		return []a2a.Part{a2a.FilePart{
 			File: a2a.FileURI{
 				URI: part.FileData.FileURI,
 				FileMeta: a2a.FileMeta{
@@ -315,10 +367,10 @@ func convertDefaultGenAIPartToA2A(part *genai.Part) (a2a.Part, error) {
 					Name:     part.FileData.DisplayName,
 				},
 			},
-		}, nil
+		}}, nil
 	}
 	if part.InlineData != nil {
-		return a2a.FilePart{
+		return []a2a.Part{a2a.FilePart{
 			File: a2a.FileBytes{
 				Bytes: base64.StdEncoding.EncodeToString(part.InlineData.Data),
 				FileMeta: a2a.FileMeta{
@@ -326,29 +378,29 @@ func convertDefaultGenAIPartToA2A(part *genai.Part) (a2a.Part, error) {
 					Name:     part.InlineData.DisplayName,
 				},
 			},
-		}, nil
+		}}, nil
 	}
 	if part.FunctionCall != nil {
 		data, err := structToMap(part.FunctionCall)
 		if err != nil {
 			return nil, err
 		}
-		return a2a.DataPart{
+		return []a2a.Part{a2a.DataPart{
 			Data:     data,
 			Metadata: map[string]any{adkTypeMetaKey: "function_call"},
-		}, nil
+		}}, nil
 	}
 	if part.FunctionResponse != nil {
 		data, err := structToMap(part.FunctionResponse)
 		if err != nil {
 			return nil, err
 		}
-		return a2a.DataPart{
+		return []a2a.Part{a2a.DataPart{
 			Data:     data,
 			Metadata: map[string]any{adkTypeMetaKey: "function_response"},
-		}, nil
+		}}, nil
 	}
-	return nil, nil
+	return []a2a.Part{}, nil
 }
 
 func structToMap(v any) (map[string]any, error) {

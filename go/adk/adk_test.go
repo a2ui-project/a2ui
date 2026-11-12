@@ -504,3 +504,45 @@ func TestRPCCallback(t *testing.T) {
 		t.Fatalf("expected nil content for user action, got %#v", fallthroughContent)
 	}
 }
+
+func TestDecodeGenAIPartA2UIMessagesArrayPayloads(t *testing.T) {
+	taggedArrayPart := &genai.Part{
+		InlineData: &genai.Blob{
+			MIMEType: "text/plain",
+			Data: []byte(`<a2a_datapart_json>[` +
+				`{"version":"1.0","createSurface":{"surfaceId":"s1","catalogId":"https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"}},` +
+				`{"version":"1.0","deleteSurface":{"surfaceId":"s1"}}` +
+				`]</a2a_datapart_json>`),
+		},
+	}
+
+	msgs := adk.DecodeGenAIPartA2UIMessages(taggedArrayPart)
+	if len(msgs) != 2 {
+		t.Fatalf("expected 2 decoded A2UI messages from array payload, got %#v", msgs)
+	}
+	if _, ok := msgs[0]["createSurface"]; !ok {
+		t.Fatalf("expected first message to be createSurface, got %#v", msgs[0])
+	}
+	if _, ok := msgs[1]["deleteSurface"]; !ok {
+		t.Fatalf("expected second message to be deleteSurface, got %#v", msgs[1])
+	}
+
+	conv := adk.NewPartConverter(nil, nil)
+	parts, err := conv.Convert(taggedArrayPart)
+	if err != nil {
+		t.Fatalf("PartConverter.Convert(array): %v", err)
+	}
+	if len(parts) != 2 || !a2aext.IsA2UIPart(parts[0]) || !a2aext.IsA2UIPart(parts[1]) {
+		t.Fatalf("expected 2 A2UI DataParts from array payload, got %#v", parts)
+	}
+
+	nonA2UIArrayPart := &genai.Part{
+		InlineData: &genai.Blob{
+			MIMEType: "text/plain",
+			Data:     []byte(`<a2a_datapart_json>[{"foo":"bar"}]</a2a_datapart_json>`),
+		},
+	}
+	if got := adk.DecodeGenAIPartA2UIMessages(nonA2UIArrayPart); got != nil {
+		t.Fatalf("expected nil for non-A2UI JSON array, got %#v", got)
+	}
+}

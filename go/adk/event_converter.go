@@ -187,13 +187,11 @@ func (c *EventConverter) convertParts(event *session.Event, key streamKey, proc 
 	if proc == nil {
 		var out []a2a.Part
 		for _, gp := range genaiParts {
-			ap, err := convertDefaultGenAIPartToA2A(gp)
+			aps, err := convertDefaultGenAIPartToA2AParts(gp)
 			if err != nil {
 				return nil, err
 			}
-			if ap != nil {
-				out = append(out, ap)
-			}
+			out = append(out, aps...)
 		}
 		return out, nil
 	}
