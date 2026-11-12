@@ -29,7 +29,8 @@ public final class FormatNumberFunction: FunctionImplementation, Sendable {
             "decimals": { "type": "number" },
             "grouping": { "type": "boolean" }
           },
-          "required": ["value"]
+          "required": ["value"],
+          "additionalProperties": false
         }
         """
     )

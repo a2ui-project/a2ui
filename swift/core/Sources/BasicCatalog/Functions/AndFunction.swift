@@ -30,7 +30,8 @@ public final class AndFunction: FunctionImplementation, Sendable {
               "minItems": 2
             }
           },
-          "required": ["values"]
+          "required": ["values"],
+          "additionalProperties": false
         }
         """
     )

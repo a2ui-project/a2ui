@@ -26,7 +26,8 @@ public final class NotFunction: FunctionImplementation, Sendable {
           "properties": {
             "value": { "type": "boolean" }
           },
-          "required": ["value"]
+          "required": ["value"],
+          "additionalProperties": false
         }
         """
     )

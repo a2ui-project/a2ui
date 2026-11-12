@@ -37,7 +37,8 @@ public final class NumericFunction: FunctionImplementation, Sendable {
             "anyOf": [
               { "required": ["min"] },
               { "required": ["max"] }
-            ]
+            ],
+            "additionalProperties": false
           }
           """
       )

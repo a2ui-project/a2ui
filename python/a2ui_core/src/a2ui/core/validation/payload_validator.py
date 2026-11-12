@@ -1150,6 +1150,58 @@ class PayloadValidator:
                 )
             )
 
+        self._check_pre_v10_return_type(
+            fn_name, call, call_path, at_least_v10, full_check, errors
+        )
+
+    def _check_pre_v10_return_type(
+        self,
+        fn_name: str,
+        call: dict[str, Any],
+        call_path: str,
+        at_least_v10: bool,
+        full_check: bool,
+        errors: list[A2uiErrorDetail],
+    ) -> None:
+        """Checks an explicit pre-v1.0 `returnType` against the catalog definition."""
+        if at_least_v10 or not full_check or "returnType" not in call:
+            return
+        expected_rt = self._expected_function_return_type(fn_name)
+        actual_rt = call["returnType"]
+        if (
+            expected_rt is not None
+            and expected_rt != "any"
+            and actual_rt != expected_rt
+        ):
+            errors.append(
+                A2uiErrorDetail(
+                    path=f"{call_path}.returnType",
+                    code="invalid_function_call",
+                    message=(
+                        f"Function '{fn_name}' expects returnType"
+                        f" '{expected_rt}', got '{actual_rt}'"
+                    ),
+                )
+            )
+
+    def _expected_function_return_type(self, fn_name: str) -> str | None:
+        """Returns the catalog function's declared returnType, or None."""
+        fn_def, fn_schema, _ = self._find_function_definition(fn_name)
+        return_type = getattr(fn_def, "return_type", None)
+        if isinstance(return_type, str):
+            return return_type
+        if isinstance(fn_schema, dict):
+            top = fn_schema.get("returnType")
+            if isinstance(top, str):
+                return top
+            props = fn_schema.get("properties")
+            if isinstance(props, dict):
+                rt_prop = props.get("returnType")
+                const_rt = rt_prop.get("const") if isinstance(rt_prop, dict) else None
+                if isinstance(const_rt, str):
+                    return const_rt
+        return None
+
     def _validate_system_function(
         self,
         fn_name: str,

@@ -33,7 +33,8 @@ public final class RegexFunction: FunctionImplementation, Sendable {
               "value": { "type": "string" },
               "pattern": { "type": "string" }
             },
-            "required": ["value", "pattern"]
+            "required": ["value", "pattern"],
+            "additionalProperties": false
           }
           """
       )

@@ -37,7 +37,8 @@ public final class LengthFunction: FunctionImplementation, Sendable {
             "anyOf": [
               { "required": ["min"] },
               { "required": ["max"] }
-            ]
+            ],
+            "additionalProperties": false
           }
           """
       )
