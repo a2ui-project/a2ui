@@ -37,7 +37,9 @@ TRUNCATED = '<a2ui>\nsurface("s")\nroot = Card("missing")\n'
 
 
 def _retry_example() -> Any:
-    blocks = re.findall(r"```python\n(.*?)\n```", GUIDE.read_text(), re.DOTALL)
+    blocks = re.findall(
+        r"```python\n(.*?)\n```", GUIDE.read_text(encoding="utf-8"), re.DOTALL
+    )
     block = next(b for b in blocks if "async def generate_validated_turn(" in b)
     namespace: dict[str, Any] = {}
     exec(compile(block, str(GUIDE), "exec"), namespace)
