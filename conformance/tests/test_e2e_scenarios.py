@@ -69,6 +69,13 @@ V091_CATALOG_STUB = {
         "anyFunction": {"type": "object", "additionalProperties": True},
     },
 }
+# The v0.9.1 message schemas have $ids of their own, so their "catalog.json"
+# resolves under v0.9.1. common_types.json keeps v0.9's $id, so its
+# "catalog.json" resolves under v0.9.
+V091_MESSAGE_CATALOG_STUB = {
+    **V091_CATALOG_STUB,
+    "$id": "https://a2ui.org/specification/v0_9_1/catalog.json",
+}
 V091_SERVER_TO_CLIENT = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://a2ui.org/specification/v0_9/server_to_client.json",
@@ -120,6 +127,10 @@ SPEC_REGISTRY = referencing.Registry().with_resources([
     (
         V091_CATALOG_STUB["$id"],
         referencing.Resource.from_contents(V091_CATALOG_STUB),
+    ),
+    (
+        V091_MESSAGE_CATALOG_STUB["$id"],
+        referencing.Resource.from_contents(V091_MESSAGE_CATALOG_STUB),
     ),
 ])
 
