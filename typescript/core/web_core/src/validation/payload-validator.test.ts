@@ -825,6 +825,73 @@ describe('PayloadValidator', () => {
         A2uiValidationError,
       );
     });
+
+    it('narrows ZodDiscriminatedUnion property schemas via discriminator lookup', () => {
+      const dynamicString = z.union([
+        z.string(),
+        z
+          .object({
+            call: z.string(),
+            args: z.record(z.any()).optional(),
+            returnType: z.literal('string').optional(),
+          })
+          .passthrough(),
+      ]);
+      const dynamicNumber = z.union([
+        z.number(),
+        z
+          .object({
+            call: z.string(),
+            args: z.record(z.any()).optional(),
+            returnType: z.literal('number'),
+          })
+          .passthrough(),
+      ]);
+      const discriminatedCatalog = new Catalog(
+        'https://example.com/discriminated.json',
+        '0.9',
+        [
+          {
+            name: 'Badge',
+            schema: z
+              .object({
+                content: z.discriminatedUnion('kind', [
+                  z.object({kind: z.literal('str'), value: dynamicString}).strict(),
+                  z.object({kind: z.literal('num'), value: dynamicNumber}).strict(),
+                ]),
+              })
+              .strict(),
+          },
+        ],
+        [
+          {name: 'formatText', returnType: 'string', schema: z.object({}).strict()},
+          {name: 'countItems', returnType: 'number', schema: z.object({}).strict()},
+        ],
+      );
+      const discValidator = new PayloadValidator(discriminatedCatalog, STRICT_VALIDATION);
+      assert.doesNotThrow(() =>
+        discValidator.validateComponent({
+          id: 'b-1',
+          component: 'Badge',
+          content: {
+            kind: 'str',
+            value: {call: 'formatText', args: {}, returnType: 'string'},
+          },
+        }),
+      );
+      assert.throws(
+        () =>
+          discValidator.validateComponent({
+            id: 'b-1',
+            component: 'Badge',
+            content: {
+              kind: 'str',
+              value: {call: 'countItems', args: {}, returnType: 'number'},
+            },
+          }),
+        A2uiValidationError,
+      );
+    });
   });
 
   describe('component envelope mixins', () => {

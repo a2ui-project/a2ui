@@ -671,13 +671,14 @@ export class PayloadValidator {
       callName !== undefined
         ? this.resolveCallArgsSchema(record, callName, componentCatalogId)
         : undefined;
+    const recordSchema = callName === undefined ? narrowRecordSchema(schema, record) : undefined;
     for (const [k, v] of Object.entries(record)) {
       const childSchema =
         callName !== undefined
           ? k === 'args'
             ? callArgsSchema
             : undefined
-          : propertySchema(schema, k, record);
+          : propertySchema(recordSchema, k, record);
       this.validateNestedFunctions(v, componentCatalogId, `${currentPath}/${k}`, childSchema);
     }
   }
@@ -1045,14 +1046,59 @@ function propertySchema(
       return propertySchema(def.right, key, record) ?? propertySchema(def.left, key, record);
     case 'ZodUnion':
     case 'ZodDiscriminatedUnion':
-      return unionPropertySchema(schema, def.options, key, record);
+      return unionPropertySchema(schema, core, def.options, key, record);
     default:
       return undefined;
   }
 }
 
+function narrowUnionOptions(
+  core: z.ZodTypeAny,
+  options: readonly z.ZodTypeAny[],
+  record?: Record<string, unknown>,
+): readonly z.ZodTypeAny[] {
+  if (!record) return options;
+  const def = core._def as {
+    typeName?: string;
+    discriminator?: string;
+    optionsMap?: Map<unknown, z.ZodTypeAny>;
+  };
+  if (
+    def.typeName === 'ZodDiscriminatedUnion' &&
+    typeof def.discriminator === 'string' &&
+    def.optionsMap instanceof Map
+  ) {
+    const match = def.optionsMap.get(record[def.discriminator]);
+    return match ? [match] : options;
+  }
+  const matching = options.filter(opt => opt.safeParse(record).success);
+  return matching.length > 0 ? matching : options;
+}
+
+function narrowRecordSchema(
+  schema: z.ZodTypeAny | undefined,
+  record: Record<string, unknown>,
+): z.ZodTypeAny | undefined {
+  const core = unwrapZodSchema(schema);
+  if (!core || directDynamicReturnType(schema) !== undefined) {
+    return schema;
+  }
+  const def = core._def as {
+    typeName?: string;
+    options?: z.ZodTypeAny[];
+  };
+  if (
+    (def.typeName === 'ZodUnion' || def.typeName === 'ZodDiscriminatedUnion') &&
+    Array.isArray(def.options)
+  ) {
+    return combineSchemas(narrowUnionOptions(core, def.options, record));
+  }
+  return core;
+}
+
 function unionPropertySchema(
   schema: z.ZodTypeAny | undefined,
+  core: z.ZodTypeAny,
   options: readonly z.ZodTypeAny[] | undefined,
   key: string,
   record?: Record<string, unknown>,
@@ -1060,8 +1106,7 @@ function unionPropertySchema(
   if (!Array.isArray(options) || directDynamicReturnType(schema) !== undefined) {
     return undefined;
   }
-  const matching = record !== undefined ? options.filter(opt => opt.safeParse(record).success) : [];
-  const active = matching.length > 0 ? matching : options;
+  const active = narrowUnionOptions(core, options, record);
   const matches = active
     .map(opt => propertySchema(opt, key, record))
     .filter((found): found is z.ZodTypeAny => found !== undefined);
