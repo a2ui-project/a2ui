@@ -1,0 +1,159 @@
+{
+  "name": "@a2ui/catalog-file-upload",
+  "version": "0.1.0",
+  "description": "A2UI File Upload catalog: universal FileUpload component that delegates file transfers to a host-configured FileUploader and writes FileReference pointers to the surface data model.",
+  "homepage": "https://a2ui.org/",
+  "repository": {
+    "directory": "typescript/catalogs/file_upload",
+    "type": "git",
+    "url": "git+https://github.com/a2ui-project/a2ui.git"
+  },
+  "bugs": {
+    "url": "https://github.com/a2ui-project/a2ui/issues"
+  },
+  "keywords": [
+    "a2ui",
+    "file-upload",
+    "upload",
+    "ai",
+    "agent",
+    "ui",
+    "catalog"
+  ],
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./catalog.json": "./dist/catalog.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "prepublishOnly": "node -e \"if(!process.cwd().endsWith('dist')) { console.error('Error: This package must be published from the dist/ directory. Run `yarn build` then `cd dist && yarn npm publish`'); process.exit(1); }\"",
+    "copy-catalog": "wireit",
+    "build:tsc": "wireit",
+    "build": "wireit",
+    "test:types": "wireit",
+    "test:node": "wireit",
+    "test": "wireit",
+    "lint": "wireit",
+    "lint:fix": "yarn copy-catalog && eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "clean": "wireit",
+    "publish:package": "yarn build && node ../../scripts/prepare-publish.mjs && cd dist && touch yarn.lock && yarn install && yarn npm publish --access public"
+  },
+  "wireit": {
+    "copy-catalog": {
+      "command": "cp ../../../catalogs/file_upload/catalog.json src/catalog.json",
+      "files": [
+        "../../../catalogs/file_upload/catalog.json"
+      ],
+      "output": [
+        "src/catalog.json"
+      ]
+    },
+    "build:tsc": {
+      "command": "tsc -b --pretty",
+      "dependencies": [
+        "../../../typescript/core/web_core:build",
+        "copy-catalog"
+      ],
+      "files": [
+        "src/**/*.ts",
+        "!src/**/*.test.ts",
+        "!src/testing/**",
+        "src/**/*.json",
+        "tsconfig.json"
+      ],
+      "output": [
+        "dist/**",
+        ".tsbuildinfo"
+      ],
+      "clean": "if-file-deleted"
+    },
+    "build": {
+      "dependencies": [
+        "build:tsc"
+      ]
+    },
+    "test:types": {
+      "command": "tsc -p tsconfig.test.json --pretty",
+      "dependencies": [
+        "build:tsc"
+      ],
+      "files": [
+        "src/**/*.ts",
+        "src/**/*.json",
+        "../../../catalogs/file_upload/examples/*.json",
+        "tsconfig.json",
+        "tsconfig.test.json"
+      ],
+      "output": []
+    },
+    "test:node": {
+      "command": "node --import tsx --import ./src/testing/dom.ts --test \"src/**/*.test.ts\"",
+      "dependencies": [
+        "build:tsc",
+        "test:types"
+      ],
+      "files": [
+        "src/**/*.ts",
+        "src/catalog.json",
+        "../../../catalogs/file_upload/examples/*.json"
+      ],
+      "output": []
+    },
+    "test": {
+      "dependencies": [
+        "test:node"
+      ]
+    },
+    "lint": {
+      "command": "eslint .",
+      "dependencies": [
+        "../../../typescript/core/web_core:build",
+        "build:tsc"
+      ],
+      "files": [
+        "src/**/*.ts",
+        "src/**/*.json",
+        "*.mjs",
+        "tsconfig.json",
+        "tsconfig.test.json",
+        "../../../eslint.preset.mjs"
+      ],
+      "output": []
+    },
+    "clean": {
+      "command": "rm -rf dist src/catalog.json .wireit .tsbuildinfo"
+    }
+  },
+  "author": "Google",
+  "dependencies": {
+    "zod": "^3.25.76"
+  },
+  "peerDependencies": {
+    "@a2ui/web_core": "workspace:*",
+    "lit": "^3.3.3"
+  },
+  "devDependencies": {
+    "@a2ui/web_core": "workspace:*",
+    "@types/jsdom": "^28.0.3",
+    "@types/node": "^25.9.3",
+    "eslint": "^10.4.1",
+    "jsdom": "^29.1.1",
+    "lit": "^3.3.3",
+    "prettier": "^3.8.4",
+    "tsx": "^4.22.4",
+    "typescript": "5.9.3",
+    "wireit": "^0.15.0-pre.2"
+  }
+}

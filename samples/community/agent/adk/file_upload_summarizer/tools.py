@@ -61,6 +61,10 @@ async def show_file_uploader_tool(tool_context: ToolContext, multiple: bool = Fa
                         "accept": ".txt,.md,.pdf,.csv,.json",
                         "maxSize": 10485760,
                         "multiple": multiple,
+                        # The renderer writes a FileReference per uploaded file
+                        # here, so the button's check and action read the same
+                        # path without a round trip through the agent.
+                        "value": {"path": "/uploaded_files"},
                     },
                     {
                         "id": "summarize_btn",
@@ -94,33 +98,6 @@ async def show_file_uploader_tool(tool_context: ToolContext, multiple: bool = Fa
     return {"validated_a2ui_json": messages}
 
 
-async def update_upload_context_tool(
-    tool_context: ToolContext,
-    files: list[dict],
-    surface_id: str,
-):
-    """Updates the data model with the uploaded file pointers context.
-    IMPORTANT: After calling this tool, you MUST STOP and wait for the user. Do NOT call summarize_file_tool.
-    """
-    messages = [{
-        "version": "v0.9",
-        "updateDataModel": {
-            "surfaceId": surface_id,
-            "path": "/uploaded_files",
-            "value": files,
-        },
-    }]
-    tool_context.actions.skip_summarization = True
-    return {
-        "validated_a2ui_json": messages,
-        "instruction_to_model": (
-            "SUCCESS. The data model is updated. You MUST STOP NOW. Do NOT proactively"
-            " call summarize_file_tool. Wait for the user to click the summarize"
-            " button."
-        ),
-    }
-
-
 @resolve_files
 async def summarize_file_tool(
     tool_context: ToolContext,
@@ -130,8 +107,8 @@ async def summarize_file_tool(
     """Summarizes the collection of documents using Gemini.
 
     Args:
-        files: A list of dictionaries representing uploaded files. Each dictionary
-               should contain a 'fileId' and a 'metadata' object with 'fileName' and 'mimeType'.
+        files: The FileReference objects of the uploaded files, each with a
+               'fileId' pointer plus 'fileName', 'fileSize' and 'mimeType'.
     """
     logger.info(f"Summarization triggered for {len(files)} files")
 
@@ -152,12 +129,9 @@ async def summarize_file_tool(
                 "status": "error",
             }
 
-        file_names = []
-        for f in files:
-            if isinstance(f, dict):
-                metadata = f.get("metadata") or {}
-                name = metadata.get("fileName") or f.get("fileName") or "document"
-                file_names.append(name)
+        file_names = [
+            f.get("fileName") or "document" for f in files if isinstance(f, dict)
+        ]
 
         lite_llm_model = os.getenv("LITELLM_MODEL", "gemini/gemini-3.6-flash")
         gemini_model = (

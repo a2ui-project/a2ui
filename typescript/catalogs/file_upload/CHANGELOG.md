@@ -1,0 +1,3 @@
+## Unreleased
+
+- Add `@a2ui/catalog-file-upload`: the A2UI File Upload catalog (`fileUploadCatalog`, `FILE_UPLOAD_CATALOG_ID`) with the `FileUpload` universal component (`A2uiFileUpload`, `A2uiFileUploadElement`, `FileUploadApi`, `FileUploadProps`, `DEFAULT_FILE_UPLOAD_LABEL`, `DEFAULT_MAX_FILE_SIZE`, `INLINE_URI_PREFIX`), `FileReferenceSchema` (`FileReference`), and host upload delegation via `configureFileUploadCatalog` (`DEFAULT_MAX_INLINE_SIZE`, `FileUploader`, `FileUploadContext`, `FileRemoveContext`, `FileUploadResult`, `FileUploadCatalogConfig`). [#3994](https://github.com/a2ui-project/a2ui/pull/3994)

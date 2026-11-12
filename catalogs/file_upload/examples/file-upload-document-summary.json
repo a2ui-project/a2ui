@@ -1,0 +1,94 @@
+{
+  "name": "File upload document summary",
+  "description": "A single-document upload that notifies the agent as soon as the upload completes, with no submit button. The FileUpload component's own action dispatches a summarize_document event whose context binds the file references the renderer wrote to /document/files, so the agent can resolve the fileId pointer and reply with a summary. The list below the drop zone binds to the same path to show the uploaded file.",
+  "messages": [
+    {
+      "version": "1.0",
+      "createSurface": {
+        "surfaceId": "gallery-file-upload-document-summary",
+        "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+      }
+    },
+    {
+      "version": "1.0",
+      "updateDataModel": {
+        "surfaceId": "gallery-file-upload-document-summary",
+        "value": {
+          "document": {
+            "files": []
+          }
+        }
+      }
+    },
+    {
+      "version": "1.0",
+      "updateComponents": {
+        "surfaceId": "gallery-file-upload-document-summary",
+        "components": [
+          {
+            "id": "root",
+            "component": "Column",
+            "children": ["heading", "document_upload", "uploaded_list"]
+          },
+          {
+            "id": "heading",
+            "component": "Text",
+            "text": "### Summarize a document"
+          },
+          {
+            "id": "document_upload",
+            "component": "FileUpload",
+            "catalogId": "https://a2ui.org/specification/v1_0/catalogs/file_upload/catalog.json",
+            "label": "Drop a PDF or text file here to summarize it",
+            "accept": "application/pdf, text/plain",
+            "maxSize": 20971520,
+            "value": {
+              "@path": "/document/files"
+            },
+            "action": {
+              "event": {
+                "name": "summarize_document",
+                "userMessage": "Summarize the uploaded document.",
+                "context": {
+                  "files": {
+                    "@path": "/document/files"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "id": "uploaded_list",
+            "component": "Column",
+            "children": {
+              "componentId": "uploaded_row",
+              "path": "/document/files"
+            }
+          },
+          {
+            "id": "uploaded_row",
+            "component": "Row",
+            "children": ["uploaded_name", "uploaded_type"],
+            "align": "center"
+          },
+          {
+            "id": "uploaded_name",
+            "component": "Text",
+            "text": {
+              "@path": "fileName"
+            },
+            "weight": 3
+          },
+          {
+            "id": "uploaded_type",
+            "component": "Text",
+            "text": {
+              "@path": "mimeType"
+            },
+            "weight": 1
+          }
+        ]
+      }
+    }
+  ]
+}

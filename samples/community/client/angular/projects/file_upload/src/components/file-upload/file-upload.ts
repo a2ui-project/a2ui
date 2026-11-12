@@ -14,15 +14,18 @@
  * limitations under the License.
  */
 
-import {CatalogComponent, A2uiRendererService} from '@a2ui/angular/v0_9';
 import {
   ChangeDetectionStrategy,
   Component,
   computed,
   inject,
-  signal,
   InjectionToken,
+  signal,
 } from '@angular/core';
+import {z} from 'zod';
+
+import {A2uiRendererService, CatalogComponent} from '@a2ui/angular/v0_9';
+import {DataContext} from '@a2ui/web_core/v0_9';
 
 export interface FileUploadConfig {
   onUploadFile?: (file: File, onProgress: (percent: number) => void) => Promise<string>;
@@ -43,22 +46,26 @@ export enum UploadState {
   ERROR = 'error',
 }
 
-export interface UploadedFile {
-  fileId: string;
-  inlineData?: string;
-  metadata: {
-    fileName: string;
-    fileSize: number;
-    mimeType: string;
-  };
-}
+/**
+ * Zod schema for a pointer to an uploaded file, matching `FileReference` in
+ * the A2UI File Upload catalog (`catalogs/file_upload/catalog.json`).
+ * Keys are quoted to prevent property renaming under Closure-style minifiers.
+ */
+export const FileReferenceSchema = z
+  .object({
+    'fileId': z.string(),
+    'fileName': z.string(),
+    'fileSize': z.number().int(),
+    'mimeType': z.string(),
+    'inlineData': z.string().optional(),
+  })
+  .strict();
 
-export interface FileUploadProps {
-  label?: string;
-  accept?: string;
-  maxSize?: number;
-  multiple?: boolean;
-}
+/**
+ * A pointer to an uploaded file, as written to the data model path bound to
+ * `value`. Same shape as `FileReference` in the A2UI File Upload catalog.
+ */
+export type FileReference = z.infer<typeof FileReferenceSchema>;
 
 @Component({
   selector: 'a2ui-file-upload',
@@ -86,13 +93,17 @@ export class FileUploadComponent extends CatalogComponent<any> {
   readonly uploadState = signal<UploadState>(UploadState.IDLE);
   readonly progress = signal<number>(0);
   readonly errorMessage = signal<string>('');
-  readonly uploadedFiles = signal<UploadedFile[]>([]);
+  private readonly localFiles = signal<FileReference[]>([]);
+  readonly uploadedFiles = computed<FileReference[]>(() => {
+    const bound = this.props()['value']?.value();
+    return Array.isArray(bound) ? bound : this.localFiles();
+  });
 
   get isIocMode(): boolean {
     return !!this.config.onUploadFile;
   }
 
-  isInlineFile(file: UploadedFile): boolean {
+  isInlineFile(file: FileReference): boolean {
     return file.fileId.startsWith(INLINE_URI_PREFIX);
   }
 
@@ -136,27 +147,31 @@ export class FileUploadComponent extends CatalogComponent<any> {
     // Fake an initial progress of 15% for immediate UX feedback
     this.progress.set(15);
 
-    // Look up the A2UI Surface and clear the data model to wipe out any stale file pointers
-    const surface = this.rendererService.surfaceGroup.getSurface(this.surfaceId());
-    if (surface) {
-      surface.dataModel.set('/uploaded_files', undefined);
+    const isMultiple = this.multiple();
+    const priorFiles = this.uploadedFiles();
+    if (!isMultiple) {
+      // Single-file mode replaces the previous value; clear while in flight so
+      // checks such as `required` on that path hold until the upload completes.
+      this.props()['value']?.onUpdate([]);
     }
 
     try {
-      const uploadedFilesContext = [];
+      const uploaded: FileReference[] = [];
 
       for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const context = await this.uploadSingleFile(file, i, files.length);
-        uploadedFilesContext.push(context);
+        uploaded.push(await this.uploadSingleFile(files[i], i, files.length));
       }
 
-      this.uploadedFiles.set(uploadedFilesContext);
+      const nextFiles = isMultiple ? [...priorFiles, ...uploaded] : uploaded;
+      this.localFiles.set(nextFiles);
       this.uploadState.set(UploadState.SUCCESS);
       this.progress.set(100);
 
-      this.dispatchUploadCompleteAction(uploadedFilesContext);
+      await this.publishValue(nextFiles);
     } catch (err) {
+      if (!isMultiple && priorFiles.length > 0) {
+        this.props()['value']?.onUpdate(priorFiles);
+      }
       this.uploadState.set(UploadState.ERROR);
       this.errorMessage.set(err instanceof Error ? err.message : 'Upload failed');
     }
@@ -166,15 +181,16 @@ export class FileUploadComponent extends CatalogComponent<any> {
     file: File,
     index: number,
     totalFiles: number,
-  ): Promise<UploadedFile> {
+  ): Promise<FileReference> {
     let pointerUri: string;
     let inlineData: string | undefined = undefined;
+    const maxInlineSize = this.config.maxInlineSize ?? DEFAULT_MAX_INLINE_SIZE;
 
     if (this.config.onUploadFile) {
       pointerUri = await this.config.onUploadFile(file, percent => {
         this.progress.set(Math.round((index * 100 + percent) / totalFiles));
       });
-    } else if (file.size <= (this.config.maxInlineSize || DEFAULT_MAX_INLINE_SIZE)) {
+    } else if (maxInlineSize > 0 && file.size <= maxInlineSize) {
       inlineData = await this.encodeAsDataUri(file);
       const uuid = crypto.randomUUID
         ? crypto.randomUUID()
@@ -190,28 +206,30 @@ export class FileUploadComponent extends CatalogComponent<any> {
 
     return {
       fileId: pointerUri,
-      inlineData,
-      metadata: {
-        fileName: file.name,
-        fileSize: file.size,
-        mimeType: file.type || 'text/plain',
-      },
+      fileName: file.name,
+      fileSize: file.size,
+      mimeType: file.type || 'text/plain',
+      ...(inlineData === undefined ? {} : {inlineData}),
     };
   }
 
-  private dispatchUploadCompleteAction(files: UploadedFile[]) {
+  /**
+   * Writes the file references to the data model path bound to `value`, then
+   * dispatches the component's `action` if the agent declared one.
+   */
+  private async publishValue(files: FileReference[]) {
+    this.props()['value']?.onUpdate(files);
+
+    const action = this.props()['action']?.value();
     const surface = this.rendererService.surfaceGroup.getSurface(this.surfaceId());
-    if (surface) {
+    if (!action || !surface) {
+      return;
+    }
+    const dataContext = new DataContext(surface, this.dataContextPath());
+    const resolved = await dataContext.resolveAction(action);
+    if (resolved) {
       surface.dispatchAction(
-        {
-          event: {
-            name: 'upload_complete',
-            context: {
-              files: files,
-              surfaceId: this.surfaceId(),
-            },
-          },
-        },
+        resolved as Parameters<typeof surface.dispatchAction>[0],
         this.componentId(),
       );
     }
@@ -226,19 +244,19 @@ export class FileUploadComponent extends CatalogComponent<any> {
     });
   }
 
-  removeFile(index: number) {
+  async removeFile(index: number) {
     const files = [...this.uploadedFiles()];
     const removed = files.splice(index, 1)[0];
-    this.uploadedFiles.set(files);
+    this.localFiles.set(files);
 
-    if (this.config.onRemoveFile) {
+    if (this.config.onRemoveFile && removed && !removed.fileId.startsWith(INLINE_URI_PREFIX)) {
       this.config.onRemoveFile(removed.fileId);
     }
-
-    this.dispatchUploadCompleteAction(files);
 
     if (files.length === 0) {
       this.uploadState.set(UploadState.IDLE);
     }
+
+    await this.publishValue(files);
   }
 }

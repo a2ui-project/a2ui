@@ -1,0 +1,5 @@
+# Copied from catalogs/file_upload/catalog.json by the copy-catalog build step
+src/catalog.json
+dist/
+.wireit/
+*.tsbuildinfo
