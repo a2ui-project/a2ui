@@ -15,12 +15,12 @@
  */
 
 import React, {useRef, useCallback, useEffect, memo} from 'react';
-import type {ComponentNode} from '@a2ui/web_core/v0_9';
+import type {ComponentNode} from '@a2ui/web_core';
 import {
   isWebComponentImplementation,
   registerUniversalElement,
   type A2uiWebComponentElement,
-} from '@a2ui/web_core/v0_9/universal';
+} from '@a2ui/web_core/universal';
 import {type HostOwner, markReactRendered} from './host_registry';
 
 interface ControllableElement extends Element {

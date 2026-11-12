@@ -103,7 +103,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Run enforce-formatting check (Swift)
-        run: ./scripts/fix_format.sh --check --skip-prettier --skip-python --skip-dart --skip-kotlin
+        run: ./scripts/fix_format.sh --check --only-swift
 
   workspace-lint:
     runs-on: ubuntu-latest

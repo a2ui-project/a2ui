@@ -36,6 +36,13 @@ for arg in "$@"; do
     --check)
       CHECK_ONLY=true
       ;;
+    --only-swift)
+      SKIP_PRETTIER=true
+      SKIP_PYTHON=true
+      SKIP_DART=true
+      SKIP_SWIFT=false
+      SKIP_KOTLIN=true
+      ;;
     --skip-prettier)
       SKIP_PRETTIER=true
       ;;
@@ -53,7 +60,7 @@ for arg in "$@"; do
       ;;
     *)
       echo "Unknown option: $arg" >&2
-      echo "Usage: $0 [--check] [--skip-prettier] [--skip-python] [--skip-dart] [--skip-swift] [--skip-kotlin]" >&2
+      echo "Usage: $0 [--check] [--only-swift] [--skip-prettier] [--skip-python] [--skip-dart] [--skip-swift] [--skip-kotlin]" >&2
       exit 2
       ;;
   esac

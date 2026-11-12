@@ -78,7 +78,7 @@ public struct A2UITabs: View {
   public var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       // Tab Bar Headers
-      ScrollView(.horizontal, showsIndicators: false) {
+      ScrollView(.horizontal) {
         HStack(spacing: 8) {
           ForEach(tabs) { tab in
             Button(action: {
@@ -109,8 +109,10 @@ public struct A2UITabs: View {
             .accessibilityAddTraits(activeSelectedIndex == tab.id ? .isSelected : [])
           }
         }
-        .modifier(TabBarAccessibility())
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isTabBar)
       }
+      .scrollIndicators(.hidden, axes: .horizontal)
 
       Divider()
 
@@ -121,21 +123,6 @@ public struct A2UITabs: View {
       {
         ComponentNodeView(node: childNode)
       }
-    }
-  }
-}
-
-/// Marks the row of tab headers as a tab bar where the platform supports it (iOS 17, macOS 14 and
-/// later), so assistive technologies treat the headers as tabs.
-private struct TabBarAccessibility: ViewModifier {
-  @ViewBuilder
-  func body(content: Content) -> some View {
-    if #available(iOS 17.0, macOS 14.0, tvOS 17.0, watchOS 10.0, *) {
-      content
-        .accessibilityElement(children: .contain)
-        .accessibilityAddTraits(.isTabBar)
-    } else {
-      content
     }
   }
 }
