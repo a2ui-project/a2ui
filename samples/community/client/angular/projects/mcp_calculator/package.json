@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@a2ui/angular": "^0.10.0",
-    "@a2ui/web_core": "^0.10.0",
+    "@a2ui/web_core": "^0.10.2",
     "ajv": "^8.20.0"
   },
   "devDependencies": {
