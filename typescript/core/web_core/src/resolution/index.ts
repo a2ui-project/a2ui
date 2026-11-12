@@ -49,6 +49,7 @@ export {
   /** Resolution state of a component node in the rendered tree. */
   type NodeState,
 } from './component-node.js';
+export * from './fallbacks.js';
 export * from './node-resolver.js';
 export {
   extractRefFields,

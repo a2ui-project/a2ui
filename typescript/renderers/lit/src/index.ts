@@ -15,6 +15,12 @@
  */
 
 export type {LitComponentApi} from './types.js';
+export type {
+  A2uiErrorInfo,
+  A2uiFallbackError,
+  A2uiFallbacks,
+  A2uiPendingInfo,
+} from '@a2ui/web_core';
 export {A2uiSurface} from './surface/a2ui-surface.js';
 export {renderA2uiNode} from './surface/render-a2ui-node.js';
 export {A2uiLitElement} from './a2ui-lit-element.js';
