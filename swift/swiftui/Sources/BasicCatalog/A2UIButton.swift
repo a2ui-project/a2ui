@@ -45,6 +45,10 @@ public struct A2UIButton: View {
     !node.isValid || node.bool(for: "disabled") == true
   }
 
+  private var hasExplicitLabel: Bool {
+    node.explicitAccessibilityAttributes?.label?.isEmpty == false
+  }
+
   private var childNode: Node? {
     node.child(for: "child")
   }
@@ -82,6 +86,11 @@ public struct A2UIButton: View {
     .buttonStyle(.plain)
     .disabled(isDisabled)
     .accessibilityIdentifier("a2ui-\(node.id)")
+    // The button combines its content into one element, so an explicit label replaces the
+    // content's text, and a live region reads only the label.
+    .transformPreference(A2UIAccessibleTextKey.self) { text in
+      if hasExplicitLabel { text = [] }
+    }
     .preference(key: A2UIModalTriggerHandledKey.self, value: modalTriggerAction != nil)
   }
 
