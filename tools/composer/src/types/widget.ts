@@ -28,7 +28,7 @@ export interface DataState {
   data: Record<string, unknown>;
 }
 
-export type SpecVersion = '0.8' | '0.9';
+export type SpecVersion = '0.9';
 
 export interface Widget {
   id: string;

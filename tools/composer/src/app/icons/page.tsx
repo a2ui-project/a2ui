@@ -20,159 +20,12 @@ import {useState} from 'react';
 import {cn} from '@/lib/utils';
 import {ExternalLink, Copy, Check} from 'lucide-react';
 import {A2UIViewer} from '@/lib/a2ui';
+import {MATERIAL_ICONS} from '@/lib/components-data-v09';
 import {useSpecVersion} from '@/contexts/spec-version-context';
 import type {A2UIComponent, SpecVersion} from '@/types/widget';
 
-// 100 most important Material Icons for common UI patterns
-const MATERIAL_ICONS = [
-  // Navigation & Actions
-  'home',
-  'menu',
-  'close',
-  'arrow_back',
-  'arrow_forward',
-  'chevron_left',
-  'chevron_right',
-  'expand_more',
-  'expand_less',
-  'more_vert',
-  'more_horiz',
-  'refresh',
-  'search',
-  'settings',
-
-  // Common Actions
-  'add',
-  'remove',
-  'edit',
-  'delete',
-  'save',
-  'done',
-  'check',
-  'check_circle',
-  'cancel',
-  'send',
-  'share',
-  'download',
-  'upload',
-  'print',
-  'copy',
-  'content_paste',
-
-  // Communication
-  'mail',
-  'email',
-  'message',
-  'chat',
-  'phone',
-  'call',
-  'notifications',
-  'notification_important',
-
-  // Media
-  'play_arrow',
-  'pause',
-  'stop',
-  'skip_next',
-  'skip_previous',
-  'volume_up',
-  'volume_off',
-  'mic',
-  'videocam',
-  'photo_camera',
-  'image',
-  'music_note',
-
-  // People & Account
-  'person',
-  'people',
-  'group',
-  'account_circle',
-  'face',
-  'sentiment_satisfied',
-
-  // Status & Info
-  'info',
-  'help',
-  'warning',
-  'error',
-  'error_outline',
-  'report',
-  'verified',
-  'star',
-  'star_border',
-  'favorite',
-  'favorite_border',
-  'thumb_up',
-  'thumb_down',
-
-  // Content & Files
-  'folder',
-  'folder_open',
-  'file_copy',
-  'description',
-  'article',
-  'note',
-  'attachment',
-  'link',
-  'insert_link',
-  'cloud',
-  'cloud_upload',
-  'cloud_download',
-
-  // Time & Date
-  'schedule',
-  'access_time',
-  'today',
-  'event',
-  'calendar_today',
-  'alarm',
-
-  // Location
-  'place',
-  'location_on',
-  'map',
-  'directions',
-  'navigation',
-  'near_me',
-
-  // Shopping & Commerce
-  'shopping_cart',
-  'add_shopping_cart',
-  'store',
-  'payment',
-  'credit_card',
-  'receipt',
-
-  // Device & Hardware
-  'smartphone',
-  'laptop',
-  'desktop_windows',
-  'keyboard',
-  'mouse',
-  'bluetooth',
-  'wifi',
-
-  // Misc UI
-  'visibility',
-  'visibility_off',
-  'lock',
-  'lock_open',
-  'key',
-  'security',
-  'dashboard',
-  'list',
-  'view_list',
-  'grid_view',
-  'table_chart',
-  'bar_chart',
-];
-
-function iconComponent(name: string, specVersion: SpecVersion): A2UIComponent[] {
-  if (specVersion === '0.9') {
-    return [{id: 'icon', component: 'Icon', name}];
-  }
-  return [{id: 'icon', component: {Icon: {name: {literalString: name}}}}];
+function iconComponent(name: string): A2UIComponent[] {
+  return [{id: 'icon', component: 'Icon', name}];
 }
 
 function IconCard({
@@ -197,11 +50,7 @@ function IconCard({
       )}
     >
       <div className="flex h-12 w-12 items-center justify-center scale-[2]">
-        <A2UIViewer
-          root="icon"
-          components={iconComponent(name, specVersion)}
-          specVersion={specVersion}
-        />
+        <A2UIViewer root="icon" components={iconComponent(name)} specVersion={specVersion} />
       </div>
       <span className="text-xs text-muted-foreground truncate w-full text-center">{name}</span>
     </button>
@@ -214,7 +63,7 @@ export default function IconsPage() {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async (name: string) => {
-    const code = `{ "Icon": { "name": { "literalString": "${name}" } } }`;
+    const code = `{ "id": "icon", "component": "Icon", "name": "${name}" }`;
     await navigator.clipboard.writeText(code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -226,7 +75,7 @@ export default function IconsPage() {
         <div>
           <h1 className="text-2xl font-semibold">Icons</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            A2UI uses Material Icons. Showing 100 most commonly used icons.
+            A2UI uses Material Icons. Showing {MATERIAL_ICONS.length} supported icons.
           </p>
         </div>
         <div className="flex items-center gap-4">

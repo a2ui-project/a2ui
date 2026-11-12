@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "sync-gallery": "node scripts/sync-gallery.mjs",
+    "sync-gallery": "wireit",
     "dev": "node scripts/sync-gallery.mjs && next dev --turbopack --port 3001",
     "build": "wireit",
     "start": "next start",
@@ -77,14 +77,28 @@
     "wrangler": "^4.100.0"
   },
   "wireit": {
+    "sync-gallery": {
+      "command": "node scripts/sync-gallery.mjs",
+      "files": [
+        "scripts/sync-gallery.mjs",
+        "../../specification/v0_9/catalogs/basic/examples/*.json"
+      ],
+      "output": [
+        "src/data/gallery/v09/generated.ts",
+        "src/data/theater/generated.ts"
+      ]
+    },
     "build": {
-      "command": "node scripts/sync-gallery.mjs && next build --webpack",
+      "command": "next build --webpack",
       "dependencies": [
         "../../typescript/core/web_core:build",
-        "../../typescript/renderers/react:build"
+        "../../typescript/renderers/react:build",
+        "sync-gallery"
       ],
       "files": [
         "src/**/*",
+        "!src/data/gallery/v09/generated.ts",
+        "!src/data/theater/generated.ts",
         "public/**/*",
         "tsconfig.json",
         "*.config.*"
@@ -96,10 +110,13 @@
     "test": {
       "command": "vitest run",
       "dependencies": [
-        "build"
+        "build",
+        "sync-gallery"
       ],
       "files": [
         "src/**/*",
+        "!src/data/gallery/v09/generated.ts",
+        "!src/data/theater/generated.ts",
         "tsconfig.json"
       ]
     },

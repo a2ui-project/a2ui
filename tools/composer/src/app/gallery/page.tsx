@@ -26,16 +26,14 @@ const GalleryWidget = dynamic(
 import {WidgetPreviewModal} from '@/components/gallery/widget-preview-modal';
 import {Widget} from '@/types/widget';
 import {useWidgets} from '@/contexts/widgets-context';
-import {useSpecVersion} from '@/contexts/spec-version-context';
-import {V08_GALLERY_WIDGETS, V09_GALLERY_WIDGETS} from '@/data/gallery';
+import {V09_GALLERY_WIDGETS} from '@/data/gallery';
 
 export default function GalleryPage() {
   const [selectedWidget, setSelectedWidget] = useState<Widget | null>(null);
   const {addWidget} = useWidgets();
   const router = useRouter();
-  const {specVersion, isLoaded} = useSpecVersion();
 
-  const galleryWidgets = specVersion === '0.9' ? V09_GALLERY_WIDGETS : V08_GALLERY_WIDGETS;
+  const galleryWidgets = V09_GALLERY_WIDGETS;
 
   const handleOpenInEditor = async () => {
     if (!selectedWidget) return;
@@ -64,17 +62,15 @@ export default function GalleryPage() {
         className="columns-1 gap-4 sm:columns-2 lg:columns-3 xl:columns-4 2xl:columns-5"
         style={{columnWidth: '308px'}}
       >
-        {!isLoaded
-          ? null
-          : galleryWidgets.map(item => (
-              <div key={item.widget.id} className="mb-4 break-inside-avoid">
-                <GalleryWidget
-                  widget={item.widget}
-                  height={item.height}
-                  onClick={() => setSelectedWidget(item.widget)}
-                />
-              </div>
-            ))}
+        {galleryWidgets.map(item => (
+          <div key={item.widget.id} className="mb-4 break-inside-avoid">
+            <GalleryWidget
+              widget={item.widget}
+              height={item.height}
+              onClick={() => setSelectedWidget(item.widget)}
+            />
+          </div>
+        ))}
       </div>
 
       {selectedWidget && (

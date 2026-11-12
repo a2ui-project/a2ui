@@ -24,11 +24,11 @@ describe('EditorHeader', () => {
   const mockWidget: Widget = {
     id: 'test-id',
     name: 'Test Widget',
-    specVersion: '0.8',
+    specVersion: '0.9',
     createdAt: new Date(),
     updatedAt: new Date(),
     root: 'root',
-    components: [{id: 'root', component: {Text: {text: {literalString: 'Hello'}}}}],
+    components: [{id: 'root', component: 'Text', text: 'Hello'}],
     dataStates: [],
   };
 

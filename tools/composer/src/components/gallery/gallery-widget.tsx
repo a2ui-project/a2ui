@@ -44,7 +44,7 @@ export function GalleryWidget({widget, height = 200, onClick}: GalleryWidgetProp
         <span className="text-xs font-medium text-muted-foreground">{widget.name}</span>
         <div
           className="pointer-events-none flex-1 flex items-center justify-center"
-          style={{'--a2ui-card-bg': 'transparent'} as React.CSSProperties}
+          style={{'--a2ui-card-background': 'transparent'} as React.CSSProperties}
         >
           <A2UIViewer
             root={widget.root}

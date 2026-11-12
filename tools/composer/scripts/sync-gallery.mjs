@@ -17,7 +17,7 @@
 /**
  * Syncs gallery widget data from the canonical spec examples.
  *
- * Reads JSON examples from specification/v0_8 and v0_9 catalogs and
+ * Reads JSON examples from specification/v0_9 catalogs and
  * generates TypeScript files that the gallery page imports.
  *
  * Run: node scripts/sync-gallery.mjs
@@ -30,10 +30,17 @@ import {fileURLToPath} from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '../../..'); // monorepo root
-const V08_EXAMPLES = join(ROOT, 'specification/v0_8/json/catalogs/basic/examples');
 const V09_EXAMPLES = join(ROOT, 'specification/v0_9/catalogs/basic/examples');
-const V08_OUT = join(__dirname, '../src/data/gallery/v08/generated.ts');
 const V09_OUT = join(__dirname, '../src/data/gallery/v09/generated.ts');
+const THEATER_OUT = join(__dirname, '../src/data/theater/generated.ts');
+
+const THEATER_SCENARIO_FILES = [
+  '31_incremental-dashboard.json',
+  '30_live-invitation-builder.json',
+  '01_flight-status.json',
+  '20_restaurant-card.json',
+  '25_contact-card.json',
+];
 
 const LICENSE = `/**
  * Copyright 2024 Google LLC
@@ -92,101 +99,56 @@ function slugToName(slug) {
     .join(' ');
 }
 
-/**
- * Convert a single v0.8 value entry to a JS value.
- */
-function convertValue(v) {
-  if ('valueString' in v) return v.valueString;
-  if ('valueNumber' in v) return v.valueNumber;
-  if ('valueBoolean' in v) return v.valueBoolean;
-  if ('valueMap' in v) return valueMapToObject(v.valueMap);
-  if ('valueArray' in v) return v.valueArray.map(convertValue);
-  return null;
-}
-
-/**
- * Convert v0.8 ValueMap[] to plain JS object.
- */
-function valueMapToObject(contents) {
-  const result = {};
-  for (const item of contents) {
-    result[item.key] = convertValue(item);
-  }
-  return result;
-}
-
-/**
- * Sanitize v0.8 components to fix values the renderer doesn't support.
- */
-const V08_TEXTFIELD_TYPES = new Set(['shortText', 'number', 'date', 'longText']);
-const V08_ALIGNMENTS = new Set(['start', 'center', 'end', 'stretch']);
-
-function sanitizeV08Components(components) {
-  return components.map(comp => {
-    const copy = JSON.parse(JSON.stringify(comp));
-    const inner = copy.component;
-    if (!inner) return copy;
-
-    for (const [type, props] of Object.entries(inner)) {
-      // Fix unsupported textFieldType values
-      if (
-        type === 'TextField' &&
-        props.textFieldType &&
-        !V08_TEXTFIELD_TYPES.has(props.textFieldType)
-      ) {
-        props.textFieldType = 'shortText';
-      }
-      // Fix unsupported alignment values
-      if (
-        (type === 'Row' || type === 'Column') &&
-        props.alignment &&
-        !V08_ALIGNMENTS.has(props.alignment)
-      ) {
-        props.alignment = 'center';
-      }
-      // Ensure action is an object, not a string
-      if (type === 'Button' && typeof props.action === 'string') {
-        props.action = {name: props.action};
-      }
+function applyUpdateDataModel(data, {path, value}) {
+  if (!path || path === '/') {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      return structuredClone(value);
     }
-    return copy;
-  });
-}
-
-/**
- * Extract widget data from v0.8 messages (bare array).
- */
-function parseV08(messages, slug) {
-  let components = [];
-  let data = {};
-  let root = 'root';
-
-  for (const msg of messages) {
-    if (msg.surfaceUpdate) components = sanitizeV08Components(msg.surfaceUpdate.components);
-    if (msg.dataModelUpdate?.contents) data = valueMapToObject(msg.dataModelUpdate.contents);
-    if (msg.beginRendering?.root) root = msg.beginRendering.root;
+    return {};
   }
-
-  return {
-    id: `gallery-${slug}`,
-    name: slugToName(slug),
-    specVersion: '0.8',
-    root,
-    components,
-    data,
-  };
+  const parts = path.split('/').filter(Boolean);
+  if (parts.length === 0) return data;
+  const next = structuredClone(data);
+  let curr = next;
+  for (let i = 0; i < parts.length - 1; i++) {
+    const key = parts[i];
+    if (curr[key] === undefined || curr[key] === null || typeof curr[key] !== 'object') {
+      const nextKey = parts[i + 1];
+      curr[key] = /^\d+$/.test(nextKey) ? [] : {};
+    }
+    curr = curr[key];
+  }
+  const lastKey = parts[parts.length - 1];
+  if (value === undefined) {
+    if (Array.isArray(curr) && /^\d+$/.test(lastKey)) {
+      curr.splice(Number(lastKey), 1);
+    } else {
+      delete curr[lastKey];
+    }
+  } else {
+    curr[lastKey] = value;
+  }
+  return next;
 }
 
 /**
  * Extract widget data from v0.9 messages ({ name, description, messages }).
  */
 function parseV09(example, slug) {
-  let components = [];
+  const componentsMap = new Map();
   let data = {};
 
   for (const msg of example.messages) {
-    if (msg.updateComponents) components = msg.updateComponents.components;
-    if (msg.updateDataModel?.value) data = msg.updateDataModel.value;
+    if (msg.updateComponents?.components) {
+      for (const comp of msg.updateComponents.components) {
+        if (comp?.id) {
+          componentsMap.set(comp.id, comp);
+        }
+      }
+    }
+    if (msg.updateDataModel) {
+      data = applyUpdateDataModel(data, msg.updateDataModel);
+    }
   }
 
   return {
@@ -195,12 +157,12 @@ function parseV09(example, slug) {
     description: example.description || '',
     specVersion: '0.9',
     root: 'root',
-    components,
+    components: Array.from(componentsMap.values()),
     data,
   };
 }
 
-function generateFile(examplesDir, version, parser) {
+function generateFile(examplesDir, parser) {
   const files = readdirSync(examplesDir)
     .filter(f => f.endsWith('.json'))
     .sort();
@@ -234,7 +196,7 @@ const ${constName} = {
 };`;
   });
 
-  const arrayName = version === '0.8' ? 'V08_GALLERY_WIDGETS' : 'V09_GALLERY_WIDGETS';
+  const arrayName = 'V09_GALLERY_WIDGETS';
   const arrayEntries = widgets
     .map(({slug}) => `  ${slug.toUpperCase().replace(/-/g, '_')},`)
     .join('\n');
@@ -242,7 +204,7 @@ const ${constName} = {
   return `${LICENSE}
 
 // AUTO-GENERATED by scripts/sync-gallery.mjs — do not edit manually.
-// Source: specification/${version === '0.8' ? 'v0_8' : 'v0_9'}/json/catalogs/basic/examples/
+// Source: specification/v0_9/catalogs/basic/examples/
 
 import type { Widget } from '@/types/widget';
 
@@ -255,11 +217,31 @@ ${arrayEntries}
 `;
 }
 
-// Generate both versions
-const v08 = generateFile(V08_EXAMPLES, '0.8', parseV08);
-writeFileSync(V08_OUT, v08);
-console.log(`[sync-gallery] v0.8: wrote ${V08_OUT}`);
+function generateTheaterFile(examplesDir) {
+  const entries = THEATER_SCENARIO_FILES.map(file => {
+    const slug = file.replace(/^\d+_/, '').replace('.json', '');
+    const raw = JSON.parse(readFileSync(join(examplesDir, file), 'utf-8'));
+    const messagesJson = JSON.stringify(raw.messages, null, 2).replace(/\n/g, '\n  ');
+    return `  '${slug}': ${messagesJson},`;
+  });
 
-const v09 = generateFile(V09_EXAMPLES, '0.9', parseV09);
+  return `${LICENSE}
+
+// AUTO-GENERATED by scripts/sync-gallery.mjs — do not edit manually.
+// Source: specification/v0_9/catalogs/basic/examples/
+
+export const scenarios = {
+${entries.join('\n')}
+};
+
+export type ScenarioId = keyof typeof scenarios;
+`;
+}
+
+const v09 = generateFile(V09_EXAMPLES, parseV09);
 writeFileSync(V09_OUT, v09);
 console.log(`[sync-gallery] v0.9: wrote ${V09_OUT}`);
+
+const theater = generateTheaterFile(V09_EXAMPLES);
+writeFileSync(THEATER_OUT, theater);
+console.log(`[sync-gallery] theater: wrote ${THEATER_OUT}`);

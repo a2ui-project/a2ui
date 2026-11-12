@@ -17,7 +17,7 @@
 /**
  * Global A2UI spec version context.
  *
- * Controls which version (v0.8 or v0.9) the entire composer uses for
+ * Controls which version (v0.9) the composer uses for
  * rendering, gallery samples, component docs, and new widget creation.
  * Persisted to localStorage.
  *
@@ -48,7 +48,7 @@ export function SpecVersionProvider({children}: {children: ReactNode}) {
   // Load from localStorage after hydration
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored === '0.8' || stored === '0.9') {
+    if (stored === '0.9') {
       setSpecVersionState(stored);
     }
     setIsLoaded(true);

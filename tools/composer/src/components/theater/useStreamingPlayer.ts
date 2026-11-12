@@ -49,7 +49,7 @@ function toStreamChunks(messages: any[]): StreamChunk[] {
       index: i,
       wire,
       message: msg,
-      isClient: !!msg.action || !!msg.clientEvent,
+      isClient: !!msg.action,
       bytes: new TextEncoder().encode(wire).length,
     };
   });
@@ -60,13 +60,6 @@ function toLifecycleEvents(messages: any[]): LifecycleEvent[] {
   const events: LifecycleEvent[] = [];
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i];
-    if (msg.beginRendering) {
-      events.push({
-        chunkIndex: i,
-        summary: `Surface "${msg.beginRendering.surfaceId || 'default'}" created`,
-        type: 'surface',
-      });
-    }
     if (msg.createSurface) {
       events.push({
         chunkIndex: i,
@@ -74,31 +67,19 @@ function toLifecycleEvents(messages: any[]): LifecycleEvent[] {
         type: 'surface',
       });
     }
-    if (msg.surfaceUpdate) {
-      const count = msg.surfaceUpdate.components?.length || 0;
-      const types = msg.surfaceUpdate.components
-        ?.map((c: any) => (c.component ? Object.keys(c.component)[0] : c.type || '?'))
-        .filter((v: string, j: number, a: string[]) => a.indexOf(v) === j);
-      events.push({
-        chunkIndex: i,
-        summary: `${count} components registered: ${types?.join(', ')}`,
-        type: 'components',
-      });
-    }
     if (msg.updateComponents) {
       const count = msg.updateComponents.components?.length || 0;
       events.push({chunkIndex: i, summary: `${count} components updated`, type: 'components'});
     }
-    if (msg.dataModelUpdate) {
-      const keys = msg.dataModelUpdate.contents?.map((c: any) => c.key).filter(Boolean) || [];
-      events.push({chunkIndex: i, summary: `Data model: ${keys.join(', ')}`, type: 'data'});
-    }
     if (msg.updateDataModel) {
-      const keys = msg.updateDataModel.contents?.map((c: any) => c.key).filter(Boolean) || [];
-      events.push({chunkIndex: i, summary: `Data model: ${keys.join(', ')}`, type: 'data'});
+      const {path, value} = msg.updateDataModel;
+      const keys =
+        value && typeof value === 'object' && !Array.isArray(value) ? Object.keys(value) : [];
+      const target = keys.length > 0 ? keys.join(', ') : path || '/';
+      events.push({chunkIndex: i, summary: `Data model: ${target}`, type: 'data'});
     }
-    if (msg.clientEvent || msg.action) {
-      const name = msg.clientEvent?.name || msg.action?.name || 'action';
+    if (msg.action) {
+      const name = msg.action.name || 'action';
       events.push({chunkIndex: i, summary: `User action: ${name}`, type: 'action'});
     }
     if (msg.deleteSurface) {
