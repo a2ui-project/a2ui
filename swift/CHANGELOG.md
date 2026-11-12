@@ -35,8 +35,8 @@
   `callRendererFunction` argument and function evaluation to the target catalog.
   [#4030](https://github.com/a2ui-project/a2ui/pull/4030)
 - (v1.0) Include `$defs.anyComponent` and `$defs.anyFunction` unions in inline catalog schemas
-  emitted by `MessageProcessor.getClientCapabilities(options:)` so v1.0 inline catalogs conform to
-  `catalog_definition.json`. [#4092](https://github.com/a2ui-project/a2ui/pull/4092)
+  emitted by `MessageProcessor.getRendererCapabilities(options:)` so v1.0 or later inline catalogs
+  conform to `catalog_definition.json`. [#4092](https://github.com/a2ui-project/a2ui/pull/4092)
 - Deprecate `A2UICatalogsKey`, `A2UIDefaultCatalogIDKey`, and `A2UIThemeKey` in `A2UISwiftUI` in
   favor of `EnvironmentValues.a2uiCatalogs`, `EnvironmentValues.a2uiDefaultCatalogID`, and
   `EnvironmentValues.a2uiTheme`, and update `BasicCatalogSwiftUI` components (`A2UIIcon` and
