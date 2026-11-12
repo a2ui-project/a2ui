@@ -20,7 +20,8 @@ import '../model/triage_controller.dart';
 /// Shows the session report, which the triager copies to the team chat.
 ///
 /// When [closing], the triage UI is closing, and the dialog offers to copy
-/// the report before it closes. Returns true if the triage UI should close.
+/// the report before it closes. It then returns true if the triage UI
+/// should close.
 Future<bool> showSessionReport(
   BuildContext context,
   TriageController controller, {
@@ -33,6 +34,8 @@ Future<bool> showSessionReport(
     controller.session.recordCopied();
   }
 
+  // True when the triager clicks a button, and null when they dismiss the
+  // dialog, which keeps the triage UI open.
   final bool? close = await showDialog<bool>(
     context: context,
     builder: (context) => SelectionArea(
@@ -51,47 +54,29 @@ Future<bool> showSessionReport(
             ),
           ),
         ),
-        actions: closing
-            ? [
-                Tooltip(
-                  message: 'Close the triage UI without copying the report',
-                  child: TextButton(
-                    onPressed: () => Navigator.pop(context, true),
-                    child: const Text('Close'),
-                  ),
-                ),
-                Tooltip(
-                  message:
-                      'Copy the report to the clipboard, then close the '
-                      'triage UI',
-                  child: FilledButton(
-                    onPressed: () async {
-                      await copy();
-                      if (context.mounted) Navigator.pop(context, true);
-                    },
-                    child: const Text('Copy and close'),
-                  ),
-                ),
-              ]
-            : [
-                Tooltip(
-                  message: 'Close the report',
-                  child: TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Close'),
-                  ),
-                ),
-                Tooltip(
-                  message: 'Copy the report to the clipboard',
-                  child: FilledButton(
-                    onPressed: () async {
-                      await copy();
-                      if (context.mounted) Navigator.pop(context);
-                    },
-                    child: const Text('Copy'),
-                  ),
-                ),
-              ],
+        actions: [
+          Tooltip(
+            message: closing
+                ? 'Close the triage UI without copying the report'
+                : 'Close the report',
+            child: TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Close'),
+            ),
+          ),
+          Tooltip(
+            message: closing
+                ? 'Copy the report to the clipboard, then close the triage UI'
+                : 'Copy the report to the clipboard',
+            child: FilledButton(
+              onPressed: () async {
+                await copy();
+                if (context.mounted) Navigator.pop(context, true);
+              },
+              child: Text(closing ? 'Copy and close' : 'Copy'),
+            ),
+          ),
+        ],
       ),
     ),
   );

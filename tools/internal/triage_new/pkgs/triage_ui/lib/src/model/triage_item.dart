@@ -106,22 +106,16 @@ final class TriageItem {
     final isPullRequest = node['__typename'] == 'PullRequest';
     final List<Map<String, Object?>> comments = nodesOf(node['comments']);
 
-    Map<String, Object?>? suggestionComment;
-    for (final Map<String, Object?> comment in comments.reversed) {
-      if (_isTriageBotComment(comment) &&
-          hasA2uiBlock(comment['body']! as String)) {
-        suggestionComment = comment;
-        break;
-      }
-    }
-
-    TeamNote? teamNote;
-    for (final Map<String, Object?> comment in comments.reversed) {
-      if (TeamNote._tryParse(comment) case final TeamNote note) {
-        teamNote = note;
-        break;
-      }
-    }
+    // The latest of each.
+    final Map<String, Object?>? suggestionComment = comments.reversed
+        .where(
+          (c) => _isTriageBotComment(c) && hasA2uiBlock(c['body']! as String),
+        )
+        .firstOrNull;
+    final TeamNote? teamNote = comments.reversed
+        .map(TeamNote._tryParse)
+        .nonNulls
+        .firstOrNull;
 
     SuggestionStatus status = SuggestionStatus.none;
     SuggestionPayload? suggestion;

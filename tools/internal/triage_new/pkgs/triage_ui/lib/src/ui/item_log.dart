@@ -18,6 +18,7 @@ import '../model/applier.dart';
 import '../model/log_entry.dart';
 import '../model/triage_controller.dart';
 import '../model/triage_item.dart';
+import 'dates.dart';
 import 'links.dart';
 import 'triage_scope.dart';
 
@@ -61,7 +62,7 @@ class _Entry extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              _time(entry.time),
+              clockTime(entry.time),
               style: theme.textTheme.titleSmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
                 fontFeatures: const [FontFeature.tabularFigures()],
@@ -81,13 +82,6 @@ class _Entry extends StatelessWidget {
       ],
     );
   }
-
-  /// [time] as "14:03:07".
-  static String _time(DateTime time) => [
-    time.hour,
-    time.minute,
-    time.second,
-  ].map((int n) => n.toString().padLeft(2, '0')).join(':');
 }
 
 /// The steps of an apply or a send to the team: an icon for how each went,

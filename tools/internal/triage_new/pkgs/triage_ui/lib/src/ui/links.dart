@@ -157,24 +157,3 @@ class _LinkifiedTextState extends State<LinkifiedText> {
     return Text.rich(TextSpan(children: spans));
   }
 }
-
-/// How long ago [time] was, as an age: "less than a day", "1 day" or
-/// "32 days".
-String age(DateTime time, {DateTime? now}) {
-  final int days = (now ?? DateTime.now()).difference(time).inDays;
-  return switch (days) {
-    <= 0 => 'less than a day',
-    1 => '1 day',
-    _ => '$days days',
-  };
-}
-
-/// How long ago [time] was, such as "3 days ago".
-String ago(DateTime time, {DateTime? now}) {
-  final int days = (now ?? DateTime.now()).difference(time).inDays;
-  return switch (days) {
-    <= 0 => 'today',
-    1 => 'yesterday',
-    _ => '$days days ago',
-  };
-}

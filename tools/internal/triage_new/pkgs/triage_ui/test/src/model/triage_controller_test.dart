@@ -69,9 +69,6 @@ void main() {
     expect(controller.selected, isNull);
     expect(controller.remaining, 6);
     expect(controller.repositoryInfo(a2uiRepository).labels, contains('P1'));
-    expect(numbers(controller.relatedInQueue(controller.item(a2ui(11))!)), [
-      20,
-    ]);
   });
 
   test('triages the PRs on genui in the same groups as the items of a2ui, '

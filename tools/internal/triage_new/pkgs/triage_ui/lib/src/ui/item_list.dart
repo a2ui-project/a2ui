@@ -16,7 +16,7 @@ import 'package:flutter/material.dart';
 
 import '../model/triage_controller.dart';
 import '../model/triage_item.dart';
-import 'links.dart';
+import 'dates.dart';
 import 'triage_scope.dart';
 
 /// [color] in the shade that suits the theme of [context].

@@ -92,7 +92,7 @@ class _ChipListFieldState extends State<ChipListField> {
     labelStyle: colors == null ? null : TextStyle(color: colors.foreground),
     deleteIconColor: colors?.foreground,
     side: colors == null ? null : BorderSide.none,
-    onDeleted: () => widget.onChanged([...widget.values]..remove(value)),
+    onDeleted: () => _toggle(value, checked: false),
     deleteButtonTooltipMessage: 'Remove $value',
   );
 

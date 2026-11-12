@@ -74,33 +74,25 @@ class TriageService {
     ];
   }
 
-  /// The items that match [query], a GitHub search query.
-  Future<List<TriageItem>> _searchItems(String query) async => [
-    for (final Map<String, Object?> node in await _search(searchQuery, query))
-      TriageItem.fromGraphQL(node),
-  ];
-
-  /// The nodes of every page of [graphqlQuery], a search for [query].
-  Future<List<Map<String, Object?>>> _search(
-    String graphqlQuery,
-    String query,
-  ) async {
-    final nodes = <Map<String, Object?>>[];
+  /// The items that match [query], a GitHub search query, from every page
+  /// of results.
+  Future<List<TriageItem>> _searchItems(String query) async {
+    final items = <TriageItem>[];
     String? cursor;
     do {
       final Map<String, Object?> search = asMap(
-        (await _client.graphql(graphqlQuery, {
+        (await _client.graphql(searchQuery, {
           'query': query,
           'cursor': cursor,
         }))['search'],
       );
-      nodes.addAll(nodesOf(search));
+      items.addAll(nodesOf(search).map(TriageItem.fromGraphQL));
       final Map<String, Object?> page = asMap(search['pageInfo']);
       cursor = page['hasNextPage'] == true
           ? page['endCursor'] as String?
           : null;
     } while (cursor != null);
-    return nodes;
+    return items;
   }
 
   /// The item that [item] refers to, or null if there is none.

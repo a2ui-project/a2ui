@@ -40,10 +40,8 @@ class GroupActions extends StatelessWidget {
         final bool anyChanges = drafts.any((d) => d.hasChanges);
         final List<String> problems = [
           for (var k = 0; k < items.length; k++)
-            if (drafts[k].hasChanges && drafts[k].problem != null)
-              items.length == 1
-                  ? drafts[k].problem!
-                  : '${items[k].name}: ${drafts[k].problem}',
+            if (drafts[k].problem case final String problem)
+              items.length == 1 ? problem : '${items[k].name}: $problem',
           if (!anyChanges) 'Nothing to apply.',
         ];
         // The selected item, and the linked items that need triage. A

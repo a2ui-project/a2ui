@@ -153,7 +153,6 @@ class SuggestionDraft extends ChangeNotifier {
         return 'Enter the number of the issue that this one duplicates.';
       }
     }
-    if (!hasChanges) return 'Nothing to apply.';
     return null;
   }
 

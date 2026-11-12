@@ -173,16 +173,6 @@ class TriageController extends ChangeNotifier {
     return null;
   }
 
-  /// The items in the queue that [item] is linked to and that need triage
-  /// or team input.
-  List<TriageItem> relatedInQueue(TriageItem item) => [
-    for (final TriageItem i in _queue)
-      if (i.repository == item.repository &&
-          item.linkedItems.contains(i.number) &&
-          (i.needsTriage || i.needsTeamInput))
-        i,
-  ];
-
   /// The linked and related items that are neither in the queue nor opened
   /// by URL, loaded by [loadLinked] and [closedAs].
   final Map<ItemRef, TriageItem> _linked = {};
@@ -367,6 +357,7 @@ class TriageController extends ChangeNotifier {
     }
   }
 
+  /// Selects [item].
   ///
   /// [group] is the group in which the triager selected it, which decides
   /// the next item after an apply. If it is null, the first group that has
