@@ -30,7 +30,7 @@ is intentionally partial, put `<!-- example: skip -->` on one of the two lines
 above its opening fence.
 
 Usage:
-    python docs/scripts/validate_doc_examples.py --paths docs/public docs/site/src/content/docs
+    python docs/scripts/validate_doc_examples.py --paths docs/site/src/content/docs
 """
 
 from __future__ import annotations
@@ -428,7 +428,7 @@ def main(argv: list[str] | None = None) -> int:
         "--paths",
         nargs="+",
         type=pathlib.Path,
-        default=[REPO_ROOT / "docs/public", REPO_ROOT / "docs/site/src/content/docs"],
+        default=[REPO_ROOT / "docs/site/src/content/docs"],
         help="Markdown/MDX files or directories to check.",
     )
     args = parser.parse_args(argv)

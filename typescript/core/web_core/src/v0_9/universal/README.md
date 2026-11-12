@@ -64,4 +64,4 @@ The exported `myBadgeComponent` can be registered directly:
 - **In React**: `new Catalog('my-catalog', '0.9', [...basicCatalog.components.values(), myBadgeComponent], BASIC_FUNCTIONS)`
 - **In Angular**: `new AngularCatalog('my-catalog', '0.9', [...BASIC_COMPONENTS, myBadgeComponent], BASIC_FUNCTIONS)` with `useUniversalComponents: true` in `A2UI_RENDERER_CONFIG`
 
-For the full developer guide and advanced patterns (nested children, user actions, two-way data binding), see [Authoring Universal Components](../../../../../../docs/public/guides/authoring-universal-components.md).
+For the full developer guide and advanced patterns (nested children, user actions, two-way data binding), see [Authoring Universal Components](https://a2ui.org/guides/authoring-universal-components/).
