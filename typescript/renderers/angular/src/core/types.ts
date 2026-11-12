@@ -63,6 +63,11 @@ export interface BoundProperty<T = unknown> {
   readonly onUpdate: (newValue: T) => void;
 }
 
+// `@a2ui/web_core` (the version-agnostic barrel) does not export `DataBindingSchema` or
+// `FunctionCallSchema`: v0.9 schemas only match `{path}` / `{call}` while v1.0 schemas match
+// `{'@path'}` / `{'@call'}` (and `v1_0.FunctionCallSchema` infers as `any`, which would collapse
+// `Exclude<Input, ...>` to `never`). Matching both protocol forms explicitly strips dynamic AST
+// branches across v0.9 and v1.0 component schemas without importing versioned Zod schemas.
 type DataBindingType = {path: string} | {'@path': string};
 type FunctionCallType = {call: string} | {'@call': string};
 type DynamicSchemaValueToRaw<Input> = Exclude<Input, DataBindingType | FunctionCallType>;

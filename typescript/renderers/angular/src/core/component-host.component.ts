@@ -174,12 +174,13 @@ export class ComponentHostComponent {
     return mirror?.inputs.some(i => i.templateName === 'metadata') ?? false;
   });
   protected readonly componentInputs = computed<Record<string, unknown>>(() => {
+    // prettier-ignore
     const inputs: Record<string, unknown> = {
       // Quoted to prevent property renaming under Closure Compiler.
-      props: this.props(),
-      surfaceId: this.surfaceId(),
-      componentId: this.resolvedComponentId,
-      dataContextPath: this.resolvedDataContextPath,
+      'props': this.props(),
+      'surfaceId': this.surfaceId(),
+      'componentId': this.resolvedComponentId,
+      'dataContextPath': this.resolvedDataContextPath,
     };
     if (this.acceptsMetadata()) {
       inputs['metadata'] = this.metadata();
