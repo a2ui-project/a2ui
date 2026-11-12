@@ -203,7 +203,8 @@
   features: [F-CORE-31]
   description: >-
     Tests that v1.0 inline catalogs list each component as a plain schema, without the v0.9
-    ComponentCommon allOf envelope, because v1.0 applies ComponentCommon at the message envelope.
+    ComponentCommon allOf envelope, because v1.0 applies ComponentCommon at the message envelope,
+    and advertise both unions that catalog_definition.json requires, with an empty one as not {}.
   action: get_renderer_capabilities
   catalogs:
     - catalogId: cat-v10
@@ -220,6 +221,14 @@
           required:
             - component
             - label
+      $defs:
+        anyComponent:
+          oneOf:
+            - $ref: "#/components/Button"
+          discriminator:
+            propertyName: "component"
+        anyFunction:
+          not: {}
   args:
     includeInlineCatalogs: true
     version: "1.0"
@@ -242,6 +251,14 @@
               required:
                 - "component"
                 - "label"
+          $defs:
+            anyComponent:
+              oneOf:
+                - $ref: "#/components/Button"
+              discriminator:
+                propertyName: "component"
+            anyFunction:
+              not: {}
 
 - name: test_multiple_update_types_error
   description: Tests that sending a single message envelope containing multiple update actions raises a ValidationError.
