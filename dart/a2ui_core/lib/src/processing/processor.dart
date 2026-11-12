@@ -586,6 +586,26 @@ class MessageProcessor<T extends ComponentApi> {
     int index,
     String? surfaceId,
   ) {
+    final String? pointer = error.path;
+    // Body-relative details need the message type, so only infer envelope keys.
+    if (item is Map &&
+        pointer != null &&
+        pointer.startsWith('/') &&
+        !pointer.substring(1).contains('/')) {
+      final String key =
+          pointer.substring(1).replaceAll('~1', '/').replaceAll('~0', '~');
+      if (item.containsKey(key)) {
+        return (
+          A2uiErrorDetail(
+            path: 'messages.$index.$key',
+            code: 'invalid_value',
+            message: error.message,
+            surfaceId: surfaceId,
+          ),
+          pointer,
+        );
+      }
+    }
     if (item is Map && error.message.contains('version')) {
       return (
         A2uiErrorDetail(

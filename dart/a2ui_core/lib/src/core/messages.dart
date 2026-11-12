@@ -256,6 +256,7 @@ _Envelope _readEnvelope(
       throw A2uiValidationError(
         "Unknown A2UI message type or envelope key '$key'. Expected "
         "'version' and one of: ${allowed.join(', ')}.",
+        path: "/${key.replaceAll('~', '~0').replaceAll('/', '~1')}",
       );
     }
   }
