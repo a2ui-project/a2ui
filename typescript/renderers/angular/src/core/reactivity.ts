@@ -30,7 +30,7 @@ import {
   setSignalImplementation,
   Signal,
   _PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION,
-} from '@a2ui/web_core/v0_9';
+} from '@a2ui/web_core';
 
 let isAttached = false;
 
@@ -58,13 +58,13 @@ export function initializeAngularReactivity(injector: EnvironmentInjector): void
         let cleanup: (() => void) | void;
 
         const ref = angularEffect(
-          onCleanup => {
+          (onCleanup) => {
             cleanup = effectFn();
             if (cleanup) {
               onCleanup(cleanup);
             }
           },
-          {injector},
+          { injector },
         );
 
         return () => ref.destroy();

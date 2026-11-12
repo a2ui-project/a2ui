@@ -14,24 +14,24 @@
  * limitations under the License.
  */
 
-import {ChangeDetectionStrategy, Component, computed} from '@angular/core';
-import {ComponentFixture, TestBed} from '@angular/core/testing';
+import { ChangeDetectionStrategy, Component, computed } from '@angular/core';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import {
-  A2uiClientMessageSchema,
-  CommonSchemas,
   type ComponentNode,
   createFunctionImplementation,
+  FunctionImplementation,
   isComponentNode,
   peekValue,
   type ProcessableMessage,
   ResolvedBinding,
   type SurfaceModel,
-} from '@a2ui/web_core/v0_9';
-import {basicCatalog, createBasicCatalogFunctions} from '@a2ui/web_core/catalogs/basic/v1';
-import type {A2uiWebComponentElement} from '@a2ui/web_core/v0_9/universal';
-import {FunctionImplementation, RendererToAgentMessageSchema} from '@a2ui/web_core/v1_0';
-import {z} from 'zod';
-import {BasicCatalogBase as V09BasicCatalogBase} from './v0_9';
+} from '@a2ui/web_core';
+import { basicCatalog, createBasicCatalogFunctions } from '@a2ui/web_core/catalogs/basic/v1';
+import type { A2uiWebComponentElement } from '@a2ui/web_core/universal';
+import { A2uiClientMessageSchema, CommonSchemas } from '@a2ui/web_core/v0_9';
+import { RendererToAgentMessageSchema } from '@a2ui/web_core/v1_0';
+import { z } from 'zod';
+import { BasicCatalogBase as V09BasicCatalogBase } from './v0_9';
 import {
   A2uiRendererService,
   AngularCatalog,
@@ -111,7 +111,7 @@ export interface ExtraCatalogEntry {
     {
       type: string;
       required?: string[];
-      properties?: Record<string, {type?: string; const?: string; $ref?: string}>;
+      properties?: Record<string, { type?: string; const?: string; $ref?: string }>;
     }
   >;
   functions?: Record<string, unknown>;
@@ -279,9 +279,9 @@ function assertObjectKeys(obj: unknown, allowed: ReadonlySet<string>, where: str
   if (typeof obj !== 'object' || Array.isArray(obj)) {
     throw new Error(`${where}: expected object`);
   }
-  const unknown = Object.keys(obj as Record<string, unknown>).filter(key => !allowed.has(key));
+  const unknown = Object.keys(obj as Record<string, unknown>).filter((key) => !allowed.has(key));
   if (unknown.length > 0) {
-    throw new Error(`${where}: unknown keys: ${unknown.map(k => `${where}.${k}`).join(', ')}`);
+    throw new Error(`${where}: unknown keys: ${unknown.map((k) => `${where}.${k}`).join(', ')}`);
   }
 }
 
@@ -493,7 +493,7 @@ export function assertAllUnsupportedMatched(
       testCase.steps as unknown as Array<Record<string, unknown>>,
     );
   }
-  const unused = Object.keys(UNSUPPORTED).filter(key => !matchedUnsupportedKeys.has(key));
+  const unused = Object.keys(UNSUPPORTED).filter((key) => !matchedUnsupportedKeys.has(key));
   if (unused.length > 0) {
     throw new Error(
       `Unused UNSUPPORTED entries did not match any executed case: ${unused.join(', ')}`,
@@ -504,10 +504,10 @@ export function assertAllUnsupportedMatched(
 export function writeManifestRecord(rec: ManifestRecord): void {
   const karma = (
     window as unknown as {
-      __karma__?: {info?: (payload: {conformanceManifestRecord: ManifestRecord}) => void};
+      __karma__?: { info?: (payload: { conformanceManifestRecord: ManifestRecord }) => void };
     }
   ).__karma__;
-  karma?.info?.({conformanceManifestRecord: rec});
+  karma?.info?.({ conformanceManifestRecord: rec });
 }
 
 const RESERVED_VIEW_KEYS = new Set([
@@ -551,14 +551,14 @@ function decodeConformanceSuites(raw: KarmaConformanceConfig | string): KarmaCon
   if (typeof raw !== 'string') {
     return raw;
   }
-  const bytes = Uint8Array.from(atob(raw), c => c.charCodeAt(0));
+  const bytes = Uint8Array.from(atob(raw), (c) => c.charCodeAt(0));
   return JSON.parse(new TextDecoder().decode(bytes)) as KarmaConformanceConfig;
 }
 
 export function getConformanceSuites(): KarmaConformanceConfig {
   const karma = (
     window as unknown as {
-      __karma__?: {config?: {conformanceSuites?: KarmaConformanceConfig | string}};
+      __karma__?: { config?: { conformanceSuites?: KarmaConformanceConfig | string } };
     }
   ).__karma__;
   const suites = karma?.config?.conformanceSuites;
@@ -611,7 +611,7 @@ export function buildExtraCatalog(entry: ExtraCatalogEntry): AngularCatalog {
           : CommonSchemas.DynamicString.optional();
     }
     return createComponentImplementation(
-      {name, schema: z.object(shape)},
+      { name, schema: z.object(shape) },
       ConformanceCustomWidgetComponent,
     );
   });
@@ -644,10 +644,10 @@ export async function settleSurfaceDom(fixture: ComponentFixture<SurfaceComponen
   for (let pass = 0; pass < 4; pass++) {
     TestBed.flushEffects();
     fixture.detectChanges();
-    await new Promise<void>(resolve => setTimeout(resolve, 0));
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
     const elements = Array.from(container.querySelectorAll('*'));
     for (const el of elements) {
-      const litEl = el as unknown as {updateComplete?: Promise<boolean>};
+      const litEl = el as unknown as { updateComplete?: Promise<boolean> };
       if (litEl.updateComplete) {
         await litEl.updateComplete;
       }
@@ -690,8 +690,8 @@ function extractDirectChildNodes(node: ComponentNode, container?: HTMLElement): 
   }
   if (Array.isArray(props['tabs'])) {
     const domEl = container ? findDomElementForNode(container, node) : undefined;
-    const activeIndex = (domEl as unknown as {activeIndex?: number})?.activeIndex ?? 0;
-    const activeTab = (props['tabs'] as Array<{child?: unknown}>)[activeIndex];
+    const activeIndex = (domEl as unknown as { activeIndex?: number })?.activeIndex ?? 0;
+    const activeTab = (props['tabs'] as Array<{ child?: unknown }>)[activeIndex];
     if (activeTab && isComponentNode(activeTab.child)) {
       return [activeTab.child];
     }
@@ -701,7 +701,7 @@ function extractDirectChildNodes(node: ComponentNode, container?: HTMLElement): 
     const modalChildren: ComponentNode[] = [props['trigger']];
     const domEl = container ? findDomElementForNode(container, node) : undefined;
     const isOpen =
-      (domEl as unknown as {isOpen?: boolean})?.isOpen === true ||
+      (domEl as unknown as { isOpen?: boolean })?.isOpen === true ||
       Boolean(domEl?.querySelector('.a2ui-modal-content'));
     if (isOpen && isComponentNode(props['content'])) {
       modalChildren.push(props['content']);
@@ -788,7 +788,7 @@ function findDomElementForNode(
   node: ComponentNode,
 ): HTMLElement | undefined {
   const match = Array.from(container.querySelectorAll('*')).find(
-    el => (el as A2uiWebComponentElement).node === node,
+    (el) => (el as A2uiWebComponentElement).node === node,
   );
   return match as HTMLElement | undefined;
 }
@@ -865,7 +865,7 @@ export function assertViewTree(
 function isNestedComponentElement(host: HTMLElement, candidate: Element): boolean {
   let current: Element | null = candidate;
   while (current && current !== host) {
-    const a2uiEl = current as unknown as {context?: unknown; node?: unknown};
+    const a2uiEl = current as unknown as { context?: unknown; node?: unknown };
     if (a2uiEl.context || a2uiEl.node) {
       return true;
     }
@@ -989,19 +989,19 @@ export function assertAxeRules(container: HTMLElement, rules: string[]): void {
 
 function countActiveSubscriptions(surface: SurfaceModel<AngularComponentImplementation>): number {
   const createdListeners =
-    (surface.componentsModel.onCreated as unknown as {listeners?: Set<unknown>}).listeners?.size ??
-    0;
+    (surface.componentsModel.onCreated as unknown as { listeners?: Set<unknown> }).listeners
+      ?.size ?? 0;
   const deletedListeners =
-    (surface.componentsModel.onDeleted as unknown as {listeners?: Set<unknown>}).listeners?.size ??
-    0;
+    (surface.componentsModel.onDeleted as unknown as { listeners?: Set<unknown> }).listeners
+      ?.size ?? 0;
   let componentUpdatedListeners = 0;
   for (const comp of surface.componentsModel.values) {
     componentUpdatedListeners +=
-      (comp.onUpdated as unknown as {listeners?: Set<unknown>}).listeners?.size ?? 0;
+      (comp.onUpdated as unknown as { listeners?: Set<unknown> }).listeners?.size ?? 0;
   }
   const dataModelInternal = surface.dataModel as unknown as {
     subscriptions?: Set<unknown>;
-    signals?: Map<string, {_targets?: unknown}>;
+    signals?: Map<string, { _targets?: unknown }>;
   };
   let activeSignalTargets = 0;
   for (const sig of dataModelInternal.signals?.values() ?? []) {
@@ -1038,7 +1038,7 @@ async function performStepOperation(state: HarnessState, step: AdapterStep): Pro
       const checkbox = compEl!.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
       expect(checkbox).withContext(`Checkbox input for "${targetId}"`).not.toBeNull();
       checkbox!.checked = Boolean(step.inputValue);
-      checkbox!.dispatchEvent(new Event('change', {bubbles: true, composed: true}));
+      checkbox!.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
       return;
     }
     if (tag === 'a2ui-choicepicker' || Array.isArray(step.inputValue)) {
@@ -1053,7 +1053,7 @@ async function performStepOperation(state: HarnessState, step: AdapterStep): Pro
         const shouldCheck = values.includes(opt.value);
         if (opt.type === 'radio' ? shouldCheck : opt.checked !== shouldCheck) {
           opt.checked = shouldCheck;
-          opt.dispatchEvent(new Event('change', {bubbles: true, composed: true}));
+          opt.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
         }
       }
       return;
@@ -1073,7 +1073,7 @@ async function performStepOperation(state: HarnessState, step: AdapterStep): Pro
       const slider = compEl!.querySelector('input[type="range"]') as HTMLInputElement | null;
       expect(slider).withContext(`Range input for "${targetId}"`).not.toBeNull();
       slider!.value = String(step.inputValue ?? 0);
-      slider!.dispatchEvent(new Event('input', {bubbles: true, composed: true}));
+      slider!.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
       return;
     }
     if (tag === 'a2ui-datetimeinput') {
@@ -1082,21 +1082,21 @@ async function performStepOperation(state: HarnessState, step: AdapterStep): Pro
       const dateInput = compEl!.querySelector('input[type="date"]') as HTMLInputElement | null;
       if (dateInput && datePart) {
         dateInput.value = datePart.slice(0, 10);
-        dateInput.dispatchEvent(new Event('change', {bubbles: true, composed: true}));
+        dateInput.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
         await settleSurfaceDom(state.fixture!);
       }
       const timeInput = compEl!.querySelector('input[type="time"]') as HTMLInputElement | null;
       if (timeInput && timePart) {
         timeInput.value = timePart.slice(0, 5);
-        timeInput.dispatchEvent(new Event('change', {bubbles: true, composed: true}));
+        timeInput.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
       }
       return;
     }
     const input = compEl?.querySelector('input, textarea') as HTMLInputElement | null;
     expect(input).withContext(`Input element for "${targetId}"`).not.toBeNull();
     input!.value = String(step.inputValue ?? '');
-    input!.dispatchEvent(new Event('input', {bubbles: true, composed: true}));
-    input!.dispatchEvent(new Event('change', {bubbles: true, composed: true}));
+    input!.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+    input!.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
     return;
   }
   if (step.op === 'user_gesture') {
@@ -1201,13 +1201,13 @@ function assertStepIdentityAndModel(
     for (const nodeId of step.expectDisposedNodes) {
       const prevNode = state.previousNodes.get(nodeId);
       expect(prevNode).withContext(`Previous node for ${nodeId}`).toBeDefined();
-      expect((prevNode as unknown as {disposed?: boolean})?.disposed).toBe(true);
+      expect((prevNode as unknown as { disposed?: boolean })?.disposed).toBe(true);
       expect(currentNodes.has(nodeId)).toBe(false);
     }
   }
   if (step.expectSurfaceRemoved) {
     expect(state.rendererService.surfaceGroup.getSurface(state.surface!.id)).toBeUndefined();
-    expect((state.surface as unknown as {disposed?: boolean})?.disposed).toBe(true);
+    expect((state.surface as unknown as { disposed?: boolean })?.disposed).toBe(true);
     expect(state.unmounted).toBe(true);
   }
   if (step.expectDataModel !== undefined) {
@@ -1236,7 +1236,7 @@ function mapNodesToDomElements(
   const result = new Map<string, HTMLElement>();
   const allElements = Array.from(container.querySelectorAll('*'));
   for (const [nodePath, node] of nodes) {
-    const match = allElements.find(el => (el as A2uiWebComponentElement).node === node);
+    const match = allElements.find((el) => (el as A2uiWebComponentElement).node === node);
     if (match) {
       result.set(nodePath, match as HTMLElement);
     }
@@ -1396,7 +1396,7 @@ export function mountSurface(caseSpec?: Partial<AdapterTestCase>): HarnessState 
         catalogs,
         processorOptions: {
           validationConfig,
-          outboundListener: msg => {
+          outboundListener: (msg) => {
             outbound.push(structuredClone(msg) as unknown as Record<string, unknown>);
             const call = (msg as Record<string, unknown>)?.['callAgentFunction'] as
               | Record<string, unknown>
@@ -1424,21 +1424,21 @@ export function mountSurface(caseSpec?: Partial<AdapterTestCase>): HarnessState 
     previousDomElements: new Map(),
     lastCallId: lastCapturedCallId,
   };
-  rendererService.surfaceGroup.onSurfaceCreated.subscribe(surface => {
+  rendererService.surfaceGroup.onSurfaceCreated.subscribe((surface) => {
     state.surface = surface;
-    surface.onAction.subscribe(action => {
+    surface.onAction.subscribe((action) => {
       state.actions.push(action as unknown as Record<string, unknown>);
       state.outbound.push(
         frameActionEnvelope(action as unknown as Record<string, unknown>, state.protocolVersion),
       );
     });
-    surface.onError.subscribe(err => {
+    surface.onError.subscribe((err) => {
       const errRecord = err as unknown as Record<string, unknown>;
       state.errors.push({
         code: errRecord['code'],
         message: errRecord['message'],
         surfaceId: (errRecord['surfaceId'] as string | undefined) ?? surface.id,
-        ...(typeof errRecord['path'] === 'string' ? {path: errRecord['path']} : {}),
+        ...(typeof errRecord['path'] === 'string' ? { path: errRecord['path'] } : {}),
       });
       state.outbound.push(
         frameErrorEnvelope(
@@ -1449,7 +1449,7 @@ export function mountSurface(caseSpec?: Partial<AdapterTestCase>): HarnessState 
       );
     });
   });
-  rendererService.surfaceGroup.onSurfaceDeleted.subscribe(deletedId => {
+  rendererService.surfaceGroup.onSurfaceDeleted.subscribe((deletedId) => {
     if (state.surface?.id === deletedId && !state.unmounted) {
       state.fixture?.destroy();
       state.unmounted = true;
@@ -1460,7 +1460,7 @@ export function mountSurface(caseSpec?: Partial<AdapterTestCase>): HarnessState 
 
 export function substituteLastCallId(value: unknown, lastCallId: string): unknown {
   if (Array.isArray(value)) {
-    return value.map(item => substituteLastCallId(item, lastCallId));
+    return value.map((item) => substituteLastCallId(item, lastCallId));
   }
   if (value && typeof value === 'object') {
     const rec = value as Record<string, unknown>;

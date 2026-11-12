@@ -22,13 +22,13 @@ import {
   makeEnvironmentProviders,
   Optional,
 } from '@angular/core';
-import {A2UI_RENDERER_CONFIG, type RendererConfiguration} from './core/a2ui-renderer.service';
+import { A2UI_RENDERER_CONFIG, type RendererConfiguration } from './core/a2ui-renderer.service';
 import {
   AngularCatalog,
   type AngularComponentImplementation,
   createComponentImplementation,
 } from './catalog/types';
-import {UniversalOnlyComponent} from './catalog/universal_only.component';
+import { UniversalOnlyComponent } from './catalog/universal_only.component';
 import {
   BASIC_FUNCTIONS,
   createBasicCatalogFunctions,
@@ -53,8 +53,8 @@ import {
   A2uiSlider,
   A2uiDateTimeInput,
 } from '@a2ui/web_core/catalogs/basic/v1';
-import {FunctionImplementation} from '@a2ui/web_core/v1_0';
-import {z} from 'zod';
+import { FunctionImplementation } from '@a2ui/web_core';
+import { z } from 'zod';
 
 /**
  * The set of default Angular universal implementations for each component in the v1.0 basic catalog.
@@ -131,7 +131,7 @@ export const BASIC_COMPONENTS: AngularComponentImplementation[] = Object.values(
 /**
  * The set of client-side functions provided by the v1.0 basic catalog.
  */
-export {BASIC_FUNCTIONS};
+export { BASIC_FUNCTIONS };
 
 /**
  * A base class for v1.0 basic catalogs, providing extensibility for non-DI use cases.
@@ -139,13 +139,13 @@ export {BASIC_FUNCTIONS};
 export class BasicCatalogBase extends AngularCatalog {
   constructor(options: BasicCatalogOptions = {}) {
     const id = options.id ?? 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json';
-    const functions = options.functions ?? createBasicCatalogFunctions({locale: options.locale});
+    const functions = options.functions ?? createBasicCatalogFunctions({ locale: options.locale });
 
     const overrides = options.components ?? {};
     const components: AngularComponentImplementation[] = [
       ...Object.entries(DEFAULT_COMPONENT_IMPLEMENTATIONS).map(([key, defaultValue]) => {
         const impl = (overrides as any)[key] ?? defaultValue;
-        const result: Record<string, any> = {name: impl.name || defaultValue.name || key};
+        const result: Record<string, any> = { name: impl.name || defaultValue.name || key };
         for (const prop of Object.keys(impl)) {
           if (prop !== 'name') {
             result[prop] = (impl as any)[prop];
@@ -192,11 +192,11 @@ export function provideA2UI(
         ? {
             useFactory: () => {
               const cfg = configOrFactory();
-              return {useUniversalComponents: true, ...cfg};
+              return { useUniversalComponents: true, ...cfg };
             },
           }
         : {
-            useValue: {useUniversalComponents: true, ...configOrFactory},
+            useValue: { useUniversalComponents: true, ...configOrFactory },
           }),
     },
   ]);

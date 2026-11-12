@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
-import {TestBed} from '@angular/core/testing';
-import {A2uiClientMessageSchema, A2uiError} from '@a2ui/web_core/v0_9';
-import {RendererToAgentMessageSchema} from '@a2ui/web_core/v1_0';
+import { TestBed } from '@angular/core/testing';
+import { A2uiError } from '@a2ui/web_core';
+import { A2uiClientMessageSchema } from '@a2ui/web_core/v0_9';
+import { RendererToAgentMessageSchema } from '@a2ui/web_core/v1_0';
 
 import {
   assertKnownKeys,
@@ -35,8 +36,8 @@ import {
   type HarnessState,
   type ManifestRecord,
 } from './adapter_harness';
-import {type AngularCatalog, SurfaceComponent} from './public-api';
-import {BasicCatalogBase as V09BasicCatalogBase} from './v0_9';
+import { type AngularCatalog, SurfaceComponent } from './public-api';
+import { BasicCatalogBase as V09BasicCatalogBase } from './v0_9';
 
 const E2E_SCENARIO_KNOWN_KEYS = new Set([
   'name',
@@ -113,7 +114,7 @@ interface E2eSuiteItem {
 }
 
 function getE2eScenarios(): E2eSuiteItem[] {
-  const suites = getConformanceSuites() as unknown as {e2eScenarios?: E2eSuiteItem[]};
+  const suites = getConformanceSuites() as unknown as { e2eScenarios?: E2eSuiteItem[] };
   return suites.e2eScenarios ?? [];
 }
 
@@ -174,7 +175,7 @@ function assertKnownE2eScenario(scenario: E2eScenario): void {
 }
 
 export function captureOutbound(state: HarnessState): Array<Record<string, unknown>> {
-  return state.outbound.map(item => structuredClone(item));
+  return state.outbound.map((item) => structuredClone(item));
 }
 
 function isMatchAny(value: unknown): boolean {
@@ -254,7 +255,7 @@ function registerV09BasicCatalog(state: HarnessState): void {
 function attachGroupErrorForwarding(state: HarnessState): void {
   const isV09 = state.protocolVersion.startsWith('v0.9') || state.protocolVersion.startsWith('0.9');
   const version = isV09 ? 'v0.9' : state.protocolVersion;
-  state.rendererService.surfaceGroup.onError.subscribe(err => {
+  state.rendererService.surfaceGroup.onError.subscribe((err) => {
     const errRecord = err as unknown as Record<string, unknown>;
     const surfaceId = typeof errRecord['surfaceId'] === 'string' ? errRecord['surfaceId'] : '';
     if (surfaceId && state.rendererService.surfaceGroup.getSurface(surfaceId)) {
@@ -292,7 +293,7 @@ async function selectSurface(state: HarnessState, surfaceId: string): Promise<vo
 
 export async function runScenario(scenario: E2eScenario): Promise<void> {
   const protocolVersion = scenario.protocolVersion === 'v0.9.1' ? 'v0.9' : scenario.protocolVersion;
-  const state = mountSurface({protocolVersion});
+  const state = mountSurface({ protocolVersion });
   if (protocolVersion.startsWith('v0.9') || protocolVersion.startsWith('0.9')) {
     registerV09BasicCatalog(state);
   }
@@ -383,7 +384,7 @@ export async function runScenario(scenario: E2eScenario): Promise<void> {
   }
 }
 
-const e2eSpecMetadataByFullName = new Map<string, {suite: string; caseName: string}>();
+const e2eSpecMetadataByFullName = new Map<string, { suite: string; caseName: string }>();
 let e2eReporterInstalled = false;
 
 function ensureE2eJasmineManifestReporter(): void {

@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-import {Type} from '@angular/core';
-import {ComponentApi} from '@a2ui/web_core/v0_9';
-import {WebComponentImplementation} from '@a2ui/web_core/v0_9/universal';
-import type {AngularComponentImplementation} from './types';
-import {AngularWcHost} from './angular_wc_host';
+import { Type } from '@angular/core';
+import { ComponentApi } from '@a2ui/web_core';
+import { WebComponentImplementation } from '@a2ui/web_core/universal';
+import type { AngularComponentImplementation } from './types';
+import { AngularWcHost } from './angular_wc_host';
 
 const angularWcCache = new WeakMap<Type<object>, WebComponentImplementation>();
 const tagNameCounts = new Map<string, number>();
@@ -46,7 +46,7 @@ export function componentApiFields(api: ComponentApi): ComponentApi {
     schema: api.schema,
     allowedParents: api.allowedParents,
     allowedChildren: api.allowedChildren,
-    ...(api.metadata !== undefined ? {metadata: api.metadata} : {}),
+    ...(api.metadata !== undefined ? { metadata: api.metadata } : {}),
   };
 }
 

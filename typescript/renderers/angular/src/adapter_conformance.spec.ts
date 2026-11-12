@@ -15,7 +15,7 @@
  */
 
 import axe from 'axe-core';
-import {ComponentFixture, TestBed} from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import {
   assertAllUnsupportedMatched,
   assertKnownAccessibilityCase,
@@ -31,9 +31,9 @@ import {
   type AccessibilityStep,
   type ManifestRecord,
 } from './adapter_harness';
-import {A2uiRendererService, SurfaceComponent, provideA2UI} from './public-api';
+import { A2uiRendererService, SurfaceComponent, provideA2UI } from './public-api';
 
-const specMetadataByFullName = new Map<string, {suite: string; caseName: string}>();
+const specMetadataByFullName = new Map<string, { suite: string; caseName: string }>();
 let reporterInstalled = false;
 
 function ensureJasmineManifestReporter(): void {
@@ -67,7 +67,7 @@ function ensureJasmineManifestReporter(): void {
 }
 
 afterAll(() => {
-  const {accessibility, adapterConformance, adapterConformanceV09 = []} = getConformanceSuites();
+  const { accessibility, adapterConformance, adapterConformanceV09 = [] } = getConformanceSuites();
   assertAllUnsupportedMatched(accessibility, adapterConformance, adapterConformanceV09);
 });
 
@@ -79,7 +79,7 @@ async function runAxe(container: HTMLElement, rules: string[]): Promise<void> {
     },
   });
   const violationSummary = results.violations
-    .map(v => `${v.id} (${v.nodes.map(n => n.target.join(' ')).join(', ')})`)
+    .map((v) => `${v.id} (${v.nodes.map((n) => n.target.join(' ')).join(', ')})`)
     .join('; ');
   expect(results.violations.length)
     .withContext(
@@ -92,7 +92,7 @@ describe('@a2ui/angular Accessibility Conformance (conformance/core/accessibilit
   ensureJasmineManifestReporter();
   const suiteTitle =
     '@a2ui/angular Accessibility Conformance (conformance/core/accessibility.yaml)';
-  const {accessibility} = getConformanceSuites();
+  const { accessibility } = getConformanceSuites();
 
   for (const testCase of accessibility) {
     const specTitle = `${testCase.name}: ${testCase.description ?? ''}`;
@@ -120,7 +120,7 @@ describe('@a2ui/angular Accessibility Conformance (conformance/core/accessibilit
 
       TestBed.configureTestingModule({
         imports: [SurfaceComponent],
-        providers: [provideA2UI({catalogs: [createDefaultAdapterCatalog()]})],
+        providers: [provideA2UI({ catalogs: [createDefaultAdapterCatalog()] })],
       });
       const rendererService = TestBed.inject(A2uiRendererService);
       let fixture: ComponentFixture<SurfaceComponent> | undefined;
@@ -156,7 +156,7 @@ describe('@a2ui/angular Adapter Conformance (conformance/core/adapter_conformanc
   ensureJasmineManifestReporter();
   const suiteTitle =
     '@a2ui/angular Adapter Conformance (conformance/core/adapter_conformance.yaml)';
-  const {adapterConformance, basicCatalogJson} = getConformanceSuites();
+  const { adapterConformance, basicCatalogJson } = getConformanceSuites();
 
   beforeEach(() => {
     spyOn(window, 'open').and.returnValue(null);
@@ -164,7 +164,10 @@ describe('@a2ui/angular Adapter Conformance (conformance/core/adapter_conformanc
 
   it('preserves String.prototype.replace special sequences in injected basicCatalogJson', () => {
     const functions = basicCatalogJson['functions'] as
-      | Record<string, {properties?: {args?: {properties?: {pattern?: {description?: string}}}}}>
+      | Record<
+          string,
+          { properties?: { args?: { properties?: { pattern?: { description?: string } } } } }
+        >
       | undefined;
     const regexPatternDescription =
       functions?.['regex']?.properties?.args?.properties?.pattern?.description;
@@ -208,7 +211,7 @@ describe('@a2ui/angular Adapter Conformance v0.9 (conformance/adapter/adapter_co
   ensureJasmineManifestReporter();
   const suiteTitle =
     '@a2ui/angular Adapter Conformance v0.9 (conformance/adapter/adapter_conformance_v0_9.yaml)';
-  const {adapterConformanceV09 = []} = getConformanceSuites();
+  const { adapterConformanceV09 = [] } = getConformanceSuites();
 
   beforeEach(() => {
     spyOn(window, 'open').and.returnValue(null);
