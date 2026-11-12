@@ -1,9 +1,9 @@
 {
   "name": "a2ui-triage",
   "private": true,
-  "description": "Triage automation: the flagging bot that adds and removes the 'status: needs-triage' label.",
+  "description": "Triage automation: the flagging bot that adds and removes the 'status: needs-triage' label, and the scripts of the triage bot.",
   "scripts": {
-    "test": "node --test flagging/*.test.mts",
+    "test": "node --test flagging/*.test.mts ../../../.agents/skills/a2ui-triage-bot/scripts/*.test.mts",
     "typecheck": "tsc"
   },
   "devDependencies": {

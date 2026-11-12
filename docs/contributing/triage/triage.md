@@ -25,7 +25,7 @@ For each issue in the [first-line triage queue][not-first-line-handled]:
 1. Go through the [second-line triage queue][needs-triage-minus-waiting]. For each item:
 
     - If you can triage it in a couple of minutes, [triage it](#triage-an-item).
-    - Otherwise, add [status: needs-team-input][needs-team-input]. Optionally, add a comment with your thoughts.
+    - Otherwise, add [status: needs-team-input][needs-team-input]. Optionally, add a comment with your thoughts, starting with `**Requires team input. Note for the discussion:**`, so that the [triage UI](../../../tools/internal/triage_new/blueprints/features/ui.blueprint.md) shows it with the item's suggestion. To ask the triage bot a question or for help, address it in that comment, as in "Triage bot, ...?". The [triage bot](../../../tools/internal/triage_new/blueprints/features/triage_bot.blueprint.md#requests-to-the-triage-bot) answers in a comment that starts with `**From triage bot:**` at its next daily run.
 
 2. Go through [status: needs-team-input][needs-team-input] with other team members. For each item:
 
@@ -93,7 +93,7 @@ What may help:
 [not-first-line-handled]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20-label%3AP0%20-label%3AP1%20-label%3AP2%20-label%3AP3%20-label%3A%22status%3A%20first-line-handled%22%20sort%3Acreated-asc
 [needs-triage-all]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen+sort%3Aupdated-asc+repo%3Aa2ui-project%2Fa2ui%2Cflutter%2Fgenui+label%3A%22status%3A+needs-triage%22
 [needs-triage-minus-waiting]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen+sort%3Aupdated-asc+repo%3Aa2ui-project%2Fa2ui%2Cflutter%2Fgenui+label%3A%22status%3A+needs-triage%22+-label%3A%22status%3A+needs-team-input%22
-[needs-team-input]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20needs-team-input%22
-[assigned-for-triage]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20assigned-for-triage%22
-[waiting-for-author-response]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22status%3A%20waiting-for-author-response%22
+[needs-team-input]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen+sort%3Aupdated-asc+repo%3Aa2ui-project%2Fa2ui%2Cflutter%2Fgenui+label%3A%22status%3A+needs-team-input%22
+[assigned-for-triage]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen+sort%3Aupdated-asc+repo%3Aa2ui-project%2Fa2ui%2Cflutter%2Fgenui+label%3A%22status%3A+assigned-for-triage%22
+[waiting-for-author-response]: https://github.com/a2ui-project/a2ui/issues?q=state%3Aopen+sort%3Aupdated-asc+repo%3Aa2ui-project%2Fa2ui%2Cflutter%2Fgenui+label%3A%22status%3A+waiting-for-author-response%22
 [size-small]: https://github.com/a2ui-project/a2ui/issues?q=is%3Aissue%20state%3Aopen%20repo%3Aa2ui-project%2Fa2ui%20label%3A%22size%3A%20small%22
