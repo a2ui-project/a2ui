@@ -20,6 +20,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:triage/triage.dart';
 import 'package:triage_ui/src/github_item.dart';
+import 'package:triage_ui/src/model/item_context.dart';
 import 'package:triage_ui/src/model/triage_controller.dart';
 import 'package:triage_ui/src/model/triage_item.dart';
 import 'package:triage_ui/src/ui/chip_list_field.dart';
@@ -406,8 +407,9 @@ void main() {
     ];
     await tester.tap(find.byTooltip('Choose labels to add').first);
     await tester.pumpAndSettle();
-    // The priorities have a field of their own.
-    expect(choices(), ['area: docs', 'type: bug', needsTeamInputLabel]);
+    // The priorities have a field of their own, and
+    // `status: needs-team-input` comes first.
+    expect(choices(), [needsTeamInputLabel, 'area: docs', 'type: bug']);
     await tester.tap(find.widgetWithText(MenuItemButton, 'type: bug'));
     await tester.pumpAndSettle();
 
@@ -421,14 +423,14 @@ void main() {
       findsOneWidget,
     );
     expect(find.widgetWithText(InputChip, 'type: bug'), findsOneWidget);
-    expect(choices(), ['area: docs', 'type: bug', needsTeamInputLabel]);
+    expect(choices(), [needsTeamInputLabel, 'area: docs', 'type: bug']);
 
     // Opened again, the dropdown lists the checked label first.
     await tester.tapAt(Offset.zero);
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Choose labels to add').first);
     await tester.pumpAndSettle();
-    expect(choices(), ['type: bug', 'area: docs', needsTeamInputLabel]);
+    expect(choices(), ['type: bug', needsTeamInputLabel, 'area: docs']);
   });
 
   testWidgets('filters a dropdown with more than 7 choices', (tester) async {
@@ -759,6 +761,61 @@ void main() {
       ),
     );
     expect((tile.shape! as RoundedRectangleBorder).side.width, 2);
+  });
+
+  testWidgets('Locate in the list expands the groups of the selected item '
+      'and shows it', (tester) async {
+    await pumpApp(tester);
+    expect(find.byType(ListTile), findsNothing);
+
+    Future<void> locate() async {
+      await tester.tap(find.widgetWithText(TextButton, 'Locate in the list'));
+      await tester.pumpAndSettle();
+    }
+
+    await locate();
+    final Finder tile = find.ancestor(
+      of: find.text('#10 Flutter renderer crashes on an empty Row'),
+      matching: find.byType(ListTile),
+    );
+    expect(tile, findsOneWidget);
+    expect(
+      (tester.widget<ListTile>(tile).shape! as RoundedRectangleBorder)
+          .side
+          .width,
+      2,
+    );
+    // Only the item's subgroup expands.
+    expect(find.text('#11 Docs are unclear'), findsNothing);
+
+    // Again after the triager collapses the group.
+    await expand(tester, 'New (0/3)');
+    expect(find.byType(ListTile), findsNothing);
+    await locate();
+    expect(tile, findsOneWidget);
+  });
+
+  testWidgets('Copy context copies the items in the tabs', (tester) async {
+    await pumpApp(tester);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Copy context'));
+    await tester.pump();
+
+    expect(
+      clipboard.last,
+      itemContext(controller, controller.group(controller.selected!)),
+    );
+    expect(
+      clipboard.last,
+      allOf(
+        startsWith(
+          'Context: I am triaging Issue #10 in a2ui-project/a2ui, with PR '
+          '#20 linked to it.',
+        ),
+        contains('# PR #20: Fix the Row crash'),
+      ),
+    );
+    expect(find.text('Copied the context of #10, #20'), findsOneWidget);
   });
 
   testWidgets('triages a PR on genui in the same groups as the items of '

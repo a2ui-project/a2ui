@@ -20,7 +20,7 @@
 //
 // Usage, from the repository root:
 //
-//   node tools/internal/triage/flagging/flag_reason.mts <item>...
+//   node .agents/skills/a2ui-triage-bot/scripts/flag_reason.mts <item>...
 //
 // An item is a number in a2ui-project/a2ui, or the URL of an issue or PR. The
 // output is a JSON array with one `{"url": ..., "reason": ...}` entry per item,
@@ -30,7 +30,7 @@
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 
-import {decide, fetchHistory, type GitHubReader} from './triage.mts';
+import {decide, fetchHistory, type GitHubReader} from '../../../../tools/internal/triage/flagging/triage.mts';
 
 const DEFAULT_OWNER = 'a2ui-project';
 const DEFAULT_REPO = 'a2ui';
@@ -142,7 +142,7 @@ function ghReader(): GitHubReader {
 
 async function main(args: string[]): Promise<void> {
   if (args.length === 0) {
-    console.error('Usage: node tools/internal/triage/flagging/flag_reason.mts <item>...');
+    console.error('Usage: node .agents/skills/a2ui-triage-bot/scripts/flag_reason.mts <item>...');
     process.exitCode = 2;
     return;
   }

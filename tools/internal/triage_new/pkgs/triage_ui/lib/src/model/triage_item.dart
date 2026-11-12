@@ -82,6 +82,7 @@ final class TriageItem {
     this.repository = a2uiRepository,
     required this.number,
     required this.title,
+    this.body = '',
     required this.url,
     required this.isPullRequest,
     required this.isOpen,
@@ -98,6 +99,7 @@ final class TriageItem {
     this.suggestionError,
     this.suggestionUrl,
     this.teamNote,
+    this.comments = const [],
   });
 
   /// Reads an `IssueFields` or `PullRequestFields` node of the triage UI's
@@ -143,6 +145,7 @@ final class TriageItem {
       repository: Uri.parse(url).pathSegments.take(2).join('/'),
       number: node['number']! as int,
       title: node['title']! as String,
+      body: (node['body'] as String? ?? '').replaceAll('\r\n', '\n'),
       url: url,
       isPullRequest: isPullRequest,
       isOpen: node['state'] == 'OPEN',
@@ -175,6 +178,18 @@ final class TriageItem {
       suggestionError: suggestionError,
       suggestionUrl: suggestionComment?['url'] as String?,
       teamNote: teamNote,
+      comments: [
+        for (final Map<String, Object?> c in comments)
+          // The suggestion comments hold the suggestion's A2UI messages, and
+          // [suggestion] has the latest suggestion.
+          if (!_isTriageBotComment(c) || !hasA2uiBlock(c['body']! as String))
+            ItemComment(
+              author: loginOf(c['author']),
+              createdAt: dateOf(c['createdAt'])!,
+              body: (c['body']! as String).replaceAll('\r\n', '\n'),
+              url: c['url']! as String,
+            ),
+      ],
     );
   }
 
@@ -185,6 +200,9 @@ final class TriageItem {
   final String repository;
   final int number;
   final String title;
+
+  /// The item's description, as Markdown.
+  final String body;
   final String url;
   final bool isPullRequest;
   final bool isOpen;
@@ -225,6 +243,10 @@ final class TriageItem {
   /// The latest comment that a triager posted for the team, if the item has
   /// one.
   final TeamNote? teamNote;
+
+  /// The last 100 comments, oldest first, without the triage bot's
+  /// suggestion comments.
+  final List<ItemComment> comments;
 
   bool get needsTriage => labels.contains(needsTriageLabel);
 
@@ -326,6 +348,26 @@ final class TeamNote {
 
   /// The login of the triager, or null for a deleted account.
   final String? author;
+
+  /// The URL of the comment.
+  final String url;
+}
+
+/// A comment on an item.
+final class ItemComment {
+  const ItemComment({
+    this.author,
+    required this.createdAt,
+    required this.body,
+    required this.url,
+  });
+
+  /// The login of the commenter, or null for a deleted account.
+  final String? author;
+  final DateTime createdAt;
+
+  /// The comment, as Markdown.
+  final String body;
 
   /// The URL of the comment.
   final String url;

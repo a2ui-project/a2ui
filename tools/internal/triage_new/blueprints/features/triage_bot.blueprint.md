@@ -154,12 +154,56 @@ A suggestion is **current** when nothing happened on the item after the latest s
 4. A commit pushed to a PR.
 5. A change of labels, assignees or state, except adding or removing `status: needs-triage`. The flagger manages that label, so its changes say nothing new about the item.
 
+## Triage report
+
+The triage report says what a team member triaged in a period, so that the team can read it in the team chat. The triager asks the triage bot for it, usually at the end of their triage week, as in "Create the triage report for last week". The triage bot runs [triage_report.mts](../../../../../.agents/skills/a2ui-triage-bot/scripts/triage_report.mts), which collects the activity from GitHub and writes the report.
+
+An item is in the report when the person changed its labels, assignees or state in the period, or commented on it. These do not count:
+
+1. Triage bot comments, which the triage bot posts from the person's account.
+2. Adding or removing `status: needs-triage`, which the [flagger](../../../triage/blueprints/flagging.blueprint.md) manages.
+3. Closes by a commit or a merged PR, and the close that merges a PR.
+
+Label and assignee changes are net: adding a label and removing it in the period cancel out.
+
+The report starts with the period and the numbers: how many items the person triaged, how many of them were issues and PRs, how many items they sent to the team by adding `status: needs-team-input`, and how many open items still need triage. Groups follow, by what the person did: **Closed**, **Assigned P0** to **Assigned P3**, **Assigned for triage**, **Needs team input**, **Updated** for other changes, and **Commented** for the items the person only commented on. An item is in the first group that fits. Each group lists its items, with each item's URL, title and what the person did. The last line is "Created by triage bot skill", where "triage bot" links to the [a2ui-triage-bot](../../../../../.agents/skills/a2ui-triage-bot/SKILL.md) skill.
+
+The team chat does not render Markdown, so the report is plain text, and the triage bot puts it on the clipboard as rich text too, where the link to the skill works. For example:
+
+```
+Triage report for octocat, 2026-11-05 to 2026-11-11
+
+Triaged 4 items: 3 issues and 1 PR.
+Sent 1 issue to the team.
+4 items still need triage.
+
+- Closed: 1 PR
+  - https://github.com/a2ui-project/a2ui/pull/4065
+    Add a Slider to the Lit renderer: closed, commented
+
+- Assigned P3: 1 issue
+  - https://github.com/a2ui-project/a2ui/issues/4080
+    Fix typo in the quickstart: added P3
+
+- Needs team input: 1 issue
+  - https://github.com/a2ui-project/a2ui/issues/4082
+    Stream partial updates to the Angular renderer: added status: needs-team-input, commented
+
+- Commented: 1 issue
+  - https://github.com/a2ui-project/a2ui/issues/4090
+    Document the Express format: commented
+
+Created by triage bot skill (https://github.com/a2ui-project/a2ui/blob/main/.agents/skills/a2ui-triage-bot/SKILL.md)
+```
+
+Triage subscribes the triager to the notifications of every item they comment on or assign. After the report, the triage bot asks "Do you want me to unsubscribe you from all these items?" If the triager agrees, it unsubscribes them from the items in the report, as the **Unsubscribe** button on each item does. GitHub still notifies them when someone mentions them.
+
 ## The `TriageSuggestion` component
 
 The component is defined in [triage_suggestion.dart](../../pkgs/triage/lib/src/triage_bot/triage_suggestion.dart). Its properties:
 
 1. `summary` (required): what the item is about, in plain English.
-2. `reason`: why the item is flagged for triage, in plain English, such as "This issue has external input but no priority label yet." It is the reason that the [flagger](../../../triage/blueprints/flagging.blueprint.md) gives for the item, as [flag_reason.mts](../../../triage/flagging/flag_reason.mts) prints it, and is omitted when the flagger does not flag the item.
+2. `reason`: why the item is flagged for triage, in plain English, such as "This issue has external input but no priority label yet." It is the reason that the [flagger](../../../triage/blueprints/flagging.blueprint.md) gives for the item, as [flag_reason.mts](../../../../../.agents/skills/a2ui-triage-bot/scripts/flag_reason.mts) prints it, and is omitted when the flagger does not flag the item.
 3. `suggestion` (required): what the triager should do and why, in plain English.
 4. `reply`: a comment for the item's author or other participants. When the suggestion is applied, the triage UI posts it from the triager's account.
 5. `close_as`: how to close the item: `completed`, `not_planned` or `duplicate`. When it is omitted, the item stays open. A PR has no close reason, so any value closes it.

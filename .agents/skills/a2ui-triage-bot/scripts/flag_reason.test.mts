@@ -15,13 +15,13 @@
  */
 
 // Tests for flag_reason.mts. Run from the repository root with:
-// node --test tools/internal/triage/flagging/flag_reason.test.mts
+// node --test .agents/skills/a2ui-triage-bot/scripts/flag_reason.test.mts
 
 import assert from 'node:assert/strict';
 import {describe, it} from 'node:test';
 
 import {itemReason, parseItem, toPath, toSentence} from './flag_reason.mts';
-import {type GitHubReader, type IssueEvent, type Item, type RawContribution} from './triage.mts';
+import {type GitHubReader, type IssueEvent, type Item, type RawContribution} from '../../../../tools/internal/triage/flagging/triage.mts';
 
 const NOW = new Date('2026-06-30T00:00:00Z').getTime();
 const DAY = 24 * 60 * 60 * 1000;

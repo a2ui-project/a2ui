@@ -42,7 +42,7 @@ The script uses the following rules to decide if a PR or issue should get **the 
 
 Staleness is calculated from the last human contribution (a comment or the issue's creation) rather than `updated_at` to avoid bot edits resetting the timer.
 
-The bot prints to the console which items it flags or unflags and why. You can use this to track triage progress. To see why specific items are flagged, without changing their labels, run [flag_reason.mts](../flagging/flag_reason.mts) from the repository root, with item numbers or URLs: `node tools/internal/triage/flagging/flag_reason.mts 123 456`. It reads GitHub with the `gh` CLI, and the [triage bot](../../../../.agents/skills/a2ui-triage-bot/SKILL.md) uses it for the `reason` of its suggestions.
+The bot prints to the console which items it flags or unflags and why. You can use this to track triage progress. To see why specific items are flagged, without changing their labels, run [flag_reason.mts](../../../../.agents/skills/a2ui-triage-bot/scripts/flag_reason.mts) from the repository root, with item numbers or URLs: `node .agents/skills/a2ui-triage-bot/scripts/flag_reason.mts 123 456`. It reads GitHub with the `gh` CLI, and the [triage bot](../../../../.agents/skills/a2ui-triage-bot/SKILL.md) uses it for the `reason` of its suggestions.
 
 The workflow runs daily on a schedule (15:00 UTC / 07:00 PST), on manual dispatch, and automatically on issue events (opened, edited, labeled, unlabeled, assigned, unassigned, reopened), new issue comments, and submitted PR reviews or review comments.
 

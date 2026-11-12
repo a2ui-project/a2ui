@@ -29,7 +29,7 @@ fragment Comments on IssueComment {
 }
 
 fragment IssueFields on Issue {
-  id number title url createdAt updatedAt lastEditedAt state
+  id number title body url createdAt updatedAt lastEditedAt state
   author { login }
   labels(first: 50) { nodes { name } }
   assignees(first: 20) { nodes { login } }
@@ -50,7 +50,7 @@ fragment IssueFields on Issue {
 }
 
 fragment PullRequestFields on PullRequest {
-  id number title url createdAt updatedAt lastEditedAt state
+  id number title body url createdAt updatedAt lastEditedAt state
   author { login }
   labels(first: 50) { nodes { name } }
   assignees(first: 20) { nodes { login } }

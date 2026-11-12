@@ -49,6 +49,27 @@ void main() {
     expect(item.suggestionStatus, SuggestionStatus.none);
   });
 
+  test('reads the description and the comments, without the suggestion '
+      'comments', () {
+    final TriageItem item = read(
+      itemNode(
+        12,
+        body: 'Line 1\r\nLine 2',
+        comments: [
+          commentNode('First', at: day(2), login: 'reporter'),
+          commentNode(suggestion, at: day(3)),
+          commentNode('Second\r\nline', at: day(4)),
+        ],
+      ),
+    );
+
+    expect(item.body, 'Line 1\nLine 2');
+    expect(
+      [for (final c in item.comments) (c.author, c.createdAt, c.body)],
+      [('reporter', day(2), 'First'), ('octocat', day(4), 'Second\nline')],
+    );
+  });
+
   test('reads a pull request and the issues it closes', () {
     final TriageItem item = read(itemNode(13, pr: true, linked: [12]));
 

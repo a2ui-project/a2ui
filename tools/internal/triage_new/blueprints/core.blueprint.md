@@ -22,11 +22,11 @@ The triage process is described in [triage.md](../../../../docs/contributing/tri
    2. Started by: a GitHub workflow.
    3. Needs to: comment on items, and send messages to team members.
 
-3. The [triage bot](features/triage_bot.blueprint.md#triage-suggestions) posts a triage suggestion on each item with `status: needs-triage` and without `status: needs-team-input`, and answers [requests to the triage bot](features/triage_bot.blueprint.md#requests-to-the-triage-bot) from team members.
+3. The [triage bot](features/triage_bot.blueprint.md#triage-suggestions) posts a triage suggestion on each item with `status: needs-triage` and without `status: needs-team-input`, and answers [requests to the triage bot](features/triage_bot.blueprint.md#requests-to-the-triage-bot) from team members. On request, it writes the [triage report](features/triage_bot.blueprint.md#triage-report) of a period for the team chat.
 
-   1. Runs: daily.
-   2. Started by: a scheduled agent that runs the [a2ui-triage-bot](../../../../.agents/skills/a2ui-triage-bot/SKILL.md) skill.
-   3. Needs to: query an AI agent, and comment on items.
+   1. Runs: daily, and when the triager asks for the triage report.
+   2. Started by: a scheduled agent that runs the [a2ui-triage-bot](../../../../.agents/skills/a2ui-triage-bot/SKILL.md) skill, or the triager.
+   3. Needs to: query an AI agent, comment on items, read the activity on items, and unsubscribe the triager from items.
 
 4. The [triage UI](features/ui.blueprint.md) helps the triager finalize the suggestions and apply them, or postpone the items till the team discussion with `status: needs-team-input`. Once an item is triaged, the flagger removes its `status: needs-triage`.
 

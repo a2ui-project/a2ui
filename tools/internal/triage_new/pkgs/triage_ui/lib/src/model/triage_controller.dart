@@ -164,10 +164,18 @@ class TriageController extends ChangeNotifier {
   var _revealCount = 0;
 
   /// Grows each time the controller selects an item on its own, such as an
-  /// item opened by URL or the next item after an apply, so that the list
-  /// shows the selected item even if it is in a collapsed group or
-  /// scrolled out of view.
+  /// item opened by URL or the next item after an apply, and on [reveal], so
+  /// that the list shows the selected item even if it is in a collapsed
+  /// group or scrolled out of view.
   int get revealCount => _revealCount;
+
+  /// Asks the list to show the selected item: to expand its group and
+  /// subgroup, and to scroll to it.
+  void reveal() {
+    if (_selected == null) return;
+    _revealCount++;
+    notifyListeners();
+  }
 
   /// The loaded item that [ref] refers to, or null.
   TriageItem? item(ItemRef ref) {

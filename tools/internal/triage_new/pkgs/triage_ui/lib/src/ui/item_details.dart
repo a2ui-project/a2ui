@@ -13,8 +13,10 @@
 // limitations under the License.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:triage/triage.dart';
 
+import '../model/item_context.dart';
 import '../model/suggestion_draft.dart';
 import '../model/triage_controller.dart';
 import '../model/triage_item.dart';
@@ -28,6 +30,9 @@ import 'suggestion_surface.dart';
 import 'triage_scope.dart';
 
 /// The selected item and the items linked to it, each in a tab of its own.
+/// To the left of the tabs, **Locate in the list** shows the selected item
+/// in the list, and to their right, **Copy context** copies what the tool
+/// knows about the items, for a prompt to an agent.
 class ItemDetails extends StatefulWidget {
   const ItemDetails({super.key});
 
@@ -56,10 +61,32 @@ class _ItemDetailsState extends State<ItemDetails> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          TabBar(
-            isScrollable: true,
-            tabAlignment: TabAlignment.start,
-            tabs: [for (final i in items) _ItemTab(i)],
+          // Not selectable: with the tabs in a row, a drag on the text below
+          // them selected the first tab's name instead.
+          SelectionContainer.disabled(
+            child: Row(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: TextButton.icon(
+                    onPressed: controller.reveal,
+                    icon: const Icon(Icons.my_location, size: 18),
+                    label: const Text('Locate in the list'),
+                  ),
+                ),
+                Expanded(
+                  child: TabBar(
+                    isScrollable: true,
+                    tabAlignment: TabAlignment.start,
+                    tabs: [for (final i in items) _ItemTab(i)],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: _CopyContextButton(items),
+                ),
+              ],
+            ),
           ),
           Expanded(
             child: TabBarView(
@@ -80,6 +107,42 @@ class _ItemDetailsState extends State<ItemDetails> {
       ),
     );
   }
+}
+
+/// Copies [itemContext] of [items] to the clipboard.
+class _CopyContextButton extends StatelessWidget {
+  const _CopyContextButton(this.items);
+
+  /// The items in the tabs, the selected item first.
+  final List<TriageItem> items;
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    message:
+        'Copy what the tool knows about the items in the tabs, to paste at '
+        'the start of a prompt to an agent',
+    child: TextButton.icon(
+      onPressed: () async {
+        await Clipboard.setData(
+          ClipboardData(text: itemContext(TriageScope.of(context), items)),
+        );
+        if (!context.mounted) return;
+        ScaffoldMessenger.maybeOf(context)
+          ?..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                'Copied the context of '
+                '${items.map((i) => i.shortName).join(', ')}',
+              ),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+      },
+      icon: const Icon(Icons.content_copy, size: 18),
+      label: const Text('Copy context'),
+    ),
+  );
 }
 
 /// The tab of [item]: its icon and short name, and a blue dot if the triager

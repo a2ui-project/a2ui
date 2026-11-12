@@ -11,5 +11,5 @@
     "types": ["node"],
     "skipLibCheck": true
   },
-  "include": ["**/*.mts"]
+  "include": ["**/*.mts", "../../../.agents/skills/a2ui-triage-bot/scripts/*.mts"]
 }

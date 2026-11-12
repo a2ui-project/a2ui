@@ -170,8 +170,14 @@ class SuggestionEditor extends StatelessWidget {
               chooseTooltip: 'Choose labels to add',
               // The priority has a field of its own.
               values: _withoutPriorities(draft.addedLabels),
+              // `status: needs-team-input` comes first, since the triager
+              // adds it to every item they cannot triage.
               options: _withoutPriorities([
-                for (final String label in info.labels)
+                for (final String label in [
+                  if (info.labels.contains(needsTeamInputLabel))
+                    needsTeamInputLabel,
+                  ...info.labels.where((l) => l != needsTeamInputLabel),
+                ])
                   if (!item.labels.contains(label)) label,
               ]),
               onChanged: (List<String> v) => draft.addedLabels = [
