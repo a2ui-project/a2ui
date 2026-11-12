@@ -11,6 +11,9 @@
   `A2UIChoicePicker` Dynamic Type scaling, multi-line `TextField(axis: .vertical)` for `longText`
   `A2UITextField`, and SVG path parsing improvements in `SVGPathParser` / `SVGPathShape`).
   [#4023](https://github.com/a2ui-project/a2ui/pull/4023)
+- Send the message of an error thrown by a renderer function in the `rendererFunctionResponse`
+  error, falling back to the generic execution-error text only when that message is empty.
+  [#4105](https://github.com/a2ui-project/a2ui/pull/4105)
 
 ## 0.10.0
 

@@ -114,12 +114,12 @@ struct RPCHandlerTests {
       components: [AnyComponentAPI](),
       functions: [MockThrowingFunction(error: error)]
     ).eraseToAnyCatalog()
-    let callMsg = CallRendererFunctionMessage(
+    let callMessage = CallRendererFunctionMessage(
       functionCallID: "call_fail",
       callFunction: CallFunctionPayload(call: "fail", catalogID: "test", args: [:]),
       version: .v10
     )
-    return await RPCHandler().handleIncomingCall(callMsg, catalogs: [catalog.id: catalog])
+    return await RPCHandler().handleIncomingCall(callMessage, catalogs: [catalog.id: catalog])
   }
 
   @Test func incomingCallThrowingFunctionAnswersWithErrorMessage() async {
@@ -151,8 +151,11 @@ struct RPCHandlerTests {
     )
   }
 
-  @Test func incomingCallThrowingFunctionWithoutMessageAnswersWithFallback() async {
-    let response = await respondToThrowingFunction(A2UIValidationError(""))
+  @Test(arguments: ["", "  \n\t "])
+  func incomingCallThrowingFunctionWithoutMessageAnswersWithFallback(
+    emptyMessage: String
+  ) async {
+    let response = await respondToThrowingFunction(A2UIValidationError(emptyMessage))
 
     #expect(
       response.error
