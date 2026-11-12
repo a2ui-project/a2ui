@@ -124,18 +124,20 @@ npm install @a2ui/react @a2ui/web_core
 
 The React renderer provides:
 
-- **`MessageProcessor` class** (from `@a2ui/web_core/v0_9`): Processes A2UI messages and holds the surface state. Create it with the catalogs you support and an action handler.
-- **`<A2uiSurface>` component** (from `@a2ui/react/v0_9`): Renders one surface in your React app.
+- **`MessageProcessor` class** (from `@a2ui/web_core`): Processes A2UI messages and holds the surface state. Create it with the catalogs you support and an action handler.
+- **`<A2uiSurface>` component** (from `@a2ui/react`): Renders one surface in your React app.
 
-### Setup Example (v0.9)
+Import both from the package roots. Only version-specific pieces, such as the basic catalog, come from a versioned path.
+
+### Setup Example
 
 Create one `MessageProcessor`, feed it the messages from your agent, and render an `<A2uiSurface>` for each surface it creates:
 
 ```tsx
 import {useEffect, useMemo, useRef, useState} from 'react';
-import {A2uiSurface, ReactCatalogComponent} from '@a2ui/react/v0_9';
-import {basicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
-import {MessageProcessor, SurfaceModel} from '@a2ui/web_core/v0_9';
+import {A2uiSurface} from '@a2ui/react';
+import {MessageProcessor} from '@a2ui/web_core';
+import {basicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
 
 export function Surfaces({onAction}: {onAction: (action: unknown) => void}) {
   // The processor is created once, so route actions through a ref to call the latest handler.
@@ -145,21 +147,15 @@ export function Surfaces({onAction}: {onAction: (action: unknown) => void}) {
   }, [onAction]);
 
   const processor = useMemo(
-    () =>
-      new MessageProcessor<ReactCatalogComponent>([basicCatalog], action =>
-        onActionRef.current(action),
-      ),
+    () => new MessageProcessor([basicCatalog], action => onActionRef.current(action)),
     [],
   );
-  const [surfaces, setSurfaces] = useState<SurfaceModel<ReactCatalogComponent>[]>(() =>
-    Array.from(processor.model.surfacesMap.values()),
-  );
+  const [surfaces, setSurfaces] = useState(() => Array.from(processor.model.surfacesMap.values()));
 
   useEffect(() => {
-    const created = processor.onSurfaceCreated(surface => setSurfaces(prev => [...prev, surface]));
-    const deleted = processor.onSurfaceDeleted(id =>
-      setSurfaces(prev => prev.filter(s => s.id !== id)),
-    );
+    const sync = () => setSurfaces(Array.from(processor.model.surfacesMap.values()));
+    const created = processor.onSurfaceCreated(sync);
+    const deleted = processor.onSurfaceDeleted(sync);
     return () => {
       created.unsubscribe();
       deleted.unsubscribe();
