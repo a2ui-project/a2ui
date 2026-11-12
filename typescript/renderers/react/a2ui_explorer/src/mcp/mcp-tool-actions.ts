@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import {type A2uiClientAction, type MessageProcessor} from '@a2ui/web_core/v0_9';
+import type {MessageProcessor} from '@a2ui/web_core';
+import type {A2uiClientAction} from '@a2ui/web_core/v0_9';
 import {MockMcpServer} from './mock-mcp-server';
 
 /** Shared client-side mock MCP server instance with simulated network latency. */

@@ -14,12 +14,12 @@ In the diagram below, the renderer advertises the catalogs it supports through `
 
 ## Catalogs
 
-A catalog is a collection of components and functions that acts as a contract between an agent and a renderer. Both agents and renderers can support one or more catalogs at the same time: a renderer advertises its `supportedCatalogIds` when a session starts, and an agent can create surfaces against any of those catalogs or, in v1.0, combine components and functions from multiple catalogs on the same surface by setting `catalogId` on individual entries.
+A catalog is a collection of components and functions that acts as a contract between an agent and a renderer. Both agents and renderers can support one or more catalogs at the same time: a renderer advertises its `supportedCatalogIds` when a session starts, and an agent can create surfaces against any of those catalogs or, in v1.0, combine components and functions from multiple catalogs on the same surface by setting `@catalogId` on individual components and `catalogId` on individual function calls.
 
 Every catalog has a `catalogId` string, conventionally formatted as a URI such as `https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json` or `https://example.com/catalogs/travel/v1/catalog.json`, along with optional `instructions`, `components`, and `functions`. Both sides of the connection read from that contract:
 
 1. On the agent, the agent SDK (`@a2ui/agent`, `a2ui-agent-sdk`, `a2ui_agent`) reads the component schemas, function signatures, and `instructions` to build the LLM system prompt and validate outgoing messages.
-2. On the renderer, the core and framework SDKs (`@a2ui/web_core`, `a2ui_core`, `A2UICore`) pair each component schema with a native widget and each local function signature with code that runs on the client.
+2. On the renderer, the core and framework SDKs (`@a2ui/web_core`, `a2ui_core`, `A2UICore`, `androidx.a2ui`) pair each component schema with a native widget and each local function signature with code that runs on the client.
 
 ## Components
 
@@ -33,8 +33,10 @@ Each entry in a catalog's `components` map is a JSON Schema that describes one c
 | Dynamic properties | `$ref` to `DynamicString`, `DynamicNumber`, `DynamicBoolean`, and so on | Accepts a literal value, a data binding (`@path` in v1.0, `path` in v0.9.1), or a function call (`@call` / `call`). |
 | Children           | `$ref` to `ComponentId` or `ChildList`                                  | Points to child components by ID so the surface stays a flat list instead of a nested tree.                         |
 | Placement rules    | `allowedParents`, `allowedChildren` (v1.0)                              | Limits where the component can appear in the layout.                                                                |
-| Validation         | `$ref` to `Checkable`                                                   | Adds a `checks` array of `{condition, message}` rules to an input.                                                  |
+| Validation         | `$ref` to `Checkable`                                                   | Adds a `@checks` array (`checks` in v0.9.1) of `{condition, message}` rules to an input.                            |
 | Actions            | `$ref` to `Action`                                                      | Says what happens when the user interacts with the component: send an event to the agent or call a function.        |
+
+In v1.0, the optional envelope keys that any component instance can carry (`@catalogId`, `@accessibility`, `@metadata`, and `@checks` on `Checkable` components) take the `@` prefix, so a custom component can declare its own `catalogId`, `accessibility`, `metadata`, or `checks` property as an ordinary property. In v0.9.1, the `accessibility` and `checks` envelope keys are bare.
 
 Here is a custom `FlightStatusCard` component schema in a catalog:
 
@@ -254,6 +256,8 @@ void main() {
 
   </TabItem>
 </Tabs>
+
+Swift (`A2UISwiftCore`, `A2UISwiftUI`) and Kotlin (`androidx.a2ui`, `androidx.a2ui.compose`) target client-side rendering; see [SDKs](../sdks/#agent-sdk) for server-side Agent SDK packages.
 
 ## Registering a catalog in a renderer
 
@@ -510,6 +514,93 @@ let processor = MessageProcessor(catalogs: [travelCatalog])
 ```
 
   </TabItem>
+  <TabItem label="Jetpack Compose">
+
+```kotlin
+import android.content.Context
+import java.util.Locale
+
+import androidx.a2ui.compose.runtime.A2uiComponentProperties
+import androidx.a2ui.compose.runtime.A2uiComponentScope
+import androidx.a2ui.compose.runtime.A2uiMessageProcessor
+import androidx.a2ui.compose.runtime.A2uiProperty
+import androidx.a2ui.compose.ui.A2uiCatalog
+import androidx.a2ui.compose.ui.A2uiComponent
+import androidx.a2ui.compose.ui.catalog.A2uiBasicCatalogV1
+import androidx.a2ui.model.processor.A2uiMessageProcessor
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Card
+import androidx.compose.material3.Text
+import androidx.compose.material3.a2ui.catalog.MaterialA2uiBasicCatalogV1Defaults
+import androidx.compose.material3.a2ui.catalog.materialA2uiBasicCatalogV1
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+
+private val FlightNumberProp =
+    A2uiProperty.dynamicString("flightNumber", required = true)
+private val FareAmountProp =
+    A2uiProperty.dynamicNumber("fareAmount")
+
+val FlightStatusCard: A2uiComponent =
+    object : A2uiComponent {
+        override val name = "FlightStatusCard"
+        override val description = "Shows a flight's number and fare."
+        override val properties = listOf(FlightNumberProp, FareAmountProp)
+
+        @Composable
+        override fun A2uiComponentScope.isReady(properties: A2uiComponentProperties): Boolean =
+            properties.bind(FlightNumberProp) != null
+
+        @Composable
+        override fun A2uiComponentScope.Content(
+            properties: A2uiComponentProperties,
+            modifier: Modifier,
+        ) {
+            val flightNumber = properties.bind(FlightNumberProp) ?: return
+            val fare = properties.bind(FareAmountProp)?.toDouble()
+
+            Card(modifier = modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(text = "Flight $flightNumber")
+                    if (fare != null) {
+                        Text(text = String.format(Locale.US, "$%.2f", fare))
+                    }
+                }
+            }
+        }
+    }
+
+// androidx.a2ui implements v0.9.1, where each surface binds to a single catalogId.
+fun createTravelProcessor(context: Context): A2uiMessageProcessor {
+    val basicCatalog =
+        materialA2uiBasicCatalogV1(
+            image = MaterialA2uiBasicCatalogV1Defaults.image { _, _, _, _, _ -> },
+            video = MaterialA2uiBasicCatalogV1Defaults.video { _, _, _ -> },
+            audioPlayer = MaterialA2uiBasicCatalogV1Defaults.audioPlayer { _, _, _, _ -> },
+            functions = A2uiBasicCatalogV1.Functions(context),
+        )
+    val travelCatalog =
+        A2uiCatalog(
+            catalogId = "https://example.com/catalogs/travel/v1/catalog.json",
+            components = basicCatalog.components + FlightStatusCard,
+            functions = basicCatalog.functions,
+            themeSchema = basicCatalog.themeSchema,
+        )
+    // Launch processor.collectMessages() in a background coroutine scope
+    // (such as viewModelScope) to process queued messages:
+    val processor = A2uiMessageProcessor(catalogs = listOf(travelCatalog))
+    return processor
+}
+```
+
+  </TabItem>
 </Tabs>
 
 ## The basic catalog
@@ -525,6 +616,10 @@ A2UI publishes a basic catalog with 18 general-purpose components and 14 functio
 
 You do not have to use the basic catalog. You can adopt it as is, restyle its components to match your design system, combine it with domain-specific catalogs on the same surface, or replace it altogether.
 
+For an example of a domain catalog built on the basic catalog, see the experimental [Google Maps Platform Agentic UI toolkit](https://developers.google.com/maps/ai/agentic-ui-toolkit). Its catalog, `a2ui://maps-agentic-ui-catalog.json`, adds `GoogleMap` and `PlaceDetailsCompact` components to the basic catalog's components and functions. The toolkit ships renderers for web (Lit), Android, and iOS, so agents can show maps, routes, and place details next to standard layout widgets.
+
+<span id="a2ui-catalog-negotiation"></span>
+
 ## Catalog negotiation and multi-catalog surfaces
 
 When a session starts, the renderer sends `supportedCatalogIds` to list the catalogs it supports. When creating a surface, the agent picks from that list (or sends no UI if none match).
@@ -532,7 +627,7 @@ When a session starts, the renderer sends `supportedCatalogIds` to list the cata
 <Tabs syncKey="protocol-version">
   <TabItem label="v1.0">
 
-Set `catalogId` in `createSurface` to choose the surface's default catalog, then add `catalogId` on any component in `updateComponents` or function call (`@call`) that comes from another supported catalog.
+Set `catalogId` in `createSurface` to choose the surface's default catalog, then add `@catalogId` on any component in `updateComponents` (or `catalogId` on any function call, `@call`) that comes from another supported catalog.
 
 In this example, `salesDashboard` uses the basic catalog by default, and `chart` comes from a custom charts catalog:
 
@@ -555,7 +650,7 @@ In this example, `salesDashboard` uses the basic catalog by default, and `chart`
         {
           "id": "chart",
           "component": "BarChart",
-          "catalogId": "https://example.com/catalogs/charts/v1/catalog.json",
+          "@catalogId": "https://example.com/catalogs/charts/v1/catalog.json",
           "data": {"@path": "/sales"}
         }
       ]
@@ -567,7 +662,7 @@ In this example, `salesDashboard` uses the basic catalog by default, and `chart`
 <details>
 <summary>Edge cases when <code>createSurface.catalogId</code> is omitted</summary>
 
-`catalogId` in `createSurface` is optional. If a surface omits `createSurface.catalogId`, every component and function call on that surface must set its own `catalogId`. If an entry omits `catalogId` and the surface has no default `catalogId` either, the renderer rejects that component or function call rather than falling back to `supportedCatalogIds`. See [Mixable catalogs and component resolution logic](../../specification/v1.0-a2ui/#mixable-catalogs-and-component-resolution-logic) for the full resolution rules.
+`catalogId` in `createSurface` is optional. If a surface omits `createSurface.catalogId`, every component must set its own `@catalogId` and every function call its own `catalogId`. If an entry omits its catalog ID and the surface has no default `catalogId` either, the renderer rejects that component or function call rather than falling back to `supportedCatalogIds`. See [Mixable catalogs and component resolution logic](../../specification/v1.0-a2ui/#mixable-catalogs-and-component-resolution-logic) for the full resolution rules.
 
 </details>
 

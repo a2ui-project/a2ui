@@ -821,8 +821,8 @@ def test_function_without_a_schema_takes_any_args(version: str) -> None:
 def test_catalog_schema_is_a_deprecated_alias() -> None:
     catalog = v1_0.BasicCatalog()
     with pytest.warns(DeprecationWarning, match="validation_schema"):
-        legacy = catalog.catalog_schema
-    assert legacy == catalog.validation_schema
+        old_schema = catalog.catalog_schema
+    assert old_schema == catalog.validation_schema
 
 
 def test_v10_renderer_capabilities_inline_catalogs_use_to_json() -> None:
@@ -1167,7 +1167,7 @@ def test_validation_schema_flattens_mixins_and_preserves_extra_keywords() -> Non
 
     assert box["properties"]["label"] == {"type": "string"}
     assert "weight" in box["properties"]
-    assert "accessibility" in box["properties"]
+    assert "@accessibility" in box["properties"]
     assert box["required"] == ["id", "label", "component"]
     assert box["anyOf"] == [{"required": ["a"]}, {"required": ["b"]}]
     assert box["allOf"] == [{"oneOf": [{"required": ["a"]}, {"required": ["b"]}]}]

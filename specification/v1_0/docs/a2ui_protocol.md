@@ -131,7 +131,7 @@ The [`common_types.json`] schema defines reusable primitives used throughout the
   - `object`: A template for generating children from a list in the data model (requires a template `componentId` and a JSON Pointer `path` string; note that `path` here is a plain string property on the template object, not a `DataBinding` `{"@path": "..."}` object).
 
 - **`ComponentId`**: A reference to the unique ID of another component within the same surface.
-- **`AccessibilityAttributes`**: Standardized accessibility properties attached via `ComponentCommon` to any component, supporting `label` (`DynamicString`), `description` (`DynamicString`), `live` (`"off"` | `"polite"` | `"assertive"`), and `hidden` (`DynamicBoolean`).
+- **`AccessibilityAttributes`**: Standardized accessibility properties attached via `ComponentCommon.@accessibility` to any component, supporting `label` (`DynamicString`), `description` (`DynamicString`), `live` (`"off"` | `"polite"` | `"assertive"`), and `hidden` (`DynamicBoolean`).
 
 ### Agent to renderer message structure: the envelope
 
@@ -182,7 +182,7 @@ The `createSurface` message implicitly instantiates the canonical `Surface` cont
 **Properties:**
 
 - `surfaceId` (string, required): The unique identifier for the UI surface to be rendered. This must be globally unique for the renderer's lifetime.
-- `catalogId` (string, optional): A string that uniquely identifies the default catalog (components and functions) used for this surface. Note that `catalogId` is a string identifier, not a resolvable URI; while it is conventionally formatted as a URI (e.g., `https://mycompany.com/1.0/somecatalog`) to avoid naming collisions across organizations, it does not need to point to any deployed resource or downloadable file. Components and function calls on this surface that do not explicitly specify their own `catalogId` will use this surface-level default `catalogId`.
+- `catalogId` (string, optional): A string that uniquely identifies the default catalog (components and functions) used for this surface. Note that `catalogId` is a string identifier, not a resolvable URI; while it is conventionally formatted as a URI (e.g., `https://mycompany.com/1.0/somecatalog`) to avoid naming collisions across organizations, it does not need to point to any deployed resource or downloadable file. Components and function calls on this surface that do not explicitly specify their own `@catalogId` (for components) or `catalogId` (for function calls) will use this surface-level default `catalogId`.
 - `sendDataModel` (boolean, optional): If true, the renderer will send the full data model of this surface in the metadata of every message sent to the agent (via the Transport's metadata mechanism). This ensures the surface owner receives the full current state of the UI alongside the user's action or query. Defaults to false.
 - `components` (array, optional): A list containing UI components for the surface, allowing the renderer to build and populate the UI tree immediately on surface creation. Conforms to the `ComponentsList` schema.
 - `dataModel` (object, optional): A plain JSON object representing the initial root state of the data model.
@@ -485,7 +485,7 @@ The following example demonstrates a complete interaction to render a Contact Fo
 
 ```jsonl
 {"version": "1.0", "createSurface":{"surfaceId":"contact_form_1","catalogId":"https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"}}
-{"version": "1.0", "updateComponents":{"surfaceId":"contact_form_1","components":[{"id":"root","component":"Card","child":"form_container"},{"id":"form_container","component":"Column","children":["header_row","name_row","email_group","phone_group","pref_group","divider_1","newsletter_checkbox","submit_button"],"justify":"start","align":"stretch"},{"id":"header_row","component":"Row","children":["header_icon","header_text"],"align":"center"},{"id":"header_icon","component":"Icon","name":"mail"},{"id":"header_text","component":"Text","text":"# Contact Us"},{"id":"name_row","component":"Row","children":["first_name_group","last_name_group"],"justify":"spaceBetween"},{"id":"first_name_group","component":"Column","children":["first_name_label","first_name_field"],"weight":1},{"id":"first_name_label","component":"Text","text":"First Name","variant":"caption"},{"id":"first_name_field","component":"TextField","label":"First Name","value":{"@path":"/contact/firstName"},"variant":"shortText"},{"id":"last_name_group","component":"Column","children":["last_name_label","last_name_field"],"weight":1},{"id":"last_name_label","component":"Text","text":"Last Name","variant":"caption"},{"id":"last_name_field","component":"TextField","label":"Last Name","value":{"@path":"/contact/lastName"},"variant":"shortText"},{"id":"email_group","component":"Column","children":["email_label","email_field"]},{"id":"email_label","component":"Text","text":"Email Address","variant":"caption"},{"id":"email_field","component":"TextField","label":"Email","value":{"@path":"/contact/email"},"variant":"shortText","checks":[{"condition":{"@call":"required","args":{"value":{"@path":"/contact/email"}}},"message":"Email is required."},{"condition":{"@call":"email","args":{"value":{"@path":"/contact/email"}}},"message":"Please enter a valid email address."}]},{"id":"phone_group","component":"Column","children":["phone_label","phone_field"]},{"id":"phone_label","component":"Text","text":"Phone Number","variant":"caption"},{"id":"phone_field","component":"TextField","label":"Phone","value":{"@path":"/contact/phone"},"variant":"shortText","checks":[{"condition":{"@call":"regex","args":{"value":{"@path":"/contact/phone"},"pattern":"^\\d{10}$"}},"message":"Phone number must be 10 digits."}]},{"id":"pref_group","component":"Column","children":["pref_label","pref_picker"]},{"id":"pref_label","component":"Text","text":"Preferred Contact Method","variant":"caption"},{"id":"pref_picker","component":"ChoicePicker","variant":"mutuallyExclusive","options":[{"label":"Email","value":"email"},{"label":"Phone","value":"phone"},{"label":"SMS","value":"sms"}],"value":{"@path":"/contact/preference"}},{"id":"divider_1","component":"Divider","axis":"horizontal"},{"id":"newsletter_checkbox","component":"CheckBox","label":"Subscribe to our newsletter","value":{"@path":"/contact/subscribe"}},{"id":"submit_button_label","component":"Text","text":"Send Message"},{"id":"submit_button","component":"Button","child":"submit_button_label","variant":"primary","action":{"event":{"name":"submitContactForm","context":{"formId":"contact_form_1","rendererTime":{"@call":"formatDate","args":{"value": "2026-02-02T15:17:00Z", "format": "E MMM d, YYYY h:mm a"}},"isNewsletterSubscribed":{"@path":"/contact/subscribe"}}}}}]}}
+{"version": "1.0", "updateComponents":{"surfaceId":"contact_form_1","components":[{"id":"root","component":"Card","child":"form_container"},{"id":"form_container","component":"Column","children":["header_row","name_row","email_group","phone_group","pref_group","divider_1","newsletter_checkbox","submit_button"],"justify":"start","align":"stretch"},{"id":"header_row","component":"Row","children":["header_icon","header_text"],"align":"center"},{"id":"header_icon","component":"Icon","name":"mail"},{"id":"header_text","component":"Text","text":"# Contact Us"},{"id":"name_row","component":"Row","children":["first_name_group","last_name_group"],"justify":"spaceBetween"},{"id":"first_name_group","component":"Column","children":["first_name_label","first_name_field"],"weight":1},{"id":"first_name_label","component":"Text","text":"First Name","variant":"caption"},{"id":"first_name_field","component":"TextField","label":"First Name","value":{"@path":"/contact/firstName"},"variant":"shortText"},{"id":"last_name_group","component":"Column","children":["last_name_label","last_name_field"],"weight":1},{"id":"last_name_label","component":"Text","text":"Last Name","variant":"caption"},{"id":"last_name_field","component":"TextField","label":"Last Name","value":{"@path":"/contact/lastName"},"variant":"shortText"},{"id":"email_group","component":"Column","children":["email_label","email_field"]},{"id":"email_label","component":"Text","text":"Email Address","variant":"caption"},{"id":"email_field","component":"TextField","label":"Email","value":{"@path":"/contact/email"},"variant":"shortText","@checks":[{"condition":{"@call":"required","args":{"value":{"@path":"/contact/email"}}},"message":"Email is required."},{"condition":{"@call":"email","args":{"value":{"@path":"/contact/email"}}},"message":"Please enter a valid email address."}]},{"id":"phone_group","component":"Column","children":["phone_label","phone_field"]},{"id":"phone_label","component":"Text","text":"Phone Number","variant":"caption"},{"id":"phone_field","component":"TextField","label":"Phone","value":{"@path":"/contact/phone"},"variant":"shortText","@checks":[{"condition":{"@call":"regex","args":{"value":{"@path":"/contact/phone"},"pattern":"^\\d{10}$"}},"message":"Phone number must be 10 digits."}]},{"id":"pref_group","component":"Column","children":["pref_label","pref_picker"]},{"id":"pref_label","component":"Text","text":"Preferred Contact Method","variant":"caption"},{"id":"pref_picker","component":"ChoicePicker","variant":"mutuallyExclusive","options":[{"label":"Email","value":"email"},{"label":"Phone","value":"phone"},{"label":"SMS","value":"sms"}],"value":{"@path":"/contact/preference"}},{"id":"divider_1","component":"Divider","axis":"horizontal"},{"id":"newsletter_checkbox","component":"CheckBox","label":"Subscribe to our newsletter","value":{"@path":"/contact/subscribe"}},{"id":"submit_button_label","component":"Text","text":"Send Message"},{"id":"submit_button","component":"Button","child":"submit_button_label","variant":"primary","action":{"event":{"name":"submitContactForm","context":{"formId":"contact_form_1","rendererTime":{"@call":"formatDate","args":{"value": "2026-02-02T15:17:00Z", "format": "E MMM d, YYYY h:mm a"}},"isNewsletterSubscribed":{"@path":"/contact/subscribe"}}}}}]}}
 {"version": "1.0", "updateDataModel":{"surfaceId":"contact_form_1","path":"/contact","value":{"firstName":"John","lastName":"Doe","email":"john.doe@example.com","phone":"1234567890","preference":["email"],"subscribe":true}}}
 {"version": "1.0", "deleteSurface":{"surfaceId":"contact_form_1"}}
 ```
@@ -500,36 +500,37 @@ Each object in the `components` array of an `updateComponents` message defines a
 
 - `id` (`ComponentId`, required): A unique string that identifies this specific component instance. This is used for parent-child references. It MUST follow the [Catalog Entity Naming Rules](#catalog-entity-naming-rules) (UAX #31): `user_card` and `userCard` are valid, `user-card` and `1st_item` are not.
 - `component` (string, required): Specifies the component's type (e.g., `"Text"`).
-- `catalogId` (string, optional): A string that uniquely identifies the catalog for this component, overriding the surface's default `catalogId`. Useful when combining components from multiple catalogs in a single surface.
-- **Component Properties**: Other properties relevant to the specific component type (e.g., `text`, `url`, `children`) are included directly in the component object.
+- `@catalogId` (string, optional): A string that uniquely identifies the catalog for this component, overriding the surface's default `catalogId`. Useful when combining components from multiple catalogs in a single surface.
+- `@accessibility` (`AccessibilityAttributes`, optional): Accessibility attributes (`label`, `description`, `live`, `hidden`) for assistive technologies.
+- `@metadata` (object, optional): Component-level metadata containing an optional `extensions` map (`common_types.json#/$defs/Extensions`).
+- `@checks` (array of `CheckRule`, optional on `Checkable` components): Validation rules evaluated on the renderer.
+- **Component Properties**: Other properties relevant to the specific component type (e.g., `text`, `url`, `children`, or custom properties such as `metadata`, `catalogId`, `accessibility`, or `checks` whose names conform to UAX #31) are included directly in the component object.
 
-This structure is designed to be both flexible and strictly validated.
+This structure is designed to be both flexible and strictly validated. Component-level envelope mixins (`@catalogId`, `@accessibility`, `@metadata`, and `@checks`) use the `@` sigil so they never collide with UAX #31 catalog property names (`id` and `component` remain unprefixed as the required structural identity and discriminator keys).
 
 #### Mixable catalogs and component resolution logic
 
-Renderers can support components and functions from multiple catalogs simultaneously within a single surface (mixable catalogs). When a renderer advertises `supportedCatalogIds` in its capabilities, components from any of those catalogs can be combined in the same UI tree. The set of available catalogs for a surface includes both `supportedCatalogIds` and the `catalogId` of any inline catalog declared in `inlineCatalogs` (when supported by the agent). All catalog IDs specified at the component and function-call levels and at the surface-level must refer to catalogs which use the same A2UI specification version.
+Renderers can support components and functions from multiple catalogs simultaneously within a single surface (mixable catalogs). When a renderer advertises `supportedCatalogIds` in its capabilities, components from any of those catalogs can be combined in the same UI tree. The set of available catalogs for a surface includes both `supportedCatalogIds` and the `catalogId` of any inline catalog declared in `inlineCatalogs` (when supported by the agent). All catalog IDs specified at the component (`@catalogId`) and function-call (`catalogId`) levels and at the surface-level (`catalogId`) must refer to catalogs which use the same A2UI specification version.
 
 When resolving a component (or function call), the renderer evaluates catalog identity using the following strict resolution order:
 
-1. **Explicit Component/Function-Level `catalogId`**: The renderer checks if the component or function call explicitly specifies a `catalogId`. If provided, the component or function is resolved against that catalog.
-2. **Surface Default `catalogId`**: If the component or function call does not specify a `catalogId`, the renderer checks if a default `catalogId` was specified on the surface in the `createSurface` message. If provided, the component or function is resolved against that surface default catalog.
-3. **Resolution Error**: If neither an explicit component/function-level `catalogId` nor a surface default `catalogId` is present, resolution fails immediately with an error and the component is not rendered (or the function call is rejected).
+1. **Explicit Component/Function-Level Catalog ID**: The renderer checks if the component explicitly specifies `@catalogId` (or if the function call specifies `catalogId`). If provided, the component or function is resolved against that catalog.
+2. **Surface Default `catalogId`**: If the component or function call does not specify its own catalog ID, the renderer checks if a default `catalogId` was specified on the surface in the `createSurface` message. If provided, the component or function is resolved against that surface default catalog.
+3. **Resolution Error**: If neither an explicit component `@catalogId` (or function-call `catalogId`) nor a surface default `catalogId` is present, resolution fails immediately with an error and the component is not rendered (or the function call is rejected).
 
 > [!IMPORTANT]
-> There is **no fallback** to the list of catalogs declared in `rendererCapabilities` (even if the renderer only advertises a single supported catalog). Every component and function call must resolve through either its explicit `catalogId` or the surface default `catalogId`.
+> There is **no fallback** to the list of catalogs declared in `rendererCapabilities` (even if the renderer only advertises a single supported catalog). Every component and function call must resolve through either its explicit `@catalogId` / `catalogId` or the surface default `catalogId`.
+
+Function calls interpolated inside [`formatString`](#the-formatstring-function) `${...}` expressions have no syntax for naming a `catalogId`. Non-system function calls inside `${...}` resolve against the catalog that the enclosing `formatString` call resolved to (even when the surface defines a different default `catalogId`), while `@`-prefixed system functions such as `@index` remain catalogless.
 
 ### Catalog-Agnostic Accessibility Requirements
 
-Because JSON Schema cannot inspect arbitrary catalog component property semantics to infer which properties represent visible text labels or which components accept user interaction, accessibility rules are enforced through normative specification requirements and SDK tooling:
+JSON Schema cannot tell which component properties hold visible text labels or accept user interaction, so catalog and renderer implementations enforce accessibility at runtime:
 
 **Catalog and renderer implementations MUST:**
 
-- **Plumb Accessibility Attributes**: Map all relevant A2UI `AccessibilityAttributes` (`label`, `description`, `live`, `hidden`) to the underlying UI framework's accessibility APIs (e.g., WAI-ARIA `aria-label`, `aria-describedby`, `aria-live`, and `aria-hidden` for web renderers; `Semantics` properties for Flutter; `AccessibilityNodeInfo` / `accessibilityLabel` for Android and iOS renderers).
-- **Infer Default Semantics**: Use component types and non-accessibility properties (such as visible titles or text labels) to configure accessibility defaults automatically. When explicit `AccessibilityAttributes` (e.g., `label` or `description`) are provided, they MUST override inferred visual defaults. For example, a button component with a title of `"Submit"` and an explicit `accessibility.label` of `"Send Form"` must be announced by assistive technologies as `"Send Form"`.
-
-**Catalog tooling SHOULD:**
-
-- **Catalog Linter Checks**: Catalog tooling SHOULD warn when a component that accepts an action or user input declares no text-bearing label property (or, in strict mode, no required text-bearing property). A component accepts an action when one of its properties references `common_types.json#/$defs/Action`, and accepts user input when it includes `common_types.json#/$defs/Checkable`. A text-bearing property is a string or `DynamicString` property, a child component reference, or an array of objects that each declare a text-bearing property. Because JSON Schema does not say which property holds the input value, tooling MAY exclude the property it treats as the input value (by convention `value`). This is a heuristic: it cannot prove a label exists, and a warning can be acknowledged per component.
+- **Plumb Accessibility Attributes**: Map all relevant A2UI `AccessibilityAttributes` (`label`, `description`, `live`, `hidden` under `@accessibility`) to the underlying UI framework's accessibility APIs (e.g., WAI-ARIA `aria-label`, `aria-describedby`, `aria-live`, and `aria-hidden` for web renderers; `Semantics` properties for Flutter; `AccessibilityNodeInfo` / `accessibilityLabel` for Android and iOS renderers).
+- **Infer Default Semantics**: Use component types and non-accessibility properties (such as visible titles or text labels) to configure accessibility defaults automatically. When explicit `AccessibilityAttributes` (e.g., `label` or `description`) are provided, they MUST override inferred visual defaults. For example, a button component with a title of `"Submit"` and an explicit `@accessibility.label` of `"Send Form"` must be announced by assistive technologies as `"Send Form"`.
 
 ### The component catalog
 
@@ -618,7 +619,7 @@ To ensure catalog schemas can be translated reliably into alternative, LLM-frien
    - Catalog components define their discriminator (`component: { const: "<Name>" }`) and local properties (e.g., its children, variant, specific layouts), and can optionally import common property sets (such as `Checkable`) via `$ref`.
    - Components MUST remain flat: declared as a single `type: "object"` with direct `properties`. Structural combinators (`oneOf`, `anyOf`, or non-trait `allOf`) MUST NOT be used at the component root.
    - Combinators (`oneOf`, `anyOf`) are scoped exclusively to leaf property types (such as design token definitions or value unions in `$defs` or property schemas).
-   - Base component envelope properties (`id`, `catalogId`, and `accessibility` via `ComponentCommon`) are composed at the envelope level in `agent_to_renderer.json` via `allOf` inside the `Component` definition (referenced by `ComponentsList`), and therefore MUST NOT be redundantly wrapped with `ComponentCommon` via `allOf` inside individual catalog component definitions.
+   - Base component envelope properties (`id`, `@catalogId`, `@accessibility`, and `@metadata` via `ComponentCommon`) are composed at the envelope level in `agent_to_renderer.json` via `allOf` inside the `Component` definition (referenced by `ComponentsList`), and therefore MUST NOT be redundantly wrapped with `ComponentCommon` via `allOf` inside individual catalog component definitions.
 6. **Strict Function Interface Pattern:**
    - Every function schema defined inside the `functions` map must validate a wire-level `FunctionCall` object. This requires:
      - A `properties` block with a `@call` property containing a constant of the function's name (e.g., `"@call": { "const": "email" }`).
@@ -1110,7 +1111,7 @@ The renderer supports a set of named **Functions** (e.g., `required`, `regex`, `
 
 ### Component Validation & Check Rules
 
-Input components (like `TextField`, `ChoicePicker`) and interactive elements (like `Button`) can define a list of `checks` (`CheckRule` objects).
+Input components (like `TextField`, `ChoicePicker`) and interactive elements (like `Button`) can define a list of `@checks` (`CheckRule` objects).
 
 A `CheckRule` contains a `condition` (a `DataBinding` path or a `FunctionCall`) and an optional fallback `message` string. The `condition` evaluates to either a `ValidationResult` object (defined in [`catalog_definition.json#/$defs/ValidationResult`](../json/catalog_definition.json)) or a primitive `boolean`.
 
@@ -1154,7 +1155,7 @@ To allow validation functions (`required`, `email`, `regex`, `length`, `numeric`
 _Example Component Definition:_
 
 ```json
-"checks": [
+"@checks": [
   {
     "condition": {
       "@call": "validateCreditCard",
@@ -1179,7 +1180,7 @@ _Example Dynamic `ValidationResult` Returned by `validateCreditCard`:_
 
 ### Example: button validation
 
-Buttons can also define `checks`. If any check fails, the button is automatically disabled. This allows the button's state to depend on the validity of data in the model.
+Buttons can also define `@checks`. If any check fails, the button is automatically disabled. This allows the button's state to depend on the validity of data in the model.
 
 ```json
 {
@@ -1191,7 +1192,7 @@ Buttons can also define `checks`. If any check fails, the button is automaticall
       "name": "submit_form"
     }
   },
-  "checks": [
+  "@checks": [
     {
       "condition": {
         "@call": "and",
@@ -1320,6 +1321,8 @@ Results of renderer-side functions can be interpolated. Function calls are ident
 - `${formatDate(value:${/currentDate}, format:'yyyy-MM-dd')}`: A function with named arguments.
 
 Arguments can be **Literals** (quoted strings, numbers, or booleans), or **Nested Expressions**.
+
+Because `${...}` syntax cannot specify a `catalogId`, non-system function calls inside `${...}` (including nested calls inside their arguments) resolve against the catalog that the enclosing `formatString` call resolved to, even if the surface declares a different default `catalogId`. Reserved `@`-prefixed system functions (such as `${@index()}`) belong to no catalog and remain catalogless.
 
 #### `formatString` nested interpolation
 
@@ -1661,7 +1664,7 @@ A2UI defines optional `metadata.extensions` containers across five scopes:
 
 - **Catalog Scope** (`metadata.extensions` in [`catalog_definition.json`]): Attach catalog-wide styling tokens, design system metadata, or configuration directly at the catalog root.
 - **Surface Scope** (`createSurface.metadata.extensions` in [`agent_to_renderer.json`]): Attach surface-level security metadata, access policies, or telemetry session identifiers.
-- **Component Scope** (`ComponentCommon.metadata.extensions` in [`common_types.json`]): Attach component-instance styling overrides, telemetry markers, or custom validation rules.
+- **Component Scope** (`ComponentCommon.@metadata.extensions` in [`common_types.json`]): Attach component-instance styling overrides, telemetry markers, or custom validation rules.
 - **Catalog Component Definition Scope** (`ComponentDefinition.metadata.extensions` in [`catalog_definition.json`]): Attach static component metadata or default telemetry tagging directly to catalog component schemas.
 - **Action Egress Scope** (`action.metadata.extensions` in [`renderer_to_agent.json`]): Send client-side action attestations, audit signatures, or authorization tokens back to the agent when user actions are triggered.
 
@@ -1676,7 +1679,7 @@ Renderers and client SDKs expose surface and component metadata through a unifor
 - Resolved component nodes expose instance metadata as a read-only reactive value (for example `ComponentNode.metadata`), separate from the schema-defined component properties, so a metadata-only update never re-renders views that read only properties. Catalog component definition metadata is available statically from the resolved component implementation (`node.impl.metadata`).
 - Outbound action dispatch accepts an optional `metadata` argument so renderers can attach `action.metadata.extensions` to the emitted action message.
 
-An `updateComponents` message replaces a component definition in full, including its `metadata`. A component update that omits `metadata` clears any previously stored component metadata, and renderers notify metadata subscribers of that change.
+An `updateComponents` message replaces a component definition in full, including its `@metadata`. A component update that omits `@metadata` clears any previously stored component metadata, and renderers notify metadata subscribers of that change.
 
 [json pointer]: https://datatracker.ietf.org/doc/html/rfc6901
 [rfc 6901]: https://datatracker.ietf.org/doc/html/rfc6901

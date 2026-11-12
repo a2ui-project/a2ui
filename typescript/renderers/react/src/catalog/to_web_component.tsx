@@ -18,7 +18,7 @@ import type {ZodTypeAny} from 'zod';
 import {
   isWebComponentImplementation,
   type WebComponentImplementation,
-} from '@a2ui/web_core/v0_9/universal';
+} from '@a2ui/web_core/universal';
 import type {ReactComponentImplementation} from '../react_component_implementation';
 import {ReactWcHost} from './react_host_element';
 

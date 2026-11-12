@@ -46,7 +46,8 @@
             text: "Quarterly Revenue"
 
 - name: test_express_compile_component_catalog_override
-  description: With multiple active catalogs, createSurface omits catalogId and each component resolves its catalog by name or explicit catalogId override and carries catalogId in the compiled output.
+  features: [F-AGT-05]
+  description: With multiple active catalogs, createSurface omits catalogId and each component resolves its catalog by name or explicit catalogId override and carries `@catalogId` in the compiled output.
   action: compile
   args:
     format: express
@@ -65,15 +66,15 @@
         components:
           - id: "root"
             component: "Column"
-            catalogId: "conformance/simplified"
+            "@catalogId": "conformance/simplified"
             children: ["title", "chart"]
           - id: "title"
             component: "Text"
-            catalogId: "conformance/simplified"
+            "@catalogId": "conformance/simplified"
             text: "Quarterly Revenue"
           - id: "chart"
             component: "Chart"
-            catalogId: "conformance/custom"
+            "@catalogId": "conformance/custom"
             values: [10, 20, 30]
             caption: "Q1-Q3"
 
@@ -120,15 +121,15 @@
         components:
           - id: "root"
             component: "Column"
-            catalogId: "conformance/cat_a"
+            "@catalogId": "conformance/cat_a"
             children: ["b1", "b2"]
           - id: "b1"
             component: "Badge"
-            catalogId: "conformance/cat_a"
+            "@catalogId": "conformance/cat_a"
             label: "Active"
           - id: "b2"
             component: "Badge"
-            catalogId: "conformance/cat_b"
+            "@catalogId": "conformance/cat_b"
             count: 42
             unit: "items"
 
@@ -150,7 +151,7 @@
         components:
           - id: "root"
             component: "Text"
-            catalogId: "conformance/simplified"
+            "@catalogId": "conformance/simplified"
             text:
               "@call": "percent"
               catalogId: "conformance/custom"
@@ -176,7 +177,7 @@
         components:
           - id: "root"
             component: "Text"
-            catalogId: "conformance/simplified"
+            "@catalogId": "conformance/simplified"
             text:
               "@call": "percent"
               catalogId: "conformance/custom"
@@ -308,11 +309,11 @@
         components:
           - id: "root"
             component: "Column"
-            catalogId: "conformance/simplified"
+            "@catalogId": "conformance/simplified"
             children: ["title", "chart"]
           - id: "title"
             component: "Text"
-            catalogId: "conformance/simplified"
+            "@catalogId": "conformance/simplified"
             text:
               "@call": "percent"
               catalogId: "conformance/custom"
@@ -320,7 +321,7 @@
                 value: 75
           - id: "chart"
             component: "Chart"
-            catalogId: "conformance/custom"
+            "@catalogId": "conformance/custom"
             values: [10, 20]
             caption: "Total"
   expect_contains:
@@ -347,7 +348,7 @@
         components:
           - id: "root"
             component: "Text"
-            catalogId: "conformance/simplified"
+            "@catalogId": "conformance/simplified"
             text: "Hello"
   expect_contains:
     - 'root = Text("Hello")'
@@ -372,7 +373,7 @@
         components:
           - id: "root"
             component: "Text"
-            catalogId: "conformance/simplified"
+            "@catalogId": "conformance/simplified"
             text:
               "@call": "percent"
               catalogId: "conformance/custom"
@@ -424,7 +425,7 @@
         components:
           - id: "root"
             component: "Badge"
-            catalogId: "conformance/cat_b"
+            "@catalogId": "conformance/cat_b"
             count: 42
   expect_contains:
     - 'surface("s1")'
@@ -488,15 +489,15 @@
             components:
               - id: "root"
                 component: "Column"
-                catalogId: "conformance/simplified"
+                "@catalogId": "conformance/simplified"
                 children: ["header", "chart"]
               - id: "header"
                 component: "Text"
-                catalogId: "conformance/simplified"
+                "@catalogId": "conformance/simplified"
                 text: "Revenue"
               - id: "chart"
                 component: "Chart"
-                catalogId: "conformance/custom"
+                "@catalogId": "conformance/custom"
                 values: [5, 10]
                 caption: "H1"
 
@@ -564,13 +565,13 @@
             {
               "id": "root",
               "component": "Column",
-              "catalogId": "conformance/simplified",
+              "@catalogId": "conformance/simplified",
               "children": ["title", "chart", "gauge"]
             },
             {
               "id": "title",
               "component": "Text",
-              "catalogId": "conformance/simplified",
+              "@catalogId": "conformance/simplified",
               "text": {
                 "@call": "formatString",
                 "catalogId": "conformance/simplified",
@@ -582,14 +583,14 @@
             {
               "id": "chart",
               "component": "Chart",
-              "catalogId": "conformance/custom",
+              "@catalogId": "conformance/custom",
               "values": [10, 20, 30],
               "caption": "Q1-Q3"
             },
             {
               "id": "gauge",
               "component": "Gauge",
-              "catalogId": "conformance/custom",
+              "@catalogId": "conformance/custom",
               "value": 75
             }
           ]
@@ -603,11 +604,11 @@
         components:
           - id: "root"
             component: "Column"
-            catalogId: "conformance/simplified"
+            "@catalogId": "conformance/simplified"
             children: ["title", "chart", "gauge"]
           - id: "title"
             component: "Text"
-            catalogId: "conformance/simplified"
+            "@catalogId": "conformance/simplified"
             text:
               "@call": "formatString"
               catalogId: "conformance/simplified"
@@ -615,12 +616,12 @@
                 value: "Quarterly Revenue"
           - id: "chart"
             component: "Chart"
-            catalogId: "conformance/custom"
+            "@catalogId": "conformance/custom"
             values: [10, 20, 30]
             caption: "Q1-Q3"
           - id: "gauge"
             component: "Gauge"
-            catalogId: "conformance/custom"
+            "@catalogId": "conformance/custom"
             value: 75
 
 - name: test_direct_json_compile_unknown_component_catalog_override_fails
@@ -642,7 +643,7 @@
             {
               "id": "root",
               "component": "Text",
-              "catalogId": "conformance/unknown",
+              "@catalogId": "conformance/unknown",
               "text": "Hello"
             }
           ]

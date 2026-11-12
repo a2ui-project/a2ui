@@ -61,7 +61,7 @@ struct OpenURLFunctionTests {
     let v09 = BasicCatalog.makeCatalog(version: .v09)
     let v10 = BasicCatalog.makeCatalog(version: .v10)
 
-    // 1. Slider: v1.0 supports `steps` (integer >= 1) and `catalogId`/`metadata`
+    // 1. Slider: v1.0 supports `steps` (integer >= 1) and the `catalogId`/`metadata` mixins
     let v10Slider = try #require(v10.components["Slider"])
     let validSlider: OrderedJSON.JSONValue = [
       "id": "s1",
@@ -70,7 +70,7 @@ struct OpenURLFunctionTests {
       "min": 0,
       "max": 100,
       "steps": 10,
-      "catalogId": "custom",
+      "@catalogId": "custom",
     ]
     #expect(v10Slider.schema.validate(validSlider).isValid)
 
@@ -98,14 +98,14 @@ struct OpenURLFunctionTests {
     ]
     #expect(v10TextField.schema.validate(validTextField).isValid)
 
-    let legacyRegexTextField: OrderedJSON.JSONValue = [
+    let v09RegexTextField: OrderedJSON.JSONValue = [
       "id": "tf1",
       "component": "TextField",
       "label": "Name",
       "value": ["@path": "/name"],
       "validationRegexp": ".*",
     ]
-    #expect(!v10TextField.schema.validate(legacyRegexTextField).isValid)
+    #expect(!v10TextField.schema.validate(v09RegexTextField).isValid)
 
     // 3. Icon: v1.0 allows DynamicString (e.g. DataBinding) for `svgPath`, while v0.9 requires literal string
     let v09Icon = try #require(v09.components["Icon"])

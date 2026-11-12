@@ -32,6 +32,14 @@ export const SUITE_VERSIONS: readonly SuiteVersion[] = ['v1.0', 'v0.9-lowered'];
 
 const RESERVED_KEYS_TO_V09: Record<string, string> = {'@path': 'path', '@call': 'call'};
 const RESERVED_KEYS_TO_V10: Record<string, string> = {path: '@path', call: '@call'};
+// v1.0 component envelope mixins, renamed only at a component's root.
+const MIXIN_KEYS_TO_V09: Record<string, string> = {
+  '@checks': 'checks',
+  '@accessibility': 'accessibility',
+};
+const MIXIN_KEYS_TO_V10: Record<string, string> = Object.fromEntries(
+  Object.entries(MIXIN_KEYS_TO_V09).map(([k, v]) => [v, k]),
+);
 
 const VERSION_FIELD_RE = /([\u201c"]version[\u201d"]\s*:\s*[\u201c"])(v?1\.0|v0\.9)([\u201d"])/g;
 const RESERVED_KEY_FIELD_RE = /"@(path|call)"(?=\s*:)/g;
@@ -43,9 +51,29 @@ const RESERVED_PLAIN_KEYS =
   'v0.9 reserves the plain path and call keys for data bindings and function calls, so a map literal that uses them runs as written in v1.0 only.';
 const NO_USER_MESSAGE =
   'The v0.9 Action has no userMessage field, so an event carrying one runs as written in v1.0 only.';
+const NO_SYSTEM_FUNCTIONS =
+  'v0.9 defines no system functions, so a call to @index runs as written in v1.0 only.';
 
 export const V1_ONLY_CASES: Readonly<Record<string, string>> = {
   // Express cases
+  test_compile_express_index_system_function: NO_SYSTEM_FUNCTIONS,
+  test_compile_express_index_system_function_positional_offset: NO_SYSTEM_FUNCTIONS,
+  test_compile_express_index_system_function_named_offset: NO_SYSTEM_FUNCTIONS,
+  test_decompile_express_index_system_function: NO_SYSTEM_FUNCTIONS,
+  test_express_snippet_lists_system_functions_from_v1_0: NO_SYSTEM_FUNCTIONS,
+  test_compile_express_system_function_with_catalog_id_is_a_validation_error: NO_SYSTEM_FUNCTIONS,
+  test_compile_express_unknown_system_function_is_a_validation_error: NO_SYSTEM_FUNCTIONS,
+  test_compile_express_unreferenced_variable_holding_a_system_function_call_with_catalog_id_is_a_validation_error:
+    NO_SYSTEM_FUNCTIONS,
+  test_compile_express_unreferenced_variable_holding_an_unknown_system_function_is_a_validation_error:
+    NO_SYSTEM_FUNCTIONS,
+  test_compile_express_root_holding_an_unknown_system_function_is_a_validation_error:
+    NO_SYSTEM_FUNCTIONS,
+  test_compile_express_variable_holding_a_system_function_call_is_inlined: NO_SYSTEM_FUNCTIONS,
+  test_compile_express_variable_holding_a_system_function_call_with_catalog_id_is_a_validation_error:
+    NO_SYSTEM_FUNCTIONS,
+  test_decompile_express_system_function_with_catalog_id_is_a_validation_error: NO_SYSTEM_FUNCTIONS,
+  test_decompile_express_unknown_system_function_is_a_validation_error: NO_SYSTEM_FUNCTIONS,
   test_compile_express_event_user_message: NO_USER_MESSAGE,
   test_compile_express_event_user_message_binding_with_context: NO_USER_MESSAGE,
   test_decompile_express_event_action_with_user_message: NO_USER_MESSAGE,
@@ -75,6 +103,12 @@ export const V1_ONLY_CASES: Readonly<Record<string, string>> = {
     'Surface extensions are only supported in A2UI v1.0 or later.',
   test_compile_express_empty_extensions_preserved:
     'Surface and component extensions require A2UI v1.0 or later.',
+  test_decompile_express_component_metadata_writes_extensions:
+    'Surface and component extensions require A2UI v1.0 or later.',
+  test_decompile_express_legacy_bare_metadata_on_v1_0:
+    'Surface and component extensions require A2UI v1.0 or later.',
+  test_decompile_express_legacy_bare_checks_on_v1_0:
+    'Tests v1.0 reading the legacy bare checks key, which is the v0.9 key, so it runs as written in v1.0 only.',
   test_compile_express_standalone_call_renderer_or_agent_function:
     'Protocol v0.9 has no callRendererFunction message.',
   test_compile_express_standalone_call_agent_only_function:
@@ -311,7 +345,10 @@ function renameKeysIn(node: unknown, lower: boolean): unknown {
   if (node !== null && typeof node === 'object') {
     const map = node as Record<string, unknown>;
     const isTemplate = 'componentId' in map;
-    const keyMap = lower ? RESERVED_KEYS_TO_V09 : RESERVED_KEYS_TO_V10;
+    let keyMap = lower ? RESERVED_KEYS_TO_V09 : RESERVED_KEYS_TO_V10;
+    if ('id' in map && 'component' in map) {
+      keyMap = {...keyMap, ...(lower ? MIXIN_KEYS_TO_V09 : MIXIN_KEYS_TO_V10)};
+    }
     const result: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(map)) {
       const nextKey = isTemplate ? k : (keyMap[k] ?? k);

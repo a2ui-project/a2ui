@@ -85,15 +85,15 @@ export const V10_STANDARD_DEFS: Record<string, unknown> = {
       'id': {
         '$ref': '#/$defs/ComponentId',
       },
-      'catalogId': {
+      '@catalogId': {
         'type': 'string',
         'description':
           'The catalog ID for this component, overriding any surface-level default catalogId.',
       },
-      'accessibility': {
+      '@accessibility': {
         '$ref': '#/$defs/AccessibilityAttributes',
       },
-      'metadata': {
+      '@metadata': {
         'type': 'object',
         'description': 'Optional component-level metadata for vendor extensions.',
         'properties': {
@@ -291,6 +291,7 @@ export const V10_STANDARD_DEFS: Record<string, unknown> = {
     },
     'required': ['@call'],
     'unevaluatedProperties': false,
+    'returnType': 'number',
   },
   'FunctionCall': {
     'type': 'object',
@@ -342,7 +343,7 @@ export const V10_STANDARD_DEFS: Record<string, unknown> = {
     'type': 'object',
     'description': 'Properties for components that support renderer-side checks.',
     'properties': {
-      'checks': {
+      '@checks': {
         'type': 'array',
         'description': 'A list of validation check rules to perform on the component.',
         'items': {
