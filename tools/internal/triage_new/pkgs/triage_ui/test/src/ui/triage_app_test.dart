@@ -16,6 +16,7 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:triage/triage.dart';
@@ -803,6 +804,27 @@ void main() {
       ),
     );
     expect((tile.shape! as RoundedRectangleBorder).side.width, 2);
+  });
+
+  testWidgets('Locate in the list has the color of the selected tab number', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+
+    Color? colorOf(Finder finder) => tester
+        .renderObject<RenderParagraph>(
+          find.descendant(of: finder, matching: find.byType(RichText)),
+        )
+        .text
+        .style
+        ?.color;
+
+    expect(
+      colorOf(find.byIcon(Icons.my_location)),
+      colorOf(
+        find.descendant(of: find.byType(Tab), matching: find.text('#10')),
+      ),
+    );
   });
 
   testWidgets('Locate in the list expands the groups of the selected item '

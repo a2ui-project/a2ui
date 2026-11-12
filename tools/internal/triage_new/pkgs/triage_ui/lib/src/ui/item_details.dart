@@ -79,6 +79,11 @@ class _ItemDetailsState extends State<ItemDetails> {
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 8),
                       child: IconButton(
+                        // The color of the selected tab's number, since the
+                        // button locates the selected item.
+                        color:
+                            TabBarTheme.of(context).labelColor ??
+                            Theme.of(context).colorScheme.primary,
                         onPressed: controller.reveal,
                         icon: const Icon(Icons.my_location),
                         tooltip: 'Locate in the list',
