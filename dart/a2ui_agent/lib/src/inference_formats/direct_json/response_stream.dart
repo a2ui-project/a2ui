@@ -472,7 +472,39 @@ abstract class _DirectJsonStream<P extends StreamPart>
           : _checkGrown(reader, growing, envelope, closed: closed);
     }
     final AgentToRendererMessage message = reader.read(envelope);
-    _applyMessage(message);
+    String? priorSurfaceId;
+    Object? priorRoot;
+    if (_growing case _Growing(
+      surfaceId: final String surfaceId,
+      :final Object? priorRoot,
+    )) {
+      final SurfaceModel<ComponentApi>? surface = state.getSurface(surfaceId);
+      if (surface != null) {
+        priorSurfaceId = surfaceId;
+        surface.dataModel.set('/', priorRoot);
+      }
+    } else if (envelope['updateDataModel'] case final Map<String, Object?> body
+        when !closed &&
+            !body.containsKey('path') &&
+            body['surfaceId'] is String) {
+      final surfaceId = body['surfaceId']! as String;
+      final SurfaceModel<ComponentApi>? surface = state.getSurface(surfaceId);
+      if (surface != null) {
+        priorSurfaceId = surfaceId;
+        priorRoot = jsonDecode(jsonEncode(surface.dataModel.get('/')));
+      }
+    }
+    try {
+      _applyMessage(message);
+    } catch (_) {
+      if (_growing case _Growing(
+        surfaceId: final String surfaceId,
+        message: UpdateDataModelMessage(value: final Map<Object?, Object?> v),
+      )) {
+        state.getSurface(surfaceId)?.dataModel.set('/', v);
+      }
+      rethrow;
+    }
     _growing = null;
     final String? key = _growingKey(envelope);
     if (!closed && key != null) {
@@ -488,6 +520,11 @@ abstract class _DirectJsonStream<P extends StreamPart>
               for (final Object? component in components)
                 ?_componentId(component),
             };
+        } else if (envelope[key] case final Map<String, Object?> body
+            when !body.containsKey('path')) {
+          growing
+            ..surfaceId = priorSurfaceId
+            ..priorRoot = priorRoot;
         }
         _growing = growing;
       }
@@ -628,6 +665,11 @@ class _Growing {
 
   /// The ids of the components the state holds.
   Set<String> ids = {};
+
+  /// The surface whose root data model was replaced before `path` arrived,
+  /// and its prior root value.
+  String? surfaceId;
+  Object? priorRoot;
 }
 
 /// The field each message that a renderer applies again as it grows grows
@@ -649,13 +691,19 @@ String? _growingKey(Map<String, Object?> envelope) {
 /// Whether [envelope], a message still arriving, may be applied and emitted
 /// already: one a renderer applies again as it grows, holding the field it
 /// grows by, with at least one component for a message that grows by its
-/// components.
+/// components, or a non-empty map when an `updateDataModel` has no `path` yet.
 bool _mayGrow(Map<String, Object?> envelope) {
   final String? key = _growingKey(envelope);
   if (key == null) return false;
   return switch ((envelope[key], _growingFields[key])) {
     ({'components': List(isNotEmpty: true)}, 'components') => true,
-    (final Map<Object?, Object?> body, 'value') => body.containsKey('value'),
+    (final Map<Object?, Object?> body, 'value') =>
+      body.containsKey('value') &&
+          (body.containsKey('path') ||
+              switch (body['value']) {
+                Map(isNotEmpty: true) => true,
+                _ => false,
+              }),
     _ => false,
   };
 }

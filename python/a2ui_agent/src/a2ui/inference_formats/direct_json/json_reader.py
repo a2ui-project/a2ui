@@ -348,10 +348,19 @@ class _Reader:
     def _read_object(self, parent_key: str | None = None) -> dict[str, Any]:
         self._i += 1
         obj: dict[str, Any] = {}
+        is_data_update = parent_key == "updateDataModel" and not self._in_data_model
+
+        def healed() -> dict[str, Any]:
+            # An `updateDataModel` whose `value` closed may still have a `path`
+            # after it, so it is not healed as a root update.
+            if is_data_update and not self._cut and "path" not in obj:
+                self._end()
+            return self._healed(obj)
+
         while True:
             self._skip_space()
             if self._at_end:
-                return self._healed(obj)
+                return healed()
             if self.text[self._i] == "}":
                 self._i += 1
                 return obj
@@ -400,7 +409,7 @@ class _Reader:
                     self._in_data_model = False
             self._skip_space()
             if self._at_end:
-                return self._healed(obj)
+                return healed()
             if self.text[self._i] == ",":
                 self._i += 1
             elif self.text[self._i] != "}":

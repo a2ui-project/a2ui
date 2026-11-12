@@ -327,9 +327,18 @@ class _Reader {
   Map<String, Object?> _readObject([String? parentKey]) {
     _i++;
     final map = <String, Object?>{};
+    final bool isDataUpdate = parentKey == 'updateDataModel' && !_inDataModel;
+
+    Map<String, Object?> healed() {
+      // An `updateDataModel` whose `value` closed may still have a `path`
+      // after it, so it is not healed as a root update.
+      if (isDataUpdate && !_cut && !map.containsKey('path')) _end();
+      return _healed(map);
+    }
+
     while (true) {
       _skipSpace();
-      if (_atEnd) return _healed(map);
+      if (_atEnd) return healed();
       if (text[_i] == '}') {
         _i++;
         return map;
@@ -363,7 +372,7 @@ class _Reader {
         if (isDataValue) _inDataModel = false;
       }
       _skipSpace();
-      if (_atEnd) return _healed(map);
+      if (_atEnd) return healed();
       if (text[_i] == ',') {
         _i++;
       } else if (text[_i] != '}') {
