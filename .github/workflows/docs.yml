@@ -133,6 +133,9 @@ jobs:
       - name: Run preview site tests
         run: npm --prefix docs/site test
 
+      - name: Validate agent integration A2A routing
+        run: uv run --package a2ui-a2a --with pytest pytest docs/scripts/test_agent_integration_a2a.py
+
       - name: Validate documentation conversion script
         run: uv run pytest docs/scripts/test_convert_docs.py
 

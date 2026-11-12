@@ -1793,13 +1793,16 @@ class OrderA2aExecutor(AgentExecutor):
     )
     rpc_processor = RendererToAgentMessageProcessor(processor.active_catalogs)
     results = [await rpc_processor.process_message(msg) for msg in inbound]
-    if inbound and all(result.handled for result in results):
-      rpc_reply_parts = create_a2ui_parts(
-          [reply for result in results for reply in result.replies],
-          version=activated_version,
-      )
-      if rpc_reply_parts:
-        await enqueue_parts(event_queue, rpc_reply_parts)
+    rpc_reply_parts = create_a2ui_parts(
+        [reply for result in results for reply in result.replies],
+        version=activated_version,
+    )
+    if rpc_reply_parts:
+      await enqueue_parts(event_queue, rpc_reply_parts)
+    has_other_parts = (
+        context.message is not None and len(inbound) < len(context.message.parts)
+    )
+    if inbound and all(result.handled for result in results) and not has_other_parts:
       return
 
     async for a2a_part in stream_response_to_parts(
