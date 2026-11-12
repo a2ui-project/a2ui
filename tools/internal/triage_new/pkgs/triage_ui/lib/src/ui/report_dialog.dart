@@ -72,7 +72,8 @@ class ReportDialog extends StatelessWidget {
                 ),
               ),
               const Text(
-                'After creating the report, the agent will ask you whether to:\n'
+                'After creating the report, the agent will ask you '
+                'whether to:\n'
                 '- unsubscribe you '
                 'from the items in it, so that GitHub stops notifying you '
                 'about them\n'
