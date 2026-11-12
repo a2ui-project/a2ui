@@ -504,7 +504,11 @@ class DirectJsonResponseStream(ResponseStream[PartT], Generic[PartT]):
                 prior_surface_id = growing.surface_id
                 prior_root = growing.prior_root
                 surface.data_model.set("/", copy.deepcopy(prior_root))
-        elif not closed and isinstance(envelope.get("updateDataModel"), dict):
+        elif (
+            not closed
+            and isinstance(envelope, dict)
+            and isinstance(envelope.get("updateDataModel"), dict)
+        ):
             body = envelope["updateDataModel"]
             if "path" not in body and isinstance(body.get("surfaceId"), str):
                 surface = self._state.get_surface(body["surfaceId"])
