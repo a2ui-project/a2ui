@@ -17,8 +17,9 @@ import SwiftUI
 /// A type that applies custom appearance and chrome to ``A2UICard`` components within a view
 /// hierarchy.
 ///
-/// Configure the card style for a ``Surface`` or container view using `` SwiftUICore/View/a2uiCardStyle(_:) ``.
-public protocol A2UICardStyle: Sendable {
+/// Configure the card style for a `Surface` or container view using
+/// ``SwiftUI/View/a2uiCardStyle(_:)``.
+public protocol A2UICardStyle: DynamicProperty, Sendable {
   /// A view that represents the styled card.
   associatedtype Body: View
 
@@ -29,6 +30,22 @@ public protocol A2UICardStyle: Sendable {
   @MainActor
   @ViewBuilder
   func makeBody(configuration: Configuration) -> Body
+}
+
+private struct ResolvedCardStyleView<Style: A2UICardStyle>: View {
+  let style: Style
+  let configuration: A2UICardStyleConfiguration
+
+  var body: some View {
+    style.makeBody(configuration: configuration)
+  }
+}
+
+extension A2UICardStyle {
+  @MainActor
+  func resolve(configuration: Configuration) -> AnyView {
+    AnyView(ResolvedCardStyleView(style: self, configuration: configuration))
+  }
 }
 
 extension EnvironmentValues {

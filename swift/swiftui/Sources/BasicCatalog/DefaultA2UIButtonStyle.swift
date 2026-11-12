@@ -19,66 +19,57 @@ import SwiftUI
 /// The default ``A2UIButtonStyle`` with theme-aware primary colors, a 44pt minimum tap target,
 /// and interactive pressed-state feedback.
 public struct DefaultA2UIButtonStyle: A2UIButtonStyle {
+  @Environment(\.a2uiTheme) private var theme
+
   public init() {}
 
   public func makeBody(configuration: Configuration) -> some View {
-    DefaultA2UIButtonStyleBody(configuration: configuration)
-  }
-}
-
-extension A2UIButtonStyle where Self == DefaultA2UIButtonStyle {
-  /// The default theme-aware button style.
-  public static var automatic: DefaultA2UIButtonStyle { DefaultA2UIButtonStyle() }
-}
-
-private struct DefaultA2UIButtonStyleBody: View {
-  @Environment(\.a2uiTheme) private var theme
-
-  let configuration: A2UIButtonStyleConfiguration
-
-  var body: some View {
     let isBorderless = configuration.variant == .borderless
     configuration.label
       .padding(.horizontal, isBorderless ? 0 : 16)
       .padding(.vertical, isBorderless ? 0 : 10)
       .frame(minHeight: isBorderless ? nil : 44)
-      .background(backgroundView)
-      .foregroundStyle(foregroundStyle)
+      .background(backgroundColor(for: configuration.variant))
+      .foregroundStyle(foregroundColor(for: configuration.variant))
       .clipShape(.rect(cornerRadius: 8))
       .overlay(
         Color.primary.opacity(0.12),
         in: .rect(cornerRadius: 8).stroke(lineWidth: configuration.variant == .standard ? 1 : 0)
       )
-      .opacity(opacity)
+      .opacity(opacity(for: configuration))
   }
 
-  private var opacity: Double {
+  private func opacity(for configuration: Configuration) -> Double {
     if configuration.isDisabled {
       return 0.5
     }
     return configuration.isPressed ? 0.75 : 1.0
   }
 
-  @ViewBuilder
-  private var backgroundView: some View {
-    switch configuration.variant {
+  private func backgroundColor(for variant: Configuration.Variant) -> Color {
+    switch variant {
     case .primary:
-      Color.a2uiPrimary(from: theme)
+      .a2uiPrimary(from: theme)
     case .borderless:
-      Color.clear
+      .clear
     case .standard:
-      Color.gray.opacity(0.12)
+      .gray.opacity(0.12)
     }
   }
 
-  private var foregroundStyle: AnyShapeStyle {
-    switch configuration.variant {
+  private func foregroundColor(for variant: Configuration.Variant) -> Color {
+    switch variant {
     case .primary:
-      return AnyShapeStyle(Color.white)
+      .white
     case .borderless:
-      return AnyShapeStyle(Color.a2uiPrimary(from: theme))
+      .a2uiPrimary(from: theme)
     case .standard:
-      return AnyShapeStyle(Color.primary)
+      .primary
     }
   }
+}
+
+extension A2UIButtonStyle where Self == DefaultA2UIButtonStyle {
+  /// The default theme-aware button style.
+  public static var automatic: DefaultA2UIButtonStyle { DefaultA2UIButtonStyle() }
 }

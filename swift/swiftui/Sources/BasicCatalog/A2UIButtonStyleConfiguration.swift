@@ -22,22 +22,14 @@ public struct A2UIButtonStyleConfiguration {
     case standard = "default"
     case primary
     case borderless
-
-    public init(rawVariant: String?) {
-      switch rawVariant {
-      case "primary": self = .primary
-      case "borderless": self = .borderless
-      default: self = .standard
-      }
-    }
   }
 
-  /// A type-erased view representing the label content of the button.
+  /// A view representing the label content of the button.
   public struct Label: View {
-    private let base: AnyView
+    private let base: ButtonStyleConfiguration.Label
 
-    init(_ view: some View) {
-      self.base = AnyView(view)
+    init(_ base: ButtonStyleConfiguration.Label) {
+      self.base = base
     }
 
     public var body: some View {

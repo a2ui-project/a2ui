@@ -13,20 +13,25 @@
 // limitations under the License.
 
 import A2UICore
+import A2UISwiftUI
 import SwiftUI
 
 /// The properties of an A2UI `Card` component passed to an ``A2UICardStyle``.
 public struct A2UICardStyleConfiguration {
-  /// A type-erased view representing the child content of the card.
+  /// A view representing the child content of the card.
   public struct Content: View {
-    private let base: AnyView
+    private let childNode: Node?
 
-    init(_ view: some View) {
-      self.base = AnyView(view)
+    init(childNode: Node?) {
+      self.childNode = childNode
     }
 
     public var body: some View {
-      base
+      VStack(alignment: .leading, spacing: 0) {
+        if let childNode {
+          ComponentNodeView(node: childNode)
+        }
+      }
     }
   }
 

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **BREAKING CHANGE**: Remove the default `= []` argument on
+  `Surface.init(viewModel:catalogs:defaultCatalogID:)` so callers explicitly choose a catalog list
+  (or pass `catalogs: []`). Recommended migration: pass `BasicCatalogImplementation.allCatalogs`,
+  use `Surface.makeWithBasicCatalogs(viewModel:locale:)`, or pass `catalogs: []` explicitly.
+  [#4024](https://github.com/a2ui-project/a2ui/pull/4024)
+- Add `A2UICardStyle` (`.automatic`, `.elevated`, `.outlined`), `A2UIButtonStyle` (`.automatic`),
+  `View.a2uiCardStyle(_:)`, `View.a2uiButtonStyle(_:)`, and
+  `Surface.makeWithBasicCatalogs(viewModel:locale:)` in `BasicCatalogSwiftUI`.
+  [#4024](https://github.com/a2ui-project/a2ui/pull/4024)
 - Report the component definition ID rather than the synthesized `:index` instance ID as
   `sourceComponentID` on actions dispatched from template-expanded components.
   [#4043](https://github.com/a2ui-project/a2ui/pull/4043)

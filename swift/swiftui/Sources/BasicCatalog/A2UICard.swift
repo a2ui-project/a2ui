@@ -15,7 +15,6 @@
 import A2UICore
 import A2UISwiftUI
 import BasicCatalog
-import OrderedJSON
 import SwiftUI
 
 // MARK: - Component Implementation
@@ -45,16 +44,10 @@ public struct A2UICard: View {
 
   public var body: some View {
     let configuration = A2UICardStyleConfiguration(
-      content: A2UICardStyleConfiguration.Content(
-        VStack(alignment: .leading, spacing: 0) {
-          if let childNode {
-            ComponentNodeView(node: childNode)
-          }
-        }
-      ),
+      content: A2UICardStyleConfiguration.Content(childNode: childNode),
       node: node
     )
-    AnyView(cardStyle.makeBody(configuration: configuration))
+    cardStyle.resolve(configuration: configuration)
       .a2uiAccessibilityElement(for: node, children: .contain)
   }
 }

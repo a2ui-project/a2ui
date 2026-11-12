@@ -15,7 +15,6 @@
 import A2UICore
 import A2UISwiftUI
 import BasicCatalog
-import OrderedJSON
 import SwiftUI
 
 // MARK: - Component Implementation
@@ -55,7 +54,7 @@ public struct A2UIButton: View {
   }
 
   private var variant: A2UIButtonStyleConfiguration.Variant {
-    A2UIButtonStyleConfiguration.Variant(rawVariant: node.string(for: "variant"))
+    A2UIButtonStyleConfiguration.Variant(rawValue: node.string(for: "variant") ?? "") ?? .standard
   }
 
   private var action: ResolvedAction? {
@@ -63,6 +62,7 @@ public struct A2UIButton: View {
   }
 
   public var body: some View {
+    let style = buttonStyle
     Button(action: {
       action?()
       modalTriggerAction?()
@@ -73,7 +73,7 @@ public struct A2UIButton: View {
     }
     .buttonStyle(
       A2UIButtonStyleBridge(
-        style: buttonStyle,
+        resolveStyle: { style.resolve(configuration: $0) },
         variant: variant,
         isDisabled: isDisabled,
         node: node
@@ -93,19 +93,19 @@ public struct A2UIButton: View {
 private struct A2UIButtonStyleBridge: ButtonStyle {
   @Environment(\.isEnabled) private var isEnabled
 
-  let style: any A2UIButtonStyle
+  let resolveStyle: @MainActor (A2UIButtonStyleConfiguration) -> AnyView
   let variant: A2UIButtonStyleConfiguration.Variant
   let isDisabled: Bool
   let node: Node
 
   func makeBody(configuration: Configuration) -> some View {
-    let a2uiConfig = A2UIButtonStyleConfiguration(
+    let styleConfiguration = A2UIButtonStyleConfiguration(
       label: A2UIButtonStyleConfiguration.Label(configuration.label),
       variant: variant,
       isPressed: configuration.isPressed,
       isDisabled: isDisabled || !isEnabled,
       node: node
     )
-    AnyView(style.makeBody(configuration: a2uiConfig))
+    resolveStyle(styleConfiguration)
   }
 }

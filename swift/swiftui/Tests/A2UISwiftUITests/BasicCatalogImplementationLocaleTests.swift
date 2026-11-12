@@ -94,4 +94,20 @@ struct BasicCatalogImplementationLocaleTests {
     #expect(releasedHandler == nil)
     #expect(function.handler == nil)
   }
+
+  @Test func makeWithBasicCatalogsConfiguresAllVersionsAndHonorsLocale() throws {
+    let coreCatalog = BasicCatalog.makeCatalog(version: .v10)
+    let viewModel = SurfaceViewModel(surfaceID: "basic-factory", catalog: coreCatalog)
+
+    let defaultSurface = Surface.makeWithBasicCatalogs(viewModel: viewModel)
+    #expect(defaultSurface.catalogs.count == A2UIProtocolVersion.allCases.count)
+    #expect(defaultSurface.defaultCatalogID == coreCatalog.id)
+
+    let germanSurface = Surface.makeWithBasicCatalogs(
+      viewModel: viewModel,
+      locale: Locale(identifier: "de_DE")
+    )
+    let germanV10 = try #require(germanSurface.catalogs[coreCatalog.id])
+    #expect(try formatNumber(in: germanV10) == .string("1.234,50"))
+  }
 }

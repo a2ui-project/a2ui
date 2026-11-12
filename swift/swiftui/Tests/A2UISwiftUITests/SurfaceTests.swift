@@ -84,7 +84,8 @@ struct SurfaceTests {
       catalog: catalog
     )
     let surface = Surface(
-      viewModel: viewModel
+      viewModel: viewModel,
+      catalogs: []
     )
     #expect(surface.surfaceID == "s1")
   }
@@ -96,10 +97,12 @@ struct SurfaceTests {
       catalog: catalog
     )
     let firstSurface = Surface(
-      viewModel: viewModel
+      viewModel: viewModel,
+      catalogs: []
     )
     let secondSurface = Surface(
-      viewModel: viewModel
+      viewModel: viewModel,
+      catalogs: []
     )
     #expect(firstSurface.surfaceID == secondSurface.surfaceID)
   }
@@ -115,10 +118,12 @@ struct SurfaceTests {
       catalog: catalog
     )
     let firstSurface = Surface(
-      viewModel: firstViewModel
+      viewModel: firstViewModel,
+      catalogs: []
     )
     let secondSurface = Surface(
-      viewModel: secondViewModel
+      viewModel: secondViewModel,
+      catalogs: []
     )
     #expect(firstSurface.surfaceID != secondSurface.surfaceID)
   }

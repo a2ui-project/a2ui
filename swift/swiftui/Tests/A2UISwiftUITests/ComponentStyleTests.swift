@@ -13,11 +13,9 @@
 // limitations under the License.
 
 import A2UICore
-import A2UIJSON
 import A2UISwiftUI
 import BasicCatalog
 import BasicCatalogSwiftUI
-import JSONSchema
 import OrderedJSON
 import SwiftUI
 import Testing
@@ -30,30 +28,41 @@ import Testing
 
 private final class StyleInvocationTracker: @unchecked Sendable {
   var cardStyleInvoked = false
+  var cardColorSchemes: [ColorScheme] = []
   var buttonVariants: [A2UIButtonStyleConfiguration.Variant] = []
+  var buttonColorSchemes: [ColorScheme] = []
 }
 
 private struct ProbeCardStyle: A2UICardStyle {
+  @Environment(\.colorScheme) private var colorScheme
   let tracker: StyleInvocationTracker
 
   func makeBody(configuration: Configuration) -> some View {
-    let _ = { tracker.cardStyleInvoked = true }()
+    let _ = {
+      tracker.cardStyleInvoked = true
+      tracker.cardColorSchemes.append(colorScheme)
+    }()
     configuration.content
   }
 }
 
 private struct ProbeButtonStyle: A2UIButtonStyle {
+  @Environment(\.colorScheme) private var colorScheme
   let tracker: StyleInvocationTracker
 
   func makeBody(configuration: Configuration) -> some View {
-    let _ = { tracker.buttonVariants.append(configuration.variant) }()
+    let _ = {
+      tracker.buttonVariants.append(configuration.variant)
+      tracker.buttonColorSchemes.append(colorScheme)
+    }()
     configuration.label
+      .padding(4)
   }
 }
 
 @Suite(.serialized)
 @MainActor
-struct StratosProgressiveDisclosureTests {
+struct ComponentStyleTests {
 
   #if canImport(AppKit)
     private func host(_ view: some View) -> NSWindow {
@@ -65,11 +74,15 @@ struct StratosProgressiveDisclosureTests {
         backing: .buffered,
         defer: false
       )
+      window.isReleasedWhenClosed = false
       window.contentView = hostingView
+      window.makeKeyAndOrderFront(nil)
       RunLoop.main.run(until: Date())
       hostingView.needsLayout = true
       hostingView.layoutSubtreeIfNeeded()
       window.displayIfNeeded()
+      RunLoop.main.run(until: Date())
+      hostingView.layoutSubtreeIfNeeded()
       return window
     }
   #elseif canImport(UIKit)
@@ -85,58 +98,10 @@ struct StratosProgressiveDisclosureTests {
     }
   #endif
 
-  @Test func basicCatalogConvenienceSurfaceInitializerRendersAllVersions() {
-    let coreCatalog = BasicCatalog.makeCatalog(version: .v091)
-    let viewModel = SurfaceViewModel(surfaceID: "troposphere", catalog: coreCatalog)
-    viewModel.componentsModel.addComponent(
-      ComponentModel(
-        id: "root",
-        type: "Text",
-        properties: ["text": .string("Hello Troposphere")]
-      )
-    )
-
-    let surface = Surface(basicCatalogViewModel: viewModel)
-    #expect(!surface.catalogs.isEmpty)
-    #expect(surface.defaultCatalogID == coreCatalog.id)
-  }
-
-  @Test func surfaceInheritsEnvironmentCatalogsAndThemeWithoutClobbering() throws {
-    let schema = try Schema(instance: "{\"type\": \"object\"}")
-    var customRendered = false
-    let customCatalog = Catalog(
-      id: "custom",
-      components: [
-        ComponentImplementation(name: "CustomBadge", schema: schema) { _ in
-          customRendered = true
-          return Text("Badge")
-        }
-      ]
-    )
-    let coreCatalog = Catalog(
-      id: "custom",
-      components: [AnyComponentAPI(name: "CustomBadge", schema: schema)]
-    )
-    let viewModel = SurfaceViewModel(surfaceID: "mesosphere", catalog: coreCatalog)
-    viewModel.componentsModel.addComponent(
-      ComponentModel(id: "root", type: "CustomBadge", properties: [:])
-    )
-
-    let rootView = Surface(viewModel: viewModel)
-      .a2uiBasicCatalog()
-      .a2uiCatalog(customCatalog, isDefault: true)
-      .a2uiTheme(["primaryColor": .string("#4F46E5")])
-
-    let window = host(rootView)
-    withExtendedLifetime(window) {
-      #expect(customRendered)
-    }
-  }
-
   @Test func customCardAndButtonStylesReceiveConfiguration() {
     let tracker = StyleInvocationTracker()
     let coreCatalog = BasicCatalog.makeCatalog(version: .v091)
-    let viewModel = SurfaceViewModel(surfaceID: "thermosphere", catalog: coreCatalog)
+    let viewModel = SurfaceViewModel(surfaceID: "styles", catalog: coreCatalog)
     viewModel.componentsModel.applyBatch(adding: [
       ComponentModel(
         id: "root",
@@ -149,6 +114,7 @@ struct StratosProgressiveDisclosureTests {
         properties: [
           "child": .string("lbl"),
           "variant": .string("primary"),
+          "action": .object(["name": .string("confirm")]),
         ]
       ),
       ComponentModel(
@@ -158,30 +124,85 @@ struct StratosProgressiveDisclosureTests {
       ),
     ])
 
-    let rootView = Surface(basicCatalogViewModel: viewModel)
+    let rootView = Surface.makeWithBasicCatalogs(viewModel: viewModel)
       .a2uiCardStyle(ProbeCardStyle(tracker: tracker))
       .a2uiButtonStyle(ProbeButtonStyle(tracker: tracker))
 
     let window = host(rootView)
+    defer { window.close() }
     withExtendedLifetime(window) {
       #expect(tracker.cardStyleInvoked)
       #expect(Set(tracker.buttonVariants) == [.primary])
     }
   }
 
-  @Test func builtInCardStylesConstructAndRender() {
-    let node = Node(
+  @Test func customStylesResolveEnvironmentInDarkMode() {
+    let tracker = StyleInvocationTracker()
+    let coreCatalog = BasicCatalog.makeCatalog(version: .v091)
+    let viewModel = SurfaceViewModel(surfaceID: "dark-mode", catalog: coreCatalog)
+    viewModel.componentsModel.applyBatch(adding: [
+      ComponentModel(
+        id: "root",
+        type: "Card",
+        properties: ["child": .string("btn")]
+      ),
+      ComponentModel(
+        id: "btn",
+        type: "Button",
+        properties: [
+          "child": .string("lbl"),
+          "variant": .string("borderless"),
+          "action": .object(["name": .string("dismiss")]),
+        ]
+      ),
+      ComponentModel(
+        id: "lbl",
+        type: "Text",
+        properties: ["text": .string("Dismiss")]
+      ),
+    ])
+
+    let rootView = Surface.makeWithBasicCatalogs(viewModel: viewModel)
+      .a2uiCardStyle(ProbeCardStyle(tracker: tracker))
+      .a2uiButtonStyle(ProbeButtonStyle(tracker: tracker))
+      .environment(\.colorScheme, .dark)
+
+    let window = host(rootView)
+    defer { window.close() }
+    withExtendedLifetime(window) {
+      #expect(tracker.cardColorSchemes.contains(.dark))
+      #expect(tracker.buttonColorSchemes.contains(.dark))
+      #expect(Set(tracker.buttonVariants) == [.borderless])
+    }
+  }
+
+  @Test func builtInCardAndButtonStylesConstructAndRender() {
+    let cardNode = Node(
       id: "card",
       type: "Card",
       properties: ["child": Node(id: "txt", type: "Text", properties: ["text": "Body"])]
     )
-    let automaticView = A2UICard(node: node).a2uiCardStyle(.automatic)
-    let elevatedView = A2UICard(node: node).a2uiCardStyle(.elevated)
-    let outlinedView = A2UICard(node: node).a2uiCardStyle(.outlined)
+    let buttonNode = Node(
+      id: "btn",
+      type: "Button",
+      properties: ["child": Node(id: "lbl", type: "Text", properties: ["text": "Action"])]
+    )
 
-    let w1 = host(automaticView)
-    let w2 = host(elevatedView)
-    let w3 = host(outlinedView)
-    withExtendedLifetime((w1, w2, w3)) {}
+    let automaticCard = A2UICard(node: cardNode).a2uiCardStyle(.automatic)
+    let elevatedCard = A2UICard(node: cardNode).a2uiCardStyle(.elevated)
+    let outlinedCard = A2UICard(node: cardNode).a2uiCardStyle(.outlined)
+    let automaticButton = A2UIButton(node: buttonNode).a2uiButtonStyle(.automatic)
+
+    let w1 = host(automaticCard)
+    let w2 = host(elevatedCard)
+    let w3 = host(outlinedCard)
+    let w4 = host(automaticButton)
+    defer {
+      w1.close()
+      w2.close()
+      w3.close()
+      w4.close()
+    }
+    withExtendedLifetime((w1, w2, w3, w4)) {}
   }
 }

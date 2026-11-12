@@ -17,9 +17,9 @@ import SwiftUI
 /// A type that applies custom appearance and interaction feedback to ``A2UIButton`` components
 /// within a view hierarchy.
 ///
-/// Configure the button style for a ``Surface`` or container view using
-/// ``SwiftUICore/View/a2uiButtonStyle(_:)``.
-public protocol A2UIButtonStyle: Sendable {
+/// Configure the button style for a `Surface` or container view using
+/// ``SwiftUI/View/a2uiButtonStyle(_:)``.
+public protocol A2UIButtonStyle: DynamicProperty, Sendable {
   /// A view that represents the styled button.
   associatedtype Body: View
 
@@ -30,6 +30,22 @@ public protocol A2UIButtonStyle: Sendable {
   @MainActor
   @ViewBuilder
   func makeBody(configuration: Configuration) -> Body
+}
+
+private struct ResolvedButtonStyleView<Style: A2UIButtonStyle>: View {
+  let style: Style
+  let configuration: A2UIButtonStyleConfiguration
+
+  var body: some View {
+    style.makeBody(configuration: configuration)
+  }
+}
+
+extension A2UIButtonStyle {
+  @MainActor
+  func resolve(configuration: Configuration) -> AnyView {
+    AnyView(ResolvedButtonStyleView(style: self, configuration: configuration))
+  }
 }
 
 extension EnvironmentValues {
