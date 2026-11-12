@@ -8,7 +8,7 @@ import InferencePipeline from '@components/docs/InferencePipeline.astro';
 
 An inference format defines the structured notation that a language model reads in its system prompt and writes in its response before the server compiles that output into standard A2UI [wire messages](../messages/). Because compilation happens on the server, every client [renderer](../sdks/#renderer-sdk) receives the same A2UI JSON over the wire regardless of how the model produced it.
 
-In the diagram below, `A2uiRequestProcessor` coordinates three server-side stages. First, `PromptGenerator` turns the negotiated [catalog](../catalogs/) schemas, `instructions`, and few-shot `examples` into a format-specific prompt snippet. Next, the model writes UI blocks inside sentinel tags (`<a2ui>...</a2ui>` for Express or `<a2ui-json>...</a2ui-json>` for Direct JSON) alongside conversational prose. Finally, `Parser` or `ResponseStream` heals streaming chunks, compiles each block into wire JSON, and validates every message against `RendererState`.
+In the diagram below, `A2uiRequestProcessor` (`RequestProcessor` in Go) coordinates three server-side stages. First, `PromptGenerator` turns the negotiated [catalog](../catalogs/) schemas, `instructions`, and few-shot `examples` into a format-specific prompt snippet. Next, the model writes UI blocks inside sentinel tags (`<a2ui>...</a2ui>` for Express or `<a2ui-json>...</a2ui-json>` for Direct JSON) alongside conversational prose. Finally, `Parser` or `ResponseStream` heals streaming chunks, compiles each block into wire JSON, and validates every message against `RendererState`.
 
 <InferencePipeline />
 
@@ -22,11 +22,11 @@ Standard JSON is well suited as a wire protocol between an agent server and a cl
 
 Inference formats separate what is best for the model to generate from what is best for the renderer to consume. The [Agent SDKs](../sdks/#agent-sdk) include two built-in formats and allow custom implementations:
 
-| Format      | Sentinel tags                | SDK support                        | How it represents UI                                                                                                    |
-| :---------- | :--------------------------- | :--------------------------------- | :---------------------------------------------------------------------------------------------------------------------- |
-| Express     | `<a2ui>...</a2ui>`           | TypeScript, Python, Dart (default) | Compact positional DSL with nested component calls and `$/path` data assignments, compiled to flat wire JSON.           |
-| Direct JSON | `<a2ui-json>...</a2ui-json>` | TypeScript, Python, Dart           | Standard A2UI wire JSON emitted directly by the model, with Markdown fence stripping and incremental string healing.    |
-| Custom      | Format-defined               | TypeScript, Python, Dart           | Any domain-specific grammar or model-tailored notation implemented against the SDK's `InferenceFormatFactory` contract. |
+| Format      | Sentinel tags                | SDK support                            | How it represents UI                                                                                                    |
+| :---------- | :--------------------------- | :------------------------------------- | :---------------------------------------------------------------------------------------------------------------------- |
+| Express     | `<a2ui>...</a2ui>`           | TypeScript, Python, Dart, Go (default) | Compact positional DSL with nested component calls and `$/path` data assignments, compiled to flat wire JSON.           |
+| Direct JSON | `<a2ui-json>...</a2ui-json>` | TypeScript, Python, Dart, Go           | Standard A2UI wire JSON emitted directly by the model, with Markdown fence stripping and incremental string healing.    |
+| Custom      | Format-defined               | TypeScript, Python, Dart, Go           | Any domain-specific grammar or model-tailored notation implemented against the SDK's `InferenceFormatFactory` contract. |
 
 Not every A2UI agent uses free-form model generation. Regulated or deterministic workflows can also construct wire messages directly in server code (driven by a classifier, state machine, or [macro](../../guides/macros/)) and send the resulting JSON to the renderer without an LLM compilation step.
 
@@ -202,9 +202,9 @@ Swapping an inference format requires no changes to catalogs, few-shot examples,
 
 1. Catalog-agnostic prompt synthesis: Rather than hardcoding component names, a format's `PromptGenerator` inspects the negotiated `Catalog` schemas at runtime to derive component signatures, function signatures, and dynamic binding rules.
 2. Bidirectional translation (`compile` and `decompile`): Alongside compiling model output into wire messages, each format's `Parser` can decompile wire messages back into the format's text notation. Structured few-shot `examples`, fenced `json` message blocks inside a catalog's `instructions`, and prior conversation turns can therefore be authored once as wire messages and rendered automatically in whichever format is active.
-3. Incremental stream compilation and validation: Both one-shot parsing (`parseResponse` / `parse_response`) and chunked streaming (`openStream` / `open_stream`) separate conversational text from UI sentinel blocks, heal in-progress string literals on configured `progressiveKeys` (such as `"text"`), emit incremental wire deltas as statements arrive, and validate every message against `RendererState` so malformed output can be returned to the model for self-correction.
+3. Incremental stream compilation and validation: Both one-shot parsing (`parseResponse` / `parse_response` / `ParseResponse`) and chunked streaming (`openStream` / `open_stream` / `Stream`) separate conversational text from UI sentinel blocks, heal in-progress string literals on configured `progressiveKeys` (such as `"text"`), emit incremental wire deltas as statements arrive, and validate every message against `RendererState` so malformed output can be returned to the model for self-correction.
 
-In the Agent SDKs (available for TypeScript, Python, and Dart; the Swift and Kotlin packages focus on client-side rendering), `A2uiGenerator` defaults to `ExpressFormatFactory` and accepts any `InferenceFormatFactory` globally or per request while keeping prompt generation and response parsing identical:
+In the Agent SDKs (available for TypeScript, Python, Dart, and Go; the Swift and Kotlin packages focus on client-side rendering), `A2uiGenerator` (`Generator` in Go) defaults to `ExpressFormatFactory` and accepts any `InferenceFormatFactory` globally or per request while keeping prompt generation and response parsing identical:
 
 <Tabs syncKey="sdk-lang">
   <TabItem label="TypeScript">
@@ -283,9 +283,69 @@ void illustrateFormats(
 ```
 
   </TabItem>
+  <TabItem label="Go">
+
+```go
+import (
+	"context"
+	"iter"
+
+	"github.com/a2ui-project/a2ui/go/agent"
+	"github.com/a2ui-project/a2ui/go/core"
+)
+
+func illustrateFormats(
+	ctx context.Context,
+	catalog *core.Catalog,
+	caps core.RendererCapabilities,
+	llmOutput string,
+	chunks iter.Seq2[string, error],
+) (string, []agent.ResponsePart, error) {
+	cfg, err := agent.NewCatalogConfig(catalog)
+	if err != nil {
+		return "", nil, err
+	}
+
+	// Uses ExpressFormatFactory by default; pass any InferenceFormatFactory to change it.
+	gen := agent.NewGenerator([]*agent.CatalogConfig{cfg}, &agent.GeneratorOptions{
+		InferenceFormatFactory: agent.NewExpressFormatFactory(nil),
+	})
+
+	// Prompt synthesis and parsing stay the same regardless of format,
+	// and an individual request can override the format factory if needed.
+	proc, err := gen.CreateProcessor(caps, &agent.CreateProcessorOptions{
+		InferenceFormatFactory: agent.NewDirectJSONFormatFactory(nil),
+	})
+	if err != nil {
+		return "", nil, err
+	}
+
+	systemPrompt, err := proc.PromptSnippet()
+	if err != nil {
+		return "", nil, err
+	}
+	parts, err := proc.ParseResponse(llmOutput, nil)
+	if err != nil {
+		return "", nil, err
+	}
+
+	// Compile streaming model chunks incrementally as they arrive.
+	for part, err := range proc.Stream(ctx, chunks, nil) {
+		if err != nil {
+			return "", nil, err
+		}
+		if part.IsA2UI() {
+			parts = append(parts, agent.NewA2UIPart(part.A2UI))
+		}
+	}
+	return systemPrompt, parts, nil
+}
+```
+
+  </TabItem>
 </Tabs>
 
-Express covers v0.9, v0.9.1, and v1.0 generation with lower token cost, while Direct JSON remains useful when serving legacy v0.8 payloads in Python, debugging raw wire payloads, or calling a model fine-tuned directly on A2UI JSON schemas. Teams experimenting with alternative grammars (such as HTML-inspired or S-expression notations; see [`python/a2ui_agent/src/a2ui/inference_formats/experimental/`](https://github.com/a2ui-project/a2ui/tree/main/python/a2ui_agent/src/a2ui/inference_formats/experimental)) implement the same `InferenceFormatFactory`, `PromptGenerator`, and `Parser` interfaces.
+Express covers v0.9, v0.9.1, and v1.0 generation with lower token cost, while Direct JSON remains useful when serving legacy v0.8 payloads in Python or Go, debugging raw wire payloads, or calling a model fine-tuned directly on A2UI JSON schemas. Teams experimenting with alternative grammars (such as HTML-inspired or S-expression notations; see [`python/a2ui_agent/src/a2ui/inference_formats/experimental/`](https://github.com/a2ui-project/a2ui/tree/main/python/a2ui_agent/src/a2ui/inference_formats/experimental)) implement the same `InferenceFormatFactory`, `PromptGenerator`, and `Parser` interfaces.
 
 ## Token and latency benchmarks
 

@@ -307,6 +307,84 @@ async def read_resource(uri: str) -> list[ReadResourceContents]:
 ```
 
   </TabItem>
+  <TabItem label="Go">
+
+Until initial Go A2UI module tags are published, add `replace` directives in `go.mod` for `github.com/a2ui-project/a2ui/go/core` and `github.com/a2ui-project/a2ui/go/agent` pointing to a local checkout of `github.com/a2ui-project/a2ui`.
+
+```go
+import (
+	"context"
+	"encoding/json"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	v1 "github.com/a2ui-project/a2ui/go/agent/builder/v1"
+	"github.com/a2ui-project/a2ui/go/core"
+)
+
+const (
+	a2uiMIMEType  = "application/a2ui+json"
+	recipeCardURI = "a2ui://recipe-card"
+)
+
+func newRecipeServer() (*mcp.Server, error) {
+	basicCat, err := core.BasicCatalog(core.Version1_0)
+	if err != nil {
+		return nil, err
+	}
+	createMsg, err := v1.CreateSurface(v1.CreateSurfaceOptions{
+		SurfaceID: "recipe-card",
+		CatalogID: basicCat.CatalogID(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	componentsMsg, err := v1.UpdateComponentsFromTree(
+		"recipe-card",
+		v1.NewCard(
+			v1.NewColumn(v1.Children(
+				v1.NewText(v1.Bind("/title")).WithID("recipe_title"),
+				v1.NewText(v1.Bind("/cookTime")).WithVariant(v1.TextVariantCaption).WithID("cook_time"),
+			)).WithID("main_column"),
+		),
+		"root",
+	)
+	if err != nil {
+		return nil, err
+	}
+	templateJSON, err := json.Marshal([]core.AgentToRendererMessage{createMsg, componentsMsg})
+	if err != nil {
+		return nil, err
+	}
+
+	server := mcp.NewServer(&mcp.Implementation{Name: "recipe-server", Version: "1.0.0"}, nil)
+	server.AddResource(
+		&mcp.Resource{
+			URI:         recipeCardURI,
+			Name:        "Recipe Card",
+			Description: "Static A2UI recipe card layout template.",
+			MIMEType:    a2uiMIMEType,
+		},
+		func(_ context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+			if req.Params.URI != recipeCardURI {
+				return nil, mcp.ResourceNotFoundError(req.Params.URI)
+			}
+			return &mcp.ReadResourceResult{
+				Contents: []*mcp.ResourceContents{
+					{
+						URI:      recipeCardURI,
+						MIMEType: a2uiMIMEType,
+						Text:     string(templateJSON),
+					},
+				},
+			}, nil
+		},
+	)
+	return server, nil
+}
+```
+
+  </TabItem>
 </Tabs>
 
 ### Step 2: Link a tool and return data model updates
@@ -503,6 +581,82 @@ async def handle_call_tool(
 ```
 
   </TabItem>
+  <TabItem label="Go">
+
+```go
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	v1 "github.com/a2ui-project/a2ui/go/agent/builder/v1"
+	"github.com/a2ui-project/a2ui/go/core"
+)
+
+type getRecipeArgs struct {
+	CookingStyle []string `json:"cookingStyle,omitempty"`
+	Protein      []string `json:"protein,omitempty"`
+}
+
+func registerRecipeTool(server *mcp.Server) {
+	uiMeta := mcp.Meta{
+		"ui": map[string]any{
+			"resourceUri": recipeCardURI,
+			"mimeType":    a2uiMIMEType,
+		},
+	}
+
+	mcp.AddTool(
+		server,
+		&mcp.Tool{
+			Name:        "get_recipe_a2ui",
+			Title:       "Get Recipe A2UI",
+			Description: "Returns recipe data and links to the recipe-card template.",
+			Meta:        uiMeta,
+		},
+		func(_ context.Context, _ *mcp.CallToolRequest, args getRecipeArgs) (*mcp.CallToolResult, any, error) {
+			style := "Baked"
+			if len(args.CookingStyle) > 0 {
+				style = args.CookingStyle[0]
+			}
+			item := "Salmon"
+			if len(args.Protein) > 0 {
+				item = args.Protein[0]
+			}
+			recipe := lookupRecipe(style, item)
+
+			dataModelUpdate := []core.AgentToRendererMessage{
+				v1.UpdateDataModel("recipe-card", "/", map[string]any{
+					"title":    recipe.Title,
+					"cookTime": recipe.CookTime,
+				}),
+			}
+			payloadJSON, err := json.Marshal(dataModelUpdate)
+			if err != nil {
+				return nil, nil, err
+			}
+
+			return &mcp.CallToolResult{
+				Meta: uiMeta,
+				Content: []mcp.Content{
+					&mcp.TextContent{Text: fmt.Sprintf("Generated recipe: %s", recipe.Title)},
+					&mcp.EmbeddedResource{
+						Resource: &mcp.ResourceContents{
+							URI:      recipeCardURI + "/data",
+							MIMEType: a2uiMIMEType,
+							Text:     string(payloadJSON),
+						},
+					},
+				},
+			}, nil, nil
+		},
+	)
+}
+```
+
+  </TabItem>
 </Tabs>
 
 ### Step 3: Connect the client and hydrate the surface
@@ -617,9 +771,9 @@ When `callMcpTool` executes, it reads `_meta.ui.resourceUri`, fetches and caches
 
 ### Validate server payloads with the Agent SDK
 
-Before serving static templates or generated tool payloads from an MCP server, validate them against the target catalog with the A2UI Agent SDK. `validatePayload` (`validate_payload` in Python) checks message schemas, component properties, and surface tree topology (such as missing roots or unresolved child IDs) the same way a renderer does.
+Before serving static templates or generated tool payloads from an MCP server, validate them against the target catalog with the A2UI Agent SDK. `validatePayload` (`validate_payload` in Python, `agent.ValidatePayload` in Go) checks message schemas, component properties, and surface tree topology (such as missing roots or unresolved child IDs) the same way a renderer does.
 
-Swift (`A2UISwiftCore` and `A2UISwiftUI`) and Kotlin (`androidx.a2ui` and `androidx.a2ui.compose`) target client-side rendering rather than server-side agent generation, so Agent SDK validation is provided in TypeScript, Python, and Dart:
+Swift (`A2UISwiftCore` and `A2UISwiftUI`) and Kotlin (`androidx.a2ui` and `androidx.a2ui.compose`) target client-side rendering rather than server-side agent generation, so Agent SDK validation is provided in TypeScript, Python, Dart, and Go:
 
 <Tabs syncKey="sdk-lang">
   <TabItem label="TypeScript">
@@ -656,6 +810,25 @@ final parsed = AgentToRendererMessagePayload.fromJson(
   protocolVersion: A2uiProtocolVersion.v1_0,
 );
 validatePayload([BasicCatalog.v1_0()], parsed.messages);
+```
+
+  </TabItem>
+  <TabItem label="Go">
+
+```go
+import (
+	"github.com/a2ui-project/a2ui/go/agent"
+	"github.com/a2ui-project/a2ui/go/core"
+)
+
+basicCat, err := core.BasicCatalog(core.Version1_0)
+if err != nil {
+	return err
+}
+// Returns a *core.ValidationError if a v1.0 renderer holding basicCat would reject the payload.
+if err := agent.ValidatePayload([]*core.Catalog{basicCat}, a2uiPayload); err != nil {
+	return err
+}
 ```
 
   </TabItem>
@@ -699,6 +872,23 @@ ui_resource = types.EmbeddedResource(
     # Render for the user while keeping raw A2UI JSON out of the LLM context window.
     annotations=types.Annotations(audience=["user"]),
 )
+```
+
+  </TabItem>
+  <TabItem label="Go">
+
+```go
+uiResource := &mcp.EmbeddedResource{
+	Resource: &mcp.ResourceContents{
+		URI:      "a2ui://recipe-card/data",
+		MIMEType: "application/a2ui+json",
+		Text:     string(payloadJSON),
+	},
+	// Render for the user while keeping raw A2UI JSON out of the LLM context window.
+	Annotations: &mcp.Annotations{
+		Audience: []mcp.Role{"user"},
+	},
+}
 ```
 
   </TabItem>
@@ -979,6 +1169,51 @@ if name == "a2ui_action":
             ]
         )
     raise ValueError(f"Unknown action: {action_name}")
+```
+
+  </TabItem>
+  <TabItem label="Go">
+
+```go
+import (
+	"context"
+	"fmt"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+)
+
+type a2uiActionArgs struct {
+	Name              string         `json:"name"`
+	SurfaceID         string         `json:"surfaceId"`
+	SourceComponentID string         `json:"sourceComponentId"`
+	Timestamp         string         `json:"timestamp"`
+	Context           map[string]any `json:"context"`
+}
+
+func registerActionTool(server *mcp.Server) {
+	mcp.AddTool(
+		server,
+		&mcp.Tool{
+			Name:        "a2ui_action",
+			Title:       "A2UI Action",
+			Description: "Handles user actions emitted by A2UI surfaces.",
+		},
+		func(_ context.Context, _ *mcp.CallToolRequest, args a2uiActionArgs) (*mcp.CallToolResult, any, error) {
+			if args.Name == "confirm_booking" {
+				text := fmt.Sprintf(
+					"Booking confirmed on %s: %v to %v",
+					args.SurfaceID,
+					args.Context["start"],
+					args.Context["end"],
+				)
+				return &mcp.CallToolResult{
+					Content: []mcp.Content{&mcp.TextContent{Text: text}},
+				}, nil, nil
+			}
+			return nil, nil, fmt.Errorf("unknown action: %s", args.Name)
+		},
+	)
+}
 ```
 
   </TabItem>

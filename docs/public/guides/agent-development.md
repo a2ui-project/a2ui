@@ -100,7 +100,7 @@ Select `my_agent` from the list, and ask questions about restaurants in New York
 
 Getting the LLM to generate A2UI messages requires some prompt engineering. The SDK's `A2uiRequestProcessor` builds a system prompt snippet for an inference format (Express by default) that includes the rules of the format, the component catalog, and your few-shot examples.
 
-First, make sure you have `a2ui-agent-sdk` and `a2ui-adk` installed (both are included in the samples). The agent SDK does not depend on an agent framework. The A2A and ADK integrations are separate packages: install `a2ui-a2a` to serve A2UI over A2A, `a2ui-adk` to add the A2UI prompt to an ADK agent, and `a2ui-adk[a2a]` to also use the ADK-to-A2A converters.
+First, make sure you have `a2ui-agent-sdk` and `a2ui-adk` installed (both are included in the samples). The agent SDK does not depend on an agent framework, and official Agent SDKs are available for Python (`a2ui-agent-sdk`), TypeScript (`@a2ui/agent`), Dart (`a2ui_agent`), and Go ([`go/agent`](../../../go/agent/README.md)). In Python, the A2A and ADK integrations are separate packages: install `a2ui-a2a` to serve A2UI over A2A, `a2ui-adk` to add the A2UI prompt to an ADK agent, and `a2ui-adk[a2a]` to also use the ADK-to-A2A converters (for Go equivalents, see [Building an Agent in Go](#building-an-agent-in-go) below).
 
 In your agent file (e.g., `agent.py`), import the necessary classes:
 
@@ -171,5 +171,53 @@ for part in processor.parse_response(response_text):
 ```
 
 `parse_response` raises `A2uiParseError` when a block cannot be read and `A2uiValidationError` when a message does not match the catalog; the `restaurant_finder` sample catches these and asks the model to try again.
+
+## Building an Agent in Go
+
+Go backends use [`github.com/a2ui-project/a2ui/go/core`](../../../go/core/README.md) and [`github.com/a2ui-project/a2ui/go/agent`](../../../go/agent/README.md), with optional extensions for [ADK for Go](../../../go/adk/README.md) (`github.com/a2ui-project/a2ui/go/adk`) and [A2A](../../../go/a2aext/README.md) (`github.com/a2ui-project/a2ui/go/a2aext`). The Go modules are not yet published as tagged releases and are built from source in the [`go/`](../../../go/README.md) workspace.
+
+Like `A2uiInstruction` in Python, `adk.InstructionProvider` appends `RequestProcessor.PromptSnippet()` without passing A2UI `${expression}` syntax through ADK session-state template expansion, and `adk.NewSendA2UIToClientToolset` compiles and validates responses against the session processor:
+
+```go
+import (
+	"google.golang.org/adk/v2/agent/llmagent"
+	"google.golang.org/adk/v2/tool"
+
+	"github.com/a2ui-project/a2ui/go/adk"
+	"github.com/a2ui-project/a2ui/go/agent"
+	"github.com/a2ui-project/a2ui/go/core"
+)
+
+func newRestaurantAgentConfig(processors *adk.ProcessorStore) (*agent.Generator, llmagent.Config, error) {
+	basicCatalog, err := core.BasicCatalog(core.Version1_0)
+	if err != nil {
+		return nil, llmagent.Config{}, err
+	}
+	cfg, err := agent.NewCatalogConfig(basicCatalog)
+	if err != nil {
+		return nil, llmagent.Config{}, err
+	}
+	gen := agent.NewGenerator([]*agent.CatalogConfig{cfg}, nil)
+
+	toolset := adk.NewSendA2UIToClientToolset(adk.ToolsetConfig{
+		EnabledProvider:   processors.IsEnabled,
+		ProcessorProvider: processors.Get,
+	})
+	agentCfg := llmagent.Config{
+		Name:        "restaurant_agent",
+		Description: "Finds restaurants and helps book tables.",
+		InstructionProvider: adk.InstructionProvider(adk.InstructionConfig{
+			Instruction:       "You are a restaurant finding assistant.",
+			EnabledProvider:   processors.IsEnabled,
+			ProcessorProvider: processors.Get,
+		}),
+		BeforeModelCallbacks: []llmagent.BeforeModelCallback{adk.ExcludeRPCFromPrompt},
+		Toolsets:             []tool.Toolset{toolset},
+	}
+	return gen, agentCfg, nil
+}
+```
+
+For a complete A2A and SSE server built on these packages, see [`samples/agent/go/restaurant_finder`](../../../samples/agent/go/restaurant_finder/README.md).
 
 TODO: Continue this guide with examples of how to send the output to the client renderer without the A2A extension.

@@ -39,10 +39,11 @@ sequenceDiagram
 
 **A2UI SDKs:**
 
-The A2UI team provides two SDKs for a number of languages and frameworks:
+The A2UI team provides official Core, Agent, and Renderer SDKs across multiple languages and UI frameworks:
 
-- **Agent SDK**: sets up the agent side of the interaction with the renderer and the model.
-- **Framework adapter SDK (aka renderer SDK)**: sets up the renderer side of the interaction with the agent and handles incoming messages.
+- **Core SDK**: protocol models, catalog schemas, JSON Pointer data models, and `MessageProcessor` (TypeScript, Python, Dart, Go, Swift, and Kotlin).
+- **Agent SDK**: sets up the agent side of the interaction with the renderer and the model (TypeScript, Python, Dart, and Go).
+- **Framework adapter SDK (aka renderer SDK)**: sets up the renderer side of the interaction with the agent and renders surfaces with native widgets (Flutter, React, Lit, Angular, SwiftUI, and Jetpack Compose).
 
 **Terms in this glossary:**
 
@@ -258,7 +259,7 @@ Agent and renderer functionality consists of layers that can be developed separa
 
     Set of primitives needed to describe a catalog and to interact with the agent.
 
-    For example, see the [JavaScript web core library](../../../typescript/core/web_core/README.md).
+    For example, see the [JavaScript web core library](../../../typescript/core/web_core/README.md) and the [Go core library](../../../go/core/README.md).
 
 - **Catalog schema**:
 
@@ -268,7 +269,7 @@ Agent and renderer functionality consists of layers that can be developed separa
 
 - **Agent SDK**:
 
-    Code that implements the agent's interaction with the model and the renderer.
+    Code that implements the agent's interaction with the model and the renderer (available for TypeScript, Python, Dart, and Go; for example, see [`go/agent`](../../../go/agent/README.md)).
 
 - **Framework adapter (or renderer SDK)**:<a id="fw-adapter"></a>
 

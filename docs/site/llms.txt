@@ -27,7 +27,7 @@ Parallel Markdown editions of documentation pages are available by appending `.m
 - Flutter: `flutter pub add a2ui_flutter a2ui_core`
 - Swift (SPM): `https://github.com/a2ui-project/a2ui` (`A2UISwiftCore`, `A2UISwiftUI`, `BasicCatalogSwiftUI`)
 - Android Jetpack Compose (Google Maven): `androidx.compose.material3:material3-a2ui`, `androidx.a2ui.compose:compose-ui`, `androidx.a2ui.compose:compose-runtime`, and `androidx.a2ui:a2ui-model`
-- Agent SDKs: `pip install a2ui-agent-sdk` (Python, plus `a2ui-adk` and `a2ui-a2a`); `npm install @a2ui/agent` (TypeScript); `dart pub add a2ui_agent` (Dart)
+- Agent SDKs: `pip install a2ui-agent-sdk` (Python, plus `a2ui-adk` and `a2ui-a2a`); `npm install @a2ui/agent` (TypeScript); `dart pub add a2ui_agent` (Dart); Go modules `github.com/a2ui-project/a2ui/go/agent`, `github.com/a2ui-project/a2ui/go/core`, `github.com/a2ui-project/a2ui/go/adk`, and `github.com/a2ui-project/a2ui/go/a2aext` (unreleased, build from source in [`a2ui-project/a2ui/go`](https://github.com/a2ui-project/a2ui/tree/main/go))
 
 ## Getting Started & Concepts
 
@@ -40,7 +40,7 @@ Parallel Markdown editions of documentation pages are available by appending `.m
 - [Data Model and Data Binding](https://a2ui.org/concepts/data-binding/) ([Markdown](https://a2ui.org/concepts/data-binding.md))
 - [Actions, Events and Functions](https://a2ui.org/concepts/actions-and-functions/) ([Markdown](https://a2ui.org/concepts/actions-and-functions.md))
 - [Inference Formats](https://a2ui.org/concepts/inference-formats/) ([Markdown](https://a2ui.org/concepts/inference-formats.md))
-- [SDKs (Core, Agent, Renderer, and Go/Community)](https://a2ui.org/concepts/sdks/) ([Markdown](https://a2ui.org/concepts/sdks.md))
+- [SDKs (Core, Agent, Renderer, and Community)](https://a2ui.org/concepts/sdks/) ([Markdown](https://a2ui.org/concepts/sdks.md))
 - [Glossary](https://a2ui.org/concepts/glossary/) ([Markdown](https://a2ui.org/concepts/glossary.md))
 
 ## Integration Guides
@@ -67,6 +67,6 @@ Parallel Markdown editions of documentation pages are available by appending `.m
 ## Ecosystem & Optional
 
 - [Roadmap](https://a2ui.org/roadmap/) ([Markdown](https://a2ui.org/roadmap.md))
-- [Community Projects (including Lynx, Svelte, Vue, Compose Multiplatform, and Go)](https://a2ui.org/ecosystem/renderers/) ([Markdown](https://a2ui.org/ecosystem/renderers.md))
+- [Community Projects (including Lynx, Svelte, Vue, Compose Multiplatform, and Go terminal renderers)](https://a2ui.org/ecosystem/renderers/) ([Markdown](https://a2ui.org/ecosystem/renderers.md))
 - [Get Help & Agent Skills](https://a2ui.org/get-help/)
 - [Full Documentation Corpus (llms-full.txt)](https://a2ui.org/llms-full.txt)

@@ -492,6 +492,8 @@ For the full A2UI integration surface (custom catalogs, fine-grained control,
 advanced patterns), see CopilotKit's
 [A2UI docs](https://docs.copilotkit.ai/generative-ui/a2ui).
 
+If you are building a custom agent server directly over SSE, WebSockets, MCP, or A2A without an AG-UI harness, use the official A2UI Agent SDKs for TypeScript (`@a2ui/agent`), Python (`a2ui-agent-sdk`, `a2ui-adk`, `a2ui-a2a`), Dart (`a2ui_agent`), or Go ([`go/agent`](../../../go/agent/README.md), [`go/adk`](../../../go/adk/README.md), and [`go/a2aext`](../../../go/a2aext/README.md), currently unreleased and built from source in `a2ui-project/a2ui`). See the [Agent Development Guide](agent-development.md) and the [Go restaurant finder sample](../../../samples/agent/go/restaurant_finder/README.md).
+
 ## What's next
 
 - **[A2UI Composer](https://a2ui-composer.ag-ui.com/)**: Build widgets visually.

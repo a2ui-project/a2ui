@@ -93,7 +93,7 @@ Place `McpApp` on an A2UI v1.0 surface with its HTML document (`htmlContent`), a
 }
 ```
 
-In this component, updates to `/scene3d` on the surface push into the widget, edits to `scene3d` inside the widget update sibling A2UI components, and tool calls outside `["capture_3d_snapshot"]` are blocked.
+In this component, updates to `/scene3d` on the surface push into the widget, edits to `scene3d` inside the widget update sibling A2UI components, and tool calls outside `["capture_3d_snapshot"]` are blocked. On the agent backend, load the MCP catalog alongside your component catalog so prompt generation and payload validation include `McpApp` (for example, `core.MCPCatalog()` with `core.BasicCatalog(core.Version1_0)` in Go, `@a2ui/catalog-mcp/catalog.json` in TypeScript, or `catalogs/mcp/v1/catalog.json` in Python and Dart; see [Share the catalog schema with your agent](../mcp-catalog/#share-the-catalog-schema-with-your-agent)).
 
 <details>
 <summary>All <code>McpApp</code> component properties</summary>

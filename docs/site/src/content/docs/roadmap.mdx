@@ -27,7 +27,7 @@ Our goal is for you to design a component once and render it natively on every p
 2. The [Basic Catalog](../concepts/catalogs/#the-basic-catalog) ships with every official renderer and takes its styling from the host framework's theme. See the [v1.0 Basic Catalog Guide](/specification/v1.0-basic-catalog-implementation-guide/).
 3. Official [renderers](../concepts/sdks/#renderer-sdk) exist for React, Lit, Angular, Flutter, SwiftUI, and Jetpack Compose. See [Registering a catalog in a renderer](../concepts/catalogs/#registering-a-catalog-in-a-renderer).
 4. [Universal Web Components](../guides/authoring-universal-components/) let you write a custom web component once and register it in Lit, React, and Angular.
-5. The `a2ui codegen` command in the [A2UI CLI](https://github.com/a2ui-project/a2ui/tree/main/dart/a2ui_cli) generates typesafe component builders from a catalog.
+5. The `a2ui codegen` command in the [A2UI CLI](https://github.com/a2ui-project/a2ui/tree/main/dart/a2ui_cli) generates typesafe component builders from a catalog, and [`go/agent/builder`](https://github.com/a2ui-project/a2ui/tree/main/go/agent/builder) provides typesafe Basic Catalog builders for Go agents.
 6. [A2UI Composer](https://a2ui-project.github.io/composer/) is a visual editor for A2UI layouts.
 
 **On the roadmap**
@@ -42,11 +42,11 @@ Our goal is for your agent to know when and how to use each component.
 
 **Available today**
 
-1. The skill generator (`SkillGenerator`) in the Python and TypeScript [Agent SDKs](../concepts/sdks/#agent-sdk) builds an A2UI skill from your catalog, with grammar rules for the chosen inference format and the signatures of your components and functions. Because the skill comes from the catalog, it changes when your components change. See [Generate the skill](../concepts/overview/#generate-the-skill).
+1. The skill generator (`SkillGenerator`) in the Python, TypeScript, and Go [Agent SDKs](../concepts/sdks/#agent-sdk) builds an A2UI skill from your catalog, with grammar rules for the chosen inference format and the signatures of your components and functions. Because the skill comes from the catalog, it changes when your components change. See [Generate the skill](../concepts/overview/#generate-the-skill).
 2. [Catalog negotiation](../concepts/catalogs/#catalog-negotiation-and-multi-catalog-surfaces) selects the catalogs and protocol version that each client supports. See [Using a catalog in an agent](../concepts/catalogs/#using-a-catalog-in-an-agent).
 3. [Inference formats](../concepts/inference-formats/), such as Express and Direct JSON, compile model output into standard A2UI messages without client changes.
 4. The Agent SDKs [validate output against live surface state](../concepts/overview/#compile-and-validate-the-output), so errors go back to the model before anything reaches the client.
-5. Integrations exist for Google ADK and the A2A protocol, and [How to Integrate A2UI into an Agent](../guides/agent-integration/) covers other agent servers.
+5. Integrations exist for Google ADK (Python and Go) and the A2A protocol (Python and Go), and [How to Integrate A2UI into an Agent](../guides/agent-integration/) covers other agent servers.
 
 **On the roadmap**
 

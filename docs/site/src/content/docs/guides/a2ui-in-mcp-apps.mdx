@@ -586,6 +586,193 @@ async def handle_call_tool(
 ```
 
   </TabItem>
+  <TabItem label="Go">
+
+Until initial Go A2UI module tags are published, add `replace` directives in `go.mod` for `github.com/a2ui-project/a2ui/go/core` and `github.com/a2ui-project/a2ui/go/agent` pointing to a local checkout of `github.com/a2ui-project/a2ui`.
+
+```go
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"sync"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	v1 "github.com/a2ui-project/a2ui/go/agent/builder/v1"
+	"github.com/a2ui-project/a2ui/go/core"
+)
+
+const (
+	a2uiMIMEType   = "application/a2ui+json"
+	mcpAppMIMEType = "text/html;profile=mcp-app"
+	appURI         = "ui://counter/app"
+)
+
+type increaseCounterArgs struct {
+	Step *int `json:"step,omitempty"`
+}
+
+func buildInitialSurfacePayload(basicCat *core.Catalog, count int) ([]core.AgentToRendererMessage, error) {
+	createMsg, err := v1.CreateSurface(v1.CreateSurfaceOptions{
+		SurfaceID: "counter_card",
+		CatalogID: basicCat.CatalogID(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	incAction := v1.EventAction("increase_counter", map[string]v1.DynamicValue{
+		"step": v1.Int(1),
+	})
+	componentsMsg, err := v1.UpdateComponentsFromTree(
+		"counter_card",
+		v1.NewCard(
+			v1.NewColumn(v1.Children(
+				v1.NewText(v1.Str("### Live counter")).WithID("title_text"),
+				v1.NewText(v1.FormatString(v1.Str("Count: ${/count}"))).WithID("count_text"),
+				v1.NewButton(
+					v1.NewText(v1.Str("Increase counter")).WithID("increment_button_text"),
+					incAction,
+				).WithVariant(v1.ButtonVariantPrimary).WithID("increment_button"),
+			)).WithID("main_column"),
+		),
+		"root",
+	)
+	if err != nil {
+		return nil, err
+	}
+	dataMsg := v1.UpdateDataModel("counter_card", "/", map[string]any{"count": count})
+	return []core.AgentToRendererMessage{createMsg, componentsMsg, dataMsg}, nil
+}
+
+func createCounterMCPServer(bundlePath string) (*mcp.Server, error) {
+	basicCat, err := core.BasicCatalog(core.Version1_0)
+	if err != nil {
+		return nil, err
+	}
+
+	var mu sync.Mutex
+	count := 0
+	server := mcp.NewServer(&mcp.Implementation{Name: "a2ui-counter-mcp-app", Version: "1.0.0"}, nil)
+
+	server.AddResource(
+		&mcp.Resource{
+			URI:         appURI,
+			Name:        "Counter MCP App",
+			Description: "Self-contained MCP App with an embedded A2UI renderer.",
+			MIMEType:    mcpAppMIMEType,
+		},
+		func(_ context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+			if req.Params.URI != appURI {
+				return nil, mcp.ResourceNotFoundError(req.Params.URI)
+			}
+			htmlBytes, err := os.ReadFile(bundlePath)
+			if err != nil {
+				return nil, err
+			}
+			return &mcp.ReadResourceResult{
+				Contents: []*mcp.ResourceContents{
+					{
+						URI:      appURI,
+						MIMEType: mcpAppMIMEType,
+						Text:     string(htmlBytes),
+					},
+				},
+			}, nil
+		},
+	)
+
+	mcp.AddTool(
+		server,
+		&mcp.Tool{
+			Name:        "open_counter_app",
+			Title:       "Open Counter App",
+			Description: "Opens the counter view and returns its initial A2UI surface.",
+			Meta: mcp.Meta{
+				"ui": map[string]any{
+					"resourceUri": appURI,
+					"visibility":  []string{"model"},
+				},
+			},
+		},
+		func(_ context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
+			mu.Lock()
+			current := count
+			mu.Unlock()
+
+			payload, err := buildInitialSurfacePayload(basicCat, current)
+			if err != nil {
+				return nil, nil, err
+			}
+			payloadJSON, err := json.Marshal(payload)
+			if err != nil {
+				return nil, nil, err
+			}
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{
+					&mcp.TextContent{Text: fmt.Sprintf("Counter opened at %d.", current)},
+					&mcp.EmbeddedResource{
+						Resource: &mcp.ResourceContents{
+							URI:      "a2ui://counter-card",
+							MIMEType: a2uiMIMEType,
+							Text:     string(payloadJSON),
+						},
+					},
+				},
+			}, nil, nil
+		},
+	)
+
+	mcp.AddTool(
+		server,
+		&mcp.Tool{
+			Name:        "increase_counter",
+			Title:       "Increase Counter",
+			Description: "Increments the counter and returns an A2UI updateDataModel payload.",
+			Meta: mcp.Meta{
+				"ui": map[string]any{
+					"visibility": []string{"app"},
+				},
+			},
+		},
+		func(_ context.Context, _ *mcp.CallToolRequest, args increaseCounterArgs) (*mcp.CallToolResult, any, error) {
+			step := 1
+			if args.Step != nil {
+				step = *args.Step
+			}
+			mu.Lock()
+			count += step
+			current := count
+			mu.Unlock()
+
+			update := []core.AgentToRendererMessage{
+				v1.UpdateDataModel("counter_card", "/count", current),
+			}
+			payloadJSON, err := json.Marshal(update)
+			if err != nil {
+				return nil, nil, err
+			}
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{
+					&mcp.TextContent{Text: fmt.Sprintf("Count is now %d.", current)},
+					&mcp.EmbeddedResource{
+						Resource: &mcp.ResourceContents{
+							URI:      "a2ui://counter-card/data",
+							MIMEType: a2uiMIMEType,
+							Text:     string(payloadJSON),
+						},
+					},
+				},
+			}, nil, nil
+		},
+	)
+
+	return server, nil
+}
+```
+
+  </TabItem>
 </Tabs>
 
 ### Step 2: Embed the A2UI renderer and forward actions in the MCP App
@@ -827,9 +1014,9 @@ You can also override `--a2ui-color-primary`, `--a2ui-border-radius`, or `--a2ui
 
 ### Validating server payloads before returning tool results
 
-Because A2UI JSON messages travel inside MCP `CallToolResult` payloads and are parsed inside the client's sandboxed iframe, an invalid component property or missing child ID fails inside the iframe rather than at the server boundary. Validate generated or static message arrays on your MCP server before returning them from `tools/call` using `validatePayload` (`validate_payload` in Python) from the A2UI Agent SDK.
+Because A2UI JSON messages travel inside MCP `CallToolResult` payloads and are parsed inside the client's sandboxed iframe, an invalid component property or missing child ID fails inside the iframe rather than at the server boundary. Validate generated or static message arrays on your MCP server before returning them from `tools/call` using `validatePayload` (`validate_payload` in Python, `agent.ValidatePayload` in Go) from the A2UI Agent SDK.
 
-Swift (`A2UISwiftCore` and `A2UISwiftUI`) and Kotlin (`androidx.a2ui` and `androidx.a2ui.compose`) focus on client-side rendering rather than server-side generation, so Agent SDK payload validation is available in TypeScript, Python, and Dart:
+Swift (`A2UISwiftCore` and `A2UISwiftUI`) and Kotlin (`androidx.a2ui` and `androidx.a2ui.compose`) focus on client-side rendering rather than server-side generation, so Agent SDK payload validation is available in TypeScript, Python, Dart, and Go:
 
 <Tabs syncKey="sdk-lang">
   <TabItem label="TypeScript">
@@ -866,6 +1053,25 @@ final parsed = AgentToRendererMessagePayload.fromJson(
   protocolVersion: A2uiProtocolVersion.v1_0,
 );
 validatePayload([BasicCatalog.v1_0()], parsed.messages);
+```
+
+  </TabItem>
+  <TabItem label="Go">
+
+```go
+import (
+	"github.com/a2ui-project/a2ui/go/agent"
+	"github.com/a2ui-project/a2ui/go/core"
+)
+
+basicCat, err := core.BasicCatalog(core.Version1_0)
+if err != nil {
+	return err
+}
+// Returns a *core.ValidationError if a v1.0 renderer holding basicCat would reject the messages.
+if err := agent.ValidatePayload([]*core.Catalog{basicCat}, a2uiPayload); err != nil {
+	return err
+}
 ```
 
   </TabItem>

@@ -4,7 +4,7 @@ Agents are server-side programs that generate A2UI messages in response to user 
 
 The actual component rendering is done by the [renderer](renderers.md),
 after messages are [transported](../concepts/transports.md) to the client.
-The agent is only responsible for generating the A2UI messages.
+The agent is only responsible for generating the A2UI messages. Official Agent SDKs are available for Python (`a2ui-agent-sdk`, `a2ui-adk`, `a2ui-a2a`), TypeScript (`@a2ui/agent`), Dart (`a2ui_agent`), and Go ([`go/agent`](../../../go/agent/README.md), [`go/adk`](../../../go/adk/README.md), [`go/a2aext`](../../../go/a2aext/README.md)).
 
 ## How Agents Work
 
@@ -21,9 +21,12 @@ User interactions from the client can be treated as new user input.
 
 The A2UI repository includes sample agents you can learn from:
 
-- [Restaurant Finder](../../../samples/agent/adk/restaurant_finder)
+- [Restaurant Finder (Python)](../../../samples/agent/adk/restaurant_finder)
     - Table reservations with forms.
-    - Written with the ADK.
+    - Written with the Python ADK (`a2ui-adk`).
+- [Restaurant Finder (Go)](../../../samples/agent/go/restaurant_finder)
+    - Table reservations over A2A JSON-RPC and SSE, negotiating v1.0 and v0.9 capabilities.
+    - Written in Go with ADK for Go ([`go/adk`](../../../go/adk/README.md)), [`go/agent`](../../../go/agent/README.md), and [`go/a2aext`](../../../go/a2aext/README.md).
 - [Rizzcharts](../../../samples/community/agent/adk/rizzcharts/python)
     - A2UI Custom components demo.
     - Written with the ADK.

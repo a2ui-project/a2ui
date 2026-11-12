@@ -10,11 +10,11 @@
 Every agent authoring or editing pages under `docs/site/` must follow these global rules instead of repeating boilerplate per section:
 
 1. **Mandatory Skills & Version Focus (`v1.0` Primary + `v0.9` / `v0.9.1` Parity)**:
-    - Load and follow [`.agents/skills/public-documentation/SKILL.md`](../../.agents/skills/public-documentation/SKILL.md) for `v1.0` (primary) + `v0.9.1` (`syncKey="protocol-version"`) tabbing, concrete `v0.9` / `v0.9.1` samples alongside `v1.0` samples, multi-SDK tab ordering (`TypeScript` | `Python` | `Dart` | `Swift` | `Kotlin` with `syncKey="sdk-lang"`), multi-renderer tab ordering (`Flutter` | `Web` | `SwiftUI` | `Jetpack Compose`), single-source `--8<--` spec includes, and the hybrid diagram pattern (themed Mermaid for sequence/lifecycle flows; Astro/Tailwind components for structural/taxonomy visuals).
+    - Load and follow [`.agents/skills/public-documentation/SKILL.md`](../../.agents/skills/public-documentation/SKILL.md) for `v1.0` (primary) + `v0.9.1` (`syncKey="protocol-version"`) tabbing, concrete `v0.9` / `v0.9.1` samples alongside `v1.0` samples, multi-SDK tab ordering (`TypeScript` | `Python` | `Dart` | `Go` | `Swift` | `Kotlin` with `syncKey="sdk-lang"`), multi-renderer tab ordering (`Flutter` | `Web` | `SwiftUI` | `Jetpack Compose`), single-source `--8<--` spec includes, and the hybrid diagram pattern (themed Mermaid for sequence/lifecycle flows; Astro/Tailwind components for structural/taxonomy visuals).
     - **Protocol Version Strings & Metadata Keys**: In `v1.0`, wire payloads use `"version": "1.0"` (no `"v"` prefix) and transport metadata keys `a2uiRendererCapabilities` / `a2uiRendererDataModel` nested under `"1.0"`. In `v0.9.1` (`specification/v0_9_1/`), wire payloads accept `"version": "v0.9"` or `"v0.9.1"` (standard examples, `$id` URIs, and basic `catalogId` paths use `v0.9` / `v0_9`) and transport metadata keys `a2uiClientCapabilities` / `a2uiClientDataModel` nested under `"v0.9"`.
     - Load and follow [`.agents/skills/natural-writing/SKILL.md`](../../.agents/skills/natural-writing/SKILL.md) for direct, neutral technical prose free of promotional buzzwords and AI-isms.
 2. **Derive Code & Payloads from Live Sources of Truth**:
-    - Never invent API signatures, package names, CLI commands, or JSON properties from memory, and match each language's actual casing/exports (e.g., camelCase in TypeScript/Dart/Swift/Kotlin vs. snake_case in Python). Inspect live schemas under [`specification/`](../../specification/) and [`catalogs/`](../../catalogs/), [`Package.swift`](../../Package.swift), SDK manifests and public exports under [`python/`](../../python/), [`typescript/`](../../typescript/), [`dart/`](../../dart/), and [`swift/`](../../swift/), the AndroidX repository (`https://android.googlesource.com/platform/frameworks/support` branch `androidx-main`, paths `a2ui` and `compose/material3/material3-a2ui`) for Kotlin and Jetpack Compose, runnable apps under [`samples/`](../../samples/), conformance suites under [`conformance/`](../../conformance/), and evaluation harnesses under [`eval/`](../../eval/).
+    - Never invent API signatures, package names, CLI commands, or JSON properties from memory, and match each language's actual casing/exports (e.g., camelCase in TypeScript/Dart/Swift/Kotlin, PascalCase exported symbols in Go, vs. snake_case in Python). Inspect live schemas under [`specification/`](../../specification/) and [`catalogs/`](../../catalogs/), [`Package.swift`](../../Package.swift), SDK manifests and public exports under [`python/`](../../python/), [`typescript/`](../../typescript/), [`dart/`](../../dart/), [`go/`](../../go/), and [`swift/`](../../swift/), the AndroidX repository (`https://android.googlesource.com/platform/frameworks/support` branch `androidx-main`, paths `a2ui` and `compose/material3/material3-a2ui`) for Kotlin and Jetpack Compose, runnable apps under [`samples/`](../../samples/), conformance suites under [`conformance/`](../../conformance/), and evaluation harnesses under [`eval/`](../../eval/).
 3. **Shared Visual Components**:
     - Implement reusable Astro/Tailwind visual diagrams under `docs/site/src/components/docs/<ComponentName>.astro` and import them into `.mdx` pages. Respect Starlight light and dark theme variables (`--sl-color-*`).
 4. **Canonical Topic Ownership (Anti-Overlap Rules)**:
@@ -171,7 +171,7 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
     1. **Catalog Anatomy Visual (`<CatalogAnatomy />`)**: Two-column Tailwind card showing a sample catalog URI (`components` chips with property/slot badges on the left; `functions` chips with caller badges on the right) plus a callout explaining `allowedCallers` (`rendererOnly` | `agentOnly` | `rendererOrAgent`) and `requiresUserActivation`.
     2. **Conceptual Foundations**: Define Catalogs (`catalogId` URI contract, `instructions`), Components (properties, `ChildList` slots, `checks`, `allowedParents` / `allowedChildren`), and Functions (local zero-latency renderer functions vs. remote `callAgentFunction` RPCs).
     3. **Using and Extending Catalogs Across SDKs**:
-        - _Agent Side (`TypeScript` | `Python` | `Dart`)_: Show loading a `catalog.json` (`Catalog`, `CatalogConfig`), verified against `python/a2ui_agent/`, `typescript/agents/a2ui_agent/`, and `dart/a2ui_agent/`.
+        - _Agent Side (`TypeScript` | `Python` | `Dart` | `Go`)_: Show loading a `catalog.json` (`Catalog`, `CatalogConfig`), verified against `python/a2ui_agent/`, `typescript/agents/a2ui_agent/`, `dart/a2ui_agent/`, and `go/agent/`.
         - _Renderer Side (`Flutter` | `Web` | `SwiftUI` | `Jetpack Compose`)_: Show registering component adapters and local function implementations with `MessageProcessor`.
     4. **The Basic Catalog**: Explain [`catalogs/basic/v1/catalog.json`](../../catalogs/basic/v1/catalog.json) as an optional, styleable reference catalog that teams can use directly, replace with custom domain catalogs, reimplement with their own design system, or mix per component via `catalogId`.
 
@@ -232,12 +232,12 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 
 #### Inference Formats (`/concepts/inference-formats/`) [P1]
 
-- **Canonical Owner & Sources**: Single conceptual home for inference formats and token/latency benchmarks. Grounded in [Fast and Reliable A2UI](https://developers.googleblog.com/fast-reliable-a2ui/), `python/a2ui_agent/src/a2ui/inference_formats/`, `typescript/agents/a2ui_agent/`, `dart/a2ui_agent/`, and `eval/`.
+- **Canonical Owner & Sources**: Single conceptual home for inference formats and token/latency benchmarks. Grounded in [Fast and Reliable A2UI](https://developers.googleblog.com/fast-reliable-a2ui/), `python/a2ui_agent/src/a2ui/inference_formats/`, `typescript/agents/a2ui_agent/`, `dart/a2ui_agent/`, `go/agent/`, and `eval/`.
 - **Content Outline**:
     1. **Wire Protocol vs. Generation Formats**: Standard A2UI JSON on the wire vs. decoupled LLM generation formats on the server: **Express** (`ExpressFormatFactory`, default compact positional DSL), **Direct JSON** (`DirectJsonFormatFactory`, incremental chunk healing), custom formats, and deterministic server/decision-model generation.
     2. **Inference Pipeline Visual (`<InferencePipeline />`)**: 3-stage Astro/Tailwind card (`Prompt Synthesis` $\rightarrow$ `Model Generation` $\rightarrow$ `Wire Compilation & Validation`).
     3. **Express vs. Wire JSON**: Side-by-side Express vs. compiled wire JSON example (`v1.0` and `v0.9.1`).
-    4. **How Inference Formats Stay Swappable**: Catalog-agnostic prompt synthesis, bidirectional translation (`compile` / `decompile`), incremental stream compilation, and a concise illustrative multi-SDK (`TypeScript` | `Python` | `Dart`) snippet showing `InferenceFormatFactory` pluggability on `A2uiGenerator`.
+    4. **How Inference Formats Stay Swappable**: Catalog-agnostic prompt synthesis, bidirectional translation (`compile` / `decompile`), incremental stream compilation, and a concise illustrative multi-SDK (`TypeScript` | `Python` | `Dart` | `Go`) snippet showing `InferenceFormatFactory` pluggability on `A2uiGenerator` (`Generator` in Go).
     5. **Token and Latency Benchmarks**: Single authoritative benchmark table on `core_v1_0`.
 
 <a id="security-and-trust-boundaries"></a>
@@ -289,16 +289,16 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 
 #### How to Integrate A2UI into an Agent (`/guides/agent-integration/`) [P1]
 
-- **Sources**: Link to [SDKs](#sdks) (`/concepts/sdks/#agent-sdk`) for package coordinates; verify APIs against `python/a2ui_agent/`, `python/a2ui_adk/`, `python/a2ui_a2a/`, `typescript/agents/a2ui_agent/`, `dart/a2ui_agent/`, and [`docs/public/guides/a2ui-with-any-agent-framework.md`](../public/guides/a2ui-with-any-agent-framework.md).
-- **Content Outline** (tabbed across `TypeScript` | `Python` | `Dart`):
+- **Sources**: Link to [SDKs](#sdks) (`/concepts/sdks/#agent-sdk`) for package coordinates; verify APIs against `python/a2ui_agent/`, `python/a2ui_adk/`, `python/a2ui_a2a/`, `typescript/agents/a2ui_agent/`, `dart/a2ui_agent/`, `go/agent/`, `go/adk/`, `go/a2aext/`, and [`docs/public/guides/a2ui-with-any-agent-framework.md`](../public/guides/a2ui-with-any-agent-framework.md).
+- **Content Outline** (tabbed across `TypeScript` | `Python` | `Dart` | `Go`):
     1. **Overview**: Direct purpose statement linking to `/concepts/sdks/#agent-sdk`, noting single-binary co-location via shared Core SDK data structures, and cross-linking to `/guides/client-integration/`, `/guides/defining-a-catalog/`, and `/concepts/inference-formats/`.
     2. **Step 1: Install Dependencies**: Tabbed install commands matching `/concepts/sdks/#agent-sdk`.
     3. **Step 2: Initialize the A2UI Generator**: Registering the built-in Basic Catalog inside `CatalogConfig` (plus custom catalog pointer), injecting a model-streaming callback, and maintaining per-session `RendererState` with default `ExpressFormatFactory`.
-    4. **Step 3: Build the System Prompt and Stream A2UI Messages**: Creating a per-turn `A2uiRequestProcessor` bound to `RendererState`, appending its generated prompt snippet to agent instructions, and streaming validated Core SDK `AgentToRendererMessage` structures, plus collapsed `v1.0` and `v0.9.1` wire-format examples.
+    4. **Step 3: Build the System Prompt and Stream A2UI Messages**: Creating a per-turn `A2uiRequestProcessor` (`RequestProcessor` in Go) bound to `RendererState`, appending its generated prompt snippet to agent instructions, and streaming validated Core SDK `AgentToRendererMessage` structures, plus collapsed `v1.0` and `v0.9.1` wire-format examples.
     5. **Step 4: Process Messages from the Renderer**: Separating plain text prompts from A2UI `renderer_to_agent` envelopes and routing A2UI messages through `RendererToAgentMessageProcessor`, registering an action handler to prompt the model while deterministic logic handles `callAgentFunction` RPCs and client `error`s, plus collapsed `v1.0` and `v0.9.1` wire-format examples.
     6. **Step 5: Connect to a Transport**: Transport-agnostic guidance (SSE, WebSockets, AG-UI, A2A, MCP, or in-process Core SDK passing) plus a concrete HTTP SSE server example backed by a streaming LLM client.
-    7. **Additional Steps**: Separate focused sections for negotiating client capabilities (`a2uiRendererCapabilities` in v1.0 / `a2uiClientCapabilities` in v0.9.1), registering agent-hosted functions (`AgentFunction`), calling renderer-side functions (`RendererFunctionCalls`), reading synchronized client data models (`sendDataModel: true` via `a2uiRendererDataModel` / `a2uiClientDataModel`), validating whole responses with `A2uiError` retry, and customizing catalogs and inference formats (`ComponentPruningTransformer`, `DirectJsonFormatFactory`, and Python `@macro` linking to `/guides/macros/`).
-    8. **Connect to Agent Frameworks and Transports**: Consolidate Google ADK (`a2ui-adk` `A2uiProcessorStore`, `A2uiInstruction`, `SendA2uiToClientToolset`, and `a2ui-adk[a2a]` `a2ui_rpc_callback` / `A2uiEventConverter`), A2A (`a2ui-a2a` extension, part, and RPC helpers), and AG-UI (via CopilotKit) plus MCP cross-links.
+    7. **Additional Steps**: Separate focused sections for negotiating client capabilities (`a2uiRendererCapabilities` in v1.0 / `a2uiClientCapabilities` in v0.9.1), registering agent-hosted functions (`AgentFunction`), calling renderer-side functions (`RendererFunctionCalls`), reading synchronized client data models (`sendDataModel: true` via `a2uiRendererDataModel` / `a2uiClientDataModel`), validating whole responses with `A2uiError` retry, and customizing catalogs and inference formats (`ComponentPruningTransformer`, `DirectJsonFormatFactory`, and server-side macros in Python and Go linking to `/guides/macros/`).
+    8. **Connect to Agent Frameworks and Transports**: Consolidate Google ADK (`a2ui-adk` in Python and `go/adk` in Go) and A2A (`a2ui-a2a` in Python and `go/a2aext` in Go), plus AG-UI (via CopilotKit) and MCP cross-links.
 
 <a id="how-to-define-a-catalog"></a>
 
@@ -308,16 +308,16 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 - **Content Outline**:
     1. **When You Need a Standalone `catalog.json`**: Sharing a language-agnostic contract across separate agent and client runtimes.
     2. **Catalog Schema Anatomy (`v1.0` vs. `v0.9.1` Tabs)**: Envelope metadata (`$schema`, `$id`, `catalogId` URI, `title`, `description`, plus v1.0-only `protocolVersion`, `metadata`, and `instructions`), top-level `components` and `functions` maps (direct component properties + `allowedParents`/`allowedChildren` + `Checkable` `checks` support and function `returnType`/`allowedCallers`/`requiresUserActivation` in v1.0 vs. `allOf` `ComponentCommon` wrappers in v0.9.1), and `$defs` (`anyComponent`, `anyFunction`).
-    3. **Ingesting on the Agent SDK**: Verified multi-SDK snippets loading `catalog.json` into `Catalog` / `CatalogConfig`.
+    3. **Ingesting on the Agent SDK**: Verified multi-SDK (`TypeScript` | `Python` | `Dart` | `Go`) snippets loading `catalog.json` into `Catalog` / `CatalogConfig`.
     4. **Registering on the Client Renderer**: Implementing per-`Component` UI widgets and local `functions` and binding the `catalogId` in `MessageProcessor`.
     5. **Client-Server Schema Parity Testing**:
-        - > **[VERIFICATION REQUIREMENT FOR IMPLEMENTING AGENT]**: Compare normalized `Catalog.fromJson` / `Catalog.from_json` objects rather than raw JSON strings (inspect `dart/a2ui_core/test/catalog_json_test.dart` to see how SDKs normalize `protocolVersion`, `$ref`s, and function schemas across Python, TypeScript, Dart, Swift, and Kotlin).
+        - > **[VERIFICATION REQUIREMENT FOR IMPLEMENTING AGENT]**: Compare normalized `Catalog.fromJson` / `Catalog.from_json` / `core.CatalogFromJSONBytes` objects rather than raw JSON strings (inspect `dart/a2ui_core/test/catalog_json_test.dart` to see how SDKs normalize `protocolVersion`, `$ref`s, and function schemas across TypeScript, Python, Dart, Go, Swift, and Kotlin).
 
 <a id="macros"></a>
 
 #### Using Macros (`/guides/macros/`) [P2]
 
-- **Canonical Owner & Sources**: Single home for server-side macros (currently implemented in the Python Agent SDK; mark Python support clearly). Grounded in [`python/a2ui_agent/src/a2ui/transformers/macros/README.md`](../../python/a2ui_agent/src/a2ui/transformers/macros/README.md) and [`samples/community/macros/README.md`](../../samples/community/macros/README.md).
+- **Canonical Owner & Sources**: Single home for server-side macros (implemented in the Python and Go Agent SDKs; tab across `Python` | `Go`). Grounded in [`python/a2ui_agent/src/a2ui/transformers/macros/README.md`](../../python/a2ui_agent/src/a2ui/transformers/macros/README.md), [`go/agent/macros/`](../../go/agent/macros/), and [`samples/community/macros/README.md`](../../samples/community/macros/README.md).
 - **Content Outline**:
     1. **What are Macros?**: Coarse-grained composite components defined on the server (`@macro`) and lowered into standard catalog primitives by `MacroExpander` before wire transmission (zero client binary changes).
     2. **Benefits & Nuances**: Server-side data baking and token reduction; key nuances around static literal baking vs. reactive `@path` data bindings, and per-invocation child component ID scoping.
@@ -386,7 +386,7 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 
 - **Canonical Owner**: Single home for Spec-Driven Development (SDD) blueprints and conformance testing.
 - **Content Outline**:
-    1. **Writing Your Own SDK**: Link to [`/concepts/sdks/`](#sdks) for official SDKs, and explain how to build custom SDKs (e.g. Rust, Go, C#, Vue, Svelte).
+    1. **Writing Your Own SDK**: Link to [`/concepts/sdks/`](#sdks) for official SDKs, and explain how to build custom SDKs (e.g. Rust, C#, Vue, Svelte).
     2. **Module Blueprints**: Point to [`a2ui_core.blueprint.md`](../../blueprints/modules/a2ui_core.blueprint.md), [`a2ui_agent.blueprint.md`](../../blueprints/modules/a2ui_agent.blueprint.md), and [`a2ui_framework_adapter.blueprint.md`](../../blueprints/modules/a2ui_framework_adapter.blueprint.md).
     3. **YAML Conformance Suites**: Explain validating implementations against [`conformance/core/`](../../conformance/core/), [`conformance/agent/`](../../conformance/agent/), and [`conformance/README.md`](../../conformance/README.md).
 

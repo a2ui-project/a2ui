@@ -1,6 +1,6 @@
 ---
 title: 'How to Integrate A2UI into an Agent'
-description: 'Step-by-step guide to integrating A2UI UI generation into TypeScript, Python, and Dart agents.'
+description: 'Step-by-step guide to integrating A2UI UI generation into TypeScript, Python, Dart, and Go agents.'
 ---
 
 import {Aside, Tabs, TabItem} from '@astrojs/starlight/components';
@@ -8,7 +8,7 @@ import SchemaChips from '../../../components/docs/common/SchemaChips.astro';
 
 Integrate A2UI into an [agent](../../concepts/glossary/#agent) using the [Agent SDKs](../../concepts/sdks/#agent-sdk) to stream validated interactive [surfaces](../../concepts/glossary/#surface) to clients and respond to user actions across turns.
 
-For the client side, see [How to Integrate A2UI into a Client](../../guides/client-integration/). If your agent and renderer live in the same binary or codebase, combine both guides, skip the transport step, and pass messages directly from agent output into the rendering pipeline (the Agent and Renderer SDKs share the same [Core SDK](../../concepts/sdks/#core-sdk) data structures). To register custom widgets beyond the built-in [Basic catalog](../../specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json), see [How to Define a Catalog](../../guides/defining-a-catalog/), and for trade-offs between inference formats see [Inference Formats](../../concepts/inference-formats/). Agent SDKs are available for TypeScript, Python, and Dart, while Swift and Kotlin target client-side rendering (see [SDKs](../../concepts/sdks/#agent-sdk)).
+For the client side, see [How to Integrate A2UI into a Client](../../guides/client-integration/). If your agent and renderer live in the same binary or codebase, combine both guides, skip the transport step, and pass messages directly from agent output into the rendering pipeline (the Agent and Renderer SDKs share the same [Core SDK](../../concepts/sdks/#core-sdk) data structures). To register custom widgets beyond the built-in [Basic catalog](../../specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json), see [How to Define a Catalog](../../guides/defining-a-catalog/), and for trade-offs between inference formats see [Inference Formats](../../concepts/inference-formats/). Agent SDKs are available for TypeScript, Python, Dart, and Go, while Swift and Kotlin target client-side rendering (see [SDKs](../../concepts/sdks/#agent-sdk)).
 
 ---
 
@@ -38,6 +38,15 @@ dart pub add a2ui_agent a2ui_core
 ```
 
   </TabItem>
+  <TabItem label="Go">
+
+```bash
+go get github.com/a2ui-project/a2ui/go/agent github.com/a2ui-project/a2ui/go/core
+```
+
+Until initial Go module tags are published, add `replace` directives in `go.mod` pointing to a local checkout of `github.com/a2ui-project/a2ui`.
+
+  </TabItem>
 </Tabs>
 
 ---
@@ -46,7 +55,7 @@ dart pub add a2ui_agent a2ui_core
 
 Create a shared [generator](../../concepts/glossary/#a2uigenerator) configured with your component [catalogs](../../concepts/glossary/#catalog), your chosen [inference format](../../concepts/inference-formats/), and a session map to track active surface state across turns.
 
-The steps below use an illustrative `OrderAgentService` class representing your application's own domain service rather than an A2UI SDK class. Register the built-in `v1.0` [Basic catalog](../../specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json) (and any [custom domain catalogs](../../guides/defining-a-catalog/)) at startup, and inject a model-streaming callback so the service stays decoupled from any specific LLM client or transport. The generator also configures the inference format: Express (`ExpressFormatFactory`) is the default, instructing the model to emit compact `<a2ui>` blocks that compile into validated A2UI messages, and can be swapped for other formats such as Direct JSON (see [Inference Formats](../../concepts/inference-formats/)):
+The steps below use an illustrative `OrderAgentService` type representing your application's own domain service rather than an A2UI SDK type. Register the built-in `v1.0` [Basic catalog](../../specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json) (and any [custom domain catalogs](../../guides/defining-a-catalog/)) at startup, and inject a model-streaming callback so the service stays decoupled from any specific LLM client or transport. The generator also configures the inference format: Express (`ExpressFormatFactory`) is the default, instructing the model to emit compact `<a2ui>` blocks that compile into validated A2UI messages, and can be swapped for other formats such as Direct JSON (see [Inference Formats](../../concepts/inference-formats/)):
 
 <Tabs syncKey="sdk-lang">
   <TabItem label="TypeScript">
@@ -156,6 +165,64 @@ class OrderAgentService {
         const ExpressFormatFactory(), // Default; swap to change inference format.
   );
   final Map<String, RendererState> _sessions = {};
+}
+```
+
+  </TabItem>
+  <TabItem label="Go">
+
+```go
+package orderagent
+
+import (
+	"context"
+	"encoding/json"
+	"iter"
+	"log"
+	"sync"
+
+	"github.com/a2ui-project/a2ui/go/agent"
+	"github.com/a2ui-project/a2ui/go/core"
+)
+
+type ModelStreamFn func(ctx context.Context, sessionID, systemPrompt, userMessage string) iter.Seq2[string, error]
+
+type OrderAgentService struct {
+	callModel ModelStreamFn
+	Catalogs  []*core.Catalog
+	Generator *agent.Generator
+
+	mu       sync.Mutex
+	sessions map[string]*agent.RendererState
+}
+
+func NewOrderAgentService(callModel ModelStreamFn) (*OrderAgentService, error) {
+	basic, err := core.BasicCatalog(core.Version1_0)
+	if err != nil {
+		return nil, err
+	}
+	catalogs := []*core.Catalog{
+		basic,
+		// Add custom domain catalogs here (see /guides/defining-a-catalog/).
+	}
+	configs := make([]*agent.CatalogConfig, len(catalogs))
+	for i, c := range catalogs {
+		cfg, err := agent.NewCatalogConfig(c)
+		if err != nil {
+			return nil, err
+		}
+		configs[i] = cfg
+	}
+
+	gen := agent.NewGenerator(configs, &agent.GeneratorOptions{
+		InferenceFormatFactory: agent.NewExpressFormatFactory(nil), // Default; swap to change inference format.
+	})
+	return &OrderAgentService{
+		callModel: callModel,
+		Catalogs:  catalogs,
+		Generator: gen,
+		sessions:  make(map[string]*agent.RendererState),
+	}, nil
 }
 ```
 
@@ -288,6 +355,96 @@ Stream<AgentToRendererMessage> runTurn(
       yield* Stream.fromIterable(part.a2ui);
     }
   }
+}
+```
+
+  </TabItem>
+  <TabItem label="Go">
+
+```go
+func (s *OrderAgentService) RunTurn(
+	ctx context.Context,
+	sessionID string,
+	userMessage string,
+) iter.Seq2[core.AgentToRendererMessage, error] {
+	return func(yield func(core.AgentToRendererMessage, error) bool) {
+		s.mu.Lock()
+		state := s.sessions[sessionID]
+		if state == nil {
+			var err error
+			state, err = agent.NewRendererState(s.Catalogs)
+			if err != nil {
+				s.mu.Unlock()
+				yield(nil, err)
+				return
+			}
+			s.sessions[sessionID] = state
+		}
+		s.mu.Unlock()
+
+		catalogIDs := make([]string, len(s.Catalogs))
+		for i, c := range s.Catalogs {
+			catalogIDs[i] = c.CatalogID()
+		}
+		processor, err := s.Generator.CreateProcessor(
+			// Synthesize rendererCapabilities from registered catalogs (see #negotiate-client-capabilities for external clients):
+			core.RendererCapabilities{"1.0": {SupportedCatalogIDs: catalogIDs}},
+			&agent.CreateProcessorOptions{State: state},
+		)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		snippet, err := processor.PromptSnippet()
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		systemPrompt := "You are an order assistant. Show order details in an interactive card.\n" +
+			"Give each new surface a unique surfaceId, or call surface(\"id\", update=true) " +
+			"when updating an existing surface.\n\n" +
+			snippet
+
+		stream, err := processor.OpenStream(nil)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		for chunk, err := range s.callModel(ctx, sessionID, systemPrompt, userMessage) {
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+			parts, err := stream.Feed(chunk)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+			for _, part := range parts {
+				if part.IsA2UI() {
+					for _, msg := range part.A2UI {
+						if !yield(msg, nil) {
+							return
+						}
+					}
+				}
+			}
+		}
+		parts, err := stream.Close()
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		for _, part := range parts {
+			if part.IsA2UI() {
+				for _, msg := range part.A2UI {
+					if !yield(msg, nil) {
+						return
+					}
+				}
+			}
+		}
+	}
 }
 ```
 
@@ -483,6 +640,61 @@ Stream<AgentToRendererMessage> handleRendererMessage(
   if (modelTurn case final turn?) {
     yield* turn;
   }
+}
+```
+
+  </TabItem>
+  <TabItem label="Go">
+
+```go
+func (s *OrderAgentService) HandleRendererMessage(
+	ctx context.Context,
+	sessionID string,
+	message map[string]any,
+) iter.Seq2[core.AgentToRendererMessage, error] {
+	return func(yield func(core.AgentToRendererMessage, error) bool) {
+		var modelTurn iter.Seq2[core.AgentToRendererMessage, error]
+
+		processor, err := agent.NewRendererToAgentMessageProcessor(
+			s.Catalogs,
+			&agent.RendererToAgentOptions{
+				OnAction: func(_ context.Context, actionMsg *core.RendererToAgentMessage) (bool, error) {
+					payload, err := json.Marshal(actionMsg)
+					if err != nil {
+						return false, err
+					}
+					modelTurn = s.RunTurn(ctx, sessionID, string(payload))
+					return true, nil
+				},
+				OnError: func(_ context.Context, errMsg *core.RendererToAgentMessage) (bool, error) {
+					log.Printf("Renderer error: %s", errMsg.Error.Message)
+					return true, nil
+				},
+			},
+		)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+
+		result, err := processor.ProcessMessageMap(ctx, message)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		for _, reply := range result.Replies {
+			if !yield(reply, nil) {
+				return
+			}
+		}
+		if modelTurn != nil {
+			for msg, err := range modelTurn {
+				if !yield(msg, err) {
+					return
+				}
+			}
+		}
+	}
 }
 ```
 
@@ -807,6 +1019,146 @@ Future<void> main() async {
 ```
 
   </TabItem>
+  <TabItem label="Go">
+
+```bash
+go get google.golang.org/genai
+```
+
+```go
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"iter"
+	"log"
+	"net/http"
+	"strings"
+	"sync"
+
+	"google.golang.org/genai"
+
+	"example.com/myagent/orderagent"
+)
+
+type agentRequestBody struct {
+	SessionID string         `json:"sessionId"`
+	Prompt    string         `json:"prompt"`
+	Message   map[string]any `json:"message"`
+}
+
+func main() {
+	// Example using google.golang.org/genai; substitute any streaming LLM SDK.
+	ai, err := genai.NewClient(context.Background(), nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	var (
+		historyMu sync.Mutex
+		histories = make(map[string][]*genai.Content)
+	)
+
+	callModelStream := func(ctx context.Context, sessionID, systemPrompt, userMessage string) iter.Seq2[string, error] {
+		return func(yield func(string, error) bool) {
+			userTurn := genai.NewContentFromText(userMessage, genai.RoleUser)
+			historyMu.Lock()
+			contents := append(append([]*genai.Content(nil), histories[sessionID]...), userTurn)
+			historyMu.Unlock()
+
+			config := &genai.GenerateContentConfig{
+				SystemInstruction: genai.NewContentFromText(systemPrompt, genai.RoleUser),
+			}
+			var reply strings.Builder
+			for chunk, err := range ai.Models.GenerateContentStream(ctx, "gemini-2.5-flash", contents, config) {
+				if err != nil {
+					yield("", err)
+					return
+				}
+				if text := chunk.Text(); text != "" {
+					reply.WriteString(text)
+					if !yield(text, nil) {
+						return
+					}
+				}
+			}
+
+			historyMu.Lock()
+			histories[sessionID] = append(histories[sessionID],
+				userTurn,
+				genai.NewContentFromText(reply.String(), genai.RoleModel),
+			)
+			historyMu.Unlock()
+		}
+	}
+
+	agentService, err := orderagent.NewOrderAgentService(callModelStream)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/agent", func(w http.ResponseWriter, r *http.Request) {
+		var body agentRequestBody
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+
+		sessionID := body.SessionID
+		if sessionID == "" {
+			sessionID = "default"
+		}
+		prompt := body.Prompt
+		if prompt == "" {
+			prompt = "Show my order summary"
+		}
+
+		events := agentService.RunTurn(r.Context(), sessionID, prompt)
+		if body.Message != nil {
+			events = agentService.HandleRendererMessage(r.Context(), sessionID, body.Message)
+		}
+
+		rc := http.NewResponseController(w)
+		wroteHeader := false
+		for msg, err := range events {
+			if err != nil {
+				if !wroteHeader {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusInternalServerError)
+					_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+				}
+				return
+			}
+			data, err := json.Marshal(msg)
+			if err != nil {
+				return
+			}
+			if !wroteHeader {
+				w.Header().Set("Content-Type", "text/event-stream")
+				w.Header().Set("Cache-Control", "no-cache")
+				w.Header().Set("Connection", "keep-alive")
+				w.WriteHeader(http.StatusOK)
+				wroteHeader = true
+			}
+			_, _ = fmt.Fprintf(w, "data: %s\n\n", data)
+			_ = rc.Flush()
+		}
+		if !wroteHeader {
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.Header().Set("Cache-Control", "no-cache")
+			w.WriteHeader(http.StatusOK)
+		}
+	})
+
+	log.Fatal(http.ListenAndServe(":8080", mux))
+}
+```
+
+  </TabItem>
 </Tabs>
 
 ---
@@ -817,7 +1169,7 @@ Future<void> main() async {
 
 Negotiate active catalogs per request when your agent serves external clients or multiple shipped app versions with different widget sets.
 
-If your team owns both the agent and the client app, targeting your known catalogs directly as in [Step 3](#step-3-build-the-system-prompt-and-stream-a2ui-messages) avoids runtime capability plumbing. Otherwise, register every catalog your agent supports on the generator, read `metadata.a2uiRendererCapabilities` (or `metadata.a2uiClientCapabilities` for `v0.9.1` clients) on each request, and verify that the negotiated processor accepts the existing session state in case the caller's [catalogs](../../concepts/catalogs/#catalog-negotiation-and-multi-catalog-surfaces) changed. In TypeScript and Python, all catalogs on a single generator must target the same protocol version, so maintain a separate `v0.9` generator when serving both `v1.0` and `v0.9.1` clients (Dart groups mixed-version catalogs automatically):
+If your team owns both the agent and the client app, targeting your known catalogs directly as in [Step 3](#step-3-build-the-system-prompt-and-stream-a2ui-messages) avoids runtime capability plumbing. Otherwise, register every catalog your agent supports on the generator, read `metadata.a2uiRendererCapabilities` (or `metadata.a2uiClientCapabilities` for `v0.9.1` clients) on each request, and verify that the negotiated processor accepts the existing session state in case the caller's [catalogs](../../concepts/catalogs/#catalog-negotiation-and-multi-catalog-surfaces) changed. In TypeScript, Python, and Go, all catalogs on a single generator must target compatible protocol versions, so maintain a separate `v0.9` generator when serving both `v1.0` and `v0.9.1` clients (Dart groups mixed-version catalogs automatically):
 
 <Tabs syncKey="sdk-lang">
   <TabItem label="TypeScript">
@@ -918,6 +1270,68 @@ def prepare_negotiated_turn(
       '${processor.promptSnippet}';
 
   return (processor: processor, state: state, systemPrompt: systemPrompt);
+}
+```
+
+  </TabItem>
+  <TabItem label="Go">
+
+```go
+// Pass capabilitiesPayload directly, or extract it from request metadata with
+// agent.ReadRendererCapabilities(metadata, core.Version1_0).
+func (s *OrderAgentService) PrepareNegotiatedTurn(
+	sessionID string,
+	capabilitiesPayload map[string]any,
+) (*agent.RequestProcessor, *agent.RendererState, string, error) {
+	var (
+		caps core.RendererCapabilities
+		err  error
+	)
+	if len(capabilitiesPayload) > 0 {
+		caps, err = agent.ParseRendererCapabilities(capabilitiesPayload)
+		if err != nil {
+			return nil, nil, "", err
+		}
+	} else {
+		catalogIDs := make([]string, len(s.Catalogs))
+		for i, c := range s.Catalogs {
+			catalogIDs[i] = c.CatalogID()
+		}
+		caps = core.RendererCapabilities{"1.0": {SupportedCatalogIDs: catalogIDs}}
+	}
+
+	probe, err := s.Generator.CreateProcessor(caps, nil)
+	if err != nil {
+		return nil, nil, "", err
+	}
+
+	s.mu.Lock()
+	state := s.sessions[sessionID]
+	if state == nil || !probe.AcceptsState(state) {
+		state, err = probe.CreateState()
+		if err != nil {
+			s.mu.Unlock()
+			return nil, nil, "", err
+		}
+		s.sessions[sessionID] = state
+	}
+	s.mu.Unlock()
+
+	processor, err := s.Generator.CreateProcessor(caps, &agent.CreateProcessorOptions{
+		State: state,
+	})
+	if err != nil {
+		return nil, nil, "", err
+	}
+	snippet, err := processor.PromptSnippet()
+	if err != nil {
+		return nil, nil, "", err
+	}
+	systemPrompt := "You are an order assistant. Show order details in an interactive card.\n" +
+		"Give each new surface a unique surfaceId, or call surface(\"id\", update=true) " +
+		"when updating an existing surface.\n\n" +
+		snippet
+	return processor, state, systemPrompt, nil
 }
 ```
 
@@ -1087,6 +1501,64 @@ final rendererMessages = RendererToAgentMessageProcessor(
 ```
 
   </TabItem>
+  <TabItem label="Go">
+
+```go
+package orderagent
+
+import (
+	"context"
+
+	"github.com/a2ui-project/a2ui/go/agent"
+	"github.com/a2ui-project/a2ui/go/core"
+)
+
+func NewOrderAgentProcessor() (*core.Catalog, *agent.RendererToAgentMessageProcessor, error) {
+	pickupETAFn := &core.AgentFunction{
+		Name:        "lookupPickupEta",
+		Description: "Looks up the pickup window for an order.",
+		ReturnType:  core.ReturnTypeObject,
+		ArgsSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"orderId": map[string]any{"type": "string"},
+			},
+			"required": []any{"orderId"},
+		},
+		Handler: func(_ context.Context, args map[string]any, _ core.AgentFunctionContext) (any, error) {
+			orderID, _ := args["orderId"].(string)
+			if orderID == "" {
+				orderID = "unknown"
+			}
+			return map[string]any{
+				"orderId": orderID,
+				"eta":     "Today, 5:30 PM",
+			}, nil
+		},
+	}
+
+	basic, err := core.BasicCatalog(core.Version1_0)
+	if err != nil {
+		return nil, nil, err
+	}
+	agentCatalog, err := basic.CopyWith(core.CopyWithOptions{
+		AgentFunctions: []*core.AgentFunction{pickupETAFn},
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	rendererMessages, err := agent.NewRendererToAgentMessageProcessor(
+		[]*core.Catalog{agentCatalog},
+		nil,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	return agentCatalog, rendererMessages, nil
+}
+```
+
+  </TabItem>
 </Tabs>
 
 <details>
@@ -1147,7 +1619,7 @@ When the client invokes an agent-hosted function in `v1.0`, it sends [`callAgent
 
 Invoke authorized client-side functions from the agent over a persistent duplex connection using `RendererFunctionCalls`.
 
-Over full-duplex transports such as WebSockets, `RendererFunctionCalls` builds [`callRendererFunction`](../../concepts/messages/#callrendererfunction-v10-only) messages (`v1.0` only) for catalog functions whose `allowedCallers` permits agent calls (`rendererOrAgent` or `agentOnly`). Given a custom catalog (`customCatalog` / `custom_catalog`) that declares `readViewportWidth` with `allowedCallers: "rendererOrAgent"`, wire `resolve` into `RendererToAgentMessageProcessor` so incoming [`rendererFunctionResponse`](../../concepts/messages/#rendererfunctionresponse-v10-only) messages settle the pending promise or future:
+Over full-duplex transports such as WebSockets, `RendererFunctionCalls` builds [`callRendererFunction`](../../concepts/messages/#callrendererfunction-v10-only) messages (`v1.0` only) for catalog functions whose `allowedCallers` permits agent calls (`rendererOrAgent` or `agentOnly`). Given a custom catalog (`customCatalog` / `custom_catalog`) that declares `readViewportWidth` with `allowedCallers: "rendererOrAgent"`, wire the response resolver into `RendererToAgentMessageProcessor` so incoming [`rendererFunctionResponse`](../../concepts/messages/#rendererfunctionresponse-v10-only) messages settle the pending call:
 
 <Tabs syncKey="sdk-lang">
   <TabItem label="TypeScript">
@@ -1229,6 +1701,62 @@ Future<Object?> fetchViewportWidth(
 ```
 
   </TabItem>
+  <TabItem label="Go">
+
+```go
+package orderagent
+
+import (
+	"context"
+
+	"github.com/a2ui-project/a2ui/go/agent"
+	"github.com/a2ui-project/a2ui/go/core"
+)
+
+func NewViewportBridge(
+	customCatalog *core.Catalog,
+) (*agent.RendererFunctionCalls, *agent.RendererToAgentMessageProcessor, error) {
+	rendererCalls, err := agent.NewRendererFunctionCalls(&agent.RendererFunctionCallsOptions{
+		Catalogs: []*core.Catalog{customCatalog},
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	rendererMessages, err := agent.NewRendererToAgentMessageProcessor(
+		[]*core.Catalog{customCatalog},
+		&agent.RendererToAgentOptions{
+			OnRendererFunctionResponse: func(_ context.Context, msg *core.RendererToAgentMessage) (bool, error) {
+				return rendererCalls.Resolve(msg.RendererFunctionResponse), nil
+			},
+		},
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	return rendererCalls, rendererMessages, nil
+}
+
+func FetchViewportWidth(
+	ctx context.Context,
+	rendererCalls *agent.RendererFunctionCalls,
+	customCatalog *core.Catalog,
+	sendToClient func(core.AgentToRendererMessage) error,
+) (any, error) {
+	callMsg, pendingValue, err := rendererCalls.Call(agent.CallRendererRequest{
+		CatalogID: customCatalog.CatalogID(),
+		Name:      "readViewportWidth",
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := sendToClient(callMsg); err != nil {
+		return nil, err
+	}
+	return pendingValue.Wait(ctx)
+}
+```
+
+  </TabItem>
 </Tabs>
 
 ### Read synchronized client data models
@@ -1280,6 +1808,31 @@ Map<String, Object?> readSyncedSurfaceData(
       metadata?['a2uiRendererDataModel'] ?? metadata?['a2uiClientDataModel'];
   final surfaces = ((rawDm as Map?)?['surfaces'] as Map?)?.cast<String, Object?>();
   return (surfaces?[surfaceId] as Map?)?.cast<String, Object?>() ?? const {};
+}
+```
+
+  </TabItem>
+  <TabItem label="Go">
+
+```go
+package orderagent
+
+import "github.com/a2ui-project/a2ui/go/agent"
+
+func ReadSyncedSurfaceData(surfaceID string, metadata map[string]any) map[string]any {
+	if metadata == nil {
+		return map[string]any{}
+	}
+	rawDM, ok := metadata["a2uiRendererDataModel"]
+	if !ok || rawDM == nil {
+		rawDM = metadata[agent.ClientDataModelKey]
+	}
+	dm, _ := rawDM.(map[string]any)
+	surfaces, _ := dm["surfaces"].(map[string]any)
+	if surfaceData, ok := surfaces[surfaceID].(map[string]any); ok && surfaceData != nil {
+		return surfaceData
+	}
+	return map[string]any{}
 }
 ```
 
@@ -1379,9 +1932,9 @@ Below is an inbound [`action`](../../concepts/messages/#action) request accompan
 
 Buffer complete model responses before sending messages when you want atomic validation and clean-slate retries instead of progressive streaming.
 
-In [Step 3](#step-3-build-the-system-prompt-and-stream-a2ui-messages), `openStream()` (`open_stream()` in Python) validates component schemas and surface topology incrementally as tokens arrive. Because progressive messages have already reached the client when a streamed block fails, recovering mid-stream means flushing `err.partialResults` (`err.partial_results` in Python), opening a new `openStream()` on the same `RendererState`, and either repairing existing surfaces in place (`surface("id", update=true)`) or sending `deleteSurface` before regenerating.
+In [Step 3](#step-3-build-the-system-prompt-and-stream-a2ui-messages), opening a response stream validates component schemas and surface topology incrementally as tokens arrive. Because progressive messages have already reached the client when a streamed block fails, recovering mid-stream means flushing the error's partial results, opening a new response stream on the same `RendererState`, and either repairing existing surfaces in place (`surface("id", update=true)`) or sending `deleteSurface` before regenerating.
 
-When your agent uses buffered (non-streaming) LLM calls instead, pass the full model text to `parseResponse` (`parse_response` in Python). If a block invents an unknown component, omits `root`, or leaves a dangling child ID, `parseResponse` rolls back `RendererState` and raises an `A2uiError` so you can pass the failed output and error message back to the model on a retry turn:
+When your agent uses buffered (non-streaming) LLM calls instead, pass the full model text to the processor's buffered parser. If a block invents an unknown component, omits `root`, or leaves a dangling child ID, the parser rolls back `RendererState` and raises a typed A2UI error so you can pass the failed output and error message back to the model on a retry turn:
 
 <Tabs syncKey="sdk-lang">
   <TabItem label="TypeScript">
@@ -1499,13 +2052,66 @@ Future<List<AgentToRendererMessage>> generateValidatedTurn(
 ```
 
   </TabItem>
+  <TabItem label="Go">
+
+```go
+package orderagent
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/a2ui-project/a2ui/go/agent"
+	"github.com/a2ui-project/a2ui/go/core"
+)
+
+func GenerateValidatedTurn(
+	ctx context.Context,
+	processor *agent.RequestProcessor,
+	userPrompt string,
+	callLLM func(ctx context.Context, prompt string) (string, error),
+	maxRetries int,
+) ([]core.AgentToRendererMessage, error) {
+	prompt := userPrompt
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		rawText, err := callLLM(ctx, prompt)
+		if err != nil {
+			return nil, err
+		}
+		parts, err := processor.ParseResponse(rawText, nil)
+		if err == nil {
+			var messages []core.AgentToRendererMessage
+			for _, part := range parts {
+				if part.IsA2UI() {
+					messages = append(messages, part.A2UI...)
+				}
+			}
+			return messages, nil
+		}
+
+		var a2uiErr *core.A2UIError
+		if !errors.As(err, &a2uiErr) || attempt == maxRetries {
+			return nil, err
+		}
+		prompt = fmt.Sprintf(
+			"%s\n\nYour previous response:\n%s\n\nValidation failed: %v\n"+
+				"Fix the A2UI output so every component and ID matches the catalog.",
+			userPrompt, rawText, err,
+		)
+	}
+	return nil, nil
+}
+```
+
+  </TabItem>
 </Tabs>
 
 ### Customize catalogs, examples, and inference formats
 
 Prune large catalogs, attach few-shot A2UI JSON examples, or customize inference format options on the generator to steer layout quality and reduce prompt size.
 
-Attach component or function pruning transformers to `CatalogConfig` to expose only the widgets a workflow needs, and pass canonical A2UI JSON example turns to `A2uiGenerator`, which validates them against the negotiated catalogs and decompiles them into the active inference format (such as `<a2ui>` blocks in Express). You can also pass options to `ExpressFormatFactory` or swap to `DirectJsonFormatFactory` when a model emits raw JSON inside `<a2ui-json>` tags (see [Inference Formats](../../concepts/inference-formats/)). In Python, compose server-side component templates with `@macro` and `MacroExpander` so clients render new composite layouts without a client release (see [Using Macros](../../guides/macros/)):
+Attach component or function pruning transformers to `CatalogConfig` to expose only the widgets a workflow needs, and pass canonical A2UI JSON example turns to `A2uiGenerator`, which validates them against the negotiated catalogs and decompiles them into the active inference format (such as `<a2ui>` blocks in Express). You can also pass options to `ExpressFormatFactory` or swap to `DirectJsonFormatFactory` (`DirectJSONFormatFactory` in Go) when a model emits raw JSON inside `<a2ui-json>` tags (see [Inference Formats](../../concepts/inference-formats/)). In Python and Go, compose server-side component templates with macros and `MacroExpander` so clients render new composite layouts without a client release (see [Using Macros](../../guides/macros/)):
 
 <Tabs syncKey="sdk-lang">
   <TabItem label="TypeScript">
@@ -1661,6 +2267,71 @@ final prunedGenerator = A2uiGenerator(
 ```
 
   </TabItem>
+  <TabItem label="Go">
+
+```go
+package orderagent
+
+import (
+	"github.com/a2ui-project/a2ui/go/agent"
+	"github.com/a2ui-project/a2ui/go/core"
+)
+
+var FormatFactory = agent.NewExpressFormatFactory(&agent.ExpressFormatOptions{
+	AllowedMessages: []string{"createSurface", "updateComponents", "updateDataModel"},
+	SurfaceID:       "order_summary",
+})
+
+// Or emit raw A2UI JSON inside <a2ui-json> tags:
+var JSONFormatFactory = agent.NewDirectJSONFormatFactory(&agent.DirectJSONFormatOptions{
+	ProgressiveKeys: []string{"text"},
+})
+
+func NewPrunedGenerator() (*agent.Generator, error) {
+	basic, err := core.BasicCatalog(core.Version1_0)
+	if err != nil {
+		return nil, err
+	}
+
+	exampleTurn := []core.AgentToRendererMessage{
+		{
+			"version": "1.0",
+			"createSurface": map[string]any{
+				"surfaceId": "order_summary",
+				"catalogId": basic.CatalogID(),
+				"components": []any{
+					map[string]any{"id": "root", "component": "Card", "child": "status"},
+					map[string]any{
+						"id":        "status",
+						"component": "Text",
+						"text":      "Order ORD-4821 ready for pickup",
+					},
+				},
+			},
+		},
+	}
+
+	prunedConfig, err := agent.NewCatalogConfig(
+		basic,
+		&agent.ComponentPruningTransformer{
+			AllowedComponents: []string{"Card", "Column", "Text", "Button"},
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return agent.NewGenerator(
+		[]*agent.CatalogConfig{prunedConfig},
+		&agent.GeneratorOptions{
+			Examples:               [][]core.AgentToRendererMessage{exampleTurn},
+			InferenceFormatFactory: FormatFactory,
+		},
+	), nil
+}
+```
+
+  </TabItem>
 </Tabs>
 
 ---
@@ -1672,6 +2343,9 @@ Plug the A2UI generator and message processors into standard agent frameworks an
 ### Google ADK
 
 Use the ADK integration package to manage per-session request processors, inject A2UI prompt instructions without colliding with ADK `{variable}` state templating, expose the client A2UI toolset, and bridge A2A events and function RPCs:
+
+<Tabs syncKey="sdk-lang">
+  <TabItem label="Python">
 
 ```bash
 pip install "a2ui-adk[a2a]"
@@ -1722,17 +2396,92 @@ executor_config = A2aAgentExecutorConfig(
 # processors.set(session.id, processor if a2ui_active else None)
 ```
 
-<Aside type="caution" title="Avoid raw prompt strings in LlmAgent.instruction">
+  </TabItem>
+  <TabItem label="Go">
+
+```bash
+go get github.com/a2ui-project/a2ui/go/adk google.golang.org/adk/v2
+```
+
+`go/adk` targets ADK for Go v2 and requires Go 1.26.10 or later. Until initial Go module tags are published, add a `replace` directive in `go.mod` for `github.com/a2ui-project/a2ui/go/adk` (and `go/agent`, `go/core`) pointing to a local checkout of `github.com/a2ui-project/a2ui`.
+
+```go
+package orderagent
+
+import (
+	adkagent "google.golang.org/adk/v2/agent"
+	"google.golang.org/adk/v2/agent/llmagent"
+	"google.golang.org/adk/v2/model"
+	"google.golang.org/adk/v2/tool"
+
+	"github.com/a2ui-project/a2ui/go/adk"
+	"github.com/a2ui-project/a2ui/go/core"
+)
+
+func NewOrderADKAgent(llm model.LLM) (adkagent.Agent, *adk.ProcessorStore, *adk.EventConverter, error) {
+	processors := adk.NewProcessorStore()
+
+	rpcCallback, err := adk.RPCCallback(adk.RPCCallbackConfig{
+		CatalogsProvider: func(ctx adkagent.ReadonlyContext) ([]*core.Catalog, error) {
+			proc, err := processors.Get(ctx)
+			if err != nil || proc == nil {
+				return nil, err
+			}
+			return proc.ActiveCatalogs(), nil
+		},
+	})
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	orderAgent, err := llmagent.New(llmagent.Config{
+		Name:  "order_agent",
+		Model: llm,
+		InstructionProvider: adk.InstructionProvider(adk.InstructionConfig{
+			Instruction:       "You help customers manage pickup orders in {store_city}.",
+			ProcessorProvider: processors.Get,
+			EnabledProvider:   processors.IsEnabled,
+		}),
+		Toolsets: []tool.Toolset{
+			adk.NewSendA2UIToClientToolset(adk.ToolsetConfig{
+				EnabledProvider:   processors.IsEnabled,
+				ProcessorProvider: processors.Get,
+			}),
+		},
+		BeforeAgentCallbacks: []adkagent.BeforeAgentCallback{rpcCallback},
+		BeforeModelCallbacks: []llmagent.BeforeModelCallback{adk.ExcludeRPCFromPrompt},
+	})
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	eventConverter := adk.NewEventConverter(adk.EventConverterConfig{
+		ProcessorProvider: processors.ForSession,
+	})
+
+	// In your request executor before running the session:
+	// processors.Set(sessionID, processor), or processors.Set(sessionID, nil) for a request without A2UI
+	return orderAgent, processors, eventConverter, nil
+}
+```
+
+  </TabItem>
+</Tabs>
+
+<Aside type="caution" title="Avoid raw prompt strings in LlmAgent instructions">
   ADK substitutes `{name}` placeholders in plain string instructions from session state.
-  Concatenating `processor.prompt_snippet` into a raw `LlmAgent.instruction` string raises
-  `KeyError` on A2UI braces (such as `${expression}` or `\p{XID_Start}`). Always wrap your
-  instruction in `A2uiInstruction`, which resolves your own `{store_city}` template variables while
+  Concatenating the generated A2UI prompt snippet into a raw instruction string fails on A2UI braces
+  (such as `${expression}` or `\p{XID_Start}`). Wrap your instruction in `A2uiInstruction` (Python)
+  or `adk.InstructionProvider` (Go), which resolves your own `{store_city}` template variables while
   leaving the A2UI prompt untouched.
 </Aside>
 
 ### A2A protocol
 
 Use the A2A integration package to advertise A2UI support on your agent card, negotiate the [A2A Extension Specification](../../specification/v1.0-a2ui-extension-specification/) per request, stream A2UI messages as `application/a2ui+json` data parts, and answer inbound function RPCs:
+
+<Tabs syncKey="sdk-lang">
+  <TabItem label="Python">
 
 ```bash
 pip install a2ui-a2a
@@ -1807,6 +2556,129 @@ class OrderA2aExecutor(AgentExecutor):
     ):
       await enqueue_parts(event_queue, [a2a_part])
 ```
+
+  </TabItem>
+  <TabItem label="Go">
+
+```bash
+go get github.com/a2ui-project/a2ui/go/a2aext github.com/a2aproject/a2a-go
+```
+
+Until initial Go module tags are published, add a `replace` directive in `go.mod` for `github.com/a2ui-project/a2ui/go/a2aext` (and `go/agent`, `go/core`) pointing to a local checkout of `github.com/a2ui-project/a2ui`.
+
+```go
+package orderagent
+
+import (
+	"context"
+	"iter"
+
+	"github.com/a2aproject/a2a-go/a2a"
+	"github.com/a2aproject/a2a-go/a2asrv"
+	"github.com/a2aproject/a2a-go/a2asrv/eventqueue"
+
+	"github.com/a2ui-project/a2ui/go/a2aext"
+	"github.com/a2ui-project/a2ui/go/agent"
+	"github.com/a2ui-project/a2ui/go/core"
+)
+
+func NewOrderAgentCard() (*a2a.AgentCard, error) {
+	basic, err := core.BasicCatalog(core.Version1_0)
+	if err != nil {
+		return nil, err
+	}
+	return &a2a.AgentCard{
+		Name:               "Order Agent",
+		Description:        "Streams interactive order summaries with A2UI.",
+		ProtocolVersion:    string(a2a.Version),
+		URL:                "http://localhost:10002/",
+		Version:            "1.0.0",
+		DefaultInputModes:  []string{"text/plain"},
+		DefaultOutputModes: []string{"text/plain", a2aext.A2UIMIMEType},
+		Capabilities: a2a.AgentCapabilities{
+			Streaming: true,
+			Extensions: []a2a.AgentExtension{
+				a2aext.AgentExtension(core.Version1_0, &a2aext.AgentExtensionOptions{
+					SupportedCatalogIDs: []string{basic.CatalogID()},
+				}),
+			},
+		},
+		Skills: []a2a.AgentSkill{},
+	}, nil
+}
+
+type OrderA2AExecutor struct {
+	Card           *a2a.AgentCard
+	PrepareSession func(ctx context.Context, reqCtx *a2asrv.RequestContext) (*agent.RequestProcessor, iter.Seq2[string, error], error)
+}
+
+func (e *OrderA2AExecutor) Execute(ctx context.Context, reqCtx *a2asrv.RequestContext, queue eventqueue.Queue) error {
+	extCtx, _ := a2asrv.ExtensionsFrom(ctx)
+	activatedVersion, ok := a2aext.ActivateExtension(extCtx, reqCtx.Message, e.Card)
+	if !ok {
+		return nil
+	}
+	processor, tokenStream, err := e.PrepareSession(ctx, reqCtx)
+	if err != nil {
+		return err
+	}
+
+	var inbound []map[string]any
+	if reqCtx.Message != nil && activatedVersion == core.Version1_0 {
+		inbound = a2aext.A2UIMessagesFromMessage(reqCtx.Message)
+	}
+	if len(inbound) > 0 {
+		rpcProcessor, err := agent.NewRendererToAgentMessageProcessor(processor.ActiveCatalogs(), nil)
+		if err != nil {
+			return err
+		}
+		allHandled := true
+		var replies []core.AgentToRendererMessage
+		for _, msg := range inbound {
+			result, err := rpcProcessor.ProcessMessageMap(ctx, msg)
+			if err != nil {
+				return err
+			}
+			allHandled = allHandled && result.Handled
+			replies = append(replies, result.Replies...)
+		}
+		if allHandled {
+			if parts := a2aext.CreateA2UIParts(replies, activatedVersion); len(parts) > 0 {
+				ev := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateCompleted, a2a.NewMessage(a2a.MessageRoleAgent, parts...))
+				ev.Final = true
+				return queue.Write(ctx, ev)
+			}
+			return nil
+		}
+	}
+
+	stream, err := processor.OpenStream(nil)
+	if err != nil {
+		return err
+	}
+	for part, err := range a2aext.StreamResponseToParts(ctx, stream, tokenStream, activatedVersion) {
+		if err != nil {
+			return err
+		}
+		ev := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateWorking, a2a.NewMessage(a2a.MessageRoleAgent, part))
+		if err := queue.Write(ctx, ev); err != nil {
+			return err
+		}
+	}
+	done := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateCompleted, nil)
+	done.Final = true
+	return queue.Write(ctx, done)
+}
+
+func (e *OrderA2AExecutor) Cancel(ctx context.Context, reqCtx *a2asrv.RequestContext, queue eventqueue.Queue) error {
+	ev := a2a.NewStatusUpdateEvent(reqCtx, a2a.TaskStateCanceled, nil)
+	ev.Final = true
+	return queue.Write(ctx, ev)
+}
+```
+
+  </TabItem>
+</Tabs>
 
 ### AG-UI and CopilotKit
 
