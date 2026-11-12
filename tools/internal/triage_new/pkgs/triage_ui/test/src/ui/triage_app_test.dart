@@ -46,7 +46,7 @@ void main() {
         comments: [
           commentNode(
             suggestionComment(
-              'root = TriageSuggestion(summary="""A crash on an empty '
+              'root = TriageSuggestion(summary="""A crash on an **empty** '
               'Row.""", reason="Priority is not set.", '
               'suggestion="""Set P1 and assign octocat.""", '
               'reply="""Thanks for the report.""", added_labels=["P1"], '
@@ -151,7 +151,24 @@ void main() {
     expect(inList('issue #10'), findsOneWidget);
 
     // The suggestion, rendered by the TriageSuggestion component.
+    // The summary is rendered as Markdown: "empty" is bold.
     expect(find.text('A crash on an empty Row.'), findsOneWidget);
+    final bold = <String>[];
+    tester
+        .widget<RichText>(
+          find.descendant(
+            of: find.text('A crash on an empty Row.'),
+            matching: find.byType(RichText),
+          ),
+        )
+        .text
+        .visitChildren((InlineSpan span) {
+          if (span is TextSpan && span.style?.fontWeight == FontWeight.bold) {
+            bold.add(span.text ?? '');
+          }
+          return true;
+        });
+    expect(bold, ['empty']);
     expect(find.text('Why flagged for triage'), findsOneWidget);
     expect(find.text('Priority is not set.'), findsOneWidget);
     expect(find.text('Set P1 and assign octocat.'), findsOneWidget);
@@ -769,7 +786,7 @@ void main() {
     expect(find.byType(ListTile), findsNothing);
 
     Future<void> locate() async {
-      await tester.tap(find.widgetWithText(TextButton, 'Locate in the list'));
+      await tester.tap(find.byTooltip('Locate in the list'));
       await tester.pumpAndSettle();
     }
 
@@ -798,7 +815,7 @@ void main() {
   testWidgets('Copy context copies the items in the tabs', (tester) async {
     await pumpApp(tester);
 
-    await tester.tap(find.widgetWithText(TextButton, 'Copy context'));
+    await tester.tap(find.byTooltip(RegExp('^Copy context')));
     await tester.pump();
 
     expect(

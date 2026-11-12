@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
 import '../model/suggestion_draft.dart';
 import '../model/triage_controller.dart';
@@ -181,6 +182,7 @@ class _Notice extends StatelessWidget {
   }
 }
 
+/// [text], rendered as Markdown, under [title].
 class _Text extends StatelessWidget {
   const _Text(this.title, this.text, {this.label});
 
@@ -205,7 +207,12 @@ class _Text extends StatelessWidget {
             ?label,
           ],
         ),
-        LinkifiedText(text),
+        MarkdownBody(
+          data: text,
+          onTapLink: (String text, String? href, String title) {
+            if (href != null) openUrl(href);
+          },
+        ),
       ],
     );
   }

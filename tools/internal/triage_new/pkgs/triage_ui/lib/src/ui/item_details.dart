@@ -64,26 +64,39 @@ class _ItemDetailsState extends State<ItemDetails> {
           // Not selectable: with the tabs in a row, a drag on the text below
           // them selected the first tab's name instead.
           SelectionContainer.disabled(
-            child: Row(
+            child: Stack(
               children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: TextButton.icon(
-                    onPressed: controller.reveal,
-                    icon: const Icon(Icons.my_location, size: 18),
-                    label: const Text('Locate in the list'),
-                  ),
+                // The tab bar's line, under the buttons too. The tabs'
+                // indicator covers it.
+                const Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: Divider(height: 1),
                 ),
-                Expanded(
-                  child: TabBar(
-                    isScrollable: true,
-                    tabAlignment: TabAlignment.start,
-                    tabs: [for (final i in items) _ItemTab(i)],
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: _CopyContextButton(items),
+                Row(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: IconButton(
+                        onPressed: controller.reveal,
+                        icon: const Icon(Icons.my_location),
+                        tooltip: 'Locate in the list',
+                      ),
+                    ),
+                    Expanded(
+                      child: TabBar(
+                        isScrollable: true,
+                        tabAlignment: TabAlignment.start,
+                        dividerHeight: 0,
+                        tabs: [for (final i in items) _ItemTab(i)],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: _CopyContextButton(items),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -117,31 +130,28 @@ class _CopyContextButton extends StatelessWidget {
   final List<TriageItem> items;
 
   @override
-  Widget build(BuildContext context) => Tooltip(
-    message:
-        'Copy what the tool knows about the items in the tabs, to paste at '
-        'the start of a prompt to an agent',
-    child: TextButton.icon(
-      onPressed: () async {
-        await Clipboard.setData(
-          ClipboardData(text: itemContext(TriageScope.of(context), items)),
-        );
-        if (!context.mounted) return;
-        ScaffoldMessenger.maybeOf(context)
-          ?..hideCurrentSnackBar()
-          ..showSnackBar(
-            SnackBar(
-              content: Text(
-                'Copied the context of '
-                '${items.map((i) => i.shortName).join(', ')}',
-              ),
-              duration: const Duration(seconds: 2),
+  Widget build(BuildContext context) => IconButton(
+    tooltip:
+        'Copy context: what the tool knows about the items in the tabs, to '
+        'paste at the start of a prompt to an agent',
+    onPressed: () async {
+      await Clipboard.setData(
+        ClipboardData(text: itemContext(TriageScope.of(context), items)),
+      );
+      if (!context.mounted) return;
+      ScaffoldMessenger.maybeOf(context)
+        ?..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              'Copied the context of '
+              '${items.map((i) => i.shortName).join(', ')}',
             ),
-          );
-      },
-      icon: const Icon(Icons.content_copy, size: 18),
-      label: const Text('Copy context'),
-    ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+    },
+    icon: const Icon(Icons.content_copy),
   );
 }
 
