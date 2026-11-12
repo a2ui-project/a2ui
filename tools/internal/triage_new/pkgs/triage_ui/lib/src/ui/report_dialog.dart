@@ -72,10 +72,12 @@ class ReportDialog extends StatelessWidget {
                 ),
               ),
               const Text(
-                'After creating the report, the agent will ask whether to '
-                'unsubscribe you '
+                'After creating the report, the agent will ask you whether to:\n'
+                '- unsubscribe you '
                 'from the items in it, so that GitHub stops notifying you '
-                'about them.',
+                'about them\n'
+                '- post the report to the go/a2ui-core-working-group chat space\n'
+                '- post the report to the go/a2ui-triage-log\n',
               ),
             ],
           ),
