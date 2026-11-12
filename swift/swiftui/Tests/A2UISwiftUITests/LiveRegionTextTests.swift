@@ -310,6 +310,21 @@ struct LiveRegionTextTests {
     }
   }
 
+  @Test func buttonLabelReplacesItsContentText() async throws {
+    let (_, surface) = try await makeSurface(components: [
+      [
+        "id": "root", "component": "Button", "child": "glyph",
+        "action": ["event": ["name": "dismiss"]],
+        "accessibility": ["label": "Dismiss"],
+      ],
+      ["id": "glyph", "component": "Text", "text": "×"],
+    ])
+
+    try await HostedSurface.withHost(surface) { host in
+      #expect(host.recorder.text == ["Dismiss"])
+    }
+  }
+
   @Test func reportedTextFollowsTheDataModel() async throws {
     let (processor, surface) = try await makeSurface(
       components: [

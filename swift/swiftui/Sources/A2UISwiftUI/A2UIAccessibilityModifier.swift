@@ -121,24 +121,19 @@ public struct A2UIAccessibilityModifier: ViewModifier {
 
   /// Reports the explicit label of a component inside a live region, ahead of its subtree text,
   /// so the region reads it too. A live component announces its own label instead.
-  @ViewBuilder
   private func labelText<V: View>(_ view: V) -> some View {
-    if let label, !isLiveRegion {
-      view.a2uiAccessibleText(label)
-    } else {
-      view
-    }
+    view.a2uiAccessibleText(isLiveRegion ? nil : label)
   }
 
   /// Hides the view and its subtree from assistive technologies when `hidden` is set.
   ///
-  /// `hidden` can be bound to the data model, so the view tree is the same either way: changing
-  /// it keeps the component's state, and a live region inside stays mounted.
+  /// `hidden` can be bound to the data model. On iOS 18 and macOS 15 and later the view tree is
+  /// the same either way, so changing it keeps the component's state. The live region trigger
+  /// sits outside this modifier, so it stays mounted on every version.
   private func hidden<V: View>(_ view: V) -> some View {
     let isHidden = isHidden
     return
-      view
-      .accessibilityHidden(isHidden)
+      accessibilityHiddenIfNeeded(view, isHidden: isHidden)
       // Text that assistive technologies can't reach is not announced by a live ancestor.
       .transformPreference(A2UIAccessibleTextKey.self) { text in
         if isHidden { text = [] }
@@ -149,6 +144,22 @@ public struct A2UIAccessibilityModifier: ViewModifier {
       .transformEnvironment(\.a2uiAccessibilityHidden) { isAncestorHidden in
         if isHidden { isAncestorHidden = true }
       }
+  }
+
+  /// Applies `accessibilityHidden(true)` only when the component is hidden. An outer
+  /// `accessibilityHidden(false)` would expose descendants that hide themselves, such as a
+  /// `hidden` child of a `Column` or the title `Text` of a `TextField`.
+  @ViewBuilder
+  private func accessibilityHiddenIfNeeded<V: View>(_ view: V, isHidden: Bool) -> some View {
+    if #available(iOS 18, macOS 15, tvOS 18, watchOS 11, visionOS 2, *) {
+      // With `isEnabled: false` the modifier does nothing, and the view tree doesn't change.
+      view.accessibilityHidden(true, isEnabled: isHidden)
+    } else if isHidden {
+      // Changing `hidden` swaps these branches, which resets the subtree's state.
+      view.accessibilityHidden(true)
+    } else {
+      view
+    }
   }
 
   @ViewBuilder

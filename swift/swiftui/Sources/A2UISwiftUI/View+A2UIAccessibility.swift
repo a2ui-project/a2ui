@@ -88,7 +88,9 @@ extension View {
   /// changes. See ``A2UIAccessibleTextKey``.
   ///
   /// Call this from a component that renders text, with the text as it reads on screen (for
-  /// example without Markdown syntax). `nil` and empty text report nothing. The text is only
+  /// example without Markdown syntax), before
+  /// ``SwiftUI/View/a2uiAccessibilityElement(for:children:)`` so an explicit label on a
+  /// `.combine` element replaces it. `nil` and empty text report nothing. The text is only
   /// evaluated inside a live region, so building it costs nothing elsewhere.
   public func a2uiAccessibleText(_ text: @autoclosure @escaping () -> String?) -> some View {
     modifier(A2UIAccessibleTextReporter(text: text))

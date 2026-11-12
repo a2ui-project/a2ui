@@ -164,6 +164,24 @@ struct AccessibilityModifierTests {
     #expect(!A2UIAccessibilityModifier(node: node).isHidden)
   }
 
+  #if canImport(AppKit)
+    @Test func hiddenChildStaysHiddenInsideVisibleContainer() async throws {
+      let (_, surface) = try await makeSurface(components: [
+        ["id": "root", "component": "Column", "children": ["shown", "secret"]],
+        ["id": "shown", "component": "Text", "text": "Shown text"],
+        [
+          "id": "secret", "component": "Text", "text": "Hidden text",
+          "accessibility": ["hidden": true],
+        ],
+      ])
+      let driver = HostedViewDriver(viewModel: surface)
+      defer { driver.tearDown() }
+
+      #expect(driver.exposesAccessibilityElement(withText: "Shown text"))
+      #expect(!driver.exposesAccessibilityElement(withText: "Hidden text"))
+    }
+  #endif
+
   // MARK: - Live regions
 
   @Test func liveRegionWithoutLabelReadsNoCatalogProperties() async throws {
