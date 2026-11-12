@@ -21,8 +21,17 @@
  * and markdown rendering type definitions.
  */
 
-export * from './component-context.js';
-export * from './data-context.js';
+export {ComponentContext} from './component-context.js';
+export {
+  getKnownSchemaKeys,
+  validateFunctionArgs,
+  isSingleAtKey,
+  unescapeObjectKey,
+  validateReservedDirectives,
+  resolveContextIndex,
+  MAX_DYNAMIC_VALUE_DEPTH,
+  DataContext,
+} from './data-context.js';
 export {
   GenericBinder,
   MAX_DYNAMIC_CHILD_LIST_SIZE,
@@ -49,14 +58,14 @@ export {
   /** Resolution state of a component node in the rendered tree. */
   type NodeState,
 } from './component-node.js';
-export * from './node-resolver.js';
+export {NodeResolver} from './node-resolver.js';
 export {
   extractRefFields,
   type ChildRefAnalysisOptions,
   type RefFields,
   type RefKind,
 } from './ref-fields.js';
-export * from './resolved-binding.js';
+export {isWritable, sameBinding, ResolvedBinding, WritableBinding} from './resolved-binding.js';
 export type {
   /** Asynchronous markdown rendering function. */
   MarkdownRenderer,
