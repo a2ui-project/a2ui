@@ -38,7 +38,13 @@ Calling `flatten_component_tree(tree)` or `tree.flatten()` converts the nested t
 2. Replaces nested child objects with their allocated ID strings.
 3. Emits children before their parents, so every reference in the list resolves to a component that already appeared.
 
-The traversal itself is Pydantic's. Child resolution is attached to the `Child` slot type as a serializer rather than performed by a separate reflective walk over the object graph, so aliases, defaults, `exclude_none` and nested models behave exactly as they do everywhere else in Pydantic. The builder only supplies the ID allocator and the flat output list.
+The traversal itself is Pydantic's. Child resolution is attached to the `Child` slot type as a serializer rather than performed by a separate reflective walk over the object graph.
+
+Flattening preserves required nullable fields on components and nested `BuilderBaseModel` instances as JSON `null`, using their serialization aliases. Optional fields whose value is `None` remain omitted, whether omitted at construction or explicitly set to `None`. Non-null defaults and null values inside lists and dictionaries are retained. Field exclusions still apply. A plain `model_dump(exclude_none=True)` outside flattening keeps Pydantic's usual behavior.
+
+Nested models follow their declared field type, as in Pydantic serialization. Passing a subclass instance does not add subclass-only fields or replace the declared model's aliases, exclusions, or required fields.
+
+`RootModel` containers keep Pydantic's root-value representation, including a scalar `null`; their nested builder models and child slots are still serialized normally.
 
 ```python
 components = tree.flatten()
