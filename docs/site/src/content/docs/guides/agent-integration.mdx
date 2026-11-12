@@ -1381,7 +1381,7 @@ Buffer complete model responses before sending messages when you want atomic val
 
 In [Step 3](#step-3-build-the-system-prompt-and-stream-a2ui-messages), `openStream()` (`open_stream()` in Python) validates component schemas and surface topology incrementally as tokens arrive. Because progressive messages have already reached the client when a streamed block fails, recovering mid-stream means flushing `err.partialResults` (`err.partial_results` in Python), opening a new `openStream()` on the same `RendererState`, and either repairing existing surfaces in place (`surface("id", update=true)`) or sending `deleteSurface` before regenerating.
 
-When your agent uses buffered (non-streaming) LLM calls instead, pass the full model text to `parseResponse` (`parse_response` in Python). If a block invents an unknown component, omits `root`, or leaves a dangling child ID, `parseResponse` rolls back `RendererState` and raises an `A2uiError` so you can pass the failed output and error message back to the model on a retry turn:
+`parseResponse` (`parse_response` in Python) accepts unfinished Express blocks and skips their final tree checks. To require complete blocks for buffered generation, feed the full model response into `openStream()` and call `close()` inside a state transaction. Keep all messages buffered until the transaction succeeds: an incomplete tag, unknown component, missing root, or dangling child rolls back the attempt, and the retry starts from the same session state. Each tagged block must contain a complete component tree. Also check your model provider's finish reason before accepting a response, since a token limit can cut off output outside an A2UI block.
 
 <Tabs syncKey="sdk-lang">
   <TabItem label="TypeScript">
@@ -1395,18 +1395,22 @@ export async function generateValidatedTurn(
   callLlm: (prompt: string) => Promise<string>,
   maxRetries = 2,
 ): Promise<AgentToRendererMessage[]> {
+  const state = processor.state ?? processor.createState();
   let prompt = userPrompt;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const rawText = await callLlm(prompt);
     try {
-      const parts = processor.parseResponse(rawText);
-      const messages: AgentToRendererMessage[] = [];
-      for (const part of parts) {
-        if (part.type === 'a2ui') {
-          messages.push(...part.a2ui);
+      return state.transaction(() => {
+        const stream = processor.openStream({state});
+        const parts = [...stream.feed(rawText), ...stream.close()];
+        const messages: AgentToRendererMessage[] = [];
+        for (const part of parts) {
+          if (part.type === 'a2ui') {
+            messages.push(...part.a2ui);
+          }
         }
-      }
-      return messages;
+        return messages;
+      });
     } catch (err) {
       if (!(err instanceof A2uiError) || attempt === maxRetries) {
         throw err;
@@ -1441,17 +1445,20 @@ async def generate_validated_turn(
     call_llm: Callable[[str], Awaitable[str]],
     max_retries: int = 2,
 ) -> list[AgentToRendererMessage]:
+  state = processor.state if processor.state is not None else processor.create_state()
   prompt = user_prompt
   for attempt in range(max_retries + 1):
     raw_text = await call_llm(prompt)
     try:
-      parts = processor.parse_response(raw_text)
-      return [
-          msg
-          for part in parts
-          if isinstance(part, A2uiPart)
-          for msg in part.a2ui
-      ]
+      with state.transaction():
+        stream = processor.open_stream(state=state)
+        parts = [*stream.feed(raw_text), *stream.close()]
+        return [
+            msg
+            for part in parts
+            if isinstance(part, A2uiPart)
+            for msg in part.a2ui
+        ]
     except A2uiError as err:
       if attempt == max_retries:
         raise
@@ -1477,15 +1484,19 @@ Future<List<AgentToRendererMessage>> generateValidatedTurn(
   Future<String> Function(String prompt) callLlm, {
   int maxRetries = 2,
 }) async {
+  final state = processor.state ?? processor.createState();
   var prompt = userPrompt;
   for (var attempt = 0; attempt <= maxRetries; attempt++) {
     final rawText = await callLlm(prompt);
     try {
-      final parts = processor.parseResponse(rawText);
-      return [
-        for (final part in parts)
-          if (part is A2uiPart) ...part.a2ui,
-      ];
+      return state.transaction(() {
+        final stream = processor.openStream(state: state);
+        final parts = [...stream.feed(rawText), ...stream.close()];
+        return [
+          for (final part in parts)
+            if (part is A2uiPart) ...part.a2ui,
+        ];
+      });
     } on A2uiError catch (err) {
       if (attempt == maxRetries) rethrow;
       prompt = '$userPrompt\n\n'
