@@ -1810,11 +1810,7 @@ class OrderA2aExecutor(AgentExecutor):
 
 ### AG-UI and CopilotKit
 
-Enable A2UI on `CopilotRuntime` to stream A2UI surfaces over [AG-UI](https://docs.ag-ui.com/) across Python and TypeScript agent backends.
-
-When `injectA2UITool: true` is set (or when the frontend supplies a catalog), CopilotKit injects the A2UI generation tool and translates tool calls and state deltas into AG-UI events across integrations including Google ADK (`ag_ui_adk`), LangGraph (`CopilotKitMiddleware`), and AWS Strands (`@ag-ui/aws-strands`). See the [CopilotKit A2UI documentation](https://docs.copilotkit.ai/generative-ui/a2ui) for runtime setup details:
-
-The `/v2` runtime entry point is already available in CopilotKit 1.87.0. Tool injection alone does not select A2UI v1.0: the inline catalog schema supplied by the frontend or `a2ui.schema` must declare `protocolVersion: '1.0'`. Without that declaration, the middleware emits v0.9 messages. Explicit `enabled: false` disables the middleware, `injectA2UITool: false` suppresses tool injection, and agent filters limit which agents receive the middleware.
+CopilotKit can render A2UI surfaces from [AG-UI](https://docs.ag-ui.com/) agents. Enable its A2UI middleware with `a2ui: {}` on `CopilotRuntime`:
 
 ```typescript
 import {CopilotRuntime} from '@copilotkit/runtime/v2';
@@ -1823,10 +1819,12 @@ const runtime = new CopilotRuntime({
   agents: {
     order_agent: myOrderAgent, // Your AG-UI compatible agent instance
   },
-  a2ui: {
-    injectA2UITool: true, // Optional when the frontend supplies a catalog.
-  },
+  a2ui: {},
 });
 ```
+
+To have the runtime supply an A2UI generation tool, set `injectA2UITool: true` inside `a2ui`. Supplying an A2UI catalog on the frontend can enable the middleware and tool injection automatically. See the [CopilotKit A2UI setup](https://docs.copilotkit.ai/generative-ui/a2ui) for configuration details.
+
+CopilotKit's separate [Components and surfaces integration](https://docs.copilotkit.ai/generative-ui/components/transports) supports the `render_ui` tool and `a2ui` markdown code blocks. Its transport guide explains how to choose between them.
 
 For Model Context Protocol tool servers that attach interactive UI resources (`ui://`), see [Serve A2UI Layouts from an MCP Server](../../guides/a2ui-over-mcp/) and [MCP Integration Overview](../../guides/mcp-overview/).
