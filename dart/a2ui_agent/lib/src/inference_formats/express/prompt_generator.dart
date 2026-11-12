@@ -392,8 +392,9 @@ Iterable<Map<String, Object?>> _combinatorSubschemas(
   List<String> keys,
 ) => [
   for (final key in keys)
-    for (final Object? sub in schema[key] as List<Object?>? ?? const [])
-      if (_asStringMap(sub) case final Map<String, Object?> map) map,
+    if (schema[key] case final List<Object?> list)
+      for (final Object? sub in list)
+        if (_asStringMap(sub) case final Map<String, Object?> map) map,
 ];
 
 Map<Object?, Object?>? _directObjectProperties(Map<String, Object?> schema) {

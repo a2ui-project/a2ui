@@ -417,8 +417,9 @@ Map<String, Object?>? _asStringMap(Object? raw) => switch (raw) {
 /// The subschemas of a combinator, flattened one level.
 Iterable<Map<String, Object?>> _alternatives(Map<String, Object?> schema) => [
   for (final String key in const ['oneOf', 'anyOf', 'allOf'])
-    for (final Object? sub in schema[key] as List<Object?>? ?? const [])
-      if (_asStringMap(sub) case final Map<String, Object?> map) map,
+    if (schema[key] case final List<Object?> list)
+      for (final Object? sub in list)
+        if (_asStringMap(sub) case final Map<String, Object?> map) map,
 ];
 
 bool _isFlattenedDataBinding(Map<String, Object?> schema) {

@@ -2006,5 +2006,24 @@ surface("s1")
       final String snippet = processor([cyclic]).promptSnippet;
       expect(snippet, contains('• TreeWidget(node (static))'));
     });
+
+    test('ignores non-list combinator values without throwing TypeError', () {
+      final CatalogApi malformed = Catalog.fromJson({
+        'catalogId': 'https://example.com/malformed.json',
+        'protocolVersion': '1.0',
+        'components': {
+          'SafeWidget': {
+            'type': 'object',
+            'properties': {
+              'component': {'const': 'SafeWidget'},
+              'badUnion': {'oneOf': 'not-a-list', 'anyOf': 42},
+            },
+            'required': ['component', 'badUnion'],
+          },
+        },
+      });
+      final String snippet = processor([malformed]).promptSnippet;
+      expect(snippet, contains('• SafeWidget(badUnion (static))'));
+    });
   });
 }
