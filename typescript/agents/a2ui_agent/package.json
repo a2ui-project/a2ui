@@ -41,6 +41,7 @@
     "build": "wireit",
     "build:tsc": "wireit",
     "test": "wireit",
+    "test:unit": "vitest run tests/unit",
     "test:conformance": "vitest run tests/conformance",
     "test:timing": "wireit",
     "typecheck": "tsc -p tsconfig.check.json --noEmit",

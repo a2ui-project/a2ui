@@ -399,7 +399,7 @@ void main() {
                     'id': 'root',
                     'component': 'Text',
                     'text': 'Hello',
-                    'metadata': {
+                    '@metadata': {
                       'extensions': {'comp_ext': true},
                     },
                   },

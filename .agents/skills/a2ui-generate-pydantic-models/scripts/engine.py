@@ -371,10 +371,10 @@ class PydanticCodegen:
             if self.allow_inline and "properties" in prop:
                 if len(prop["properties"]) == 1:
                     single_prop = list(prop["properties"].keys())[0]
-                    if prop_name == "metadata" and self.name_context:
+                    if prop_name in ("metadata", "@metadata") and self.name_context:
                         class_name = (
                             f"{to_pascal_case(self.name_context)}"
-                            f"{to_pascal_case(prop_name)}"
+                            f"{to_pascal_case(prop_name.lstrip('@'))}"
                         )
                     else:
                         class_name = to_pascal_case(single_prop)

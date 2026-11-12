@@ -22,7 +22,6 @@ from .._json_schema import INLINE_DEF_MARKER, SchemaKeywords, def_ref
 from .common_types import StrictBaseModel
 from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE
 
-
 ComponentsList = list[dict[str, Any]]
 Component = dict[str, Any]
 

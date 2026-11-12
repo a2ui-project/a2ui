@@ -40,6 +40,7 @@ import {
   hasValidationErrors,
   HostAccessibility,
   type ResolvedAccessibilityAttributes,
+  resolveAccessibilityProps,
 } from './host_accessibility.js';
 import {canRenderA2uiNode, renderA2uiNode} from './render-a2ui-node.js';
 import type {WebComponentImplementation} from './web_component_implementation.js';
@@ -522,10 +523,8 @@ export abstract class A2uiLitElement<
 
   protected override updated(changedProperties: PropertyValues) {
     super.updated(changedProperties);
-    const props = this.controller?.props as
-      | ({accessibility?: ResolvedAccessibilityAttributes} & CheckableResolvedProps)
-      | undefined;
-    this.applyAccessibilityAttributes(props?.accessibility, props);
+    const props = this.controller?.props as CheckableResolvedProps | undefined;
+    this.applyAccessibilityAttributes(resolveAccessibilityProps(props), props);
   }
 }
 

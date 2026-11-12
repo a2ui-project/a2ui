@@ -25,11 +25,8 @@ import {
   NodeResolver,
   SurfaceModel,
   peekValue,
-} from '@a2ui/web_core/v0_9';
-import type {
-  A2uiWebComponentElement,
-  WebComponentImplementation,
-} from '@a2ui/web_core/v0_9/universal';
+} from '@a2ui/web_core';
+import type {A2uiWebComponentElement, WebComponentImplementation} from '@a2ui/web_core/universal';
 import {WebComponentNode} from '../../src/web_component_node';
 
 const TestComp: WebComponentImplementation = {
