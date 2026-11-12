@@ -35,7 +35,6 @@ from utils import (
     version_to_underscore,
 )
 
-
 # Python type expressions for the `ChildList` union branches, in spec `oneOf` order:
 # a static list of component IDs, then a data-bound template.
 _CHILD_LIST_BRANCHES: tuple[str, str] = ("list[ComponentId]", "TemplateChildList")

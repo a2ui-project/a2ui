@@ -30,6 +30,7 @@ from a2ui.inference_formats import to_message_dicts, to_message_models
 from a2ui.inference_formats.express import (
     EXPRESS_RULES,
     ExpressCompiler,
+    ExpressDecompiler,
     ExpressFormat,
     ExpressParser,
     ExpressValidationError,
@@ -160,16 +161,16 @@ panel = Panel("Head", Text("inline"), ?sharedFn("a", "b", {catalogId: "test/prim
     assert comps["root"] == {
         "id": "root",
         "component": "Column",
-        "catalogId": PRIMARY,
+        "@catalogId": PRIMARY,
         "children": ["panel"],
     }
     assert comps["panel"] == {
         "id": "panel",
         "component": "Panel",
-        "catalogId": SECONDARY,
+        "@catalogId": SECONDARY,
         "headline": "Head",
         "content": "panel_content",
-        "checks": [{
+        "@checks": [{
             "condition": {
                 "@call": "sharedFn",
                 "catalogId": PRIMARY,
@@ -188,7 +189,7 @@ panel = Panel("Head", Text("inline"), ?sharedFn("a", "b", {catalogId: "test/prim
     assert comps["panel_content"] == {
         "id": "panel_content",
         "component": "Text",
-        "catalogId": PRIMARY,
+        "@catalogId": PRIMARY,
         "text": "inline",
     }
     dsl = _round_trip(parser, messages)
@@ -271,8 +272,8 @@ def test_decompile_reads_unannotated_check_against_its_surface_catalog(
             "components": [{
                 "id": "root",
                 "component": "Panel",
-                "catalogId": SECONDARY,
-                "checks": [{
+                "@catalogId": SECONDARY,
+                "@checks": [{
                     "condition": {
                         "@call": "sharedFn",
                         "args": {"firstPrimary": "x", "secondPrimary": "y"},
@@ -290,8 +291,87 @@ def test_decompile_reads_unannotated_check_against_its_surface_catalog(
     )
     recompiled = _compile(parser, dsl)
     assert "catalogId" not in recompiled[0]["createSurface"]
-    check = recompiled[0]["createSurface"]["components"][0]["checks"][0]
+    check = recompiled[0]["createSurface"]["components"][0]["@checks"][0]
     assert check["condition"]["catalogId"] == PRIMARY
+
+
+def test_decompile_reads_legacy_bare_envelope_keys_on_v1_0(
+    parser: ExpressParser,
+) -> None:
+    # v1.0 payloads written before the `@` envelope cutover use bare keys.
+    messages = [{
+        "version": "1.0",
+        "createSurface": {
+            "surfaceId": "s1",
+            "components": [{
+                "id": "root",
+                "component": "Panel",
+                "catalogId": SECONDARY,
+                "metadata": {"extensions": {"trace": "t1"}},
+                "checks": [{
+                    "condition": {
+                        "@call": "sharedFn",
+                        "catalogId": SECONDARY,
+                        "args": {"firstSecondary": "x"},
+                    },
+                    "message": "Custom",
+                }],
+            }],
+        },
+    }]
+    dsl = parser.decompile(to_message_models(messages))
+    assert 'extensions={trace: "t1"}' in dsl
+    assert '"Custom", {catalogId: "test/secondary"})' in dsl
+    component = _compile(parser, dsl)[0]["createSurface"]["components"][0]
+    assert component["@catalogId"] == SECONDARY
+    assert component["@metadata"] == {"extensions": {"trace": "t1"}}
+    assert component["@checks"][0]["message"] == "Custom"
+    assert not {"catalogId", "metadata", "checks"} & component.keys()
+
+
+@pytest.mark.parametrize("use_keyword_args", [False, True])
+def test_custom_properties_named_after_envelope_mixins_round_trip(
+    use_keyword_args: bool,
+) -> None:
+    custom = _catalog(
+        "test/custom",
+        {
+            "Badge": {
+                "properties": {
+                    "count": {"type": "number"},
+                    "metadata": {"type": "string"},
+                    "catalogId": {"type": "string"},
+                },
+                "required": ["count"],
+            }
+        },
+        {},
+        "1.0",
+    )
+    parser = ExpressParser([_primary(), custom], surface_id="main")
+    decompiler = ExpressDecompiler([_primary(), custom])
+    messages = [{
+        "version": "1.0",
+        "createSurface": {
+            "surfaceId": "s1",
+            "components": [{
+                "id": "root",
+                "component": "Badge",
+                "@catalogId": "test/custom",
+                "count": 42,
+                "metadata": "custom-meta",
+                "catalogId": "custom-cat",
+                "@metadata": {"extensions": {"source": "agent"}},
+            }],
+        },
+    }]
+    dsl = decompiler.decompile(
+        to_message_models(messages), use_keyword_args=use_keyword_args
+    )
+    # The custom `catalogId` is positional: `catalogId=` names the catalog.
+    assert '"custom-meta", "custom-cat"' in dsl
+    assert 'extensions={source: "agent"}' in dsl
+    assert _compile(parser, dsl) == messages
 
 
 def test_check_message_after_skipped_parameter_round_trips(
@@ -304,7 +384,7 @@ surface("s1")
 root = Input($/name, ?sharedFn("a", _, "Pick two", {catalogId: "test/primary"}))
 """,
     )
-    check = messages[0]["createSurface"]["components"][0]["checks"][0]
+    check = messages[0]["createSurface"]["components"][0]["@checks"][0]
     assert check == {
         "condition": {
             "@call": "sharedFn",
@@ -318,7 +398,7 @@ root = Input($/name, ?sharedFn("a", _, "Pick two", {catalogId: "test/primary"}))
 
 def test_check_binds_component_value_implicitly(parser: ExpressParser) -> None:
     messages = _compile(parser, 'surface("s1")\nroot = Input($/name, ?required)')
-    check = messages[0]["createSurface"]["components"][0]["checks"][0]
+    check = messages[0]["createSurface"]["components"][0]["@checks"][0]
     assert check["condition"] == {
         "@call": "required",
         "catalogId": PRIMARY,
@@ -335,7 +415,7 @@ def test_map_literal_shaped_like_a_binding_does_not_bind_checks(
     )
     component = messages[0]["createSurface"]["components"][0]
     assert component["value"] == {"@path": "/name"}
-    assert "value" not in component["checks"][0]["condition"].get("args", {})
+    assert "value" not in component["@checks"][0]["condition"].get("args", {})
 
 
 def test_decompile_reads_bare_call_check_as_its_condition(
@@ -352,7 +432,7 @@ def test_decompile_reads_bare_call_check_as_its_condition(
                 "id": "root",
                 "component": "Input",
                 "value": {"@path": "/name"},
-                "checks": [{"@call": "required"}],
+                "@checks": [{"@call": "required"}],
             }],
         },
     }]
@@ -373,7 +453,7 @@ def test_single_catalog_surface_line_may_name_its_catalog() -> None:
     ):
         msgs = to_message_dicts(compiler.compile(dsl))
         assert msgs[0]["createSurface"]["catalogId"] == PRIMARY
-        assert "catalogId" not in msgs[0]["createSurface"]["components"][0]
+        assert "@catalogId" not in msgs[0]["createSurface"]["components"][0]
 
 
 @pytest.mark.parametrize(
@@ -406,7 +486,7 @@ def test_compile_emits_the_catalog_actually_used() -> None:
     compiler = ExpressCompiler([_primary(), _secondary()])
     msgs = to_message_dicts(compiler.compile('root = Panel("x")'))
     assert "catalogId" not in msgs[0]["createSurface"]
-    assert msgs[0]["createSurface"]["components"][0]["catalogId"] == SECONDARY
+    assert msgs[0]["createSurface"]["components"][0]["@catalogId"] == SECONDARY
     call = to_message_dicts(compiler.compile("secOnly(1)"))[0]
     assert call["callRendererFunction"]["callFunction"]["catalogId"] == SECONDARY
 
@@ -506,7 +586,7 @@ def test_update_components_on_non_default_surface_round_trips(
                 "components": [{
                     "id": "root",
                     "component": "Panel",
-                    "catalogId": SECONDARY,
+                    "@catalogId": SECONDARY,
                     "headline": "A",
                 }],
             },
@@ -518,7 +598,7 @@ def test_update_components_on_non_default_surface_round_trips(
                 "components": [{
                     "id": "root",
                     "component": "Panel",
-                    "catalogId": SECONDARY,
+                    "@catalogId": SECONDARY,
                     "headline": "B",
                 }],
             },
@@ -563,7 +643,7 @@ def test_decompile_update_reads_components_against_the_created_surface_catalog(
     assert dsl.count('surface("s2"') == 2
     assert 'root = Input($/v, sharedFn("p", catalogId="test/primary"))' in dsl
     recompiled = _compile(parser, dsl)
-    assert recompiled[1]["updateComponents"]["components"][0]["catalogId"] == PRIMARY
+    assert recompiled[1]["updateComponents"]["components"][0]["@catalogId"] == PRIMARY
 
 
 def test_decompile_component_with_no_catalog_on_unknown_surface_fails(
@@ -590,7 +670,7 @@ def test_update_components_round_trips_with_surface_directive(
             "components": [{
                 "id": "greeting",
                 "component": "Text",
-                "catalogId": PRIMARY,
+                "@catalogId": PRIMARY,
                 "text": "New",
             }],
         },
@@ -618,7 +698,7 @@ root = Panel("B")
             "components": [{
                 "id": "root",
                 "component": "Panel",
-                "catalogId": SECONDARY,
+                "@catalogId": SECONDARY,
                 "headline": "B",
             }],
         },
@@ -718,7 +798,7 @@ def test_root_update_after_create_replaces_data_model(
             "components": [{
                 "id": "root",
                 "component": "Text",
-                "catalogId": PRIMARY,
+                "@catalogId": PRIMARY,
                 "text": "x",
             }],
             "dataModel": {"a": 1, "b": 2},
@@ -765,7 +845,7 @@ def test_create_then_delete_round_trips(parser: ExpressParser) -> None:
                 "components": [{
                     "id": "root",
                     "component": "Text",
-                    "catalogId": PRIMARY,
+                    "@catalogId": PRIMARY,
                     "text": "x",
                 }],
             },
@@ -784,7 +864,7 @@ def test_decompile_escapes_surface_ids(parser: ExpressParser) -> None:
                 "components": [{
                     "id": "root",
                     "component": "Text",
-                    "catalogId": PRIMARY,
+                    "@catalogId": PRIMARY,
                     "text": "x",
                 }],
             },
@@ -829,7 +909,7 @@ sharedFn("p", "q", catalogId="test/secondary")
         },
     }
     assert "catalogId" not in messages[2]["createSurface"]
-    assert messages[2]["createSurface"]["components"][0]["catalogId"] == SECONDARY
+    assert messages[2]["createSurface"]["components"][0]["@catalogId"] == SECONDARY
     assert messages[3]["deleteSurface"] == {"surfaceId": "c"}
     assert messages[4]["callRendererFunction"]["functionCallId"] == "call_2"
     assert messages[4]["callRendererFunction"]["callFunction"]["catalogId"] == (
@@ -848,6 +928,67 @@ def test_standalone_call_resolves_by_name(parser: ExpressParser) -> None:
     }
 
 
+# --- System functions of the target version ---
+
+_INDEX_DSL = "root = Column(_template($/items, row))\nrow = Text(@index())"
+
+
+def _row_text(messages: list[Any]) -> Any:
+    components = [
+        c
+        for m in to_message_dicts(messages)
+        for body in m.values()
+        if isinstance(body, dict)
+        for c in body.get("components", [])
+    ]
+    return next(c for c in components if c["id"] == "row")["text"]
+
+
+def test_version_override_reads_the_target_versions_system_functions() -> None:
+    with pytest.raises(
+        ExpressValidationError, match="in A2UI v0.9. System functions: none"
+    ):
+        ExpressCompiler([_primary()], version="v0.9").compile(_INDEX_DSL)
+
+    v1_compiler = ExpressCompiler([_primary(version="v0.9")], version="1.0")
+    assert _row_text(v1_compiler.compile(_INDEX_DSL)) == {"@call": "@index"}
+
+
+def test_per_call_version_reads_the_target_versions_system_functions() -> None:
+    compiler = ExpressCompiler([_primary()])
+    with pytest.raises(
+        ExpressValidationError, match="in A2UI v0.9. System functions: none"
+    ):
+        compiler.compile(_INDEX_DSL, version="v0.9")
+    assert _row_text(compiler.compile(_INDEX_DSL)) == {"@call": "@index"}
+
+
+def test_prompt_rules_list_system_functions_of_the_target_version() -> None:
+    rules_v09 = ExpressFormat([_primary()], version="v0.9").prompt_generator
+    assert "## System Functions" not in rules_v09.generate_base_rules()
+    messages = to_message_models([{
+        "version": "1.0",
+        "createSurface": {
+            "surfaceId": "main",
+            "catalogId": PRIMARY,
+            "components": [
+                {
+                    "id": "root",
+                    "component": "Column",
+                    "children": {"path": "/items", "componentId": "row"},
+                },
+                {"id": "row", "component": "Text", "text": {"@call": "@index"}},
+            ],
+        },
+    }])
+    fmt_v1 = ExpressFormat(
+        [_primary(version="v0.9")], examples=[messages], version="1.0"
+    )
+    assert "• @index(offset?)" in fmt_v1.prompt_generator.generate_base_rules()
+    assert "row = Text(@index())" in fmt_v1.prompt_generator.generate()
+    assert "row = Text(@index())" in fmt_v1.create_parser().decompile(messages)
+
+
 # --- Prompt rules ---
 
 
@@ -856,9 +997,10 @@ def test_single_catalog_prompt_rules_are_the_base_rules() -> None:
     rules = fmt.prompt_generator.generate_base_rules()
     # Rule 15's example names a component of the catalog. `_primary` has no
     # component with a single child reference, so it names the first one.
-    assert rules == EXPRESS_RULES.replace(
-        "root = ComponentA(...)", "root = Column(...)"
-    )
+    # From v1.0 the rules end with the protocol's system functions.
+    base, _, system_functions = rules.partition("\n\n## System Functions\n\n")
+    assert base == EXPRESS_RULES.replace("root = ComponentA(...)", "root = Column(...)")
+    assert "• @index(offset?)" in system_functions
     assert "surface(" in rules
     assert "`Event(name, context?, userMessage=...)`" in rules
     assert "userMessage=" in rules
@@ -950,3 +1092,68 @@ def test_multi_catalog_prompt_rules_explain_catalog_selection() -> None:
     assert f"# Catalog `{PRIMARY}`\n" in instructions
     assert f"# Catalog `{SECONDARY}`\n" in instructions
     assert "(default)" not in instructions
+
+
+def test_decompile_rejects_empty_at_catalog_id_and_preserves_custom_checks_on_checkable() -> (
+    None
+):
+    cat = Catalog.from_json({
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "catalogId": "test/checkable_custom",
+        "protocolVersion": "1.0",
+        "components": {
+            "ScoreInput": {
+                "type": "object",
+                "allOf": [
+                    {"$ref": "common_types.json#/$defs/ComponentCommon"},
+                    {"$ref": "common_types.json#/$defs/Checkable"},
+                    {
+                        "type": "object",
+                        "properties": {
+                            "component": {"const": "ScoreInput"},
+                            "checks": {"type": "integer"},
+                            "value": {"$ref": "common_types.json#/$defs/DynamicString"},
+                        },
+                        "required": ["component", "checks"],
+                    },
+                ],
+                "unevaluatedProperties": False,
+            },
+        },
+        "functions": {
+            "nonEmpty": _fn("value"),
+        },
+    })
+    p = ExpressParser([cat])
+    with pytest.raises(
+        ExpressValidationError, match="missing required property 'checks'"
+    ):
+        ExpressCompiler([cat]).compile("root = ScoreInput()")
+
+    compiled = to_message_dicts(
+        p.compile('root = ScoreInput(3, $/score, ?nonEmpty("Required"))')
+    )
+    assert compiled[0]["createSurface"]["components"][0] == {
+        "id": "root",
+        "component": "ScoreInput",
+        "checks": 3,
+        "value": {"@path": "/score"},
+        "@checks": [{
+            "condition": {
+                "@call": "nonEmpty",
+                "args": {"value": {"@path": "/score"}},
+            },
+            "message": "Required",
+        }],
+    }
+    assert (
+        p.decompile(to_message_models(compiled))
+        == 'surface("main")\nroot = ScoreInput(3, $/score, ?nonEmpty("Required"))'
+    )
+
+    decompiler = ExpressDecompiler([cat], version="1.0")
+    with pytest.raises(ExpressValidationError, match="invalid '@catalogId'"):
+        decompiler._component_catalog_id(
+            {"id": "root", "component": "ScoreInput", "@catalogId": ""},
+            "test/checkable_custom",
+        )

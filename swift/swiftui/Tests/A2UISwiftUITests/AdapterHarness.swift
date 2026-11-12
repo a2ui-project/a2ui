@@ -306,10 +306,7 @@ enum AdapterHarness {
 
   /// Reasoned skip entries keyed by `"<case>"` or `"<case>/<op|expectKey>"`.
   @MainActor
-  static let unsupported: [String: String] = [
-    "v10_theme_dropped_in_permissive_mode_renders_like_none":
-      "Theme dropping in permissive mode not yet implemented in A2UICore Swift V10VersionAdapter"
-  ]
+  static let unsupported: [String: String] = [:]
 
   @MainActor private static var matchedUnsupportedKeys: Set<String> = []
   @MainActor private static var completedCasesBySuite: [String: Set<String>] = [:]
@@ -1280,7 +1277,7 @@ enum AdapterHarness {
   private static func findNode(componentID: String, in surface: Surface) -> A2UICore.Node? {
     guard let rootNode = surface.viewModel.rootNode else { return nil }
     var nodes: [String: A2UICore.Node] = [:]
-    collectNodes(from: rootNode, into: &nodes)
+    collectNodes(from: rootNode, in: surface, into: &nodes)
     return nodes[componentID]
   }
 
@@ -1297,7 +1294,7 @@ enum AdapterHarness {
       return
     }
     var nodes: [String: A2UICore.Node] = [:]
-    collectNodes(from: rootNode, into: &nodes)
+    collectNodes(from: rootNode, in: surface, into: &nodes)
     guard let targetNode = nodes[targetID] else { return }
     let property = (step["actionProperty"] as? String) ?? "action"
     invokeAction(on: targetNode, property: property, userActivation: userActivation)
@@ -1952,7 +1949,7 @@ enum AdapterHarness {
   }
 
   @MainActor
-  private static func assertErrorsMatch(
+  static func assertErrorsMatch(
     _ actual: [(error: RendererError, surfaceID: String)],
     expected: [[String: Any]],
     context: String
@@ -2040,7 +2037,7 @@ enum AdapterHarness {
   }
 
   @MainActor
-  private static func validateOutboundEnvelopes(
+  static func validateOutboundEnvelopes(
     _ envelopes: [[String: Any]],
     protocolVersion: String,
     context: String
@@ -2146,7 +2143,7 @@ enum AdapterHarness {
   }
 
   @MainActor
-  private static func assertOutboundMatches(
+  static func assertOutboundMatches(
     _ actual: [[String: Any]],
     expected: [[String: Any]],
     context: String
@@ -2287,12 +2284,25 @@ enum AdapterHarness {
   }
 
   @MainActor
-  static func collectNodes(from node: A2UICore.Node, into map: inout [String: A2UICore.Node]) {
-    map[node.id] = node
-    let baseID = String(node.id.split(separator: ":").first ?? Substring(node.id))
-    map[baseID] = node
+  static func collectNodes(
+    from node: A2UICore.Node,
+    in surface: Surface? = nil,
+    into map: inout [String: A2UICore.Node]
+  ) {
+    if map[node.id] == nil {
+      map[node.id] = node
+    }
+    let baseID =
+      if let surface {
+        baseComponentID(for: node, in: surface)
+      } else {
+        String(node.id.split(separator: ":").first ?? Substring(node.id))
+      }
+    if map[baseID] == nil {
+      map[baseID] = node
+    }
     for child in node.allChildNodes {
-      collectNodes(from: child, into: &map)
+      collectNodes(from: child, in: surface, into: &map)
     }
   }
 

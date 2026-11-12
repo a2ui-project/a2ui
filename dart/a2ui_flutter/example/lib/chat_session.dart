@@ -88,40 +88,48 @@ class ChatEntry {
 /// reply is parsed and rendered as it streams. Actions on its surfaces, and
 /// errors the renderer meets, go back to it as the next user turn.
 class ChatSession extends ChangeNotifier {
-  ChatSession({required this.client}) {
+  /// [inferenceFormatFactory] is the format the model is prompted for and its
+  /// replies are read in, Direct JSON unless another is given.
+  ChatSession({
+    required this.client,
+    InferenceFormatFactory inferenceFormatFactory = defaultFormat,
+  }) : _agent =
+           A2uiGenerator(
+             catalogs: [CatalogConfig(_catalog)],
+             inferenceFormatFactory: inferenceFormatFactory,
+           ).createProcessor(
+             A2uiRendererCapabilities.forCatalogIds([
+               BasicCatalog.v1_0Id,
+             ], version: A2uiProtocolVersion.v1_0),
+           ) {
     processor = MessageProcessor(
       catalogs: [_catalog],
       defaultVersion: A2uiProtocolVersion.v1_0,
       validationConfig: ValidationConfig.relaxed,
       outboundListener: _sendOutbound,
+      unifiedOutbound: true,
     );
     processor.model.onSurfaceCreated.subscribe(_addSurface);
     processor.model.onSurfaceDeleted.subscribe(_removeSurface);
-    processor.model.onAction.subscribe(_sendAction);
   }
 
   final LlmClient client;
 
   /// The renderer's message processor, with the checks that a half-streamed
-  /// surface would fail turned off. Its calls of the model's functions, and
-  /// its responses to the model's calls, go to the model as the next turn.
+  /// surface would fail turned off. Its actions, calls of the model's
+  /// functions, and responses to the model's calls go to the model as the next
+  /// turn.
   late final MessageProcessor<ComponentImplementation> processor;
 
   static final String _version = A2uiProtocolVersion.v1_0.jsonValue;
 
-  static const _format = DirectJsonFormatFactory(
+  /// The format a session uses unless given another: Direct JSON, with text
+  /// and labels shown as they stream.
+  static const InferenceFormatFactory defaultFormat = DirectJsonFormatFactory(
     progressiveKeys: {'text', 'label'},
   );
 
-  final A2uiRequestProcessor _agent =
-      A2uiGenerator(
-        catalogs: [CatalogConfig(_catalog)],
-        inferenceFormatFactory: _format,
-      ).createProcessor(
-        A2uiRendererCapabilities.forCatalogIds([
-          BasicCatalog.v1_0Id,
-        ], version: A2uiProtocolVersion.v1_0),
-      );
+  final A2uiRequestProcessor _agent;
 
   /// The surfaces the model's replies have created, as the agent SDK checks
   /// each reply against them.
@@ -279,9 +287,6 @@ class ChatSession extends ChangeNotifier {
     entries.removeWhere((entry) => entry.surface?.id == surfaceId);
     _notify();
   }
-
-  void _sendAction(A2uiRendererAction action) =>
-      _sendMessage(ActionMessage(version: _version, action: action));
 
   /// Sends [message], which [processor] sends to the agent, to the model as
   /// the next turn. An [ErrorMessage] is dropped, as [processor] also throws

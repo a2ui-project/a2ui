@@ -21,6 +21,7 @@ import {
   GenericBinder,
   getSafeChildList,
   MAX_DYNAMIC_CHILD_LIST_SIZE,
+  scrapeComponentBehavior,
   scrapeSchemaBehavior,
   type GenerateSetters,
   type ResolveA2uiProps,
@@ -1335,6 +1336,64 @@ describe('GenericBinder Checkable Trait', () => {
     assert.deepStrictEqual(scrapeSchemaBehavior(unionWithPlainObject), {type: 'STATIC'});
   });
 
+  it('treats a union option as an action only when its only key is event or functionCall', () => {
+    const eventOption = z.object({event: z.object({name: z.string()})});
+    const functionCallOption = z.object({functionCall: z.object({call: z.string()})});
+    assert.deepStrictEqual(scrapeSchemaBehavior(z.union([z.string(), eventOption])), {
+      type: 'ACTION',
+    });
+    assert.deepStrictEqual(scrapeSchemaBehavior(z.union([z.string(), functionCallOption])), {
+      type: 'ACTION',
+    });
+
+    const labeledEvent = z.object({label: z.string(), event: z.string()});
+    const labeledFunctionCall = z.object({label: z.string(), functionCall: z.string()});
+    assert.deepStrictEqual(scrapeSchemaBehavior(z.union([z.string(), labeledEvent])), {
+      type: 'STATIC',
+    });
+    assert.deepStrictEqual(scrapeSchemaBehavior(z.union([z.string(), labeledFunctionCall])), {
+      type: 'STATIC',
+    });
+  });
+
+  it('keeps event properties and list items with an event key as plain values', () => {
+    const {catalog, surface} = setupSurfaceAndMocks();
+    const schema = z.object({
+      label: z.string(),
+      event: z.string(),
+      functionCall: z.string(),
+      options: z.array(z.union([z.string(), z.object({label: z.string(), event: z.string()})])),
+      onPick: z.union([
+        z.object({event: z.object({name: z.string()})}),
+        z.object({functionCall: z.object({call: z.string()})}),
+      ]),
+    });
+    const compModel = new ComponentModel(
+      'c_select',
+      'Select',
+      {
+        label: 'Pick',
+        event: 'picked',
+        functionCall: 'pick',
+        options: [{label: 'Red', event: 'red'}, 'Blue'],
+        onPick: {event: {name: 'picked'}},
+      },
+      catalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    const binder = new GenericBinder<Record<string, unknown>>(
+      new ComponentContext(surface, 'c_select'),
+      schema,
+    );
+
+    assert.strictEqual(binder.snapshot.label, 'Pick');
+    assert.strictEqual(binder.snapshot.event, 'picked');
+    assert.strictEqual(binder.snapshot.functionCall, 'pick');
+    assert.deepStrictEqual(binder.snapshot.options, [{label: 'Red', event: 'red'}, 'Blue']);
+    assert.strictEqual(typeof binder.snapshot.onPick, 'function');
+  });
+
   it('scrapeSchemaBehavior returns the same tree for the same schema', () => {
     const schema = z.object({label: z.string()});
     assert.strictEqual(scrapeSchemaBehavior(schema), scrapeSchemaBehavior(schema));
@@ -1825,6 +1884,921 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
     assert.notStrictEqual(binder.snapshot, compModel.properties);
     assert.deepStrictEqual(binder.snapshot, {a: 1});
     assert.strictEqual(Object.hasOwn(binder.snapshot, 'b'), false);
+
+    sub.unsubscribe();
+    surface.dispose();
+  });
+
+  it('terminates cleanly on recursive z.lazy schemas in scrapeSchemaBehavior', () => {
+    const RecArray: z.ZodTypeAny = z.lazy(() => z.array(RecArray));
+    assert.deepStrictEqual(scrapeSchemaBehavior(RecArray), {
+      type: 'ARRAY',
+      element: {type: 'STATIC'},
+    });
+
+    const RecOptional: z.ZodTypeAny = z.lazy(() => RecOptional.optional());
+    assert.deepStrictEqual(scrapeSchemaBehavior(RecOptional), {type: 'STATIC'});
+
+    const RecObject: z.ZodTypeAny = z.lazy(() =>
+      z.object({
+        label: CommonSchemas.DynamicString,
+        next: RecObject.optional(),
+      }),
+    );
+    const scrapedObj = scrapeSchemaBehavior(RecObject);
+    assert.strictEqual(scrapedObj.type, 'OBJECT');
+    if (scrapedObj.type === 'OBJECT') {
+      assert.deepStrictEqual(scrapedObj.shape.label, {type: 'DYNAMIC'});
+      assert.deepStrictEqual(scrapedObj.shape.next, {type: 'STATIC'});
+    }
+
+    const RecPipe: z.ZodTypeAny = z.lazy(() => RecPipe.pipe(z.boolean()));
+    const scrapedRecPipe = scrapeSchemaBehavior(
+      z.object({flag: z.union([CommonSchemas.DataBinding, RecPipe])}),
+    );
+    assert.strictEqual(scrapedRecPipe.type, 'OBJECT');
+    if (scrapedRecPipe.type === 'OBJECT') {
+      assert.deepStrictEqual(scrapedRecPipe.shape.flag, {type: 'DYNAMIC', isBoolean: true});
+    }
+  });
+
+  it('binds dynamic, action, and structural properties across ZodIntersection, ZodPipeline, ZodCatch, and object-variant unions', () => {
+    const componentIdSchema = z.string().describe('REF:common_types.json#/$defs/ComponentId');
+    assert.deepStrictEqual(scrapeSchemaBehavior(CommonSchemas.ChildList.and(z.number())), {
+      type: 'STATIC',
+    });
+    assert.deepStrictEqual(scrapeSchemaBehavior(CommonSchemas.ChildList.pipe(z.number())), {
+      type: 'STATIC',
+    });
+    assert.deepStrictEqual(
+      scrapeSchemaBehavior(z.union([componentIdSchema, CommonSchemas.ChildList]).and(z.string())),
+      {type: 'STATIC'},
+    );
+    assert.deepStrictEqual(scrapeSchemaBehavior(CommonSchemas.ChildList.and(z.array(z.string()))), {
+      type: 'STRUCTURAL',
+    });
+
+    const variantUnionSchema = z.discriminatedUnion('mode', [
+      z.object({
+        mode: z.literal('card'),
+        title: CommonSchemas.DynamicString.catch('fallback').pipe(z.any()),
+        child: componentIdSchema,
+      }),
+      z.object({
+        mode: z.literal('list'),
+        title: CommonSchemas.DynamicString,
+        children: CommonSchemas.ChildList,
+      }),
+    ]);
+
+    const scrapedVariant = scrapeSchemaBehavior(variantUnionSchema);
+    assert.strictEqual(scrapedVariant.type, 'OBJECT');
+
+    const scrapedOpenRecord = scrapeSchemaBehavior(z.record(z.unknown()));
+    assert.strictEqual(scrapedOpenRecord.type, 'OBJECT');
+    if (scrapedOpenRecord.type === 'OBJECT') {
+      assert.deepStrictEqual(scrapedOpenRecord.shape.children, {type: 'STRUCTURAL'});
+      assert.strictEqual(scrapedOpenRecord.shape.accessibility?.type, 'OBJECT');
+    }
+
+    const scrapedNumericRecord = scrapeSchemaBehavior(z.record(z.number()));
+    assert.strictEqual(scrapedNumericRecord.type, 'OBJECT');
+    if (scrapedNumericRecord.type === 'OBJECT') {
+      assert.strictEqual(Object.hasOwn(scrapedNumericRecord.shape, 'children'), false);
+      assert.strictEqual(scrapedNumericRecord.shape.accessibility?.type, 'OBJECT');
+    }
+
+    const compositeSchema = z
+      .object({
+        subtitle: CommonSchemas.DynamicString.optional(),
+      })
+      .and(variantUnionSchema)
+      .and(
+        z.object({
+          onPress: CommonSchemas.Action.optional(),
+        }),
+      );
+
+    const catalog = new Catalog('test-composite', '0.9', [], []);
+    const surface = new SurfaceModel('s1', catalog);
+    surface.dataModel.set('/heading', 'Bound Heading');
+    surface.dataModel.set('/sub', 'Bound Sub');
+    surface.dataModel.set('/items', [{name: 'A'}, {name: 'B'}]);
+
+    const dispatched: unknown[] = [];
+    surface.onAction.subscribe(evt => {
+      dispatched.push(evt);
+    });
+
+    const compModel = new ComponentModel(
+      'c1',
+      'CompositeCard',
+      {
+        mode: 'list',
+        title: {path: '/heading'},
+        subtitle: {path: '/sub'},
+        children: {componentId: 'item-tpl', path: '/items'},
+        onPress: {event: {name: 'tap'}},
+        accessibility: {label: {path: '/heading'}},
+      },
+      catalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    const binder = new GenericBinder<Record<string, unknown>>(
+      new ComponentContext(surface, 'c1'),
+      compositeSchema,
+    );
+    const sub = binder.subscribe(() => {});
+
+    assert.strictEqual(binder.snapshot.title, 'Bound Heading');
+    assert.strictEqual(binder.snapshot.subtitle, 'Bound Sub');
+    assert.deepStrictEqual(binder.snapshot.children, [
+      {id: 'item-tpl', basePath: '/items/0'},
+      {id: 'item-tpl', basePath: '/items/1'},
+    ]);
+    assert.deepStrictEqual(binder.snapshot.accessibility, {
+      label: 'Bound Heading',
+      setLabel: (binder.snapshot.accessibility as Record<string, unknown>).setLabel,
+      setDescription: (binder.snapshot.accessibility as Record<string, unknown>).setDescription,
+      setHidden: (binder.snapshot.accessibility as Record<string, unknown>).setHidden,
+    });
+    assert.strictEqual(typeof binder.snapshot.onPress, 'function');
+    (binder.snapshot.onPress as () => void)();
+    assert.strictEqual(dispatched.length, 1);
+
+    sub.unsubscribe();
+    surface.dispose();
+  });
+
+  it('preserves DYNAMIC, ACTION, and CHECKABLE behaviors in object-variant unions paired with static variants and handles composite ZodRecord schemas', () => {
+    const mixedVariantSchema = z.discriminatedUnion('kind', [
+      z.object({
+        kind: z.literal('interactive'),
+        label: CommonSchemas.DynamicString,
+        onSelect: CommonSchemas.Action,
+        checks: CommonSchemas.Checkable.shape.checks,
+      }),
+      z.object({
+        kind: z.literal('plain'),
+        label: z.string(),
+        onSelect: z.string().optional(),
+        checks: z.string().optional(),
+      }),
+    ]);
+
+    const recordInIntersection = z
+      .object({heading: CommonSchemas.DynamicString.optional()})
+      .and(z.record(z.unknown()));
+    const recordInPipeline = z.record(z.unknown()).pipe(z.record(z.unknown()));
+    const recordInUnion = z.union([
+      z.object({mode: z.literal('typed'), heading: CommonSchemas.DynamicString}),
+      z.record(z.unknown()),
+    ]);
+
+    for (const recSchema of [recordInIntersection, recordInPipeline, recordInUnion]) {
+      const scraped = scrapeSchemaBehavior(recSchema);
+      assert.strictEqual(scraped.type, 'OBJECT');
+      if (scraped.type === 'OBJECT') {
+        assert.deepStrictEqual(scraped.shape.children, {type: 'STRUCTURAL'});
+        assert.strictEqual(scraped.shape.accessibility?.type, 'OBJECT');
+      }
+    }
+
+    const catalog = new Catalog('test-mixed-union', '0.9', [], []);
+    const surface = new SurfaceModel('s-mixed', catalog);
+    surface.dataModel.set('/label', 'Dynamic Label');
+    surface.dataModel.set('/validFlag', false);
+    surface.dataModel.set('/rows', [{id: 1}, {id: 2}]);
+
+    const dispatched: unknown[] = [];
+    surface.onAction.subscribe(evt => {
+      dispatched.push(evt);
+    });
+
+    const compModel = new ComponentModel(
+      'c-mixed',
+      'MixedVariant',
+      {
+        kind: 'interactive',
+        label: {path: '/label'},
+        onSelect: {event: {name: 'choose'}},
+        checks: [{condition: {path: '/validFlag'}, message: 'Must be valid'}],
+      },
+      catalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    const binder = new GenericBinder<Record<string, unknown>>(
+      new ComponentContext(surface, 'c-mixed'),
+      mixedVariantSchema,
+    );
+    const sub = binder.subscribe(() => {});
+
+    assert.strictEqual(binder.snapshot.label, 'Dynamic Label');
+    assert.strictEqual(binder.snapshot.isValid, false);
+    assert.deepStrictEqual(binder.snapshot.validationErrors, ['Must be valid']);
+    assert.strictEqual(typeof binder.snapshot.onSelect, 'function');
+    (binder.snapshot.onSelect as () => void)();
+    assert.strictEqual(dispatched.length, 1);
+
+    // Switching to the static variant passes static scalars through without wrapping or mutating isValid.
+    compModel.properties = {
+      kind: 'plain',
+      label: 'Literal Label',
+      onSelect: 'noop-tag',
+      checks: 'skip',
+    };
+    assert.strictEqual(binder.snapshot.label, 'Literal Label');
+    assert.strictEqual(binder.snapshot.onSelect, 'noop-tag');
+    assert.strictEqual(binder.snapshot.checks, 'skip');
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'isValid'), false);
+
+    // Verify composite ZodRecord union binds both dynamic variant properties and open template children.
+    const recCompModel = new ComponentModel(
+      'c-rec-union',
+      'RecUnion',
+      {
+        mode: 'typed',
+        heading: {path: '/label'},
+        children: {componentId: 'row-tpl', path: '/rows'},
+      },
+      catalog,
+    );
+    surface.componentsModel.addComponent(recCompModel);
+    const recBinder = new GenericBinder<Record<string, unknown>>(
+      new ComponentContext(surface, 'c-rec-union'),
+      recordInUnion,
+    );
+    assert.strictEqual(recBinder.snapshot.heading, 'Dynamic Label');
+    assert.deepStrictEqual(recBinder.snapshot.children, [
+      {id: 'row-tpl', basePath: '/rows/0'},
+      {id: 'row-tpl', basePath: '/rows/1'},
+    ]);
+
+    sub.unsubscribe();
+    recBinder.dispose();
+    surface.dispose();
+  });
+
+  it('binds dynamic and action schemas on ZodRecord, .catchall(), composite intersections/unions, and chained .or() unions', () => {
+    const catchallDynamicSchema = z
+      .object({
+        staticKey: z.string(),
+        chainedDynamic: z
+          .object({path: z.string()})
+          .or(z.object({call: z.string()}))
+          .or(z.string())
+          .optional(),
+      })
+      .catchall(CommonSchemas.DynamicString);
+
+    const recordActionSchema = z.record(CommonSchemas.Action);
+    const compositeCatchallSchema = z
+      .object({id: z.string()})
+      .passthrough()
+      .and(z.record(CommonSchemas.DynamicString));
+    const unionCatchallSchema = z.union([
+      z.record(CommonSchemas.DynamicString),
+      z.object({fixed: CommonSchemas.Action}),
+    ]);
+
+    const scrapedCatchall = scrapeSchemaBehavior(catchallDynamicSchema);
+    assert.strictEqual(scrapedCatchall.type, 'OBJECT');
+    if (scrapedCatchall.type === 'OBJECT') {
+      assert.deepStrictEqual(scrapedCatchall.shape.staticKey, {type: 'STATIC'});
+      assert.deepStrictEqual(scrapedCatchall.shape.chainedDynamic, {type: 'DYNAMIC'});
+      assert.deepStrictEqual(scrapedCatchall.catchall, {type: 'DYNAMIC'});
+    }
+
+    const scrapedComposite = scrapeSchemaBehavior(compositeCatchallSchema);
+    assert.strictEqual(scrapedComposite.type, 'OBJECT');
+    if (scrapedComposite.type === 'OBJECT') {
+      assert.deepStrictEqual(scrapedComposite.shape.id, {type: 'DYNAMIC'});
+      assert.deepStrictEqual(scrapedComposite.catchall, {type: 'DYNAMIC'});
+    }
+    const scrapedCompositeReversed = scrapeSchemaBehavior(
+      z.record(CommonSchemas.DynamicString).and(z.object({id: z.string()}).passthrough()),
+    );
+    assert.deepStrictEqual(scrapedCompositeReversed, scrapedComposite);
+
+    const scrapedUnion = scrapeSchemaBehavior(unionCatchallSchema);
+    assert.strictEqual(scrapedUnion.type, 'OBJECT');
+    if (scrapedUnion.type === 'OBJECT') {
+      assert.deepStrictEqual(scrapedUnion.catchall, {type: 'DYNAMIC'});
+    }
+
+    const catalog = new Catalog('test-catchall-binder', '0.9', [], []);
+    const surface = new SurfaceModel('s-catchall', catalog);
+    surface.dataModel.set('/dyn', 'Hello Catchall');
+    surface.dataModel.set('/chained', 'Chained Value');
+
+    const dispatched: unknown[] = [];
+    surface.onAction.subscribe(evt => {
+      dispatched.push(evt);
+    });
+
+    const compModel = new ComponentModel(
+      'c-catchall',
+      'CatchallCard',
+      {
+        staticKey: 'keep-static',
+        chainedDynamic: {path: '/chained'},
+        customBound: {path: '/dyn'},
+        customLiteral: 'plain-text',
+      },
+      catalog,
+    );
+    surface.componentsModel.addComponent(compModel);
+
+    const binder = new GenericBinder<Record<string, unknown>>(
+      new ComponentContext(surface, 'c-catchall'),
+      catchallDynamicSchema,
+    );
+    const sub = binder.subscribe(() => {});
+
+    assert.strictEqual(binder.snapshot.staticKey, 'keep-static');
+    assert.strictEqual(binder.snapshot.chainedDynamic, 'Chained Value');
+    assert.strictEqual(binder.snapshot.customBound, 'Hello Catchall');
+    assert.strictEqual(binder.snapshot.customLiteral, 'plain-text');
+    assert.strictEqual(typeof binder.snapshot.setCustomBound, 'function');
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'setCustomLiteral'), false);
+    assert.strictEqual(Object.hasOwn(binder.snapshot, 'setStaticKey'), false);
+
+    // Invoking synthesized catchall setter updates dataModel and reactively updates snapshot.
+    (binder.snapshot.setCustomBound as (v: unknown) => void)('Updated Catchall');
+    assert.strictEqual(surface.dataModel.get('/dyn'), 'Updated Catchall');
+    assert.strictEqual(binder.snapshot.customBound, 'Updated Catchall');
+
+    // Action record binds arbitrary action keys into dispatch closures.
+    const actionComp = new ComponentModel(
+      'c-act-rec',
+      'ActionRecord',
+      {
+        onSave: {event: {name: 'save'}},
+        onCancel: {event: {name: 'cancel'}},
+      },
+      catalog,
+    );
+    surface.componentsModel.addComponent(actionComp);
+    const actionBinder = new GenericBinder<Record<string, unknown>>(
+      new ComponentContext(surface, 'c-act-rec'),
+      recordActionSchema,
+    );
+    const actionSub = actionBinder.subscribe(() => {});
+    assert.strictEqual(typeof actionBinder.snapshot.onSave, 'function');
+    assert.strictEqual(typeof actionBinder.snapshot.onCancel, 'function');
+    (actionBinder.snapshot.onSave as () => void)();
+    (actionBinder.snapshot.onCancel as () => void)();
+    assert.strictEqual(dispatched.length, 2);
+
+    sub.unsubscribe();
+    actionSub.unsubscribe();
+    surface.dispose();
+  });
+
+  it('forwards ChildRefAnalysisOptions in scrapeSchemaBehavior, scrapeComponentBehavior, and GenericBinder with isolated caches', () => {
+    const customListSchema = z.object({
+      customChildren: z
+        .unknown()
+        .describe('REF:#/$defs/CustomChildList|Custom list ref')
+        .optional(),
+    });
+    const customOptions = {
+      childRefNames: new Set(['ComponentId']),
+      childListRefNames: new Set(['CustomChildList']),
+    };
+
+    const defaultBehavior = scrapeSchemaBehavior(customListSchema);
+    const customBehavior = scrapeSchemaBehavior(customListSchema, customOptions);
+    assert.strictEqual(defaultBehavior.type, 'OBJECT');
+    assert.strictEqual(customBehavior.type, 'OBJECT');
+    if (defaultBehavior.type === 'OBJECT' && customBehavior.type === 'OBJECT') {
+      assert.deepStrictEqual(defaultBehavior.shape.customChildren, {type: 'STATIC'});
+      assert.deepStrictEqual(customBehavior.shape.customChildren, {type: 'STRUCTURAL'});
+    }
+
+    const defaultCompBehavior = scrapeComponentBehavior(customListSchema);
+    const customCompBehavior = scrapeComponentBehavior(customListSchema, customOptions);
+    assert.notStrictEqual(defaultCompBehavior, customCompBehavior);
+    if (defaultCompBehavior.type === 'OBJECT' && customCompBehavior.type === 'OBJECT') {
+      assert.deepStrictEqual(defaultCompBehavior.shape.customChildren, {type: 'STATIC'});
+      assert.deepStrictEqual(customCompBehavior.shape.customChildren, {type: 'STRUCTURAL'});
+    }
+
+    const catalog = new Catalog('custom-opts-cat', '0.9', [], []);
+    const surface = new SurfaceModel('s-opts', catalog);
+    surface.dataModel.set('/items', [{name: 'A'}, {name: 'B'}]);
+    const comp = new ComponentModel(
+      'c-opts',
+      'CustomContainer',
+      {customChildren: {componentId: 'kid-tpl', path: '/items'}},
+      catalog,
+    );
+    surface.componentsModel.addComponent(comp);
+
+    const defaultBinder = new GenericBinder<Record<string, unknown>>(
+      new ComponentContext(surface, 'c-opts'),
+      customListSchema,
+    );
+    const customBinder = new GenericBinder<Record<string, unknown>>(
+      new ComponentContext(surface, 'c-opts'),
+      customListSchema,
+      customOptions,
+    );
+    assert.deepStrictEqual(defaultBinder.snapshot.customChildren, {
+      componentId: 'kid-tpl',
+      path: '/items',
+    });
+    assert.deepStrictEqual(customBinder.snapshot.customChildren, [
+      {id: 'kid-tpl', basePath: '/items/0'},
+      {id: 'kid-tpl', basePath: '/items/1'},
+    ]);
+
+    defaultBinder.dispose();
+    customBinder.dispose();
+    surface.dispose();
+  });
+
+  it('binds explicit keys intersected with a dynamic catchall, expands [list, nested] union templates, and re-exports scrapeComponentBehavior', async () => {
+    const resolutionBarrel = await import('./index.js');
+    const rootBarrel = await import('../index.js');
+    assert.strictEqual(resolutionBarrel.scrapeComponentBehavior, scrapeComponentBehavior);
+    assert.strictEqual(rootBarrel.scrapeComponentBehavior, scrapeComponentBehavior);
+
+    const compositeCatchallSchema = z
+      .object({id: z.string()})
+      .passthrough()
+      .and(z.record(CommonSchemas.DynamicString));
+
+    const structuredItems = z.array(
+      z.object({
+        title: CommonSchemas.DynamicString,
+        child: CommonSchemas.ComponentId,
+      }),
+    );
+    const objUnionListFirst = z.union([
+      z.object({sections: CommonSchemas.ChildList}),
+      z.object({sections: structuredItems}),
+    ]);
+    const objUnionNestedFirst = z.union([
+      z.object({sections: structuredItems}),
+      z.object({sections: CommonSchemas.ChildList}),
+    ]);
+    const propUnionSchema = z.object({
+      sections: CommonSchemas.ChildList.or(structuredItems),
+    });
+
+    assert.deepStrictEqual(
+      scrapeComponentBehavior(objUnionListFirst),
+      scrapeComponentBehavior(objUnionNestedFirst),
+    );
+
+    const catalog = new Catalog('union-catchall-cat', '0.9', [], []);
+    const surface = new SurfaceModel('s-union-catchall', catalog);
+    surface.dataModel.set('/dynId', 'resolved-id-42');
+    surface.dataModel.set('/extra', 'extra-val');
+    surface.dataModel.set('/secTitle', 'Bound Section');
+    surface.dataModel.set('/rows', [{label: 'One'}, {label: 'Two'}]);
+
+    surface.componentsModel.addComponent(
+      new ComponentModel(
+        'c-comp-catchall',
+        'CompositeCatchall',
+        {id: {path: '/dynId'}, extra: {path: '/extra'}},
+        catalog,
+      ),
+    );
+    const compositeBinder = new GenericBinder<Record<string, unknown>>(
+      new ComponentContext(surface, 'c-comp-catchall'),
+      compositeCatchallSchema,
+    );
+    const compositeSub = compositeBinder.subscribe(() => {});
+    assert.strictEqual(compositeBinder.snapshot.id, 'resolved-id-42');
+    assert.strictEqual(compositeBinder.snapshot.extra, 'extra-val');
+    assert.strictEqual(typeof compositeBinder.snapshot.setId, 'function');
+    (compositeBinder.snapshot.setId as (v: unknown) => void)('updated-id-99');
+    assert.strictEqual(surface.dataModel.get('/dynId'), 'updated-id-99');
+    assert.strictEqual(compositeBinder.snapshot.id, 'updated-id-99');
+
+    for (const [idx, schema] of [
+      objUnionListFirst,
+      objUnionNestedFirst,
+      propUnionSchema,
+    ].entries()) {
+      const tplId = `c-tpl-${idx}`;
+      surface.componentsModel.addComponent(
+        new ComponentModel(
+          tplId,
+          'FlexSections',
+          {sections: {componentId: 'row-tpl', path: '/rows'}},
+          catalog,
+        ),
+      );
+      const tplBinder = new GenericBinder<Record<string, unknown>>(
+        new ComponentContext(surface, tplId),
+        schema,
+      );
+      assert.deepStrictEqual(tplBinder.snapshot.sections, [
+        {id: 'row-tpl', basePath: '/rows/0'},
+        {id: 'row-tpl', basePath: '/rows/1'},
+      ]);
+      tplBinder.dispose();
+
+      const arrId = `c-arr-${idx}`;
+      surface.componentsModel.addComponent(
+        new ComponentModel(
+          arrId,
+          'FlexSections',
+          {sections: [{title: {path: '/secTitle'}, child: 'leaf-1'}]},
+          catalog,
+        ),
+      );
+      const arrBinder = new GenericBinder<Record<string, unknown>>(
+        new ComponentContext(surface, arrId),
+        schema,
+      );
+      const boundSections = arrBinder.snapshot.sections as Array<Record<string, unknown>>;
+      assert.strictEqual(boundSections.length, 1);
+      assert.strictEqual(boundSections[0].title, 'Bound Section');
+      assert.strictEqual(boundSections[0].child, 'leaf-1');
+      arrBinder.dispose();
+    }
+
+    compositeSub.unsubscribe();
+    compositeBinder.dispose();
+    surface.dispose();
+  });
+
+  it('preserves active element bindings in [list, array] and [single, nested] unions, transform pipelines, Catalog.fromJson oneOf, and composite catchalls', () => {
+    const ComponentIdRef = z.string().describe('REF:common_types.json#/$defs/ComponentId');
+    const ChildListUnion = z
+      .union([
+        z.array(ComponentIdRef),
+        z.object({
+          componentId: ComponentIdRef,
+          path: z.string(),
+        }),
+      ])
+      .describe('REF:common_types.json#/$defs/ChildList');
+    const DynamicTitleObj = z.object({
+      title: CommonSchemas.DynamicString,
+    });
+    const NestedRowObj = z.object({
+      title: CommonSchemas.DynamicString,
+      child: ComponentIdRef,
+    });
+
+    // 1. [list, array-of-objects-without-child-refs] keeps ARRAY + templateFallback
+    const listOrActiveArraySchema = z.object({
+      content: ChildListUnion.or(z.array(DynamicTitleObj)),
+    });
+
+    // 2. [single, nested] union keeps ARRAY element bindings in both branch orders
+    const singleOrNestedFirst = z.object({
+      slot: ComponentIdRef.or(z.array(NestedRowObj)),
+    });
+    const singleOrNestedSecond = z.object({
+      slot: z.array(NestedRowObj).or(ComponentIdRef),
+    });
+
+    // 3. Transform-backed pipeline into typed output schema preserves output behaviors
+    const transformedPipelineSchema = z.object({
+      payload: z
+        .unknown()
+        .transform(v => v)
+        .pipe(
+          z.object({
+            label: CommonSchemas.DynamicString,
+            onTap: CommonSchemas.Action,
+          }),
+        ),
+    });
+
+    // 4. Intersecting or unioning explicit ACTION and ComponentId properties with dynamic catchall (both orders)
+    const explicitAndCatchallLeft = z
+      .object({fixed: CommonSchemas.Action, child: ComponentIdRef.optional()})
+      .and(z.record(CommonSchemas.DynamicString));
+    const explicitAndCatchallRight = z
+      .record(CommonSchemas.DynamicString)
+      .and(z.object({fixed: CommonSchemas.Action, child: ComponentIdRef.optional()}));
+    const explicitOrCatchallLeft = z.union([
+      z.record(CommonSchemas.DynamicString),
+      z.object({fixed: CommonSchemas.Action, child: ComponentIdRef.optional()}),
+    ]);
+    const explicitOrCatchallRight = z.union([
+      z.object({fixed: CommonSchemas.Action, child: ComponentIdRef.optional()}),
+      z.record(CommonSchemas.DynamicString),
+    ]);
+
+    // 5. Object union where only one branch has a dynamic catchall does not infect closed sibling props
+    const unionPartialCatchallLeft = z.union([
+      z.object({kind: z.literal('open')}).catchall(CommonSchemas.DynamicString),
+      z.object({kind: z.literal('closed'), meta: z.record(z.unknown())}),
+    ]);
+    const unionPartialCatchallRight = z.union([
+      z.object({kind: z.literal('closed'), meta: z.record(z.unknown())}),
+      z.object({kind: z.literal('open')}).catchall(CommonSchemas.DynamicString),
+    ]);
+
+    // 6. Catalog.fromJson oneOf schemas preserve ACTION, DYNAMIC (including nested $defs oneOf), and STRUCTURAL
+    const oneOfCatalog = Catalog.fromJson({
+      catalogId: 'oneof-binder-cat',
+      $defs: {
+        ComponentId: {type: 'string'},
+        DataBinding: {
+          type: 'object',
+          properties: {path: {type: 'string'}},
+          required: ['path'],
+        },
+        FunctionCall: {
+          type: 'object',
+          properties: {call: {type: 'string'}},
+          required: ['call'],
+        },
+        NestedBindingUnion: {
+          oneOf: [{$ref: '#/$defs/DataBinding'}, {$ref: '#/$defs/FunctionCall'}],
+        },
+      },
+      components: {
+        OneOfComp: {
+          type: 'object',
+          properties: {
+            child: {
+              oneOf: [{type: 'string'}, {$ref: '#/$defs/NestedBindingUnion'}],
+            },
+            disabled: {
+              oneOf: [{type: 'boolean'}, {$ref: '#/$defs/NestedBindingUnion'}],
+            },
+            onPress: {
+              oneOf: [
+                {
+                  type: 'object',
+                  properties: {event: {type: 'object', properties: {name: {type: 'string'}}}},
+                  required: ['event'],
+                },
+                {
+                  type: 'object',
+                  properties: {
+                    functionCall: {type: 'object', properties: {call: {type: 'string'}}},
+                  },
+                  required: ['functionCall'],
+                },
+              ],
+            },
+            items: {
+              oneOf: [
+                {type: 'array', items: {$ref: '#/$defs/ComponentId'}},
+                {
+                  type: 'object',
+                  properties: {
+                    componentId: {$ref: '#/$defs/ComponentId'},
+                    path: {type: 'string'},
+                  },
+                  required: ['componentId', 'path'],
+                },
+              ],
+            },
+          },
+        },
+      },
+    });
+    const oneOfCompSchema = oneOfCatalog.components.get('OneOfComp')!.schema;
+
+    const catalog = new Catalog('regression-binder-cat', '0.9', [], []);
+    const surface = new SurfaceModel('s-reg-binder', catalog);
+    surface.dataModel.set('/secTitle', 'Resolved Section');
+    surface.dataModel.set('/rows', [{label: 'R1'}, {label: 'R2'}]);
+    surface.dataModel.set('/flag', 'false');
+    surface.dataModel.set('/extraVal', 'Extra Dynamic');
+
+    // Verify (1): [list, array-of-objects-without-child-refs]
+    surface.componentsModel.addComponent(
+      new ComponentModel(
+        'c-list-arr-objs',
+        'Box',
+        {content: [{title: {path: '/secTitle'}}]},
+        catalog,
+      ),
+    );
+    const listArrBinder = new GenericBinder<Record<string, unknown>>(
+      new ComponentContext(surface, 'c-list-arr-objs'),
+      listOrActiveArraySchema,
+    );
+    const listArrItems = listArrBinder.snapshot.content as Array<Record<string, unknown>>;
+    assert.strictEqual(listArrItems.length, 1);
+    assert.strictEqual(listArrItems[0].title, 'Resolved Section');
+    assert.strictEqual(typeof listArrItems[0].setTitle, 'function');
+    listArrBinder.dispose();
+
+    surface.componentsModel.addComponent(
+      new ComponentModel(
+        'c-list-arr-tpl',
+        'Box',
+        {content: {componentId: 'tpl-1', path: '/rows'}},
+        catalog,
+      ),
+    );
+    const listTplBinder = new GenericBinder<Record<string, unknown>>(
+      new ComponentContext(surface, 'c-list-arr-tpl'),
+      listOrActiveArraySchema,
+    );
+    assert.deepStrictEqual(listTplBinder.snapshot.content, [
+      {id: 'tpl-1', basePath: '/rows/0'},
+      {id: 'tpl-1', basePath: '/rows/1'},
+    ]);
+    listTplBinder.dispose();
+
+    // Verify (2): [single, nested] in both orders
+    for (const [idx, slotSchema] of [singleOrNestedFirst, singleOrNestedSecond].entries()) {
+      const arrCompId = `c-slot-arr-${idx}`;
+      surface.componentsModel.addComponent(
+        new ComponentModel(
+          arrCompId,
+          'SlotBox',
+          {slot: [{title: {path: '/secTitle'}, child: 'kid-1'}]},
+          catalog,
+        ),
+      );
+      const slotArrBinder = new GenericBinder<Record<string, unknown>>(
+        new ComponentContext(surface, arrCompId),
+        slotSchema,
+      );
+      const slotArrItems = slotArrBinder.snapshot.slot as Array<Record<string, unknown>>;
+      assert.strictEqual(slotArrItems.length, 1);
+      assert.strictEqual(slotArrItems[0].title, 'Resolved Section');
+      assert.strictEqual(slotArrItems[0].child, 'kid-1');
+      assert.strictEqual(typeof slotArrItems[0].setTitle, 'function');
+      slotArrBinder.dispose();
+
+      const strCompId = `c-slot-str-${idx}`;
+      surface.componentsModel.addComponent(
+        new ComponentModel(strCompId, 'SlotBox', {slot: 'kid-1'}, catalog),
+      );
+      const slotStrBinder = new GenericBinder<Record<string, unknown>>(
+        new ComponentContext(surface, strCompId),
+        slotSchema,
+      );
+      assert.strictEqual(slotStrBinder.snapshot.slot, 'kid-1');
+      slotStrBinder.dispose();
+    }
+
+    // Verify (3): Transform-backed pipeline into typed output
+    surface.componentsModel.addComponent(
+      new ComponentModel(
+        'c-transform-pipe',
+        'PipeBox',
+        {payload: {label: {path: '/secTitle'}, onTap: {event: {name: 'tapped'}}}},
+        catalog,
+      ),
+    );
+    const pipeBinder = new GenericBinder<Record<string, unknown>>(
+      new ComponentContext(surface, 'c-transform-pipe'),
+      transformedPipelineSchema,
+    );
+    const resolvedPayload = pipeBinder.snapshot.payload as Record<string, unknown>;
+    assert.strictEqual(resolvedPayload.label, 'Resolved Section');
+    assert.strictEqual(typeof resolvedPayload.onTap, 'function');
+    pipeBinder.dispose();
+
+    // Verify (4): Explicit ACTION and ComponentId intersected or unioned with dynamic catchall (both orders)
+    for (const [idx, catchallSchema] of [
+      explicitAndCatchallLeft,
+      explicitAndCatchallRight,
+      explicitOrCatchallLeft,
+      explicitOrCatchallRight,
+    ].entries()) {
+      const scraped = scrapeComponentBehavior(catchallSchema);
+      assert.strictEqual(scraped.type, 'OBJECT');
+      if (scraped.type === 'OBJECT') {
+        assert.deepStrictEqual(scraped.shape.fixed, {type: 'ACTION'});
+        assert.deepStrictEqual(scraped.shape.child, {type: 'STATIC'});
+        assert.deepStrictEqual(scraped.catchall, {type: 'DYNAMIC'});
+      }
+
+      const cid = `c-catchall-and-${idx}`;
+      surface.componentsModel.addComponent(
+        new ComponentModel(
+          cid,
+          'CatchallAnd',
+          {
+            fixed: {event: {name: 'go'}},
+            child: 'child-id-1',
+            extra: {path: '/extraVal'},
+          },
+          catalog,
+        ),
+      );
+      const andBinder = new GenericBinder<Record<string, unknown>>(
+        new ComponentContext(surface, cid),
+        catchallSchema,
+      );
+      assert.strictEqual(typeof andBinder.snapshot.fixed, 'function');
+      assert.strictEqual(andBinder.snapshot.child, 'child-id-1');
+      assert.strictEqual(andBinder.snapshot.extra, 'Extra Dynamic');
+      andBinder.dispose();
+    }
+
+    // Verify (5): Union with catchall on only one branch leaves closed sibling object untouched
+    for (const [idx, unionSchema] of [
+      unionPartialCatchallLeft,
+      unionPartialCatchallRight,
+    ].entries()) {
+      const cid = `c-union-partial-${idx}`;
+      surface.componentsModel.addComponent(
+        new ComponentModel(
+          cid,
+          'UnionPartial',
+          {kind: 'closed', meta: {path: '/secTitle'}, extra: {path: '/extraVal'}},
+          catalog,
+        ),
+      );
+      const uBinder = new GenericBinder<Record<string, unknown>>(
+        new ComponentContext(surface, cid),
+        unionSchema,
+      );
+      assert.deepStrictEqual(uBinder.snapshot.meta, {path: '/secTitle'});
+      assert.strictEqual(uBinder.snapshot.extra, 'Extra Dynamic');
+      uBinder.dispose();
+    }
+
+    // Verify (6): Catalog.fromJson oneOf behaviors (including nested $defs oneOf on `child`)
+    surface.componentsModel.addComponent(
+      new ComponentModel(
+        'c-oneof-comp',
+        'OneOfComp',
+        {
+          child: {path: '/secTitle'},
+          disabled: {path: '/flag'},
+          onPress: {event: {name: 'pressed'}},
+          items: {componentId: 'tpl-1', path: '/rows'},
+        },
+        catalog,
+      ),
+    );
+    const oneOfBinder = new GenericBinder<Record<string, unknown>>(
+      new ComponentContext(surface, 'c-oneof-comp'),
+      oneOfCompSchema,
+    );
+    assert.strictEqual(oneOfBinder.snapshot.child, 'Resolved Section');
+    assert.strictEqual(oneOfBinder.snapshot.disabled, false);
+    assert.strictEqual(typeof oneOfBinder.snapshot.onPress, 'function');
+    assert.deepStrictEqual(oneOfBinder.snapshot.items, [
+      {id: 'tpl-1', basePath: '/rows/0'},
+      {id: 'tpl-1', basePath: '/rows/1'},
+    ]);
+    oneOfBinder.dispose();
+
+    surface.dispose();
+  });
+});
+
+describe('GenericBinder @accessibility mirror', () => {
+  function setup(schema: z.ZodTypeAny) {
+    const catalog = new Catalog('test', '1.0', [], []);
+    const surface = new SurfaceModel('s1', catalog);
+    surface.dataModel.set('/label', 'Save');
+    surface.componentsModel.addComponent(
+      new ComponentModel('c1', 'Widget', {'@accessibility': {label: {'@path': '/label'}}}, catalog),
+    );
+    const binder = new GenericBinder<{
+      'accessibility'?: unknown;
+      '@accessibility'?: {label?: string};
+    }>(new ComponentContext(surface, 'c1'), schema);
+    const sub = binder.subscribe(() => {});
+    return {surface, binder, sub};
+  }
+
+  it('does not mirror @accessibility onto a custom accessibility the payload omits', async () => {
+    const {surface, binder, sub} = setup(
+      z.object({accessibility: z.enum(['high', 'low']).optional()}),
+    );
+    assert.strictEqual(binder.snapshot['@accessibility']?.label, 'Save');
+    assert.strictEqual(binder.snapshot.accessibility, undefined);
+
+    surface.dataModel.set('/label', 'Cancel');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual(binder.snapshot['@accessibility']?.label, 'Cancel');
+    assert.strictEqual(binder.snapshot.accessibility, undefined);
+
+    sub.unsubscribe();
+    surface.dispose();
+  });
+
+  it('mirrors @accessibility onto accessibility when the schema declares no custom one', async () => {
+    const {surface, binder, sub} = setup(z.object({text: z.string().optional()}));
+    assert.deepStrictEqual(binder.snapshot.accessibility, binder.snapshot['@accessibility']);
+    assert.strictEqual(
+      (binder.snapshot.accessibility as {label?: string} | undefined)?.label,
+      'Save',
+    );
+
+    surface.dataModel.set('/label', 'Cancel');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual(
+      (binder.snapshot.accessibility as {label?: string} | undefined)?.label,
+      'Cancel',
+    );
 
     sub.unsubscribe();
     surface.dispose();

@@ -102,7 +102,7 @@ def to_pascal_case(name: str) -> str:
     """Converts a camelCase or snake_case string to PascalCase preserving camelCase segments."""
     if not name:
         return name
-    if "_" not in name and "-" not in name and " " not in name:
+    if name.isalnum():
         return name[0].upper() + name[1:]
     clean = re.sub(r"[^a-zA-Z0-9_]", "_", name)
     parts = clean.split("_")

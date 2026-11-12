@@ -31,6 +31,9 @@ SUITE_VERSIONS = ("v1.0", "v0.9-lowered")
 
 _RESERVED_KEYS_TO_V09 = {"@path": "path", "@call": "call"}
 _RESERVED_KEYS_TO_V10 = {"path": "@path", "call": "@call"}
+# v1.0 component envelope mixins, renamed only at a component's root.
+_MIXIN_KEYS_TO_V09 = {"@checks": "checks", "@accessibility": "accessibility"}
+_MIXIN_KEYS_TO_V10 = {v: k for k, v in _MIXIN_KEYS_TO_V09.items()}
 
 _VERSION_FIELD_RE = re.compile(
     r'([\u201c"]version[\u201d"]\s*:\s*[\u201c"])(v?1\.0|v0\.9)([\u201d"])'
@@ -49,9 +52,47 @@ _NO_USER_MESSAGE = (
     "The v0.9 Action has no userMessage field, so an event carrying one runs as"
     " written in v1.0 only."
 )
+_NO_SYSTEM_FUNCTIONS = (
+    "v0.9 defines no system functions, so a call to @index runs as written in"
+    " v1.0 only."
+)
 
 V1_ONLY_CASES: dict[str, str] = {
     # Express cases
+    "test_compile_express_index_system_function": _NO_SYSTEM_FUNCTIONS,
+    "test_compile_express_index_system_function_positional_offset": (
+        _NO_SYSTEM_FUNCTIONS
+    ),
+    "test_compile_express_index_system_function_named_offset": _NO_SYSTEM_FUNCTIONS,
+    "test_decompile_express_index_system_function": _NO_SYSTEM_FUNCTIONS,
+    "test_express_snippet_lists_system_functions_from_v1_0": _NO_SYSTEM_FUNCTIONS,
+    "test_compile_express_system_function_with_catalog_id_is_a_validation_error": (
+        _NO_SYSTEM_FUNCTIONS
+    ),
+    "test_compile_express_unknown_system_function_is_a_validation_error": (
+        _NO_SYSTEM_FUNCTIONS
+    ),
+    "test_compile_express_unreferenced_variable_holding_a_system_function_call_with_catalog_id_is_a_validation_error": (
+        _NO_SYSTEM_FUNCTIONS
+    ),
+    "test_compile_express_unreferenced_variable_holding_an_unknown_system_function_is_a_validation_error": (
+        _NO_SYSTEM_FUNCTIONS
+    ),
+    "test_compile_express_root_holding_an_unknown_system_function_is_a_validation_error": (
+        _NO_SYSTEM_FUNCTIONS
+    ),
+    "test_compile_express_variable_holding_a_system_function_call_is_inlined": (
+        _NO_SYSTEM_FUNCTIONS
+    ),
+    "test_compile_express_variable_holding_a_system_function_call_with_catalog_id_is_a_validation_error": (
+        _NO_SYSTEM_FUNCTIONS
+    ),
+    "test_decompile_express_system_function_with_catalog_id_is_a_validation_error": (
+        _NO_SYSTEM_FUNCTIONS
+    ),
+    "test_decompile_express_unknown_system_function_is_a_validation_error": (
+        _NO_SYSTEM_FUNCTIONS
+    ),
     "test_compile_express_event_user_message": _NO_USER_MESSAGE,
     "test_compile_express_event_user_message_binding_with_context": _NO_USER_MESSAGE,
     "test_decompile_express_event_action_with_user_message": _NO_USER_MESSAGE,
@@ -103,6 +144,16 @@ V1_ONLY_CASES: dict[str, str] = {
     ),
     "test_compile_express_empty_extensions_preserved": (
         "Surface and component extensions require A2UI v1.0 or later."
+    ),
+    "test_decompile_express_component_metadata_writes_extensions": (
+        "Surface and component extensions require A2UI v1.0 or later."
+    ),
+    "test_decompile_express_legacy_bare_metadata_on_v1_0": (
+        "Surface and component extensions require A2UI v1.0 or later."
+    ),
+    "test_decompile_express_legacy_bare_checks_on_v1_0": (
+        "Tests v1.0 reading the legacy bare checks key, which is the v0.9 key, so"
+        " it runs as written in v1.0 only."
     ),
     "test_compile_express_standalone_call_renderer_or_agent_function": (
         "Protocol v0.9 has no callRendererFunction message."
@@ -338,6 +389,9 @@ def _rename_keys_in(node: Any, *, lower: bool) -> Any:
     if isinstance(node, dict):
         is_template = "componentId" in node
         key_map = _RESERVED_KEYS_TO_V09 if lower else _RESERVED_KEYS_TO_V10
+        if "id" in node and "component" in node:
+            mixins = _MIXIN_KEYS_TO_V09 if lower else _MIXIN_KEYS_TO_V10
+            key_map = {**key_map, **mixins}
         return {
             (k if is_template else key_map.get(k, k)): _rename_keys_in(v, lower=lower)
             for k, v in node.items()

@@ -25,6 +25,7 @@ This is the reference TypeScript implementation of the A2UI Core State Layer (`a
 
 ## **Local Technical Decisions & Overrides**
 
+- **Component envelope split**: `src/catalog/component_envelope.ts` holds the shared logic that separates the v1.0 `@catalogId`, `@accessibility`, `@metadata`, and `@checks` envelope keys from catalog properties, using the component schema to tell a custom bare property apart from a legacy bare envelope key. `PayloadValidator`, `MessageProcessor`, the validation helpers, and the schema loader all use it, so they cannot disagree on which keys are envelope.
 - **Unified State & Version Entrypoints**: Shared state and resolution primitives live under `src/{state,processing,resolution,rpc,validation,universal}` while `src/v0_9/` and `src/v1_0/` expose version-specific schemas and subpath barrels.
 - **Deprecated `ComponentNode.context`**: Kept for compatibility until the next breaking release; adapters and universal elements do not read it.
 - **TypeScript Reflection**: We utilize Zod runtime reflection to implement the automated generic binder layer. This automatically resolves complex properties (such as `DynamicString` or action callbacks) into simple static native types, freeing renderers (React, Angular, Lit) from having to deal with raw subscription loops. `ResolveA2uiProps` mirrors the binder at the type level, inside lists and objects too, and leaves lists of `CheckRule` as they are, as the binder does.

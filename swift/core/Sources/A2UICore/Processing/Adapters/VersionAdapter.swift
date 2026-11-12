@@ -35,8 +35,46 @@ public protocol VersionAdapter: Sendable {
   /// Validates a raw JSON payload and normalizes it into version-neutral operations.
   func extractOperations(from payload: JSONValue) throws -> [InternalOperation]
 
+  /// Validates a raw JSON payload and normalizes it into version-neutral operations, applying
+  /// the processor's unknown-element policy where the protocol version defines one.
+  ///
+  /// - Parameters:
+  ///   - payload: The raw JSON message payload or message array.
+  ///   - allowUnknownElements: Whether the caller's validation config permits unknown elements
+  ///     (see ``ValidationConfig/allowUnknownElements``).
+  func extractOperations(
+    from payload: JSONValue,
+    allowUnknownElements: Bool
+  ) throws -> [InternalOperation]
+
   /// Normalizes a decoded ``AgentToRendererMessage`` into version-neutral operations.
   func adaptMessage(_ message: AgentToRendererMessage) throws -> [InternalOperation]
+
+  /// Normalizes a decoded ``AgentToRendererMessage`` into version-neutral operations, applying
+  /// the same unknown-element policy as ``extractOperations(from:allowUnknownElements:)``.
+  func adaptMessage(
+    _ message: AgentToRendererMessage,
+    allowUnknownElements: Bool
+  ) throws -> [InternalOperation]
+}
+
+extension VersionAdapter {
+  /// Ignores `allowUnknownElements` and validates the payload as
+  /// ``extractOperations(from:)`` does.
+  public func extractOperations(
+    from payload: JSONValue,
+    allowUnknownElements: Bool
+  ) throws -> [InternalOperation] {
+    try extractOperations(from: payload)
+  }
+
+  /// Ignores `allowUnknownElements` and adapts the message as ``adaptMessage(_:)`` does.
+  public func adaptMessage(
+    _ message: AgentToRendererMessage,
+    allowUnknownElements: Bool
+  ) throws -> [InternalOperation] {
+    try adaptMessage(message)
+  }
 }
 
 /// Evaluates whether a catalog's declared protocol version is compatible with an expected
