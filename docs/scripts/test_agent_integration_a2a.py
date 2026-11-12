@@ -42,7 +42,9 @@ def test_a2a_preserves_rpc_replies_and_processes_other_parts(
     companion: str | None,
 ) -> None:
     async def run() -> None:
-        blocks = re.findall(r"```python\n(.*?)\n```", GUIDE.read_text(), re.DOTALL)
+        blocks = re.findall(
+            r"```python\n(.*?)\n```", GUIDE.read_text(encoding="utf-8"), re.DOTALL
+        )
         block = next(b for b in blocks if "class OrderA2aExecutor(" in b)
         namespace: dict[str, Any] = {}
         exec(compile(block, str(GUIDE), "exec"), namespace)
