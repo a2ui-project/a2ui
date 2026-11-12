@@ -84,7 +84,7 @@ The `summary`, the `reason` and the `suggestion` are shown in the left column as
 
 Labels have their colors from the repository, as on GitHub. The related issues and PRs are links, and the link to a closed item says "(closed)", or "(merged)" for a merged PR. Every link outside that text, and every button that opens a link, has a small **Copy link** button on its right.
 
-**Apply**, in the right column of every tab, applies the suggestion of each item in the tabs to it on GitHub, skipping the suggestions that change nothing. When more than one item has changes, the button says how many, as in "Apply to 2 items", since **Revert** acts on one tab and **Apply** on all of them. If an item has `status: needs-team-input` and its suggestion does not add it, the tool also removes that label, as [triage.md](../../../../../docs/contributing/triage/triage.md#second-line-triage-weekly-by-triager) asks once the item is triaged. `status: needs-team-input` is an ordinary label otherwise: the triager adds it with the other labels, and **Apply** adds it.
+**Apply**, in the right column of every tab, applies the suggestion of each item in the tabs to it on GitHub, skipping the suggestions that change nothing. When more than one item has changes, the button says how many, as in "Apply to 2 items", since **Revert** acts on one tab and **Apply** on all of them. `status: needs-team-input` is an ordinary label: the triager adds or removes it with the other labels, and **Apply** applies that.
 
 ## CUJ
 
@@ -134,7 +134,7 @@ Ann goes through the **Needs team input** group with other team members. For eac
 1. If they can triage it in a couple of minutes, Ann adjusts the suggestion and clicks **Apply**.
 2. Otherwise, they pick an expert in the area. The triage bot suggests one from the commit history of the affected area (see [Suggested assignees](triage_bot.blueprint.md#suggested-assignees)). Ann adds `status: assigned-for-triage` to the labels, adds the expert to the assignees, and clicks **Apply**.
 
-In both cases, the tool removes `status: needs-team-input` from the item.
+In both cases, Ann also checks `status: needs-team-input` in the labels to remove.
 
 ### Close a duplicate
 

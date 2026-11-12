@@ -445,9 +445,6 @@ class TriageController extends ChangeNotifier {
 
   /// Applies the draft for [item] to it on GitHub.
   ///
-  /// If the item has `status: needs-team-input` and the draft does not add
-  /// it, also removes the label, since the item is triaged.
-  ///
   /// If the item is selected, selects the next item that is not handled
   /// yet right away, without waiting for the apply. On success, records the
   /// item in the session.
@@ -477,10 +474,7 @@ class TriageController extends ChangeNotifier {
   /// Applies the draft for [item].
   Future<void> _applyOne(TriageItem item) async {
     final ItemRef n = item.ref;
-    final TriageSuggestion suggestion = _withoutTeamInput(
-      item,
-      _drafts[n]!.toSuggestion(),
-    );
+    final TriageSuggestion suggestion = _drafts[n]!.toSuggestion();
     final MilestoneChange milestone = _drafts[n]!.milestoneChange;
     _applying.add(n);
     _results.remove(n);
@@ -518,17 +512,6 @@ class TriageController extends ChangeNotifier {
     TriageItem item,
     TriageSuggestion suggestion,
   ) => item.needsTriage ? _removing(suggestion, needsTriageLabel) : suggestion;
-
-  /// Adds `status: needs-team-input` to the labels that [suggestion]
-  /// removes, if [item] has the label and [suggestion] does not add it.
-  static TriageSuggestion _withoutTeamInput(
-    TriageItem item,
-    TriageSuggestion suggestion,
-  ) =>
-      item.needsTeamInput &&
-          !suggestion.addedLabels.contains(needsTeamInputLabel)
-      ? _removing(suggestion, needsTeamInputLabel)
-      : suggestion;
 
   /// [suggestion], removing [label] too.
   static TriageSuggestion _removing(TriageSuggestion suggestion, String label) {

@@ -85,12 +85,7 @@ class ItemInfo extends StatelessWidget {
             icon: Icons.groups_outlined,
           ),
         if (!item.isOpen) const _Notice('The item is closed.'),
-        if (item.needsTeamInput)
-          const _Notice(
-            'The item has "$needsTeamInputLabel". Apply removes the '
-            'label, unless the suggestion adds it.',
-          )
-        else if (!item.needsTriage)
+        if (!item.needsTriage && !item.needsTeamInput)
           const _Notice('The item does not have "$needsTriageLabel".'),
         if (controller.changedOnGitHub(item.ref))
           const _Notice(

@@ -347,8 +347,8 @@ void main() {
     expect(controller.changedOnGitHub(a2ui(10)), isFalse);
   });
 
-  test('applying to an item that needs team input removes the label, and '
-      'keeps the item in its group', () async {
+  test('applying to an item that needs team input keeps the label, and '
+      'the item in its group', () async {
     await controller.start();
     controller.draftFor(
       controller.item(a2ui(40))!,
@@ -359,10 +359,9 @@ void main() {
 
     expect(github.calls, [
       'DELETE issues/40/labels/status%3A%20needs-triage',
-      'DELETE issues/40/labels/status%3A%20needs-team-input',
       'POST issues/40/labels {"labels":["P2"]}',
     ]);
-    expect(controller.item(a2ui(40))!.needsTeamInput, isFalse);
+    expect(controller.item(a2ui(40))!.needsTeamInput, isTrue);
     expect(numbers(controller.teamInputItems), [40, 41]);
     expect(controller.session.isApplied(a2ui(40)), isTrue);
   });
