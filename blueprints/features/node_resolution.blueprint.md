@@ -54,8 +54,8 @@ The layers have separate responsibilities:
 
 ### **6. Checks**
 
-- When a component carries `checks`, the resolver evaluates each `CheckRule` in the node's data scope and normalizes every outcome to a `ValidationResult` (`valid`, optional `code`, `message` taking the function's own message or else the rule's static `message`, and `severity` of `'error' | 'warning' | 'info'`, defaulting to `'error'`; a boolean result from a v0.9 check function normalizes with severity `'error'`).
-- Alongside `checks`, the node's `props` exposes three sibling properties:
+- When a component carries checks (`@checks` on v1.0, `checks` before v1.0), the resolver evaluates each `CheckRule` in the node's data scope and normalizes every outcome to a `ValidationResult` (`valid`, optional `code`, `message` taking the function's own message or else the rule's static `message`, and `severity` of `'error' | 'warning' | 'info'`, defaulting to `'error'`; a boolean result from a v0.9 check function normalizes with severity `'error'`).
+- Alongside the checks, the node's `props` exposes three sibling properties:
   - `isValid`: `false` if and only if at least one failed result has severity `'error'`.
   - `validationErrors`: the messages of the failed results with severity `'error'`, in rule order.
   - `validationResults`: every failed `ValidationResult` (including its `code` and `severity`), in rule order.
@@ -64,12 +64,13 @@ The layers have separate responsibilities:
 
 - A node's `props` emits when its own resolved properties change, and only then. A child's change emits on the child; replacing a child emits on the parent.
 - An update that changes several properties MUST emit once, with the complete new state.
-- A node's `metadata` emits when the component definition's envelope `metadata` changes, and only then. A metadata-only update MUST NOT emit `props`, and a properties-only update MUST NOT emit `metadata`. Both signals derive from the component model, so a single `updateComponents` entry that changes both coalesces into one reactive batch.
+- A node's `metadata` emits when the component definition's envelope `@metadata` changes, and only then. A metadata-only update MUST NOT emit `props`, and a properties-only update MUST NOT emit `metadata`. Both signals derive from the component model, so a single `updateComponents` entry that changes both coalesces into one reactive batch.
 
 ### **8. Metadata**
 
-- A resolved or `unknown-type` node exposes the component definition's `ComponentCommon.metadata` envelope as a read-only reactive `metadata` value; `pending` and `cyclic` placeholders expose no metadata.
-- `metadata` is never merged into `props`: a schema property named `metadata` stays in `props`, and the envelope stays in `metadata`.
+- A resolved or `unknown-type` node exposes the component definition's `ComponentCommon.@metadata` envelope as a read-only reactive `metadata` value; `pending` and `cyclic` placeholders expose no metadata.
+- `@metadata` is never merged into `props`: a schema property named `metadata` stays in `props`, and the envelope stays in `metadata`.
+- On v1.0, `@accessibility` reaches `props` under the `@accessibility` key, so a schema property named `accessibility` stays in `props['accessibility']` unchanged. Before v1.0, the protocol attributes arrive under `props['accessibility']`.
 - Every node that references the same component id (including template instances) reads the same metadata source, so an update reaches all of them without rebuilding any subtree.
 - Static catalog definition metadata is read from `impl.metadata`, not from the node.
 

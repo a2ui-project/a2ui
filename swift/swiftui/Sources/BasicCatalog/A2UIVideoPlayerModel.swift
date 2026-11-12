@@ -13,12 +13,13 @@
 // limitations under the License.
 
 import AVFoundation
-import SwiftUI
+import Observation
 
 /// Observable model that owns the `AVPlayer` lifecycle for ``A2UIVideo``.
 @MainActor
-public final class A2UIVideoPlayerModel: ObservableObject {
-  @Published public private(set) var player: AVPlayer?
+@Observable
+public final class A2UIVideoPlayerModel {
+  public private(set) var player: AVPlayer?
 
   public init() {}
 

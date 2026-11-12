@@ -457,7 +457,7 @@ surface("s1")
               'id': 'root',
               'component': 'Text',
               'text': 'Hello',
-              'metadata': {
+              '@metadata': {
                 'extensions': {'comp_ext': true},
               },
             },
@@ -494,7 +494,7 @@ surface("s1")
             'id': 'root',
             'component': 'Text',
             'text': 'Hello',
-            'metadata': {
+            '@metadata': {
               'extensions': {'comp_ext': 42},
             },
           },
@@ -594,8 +594,8 @@ surface("s1")
         "line 2, column 13: mismatched input '<EOF>'",
       ),
       'one the lexer finds': (
-        'root = @Text("x")',
-        "line 1, column 8: token recognition error at: '@'",
+        'root = ^Text("x")',
+        "line 1, column 8: token recognition error at: '^'",
       ),
       'an argument given twice': (
         'root = Text(text="a", text="b")',
