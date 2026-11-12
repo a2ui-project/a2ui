@@ -187,46 +187,55 @@ export function expectsOptionObjects(
     return false;
   }
   visited.add(schema);
-  const s = helper?.dereferenceLocalSchema(schema) ?? (schema as Record<string, unknown>);
-  if ('items' in s) {
-    const itemsSchema = s.items;
+  try {
+    const s = helper?.dereferenceLocalSchema(schema) ?? (schema as Record<string, unknown>);
+    if ('items' in s) {
+      const itemsSchema = s.items;
 
-    const hasLabelValue = (sub: unknown): boolean => {
-      if (!sub || typeof sub !== 'object' || visited.has(sub)) {
-        return false;
-      }
-      visited.add(sub);
-      const subObj = helper?.dereferenceLocalSchema(sub) ?? (sub as Record<string, unknown>);
-      if (
-        subObj.properties &&
-        typeof subObj.properties === 'object' &&
-        'label' in (subObj.properties as Record<string, unknown>) &&
-        'value' in (subObj.properties as Record<string, unknown>)
-      ) {
-        return true;
-      }
-      for (const k of ['allOf', 'oneOf', 'anyOf'] as const) {
-        const list = subObj[k];
-        if (Array.isArray(list)) {
-          if (list.some(hasLabelValue)) {
+      const labelValueVisited = new Set<unknown>();
+      const hasLabelValue = (sub: unknown): boolean => {
+        if (!sub || typeof sub !== 'object' || labelValueVisited.has(sub)) {
+          return false;
+        }
+        labelValueVisited.add(sub);
+        try {
+          const subObj = helper?.dereferenceLocalSchema(sub) ?? (sub as Record<string, unknown>);
+          if (
+            subObj.properties &&
+            typeof subObj.properties === 'object' &&
+            'label' in (subObj.properties as Record<string, unknown>) &&
+            'value' in (subObj.properties as Record<string, unknown>)
+          ) {
             return true;
           }
+          for (const k of ['allOf', 'oneOf', 'anyOf'] as const) {
+            const list = subObj[k];
+            if (Array.isArray(list)) {
+              if (list.some(hasLabelValue)) {
+                return true;
+              }
+            }
+          }
+          return false;
+        } finally {
+          labelValueVisited.delete(sub);
+        }
+      };
+
+      return hasLabelValue(itemsSchema);
+    }
+    for (const key of ['allOf', 'oneOf', 'anyOf'] as const) {
+      const list = s[key];
+      if (Array.isArray(list)) {
+        if (list.some(sub => expectsOptionObjects(sub, helper, visited))) {
+          return true;
         }
       }
-      return false;
-    };
-
-    return hasLabelValue(itemsSchema);
-  }
-  for (const key of ['allOf', 'oneOf', 'anyOf'] as const) {
-    const list = s[key];
-    if (Array.isArray(list)) {
-      if (list.some(sub => expectsOptionObjects(sub, helper, visited))) {
-        return true;
-      }
     }
+    return false;
+  } finally {
+    visited.delete(schema);
   }
-  return false;
 }
 
 /**

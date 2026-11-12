@@ -185,22 +185,26 @@ function getSchemaEnum(
     return undefined;
   }
   visited.add(propSchema);
-  const s = helper?.dereferenceLocalSchema(propSchema) ?? (propSchema as Record<string, unknown>);
-  if (Array.isArray(s.enum)) {
-    return s.enum as string[];
-  }
-  for (const key of ['oneOf', 'anyOf', 'allOf'] as const) {
-    const list = s[key];
-    if (Array.isArray(list)) {
-      for (const sub of list) {
-        const val = getSchemaEnum(sub, helper, visited);
-        if (val) {
-          return val;
+  try {
+    const s = helper?.dereferenceLocalSchema(propSchema) ?? (propSchema as Record<string, unknown>);
+    if (Array.isArray(s.enum)) {
+      return s.enum as string[];
+    }
+    for (const key of ['oneOf', 'anyOf', 'allOf'] as const) {
+      const list = s[key];
+      if (Array.isArray(list)) {
+        for (const sub of list) {
+          const val = getSchemaEnum(sub, helper, visited);
+          if (val) {
+            return val;
+          }
         }
       }
     }
+    return undefined;
+  } finally {
+    visited.delete(propSchema);
   }
-  return undefined;
 }
 
 /**
@@ -223,8 +227,12 @@ function isProtocolWireEnvelope(
         return false;
       }
       visited.add(sub);
-      const resolved = helper.dereferenceLocalSchema(sub) ?? (sub as Record<string, unknown>);
-      return isProtocolWireEnvelope(resolved, helper, visited);
+      try {
+        const resolved = helper.dereferenceLocalSchema(sub) ?? (sub as Record<string, unknown>);
+        return isProtocolWireEnvelope(resolved, helper, visited);
+      } finally {
+        visited.delete(sub);
+      }
     })
   ) {
     return true;
@@ -721,45 +729,49 @@ export class ExpressPromptGenerator extends PromptGenerator {
       return undefined;
     }
     visited.add(schema);
-    const s = helper.dereferenceLocalSchema(schema);
-    if (!s || isProtocolWireEnvelope(s, helper)) {
-      return undefined;
-    }
-    if (Array.isArray(s.allOf)) {
-      const mergedProps: Record<string, unknown> = {};
-      for (const sub of s.allOf) {
-        const subProps = this.resolveObjectProperties(sub, helper, new Set(visited));
-        if (subProps) {
-          Object.assign(mergedProps, subProps);
+    try {
+      const s = helper.dereferenceLocalSchema(schema);
+      if (!s || isProtocolWireEnvelope(s, helper)) {
+        return undefined;
+      }
+      if (Array.isArray(s.allOf)) {
+        const mergedProps: Record<string, unknown> = {};
+        for (const sub of s.allOf) {
+          const subProps = this.resolveObjectProperties(sub, helper, visited);
+          if (subProps) {
+            Object.assign(mergedProps, subProps);
+          }
+        }
+        if (s.properties && typeof s.properties === 'object') {
+          Object.assign(mergedProps, s.properties as Record<string, unknown>);
+        }
+        if (Object.keys(mergedProps).length > 0) {
+          return mergedProps;
         }
       }
-      if (s.properties && typeof s.properties === 'object') {
-        Object.assign(mergedProps, s.properties as Record<string, unknown>);
+      if (
+        (s.type === 'object' || s.type === undefined) &&
+        s.properties &&
+        typeof s.properties === 'object' &&
+        Object.keys(s.properties as Record<string, unknown>).length > 0
+      ) {
+        return s.properties as Record<string, unknown>;
       }
-      if (Object.keys(mergedProps).length > 0) {
-        return mergedProps;
-      }
-    }
-    if (
-      (s.type === 'object' || s.type === undefined) &&
-      s.properties &&
-      typeof s.properties === 'object' &&
-      Object.keys(s.properties as Record<string, unknown>).length > 0
-    ) {
-      return s.properties as Record<string, unknown>;
-    }
-    for (const key of ['oneOf', 'anyOf'] as const) {
-      const list = s[key];
-      if (Array.isArray(list)) {
-        for (const sub of list) {
-          const props = this.resolveObjectProperties(sub, helper, visited);
-          if (props) {
-            return props;
+      for (const key of ['oneOf', 'anyOf'] as const) {
+        const list = s[key];
+        if (Array.isArray(list)) {
+          for (const sub of list) {
+            const props = this.resolveObjectProperties(sub, helper, visited);
+            if (props) {
+              return props;
+            }
           }
         }
       }
+      return undefined;
+    } finally {
+      visited.delete(schema);
     }
-    return undefined;
   }
 
   private resolveStructuredProperty(
@@ -778,38 +790,42 @@ export class ExpressPromptGenerator extends PromptGenerator {
       return undefined;
     }
     if (Array.isArray(s.allOf)) {
-      const objProps = this.resolveObjectProperties(schema, helper, new Set(visited));
+      const objProps = this.resolveObjectProperties(schema, helper, visited);
       if (objProps) {
         return {kind: 'object', properties: objProps};
       }
     }
     visited.add(schema);
-    if (
-      (s.type === 'object' || s.type === undefined) &&
-      s.properties &&
-      typeof s.properties === 'object' &&
-      Object.keys(s.properties as Record<string, unknown>).length > 0
-    ) {
-      return {kind: 'object', properties: s.properties as Record<string, unknown>};
-    }
-    if (s.type === 'array' && s.items && typeof s.items === 'object') {
-      const itemProps = this.resolveObjectProperties(s.items, helper, new Set(visited));
-      if (itemProps) {
-        return {kind: 'array', properties: itemProps};
+    try {
+      if (
+        (s.type === 'object' || s.type === undefined) &&
+        s.properties &&
+        typeof s.properties === 'object' &&
+        Object.keys(s.properties as Record<string, unknown>).length > 0
+      ) {
+        return {kind: 'object', properties: s.properties as Record<string, unknown>};
       }
-    }
-    for (const key of ['oneOf', 'anyOf', 'allOf'] as const) {
-      const list = s[key];
-      if (Array.isArray(list)) {
-        for (const sub of list) {
-          const resolved = this.resolveStructuredProperty(sub, helper, visited);
-          if (resolved) {
-            return resolved;
+      if (s.type === 'array' && s.items && typeof s.items === 'object') {
+        const itemProps = this.resolveObjectProperties(s.items, helper, visited);
+        if (itemProps) {
+          return {kind: 'array', properties: itemProps};
+        }
+      }
+      for (const key of ['oneOf', 'anyOf', 'allOf'] as const) {
+        const list = s[key];
+        if (Array.isArray(list)) {
+          for (const sub of list) {
+            const resolved = this.resolveStructuredProperty(sub, helper, visited);
+            if (resolved) {
+              return resolved;
+            }
           }
         }
       }
+      return undefined;
+    } finally {
+      visited.delete(schema);
     }
-    return undefined;
   }
 
   private formatComponentPropertyDetail(
