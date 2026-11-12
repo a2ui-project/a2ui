@@ -14,159 +14,41 @@
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:triage/triage.dart';
-import 'package:triage_ui/src/model/milestone_change.dart';
 import 'package:triage_ui/src/model/triage_item.dart';
 import 'package:triage_ui/src/model/triage_session.dart';
 
 import '../../support/fake_github.dart';
 
 void main() {
-  TriageItem item(int number, String title, {bool pr = false}) =>
-      TriageItem.fromGraphQL(itemNode(number, pr: pr, title: title));
+  TriageItem item(int number) =>
+      TriageItem.fromGraphQL(itemNode(number, title: 'Item $number'));
 
-  test('reports the applied items, grouped by what was done', () {
+  test('tells the items sent to the team from the triaged ones', () {
     final session = TriageSession()
+      ..recordApplied(item(1), const TriageSuggestion(addedLabels: ['P2']))
       ..recordApplied(
-        item(4065, 'Flutter renderer crashes on an empty Row', pr: true),
-        const TriageSuggestion(closeAs: TriageCloseReason.completed),
-      )
-      ..recordApplied(
-        item(4066, 'Support dark theme in the Lit renderer'),
-        const TriageSuggestion(
-          closeAs: TriageCloseReason.duplicate,
-          duplicateOf: 1100,
-          reply: 'Thanks!',
-        ),
-      )
-      ..recordApplied(
-        item(4067, 'Fix typo in the quickstart'),
-        const TriageSuggestion(
-          addedLabels: ['P3', 'type: bug', 'size: small'],
-          newAssignees: ['octocat'],
-        ),
-      )
-      ..recordApplied(
-        item(4068, 'Add a Swift renderer'),
-        const TriageSuggestion(
-          addedLabels: ['status: assigned-for-triage'],
-          newAssignees: ['hubot', 'octocat'],
-          removedLabels: ['status: needs-team-input'],
-        ),
-      )
-      ..recordApplied(
-        item(4069, 'Question about catalogs'),
-        const TriageSuggestion(removedAssignees: ['hubot']),
+        item(2),
+        const TriageSuggestion(addedLabels: [needsTeamInputLabel]),
       );
 
-    expect(session.report(stillNeedTriage: 4), '''
-Triaged 5 items: 4 issues and 1 PR.
-4 items still need triage.
-
-- Closed: 1 issue and 1 PR
-  - https://github.com/a2ui-project/a2ui/pull/4065
-    Flutter renderer crashes on an empty Row: closed
-  - https://github.com/a2ui-project/a2ui/issues/4066
-    Support dark theme in the Lit renderer: closed as duplicate of #1100, replied
-
-- Assigned P3: 1 issue
-  - https://github.com/a2ui-project/a2ui/issues/4067
-    Fix typo in the quickstart: added P3, type: bug and size: small, assigned octocat
-
-- Assigned for triage: 1 issue
-  - https://github.com/a2ui-project/a2ui/issues/4068
-    Add a Swift renderer: added status: assigned-for-triage, removed status: needs-team-input, assigned hubot and octocat
-
-- Updated: 1 issue
-  - https://github.com/a2ui-project/a2ui/issues/4069
-    Question about catalogs: unassigned hubot''');
-  });
-
-  test('reports the items sent to the team apart from the triaged ones', () {
-    final session = TriageSession()
-      ..recordApplied(item(1, 'A'), const TriageSuggestion(addedLabels: ['P2']))
-      ..recordApplied(
-        item(2, 'B', pr: true),
-        const TriageSuggestion(
-          addedLabels: ['status: needs-team-input'],
-          reply: 'Why?',
-        ),
-      )
-      ..recordApplied(
-        item(3, 'C'),
-        const TriageSuggestion(addedLabels: ['status: needs-team-input']),
-      );
-
+    expect(session.isApplied(a2ui(1)), isTrue);
+    expect(session.isSentToTeam(a2ui(1)), isFalse);
+    expect(session.isHandled(a2ui(1)), isTrue);
     expect(session.isApplied(a2ui(2)), isFalse);
     expect(session.isSentToTeam(a2ui(2)), isTrue);
     expect(session.isHandled(a2ui(2)), isTrue);
-    expect(session.isSentToTeam(a2ui(1)), isFalse);
-    expect(session.report(stillNeedTriage: 3), '''
-Triaged 1 item: 1 issue.
-Sent 1 issue and 1 PR to the team.
-3 items still need triage.
-
-- Assigned P2: 1 issue
-  - https://github.com/a2ui-project/a2ui/issues/1
-    A: added P2
-
-- Needs team input: 1 issue and 1 PR
-  - https://github.com/a2ui-project/a2ui/pull/2
-    B: added status: needs-team-input, replied
-  - https://github.com/a2ui-project/a2ui/issues/3
-    C: added status: needs-team-input''');
-  });
-
-  test('reports milestone changes', () {
-    final session = TriageSession()
-      ..recordApplied(
-        item(1, 'A'),
-        const TriageSuggestion(),
-        milestone: const MilestoneChange(
-          set: 'December launch',
-          remove: 'November launch',
-        ),
-      )
-      ..recordApplied(
-        item(2, 'B'),
-        const TriageSuggestion(),
-        milestone: const MilestoneChange(remove: 'November launch'),
-      );
-
-    final String report = session.report(stillNeedTriage: 0);
-    expect(report, contains('A: set milestone December launch\n'));
-    expect(report, contains('B: removed milestone November launch'));
-  });
-
-  test('reports an empty session', () {
-    expect(
-      TriageSession().report(stillNeedTriage: 1),
-      'Nothing triaged yet.\n1 item still needs triage.',
-    );
+    expect(session.isHandled(a2ui(3)), isFalse);
   });
 
   test('a later apply to the same item replaces the earlier one', () {
     final session = TriageSession()
-      ..recordApplied(item(1, 'A'), const TriageSuggestion(addedLabels: ['P1']))
       ..recordApplied(
-        item(1, 'A'),
-        const TriageSuggestion(addedLabels: ['P2']),
-      );
+        item(1),
+        const TriageSuggestion(addedLabels: [needsTeamInputLabel]),
+      )
+      ..recordApplied(item(1), const TriageSuggestion(addedLabels: ['P2']));
 
-    expect(session.applied, hasLength(1));
-    expect(session.report(stillNeedTriage: 0), contains('Assigned P2'));
-  });
-
-  test('needs a report until the report with every applied item is copied', () {
-    final session = TriageSession();
-    expect(session.needsReport, isFalse);
-
-    session.recordApplied(item(1, 'A'), const TriageSuggestion(reply: 'Hi'));
-    expect(session.needsReport, isTrue);
-
-    session.recordCopied();
-    expect(session.needsReport, isFalse);
-
-    session.recordApplied(item(2, 'B'), const TriageSuggestion(reply: 'Hi'));
-    expect(session.needsReport, isTrue);
+    expect(session.isApplied(a2ui(1)), isTrue);
+    expect(session.isSentToTeam(a2ui(1)), isFalse);
   });
 }

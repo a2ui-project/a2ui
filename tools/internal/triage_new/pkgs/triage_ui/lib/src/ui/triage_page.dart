@@ -12,15 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 
 import '../model/triage_controller.dart';
 import 'column_divider.dart';
 import 'item_details.dart';
 import 'item_list.dart';
-import 'session_report_dialog.dart';
 import 'triage_scope.dart';
 
 /// The triage UI's only page: the header, the items on the left and the
@@ -33,36 +30,9 @@ class TriagePage extends StatefulWidget {
 }
 
 class _TriagePageState extends State<TriagePage> {
-  late final AppLifecycleListener _lifecycle;
-
   /// The width of the item list, which the triager changes by dragging the
   /// divider.
   double _listWidth = 400;
-
-  @override
-  void initState() {
-    super.initState();
-    _lifecycle = AppLifecycleListener(onExitRequested: _onExitRequested);
-  }
-
-  /// Offers the session report before the app closes, if the triager
-  /// applied items and did not copy the report since.
-  Future<AppExitResponse> _onExitRequested() async {
-    final TriageController controller = TriageScope.read(context);
-    if (!controller.session.needsReport) return AppExitResponse.exit;
-    final bool close = await showSessionReport(
-      context,
-      controller,
-      closing: true,
-    );
-    return close ? AppExitResponse.exit : AppExitResponse.cancel;
-  }
-
-  @override
-  void dispose() {
-    _lifecycle.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -91,16 +61,6 @@ class _TriagePageState extends State<TriagePage> {
                       ? controller.refresh
                       : null,
                   child: const Text('Refresh'),
-                ),
-              ),
-              Tooltip(
-                message:
-                    'Show what you did in this session, to share with the '
-                    'team',
-                child: MenuItemButton(
-                  leadingIcon: const Icon(Icons.summarize_outlined),
-                  onPressed: () => showSessionReport(context, controller),
-                  child: const Text('Session report'),
                 ),
               ),
             ],

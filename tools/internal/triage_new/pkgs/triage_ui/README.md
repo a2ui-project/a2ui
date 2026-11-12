@@ -31,7 +31,8 @@ it runs, the app listens on `127.0.0.1:47123` for the items the script sends.
 - `lib/src/github/`: the GitHub client, the queries, and the service that
   reads and changes items.
 - `lib/src/model/`: the items, the triager's drafts, applying a suggestion,
-  the session report, and the controller that holds the app's state.
+  what the triager did in the session, and the controller that holds the
+  app's state.
 - `lib/src/ui/`: the widgets. `suggestion_surface.dart` renders the
   suggestion comment as an A2UI surface, whose `TriageSuggestion` component
   is the editor in `suggestion_editor.dart`.

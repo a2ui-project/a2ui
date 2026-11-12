@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:triage/triage.dart';
 import 'package:triage_ui/src/github/github_client.dart';
@@ -233,7 +235,28 @@ void main() {
     expect(numbers(controller.newItems), [11, 10, 20, 21]);
   });
 
-  test('keeps a failed item selected, and posts its reply once', () async {
+  test('selects the next item before the apply finishes', () async {
+    await controller.start();
+    controller.select(a2ui(10));
+    final TriageItem item = controller.selected!;
+    controller.draftFor(item, const TriageSuggestion(addedLabels: ['P2']));
+    final Completer<void> hold = github.hold = Completer<void>();
+
+    final Future<void> applying = controller.apply(item);
+
+    expect(controller.selected!.number, 20);
+    expect(controller.isApplying(a2ui(10)), isTrue);
+    expect(controller.session.isApplied(a2ui(10)), isFalse);
+
+    hold.complete();
+    github.hold = null;
+    await applying;
+    expect(controller.isApplying(a2ui(10)), isFalse);
+    expect(controller.session.isApplied(a2ui(10)), isTrue);
+    expect(controller.selected!.number, 20);
+  });
+
+  test('moves on from a failed item, and posts its reply once', () async {
     github.unassignable.add('stranger');
     await controller.start();
     controller.select(a2ui(10));
@@ -245,8 +268,10 @@ void main() {
 
     await controller.apply(item);
     expect(controller.lastResult(a2ui(10))!.succeeded, isFalse);
-    expect(controller.selected!.number, 10);
+    expect(controller.selected!.number, 20);
     expect(controller.session.isApplied(a2ui(10)), isFalse);
+
+    controller.select(a2ui(10));
 
     controller.draftFor(item, const TriageSuggestion()).newAssignees = [];
     await controller.apply(controller.item(a2ui(10))!);
@@ -340,10 +365,6 @@ void main() {
     expect(controller.item(a2ui(40))!.needsTeamInput, isFalse);
     expect(numbers(controller.teamInputItems), [40, 41]);
     expect(controller.session.isApplied(a2ui(40)), isTrue);
-    expect(
-      controller.report(),
-      contains('removed status: needs-triage and status: needs-team-input'),
-    );
   });
 
   test('applying a suggestion that adds the label keeps it', () async {
@@ -384,7 +405,6 @@ void main() {
     expect(controller.selectedGroup, ItemGroup.newItems);
     expect(controller.remaining, 5);
     expect(controller.session.isSentToTeam(a2ui(10)), isTrue);
-    expect(controller.report(), contains('Sent 1 issue to the team.'));
   });
 
   test(

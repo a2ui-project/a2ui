@@ -257,6 +257,8 @@ class _ItemTile extends StatelessWidget {
     final ThemeData theme = Theme.of(context);
     final bool applied = controller.session.isApplied(item.ref);
     final bool sentToTeam = controller.session.isSentToTeam(item.ref);
+    // The triager is on another item by the time an apply fails.
+    final failed = controller.lastResult(item.ref)?.succeeded == false;
     final (String kind, IconData icon, Color color) = kindStyle(
       context,
       item.kind,
@@ -321,6 +323,15 @@ class _ItemTile extends StatelessWidget {
                   strokeWidth: 2,
                   semanticsLabel: 'Applying',
                 ),
+              ),
+            )
+          : failed
+          ? Tooltip(
+              message: 'Some changes failed. Select the item to see which.',
+              child: Icon(
+                Icons.error,
+                color: theme.colorScheme.error,
+                semanticLabel: 'Apply failed',
               ),
             )
           : applied

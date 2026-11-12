@@ -249,6 +249,9 @@ void main() {
     await tester.tap(apply);
     await tester.pump();
     expect(spinner, findsOneWidget);
+    // The next item is selected while the apply runs.
+    expect(controller.selected!.number, 11);
+    expect(find.text('Issue #11: Docs are unclear'), findsOneWidget);
 
     hold.complete();
     github.hold = null;
@@ -634,8 +637,18 @@ void main() {
     }
     await tester.pumpAndSettle();
 
-    // The issue stays selected, and its Edit tab says what failed.
-    expect(controller.selected!.number, 10);
+    // The next item is selected, which expands its group, and the list
+    // marks the issue as failed.
+    expect(controller.selected!.number, 11);
+    await expand(tester, 'Issues with open PRs (0/1)');
+    expect(
+      find.byTooltip('Some changes failed. Select the item to see which.'),
+      findsOneWidget,
+    );
+
+    // Back on the issue, its Edit tab says what failed.
+    await tester.tap(inList('#10 Flutter renderer crashes on an empty Row'));
+    await tester.pumpAndSettle();
     expect(find.textContaining('Some changes failed.'), findsOneWidget);
 
     await tester.tap(find.widgetWithText(Tab, 'Log (1)'));
@@ -892,40 +905,6 @@ void main() {
     await tester.pump();
     expect(tester.widget<FilledButton>(apply).onPressed, isNotNull);
     expect(find.widgetWithText(ActionChip, 'Duplicate of #7'), findsOneWidget);
-  });
-
-  testWidgets('shows the session report, and offers it before closing', (
-    tester,
-  ) async {
-    await pumpApp(tester);
-    expect(await tester.binding.handleRequestAppExit(), AppExitResponse.exit);
-
-    final TriageItem item = controller.selected!;
-    await settle(tester, () => controller.apply(item));
-
-    await tester.tap(find.byTooltip('Menu'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Session report'));
-    await tester.pumpAndSettle();
-    expect(
-      find.textContaining('Triaged 1 item: 1 issue.\n2 items still need'),
-      findsOneWidget,
-    );
-    await tester.tap(find.text('Close'));
-    await tester.pumpAndSettle();
-
-    final Future<AppExitResponse> exit = tester.binding.handleRequestAppExit();
-    await tester.pumpAndSettle();
-    expect(
-      find.text('Copy the session report before closing?'),
-      findsOneWidget,
-    );
-    await tester.tap(find.text('Copy and close'));
-    await tester.pumpAndSettle();
-
-    expect(await exit, AppExitResponse.exit);
-    expect(clipboard.single, startsWith('Triaged 1 item'));
-    expect(controller.session.needsReport, isFalse);
   });
 
   testWidgets('says when a refresh found that the item changed', (

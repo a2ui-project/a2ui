@@ -18,7 +18,7 @@ The triager can drag the divider between the items and the details to resize the
 
 ### Header
 
-1. The hamburger menu, with **Refresh** and **Session report**.
+1. The hamburger menu, with **Refresh**.
 2. How many items of the queue the triager handled, out of all of them, as in "5/45". A handled item is one whose suggestion the triager applied, including the items sent to the team.
 
 ### Items
@@ -42,7 +42,7 @@ An item's flags show:
 1. Whether it has a suggestion, and whether the suggestion is [current or outdated](triage_bot.blueprint.md#current-and-outdated-suggestions). A suggestion comment that does not parse counts as no suggestion.
 2. Its linked PRs, for an issue, and its linked issues, for a PR.
 3. `status: needs-team-input`.
-4. Whether the triager has applied its suggestion in this session. An item whose applied suggestion adds `status: needs-team-input` shows a team icon instead, in both of its groups. While **Apply** is applying the item, a spinner shows in that place.
+4. Whether the triager has applied its suggestion in this session. An item whose applied suggestion adds `status: needs-team-input` shows a team icon instead, in both of its groups. While **Apply** is applying the item, a spinner shows in that place, and if some of its changes failed, an error icon.
 
 Issues are green and PRs are orange, in every group. Each type of item has its own icon:
 
@@ -90,7 +90,7 @@ Ann is this week's triager.
 2. The header shows how many items Ann has handled, out of all of them: "0/45". The list on the left shows the **New** group, then the **Needs team input** group.
 3. Ann selects the first item in **New**. The details show its suggestion, with a tab for it and for each linked item that needs triage.
 4. Ann reads the summary, why the item is flagged and the suggestion, changes what to apply if needed, and clicks **Apply**.
-5. The tool applies the suggestion to the item on GitHub, marks the item as applied in the list, and selects the next item.
+5. The tool selects the next item right away, so that Ann can read it while the tool applies the suggestion on GitHub. When the apply finishes, the list marks the item as applied.
 
 Ann is done with the **New** group when every item in it is applied or [needs team input](#ask-the-team).
 
@@ -140,42 +140,8 @@ An issue has a PR that fixes it, and both need triage. When Ann selects the issu
 
 ### Recover from a failed apply
 
-Ann clicks **Apply**, and GitHub refuses to assign one of the assignees. The **Edit** tab shows which changes the tool made and which failed, and the **Log** tab keeps them after the next try. Ann removes the assignee and clicks **Apply** again. The tool does not post the reply a second time.
+Ann clicks **Apply**, and GitHub refuses to assign one of the assignees. By then the tool has selected the next item, so the list marks the failed item with an error icon. Ann selects it again. The **Edit** tab shows which changes the tool made and which failed, and the **Log** tab keeps them after the next try. Ann removes the assignee and clicks **Apply** again. The tool does not post the reply a second time.
 
 ### Refresh the queue
 
 While Ann works, a new issue arrives, and a team member triages another item on GitHub. Ann clicks **Refresh** in the hamburger menu. The list shows the new issue and drops the item that no longer has `status: needs-triage`. If the selected item changed on GitHub, the details show its current state, so Ann doesn't apply a suggestion to an old view of the item.
-
-### Report the session
-
-Ann wants to tell the team what was triaged.
-
-1. Ann selects **Session report** in the hamburger menu.
-2. A dialog shows the report as text. It starts with the numbers: how many items Ann triaged and how many of them were issues and PRs, how many items Ann sent to the team by adding `status: needs-team-input`, and how many items still need triage. Groups follow, by what Ann did: **Closed**, **Assigned P0** to **Assigned P3**, **Assigned for triage**, **Needs team input**, and **Updated** for the rest. Each group lists its items, with each item's URL, title and what Ann did.
-3. Ann clicks **Copy** and pastes the report into the team chat.
-
-For example:
-
-```
-Triaged 3 items: 2 issues and 1 PR.
-Sent 1 issue to the team.
-4 items still need triage.
-
-- Closed: 1 PR
-  - https://github.com/a2ui-project/a2ui/pull/4065
-    Add a Slider to the Lit renderer: closed, replied
-
-- Assigned for triage: 1 issue
-  - https://github.com/a2ui-project/a2ui/issues/4071
-    Support dark theme in the Lit renderer: added status: assigned-for-triage, assigned octocat
-
-- Assigned P3: 1 issue
-  - https://github.com/a2ui-project/a2ui/issues/4080
-    Fix typo in the quickstart: added P3
-
-- Needs team input: 1 issue
-  - https://github.com/a2ui-project/a2ui/issues/4082
-    Stream partial updates to the Angular renderer: added status: needs-team-input, replied
-```
-
-If Ann closes the tool after applying suggestions, but without copying the report, the tool shows the report first, with two buttons: **Copy and close** and **Close**.

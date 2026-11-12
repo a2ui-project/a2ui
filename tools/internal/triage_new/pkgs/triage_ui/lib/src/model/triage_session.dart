@@ -14,171 +14,33 @@
 
 import 'package:triage/triage.dart';
 
-import 'applier.dart';
-import 'milestone_change.dart';
 import 'triage_item.dart';
-
-/// An item that the triager applied a suggestion to, the suggestion, and
-/// the milestone change applied with it.
-final class AppliedItem {
-  const AppliedItem(
-    this.item,
-    this.suggestion, {
-    this.milestone = MilestoneChange.none,
-  });
-
-  final TriageItem item;
-  final TriageSuggestion suggestion;
-  final MilestoneChange milestone;
-
-  /// Whether the triager sent the item to the team: applied a suggestion
-  /// that adds `status: needs-team-input`.
-  bool get sentToTeam => suggestion.addedLabels.contains(needsTeamInputLabel);
-}
 
 /// What the triager did since the triage UI started.
 class TriageSession {
-  final Map<ItemRef, AppliedItem> _applied = {};
+  /// The applied items, and whether each was sent to the team.
+  final Map<ItemRef, bool> _sentToTeam = {};
   final Set<ItemRef> _replied = {};
-  var _version = 0;
-  var _copiedVersion = 0;
-
-  /// The applied items, including the ones sent to the team, in the order
-  /// the triager applied them.
-  Iterable<AppliedItem> get applied => _applied.values;
 
   /// Whether the triager applied a suggestion to [item] that did not send
   /// it to the team.
-  bool isApplied(ItemRef item) => _applied[item]?.sentToTeam == false;
+  bool isApplied(ItemRef item) => _sentToTeam[item] == false;
 
-  bool isSentToTeam(ItemRef item) => _applied[item]?.sentToTeam ?? false;
+  bool isSentToTeam(ItemRef item) => _sentToTeam[item] ?? false;
 
   /// Whether the triager applied a suggestion to [item] or sent it to the
   /// team.
-  bool isHandled(ItemRef item) => _applied.containsKey(item);
+  bool isHandled(ItemRef item) => _sentToTeam.containsKey(item);
 
-  /// Records that the triager applied [suggestion] to [item]. A later apply
-  /// to the same item replaces the earlier one in the report.
-  void recordApplied(
-    TriageItem item,
-    TriageSuggestion suggestion, {
-    MilestoneChange milestone = MilestoneChange.none,
-  }) {
-    _applied
-      ..remove(item.ref)
-      ..[item.ref] = AppliedItem(item, suggestion, milestone: milestone);
-    _version++;
-  }
+  /// Records that the triager applied [suggestion] to [item]. A suggestion
+  /// that adds `status: needs-team-input` sends the item to the team. A
+  /// later apply to the same item replaces the earlier one.
+  void recordApplied(TriageItem item, TriageSuggestion suggestion) =>
+      _sentToTeam[item.ref] = suggestion.addedLabels.contains(
+        needsTeamInputLabel,
+      );
 
   bool hasReplied(ItemRef item) => _replied.contains(item);
 
   void recordReplied(ItemRef item) => _replied.add(item);
-
-  /// Whether the triager applied items that the last copied report, if any,
-  /// does not include.
-  bool get needsReport => _applied.isNotEmpty && _copiedVersion != _version;
-
-  void recordCopied() => _copiedVersion = _version;
-
-  /// The session report, as `ui.blueprint.md` describes it.
-  String report({required int stillNeedTriage}) {
-    final List<AppliedItem> applied = _applied.values.toList();
-    final List<AppliedItem> triaged = [
-      for (final a in applied)
-        if (!a.sentToTeam) a,
-    ];
-    final List<AppliedItem> sent = [
-      for (final a in applied)
-        if (a.sentToTeam) a,
-    ];
-    final lines = <String>[
-      if (applied.isEmpty) 'Nothing triaged yet.',
-      if (triaged.isNotEmpty)
-        'Triaged ${_plural(triaged.length, 'item')}: '
-            '${_countByType(triaged)}.',
-      if (sent.isNotEmpty) 'Sent ${_countByType(sent)} to the team.',
-      '${_plural(stillNeedTriage, 'item')} still '
-          '${stillNeedTriage == 1 ? 'needs' : 'need'} triage.',
-    ];
-
-    final groups = <String, List<AppliedItem>>{};
-    for (final a in applied) {
-      (groups[_group(a)] ??= []).add(a);
-    }
-    final List<String> order = [..._groupOrder]
-      ..retainWhere(groups.containsKey);
-    for (final group in order) {
-      final List<AppliedItem> items = groups[group]!;
-      lines
-        ..add('')
-        ..add('- $group: ${_countByType(items)}');
-      for (final item in items) {
-        lines
-          ..add('  - ${item.item.url}')
-          ..add('    ${item.item.title}: ${_describe(item)}');
-      }
-    }
-    return lines.join('\n');
-  }
-
-  static const String _assignedForTriageLabel = 'status: assigned-for-triage';
-  static const List<String> _priorities = ['P0', 'P1', 'P2', 'P3'];
-  static const String _closed = 'Closed';
-  static const String _assignedForTriage = 'Assigned for triage';
-  static const String _needsTeamInput = 'Needs team input';
-  static const String _updated = 'Updated';
-  static final List<String> _groupOrder = [
-    _closed,
-    for (final p in _priorities) 'Assigned $p',
-    _assignedForTriage,
-    _needsTeamInput,
-    _updated,
-  ];
-
-  static String _group(AppliedItem applied) {
-    final TriageSuggestion s = applied.suggestion;
-    if (s.closeAs != null) return _closed;
-    if (applied.sentToTeam) return _needsTeamInput;
-    for (final String p in _priorities) {
-      if (s.addedLabels.contains(p)) return 'Assigned $p';
-    }
-    if (s.addedLabels.contains(_assignedForTriageLabel)) {
-      return _assignedForTriage;
-    }
-    return _updated;
-  }
-
-  /// What was applied, such as "added P1, assigned octocat".
-  static String _describe(AppliedItem applied) {
-    final TriageSuggestion s = applied.suggestion;
-    return [
-      if (s.closeAs != null) 'closed ${closeReason(applied.item, s)}'.trim(),
-      if (s.addedLabels.isNotEmpty) 'added ${_and(s.addedLabels)}',
-      if (s.removedLabels.isNotEmpty) 'removed ${_and(s.removedLabels)}',
-      if (s.newAssignees.isNotEmpty) 'assigned ${_and(s.newAssignees)}',
-      if (s.removedAssignees.isNotEmpty)
-        'unassigned ${_and(s.removedAssignees)}',
-      if (applied.milestone.set case final String m) 'set milestone $m',
-      if (applied.milestone.remove case final String m
-          when applied.milestone.set == null)
-        'removed milestone $m',
-      if (s.reply != null) 'replied',
-    ].join(', ');
-  }
-
-  static String _countByType(List<AppliedItem> items) {
-    final int prs = items.where((a) => a.item.isPullRequest).length;
-    final int issues = items.length - prs;
-    return [
-      if (issues > 0) _plural(issues, 'issue'),
-      if (prs > 0) _plural(prs, 'PR'),
-    ].join(' and ');
-  }
-
-  static String _plural(int count, String noun) =>
-      '$count $noun${count == 1 ? '' : 's'}';
-
-  static String _and(List<String> words) => words.length < 3
-      ? words.join(' and ')
-      : '${words.sublist(0, words.length - 1).join(', ')} and ${words.last}';
 }

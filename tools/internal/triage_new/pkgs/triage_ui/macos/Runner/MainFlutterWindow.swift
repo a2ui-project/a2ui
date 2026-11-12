@@ -1,7 +1,7 @@
 import Cocoa
 import FlutterMacOS
 
-class MainFlutterWindow: NSWindow, NSWindowDelegate {
+class MainFlutterWindow: NSWindow {
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
     let windowFrame = self.frame
@@ -24,15 +24,6 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
       result(nil)
     }
 
-    // Closing the window quits the app, so that the app can offer the
-    // session report first. See AppLifecycleListener.onExitRequested.
-    self.delegate = self
-
     super.awakeFromNib()
-  }
-
-  func windowShouldClose(_ sender: NSWindow) -> Bool {
-    NSApp.terminate(sender)
-    return false
   }
 }
