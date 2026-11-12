@@ -145,7 +145,7 @@ void main() {
     expect(find.byTooltip('Issue with open PRs'), findsOneWidget);
     expect(find.byTooltip('Issue without open PRs'), findsOneWidget);
     expect(find.byTooltip('PR with issues'), findsOneWidget);
-    expect(inList('suggestion'), findsOneWidget);
+    expect(inList('suggestion'), findsNothing);
     expect(inList('no suggestion'), findsNWidgets(2));
     expect(inList('PR #20'), findsOneWidget);
     expect(inList('issue #10'), findsOneWidget);
@@ -207,6 +207,23 @@ void main() {
     expect(find.text('PR #20: Fix the Row crash'), findsOneWidget);
   });
 
+  testWidgets('does not flag "$needsTeamInputLabel" in its own group', (
+    tester,
+  ) async {
+    github.items[11]!['labels'] = {
+      'nodes': [
+        {'name': needsTriageLabel},
+        {'name': needsTeamInputLabel},
+      ],
+    };
+    await pumpApp(tester, selectFirst: false);
+    await expand(tester, 'Needs team input (0/1)');
+    await expand(tester, 'Issues without open PRs (0/1)');
+
+    expect(inList('#11 Docs are unclear'), findsOneWidget);
+    expect(inList('needs team input'), findsNothing);
+  });
+
   testWidgets('applies the edited suggestion and moves to the next item', (
     tester,
   ) async {
@@ -222,7 +239,9 @@ void main() {
     await tester.tapAt(Offset.zero);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Apply').first);
+    await tester.tap(
+      find.widgetWithText(FilledButton, 'Apply to 2 items').first,
+    );
     await tester.pump();
     for (var i = 0; i < 100 && controller.isApplying(a2ui(10)); i++) {
       await tester.pump(const Duration(milliseconds: 10));
@@ -260,7 +279,9 @@ void main() {
     );
     expect(spinner, findsNothing);
 
-    final Finder apply = find.widgetWithText(FilledButton, 'Apply').first;
+    final Finder apply = find
+        .widgetWithText(FilledButton, 'Apply to 2 items')
+        .first;
     await tester.ensureVisible(apply);
     await tester.pumpAndSettle();
     final Completer<void> hold = github.hold = Completer<void>();
@@ -334,7 +355,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(priorityOf(tester), isEmpty);
 
-    final Finder apply = find.widgetWithText(FilledButton, 'Apply').first;
+    final Finder apply = find
+        .widgetWithText(FilledButton, 'Apply to 2 items')
+        .first;
     await tester.ensureVisible(apply);
     await tester.pumpAndSettle();
     await tester.tap(apply);
@@ -528,7 +551,7 @@ void main() {
       ..select(a2ui(10));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Apply'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Apply to 2 items'));
     await tester.pump();
     for (
       var i = 0;
@@ -606,7 +629,7 @@ void main() {
     expect(find.widgetWithText(InputChip, 'type: bug'), findsNothing);
 
     await addBugLabelToThePr();
-    await tester.tap(find.widgetWithText(FilledButton, 'Apply'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Apply to 2 items'));
     await tester.pump();
     for (
       var i = 0;
@@ -644,7 +667,7 @@ void main() {
     await tester.tap(find.widgetWithText(Tab, 'Edit'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Apply'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Apply to 2 items'));
     await tester.pump();
     for (
       var i = 0;

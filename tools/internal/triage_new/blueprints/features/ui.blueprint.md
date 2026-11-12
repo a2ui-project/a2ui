@@ -39,9 +39,9 @@ Each group and subgroup shows how many of its items the triager handled, out of 
 
 An item's flags show:
 
-1. Whether it has a suggestion, and whether the suggestion is [current or outdated](triage_bot.blueprint.md#current-and-outdated-suggestions). A suggestion comment that does not parse counts as no suggestion.
+1. Whether its suggestion is [outdated](triage_bot.blueprint.md#current-and-outdated-suggestions), or it has none. A suggestion comment that does not parse counts as no suggestion. Most items have a current suggestion, so a current one has no flag.
 2. Its linked PRs, for an issue, and its linked issues, for a PR.
-3. `status: needs-team-input`.
+3. `status: needs-team-input`, except in the **Needs team input** group.
 4. Whether the triager has applied its suggestion in this session. An item whose applied suggestion adds `status: needs-team-input` shows a team icon instead, in both of its groups. While **Apply** is applying the item, a spinner shows in that place, and if some of its changes failed, an error icon.
 
 Issues are green and PRs are orange, in every group. Each type of item has its own icon:
@@ -63,7 +63,7 @@ Each tab shows its item in two columns, on the page background, without a card f
 
 1. On the left, what the triager should know about the item: its title, age, author, labels and assignees, notices about its state, the triage bot's `summary`, `reason` and `suggestion`, the comment for the team, and the related items.
 2. On the right, two tabs, and **Apply** below them:
-   - **Edit**: the rest of the [editable suggestion](#editable-suggestion), and **Revert**, which undoes the triager's changes to this item's suggestion. **Revert** is enabled when the suggestion has changes. If the last **Apply** of the item failed, the tab shows which changes it made and which failed.
+   - **Edit**: the rest of the [editable suggestion](#editable-suggestion), and **Revert** at the bottom, which undoes the triager's changes to this item's suggestion. **Revert** is enabled when the suggestion has changes. If the last **Apply** of the item failed, the tab shows which changes it made and which failed.
    - **Log**: what the tool did to the item in this session, newest first, each with its time. For each **Apply**, the log lists every change in order, whether it was made, skipped, failed or not tried, why it failed, and the full text of the reply it posted. It also says when a refresh found that the item changed on GitHub and reset its suggestion. The tab shows how many entries the log has, as in "Log (2)".
 
 The triager can drag the divider between the columns to resize them. Every tab and item keeps the new widths.
@@ -82,7 +82,7 @@ The `summary`, the `reason` and the `suggestion` are shown in the left column as
 
 Labels have their colors from the repository, as on GitHub. The related issues and PRs are links, and the link to a closed item says "(closed)", or "(merged)" for a merged PR. Every link outside that text, and every button that opens a link, has a small **Copy link** button on its right.
 
-**Apply**, in the right column of every tab, applies the suggestion of each item in the tabs to it on GitHub, skipping the suggestions that change nothing. If an item has `status: needs-team-input` and its suggestion does not add it, the tool also removes that label, as [triage.md](../../../../../docs/contributing/triage/triage.md#second-line-triage-weekly-by-triager) asks once the item is triaged. `status: needs-team-input` is an ordinary label otherwise: the triager adds it with the other labels, and **Apply** adds it.
+**Apply**, in the right column of every tab, applies the suggestion of each item in the tabs to it on GitHub, skipping the suggestions that change nothing. When more than one item has changes, the button says how many, as in "Apply to 2 items", since **Revert** acts on one tab and **Apply** on all of them. If an item has `status: needs-team-input` and its suggestion does not add it, the tool also removes that label, as [triage.md](../../../../../docs/contributing/triage/triage.md#second-line-triage-weekly-by-triager) asks once the item is triaged. `status: needs-team-input` is an ordinary label otherwise: the triager adds it with the other labels, and **Apply** adds it.
 
 ## CUJ
 

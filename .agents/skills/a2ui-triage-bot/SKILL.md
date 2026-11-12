@@ -69,11 +69,11 @@ node .agents/skills/a2ui-triage-bot/scripts/flag_reason.mts <number> <number>
 
 ## Step 3: Decide what to post
 
-A triage bot comment is posted by a team member or a bot, and starts with one of these headings:
+A triage bot comment is posted by a team member or a bot, and starts with `**From triage bot:**`. The [flagger](../../../tools/internal/triage/blueprints/flagging.blueprint.md) recognizes triage bot comments by this prefix and ignores them, so that they do not count as a team reply. Never start a triage bot comment any other way. The line after the prefix tells the kind of comment:
 
-1. `**Suggestion from triage bot:**`: a suggestion comment, with an `<a2ui>` block. Suggestion comments posted before this heading start with `**From triage bot:**` and the line "Triage suggestion:" instead.
-2. `**Response from triage bot:**`: a response comment, which answers requests to the triage bot.
-3. `**From triage bot:**`: other triage bot comments, such as the staleness pinger's.
+1. "Triage suggestion:": a suggestion comment, with an `<a2ui>` block.
+2. "Response to requests:": a response comment, which answers requests to the triage bot.
+3. Anything else: other triage bot comments, such as the staleness pinger's.
 
 An item can have several suggestion comments: the latest one is the item's suggestion, and the earlier ones stay as the history of the triage conversation.
 
@@ -169,10 +169,12 @@ Rules for links in `summary`, `suggestion` and `reply`:
 
 ### Suggestion comment
 
-A suggestion comment follows this template: the heading `**Suggestion from triage bot:**`, then two collapsed sections: **For humans**, with the suggestion in plain English and the command that opens the item in the triage UI, and **For software**, with the suggestion for the triage UI. Both must say the same thing.
+A suggestion comment follows this template: the triage bot prefix and the line "Triage suggestion:", then two collapsed sections: **For humans**, with the suggestion in plain English and the command that opens the item in the triage UI, and **For software**, with the suggestion for the triage UI. Both must say the same thing.
 
 ````markdown
-**Suggestion from triage bot:**
+**From triage bot:**
+
+Triage suggestion:
 
 <details>
 <summary>For humans</summary>
@@ -240,7 +242,9 @@ Formatting rules:
 Example of a bug report, issue #1235, with an illustrative login and item numbers:
 
 ````markdown
-**Suggestion from triage bot:**
+**From triage bot:**
+
+Triage suggestion:
 
 <details>
 <summary>For humans</summary>
@@ -288,7 +292,9 @@ root = TriageSuggestion(
 Example of a duplicate, issue #1236, with illustrative item numbers:
 
 ````markdown
-**Suggestion from triage bot:**
+**From triage bot:**
+
+Triage suggestion:
 
 <details>
 <summary>For humans</summary>
@@ -339,7 +345,7 @@ root = TriageSuggestion(
 
 ### Response comment
 
-A response comment answers the requests to the triage bot on an item with `status: needs-team-input`. It starts with the heading `**Response from triage bot:**` and has no template and no `<a2ui>` block: it is an answer for the team, and the item's suggestion stays as it is.
+A response comment answers the requests to the triage bot on an item with `status: needs-team-input`. It starts with the triage bot prefix and the line "Response to requests:", and has no template and no `<a2ui>` block: it is an answer for the team, and the item's suggestion stays as it is.
 
 1. Answer each request in its own paragraph, starting with a link to the request and who asked, such as "In reply to the [question](https://github.com/a2ui-project/a2ui/issues/3061#issuecomment-6809478783) from `polina-c`: ...".
 2. When a request asks for an action, say what to apply. Follow [triage_criteria.md](references/triage_criteria.md) for what to suggest.
@@ -349,7 +355,9 @@ A response comment answers the requests to the triage bot on an item with `statu
 Example, on #3061:
 
 ````markdown
-**Response from triage bot:**
+**From triage bot:**
+
+Response to requests:
 
 In reply to the [question](https://github.com/a2ui-project/a2ui/issues/3061#issuecomment-6809478783) from `polina-c`: `gspencergoog` is the best expert to verify the fix. They wrote [10 of the last 20 commits](https://github.com/a2ui-project/a2ui/commits/main/typescript/core/web_core/src/processing/message-processor.ts) to `message-processor.ts` in web_core and approved #3382, which fixed Swift and Python. `nan-yu` is the next choice, with [10 of the last 20 commits](https://github.com/a2ui-project/a2ui/commits/main/python/a2ui_core/src/a2ui/core/processing/message_processor.py) to the Python `message_processor.py`.
 

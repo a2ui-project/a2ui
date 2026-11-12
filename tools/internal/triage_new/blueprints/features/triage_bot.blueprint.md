@@ -44,12 +44,14 @@ The triage bot finds who knows an area from the repository history: the people w
 
 ## The suggestion comment
 
-The suggestion comment is a [triage bot](../core.blueprint.md#contributors) comment with an `<a2ui>` block. It follows the template below: the heading `**Suggestion from triage bot:**`, then two collapsed sections: **For humans**, with the suggestion in plain English and the command that opens the item in the triage UI, and **For software**, with the suggestion as a component for the triage UI. Both sections say the same thing.
+The suggestion comment is a [triage bot](../core.blueprint.md#contributors) comment with an `<a2ui>` block. It follows the template below: the triage bot prefix and the line "Triage suggestion:", then two collapsed sections: **For humans**, with the suggestion in plain English and the command that opens the item in the triage UI, and **For software**, with the suggestion as a component for the triage UI. Both sections say the same thing.
 
 For example, the suggestion comment on an illustrative issue #1235:
 
 ````markdown
-**Suggestion from triage bot:**
+**From triage bot:**
+
+Triage suggestion:
 
 <details>
 <summary>For humans</summary>
@@ -101,7 +103,7 @@ root = TriageSuggestion(
 
 The parts of the comment, in order:
 
-1. The heading `**Suggestion from triage bot:**`. Suggestion comments posted before this heading start with `**From triage bot:**` and the line "Triage suggestion:", and the triage UI reads them too.
+1. The triage bot prefix, and the line "Triage suggestion:".
 2. The **For humans** section, collapsed:
    1. The `summary`, the `reason` and the `suggestion`, as paragraphs under **Summary**, **Why flagged for triage** and **Suggestion**. The **Why flagged for triage** paragraph is left out when there is no reason.
    2. The other properties that have values, as a numbered list: **Close as**, **Add labels**, **Remove labels**, **Assign**, **Unassign**, **Related issues** and **Related PRs**. An example of **Close as** is "Close as: duplicate of #1100".
@@ -124,14 +126,16 @@ An item can have several suggestion comments. When the suggestion is outdated, t
 
 ## The response comment
 
-The response comment is a triage bot comment that answers the requests to the triage bot on an item with `status: needs-team-input`. It starts with the heading `**Response from triage bot:**`, and has no template and no `<a2ui>` block: it is an answer for the team, not a suggestion, so the item's suggestion stays as it is.
+The response comment is a triage bot comment that answers the requests to the triage bot on an item with `status: needs-team-input`. It starts with the triage bot prefix and the line "Response to requests:", and has no template and no `<a2ui>` block: it is an answer for the team, not a suggestion, so the item's suggestion stays as it is.
 
 For each request, the comment links to the request, names who asked, and answers in plain English. When the request asks for an action, the comment says what to apply, and the team applies it in the triage UI. The comment ends with the command that opens the item in the triage UI. Links and logins follow the rules of the suggestion comment.
 
 For example, the response to the [request](https://github.com/a2ui-project/a2ui/issues/3061#issuecomment-6809478783) on #3061:
 
 ````markdown
-**Response from triage bot:**
+**From triage bot:**
+
+Response to requests:
 
 In reply to the [question](https://github.com/a2ui-project/a2ui/issues/3061#issuecomment-6809478783) from `polina-c`: `gspencergoog` is the best expert to verify the fix. They wrote [10 of the last 20 commits](https://github.com/a2ui-project/a2ui/commits/main/typescript/core/web_core/src/processing/message-processor.ts) to `message-processor.ts` in web_core and approved #3382, which fixed Swift and Python. `nan-yu` is the next choice, with [10 of the last 20 commits](https://github.com/a2ui-project/a2ui/commits/main/python/a2ui_core/src/a2ui/core/processing/message_processor.py) to the Python `message_processor.py`.
 

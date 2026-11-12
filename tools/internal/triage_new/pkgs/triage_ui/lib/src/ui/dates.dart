@@ -26,16 +26,6 @@ String age(DateTime time, {DateTime? now}) {
   };
 }
 
-/// How long ago [time] was, such as "3 days ago".
-String ago(DateTime time, {DateTime? now}) {
-  final int days = (now ?? DateTime.now()).difference(time).inDays;
-  return switch (days) {
-    <= 0 => 'today',
-    1 => 'yesterday',
-    _ => '$days days ago',
-  };
-}
-
 /// The time of day of [time], as "14:03:07".
 String clockTime(DateTime time) => [
   time.hour,

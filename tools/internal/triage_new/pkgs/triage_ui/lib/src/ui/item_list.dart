@@ -16,7 +16,6 @@ import 'package:flutter/material.dart';
 
 import '../model/triage_controller.dart';
 import '../model/triage_item.dart';
-import 'dates.dart';
 import 'triage_scope.dart';
 
 /// [color] in the shade that suits the theme of [context].
@@ -266,6 +265,26 @@ class _ItemTile extends StatelessWidget {
     final bool selected =
         controller.selected?.ref == item.ref &&
         controller.selectedGroup == group;
+    final flags = <Widget>[
+      // Most items have a current suggestion, so only the others
+      // are flagged.
+      ?switch (item.suggestionStatus) {
+        SuggestionStatus.current => null,
+        SuggestionStatus.outdated => const _Flag(
+          'outdated suggestion',
+          warning: true,
+        ),
+        SuggestionStatus.invalid => const _Flag(
+          'invalid suggestion',
+          warning: true,
+        ),
+        SuggestionStatus.none => const _Flag('no suggestion', warning: true),
+      },
+      for (final int n in item.linkedItems)
+        _Flag(item.isPullRequest ? 'issue #$n' : 'PR #$n'),
+      if (item.needsTeamInput && group != ItemGroup.teamInput)
+        const _Flag('needs team input'),
+    ];
     // The selected item has a border. Its colors stay the same, so that the
     // kind's background still shows; ListTile.selected would change them.
     final tile = ListTile(
@@ -280,40 +299,24 @@ class _ItemTile extends StatelessWidget {
         message: kind,
         child: Icon(icon, color: color, semanticLabel: kind),
       ),
+      // The same size as the rest of the text, not ListTile's larger title.
+      titleTextStyle: theme.textTheme.bodyMedium,
       title: Text(
         '${item.shortName} ${item.title}',
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
       ),
-      subtitle: Padding(
-        padding: const EdgeInsets.only(top: 4),
-        child: Wrap(
-          spacing: 6,
-          runSpacing: 4,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            Text('updated ${ago(item.updatedAt)}'),
-            switch (item.suggestionStatus) {
-              SuggestionStatus.current => const _Flag('suggestion'),
-              SuggestionStatus.outdated => const _Flag(
-                'outdated suggestion',
-                warning: true,
+      subtitle: flags.isEmpty
+          ? null
+          : Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: flags,
               ),
-              SuggestionStatus.invalid => const _Flag(
-                'invalid suggestion',
-                warning: true,
-              ),
-              SuggestionStatus.none => const _Flag(
-                'no suggestion',
-                warning: true,
-              ),
-            },
-            for (final int n in item.linkedItems)
-              _Flag(item.isPullRequest ? 'issue #$n' : 'PR #$n'),
-            if (item.needsTeamInput) const _Flag('needs team input'),
-          ],
-        ),
-      ),
+            ),
       trailing: controller.isApplying(item.ref)
           ? const SizedBox.square(
               dimension: 24,

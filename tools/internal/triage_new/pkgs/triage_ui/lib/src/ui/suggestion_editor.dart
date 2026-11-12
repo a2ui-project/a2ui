@@ -30,8 +30,8 @@ import 'triage_scope.dart';
 
 /// The triage suggestion for [item], which the triager edits and applies:
 /// the reply, how to close the item, its priority, labels, assignees and
-/// milestone, and **Revert**. Shows the steps of the last apply if it
-/// failed.
+/// milestone. Shows the steps of the last apply if it failed, and
+/// **Revert** at the bottom.
 ///
 /// The edits are kept in the controller's draft for [item], which starts as
 /// [initial]. The details show the summary, reason and suggestion of the
@@ -69,18 +69,6 @@ class SuggestionEditor extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           spacing: 16,
           children: [
-            Align(
-              alignment: Alignment.centerRight,
-              child: Tooltip(
-                message: 'Undo your changes to this suggestion',
-                child: TextButton(
-                  onPressed: draft.isEdited && !applying
-                      ? () => controller.revert([item])
-                      : null,
-                  child: const Text('Revert'),
-                ),
-              ),
-            ),
             TextField(
               controller: draft.reply,
               minLines: 2,
@@ -227,6 +215,15 @@ class SuggestionEditor extends StatelessWidget {
             ),
             if (result != null && !result.succeeded && !applying)
               _FailedApply(result),
+            Tooltip(
+              message: 'Undo your changes to this suggestion',
+              child: TextButton(
+                onPressed: draft.isEdited && !applying
+                    ? () => controller.revert([item])
+                    : null,
+                child: const Text('Revert'),
+              ),
+            ),
           ],
         );
       },

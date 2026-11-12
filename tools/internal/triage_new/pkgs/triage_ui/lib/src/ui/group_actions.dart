@@ -37,12 +37,13 @@ class GroupActions extends StatelessWidget {
       listenable: Listenable.merge(drafts),
       builder: (context, _) {
         final bool busy = items.any((i) => controller.isApplying(i.ref));
-        final bool anyChanges = drafts.any((d) => d.hasChanges);
+        // Apply skips the items whose drafts change nothing.
+        final int changed = drafts.where((d) => d.hasChanges).length;
         final List<String> problems = [
           for (var k = 0; k < items.length; k++)
             if (drafts[k].problem case final String problem)
               items.length == 1 ? problem : '${items[k].name}: $problem',
-          if (!anyChanges) 'Nothing to apply.',
+          if (changed == 0) 'Nothing to apply.',
         ];
         final all = items.length == 1 ? 'the item' : 'the items';
         return Padding(
@@ -60,7 +61,9 @@ class GroupActions extends StatelessWidget {
                   onPressed: problems.isEmpty && !busy
                       ? () => controller.applyAll(items)
                       : null,
-                  child: const Text('Apply'),
+                  child: Text(
+                    changed > 1 ? 'Apply to $changed items' : 'Apply',
+                  ),
                 ),
               ),
               if (busy)

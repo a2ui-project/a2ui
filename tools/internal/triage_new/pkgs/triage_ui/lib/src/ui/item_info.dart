@@ -37,7 +37,6 @@ class ItemInfo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final TriageController controller = TriageScope.of(context);
-    final ThemeData theme = Theme.of(context);
     final SuggestionDraft draft = controller.draftFor(item);
     final String? suggestionUrl = item.suggestionUrl;
     String none(List<String> names) =>
@@ -47,11 +46,7 @@ class ItemInfo extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       spacing: 12,
       children: [
-        LinkText(
-          '${item.name}: ${item.title}',
-          url: item.url,
-          style: theme.textTheme.titleLarge,
-        ),
+        LinkText('${item.name}: ${item.title}', url: item.url),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           spacing: 4,
