@@ -14,16 +14,16 @@
  * limitations under the License.
  */
 
-import { Injectable } from '@angular/core';
-import { TestBed } from '@angular/core/testing';
-import { A2uiRendererService, A2UI_RENDERER_CONFIG, provideA2Ui } from './a2ui-renderer.service';
-import { BasicCatalog } from '../basic-catalog';
+import {Injectable} from '@angular/core';
+import {TestBed} from '@angular/core/testing';
+import {A2uiRendererService, A2UI_RENDERER_CONFIG, provideA2Ui} from './a2ui-renderer.service';
+import {BasicCatalog} from '../basic-catalog';
 import {
   getMarkdownRenderer,
   isWebComponentImplementation,
   setMarkdownRenderer,
 } from '@a2ui/web_core/universal';
-import { MarkdownRenderer } from './markdown';
+import {MarkdownRenderer} from './markdown';
 
 describe('A2uiRendererService', () => {
   let service: A2uiRendererService;
@@ -48,7 +48,7 @@ describe('A2uiRendererService', () => {
         A2uiRendererService,
         {
           provide: A2UI_RENDERER_CONFIG,
-          useValue: { catalogs: [mockCatalog] },
+          useValue: {catalogs: [mockCatalog]},
         },
       ],
     });
@@ -84,7 +84,7 @@ describe('A2uiRendererService', () => {
           A2uiRendererService,
           {
             provide: A2UI_RENDERER_CONFIG,
-            useValue: { catalogs: [mockCatalog], useUniversalComponents: true },
+            useValue: {catalogs: [mockCatalog], useUniversalComponents: true},
           },
           {
             provide: MarkdownRenderer,
@@ -99,10 +99,10 @@ describe('A2uiRendererService', () => {
       const registeredFn = getMarkdownRenderer();
       expect(registeredFn).toBeDefined();
 
-      const result = await registeredFn!('# heading', { tagClassMap: { h1: ['custom-h1'] } });
+      const result = await registeredFn!('# heading', {tagClassMap: {h1: ['custom-h1']}});
       expect(result).toBe('<p>rendered</p>');
       expect(mockRenderer.render).toHaveBeenCalledWith('# heading', {
-        tagClassMap: { h1: ['custom-h1'] },
+        tagClassMap: {h1: ['custom-h1']},
       });
     });
 
@@ -116,7 +116,7 @@ describe('A2uiRendererService', () => {
           A2uiRendererService,
           {
             provide: A2UI_RENDERER_CONFIG,
-            useValue: { catalogs: [mockCatalog], useUniversalComponents: true },
+            useValue: {catalogs: [mockCatalog], useUniversalComponents: true},
           },
         ],
       });
@@ -133,8 +133,8 @@ describe('A2uiRendererService', () => {
       TestBed.configureTestingModule({
         providers: [
           A2uiRendererService,
-          { provide: A2UI_RENDERER_CONFIG, useValue: { catalogs: [mockCatalog] } },
-          { provide: MarkdownRenderer, useValue: { render: async () => '<p>rendered</p>' } },
+          {provide: A2UI_RENDERER_CONFIG, useValue: {catalogs: [mockCatalog]}},
+          {provide: MarkdownRenderer, useValue: {render: async () => '<p>rendered</p>'}},
         ],
       });
       TestBed.inject(A2uiRendererService);
@@ -150,15 +150,15 @@ describe('A2uiRendererService', () => {
 
     it('should delegate processMessagesAsync to MessageProcessor', async () => {
       const spy = spyOn(service.processor, 'processMessagesAsync').and.resolveTo();
-      await service.processMessagesAsync({ version: '1.0', messages: [] });
-      expect(spy).toHaveBeenCalledWith({ version: '1.0', messages: [] });
+      await service.processMessagesAsync({version: '1.0', messages: []});
+      expect(spy).toHaveBeenCalledWith({version: '1.0', messages: []});
     });
 
     it('should delegate callAgentFunction to MessageProcessor', async () => {
       const spy = spyOn(service.processor, 'callAgentFunction').and.resolveTo('ok');
-      const result = await service.callAgentFunction('surf1', 'myFn', { a: 1 });
+      const result = await service.callAgentFunction('surf1', 'myFn', {a: 1});
       expect(result).toBe('ok');
-      expect(spy).toHaveBeenCalledWith('surf1', { call: 'myFn', args: { a: 1 } } as any, undefined);
+      expect(spy).toHaveBeenCalledWith('surf1', {call: 'myFn', args: {a: 1}} as any, undefined);
     });
   });
 
@@ -185,10 +185,10 @@ describe('provideA2Ui', () => {
       functions: new Map(),
     };
     TestBed.configureTestingModule({
-      providers: [provideA2Ui({ catalogs: [mockCatalog as any] })],
+      providers: [provideA2Ui({catalogs: [mockCatalog as any]})],
     });
     const config = TestBed.inject(A2UI_RENDERER_CONFIG);
-    expect(config).toEqual({ catalogs: [mockCatalog as any] });
+    expect(config).toEqual({catalogs: [mockCatalog as any]});
 
     const service = TestBed.inject(A2uiRendererService);
     expect(service).toBeTruthy();
@@ -200,10 +200,10 @@ describe('provideA2Ui', () => {
       functions: new Map(),
     };
     TestBed.configureTestingModule({
-      providers: [provideA2Ui(() => ({ catalogs: [mockCatalog as any] }))],
+      providers: [provideA2Ui(() => ({catalogs: [mockCatalog as any]}))],
     });
     const config = TestBed.inject(A2UI_RENDERER_CONFIG);
-    expect(config).toEqual({ catalogs: [mockCatalog as any] });
+    expect(config).toEqual({catalogs: [mockCatalog as any]});
 
     const service = TestBed.inject(A2uiRendererService);
     expect(service).toBeTruthy();
@@ -212,7 +212,7 @@ describe('provideA2Ui', () => {
   it('should provide BasicCatalog in configuration', () => {
     const basicCat = new BasicCatalog();
     TestBed.configureTestingModule({
-      providers: [provideA2Ui({ catalogs: [basicCat] })],
+      providers: [provideA2Ui({catalogs: [basicCat]})],
     });
     const config = TestBed.inject(A2UI_RENDERER_CONFIG);
     expect(config.catalogs).toBeDefined();
@@ -227,7 +227,7 @@ describe('provideA2Ui', () => {
   it('should support useUniversalComponents option in configuration', () => {
     const basicCat = new BasicCatalog();
     TestBed.configureTestingModule({
-      providers: [provideA2Ui({ catalogs: [basicCat], useUniversalComponents: true })],
+      providers: [provideA2Ui({catalogs: [basicCat], useUniversalComponents: true})],
     });
     const config = TestBed.inject(A2UI_RENDERER_CONFIG);
     expect(config.useUniversalComponents).toBeTrue();
@@ -237,7 +237,7 @@ describe('provideA2Ui', () => {
   it('should keep basic catalog entries renderable both natively and as Web Components regardless of the flag', () => {
     const basicCat = new BasicCatalog();
     TestBed.configureTestingModule({
-      providers: [provideA2Ui({ catalogs: [basicCat], useUniversalComponents: false })],
+      providers: [provideA2Ui({catalogs: [basicCat], useUniversalComponents: false})],
     });
     TestBed.inject(A2uiRendererService);
     expect(basicCat.components.size).toBeGreaterThan(1);
@@ -253,8 +253,8 @@ describe('provideA2Ui', () => {
 
     TestBed.configureTestingModule({
       providers: [
-        provideA2Ui({ catalogs: [new CustomCatalog()], useUniversalComponents: true }),
-        { provide: CustomCatalog, useClass: CustomCatalog },
+        provideA2Ui({catalogs: [new CustomCatalog()], useUniversalComponents: true}),
+        {provide: CustomCatalog, useClass: CustomCatalog},
       ],
     });
 
@@ -275,7 +275,7 @@ describe('provideA2Ui', () => {
           catalogs: [basicCat],
           actionHandler,
           processorOptions: {
-            outboundListener: (msg) => {
+            outboundListener: msg => {
               outboundMessages.push(msg);
             },
             unifiedOutbound: true,
@@ -288,12 +288,12 @@ describe('provideA2Ui', () => {
     svc.processMessages([
       {
         version: '1.0',
-        createSurface: { surfaceId: 's1', catalogId: basicCat.id },
+        createSurface: {surfaceId: 's1', catalogId: basicCat.id},
       },
     ]);
     await svc.surfaceGroup
       .getSurface('s1')!
-      .dispatchAction({ event: { name: 'click', context: { ok: true } } }, 'btn-1');
+      .dispatchAction({event: {name: 'click', context: {ok: true}}}, 'btn-1');
 
     expect(outboundMessages.length).toBe(1);
     expect(outboundMessages[0]).toEqual(
@@ -303,7 +303,7 @@ describe('provideA2Ui', () => {
           name: 'click',
           surfaceId: 's1',
           sourceComponentId: 'btn-1',
-          context: { ok: true },
+          context: {ok: true},
         }),
       }),
     );
@@ -312,7 +312,7 @@ describe('provideA2Ui', () => {
         name: 'click',
         surfaceId: 's1',
         sourceComponentId: 'btn-1',
-        context: { ok: true },
+        context: {ok: true},
       }),
     );
   });

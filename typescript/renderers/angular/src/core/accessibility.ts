@@ -30,8 +30,8 @@ import {
   type Provider,
   inject,
 } from '@angular/core';
-import { peekValue, setValue, type Signal } from '@a2ui/web_core';
-import { type AccessibilityTargets, createAccessibilityTargets } from '@a2ui/web_core/universal';
+import {peekValue, setValue, type Signal} from '@a2ui/web_core';
+import {type AccessibilityTargets, createAccessibilityTargets} from '@a2ui/web_core/universal';
 
 /** The accessibility targets of the host element the current component renders in. */
 export const A2UI_ACCESSIBILITY_TARGETS = new InjectionToken<AccessibilityTargets>(
@@ -40,12 +40,12 @@ export const A2UI_ACCESSIBILITY_TARGETS = new InjectionToken<AccessibilityTarget
 
 /** Provides a host element's own accessibility targets. */
 export function provideAccessibilityTargets(): Provider {
-  return { provide: A2UI_ACCESSIBILITY_TARGETS, useFactory: createAccessibilityTargets };
+  return {provide: A2UI_ACCESSIBILITY_TARGETS, useFactory: createAccessibilityTargets};
 }
 
 /** Puts the directive's element in one of its host's target slots while it exists. */
 function markElement(slotOf: (targets: AccessibilityTargets) => Signal<Element | null>): void {
-  const targets = inject(A2UI_ACCESSIBILITY_TARGETS, { optional: true });
+  const targets = inject(A2UI_ACCESSIBILITY_TARGETS, {optional: true});
   if (!targets) return;
   const slot = slotOf(targets);
   const element = inject<ElementRef<Element>>(ElementRef).nativeElement;
@@ -64,10 +64,10 @@ function markElement(slotOf: (targets: AccessibilityTargets) => Signal<Element |
  * fails. Without it, the component's host element is labelled as a
  * `role="group"` and no element gets the validation state.
  */
-@Directive({ selector: '[a2uiAccessibilityTarget]' })
+@Directive({selector: '[a2uiAccessibilityTarget]'})
 export class AccessibilityTargetDirective {
   constructor() {
-    markElement((targets) => targets.target);
+    markElement(targets => targets.target);
   }
 }
 
@@ -76,9 +76,9 @@ export class AccessibilityTargetDirective {
  * are errors, the `a2uiAccessibilityTarget` element gets `aria-describedby`
  * pointing at it, and it gets an `id` if it has none.
  */
-@Directive({ selector: '[a2uiValidationErrors]' })
+@Directive({selector: '[a2uiValidationErrors]'})
 export class ValidationErrorsDirective {
   constructor() {
-    markElement((targets) => targets.errors);
+    markElement(targets => targets.errors);
   }
 }

@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { Injectable, OnDestroy } from '@angular/core';
-import { NodeResolver, type SurfaceModel } from '@a2ui/web_core';
+import {Injectable, OnDestroy} from '@angular/core';
+import {NodeResolver, type SurfaceModel} from '@a2ui/web_core';
 
-import type { AngularComponentImplementation } from '../catalog/types';
+import type {AngularComponentImplementation} from '../catalog/types';
 
 /**
  * Owns the `NodeResolver` for one rendered surface.

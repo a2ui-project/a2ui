@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { Component, Injector } from '@angular/core';
+import {Component, Injector} from '@angular/core';
 
-import { TestBed } from '@angular/core/testing';
-import { z } from 'zod';
+import {TestBed} from '@angular/core/testing';
+import {z} from 'zod';
 import {
   Catalog,
   ComponentApi,
@@ -32,11 +32,11 @@ import {
   registerUniversalElement,
   WebComponentImplementation,
 } from '@a2ui/web_core/universal';
-import { DynamicStringSchema } from '@a2ui/web_core/v0_9';
-import { toWebComponent } from './to_web_component';
-import { AngularWcHost, setDefaultUniversalInjector } from './angular_wc_host';
-import { ComponentBinder } from '../core/component-binder.service';
-import { CatalogComponent } from '../core/catalog_component';
+import {DynamicStringSchema} from '@a2ui/web_core/v0_9';
+import {toWebComponent} from './to_web_component';
+import {AngularWcHost, setDefaultUniversalInjector} from './angular_wc_host';
+import {ComponentBinder} from '../core/component-binder.service';
+import {CatalogComponent} from '../core/catalog_component';
 import {
   AngularCatalog,
   AngularComponentImplementation,
@@ -45,7 +45,7 @@ import {
 
 // Typed api for the test components that read `props().text`, so that the
 // template type checker sees a concrete property rather than an index signature.
-type TextTestApi = ComponentApi<z.ZodObject<{ text: z.ZodString }>>;
+type TextTestApi = ComponentApi<z.ZodObject<{text: z.ZodString}>>;
 
 // `createComponentImplementation` returns an `AngularComponentImplementation`;
 // these tests exercise the Custom Element it also carries, so narrow once here.
@@ -134,7 +134,7 @@ describe('toWebComponent', () => {
   it('converts an AngularComponentImplementation to a WebComponentImplementation', () => {
     const impl = toWebComponent({
       name: 'SimpleTest',
-      schema: z.object({ text: z.string() }),
+      schema: z.object({text: z.string()}),
       component: TestSimpleWcComponent,
     });
 
@@ -200,7 +200,7 @@ describe('toWebComponent', () => {
 
   it('instantiates custom element and sets up display: contents', () => {
     const impl = createUniversalImplementation(
-      { name: 'DisplayContentsTest', schema: z.object({}) },
+      {name: 'DisplayContentsTest', schema: z.object({})},
       TestDisplayContentsComponent,
     );
 
@@ -221,7 +221,7 @@ describe('toWebComponent', () => {
 
   it('binds component context, props, and metadata to the underlying Angular component', () => {
     const impl = createUniversalImplementation(
-      { name: 'BindContextTest', schema: z.object({ text: z.string() }) },
+      {name: 'BindContextTest', schema: z.object({text: z.string()})},
       TestBindContextComponent,
     );
 
@@ -254,7 +254,7 @@ describe('toWebComponent', () => {
 
   it('updates bound props reactively when componentModel emits onUpdated', () => {
     const impl = createUniversalImplementation(
-      { name: 'ReactiveUpdateTest', schema: z.object({ text: z.string() }) },
+      {name: 'ReactiveUpdateTest', schema: z.object({text: z.string()})},
       TestReactiveUpdateComponent,
     );
 
@@ -281,7 +281,7 @@ describe('toWebComponent', () => {
     expect(el.querySelector('.test-text')!.textContent).toBe('Initial Text');
 
     // Mutate and emit update
-    componentModel.properties = { text: 'Updated Text' };
+    componentModel.properties = {text: 'Updated Text'};
 
     expect(el.querySelector('.test-text')!.textContent).toBe('Updated Text');
 
@@ -290,7 +290,7 @@ describe('toWebComponent', () => {
 
   it('safely handles components without standard inputs', () => {
     const impl = createUniversalImplementation(
-      { name: 'NoInputsTest', schema: z.object({}) },
+      {name: 'NoInputsTest', schema: z.object({})},
       TestNoInputsComponent,
     );
 
@@ -316,7 +316,7 @@ describe('toWebComponent', () => {
 
   it('cleans up views and subscriptions on disconnectedCallback and supports reattachment', () => {
     const impl = createUniversalImplementation(
-      { name: 'LifecycleTest', schema: z.object({ text: z.string() }) },
+      {name: 'LifecycleTest', schema: z.object({text: z.string()})},
       TestLifecycleComponent,
     );
 
@@ -346,7 +346,7 @@ describe('toWebComponent', () => {
 
     // Reconnect
     document.body.appendChild(el);
-    componentModel.properties = { text: 'Second Attach' };
+    componentModel.properties = {text: 'Second Attach'};
 
     expect(el.querySelector('.test-text')!.textContent).toBe('Second Attach');
     document.body.removeChild(el);
@@ -382,7 +382,7 @@ describe('toWebComponent', () => {
     class TestDefaultInjectorComponent extends CatalogComponent<TextTestApi> {}
 
     const impl = createUniversalImplementation(
-      { name: 'DefaultInjectorTest', schema: z.object({ text: z.string() }) },
+      {name: 'DefaultInjectorTest', schema: z.object({text: z.string()})},
       TestDefaultInjectorComponent,
     );
 
@@ -484,14 +484,14 @@ describe('toWebComponent', () => {
     // creates any signals.
     const binder = TestBed.inject(ComponentBinder);
     const impl = createUniversalImplementation(
-      { name: 'NodeHostTest', schema: z.object({ text: DynamicStringSchema }) },
+      {name: 'NodeHostTest', schema: z.object({text: DynamicStringSchema})},
       TestBindContextComponent,
     );
     const catalog = new AngularCatalog('test-catalog', '0.9', [impl]);
     const surface = new SurfaceModel('surface-node-wc', catalog);
     surface.dataModel.set('/text', 'From Node');
     surface.componentsModel.addComponent(
-      new ComponentModel('root', 'NodeHostTest', { text: { path: '/text' } }, catalog),
+      new ComponentModel('root', 'NodeHostTest', {text: {path: '/text'}}, catalog),
     );
     const resolver = new NodeResolver(surface, catalog);
     const rootNode = getValue(resolver.rootNode)!;

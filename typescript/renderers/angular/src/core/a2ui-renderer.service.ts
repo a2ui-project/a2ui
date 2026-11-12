@@ -33,14 +33,14 @@ import {
   SurfaceGroupModel,
   ActionListener,
 } from '@a2ui/web_core';
-import { AngularComponentImplementation, AngularCatalog } from '../catalog/types';
+import {AngularComponentImplementation, AngularCatalog} from '../catalog/types';
 import {
   clearDefaultUniversalInjector,
   setDefaultUniversalInjector,
 } from '../catalog/angular_wc_host';
-import { setMarkdownRenderer } from '@a2ui/web_core/universal';
-import { MarkdownRenderer } from './markdown';
-import { initializeAngularReactivity } from './reactivity';
+import {setMarkdownRenderer} from '@a2ui/web_core/universal';
+import {MarkdownRenderer} from './markdown';
+import {initializeAngularReactivity} from './reactivity';
 
 /**
  * Configuration for the A2UI renderer.
@@ -95,8 +95,8 @@ export function provideA2Ui(
     {
       provide: A2UI_RENDERER_CONFIG,
       ...(typeof configOrFactory === 'function'
-        ? { useFactory: configOrFactory }
-        : { useValue: configOrFactory }),
+        ? {useFactory: configOrFactory}
+        : {useValue: configOrFactory}),
     },
     // Switch web_core to Angular signals before any `MessageProcessor` or `NodeResolver`
     // exists, so every signal they create is tracked by Angular `computed` and `effect`.
@@ -111,12 +111,12 @@ export function provideA2Ui(
  * {@link MessageProcessor} that turns A2UI protocol messages into a reactive
  * {@link SurfaceGroupModel}.
  */
-@Injectable({ providedIn: 'root' })
+@Injectable({providedIn: 'root'})
 export class A2uiRendererService implements OnDestroy {
   private _messageProcessor: MessageProcessor<AngularComponentImplementation>;
   private _catalogs: AngularCatalog[] = [];
   private readonly _injector = inject(Injector);
-  private readonly _config = inject(A2UI_RENDERER_CONFIG, { optional: true });
+  private readonly _config = inject(A2UI_RENDERER_CONFIG, {optional: true});
   private readonly _useUniversalComponents = this._config?.useUniversalComponents ?? false;
 
   constructor() {
@@ -175,12 +175,12 @@ export class A2uiRendererService implements OnDestroy {
    */
   callAgentFunction<TRes = unknown>(
     surfaceId: string,
-    call: string | { call: string; args?: Record<string, unknown>; catalogId?: string },
+    call: string | {call: string; args?: Record<string, unknown>; catalogId?: string},
     argsOrOptions?: Record<string, unknown> | CallOptions,
     options?: CallOptions,
   ): Promise<TRes> {
     if (typeof call === 'string') {
-      const fnCall = { call, args: argsOrOptions as Record<string, unknown> | undefined };
+      const fnCall = {call, args: argsOrOptions as Record<string, unknown> | undefined};
       return this._messageProcessor.callAgentFunction<TRes>(surfaceId, fnCall as any, options);
     }
     return this._messageProcessor.callAgentFunction<TRes>(

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { Injectable, inject, Signal as AngularSignal, EnvironmentInjector } from '@angular/core';
+import {Injectable, inject, Signal as AngularSignal, EnvironmentInjector} from '@angular/core';
 import {
   ComponentContext,
   type ComponentNode,
@@ -26,8 +26,8 @@ import {
   isWritable,
   peekValue,
 } from '@a2ui/web_core';
-import { BoundProperty, ComponentTemplate } from './types';
-import { assertAngularSignal, initializeAngularReactivity } from './reactivity';
+import {BoundProperty, ComponentTemplate} from './types';
+import {assertAngularSignal, initializeAngularReactivity} from './reactivity';
 
 /** Represents a reference to a child component. */
 export interface Child {
@@ -104,7 +104,7 @@ export class ComponentBinder {
       return undefined;
     }
     const path = rawVal['@path'] ?? rawVal.path;
-    return rawVal.componentId && path ? { id: rawVal.componentId, path } : undefined;
+    return rawVal.componentId && path ? {id: rawVal.componentId, path} : undefined;
   }
 
   private unwrapNodePropValue(key: string, val: unknown, defaultBasePath: string): unknown {
@@ -116,11 +116,11 @@ export class ComponentBinder {
     }
     if (Array.isArray(val)) {
       if (key === 'children') {
-        return val.map((item) =>
+        return val.map(item =>
           isComponentNode(item) ? toChild(item) : this.normalizeChildItem(item, defaultBasePath),
         );
       }
-      return val.map((item) => this.unwrapNodePropValue(key, item, defaultBasePath));
+      return val.map(item => this.unwrapNodePropValue(key, item, defaultBasePath));
     }
     if (['child', 'trigger', 'content'].includes(key)) {
       return this.normalizeChildItem(val, defaultBasePath);
@@ -210,12 +210,7 @@ export class ComponentBinder {
       ? this.createChildListSignal(value, context, cleanups)
       : context.dataContext.resolveSignal(value);
 
-    const { valueSignal, template } = this.transformStructuralSignal(
-      key,
-      value,
-      baseSignal,
-      context,
-    );
+    const {valueSignal, template} = this.transformStructuralSignal(key, value, baseSignal, context);
 
     if (valueSignal?.unsubscribe) {
       cleanups.push(() => valueSignal.unsubscribe!());
@@ -232,11 +227,11 @@ export class ComponentBinder {
   }
 
   private createChildListSignal(
-    value: { componentId: string; path: string },
+    value: {componentId: string; path: string},
     context: ComponentContext,
     cleanups: Array<() => void>,
   ) {
-    const listSig = context.dataContext.resolveSignal({ path: value.path });
+    const listSig = context.dataContext.resolveSignal({path: value.path});
     if (listSig?.unsubscribe) {
       cleanups.push(() => listSig.unsubscribe!());
     }
@@ -258,7 +253,7 @@ export class ComponentBinder {
     value: any,
     valueSignal: any,
     context: ComponentContext,
-  ): { valueSignal: any; template: ComponentTemplate | undefined } {
+  ): {valueSignal: any; template: ComponentTemplate | undefined} {
     if (['child', 'trigger', 'content'].includes(key)) {
       assertAngularSignal(valueSignal);
       return {
@@ -273,18 +268,18 @@ export class ComponentBinder {
       assertAngularSignal(valueSignal);
       const id = value?.componentId;
       const path = value?.path;
-      const template = id && path ? { id, path } : undefined;
+      const template = id && path ? {id, path} : undefined;
       return {
         template,
         valueSignal: computed(() => {
           const val = valueSignal();
           const arr = Array.isArray(val) ? val : [];
-          return arr.map((item) => this.normalizeChildItem(item, context.dataContext.path));
+          return arr.map(item => this.normalizeChildItem(item, context.dataContext.path));
         }),
       };
     }
 
-    return { valueSignal, template: undefined };
+    return {valueSignal, template: undefined};
   }
 
   private normalizeChildItem(val: unknown, basePath: string): unknown {
@@ -292,17 +287,17 @@ export class ComponentBinder {
     if (typeof val === 'object' && 'id' in val) {
       return val;
     }
-    return { id: val, basePath };
+    return {id: val, basePath};
   }
 
   private bindChecks(
     value: unknown,
     context: ComponentContext,
     cleanups: Array<() => void>,
-  ): { isValid: BoundProperty<unknown>; validationErrors: BoundProperty<unknown> } {
+  ): {isValid: BoundProperty<unknown>; validationErrors: BoundProperty<unknown>} {
     const checksArray = Array.isArray(value) ? value : [];
 
-    const ruleResults = checksArray.map((rule) => {
+    const ruleResults = checksArray.map(rule => {
       const condition = rule.condition ?? rule;
       const message = rule.message ?? 'Validation failed';
       const conditionSig = context.dataContext.resolveSignal(condition);
@@ -313,13 +308,11 @@ export class ComponentBinder {
       if (messageSig?.unsubscribe) {
         cleanups.push(() => messageSig.unsubscribe!());
       }
-      return { conditionSig, messageSig };
+      return {conditionSig, messageSig};
     });
 
     const isValidSignal = computed(() =>
-      ruleResults.every(
-        (r) => !this.evaluateCheckRule(r.conditionSig, r.messageSig).isBlockingError,
-      ),
+      ruleResults.every(r => !this.evaluateCheckRule(r.conditionSig, r.messageSig).isBlockingError),
     );
 
     const validationErrorsSignal = computed(() => {
@@ -350,7 +343,7 @@ export class ComponentBinder {
   private evaluateCheckRule(
     conditionSig: unknown,
     messageSig: unknown,
-  ): { isBlockingError: boolean; errorMessage: string } {
+  ): {isBlockingError: boolean; errorMessage: string} {
     assertAngularSignal(conditionSig);
     assertAngularSignal(messageSig);
     const rawResult = conditionSig();
@@ -376,12 +369,12 @@ export class ComponentBinder {
 }
 
 function toChild(node: ComponentNode): Child {
-  return { id: node.componentId, basePath: node.dataPath, node };
+  return {id: node.componentId, basePath: node.dataPath, node};
 }
 
 function isChildListTemplateObject(
   value: unknown,
-): value is { componentId: string; path?: string; '@path'?: string } {
+): value is {componentId: string; path?: string; '@path'?: string} {
   return (
     typeof value === 'object' &&
     value !== null &&

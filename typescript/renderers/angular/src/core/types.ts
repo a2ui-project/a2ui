@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { Signal } from '@angular/core';
-import { z } from 'zod';
-import { ComponentApi } from '@a2ui/web_core';
-import { Child } from './component-binder.service';
+import {Signal} from '@angular/core';
+import {z} from 'zod';
+import {ComponentApi} from '@a2ui/web_core';
+import {Child} from './component-binder.service';
 
 /** Data structure that represents a template used to render a collection of children. */
 export interface ComponentTemplate {
@@ -63,8 +63,8 @@ export interface BoundProperty<T = unknown> {
   readonly onUpdate: (newValue: T) => void;
 }
 
-type DataBindingType = { path: string } | { '@path': string };
-type FunctionCallType = { call: string } | { '@call': string };
+type DataBindingType = {path: string} | {'@path': string};
+type FunctionCallType = {call: string} | {'@call': string};
 type DynamicSchemaValueToRaw<Input> = Exclude<Input, DataBindingType | FunctionCallType>;
 
 type InferredInterfaceToProps<InferredSchema> = {
@@ -95,7 +95,7 @@ interface CheckProps {
  * A component with check rules, `checks` below v1.0 or `@checks` from v1.0, gets the
  * validation props.
  */
-export type ExtendedProps<ComponentProps extends { [key: string]: unknown }> =
+export type ExtendedProps<ComponentProps extends {[key: string]: unknown}> =
   'checks' extends keyof ComponentProps
     ? ComponentProps & CheckProps
     : '@checks' extends keyof ComponentProps

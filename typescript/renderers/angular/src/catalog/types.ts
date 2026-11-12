@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-import { Type } from '@angular/core';
-import { Catalog, ComponentApi, FunctionImplementation } from '@a2ui/web_core';
-import { WebComponentImplementation, isWebComponentImplementation } from '@a2ui/web_core/universal';
-import { z } from 'zod';
-import { CatalogComponentInstance } from '../core/catalog_component_instance';
-import { componentApiFields, toWebComponent } from './to_web_component';
-import { UniversalOnlyComponent } from './universal_only.component';
+import {Type} from '@angular/core';
+import {Catalog, ComponentApi, FunctionImplementation} from '@a2ui/web_core';
+import {WebComponentImplementation, isWebComponentImplementation} from '@a2ui/web_core/universal';
+import {z} from 'zod';
+import {CatalogComponentInstance} from '../core/catalog_component_instance';
+import {componentApiFields, toWebComponent} from './to_web_component';
+import {UniversalOnlyComponent} from './universal_only.component';
 
 /**
  * Temporary type used during basic catalog schema alignment to bypass strict type checking.
@@ -125,7 +125,7 @@ function toAngularComponentImplementation(
     // Workaround, needed only while 1P apps migrate to `useUniversalComponents: true`: until
     // then every catalog entry must carry an Angular component, so Web Component-only entries
     // get a placeholder that reports the missing flag instead of rendering.
-    return { ...entry, component: UniversalOnlyComponent };
+    return {...entry, component: UniversalOnlyComponent};
   }
   return entry;
 }
@@ -140,7 +140,7 @@ function isAngularComponentImplementation(api: unknown): api is AngularComponent
     typeof api === 'object' &&
     api !== null &&
     'component' in api &&
-    typeof (api as { component?: unknown }).component === 'function'
+    typeof (api as {component?: unknown}).component === 'function'
   );
 }
 
@@ -164,7 +164,7 @@ export function createComponentImplementation(
 ): AngularComponentImplementation {
   const webComponent = isWebComponentImplementation(componentApi)
     ? componentApi
-    : toWebComponent({ ...componentApiFields(componentApi), component });
+    : toWebComponent({...componentApiFields(componentApi), component});
 
   // Annotated wider than the return type so the Custom Element fields pass the object literal
   // check; to consumers the entry is an AngularComponentImplementation that also satisfies

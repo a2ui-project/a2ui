@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { Signal } from '@angular/core';
-import { type A2uiMetadata, type Extensions } from '@a2ui/web_core';
+import {Signal} from '@angular/core';
+import {type A2uiMetadata, type Extensions} from '@a2ui/web_core';
 
 /** Describes the properties that a Catalog component needs to implement. */
 export interface CatalogComponentInstance {
