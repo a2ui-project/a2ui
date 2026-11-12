@@ -102,31 +102,27 @@ class ItemInfo extends StatelessWidget {
             'current state, and your edits to it are gone.',
             warning: true,
           ),
-        switch (item.suggestionStatus) {
-          // The list already says that the item has no suggestion.
-          SuggestionStatus.current ||
-          SuggestionStatus.none => const SizedBox.shrink(),
-          SuggestionStatus.invalid => _Notice(
+        // The list already says that the item has no suggestion, and the
+        // suggestion heading shows that it is outdated.
+        if (item.suggestionStatus == SuggestionStatus.invalid)
+          _Notice(
             'The suggestion comment does not hold a valid suggestion, '
             'so the suggestion is empty. ${item.suggestionError}',
             warning: true,
             url: suggestionUrl,
             linkText: 'Open the comment',
           ),
-          SuggestionStatus.outdated => _Notice(
-            'The suggestion is outdated: something happened on the item '
-            'after the triage bot commented. Read the new activity before '
-            'you apply it.',
-            warning: true,
-            url: item.url,
-            linkText: 'Open the item',
-          ),
-        },
         if (draft.summary case final String summary) _Text('Summary', summary),
         if (draft.reason case final String reason)
           _Text('Why flagged for triage', reason),
         if (draft.suggestion case final String suggestion)
-          _Text('Suggestion', suggestion),
+          _Text(
+            'Suggestion',
+            suggestion,
+            label: item.suggestionStatus == SuggestionStatus.outdated
+                ? const _OutdatedLabel()
+                : null,
+          ),
         if (item.teamNote case final TeamNote note)
           _Text(
             'From ${note.author == null ? 'triager' : '@${note.author}'} '
@@ -186,20 +182,64 @@ class _Notice extends StatelessWidget {
 }
 
 class _Text extends StatelessWidget {
-  const _Text(this.title, this.text);
+  const _Text(this.title, this.text, {this.label});
 
   final String title;
   final String text;
 
+  /// Shown after [title], such as [_OutdatedLabel].
+  final Widget? label;
+
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    spacing: 4,
-    children: [
-      Text(title, style: Theme.of(context).textTheme.titleSmall),
-      LinkifiedText(text),
-    ],
-  );
+  Widget build(BuildContext context) {
+    final Widget? label = this.label;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: 4,
+      children: [
+        Row(
+          spacing: 8,
+          children: [
+            Text(title, style: Theme.of(context).textTheme.titleSmall),
+            ?label,
+          ],
+        ),
+        LinkifiedText(text),
+      ],
+    );
+  }
+}
+
+/// Marks an outdated suggestion, as GitHub marks an outdated review
+/// comment: a small yellow label.
+class _OutdatedLabel extends StatelessWidget {
+  const _OutdatedLabel();
+
+  @override
+  Widget build(BuildContext context) {
+    final bool dark = Theme.of(context).brightness == Brightness.dark;
+    final Color yellow = dark ? const Color(0xFFD29922) : const Color(0xFF9A6700);
+    return Tooltip(
+      message:
+          'Something happened on the item after the triage bot commented.',
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: yellow.withValues(alpha: dark ? 0.15 : 0.1),
+          border: Border.all(color: yellow.withValues(alpha: 0.4)),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+          child: Text(
+            'Outdated',
+            style: Theme.of(
+              context,
+            ).textTheme.labelSmall?.copyWith(color: yellow),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// Links to the items that the item is linked to, and to the ones the
