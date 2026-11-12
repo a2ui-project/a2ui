@@ -18,7 +18,7 @@ import {readFileSync} from 'node:fs';
 import {dirname, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
-import {CharStream, CommonTokenStream} from 'antlr4ng';
+import {ATNDeserializer, CharStream, CommonTokenStream} from 'antlr4ng';
 import {describe, expect, it} from 'vitest';
 
 import {ExpressLexer} from '../../../../src/inference-formats/express/generated/ExpressLexer.js';
@@ -55,10 +55,37 @@ describe('generated Express parser', () => {
     expect(ExpressParser._serializedATN).toEqual(expected);
   });
 
-  it('has the same lexer ATN as the Python SDK', () => {
+  it('has the same lexer ATN structure as the Python SDK', () => {
     const expected = pythonSerializedAtn('express_lexer.py');
     expect(expected.length).toBeGreaterThan(0);
-    expect(ExpressLexer._serializedATN).toEqual(expected);
+
+    // Python's lexer is generated with Java ANTLR 4.13.2 (ICU4J Unicode 15.0)
+    // and TypeScript's with antlr-ng 1.0.10 (Unicode 16.0), so the expanded
+    // \p{XID_Start} and \p{XID_Continue} interval tables differ on newly
+    // assigned Unicode 16.0 code points while the ATN state graph, rules,
+    // modes, and transition topology remain identical.
+    const tsAtn = new ATNDeserializer().deserialize(ExpressLexer._serializedATN);
+    const pyAtn = new ATNDeserializer().deserialize(expected);
+
+    expect(tsAtn.states.length).toBe(pyAtn.states.length);
+    expect(tsAtn.ruleToStartState.map(s => s?.stateNumber)).toEqual(
+      pyAtn.ruleToStartState.map(s => s?.stateNumber),
+    );
+    expect(tsAtn.ruleToTokenType).toEqual(pyAtn.ruleToTokenType);
+    expect(tsAtn.modeToStartState.map(s => s?.stateNumber)).toEqual(
+      pyAtn.modeToStartState.map(s => s?.stateNumber),
+    );
+    for (let i = 0; i < tsAtn.states.length; i++) {
+      const tsTransitions = tsAtn.states[i]!.transitions.map(t => [
+        t.serializationType,
+        t.target.stateNumber,
+      ]);
+      const pyTransitions = pyAtn.states[i]!.transitions.map(t => [
+        t.serializationType,
+        t.target.stateNumber,
+      ]);
+      expect(tsTransitions).toEqual(pyTransitions);
+    }
   });
 
   it('parses a program through the antlr4ng runtime', () => {

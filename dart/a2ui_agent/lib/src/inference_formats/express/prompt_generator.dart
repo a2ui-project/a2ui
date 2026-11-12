@@ -63,33 +63,44 @@ class ExpressPromptGenerator extends PromptGenerator {
   /// has no Express notation; see [ExpressDecompiler.decompile].
   @override
   String generate() {
-    if (this.catalogs.isEmpty) {
+    if (catalogs.isEmpty) {
       throw A2uiCatalogError('An Express prompt needs at least one catalog.');
     }
-    // The decompiler holds linked copies, which resolve cross-catalog
-    // references; [catalogs] stay as they are.
-    final decompiler = ExpressDecompiler(this.catalogs);
-    final List<CatalogApi> catalogs = decompiler.catalogs;
+    final decompiler = ExpressDecompiler(catalogs);
     final A2uiProtocolVersion version = catalogsProtocolVersion(catalogs);
     final bool v1 = version.isAtLeast(A2uiProtocolVersion.v1_0);
+    final List<String> allowed = resolveAllowedMessages(
+      allowedMessages,
+      version,
+    );
     final buffer = StringBuffer(
       _rules(
-        resolveAllowedMessages(allowedMessages, version),
-        callable: v1 ? _agentCallable(catalogs) : const [],
+        allowed,
+        v1: v1,
+        callable: v1 ? agentCallableFunctions(catalogs) : const [],
       ),
     );
+    // System functions belong to the protocol, not a catalog, so they are
+    // listed once, after the rules for the catalogs.
+    final String systemFunctions =
+        allowed.contains('createSurface') ||
+            allowed.contains('updateComponents')
+        ? _systemFunctionSignatures(CatalogSchemaHelper(catalogs.first))
+        : '';
     String section(CatalogApi catalog, String heading) => _catalogSection(
       CatalogSchemaHelper(catalog),
       heading,
       instructions: v1 ? _instructions(catalog, decompiler, version) : null,
     );
     if (catalogs.length == 1) {
+      if (systemFunctions.isNotEmpty) buffer.write('\n\n$systemFunctions');
       buffer
         ..write('\n\n')
         ..write(section(catalogs.single, '##'));
     } else {
       buffer.write(v1 ? _catalogsV1(catalogs) : _catalogsV0_9(catalogs));
-      for (final catalog in catalogs) {
+      if (systemFunctions.isNotEmpty) buffer.write('\n\n$systemFunctions');
+      for (final CatalogApi catalog in catalogs) {
         buffer
           ..write('\n\n## Catalog `${catalog.id}`\n\n')
           ..write(section(catalog, '###'));
@@ -165,17 +176,6 @@ String _catalogsV1(List<CatalogApi> catalogs) {
   }
   return buffer.toString();
 }
-
-/// The functions of [catalogs] the agent may ask the renderer to run with
-/// `callRendererFunction`: those whose `allowedCallers` admits the agent, and
-/// which need no user activation, which a call from the agent never has.
-List<String> _agentCallable(List<CatalogApi> catalogs) => [
-  for (final CatalogApi catalog in catalogs)
-    for (final FunctionApi function in catalog.functions.values)
-      if (function.allowedCallers != AllowedCallers.rendererOnly &&
-          !function.requiresUserActivation)
-        function.name,
-];
 
 /// The `instructions` of [catalog], with each JSON example of messages in
 /// them written as the Express block it decompiles to, or null if it has
@@ -328,9 +328,32 @@ String _keys(Map<Object?, Object?> properties) => [
     },
 ].join('\n');
 
-String _functionSignatures(CatalogSchemaHelper helper) {
+String _functionSignatures(CatalogSchemaHelper helper) =>
+    _formatFunctionSignatures(
+      helper,
+      helper.catalog.functions.keys.toList()..sort(),
+    );
+
+/// The system functions of the catalogs' version, such as `@index`, in the
+/// same signature format as catalog functions, or an empty string for a
+/// version that defines none.
+String _systemFunctionSignatures(CatalogSchemaHelper helper) {
+  if (helper.systemFunctions.isEmpty) return '';
+  final List<String> names = helper.systemFunctions.keys.toList()..sort();
+  return '## System Functions\n\n'
+      'These functions are defined by the A2UI protocol, not by a catalog. '
+      'Call them by their `@` name, like any function, and never add a '
+      '`catalogId` to them:\n'
+      '${_formatFunctionSignatures(helper, names)}';
+}
+
+/// One signature, with its descriptions, for each function in [names].
+String _formatFunctionSignatures(
+  CatalogSchemaHelper helper,
+  List<String> names,
+) {
   final signatures = <String>[];
-  for (final String name in helper.catalog.functions.keys.toList()..sort()) {
+  for (final name in names) {
     final List<String> required = helper.requiredParameters(name);
     final arguments = <String>[];
     final details = <String>[];
@@ -344,8 +367,7 @@ String _functionSignatures(CatalogSchemaHelper helper) {
     signatures.add(
       [
         '• $name(${arguments.join(', ')})',
-        if (helper.catalog.functions[name]!.description
-            case final String description)
+        if (helper.functionDescription(name) case final String description)
           '  - Description: ${_indent(description)}',
         ...details,
       ].join('\n'),
@@ -365,7 +387,11 @@ String _indent(String text) => text.replaceAll('\n', '\n    ');
 /// if any statement may use it, such as the rule for strings. The rule for
 /// standalone function calls names the [callable] functions, and is left out
 /// when there are none.
-String _rules(List<String> allowed, {required List<String> callable}) {
+String _rules(
+  List<String> allowed, {
+  required bool v1,
+  required List<String> callable,
+}) {
   final bool creates = allowed.contains('createSurface');
   final bool components = creates || allowed.contains('updateComponents');
   final bool data = allowed.contains('updateDataModel');
@@ -373,7 +399,7 @@ String _rules(List<String> allowed, {required List<String> callable}) {
     if (components) _componentsRule,
     if (creates) _rootRule,
     ..._valueRules,
-    if (components) ..._callRules,
+    if (components) ...(v1 ? _callRulesV1 : _callRulesV0_9),
     if (data) _dataModelRule,
     if (components) _templateRule,
     if (allowed.contains('deleteSurface')) _deleteSurfaceRule,
@@ -400,7 +426,7 @@ const String _contract = '''# A2UI Express DSL Output Contract
 
 You must output the user interface using A2UI Express.
 
-IMPORTANT: You MUST always surround the entire A2UI Express block with the sentinel tags `<a2ui>` and `</a2ui>`.
+IMPORTANT: You MUST always surround the entire A2UI Express block with the literal sentinel tags `<a2ui>` and `</a2ui>` (always include both the opening and closing tags; do NOT wrap the tags in backticks or replace the opening tag with a markdown code fence such as ```a2ui).
 
 The host compiler will compile your A2UI Express output into the correct JSON envelopes automatically.
 
@@ -436,13 +462,35 @@ Prefix relative list scopes with '$', e.g., $firstName.
 A lone '$' represents an empty relative path which resolves to the root of the current context (e.g. inside a template, representing the entire item itself).''',
 ];
 
-const List<String> _callRules = [
-  r'''Logic and validation: prefix client check rules with '?', e.g., ?required or ?regex("^[0-9]{5}$"). To specify a custom error message for validation failures, append it as an extra string argument, e.g. ?regex("^[0-9]{5}$", "Postal code must be 5 digits").''',
-  r'''Action events: represent server-side actions using the Event helper:
-Event("save_deal", {rep: $/form/rep})''',
-  'Nested functions: call client functions directly using catalog '
-      'signatures, for example myFunction("value").',
+const List<String> _callRulesV0_9 = [
+  _validationRule,
+  _actionEventsRuleV0_9,
+  _nestedFunctionsRule,
 ];
+
+const List<String> _callRulesV1 = [
+  _validationRule,
+  _actionEventsRuleV1,
+  _nestedFunctionsRule,
+];
+
+const String _validationRule =
+    r'''Logic and validation: prefix client check rules with '?', e.g., ?required or ?regex("^[0-9]{5}$"). To specify a custom error message for validation failures, append it as an extra string argument, e.g. ?regex("^[0-9]{5}$", "Postal code must be 5 digits").''';
+
+const String _actionEventsRuleV0_9 =
+    r'''Action events: represent server-side actions using the Event helper:
+Event("save_deal", {rep: $/form/rep})''';
+
+const String _actionEventsRuleV1 =
+    r'''Action events: represent server-side actions using the Event helper, `Event(name, context?, userMessage=...)`:
+Event("save_deal", {rep: $/form/rep})
+Event("reply", userMessage="Replying now")
+Event("save_deal", {rep: $/form/rep}, userMessage=$/form/summary)
+The context map is optional. Pass `userMessage=` as a keyword argument (a string, `$path` binding, or function call) to set the message shown on the user's behalf when the event fires.''';
+
+const String _nestedFunctionsRule =
+    'Nested functions: call client functions directly using catalog '
+    'signatures, for example myFunction("value").';
 
 const String _dataModelRule =
     r'Data model population: Assign a value directly to an absolute data path (e.g. $/path/to/key = "value") to populate or initialize values inside the shared dataModel. The value can be a primitive, array, or map.';

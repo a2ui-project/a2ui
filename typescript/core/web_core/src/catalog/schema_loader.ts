@@ -15,26 +15,14 @@
  */
 
 import {z} from 'zod';
-import {
-  DynamicStringSchema,
-  DynamicNumberSchema,
-  DynamicBooleanSchema,
-  DynamicStringListSchema,
-  DynamicValueSchema,
-  ComponentIdSchema,
-  ChildListSchema,
-  ActionSchema,
-  CheckRuleSchema,
-  CheckableSchema,
-  AccessibilityAttributesSchema,
-  ComponentCommonSchema,
-  DataBindingSchema,
-  FunctionCallSchema,
-  ChildSchema,
-} from '../types/common-types.js';
-import type {CatalogDocumentOptions, CatalogInterface, ComponentApi, FunctionApi} from './types.js';
+
+import {validateMetadata} from '../common/metadata.js';
 import {isAtLeastVersion} from '../common/semver.js';
+import {assertUax31Identifier} from '../common/uax31.js';
 import {A2uiCatalogError} from '../errors.js';
+import {CommonSchemas, ComponentCommonSchema} from '../types/common-types.js';
+import {markStandardMixinSchema} from './component_envelope.js';
+import {exclusiveUnion} from './exclusive_union.js';
 import {JsonComponentApi, JsonFunctionApi} from './json_entries.js';
 import {
   buildComponentUnion,
@@ -42,6 +30,7 @@ import {
   deepCopyJson,
   deepFreeze,
 } from './schema_serializer.js';
+import type {CatalogDocumentOptions, ComponentApi, FunctionApi} from './types.js';
 
 /**
  * The fields of a parsed catalog document: its ID, version and entries, and
@@ -63,476 +52,6 @@ export interface ParsedCatalogSchema extends CatalogDocumentOptions {
  * that omits it predates that field.
  */
 export const DEFAULT_PROTOCOL_VERSION = '0.9';
-
-import {assertUax31Identifier} from '../common/uax31.js';
-
-const COMMON_TYPE_SCHEMAS: Record<string, z.ZodTypeAny> = {
-  DynamicString: DynamicStringSchema,
-  DynamicNumber: DynamicNumberSchema,
-  DynamicBoolean: DynamicBooleanSchema,
-  DynamicStringList: DynamicStringListSchema,
-  DynamicValue: DynamicValueSchema,
-  ComponentId: ComponentIdSchema,
-  Child: ChildSchema,
-  ChildList: ChildListSchema,
-  Action: ActionSchema,
-  CheckRule: CheckRuleSchema,
-  Checkable: CheckableSchema,
-  AccessibilityAttributes: AccessibilityAttributesSchema,
-  DataBinding: DataBindingSchema,
-  FunctionCall: FunctionCallSchema,
-};
-
-/**
- * A peer catalog that a cross-catalog `$ref` can resolve against: a catalog,
- * or a raw catalog document.
- */
-export type PeerCatalogSource =
-  | CatalogInterface<ComponentApi, FunctionApi>
-  | Readonly<Record<string, unknown>>;
-
-const COMMON_TYPES_DOCUMENT = 'common_types.json';
-const CATALOG_DOCUMENT = 'catalog.json';
-
-/** Whether `doc` is the document `name`, bare or as the last segment of a path. */
-function isDocumentNamed(doc: string, name: string): boolean {
-  return doc === name || doc.endsWith(`/${name}`);
-}
-
-/** Returns the last `/`-separated segment of a path or URI. */
-function lastPathSegment(path: string): string {
-  return path.slice(path.lastIndexOf('/') + 1);
-}
-
-/** Splits a `$ref` at its first `#` into its document and fragment. */
-function splitRef(ref: string): {doc: string; fragment: string} {
-  const hashIdx = ref.indexOf('#');
-  return hashIdx < 0
-    ? {doc: ref, fragment: ''}
-    : {doc: ref.slice(0, hashIdx), fragment: ref.slice(hashIdx)};
-}
-
-/**
- * Where the document part of a `$ref` points: the document that contains the
- * reference (`self`), the common types document, a peer catalog, or nowhere
- * known.
- */
-type RefDocument =
-  | {readonly kind: 'self'}
-  | {readonly kind: 'commonTypes'}
-  | {readonly kind: 'peer'; readonly peer: PeerCatalogSource}
-  | {readonly kind: 'unresolved'};
-
-function isCatalogInstance(
-  peer: PeerCatalogSource,
-): peer is CatalogInterface<ComponentApi, FunctionApi> {
-  return typeof (peer as CatalogInterface<ComponentApi, FunctionApi>).toJson === 'function';
-}
-
-function peerIds(peer: PeerCatalogSource): {id?: string; schemaId?: string} {
-  if (isCatalogInstance(peer)) {
-    return {id: peer.id, schemaId: peer.schemaId};
-  }
-  const cid = peer['catalogId'];
-  const sid = peer['$id'];
-  return {
-    id: typeof cid === 'string' ? cid : undefined,
-    schemaId: typeof sid === 'string' ? sid : undefined,
-  };
-}
-
-/**
- * Resolves the document part `doc` of a `$ref` with the peer matching rule:
- *
- * 1. An empty `doc` is the document that contains the reference.
- * 2. `common_types.json`, bare or as a path suffix, is the common types
- *    document.
- * 3. A bare `catalog.json` is the document that contains the reference.
- * 4. Otherwise, the first peer whose `catalogId` or `$id` equals `doc`, ends
- *    with `/` + `doc`, or is a `/`-suffix of `doc`.
- * 5. Otherwise, a `doc` ending in `/catalog.json` is the document that contains
- *    the reference.
- * 6. Otherwise, the first peer whose `$id` or `catalogId` has the same last
- *    path segment as `doc`.
- * 7. Otherwise, the reference is unresolved.
- */
-function resolveRefDocument(doc: string, peers: readonly PeerCatalogSource[]): RefDocument {
-  if (!doc) return {kind: 'self'};
-  if (isDocumentNamed(doc, COMMON_TYPES_DOCUMENT)) return {kind: 'commonTypes'};
-  if (doc === CATALOG_DOCUMENT) return {kind: 'self'};
-
-  for (const peer of peers) {
-    const {id, schemaId} = peerIds(peer);
-    for (const candidate of [id, schemaId]) {
-      if (
-        candidate &&
-        (doc === candidate || candidate.endsWith(`/${doc}`) || doc.endsWith(`/${candidate}`))
-      ) {
-        return {kind: 'peer', peer};
-      }
-    }
-  }
-
-  if (doc.endsWith(`/${CATALOG_DOCUMENT}`)) return {kind: 'self'};
-
-  const base = lastPathSegment(doc);
-  for (const peer of peers) {
-    const {id, schemaId} = peerIds(peer);
-    for (const candidate of [schemaId, id]) {
-      if (candidate && lastPathSegment(candidate) === base) {
-        return {kind: 'peer', peer};
-      }
-    }
-  }
-  return {kind: 'unresolved'};
-}
-
-/**
- * Whether a JSON document contains a `$ref` into another catalog document: one
- * whose document part is neither empty, nor the common types document, nor a
- * bare `catalog.json`.
- *
- * @param node A catalog document or a part of one.
- */
-export function hasCrossDocumentRefs(node: unknown): boolean {
-  if (Array.isArray(node)) return node.some(hasCrossDocumentRefs);
-  if (!node || typeof node !== 'object') return false;
-  for (const [key, value] of Object.entries(node)) {
-    if (key === '$ref' && typeof value === 'string') {
-      const {doc} = splitRef(value);
-      if (doc && doc !== CATALOG_DOCUMENT && !isDocumentNamed(doc, COMMON_TYPES_DOCUMENT)) {
-        return true;
-      }
-    } else if (hasCrossDocumentRefs(value)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-/** Stable identities of the documents local `#/...` pointers resolve into. */
-const documentIds = new WeakMap<object, number>();
-let nextDocumentId = 0;
-
-/** Returns a key that identifies `doc` for cycle detection and caching. */
-function documentKey(doc: object): number {
-  let id = documentIds.get(doc);
-  if (id === undefined) {
-    id = nextDocumentId++;
-    documentIds.set(doc, id);
-  }
-  return id;
-}
-
-/** A `$ref` resolved to the document and pointer it targets. */
-interface RefTarget {
-  /** The document the pointer resolves in. */
-  readonly doc: Readonly<Record<string, unknown>>;
-  /** The JSON pointer within `doc`, starting with `#/`. */
-  readonly pointer: string;
-  /**
-   * Key identifying the target for cycle detection and caching: the
-   * document's identity and the pointer for a pointer into the current
-   * document, and the reference itself for a peer.
-   */
-  readonly key: string;
-  /** Whether the target is in a peer catalog rather than the current document. */
-  readonly isPeer: boolean;
-}
-
-/**
- * The peer catalogs `$ref`s resolve against while converting or inlining one
- * schema, with each peer's document read once.
- */
-class PeerScope {
-  private readonly documents = new Map<PeerCatalogSource, Readonly<Record<string, unknown>>>();
-
-  constructor(readonly peers: readonly PeerCatalogSource[] = []) {}
-
-  /** Returns the catalog document of a peer. */
-  documentOf(peer: PeerCatalogSource): Readonly<Record<string, unknown>> {
-    if (!isCatalogInstance(peer)) return peer;
-    let doc = this.documents.get(peer);
-    if (!doc) {
-      doc = peer.toJson();
-      this.documents.set(peer, doc);
-    }
-    return doc;
-  }
-
-  /**
-   * Resolves `ref`, written in `currentDoc`, to the document and pointer it
-   * targets, or returns `undefined` for a reference to the common types, to
-   * an unknown document, or without a JSON pointer fragment.
-   */
-  resolve(ref: string, currentDoc: Readonly<Record<string, unknown>>): RefTarget | undefined {
-    const {doc, fragment} = splitRef(ref);
-    if (!fragment.startsWith('#/')) return undefined;
-    const target = resolveRefDocument(doc, this.peers);
-    if (target.kind === 'self') {
-      return {
-        doc: currentDoc,
-        pointer: fragment,
-        key: `${documentKey(currentDoc)}:${fragment}`,
-        isPeer: false,
-      };
-    }
-    if (target.kind === 'peer') {
-      return {doc: this.documentOf(target.peer), pointer: fragment, key: ref, isPeer: true};
-    }
-    return undefined;
-  }
-
-  /**
-   * Throws if `ref` points into another catalog document that no peer
-   * matches: such a reference is a catalog error, never a schema that accepts
-   * any value.
-   *
-   * @throws {A2uiCatalogError} If `ref` is an unresolvable cross-catalog reference.
-   */
-  assertResolvable(ref: string): void {
-    if (resolveRefDocument(splitRef(ref).doc, this.peers).kind === 'unresolved') {
-      throwUnresolvableRef(ref);
-    }
-  }
-}
-
-/** Reports a reference whose target cannot be found as a catalog error. */
-function throwUnresolvableRef(ref: string): never {
-  throw new A2uiCatalogError(`Unresolvable schema reference: '${ref}'`);
-}
-
-/**
- * Zod schemas converted for one catalog entry, keyed by the document-scoped
- * key of the reference they were converted from, together with the peer
- * catalogs the entry's cross-catalog references resolve against.
- */
-class ConversionCache extends Map<string, z.ZodTypeAny> {
-  readonly scope: PeerScope;
-
-  constructor(peers: readonly PeerCatalogSource[] = []) {
-    super();
-    this.scope = new PeerScope(peers);
-  }
-}
-
-/**
- * Builds a JSON-loaded catalog entry linked to the given peer catalogs, by
- * entry: each entry `fromJson` loads, and each entry rebuilt from one, maps to
- * the function that built it. The function does not depend on any peers.
- */
-const entryBuilders = new WeakMap<
-  object,
-  (peers: readonly PeerCatalogSource[]) => ComponentApi | FunctionApi
->();
-
-/**
- * Returns a copy of a catalog entry whose Zod schema resolves cross-catalog
- * `$ref`s against `peers`. An entry `fromJson` loaded is rebuilt from the same
- * definition; any other entry is returned as is.
- *
- * @param entry A component or function.
- * @param peers The peer catalogs, in matching order.
- */
-export function linkEntry<E extends ComponentApi | FunctionApi>(
-  entry: E,
-  peers: readonly PeerCatalogSource[],
-): E {
-  const build = entryBuilders.get(entry);
-  return build ? (build(peers) as E) : entry;
-}
-
-function stripEnvelopeFromSubschema(node: Record<string, unknown>): Record<string, unknown> {
-  const cleaned: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(node)) {
-    if (k === 'unevaluatedProperties' || k === 'additionalProperties' || k === 'title') {
-      continue;
-    }
-    cleaned[k] = v;
-  }
-  if (
-    cleaned.properties &&
-    typeof cleaned.properties === 'object' &&
-    !Array.isArray(cleaned.properties)
-  ) {
-    const nextProps: Record<string, unknown> = {};
-    for (const [pk, pv] of Object.entries(cleaned.properties as Record<string, unknown>)) {
-      if (!isEnvelopeField(pk)) {
-        nextProps[pk] = pv;
-      }
-    }
-    cleaned.properties = nextProps;
-  }
-  if (Array.isArray(cleaned.required)) {
-    cleaned.required = cleaned.required.filter(
-      (r): r is string => typeof r === 'string' && !isEnvelopeField(r),
-    );
-  }
-  if (Array.isArray(cleaned.allOf)) {
-    const specific: unknown[] = [];
-    const inherited: unknown[] = [];
-    for (const item of cleaned.allOf) {
-      if (item && typeof item === 'object' && !Array.isArray(item)) {
-        const itemObj = item as Record<string, unknown>;
-        const itemProps = itemObj.properties;
-        const hasComp =
-          Boolean(itemProps) &&
-          typeof itemProps === 'object' &&
-          !Array.isArray(itemProps) &&
-          'component' in (itemProps as Record<string, unknown>);
-        const strippedItem = stripEnvelopeFromSubschema(itemObj);
-        if (hasComp) {
-          specific.push(strippedItem);
-        } else {
-          inherited.push(strippedItem);
-        }
-      } else {
-        inherited.push(item);
-      }
-    }
-    cleaned.allOf = [...specific, ...inherited];
-  }
-  return cleaned;
-}
-
-function stripReferencedComponentEnvelope(
-  node: Record<string, unknown>,
-  pointer: string,
-): Record<string, unknown> {
-  if (!pointer.startsWith('#/components/')) return node;
-  const parts = pointer.slice(2).split('/');
-  if (parts.length !== 2) return node;
-  return stripEnvelopeFromSubschema(node);
-}
-
-/**
- * Resolves a `$ref` into a peer catalog to its target, without the component
- * envelope when the target is a whole component.
- */
-function resolvePeerTarget(
-  target: RefTarget,
-): {doc: Record<string, unknown>; target: Record<string, unknown>} | undefined {
-  const doc = target.doc as Record<string, unknown>;
-  const raw = resolveJsonPointer(doc, target.pointer);
-  return raw ? {doc, target: stripReferencedComponentEnvelope(raw, target.pointer)} : undefined;
-}
-
-/**
- * Returns a copy of `node` with local `#/...` and peer catalog `<doc>#/...`
- * references resolved inline, preserving references to standard common types.
- *
- * Documents are matched with the peer matching rule: a reference to a bare
- * `catalog.json`, or to a document ending in `/catalog.json` that no peer
- * matches exactly, points into `rootDoc`. References inside an inlined peer
- * document resolve against the same `peers`, and its local pointers against
- * that peer's document.
- *
- * @param node The schema to inline references in.
- * @param rootDoc The document `node` belongs to.
- * @param peers The peer catalogs, in matching order.
- * @param options `inlineLocalDefs`: whether to inline local `#/$defs/...`
- *     pointers of `rootDoc` (pointers inside a peer document are always
- *     inlined). `visited`: keys of the references already being inlined.
- */
-export function inlinePeerAndLocalRefs(
-  node: unknown,
-  rootDoc: Record<string, unknown>,
-  peers: readonly PeerCatalogSource[] = [],
-  options: {inlineLocalDefs?: boolean; visited?: Set<string>} = {},
-): unknown {
-  return inlineRefs(
-    node,
-    rootDoc,
-    new PeerScope(peers),
-    options.inlineLocalDefs ?? true,
-    options.visited ?? new Set<string>(),
-  );
-}
-
-function inlineRefs(
-  node: unknown,
-  rootDoc: Readonly<Record<string, unknown>>,
-  scope: PeerScope,
-  inlineLocalDefs: boolean,
-  visited: Set<string>,
-): unknown {
-  if (Array.isArray(node)) {
-    return node.map(item => inlineRefs(item, rootDoc, scope, inlineLocalDefs, visited));
-  }
-  if (!node || typeof node !== 'object') {
-    return node;
-  }
-
-  const obj = node as Record<string, unknown>;
-  if (typeof obj.$ref === 'string') {
-    let target = scope.resolve(obj.$ref, rootDoc);
-    if (target && !target.isPeer) {
-      const defName = target.pointer.split('/').pop() ?? '';
-      const isPreservedCommonType =
-        target.pointer.startsWith('#/$defs/') &&
-        (defName in COMMON_TYPE_SCHEMAS || defName === 'ComponentCommon');
-      if (isPreservedCommonType || (!inlineLocalDefs && target.pointer.startsWith('#/$defs/'))) {
-        target = undefined;
-      }
-    }
-
-    if (target && !visited.has(target.key)) {
-      const resolvedTarget = resolveJsonPointer(
-        target.doc as Record<string, unknown>,
-        target.pointer,
-      );
-      if (resolvedTarget) {
-        const nextVisited = new Set(visited);
-        nextVisited.add(target.key);
-        const inlinedTarget = inlineRefs(
-          resolvedTarget,
-          target.doc,
-          scope,
-          target.isPeer ? true : inlineLocalDefs,
-          nextVisited,
-        );
-        if (inlinedTarget && typeof inlinedTarget === 'object' && !Array.isArray(inlinedTarget)) {
-          const stripped = stripReferencedComponentEnvelope(
-            inlinedTarget as Record<string, unknown>,
-            target.pointer,
-          );
-          const res: Record<string, unknown> = {...stripped};
-          for (const [k, v] of Object.entries(obj)) {
-            if (k === '$ref') continue;
-            const inlinedVal = inlineRefs(v, rootDoc, scope, inlineLocalDefs, visited);
-            if (
-              k in res &&
-              res[k] &&
-              typeof res[k] === 'object' &&
-              !Array.isArray(res[k]) &&
-              inlinedVal &&
-              typeof inlinedVal === 'object' &&
-              !Array.isArray(inlinedVal)
-            ) {
-              res[k] = {
-                ...(res[k] as Record<string, unknown>),
-                ...(inlinedVal as Record<string, unknown>),
-              };
-            } else if (Array.isArray(res[k]) && Array.isArray(inlinedVal)) {
-              const existing = res[k] as unknown[];
-              res[k] = [...existing, ...inlinedVal.filter(item => !existing.includes(item))];
-            } else {
-              res[k] = inlinedVal;
-            }
-          }
-          return res;
-        }
-        return inlinedTarget;
-      }
-    }
-  }
-
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(obj)) {
-    out[k] = inlineRefs(v, rootDoc, scope, inlineLocalDefs, visited);
-  }
-  return out;
-}
 
 /**
  * Resolves a JSON Pointer within a root JSON document.
@@ -572,7 +91,9 @@ function resolveJsonPointer(
  */
 function resolveProtocolRef(ref: string): z.ZodTypeAny | undefined {
   const defName = ref.split(/#\/(?:\$defs|definitions)\//)[1];
-  return defName ? COMMON_TYPE_SCHEMAS[defName] : undefined;
+  return defName && Object.hasOwn(CommonSchemas, defName)
+    ? (CommonSchemas as Record<string, z.ZodTypeAny>)[defName]
+    : undefined;
 }
 
 /**
@@ -638,7 +159,7 @@ function finalizePropertyZod(
   propSchema: Record<string, unknown>,
   rootDoc?: Record<string, unknown>,
   visitedPointers?: Set<string>,
-  defCache?: ConversionCache,
+  defCache?: Map<string, z.ZodTypeAny>,
 ): z.ZodTypeAny {
   let result = baseZod;
   if (propSchema.not && typeof propSchema.not === 'object') {
@@ -648,9 +169,17 @@ function finalizePropertyZod(
       new Set(visitedPointers),
       defCache,
     );
-    result = result.refine(val => !notSchema.safeParse(val).success, {
-      message: 'Value matched prohibited "not" schema',
-    });
+    // Checks the value as written, before `baseZod` fills in the defaults of
+    // its properties, which `not` must not see.
+    result = z.preprocess((val, ctx) => {
+      if (notSchema.safeParse(val).success) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Value matched prohibited "not" schema',
+        });
+      }
+      return val;
+    }, result);
   }
   if (propSchema.default !== undefined) {
     result = result.default(propSchema.default);
@@ -680,7 +209,7 @@ function convertRefToZod(
   propSchema: Record<string, unknown>,
   rootDoc: Record<string, unknown> | undefined,
   visitedPointers: Set<string>,
-  defCache: ConversionCache,
+  defCache: Map<string, z.ZodTypeAny>,
 ): z.ZodTypeAny | undefined {
   const resolvedProtocol = resolveProtocolRef(ref);
   if (resolvedProtocol) {
@@ -692,25 +221,9 @@ function convertRefToZod(
     return desc ? resolvedProtocol.describe(desc) : resolvedProtocol;
   }
 
-  if (!rootDoc) return undefined;
-  const target = defCache.scope.resolve(ref, rootDoc);
-  if (!target) {
-    defCache.scope.assertResolvable(ref);
-    return undefined;
-  }
-  let doc: Record<string, unknown>;
-  let schema: Record<string, unknown> | undefined;
-  if (target.isPeer) {
-    const peerResolved = resolvePeerTarget(target);
-    if (!peerResolved) throwUnresolvableRef(ref);
-    ({doc, target: schema} = peerResolved);
-  } else {
-    doc = rootDoc;
-    schema = resolveJsonPointer(rootDoc, target.pointer);
-    if (!schema) {
-      // A pointer written as `catalog.json#/...` that the document cannot
-      // satisfy is left unresolved, as it was before peers were linked.
-      if (!ref.startsWith('#')) return undefined;
+  if (rootDoc && ref.startsWith('#/')) {
+    const localTarget = resolveJsonPointer(rootDoc, ref);
+    if (!localTarget) {
       return z.unknown().superRefine((_val, ctx) => {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -718,30 +231,31 @@ function convertRefToZod(
         });
       });
     }
+    if (visitedPointers.has(ref)) {
+      let cached = defCache.get(ref);
+      return z.lazy(() => {
+        if (!cached) {
+          cached =
+            defCache.get(ref) ??
+            convertPropertyToZod(localTarget, rootDoc, new Set([ref]), defCache);
+          defCache.set(ref, cached);
+        }
+        return cached;
+      });
+    }
+    let zodType = defCache.get(ref);
+    if (!zodType) {
+      const nextVisited = new Set(visitedPointers);
+      nextVisited.add(ref);
+      zodType = convertPropertyToZod(localTarget, rootDoc, nextVisited, defCache);
+      defCache.set(ref, zodType);
+    }
+    if (typeof propSchema.description === 'string') {
+      zodType = zodType.describe(propSchema.description);
+    }
+    return zodType;
   }
-  const key = target.key;
-  const resolved = schema;
-  if (visitedPointers.has(key)) {
-    let cached = defCache.get(key);
-    return z.lazy(() => {
-      if (!cached) {
-        cached = defCache.get(key) ?? convertPropertyToZod(resolved, doc, new Set([key]), defCache);
-        defCache.set(key, cached);
-      }
-      return cached;
-    });
-  }
-  let zodType = defCache.get(key);
-  if (!zodType) {
-    const nextVisited = new Set(visitedPointers);
-    nextVisited.add(key);
-    zodType = convertPropertyToZod(resolved, doc, nextVisited, defCache);
-    defCache.set(key, zodType);
-  }
-  if (typeof propSchema.description === 'string') {
-    zodType = zodType.describe(propSchema.description);
-  }
-  return zodType;
+  return undefined;
 }
 
 /**
@@ -761,7 +275,7 @@ function convertUnionToZod(
   propSchema: Record<string, unknown>,
   rootDoc: Record<string, unknown> | undefined,
   visitedPointers: Set<string>,
-  defCache: ConversionCache,
+  defCache: Map<string, z.ZodTypeAny>,
 ): z.ZodTypeAny | undefined {
   const isOneOf = Array.isArray(propSchema.oneOf);
   const rawBranches = (propSchema.oneOf || propSchema.anyOf) as unknown[];
@@ -782,24 +296,8 @@ function convertUnionToZod(
   if (zodBranches.length === 1) {
     unionZod = zodBranches[0];
   } else {
-    const baseUnion = z.union([zodBranches[0], zodBranches[1], ...zodBranches.slice(2)]);
-    unionZod = isOneOf
-      ? z
-          .any()
-          .superRefine((val, ctx) => {
-            let matches = 0;
-            for (const b of zodBranches) {
-              if (b.safeParse(val).success && ++matches > 1) {
-                ctx.addIssue({
-                  code: z.ZodIssueCode.custom,
-                  message: 'Value matched more than one schema in oneOf',
-                });
-                return;
-              }
-            }
-          })
-          .pipe(baseUnion)
-      : baseUnion;
+    const tuple = [zodBranches[0], zodBranches[1], ...zodBranches.slice(2)] as const;
+    unionZod = isOneOf ? exclusiveUnion(tuple) : z.union(tuple);
   }
 
   if (propSchema.default !== undefined) {
@@ -809,6 +307,99 @@ function convertUnionToZod(
     (typeof propSchema.description === 'string' ? propSchema.description : undefined) ||
     (enumBranch && hasBinding ? 'REF:common_types.json#/$defs/DynamicString' : undefined);
   return desc ? unionZod.describe(desc) : unionZod;
+}
+
+/**
+ * Converts an `allOf`-composed JSON Schema property or leaf `$defs` entry into a Zod schema.
+ *
+ * When all branches contribute object property definitions (inline or via `#/$defs/...`),
+ * merges their properties and required sets into a single `z.object(...)` respecting
+ * `additionalProperties` / `unevaluatedProperties`. Otherwise, intersects the converted
+ * branch schemas with `.and(...)`.
+ */
+function convertAllOfPropertyToZod(
+  propSchema: Record<string, unknown>,
+  rootDoc: Record<string, unknown> | undefined,
+  visitedPointers: Set<string>,
+  defCache: Map<string, z.ZodTypeAny>,
+): z.ZodTypeAny | undefined {
+  const rawBranches = propSchema.allOf as unknown[];
+  const branches = rawBranches.filter(
+    (b): b is Record<string, unknown> => typeof b === 'object' && b !== null,
+  );
+  if (branches.length === 0) return undefined;
+
+  if (rootDoc) {
+    const subSchemas = collectComponentSubSchemas(
+      propSchema,
+      rootDoc,
+      new Set(visitedPointers),
+      false,
+    );
+    if (subSchemas.length > 0) {
+      const requiredSet = new Set<string>();
+      for (const s of subSchemas) {
+        if (s.kind === 'json' && Array.isArray(s.schema.required)) {
+          for (const r of s.schema.required) {
+            if (typeof r === 'string') requiredSet.add(r);
+          }
+        }
+      }
+      if (Array.isArray(propSchema.required)) {
+        for (const r of propSchema.required) {
+          if (typeof r === 'string') requiredSet.add(r);
+        }
+      }
+      const shape: Record<string, z.ZodTypeAny> = {};
+      for (const s of subSchemas) {
+        if (s.kind === 'zod') {
+          Object.assign(shape, s.properties);
+          continue;
+        }
+        const propShape = convertPropertiesToShape(
+          (s.schema.properties as Record<string, unknown>) || {},
+          requiredSet,
+          false,
+          rootDoc,
+          new Set(visitedPointers),
+          defCache,
+        );
+        Object.assign(shape, propShape);
+      }
+      const baseObj = z.object(shape);
+      const forbidExtra =
+        propSchema.additionalProperties === false ||
+        propSchema.unevaluatedProperties === false ||
+        subSchemas.some(
+          s =>
+            s.kind === 'json' &&
+            (s.schema.additionalProperties === false || s.schema.unevaluatedProperties === false),
+        );
+      const obj = closeObjectSchema(
+        baseObj,
+        [
+          propSchema,
+          ...subSchemas.flatMap(s =>
+            s.kind === 'json' && s.schema !== propSchema ? [s.schema] : [],
+          ),
+        ],
+        forbidExtra,
+        rootDoc,
+        visitedPointers,
+        defCache,
+      );
+      return finalizePropertyZod(obj, propSchema, rootDoc, visitedPointers, defCache);
+    }
+  }
+
+  const zodBranches = branches.map(b =>
+    convertPropertyToZod(b, rootDoc, new Set(visitedPointers), defCache),
+  );
+  let intersected = zodBranches[0];
+  for (let i = 1; i < zodBranches.length; i++) {
+    intersected = intersected.and(zodBranches[i]);
+  }
+  return finalizePropertyZod(intersected, propSchema, rootDoc, visitedPointers, defCache);
 }
 
 /**
@@ -829,7 +420,7 @@ function convertPropertyToZod(
   propSchema: Record<string, unknown>,
   rootDoc?: Record<string, unknown>,
   visitedPointers = new Set<string>(),
-  defCache = new ConversionCache(),
+  defCache = new Map<string, z.ZodTypeAny>(),
 ): z.ZodTypeAny {
   if (!propSchema || typeof propSchema !== 'object') {
     return z.unknown();
@@ -853,6 +444,12 @@ function convertPropertyToZod(
   if (Array.isArray(propSchema.oneOf) || Array.isArray(propSchema.anyOf)) {
     const resolvedUnion = convertUnionToZod(propSchema, rootDoc, visitedPointers, defCache);
     if (resolvedUnion) return resolvedUnion;
+  }
+
+  // allOf inspection
+  if (Array.isArray(propSchema.allOf) && propSchema.allOf.length > 0) {
+    const resolvedAllOf = convertAllOfPropertyToZod(propSchema, rootDoc, visitedPointers, defCache);
+    if (resolvedAllOf) return resolvedAllOf;
   }
 
   // Const literal
@@ -942,14 +539,16 @@ function convertPropertyToZod(
       // reference nested inside an array item is invisible to the reference map,
       // so the component graph would look as if it had no children there.
       const props = propSchema.properties;
+      const hasPatterns =
+        typeof propSchema.patternProperties === 'object' && propSchema.patternProperties !== null;
       let obj: z.ZodTypeAny;
-      if (typeof props === 'object' && props !== null) {
+      if ((typeof props === 'object' && props !== null) || hasPatterns) {
         const required = Array.isArray(propSchema.required)
           ? new Set(propSchema.required.filter((r): r is string => typeof r === 'string'))
           : new Set<string>();
         const baseObj = z.object(
           convertPropertiesToShape(
-            props as Record<string, unknown>,
+            (props ?? {}) as Record<string, unknown>,
             required,
             false,
             rootDoc,
@@ -959,7 +558,14 @@ function convertPropertyToZod(
         );
         const forbidExtra =
           propSchema.additionalProperties === false || propSchema.unevaluatedProperties === false;
-        obj = forbidExtra ? baseObj.strict() : baseObj.passthrough();
+        obj = closeObjectSchema(
+          baseObj,
+          [propSchema],
+          forbidExtra,
+          rootDoc,
+          visitedPointers,
+          defCache,
+        );
       } else {
         obj = z.record(z.unknown());
       }
@@ -973,7 +579,7 @@ function convertPropertyToZod(
 
 /**
  * Whether a property name is one of the component envelope fields (`id`,
- * `component`, `catalogId`), which route a component rather than configure it.
+ * `component`, `@catalogId`), which route a component rather than configure it.
  * The validation schema leaves them out of a component for the same reason, and
  * `PayloadValidator` strips them before parsing a component.
  *
@@ -981,7 +587,42 @@ function convertPropertyToZod(
  * @returns True if the property belongs to the envelope rather than the component.
  */
 function isEnvelopeField(propName: string): boolean {
-  return propName === 'id' || propName === 'component' || propName === 'catalogId';
+  // A bare `catalogId` a component declares is its own property: below v1.0
+  // the protocol has no per-component catalog, and from v1.0 the envelope
+  // field is `@catalogId`.
+  return propName === 'id' || propName === 'component' || propName === '@catalogId';
+}
+
+/**
+ * Whether a `properties` block declares `catalogId` or `metadata` as part of
+ * an inlined `ComponentCommon`, as flattened validation schemas do: beside
+ * `id`, and with the standard shape (a string `catalogId`, or a `metadata`
+ * object whose only property is `extensions`). Such a property is the
+ * standard mixin rather than a custom property of the same name.
+ *
+ * @param properties The `properties` block that declares the property.
+ * @param propName The property's name.
+ * @param propSchema The property's JSON Schema.
+ * @returns Whether the property is the inlined standard mixin.
+ */
+function isInlineStandardMixinProperty(
+  properties: Record<string, unknown>,
+  propName: string,
+  propSchema: unknown,
+): boolean {
+  if (!Object.hasOwn(properties, 'id') || !isPlainObject(propSchema)) return false;
+  switch (propName) {
+    case 'catalogId':
+      return propSchema.type === 'string';
+    case 'metadata': {
+      const metadataProps = propSchema.properties;
+      if (propSchema.type !== 'object' || !isPlainObject(metadataProps)) return false;
+      const keys = Object.keys(metadataProps);
+      return keys.length === 1 && keys[0] === 'extensions';
+    }
+    default:
+      return false;
+  }
 }
 
 /**
@@ -991,7 +632,7 @@ function isEnvelopeField(propName: string): boolean {
  *
  * @param properties Property name to property schema mapping.
  * @param requiredSet Set of required property names.
- * @param omitEnvelopeFields Whether to omit component envelope fields (`id`, `component`, `catalogId`).
+ * @param omitEnvelopeFields Whether to omit component envelope fields (`id`, `component`, `@catalogId`).
  * @param rootDoc Optional root schema document for reference resolution.
  * @param visitedPointers Set of reference pointers currently on the resolution stack.
  * @param defCache Cache mapping reference strings to resolved Zod schemas.
@@ -1003,7 +644,7 @@ function convertPropertiesToShape(
   omitEnvelopeFields = false,
   rootDoc?: Record<string, unknown>,
   visitedPointers?: Set<string>,
-  defCache = new ConversionCache(),
+  defCache = new Map<string, z.ZodTypeAny>(),
 ): Record<string, z.ZodTypeAny> {
   const shape: Record<string, z.ZodTypeAny> = {};
   for (const [propName, propSchema] of Object.entries(properties)) {
@@ -1019,16 +660,115 @@ function convertPropertiesToShape(
       defCache,
     );
     if (!requiredSet.has(propName)) {
-      shape[propName] = zodField.optional();
-    } else if (zodField.safeParse(undefined).success) {
-      // A schema that accepts any value, such as `{}`, also accepts a missing
-      // key, which `required` rules out.
-      shape[propName] = zodField.refine(value => value !== undefined, {message: 'Required'});
+      // A property with a `default` already accepts a missing value, and
+      // `optional()` would skip the default. Leaving it unwrapped applies the
+      // default on parse, as a `.default()` in a catalog defined in code does.
+      shape[propName] = zodField instanceof z.ZodDefault ? zodField : zodField.optional();
+      continue;
+    }
+    if (zodField.safeParse(undefined).success) {
+      // A required property must be present. A schema that accepts any value,
+      // such as `{}`, also accepts a missing key, and a `default` would stand
+      // in for one, so a missing key is rejected before either applies.
+      shape[propName] = z.preprocess((value, ctx) => {
+        if (value === undefined) {
+          ctx.addIssue({code: z.ZodIssueCode.custom, message: 'Required'});
+        }
+        return value;
+      }, zodField);
     } else {
       shape[propName] = zodField;
     }
   }
+  for (const [propName, propSchema] of Object.entries(properties)) {
+    if (
+      Object.hasOwn(shape, propName) &&
+      isInlineStandardMixinProperty(properties, propName, propSchema)
+    ) {
+      markStandardMixinSchema(shape[propName]);
+    }
+  }
   return shape;
+}
+
+/**
+ * Closes or opens a converted object schema, honoring the `patternProperties`
+ * of the JSON Schema pieces it was built from.
+ *
+ * Without `patternProperties` this is `.strict()` or `.passthrough()`. With
+ * them, a key the object doesn't declare is checked against the schema of
+ * every pattern it matches, and when `forbidExtra` is set, a key that matches
+ * no pattern is rejected, as `additionalProperties: false` rejects it.
+ *
+ * @param obj The object schema of the declared properties.
+ * @param pieces The JSON Schema pieces whose `patternProperties` apply.
+ * @param forbidExtra Whether keys that are neither declared nor matched are rejected.
+ * @param rootDoc Optional root schema document for reference resolution.
+ * @param visitedPointers Set of reference pointers currently on the resolution stack.
+ * @param defCache Cache mapping reference strings to resolved Zod schemas.
+ * @returns The object schema, wrapped in a refinement when patterns apply.
+ */
+function closeObjectSchema(
+  obj: z.AnyZodObject,
+  pieces: ReadonlyArray<Record<string, unknown>>,
+  forbidExtra: boolean,
+  rootDoc?: Record<string, unknown>,
+  visitedPointers?: Set<string>,
+  defCache = new Map<string, z.ZodTypeAny>(),
+): z.ZodTypeAny {
+  const patterns: Array<{regex: RegExp; schema: z.ZodTypeAny}> = [];
+  for (const piece of new Set(pieces)) {
+    const raw = piece.patternProperties;
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+    for (const [pattern, patternSchema] of Object.entries(raw as Record<string, unknown>)) {
+      let regex: RegExp;
+      try {
+        regex = new RegExp(pattern, 'u');
+      } catch {
+        continue;
+      }
+      patterns.push({
+        regex,
+        schema: convertPropertyToZod(
+          typeof patternSchema === 'object' && patternSchema !== null
+            ? (patternSchema as Record<string, unknown>)
+            : {},
+          rootDoc,
+          visitedPointers ? new Set(visitedPointers) : new Set<string>(),
+          defCache,
+        ),
+      });
+    }
+  }
+  if (patterns.length === 0) {
+    return forbidExtra ? obj.strict() : obj.passthrough();
+  }
+  const declared = new Set(Object.keys(obj.shape));
+  return obj.passthrough().superRefine((value, ctx) => {
+    const unrecognized: string[] = [];
+    for (const [key, entry] of Object.entries(value)) {
+      if (declared.has(key)) continue;
+      let matched = false;
+      for (const {regex, schema} of patterns) {
+        if (!regex.test(key)) continue;
+        matched = true;
+        const result = schema.safeParse(entry);
+        if (!result.success) {
+          for (const issue of result.error.issues) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: issue.message,
+              path: [key, ...issue.path],
+            });
+          }
+        }
+      }
+      if (!matched && forbidExtra) unrecognized.push(key);
+    }
+    if (unrecognized.length > 0) {
+      ctx.addIssue({code: z.ZodIssueCode.unrecognized_keys, keys: unrecognized});
+    }
+  });
 }
 
 /**
@@ -1040,8 +780,31 @@ function convertPropertiesToShape(
  * type instead.
  */
 type ComponentSubSchema =
-  | {kind: 'json'; schema: Record<string, unknown>; rootDoc: Record<string, unknown>}
+  | {kind: 'json'; schema: Record<string, unknown>}
   | {kind: 'zod'; properties: Record<string, z.ZodTypeAny>};
+
+/**
+ * Returns the `ComponentCommon` properties a component schema that composes
+ * `common_types.json#/$defs/ComponentCommon` inherits, marked as standard
+ * mixin properties.
+ *
+ * The component's `id` and catalog are envelope fields rather than
+ * properties, and below v1.0 `metadata` is not part of the protocol.
+ *
+ * @param isAtLeastV10 Whether the catalog targets protocol v1.0 or higher.
+ * @returns The inherited property schemas, keyed by their wire names.
+ */
+function componentCommonMixinProperties(isAtLeastV10: boolean): Record<string, z.ZodTypeAny> {
+  const properties: Record<string, z.ZodTypeAny> = {};
+  for (const [key, schema] of Object.entries(ComponentCommonSchema.shape)) {
+    if (!isAtLeastV10 && key.startsWith('@')) continue;
+    const bareKey = key.replace(/^@/, '');
+    if (bareKey === 'id' || bareKey === 'catalogId') continue;
+    if (bareKey === 'metadata' && !isAtLeastV10) continue;
+    properties[key] = markStandardMixinSchema(schema as z.ZodTypeAny);
+  }
+  return properties;
+}
 
 /**
  * Collects all property definitions and constraints from a component schema.
@@ -1056,14 +819,9 @@ type ComponentSubSchema =
  * that narrows a property it inherits keeps its narrowed schema, and the mixin
  * properties stay first in key order.
  *
- * A reference into a peer catalog contributes the pieces of its target, whose
- * own local pointers resolve against the peer's document.
- *
  * @param schema Component schema definition.
  * @param rootDoc Root schema document containing definition targets.
- * @param scope Peer catalogs that cross-catalog references resolve against.
- * @param visitedPointers Document-scoped keys of the references currently being resolved, to
- *     prevent cycles.
+ * @param visitedPointers Set of reference pointers currently being resolved to prevent cycles.
  * @param isAtLeastV10 Whether the catalog targets protocol v1.0 or higher.
  * @returns The pieces gathered from the schema and its `allOf` hierarchy, as JSON Schema
  *     fragments or zod mirrors of canonical types, least specific first.
@@ -1071,7 +829,6 @@ type ComponentSubSchema =
 function collectComponentSubSchemas(
   schema: Record<string, unknown>,
   rootDoc: Record<string, unknown>,
-  scope: PeerScope,
   visitedPointers = new Set<string>(),
   isAtLeastV10 = false,
 ): ComponentSubSchema[] {
@@ -1088,66 +845,43 @@ function collectComponentSubSchemas(
         const ref = sub.$ref;
         if (ref.includes('common_types.json') && ref.includes('ComponentCommon')) {
           // Protocol common properties: accessibility attributes, and from
-          // v1.0 also the component's metadata. `catalogId` is an envelope
-          // field, like `id`.
-          const {accessibility, metadata} = ComponentCommonSchema.shape;
-          mixins.push({
-            kind: 'zod',
-            properties: isAtLeastV10 ? {accessibility, metadata} : {accessibility},
-          });
+          // v1.0 also the component's metadata, under their bare or
+          // `@`-prefixed names. `catalogId` is an envelope field, like `id`.
+          mixins.push({kind: 'zod', properties: componentCommonMixinProperties(isAtLeastV10)});
+        } else if (ref.startsWith('#/')) {
+          if (!visitedPointers.has(ref)) {
+            visitedPointers.add(ref);
+            const target = resolveJsonPointer(rootDoc, ref);
+            if (target) {
+              local.push(
+                ...collectComponentSubSchemas(target, rootDoc, visitedPointers, isAtLeastV10),
+              );
+            }
+          }
         } else {
           // Any other external reference, such as common_types.json#/$defs/Checkable.
           // The referenced document is not loaded here, so fall back to the zod mirror of
           // the canonical type. Without this the mixin is dropped with no error, which is
           // how `checks` used to disappear from every Checkable component.
-          const mirror = ref.startsWith('#/') ? undefined : resolveProtocolRef(ref);
-          const target = mirror instanceof z.ZodObject ? undefined : scope.resolve(ref, rootDoc);
+          const mirror = resolveProtocolRef(ref);
           if (mirror instanceof z.ZodObject) {
-            mixins.push({kind: 'zod', properties: {...mirror.shape}});
-          } else if (!target) {
-            scope.assertResolvable(ref);
-          } else if (!target.isPeer) {
-            if (!visitedPointers.has(target.key)) {
-              visitedPointers.add(target.key);
-              const resolved = resolveJsonPointer(rootDoc, target.pointer);
-              if (resolved) {
-                local.push(
-                  ...collectComponentSubSchemas(
-                    resolved,
-                    rootDoc,
-                    scope,
-                    visitedPointers,
-                    isAtLeastV10,
-                  ),
-                );
-              }
+            const properties: Record<string, z.ZodTypeAny> = {};
+            for (const [key, prop] of Object.entries(mirror.shape as z.ZodRawShape)) {
+              if (!isAtLeastV10 && key.startsWith('@')) continue;
+              properties[key] = markStandardMixinSchema(prop);
             }
-          } else if (!visitedPointers.has(target.key)) {
-            const peerResolved = resolvePeerTarget(target);
-            if (!peerResolved) throwUnresolvableRef(ref);
-            const nextVisited = new Set(visitedPointers).add(target.key);
-            local.push(
-              ...collectComponentSubSchemas(
-                peerResolved.target,
-                peerResolved.doc,
-                scope,
-                nextVisited,
-                isAtLeastV10,
-              ),
-            );
+            mixins.push({kind: 'zod', properties});
           }
         }
       } else {
-        inline.push(
-          ...collectComponentSubSchemas(sub, rootDoc, scope, visitedPointers, isAtLeastV10),
-        );
+        inline.push(...collectComponentSubSchemas(sub, rootDoc, visitedPointers, isAtLeastV10));
       }
     }
   }
 
   const result = [...mixins, ...local, ...inline];
   if (schema.properties) {
-    result.push({kind: 'json', schema, rootDoc});
+    result.push({kind: 'json', schema});
   }
   return result;
 }
@@ -1160,7 +894,7 @@ function collectComponentSubSchemas(
  *
  * @param rawSchema Raw component schema definition.
  * @param rootDoc Root schema document for resolving references.
- * @param omitEnvelopeFields Whether to omit envelope fields (`id`, `component`, `catalogId`). Defaults to true.
+ * @param omitEnvelopeFields Whether to omit envelope fields (`id`, `component`, `@catalogId`). Defaults to true.
  * @param defCache Cache mapping reference strings to resolved Zod schemas.
  * @param isAtLeastV10 Whether the catalog targets protocol v1.0 or higher.
  * @returns Zod object schema validating component properties.
@@ -1169,17 +903,11 @@ function convertComponentJsonSchemaToZod(
   rawSchema: Record<string, unknown>,
   rootDoc: Record<string, unknown>,
   omitEnvelopeFields = true,
-  defCache = new ConversionCache(),
+  defCache = new Map<string, z.ZodTypeAny>(),
   isAtLeastV10 = false,
 ): z.ZodObject<z.ZodRawShape> {
   const shape: Record<string, z.ZodTypeAny> = {};
-  const schemasToMerge = collectComponentSubSchemas(
-    rawSchema,
-    rootDoc,
-    defCache.scope,
-    undefined,
-    isAtLeastV10,
-  );
+  const schemasToMerge = collectComponentSubSchemas(rawSchema, rootDoc, undefined, isAtLeastV10);
 
   const requiredSet = new Set<string>();
   for (const s of schemasToMerge) {
@@ -1204,7 +932,7 @@ function convertComponentJsonSchemaToZod(
       (s.schema.properties as Record<string, unknown>) || {},
       requiredSet,
       omitEnvelopeFields,
-      s.rootDoc,
+      rootDoc,
       undefined,
       defCache,
     );
@@ -1226,7 +954,7 @@ function convertComponentJsonSchemaToZod(
  * of parameter names to subschemas), rather than a full JSON Schema object or
  * reference combinator.
  */
-function isShorthandParameterMap(schema: unknown): boolean {
+export function isShorthandParameterMap(schema: unknown): boolean {
   if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
     return false;
   }
@@ -1256,26 +984,18 @@ function isExplicitlyOpen(schema: Record<string, unknown>): boolean {
   );
 }
 
-/** An object schema gathered from function arguments, with the document it belongs to. */
-interface ArgSubSchema {
-  readonly schema: Record<string, unknown>;
-  readonly doc?: Record<string, unknown>;
-}
-
 /**
  * Collects sub-schemas and references for function argument definitions.
  *
- * Resolves local document pointers (`#/`) and references into peer catalogs,
- * recurses into `allOf` compositions, and detects unresolvable references or
- * open combiners (`oneOf`, `anyOf`).
+ * Resolves local document pointers (`#/`), recurses into `allOf` compositions,
+ * and detects unresolvable references or open combiners (`oneOf`, `anyOf`).
  */
 function collectArgSubSchemas(
   schema: Record<string, unknown>,
-  rootDoc: Record<string, unknown> | undefined,
-  scope: PeerScope,
+  rootDoc?: Record<string, unknown>,
   visited = new Set<string>(),
-): {schemas: ArgSubSchema[]; hasUnresolvable: boolean} {
-  const result: {schemas: ArgSubSchema[]; hasUnresolvable: boolean} = {
+): {schemas: Record<string, unknown>[]; hasUnresolvable: boolean} {
+  const result: {schemas: Record<string, unknown>[]; hasUnresolvable: boolean} = {
     schemas: [],
     hasUnresolvable: false,
   };
@@ -1286,50 +1006,43 @@ function collectArgSubSchemas(
 
   if (isShorthandParameterMap(schema)) {
     result.schemas.push({
-      schema: {
-        type: 'object',
-        properties: schema,
-      },
-      doc: rootDoc,
+      type: 'object',
+      properties: schema,
     });
     return result;
   }
 
-  const addSub = (sub: {schemas: ArgSubSchema[]; hasUnresolvable: boolean}) => {
-    result.schemas.push(...sub.schemas);
-    if (sub.hasUnresolvable) {
-      result.hasUnresolvable = true;
-    }
-  };
-
   if (typeof schema.$ref === 'string') {
     const ref = schema.$ref;
-    const target = rootDoc ? scope.resolve(ref, rootDoc) : undefined;
-    if (!target || !rootDoc) {
-      if (rootDoc) scope.assertResolvable(ref);
-      result.hasUnresolvable = true;
-    } else if (!target.isPeer) {
-      if (!visited.has(target.key)) {
-        visited.add(target.key);
-        const resolved = resolveJsonPointer(rootDoc, target.pointer);
-        if (resolved) {
-          addSub(collectArgSubSchemas(resolved, rootDoc, scope, visited));
+    if (ref.startsWith('#/')) {
+      if (!rootDoc) {
+        result.hasUnresolvable = true;
+      } else if (!visited.has(ref)) {
+        visited.add(ref);
+        const target = resolveJsonPointer(rootDoc, ref);
+        if (target) {
+          const sub = collectArgSubSchemas(target, rootDoc, visited);
+          result.schemas.push(...sub.schemas);
+          if (sub.hasUnresolvable) {
+            result.hasUnresolvable = true;
+          }
         } else {
           result.hasUnresolvable = true;
         }
       }
-    } else if (!visited.has(target.key)) {
-      const peerResolved = resolvePeerTarget(target);
-      if (!peerResolved) throwUnresolvableRef(ref);
-      const nextVisited = new Set(visited).add(target.key);
-      addSub(collectArgSubSchemas(peerResolved.target, peerResolved.doc, scope, nextVisited));
+    } else {
+      result.hasUnresolvable = true;
     }
   }
 
   if (Array.isArray(schema.allOf)) {
     for (const sub of schema.allOf) {
       if (sub && typeof sub === 'object' && !Array.isArray(sub)) {
-        addSub(collectArgSubSchemas(sub as Record<string, unknown>, rootDoc, scope, visited));
+        const subResult = collectArgSubSchemas(sub as Record<string, unknown>, rootDoc, visited);
+        result.schemas.push(...subResult.schemas);
+        if (subResult.hasUnresolvable) {
+          result.hasUnresolvable = true;
+        }
       }
     }
   }
@@ -1341,10 +1054,11 @@ function collectArgSubSchemas(
   if (
     schema.properties ||
     schema.required ||
+    schema.patternProperties ||
     schema.additionalProperties !== undefined ||
     schema.unevaluatedProperties !== undefined
   ) {
-    result.schemas.push({schema, doc: rootDoc});
+    result.schemas.push(schema);
   }
 
   return result;
@@ -1354,23 +1068,23 @@ function collectArgSubSchemas(
  * Converts a function argument JSON schema definition into a Zod object schema.
  *
  * Maps function argument schemas to object properties, requiring fields listed in
- * `required` and applying strictness or passthrough based on `additionalProperties`
- * and reference resolution.
+ * `required` and applying strictness or passthrough based on `additionalProperties`,
+ * `patternProperties` and reference resolution.
  *
  * @param rawSchema Raw function arguments schema.
  * @param rootDoc Optional root schema document for reference resolution.
- * @param defCache Cache mapping reference keys to resolved Zod schemas, and the
- *     peer catalogs cross-catalog references resolve against.
- * @returns Zod object schema validating function arguments.
+ * @param defCache Cache mapping reference strings to resolved Zod schemas.
+ * @returns Zod object schema validating function arguments, wrapped in a
+ *     refinement when `patternProperties` apply.
  */
-function convertFunctionArgsJsonSchemaToZod(
+export function convertFunctionArgsJsonSchemaToZod(
   rawSchema: Record<string, unknown>,
   rootDoc?: Record<string, unknown>,
-  defCache = new ConversionCache(),
-): z.ZodObject<z.ZodRawShape> {
-  const collected = collectArgSubSchemas(rawSchema, rootDoc, defCache.scope);
+  defCache = new Map<string, z.ZodTypeAny>(),
+): z.ZodTypeAny {
+  const collected = collectArgSubSchemas(rawSchema, rootDoc);
   const requiredSet = new Set<string>();
-  for (const {schema: s} of collected.schemas) {
+  for (const s of collected.schemas) {
     if (Array.isArray(s.required)) {
       for (const r of s.required) {
         if (typeof r === 'string') {
@@ -1381,13 +1095,13 @@ function convertFunctionArgsJsonSchemaToZod(
   }
 
   const shape: Record<string, z.ZodTypeAny> = {};
-  for (const {schema: s, doc} of collected.schemas) {
+  for (const s of collected.schemas) {
     if (s.properties && typeof s.properties === 'object' && !Array.isArray(s.properties)) {
       const propShape = convertPropertiesToShape(
         s.properties as Record<string, unknown>,
         requiredSet,
         false,
-        doc,
+        rootDoc,
         undefined,
         defCache,
       );
@@ -1398,15 +1112,95 @@ function convertFunctionArgsJsonSchemaToZod(
   const obj = z.object(shape);
   const allowExtra =
     collected.hasUnresolvable ||
-    collected.schemas.some(({schema: s}) => isExplicitlyOpen(s)) ||
+    collected.schemas.some(isExplicitlyOpen) ||
     isExplicitlyOpen(rawSchema);
-  return allowExtra ? obj.passthrough() : obj.strict();
+  return closeObjectSchema(
+    obj,
+    [rawSchema, ...collected.schemas.filter(s => s !== rawSchema)],
+    !allowExtra,
+    rootDoc,
+    undefined,
+    defCache,
+  );
 }
 
 /**
- * Extracts declared parameter names from a function's argument schema.
+ * Whether a value is a Zod schema. Checked structurally so schemas built with
+ * another copy of Zod are recognized.
  */
-function functionParameterNames(schema: unknown, rootDoc?: Record<string, unknown>): string[] {
+export function isZodSchema(value: unknown): value is z.ZodTypeAny {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as {safeParse?: unknown}).safeParse === 'function'
+  );
+}
+
+/**
+ * Collects every object property key a Zod schema declares.
+ *
+ * Unlike `getKnownSchemaKeys`, which answers which keys an object may have, it
+ * also collects the keys of an open (`.passthrough()`) object, and of every
+ * branch of a union. It traverses `ZodEffects`, `ZodOptional`, `ZodNullable`,
+ * `ZodDefault`, `ZodCatch`, `ZodIntersection`, `ZodUnion`,
+ * `ZodDiscriminatedUnion`, `ZodPipeline`, `ZodReadonly` and `ZodBranded`.
+ *
+ * @param schema Zod schema to inspect.
+ * @returns The declared property names; empty when the schema declares none.
+ */
+export function getDeclaredSchemaKeys(schema: z.ZodTypeAny): Set<string> {
+  const keys = new Set<string>();
+  const visit = (node: any): void => {
+    const def = node?._def;
+    switch (def?.typeName) {
+      case 'ZodObject': {
+        const shape = typeof node.shape === 'function' ? node.shape() : node.shape;
+        if (shape && typeof shape === 'object') {
+          for (const key of Object.keys(shape)) keys.add(key);
+        }
+        return;
+      }
+      case 'ZodEffects':
+        visit(def.schema);
+        return;
+      case 'ZodOptional':
+      case 'ZodNullable':
+      case 'ZodDefault':
+      case 'ZodCatch':
+      case 'ZodReadonly':
+        visit(def.innerType);
+        return;
+      case 'ZodBranded':
+        visit(def.type);
+        return;
+      case 'ZodPipeline':
+        visit(def.in);
+        visit(def.out);
+        return;
+      case 'ZodIntersection':
+        visit(def.left);
+        visit(def.right);
+        return;
+      case 'ZodUnion':
+      case 'ZodDiscriminatedUnion':
+        for (const option of def.options) visit(option);
+        return;
+      default:
+        return;
+    }
+  };
+  visit(schema);
+  return keys;
+}
+
+/**
+ * Extracts declared parameter names from a function's argument schema,
+ * including those of `allOf`, `anyOf` and `oneOf` members and `$ref` targets.
+ */
+export function functionParameterNames(
+  schema: unknown,
+  rootDoc?: Record<string, unknown>,
+): string[] {
   if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
     return [];
   }
@@ -1434,9 +1228,11 @@ function functionParameterNames(schema: unknown, rootDoc?: Record<string, unknow
     ) {
       names.push(...Object.keys(n.properties as Record<string, unknown>));
     }
-    if (Array.isArray(n.allOf)) {
-      for (const member of n.allOf) {
-        extractProperties(member);
+    for (const combinator of [n.allOf, n.anyOf, n.oneOf]) {
+      if (Array.isArray(combinator)) {
+        for (const member of combinator) {
+          extractProperties(member);
+        }
       }
     }
   };
@@ -1447,6 +1243,8 @@ function functionParameterNames(schema: unknown, rootDoc?: Record<string, unknow
       s.properties !== null &&
       !Array.isArray(s.properties)) ||
     Array.isArray(s.allOf) ||
+    Array.isArray(s.anyOf) ||
+    Array.isArray(s.oneOf) ||
     typeof s.$ref === 'string'
   ) {
     extractProperties(s);
@@ -1481,6 +1279,7 @@ function parseFunctionDefinitions(
 ): FunctionApi[] {
   const result: FunctionApi[] = [];
   if (!rawFunctions) return result;
+  const defCache = new Map<string, z.ZodTypeAny>();
 
   /** Validates a function's own name and its declared argument names. */
   const assertFunctionIdentifiers = (name: string, paramNames: string[]): void => {
@@ -1491,28 +1290,42 @@ function parseFunctionDefinitions(
     }
   };
 
+  /**
+   * Rejects requiresUserActivation=true with callers other than rendererOnly.
+   * The rule exists only in the v1.0 catalog_definition.json.
+   */
+  const assertUserActivationCallers = (entry: FunctionApi): void => {
+    if (!atLeastV10) return;
+    if (
+      entry.requiresUserActivation === true &&
+      entry.allowedCallers !== undefined &&
+      entry.allowedCallers !== 'rendererOnly'
+    ) {
+      throw new A2uiCatalogError(
+        `Function '${entry.name}' declares requiresUserActivation=true with allowedCallers='${entry.allowedCallers}'; requiresUserActivation=true requires allowedCallers='rendererOnly'.`,
+      );
+    }
+  };
+
   if (Array.isArray(rawFunctions)) {
     for (const fn of rawFunctions) {
       if (fn && typeof fn === 'object' && typeof fn.name === 'string') {
         const paramNames = functionParameterNames(fn.parameters, rootDoc);
         assertFunctionIdentifiers(fn.name, paramNames);
+        const entry = new JsonFunctionApi(fn.name, fn as Record<string, unknown>, definition =>
+          definition['parameters'] && typeof definition['parameters'] === 'object'
+            ? convertFunctionArgsJsonSchemaToZod(
+                definition['parameters'] as Record<string, unknown>,
+                rootDoc,
+                defCache,
+              )
+            : z.record(z.unknown()),
+        );
+        assertUserActivationCallers(entry);
         if (permittedNames && !permittedNames.has(fn.name)) {
           continue;
         }
-        const build = (peers: readonly PeerCatalogSource[]): FunctionApi => {
-          const entry = new JsonFunctionApi(fn.name, fn as Record<string, unknown>, definition =>
-            definition['parameters'] && typeof definition['parameters'] === 'object'
-              ? convertFunctionArgsJsonSchemaToZod(
-                  definition['parameters'] as Record<string, unknown>,
-                  rootDoc,
-                  new ConversionCache(peers),
-                )
-              : z.record(z.unknown()),
-          );
-          entryBuilders.set(entry, build);
-          return entry;
-        };
-        result.push(build([]));
+        result.push(entry);
       }
     }
     return result;
@@ -1524,21 +1337,18 @@ function parseFunctionDefinitions(
       const argsSchema = functionArgsSchema(rawDefn);
       const paramNames = functionParameterNames(argsSchema, rootDoc);
       assertFunctionIdentifiers(name, paramNames);
+      if (!defn || typeof defn !== 'object') continue;
+      const entry = new JsonFunctionApi(name, defn as Record<string, unknown>, definition => {
+        const argsSchema = functionArgsSchema(definition);
+        return argsSchema
+          ? convertFunctionArgsJsonSchemaToZod(argsSchema, rootDoc, defCache)
+          : z.record(z.unknown());
+      });
+      assertUserActivationCallers(entry);
       if (permittedNames && !permittedNames.has(name)) {
         continue;
       }
-      if (!defn || typeof defn !== 'object') continue;
-      const build = (peers: readonly PeerCatalogSource[]): FunctionApi => {
-        const entry = new JsonFunctionApi(name, defn as Record<string, unknown>, definition => {
-          const argsSchema = functionArgsSchema(definition);
-          return argsSchema
-            ? convertFunctionArgsJsonSchemaToZod(argsSchema, rootDoc, new ConversionCache(peers))
-            : z.record(z.unknown());
-        });
-        entryBuilders.set(entry, build);
-        return entry;
-      };
-      result.push(build([]));
+      result.push(entry);
     }
   }
 
@@ -1556,13 +1366,31 @@ function parseFunctionDefinitions(
 function functionArgsSchema(
   d: Readonly<Record<string, unknown>>,
 ): Record<string, unknown> | undefined {
-  const props =
+  let props =
     d.properties &&
     typeof d.properties === 'object' &&
     d.properties !== null &&
     !Array.isArray(d.properties)
       ? (d.properties as Record<string, unknown>)
       : undefined;
+  if (!props?.args && Array.isArray(d.allOf)) {
+    for (const member of d.allOf) {
+      if (
+        member &&
+        typeof member === 'object' &&
+        !Array.isArray(member) &&
+        (member as Record<string, unknown>).properties &&
+        typeof (member as Record<string, unknown>).properties === 'object' &&
+        (member as Record<string, unknown>).properties !== null &&
+        !Array.isArray((member as Record<string, unknown>).properties)
+      ) {
+        props = {
+          ...props,
+          ...((member as Record<string, unknown>).properties as Record<string, unknown>),
+        };
+      }
+    }
+  }
   let argsSchema = props?.args ?? d.args ?? d.parameters;
   if (!argsSchema && props && !('call' in props) && !('@call' in props) && !('function' in props)) {
     argsSchema = d;
@@ -1622,6 +1450,7 @@ function parseCatalogComponents(
   permittedNames?: Set<string>,
 ): ComponentApi[] {
   const components: ComponentApi[] = [];
+  const defCache = new Map<string, z.ZodTypeAny>();
 
   for (const [name, rawCompSchema] of Object.entries(componentsMap)) {
     const rawComp = (rawCompSchema as Record<string, unknown>) || {};
@@ -1636,24 +1465,29 @@ function parseCatalogComponents(
           );
         }
       }
+      const rawMeta = rawComp.metadata;
+      if (rawMeta !== undefined) {
+        try {
+          validateMetadata(rawMeta);
+        } catch (err) {
+          throw new A2uiCatalogError(err instanceof Error ? err.message : String(err));
+        }
+      }
     }
     if (permittedNames && !permittedNames.has(name)) {
       continue;
     }
-    const build = (peers: readonly PeerCatalogSource[]): ComponentApi => {
-      const entry = new JsonComponentApi(name, rawComp, definition =>
+    components.push(
+      new JsonComponentApi(name, rawComp, definition =>
         convertComponentJsonSchemaToZod(
           definition as Record<string, unknown>,
           catalogSchema,
           true,
-          new ConversionCache(peers),
+          defCache,
           atLeastV10,
         ),
-      );
-      entryBuilders.set(entry, build);
-      return entry;
-    };
-    components.push(build([]));
+      ),
+    );
   }
   return components;
 }
@@ -1694,6 +1528,61 @@ function parseThemeSchema(
 }
 
 /**
+ * Whether a v1.0 catalog may use `ref` as a `$ref` target.
+ *
+ * A v1.0 catalog may reference its own document, through a local reference
+ * (`#/...`) or the `catalog.json` envelope placeholder, and `common_types.json`,
+ * by a relative or absolute URI.
+ *
+ * @param ref The `$ref` value.
+ * @returns Whether the reference is allowed.
+ */
+function isSupportedV10Ref(ref: string): boolean {
+  if (ref.startsWith('#')) return true;
+  const hashIndex = ref.indexOf('#');
+  const documentPart = hashIndex === -1 ? ref : ref.slice(0, hashIndex);
+  if (documentPart === 'catalog.json') return true;
+  return documentPart.split('/').pop() === 'common_types.json';
+}
+
+/**
+ * Escapes a key as an RFC 6901 JSON Pointer reference token.
+ */
+function escapeJsonPointerToken(token: string): string {
+  return token.replace(/~/g, '~0').replace(/\//g, '~1');
+}
+
+/**
+ * Checks that every `$ref` of a v1.0 catalog document targets the document
+ * itself or `common_types.json`.
+ *
+ * Walks the whole document, including components, functions and `$defs`.
+ * References are only inspected, never resolved or fetched.
+ *
+ * @param node The document, or a value nested in it.
+ * @param pointer JSON Pointer of `node` within the document.
+ * @throws {A2uiCatalogError} If a `$ref` targets any other document, such as
+ *   another catalog.
+ */
+function assertSupportedV10Refs(node: unknown, pointer: string): void {
+  if (Array.isArray(node)) {
+    node.forEach((item, index) => assertSupportedV10Refs(item, `${pointer}/${index}`));
+    return;
+  }
+  if (!isPlainObject(node)) return;
+  for (const [key, value] of Object.entries(node)) {
+    const childPointer = `${pointer}/${escapeJsonPointerToken(key)}`;
+    if (key === '$ref' && typeof value === 'string' && !isSupportedV10Ref(value)) {
+      throw new A2uiCatalogError(
+        `Unsupported external $ref '${value}' at ${childPointer}: a v1.0 catalog may only ` +
+          'reference its own components and functions (#/...) or common_types.json.',
+      );
+    }
+    assertSupportedV10Refs(value, childPointer);
+  }
+}
+
+/**
  * Parses a raw A2UI catalog schema into its typed component, function, and metadata fields.
  *
  * Parses component and function definitions, extracts hierarchy constraints (`allowedParents`,
@@ -1711,6 +1600,8 @@ function parseThemeSchema(
  *   declares. The schema itself is kept as written.
  * @returns Parsed catalog fields ready to construct a `Catalog` instance.
  * @throws {Error} If the catalog ID is missing or not a string.
+ * @throws {A2uiCatalogError} If a v1.0+ catalog has a `$ref` to a document
+ *   other than itself or `common_types.json`, such as another catalog.
  */
 export function parseCatalogSchema(
   inputSchema: Record<string, unknown>,
@@ -1736,6 +1627,11 @@ export function parseCatalogSchema(
     (catalogSchema.protocolVersion as string | undefined) ??
     DEFAULT_PROTOCOL_VERSION;
   const atLeastV10 = isAtLeastVersion(resolvedVersion, '1.0');
+  if (atLeastV10) {
+    // Before anything reads the entries, so no unsupported reference is ever
+    // followed.
+    assertSupportedV10Refs(catalogSchema, '');
+  }
 
   const componentsMap = (catalogSchema.components as Record<string, unknown>) ?? {};
   const components = parseCatalogComponents(

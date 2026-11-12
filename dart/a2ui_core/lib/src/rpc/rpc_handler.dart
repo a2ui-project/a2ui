@@ -33,10 +33,14 @@ import '../resolution/data_context.dart';
 /// `callAgentFunction` requests a renderer makes and the
 /// `rendererFunctionResponse` answers it gives. A transport forwards them.
 ///
+/// When passed to `MessageProcessor`, it also receives mapped [ErrorMessage]s
+/// from `processMessages`, and, when `MessageProcessor(unifiedOutbound: true)`
+/// is set, [ActionMessage]s dispatched on its `model.onAction`.
+///
 /// A listener may return a `Future`. For an outbound call, a listener that
 /// throws or whose future fails fails the call with that error. For a
-/// response, a listener failure is ignored: the response is still returned
-/// to the processor that asked for it.
+/// response, action, or error, a listener failure is ignored: the response is
+/// still returned to the processor that asked for it when answering a call.
 typedef OutboundMessageListener = FutureOr<void> Function(
   RendererToAgentMessage message,
 );
@@ -169,7 +173,7 @@ class RpcHandler {
       );
     }
 
-    final pending = _PendingCall(functionCallId);
+    final pending = _PendingCall(functionCallId, surfaceId);
     _pending[functionCallId] = pending;
 
     final Duration timeout = resolved.timeout ?? defaultTimeout;
@@ -334,7 +338,7 @@ class RpcHandler {
     }
     final String name = call.call;
     final Catalog<ComponentApi, FunctionImplementation> catalog =
-        _resolveCatalog(call.catalogId, surface);
+        _resolveCatalog(call.catalogId, name, surface);
     if (!isCatalogVersionCompatible(
       catalog.protocolVersion?.jsonValue,
       message.version,
@@ -366,11 +370,15 @@ class RpcHandler {
         RpcErrorCode.invalidFunctionCall,
       );
     }
-    final DataContext dataContext = _dataContextFor(
-      surface,
-      catalog,
-      message.version,
-      execution,
+    final DataContext dataContext = dataContextWithCallCatalog(
+      _dataContextFor(
+        surface,
+        catalog,
+        message.version,
+        execution,
+      ),
+      catalog.id,
+      catalog.invoke,
     );
     final Map<String, dynamic> resolvedArgs;
     try {
@@ -383,7 +391,7 @@ class RpcHandler {
           error is A2uiError ? error.message : error.toString();
       throw A2uiRpcError(
         errorMessage.isEmpty
-            ? 'An error occurred during function execution.'
+            ? 'An argument of the function call could not be resolved.'
             : errorMessage,
         RpcErrorCode.executionError,
         cause: error,
@@ -419,16 +427,21 @@ class RpcHandler {
 
   Catalog<ComponentApi, FunctionImplementation> _resolveCatalog(
     String? catalogId,
+    String functionName,
     SurfaceModel<ComponentApi>? surface,
   ) {
     if (catalogId != null) {
       final Catalog<ComponentApi, FunctionImplementation>? fromSurface =
           surface?.availableCatalogs[catalogId];
-      if (fromSurface != null) return fromSurface;
+      if (fromSurface != null &&
+          fromSurface.functions.containsKey(functionName)) {
+        return fromSurface;
+      }
       for (final Catalog<ComponentApi, FunctionImplementation> candidate
           in catalogs) {
         if (candidate.id == catalogId) return candidate;
       }
+      if (fromSurface != null) return fromSurface;
       throw A2uiRpcError(
         'Catalog not found: $catalogId',
         RpcErrorCode.invalidFunctionCall,
@@ -459,10 +472,16 @@ class RpcHandler {
             : A2uiProtocolVersion.tryParseSemVer(
                 surface.protocolVersion!,
               ),
-        invokerForCatalog: (catalogId) =>
-            surface.resolveCatalog(catalogId).invoke,
+        invokerForCatalog: (catalogId) {
+          if (catalogId == catalog.id) {
+            return catalog.invoke;
+          }
+          return surface.resolveCatalog(catalogId).invoke;
+        },
+        // No agent caller: an agent-initiated call cannot wait for another
+        // call to the agent, so an argument naming a function the renderer
+        // does not implement fails, as before fallback routing.
         isUserActivated: execution.isUserActivated,
-        callAgentFunction: surface.callAgentFunction,
       );
     }
     return DataContext(
@@ -493,18 +512,39 @@ class RpcHandler {
     }
   }
 
+  /// Cancels every pending outbound call for [surfaceId] with
+  /// [RpcErrorCode.cancelled].
+  void cancelSurfaceCalls(String surfaceId) {
+    for (final functionCallId in List<String>.of(_pending.keys)) {
+      if (_pending[functionCallId]?.surfaceId == surfaceId) {
+        _settle(
+          functionCallId,
+          error: A2uiRpcError(
+            "Pending calls for surface '$surfaceId' were cancelled.",
+            RpcErrorCode.cancelled,
+            functionCallId: functionCallId,
+          ),
+        );
+      }
+    }
+  }
+
   /// Fails every pending call with [RpcErrorCode.cancelled], drops the
   /// listener, and makes later calls fail with [RpcErrorCode.disposed].
   /// Idempotent.
-  void dispose() {
+  ///
+  /// A non-empty [reason], such as `'session closed'`, is added to the
+  /// message of each cancelled call.
+  void dispose([String? reason]) {
     if (_disposed) return;
     _disposed = true;
+    final suffix = reason != null && reason.isNotEmpty ? ': $reason.' : '.';
     for (final functionCallId in List<String>.of(_pending.keys)) {
       _settle(
         functionCallId,
         error: A2uiRpcError(
           "Call '$functionCallId' was cancelled because the RpcHandler was "
-          'disposed.',
+          'disposed$suffix',
           RpcErrorCode.cancelled,
           functionCallId: functionCallId,
         ),
@@ -542,9 +582,10 @@ class RpcHandler {
 
 /// An outbound call awaiting its response.
 class _PendingCall {
-  _PendingCall(this.functionCallId);
+  _PendingCall(this.functionCallId, this.surfaceId);
 
   final String functionCallId;
+  final String surfaceId;
   final Completer<Object?> completer = Completer<Object?>();
   Timer? timer;
   void Function()? removeCancelListener;

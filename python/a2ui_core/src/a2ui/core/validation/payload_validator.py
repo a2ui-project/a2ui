@@ -14,9 +14,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 import copy
 import functools
+import re
 from typing import (
     Any,
     Final,
@@ -27,14 +28,23 @@ import jsonschema.exceptions
 from pydantic import BaseModel, ConfigDict, ValidationError
 import referencing.exceptions
 
-from ..catalog import Catalog, is_system_function_name, system_functions_for
+from ..catalog import (
+    Catalog,
+    get_custom_envelope_properties,
+    get_declared_component_properties,
+    is_component_checkable,
+    is_system_function_name,
+    system_functions_for,
+)
 from ..catalog.catalog import CatalogApi
+from ..common.metadata import validate_metadata
 from ..common.semver import is_at_least_version, to_protocol_version
 from ..common.uax31 import is_valid_uax31_identifier
 from ..exceptions import A2uiCatalogError, A2uiErrorDetail, A2uiValidationError
-from ..processing.format_pydantic_error import format_validation_error
+from ..processing.format_pydantic_error import format_validation_error, to_json_pointer
 from ..schema import ProtocolVersion
 from ..schema.common_types_schema import get_common_types_catalog_defs
+from ..schema.v1_0 import common_types as v1_0_common_types
 from .schema_validator import SchemaValidator
 
 
@@ -47,6 +57,11 @@ class ValidationConfig(BaseModel):
     allow_orphan_components: bool = False
     allow_dangling_references: bool = False
     allow_missing_root: bool = False
+    # Whether to allow components and functions that the resolved catalog does
+    # not define. A renderer that uses agent-side functions must either set
+    # this or declare those functions, without implementations, in the catalog
+    # the calls resolve to. Otherwise validation rejects the calls before they
+    # can be routed to the agent with `callAgentFunction`.
     allow_unknown_elements: bool = False
     allowed_messages: list[str] | None = None
     max_depth: int | None = None
@@ -77,16 +92,19 @@ def _schema_has_property(schema: Any, prop_name: str) -> bool:
         and prop_name in schema["properties"]
     ):
         return True
-    if "allOf" in schema and isinstance(schema["allOf"], list):
-        return any(_schema_has_property(sub, prop_name) for sub in schema["allOf"])
-    if "anyOf" in schema and isinstance(schema["anyOf"], list):
-        return any(_schema_has_property(sub, prop_name) for sub in schema["anyOf"])
-    if "oneOf" in schema and isinstance(schema["oneOf"], list):
-        return any(_schema_has_property(sub, prop_name) for sub in schema["oneOf"])
-    return False
+    # A schema can combine several combiners (e.g. `allOf` and `oneOf`), so
+    # every branch of each is checked.
+    return any(
+        _schema_has_property(sub, prop_name)
+        for combiner in ("allOf", "anyOf", "oneOf")
+        if isinstance(schema.get(combiner), list)
+        for sub in schema[combiner]
+    )
 
 
-def _is_unknown_property_error(err: jsonschema.exceptions.ValidationError) -> bool:
+def _is_unknown_property_error(
+    err: jsonschema.exceptions.ValidationError,
+) -> bool:
     """Returns whether a schema error reports an unknown property.
 
     Those are the errors that `allow_unknown_elements` tolerates. A key
@@ -145,7 +163,9 @@ def _component_envelope_keys(protocol_version: Any) -> tuple[str, ...]:
 
 
 @functools.cache
-def _function_call_envelope(protocol_version: ProtocolVersion) -> dict[str, Any]:
+def _function_call_envelope(
+    protocol_version: ProtocolVersion,
+) -> dict[str, Any]:
     """Returns the envelope-only `FunctionCall` def of a protocol version.
 
     It checks `@call`, `args` and `catalogId` and rejects other keys, but not
@@ -211,6 +231,51 @@ def _non_object_args_error(name: str) -> A2uiValidationError:
     )
 
 
+def check_renderer_may_call(catalog: CatalogApi, name: str) -> None:
+    """Raises if the renderer may not call a catalog function itself.
+
+    A call held in a component (a property binding, a check or an action) is
+    made by the renderer. A function whose `allowedCallers` is `agentOnly`
+    runs only for an agent's `callRendererFunction`, so it can't be bound
+    into a component. `DataContext` refuses such a call when it is evaluated,
+    with the same message.
+
+    `allowedCallers` is a v1.0 feature, so a catalog before v1.0 restricts
+    no binding.
+
+    Args:
+        catalog: The catalog the call runs in.
+        name: The called function.
+
+    Raises:
+        A2uiValidationError: If the v1.0+ catalog declares the function
+            `agentOnly`. Its detail is at `functions.<name>`, which
+            `rebase_function_error_details` moves to the call's location.
+    """
+    ver = getattr(catalog, "protocol_version", None)
+    if not (ver and is_at_least_version(ver, ProtocolVersion.V1_0)):
+        return
+    if hasattr(catalog, "get_function"):
+        fn = catalog.get_function(name)
+    else:
+        fn = getattr(catalog, "functions", {}).get(name)
+    if getattr(fn, "allowed_callers", None) != "agentOnly":
+        return
+    message = (
+        f"Function '{name}' cannot be called by renderer (allowedCallers is agentOnly)."
+    )
+    raise A2uiValidationError(
+        message,
+        details=[
+            A2uiErrorDetail(
+                path=f"functions.{name}",
+                code="invalid_function_call",
+                message=message,
+            )
+        ],
+    )
+
+
 def nested_call_runs_in_catalog(
     call_catalog_id: Any, catalog_id: str | None, *, catalog_is_default: bool
 ) -> bool:
@@ -251,6 +316,9 @@ class PayloadValidator:
     def validate_component(
         self,
         comp: dict[str, Any],
+        *,
+        component_index: int | None = None,
+        surface_id: str | None = None,
     ) -> None:
         """Validates a single component dictionary payload against the catalog schema.
 
@@ -268,9 +336,15 @@ class PayloadValidator:
                     path="components",
                     code="type_mismatch",
                     message="Component must be an object",
+                    surface_id=surface_id,
                 )
             )
-            raise A2uiValidationError("Component must be an object", details=errors)
+            raise A2uiValidationError(
+                "Component must be an object",
+                details=errors,
+                path="/components",
+                surface_id=surface_id,
+            )
 
         comp_id = comp.get("id")
         comp_type = comp.get("component")
@@ -290,6 +364,26 @@ class PayloadValidator:
                             f"Component id '{comp_id}' must be a valid UAX #31"
                             " identifier"
                         ),
+                        surface_id=surface_id,
+                    )
+                )
+
+        if comp_type and isinstance(comp_type, str):
+            ver = getattr(self.catalog, "protocol_version", None)
+            if (
+                ver
+                and is_at_least_version(ver, ProtocolVersion.V1_0)
+                and not is_valid_uax31_identifier(comp_type)
+            ):
+                errors.append(
+                    A2uiErrorDetail(
+                        path=f"components.{comp_id}.component",
+                        code="invalid_identifier",
+                        message=(
+                            f"Component type '{comp_type}' must be a valid UAX"
+                            " #31 identifier"
+                        ),
+                        surface_id=surface_id,
                     )
                 )
 
@@ -312,6 +406,27 @@ class PayloadValidator:
         if c is not None:
             target_comp = c
 
+        ver = getattr(self.catalog, "protocol_version", None)
+        at_least_v10 = bool(ver and is_at_least_version(ver, ProtocolVersion.V1_0))
+        custom_props = (
+            get_custom_envelope_properties(self.catalog, comp_type)
+            if at_least_v10 and isinstance(comp_type, str)
+            else frozenset()
+        )
+        if at_least_v10:
+            if "@catalogId" in comp:
+                comp_catalog_id = comp.get("@catalogId")
+                proto_cat_key: str | None = "@catalogId"
+            elif "catalogId" in comp and "catalogId" not in custom_props:
+                comp_catalog_id = comp.get("catalogId")
+                proto_cat_key = "catalogId"
+            else:
+                comp_catalog_id = None
+                proto_cat_key = None
+        else:
+            comp_catalog_id = None
+            proto_cat_key = None
+
         if target_comp is None:
             if not allow_unknown:
                 errors.append(
@@ -319,6 +434,7 @@ class PayloadValidator:
                         path=f"components.{comp_id}.component",
                         code="unrecognized_component",
                         message=f"Unrecognized component type '{comp_type}'",
+                        surface_id=surface_id,
                     )
                 )
             # The component's properties can't be checked without its schema,
@@ -326,14 +442,223 @@ class PayloadValidator:
             # all the same. `MessageProcessor` relies on this for the calls
             # it leaves to component validation.
             self._validate_nested_functions(
-                comp_id or "unknown", comp.get("catalogId"), comp, "", errors
+                comp_id or "unknown",
+                comp_catalog_id,
+                comp,
+                "",
+                errors,
+                custom_props,
             )
             if errors:
-                summary = "\n".join(
-                    f"{detail.path}: {detail.message}" for detail in errors
+                self._raise_component_validation_errors(
+                    errors, comp_id, component_index, surface_id
                 )
-                raise A2uiValidationError(summary, details=errors)
             return
+
+        comp_for_schema = dict(comp)
+        if not at_least_v10:
+            declared_props = (
+                get_declared_component_properties(self.catalog, comp_type)
+                if isinstance(comp_type, str)
+                else frozenset()
+            )
+            for at_key in (
+                "@metadata",
+                "@catalogId",
+                "@accessibility",
+                "@checks",
+            ):
+                if at_key in comp and at_key not in declared_props:
+                    comp_for_schema.pop(at_key, None)
+                    if not allow_unknown:
+                        errors.append(
+                            A2uiErrorDetail(
+                                path=f"components.{comp_id or 'unknown'}.{at_key}",
+                                code="extra_field",
+                                message=(
+                                    "Additional properties are not allowed"
+                                    f" ('{at_key}' was unexpected)"
+                                ),
+                                surface_id=surface_id,
+                            )
+                        )
+        else:
+            is_checkable = (
+                is_component_checkable(self.catalog, comp_type)
+                if isinstance(comp_type, str)
+                else False
+            )
+            for bare_key, at_key in (
+                ("metadata", "@metadata"),
+                ("catalogId", "@catalogId"),
+                ("accessibility", "@accessibility"),
+                ("checks", "@checks"),
+            ):
+                if at_key in comp and bare_key in comp and bare_key not in custom_props:
+                    errors.append(
+                        A2uiErrorDetail(
+                            path=f"components.{comp_id or 'unknown'}.{at_key}",
+                            code="conflicting_properties",
+                            message=(
+                                f"Component '{comp_id}' cannot specify both"
+                                f" '{at_key}' and legacy '{bare_key}'."
+                            ),
+                            surface_id=surface_id,
+                        )
+                    )
+
+            if proto_cat_key is not None and not isinstance(comp_catalog_id, str):
+                errors.append(
+                    A2uiErrorDetail(
+                        path=f"components.{comp_id or 'unknown'}.{proto_cat_key}",
+                        code="type_mismatch",
+                        message=f"'{proto_cat_key}' must be a string",
+                        surface_id=surface_id,
+                    )
+                )
+
+            proto_meta_key = (
+                "@metadata"
+                if "@metadata" in comp
+                else (
+                    "metadata"
+                    if "metadata" in comp and "metadata" not in custom_props
+                    else None
+                )
+            )
+            if proto_meta_key is not None:
+                proto_meta_val = comp[proto_meta_key]
+                if proto_meta_val is None:
+                    errors.append(
+                        A2uiErrorDetail(
+                            path=f"components.{comp_id or 'unknown'}.{proto_meta_key}",
+                            code="type_mismatch",
+                            message=f"'{proto_meta_key}' must be an object",
+                            surface_id=surface_id,
+                        )
+                    )
+                else:
+                    try:
+                        validate_metadata(
+                            proto_meta_val,
+                            context=f"component '{comp_id or 'unknown'}' metadata",
+                        )
+                    except A2uiValidationError as e:
+                        meta_err_path = (
+                            f"components.{comp_id or 'unknown'}.{proto_meta_key}.extensions"
+                            if ".extensions" in str(e)
+                            else f"components.{comp_id or 'unknown'}.{proto_meta_key}"
+                        )
+                        errors.append(
+                            A2uiErrorDetail(
+                                path=meta_err_path,
+                                code="invalid_metadata",
+                                message=str(e),
+                                surface_id=surface_id,
+                            )
+                        )
+
+            proto_a11y_key = (
+                "@accessibility"
+                if "@accessibility" in comp
+                else (
+                    "accessibility"
+                    if "accessibility" in comp and "accessibility" not in custom_props
+                    else None
+                )
+            )
+            if proto_a11y_key is not None:
+                try:
+                    v1_0_common_types.AccessibilityAttributes.model_validate(
+                        comp[proto_a11y_key]
+                    )
+                except ValidationError as e:
+                    a11y_errs = format_validation_error(
+                        e,
+                        path_prefix=(
+                            f"components.{comp_id or 'unknown'}.{proto_a11y_key}"
+                        ),
+                        allow_unknown_extra=allow_unknown,
+                        match_jsonschema_missing_path=True,
+                    )
+                    errors.extend(a11y_errs)
+
+            proto_checks_key = (
+                "@checks"
+                if "@checks" in comp
+                else (
+                    "checks"
+                    if "checks" in comp and "checks" not in custom_props
+                    else None
+                )
+            )
+            if proto_checks_key is not None:
+                if not is_checkable:
+                    if not allow_unknown:
+                        errors.append(
+                            A2uiErrorDetail(
+                                path=(
+                                    f"components.{comp_id or 'unknown'}.{proto_checks_key}"
+                                ),
+                                code="extra_field",
+                                message=(
+                                    "Additional properties are not allowed"
+                                    f" ('{proto_checks_key}' was unexpected)"
+                                ),
+                                surface_id=surface_id,
+                            )
+                        )
+                else:
+                    try:
+                        v1_0_common_types.Checkable.model_validate(
+                            {"checks": comp[proto_checks_key]}
+                        )
+                    except ValidationError as e:
+                        check_errs = format_validation_error(
+                            e,
+                            path_prefix=f"components.{comp_id or 'unknown'}",
+                            allow_unknown_extra=allow_unknown,
+                            match_jsonschema_missing_path=True,
+                        )
+                        for d in check_errs:
+                            if proto_checks_key == "@checks":
+                                prefix = f"components.{comp_id or 'unknown'}.checks"
+                                if d.path == prefix:
+                                    d = A2uiErrorDetail(
+                                        path=(
+                                            f"components.{comp_id or 'unknown'}.@checks"
+                                        ),
+                                        code=d.code,
+                                        message=d.message,
+                                        surface_id=d.surface_id,
+                                    )
+                                elif d.path.startswith(f"{prefix}."):
+                                    d = A2uiErrorDetail(
+                                        path=(
+                                            f"components.{comp_id or 'unknown'}.@checks"
+                                            f"{d.path[len(prefix):]}"
+                                        ),
+                                        code=d.code,
+                                        message=d.message,
+                                        surface_id=d.surface_id,
+                                    )
+                            errors.append(d)
+
+            for at_key in (
+                "@metadata",
+                "@catalogId",
+                "@accessibility",
+                "@checks",
+            ):
+                comp_for_schema.pop(at_key, None)
+            for bare_key in (
+                "metadata",
+                "catalogId",
+                "accessibility",
+                "checks",
+            ):
+                if bare_key not in custom_props:
+                    comp_for_schema.pop(bare_key, None)
 
         model_cls = (
             getattr(target_comp, "schema", None)
@@ -348,25 +673,105 @@ class PayloadValidator:
             and issubclass(model_cls, BaseModel)
         ):
             self._validate_model_component(
-                model_cls, comp, comp_id, allow_unknown, errors
+                model_cls, comp_for_schema, comp_id, allow_unknown, errors
             )
         elif isinstance(getattr(target_comp, "schema", None), dict) or isinstance(
             target_comp, dict
         ):
             self._validate_dict_component(
-                target_comp, target_cat, comp, comp_id, allow_unknown, errors
+                target_comp,
+                target_cat,
+                comp_for_schema,
+                comp_id,
+                allow_unknown,
+                errors,
             )
         else:
             raise A2uiCatalogError(
-                f"No schema defined for component '{comp_type}' in catalog."
+                f"No schema defined for component '{comp_type}' in catalog.",
+                surface_id=surface_id,
             )
 
         self._validate_nested_functions(
-            comp_id or "unknown", comp.get("catalogId"), comp, "", errors
+            comp_id or "unknown",
+            comp_catalog_id,
+            comp,
+            "",
+            errors,
+            custom_props,
         )
         if errors:
-            summary = "\n".join(f"{detail.path}: {detail.message}" for detail in errors)
-            raise A2uiValidationError(summary, details=errors)
+            self._raise_component_validation_errors(
+                errors, comp_id, component_index, surface_id
+            )
+
+    @classmethod
+    def _raise_component_validation_errors(
+        cls,
+        errors: list[A2uiErrorDetail],
+        comp_id: str | None,
+        component_index: int | None,
+        surface_id: str | None,
+    ) -> None:
+        """Attaches surface_id to component validation details and raises A2uiValidationError."""
+        if surface_id is not None:
+            errors = [
+                A2uiErrorDetail(
+                    path=d.path,
+                    code=d.code,
+                    message=d.message,
+                    surface_id=d.surface_id or surface_id,
+                )
+                for d in errors
+            ]
+        summary = "\n".join(f"{detail.path}: {detail.message}" for detail in errors)
+        raise A2uiValidationError(
+            summary,
+            details=errors,
+            path=cls._resolve_component_error_path(errors[0], comp_id, component_index),
+            surface_id=surface_id,
+        )
+
+    @staticmethod
+    def _extract_detail_error_path(detail: A2uiErrorDetail | str) -> str:
+        """Extracts the dot-separated path from a detail, appending missing or extra field names."""
+        if isinstance(detail, str):
+            return detail
+        detail_path = detail.path
+        pattern = (
+            r"^'([^']+)' is a required property"
+            if detail.code == "missing_field"
+            else (
+                r"\('([^']+)' was unexpected\)"
+                if detail.code == "extra_field"
+                else None
+            )
+        )
+        if pattern:
+            match = re.search(pattern, detail.message)
+            if match:
+                prop = match.group(1)
+                return f"{detail_path}.{prop}" if detail_path else prop
+        return detail_path
+
+    @classmethod
+    def _resolve_component_error_path(
+        cls,
+        detail: A2uiErrorDetail | str,
+        comp_id: str | None,
+        component_index: int | None,
+    ) -> str:
+        """Converts a detail path like 'components.root.text' into a JSON Pointer '/components/0/text'."""
+        detail_path = cls._extract_detail_error_path(detail)
+        comp_key = str(comp_id) if comp_id else "unknown"
+        prefix = f"components.{comp_key}"
+        if component_index is not None:
+            if detail_path == prefix:
+                return f"/components/{component_index}"
+            if detail_path.startswith(f"{prefix}."):
+                rest = detail_path[len(prefix) + 1 :]
+                return to_json_pointer(f"components.{component_index}.{rest}")
+        return to_json_pointer(detail_path)
 
     def _validate_model_component(
         self,
@@ -571,6 +976,7 @@ class PayloadValidator:
         val: Any,
         path: str,
         errors: list[A2uiErrorDetail],
+        custom_props: frozenset[str] = frozenset(),
     ) -> None:
         """Recursively validates nested function calls.
 
@@ -585,7 +991,9 @@ class PayloadValidator:
         validator can't see, so only its function and argument identifiers are
         checked; `MessageProcessor` resolves such a call's catalog and checks
         it there. An empty `catalogId` names a catalog too, and a non-string
-        `catalogId` is a type error.
+        `catalogId` is a type error. A call held in a component is a renderer
+        call, so a fully checked call may not call an `agentOnly` function
+        (see `check_renderer_may_call`).
 
         Before v1.0, a call's `catalogId` is ignored, as it is at runtime, and
         every call is checked against this catalog.
@@ -599,6 +1007,7 @@ class PayloadValidator:
             val: The value to walk.
             path: The value's path in the component.
             errors: Collects the errors found.
+            custom_props: Custom component properties overriding v1.0 mixin names.
         """
         ver = getattr(self.catalog, "protocol_version", None)
         at_least_v10 = bool(ver and is_at_least_version(ver, ProtocolVersion.V1_0))
@@ -609,8 +1018,23 @@ class PayloadValidator:
             if at_least_v10:
                 from ..resolution.data_context import validate_reserved_directives
 
+                keys_to_check = (
+                    [
+                        k
+                        for k in val.keys()
+                        if k
+                        not in (
+                            "@metadata",
+                            "@catalogId",
+                            "@accessibility",
+                            "@checks",
+                        )
+                    ]
+                    if path == ""
+                    else val.keys()
+                )
                 try:
-                    validate_reserved_directives(val.keys(), ver)
+                    validate_reserved_directives(keys_to_check, ver)
                 except A2uiValidationError as e:
                     errors.append(
                         A2uiErrorDetail(
@@ -629,16 +1053,34 @@ class PayloadValidator:
                     fn_name, val, call_path, comp_catalog_id, at_least_v10, ver, errors
                 )
             for k, v in val.items():
-                if k not in ("id", "component"):
-                    child_path = f"{path}.{k}" if path else k
-                    self._validate_nested_functions(
-                        comp_id, comp_catalog_id, v, child_path, errors
-                    )
+                if k in ("id", "component"):
+                    continue
+                if path == "" and at_least_v10:
+                    if k in ("@catalogId", "@metadata"):
+                        continue
+                    if k == "catalogId" and "catalogId" not in custom_props:
+                        continue
+                    if k == "metadata" and "metadata" not in custom_props:
+                        continue
+                child_path = f"{path}.{k}" if path else k
+                self._validate_nested_functions(
+                    comp_id,
+                    comp_catalog_id,
+                    v,
+                    child_path,
+                    errors,
+                    custom_props,
+                )
         elif isinstance(val, list):
             for idx, item in enumerate(val):
                 child_path = f"{path}.{idx}"
                 self._validate_nested_functions(
-                    comp_id, comp_catalog_id, item, child_path, errors
+                    comp_id,
+                    comp_catalog_id,
+                    item,
+                    child_path,
+                    errors,
+                    custom_props,
                 )
 
     def _validate_nested_call(
@@ -694,9 +1136,10 @@ class PayloadValidator:
 
         try:
             if full_check:
+                check_renderer_may_call(self.catalog, fn_name)
                 self.validate_function(fn_name, fn_args)
             else:
-                self._validate_function_identifiers(fn_name, fn_args)
+                self.validate_function_identifiers(fn_name, fn_args)
         except A2uiValidationError as e:
             errors.extend(
                 rebase_function_error_details(
@@ -732,11 +1175,14 @@ class PayloadValidator:
                 )
             )
 
-    def _validate_function_identifiers(self, name: str, args: Any) -> None:
+    def validate_function_identifiers(self, name: str, args: Any) -> None:
         """Validates a v1.0+ call's envelope without its catalog.
 
         The function name and argument names must be UAX #31 identifiers, and
         `args`, when present, must be an object.
+
+        Internal: `DataContext` uses it to check a routed call's arguments
+        before they resolve. It is not part of the public API.
         """
         ver = getattr(self.catalog, "protocol_version", None)
         if not (ver and is_at_least_version(ver, ProtocolVersion.V1_0)):
@@ -811,7 +1257,7 @@ class PayloadValidator:
                 ],
             )
 
-        self._validate_function_identifiers(name, norm_args)
+        self.validate_function_identifiers(name, norm_args)
 
         fn_def, fn_schema, base_schema = self._find_function_definition(name)
 
@@ -919,12 +1365,34 @@ class PayloadValidator:
         fn_defs = fn_schema.get("$defs", {}) if isinstance(fn_schema, dict) else {}
         return {**base_defs, **fn_defs}
 
+    _PARAM_SCHEMA_KEYWORDS = frozenset({
+        "properties",
+        "$ref",
+        "allOf",
+        "anyOf",
+        "oneOf",
+        "not",
+        "type",
+        "required",
+        "additionalProperties",
+        "unevaluatedProperties",
+        "minProperties",
+        "maxProperties",
+        "dependentRequired",
+        "dependentSchemas",
+        "patternProperties",
+        "propertyNames",
+        "if",
+        "const",
+        "enum",
+    })
+
     def _extract_raw_param_schema(
         self,
         fn_schema: dict[str, Any],
         defs: dict[str, Any],
     ) -> dict[str, Any] | None:
-        """Derives the parameter sub-schema from standard or legacy function definitions."""
+        """Derives the parameter sub-schema from pre-1.0 (`parameters`) or document (`properties.args`) function definitions."""
         if "parameters" in fn_schema and isinstance(fn_schema["parameters"], dict):
             schema: dict[str, Any] = {
                 "$schema": JSON_SCHEMA_DRAFT_2020_12,
@@ -939,18 +1407,53 @@ class PayloadValidator:
             return schema
 
         props = fn_schema.get("properties")
-        if isinstance(props, dict):
+        if isinstance(props, dict) and ("@call" in props or "call" in props):
             if "args" in props and isinstance(props["args"], dict):
+                args_schema = props["args"]
+                args_defs = (
+                    args_schema["$defs"]
+                    if isinstance(args_schema.get("$defs"), dict)
+                    else {}
+                )
                 return {
                     "$schema": JSON_SCHEMA_DRAFT_2020_12,
-                    "$defs": defs,
-                    **props["args"],
+                    **args_schema,
+                    "$defs": {**defs, **args_defs},
                 }
+            return None
+
+        if (
+            "args" in fn_schema
+            and isinstance(fn_schema["args"], dict)
+            and not isinstance(props, dict)
+        ):
+            args_schema = fn_schema["args"]
+            args_defs = (
+                args_schema["$defs"]
+                if isinstance(args_schema.get("$defs"), dict)
+                else {}
+            )
             return {
                 "$schema": JSON_SCHEMA_DRAFT_2020_12,
-                "$defs": defs,
-                "type": "object",
+                **args_schema,
+                "$defs": {**defs, **args_defs},
+            }
+
+        if any(key in fn_schema for key in self._PARAM_SCHEMA_KEYWORDS):
+            default_type: dict[str, Any] = (
+                {"type": "object"}
+                if "type" not in fn_schema
+                and "$ref" not in fn_schema
+                and not any(
+                    key in fn_schema for key in ("allOf", "anyOf", "oneOf", "not")
+                )
+                else {}
+            )
+            return {
+                "$schema": JSON_SCHEMA_DRAFT_2020_12,
+                **default_type,
                 **fn_schema,
+                "$defs": defs,
             }
 
         return None
@@ -975,8 +1478,17 @@ class PayloadValidator:
         fn_schema: dict[str, Any],
         base_schema: dict[str, Any],
     ) -> dict[str, Any] | None:
-        """Constructs a JSON Schema object for function parameter validation."""
-        defs = self._extract_schema_defs(fn_schema, base_schema)
+        """Constructs a JSON Schema object for function parameter validation.
+
+        From v1.0 a call nested in the arguments is checked against its
+        envelope only, as in `_validate_dict_component`: it runs in the catalog
+        it names, or else the surface default, not necessarily this one, so
+        the caller's nested-call walk checks it against that catalog.
+        """
+        defs = dict(self._extract_schema_defs(fn_schema, base_schema))
+        ver = getattr(self.catalog, "protocol_version", None)
+        if ver and is_at_least_version(ver, ProtocolVersion.V1_0):
+            defs["FunctionCall"] = _function_call_envelope(to_protocol_version(ver))
         raw_schema = self._extract_raw_param_schema(fn_schema, defs)
         return self._attach_catalog_context(raw_schema, base_schema)
 
@@ -1029,14 +1541,12 @@ class PayloadValidator:
             )
             raise A2uiValidationError(str(ref_err), details=[detail]) from ref_err
 
-        if isinstance(param_schema.get("properties"), dict):
-            for prop_name, prop_spec in param_schema["properties"].items():
-                if (
-                    isinstance(prop_spec, dict)
-                    and "default" in prop_spec
-                    and prop_name not in validated_args
-                ):
-                    validated_args[prop_name] = copy.deepcopy(prop_spec["default"])
+        param_defs = (
+            param_schema["$defs"]
+            if isinstance(param_schema.get("$defs"), Mapping)
+            else {}
+        )
+        _apply_object_defaults(validated_args, param_schema, param_defs)
 
         return validated_args
 
@@ -1067,10 +1577,16 @@ class PayloadValidator:
         )
 
         if theme_schema:
+            theme_defs = (
+                theme_schema["$defs"]
+                if isinstance(theme_schema, dict)
+                and isinstance(theme_schema.get("$defs"), dict)
+                else {}
+            )
             full_theme_schema = {
                 "$schema": JSON_SCHEMA_DRAFT_2020_12,
-                "$defs": defs,
                 **theme_schema,
+                "$defs": {**defs, **theme_defs},
             }
             if isinstance(base_schema, dict):
                 if "functions" in base_schema and "functions" not in full_theme_schema:
@@ -1086,18 +1602,7 @@ class PayloadValidator:
                     theme_validator.iter_errors(theme), key=lambda e: e.path
                 )
                 if schema_errors:
-                    details = [
-                        A2uiErrorDetail(
-                            path=".".join(str(p) for p in err.path) or "theme",
-                            code=self._map_json_schema_error_code(err.validator),
-                            message=err.message,
-                        )
-                        for err in schema_errors
-                    ]
-                    summary = "\n".join(
-                        f"{detail.path}: {detail.message}" for detail in details
-                    )
-                    raise A2uiValidationError(summary, details=details)
+                    self._raise_theme_schema_errors(schema_errors)
             except A2uiValidationError:
                 raise
             except referencing.exceptions.Unresolvable as ref_err:
@@ -1107,6 +1612,24 @@ class PayloadValidator:
                     message=str(ref_err),
                 )
                 raise A2uiValidationError(str(ref_err), details=[detail]) from ref_err
+
+    def _raise_theme_schema_errors(self, schema_errors: list[Any]) -> None:
+        details = [
+            A2uiErrorDetail(
+                path=".".join(str(p) for p in err.path) or "theme",
+                code=self._map_json_schema_error_code(err.validator),
+                message=err.message,
+            )
+            for err in schema_errors
+        ]
+        first_prop = details[0].path
+        err_ptr = (
+            "/theme"
+            if first_prop == "theme"
+            else f"/theme/{to_json_pointer(first_prop).lstrip('/')}"
+        )
+        summary = "\n".join(f"{detail.path}: {detail.message}" for detail in details)
+        raise A2uiValidationError(summary, details=details, path=err_ptr)
 
     def _map_json_schema_error_code(self, validator_name: str) -> str:
         if validator_name in ("required", "minProperties"):
@@ -1138,3 +1661,78 @@ def validate_system_function(
     # the system functions of its protocol version.
     no_catalog = Catalog(catalog_id="", protocol_version=protocol_version)
     return PayloadValidator(no_catalog, config=config).validate_function(name, args)
+
+
+def _resolve_local_def(ref: str, defs: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    """Resolves a `#/$defs/...` JSON Pointer against `defs`."""
+    if not ref.startswith("#/$defs/"):
+        return None
+    parts = ref[len("#/$defs/") :].split("/")
+    def_name = parts[0].replace("~1", "/").replace("~0", "~")
+    curr: Any = defs.get(def_name)
+    for part in parts[1:]:
+        key = part.replace("~1", "/").replace("~0", "~")
+        if isinstance(curr, Mapping) and key in curr:
+            curr = curr[key]
+        else:
+            return None
+    return curr if isinstance(curr, Mapping) else None
+
+
+def _extract_property_default(
+    prop_spec: Mapping[str, Any],
+    defs: Mapping[str, Any],
+    visited: set[str] | None = None,
+) -> tuple[bool, Any]:
+    """Finds a `default` keyword on `prop_spec` or its `$ref`/`allOf` targets."""
+    if "default" in prop_spec:
+        return True, prop_spec["default"]
+    seen = set() if visited is None else set(visited)
+    ref = prop_spec.get("$ref")
+    if isinstance(ref, str) and ref not in seen:
+        seen.add(ref)
+        resolved = _resolve_local_def(ref, defs)
+        if resolved is not None:
+            has_default, value = _extract_property_default(resolved, defs, seen)
+            if has_default:
+                return True, value
+    all_of = prop_spec.get("allOf")
+    if isinstance(all_of, list):
+        for branch in all_of:
+            if isinstance(branch, Mapping):
+                has_default, value = _extract_property_default(branch, defs, seen)
+                if has_default:
+                    return True, value
+    return False, None
+
+
+def _apply_object_defaults(
+    target: dict[str, Any],
+    schema: Mapping[str, Any],
+    defs: Mapping[str, Any],
+    visited: set[str] | None = None,
+) -> None:
+    """Populates missing defaulted properties across `properties`, `$ref`, and `allOf`."""
+    seen = set() if visited is None else set(visited)
+    ref = schema.get("$ref")
+    if isinstance(ref, str) and ref not in seen:
+        seen.add(ref)
+        resolved = _resolve_local_def(ref, defs)
+        if resolved is not None:
+            _apply_object_defaults(target, resolved, defs, seen)
+    all_of = schema.get("allOf")
+    if isinstance(all_of, list):
+        for branch in all_of:
+            if isinstance(branch, Mapping):
+                _apply_object_defaults(target, branch, defs, seen)
+    props = schema.get("properties")
+    if isinstance(props, Mapping):
+        for prop_name, prop_spec in props.items():
+            if not isinstance(prop_spec, Mapping):
+                continue
+            if prop_name not in target:
+                has_default, default_val = _extract_property_default(prop_spec, defs)
+                if has_default:
+                    target[prop_name] = copy.deepcopy(default_val)
+            if isinstance(target.get(prop_name), dict):
+                _apply_object_defaults(target[prop_name], prop_spec, defs)

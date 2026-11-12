@@ -1,0 +1,214 @@
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+:root {
+  --bg: #f6f7f9;
+  --fg: #111827;
+  --muted: #4b5563;
+  --column-bg: #e9ecf1;
+  --card-bg: #ffffff;
+  --card-border: #d1d5db;
+  --accent: #1d4ed8;
+  --danger: #b91c1c;
+  --tag-bg: #e0e7ff;
+  --tag-fg: #312e81;
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  --bg: #0f172a;
+  --fg: #f3f4f6;
+  --muted: #cbd5e1;
+  --column-bg: #1e293b;
+  --card-bg: #273449;
+  --card-border: #475569;
+  --accent: #93c5fd;
+  --danger: #fca5a5;
+  --tag-bg: #312e81;
+  --tag-fg: #e0e7ff;
+  color-scheme: dark;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  font-size: 14px;
+}
+
+main {
+  padding: 12px;
+}
+
+.empty {
+  color: var(--muted);
+  margin: 8px;
+}
+
+.toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+  color: var(--muted);
+}
+
+.filter {
+  margin-left: 4px;
+  font: inherit;
+  background: var(--card-bg);
+  color: var(--fg);
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  padding: 2px 6px;
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 10px;
+  align-items: start;
+}
+
+.column {
+  background: var(--column-bg);
+  border-radius: 10px;
+  padding: 8px;
+}
+
+.column h2 {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0 4px 8px;
+  color: var(--muted);
+}
+
+.column .count {
+  font-weight: 500;
+}
+
+.column.over-limit h2 .count {
+  color: var(--danger);
+}
+
+.column.over-limit {
+  outline: 2px solid var(--danger);
+}
+
+.cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  min-height: 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-radius: 8px;
+}
+
+.cards.drop-target {
+  outline: 2px dashed var(--accent);
+  outline-offset: 2px;
+}
+
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: grab;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.card.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.card.dragging {
+  opacity: 0.5;
+}
+
+.card.moving {
+  position: relative;
+  z-index: 10;
+  border-color: var(--accent);
+  box-shadow:
+    0 10px 24px rgba(15, 23, 42, 0.18),
+    0 0 0 2px var(--accent);
+}
+
+.card .title {
+  font-weight: 600;
+}
+
+.card .meta {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tag {
+  background: var(--tag-bg);
+  color: var(--tag-fg);
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 11px;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.split {
+  font: inherit;
+  font-size: 11px;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+
+.split:hover {
+  background: var(--accent);
+  color: var(--card-bg);
+}

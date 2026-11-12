@@ -159,5 +159,62 @@ describe('Text Component', () => {
     assert.notStrictEqual(em, null);
 
     assert.strictEqual(em?.textContent?.trim(), 'Caption text');
+    assert.strictEqual(captionSpan?.hasAttribute('role'), false);
+  });
+
+  it('places accessibility attributes on semantic headings and role="note" spans', async () => {
+    processor.processMessages([
+      {
+        version: 'v0.9',
+        updateComponents: {
+          surfaceId: 'test-surface',
+          components: [
+            {
+              id: 't_h2',
+              component: 'Text',
+              text: 'Mott 32',
+              variant: 'h2',
+              accessibility: {
+                label: 'Mott 32 restaurant heading',
+                description: 'Chinese fine dining',
+              },
+            },
+            {
+              id: 't_caption_a11y',
+              component: 'Text',
+              text: '$$$$',
+              variant: 'caption',
+              accessibility: {
+                label: 'Price tier 4 out of 4',
+                description: 'Fine dining price range',
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    const el = document.createElement('a2ui-basic-text') as A2uiWebComponentElement;
+    element = el;
+    document.body.appendChild(el);
+
+    await asyncUpdate(el, e => {
+      e.context = new ComponentContext(surface, 't_h2');
+    });
+
+    assert.strictEqual(el.hasAttribute('aria-label'), false);
+    const h2 = el.querySelector('h2');
+    assert.notStrictEqual(h2, null);
+    assert.strictEqual(h2?.getAttribute('aria-label'), 'Mott 32 restaurant heading');
+    assert.strictEqual(h2?.getAttribute('aria-description'), 'Chinese fine dining');
+
+    await asyncUpdate(el, e => {
+      e.context = new ComponentContext(surface, 't_caption_a11y');
+    });
+
+    const captionSpan = el.querySelector('span.a2ui-text.a2ui-text-caption');
+    assert.strictEqual(captionSpan?.getAttribute('role'), 'note');
+    assert.strictEqual(captionSpan?.getAttribute('aria-label'), 'Price tier 4 out of 4');
+    assert.strictEqual(captionSpan?.getAttribute('aria-description'), 'Fine dining price range');
   });
 });

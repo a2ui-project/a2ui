@@ -20,7 +20,9 @@ from typing import Any
 from urllib.parse import urlparse
 
 from ...resolution.data_context import DataContext
+from ...resolution.validation_result_coercion import coerce_dynamic_boolean
 from ...common.events import AbortSignal
+from ...common.regex_subset import regex_test
 from ...exceptions import A2uiExpressionError
 from ...catalog import (
     FunctionImplementation,
@@ -100,11 +102,7 @@ def _regex_execute(
 ) -> dict[str, Any]:
     pattern = _to_str(args.get("pattern", ""))
     val = _to_str(args.get("value", ""))
-    try:
-        valid = bool(re.search(pattern, val))
-    except re.error as e:
-        raise A2uiExpressionError(f"Invalid regex pattern '{pattern}': {e}") from e
-    return {"valid": valid}
+    return {"valid": bool(regex_test(pattern, val))}
 
 
 RegexImplementation = create_function_implementation(RegexApi, _regex_execute)
@@ -184,7 +182,9 @@ def _email_execute(
 EmailImplementation = create_function_implementation(EmailApi, _email_execute)
 
 
-def _adapt_ast_part_for_v10(part: Any) -> Any:
+def _adapt_ast_part_for_v10(part: Any, catalog_id: str | None = None) -> Any:
+    if isinstance(part, list):
+        return [_adapt_ast_part_for_v10(item, catalog_id) for item in part]
     if not isinstance(part, dict):
         return part
     if (
@@ -194,17 +194,26 @@ def _adapt_ast_part_for_v10(part: Any) -> Any:
         and "@path" not in part
     ):
         return {"@path": part["path"]}
-    if "call" in part and isinstance(part["call"], str) and "@call" not in part:
+    has_call = "call" in part and isinstance(part["call"], str)
+    has_at_call = "@call" in part and isinstance(part["@call"], str)
+    call_name = (
+        part["call"]
+        if has_call and not has_at_call
+        else (part["@call"] if has_at_call else None)
+    )
+    if call_name is not None:
         args = {}
         raw_args = part.get("args")
         if isinstance(raw_args, dict):
             for k, v in raw_args.items():
-                args[k] = _adapt_ast_part_for_v10(v)
-        res = {"@call": part["call"], "args": args}
-        if "returnType" in part:
-            res["returnType"] = part["returnType"]
+                args[k] = _adapt_ast_part_for_v10(v, catalog_id)
+        res: dict[str, Any] = {"@call": call_name, "args": args}
+        if "catalogId" in part and part["catalogId"] is not None:
+            res["catalogId"] = part["catalogId"]
+        elif catalog_id is not None and not call_name.startswith("@"):
+            res["catalogId"] = catalog_id
         return res
-    return part
+    return {k: _adapt_ast_part_for_v10(v, catalog_id) for k, v in part.items()}
 
 
 # Formatting
@@ -224,14 +233,21 @@ def _format_string(
         return ""
 
     resolved_parts = []
+    active_catalog_id = getattr(context, "active_catalog_id", None) if context else None
     for part in parts:
         if context and hasattr(context, "resolve_dynamic_value"):
             dyn_part = (
-                _adapt_ast_part_for_v10(part)
+                _adapt_ast_part_for_v10(part, active_catalog_id)
                 if getattr(context, "at_least_v10", False)
                 else part
             )
-            resolved = context.resolve_dynamic_value(dyn_part)
+            # A template part never waits for, sends to, or reads a cached
+            # answer from the agent: a part that calls a function the
+            # renderer doesn't implement is an error and renders empty.
+            resolve = getattr(
+                context, "resolve_without_agent", context.resolve_dynamic_value
+            )
+            resolved = resolve(dyn_part)
         else:
             resolved = part
         resolved_parts.append(_to_str(resolved))
@@ -460,16 +476,8 @@ OpenUrlImplementation = create_function_implementation(OpenUrlApi, _open_url_exe
 
 
 # Logical
-#
-# The v1.0 validators return a ValidationResult rather than a boolean, so a
-# nested ``and(required(...), or(...))`` receives dicts. A dict with a boolean
-# ``valid`` member is truthy by its validity, not by being a non-empty dict.
 def _is_truthy_or_valid(val: Any) -> bool:
-    if isinstance(val, dict):
-        valid = val.get("valid")
-        if isinstance(valid, bool):
-            return valid
-    return _to_bool(val)
+    return coerce_dynamic_boolean(val)
 
 
 def _and_execute(

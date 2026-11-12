@@ -5,7 +5,7 @@
       "description": "Valid action message",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "action": {
           "name": "submit",
           "surfaceId": "main",
@@ -21,7 +21,7 @@
       "description": "Valid action message with optional userMessage",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "action": {
           "name": "submit",
           "userMessage": "Submitted form",
@@ -38,7 +38,7 @@
       "description": "Valid error message (validation failed)",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "error": {
           "code": "VALIDATION_FAILED",
           "surfaceId": "main",
@@ -51,7 +51,7 @@
       "description": "Valid error message (unallowed parent)",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "error": {
           "code": "UNALLOWED_PARENT",
           "surfaceId": "main",
@@ -64,7 +64,7 @@
       "description": "Valid error message (unallowed child)",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "error": {
           "code": "UNALLOWED_CHILD",
           "surfaceId": "main",
@@ -77,7 +77,7 @@
       "description": "Invalid updateDataModel (renamed)",
       "valid": false,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateDataModel": {
           "surfaceId": "main",
           "path": "/user/name",
@@ -89,7 +89,7 @@
       "description": "error: Valid with callId",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "error": {
           "code": "FUNCTION_FAILED",
           "functionCallId": "unique-call-id-132",
@@ -101,7 +101,7 @@
       "description": "error: Invalid with BOTH callId and surfaceId",
       "valid": false,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "error": {
           "code": "FUNCTION_FAILED",
           "functionCallId": "unique-call-id-133",
@@ -114,7 +114,7 @@
       "description": "error: Invalid with NEITHER callId nor surfaceId",
       "valid": false,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "error": {
           "code": "FUNCTION_FAILED",
           "message": "Something went wrong"
@@ -125,7 +125,7 @@
       "description": "Valid action message with metadata.extensions",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "action": {
           "name": "submit",
           "surfaceId": "main",
@@ -146,7 +146,7 @@
       "description": "Invalid: action metadata.extensions has invalid key name",
       "valid": false,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "action": {
           "name": "submit",
           "surfaceId": "main",
@@ -165,7 +165,7 @@
       "description": "Invalid: action metadata contains unrecognized property (additionalProperties: false)",
       "valid": false,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "action": {
           "name": "submit",
           "surfaceId": "main",

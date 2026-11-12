@@ -13,12 +13,13 @@
 # limitations under the License.
 
 # ==============================================================================
-# Protocol v0.9 / v0.9.1 MessageProcessor Conformance Test Suite (Active Baseline)
+# Protocol v0.9 / v0.9.1 MessageProcessor Conformance Test Suite
 # ==============================================================================
 
 # --- Surface Lifecycle & State Isolation ---
 
 - name: test_create_surface_basic
+  features: [F-CORE-01]
   description: Tests creating a surface with catalogId and theme, verifying sendDataModel defaults to false.
   action: process_messages
   catalogPaths:
@@ -39,6 +40,7 @@
           primaryColor: "#ff0000"
 
 - name: test_create_surface_send_data_model_enabled
+  features: [F-CORE-01, F-CORE-32]
   description: Tests creating a surface with sendDataModel explicitly enabled.
   action: process_messages
   catalogPaths:
@@ -71,7 +73,14 @@
         catalogId: "test-catalog"
   expectError:
     category: "IntegrityError"
+    surfaceId: "s1"
     message: "Surface s1 already exists"
+    rendererError:
+      version: "v0.9"
+      error:
+        code: "INTEGRITY_ERROR"
+        surfaceId: "s1"
+        message: "Surface s1 already exists"
 
 - name: test_create_surface_unknown_catalog_error
   description: Tests that creating a surface referencing an unregistered catalogId raises a CatalogError.
@@ -118,6 +127,7 @@
     message: "catalogId"
 
 - name: test_delete_surface_basic
+  features: [F-CORE-04]
   description: Tests deleting an active surface by surfaceId, cleanly removing it from state.
   action: process_messages
   catalogPaths:
@@ -138,6 +148,7 @@
 # --- Component Mutations & State Integrity ---
 
 - name: test_update_components_add_and_query
+  features: [F-CORE-02]
   description: Tests adding multiple components to an active surface and querying their properties.
   action: process_messages
   catalogPaths:
@@ -246,7 +257,14 @@
             component: "Text"
   expectError:
     category: "IntegrityError"
+    surfaceId: "unknown-s"
     message: "Surface not found for message: unknown-s"
+    rendererError:
+      version: "v0.9"
+      error:
+        code: "INTEGRITY_ERROR"
+        surfaceId: "unknown-s"
+        message: "Surface not found for message: unknown-s"
 
 - name: test_update_components_missing_id_error
   description: Tests that component entries missing an 'id' property raise a validation error.
@@ -350,7 +368,14 @@
             child: "root"
   expectError:
     category: "ValidationError"
+    surfaceId: "s1"
     message: "Circular reference detected"
+    rendererError:
+      version: "v0.9"
+      error:
+        code: "RECURSION_LIMIT_EXCEEDED"
+        surfaceId: "s1"
+        message: "Circular reference detected"
 
 - name: test_topology_indirect_circular_reference_error
   description: Tests that indirect circular references (root -> c1 -> c2 -> root) are detected and rejected.
@@ -449,7 +474,14 @@
             child: "missing_child_id"
   expectError:
     category: "ValidationError"
+    surfaceId: "s1"
     message: "Dangling reference"
+    rendererError:
+      version: "v0.9"
+      error:
+        code: "INTEGRITY_ERROR"
+        surfaceId: "s1"
+        message: "Dangling reference"
 
 - name: test_topology_orphaned_component_error
   description: Tests that orphaned components unreachable from the root component fail validation in strict mode.
@@ -491,7 +523,14 @@
             text: "Unreachable"
   expectError:
     category: "ValidationError"
+    surfaceId: "s1"
     message: "Orphaned component"
+    rendererError:
+      version: "v0.9"
+      error:
+        code: "INTEGRITY_ERROR"
+        surfaceId: "s1"
+        message: "Orphaned component"
 
 - name: test_topology_structured_array_child_ref_ignores_sibling_strings
   description: >-
@@ -693,7 +732,14 @@
         value: "bar"
   expectError:
     category: "IntegrityError"
+    surfaceId: "unknown-s"
     message: "Surface not found for message: unknown-s"
+    rendererError:
+      version: "v0.9"
+      error:
+        code: "INTEGRITY_ERROR"
+        surfaceId: "unknown-s"
+        message: "Surface not found for message: unknown-s"
 
 - name: test_get_renderer_data_model_filtering
   description: Tests that getRendererDataModel filters out surfaces where sendDataModel is false.
@@ -1036,6 +1082,7 @@
     message: "surfaceId must be a string"
 
 - name: test_update_components_target_named_surface_only
+  features: [F-CORE-02]
   description: Tests that components are added to the surface the message names, not to every open surface.
   action: process_messages
   catalogPaths:
@@ -1069,6 +1116,7 @@
             text: "Hello"
 
 - name: test_update_data_model_isolated_per_surface
+  features: [F-CORE-03]
   description: Tests that each surface owns its data model, so the same path holds a different value per surface.
   action: process_messages
   catalogPaths:
@@ -1102,6 +1150,7 @@
           value: "two"
 
 - name: test_v091_version_string_compatibility
+  features: [F-CORE-07]
   description: Tests that messages carrying version 'v0.9.1' are accepted compatibly by v0.9 processors and catalogs.
   action: process_messages
   catalogPaths:
@@ -1126,3 +1175,269 @@
           - id: "root"
             component: "Text"
             text: "Hello v0.9.1"
+
+# --- Pre-1.0 Custom Component Properties Named metadata / catalogId (#4012) ---
+
+- name: test_v09_update_components_keeps_metadata_and_catalog_id_properties
+  description: >-
+    Tests that on a v0.9 surface, custom component properties named 'metadata'
+    (with arbitrary non-extensions keys) and 'catalogId' are preserved in
+    component properties across both initial creation and subsequent updates,
+    without being stripped or validated as v1.0 component envelope fields (#4012).
+  action: process_messages
+  protocolVersion: "v0.9"
+  catalogs:
+    - catalogId: gcbp-cat
+      components:
+        GcbpTable:
+          type: object
+          properties:
+            rows:
+              type: array
+              items:
+                type: object
+            metadata:
+              type: object
+              properties:
+                pageNumber:
+                  type: number
+                pageSize:
+                  type: number
+                totalSize:
+                  type: number
+              additionalProperties: false
+            catalogId:
+              type: string
+          required:
+            - component
+            - rows
+  steps:
+    - messages:
+        - version: "v0.9"
+          createSurface:
+            surfaceId: "s_gcbp"
+            catalogId: "gcbp-cat"
+        - version: "v0.9"
+          updateComponents:
+            surfaceId: "s_gcbp"
+            components:
+              - id: "root"
+                component: "GcbpTable"
+                rows:
+                  - id: "1"
+                    name: "Item A"
+                metadata:
+                  pageNumber: 0
+                  pageSize: 10
+                  totalSize: 25
+                catalogId: "source-catalog-a"
+      expect:
+        surfaces:
+          s_gcbp:
+            exists: true
+            components:
+              - id: "root"
+                component: "GcbpTable"
+                rows:
+                  - id: "1"
+                    name: "Item A"
+                metadata:
+                  pageNumber: 0
+                  pageSize: 10
+                  totalSize: 25
+                catalogId: "source-catalog-a"
+    - messages:
+        - version: "v0.9"
+          updateComponents:
+            surfaceId: "s_gcbp"
+            components:
+              - id: "root"
+                component: "GcbpTable"
+                rows:
+                  - id: "1"
+                    name: "Item A"
+                metadata:
+                  pageNumber: 1
+                  pageSize: 10
+                  totalSize: 25
+                catalogId: "source-catalog-b"
+      expect:
+        surfaces:
+          s_gcbp:
+            exists: true
+            components:
+              - id: "root"
+                component: "GcbpTable"
+                rows:
+                  - id: "1"
+                    name: "Item A"
+                metadata:
+                  pageNumber: 1
+                  pageSize: 10
+                  totalSize: 25
+                catalogId: "source-catalog-b"
+
+- name: test_v09_update_components_keeps_bound_metadata_property
+  description: >-
+    Tests that on a v0.9 surface, a custom component property named 'metadata'
+    bound via a v0.9 DataBinding ({path: '/tableData/metadata'}) resolves against
+    the surface data model without triggering v1.0 metadata envelope validation (#4012).
+  action: process_messages
+  protocolVersion: "v0.9"
+  catalogs:
+    - catalogId: gcbp-bound-cat
+      components:
+        GcbpTable:
+          type: object
+          properties:
+            metadata:
+              anyOf:
+                - type: object
+                  properties:
+                    pageNumber:
+                      type: number
+                    pageSize:
+                      type: number
+                    totalSize:
+                      type: number
+                  additionalProperties: false
+                - $ref: "common_types.json#/$defs/DataBinding"
+          required:
+            - component
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s_gcbp_bound"
+        catalogId: "gcbp-bound-cat"
+    - version: "v0.9"
+      updateDataModel:
+        surfaceId: "s_gcbp_bound"
+        path: "/tableData"
+        value:
+          metadata:
+            pageNumber: 2
+            pageSize: 25
+            totalSize: 100
+    - version: "v0.9"
+      updateComponents:
+        surfaceId: "s_gcbp_bound"
+        components:
+          - id: "root"
+            component: "GcbpTable"
+            metadata:
+              path: "/tableData/metadata"
+  expect:
+    surfaces:
+      s_gcbp_bound:
+        exists: true
+        components:
+          - id: "root"
+            component: "GcbpTable"
+            metadata:
+              pageNumber: 2
+              pageSize: 25
+              totalSize: 100
+
+- name: test_v09_rejects_at_prefixed_component_envelope_keys
+  description: >-
+    Tests that v1.0 @-prefixed component envelope keys (@metadata) are rejected
+    as unrecognized properties on a v0.9 surface when undeclared by the component schema.
+  action: process_messages
+  protocolVersion: "v0.9"
+  catalogPaths:
+    - "specification/v0_9/catalogs/basic/catalog.json"
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s_v09_at_meta"
+        catalogId: "test-catalog"
+    - version: "v0.9"
+      updateComponents:
+        surfaceId: "s_v09_at_meta"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+            "@metadata":
+              extensions:
+                com_example_trace: "t1"
+  expectError:
+    category: "ValidationError"
+
+# --- Component metadata (v1.0 only) ---
+
+- name: test_v09_metadata_is_an_ordinary_property
+  description: Tests that a v0.9 component keeps a catalog property named 'metadata' among its properties; v0.9 defines no component metadata.
+  action: process_messages
+  catalogs:
+    - catalogId: meta-cat
+      components:
+        Card:
+          type: object
+          properties:
+            title:
+              type: string
+            metadata:
+              type: object
+              additionalProperties: true
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s_meta"
+        catalogId: "meta-cat"
+    - version: "v0.9"
+      updateComponents:
+        surfaceId: "s_meta"
+        components:
+          - id: "root"
+            component: "Card"
+            title: "Hello"
+            metadata:
+              source: "crm"
+  expect:
+    surfaces:
+      s_meta:
+        exists: true
+        components:
+          - id: "root"
+            component: "Card"
+            title: "Hello"
+            metadata:
+              source: "crm"
+
+- name: test_v09_metadata_with_extensions_stays_a_property
+  description: Tests that a v0.9 'metadata' property shaped like v1.0 metadata is still kept among the component's properties.
+  action: process_messages
+  catalogs:
+    - catalogId: meta-cat
+      components:
+        Card:
+          type: object
+          properties:
+            metadata:
+              type: object
+              additionalProperties: true
+  messages:
+    - version: "v0.9"
+      createSurface:
+        surfaceId: "s_meta_ext"
+        catalogId: "meta-cat"
+    - version: "v0.9"
+      updateComponents:
+        surfaceId: "s_meta_ext"
+        components:
+          - id: "root"
+            component: "Card"
+            metadata:
+              extensions:
+                com_example_trace: "t1"
+  expect:
+    surfaces:
+      s_meta_ext:
+        exists: true
+        components:
+          - id: "root"
+            component: "Card"
+            metadata:
+              extensions:
+                com_example_trace: "t1"

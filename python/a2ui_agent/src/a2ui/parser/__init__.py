@@ -31,21 +31,24 @@ from .errors import (
     A2uiCompilationParseError,
     A2uiCompilationValidationError,
 )
-from .lexer import BlockLexer
+from .lexer import JSON_PAYLOAD_START_RE, BlockLexer
 from .messages import (
     normalize_prompt_example_messages,
     to_message_dicts,
     to_message_models,
 )
 from .parser import Parser
-from .payload_fixer import parse_and_fix
 from .response_part import (
     A2uiPart,
+    ErrorPart,
     RawA2uiPart,
     RawResponsePart,
     ResponsePart,
+    StreamPart,
     TextPart,
 )
+from .response_stream import ResponseStream
+from .text_run import TextRun
 
 __all__ = [
     "A2uiCompilationError",
@@ -53,7 +56,9 @@ __all__ = [
     "A2uiCompilationValidationError",
     "A2uiPart",
     "BlockLexer",
+    "ErrorPart",
     "DEFAULT_ROOT_ID",
+    "JSON_PAYLOAD_START_RE",
     "MSG_TYPE_AGENT_FUNCTION_RESPONSE",
     "MSG_TYPE_BEGIN_RENDERING",
     "MSG_TYPE_CALL_RENDERER_FUNCTION",
@@ -68,9 +73,11 @@ __all__ = [
     "RawA2uiPart",
     "RawResponsePart",
     "ResponsePart",
+    "ResponseStream",
+    "StreamPart",
     "TextPart",
+    "TextRun",
     "normalize_prompt_example_messages",
-    "parse_and_fix",
     "to_message_dicts",
     "to_message_models",
 ]

@@ -44,7 +44,7 @@ void main() {
   void create({String? catalogId}) => processor.processMessages(
         AgentToRendererMessagePayload([
           CreateSurfaceMessage(
-            version: 'v1.0',
+            version: '1.0',
             surfaceId: 's',
             catalogId: catalogId,
           ),
@@ -55,7 +55,7 @@ void main() {
       processor.processMessages(
         AgentToRendererMessagePayload([
           UpdateComponentsMessage(
-            version: 'v1.0',
+            version: '1.0',
             surfaceId: 's',
             components: components,
           ),
@@ -71,7 +71,7 @@ void main() {
       expect(surface().defaultCatalog, isNull);
       expect(surface().availableCatalogs.keys,
           unorderedEquals(['cat-a', 'cat-b']));
-      expect(surface().protocolVersion, 'v1.0');
+      expect(surface().protocolVersion, '1.0');
     });
   });
 
@@ -157,7 +157,7 @@ void main() {
       expect(root.catalog, 'cat-b');
       expect(surface().resolveCatalog(root.catalog),
           same(processor.catalogFor('cat-b')));
-      expect(root.toJson()['catalogId'], 'cat-b');
+      expect(root.toJson()['@catalogId'], 'cat-b');
     });
 
     test('an update that resolves to another catalog replaces the model', () {

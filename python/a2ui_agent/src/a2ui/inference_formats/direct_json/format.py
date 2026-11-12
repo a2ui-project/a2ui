@@ -37,6 +37,8 @@ class DirectJsonFormat(InferenceFormat):
         examples: Sequence[Sequence[AgentToRendererMessage]] | None = None,
         allowed_messages: Sequence[str] | None = None,
         progressive_keys: Collection[str] = frozenset(),
+        *,
+        buffer_incomplete_components: bool = False,
     ):
         self._catalogs = check_catalogs(catalogs)
         self._examples = (
@@ -46,6 +48,7 @@ class DirectJsonFormat(InferenceFormat):
             list(allowed_messages) if allowed_messages is not None else None
         )
         self._progressive_keys = frozenset(progressive_keys)
+        self._buffer_incomplete_components = bool(buffer_incomplete_components)
         self._prompt_generator: DirectJsonPromptGenerator | None = None
 
     @property
@@ -64,17 +67,13 @@ class DirectJsonFormat(InferenceFormat):
         return DirectJsonParser(
             self._catalogs,
             progressive_keys=self._progressive_keys,
+            buffer_incomplete_components=self._buffer_incomplete_components,
         )
 
     @property
     def supports_streaming(self) -> bool:
-        """Direct JSON parsers read a response incrementally through parse_chunk."""
+        """Direct JSON parsers read a response incrementally through open_stream."""
         return True
-
-    @property
-    def parser(self) -> DirectJsonParser:
-        """Creates a parser instance configured for this Direct JSON format."""
-        return self.create_parser()
 
     @property
     def catalogs(self) -> list[CatalogApi]:
@@ -98,6 +97,11 @@ class DirectJsonFormat(InferenceFormat):
         """The progressive string property keys healed while streaming."""
         return self._progressive_keys
 
+    @property
+    def buffer_incomplete_components(self) -> bool:
+        """Whether pre-v1.0 streams hold components until their JSON object closes."""
+        return self._buffer_incomplete_components
+
 
 class DirectJsonFormatFactory(InferenceFormatFactory):
     """Factory for creating DirectJsonFormat instances."""
@@ -106,11 +110,14 @@ class DirectJsonFormatFactory(InferenceFormatFactory):
         self,
         allowed_messages: Sequence[str] | None = None,
         progressive_keys: Collection[str] = frozenset(),
+        *,
+        buffer_incomplete_components: bool = False,
     ):
         self._allowed_messages = (
             list(allowed_messages) if allowed_messages is not None else None
         )
         self._progressive_keys = frozenset(progressive_keys)
+        self._buffer_incomplete_components = bool(buffer_incomplete_components)
 
     @property
     def allowed_messages(self) -> list[str] | None:
@@ -124,6 +131,11 @@ class DirectJsonFormatFactory(InferenceFormatFactory):
         """The progressive string property keys healed while streaming."""
         return self._progressive_keys
 
+    @property
+    def buffer_incomplete_components(self) -> bool:
+        """Whether pre-v1.0 streams hold components until their JSON object closes."""
+        return self._buffer_incomplete_components
+
     def create_format(
         self,
         catalogs: Sequence[CatalogApi],
@@ -134,4 +146,5 @@ class DirectJsonFormatFactory(InferenceFormatFactory):
             examples=examples,
             allowed_messages=self._allowed_messages,
             progressive_keys=self._progressive_keys,
+            buffer_incomplete_components=self._buffer_incomplete_components,
         )

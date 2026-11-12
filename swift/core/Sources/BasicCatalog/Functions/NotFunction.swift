@@ -32,12 +32,20 @@ public final class NotFunction: FunctionImplementation, Sendable {
     )
   )
 
-  public init() {}
+  private let readsValidationResults: Bool
+
+  /// Creates the function.
+  ///
+  /// - Parameter readsValidationResults: When `true`, as in v1.0, an operand that is a
+  ///   ValidationResult object reads as its `valid` member instead of as a truthy object.
+  public init(readsValidationResults: Bool = false) {
+    self.readsValidationResults = readsValidationResults
+  }
 
   public func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
     guard let value = arguments["value"] else {
       throw FunctionError.missingArgument("value")
     }
-    return .boolean(!value.isTruthy)
+    return .boolean(!value.isTruthy(readsValidationResults: readsValidationResults))
   }
 }

@@ -16,7 +16,7 @@ from a2a.server.apps import A2AStarletteApplication
 from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.tasks import InMemoryTaskStore
 from agent import McpAppProxyAgent
-from agent_executor import McpAppProxyAgentExecutor, get_a2ui_catalogs, get_a2ui_enabled, get_a2ui_examples
+from agent_executor import McpAppProxyAgentExecutor
 from dotenv import load_dotenv
 from google.adk.artifacts import InMemoryArtifactService
 from google.adk.memory.in_memory_memory_service import InMemoryMemoryService

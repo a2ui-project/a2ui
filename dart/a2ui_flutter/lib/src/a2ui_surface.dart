@@ -24,10 +24,11 @@ import 'surface_scope.dart';
 ///
 /// While mounted, the widget owns a [NodeResolver] over [surface] and renders
 /// the resolver's root node. Until the root component arrives, and in place
-/// of a child that has not arrived, it shows a small progress indicator.
-/// Building the resolver delivers the surface's pending diagnostics to
-/// [SurfaceModel.onError] synchronously, so a listener can run during this
-/// widget's build. Each mounted widget reports those diagnostics again.
+/// of a child that has not arrived, has an unknown type, or repeats one of its
+/// ancestors, it renders nothing.
+/// Diagnostics found while it builds reach error and warning listeners after
+/// that build, never during it, so a listener may call `setState`. Each
+/// mounted widget reports those diagnostics again.
 ///
 /// The surface belongs to the caller. Remove this widget when the surface is
 /// deleted.
@@ -93,7 +94,7 @@ class _A2uiSurfaceState extends State<A2uiSurface> with SignalState {
       // A new surface starts from fresh state, even under the same root id.
       child: KeyedSubtree(
         key: ObjectKey(widget.surface),
-        child: root == null ? const LoadingPlaceholder() : NodeView(root),
+        child: root == null ? const SizedBox.shrink() : NodeView(root),
       ),
     );
   }

@@ -25,7 +25,11 @@ module.exports = function (config) {
       'tests/setup.ts',
       {pattern: 'tests/**/*.test.ts', watched: true},
       {pattern: 'tests/**/*.test.tsx', watched: true},
+      {pattern: 'public/a2ui-sandbox/**', included: false, served: true, watched: false},
     ],
+    proxies: {
+      '/a2ui-sandbox/': '/base/public/a2ui-sandbox/',
+    },
     preprocessors: {
       'tests/setup.ts': ['esbuild'],
       'tests/**/*.test.ts': ['esbuild'],
@@ -37,7 +41,6 @@ module.exports = function (config) {
       format: 'iife',
       sourcemap: true,
       alias: {
-        '@a2ui/react/v1_0': path.resolve(__dirname, '../src/v1_0/index.ts'),
         '@a2ui/react/v0_9': path.resolve(__dirname, '../src/v0_9/index.ts'),
         '@a2ui/react/v0_8': path.resolve(__dirname, '../src/v0_8/index.ts'),
         '@a2ui/react/styles': path.resolve(__dirname, '../src/styles/index.ts'),

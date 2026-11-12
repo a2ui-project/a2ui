@@ -18,6 +18,32 @@ import 'package:test/test.dart';
 
 import 'conformance_harness.dart';
 
+const Map<String, Set<String>> _knownKeys = {
+  'case:select_catalog': {
+    ...caseMetadataKeys,
+    'args',
+    'catalog',
+    'expectError',
+    'expectSelected',
+  },
+  'args:select_catalog': {
+    'catalogs',
+    'components',
+    'functionCall',
+    'surface',
+  },
+  'surface:select_catalog': {
+    'defaultCatalogId',
+    'id',
+    'supportedCatalogIds',
+  },
+  'functionCall:select_catalog': {
+    'args',
+    'call',
+    'catalogId',
+  },
+};
+
 /// Runs the shared `conformance/core/multi_catalog.yaml` suite against
 /// [SurfaceModel.resolveCatalog] and the [DataContext] a component renders
 /// with.
@@ -33,10 +59,11 @@ void main() {
   group('conformance core/multi_catalog.yaml', () {
     test('suite is not empty', () => expect(cases, isNotEmpty));
 
-    for (final testCase in cases) {
-      final name = testCase['name']! as String;
-      test(name, () => _runCase(testCase));
-    }
+    runConformanceSuite(
+      cases,
+      _runCase,
+      suite: 'core/multi_catalog.yaml',
+    );
   });
 }
 
@@ -44,9 +71,40 @@ void _runCase(Map<String, Object?> testCase) {
   final action = testCase['action']! as String;
   switch (action) {
     case 'select_catalog':
+      _assertSelectCatalogKeys(testCase);
       _runSelectCatalogCase(testCase);
     default:
       throw StateError('Unsupported multi_catalog action: $action');
+  }
+}
+
+void _assertSelectCatalogKeys(Map<String, Object?> testCase) {
+  assertKnownKeys(
+    testCase,
+    _knownKeys['case:select_catalog']!,
+    'case:select_catalog',
+  );
+  final args = testCase['args']! as Map<String, Object?>;
+  assertKnownKeys(
+    args,
+    _knownKeys['args:select_catalog']!,
+    'args:select_catalog',
+  );
+  final surfaceArgs = args['surface']! as Map<String, Object?>;
+  assertKnownKeys(
+    surfaceArgs,
+    _knownKeys['surface:select_catalog']!,
+    'surface:select_catalog',
+  );
+  if (args['functionCall'] case final Map<String, Object?> functionCall) {
+    assertKnownKeys(
+      functionCall,
+      _knownKeys['functionCall:select_catalog']!,
+      'functionCall:select_catalog',
+    );
+  }
+  if (testCase['expectError'] case final Map<String, Object?> expectError) {
+    assertKnownKeys(expectError, knownExpectErrorKeys, 'expectError');
   }
 }
 
@@ -63,7 +121,7 @@ void _runSelectCatalogCase(Map<String, Object?> testCase) {
   final defaultId = surfaceArgs['defaultCatalogId'] as String?;
   final String surfaceVersion = (testCase['catalog']
           as Map<String, Object?>?)?['protocolVersion'] as String? ??
-      'v1.0';
+      '1.0';
   final functionCall = args['functionCall'] as Map<String, Object?>?;
   final functionName = functionCall?['call'] as String?;
   final selections = <String>[];

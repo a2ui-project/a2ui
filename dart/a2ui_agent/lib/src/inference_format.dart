@@ -40,6 +40,10 @@ abstract class InferenceFormat {
   /// examples.
   PromptGenerator get promptGenerator;
 
-  /// Creates a parser for one LLM response.
+  /// Creates a parser bound to the format's catalogs.
+  ///
+  /// A parser holds no state, so one parser can read every response of a
+  /// request; `Parser.openStream` returns an object for one streamed
+  /// response.
   Parser createParser();
 }

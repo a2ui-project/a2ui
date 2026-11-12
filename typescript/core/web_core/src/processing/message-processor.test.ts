@@ -22,6 +22,11 @@ import {
   STRICT_VALIDATION,
   RpcErrorCode,
 } from './message-processor.js';
+import {
+  extractEnvelopeErrorContext,
+  mapErrorToRendererMessage,
+  type RendererErrorMessage,
+} from './message-error-mapper.js';
 import {Catalog, ComponentApi, createFunctionImplementation} from '../catalog/types.js';
 import {CardApi, RowApi, TabsApi} from '../v0_9/basic_catalog/components/basic_components.js';
 import {BasicCatalogThemeSchema} from '../universal/basic_catalog/theme.js';
@@ -29,6 +34,10 @@ import {BASIC_COMPONENTS} from '../catalogs/basic/v1/components/basic_components
 import {BASIC_FUNCTIONS} from '../catalogs/basic/v1/functions/basic_functions.js';
 import {A2uiCatalogError, A2uiIntegrityError, A2uiValidationError} from '../errors.js';
 import {DataContext} from '../resolution/data-context.js';
+import {NodeResolver} from '../resolution/node-resolver.js';
+import {ResolvedBinding} from '../resolution/resolved-binding.js';
+import {SurfaceModel, type A2uiErrorPayload} from '../state/surface-model.js';
+import {validateCompositionConstraints} from '../state/validation-helpers.js';
 import {peekValue} from '../reactivity/signals.js';
 import {z} from 'zod';
 
@@ -57,6 +66,7 @@ function assertConformsToV10CatalogDefinition(doc: Record<string, any>): void {
     'title',
     'description',
     'catalogId',
+    'metadata',
     'instructions',
     'components',
     'functions',
@@ -68,7 +78,8 @@ function assertConformsToV10CatalogDefinition(doc: Record<string, any>): void {
   if (doc.protocolVersion !== undefined) {
     assert.match(doc.protocolVersion, /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*))?$/);
   }
-  assert.deepStrictEqual(Object.keys(doc.$defs ?? {}).sort(), ['anyComponent', 'anyFunction']);
+  assert.ok('anyComponent' in (doc.$defs ?? {}), 'Expected $defs.anyComponent');
+  assert.ok('anyFunction' in (doc.$defs ?? {}), 'Expected $defs.anyFunction');
   assert.ok(!('Surface' in (doc.components ?? {})), "'Surface' is not a valid component name");
   const returnTypes = [
     'string',
@@ -174,11 +185,15 @@ describe('MessageProcessor', () => {
         themeSchema: BasicCatalogThemeSchema,
       });
       const proc = new MessageProcessor([cat]);
-      const caps = proc.getRendererCapabilities({versions: ['v1.0'], includeInlineCatalogs: true});
-      const inlineCat = (caps['v1.0'] as any).inlineCatalogs?.[0] as Record<string, any>;
+      const caps = proc.getRendererCapabilities({versions: ['1.0'], includeInlineCatalogs: true});
+      const inlineCat = (caps['1.0'] as any).inlineCatalogs?.[0] as Record<string, any>;
 
       assertConformsToV10CatalogDefinition(inlineCat);
-      assert.deepStrictEqual(Object.keys(inlineCat.$defs).sort(), ['anyComponent', 'anyFunction']);
+      assert.deepStrictEqual(Object.keys(inlineCat.$defs).sort(), [
+        'Weight',
+        'anyComponent',
+        'anyFunction',
+      ]);
       assert.strictEqual(inlineCat.protocolVersion, '1.0');
       assert.strictEqual(inlineCat.theme, undefined);
       assert.strictEqual(
@@ -227,8 +242,8 @@ describe('MessageProcessor', () => {
         },
       };
       const proc = new MessageProcessor([Catalog.fromJson(document) as Catalog<any>]);
-      const caps = proc.getRendererCapabilities({versions: ['v1.0'], includeInlineCatalogs: true});
-      const inlineCat = (caps['v1.0'] as any).inlineCatalogs?.[0];
+      const caps = proc.getRendererCapabilities({versions: ['1.0'], includeInlineCatalogs: true});
+      const inlineCat = (caps['1.0'] as any).inlineCatalogs?.[0];
 
       assert.deepStrictEqual(inlineCat, document);
       assertConformsToV10CatalogDefinition(inlineCat);
@@ -249,14 +264,14 @@ describe('MessageProcessor', () => {
 
     function inlineV10Catalog(catalog: Catalog<any>): Record<string, any> {
       const proc = new MessageProcessor([catalog]);
-      const caps = proc.getRendererCapabilities({versions: ['v1.0'], includeInlineCatalogs: true});
-      return (caps['v1.0'] as any).inlineCatalogs[0];
+      const caps = proc.getRendererCapabilities({versions: ['1.0'], includeInlineCatalogs: true});
+      return (caps['1.0'] as any).inlineCatalogs[0];
     }
 
     it('gives a v1.0 inline catalog the catalogId and bare protocolVersion of a $id-only document', () => {
       const document = {
         $id: 'https://example.com/by-id.json',
-        protocolVersion: 'v1.0',
+        protocolVersion: '1.0',
         components: {Label: label},
         $defs: unionsOnly,
       };
@@ -534,6 +549,120 @@ describe('MessageProcessor', () => {
       assert.strictEqual(surface.theme?.primaryColor, '#ABCDEF');
       assert.strictEqual((surface.theme as any)?.defaultedField, 'default-val');
     });
+
+    describe('maxAgentCallCacheEntries', () => {
+      const catalog = new Catalog('cat', '1.0', BASIC_COMPONENTS);
+      const create = {version: '1.0' as const, createSurface: {surfaceId: 's', catalogId: 'cat'}};
+
+      it('applies to the surfaces the processor creates', () => {
+        const proc = new MessageProcessor([catalog], undefined, {maxAgentCallCacheEntries: 2});
+        proc.processMessages(create);
+        assert.strictEqual(proc.model.getSurface('s')!.maxAgentCallCacheEntries, 2);
+
+        const defaulted = new MessageProcessor([catalog]);
+        defaulted.processMessages(create);
+        assert.strictEqual(defaulted.model.getSurface('s')!.maxAgentCallCacheEntries, 256);
+      });
+
+      it('rejects a value that is not a positive integer', () => {
+        for (const value of [0, -1, 1.5, Number.NaN]) {
+          assert.throws(
+            () => new MessageProcessor([catalog], undefined, {maxAgentCallCacheEntries: value}),
+            RangeError,
+            String(value),
+          );
+        }
+      });
+    });
+
+    describe('per call', () => {
+      const catalog = new Catalog('cat', '1.0', BASIC_COMPONENTS);
+      const create = {version: '1.0' as const, createSurface: {surfaceId: 's', catalogId: 'cat'}};
+      const danglingChild = {
+        version: '1.0' as const,
+        updateComponents: {
+          surfaceId: 's',
+          components: [{id: 'root', component: 'Column', children: ['later']}],
+        },
+      };
+      const unknownComponent = {
+        version: '1.0' as const,
+        updateComponents: {surfaceId: 's', components: [{id: 'root', component: 'Unknown'}]},
+      };
+
+      it("replaces the processor's own config for the call", () => {
+        const proc = new MessageProcessor([catalog], undefined, {
+          validationConfig: STRICT_VALIDATION,
+        });
+        proc.processMessages(create);
+        assert.throws(() => proc.processMessages(danglingChild), A2uiValidationError);
+
+        proc.processMessages(danglingChild, {
+          validationConfig: {
+            allowDanglingReferences: true,
+            allowMissingRoot: true,
+            allowOrphanComponents: true,
+          },
+        });
+
+        assert.strictEqual(proc.model.getSurface('s')?.componentsModel.get('root')?.type, 'Column');
+      });
+
+      it('validates a processor that has no config of its own', () => {
+        const proc = new MessageProcessor([catalog]);
+        proc.processMessages(create);
+
+        assert.throws(
+          () => proc.processMessages(unknownComponent, {validationConfig: {}}),
+          A2uiValidationError,
+        );
+        assert.strictEqual(proc.model.getSurface('s')?.componentsModel.size, 0);
+      });
+
+      it("restores the processor's own config after the call", () => {
+        const proc = new MessageProcessor([catalog]);
+        proc.processMessages(create);
+        assert.throws(
+          () => proc.processMessages(unknownComponent, {validationConfig: {}}),
+          A2uiValidationError,
+        );
+
+        proc.processMessages(unknownComponent);
+
+        assert.strictEqual(
+          proc.model.getSurface('s')?.componentsModel.get('root')?.type,
+          'Unknown',
+        );
+      });
+
+      it('applies to each operation of an asynchronous call', async () => {
+        const proc = new MessageProcessor([catalog]);
+        proc.processMessages(create);
+
+        await assert.rejects(
+          proc.processMessagesAsync([unknownComponent], {validationConfig: {}}),
+          A2uiValidationError,
+        );
+      });
+    });
+  });
+
+  describe('catalogs', () => {
+    it('returns the catalogs the processor was created with, in order', () => {
+      const first = new Catalog('first', '1.0', []);
+      const second = new Catalog('second', '1.0', []);
+      const proc = new MessageProcessor([first, second]);
+
+      assert.deepStrictEqual(proc.catalogs, [first, second]);
+    });
+
+    it('returns a copy', () => {
+      const proc = new MessageProcessor([testCatalog]);
+
+      proc.catalogs.push(new Catalog('other', '0.9', []));
+
+      assert.deepStrictEqual(proc.catalogs, [testCatalog]);
+    });
   });
 
   describe('Mixed Catalogs Support', () => {
@@ -565,12 +694,12 @@ describe('MessageProcessor', () => {
       );
       const processor = new MessageProcessor([basicCat, fnCatalog]);
       processor.processMessages({
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {surfaceId: 'surface-1', catalogId: 'cat-basic'},
       });
 
       const responses = await processor.processMessagesAsync({
-        version: 'v1.0',
+        version: '1.0',
         callRendererFunction: {
           functionCallId: 'rpc-1',
           callFunction: {
@@ -596,7 +725,7 @@ describe('MessageProcessor', () => {
 
       // 1. Initial valid surface
       proc.processMessages({
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 's_atomic',
           catalogId: 'https://a2ui.org/catalog',
@@ -620,7 +749,7 @@ describe('MessageProcessor', () => {
       assert.throws(
         () =>
           proc.processMessages({
-            version: 'v1.0',
+            version: '1.0',
             updateComponents: {
               surfaceId: 's_atomic',
               components: [
@@ -647,7 +776,7 @@ describe('MessageProcessor', () => {
       const proc = new MessageProcessor([basicCatalog]);
 
       proc.processMessages({
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {
           surfaceId: 's_untyped',
           catalogId: 'https://a2ui.org/catalog',
@@ -677,6 +806,227 @@ describe('MessageProcessor', () => {
       assert.strictEqual(surface.componentsModel.get('root')?.properties.text, 'Initial');
       assert.strictEqual(surface.componentsModel.has('new_comp'), false);
     });
+
+    it('applies Surface allowedParents rule only to rootId and checks all parents of a component', () => {
+      const compositionCatalog = Catalog.fromJson({
+        catalogId: 'custom',
+        protocolVersion: '1.0',
+        components: {
+          Box: {
+            type: 'object',
+            properties: {
+              children: {$ref: '#/$defs/ChildList'},
+            },
+          },
+          Card: {
+            type: 'object',
+            allowedParents: ['Box'],
+            properties: {
+              children: {$ref: '#/$defs/ChildList'},
+            },
+          },
+          Header: {
+            type: 'object',
+            allowedParents: ['Box'],
+          },
+        },
+      }) as unknown as Catalog<ComponentApi>;
+
+      // 1. Rewriting a container to drop a child whose allowedParents does not
+      // include 'Surface' succeeds when orphans are allowed (default), and
+      // reports an orphan IntegrityError (not UNALLOWED_PARENT) in strict mode.
+      const relaxedProc = new MessageProcessor([compositionCatalog]);
+      relaxedProc.processMessages([
+        {
+          version: '1.0',
+          createSurface: {
+            surfaceId: 's1',
+            catalogId: 'custom',
+            components: [
+              {id: 'root', component: 'Box', children: ['h']},
+              {id: 'h', component: 'Header'},
+            ],
+          },
+        },
+        {
+          version: '1.0',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [{id: 'root', component: 'Box', children: []}],
+          },
+        },
+      ]);
+      assert.deepStrictEqual(
+        relaxedProc.getSurface('s1')?.componentsModel.get('root')?.properties.children,
+        [],
+      );
+      assert.strictEqual(relaxedProc.getSurface('s1')?.componentsModel.get('h')?.type, 'Header');
+
+      const strictProc = new MessageProcessor([compositionCatalog], undefined, {
+        validationConfig: STRICT_VALIDATION,
+      });
+      strictProc.processMessages({
+        version: '1.0',
+        createSurface: {
+          surfaceId: 's1',
+          catalogId: 'custom',
+          components: [
+            {id: 'root', component: 'Box', children: ['h']},
+            {id: 'h', component: 'Header'},
+          ],
+        },
+      });
+      assert.throws(
+        () =>
+          strictProc.processMessages({
+            version: '1.0',
+            updateComponents: {
+              surfaceId: 's1',
+              components: [{id: 'root', component: 'Box', children: []}],
+            },
+          }),
+        (err: unknown) =>
+          err instanceof A2uiIntegrityError &&
+          err.message.includes("Component 'h' is not reachable from 'root'"),
+      );
+
+      // 2. Root component referenced by another component is still checked
+      // against 'Surface' (for both default 'root' and a custom rootId).
+      const rootRefProc = new MessageProcessor([compositionCatalog]);
+      assert.throws(
+        () =>
+          rootRefProc.processMessages({
+            version: '1.0',
+            createSurface: {
+              surfaceId: 's1',
+              catalogId: 'custom',
+              components: [
+                {id: 'root', component: 'Card'},
+                {id: 'box', component: 'Box', children: ['root']},
+              ],
+            },
+          }),
+        (err: unknown) =>
+          err instanceof A2uiValidationError &&
+          err.code === 'UNALLOWED_PARENT' &&
+          err.message.includes(
+            "Component 'root' (Card) cannot be placed under parent 'Surface' (Surface).",
+          ),
+      );
+
+      const customRootProc = new MessageProcessor([compositionCatalog], undefined, {
+        validationConfig: {rootId: 'main_root', allowOrphanComponents: true},
+      });
+      assert.throws(
+        () =>
+          customRootProc.processMessages({
+            version: '1.0',
+            createSurface: {
+              surfaceId: 's1',
+              catalogId: 'custom',
+              components: [
+                {id: 'main_root', component: 'Card'},
+                {id: 'box', component: 'Box', children: ['main_root']},
+              ],
+            },
+          }),
+        (err: unknown) =>
+          err instanceof A2uiValidationError &&
+          err.code === 'UNALLOWED_PARENT' &&
+          err.message.includes(
+            "Component 'main_root' (Card) cannot be placed under parent 'Surface' (Surface).",
+          ),
+      );
+
+      // 3. Component with multiple parents checks every parent edge regardless
+      // of component order.
+      for (const components of [
+        [
+          {id: 'root', component: 'Box', children: ['card', 'b']},
+          {id: 'card', component: 'Card', children: ['h']},
+          {id: 'b', component: 'Box', children: ['h']},
+          {id: 'h', component: 'Header'},
+        ],
+        [
+          {id: 'root', component: 'Box', children: ['b', 'card']},
+          {id: 'b', component: 'Box', children: ['h']},
+          {id: 'card', component: 'Card', children: ['h']},
+          {id: 'h', component: 'Header'},
+        ],
+      ]) {
+        const multiParentProc = new MessageProcessor([compositionCatalog]);
+        assert.throws(
+          () =>
+            multiParentProc.processMessages({
+              version: '1.0',
+              createSurface: {
+                surfaceId: 's1',
+                catalogId: 'custom',
+                components,
+              },
+            }),
+          (err: unknown) =>
+            err instanceof A2uiValidationError &&
+            err.code === 'UNALLOWED_PARENT' &&
+            err.message.includes(
+              "Component 'h' (Header) cannot be placed under parent 'card' (Card).",
+            ),
+        );
+      }
+    });
+
+    it("checks the surface's own root id against Surface, as a v0.8 beginRendering root sets it", () => {
+      const catalog = Catalog.fromJson({
+        catalogId: 'custom',
+        protocolVersion: '1.0',
+        components: {
+          Box: {type: 'object', properties: {children: {$ref: '#/$defs/ChildList'}}},
+          Card: {type: 'object', allowedParents: ['Box']},
+        },
+      }) as unknown as Catalog<ComponentApi>;
+      const surfaceWithRoot = (rootId: string) =>
+        new SurfaceModel<ComponentApi>(
+          's1',
+          catalog,
+          new Map([[catalog.id, catalog]]),
+          {},
+          false,
+          undefined,
+          rootId,
+        );
+      const resolveCatalog = () => catalog;
+
+      // The surface's root, 'main', is a Card, which may only be under a Box.
+      assert.throws(
+        () =>
+          validateCompositionConstraints(
+            surfaceWithRoot('main'),
+            [
+              {id: 'main', component: 'Card'},
+              {id: 'box', component: 'Box', children: ['main']},
+            ],
+            resolveCatalog,
+            undefined,
+          ),
+        (err: unknown) =>
+          err instanceof A2uiValidationError &&
+          err.message.includes("Component 'main' (Card) cannot be placed under parent 'Surface'"),
+      );
+
+      // A component named 'root' is not the root of this surface, so it is not
+      // checked against Surface.
+      assert.doesNotThrow(() =>
+        validateCompositionConstraints(
+          surfaceWithRoot('main'),
+          [
+            {id: 'main', component: 'Box', children: []},
+            {id: 'root', component: 'Card'},
+          ],
+          resolveCatalog,
+          undefined,
+        ),
+      );
+    });
   });
 
   describe('MessageProcessor Bidirectional RPC & Asynchronous Pipeline', () => {
@@ -702,12 +1052,12 @@ describe('MessageProcessor', () => {
     it('processes callRendererFunction via processMessagesAsync and returns response', async () => {
       const proc = new MessageProcessor([rpcCatalog]);
       proc.processMessages({
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {surfaceId: 's1', catalogId: 'rpc-cat'},
       });
 
       const responses = await proc.processMessagesAsync({
-        version: 'v1.0',
+        version: '1.0',
         callRendererFunction: {
           functionCallId: 'rpc-call-1',
           callFunction: {
@@ -722,6 +1072,31 @@ describe('MessageProcessor', () => {
       assert.strictEqual(responses[0].rendererFunctionResponse.functionCallId, 'rpc-call-1');
       assert.strictEqual(responses[0].rendererFunctionResponse.value, 'Echo: World');
       assert.strictEqual(responses[0].rendererFunctionResponse.error, undefined);
+    });
+
+    it('hands the RpcHandler a callRendererFunction message that names the function with @call', async () => {
+      const proc = new MessageProcessor([rpcCatalog]);
+      const received: any[] = [];
+      const original = proc.rpc.handleCallRendererFunction.bind(proc.rpc);
+      proc.rpc.handleCallRendererFunction = (msg, ...rest) => {
+        received.push(msg);
+        return original(msg, ...rest);
+      };
+
+      await proc.processMessagesAsync({
+        version: '1.0',
+        callRendererFunction: {
+          functionCallId: 'rpc-call-at',
+          callFunction: {'@call': 'echoFunction', catalogId: 'rpc-cat', args: {text: 'A'}},
+        },
+      });
+
+      assert.strictEqual(received.length, 1);
+      assert.deepStrictEqual(received[0].callRendererFunction.callFunction, {
+        '@call': 'echoFunction',
+        catalogId: 'rpc-cat',
+        args: {text: 'A'},
+      });
     });
 
     it('targets the specified surfaceId data model when surfaceId is provided, uses an isolated empty model when omitted, and returns INVALID_FUNCTION_CALL when surfaceId does not exist', async () => {
@@ -741,7 +1116,7 @@ describe('MessageProcessor', () => {
 
       proc.processMessages([
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {
             surfaceId: 's1',
             catalogId: 'rpc-model-cat',
@@ -749,7 +1124,7 @@ describe('MessageProcessor', () => {
           },
         },
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {
             surfaceId: 's2',
             catalogId: 'rpc-model-cat',
@@ -760,7 +1135,7 @@ describe('MessageProcessor', () => {
 
       // 1. With surfaceId: 's2' and @path arg -> resolves against s2's data model ('Bob')
       const resWithSurface = await proc.processMessagesAsync({
-        version: 'v1.0',
+        version: '1.0',
         callRendererFunction: {
           surfaceId: 's2',
           functionCallId: 'rpc-surf-1',
@@ -776,7 +1151,7 @@ describe('MessageProcessor', () => {
 
       // 2. Without surfaceId and @path arg -> resolves against isolated empty root model ('empty')
       const resIsolated = await proc.processMessagesAsync({
-        version: 'v1.0',
+        version: '1.0',
         callRendererFunction: {
           functionCallId: 'rpc-surf-2',
           callFunction: {
@@ -791,7 +1166,7 @@ describe('MessageProcessor', () => {
 
       // 3. With non-existent surfaceId -> returns INVALID_FUNCTION_CALL
       const resMissing = await proc.processMessagesAsync({
-        version: 'v1.0',
+        version: '1.0',
         callRendererFunction: {
           surfaceId: 'non_existent_surface',
           functionCallId: 'rpc-surf-3',
@@ -814,7 +1189,7 @@ describe('MessageProcessor', () => {
 
       // 4. With @call: '@index' in args -> returns EXECUTION_ERROR
       const resIndexErr = await proc.processMessagesAsync({
-        version: 'v1.0',
+        version: '1.0',
         callRendererFunction: {
           functionCallId: 'rpc-surf-4',
           callFunction: {
@@ -833,7 +1208,7 @@ describe('MessageProcessor', () => {
       // 5. Wire message missing callFunction.catalogId -> throws A2uiValidationError
       await assert.rejects(
         proc.processMessagesAsync({
-          version: 'v1.0',
+          version: '1.0',
           callRendererFunction: {
             functionCallId: 'rpc-surf-5',
             callFunction: {
@@ -849,13 +1224,13 @@ describe('MessageProcessor', () => {
     it('enforces requiresUserActivation in processMessagesAsync via context options', async () => {
       const proc = new MessageProcessor([rpcCatalog]);
       proc.processMessages({
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {surfaceId: 's1', catalogId: 'rpc-cat'},
       });
 
       // Without user activation
       const unauthResponses = await proc.processMessagesAsync({
-        version: 'v1.0',
+        version: '1.0',
         callRendererFunction: {
           functionCallId: 'rpc-call-2',
           callFunction: {
@@ -875,7 +1250,7 @@ describe('MessageProcessor', () => {
       // With user activation
       const authResponses = await proc.processMessagesAsync(
         {
-          version: 'v1.0',
+          version: '1.0',
           callRendererFunction: {
             functionCallId: 'rpc-call-3',
             callFunction: {
@@ -908,12 +1283,13 @@ describe('MessageProcessor', () => {
 
       assert.ok(emittedMessage);
       assert.strictEqual(emittedMessage.callAgentFunction.surfaceId, 's1');
-      assert.strictEqual(emittedMessage.callAgentFunction.callFunction.call, 'fetchAgentData');
+      assert.strictEqual(emittedMessage.callAgentFunction.callFunction['@call'], 'fetchAgentData');
+      assert.ok(!Object.hasOwn(emittedMessage.callAgentFunction.callFunction, 'call'));
       const callId = emittedMessage.callAgentFunction.functionCallId;
 
       // Inbound response processed through standard message processing pipeline
       proc.processMessages({
-        version: 'v1.0',
+        version: '1.0',
         agentFunctionResponse: {
           functionCallId: callId,
           value: {data: 'Agent Result'},
@@ -949,13 +1325,13 @@ describe('MessageProcessor', () => {
         },
       });
       proc.processMessages({
-        version: 'v1.0',
+        version: '1.0',
         createSurface: {surfaceId: 's1', catalogId: 'rpc-cat'},
       });
 
       // Fire-and-forget callRendererFunction in synchronous pipeline
       proc.processMessages({
-        version: 'v1.0',
+        version: '1.0',
         callRendererFunction: {
           functionCallId: 'rpc-sync-1',
           callFunction: {
@@ -987,7 +1363,7 @@ describe('MessageProcessor', () => {
         };
 
         proc.processMessages({
-          version: 'v1.0',
+          version: '1.0',
           callRendererFunction: {
             functionCallId: 'rpc-sync-2',
             callFunction: {
@@ -1015,6 +1391,105 @@ describe('MessageProcessor', () => {
       assert.deepStrictEqual((caps['v0.9'] as any).supportedCatalogIds, ['test-cat']);
     });
 
+    it('defaults getClientCapabilities to v0.9 and accepts the legacy version option', () => {
+      const cat = new Catalog('test-cat', '0.9', []);
+      const proc = new MessageProcessor([cat]);
+      const expected = proc.getRendererCapabilities({versions: ['v0.9']});
+      assert.deepStrictEqual(proc.getClientCapabilities(), expected);
+      assert.deepStrictEqual(proc.getClientCapabilities({}), expected);
+      assert.deepStrictEqual(proc.getClientCapabilities({version: 'v0.9'}), expected);
+      assert.deepStrictEqual(
+        proc.getRendererCapabilities({version: 'v0.9'}),
+        expected,
+        'getRendererCapabilities also accepts the legacy version option',
+      );
+      assert.throws(
+        () => proc.getRendererCapabilities({}),
+        /At least one protocol version must be provided/,
+      );
+    });
+
+    it('treats an unversioned v0.9 envelope as v0.9 when every catalog is pre-1.0', () => {
+      const cat = new Catalog('test-cat', '0.9', []);
+      const proc = new MessageProcessor([cat]);
+      proc.processMessages([
+        {createSurface: {surfaceId: 's1', catalogId: 'test-cat'}},
+        {updateDataModel: {surfaceId: 's1', path: '/user/name', value: 'Alice'}},
+      ] as any);
+      assert.strictEqual(proc.getSurface('s1')?.dataModel.get('/user/name'), 'Alice');
+      proc.processMessages({deleteSurface: {surfaceId: 's1'}} as any);
+      assert.strictEqual(proc.getSurface('s1'), undefined);
+    });
+
+    it('unwraps messages wrapper in unversioned payload', () => {
+      const cat = new Catalog('test-cat', '0.9', []);
+      const proc = new MessageProcessor([cat]);
+      proc.processMessages({
+        messages: [{createSurface: {surfaceId: 's1', catalogId: 'test-cat'}}],
+      } as any);
+      assert.ok(proc.getSurface('s1'));
+    });
+
+    it('treats an unversioned envelope as v0.9.1 when registered catalog is 0.9.1', () => {
+      const cat = new Catalog('test-cat', '0.9.1', []);
+      const proc = new MessageProcessor([cat]);
+      proc.processMessages({createSurface: {surfaceId: 's1', catalogId: 'test-cat'}} as any);
+      assert.ok(proc.getSurface('s1'));
+    });
+
+    it('keeps rejecting unversioned envelopes with a v1.0 catalog or a validationConfig', () => {
+      const unversioned = {createSurface: {surfaceId: 's1', catalogId: 'test-cat'}} as any;
+      const withV10 = new MessageProcessor([
+        new Catalog('test-cat', '0.9', []),
+        new Catalog('v10-cat', '1.0', []),
+      ]);
+      assert.throws(() => withV10.processMessages(unversioned), /missing a valid 'version'/);
+
+      const validating = new MessageProcessor([new Catalog('test-cat', '0.9', [])], undefined, {
+        validationConfig: THEME_ONLY_VALIDATION,
+      });
+      assert.throws(() => validating.processMessages(unversioned), /missing a valid 'version'/);
+    });
+
+    it('leaves nested calls unchecked on a pre-1.0 surface without a validationConfig', () => {
+      const textApi: ComponentApi = {name: 'Text', schema: z.object({text: z.any()})};
+      const v09 = new Catalog<ComponentApi>('v09', '0.9', [textApi]);
+      const lenient = new MessageProcessor([v09]);
+      lenient.processMessages([
+        {version: 'v0.9', createSurface: {surfaceId: 's', catalogId: 'v09'}},
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 's',
+            components: [{id: 'root', component: 'Text', text: {call: 'nope', args: {}}}],
+          },
+        },
+      ]);
+      assert.ok(lenient.getSurface('s')?.componentsModel.get('root'));
+
+      const strict = new MessageProcessor(
+        [new Catalog<ComponentApi>('v09', '0.9', [textApi])],
+        undefined,
+        {
+          validationConfig: {...THEME_ONLY_VALIDATION, allowUnknownElements: false},
+        },
+      );
+      assert.throws(
+        () =>
+          strict.processMessages([
+            {version: 'v0.9', createSurface: {surfaceId: 's', catalogId: 'v09'}},
+            {
+              version: 'v0.9',
+              updateComponents: {
+                surfaceId: 's',
+                components: [{id: 'root', component: 'Text', text: {call: 'nope', args: {}}}],
+              },
+            },
+          ]),
+        /Unrecognized function 'nope'/,
+      );
+    });
+
     it('provides getClientDataModel alias', () => {
       const cat = new Catalog('test-cat', '0.9', []);
       const proc = new MessageProcessor([cat]);
@@ -1037,6 +1512,84 @@ describe('MessageProcessor', () => {
       const dataModel = proc.getClientDataModel('v0.9');
       assert.deepStrictEqual(dataModel, proc.getRendererDataModel('v0.9'));
       assert.deepStrictEqual((dataModel?.surfaces as any)?.s1, {user: {name: 'Alice'}});
+    });
+
+    it('records the createSurface message protocol version on the surface and falls back to catalog version', () => {
+      const textApi: ComponentApi = {
+        name: 'Text',
+        schema: z.object({text: z.string()}).strict(),
+      };
+      const v09Cat = new Catalog('cat-09', '0.9', [textApi]);
+      const handledErrors: RendererErrorMessage[] = [];
+      const proc = new MessageProcessor([v09Cat], undefined, {
+        errorHandler: err => handledErrors.push(err),
+      });
+
+      proc.processMessages([
+        {
+          version: 'v0.9.1',
+          createSurface: {
+            surfaceId: 's-091',
+            catalogId: 'cat-09',
+            sendDataModel: true,
+          },
+        },
+        {
+          version: 'v0.9.1',
+          updateDataModel: {
+            surfaceId: 's-091',
+            path: '/greeting',
+            value: 'hi',
+          },
+        },
+      ]);
+      assert.strictEqual(proc.getSurface('s-091')?.protocolVersion, 'v0.9.1');
+
+      proc.processMessages({
+        type: 'createSurface',
+        surfaceId: 's-unversioned',
+        catalogId: 'cat-09',
+        sendDataModel: true,
+        dataModel: {greeting: 'hello'},
+      });
+      assert.strictEqual(proc.getSurface('s-unversioned')?.protocolVersion, 'v0.9');
+
+      // An unversioned operation failing on the v0.9.1 surface inherits the surface's v0.9.1 version.
+      assert.throws(() => {
+        proc.processMessages({
+          type: 'updateComponents',
+          surfaceId: 's-091',
+          components: [{id: 'root', component: 'Text', text: 42 as unknown as string}],
+        });
+      }, A2uiValidationError);
+      assert.strictEqual(handledErrors.length, 1);
+      assert.strictEqual(handledErrors[0].version, 'v0.9.1');
+      assert.strictEqual(handledErrors[0].error.surfaceId, 's-091');
+
+      // Mixing v0.9 and v0.9.1 active surfaces with sendDataModel throws without an explicit version.
+      assert.throws(
+        () => proc.getRendererDataModel(),
+        (err: unknown) =>
+          err instanceof A2uiValidationError &&
+          err.message.includes(
+            'Multiple protocol versions detected among active surfaces: v0.9, v0.9.1',
+          ),
+      );
+
+      assert.deepStrictEqual(proc.getRendererDataModel('v0.9.1'), {
+        version: 'v0.9.1',
+        surfaces: {
+          's-091': {greeting: 'hi'},
+          's-unversioned': {greeting: 'hello'},
+        },
+      });
+      assert.deepStrictEqual(proc.getRendererDataModel('v0.9'), {
+        version: 'v0.9',
+        surfaces: {
+          's-091': {greeting: 'hi'},
+          's-unversioned': {greeting: 'hello'},
+        },
+      });
     });
 
     it('provides resolvePath method on MessageProcessor', () => {
@@ -1079,7 +1632,7 @@ describe('MessageProcessor', () => {
 
       proc.processMessages([
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {
             surfaceId: 'meta_surface',
             metadata: {extensions: {vendor_app: {author: 'test_agent', priority: 'high'}}},
@@ -1099,14 +1652,14 @@ describe('MessageProcessor', () => {
 
       proc.processMessages([
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {
             surfaceId: 'comp_meta_surface',
             catalogId: 'default',
           },
         },
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 'comp_meta_surface',
             components: [
@@ -1133,7 +1686,7 @@ describe('MessageProcessor', () => {
       // Update component metadata
       proc.processMessages([
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 'comp_meta_surface',
             components: [
@@ -1156,6 +1709,45 @@ describe('MessageProcessor', () => {
           vendor_app: {analyticsId: 'track_btn_1_updated', role: 'secondary'},
         },
       });
+    });
+
+    it('keeps metadata as an ordinary property below v1.0', () => {
+      const cardApi: ComponentApi = {
+        name: 'Card',
+        schema: z.object({metadata: z.record(z.string(), z.unknown())}).strict(),
+      };
+      const proc = new MessageProcessor<ComponentApi>([new Catalog('v09', '0.9', [cardApi])]);
+
+      proc.processMessages([
+        {version: 'v0.9', createSurface: {surfaceId: 's', catalogId: 'v09'}},
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 's',
+            components: [{id: 'root', component: 'Card', metadata: {source: 'crm'}}],
+          },
+        },
+      ]);
+
+      const card = proc.getSurface('s')?.componentsModel.get('root');
+      assert.ok(card);
+      assert.deepStrictEqual(card.properties, {metadata: {source: 'crm'}});
+      assert.strictEqual(card.metadata, undefined);
+
+      proc.processMessages([
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 's',
+            components: [
+              {id: 'root', component: 'Card', metadata: {extensions: {vendor_app: 'v'}}},
+            ],
+          },
+        },
+      ]);
+
+      assert.deepStrictEqual(card.properties, {metadata: {extensions: {vendor_app: 'v'}}});
+      assert.strictEqual(card.metadata, undefined);
     });
   });
 
@@ -1186,16 +1778,16 @@ describe('MessageProcessor', () => {
         validationConfig: {...STRICT_VALIDATION, allowOrphanComponents: true},
       });
       proc.processMessages([
-        {version: 'v1.0', createSurface: {surfaceId: 's', catalogId: 'base'}},
+        {version: '1.0', createSurface: {surfaceId: 's', catalogId: 'base'}},
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 's',
             components: [{id: 'root', component: 'Text', catalogId: 'custom', text: 'Hi'}],
           },
         },
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 's',
             components: [{id: 'root', component: 'Text', text: 'Bye'}],
@@ -1206,9 +1798,13 @@ describe('MessageProcessor', () => {
       assert.strictEqual(proc.getSurface('s')?.componentsModel.get('root')?.catalog, base);
     });
 
-    it('keeps the existing catalog on a same-type update below v1.0', () => {
-      const v09Base = new Catalog<ComponentApi>('v09-base', '0.9', [textApi]);
-      const v09Custom = new Catalog<ComponentApi>('v09-custom', '0.9', [textApi]);
+    it('treats catalogId as an ordinary component property below v1.0 (#4012)', () => {
+      const textWithCatalogId: ComponentApi = {
+        name: 'Text',
+        schema: z.object({text: z.any(), catalogId: z.string().optional()}).strict(),
+      };
+      const v09Base = new Catalog<ComponentApi>('v09-base', '0.9', [textWithCatalogId]);
+      const v09Custom = new Catalog<ComponentApi>('v09-custom', '0.9', [textWithCatalogId]);
       const proc = new MessageProcessor<ComponentApi>([v09Base, v09Custom]);
       proc.processMessages([
         {version: 'v0.9', createSurface: {surfaceId: 's', catalogId: 'v09-base'}},
@@ -1219,18 +1815,30 @@ describe('MessageProcessor', () => {
             components: [{id: 'root', component: 'Text', catalogId: 'v09-custom', text: 'Hi'}],
           },
         },
-        {
-          version: 'v0.9',
-          updateComponents: {
-            surfaceId: 's',
-            components: [{id: 'root', component: 'Text', text: 'Bye'}],
-          },
-        },
-      ]);
+      ] as any);
 
       const root = proc.getSurface('s')?.componentsModel.get('root');
-      assert.strictEqual(root?.catalog, v09Custom);
-      assert.deepStrictEqual(root?.properties, {text: 'Bye'});
+      assert.strictEqual(root?.catalog, v09Base);
+      assert.deepStrictEqual(root?.properties, {catalogId: 'v09-custom', text: 'Hi'});
+
+      // A component that doesn't declare it rejects the property.
+      const strictProc = new MessageProcessor<ComponentApi>([
+        new Catalog<ComponentApi>('v09-strict', '0.9', [textApi]),
+      ]);
+      assert.throws(
+        () =>
+          strictProc.processMessages([
+            {version: 'v0.9', createSurface: {surfaceId: 's', catalogId: 'v09-strict'}},
+            {
+              version: 'v0.9',
+              updateComponents: {
+                surfaceId: 's',
+                components: [{id: 'root', component: 'Text', catalogId: 'v09-strict', text: 'Hi'}],
+              },
+            },
+          ] as any),
+        A2uiValidationError,
+      );
     });
 
     it('still falls back to a registered catalog for version-less and v0.8 surfaces', () => {
@@ -1248,9 +1856,9 @@ describe('MessageProcessor', () => {
       const base = new Catalog<ComponentApi>('base', '1.0', [textApi]);
       const proc = new MessageProcessor<ComponentApi>([base]);
       proc.processMessages([
-        {version: 'v1.0', createSurface: {surfaceId: 's'}},
+        {version: '1.0', createSurface: {surfaceId: 's'}},
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 's',
             components: [
@@ -1281,9 +1889,9 @@ describe('MessageProcessor', () => {
       const base = new Catalog<ComponentApi>('base', '1.0', [textApi]);
       const proc = new MessageProcessor<ComponentApi>([base]);
       proc.processMessages([
-        {version: 'v1.0', createSurface: {surfaceId: 's', catalogId: 'base'}},
+        {version: '1.0', createSurface: {surfaceId: 's', catalogId: 'base'}},
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 's',
             components: [{id: 'root', component: 'Text', text: {'@call': 'anything', args: {}}}],
@@ -1297,9 +1905,9 @@ describe('MessageProcessor', () => {
     /** Processes a v1.0 surface on `base` whose root Text has the given `text`. */
     function processV10Text(proc: MessageProcessor<ComponentApi>, text: unknown): void {
       proc.processMessages([
-        {version: 'v1.0', createSurface: {surfaceId: 's', catalogId: 'base'}},
+        {version: '1.0', createSurface: {surfaceId: 's', catalogId: 'base'}},
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 's',
             components: [{id: 'root', component: 'Text', text}],
@@ -1340,9 +1948,9 @@ describe('MessageProcessor', () => {
       assert.throws(
         () =>
           proc.processMessages([
-            {version: 'v1.0', createSurface: {surfaceId: 's', catalogId: 'base'}},
+            {version: '1.0', createSurface: {surfaceId: 's', catalogId: 'base'}},
             {
-              version: 'v1.0',
+              version: '1.0',
               updateComponents: {
                 surfaceId: 's',
                 components: [{id: 'root', component: 'Text', catalogId: '', text: 'x'}],
@@ -1412,8 +2020,8 @@ describe('MessageProcessor', () => {
         root: Record<string, unknown>,
       ): void {
         proc.processMessages([
-          {version: 'v1.0', createSurface: {surfaceId: 's', catalogId: 'base'}},
-          {version: 'v1.0', updateComponents: {surfaceId: 's', components: [root]}},
+          {version: '1.0', createSurface: {surfaceId: 's', catalogId: 'base'}},
+          {version: '1.0', updateComponents: {surfaceId: 's', components: [root]}},
         ]);
       }
 
@@ -1621,9 +2229,9 @@ describe('MessageProcessor', () => {
           validationConfig: STRICT_VALIDATION,
         });
         proc.processMessages([
-          {version: 'v1.0', createSurface: {surfaceId: 's'}},
+          {version: '1.0', createSurface: {surfaceId: 's'}},
           {
-            version: 'v1.0',
+            version: '1.0',
             updateComponents: {
               surfaceId: 's',
               components: [
@@ -1682,7 +2290,7 @@ describe('MessageProcessor', () => {
         ],
         [
           {id: 'root', component: 'Text', catalogId: 'v09', text: 'x'},
-          "Component 'root' names catalog 'v09', whose specification version (0.9) does not match surface 's' version (v1.0).",
+          "Component 'root' names catalog 'v09', whose specification version (0.9) does not match surface 's' version (1.0).",
         ],
         [
           {
@@ -1691,7 +2299,7 @@ describe('MessageProcessor', () => {
             catalogId: 'base',
             text: {'@call': 'upper', catalogId: 'v09'},
           },
-          "Function call 'upper' names catalog 'v09', whose specification version (0.9) does not match surface 's' version (v1.0).",
+          "Function call 'upper' names catalog 'v09', whose specification version (0.9) does not match surface 's' version (1.0).",
         ],
         [
           {id: 'root', component: 'Text', text: 'x'},
@@ -1707,13 +2315,998 @@ describe('MessageProcessor', () => {
         assert.throws(
           () =>
             proc.processMessages([
-              {version: 'v1.0', createSurface: {surfaceId: 's'}},
-              {version: 'v1.0', updateComponents: {surfaceId: 's', components: [component]}},
+              {version: '1.0', createSurface: {surfaceId: 's'}},
+              {version: '1.0', updateComponents: {surfaceId: 's', components: [component]}},
             ]),
           (err: unknown) => err instanceof A2uiCatalogError && err.message === message,
           message,
         );
       }
+    });
+
+    it('maps errors to ErrorMessage and emits via errorHandler, onError, and processMessagesWithErrors', () => {
+      const strictTextApi: ComponentApi = {
+        name: 'Text',
+        schema: z.object({text: z.string()}).strict(),
+      };
+      const base = new Catalog<ComponentApi>('base', '1.0', [strictTextApi]);
+      const handledErrors: any[] = [];
+      const groupErrors: any[] = [];
+      const proc = new MessageProcessor<ComponentApi>([base], undefined, {
+        version: '1.0',
+        errorHandler: msg => handledErrors.push(msg),
+      });
+      proc.model.onError.subscribe(err => {
+        groupErrors.push(err);
+      });
+
+      proc.processMessages([{version: '1.0', createSurface: {surfaceId: 's1', catalogId: 'base'}}]);
+      const surfaceErrors: any[] = [];
+      proc.getSurface('s1')!.onError.subscribe(err => {
+        surfaceErrors.push(err);
+      });
+
+      const errors = proc.processMessagesWithErrors([
+        {
+          version: '1.0',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [{id: 'root', component: 'Text', text: 123 as any}],
+          },
+        },
+      ]);
+
+      assert.strictEqual(errors.length, 1);
+      assert.strictEqual(errors[0].version, '1.0');
+      assert.strictEqual(errors[0].error.code, 'VALIDATION_FAILED');
+      assert.strictEqual(errors[0].error.surfaceId, 's1');
+      assert.strictEqual(errors[0].error.path, '/components/0/text');
+      assert.strictEqual(handledErrors.length, 1);
+      assert.strictEqual(surfaceErrors.length, 1);
+      assert.strictEqual(groupErrors.length, 1);
+    });
+
+    it('maps callRendererFunction envelope faults to INVALID_FUNCTION_CALL with functionCallId', () => {
+      const ctx = extractEnvelopeErrorContext({
+        version: '1.0',
+        callRendererFunction: {
+          functionCallId: 'fn-99',
+          callFunction: {call: 'foo', catalogId: 'cat', args: 'bad'},
+        },
+      });
+      assert.strictEqual(ctx.functionCallId, 'fn-99');
+
+      const err = new A2uiValidationError('Bad args', undefined, 'VALIDATION_FAILED', {
+        functionCallId: 'fn-99',
+      });
+      const mapped = mapErrorToRendererMessage(err, ctx);
+      assert.strictEqual(mapped.error.code, 'INVALID_FUNCTION_CALL');
+      assert.strictEqual(mapped.error.functionCallId, 'fn-99');
+      assert.strictEqual(mapped.error.surfaceId, undefined);
+      assert.strictEqual(mapped.error.path, undefined);
+    });
+
+    it('attributes prepareOperations parse errors to the failing item in multi-message arrays', async () => {
+      const textApi: ComponentApi = {name: 'Text', schema: z.object({text: z.string()})};
+      const v09Cat = new Catalog<ComponentApi>('cat-v09', '0.9', [textApi]);
+      const v10Cat = new Catalog<ComponentApi>('cat-v10', '1.0', [textApi]);
+      const handledErrors: any[] = [];
+      const proc = new MessageProcessor<ComponentApi>([v09Cat, v10Cat], undefined, {
+        errorHandler: msg => handledErrors.push(msg),
+      });
+
+      assert.throws(() => {
+        proc.processMessages([
+          {version: 'v0.9', createSurface: {surfaceId: 's1', catalogId: 'cat-v09'}},
+          {version: '1.0', updateComponents: {surfaceId: 's2', components: 'not-an-array'}},
+        ] as any);
+      });
+
+      assert.strictEqual(proc.getSurface('s1'), undefined);
+      assert.strictEqual(handledErrors.length, 1);
+      assert.strictEqual(handledErrors[0].version, '1.0');
+      assert.strictEqual(handledErrors[0].error.surfaceId, 's2');
+
+      handledErrors.length = 0;
+      await assert.rejects(async () => {
+        await proc.processMessagesAsync([
+          {version: 'v0.9', createSurface: {surfaceId: 's1', catalogId: 'cat-v09'}},
+          {
+            version: '1.0',
+            callRendererFunction: {
+              functionCallId: 'fn-item-2',
+              callFunction: {call: 'missingFn', catalogId: 'cat-v10', args: 'invalid'},
+            },
+          },
+        ] as any);
+      });
+
+      assert.strictEqual(proc.getSurface('s1'), undefined);
+      assert.strictEqual(handledErrors.length, 1);
+      assert.strictEqual(handledErrors[0].version, '1.0');
+      assert.strictEqual(handledErrors[0].error.code, 'INVALID_FUNCTION_CALL');
+      assert.strictEqual(handledErrors[0].error.functionCallId, 'fn-item-2');
+      assert.strictEqual(handledErrors[0].error.surfaceId, undefined);
+    });
+
+    it('rejects callRendererFunction without catalogId with scoped validation error and INVALID_FUNCTION_CALL error report (#3529)', async () => {
+      const v10Cat = new Catalog(
+        'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
+        '1.0',
+        [],
+        BASIC_FUNCTIONS,
+      );
+      const handledErrors: RendererErrorMessage[] = [];
+      const outboundMessages: unknown[] = [];
+      const proc = new MessageProcessor([v10Cat], undefined, {
+        errorHandler: msg => handledErrors.push(msg),
+        outboundListener: msg => {
+          outboundMessages.push(msg);
+        },
+      });
+
+      const missingCatalogPayload = [
+        {
+          version: '1.0',
+          callRendererFunction: {
+            functionCallId: 'f1',
+            callFunction: {'@call': 'formatString', args: {value: 'x'}},
+          },
+        },
+      ] as unknown as Parameters<typeof proc.processMessages>[0];
+      const expectedMessage =
+        'Invalid 1.0 message: callRendererFunction.callFunction.catalogId: Expected string, received undefined';
+
+      assert.throws(
+        () => proc.processMessages(missingCatalogPayload),
+        (err: unknown) => {
+          assert.ok(err instanceof A2uiValidationError);
+          assert.strictEqual(err.message, expectedMessage);
+          assert.strictEqual(err.functionCallId, 'f1');
+          return true;
+        },
+      );
+      assert.strictEqual(outboundMessages.length, 0);
+      assert.deepStrictEqual(handledErrors, [
+        {
+          version: '1.0',
+          error: {
+            code: 'INVALID_FUNCTION_CALL',
+            functionCallId: 'f1',
+            message: expectedMessage,
+          },
+        },
+      ]);
+
+      handledErrors.length = 0;
+      await assert.rejects(
+        () => proc.processMessagesAsync(missingCatalogPayload),
+        (err: unknown) => {
+          assert.ok(err instanceof A2uiValidationError);
+          assert.strictEqual(err.message, expectedMessage);
+          assert.strictEqual(err.functionCallId, 'f1');
+          return true;
+        },
+      );
+      assert.strictEqual(outboundMessages.length, 0);
+      assert.deepStrictEqual(handledErrors, [
+        {
+          version: '1.0',
+          error: {
+            code: 'INVALID_FUNCTION_CALL',
+            functionCallId: 'f1',
+            message: expectedMessage,
+          },
+        },
+      ]);
+
+      const reportOnlyErrors: RendererErrorMessage[] = [];
+      const reportOnlyOutbound: unknown[] = [];
+      const reportOnlyProc = new MessageProcessor([v10Cat], undefined, {
+        reportErrorsOnly: true,
+        errorHandler: msg => reportOnlyErrors.push(msg),
+        outboundListener: msg => {
+          reportOnlyOutbound.push(msg);
+        },
+      });
+
+      reportOnlyProc.processMessages(missingCatalogPayload);
+      const asyncResponses = await reportOnlyProc.processMessagesAsync(missingCatalogPayload);
+      assert.deepStrictEqual(asyncResponses, []);
+      assert.strictEqual(reportOnlyOutbound.length, 0);
+      assert.strictEqual(reportOnlyErrors.length, 2);
+      assert.strictEqual(reportOnlyErrors[0].error.code, 'INVALID_FUNCTION_CALL');
+      assert.strictEqual(reportOnlyErrors[0].error.functionCallId, 'f1');
+      assert.strictEqual(reportOnlyErrors[0].error.message, expectedMessage);
+    });
+
+    it('writes createSurface dataModel per top-level key with RFC 6901 escaping before resolving components', () => {
+      const counterApi: ComponentApi = {
+        name: 'Counter',
+        schema: z.object({
+          count: z.union([z.number(), z.object({'@path': z.string()})]),
+        }),
+      };
+      const cat = new Catalog<ComponentApi>('cat-v10', '1.0', [counterApi]);
+      const proc = new MessageProcessor<ComponentApi>([cat]);
+
+      let rootNotifications = 0;
+      const surfaceErrors: A2uiErrorPayload[] = [];
+      let resolver: NodeResolver | undefined;
+
+      proc.model.onSurfaceCreated.subscribe(surface => {
+        surface.dataModel.subscribe('/', () => {
+          rootNotifications++;
+        });
+        surface.onError.subscribe(err => {
+          surfaceErrors.push(err);
+        });
+        resolver = new NodeResolver(surface, cat);
+      });
+
+      proc.processMessages([
+        {
+          version: '1.0',
+          createSurface: {
+            surfaceId: 's1',
+            catalogId: 'cat-v10',
+            dataModel: {a: 1, 'x/y~z': {c: 2}},
+            components: [
+              {
+                id: 'root',
+                component: 'Counter',
+                count: {'@path': '/x~1y~0z/c'},
+              },
+            ],
+          },
+        },
+      ]);
+
+      const surface = proc.getSurface('s1')!;
+      assert.strictEqual(rootNotifications, 2);
+      assert.strictEqual(surface.dataModel.get('/x~1y~0z/c'), 2);
+      assert.deepStrictEqual(surfaceErrors, []);
+      const rootNode = peekValue(resolver!.rootNode);
+      assert.ok(rootNode);
+      const rootProps = peekValue(rootNode.props);
+      assert.ok(rootProps['count'] instanceof ResolvedBinding);
+      assert.strictEqual(rootProps['count'].value, 2);
+      resolver?.dispose();
+      proc.dispose();
+    });
+  });
+
+  describe('unifiedOutbound', () => {
+    const v10Catalog = new Catalog('cat-v10', '1.0', BASIC_COMPONENTS);
+    const v09Catalog = new Catalog('cat-v09', '0.9', [CardApi, RowApi]);
+
+    it('throws A2uiValidationError when unifiedOutbound is true without outboundListener', () => {
+      assert.throws(
+        () => new MessageProcessor([v10Catalog], undefined, {unifiedOutbound: true}),
+        (err: unknown) => {
+          assert.ok(err instanceof A2uiValidationError);
+          assert.match(err.message, /unifiedOutbound requires an outboundListener/);
+          return true;
+        },
+      );
+    });
+
+    it('defaults to off so actions and errors do not reach outboundListener', async () => {
+      const actionLog: unknown[] = [];
+      const errorLog: RendererErrorMessage[] = [];
+      const outboundLog: unknown[] = [];
+      const proc = new MessageProcessor(
+        [v10Catalog],
+        a => {
+          actionLog.push(a);
+        },
+        {
+          errorHandler: err => {
+            errorLog.push(err);
+          },
+          outboundListener: msg => {
+            outboundLog.push(msg);
+          },
+          reportErrorsOnly: true,
+        },
+      );
+
+      proc.processMessages({
+        version: '1.0',
+        createSurface: {surfaceId: 's1', catalogId: 'cat-v10'},
+      });
+      await proc
+        .getSurface('s1')!
+        .dispatchAction({event: {name: 'click', context: {ok: true}}}, 'btn-1');
+      proc.processMessages({
+        version: '1.0',
+        updateComponents: {surfaceId: 'missing-surface', components: []},
+      });
+
+      assert.strictEqual(actionLog.length, 1);
+      assert.strictEqual(errorLog.length, 1);
+      assert.deepStrictEqual(outboundLog, []);
+    });
+
+    it('forwards actions from 1.0, v0.9, and v0.9.1 surfaces to outboundListener and still fires actionHandler', async () => {
+      const actionLog: unknown[] = [];
+      const outboundLog: any[] = [];
+      const proc = new MessageProcessor(
+        [v10Catalog, v09Catalog],
+        a => {
+          actionLog.push(a);
+        },
+        {
+          outboundListener: msg => {
+            outboundLog.push(msg);
+          },
+          unifiedOutbound: true,
+        },
+      );
+
+      proc.processMessages([
+        {version: '1.0', createSurface: {surfaceId: 's-10', catalogId: 'cat-v10'}},
+        {version: 'v0.9', createSurface: {surfaceId: 's-09', catalogId: 'cat-v09'}},
+        {version: 'v0.9.1', createSurface: {surfaceId: 's-091', catalogId: 'cat-v09'}},
+      ]);
+
+      await proc.getSurface('s-10')!.dispatchAction(
+        {
+          event: {
+            name: 'submit',
+            context: {item: 1},
+            catalogId: 'cat-v10',
+            userMessage: 'Submitted 1.0',
+          },
+        },
+        'btn-10',
+        {extensions: {vendor_tag: 'v1'}},
+      );
+
+      await proc.getSurface('s-09')!.dispatchAction(
+        {
+          event: {
+            name: 'select',
+            context: {item: 2},
+          },
+        },
+        'btn-09',
+      );
+
+      await proc.getSurface('s-091')!.dispatchAction(
+        {
+          event: {
+            name: 'confirm',
+            context: {item: 3},
+            catalogId: 'cat-v09',
+          },
+        },
+        'btn-091',
+      );
+
+      assert.strictEqual(actionLog.length, 3);
+      assert.strictEqual(outboundLog.length, 3);
+
+      assert.strictEqual(outboundLog[0].version, '1.0');
+      assert.strictEqual(outboundLog[0].action.name, 'submit');
+      assert.strictEqual(outboundLog[0].action.surfaceId, 's-10');
+      assert.strictEqual(outboundLog[0].action.sourceComponentId, 'btn-10');
+      assert.strictEqual(typeof outboundLog[0].action.timestamp, 'string');
+      assert.deepStrictEqual(outboundLog[0].action.context, {item: 1});
+      assert.strictEqual(outboundLog[0].action.catalogId, 'cat-v10');
+      assert.strictEqual(outboundLog[0].action.userMessage, 'Submitted 1.0');
+      assert.deepStrictEqual(outboundLog[0].action.metadata, {extensions: {vendor_tag: 'v1'}});
+
+      assert.strictEqual(outboundLog[1].version, 'v0.9');
+      assert.strictEqual(outboundLog[1].action.name, 'select');
+      assert.strictEqual(outboundLog[1].action.surfaceId, 's-09');
+      assert.strictEqual(outboundLog[1].action.sourceComponentId, 'btn-09');
+      assert.deepStrictEqual(outboundLog[1].action.context, {item: 2});
+      assert.strictEqual('catalogId' in outboundLog[1].action, false);
+
+      assert.strictEqual(outboundLog[2].version, 'v0.9.1');
+      assert.strictEqual(outboundLog[2].action.name, 'confirm');
+      assert.strictEqual(outboundLog[2].action.surfaceId, 's-091');
+      assert.strictEqual(outboundLog[2].action.sourceComponentId, 'btn-091');
+      assert.deepStrictEqual(outboundLog[2].action.context, {item: 3});
+      assert.strictEqual(outboundLog[2].action.catalogId, 'cat-v09');
+    });
+
+    it('uses the fallback wire version when a surface has no protocolVersion', async () => {
+      const v10Out: any[] = [];
+      const v10Proc = new MessageProcessor([v10Catalog], undefined, {
+        outboundListener: msg => {
+          v10Out.push(msg);
+        },
+        unifiedOutbound: true,
+      });
+      const unversionedV10Surface = new SurfaceModel('s-unver-10', undefined, new Map());
+      assert.strictEqual(unversionedV10Surface.protocolVersion, undefined);
+      v10Proc.model.addSurface(unversionedV10Surface);
+      await unversionedV10Surface.dispatchAction({event: {name: 'act1', context: {}}}, 'c1');
+      assert.strictEqual(v10Out.length, 1);
+      assert.strictEqual(v10Out[0].version, '1.0');
+
+      const mixedOut: any[] = [];
+      const mixedProc = new MessageProcessor([v10Catalog, v09Catalog], undefined, {
+        outboundListener: msg => {
+          mixedOut.push(msg);
+        },
+        unifiedOutbound: true,
+      });
+      const unversionedMixedSurface = new SurfaceModel('s-unver-mixed', undefined, new Map());
+      assert.strictEqual(unversionedMixedSurface.protocolVersion, undefined);
+      mixedProc.model.addSurface(unversionedMixedSurface);
+      await unversionedMixedSurface.dispatchAction({event: {name: 'act2', context: {}}}, 'c2');
+      assert.strictEqual(mixedOut.length, 1);
+      assert.strictEqual(mixedOut[0].version, 'v0.9');
+
+      const explicitDefaultOut: any[] = [];
+      const explicitDefaultProc = new MessageProcessor([v10Catalog, v09Catalog], undefined, {
+        version: 'v0.9.1',
+        outboundListener: msg => {
+          explicitDefaultOut.push(msg);
+        },
+        unifiedOutbound: true,
+      });
+      const unversionedExplicitSurface = new SurfaceModel('s-unver-exp', undefined, new Map());
+      assert.strictEqual(unversionedExplicitSurface.protocolVersion, undefined);
+      explicitDefaultProc.model.addSurface(unversionedExplicitSurface);
+      await unversionedExplicitSurface.dispatchAction({event: {name: 'act3', context: {}}}, 'c3');
+      assert.strictEqual(explicitDefaultOut.length, 1);
+      assert.strictEqual(explicitDefaultOut[0].version, 'v0.9.1');
+
+      const unparseableSurface = new SurfaceModel(
+        's-unparseable',
+        undefined,
+        new Map(),
+        undefined,
+        false,
+        undefined,
+        'root',
+        undefined,
+        'not-a-semver',
+      );
+      assert.strictEqual(unparseableSurface.protocolVersion, 'not-a-semver');
+      v10Proc.model.addSurface(unparseableSurface);
+      await unparseableSurface.dispatchAction({event: {name: 'act4', context: {}}}, 'c4');
+      assert.strictEqual(v10Out.length, 1);
+    });
+
+    it('forwards processing errors to outboundListener and still fires errorHandler', () => {
+      const errorLog: RendererErrorMessage[] = [];
+      const outboundLog: unknown[] = [];
+      const proc = new MessageProcessor([v10Catalog], undefined, {
+        errorHandler: err => {
+          errorLog.push(err);
+        },
+        outboundListener: msg => {
+          outboundLog.push(msg);
+        },
+        unifiedOutbound: true,
+        reportErrorsOnly: true,
+      });
+
+      proc.processMessages({
+        version: '1.0',
+        updateComponents: {
+          surfaceId: 'nonexistent',
+          components: [{id: 'root', component: 'Text', text: 'hi'}],
+        },
+      });
+
+      assert.strictEqual(errorLog.length, 1);
+      assert.strictEqual(outboundLog.length, 1);
+      assert.deepStrictEqual(outboundLog[0], errorLog[0]);
+      assert.strictEqual((outboundLog[0] as RendererErrorMessage).version, '1.0');
+      assert.strictEqual((outboundLog[0] as RendererErrorMessage).error.code, 'INTEGRITY_ERROR');
+    });
+
+    it('does not forward v0.8 actions or v0.8 errors to outboundListener', async () => {
+      const v08Cat = new Catalog('cat-v08', '0.8', []);
+      const actionLog: unknown[] = [];
+      const errorLog: RendererErrorMessage[] = [];
+      const outboundLog: unknown[] = [];
+      const proc = new MessageProcessor(
+        [v08Cat],
+        a => {
+          actionLog.push(a);
+        },
+        {
+          version: 'v0.8',
+          errorHandler: err => {
+            errorLog.push(err);
+          },
+          outboundListener: msg => {
+            outboundLog.push(msg);
+          },
+          unifiedOutbound: true,
+          reportErrorsOnly: true,
+        },
+      );
+
+      proc.processMessages({
+        beginRendering: {surfaceId: 's-08', root: 'root', catalogId: 'cat-v08'},
+      });
+      await proc
+        .getSurface('s-08')!
+        .dispatchAction({event: {name: 'legacyClick', context: {}}}, 'btn-08');
+
+      proc.processMessages({
+        surfaceUpdate: {surfaceId: 'missing-08', components: []},
+      });
+
+      assert.strictEqual(actionLog.length, 1);
+      assert.strictEqual(errorLog.length, 1);
+      assert.strictEqual(errorLog[0].version, 'v0.8');
+      assert.deepStrictEqual(outboundLog, []);
+
+      // Also verify v0.8 errors are suppressed when options.version is omitted,
+      // and unversioned errors on a 1.0-only processor use fallbackWireVersion().
+      const unversionedV08Outbound: unknown[] = [];
+      const unversionedV08Proc = new MessageProcessor([v08Cat, v10Catalog], undefined, {
+        outboundListener: msg => {
+          unversionedV08Outbound.push(msg);
+        },
+        unifiedOutbound: true,
+        reportErrorsOnly: true,
+      });
+      unversionedV08Proc.processMessages({
+        surfaceUpdate: {surfaceId: 'missing-08-unver', components: []},
+      });
+      assert.deepStrictEqual(unversionedV08Outbound, []);
+
+      const v08OnlyOutbound: unknown[] = [];
+      const v08OnlyProc = new MessageProcessor([v08Cat], undefined, {
+        outboundListener: msg => {
+          v08OnlyOutbound.push(msg);
+        },
+        unifiedOutbound: true,
+        reportErrorsOnly: true,
+      });
+      v08OnlyProc.processMessages('not-an-object' as any);
+      assert.deepStrictEqual(v08OnlyOutbound, []);
+
+      const v10OnlyOutbound: RendererErrorMessage[] = [];
+      const v10OnlyProc = new MessageProcessor([v10Catalog], undefined, {
+        outboundListener: msg => {
+          v10OnlyOutbound.push(msg as RendererErrorMessage);
+        },
+        unifiedOutbound: true,
+        reportErrorsOnly: true,
+      });
+      v10OnlyProc.processMessages('not-an-object' as any);
+      assert.strictEqual(v10OnlyOutbound.length, 1);
+      assert.strictEqual(v10OnlyOutbound[0].version, '1.0');
+    });
+
+    it('resolves surface protocolVersion before actionHandler deletes the surface', async () => {
+      const outboundLog: any[] = [];
+      const proc: MessageProcessor<any> = new MessageProcessor(
+        [v10Catalog, v09Catalog],
+        action => {
+          proc.model.deleteSurface(action.surfaceId);
+        },
+        {
+          outboundListener: msg => {
+            outboundLog.push(msg);
+          },
+          unifiedOutbound: true,
+        },
+      );
+
+      proc.processMessages({
+        version: '1.0',
+        createSurface: {surfaceId: 's-dismiss', catalogId: 'cat-v10'},
+      });
+      const surface = proc.getSurface('s-dismiss')!;
+      await surface.dispatchAction({event: {name: 'dismiss', context: {}}}, 'btn-dismiss');
+
+      assert.strictEqual(proc.getSurface('s-dismiss'), undefined);
+      assert.strictEqual(outboundLog.length, 1);
+      assert.strictEqual(outboundLog[0].version, '1.0');
+      assert.strictEqual(outboundLog[0].action.name, 'dismiss');
+    });
+
+    it('stops forwarding actions and errors after dispose()', async () => {
+      const outboundLog: unknown[] = [];
+      const proc = new MessageProcessor([v10Catalog], undefined, {
+        outboundListener: msg => {
+          outboundLog.push(msg);
+        },
+        unifiedOutbound: true,
+        reportErrorsOnly: true,
+      });
+
+      proc.processMessages({
+        version: '1.0',
+        createSurface: {surfaceId: 's1', catalogId: 'cat-v10'},
+      });
+      const surface = proc.getSurface('s1')!;
+      proc.dispose();
+
+      await surface.dispatchAction({event: {name: 'afterDispose', context: {}}}, 'btn');
+      proc.processMessages({
+        version: '1.0',
+        updateComponents: {surfaceId: 'missing', components: []},
+      });
+
+      assert.deepStrictEqual(outboundLog, []);
+    });
+
+    it('catches synchronous throws and async rejections from outboundListener without breaking dispatch', async () => {
+      const actionLog: unknown[] = [];
+      const errorLog: RendererErrorMessage[] = [];
+      let callCount = 0;
+      const proc = new MessageProcessor(
+        [v10Catalog],
+        a => {
+          actionLog.push(a);
+        },
+        {
+          errorHandler: err => {
+            errorLog.push(err);
+          },
+          outboundListener: () => {
+            callCount++;
+            if (callCount % 2 === 1) {
+              throw new Error('sync transport failure');
+            }
+            return Promise.reject(new Error('async transport failure'));
+          },
+          unifiedOutbound: true,
+          reportErrorsOnly: true,
+        },
+      );
+
+      proc.processMessages({
+        version: '1.0',
+        createSurface: {surfaceId: 's1', catalogId: 'cat-v10'},
+      });
+
+      await proc.getSurface('s1')!.dispatchAction({event: {name: 'a1', context: {}}}, 'btn');
+      await proc.getSurface('s1')!.dispatchAction({event: {name: 'a2', context: {}}}, 'btn');
+      proc.processMessages({
+        version: '1.0',
+        updateComponents: {surfaceId: 'missing-1', components: []},
+      });
+      proc.processMessages({
+        version: '1.0',
+        updateComponents: {surfaceId: 'missing-2', components: []},
+      });
+
+      assert.strictEqual(callCount, 4);
+      assert.strictEqual(actionLog.length, 2);
+      assert.strictEqual(errorLog.length, 2);
+    });
+  });
+});
+
+describe('MessageProcessor component envelope mixins', () => {
+  /** A catalog whose `GcbpTable` declares its own `metadata` and `catalogId`. */
+  function gcbpCatalog(catalogId: string, protocolVersion: string): Catalog<ComponentApi> {
+    return Catalog.fromJson({
+      catalogId,
+      protocolVersion,
+      components: {
+        GcbpTable: {
+          type: 'object',
+          properties: {
+            metadata: {
+              type: 'object',
+              properties: {pageNumber: {type: 'number'}, pageSize: {type: 'number'}},
+              additionalProperties: false,
+            },
+            catalogId: {type: 'string'},
+            accessibility: {type: 'string'},
+          },
+          additionalProperties: false,
+        },
+        Field: {
+          type: 'object',
+          allOf: [
+            {$ref: 'common_types.json#/$defs/Checkable'},
+            {type: 'object', properties: {label: {type: 'string'}}},
+          ],
+          unevaluatedProperties: false,
+        },
+      },
+    }) as Catalog<ComponentApi>;
+  }
+
+  describe('below v1.0', () => {
+    it('keeps metadata and catalogId as properties across full and partial updates (#4012)', () => {
+      const proc = new MessageProcessor<ComponentApi>([gcbpCatalog('gcbp', '0.9')], undefined, {
+        validationConfig: STRICT_VALIDATION,
+      });
+      proc.processMessages([
+        {version: 'v0.9', createSurface: {surfaceId: 's', catalogId: 'gcbp'}},
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 's',
+            components: [
+              {
+                id: 'root',
+                component: 'GcbpTable',
+                metadata: {pageNumber: 0, pageSize: 10},
+                catalogId: 'source-a',
+              },
+            ],
+          },
+        },
+      ] as any);
+      const root = () => proc.getSurface('s')!.componentsModel.get('root')!;
+      assert.deepStrictEqual(root().properties, {
+        metadata: {pageNumber: 0, pageSize: 10},
+        catalogId: 'source-a',
+      });
+      assert.strictEqual(root().metadata, undefined);
+      assert.strictEqual(root().catalog.id, 'gcbp');
+
+      proc.processMessages([
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 's',
+            components: [{id: 'root', metadata: {pageNumber: 1, pageSize: 10}, catalogId: 'b'}],
+          },
+        },
+      ] as any);
+      assert.deepStrictEqual(root().properties, {
+        metadata: {pageNumber: 1, pageSize: 10},
+        catalogId: 'b',
+      });
+      assert.strictEqual(root().metadata, undefined);
+      proc.dispose();
+    });
+
+    it('rejects @-prefixed envelope keys', () => {
+      const proc = new MessageProcessor<ComponentApi>([gcbpCatalog('gcbp', '0.9')]);
+      assert.throws(
+        () =>
+          proc.processMessages([
+            {version: 'v0.9', createSurface: {surfaceId: 's', catalogId: 'gcbp'}},
+            {
+              version: 'v0.9',
+              updateComponents: {
+                surfaceId: 's',
+                components: [
+                  {id: 'root', component: 'GcbpTable', '@metadata': {extensions: {com_a: 1}}},
+                ],
+              },
+            },
+          ] as any),
+        A2uiValidationError,
+      );
+      proc.dispose();
+    });
+  });
+
+  describe('from v1.0', () => {
+    function process(proc: MessageProcessor<ComponentApi>, components: unknown[]): void {
+      proc.processMessages([
+        {version: '1.0', updateComponents: {surfaceId: 's', components}},
+      ] as any);
+    }
+
+    function v10Processor(...catalogs: Catalog<ComponentApi>[]): MessageProcessor<ComponentApi> {
+      const proc = new MessageProcessor<ComponentApi>(catalogs, undefined, {
+        validationConfig: STRICT_VALIDATION,
+      });
+      proc.processMessages([
+        {version: '1.0', createSurface: {surfaceId: 's', catalogId: catalogs[0].id}},
+      ] as any);
+      return proc;
+    }
+
+    it('stores @-prefixed mixins in the component model', () => {
+      const proc = v10Processor(gcbpCatalog('main', '1.0'), gcbpCatalog('other', '1.0'));
+      process(proc, [
+        {
+          'id': 'root',
+          'component': 'Field',
+          'label': 'Email',
+          '@catalogId': 'other',
+          '@metadata': {extensions: {com_example_trace: 't1'}},
+          '@accessibility': {label: 'Email address'},
+          '@checks': [{condition: true, message: 'Required'}],
+        },
+      ]);
+      const root = proc.getSurface('s')!.componentsModel.get('root')!;
+      assert.strictEqual(root.catalog.id, 'other');
+      assert.deepStrictEqual(root.metadata, {extensions: {com_example_trace: 't1'}});
+      assert.deepStrictEqual(root.properties, {
+        'label': 'Email',
+        '@accessibility': {label: 'Email address'},
+        '@checks': [{condition: true, message: 'Required'}],
+      });
+      proc.dispose();
+    });
+
+    it('reads legacy bare mixins the component schema does not declare', () => {
+      const proc = v10Processor(gcbpCatalog('main', '1.0'), gcbpCatalog('other', '1.0'));
+      process(proc, [
+        {
+          id: 'root',
+          component: 'Field',
+          label: 'Email',
+          catalogId: 'other',
+          metadata: {extensions: {com_example_trace: 't1'}},
+          accessibility: {label: 'Email address'},
+          checks: [{condition: true, message: 'Required'}],
+        },
+      ]);
+      const root = proc.getSurface('s')!.componentsModel.get('root')!;
+      assert.strictEqual(root.catalog.id, 'other');
+      assert.deepStrictEqual(root.metadata, {extensions: {com_example_trace: 't1'}});
+      assert.deepStrictEqual(root.properties, {
+        'label': 'Email',
+        '@accessibility': {label: 'Email address'},
+        '@checks': [{condition: true, message: 'Required'}],
+      });
+      proc.dispose();
+    });
+
+    it('keeps custom properties beside the @-prefixed mixins (#1376)', () => {
+      const proc = v10Processor(gcbpCatalog('main', '1.0'));
+      process(proc, [
+        {
+          'id': 'root',
+          'component': 'GcbpTable',
+          'metadata': {pageNumber: 0},
+          'catalogId': 'not-a-catalog',
+          'accessibility': 'compact',
+          '@metadata': {extensions: {com_example_vendor: 'acme'}},
+          '@accessibility': {label: 'Table'},
+        },
+      ]);
+      const root = proc.getSurface('s')!.componentsModel.get('root')!;
+      assert.strictEqual(root.catalog.id, 'main');
+      assert.deepStrictEqual(root.metadata, {extensions: {com_example_vendor: 'acme'}});
+      assert.deepStrictEqual(root.properties, {
+        'metadata': {pageNumber: 0},
+        'catalogId': 'not-a-catalog',
+        'accessibility': 'compact',
+        '@accessibility': {label: 'Table'},
+      });
+      proc.dispose();
+    });
+
+    it('reads a legacy bare catalogId by the default catalog for routing and storage', () => {
+      // `Text` declares no `catalogId` in the surface default, so a bare
+      // `catalogId` routes the component, even though the target catalog's
+      // `Text` declares a `catalogId` property of its own.
+      const plainText: ComponentApi = {name: 'Text', schema: z.object({text: z.any()}).strict()};
+      const textWithCatalogId: ComponentApi = {
+        name: 'Text',
+        schema: z.object({text: z.any(), catalogId: z.string().optional()}).strict(),
+      };
+      const proc = v10Processor(
+        new Catalog<ComponentApi>('main', '1.0', [plainText]),
+        new Catalog<ComponentApi>('other', '1.0', [textWithCatalogId]),
+      );
+      process(proc, [{id: 'root', component: 'Text', text: 'Hi', catalogId: 'other'}]);
+      const root = proc.getSurface('s')!.componentsModel.get('root')!;
+      assert.strictEqual(root.catalog.id, 'other');
+      assert.deepStrictEqual(root.properties, {text: 'Hi'});
+      proc.dispose();
+    });
+
+    it('serializes @metadata when an optional custom metadata is omitted', () => {
+      const chart: ComponentApi = {
+        name: 'Chart',
+        schema: z.object({title: z.string(), metadata: z.string().optional()}).strict(),
+      };
+      const proc = v10Processor(new Catalog<ComponentApi>('main', '1.0', [chart]));
+      process(proc, [
+        {
+          'id': 'root',
+          'component': 'Chart',
+          'title': 'Sales',
+          '@metadata': {extensions: {com_example_trace: 't1'}},
+        },
+      ]);
+      const root = proc.getSurface('s')!.componentsModel.get('root')!;
+      assert.deepStrictEqual(root.properties, {title: 'Sales'});
+      assert.deepStrictEqual(root.componentTree, {
+        'id': 'root',
+        'component': 'Chart',
+        'title': 'Sales',
+        '@metadata': {extensions: {com_example_trace: 't1'}},
+      });
+      proc.dispose();
+    });
+
+    it('keeps a bare metadata declared in a union option as a property', () => {
+      const widget: ComponentApi = {
+        name: 'Widget',
+        schema: z.union([
+          z.object({kind: z.literal('a'), metadata: z.string().optional()}).strict(),
+          z.object({kind: z.literal('b'), label: z.string().optional()}).strict(),
+        ]),
+      };
+      const proc = v10Processor(new Catalog<ComponentApi>('main', '1.0', [widget]));
+      process(proc, [
+        {
+          'id': 'root',
+          'component': 'Widget',
+          'kind': 'a',
+          'metadata': 'x',
+          '@metadata': {extensions: {com_example_trace: 't1'}},
+        },
+      ]);
+      const root = proc.getSurface('s')!.componentsModel.get('root')!;
+      assert.deepStrictEqual(root.properties, {kind: 'a', metadata: 'x'});
+      assert.deepStrictEqual(root.metadata, {extensions: {com_example_trace: 't1'}});
+      proc.dispose();
+    });
+
+    it('rejects @metadata with invalid extension keys and conflicting mixins', () => {
+      const proc = v10Processor(gcbpCatalog('main', '1.0'));
+      assert.throws(
+        () =>
+          process(proc, [
+            {'id': 'root', 'component': 'Field', '@metadata': {extensions: {'a.b': 1}}},
+          ]),
+        A2uiValidationError,
+      );
+      assert.throws(
+        () =>
+          process(proc, [
+            {
+              'id': 'root',
+              'component': 'Field',
+              '@accessibility': {label: 'New'},
+              'accessibility': {label: 'Old'},
+            },
+          ]),
+        (err: unknown) => {
+          assert.ok(err instanceof A2uiValidationError);
+          assert.match(
+            err.message,
+            /cannot specify both '@accessibility' and legacy 'accessibility'/,
+          );
+          assert.match(err.details[0].path, /\/@accessibility$/);
+          return true;
+        },
+      );
+      proc.dispose();
+    });
+
+    it('evaluates @checks into validation props without exposing the rules', () => {
+      const cat = gcbpCatalog('main', '1.0');
+      const proc = new MessageProcessor<ComponentApi>([cat]);
+      let resolver: NodeResolver | undefined;
+      proc.model.onSurfaceCreated.subscribe(surface => {
+        resolver = new NodeResolver(surface, cat);
+      });
+      proc.processMessages([
+        {version: '1.0', createSurface: {surfaceId: 's', catalogId: 'main'}},
+        {
+          version: '1.0',
+          updateComponents: {
+            surfaceId: 's',
+            components: [
+              {
+                'id': 'root',
+                'component': 'Field',
+                '@accessibility': {label: 'Email address'},
+                '@checks': [{condition: false, message: 'Required'}],
+              },
+            ],
+          },
+        },
+      ] as any);
+      const props = peekValue(peekValue(resolver!.rootNode)!.props);
+      assert.strictEqual(props['isValid'], false);
+      assert.deepStrictEqual(props['validationErrors'], ['Required']);
+      assert.ok(!('@checks' in props));
+      const accessibility = props['@accessibility'] as Record<string, unknown>;
+      const label = accessibility['label'];
+      assert.strictEqual(label instanceof ResolvedBinding ? label.value : label, 'Email address');
+      resolver?.dispose();
+      proc.dispose();
     });
   });
 });

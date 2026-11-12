@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:async';
+
 import 'package:a2ui_core/a2ui_core.dart';
 // ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
 import 'package:flutter/material.dart';
@@ -19,29 +21,63 @@ import 'package:flutter/services.dart';
 
 import '../../component_implementation.dart';
 import '../../component_props.dart';
+import '../../surface_scope.dart';
+import 'check_hint.dart';
 import 'unbounded_width.dart';
 import 'write_back.dart';
 
-/// Builds the basic `TextField` component: a text input labelled `label`
-/// that writes every edit to the path `value` is bound to, and otherwise
-/// keeps the edit itself. An edit the data model rejects is replaced by the
-/// bound value.
+/// Builds the basic `TextField` component: a text input labelled `label`,
+/// showing `placeholder` while it is empty, that writes every edit to the
+/// path `value` is bound to, and otherwise keeps the edit itself. An edit the
+/// data model rejects is replaced by the bound value.
 Widget buildTextField(
   BuildContext context,
   ComponentNode<ComponentImplementation> node,
   ComponentProps props,
   ChildWidgetBuilder buildChild,
-) => limitUnboundedWidth(
-  context,
-  _TextField(
-    label: props.string('label'),
-    value: props.string('value') ?? '',
-    variant: props.string('variant'),
-    pattern: props.string('validationRegexp'),
-    error: props.validationErrors.firstOrNull,
-    write: writerFor(context, props, 'value'),
-  ),
-);
+) => _build(context, props, null);
+
+/// Builds the v0.9 basic `TextField` component as [buildTextField] does, also
+/// showing an error while a text that is not empty does not match
+/// `validationRegexp`.
+Widget buildTextFieldV0_9(
+  BuildContext context,
+  ComponentNode<ComponentImplementation> node,
+  ComponentProps props,
+  ChildWidgetBuilder buildChild,
+) => _build(context, props, props.string('validationRegexp'));
+
+Widget _build(BuildContext context, ComponentProps props, String? pattern) {
+  final SurfaceModel<ComponentImplementation>? surface = SurfaceScope.maybeOf(
+    context,
+  );
+  return limitUnboundedWidth(
+    context,
+    _TextField(
+      label: props.string('label'),
+      placeholder: props.string('placeholder'),
+      value: props.string('value') ?? '',
+      variant: props.string('variant'),
+      pattern: pattern,
+      error: props.validationErrors.firstOrNull,
+      hint: checkHint(props),
+      write: writerFor(context, props, 'value'),
+      reportError: surface == null
+          ? null
+          : (A2uiExpressionError error) {
+              unawaited(
+                surface.dispatchError(
+                  A2uiRendererError(
+                    code: error.code,
+                    surfaceId: surface.id,
+                    message: error.message,
+                  ),
+                ),
+              );
+            },
+    ),
+  );
+}
 
 /// Shown when the text does not match `validationRegexp`.
 const String _invalidFormatMessage = 'Invalid format';
@@ -72,19 +108,25 @@ bool _onlyDeletes(String previous, String next) {
 class _TextField extends StatefulWidget {
   const _TextField({
     required this.label,
+    required this.placeholder,
     required this.value,
     required this.variant,
     required this.pattern,
     required this.error,
+    required this.hint,
     required this.write,
+    required this.reportError,
   });
 
   final String? label;
+  final String? placeholder;
   final String value;
   final String? variant;
   final String? pattern;
   final String? error;
+  final String? hint;
   final bool Function(String)? write;
+  final void Function(A2uiExpressionError)? reportError;
 
   @override
   State<_TextField> createState() => _TextFieldState();
@@ -131,12 +173,17 @@ class _TextFieldState extends State<_TextField> {
   }
 
   /// [pattern] anchored to match a whole text, or null when [pattern] is
-  /// absent or does not compile.
-  static RegExp? _compile(String? pattern) {
+  /// absent or rejected by the portable regex subset guard.
+  RegExp? _compile(String? pattern) {
     if (pattern == null) return null;
     try {
-      return RegExp('^(?:$pattern)\$');
-    } on FormatException {
+      compileGuarded(pattern);
+      final anchored = '^(?:$pattern)\$';
+      return anchored.runes.length <= maxRegexPatternCodePoints
+          ? compileGuarded(anchored)
+          : RegExp(anchored, unicode: true);
+    } on A2uiExpressionError catch (error) {
+      widget.reportError?.call(error);
       return null;
     }
   }
@@ -147,7 +194,10 @@ class _TextFieldState extends State<_TextField> {
     if (widget.error != null) return widget.error;
     final String text = _controller.text;
     final RegExp? regExp = _regExp;
-    if (regExp == null || text.isEmpty || regExp.hasMatch(text)) return null;
+    if (regExp == null || text.isEmpty) return null;
+    if (text.runes.length <= maxRegexValueCodePoints && regExp.hasMatch(text)) {
+      return null;
+    }
     return _invalidFormatMessage;
   }
 
@@ -163,10 +213,18 @@ class _TextFieldState extends State<_TextField> {
     final number = variant == 'number';
     final long = variant == 'longText';
     final String? label = widget.label;
+    final String? placeholder = widget.placeholder;
+    final bool hasPlaceholder = placeholder != null && placeholder.isNotEmpty;
     return TextField(
       controller: _controller,
       decoration: InputDecoration(
         labelText: label == null || label.isEmpty ? null : label,
+        hintText: hasPlaceholder ? placeholder : null,
+        // A label resting in the field would hide the placeholder.
+        floatingLabelBehavior: hasPlaceholder
+            ? FloatingLabelBehavior.always
+            : null,
+        helperText: widget.hint,
         errorText: _errorText,
       ),
       obscureText: obscured,

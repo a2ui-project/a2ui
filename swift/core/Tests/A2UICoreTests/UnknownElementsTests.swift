@@ -90,7 +90,7 @@ struct UnknownElementsTests {
     try processor.processMessages(
       try JSONValue.parse(
         """
-        { "version": "v1.0", "createSurface": { "surfaceId": "s", "catalogId": "a" } }
+        { "version": "1.0", "createSurface": { "surfaceId": "s", "catalogId": "a" } }
         """
       )
     )
@@ -101,7 +101,7 @@ struct UnknownElementsTests {
     try JSONValue.parse(
       """
       {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": { "surfaceId": "s", "components": [\(component)] }
       }
       """
@@ -135,6 +135,17 @@ struct UnknownElementsTests {
         try processor.processMessages(try self.update(with: component))
       }
     }
+  }
+
+  @Test func relaxedProcessingKeepsBareChecksOnUnknownComponentType() throws {
+    // An unknown component type has no schema, so it is not checkable: a bare `checks` stays one
+    // of its properties instead of becoming the `@checks` mixin.
+    let processor = try makeProcessorWithSurface(validationConfig: .relaxed)
+    let component = #"{ "id": "root", "component": "Mystery", "checks": [{ "message": "No" }] }"#
+    try processor.processMessages(try update(with: component))
+    let root = try #require(processor.surfaceGroupModel["s"]?.componentsModel.get("root"))
+    #expect(root.properties["checks"] == .array([.object(["message": .string("No")])]))
+    #expect(root.properties["@checks"] == nil)
   }
 
   @Test func unknownSystemFunctionIsRejectedInBothModes() throws {

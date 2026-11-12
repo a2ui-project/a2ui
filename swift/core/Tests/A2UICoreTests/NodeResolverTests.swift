@@ -16,6 +16,7 @@ import A2UICore
 import A2UIJSON
 import Foundation
 import JSONSchema
+import Observation
 import OrderedJSON
 import Testing
 
@@ -125,7 +126,7 @@ struct NodeResolverTests {
     #expect(children[0].string(for: "text") == "Hello World")
   }
 
-  @Test func childListSkipsUnarrivedComponents() throws {
+  @Test func childListMaterializesPendingPlaceholderForUnarrivedComponents() throws {
     let catalog = try makeCatalog()
     // child1 not in components dictionary yet
     let components: [String: ComponentModel] = [
@@ -151,12 +152,18 @@ struct NodeResolverTests {
 
     let rootNode = try #require(resolver.resolveTree())
     let children = rootNode.children(for: "children")
-    #expect(children.count == 1)
-    #expect(children[0].id == "child2")
+    #expect(children.count == 2)
+    #expect(children[0].id == "child1")
+    #expect(children[0].type == "Placeholder")
+    #expect(children[0].state == .pending)
+    #expect(children[1].id == "child2")
+    #expect(children[1].type == "Text")
+    #expect(children[1].state == .resolved)
   }
 
-  @Test func cyclicReferencesReturnNilWithoutInfiniteLoop() throws {
+  @Test func cyclicReferencesReturnCyclicPlaceholderAndReportErrorOnce() throws {
     let catalog = try makeCatalog()
+    let handler = ExpressionErrorCaptureHandler()
     let components: [String: ComponentModel] = [
       "root": ComponentModel(
         id: "root",
@@ -175,6 +182,54 @@ struct NodeResolverTests {
       ),
     ]
 
+    let dataModel = DataModel()
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: components),
+      dataModel: dataModel,
+      actionHandler: handler
+    )
+
+    let rootNode = try #require(resolver.resolveTree())
+    let aNode = try #require(rootNode.children(for: "children").first)
+    let bNode = try #require(aNode.children(for: "children").first)
+    let cyclicChild = try #require(bNode.children(for: "children").first)
+    #expect(cyclicChild.id == "a")
+    #expect(cyclicChild.type == "Placeholder")
+    #expect(cyclicChild.state == .cyclic)
+    #expect(handler.capturedErrors.count == 1)
+    if case .generic(let genericError) = handler.capturedErrors.first {
+      #expect(genericError.code == "CYCLIC_REFERENCE")
+      #expect(genericError.surfaceID == "s1")
+    } else {
+      Issue.record("Expected CYCLIC_REFERENCE generic error")
+    }
+
+    // Subsequent incremental passes do not re-emit CYCLIC_REFERENCE for the same cyclic node key.
+    dataModel.set("/unrelated", value: .string("updated"))
+    _ = try #require(resolver.resolveTree())
+    #expect(handler.capturedErrors.count == 1)
+  }
+
+  @Test func repeatedCyclicReferencesGetDistinctPlaceholders() throws {
+    let catalog = try makeCatalog()
+    let components: [String: ComponentModel] = [
+      "root": ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: ["children": .array([.string("card")])]
+      ),
+      "card": ComponentModel(
+        id: "card",
+        type: "Container",
+        properties: [
+          "child": .string("root"),
+          "children": .array([.string("root"), .string("root")]),
+        ]
+      ),
+    ]
     let resolver = NodeResolver(
       surfaceID: "s1",
       catalogs: [catalog.id: catalog],
@@ -184,14 +239,416 @@ struct NodeResolverTests {
     )
 
     let rootNode = try #require(resolver.resolveTree())
-    let aNode = try #require(rootNode.children(for: "children").first)
-    let bNode = try #require(aNode.children(for: "children").first)
-    // b's reference back to a is detected as cyclic and omitted
-    #expect(bNode.children(for: "children").isEmpty)
+    let card = try #require(rootNode.children(for: "children").first)
+    let single = try #require(card.child(for: "child"))
+    let listed = card.children(for: "children")
+    #expect(listed.count == 2)
+    let placeholders = [single] + listed
+    #expect(placeholders.allSatisfy { $0.state == .cyclic })
+    #expect(Set(placeholders.map(\.identity)).count == 3)
   }
 
-  @Test func unknownComponentTypeResolvesWithFallbackSchema() throws {
+  @Test func cycleRemovedAndRestoredGetsFreshPlaceholder() throws {
     let catalog = try makeCatalog()
+    let componentsModel = SurfaceComponentsModel(components: [
+      "root": ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: ["children": .array([.string("a")])]
+      ),
+      "a": ComponentModel(
+        id: "a",
+        type: "Container",
+        properties: ["children": .array([.string("root")])]
+      ),
+    ])
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: DataModel()
+    )
+
+    func cyclicChild() throws -> Node? {
+      let rootNode = try #require(resolver.resolveTree())
+      let aNode = try #require(rootNode.children(for: "children").first)
+      return aNode.children(for: "children").first
+    }
+
+    let first = try #require(try cyclicChild())
+    #expect(first.state == .cyclic)
+
+    componentsModel.addComponent(
+      ComponentModel(id: "a", type: "Container", properties: ["children": .array([])])
+    )
+    #expect(try cyclicChild() == nil)
+
+    componentsModel.addComponent(
+      ComponentModel(
+        id: "a",
+        type: "Container",
+        properties: ["children": .array([.string("root")])]
+      )
+    )
+    let restored = try #require(try cyclicChild())
+    #expect(restored.state == .cyclic)
+    #expect(restored.identity != first.identity)
+  }
+
+  @Test func placeholdersInDifferentScopesAreNotEqual() {
+    let first = Node.pending(id: "item", scopeKey: "/items/0", dataContextPath: "/items/0")
+    let second = Node.pending(id: "item", scopeKey: "/items/1", dataContextPath: "/items/1")
+    let same = Node.pending(id: "item", scopeKey: "/items/0", dataContextPath: "/items/0")
+    #expect(first != second)
+    #expect(first == same)
+    #expect(Node.cyclic(id: "item") != Node.pending(id: "item"))
+  }
+
+  @Test func unknownTypeInUnregisteredCatalogIsReported() throws {
+    let catalog = try makeCatalog()
+    let handler = ExpressionErrorCaptureHandler()
+    let components: [String: ComponentModel] = [
+      "root": ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: ["child": .string("orphan")]
+      ),
+      "orphan": ComponentModel(
+        id: "orphan",
+        type: "Text",
+        catalogID: "unregistered",
+        properties: ["text": .string("x")]
+      ),
+    ]
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: components),
+      dataModel: DataModel(),
+      actionHandler: handler
+    )
+
+    let rootNode = try #require(resolver.resolveTree())
+    let orphan = try #require(rootNode.child(for: "child"))
+    #expect(orphan.state == .unknownType)
+    #expect(orphan.properties.isEmpty)
+    let errors = genericErrors(handler)
+    #expect(errors.map(\.code) == ["UNKNOWN_COMPONENT_TYPE"])
+    #expect(
+      errors.first?.message
+        == "Component 'orphan' has type 'Text', which is not in catalog 'unregistered'."
+    )
+  }
+
+  @Test func cyclicReferenceIsReportedOnce() throws {
+    let catalog = try makeCatalog()
+    let components = SurfaceComponentsModel(components: [
+      "root": ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: ["children": .array([.string("a")])]
+      ),
+      "a": ComponentModel(
+        id: "a",
+        type: "Container",
+        properties: ["children": .array([.string("b")])]
+      ),
+      "b": ComponentModel(
+        id: "b",
+        type: "Container",
+        properties: [
+          "children": .array([.string("a")]),
+          "accessibility": .object(["label": .object(["path": .string("/label")])]),
+        ]
+      ),
+    ])
+    let dataModel = DataModel(initial: .object(["label": .string("One")]))
+    let handler = ExpressionErrorCaptureHandler()
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: components,
+      dataModel: dataModel,
+      actionHandler: handler
+    )
+
+    _ = resolver.resolveTree()
+    let errors = genericErrors(handler)
+    #expect(errors.map(\.code) == ["CYCLIC_REFERENCE"])
+    #expect(
+      errors.first?.message
+        == "Component 'a' at '/' is referenced by one of its own descendants; "
+        + "omitting the reference."
+    )
+    #expect(errors.first?.surfaceID == "s1")
+
+    // `b` resolves again for its new label and still hits the cycle, which stays reported once.
+    dataModel.set("/label", value: .string("Two"))
+    let bNode = try #require(
+      resolver.resolveTree()?.children(for: "children").first?.children(for: "children").first
+    )
+    #expect(bNode.id == "b")
+    #expect(bNode.explicitAccessibilityAttributes?.label == "Two")
+    #expect(handler.capturedErrors.count == 1)
+
+    // Re-rendering the root reuses `b`, so the cycle is not reported again.
+    components.addComponent(
+      ComponentModel(id: "t1", type: "Text", properties: ["text": .string("Hi")])
+    )
+    components.addComponent(
+      ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: ["children": .array([.string("a"), .string("t1")])]
+      )
+    )
+    _ = resolver.resolveTree()
+    #expect(handler.capturedErrors.count == 1)
+
+    // Breaking the cycle on `b` and reintroducing it reports `CYCLIC_REFERENCE` again.
+    components.addComponent(
+      ComponentModel(id: "b", type: "Container", properties: ["children": .array([])])
+    )
+    _ = resolver.resolveTree()
+    #expect(handler.capturedErrors.count == 1)
+    components.addComponent(
+      ComponentModel(
+        id: "b",
+        type: "Container",
+        properties: ["children": .array([.string("a")])]
+      )
+    )
+    _ = resolver.resolveTree()
+    #expect(genericErrors(handler).map(\.code) == ["CYCLIC_REFERENCE", "CYCLIC_REFERENCE"])
+  }
+
+  @Test func cyclicReferenceFromSeveralDescendantsIsReportedOnce() throws {
+    let catalog = try makeCatalog()
+    let components = SurfaceComponentsModel(components: [
+      "root": ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: ["children": .array([.string("a")])]
+      ),
+      "a": ComponentModel(
+        id: "a",
+        type: "Container",
+        properties: ["children": .array([.string("b1"), .string("b2")])]
+      ),
+      "b1": ComponentModel(
+        id: "b1",
+        type: "Container",
+        properties: ["children": .array([.string("a")])]
+      ),
+      "b2": ComponentModel(
+        id: "b2",
+        type: "Container",
+        properties: ["children": .array([.string("a")])]
+      ),
+    ])
+    let handler = ExpressionErrorCaptureHandler()
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: components,
+      dataModel: DataModel(),
+      actionHandler: handler
+    )
+
+    // `b1` and `b2` both reference `a`, which is one cycle on `a` at `/`.
+    _ = resolver.resolveTree()
+    #expect(genericErrors(handler).map(\.code) == ["CYCLIC_REFERENCE"])
+
+    // `b2` still references `a`, so breaking and restoring the edge on `b1` reports nothing new.
+    components.addComponent(
+      ComponentModel(id: "b1", type: "Container", properties: ["children": .array([])])
+    )
+    _ = resolver.resolveTree()
+    components.addComponent(
+      ComponentModel(
+        id: "b1",
+        type: "Container",
+        properties: ["children": .array([.string("a")])]
+      )
+    )
+    _ = resolver.resolveTree()
+    #expect(handler.capturedErrors.count == 1)
+  }
+
+  @Test func cyclicReferenceRevisitedAsSiblingIsNotReportedAgain() throws {
+    let catalog = try makeCatalog()
+    let components = SurfaceComponentsModel(components: [
+      "root": ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: ["children": .array([.string("b"), .string("a")])]
+      ),
+      "a": ComponentModel(
+        id: "a",
+        type: "Container",
+        properties: ["children": .array([.string("b")])]
+      ),
+      "b": ComponentModel(
+        id: "b",
+        type: "Container",
+        properties: ["children": .array([.string("a")])]
+      ),
+    ])
+    let handler = ExpressionErrorCaptureHandler()
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: components,
+      dataModel: DataModel(),
+      actionHandler: handler
+    )
+
+    // `root -> b -> a` repeats `b`, and the second visit `root -> a -> b` repeats `a`.
+    _ = resolver.resolveTree()
+    let errors = genericErrors(handler)
+    #expect(errors.map(\.code) == ["CYCLIC_REFERENCE", "CYCLIC_REFERENCE"])
+    #expect(
+      Set(errors.map(\.message)) == [
+        "Component 'a' at '/' is referenced by one of its own descendants; "
+          + "omitting the reference.",
+        "Component 'b' at '/' is referenced by one of its own descendants; "
+          + "omitting the reference.",
+      ]
+    )
+
+    // Re-rendering the root keeps both cycles reported once.
+    for text in ["One", "Two"] {
+      components.addComponent(
+        ComponentModel(id: "t1", type: "Text", properties: ["text": .string(text)])
+      )
+      components.addComponent(
+        ComponentModel(
+          id: "root",
+          type: "Container",
+          properties: ["children": .array([.string("b"), .string("a"), .string("t1")])]
+        )
+      )
+      _ = resolver.resolveTree()
+    }
+    #expect(handler.capturedErrors.count == 2)
+  }
+
+  @Test func unknownComponentTypeIsReportedOncePerComponent() throws {
+    let catalog = try makeCatalog()
+    let components = SurfaceComponentsModel(components: [
+      "root": ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: ["children": .array([.string("u1"), .string("u2")])]
+      ),
+      "u1": ComponentModel(id: "u1", type: "Widget", properties: [:]),
+      "u2": ComponentModel(
+        id: "u2",
+        type: "Widget",
+        properties: [
+          "accessibility": .object(["label": .object(["path": .string("/label")])])
+        ]
+      ),
+    ])
+    let dataModel = DataModel(initial: .object(["label": .string("One")]))
+    let handler = ExpressionErrorCaptureHandler()
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: components,
+      dataModel: dataModel,
+      actionHandler: handler
+    )
+
+    _ = resolver.resolveTree()
+    let errors = genericErrors(handler)
+    #expect(errors.map(\.code) == ["UNKNOWN_COMPONENT_TYPE", "UNKNOWN_COMPONENT_TYPE"])
+    #expect(
+      Set(errors.map(\.message)) == [
+        "Component 'u1' has type 'Widget', which is not in catalog 'test'.",
+        "Component 'u2' has type 'Widget', which is not in catalog 'test'.",
+      ]
+    )
+
+    // `u2` stays inert, so it reads no data and a data change neither labels nor reports it.
+    dataModel.set("/label", value: .string("Two"))
+    let u2Node = try #require(resolver.resolveTree()?.children(for: "children").last)
+    #expect(u2Node.state == .unknownType)
+    #expect(u2Node.explicitAccessibilityAttributes?.label == nil)
+    #expect(handler.capturedErrors.count == 2)
+
+    // Re-rendering the root reuses `u1` and `u2`, so neither is reported again.
+    components.addComponent(
+      ComponentModel(id: "t1", type: "Text", properties: ["text": .string("Hi")])
+    )
+    components.addComponent(
+      ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: ["children": .array([.string("u1"), .string("u2"), .string("t1")])]
+      )
+    )
+    _ = resolver.resolveTree()
+    #expect(handler.capturedErrors.count == 2)
+
+    // Fixing `u1` and breaking it again reports it again.
+    components.addComponent(
+      ComponentModel(id: "u1", type: "Text", properties: ["text": .string("Fixed")])
+    )
+    _ = resolver.resolveTree()
+    #expect(handler.capturedErrors.count == 2)
+    components.addComponent(ComponentModel(id: "u1", type: "Widget", properties: [:]))
+    _ = resolver.resolveTree()
+    #expect(handler.capturedErrors.count == 3)
+  }
+
+  @Test func unknownComponentTypeIsReportedOncePerDataPath() throws {
+    let catalog = try makeCatalog()
+    let components = SurfaceComponentsModel(components: [
+      "root": ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: [
+          "children": .object([
+            "componentId": .string("item"),
+            "path": .string("/items"),
+          ])
+        ]
+      ),
+      "item": ComponentModel(id: "item", type: "Widget", properties: [:]),
+    ])
+    let dataModel = DataModel(
+      initial: .object(["items": .array([.string("a"), .string("b")])])
+    )
+    let handler = ExpressionErrorCaptureHandler()
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: components,
+      dataModel: dataModel,
+      actionHandler: handler
+    )
+
+    _ = resolver.resolveTree()
+    #expect(handler.capturedErrors.count == 2)
+
+    // Only the new item is reported when the list grows.
+    dataModel.set("/items", value: .array([.string("a"), .string("b"), .string("c")]))
+    _ = resolver.resolveTree()
+    #expect(
+      genericErrors(handler).map(\.code) == Array(repeating: "UNKNOWN_COMPONENT_TYPE", count: 3))
+  }
+
+  @Test func unknownComponentTypeResolvesWithUnknownTypeStateAndReportsErrorOnce() throws {
+    let catalog = try makeCatalog()
+    let handler = ExpressionErrorCaptureHandler()
     let components: [String: ComponentModel] = [
       "root": ComponentModel(
         id: "root",
@@ -205,19 +662,35 @@ struct NodeResolverTests {
       ),
     ]
 
+    let dataModel = DataModel()
     let resolver = NodeResolver(
       surfaceID: "s1",
       catalogs: [catalog.id: catalog],
       defaultCatalogID: catalog.id,
       componentsModel: SurfaceComponentsModel(components: components),
-      dataModel: DataModel()
+      dataModel: dataModel,
+      actionHandler: handler
     )
 
     let rootNode = try #require(resolver.resolveTree())
     let childNode = try #require(rootNode.child(for: "child"))
     #expect(childNode.id == "unknownChild")
     #expect(childNode.type == "NonExistentWidget")
-    #expect(childNode.properties["someProp"] as? String == "unclassifiedValue")
+    #expect(childNode.state == .unknownType)
+    // An unknown-type node stays inert, so its properties are not resolved.
+    #expect(childNode.properties.isEmpty)
+    #expect(handler.capturedErrors.count == 1)
+    if case .generic(let genericError) = handler.capturedErrors.first {
+      #expect(genericError.code == "UNKNOWN_COMPONENT_TYPE")
+      #expect(genericError.surfaceID == "s1")
+    } else {
+      Issue.record("Expected UNKNOWN_COMPONENT_TYPE generic error")
+    }
+
+    // Subsequent incremental passes do not re-emit UNKNOWN_COMPONENT_TYPE for the same node key.
+    dataModel.set("/unrelated", value: .string("updated"))
+    _ = try #require(resolver.resolveTree())
+    #expect(handler.capturedErrors.count == 1)
   }
 
   @Test func standardArrayPreservesNullElements() throws {
@@ -514,12 +987,1668 @@ struct NodeResolverTests {
     _ = resolver.resolveTree()
     #expect(handler.capturedErrors.count == 4)
   }
+
+  @Test func customComponentResolvesAccessibilityBindings() throws {
+    // Like most custom schemas, this one leaves `accessibility` to `ComponentCommon`.
+    let schema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "component": { "const": "ProductCard" },
+            "title": { "$ref": "\(A2UICommonSchema.v10URI(for: "DynamicString"))" }
+          }
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let catalog = Catalog(
+      id: "shop",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI(name: "ProductCard", schema: schema)]
+    ).eraseToAnyCatalog()
+    let dataModel = DataModel(
+      initial: .object(["productName": .string("iPhone 17"), "hidden": .boolean(false)])
+    )
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: [
+        "root": ComponentModel(
+          id: "root",
+          type: "ProductCard",
+          properties: [
+            "title": .string("iPhone"),
+            "accessibility": .object([
+              "label": .object(["@path": .string("/productName")]),
+              "hidden": .object(["@path": .string("/hidden")]),
+              "live": .string("polite"),
+            ]),
+          ]
+        )
+      ]),
+      dataModel: dataModel,
+      protocolVersion: .v10
+    )
+
+    let node = try #require(resolver.resolveTree())
+    #expect(
+      node.explicitAccessibilityAttributes
+        == AccessibilityAttributes(label: "iPhone 17", live: "polite", hidden: false)
+    )
+
+    dataModel.set("/productName", value: .string("iPhone 17 Pro"))
+    let updated = try #require(resolver.resolveTree())
+    #expect(updated.explicitAccessibilityAttributes?.label == "iPhone 17 Pro")
+  }
+
+  /// A v1.0 catalog whose `Table` declares `accessibility` and `checks` properties of its own.
+  private func makeTableCatalog() throws -> AnyCatalog {
+    let schema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "component": { "const": "Table" },
+            "accessibility": { "type": "string" },
+            "checks": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    return Catalog(
+      id: "tables",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI(name: "Table", schema: schema)]
+    ).eraseToAnyCatalog()
+  }
+
+  @Test func prefixedAccessibilityMixinResolvesBesideCustomAccessibilityProperty() throws {
+    let catalog = try makeTableCatalog()
+    let dataModel = DataModel(initial: .object(["caption": .string("Revenue")]))
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: [
+        "root": ComponentModel(
+          id: "root",
+          type: "Table",
+          properties: [
+            "accessibility": .string("compact"),
+            "@accessibility": .object([
+              "label": .object(["@path": .string("/caption")])
+            ]),
+          ]
+        )
+      ]),
+      dataModel: dataModel,
+      protocolVersion: .v10
+    )
+
+    let node = try #require(resolver.resolveTree())
+    #expect(node.explicitAccessibilityAttributes == AccessibilityAttributes(label: "Revenue"))
+    #expect(node.string(for: "accessibility") == "compact")
+
+    dataModel.set("/caption", value: .string("Quarterly revenue"))
+    let updated = try #require(resolver.resolveTree())
+    #expect(updated.explicitAccessibilityAttributes?.label == "Quarterly revenue")
+  }
+
+  @Test func prefixedChecksMixinResolvesBesideCustomChecksProperty() throws {
+    let catalog = try makeTableCatalog()
+    let dataModel = DataModel(initial: .object(["accepted": .boolean(false)]))
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: [
+        "root": ComponentModel(
+          id: "root",
+          type: "Table",
+          properties: [
+            "checks": .array([.string("non_empty_rows")]),
+            "@checks": .array([
+              .object([
+                "condition": .object(["@path": .string("/accepted")]),
+                "message": .string("Accept the terms"),
+              ])
+            ]),
+          ]
+        )
+      ]),
+      dataModel: dataModel,
+      protocolVersion: .v10
+    )
+
+    let node = try #require(resolver.resolveTree())
+    #expect(node.checks.map(\.message) == ["Accept the terms"])
+    #expect(node.validationErrors == ["Accept the terms"])
+
+    dataModel.set("/accepted", value: .boolean(true))
+    let updated = try #require(resolver.resolveTree())
+    #expect(updated.validationErrors.isEmpty)
+  }
+
+  @Test func incrementalScopedBindingWriteAndNoOpDataSet() throws {
+    let catalog = try makeCatalog()
+    let componentsModel = SurfaceComponentsModel(
+      components: [
+        "root": ComponentModel(
+          id: "root",
+          type: "Container",
+          properties: [
+            "children": .object([
+              "componentId": .string("personText"),
+              "path": .string("/people"),
+            ])
+          ]
+        ),
+        "personText": ComponentModel(
+          id: "personText",
+          type: "Text",
+          properties: ["text": .object(["path": .string("name")])]
+        ),
+      ]
+    )
+    let dataModel = DataModel(
+      initial: .object([
+        "people": .array([
+          .object(["name": .string("Ada")]),
+          .object(["name": .string("Lin")]),
+        ])
+      ])
+    )
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: dataModel
+    )
+
+    let root = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 3)
+    let children = root.children(for: "children")
+    #expect(children.count == 2)
+    let item0 = children[0]
+    let item1 = children[1]
+
+    // Write through item0's scoped DataBinding: only item0 should resolve.
+    let binding0 = try #require(item0.properties["text"] as? DataBinding<String>)
+    binding0.set("Grace")
+    let rootAfterWrite = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 1)
+    #expect(rootAfterWrite.box === root.box)
+    #expect(rootAfterWrite.box.revision == 0)
+    #expect(item0.box.revision == 1)
+    #expect(item0.string(for: "text") == "Grace")
+    #expect(item1.box.revision == 0)
+    #expect(item1.string(for: "text") == "Lin")
+
+    // Setting /people/0/name to the same value "Grace" is a no-op for resolution.
+    dataModel.set("/people/0/name", value: .string("Grace"))
+    _ = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 0)
+    #expect(item0.box.revision == 1)
+  }
+
+  @Test func incrementalTemplateDefinitionUpdateAndMiddleInsertion() throws {
+    let catalog = try makeCatalog()
+    let componentsModel = SurfaceComponentsModel(
+      components: [
+        "root": ComponentModel(
+          id: "root",
+          type: "Container",
+          properties: [
+            "children": .object([
+              "componentId": .string("personText"),
+              "path": .string("/people"),
+            ])
+          ]
+        ),
+        "personText": ComponentModel(
+          id: "personText",
+          type: "Text",
+          properties: ["text": .object(["path": .string("name")])]
+        ),
+      ]
+    )
+    let dataModel = DataModel(
+      initial: .object([
+        "people": .array([
+          .object(["name": .string("Ada")]),
+          .object(["name": .string("Lin")]),
+        ])
+      ])
+    )
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: dataModel
+    )
+
+    let root = try #require(resolver.resolveTree())
+    let initialChildren = root.children(for: "children")
+    let item0 = initialChildren[0]
+    let item1 = initialChildren[1]
+
+    // 1. Update shared template definition to a literal: both instances resolve, root stays silent.
+    componentsModel.addComponent(
+      ComponentModel(
+        id: "personText",
+        type: "Text",
+        properties: ["text": .string("Fixed")]
+      )
+    )
+    _ = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 2)
+    #expect(root.box.revision == 0)
+    #expect(item0.box.revision == 1)
+    #expect(item1.box.revision == 1)
+    #expect(item0.string(for: "text") == "Fixed")
+    #expect(item1.string(for: "text") == "Fixed")
+
+    // Restore path binding on template definition.
+    componentsModel.addComponent(
+      ComponentModel(
+        id: "personText",
+        type: "Text",
+        properties: ["text": .object(["path": .string("name")])]
+      )
+    )
+    _ = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 2)
+    let rev0BeforeInsert = item0.box.revision
+    let rev1BeforeInsert = item1.box.revision
+
+    // 2. Insert "New" at index 1 ([Ada, Lin] -> [Ada, New, Lin]):
+    // root resolves (count 2 -> 3), item0 is untouched ("Ada" == "Ada"),
+    // item1 updates ("Lin" -> "New"), and item2 is created ("Lin").
+    dataModel.set(
+      "/people",
+      value: .array([
+        .object(["name": .string("Ada")]),
+        .object(["name": .string("New")]),
+        .object(["name": .string("Lin")]),
+      ])
+    )
+    _ = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 3)
+    #expect(root.box.revision == 1)
+    #expect(item0.box.revision == rev0BeforeInsert)
+    #expect(item1.box.revision == rev1BeforeInsert + 1)
+    #expect(item1.string(for: "text") == "New")
+    let afterInsertChildren = root.children(for: "children")
+    #expect(afterInsertChildren.count == 3)
+    #expect(afterInsertChildren[0].box === item0.box)
+    #expect(afterInsertChildren[1].box === item1.box)
+    #expect(afterInsertChildren[2].string(for: "text") == "Lin")
+
+    // 3. Shrink /people to 1 item ([Ada]): only root resolves, and pruned items ignore later writes.
+    dataModel.set(
+      "/people",
+      value: .array([
+        .object(["name": .string("Ada")])
+      ])
+    )
+    _ = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 1)
+    #expect(root.children(for: "children").count == 1)
+
+    // Writing to pruned item1's path does not resolve any node.
+    dataModel.set("/people/0/name", value: .string("Ada"))
+    _ = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 0)
+  }
+
+  @Test func incrementalDelayedChildArrivalTypeChangeAndRemoval() throws {
+    let catalog = try makeCatalog()
+    // Start with root referencing "greeting", which has not arrived yet.
+    let componentsModel = SurfaceComponentsModel(
+      components: [
+        "root": ComponentModel(
+          id: "root",
+          type: "Container",
+          properties: ["child": .string("greeting")]
+        )
+      ]
+    )
+    let dataModel = DataModel(initial: .object(["msg": .string("Hello")]))
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: dataModel
+    )
+
+    let root = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 1)
+    let pendingGreeting = try #require(root.child(for: "child"))
+    #expect(pendingGreeting.id == "greeting")
+    #expect(pendingGreeting.type == "Placeholder")
+    #expect(pendingGreeting.state == .pending)
+
+    // 1. Delayed arrival of "greeting": only greeting resolves, root patches its child slot
+    // in place, and root's property revision advances without re-resolving root.
+    componentsModel.addComponent(
+      ComponentModel(
+        id: "greeting",
+        type: "Text",
+        properties: ["text": .object(["path": .string("/msg")])]
+      )
+    )
+    let rootAfterArrival = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 1)
+    #expect(rootAfterArrival.box === root.box)
+    #expect(root.box.propsRevision == 1)
+    let greetingText = try #require(root.child(for: "child"))
+    #expect(greetingText.type == "Text")
+    #expect(greetingText.state == .resolved)
+    #expect(greetingText.box !== pendingGreeting.box)
+    #expect(greetingText.string(for: "text") == "Hello")
+
+    // 2. Type change on child ("Text" -> "Container"): only greeting resolves, root patches
+    // its child slot in place, and child gets a new NodeBox.
+    componentsModel.addComponent(
+      ComponentModel(
+        id: "greeting",
+        type: "Container",
+        properties: [:]
+      )
+    )
+    _ = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 1)
+    #expect(root.box.propsRevision == 2)
+    let greetingContainer = try #require(root.child(for: "child"))
+    #expect(greetingContainer.type == "Container")
+    #expect(greetingContainer.state == .resolved)
+    #expect(greetingContainer.box !== greetingText.box)
+
+    // 3. Remove "greeting": child becomes pending without re-resolving root,
+    // root patches its child slot in place, and old /msg dependency is pruned.
+    componentsModel.removeComponent("greeting")
+    _ = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 0)
+    #expect(root.box.propsRevision == 3)
+    let removedGreeting = try #require(root.child(for: "child"))
+    #expect(removedGreeting.state == .pending)
+    #expect(removedGreeting.type == "Placeholder")
+    #expect(removedGreeting.box !== greetingContainer.box)
+
+    dataModel.set("/msg", value: .string("Updated"))
+    _ = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 0)
+
+    // 4. Remove "root" and re-add: tree becomes nil then resolves fresh root.
+    componentsModel.removeComponent("root")
+    #expect(resolver.resolveTree() == nil)
+    componentsModel.addComponent(
+      ComponentModel(
+        id: "root",
+        type: "Text",
+        properties: ["text": .string("Reborn")]
+      )
+    )
+    let rebornRoot = try #require(resolver.resolveTree())
+    #expect(rebornRoot.box !== root.box)
+    #expect(rebornRoot.string(for: "text") == "Reborn")
+  }
+
+  @Test func incrementalReparentingUpdatesVisitedAndPreservesNodeIdentity() throws {
+    let catalog = try makeCatalog()
+    // Initial hierarchy: root -> a -> b -> c
+    let componentsModel = SurfaceComponentsModel(
+      components: [
+        "root": ComponentModel(
+          id: "root",
+          type: "Container",
+          properties: ["child": .string("a")]
+        ),
+        "a": ComponentModel(
+          id: "a",
+          type: "Container",
+          properties: ["child": .string("b")]
+        ),
+        "b": ComponentModel(
+          id: "b",
+          type: "Container",
+          properties: ["child": .string("c")]
+        ),
+        "c": ComponentModel(
+          id: "c",
+          type: "Container",
+          properties: [:]
+        ),
+      ]
+    )
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: DataModel()
+    )
+
+    let root = try #require(resolver.resolveTree())
+    let initialA = try #require(root.child(for: "child"))
+    let initialB = try #require(initialA.child(for: "child"))
+    let initialC = try #require(initialB.child(for: "child"))
+
+    // Reparent to: root -> b -> c -> a
+    // "a" is no longer an ancestor of "c", so "c" referencing "a" is valid and not a cycle.
+    componentsModel.applyBatch(adding: [
+      ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: ["child": .string("b")]
+      ),
+      ComponentModel(
+        id: "a",
+        type: "Container",
+        properties: [:]
+      ),
+      ComponentModel(
+        id: "c",
+        type: "Container",
+        properties: ["child": .string("a")]
+      ),
+    ])
+
+    let updatedRoot = try #require(resolver.resolveTree())
+    let updatedB = try #require(updatedRoot.child(for: "child"))
+    let updatedC = try #require(updatedB.child(for: "child"))
+    let reparentedA = try #require(updatedC.child(for: "child"))
+
+    #expect(updatedB.id == "b")
+    #expect(updatedC.id == "c")
+    #expect(reparentedA.id == "a")
+    #expect(updatedB.box === initialB.box)
+    #expect(updatedC.box === initialC.box)
+    #expect(reparentedA.box === initialA.box)
+  }
+
+  @Test func siblingTemplateListsSharingComponentIDMaintainIsolatedNodes() throws {
+    let catalog = try makeCatalog()
+    let componentsModel = SurfaceComponentsModel(
+      components: [
+        "root": ComponentModel(
+          id: "root",
+          type: "Container",
+          properties: ["children": .array([.string("activeList"), .string("completedList")])]
+        ),
+        "activeList": ComponentModel(
+          id: "activeList",
+          type: "Container",
+          properties: [
+            "children": .object([
+              "componentId": .string("itemCard"),
+              "path": .string("/activeItems"),
+            ])
+          ]
+        ),
+        "completedList": ComponentModel(
+          id: "completedList",
+          type: "Container",
+          properties: [
+            "children": .object([
+              "componentId": .string("itemCard"),
+              "path": .string("/completedItems"),
+            ])
+          ]
+        ),
+        "itemCard": ComponentModel(
+          id: "itemCard",
+          type: "Text",
+          properties: ["text": .object(["path": .string("title")])]
+        ),
+      ]
+    )
+    let dataModel = DataModel(
+      initial: .object([
+        "activeItems": .array([
+          .object(["title": .string("Write tests")])
+        ]),
+        "completedItems": .array([
+          .object(["title": .string("Review PR")])
+        ]),
+      ])
+    )
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: dataModel
+    )
+
+    let root = try #require(resolver.resolveTree())
+    let lists = root.children(for: "children")
+    #expect(lists.count == 2)
+    let activeItem0 = try #require(lists[0].children(for: "children").first)
+    let completedItem0 = try #require(lists[1].children(for: "children").first)
+
+    #expect(activeItem0.id == "itemCard_0")
+    #expect(completedItem0.id == "itemCard_0")
+    #expect(activeItem0.box !== completedItem0.box)
+    #expect(activeItem0.string(for: "text") == "Write tests")
+    #expect(completedItem0.string(for: "text") == "Review PR")
+
+    // Updating /activeItems/0/title only re-resolves activeItem0 and leaves completedItem0 untouched.
+    dataModel.set("/activeItems/0/title", value: .string("Ship fix"))
+    _ = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 1)
+    #expect(activeItem0.string(for: "text") == "Ship fix")
+    #expect(activeItem0.box.revision == 1)
+    #expect(completedItem0.string(for: "text") == "Review PR")
+    #expect(completedItem0.box.revision == 0)
+  }
+
+  @Test func redundantSlashesInBindingPathReceiveIncrementalUpdates() throws {
+    let catalog = try makeCatalog()
+    let componentsModel = SurfaceComponentsModel(
+      components: [
+        "root": ComponentModel(
+          id: "root",
+          type: "Text",
+          properties: ["text": .object(["path": .string("//user/name/")])]
+        )
+      ]
+    )
+    let dataModel = DataModel(
+      initial: .object([
+        "user": .object(["name": .string("Alice")])
+      ])
+    )
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: dataModel
+    )
+
+    let root = try #require(resolver.resolveTree())
+    #expect(root.string(for: "text") == "Alice")
+
+    dataModel.set("/user/name", value: .string("Bob"))
+    _ = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 1)
+    #expect(root.string(for: "text") == "Bob")
+  }
+
+  @Test func actionUserMessagePathDoesNotTriggerButtonReResolutionOnDataChange() throws {
+    let buttonSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string" },
+            "component": { "type": "string" },
+            "action": {
+              "$ref": "https://a2ui.org/schemas/v1_0/common_types.json#/$defs/Action"
+            }
+          }
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let catalog = Catalog(
+      id: "cat-v10",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI(name: "Button", schema: buttonSchema)]
+    ).eraseToAnyCatalog()
+
+    let handler = ExpressionErrorCaptureHandler()
+    let componentsModel = SurfaceComponentsModel(
+      components: [
+        "root": ComponentModel(
+          id: "root",
+          type: "Button",
+          properties: [
+            "action": .object([
+              "event": .object([
+                "name": .string("send"),
+                "userMessage": .object(["@path": .string("/draft")]),
+              ])
+            ])
+          ]
+        )
+      ]
+    )
+    let dataModel = DataModel(initial: .object(["draft": .string("Initial draft")]))
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: dataModel,
+      actionHandler: handler,
+      protocolVersion: .v10
+    )
+
+    let root = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 1)
+    #expect(root.box.revision == 0)
+
+    // Updating /draft should not re-resolve the Button node or bump its revision.
+    dataModel.set("/draft", value: .string("Updated draft"))
+    _ = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 0)
+    #expect(root.box.revision == 0)
+
+    // Triggering the action evaluates userMessage against the latest data model state.
+    let action = try #require(root.action(for: "action"))
+    action()
+    #expect(handler.capturedActions.count == 1)
+    #expect(
+      handler.capturedActions.first?.identity
+        == .event(name: "send", context: [:], userMessage: "Updated draft")
+    )
+  }
+
+  @Test func nodeMetadataRecoversAndUpdatesInPlaceWithoutReResolvingTree() throws {
+    let buttonSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string" },
+            "component": { "type": "string" },
+            "label": { "type": "string" },
+            "action": { "$ref": "https://a2ui.org/specification/v1_0/json/common_types.json#/$defs/Action" }
+          }
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let catalog = Catalog(
+      id: "cat",
+      protocolVersion: "1.0",
+      components: [AnyComponentAPI(name: "Button", schema: buttonSchema)]
+    )
+    let handler = ExpressionErrorCaptureHandler()
+    let componentsModel = SurfaceComponentsModel(
+      components: [
+        "root": ComponentModel(
+          id: "root",
+          type: "Button",
+          properties: [
+            "label": .string("Submit"),
+            "action": .object([
+              "event": .object(["name": .string("submit")]),
+              "metadata": .object([
+                "extensions": .object(["baseExt": .integer(1)])
+              ]),
+            ]),
+          ],
+          metadata: ["extensions": .object(["badge": .string("new")])]
+        )
+      ]
+    )
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: DataModel(),
+      actionHandler: handler,
+      protocolVersion: .v10
+    )
+
+    let root = try #require(resolver.resolveTree())
+    #expect(root.extensions == ["badge": .string("new")])
+    #expect(resolver.lastResolvedNodeCount == 1)
+
+    try componentsModel.setExtension("badge", value: .string("updated"), forComponentID: "root")
+    let updatedRoot = try #require(resolver.resolveTree())
+    #expect(updatedRoot.box === root.box)
+    #expect(updatedRoot.extensions == ["badge": .string("updated")])
+    #expect(resolver.lastResolvedNodeCount == 0)
+
+    let action = try #require(updatedRoot.action(for: "action"))
+    try action(metadata: ["extensions": .object(["callExt": .integer(2)])])
+    #expect(handler.capturedActions.count == 1)
+    #expect(
+      MetadataValidator.areEqual(
+        handler.capturedActions.first?.metadata,
+        [
+          "extensions": .object([
+            "baseExt": .integer(1),
+            "callExt": .integer(2),
+          ])
+        ]
+      )
+    )
+    #expect(throws: A2UIValidationError.self) {
+      try action(metadata: ["extensions": .object(["invalid-key": .integer(1)])])
+    }
+  }
+
+  @Test func observationTrackingFiresOnlyForMutatedNode() throws {
+    let catalog = try makeCatalog()
+    let componentsModel = SurfaceComponentsModel(
+      components: [
+        "root": ComponentModel(
+          id: "root",
+          type: "Container",
+          properties: ["children": .array([.string("first"), .string("second")])]
+        ),
+        "first": ComponentModel(
+          id: "first",
+          type: "Text",
+          properties: ["text": .object(["path": .string("/first")])]
+        ),
+        "second": ComponentModel(
+          id: "second",
+          type: "Text",
+          properties: ["text": .object(["path": .string("/second")])]
+        ),
+      ]
+    )
+    let dataModel = DataModel(
+      initial: .object([
+        "first": .string("One"),
+        "second": .string("Two"),
+        "unused": .string("Idle"),
+      ])
+    )
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: dataModel
+    )
+
+    let root = try #require(resolver.resolveTree())
+    let children = root.children(for: "children")
+    #expect(children.count == 2)
+    let first = children[0]
+    let second = children[1]
+
+    let rootChanges = ObservationCounterBox()
+    let firstChanges = ObservationCounterBox()
+    let firstMetadataChanges = ObservationCounterBox()
+    let secondChanges = ObservationCounterBox()
+
+    func observeRoot() -> [Node] {
+      withObservationTracking {
+        root.children(for: "children")
+      } onChange: {
+        rootChanges.increment()
+      }
+    }
+
+    func observeFirst() -> String? {
+      withObservationTracking {
+        first.string(for: "text")
+      } onChange: {
+        firstChanges.increment()
+      }
+    }
+
+    func observeFirstMetadata() -> [String: JSONValue]? {
+      withObservationTracking {
+        first.extensions
+      } onChange: {
+        firstMetadataChanges.increment()
+      }
+    }
+
+    func observeSecond() -> String? {
+      withObservationTracking {
+        second.string(for: "text")
+      } onChange: {
+        secondChanges.increment()
+      }
+    }
+
+    #expect(observeRoot().map(\.id) == ["first", "second"])
+    #expect(observeFirst() == "One")
+    #expect(observeFirstMetadata() == nil)
+    #expect(observeSecond() == "Two")
+
+    // 1. Mutating sibling /second fires only second's tracker (not first, not root).
+    dataModel.set("/second", value: .string("Two Updated"))
+    _ = try #require(resolver.resolveTree())
+    #expect(firstChanges.count == 0)
+    #expect(firstMetadataChanges.count == 0)
+    #expect(secondChanges.count == 1)
+    #expect(rootChanges.count == 0)
+    #expect(observeSecond() == "Two Updated")
+
+    // 2. Mutating /first fires only first's property tracker (not metadata, second, or root).
+    dataModel.set("/first", value: .string("One Updated"))
+    _ = try #require(resolver.resolveTree())
+    #expect(firstChanges.count == 1)
+    #expect(firstMetadataChanges.count == 0)
+    #expect(secondChanges.count == 1)
+    #expect(rootChanges.count == 0)
+    #expect(observeFirst() == "One Updated")
+
+    // 3. Updating first's metadata fires only firstMetadataChanges (not firstChanges!).
+    try componentsModel.setExtension("badge", value: .string("new"), forComponentID: "first")
+    #expect(firstMetadataChanges.count == 1)
+    #expect(firstChanges.count == 1)
+    #expect(observeFirstMetadata() == ["badge": .string("new")])
+
+    // 4. No-op data writes and re-resolutions producing shallow-equal properties do not fire.
+    dataModel.set("/first", value: .string("One Updated"))
+    dataModel.set("/unused", value: .string("Still Unused"))
+    _ = try #require(resolver.resolveTree())
+    #expect(firstChanges.count == 1)
+    #expect(firstMetadataChanges.count == 1)
+    #expect(secondChanges.count == 1)
+    #expect(rootChanges.count == 0)
+
+    componentsModel.addComponent(
+      ComponentModel(
+        id: "first",
+        type: "Text",
+        properties: [
+          "text": .object(["path": .string("/first")]),
+          "ignoredNull": .null,
+        ],
+        metadata: ["extensions": .object(["badge": .string("new")])]
+      )
+    )
+    _ = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 1)
+    #expect(firstChanges.count == 1)
+    #expect(firstMetadataChanges.count == 1)
+
+    // 5. Changing root's child list fires only root's tracker, leaving first and second untouched.
+    componentsModel.addComponent(
+      ComponentModel(
+        id: "third",
+        type: "Text",
+        properties: ["text": .string("Three")]
+      )
+    )
+    componentsModel.addComponent(
+      ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: [
+          "children": .array([.string("first"), .string("second"), .string("third")])
+        ]
+      )
+    )
+    _ = try #require(resolver.resolveTree())
+    #expect(rootChanges.count == 1)
+    #expect(firstChanges.count == 1)
+    #expect(firstMetadataChanges.count == 1)
+    #expect(secondChanges.count == 1)
+    #expect(observeRoot().map(\.id) == ["first", "second", "third"])
+  }
+
+  @Test func incrementalChildListArrivalCoalescesSlotsAndDuplicates() throws {
+    let catalog = try makeCatalog()
+    let componentsModel = SurfaceComponentsModel(components: [
+      "root": ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: ["children": .array([.string("first"), .string("second"), .string("first")])]
+      )
+    ])
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: DataModel()
+    )
+
+    let root = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 1)
+    #expect(root.box.propsRevision == 0)
+    let pendingChildren = root.children(for: "children")
+    #expect(pendingChildren.count == 3)
+    #expect(pendingChildren.allSatisfy { $0.state == .pending })
+    #expect(pendingChildren[0].box === pendingChildren[2].box)
+
+    let rootPropChanges = ObservationCounterBox()
+    let rootMetaChanges = ObservationCounterBox()
+    _ = withObservationTracking {
+      root.children(for: "children")
+    } onChange: {
+      rootPropChanges.increment()
+    }
+    _ = withObservationTracking {
+      root.extensions
+    } onChange: {
+      rootMetaChanges.increment()
+    }
+
+    componentsModel.addComponent(
+      ComponentModel(id: "first", type: "Text", properties: ["text": .string("One")])
+    )
+    componentsModel.addComponent(
+      ComponentModel(id: "second", type: "Text", properties: ["text": .string("Two")])
+    )
+
+    _ = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 2)
+    #expect(root.box.propsRevision == 1)
+    #expect(rootPropChanges.count == 1)
+    #expect(rootMetaChanges.count == 0)
+
+    let resolvedChildren = root.children(for: "children")
+    #expect(resolvedChildren.count == 3)
+    #expect(resolvedChildren.map(\.id) == ["first", "second", "first"])
+    #expect(resolvedChildren.allSatisfy { $0.state == .resolved })
+    #expect(resolvedChildren[0].box === resolvedChildren[2].box)
+    #expect(resolvedChildren[0].string(for: "text") == "One")
+    #expect(resolvedChildren[1].string(for: "text") == "Two")
+  }
+
+  @Test func incrementalNestedAndTemplateChildSlotReplacement() throws {
+    let tabsSchema = try Schema(
+      instance: """
+        {
+          "allOf": [
+            { "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/ComponentCommon" },
+            {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "component": { "type": "string" },
+                "ui/header": {
+                  "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/ComponentId"
+                },
+                "tabs": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "title": { "type": "string" },
+                      "child": {
+                        "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/ComponentId"
+                      }
+                    }
+                  }
+                },
+                "children": {
+                  "$ref": "https://a2ui.org/schemas/v0_9_1/common.json#/$defs/ChildList"
+                }
+              }
+            }
+          ]
+        }
+        """,
+      remoteSchemas: A2UICommonSchema.allSchemas
+    )
+    let baseCatalog = try makeCatalog()
+    let textAPI = try #require(baseCatalog.components["Text"])
+    let catalog: AnyCatalog = Catalog(
+      id: "tabs-test",
+      components: [
+        AnyComponentAPI(name: "Tabs", schema: tabsSchema),
+        textAPI,
+      ]
+    )
+
+    let dataModel = DataModel()
+    dataModel.set(
+      "/items",
+      value: .array([
+        .object(["label": .string("Alpha")]),
+        .object(["label": .string("Beta")]),
+      ])
+    )
+    let componentsModel = SurfaceComponentsModel(components: [
+      "root": ComponentModel(
+        id: "root",
+        type: "Tabs",
+        properties: [
+          "ui/header": .string("header"),
+          "tabs": .array([
+            .object(["title": .string("Tab A"), "child": .string("paneA")]),
+            .object(["title": .string("Tab B"), "child": .string("paneB")]),
+          ]),
+          "children": .object([
+            "componentId": .string("row"),
+            "path": .string("/items"),
+          ]),
+        ]
+      )
+    ])
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: dataModel
+    )
+
+    let root = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 1)
+    #expect(root.allChildNodes.count == 5)
+    #expect(root.allChildNodes.allSatisfy { $0.state == .pending })
+
+    componentsModel.addComponent(
+      ComponentModel(id: "header", type: "Text", properties: ["text": .string("Header")])
+    )
+    componentsModel.addComponent(
+      ComponentModel(id: "paneA", type: "Text", properties: ["text": .string("Pane A Body")])
+    )
+    componentsModel.addComponent(
+      ComponentModel(id: "paneB", type: "Text", properties: ["text": .string("Pane B Body")])
+    )
+    _ = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 3)
+    #expect(root.box.propsRevision == 1)
+    let headerNode = try #require(root.child(for: "ui/header"))
+    #expect(headerNode.state == .resolved)
+    #expect(headerNode.string(for: "text") == "Header")
+    let paneANode = try #require(root.allChildNodes.first { $0.id == "paneA" })
+    let paneBNode = try #require(root.allChildNodes.first { $0.id == "paneB" })
+    #expect(paneANode.state == .resolved)
+    #expect(paneANode.string(for: "text") == "Pane A Body")
+    #expect(paneBNode.state == .resolved)
+    #expect(paneBNode.string(for: "text") == "Pane B Body")
+
+    componentsModel.addComponent(
+      ComponentModel(
+        id: "row",
+        type: "Text",
+        properties: ["text": .object(["path": .string("label")])]
+      )
+    )
+    _ = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 2)
+    #expect(root.box.propsRevision == 2)
+    let templateRows = root.children(for: "children")
+    #expect(templateRows.count == 2)
+    #expect(templateRows.allSatisfy { $0.state == .resolved })
+    #expect(templateRows.map { $0.string(for: "text") } == ["Alpha", "Beta"])
+  }
+
+  @Test func incrementalSharedChildArrivalMatchesFullResolution() throws {
+    let catalog = try makeCatalog()
+    let incrementalHandler = ExpressionErrorCaptureHandler()
+    let componentsModel = SurfaceComponentsModel(components: [
+      "root": ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: ["children": .array([.string("p1"), .string("wrapper")])]
+      ),
+      "p1": ComponentModel(
+        id: "p1",
+        type: "Container",
+        properties: ["children": .array([.string("shared")])]
+      ),
+      "wrapper": ComponentModel(
+        id: "wrapper",
+        type: "Container",
+        properties: ["children": .array([.string("p2")])]
+      ),
+      "p2": ComponentModel(
+        id: "p2",
+        type: "Container",
+        properties: ["children": .array([.string("shared")])]
+      ),
+    ])
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: DataModel(),
+      actionHandler: incrementalHandler
+    )
+
+    _ = try #require(resolver.resolveTree())
+
+    componentsModel.addComponent(
+      ComponentModel(id: "shared", type: "Text", properties: ["text": .string("Shared")])
+    )
+    let afterArrival = try #require(resolver.resolveTree())
+    let p1AfterArrival = try #require(afterArrival.children(for: "children").first)
+    let wrapperAfterArrival = try #require(afterArrival.children(for: "children").last)
+    let p2AfterArrival = try #require(wrapperAfterArrival.children(for: "children").first)
+    let p1Shared = try #require(p1AfterArrival.children(for: "children").first)
+    let p2Shared = try #require(p2AfterArrival.children(for: "children").first)
+    #expect(p1Shared.state == .resolved)
+    #expect(p1Shared.string(for: "text") == "Shared")
+    #expect(p1Shared.box === p2Shared.box)
+
+    let cyclicShared = ComponentModel(
+      id: "shared",
+      type: "Container",
+      properties: ["children": .array([.string("p1")])]
+    )
+    componentsModel.addComponent(cyclicShared)
+    let incrementalRoot = try #require(resolver.resolveTree())
+
+    let fullHandler = ExpressionErrorCaptureHandler()
+    let fullResolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: [
+        "root": try #require(componentsModel.get("root")),
+        "p1": try #require(componentsModel.get("p1")),
+        "wrapper": try #require(componentsModel.get("wrapper")),
+        "p2": try #require(componentsModel.get("p2")),
+        "shared": cyclicShared,
+      ]),
+      dataModel: DataModel(),
+      actionHandler: fullHandler
+    )
+    let fullRoot = try #require(fullResolver.resolveTree())
+
+    #expect(incrementalRoot == fullRoot)
+    #expect(
+      genericErrors(incrementalHandler).map(\.code) == genericErrors(fullHandler).map(\.code)
+    )
+
+    let recoveredShared = ComponentModel(
+      id: "shared",
+      type: "Text",
+      properties: ["text": .string("Recovered")]
+    )
+    componentsModel.addComponent(recoveredShared)
+    let recoveredIncrementalRoot = try #require(resolver.resolveTree())
+    let recoveredFullResolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: [
+        "root": try #require(componentsModel.get("root")),
+        "p1": try #require(componentsModel.get("p1")),
+        "wrapper": try #require(componentsModel.get("wrapper")),
+        "p2": try #require(componentsModel.get("p2")),
+        "shared": recoveredShared,
+      ]),
+      dataModel: DataModel()
+    )
+    let recoveredFullRoot = try #require(recoveredFullResolver.resolveTree())
+    #expect(recoveredIncrementalRoot == recoveredFullRoot)
+  }
+
+  @Test func incrementalSingleParentChildCycleAndCloserRecoveryMatchesFullResolution() throws {
+    let catalog = try makeCatalog()
+    let incrementalHandler = ExpressionErrorCaptureHandler()
+    let componentsModel = SurfaceComponentsModel(components: [
+      "root": ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: ["children": .array([.string("p1")])]
+      ),
+      "p1": ComponentModel(
+        id: "p1",
+        type: "Container",
+        properties: ["children": .array([.string("leaf")])]
+      ),
+    ])
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: DataModel(),
+      actionHandler: incrementalHandler
+    )
+
+    let initialRoot = try #require(resolver.resolveTree())
+    let p1Node = try #require(initialRoot.children(for: "children").first)
+    #expect(p1Node.box.propsRevision == 0)
+
+    componentsModel.addComponent(
+      ComponentModel(id: "leaf", type: "Text", properties: ["text": .string("Leaf")])
+    )
+    _ = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 1)
+    #expect(p1Node.box.propsRevision == 1)
+    #expect(p1Node.children(for: "children").first?.string(for: "text") == "Leaf")
+
+    let cyclicLeaf = ComponentModel(
+      id: "leaf",
+      type: "Container",
+      properties: ["children": .array([.string("p1")])]
+    )
+    componentsModel.addComponent(cyclicLeaf)
+    let incrementalRoot = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 1)
+    #expect(p1Node.box.propsRevision == 2)
+
+    let fullHandler = ExpressionErrorCaptureHandler()
+    let fullResolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: [
+        "root": try #require(componentsModel.get("root")),
+        "p1": try #require(componentsModel.get("p1")),
+        "leaf": cyclicLeaf,
+      ]),
+      dataModel: DataModel(),
+      actionHandler: fullHandler
+    )
+    let fullRoot = try #require(fullResolver.resolveTree())
+    #expect(incrementalRoot == fullRoot)
+    #expect(
+      genericErrors(incrementalHandler).map(\.code) == genericErrors(fullHandler).map(\.code)
+    )
+  }
+
+  @Test func incrementalBatchNewSiblingReferenceAndChildArrivalPatchesExistingParent() throws {
+    let catalog = try makeCatalog()
+    let componentsModel = SurfaceComponentsModel(components: [
+      "root": ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: ["children": .array([.string("a"), .string("wrapper")])]
+      ),
+      "a": ComponentModel(id: "a", type: "Container", properties: [:]),
+      "wrapper": ComponentModel(
+        id: "wrapper",
+        type: "Container",
+        properties: ["child": .string("b")]
+      ),
+    ])
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: DataModel()
+    )
+
+    let root = try #require(resolver.resolveTree())
+    let wrapperBefore = try #require(root.children(for: "children").last)
+    #expect(wrapperBefore.child(for: "child")?.state == .pending)
+
+    componentsModel.addComponent(
+      ComponentModel(id: "a", type: "Container", properties: ["child": .string("b")])
+    )
+    componentsModel.addComponent(
+      ComponentModel(id: "b", type: "Text", properties: ["text": .string("Hello")])
+    )
+
+    let updatedRoot = try #require(resolver.resolveTree())
+    let aAfter = try #require(updatedRoot.children(for: "children").first)
+    let wrapperAfter = try #require(updatedRoot.children(for: "children").last)
+    let aChild = try #require(aAfter.child(for: "child"))
+    let wrapperChild = try #require(wrapperAfter.child(for: "child"))
+    #expect(aChild.state == .resolved)
+    #expect(wrapperChild.state == .resolved)
+    #expect(wrapperChild.string(for: "text") == "Hello")
+    #expect(aChild.box === wrapperChild.box)
+  }
+
+  @Test func incrementalFormerlySharedChildUsesLiveVisitedOnTypeAndPropertyChanges() throws {
+    let catalog = try makeCatalog()
+    let incrementalHandler = ExpressionErrorCaptureHandler()
+    let componentsModel = SurfaceComponentsModel(components: [
+      "root": ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: ["children": .array([.string("p1"), .string("p2")])]
+      ),
+      "p1": ComponentModel(
+        id: "p1",
+        type: "Container",
+        properties: ["children": .array([.string("shared")])]
+      ),
+      "p2": ComponentModel(
+        id: "p2",
+        type: "Container",
+        properties: ["children": .array([.string("shared")])]
+      ),
+      "shared": ComponentModel(
+        id: "shared",
+        type: "Text",
+        properties: ["text": .string("Initial")]
+      ),
+    ])
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: DataModel(),
+      actionHandler: incrementalHandler
+    )
+
+    let initialRoot = try #require(resolver.resolveTree())
+    let p1Node = try #require(initialRoot.children(for: "children").first)
+    #expect(p1Node.box.propsRevision == 0)
+
+    componentsModel.addComponent(
+      ComponentModel(id: "p2", type: "Container", properties: ["children": .array([])])
+    )
+    _ = try #require(resolver.resolveTree())
+
+    componentsModel.addComponent(
+      ComponentModel(
+        id: "shared",
+        type: "Container",
+        properties: ["children": .array([.string("p2")])]
+      )
+    )
+    let acyclicRoot = try #require(resolver.resolveTree())
+    #expect(resolver.lastResolvedNodeCount == 2)
+    #expect(p1Node.box.propsRevision == 1)
+    #expect(genericErrors(incrementalHandler).isEmpty)
+
+    let acyclicFullResolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: componentsModel.components),
+      dataModel: DataModel()
+    )
+    #expect(acyclicRoot == acyclicFullResolver.resolveTree())
+
+    componentsModel.addComponent(
+      ComponentModel(
+        id: "shared",
+        type: "Container",
+        properties: ["children": .array([.string("p1")])]
+      )
+    )
+    let cyclicRoot = try #require(resolver.resolveTree())
+    #expect(genericErrors(incrementalHandler).map(\.code) == ["CYCLIC_REFERENCE"])
+
+    let cyclicFullHandler = ExpressionErrorCaptureHandler()
+    let cyclicFullResolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: componentsModel.components),
+      dataModel: DataModel(),
+      actionHandler: cyclicFullHandler
+    )
+    #expect(cyclicRoot == cyclicFullResolver.resolveTree())
+    #expect(
+      genericErrors(incrementalHandler).map(\.code) == genericErrors(cyclicFullHandler).map(\.code)
+    )
+  }
+
+  @Test func incrementalCycleCloserReResolvesWhenCycleBreaks() throws {
+    let catalog = try makeCatalog()
+    let componentsModel = SurfaceComponentsModel(components: [
+      "root": ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: ["children": .array([.string("b1"), .string("b2"), .string("a")])]
+      ),
+      "b1": ComponentModel(
+        id: "b1",
+        type: "Container",
+        properties: ["children": .array([.string("closer")])]
+      ),
+      "b2": ComponentModel(
+        id: "b2",
+        type: "Container",
+        properties: ["children": .array([.string("closer")])]
+      ),
+      "a": ComponentModel(
+        id: "a",
+        type: "Container",
+        properties: ["children": .array([.string("mid")])]
+      ),
+      "mid": ComponentModel(
+        id: "mid",
+        type: "Container",
+        properties: ["children": .array([.string("closer")])]
+      ),
+      "closer": ComponentModel(
+        id: "closer",
+        type: "Container",
+        properties: ["children": .array([.string("a")])]
+      ),
+    ])
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: DataModel()
+    )
+
+    let initialRoot = try #require(resolver.resolveTree())
+    let b1Initial = try #require(initialRoot.children(for: "children").first)
+    let closerInitial = try #require(b1Initial.children(for: "children").first)
+    #expect(closerInitial.children(for: "children").first?.state == .cyclic)
+
+    // Breaking the cycle at `mid` while two non-cyclic parents (`b1`, `b2`) still reference
+    // `closer` must re-resolve `closer` from `.cyclic` to `.resolved`.
+    componentsModel.addComponent(
+      ComponentModel(id: "mid", type: "Container", properties: ["children": .array([])])
+    )
+    let afterMidBreak = try #require(resolver.resolveTree())
+    let fullAfterMidBreak = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: componentsModel.components),
+      dataModel: DataModel()
+    )
+    #expect(afterMidBreak == fullAfterMidBreak.resolveTree())
+
+    // Re-closing the cycle and then changing `a` to a leaf `Text` must also re-resolve `closer`.
+    componentsModel.addComponent(
+      ComponentModel(
+        id: "mid",
+        type: "Container",
+        properties: ["children": .array([.string("closer")])]
+      )
+    )
+    _ = try #require(resolver.resolveTree())
+
+    componentsModel.addComponent(
+      ComponentModel(id: "a", type: "Text", properties: ["text": .string("Leaf A")])
+    )
+    let afterTargetLeaf = try #require(resolver.resolveTree())
+    let fullAfterTargetLeaf = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: componentsModel.components),
+      dataModel: DataModel()
+    )
+    #expect(afterTargetLeaf == fullAfterTargetLeaf.resolveTree())
+  }
+
+  @Test func incrementalBatchSharedAncestorDisconnectAndDescendantChanges() throws {
+    let catalog = try makeCatalog()
+    let componentsModel = SurfaceComponentsModel(components: [
+      "root": ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: ["children": .array([.string("p2"), .string("p1")])]
+      ),
+      "p2": ComponentModel(
+        id: "p2",
+        type: "Container",
+        properties: ["children": .array([.string("s")])]
+      ),
+      "p1": ComponentModel(
+        id: "p1",
+        type: "Container",
+        properties: ["children": .array([.string("s")])]
+      ),
+      "s": ComponentModel(
+        id: "s",
+        type: "Container",
+        properties: ["children": .array([.string("leaf")])]
+      ),
+    ])
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: DataModel()
+    )
+
+    let initialRoot = try #require(resolver.resolveTree())
+    let p1Initial = try #require(initialRoot.children(for: "children").last)
+    let sInitial = try #require(p1Initial.children(for: "children").first)
+    #expect(sInitial.children(for: "children").first?.state == .pending)
+
+    // Disconnecting `p2` from `s` in the same batch that `leaf` arrives must still resolve `leaf`
+    // and patch `s` even though `p1` hits the cache fast path on `s`.
+    componentsModel.addComponent(
+      ComponentModel(id: "p2", type: "Container", properties: ["children": .array([])])
+    )
+    componentsModel.addComponent(
+      ComponentModel(id: "leaf", type: "Text", properties: ["text": .string("Arrived")])
+    )
+    let afterArrival = try #require(resolver.resolveTree())
+    let fullAfterArrival = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: componentsModel.components),
+      dataModel: DataModel()
+    )
+    #expect(afterArrival == fullAfterArrival.resolveTree())
+
+    // Re-share `s` under `p2`, then disconnect `p2` in the same batch that `leaf` changes type.
+    componentsModel.addComponent(
+      ComponentModel(id: "p2", type: "Container", properties: ["children": .array([.string("s")])])
+    )
+    _ = try #require(resolver.resolveTree())
+
+    componentsModel.addComponent(
+      ComponentModel(id: "p2", type: "Container", properties: ["children": .array([])])
+    )
+    componentsModel.addComponent(
+      ComponentModel(id: "leaf", type: "Container", properties: ["children": .array([])])
+    )
+    let afterTypeChange = try #require(resolver.resolveTree())
+    let fullAfterTypeChange = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: componentsModel.components),
+      dataModel: DataModel()
+    )
+    #expect(afterTypeChange == fullAfterTypeChange.resolveTree())
+
+    // Re-share `s` under `p2`, then disconnect `p2` in the same batch that `leaf` is removed.
+    componentsModel.addComponent(
+      ComponentModel(id: "p2", type: "Container", properties: ["children": .array([.string("s")])])
+    )
+    _ = try #require(resolver.resolveTree())
+
+    componentsModel.addComponent(
+      ComponentModel(id: "p2", type: "Container", properties: ["children": .array([])])
+    )
+    componentsModel.removeComponent("leaf")
+    let afterRemoval = try #require(resolver.resolveTree())
+    let fullAfterRemoval = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: componentsModel.components),
+      dataModel: DataModel()
+    )
+    #expect(afterRemoval == fullAfterRemoval.resolveTree())
+  }
+
+  @Test func incrementalThreeParentSharedContainerDropsOneParentAndReferencesIt() throws {
+    let catalog = try makeCatalog()
+    let incrementalHandler = ExpressionErrorCaptureHandler()
+    let componentsModel = SurfaceComponentsModel(components: [
+      "root": ComponentModel(
+        id: "root",
+        type: "Container",
+        properties: ["children": .array([.string("p1"), .string("p3"), .string("p2")])]
+      ),
+      "p1": ComponentModel(
+        id: "p1",
+        type: "Container",
+        properties: ["children": .array([.string("shared")])]
+      ),
+      "p3": ComponentModel(
+        id: "p3",
+        type: "Container",
+        properties: ["children": .array([.string("shared")])]
+      ),
+      "p2": ComponentModel(
+        id: "p2",
+        type: "Container",
+        properties: ["children": .array([.string("shared")])]
+      ),
+      "shared": ComponentModel(
+        id: "shared",
+        type: "Container",
+        properties: ["children": .array([])]
+      ),
+    ])
+    let resolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: componentsModel,
+      dataModel: DataModel(),
+      actionHandler: incrementalHandler
+    )
+
+    _ = try #require(resolver.resolveTree())
+
+    componentsModel.addComponent(
+      ComponentModel(id: "p2", type: "Container", properties: ["children": .array([])])
+    )
+    _ = try #require(resolver.resolveTree())
+
+    componentsModel.addComponent(
+      ComponentModel(
+        id: "shared",
+        type: "Container",
+        properties: ["children": .array([.string("p2")])]
+      )
+    )
+    let updatedRoot = try #require(resolver.resolveTree())
+    #expect(genericErrors(incrementalHandler).isEmpty)
+
+    let fullResolver = NodeResolver(
+      surfaceID: "s1",
+      catalogs: [catalog.id: catalog],
+      defaultCatalogID: catalog.id,
+      componentsModel: SurfaceComponentsModel(components: componentsModel.components),
+      dataModel: DataModel()
+    )
+    #expect(updatedRoot == fullResolver.resolveTree())
+  }
+}
+
+@MainActor
+private final class ObservationCounterBox {
+  private(set) var count = 0
+
+  nonisolated func increment() {
+    MainActor.assumeIsolated {
+      count += 1
+    }
+  }
+}
+
+private func genericErrors(_ handler: ExpressionErrorCaptureHandler) -> [GenericError] {
+  handler.capturedErrors.compactMap { error in
+    guard case .generic(let genericError) = error else { return nil }
+    return genericError
+  }
 }
 
 private final class ExpressionErrorCaptureHandler: ActionHandling, @unchecked Sendable {
+  var capturedActions: [ResolvedAction] = []
   var capturedErrors: [RendererError] = []
 
-  func handle(action: ResolvedAction, from surfaceID: String) {}
+  func handle(action: ResolvedAction, from surfaceID: String) {
+    capturedActions.append(action)
+  }
 
   func handle(error: RendererError, from surfaceID: String) {
     capturedErrors.append(error)

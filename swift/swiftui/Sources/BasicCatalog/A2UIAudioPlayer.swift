@@ -14,7 +14,6 @@
 
 import A2UICore
 import A2UISwiftUI
-@preconcurrency import AVFoundation
 import BasicCatalog
 import OrderedJSON
 import SwiftUI
@@ -30,133 +29,19 @@ extension BasicCatalogImplementation {
   }
 }
 
-// MARK: - View Model
-
-/// Observable controller managing native audio playback, scrubbing, and time synchronization.
-@MainActor
-final class AudioPlayerModel: ObservableObject {
-  @Published var isPlaying = false
-  @Published var currentTime: Double = 0
-  @Published var duration: Double = 0
-  @Published var isScrubbing = false
-  @Published var scrubValue: Double = 0
-
-  private var player: AVPlayer?
-  private var timeObserverToken: Any?
-  private var itemEndObserver: (any NSObjectProtocol)?
-  private var currentURLString: String = ""
-
-  func load(urlString: String) {
-    guard urlString != currentURLString else { return }
-    cleanup()
-    currentURLString = urlString
-    guard let url = URL(string: urlString), !urlString.isEmpty else { return }
-
-    let playerItem = AVPlayerItem(url: url)
-    let newPlayer = AVPlayer(playerItem: playerItem)
-    self.player = newPlayer
-
-    // Periodic time observer to update current playback time and duration
-    let interval = CMTime(seconds: 0.25, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
-    timeObserverToken = newPlayer.addPeriodicTimeObserver(forInterval: interval, queue: .main) {
-      [weak self] time in
-      MainActor.assumeIsolated {
-        guard let self else { return }
-        if !self.isScrubbing {
-          let seconds = CMTimeGetSeconds(time)
-          if seconds.isFinite && seconds >= 0 {
-            self.currentTime = seconds
-          }
-        }
-        if let itemDuration = self.player?.currentItem?.duration {
-          let durSeconds = CMTimeGetSeconds(itemDuration)
-          if durSeconds.isFinite && durSeconds > 0 {
-            self.duration = durSeconds
-          }
-        }
-      }
-    }
-
-    // Reset playback when the track finishes
-    itemEndObserver = NotificationCenter.default.addObserver(
-      forName: .AVPlayerItemDidPlayToEndTime,
-      object: playerItem,
-      queue: .main
-    ) { [weak self] _ in
-      MainActor.assumeIsolated {
-        guard let self else { return }
-        self.isPlaying = false
-        self.currentTime = 0
-        self.player?.seek(to: .zero)
-      }
-    }
-  }
-
-  func togglePlay() {
-    guard let player else {
-      if !currentURLString.isEmpty {
-        let url = currentURLString
-        currentURLString = ""
-        load(urlString: url)
-        togglePlay()
-      }
-      return
-    }
-
-    if isPlaying {
-      player.pause()
-      isPlaying = false
-    } else {
-      if duration > 0 && currentTime >= duration {
-        player.seek(to: .zero)
-        currentTime = 0
-      }
-      player.play()
-      isPlaying = true
-    }
-  }
-
-  func onScrubStart() {
-    isScrubbing = true
-    scrubValue = currentTime
-  }
-
-  func onScrubChange(_ value: Double) {
-    scrubValue = value
-  }
-
-  func onScrubEnd(_ value: Double) {
-    isScrubbing = false
-    currentTime = value
-    let targetTime = CMTime(seconds: value, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
-    player?.seek(to: targetTime, toleranceBefore: .zero, toleranceAfter: .zero)
-  }
-
-  func cleanup() {
-    if let token = timeObserverToken {
-      player?.removeTimeObserver(token)
-      timeObserverToken = nil
-    }
-    if let observer = itemEndObserver {
-      NotificationCenter.default.removeObserver(observer)
-      itemEndObserver = nil
-    }
-    player?.pause()
-    player = nil
-    isPlaying = false
-    currentTime = 0
-    duration = 0
-    currentURLString = ""
-  }
-}
+// MARK: - View
 
 /// SwiftUI component view for the A2UI Basic Catalog `AudioPlayer` component.
 public struct A2UIAudioPlayer: View {
   public let node: Node
-  @StateObject private var model = AudioPlayerModel()
+  @State private var model: A2UIAudioPlayerModel
 
-  public init(node: Node) {
+  public init(
+    node: Node,
+    model: A2UIAudioPlayerModel = A2UIAudioPlayerModel()
+  ) {
     self.node = node
+    self._model = State(initialValue: model)
   }
 
   private var urlString: String {
@@ -188,13 +73,7 @@ public struct A2UIAudioPlayer: View {
 
         VStack(spacing: 2) {
           Slider(
-            value: Binding(
-              get: {
-                let val = model.isScrubbing ? model.scrubValue : model.currentTime
-                return min(max(0, val), max(0.1, model.duration))
-              },
-              set: { model.onScrubChange($0) }
-            ),
+            value: $model.displayTime,
             in: 0...max(0.1, model.duration),
             onEditingChanged: { editing in
               if editing {
@@ -209,13 +88,13 @@ public struct A2UIAudioPlayer: View {
 
           HStack {
             Text(formatTime(model.isScrubbing ? model.scrubValue : model.currentTime))
-              .font(.caption2.monospacedDigit())
+              .font(.caption.monospacedDigit())
               .foregroundStyle(.secondary)
 
             Spacer()
 
             Text(formatTime(model.duration))
-              .font(.caption2.monospacedDigit())
+              .font(.caption.monospacedDigit())
               .foregroundStyle(.secondary)
           }
         }
@@ -223,18 +102,17 @@ public struct A2UIAudioPlayer: View {
     }
     .padding(12)
     .background(Color.gray.opacity(0.12))
-    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    .clipShape(.rect(cornerRadius: 10))
     .frame(maxWidth: .infinity)
-    .accessibilityIdentifier("A2UIAudioPlayer_\(node.id)")
     .onAppear {
       model.load(urlString: urlString)
     }
     .a2uiAccessibilityElement(for: node, children: .contain)
-    .onChange(of: urlString) { newURL in
+    .onChange(of: urlString) { _, newURL in
       model.load(urlString: newURL)
     }
     .onDisappear {
-      model.cleanup()
+      model.cleanUp()
     }
   }
 

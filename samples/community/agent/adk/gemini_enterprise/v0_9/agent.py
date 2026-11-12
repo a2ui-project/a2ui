@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections import OrderedDict
 from collections.abc import AsyncIterable
 import json
 import logging
@@ -27,9 +26,10 @@ from a2a.types import (
     TextPart,
 )
 from a2ui.a2a import get_a2ui_agent_extension
-from a2ui.a2a import parse_response_to_parts, stream_response_to_parts
+from a2ui.a2a import stream_response_to_parts, to_a2a_parts
 from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
 from a2ui.core.schema import ProtocolVersion
+from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
 from a2ui.parser import A2uiPart
 from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
 from a2ui.utils import to_version_number
@@ -86,8 +86,6 @@ class A2uiDemoAgent:
                 examples_path=f"examples/{to_version_number(A2UI_VERSION)}",
             )
         )
-        self._parsers = OrderedDict()
-        self._max_parsers = 1000  # Max active sessions to keep in memory
 
         self._agent_card = self._build_agent_card()
 
@@ -100,7 +98,10 @@ class A2uiDemoAgent:
             catalog_path=COMPOSITE_CATALOG_PATH,
             protocol_version=A2UI_VERSION,
         )
-        return A2uiGenerator([config])
+        return A2uiGenerator(
+            [config],
+            inference_format_factory=DirectJsonFormatFactory(),
+        )
 
     def _build_processor(self, generator: A2uiGenerator) -> A2uiRequestProcessor:
         return generator.create_processor({
@@ -205,7 +206,12 @@ class A2uiDemoAgent:
             )
             if examples:
                 prompt_parts.append(f"### Examples:\n{examples}")
-            instruction = "\n\n".join(prompt_parts)
+            instruction_text = "\n\n".join(prompt_parts)
+            # ADK reads `{name}` session state templates out of a string
+            # instruction, and the A2UI prompt holds braces that are not state
+            # keys (`${expression}`, data bindings). A callable instruction is
+            # used as it is.
+            instruction = lambda _ctx: instruction_text
         else:
             instruction = get_text_prompt()
 
@@ -227,7 +233,7 @@ class A2uiDemoAgent:
         ui_version: str | None = None,
         use_streaming: bool = True,
     ) -> AsyncIterable[dict[str, Any]]:
-        session_state = {"base_url": self.base_url, "expression": "{expression}"}
+        session_state = {"base_url": self.base_url}
 
         # Always use UI version 0.9
         ui_version = A2UI_VERSION
@@ -331,25 +337,32 @@ class A2uiDemoAgent:
 
             full_content_list = []
             parts_streamed = False
+            is_valid = False
+            error_message = ""
+            stream_failed = False
 
             if processor and selected_catalog:
-                if session_id in self._parsers:
-                    self._parsers.move_to_end(session_id)
-                else:
-                    self._parsers[session_id] = processor.create_parser()
-                    if len(self._parsers) > self._max_parsers:
-                        self._parsers.popitem(last=False)
-
-                async for part in stream_response_to_parts(
-                    self._parsers[session_id],
-                    token_stream(current_message, full_content_list),
-                    version=ui_version,
-                ):
-                    parts_streamed = True
-                    yield {
-                        "is_task_complete": False,
-                        "parts": [part],
-                    }
+                try:
+                    async for part in stream_response_to_parts(
+                        processor.open_stream(),
+                        token_stream(current_message, full_content_list),
+                        version=ui_version,
+                    ):
+                        parts_streamed = True
+                        yield {
+                            "is_task_complete": False,
+                            "parts": [part],
+                        }
+                except ValueError as e:
+                    # The stream ends at the first block it rejects, so the
+                    # rest of the response is not read, and the request is
+                    # retried below.
+                    logger.warning(
+                        f"--- A2uiDemoAgent.stream: A2UI stream failed: {e}"
+                        f" (Attempt {attempt}) ---"
+                    )
+                    error_message = f"Validation failed: {e}."
+                    stream_failed = True
             else:
                 async for token in token_stream(current_message, full_content_list):
                     yield {
@@ -358,11 +371,11 @@ class A2uiDemoAgent:
                     }
 
             final_response_content = "".join(full_content_list)
+            response_parts = None
 
-            is_valid = False
-            error_message = ""
-
-            if ui_version and processor:
+            if stream_failed:
+                pass  # Logged above; the request is retried below.
+            elif ui_version and processor:
                 logger.info(
                     "--- A2uiDemoAgent.stream: Validating UI response (Attempt"
                     f" {attempt})... ---"
@@ -404,9 +417,12 @@ class A2uiDemoAgent:
                     "--- A2uiDemoAgent.stream: Response is valid. Sending final"
                     f" response (Attempt {attempt}). ---"
                 )
-                final_parts = parse_response_to_parts(
-                    final_response_content, fallback_text="OK.", version=ui_version
-                )
+                if response_parts is not None:
+                    final_parts = to_a2a_parts(response_parts, ui_version)
+                elif final_response_content:
+                    final_parts = [Part(root=TextPart(text=final_response_content))]
+                else:
+                    final_parts = [Part(root=TextPart(text="OK."))]
 
                 # Always include the full parts in the final message. Even when
                 # streaming working chunks, many A2UI clients only render the

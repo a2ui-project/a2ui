@@ -38,9 +38,10 @@
  */
 
 import type React from 'react';
-import {memo, useCallback, useEffect, useMemo, useSyncExternalStore} from 'react';
+import {createContext, memo, useCallback, useContext, useEffect, useMemo, useRef} from 'react';
 import {createPortal} from 'react-dom';
 import {
+  type A2uiMetadata,
   type ComponentContext,
   type ComponentNode,
   isComponentNode,
@@ -52,16 +53,48 @@ import {
   type NodeProps,
   type Signal,
   type SurfaceModel,
-} from '@a2ui/web_core/v0_9';
+} from '@a2ui/web_core';
+import {HostOwner, HostRegistry} from './host_registry';
+import {HostedMarkdown} from './markdown_hosts';
 import type {
   NodeBuildChild,
   ReactCatalogComponent,
   ReactComponentImplementation,
+  ReactRenderProps,
 } from './react_component_implementation';
+import {useSyncExternalStore} from './use_sync_external_store';
 import {WebComponentNode} from './web_component_node';
-import {HostOwner, HostRegistry} from './host_registry';
 
-/** The context of a node a host renders. */
+export const SurfaceContext = createContext<SurfaceModel<ReactCatalogComponent> | undefined>(
+  undefined,
+);
+
+/**
+ * Returns the enclosing {@link SurfaceModel} when called inside an
+ * {@link A2uiSurface} tree, or `undefined` outside one.
+ */
+export function useA2uiSurface(): SurfaceModel<ReactCatalogComponent> | undefined {
+  return useContext(SurfaceContext);
+}
+
+/**
+ * Returns the enclosing {@link SurfaceModel} from {@link SurfaceContext},
+ * falling back to `node.context` when rendered outside an `A2uiSurface`.
+ */
+export function useSurface(
+  node?: ComponentNode<ReactCatalogComponent>,
+): SurfaceModel<ReactCatalogComponent> {
+  const surface = useContext(SurfaceContext);
+  if (surface) {
+    return surface;
+  }
+  if (node) {
+    return contextOf(node).dataContext.surface as SurfaceModel<ReactCatalogComponent>;
+  }
+  throw new Error('A2UI node views must be rendered inside an <A2uiSurface>.');
+}
+
+/** The context of a node, for the deprecated `render` and `context` prop paths. */
 function contextOf(node: ComponentNode): ComponentContext {
   if (!node.context) {
     throw new Error(`A2UI views render only resolved nodes; '${node.componentId}' has no context.`);
@@ -69,21 +102,16 @@ function contextOf(node: ComponentNode): ComponentContext {
   return node.context;
 }
 
-/** Stands in for a component that has not arrived, or has just been removed. */
-export const LoadingPlaceholder: React.FC<{componentId: string}> = ({componentId}) => (
-  <div style={{color: 'gray', padding: '4px'}}>[Loading {componentId}...]</div>
-);
-
 /** Unresolved-reference reports already dispatched, per surface. */
 const reportedUnresolved = new WeakMap<SurfaceModel<ReactCatalogComponent>, Set<string>>();
 
 /**
- * The in-tree notice for a child reference the resolver built no node for.
- * Also reports it through the surface's error channel once per (id, path)
- * so agents see it too, matching how the resolver reports unknown types and
- * cycles. The report runs in an effect: dispatching during render would
- * invoke onError subscribers while React is rendering, and a subscriber
- * that sets state would then warn.
+ * Stands in for a child reference the resolver built no node for. It renders
+ * nothing, like the other unresolved states, and reports the reference
+ * through the surface's error channel once per (id, path), as the resolver
+ * does for unknown types and cycles. The report runs in an effect:
+ * dispatching during render would invoke onError subscribers while React is
+ * rendering, and a subscriber that sets state would then warn.
  */
 export const UnresolvedChildReference: React.FC<{
   surface: SurfaceModel<ReactCatalogComponent>;
@@ -104,7 +132,7 @@ export const UnresolvedChildReference: React.FC<{
       void surface.dispatchError({code: 'UNRESOLVED_CHILD_REFERENCE', message});
     }
   }, [surface, id, requestedPath, message]);
-  return <div style={{color: 'red'}}>{message}</div>;
+  return null;
 };
 
 export function useSignalValue<T>(signal: Signal<T>): T {
@@ -209,13 +237,60 @@ export function useNodeView(
   buildChild: NodeBuildChild,
 ): {
   viewProps: NodeProps;
+  metadata: A2uiMetadata | undefined;
+  metadataSnapshot: A2uiMetadata | undefined;
+  hasReadMetadata: () => boolean;
   context: ComponentContext;
   viewBuildChild: (id: string, basePath?: string) => React.ReactNode;
   rawBuildChild: (id: string, basePath?: string) => React.ReactNode;
 } {
-  const context = contextOf(node);
-  const surface = context.dataContext.surface as SurfaceModel<ReactCatalogComponent>;
+  const baseContext = contextOf(node);
+  const surface = useSurface(node as ComponentNode<ReactCatalogComponent>);
   const resolved = useSignalValue(node.props);
+  const metadataReadRef = useRef(false);
+  const subscribeMetadata = useCallback(
+    (onChange: () => void) =>
+      effect(() => {
+        getValue(node.metadata);
+        if (metadataReadRef.current) {
+          onChange();
+        }
+      }),
+    [node.metadata],
+  );
+  const getMetadataSnapshot = useCallback(() => peekValue(node.metadata), [node.metadata]);
+  const metadataSnapshot = useSyncExternalStore(subscribeMetadata, getMetadataSnapshot);
+  const hasReadMetadata = useCallback(() => metadataReadRef.current, []);
+
+  const context = useMemo(() => {
+    const baseModel = baseContext.componentModel;
+    const trackedModel = new Proxy(baseModel, {
+      get(target, prop) {
+        if (prop === 'metadata') {
+          metadataReadRef.current = true;
+          return peekValue(node.metadata);
+        }
+        if (prop === 'extensions') {
+          metadataReadRef.current = true;
+          return peekValue(node.metadata)?.extensions;
+        }
+        const value = Reflect.get(target, prop, target);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+      set(target, prop, value) {
+        return Reflect.set(target, prop, value, target);
+      },
+    });
+    return new Proxy(baseContext, {
+      get(target, prop) {
+        if (prop === 'componentModel') {
+          return trackedModel;
+        }
+        const value = Reflect.get(target, prop, target);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+  }, [baseContext, node.metadata]);
 
   const {viewProps, childIndex} = useMemo(() => {
     const index: ChildIndex = new Map();
@@ -262,7 +337,30 @@ export function useNodeView(
     [buildChild, rawBuildChild, childIndex],
   );
 
-  return {viewProps, context, viewBuildChild, rawBuildChild};
+  const result = {
+    viewProps,
+    metadataSnapshot,
+    hasReadMetadata,
+    context,
+    viewBuildChild,
+    rawBuildChild,
+  } as {
+    viewProps: NodeProps;
+    metadata: A2uiMetadata | undefined;
+    metadataSnapshot: A2uiMetadata | undefined;
+    hasReadMetadata: () => boolean;
+    context: ComponentContext;
+    viewBuildChild: (id: string, basePath?: string) => React.ReactNode;
+    rawBuildChild: (id: string, basePath?: string) => React.ReactNode;
+  };
+  Object.defineProperty(result, 'metadata', {
+    enumerable: true,
+    get() {
+      metadataReadRef.current = true;
+      return peekValue(node.metadata);
+    },
+  });
+  return result;
 }
 
 /** Renders an implementation that has no `view`: its wrapper binds itself. */
@@ -273,42 +371,55 @@ const RenderFallback: React.FC<{
 }> = ({node, impl, buildChild}) => {
   // `render` reads raw component ids from the model, not the tokens the
   // conversion puts in view props, so it resolves through the raw-id map.
-  const {context, rawBuildChild} = useNodeView(node, buildChild);
+  const viewState = useNodeView(node, buildChild);
   const Render = impl.render;
-  return <Render context={context} buildChild={rawBuildChild} />;
+  const renderProps = {
+    context: viewState.context,
+    buildChild: viewState.rawBuildChild,
+  } as ReactRenderProps;
+  Object.defineProperty(renderProps, 'metadata', {
+    enumerable: true,
+    get: () => viewState.metadata,
+  });
+  return Render(renderProps);
 };
 
 /**
- * Renders a node as its implementation's custom element. A node that has not
- * arrived renders a `LoadingPlaceholder`; one of an unknown type renders an
- * inline error.
+ * Renders a node as its implementation's custom element. A pending,
+ * unknown-type or cyclic node renders nothing: the resolver has already
+ * reported unknown types and cycles to the surface, and a pending node is
+ * replaced in place when its component arrives.
  */
 export const ChildElement = memo(({node}: {node: ComponentNode<ReactCatalogComponent>}) => {
+  const ambientSurface = useContext(SurfaceContext);
   const owner = useMemo(() => new HostOwner(), []);
-  if (node.state === 'unknown-type') {
-    return <div style={{color: 'red'}}>Unknown component type: {node.type}</div>;
+  if (node.isPlaceholder || !node.impl) {
+    return null;
   }
-  if (node.isPlaceholder || !node.impl || !node.context) {
-    return <LoadingPlaceholder componentId={node.componentId} />;
-  }
+  const surface =
+    ambientSurface ?? (contextOf(node).dataContext.surface as SurfaceModel<ReactCatalogComponent>);
+  owner.surface = surface;
   if ('render' in node.impl) {
     // A React implementation: its host is React's own element, so its content
     // is simply the element's children.
     return (
-      <WebComponentNode node={node} owner={owner}>
-        <NodeContent node={node} />
-      </WebComponentNode>
+      <>
+        <WebComponentNode node={node} owner={owner}>
+          <NodeContent node={node} />
+        </WebComponentNode>
+        <HostedMarkdown owner={owner} />
+      </>
     );
   }
   // A Web Component renders its own children, among them React hosts that
   // React did not create. They register under this element, and their
   // content is portaled from here, inside whatever the parent view wraps
   // this element in.
-  const surface = node.context.dataContext.surface as SurfaceModel<ReactCatalogComponent>;
   return (
     <>
       <WebComponentNode node={node} owner={owner} />
       <HostedChildren surface={surface} owner={owner} />
+      <HostedMarkdown owner={owner} />
     </>
   );
 });
@@ -342,7 +453,7 @@ export const HostedChildren: React.FC<{
  * leaves existing portals alone.
  */
 export const NodeContent = memo(({node}: {node: ComponentNode<ReactCatalogComponent>}) => {
-  const surface = contextOf(node).dataContext.surface as SurfaceModel<ReactCatalogComponent>;
+  const surface = useSurface(node);
 
   const buildChild = useCallback<NodeBuildChild>(
     (child, basePath) => {

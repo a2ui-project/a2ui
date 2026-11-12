@@ -67,6 +67,7 @@
 # --- Which catalogs become active ---
 
 - name: test_named_catalog_becomes_active
+  features: [F-AGT-17]
   description: The renderer names one of the two registered catalogs and only that one is active.
   action: resolve_catalogs
   args:
@@ -74,12 +75,13 @@
       - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
       - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
     renderer_capabilities:
-      "v1.0":
+      "1.0":
         supportedCatalogIds: ["conformance/simplified"]
   expect:
     active_catalog_ids: ["conformance/simplified"]
 
 - name: test_every_named_catalog_becomes_active
+  features: [F-AGT-17]
   description: A renderer that names both registered catalogs gets both, rather than the first match alone.
   action: resolve_catalogs
   args:
@@ -87,7 +89,7 @@
       - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
       - catalog: "test_data/catalogs/custom_catalog_v1_0.json"
     renderer_capabilities:
-      "v1.0":
+      "1.0":
         supportedCatalogIds: ["conformance/simplified", "conformance/custom"]
   expect:
     active_catalog_ids: ["conformance/simplified", "conformance/custom"]
@@ -98,25 +100,27 @@
         components: ["Chart", "Gauge"]
 
 - name: test_unknown_catalog_id_is_ignored
+  features: [F-AGT-17]
   description: An id the agent does not hold is passed over, and the ids it does hold still resolve.
   action: resolve_catalogs
   args:
     catalogs:
       - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     renderer_capabilities:
-      "v1.0":
+      "1.0":
         supportedCatalogIds: ["renderer/only", "conformance/simplified"]
   expect:
     active_catalog_ids: ["conformance/simplified"]
 
 - name: test_no_catalog_in_common_is_an_error
+  features: [F-AGT-17]
   description: A renderer that names nothing the agent holds leaves the session with no catalog, which fails.
   action: resolve_catalogs
   args:
     catalogs:
       - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     renderer_capabilities:
-      "v1.0":
+      "1.0":
         supportedCatalogIds: ["renderer/only"]
   expect_error:
     category: CatalogError
@@ -127,7 +131,7 @@
   args:
     catalogs: []
     renderer_capabilities:
-      "v1.0":
+      "1.0":
         supportedCatalogIds: ["conformance/simplified"]
   expect_error:
     category: CatalogError
@@ -139,7 +143,7 @@
     catalogs:
       - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     renderer_capabilities:
-      "v1.0":
+      "1.0":
         supportedCatalogIds: ["conformance/simplified", "conformance/simplified"]
   expect:
     active_catalog_ids: ["conformance/simplified"]
@@ -171,7 +175,7 @@
     catalogs:
       - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     renderer_capabilities:
-      "v1.0":
+      "1.0":
         supportedCatalogIds: []
   expect_error:
     category: CatalogError
@@ -179,6 +183,7 @@
 # --- Inline catalogs ---
 
 - name: test_inline_catalog_is_accepted
+  features: [F-AGT-17]
   description: An agent that accepts inline catalogs gains one active catalog per inline document.
   action: resolve_catalogs
   args:
@@ -186,7 +191,7 @@
       - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     accepts_inline_catalogs: true
     renderer_capabilities:
-      "v1.0":
+      "1.0":
         supportedCatalogIds: ["conformance/simplified"]
         inlineCatalogs:
           - catalogId: "renderer/inline"
@@ -207,13 +212,14 @@
         components: ["Marquee"]
 
 - name: test_inline_catalog_is_rejected
+  features: [F-AGT-17]
   description: An agent that does not accept inline catalogs drops them and resolves the named ids alone.
   action: resolve_catalogs
   args:
     catalogs:
       - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     renderer_capabilities:
-      "v1.0":
+      "1.0":
         supportedCatalogIds: ["conformance/simplified"]
         inlineCatalogs:
           - catalogId: "renderer/inline"
@@ -236,7 +242,7 @@
       - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     accepts_inline_catalogs: true
     renderer_capabilities:
-      "v1.0":
+      "1.0":
         supportedCatalogIds: []
         inlineCatalogs:
           - catalogId: "renderer/inline"
@@ -261,7 +267,7 @@
     catalogs:
       - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     renderer_capabilities:
-      "v1.0":
+      "1.0":
         supportedCatalogIds: []
         inlineCatalogs:
           - catalogId: "renderer/inline"
@@ -284,7 +290,7 @@
       - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     accepts_inline_catalogs: true
     renderer_capabilities:
-      "v1.0":
+      "1.0":
         supportedCatalogIds: ["conformance/simplified"]
         inlineCatalogs:
           - catalogId: "renderer/inline_one"
@@ -323,7 +329,7 @@
       - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     accepts_inline_catalogs: true
     renderer_capabilities:
-      "v1.0":
+      "1.0":
         supportedCatalogIds: ["conformance/simplified"]
         inlineCatalogs:
           - protocolVersion: "1.0"
@@ -345,7 +351,7 @@
       - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     accepts_inline_catalogs: true
     renderer_capabilities:
-      "v1.0":
+      "1.0":
         supportedCatalogIds: ["conformance/simplified"]
         inlineCatalogs:
           - catalogId: ""
@@ -366,7 +372,7 @@
       - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     accepts_inline_catalogs: false
     renderer_capabilities:
-      "v1.0":
+      "1.0":
         supportedCatalogIds: ["conformance/simplified"]
         inlineCatalogs:
           - components:
@@ -386,7 +392,7 @@
       - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     accepts_inline_catalogs: true
     renderer_capabilities:
-      "v1.0":
+      "1.0":
         supportedCatalogIds: ["conformance/simplified"]
         inlineCatalogs: ["conformance/simplified"]
   expect_error:
@@ -400,7 +406,7 @@
       - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
     accepts_inline_catalogs: false
     renderer_capabilities:
-      "v1.0":
+      "1.0":
         supportedCatalogIds: ["conformance/simplified"]
         inlineCatalogs: "conformance/simplified"
   expect_error:
@@ -409,6 +415,7 @@
 # --- Transformers ---
 
 - name: test_resolved_catalog_is_the_transformed_one
+  features: [F-AGT-17]
   description: A registration's transformers have already run on the catalog resolution returns.
   action: resolve_catalogs
   args:
@@ -418,7 +425,7 @@
           - component_pruning: ["Text", "Card"]
           - function_pruning: ["required"]
     renderer_capabilities:
-      "v1.0":
+      "1.0":
         supportedCatalogIds: ["conformance/simplified"]
   expect:
     active_catalog_ids: ["conformance/simplified"]
@@ -437,7 +444,7 @@
           - component_pruning: ["Text"]
     accepts_inline_catalogs: true
     renderer_capabilities:
-      "v1.0":
+      "1.0":
         supportedCatalogIds: ["conformance/simplified"]
         inlineCatalogs:
           - catalogId: "renderer/inline"
@@ -480,6 +487,7 @@
 # --- Malformed capabilities ---
 
 - name: test_capabilities_without_the_catalogs_version_are_invalid
+  features: [F-AGT-17]
   description: A capabilities object with no entry for the catalogs' protocol version is malformed rather than a statement of no preference.
   action: resolve_catalogs
   args:

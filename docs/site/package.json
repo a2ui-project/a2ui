@@ -1,0 +1,26 @@
+{
+  "name": "@a2ui/site",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "predev": "node scripts/prepare-spec-assets.mjs && node scripts/emit-markdown-bundle.mjs && node scripts/fetch-doc-assets.mjs",
+    "dev": "astro dev",
+    "test": "node tests/check-links.test.mjs && node tests/google-analytics.test.mjs && node tests/doc-assets.test.mjs",
+    "upload:asset": "node scripts/upload-doc-asset.mjs",
+    "verify:assets": "node scripts/upload-doc-asset.mjs --verify",
+    "fetch:assets": "node scripts/fetch-doc-assets.mjs",
+    "verify:specs": "node scripts/verify-spec-links.mjs",
+    "check:links": "node scripts/check-links.mjs",
+    "prebuild": "node scripts/prepare-spec-assets.mjs && node scripts/emit-markdown-bundle.mjs && node scripts/verify-spec-links.mjs && node scripts/upload-doc-asset.mjs --verify && node scripts/fetch-doc-assets.mjs",
+    "build": "astro build && node scripts/emit-markdown-bundle.mjs --dist && node scripts/verify-spec-links.mjs --check-dist && node scripts/check-links.mjs",
+    "check": "node scripts/prepare-spec-assets.mjs && node scripts/verify-spec-links.mjs && node scripts/upload-doc-asset.mjs --verify",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.32.0",
+    "astro": "^5.5.0",
+    "mermaid": "^11.12.0",
+    "sharp": "^0.33.5"
+  }
+}

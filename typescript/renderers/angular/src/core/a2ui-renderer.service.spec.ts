@@ -147,8 +147,8 @@ describe('A2uiRendererService', () => {
 
     it('should delegate processMessagesAsync to MessageProcessor', async () => {
       const spy = spyOn(service.processor, 'processMessagesAsync').and.resolveTo();
-      await service.processMessagesAsync({version: 'v1.0', messages: []});
-      expect(spy).toHaveBeenCalledWith({version: 'v1.0', messages: []});
+      await service.processMessagesAsync({version: '1.0', messages: []});
+      expect(spy).toHaveBeenCalledWith({version: '1.0', messages: []});
     });
 
     it('should delegate callAgentFunction to MessageProcessor', async () => {
@@ -260,5 +260,57 @@ describe('provideA2Ui', () => {
     for (const comp of customCatalog.components.values()) {
       expect(comp.component).toEqual(jasmine.any(Function));
     }
+  });
+
+  it('should forward processorOptions with unifiedOutbound and route surface actions to outboundListener', async () => {
+    const basicCat = new BasicCatalog();
+    const outboundMessages: unknown[] = [];
+    const actionHandler = jasmine.createSpy('actionHandler');
+    TestBed.configureTestingModule({
+      providers: [
+        provideA2Ui({
+          catalogs: [basicCat],
+          actionHandler,
+          processorOptions: {
+            outboundListener: msg => {
+              outboundMessages.push(msg);
+            },
+            unifiedOutbound: true,
+          },
+        }),
+      ],
+    });
+
+    const svc = TestBed.inject(A2uiRendererService);
+    svc.processMessages([
+      {
+        version: '1.0',
+        createSurface: {surfaceId: 's1', catalogId: basicCat.id},
+      },
+    ]);
+    await svc.surfaceGroup
+      .getSurface('s1')!
+      .dispatchAction({event: {name: 'click', context: {ok: true}}}, 'btn-1');
+
+    expect(outboundMessages.length).toBe(1);
+    expect(outboundMessages[0]).toEqual(
+      jasmine.objectContaining({
+        version: '1.0',
+        action: jasmine.objectContaining({
+          name: 'click',
+          surfaceId: 's1',
+          sourceComponentId: 'btn-1',
+          context: {ok: true},
+        }),
+      }),
+    );
+    expect(actionHandler).toHaveBeenCalledOnceWith(
+      jasmine.objectContaining({
+        name: 'click',
+        surfaceId: 's1',
+        sourceComponentId: 'btn-1',
+        context: {ok: true},
+      }),
+    );
   });
 });

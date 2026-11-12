@@ -1,6 +1,8 @@
 ---
 name: a2ui-issue-triage
 description: Automates the triage of GitHub issues in the A2UI repository. Helps the oncall engineer by fetching untriaged issues, generating AI-suggested priorities, assignees, and responses, launching a local review dashboard, and bulk-applying approved decisions to GitHub. Use when tasked with triaging new GitHub issues or managing the repository backlog.
+metadata:
+  internal: true
 ---
 
 # A2UI GitHub Issue Triage Skill
@@ -19,7 +21,7 @@ Follow these steps to triage new or backlog issues:
 
 ### Step 1: Fetch Untriaged Issues
 
-Use the fetch script to retrieve all open issues lacking a priority label (`P0`, `P1`, `P2`, `P3`, `P4`) in the A2UI repository.
+Use the fetch script to retrieve all open issues lacking a priority label (`P0`, `P1`, `P2`, `P3`) in the A2UI repository.
 
 1. Run the fetch script to download the issues to a raw JSON file in your conversation-specific scratch directory:
    `python3 .agents/skills/a2ui-issue-triage/scripts/fetch_issues.py --repo "a2ui-project/a2ui" --output-file "<appDataDir>/brain/<conversation-id>/scratch/raw_issues.json"`
@@ -30,9 +32,9 @@ Use the fetch script to retrieve all open issues lacking a priority label (`P0`,
 
 Process the raw issues and generate recommended triage fields based on the project's triage criteria.
 
-1. Read the triage criteria reference document: [triage_criteria.md](references/triage_criteria.md) and repository canonical templates: [triage-templates.md](../../../docs/contributing/triage-templates.md).
+1. Read the triage criteria reference document: [triage_criteria.md](references/triage_criteria.md) and repository canonical templates: [templates.md](../../../docs/contributing/triage/templates.md).
 2. For each issue in `raw_issues.json`, evaluate its description and comments to determine:
-   - **Priority**: `P0` (Urgent), `P1` (High), `P2` (Medium), `P3` (Low), `P4` (Unplanned/Out of Scope), or `None`. `P0` and `P1` require assignees.
+   - **Priority**: `P0` (Urgent), `P1` (High), `P2` (Medium), `P3` (Low), or `None`. `P0` and `P1` require assignees.
    - **Assignee**: Recommended owner based on the affected component or area.
    - **Action**: `investigate`, `assign_and_fix`, `needs_info`, `backlog`, `close_duplicate`, `close_invalid`, or `close_resolved`.
    - **Labels**: Applicable repository labels (e.g. `type: bug`, `component: lit renderer`, `status: first-line-handled`, `status: waiting-for-author-response`).
@@ -55,10 +57,12 @@ Launch the interactive web dashboard to allow the oncall engineer to review and 
 1. Start the local server as a background task, pointing it to your scratch directory:
    `python3 .agents/skills/a2ui-issue-triage/scripts/launch_dashboard.py --data-file "<appDataDir>/brain/<conversation-id>/scratch/issues_to_triage.json" --output-file "<appDataDir>/brain/<conversation-id>/scratch/triage_decisions.json"`
    Set `WaitMsBeforeAsync` to `1000` so the server runs in the background.
-2. **Wait for Completion**: Stop calling tools and go idle. The launcher will automatically open the browser for the user and block until they click "Apply Triages" or "Abort". Once the user acts, the background task will complete, and you will receive a notification with the exit status.
-3. **Verify Exit Status**:
-   - If the task exited with status `0` (approved), proceed to apply the decisions.
-   - If the task exited with a non-zero status (abort), don't modify any issues. You MUST STOP and ask the user for further instructions.
+2. **Iterative Batch Triage**: The dashboard supports reviewing and applying issues in batches directly from the UI (`Apply Batch`). As decisions are synced to GitHub in real time, the UI displays progress (`X / Y updates made`) and checkmarks next to items. The user can continue triaging remaining issues without closing the session.
+3. **Milestone Management**: The dashboard displays milestone dropdowns and badges, enabling adding, changing, or removing issues from milestones.
+4. **Wait for Completion**: When finished, the user clicks "Finish & Exit" or "Abort". Once the user acts, the background task will complete, and you will receive a notification with the exit status.
+5. **Verify Exit Status**:
+   - If the task exited with status `0` (approved), any remaining approved decisions are saved to the decisions file.
+   - If the task exited with a non-zero status (abort), you MUST STOP and ask the user for further instructions.
 
 ---
 

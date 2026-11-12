@@ -18,6 +18,7 @@ import 'package:flutter/material.dart';
 
 import '../../component_implementation.dart';
 import '../../component_props.dart';
+import 'check_hint.dart';
 import 'unbounded_width.dart';
 import 'write_back.dart';
 
@@ -53,6 +54,7 @@ Widget buildDateTimeInput(
     label: props.string('label'),
     onChanged: writerFor(context, props, 'value'),
     error: props.validationErrors.firstOrNull,
+    hint: checkHint(props),
   );
 }
 
@@ -71,6 +73,7 @@ class _DateTimeInput extends StatefulWidget {
     required this.label,
     required this.onChanged,
     required this.error,
+    required this.hint,
   });
 
   final bool date;
@@ -81,6 +84,7 @@ class _DateTimeInput extends StatefulWidget {
   final String? label;
   final void Function(Object? value)? onChanged;
   final String? error;
+  final String? hint;
 
   @override
   State<_DateTimeInput> createState() => _DateTimeInputState();
@@ -191,6 +195,7 @@ class _DateTimeInputState extends State<_DateTimeInput> {
           decoration: InputDecoration(
             enabled: widget.onChanged != null,
             labelText: widget.label,
+            helperText: widget.hint,
             errorText: widget.error,
             border: const OutlineInputBorder(),
             suffixIcon: Icon(

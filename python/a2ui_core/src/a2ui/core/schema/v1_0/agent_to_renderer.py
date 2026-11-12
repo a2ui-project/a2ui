@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # Auto-generated. Do not edit manually.
-"""Describes a JSON payload for an A2UI (Agent to UI) message, which is used to dynamically construct and update user interfaces."""
+"""Describes a JSON payload for an A2UI message, which is used to dynamically construct and update user interfaces."""
 
 from __future__ import annotations
 from typing import Annotated, Any, Final, Literal
@@ -22,7 +22,6 @@ from typing_extensions import TypeAliasType
 from .._json_schema import INLINE_DEF_MARKER, SchemaKeywords, SpecAllOf, def_ref
 from .common_types import StrictBaseModel, CallId, ComponentCommon, Extensions, FunctionCall, FunctionResponse
 from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE
-
 
 Component = TypeAliasType(
     "Component",
@@ -72,7 +71,7 @@ class CreateSurfaceMetadata(StrictBaseModel):
 
 
 class CreateSurface(StrictBaseModel):
-    """Signals the renderer to create a new surface and begin rendering it. Creating a surface implicitly instantiates the canonical 'Surface' container component ('common_types.json#/$defs/Surface') with 'child': 'root'. It is an error to try to create a surface with an existing ID without first deleting it; surfaceId MUST be globally unique for the renderer's lifetime. When this message is sent, the renderer expects 'updateComponents' and/or 'updateDataModel' messages for the same surfaceId to define the component tree."""
+    """Signals the renderer to create a new surface and begin rendering it. Creating a surface implicitly instantiates the canonical 'Surface' container component ('common_types.json#/$defs/Surface') with 'child': 'root'. It is an error to try to create a surface with an existing ID without first deleting it; surfaceId MUST be globally unique for the renderer's lifetime. The component tree and initial data model may be provided inline via 'components' and 'dataModel', or sent later in 'updateComponents' and/or 'updateDataModel' messages for the same surfaceId."""
 
     model_config = ConfigDict(
         populate_by_name=True, json_schema_extra={INLINE_DEF_MARKER: True}
@@ -91,9 +90,9 @@ class CreateSurface(StrictBaseModel):
         description=(
             "A string that uniquely identifies the default catalog for this surface. It"
             " is recommended to prefix this with an internet domain that you own, to"
-            " avoid conflicts e.g. 'mycompany.com:somecatalog'. Components and function"
-            " calls that do not explicitly specify a catalogId will use this"
-            " surface-level default catalogId."
+            " avoid conflicts e.g. 'mycompany.com:somecatalog'. Components that do not"
+            " explicitly specify @catalogId and function calls that do not explicitly"
+            " specify catalogId will use this surface-level default catalogId."
         ),
     )
     send_data_model: bool | None = Field(

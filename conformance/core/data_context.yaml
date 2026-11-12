@@ -16,6 +16,7 @@
 # dot (`.`), and absolute JSON Pointer paths against a context scope path.
 
 - name: test_resolve_path_relative_against_context
+  features: [F-CORE-15]
   description: >-
     Resolves a relative path against a scoped context path.
   catalog:
@@ -27,6 +28,7 @@
   expect: "/user/name"
 
 - name: test_resolve_path_nested_relative_against_context
+  features: [F-CORE-15]
   description: >-
     Resolves a multi-segment relative path against a scoped context path.
   catalog:
@@ -38,6 +40,7 @@
   expect: "/user/address/city"
 
 - name: test_resolve_path_absolute_ignores_context
+  features: [F-CORE-14, F-CORE-15]
   description: >-
     An absolute path starting with `/` ignores the context path.
   catalog:
@@ -104,6 +107,7 @@
   expect: "/user"
 
 - name: test_resolve_path_dot_in_scoped_context
+  features: [F-CORE-15]
   description: >-
     A `.` path resolves to the current context path.
   catalog:

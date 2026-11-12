@@ -68,7 +68,9 @@ def test_rebuilt_document_round_trips(module: Any, published: str) -> None:
     out = catalog.to_json()
 
     again = Catalog.from_json(
-        out, catalog_id=catalog.catalog_id, protocol_version=catalog.protocol_version
+        out,
+        catalog_id=catalog.catalog_id,
+        protocol_version=catalog.protocol_version,
     ).to_json()
     assert again == out
 

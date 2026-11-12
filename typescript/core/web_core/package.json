@@ -1,6 +1,6 @@
 {
   "name": "@a2ui/web_core",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "description": "A2UI Core Library",
   "homepage": "https://a2ui.org/",
   "repository": {
@@ -142,6 +142,7 @@
     "build:tsc": "wireit",
     "test": "wireit",
     "test:conformance": "wireit",
+    "test:timing": "wireit",
     "test:coverage": "c8 node --test \"dist/**/*.test.js\"",
     "generate-zod-schemas": "wireit",
     "compile": "tsc",
@@ -241,7 +242,7 @@
       "clean": "if-file-deleted"
     },
     "test": {
-      "command": "node --test \"dist/**/*.test.js\"",
+      "command": "node --test \"dist/**/*.test.js\" \"tests/timing/*.test.mjs\"",
       "dependencies": [
         "build",
         "test:conformance"
@@ -251,12 +252,13 @@
       "command": "node tests/conformance/conformance_test.mjs",
       "dependencies": [
         "build"
-      ],
-      "files": [
-        "tests/conformance/**",
-        "../../../conformance/**"
-      ],
-      "output": []
+      ]
+    },
+    "test:timing": {
+      "command": "node --expose-gc --test --test-concurrency=1 \"tests/timing/**/*_test.mjs\"",
+      "dependencies": [
+        "build"
+      ]
     },
     "clean": {
       "command": "rm -rf dist .tsbuildinfo .wireit"
@@ -307,7 +309,6 @@
     "@lit/context": "^1.1.6",
     "@preact/signals-core": "^1.14.2",
     "lit": "^3.3.3",
-    "redos-detector": "^6.1.4",
     "validate-color": "^2.2.4",
     "zod": "^3.25.76",
     "zod-to-json-schema": "^3.25.2"

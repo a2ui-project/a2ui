@@ -14,8 +14,14 @@
 
 import 'package:a2ui_core/a2ui_core.dart';
 
+/// A slice of a streamed LLM response: a [ResponsePart], or an [ErrorPart]
+/// in place of a block the stream rejected.
+sealed class StreamPart {
+  const StreamPart();
+}
+
 /// A slice of a parsed LLM response: [TextPart] or [A2uiPart].
-sealed class ResponsePart {
+sealed class ResponsePart extends StreamPart {
   const ResponsePart();
 }
 
@@ -54,4 +60,15 @@ final class A2uiPart extends ResponsePart {
   final List<AgentToRendererMessage> a2ui;
 
   const A2uiPart(this.a2ui);
+}
+
+/// A block that a response stream rejected and read past, in place of the
+/// block.
+///
+/// Only a stream from `Parser.openContinuingStream` returns one.
+final class ErrorPart extends StreamPart {
+  /// Why the block was rejected.
+  final A2uiError error;
+
+  const ErrorPart(this.error);
 }

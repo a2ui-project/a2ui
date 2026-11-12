@@ -20,12 +20,12 @@
 /// hands the SDK to v0.9 and lifts what the SDK returns back to v1.0 before
 /// comparing:
 ///
-/// - A `version` of `v1.0` becomes `v0.9`, and one of `v0.9` becomes
-///   `v1.0`. A case written with `v0.9` means a version other than its
+/// - A `version` of `1.0` becomes `v0.9`, and one of `v0.9` becomes
+///   `1.0`. A case written with `v0.9` means a version other than its
 ///   catalog's, which for this SDK is v1.0.
 /// - A catalog document's `protocolVersion` of `1.0` becomes `0.9`, and any
 ///   function `returnType` of `validationResult` becomes `boolean`.
-/// - Capabilities keyed by `v1.0` are keyed by `v0.9`.
+/// - Capabilities keyed by `1.0` are keyed by `v0.9`.
 /// - v1.0 lets `createSurface` name no catalog and v0.9 does not, so a case
 ///   that never names a catalog has the first catalog of the case named in
 ///   each `createSurface`, and removed again from what the SDK returns.
@@ -50,14 +50,90 @@ import 'package:a2ui_core/a2ui_core.dart';
 import 'package:test/test.dart';
 import 'package:yaml/yaml.dart';
 
+import 'manifest.dart';
+
+export 'manifest.dart' show harnessName, recordCase;
+
+/// Common metadata keys allowed at the top level of every conformance case.
+const Set<String> caseMetadataKeys = {
+  'action',
+  'description',
+  'features',
+  'name',
+};
+
+/// Keys recognized inside an `expect_error` block by [expectThrowsCategory].
+const Set<String> knownExpectErrorKeys = {'category', 'message'};
+
+/// Keys recognized inside a catalog expectation map by
+/// [SuiteVersion.expectCatalog].
+const Set<String> knownCatalogExpectKeys = {
+  'catalog_id',
+  'components',
+  'functions',
+  'protocol_version',
+};
+
+/// Fails the current test if [obj] contains any keys not in [allowed].
+void assertKnownKeys(
+  Map<String, Object?> obj,
+  Set<String> allowed,
+  String where,
+) {
+  final List<String> unknown =
+      obj.keys.where((k) => !allowed.contains(k)).toList()..sort();
+  if (unknown.isNotEmpty) {
+    fail('Unhandled keys at $where: $unknown');
+  }
+}
+
+/// Registers a test that fails if any key in [entries] is absent from
+/// [knownCaseNames].
+void verifyNoUnusedEntries(
+  String label,
+  Set<String> knownCaseNames,
+  Iterable<String> entries,
+) {
+  final List<String> unused =
+      entries.where((k) => !knownCaseNames.contains(k)).toList()..sort();
+  if (unused.isNotEmpty) {
+    test('$label: no unused skip entries', () {
+      fail('Unused skip entries in $label: $unused');
+    });
+  }
+}
+
 /// Reads the cases of the suite at [path], relative to `conformance/`, as
-/// plain Dart maps.
-List<Map<String, Object?>> loadSuite(String path) => [
-  for (final Object? node
-      in loadYaml(File('$conformanceRoot/$path').readAsStringSync())
-          as YamlList)
-    _plain(node)! as Map<String, Object?>,
-];
+/// plain Dart maps, and registers a `tearDown` recorder when called inside a
+/// test group.
+List<Map<String, Object?>> loadSuite(String path) {
+  final String text = File('$conformanceRoot/$path').readAsStringSync();
+  Object? parsed;
+  try {
+    parsed = loadYaml(text);
+  } on YamlException {
+    parsed = loadYaml(
+      text.replaceAll(
+        RegExp(r'\\ud[89a-f][0-9a-f]{2}', caseSensitive: false),
+        r'\ufffd',
+      ),
+    );
+  }
+  final YamlList list = switch (parsed) {
+    final YamlList items => items,
+    final YamlMap map => map['tests']! as YamlList,
+    _ => throw StateError('Unsupported suite YAML structure in $path.'),
+  };
+  final List<Map<String, Object?>> cases = [
+    for (final Object? node in list) _plain(node)! as Map<String, Object?>,
+  ];
+  final Set<String> caseNames = {
+    for (final Map<String, Object?> testCase in cases)
+      (testCase['id'] ?? testCase['name'])! as String,
+  };
+  registerSuiteManifestRecorder(path, caseNames);
+  return cases;
+}
 
 /// The protocol version a harness runs a suite's cases in.
 enum SuiteVersion {
@@ -123,21 +199,40 @@ enum SuiteVersion {
 
   /// [parts] in the vocabulary of the suites; see [liftParts].
   List<Object?> partsJson(
-    List<ResponsePart> parts, {
+    List<StreamPart> parts, {
     bool join = false,
     String? injectedCatalogId,
   }) => _lowers
       ? liftParts(parts, join: join, injectedCatalogId: injectedCatalogId)
       : partsAsWritten(parts);
 
+  /// [properties], a component's property map, with reserved keys lifted to
+  /// v1.0 when the suite ran lowered.
+  Map<String, Object?> liftProperties(Map<String, Object?> properties) =>
+      _lowers
+      ? _renameKeysIn(properties, lower: false)! as Map<String, Object?>
+      : properties;
+
   /// Checks the catalog-level assertions of [expected] against [catalog];
   /// see [expectCatalog]. As written, the version is checked too.
   void expectCatalog(CatalogApi catalog, Map<String, Object?> expected) {
+    assertKnownKeys(expected, knownCatalogExpectKeys, 'expect.catalog');
     _expectCatalog(catalog, expected);
     if (expected['protocol_version'] case final String version when !_lowers) {
       expect(catalog.protocolVersion?.jsonValue, version);
     }
   }
+}
+
+/// Compiles one block and checks its messages on their own.
+///
+/// A conformance `compile` case fixes the messages an agent sends for one
+/// block, so they are checked the way [validatePayload] checks a payload: a
+/// surface that the block updates without creating is assumed to exist.
+List<AgentToRendererMessage> compileChecked(Parser parser, String content) {
+  final List<AgentToRendererMessage> messages = parser.compile(content);
+  validatePayload(parser.catalogs, messages);
+  return messages;
 }
 
 /// Suite-level error categories mapped onto this SDK's exception types.
@@ -147,15 +242,32 @@ final Map<String, Matcher> _errors = {
   'CatalogError': isA<A2uiCatalogError>(),
 };
 
-/// Expects [body] to throw the error category of a case's `expect_error`.
+/// Expects [body] to throw the error category (and optional message pattern)
+/// of a case's `expect_error`.
 void expectThrowsCategory(
   void Function() body,
   Object? expectError, {
   String? reason,
 }) {
-  final category =
-      (expectError! as Map<String, Object?>)['category']! as String;
-  expect(body, throwsA(_errors[category]), reason: reason);
+  final error = expectError! as Map<String, Object?>;
+  assertKnownKeys(error, knownExpectErrorKeys, 'expect_error');
+  final category = error['category']! as String;
+  final Matcher? categoryMatcher = _errors[category];
+  if (categoryMatcher == null) {
+    fail('Unknown error category: $category');
+  }
+  final Matcher matcher = switch (error['message']) {
+    final String pattern => allOf(
+      categoryMatcher,
+      isA<A2uiError>().having(
+        (e) => e.message,
+        'message',
+        matches(RegExp(pattern, caseSensitive: false)),
+      ),
+    ),
+    _ => categoryMatcher,
+  };
+  expect(body, throwsA(matcher), reason: reason);
 }
 
 /// The catalog a suite names by [entry]: a path relative to `conformance/`,
@@ -294,8 +406,11 @@ Map<String, Object?> lowerCatalogDocument(Map<String, Object?> document) {
       'functions': {
         for (final MapEntry<Object?, Object?> entry in functions.entries)
           entry.key.toString(): switch (entry.value) {
-            final Map<Object?, Object?> fn => {
-              ...fn,
+            final Map<Object?, Object?> fn => <String, Object?>{
+              for (final MapEntry<Object?, Object?> fnEntry in fn.entries)
+                if (fnEntry.key != 'allowedCallers' &&
+                    fnEntry.key != 'requiresUserActivation')
+                  fnEntry.key.toString(): fnEntry.value,
               if (fn['returnType'] == 'validationResult')
                 'returnType': 'boolean',
               if (fn['properties'] case final Map<Object?, Object?> props
@@ -315,14 +430,14 @@ Map<String, Object?> lowerCatalogDocument(Map<String, Object?> document) {
 /// [version] swapped between the suite's version and this SDK's, in either
 /// spelling; any other value is returned as it is.
 Object? swapVersion(Object? version) => switch (version) {
-  'v1.0' => 'v0.9',
-  'v0.9' => 'v1.0',
+  '1.0' || 'v1.0' => 'v0.9',
+  'v0.9' => '1.0',
   _ => version,
 };
 
 // A case may write the field in curly quotes, which the parser repairs.
 final RegExp _versionField = RegExp(
-  '([“"]version[”"]\\s*:\\s*[“"])(v1\\.0|v0\\.9)([”"])',
+  '([“"]version[”"]\\s*:\\s*[“"])(v?1\\.0|v0\\.9)([”"])',
 );
 
 /// [text], a payload a model wrote, lowered to v0.9: each `version` swapped,
@@ -482,6 +597,11 @@ List<Object?> liftMessages(
 /// mapped to its v0.9 spelling.
 const Map<String, String> _reservedKeys = {'@path': 'path', '@call': 'call'};
 
+const Map<String, String> _componentMixinKeys = {
+  '@checks': 'checks',
+  '@accessibility': 'accessibility',
+};
+
 /// [message] with the reserved keys of its components, and of the function
 /// a `callRendererFunction` names, renamed to v0.9 when [lower] is true and
 /// to v1.0 otherwise.
@@ -511,7 +631,12 @@ Object? _renameKeysIn(Object? node, {required bool lower}) => switch (node) {
     for (final MapEntry<String, Object?> entry in map.entries)
       (map.containsKey('componentId')
           ? entry.key
-          : _renameKey(entry.key, lower)): _renameKeysIn(
+          : _renameKey(
+              entry.key,
+              lower,
+              isComponentRoot:
+                  map.containsKey('id') && map.containsKey('component'),
+            )): _renameKeysIn(
         entry.value,
         lower: lower,
       ),
@@ -519,21 +644,33 @@ Object? _renameKeysIn(Object? node, {required bool lower}) => switch (node) {
   _ => node,
 };
 
-String _renameKey(String key, bool lower) =>
-    (lower ? _reservedKeys : _liftedKeys)[key] ?? key;
+String _renameKey(String key, bool lower, {bool isComponentRoot = false}) {
+  if (isComponentRoot) {
+    final String? mixinKey = (lower
+        ? _componentMixinKeys
+        : _liftedComponentMixinKeys)[key];
+    if (mixinKey != null) return mixinKey;
+  }
+  return (lower ? _reservedKeys : _liftedKeys)[key] ?? key;
+}
 
 final Map<String, String> _liftedKeys = {
   for (final MapEntry<String, String> entry in _reservedKeys.entries)
     entry.value: entry.key,
 };
 
+final Map<String, String> _liftedComponentMixinKeys = {
+  for (final MapEntry<String, String> entry in _componentMixinKeys.entries)
+    entry.value: entry.key,
+};
+
 /// [parts] in the vocabulary of the suites, with messages lifted to v1.0.
 List<Object?> liftParts(
-  List<ResponsePart> parts, {
+  List<StreamPart> parts, {
   bool join = false,
   String? injectedCatalogId,
 }) => [
-  for (final ResponsePart part in parts)
+  for (final StreamPart part in parts)
     switch (part) {
       TextPart(:final String text) => {'text': text},
       A2uiPart(:final List<AgentToRendererMessage> a2ui) => {
@@ -543,6 +680,7 @@ List<Object?> liftParts(
           injectedCatalogId: injectedCatalogId,
         ),
       },
+      ErrorPart(:final A2uiError error) => errorPartJson(error),
     },
 ];
 
@@ -597,15 +735,26 @@ Map<String, Object?> messageAsWritten(AgentToRendererMessage message) => {
 
 /// [parts] in the vocabulary of the suites, with messages as this SDK writes
 /// them; see [messageAsWritten].
-List<Object?> partsAsWritten(List<ResponsePart> parts) => [
-  for (final ResponsePart part in parts)
+List<Object?> partsAsWritten(List<StreamPart> parts) => [
+  for (final StreamPart part in parts)
     switch (part) {
       TextPart(:final String text) => {'text': text},
       A2uiPart(:final List<AgentToRendererMessage> a2ui) => {
         'a2ui': a2ui.map(messageAsWritten).toList(),
       },
+      ErrorPart(:final A2uiError error) => errorPartJson(error),
     },
 ];
+
+/// An [ErrorPart] in the vocabulary of the suites: the category of its
+/// error.
+Map<String, Object?> errorPartJson(A2uiError error) => {
+  'error': {
+    'category': _errors.entries
+        .firstWhere((entry) => entry.value.matches(error, {}))
+        .key,
+  },
+};
 
 /// [expected] with `is_final: true` dropped, since a part is final unless it
 /// says otherwise.

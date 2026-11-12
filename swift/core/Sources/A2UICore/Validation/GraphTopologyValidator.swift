@@ -17,7 +17,7 @@ import OrderedJSON
 
 /// Validates component graph topology, hierarchy completeness, and structural cycles.
 public enum GraphTopologyValidator {
-  private static let maxGlobalDepth = 50
+  static let maxGlobalDepth = 50
 
   public typealias Reference = (referenceID: String, field: String)
   public typealias AdjacencyMap = [String: [Reference]]
@@ -41,6 +41,7 @@ public enum GraphTopologyValidator {
   ) throws {
     let (allComponentIDs, adjacencyList) = try buildAdjacencyMap(
       from: components,
+      config: config,
       catalogs: catalogs,
       defaultCatalogID: defaultCatalogID
     )
@@ -71,7 +72,23 @@ public enum GraphTopologyValidator {
     }
   }
 
-  private static func lookupComponentAPI(
+  /// Returns the catalog a component runs in: the one its `@catalogId` (or legacy `catalogId`)
+  /// names, else the default catalog.
+  static func componentCatalogID(
+    of component: [String: JSONValue],
+    defaultCatalogID: String?
+  ) -> String? {
+    component["@catalogId"]?.stringValue ?? component["catalogId"]?.stringValue
+      ?? defaultCatalogID
+  }
+
+  /// The component keys that never hold component references: the structural keys, and the
+  /// catalog id and metadata mixins.
+  private static let nonReferenceKeys: Set<String> = [
+    "id", "component", "catalogId", "@catalogId", "@metadata",
+  ]
+
+  static func lookupComponentAPI(
     type: String,
     catalogID: String?,
     catalogs: [String: AnyCatalog]?,
@@ -91,6 +108,12 @@ public enum GraphTopologyValidator {
     return nil
   }
 
+  private struct ComponentMeta {
+    let type: String
+    let catalogID: String?
+    let index: Int
+  }
+
   private static func validateCompositionConstraints(
     components: [[String: JSONValue]],
     allIDs: Set<String>,
@@ -99,97 +122,136 @@ public enum GraphTopologyValidator {
     catalogs: [String: AnyCatalog],
     defaultCatalogID: String?
   ) throws {
-    var componentTypes: [String: (type: String, catalogID: String?)] = [:]
-    for component in components {
+    var componentMeta: [String: ComponentMeta] = [:]
+    for (index, component) in components.enumerated() {
       guard let id = component["id"]?.stringValue,
         let type = component["component"]?.stringValue
       else { continue }
-      let catalogID = component["catalogId"]?.stringValue ?? defaultCatalogID
-      componentTypes[id] = (type, catalogID)
+      let catalogID = componentCatalogID(of: component, defaultCatalogID: defaultCatalogID)
+      componentMeta[id] = ComponentMeta(type: type, catalogID: catalogID, index: index)
     }
 
-    // 1. Root component composition constraint: parent is conceptual "Surface"
-    if let rootInfo = componentTypes[rootID] {
-      if let rootCompAPI = lookupComponentAPI(
+    try validateRootComposition(
+      rootID: rootID,
+      componentMeta: componentMeta,
+      catalogs: catalogs,
+      defaultCatalogID: defaultCatalogID
+    )
+
+    for component in components {
+      guard let parentID = component["id"]?.stringValue,
+        let parentInfo = componentMeta[parentID],
+        let references = adjacencyList[parentID]
+      else { continue }
+
+      for ref in references {
+        try validateEdgeComposition(
+          parentID: parentID,
+          parentInfo: parentInfo,
+          ref: ref,
+          componentMeta: componentMeta,
+          catalogs: catalogs,
+          defaultCatalogID: defaultCatalogID
+        )
+      }
+    }
+  }
+
+  private static func validateRootComposition(
+    rootID: String,
+    componentMeta: [String: ComponentMeta],
+    catalogs: [String: AnyCatalog],
+    defaultCatalogID: String?
+  ) throws {
+    guard let rootInfo = componentMeta[rootID],
+      let rootCompAPI = lookupComponentAPI(
         type: rootInfo.type,
         catalogID: rootInfo.catalogID,
         catalogs: catalogs,
         defaultCatalogID: defaultCatalogID
       ),
-        let allowedParents = rootCompAPI.allowedParents
-      {
-        if !allowedParents.contains("Surface") {
-          let allowedFormatted = allowedParents.map { "'\($0)'" }.joined(separator: ", ")
-          let msg =
-            "Component '\(rootID)' (\(rootInfo.type)) cannot be placed under parent "
-            + "'Surface' (Surface). Allowed parents: [\(allowedFormatted)]."
-          let detail = A2UIErrorDetail(
-            path: "\(rootID)",
-            code: "UNALLOWED_PARENT",
-            message: msg
-          )
-          throw A2UIValidationError(msg, details: [detail])
-        }
+      let allowedParents = rootCompAPI.allowedParents,
+      !allowedParents.contains("Surface")
+    else { return }
+
+    let allowedFormatted = allowedParents.map { "'\($0)'" }.joined(separator: ", ")
+    let msg =
+      "Component '\(rootID)' (\(rootInfo.type)) cannot be placed under parent "
+      + "'Surface' (Surface). Allowed parents: [\(allowedFormatted)]."
+    let detail = A2UIErrorDetail(
+      path: "/components/\(rootInfo.index)",
+      code: "UNALLOWED_PARENT",
+      message: msg
+    )
+    throw A2UIValidationError(msg, details: [detail])
+  }
+
+  private static func validateEdgeComposition(
+    parentID: String,
+    parentInfo: ComponentMeta,
+    ref: Reference,
+    componentMeta: [String: ComponentMeta],
+    catalogs: [String: AnyCatalog],
+    defaultCatalogID: String?
+  ) throws {
+    let childID = ref.referenceID
+    guard let childInfo = componentMeta[childID] else { return }
+
+    let parentComponentAPI = lookupComponentAPI(
+      type: parentInfo.type,
+      catalogID: parentInfo.catalogID,
+      catalogs: catalogs,
+      defaultCatalogID: defaultCatalogID
+    )
+    let childComponentAPI = lookupComponentAPI(
+      type: childInfo.type,
+      catalogID: childInfo.catalogID,
+      catalogs: catalogs,
+      defaultCatalogID: defaultCatalogID
+    )
+
+    if let allowedChildren = parentComponentAPI?.allowedChildren {
+      guard allowedChildren.contains(childInfo.type) else {
+        let allowedFormatted = allowedChildren.map { "'\($0)'" }.joined(separator: ", ")
+        let message =
+          "Container '\(parentID)' (\(parentInfo.type)) cannot contain child "
+          + "'\(childID)' (\(childInfo.type)). Allowed children: [\(allowedFormatted)]."
+        let pointerField = toJSONPointerSegment(ref.field)
+        let detail = A2UIErrorDetail(
+          path: "/components/\(parentInfo.index)/\(pointerField)",
+          code: "UNALLOWED_CHILD",
+          message: message
+        )
+        throw A2UIValidationError(message, details: [detail])
       }
     }
 
-    // 2. Validate all parent-child relationships in adjacencyList
-    for (parentID, references) in adjacencyList {
-      guard let parentInfo = componentTypes[parentID] else { continue }
-      let parentCompAPI = lookupComponentAPI(
-        type: parentInfo.type,
-        catalogID: parentInfo.catalogID,
-        catalogs: catalogs,
-        defaultCatalogID: defaultCatalogID
-      )
-
-      for ref in references {
-        let childID = ref.referenceID
-        guard let childInfo = componentTypes[childID] else { continue }
-        let childCompAPI = lookupComponentAPI(
-          type: childInfo.type,
-          catalogID: childInfo.catalogID,
-          catalogs: catalogs,
-          defaultCatalogID: defaultCatalogID
+    if let allowedParents = childComponentAPI?.allowedParents {
+      guard allowedParents.contains(parentInfo.type) else {
+        let allowedFormatted = allowedParents.map { "'\($0)'" }.joined(separator: ", ")
+        let message =
+          "Component '\(childID)' (\(childInfo.type)) cannot be placed under parent "
+          + "'\(parentID)' (\(parentInfo.type)). Allowed parents: [\(allowedFormatted)]."
+        let detail = A2UIErrorDetail(
+          path: "/components/\(childInfo.index)",
+          code: "UNALLOWED_PARENT",
+          message: message
         )
-
-        // Validate parent's allowedChildren
-        if let allowedChildren = parentCompAPI?.allowedChildren {
-          if !allowedChildren.contains(childInfo.type) {
-            let allowedFormatted = allowedChildren.map { "'\($0)'" }.joined(separator: ", ")
-            let msg =
-              "Container '\(parentID)' (\(parentInfo.type)) cannot contain child "
-              + "'\(childID)' (\(childInfo.type)). Allowed children: [\(allowedFormatted)]."
-            let detail = A2UIErrorDetail(
-              path: "\(parentID).\(ref.field)",
-              code: "UNALLOWED_CHILD",
-              message: msg
-            )
-            throw A2UIValidationError(msg, details: [detail])
-          }
-        }
-
-        // Validate child's allowedParents
-        if let allowedParents = childCompAPI?.allowedParents {
-          if !allowedParents.contains(parentInfo.type) {
-            let allowedFormatted = allowedParents.map { "'\($0)'" }.joined(separator: ", ")
-            let msg =
-              "Component '\(childID)' (\(childInfo.type)) cannot be placed under parent "
-              + "'\(parentID)' (\(parentInfo.type)). Allowed parents: [\(allowedFormatted)]."
-            let detail = A2UIErrorDetail(
-              path: "\(childID)",
-              code: "UNALLOWED_PARENT",
-              message: msg
-            )
-            throw A2UIValidationError(msg, details: [detail])
-          }
-        }
+        throw A2UIValidationError(message, details: [detail])
       }
     }
   }
 
+  private static func toJSONPointerSegment(_ field: String) -> String {
+    field
+      .replacingOccurrences(of: "[", with: "/")
+      .replacingOccurrences(of: "]", with: "")
+      .replacingOccurrences(of: ".", with: "/")
+  }
+
   private static func buildAdjacencyMap(
     from components: [[String: JSONValue]],
+    config: ValidationConfig,
     catalogs: [String: AnyCatalog]?,
     defaultCatalogID: String?
   ) throws -> (allIDs: Set<String>, adjacencyList: AdjacencyMap) {
@@ -206,7 +268,7 @@ public enum GraphTopologyValidator {
 
       let componentSchema: JSONValue?
       if let type = component["component"]?.stringValue {
-        let catalogID = component["catalogId"]?.stringValue ?? defaultCatalogID
+        let catalogID = componentCatalogID(of: component, defaultCatalogID: defaultCatalogID)
         componentSchema =
           lookupComponentAPI(
             type: type,
@@ -220,7 +282,7 @@ public enum GraphTopologyValidator {
 
       let references = extractReferences(from: component, schema: componentSchema)
       for reference in references {
-        if reference.referenceID == componentID {
+        if reference.referenceID == componentID, !config.allowCyclicReferences {
           throw A2UIRecursionError(
             """
             Self-reference detected: Component '\(componentID)' \
@@ -276,46 +338,77 @@ public enum GraphTopologyValidator {
     var visited: Set<String> = []
     var recursionStack: Set<String> = []
 
-    func depthFirstSearch(nodeID: String, depth: Int) throws {
-      if depth > maxGlobalDepth {
-        throw A2UIRecursionError(
-          "Global recursion limit exceeded: logical depth > \(maxGlobalDepth)"
+    if config.allowMissingRoot {
+      for nodeID in allIDs.sorted() where !visited.contains(nodeID) {
+        try depthFirstSearch(
+          nodeID: nodeID,
+          depth: 0,
+          allIDs: allIDs,
+          adjacencyList: adjacencyList,
+          allowsCycles: config.allowCyclicReferences,
+          visited: &visited,
+          recursionStack: &recursionStack
         )
       }
-      visited.insert(nodeID)
-      recursionStack.insert(nodeID)
+      return
+    }
 
-      for reference in adjacencyList[nodeID] ?? [] {
-        let neighbor = reference.referenceID
-        if !visited.contains(neighbor) {
-          if allIDs.contains(neighbor) {
-            try depthFirstSearch(nodeID: neighbor, depth: depth + 1)
-          }
-        } else if recursionStack.contains(neighbor) {
-          throw A2UIRecursionError(
-            "Circular component reference (Circular reference detected) involving component '\(neighbor)'"
+    guard allIDs.contains(rootID) else { return }
+    try depthFirstSearch(
+      nodeID: rootID,
+      depth: 0,
+      allIDs: allIDs,
+      adjacencyList: adjacencyList,
+      allowsCycles: config.allowCyclicReferences,
+      visited: &visited,
+      recursionStack: &recursionStack
+    )
+
+    guard !config.allowOrphanComponents else { return }
+    let orphans = allIDs.subtracting(visited)
+    if let firstOrphan = orphans.sorted().first {
+      throw A2UIIntegrityError("Component '\(firstOrphan)' is not reachable from '\(rootID)'")
+    }
+  }
+
+  private static func depthFirstSearch(
+    nodeID: String,
+    depth: Int,
+    allIDs: Set<String>,
+    adjacencyList: AdjacencyMap,
+    allowsCycles: Bool,
+    visited: inout Set<String>,
+    recursionStack: inout Set<String>
+  ) throws {
+    if depth > maxGlobalDepth {
+      throw A2UIRecursionError(
+        "Global recursion limit exceeded: logical depth > \(maxGlobalDepth)"
+      )
+    }
+    visited.insert(nodeID)
+    recursionStack.insert(nodeID)
+
+    for reference in adjacencyList[nodeID] ?? [] {
+      let neighbor = reference.referenceID
+      if !visited.contains(neighbor) {
+        if allIDs.contains(neighbor) {
+          try depthFirstSearch(
+            nodeID: neighbor,
+            depth: depth + 1,
+            allIDs: allIDs,
+            adjacencyList: adjacencyList,
+            allowsCycles: allowsCycles,
+            visited: &visited,
+            recursionStack: &recursionStack
           )
         }
-      }
-      recursionStack.remove(nodeID)
-    }
-
-    if config.allowMissingRoot {
-      for nodeID in allIDs.sorted() {
-        if !visited.contains(nodeID) {
-          try depthFirstSearch(nodeID: nodeID, depth: 0)
-        }
-      }
-    } else if allIDs.contains(rootID) {
-      try depthFirstSearch(nodeID: rootID, depth: 0)
-
-      if !config.allowOrphanComponents {
-        let orphans = allIDs.subtracting(visited)
-        if let firstOrphan = orphans.sorted().first {
-          throw A2UIIntegrityError("Component '\(firstOrphan)' is not reachable from '\(rootID)'")
-        }
+      } else if !allowsCycles, recursionStack.contains(neighbor) {
+        throw A2UIRecursionError(
+          "Circular component reference (Circular reference detected) involving component '\(neighbor)'"
+        )
       }
     }
+    recursionStack.remove(nodeID)
   }
 
   /// Extracts component reference pointers from a component property dictionary.
@@ -326,8 +419,7 @@ public enum GraphTopologyValidator {
     guard let schema else { return [] }
     var references: [Reference] = []
     let propertySchemas = extractPropertiesSchema(from: schema)
-    for (key, propertyValue) in component
-    where key != "id" && key != "component" && key != "catalogId" {
+    for (key, propertyValue) in component where !nonReferenceKeys.contains(key) {
       guard let propSchema = propertySchemas[key] else { continue }
       collectSchemaReferences(
         from: propertyValue,
@@ -346,20 +438,7 @@ public enum GraphTopologyValidator {
     into result: inout [Reference]
   ) {
     if isChildListSchema(schema) {
-      switch value {
-      case .array(let array):
-        for item in array {
-          if let childID = item.stringValue {
-            result.append((childID, path))
-          }
-        }
-      case .object(let dict):
-        if let componentID = dict["componentId"]?.stringValue {
-          result.append((componentID, "\(path).componentId"))
-        }
-      default:
-        break
-      }
+      collectChildListReferences(from: value, path: path, into: &result)
       return
     }
 
@@ -376,6 +455,36 @@ public enum GraphTopologyValidator {
       return
     }
 
+    collectNestedSchemaReferences(from: value, schema: schema, path: path, into: &result)
+  }
+
+  private static func collectChildListReferences(
+    from value: JSONValue,
+    path: String,
+    into result: inout [Reference]
+  ) {
+    switch value {
+    case .array(let array):
+      for (index, item) in array.enumerated() {
+        if let childID = item.stringValue {
+          result.append((childID, "\(path)[\(index)]"))
+        }
+      }
+    case .object(let dict):
+      if let componentID = dict["componentId"]?.stringValue {
+        result.append((componentID, "\(path).componentId"))
+      }
+    default:
+      break
+    }
+  }
+
+  private static func collectNestedSchemaReferences(
+    from value: JSONValue,
+    schema: JSONValue,
+    path: String,
+    into result: inout [Reference]
+  ) {
     switch value {
     case .array(let array):
       guard let itemsSchema = schema["items"] else { break }
@@ -403,15 +512,20 @@ public enum GraphTopologyValidator {
     }
   }
 
-  private static func isChildListSchema(_ schema: JSONValue) -> Bool {
+  private static func schemaRefName(_ schema: JSONValue) -> String? {
     if let ref = schema["$ref"]?.stringValue {
-      let refName = ref.split(separator: "/").last.map(String.init)
-      if refName == "ChildList" { return true }
+      return ref.split(separator: "/").last.map(String.init)
     }
     if let desc = schema["description"]?.stringValue, desc.hasPrefix("REF:") {
       let ref = String(desc.dropFirst(4)).split(separator: "|").first.map(String.init) ?? ""
-      let refName = ref.split(separator: "/").last.map(String.init)
-      if refName == "ChildList" { return true }
+      return ref.split(separator: "/").last.map(String.init)
+    }
+    return nil
+  }
+
+  private static func isChildListSchema(_ schema: JSONValue) -> Bool {
+    if schemaRefName(schema) == "ChildList" {
+      return true
     }
     if schema["type"]?.stringValue == "array", let items = schema["items"] {
       if isSingleChildSchema(items) || isChildListSchema(items) {
@@ -429,14 +543,8 @@ public enum GraphTopologyValidator {
   }
 
   private static func isSingleChildSchema(_ schema: JSONValue) -> Bool {
-    if let ref = schema["$ref"]?.stringValue {
-      let refName = ref.split(separator: "/").last.map(String.init)
-      if refName == "Child" || refName == "ComponentId" { return true }
-    }
-    if let desc = schema["description"]?.stringValue, desc.hasPrefix("REF:") {
-      let ref = String(desc.dropFirst(4)).split(separator: "|").first.map(String.init) ?? ""
-      let refName = ref.split(separator: "/").last.map(String.init)
-      if refName == "Child" || refName == "ComponentId" { return true }
+    if let refName = schemaRefName(schema), refName == "Child" || refName == "ComponentId" {
+      return true
     }
     for combiner in ["oneOf", "anyOf", "allOf"] {
       if let subSchemas = schema[combiner]?.arrayValue,

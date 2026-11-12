@@ -90,7 +90,7 @@ class ElementalParser(Parser):
     def compile(
         self, format_content: str, *, is_final: bool = True
     ) -> list[AgentToRendererMessage]:
-        """Compiles raw Elemental HTML into structured A2UI layout operation messages."""
+        """Compiles raw Elemental HTML into A2UI messages."""
         if not is_final:
             stripped = format_content.strip()
             if "<body" in stripped and not stripped.endswith("</body>"):
@@ -112,12 +112,6 @@ class ElementalParser(Parser):
                     " XML/HTML."
                 ),
             ) from e
-
-    def _compile_raw_part(
-        self, raw_part: RawResponsePart
-    ) -> list[AgentToRendererMessage]:
-        assert isinstance(raw_part.part, RawA2uiPart)
-        return self.compile(raw_part.part.a2ui_raw, is_final=raw_part.is_final)
 
     def decompile(self, a2ui_payload: Sequence[AgentToRendererMessage]) -> str:
         """Decompiles structured A2UI payload messages into this format's raw notation."""

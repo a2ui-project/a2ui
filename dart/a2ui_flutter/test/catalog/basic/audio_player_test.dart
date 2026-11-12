@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 import 'package:a2ui_flutter/a2ui_flutter.dart';
-import 'package:a2ui_flutter/basic_catalog.dart';
+import 'package:a2ui_flutter/v0_9/basic_catalog.dart';
 // ignore: deprecated_member_use, see https://github.com/a2ui-project/a2ui/issues/3235
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -24,6 +24,7 @@ import '../../support/surface_harness.dart';
 
 final CatalogImplementation _catalog = basicTestCatalog([
   BasicComponents.audioPlayer,
+  BasicComponents.text,
 ]);
 
 const String _url = 'https://example.com/episode.mp3';
@@ -151,6 +152,26 @@ void main() {
         greaterThan(0),
       );
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('disposes the player when the component is removed', (
+      tester,
+    ) async {
+      final SurfaceHarness harness = await pumpComponents(tester, [
+        {'id': 'root', 'component': 'AudioPlayer', 'url': _url},
+      ], catalog: _catalog);
+      platform.initialize(0);
+      await tester.pump();
+
+      await harness.send([
+        updateComponents([
+          {'id': 'root', 'component': 'Text', 'text': 'Gone'},
+        ]),
+      ]);
+
+      expect(find.text('Gone'), findsOneWidget);
+      expect(platform.calls, contains('dispose(0)'));
+      expect(platform.livePlayers, isEmpty);
     });
   });
 }

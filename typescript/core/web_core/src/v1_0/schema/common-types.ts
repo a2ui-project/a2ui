@@ -17,6 +17,7 @@
 // AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
 // Generated from specification/v1.0/json/ via src/v1_0/scripts/generate-schemas.mjs
 import {z} from 'zod';
+import {isValidUax31Identifier} from '../../common/uax31.js';
 import {markChildRef} from '../../types/child-ref-helpers.js';
 
 export const ComponentIdSchema = markChildRef(
@@ -104,7 +105,7 @@ export const ExtensionsSchema = z
   .record(z.string(), z.unknown())
   .superRefine((value, ctx) => {
     for (const key in value) {
-      if (!key.match(/^[\p{XID_Start}_][\p{XID_Continue}:-]*$/u)) {
+      if (!isValidUax31Identifier(key)) {
         ctx.addIssue({
           path: [key],
           code: z.ZodIssueCode.custom,
@@ -121,14 +122,14 @@ export type Extensions = z.infer<typeof ExtensionsSchema>;
 export const ComponentCommonSchema = z
   .object({
     'id': ComponentIdSchema,
-    'catalogId': z
+    '@catalogId': z
       .string()
       .describe(
         'The catalog ID for this component, overriding any surface-level default catalogId.',
       )
       .optional(),
-    'accessibility': AccessibilityAttributesSchema.optional(),
-    'metadata': z
+    '@accessibility': AccessibilityAttributesSchema.optional(),
+    '@metadata': z
       .object({'extensions': ExtensionsSchema.optional()})
       .strict()
       .describe('Optional component-level metadata for vendor extensions.')
@@ -224,7 +225,7 @@ export type CheckRule = z.infer<typeof CheckRuleSchema>;
 
 export const CheckableSchema = z
   .object({
-    'checks': z
+    '@checks': z
       .array(CheckRuleSchema)
       .describe('A list of validation check rules to perform on the component.')
       .optional(),

@@ -5,7 +5,7 @@
       "description": "TextField with valid checks",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_surface",
           "components": [
@@ -16,7 +16,7 @@
               "value": {
                 "@path": "/formData/email"
               },
-              "checks": [
+              "@checks": [
                 {
                   "condition": {
                     "@call": "required",
@@ -49,7 +49,7 @@
       "description": "ChoicePicker with valid checks",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_surface",
           "components": [
@@ -71,7 +71,7 @@
               "value": {
                 "@path": "/formData/interests"
               },
-              "checks": [
+              "@checks": [
                 {
                   "condition": {
                     "@call": "length",
@@ -94,7 +94,7 @@
       "description": "Slider with valid checks",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_surface",
           "components": [
@@ -107,7 +107,7 @@
               "value": {
                 "@path": "/formData/rating"
               },
-              "checks": [
+              "@checks": [
                 {
                   "condition": {
                     "@call": "numeric",
@@ -130,7 +130,7 @@
       "description": "CheckBox with valid checks",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_1",
           "components": [
@@ -141,7 +141,7 @@
               "value": {
                 "@path": "/formData/agreed"
               },
-              "checks": [
+              "@checks": [
                 {
                   "condition": {
                     "@call": "required",
@@ -163,7 +163,7 @@
       "description": "DateTimeInput with valid checks",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_1",
           "components": [
@@ -174,7 +174,7 @@
               "value": {
                 "@path": "/formData/date"
               },
-              "checks": [
+              "@checks": [
                 {
                   "condition": {
                     "@call": "required",
@@ -196,7 +196,7 @@
       "description": "TextField with regex validation",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_1",
           "components": [
@@ -207,7 +207,7 @@
               "value": {
                 "@path": "/formData/phone"
               },
-              "checks": [
+              "@checks": [
                 {
                   "condition": {
                     "@call": "regex",
@@ -230,7 +230,7 @@
       "description": "TextField with min/max length validation",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_1",
           "components": [
@@ -241,7 +241,7 @@
               "value": {
                 "@path": "/formData/pw"
               },
-              "checks": [
+              "@checks": [
                 {
                   "condition": {
                     "@call": "length",
@@ -265,7 +265,7 @@
       "description": "Slider with min/max numeric validation",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_1",
           "components": [
@@ -278,7 +278,7 @@
               "value": {
                 "@path": "/formData/score"
               },
-              "checks": [
+              "@checks": [
                 {
                   "condition": {
                     "@call": "numeric",
@@ -302,7 +302,7 @@
       "description": "TextField with complex logic checks (AND/OR/NOT)",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_1",
           "components": [
@@ -313,7 +313,7 @@
               "value": {
                 "@path": "/formData/code"
               },
-              "checks": [
+              "@checks": [
                 {
                   "condition": {
                     "@call": "and",
@@ -372,7 +372,7 @@
       "description": "TextField with check without static message (valid)",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_1",
           "components": [
@@ -383,7 +383,7 @@
               "value": {
                 "@path": "/formData/email"
               },
-              "checks": [
+              "@checks": [
                 {
                   "condition": {
                     "@call": "email",
@@ -404,7 +404,7 @@
       "description": "TextField with invalid function returnType in check",
       "valid": false,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_1",
           "components": [
@@ -415,7 +415,7 @@
               "value": {
                 "@path": "/formData/name"
               },
-              "checks": [
+              "@checks": [
                 {
                   "condition": {
                     "@call": "formatString",
@@ -436,7 +436,7 @@
       "description": "ChoicePicker with length validation (exactly 2)",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_1",
           "components": [
@@ -462,7 +462,7 @@
               "value": {
                 "@path": "/formData/interests"
               },
-              "checks": [
+              "@checks": [
                 {
                   "condition": {
                     "@call": "length",
@@ -486,7 +486,7 @@
       "description": "Slider with valid steps property",
       "valid": true,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_1",
           "components": [
@@ -509,7 +509,7 @@
       "description": "Slider with invalid steps property (string)",
       "valid": false,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_1",
           "components": [
@@ -532,7 +532,7 @@
       "description": "Slider with invalid steps property (less than 1)",
       "valid": false,
       "data": {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "test_1",
           "components": [

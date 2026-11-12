@@ -57,6 +57,11 @@ from a2ui.inference_formats._shared import (
     surface_catalog_id,
     to_message_models,
 )
+from a2ui.utils.component_envelope import (
+    AT_ENVELOPE_MIXIN_KEYS,
+    ENVELOPE_MIXIN_NAMES,
+    envelope_key,
+)
 
 from .sexpr import Form, Keyword, Symbol, is_keyword, is_symbol, parse_sexpr
 
@@ -1224,7 +1229,11 @@ class AtomCompiler:
         return comp, prop
 
     def _auto_wrap_text_child(
-        self, text: Any, block: _Block, catalog_id: str, helper: CatalogSchemaHelper
+        self,
+        text: Any,
+        block: _Block,
+        catalog_id: str,
+        helper: CatalogSchemaHelper,
     ) -> str | None:
         """Wraps a bare-string child in a catalog's text component.
 
@@ -1339,7 +1348,16 @@ class AtomCompiler:
         comp_id = self._assign_id(block, explicit_id, is_root)
         comp: dict[str, Any] = {"id": comp_id, "component": comp_type}
         if emit_cat is not None:
-            comp["catalogId"] = emit_cat
+            comp[envelope_key("catalogId", self._at_least_v10)] = emit_cat
+        custom_envelope = comp_helper.get_custom_envelope_properties(comp_type)
+
+        def wire_key(key: str) -> str:
+            # Envelope mixin properties (`checks`, `metadata`, ...) take the
+            # `@`-prefixed wire key from v1.0 unless the component declares a
+            # property of that bare name itself.
+            if key in ENVELOPE_MIXIN_NAMES and key not in custom_envelope:
+                return envelope_key(key, self._at_least_v10)
+            return key
 
         prop_keys, child_list_prop, single_child_prop = child_props(
             comp_helper, comp_type
@@ -1413,7 +1431,7 @@ class AtomCompiler:
                     )
                 ):
                     comp[key] = self._compile_object_list(val, block, item_schema)
-                elif key == "checks":
+                elif key == "checks" and key not in custom_envelope:
                     sibling_value = (
                         comp["value"]
                         if "value" in comp
@@ -1422,10 +1440,12 @@ class AtomCompiler:
                     resolved = self._resolve_checks(
                         val, has_value=sibling_value is not None
                     )
-                    comp[key] = self._normalize_checks(resolved, sibling_value)
+                    comp[wire_key(key)] = self._normalize_checks(
+                        resolved, sibling_value
+                    )
                 else:
                     resolved = self._resolve_val(val, is_action=is_action_prop(key))
-                    comp[key] = self._coerce_object_list(
+                    comp[wire_key(key)] = self._coerce_object_list(
                         comp_helper, comp_type, key, resolved
                     )
                 continue
@@ -1469,7 +1489,9 @@ class AtomCompiler:
                     and self._is_value_form(item)
                 ):
                     pkey = prop_keys[pos_arg_index]
-                    comp[pkey] = self._resolve_val(item, is_action=is_action_prop(pkey))
+                    comp[wire_key(pkey)] = self._resolve_val(
+                        item, is_action=is_action_prop(pkey)
+                    )
                     pos_arg_index += 1
                 elif isinstance(item, Form) and is_symbol(item[0]):
                     children.append(self._compile_component(item, block))
@@ -1487,7 +1509,9 @@ class AtomCompiler:
                         children.append(wrapped)
             elif pos_arg_index < len(prop_keys):
                 pkey = prop_keys[pos_arg_index]
-                comp[pkey] = self._resolve_val(item, is_action=is_action_prop(pkey))
+                comp[wire_key(pkey)] = self._resolve_val(
+                    item, is_action=is_action_prop(pkey)
+                )
                 pos_arg_index += 1
             i += 1
 
@@ -1522,7 +1546,7 @@ class AtomCompiler:
     ) -> None:
         """Applies schema coercions and checks required properties."""
         for key, value in list(comp.items()):
-            if key in ("id", "component", "catalogId"):
+            if key in ("id", "component", "catalogId") or key in AT_ENVELOPE_MIXIN_KEYS:
                 continue
             schema = helper.get_property_schema(comp_type, key) or {}
             kind = ref_kind(schema)

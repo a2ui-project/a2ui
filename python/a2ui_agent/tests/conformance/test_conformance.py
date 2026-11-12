@@ -14,9 +14,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 import contextlib
 import os
+from pathlib import Path
 import re
+from typing import Any
 
 import pytest
 
@@ -29,6 +32,7 @@ from a2ui.core import A2uiIntegrityError
 from a2ui.core import A2uiParseError
 from a2ui.core import A2uiRecursionError
 from a2ui.core import A2uiValidationError
+from a2ui.core.common import to_protocol_version
 from a2ui.inference_formats import DirectJsonFormat
 from a2ui.inference_formats import to_message_dicts
 from a2ui.inference_formats import to_message_models
@@ -37,16 +41,35 @@ from a2ui.inference_formats.experimental.elemental import ElementalFormat
 from a2ui.inference_formats.express import ExpressFormat
 from a2ui.parser import A2uiCompilationError
 from a2ui.parser import A2uiPart
+from a2ui.parser import ErrorPart
 from a2ui.parser import RawA2uiPart
 from a2ui.parser import RawResponsePart
 from a2ui.parser import TextPart
 from a2ui.processor import CatalogConfig
 from a2ui.processor import InMemoryCatalogProvider
-from a2ui.utils import load_examples, resolve_catalogs
+from a2ui.utils import (
+    agent_callable_functions,
+    load_examples,
+    resolve_catalogs,
+    validate_payload,
+)
 
+from .conformance_helpers import assert_known_keys
+from .conformance_helpers import case_params
 from .conformance_helpers import get_conformance_path
 from .conformance_helpers import load_conformance_json as load_json_file
 from .conformance_helpers import load_conformance_yaml as load_tests
+from .lowering import SUITE_VERSIONS
+from .lowering import V1_ONLY_CASES
+from .lowering import case_declares_v1
+from .lowering import first_catalog_id
+from .lowering import injected_catalog_id
+from .lowering import lift_messages
+from .lowering import lift_parts
+from .lowering import lower_case
+from .lowering import lower_messages
+from .lowering import lower_text
+from .lowering import v09_skip_reason
 
 CATEGORY_TO_EXCEPTION = {
     "ParseError": A2uiParseError,
@@ -58,20 +81,138 @@ CATEGORY_TO_EXCEPTION = {
 }
 
 # Set of A2UI specification versions supported by this Python Agent SDK conformance harness.
-SUPPORTED_PROTOCOL_VERSIONS = {"v0.8", "v0.9", "v1.0"}
+SUPPORTED_PROTOCOL_VERSIONS = {"v0.8", "v0.9", "1.0"}
 
 # Transition skip list containing specific test case names to skip during active feature transitions.
-SKIP_TEST_NAMES: set[str] = set()
+SKIP_TEST_NAMES: dict[str, str] | set[str] = {}
 
 # Transition skip list containing specific test suite files to skip during active feature transitions.
-SKIP_TEST_SUITES = {
-    "core/catalog.yaml",
+SKIP_TEST_SUITES: dict[str, str] = {
+    "core/catalog.yaml": "Core catalog suite runs in python-core.",
 }
+
+_CASE_METADATA_KEYS = frozenset({
+    "name",
+    "description",
+    "features",
+    "protocolVersion",
+    "catalog",
+    "catalogs",
+})
+_EXPECT_ERROR_KEYS = frozenset({"category", "message", "details"})
+_EXPECT_ERROR_DETAIL_KEYS = frozenset({"path", "code", "message"})
+_COMPILE_CASE_KEYS = _CASE_METADATA_KEYS | frozenset({
+    "action",
+    "args",
+    "input",
+    "expect",
+    "expect_error",
+    "expect_present",
+})
+_DECOMPILE_CASE_KEYS = _CASE_METADATA_KEYS | frozenset({
+    "action",
+    "args",
+    "messages",
+    "expect_contains",
+    "expect_absent",
+    "expect_error",
+    "expect_recompiled",
+    "expect_round_trip",
+})
+_UNWRAP_CASE_KEYS = _CASE_METADATA_KEYS | frozenset({
+    "action",
+    "args",
+    "input",
+    "expect",
+})
+_HAS_FORMAT_CONTENT_CASE_KEYS = _CASE_METADATA_KEYS | frozenset({
+    "action",
+    "args",
+    "input",
+    "expect",
+})
+_WRAP_CASE_KEYS = _CASE_METADATA_KEYS | frozenset({
+    "action",
+    "args",
+    "parts",
+    "expect_output",
+    "expect_contains",
+    "expect_round_trip",
+})
+_PARSE_RESPONSE_CASE_KEYS = _CASE_METADATA_KEYS | frozenset({
+    "action",
+    "args",
+    "input",
+    "expect",
+    "expect_error",
+})
+_PARSE_CHUNK_CASE_KEYS = _CASE_METADATA_KEYS | frozenset({
+    "action",
+    "args",
+    "steps",
+    "expect_close",
+    "expect_error",
+    "expect_matches_single_shot",
+})
+_PARSE_CHUNK_STEP_KEYS = frozenset({
+    "input",
+    "expect",
+    "expect_error",
+    "expect_in_block",
+    "expect_partial_results",
+})
+_GENERATE_PROMPT_SNIPPET_CASE_KEYS = _CASE_METADATA_KEYS | frozenset({
+    "action",
+    "args",
+    "expect_file",
+    "expect_callable_functions",
+    "expect_contains",
+    "expect_absent",
+    "expect_deterministic",
+    "expect_error",
+})
+_CREATE_FORMAT_CASE_KEYS = _CASE_METADATA_KEYS | frozenset({
+    "action",
+    "args",
+    "expect",
+    "expect_error",
+})
+_CREATE_FORMAT_EXPECT_KEYS = frozenset({
+    "parsers_are_distinct",
+    "parser_state_isolated",
+    "prompt_snippet_contains",
+    "prompt_snippet_absent",
+})
+_CREATE_PROCESSOR_CASE_KEYS = _CASE_METADATA_KEYS | frozenset({
+    "action",
+    "args",
+    "expect",
+    "expect_error",
+    "then_parse",
+    "then_stream",
+})
+_CREATE_PROCESSOR_EXPECT_KEYS = frozenset({
+    "active_catalog_ids",
+    "catalogs",
+    "generator_catalogs_unchanged",
+    "prompt_snippet_contains",
+    "prompt_snippet_absent",
+})
+_THEN_PARSE_KEYS = frozenset({"input", "expect", "expect_error"})
+_THEN_STREAM_KEYS = frozenset({"steps", "expect_close", "expect_error"})
+_THEN_STREAM_STEP_KEYS = frozenset({"input", "expect", "expect_error"})
+_CATALOG_EXPECT_KEYS = frozenset({
+    "catalog_id",
+    "components",
+    "functions",
+    "protocol_version",
+})
 
 
 @contextlib.contextmanager
 def assert_raises(expect_error):
     if isinstance(expect_error, dict):
+        assert_known_keys(expect_error, _EXPECT_ERROR_KEYS, "expect_error")
         category = expect_error.get("category")
         message = expect_error.get("message", "")
         expected_class = CATEGORY_TO_EXCEPTION.get(category, A2uiError)
@@ -82,7 +223,7 @@ def assert_raises(expect_error):
         expected_details = None
 
     with pytest.raises(expected_class) as excinfo:
-        yield
+        yield excinfo
 
     if message:
         assert re.search(_align_error_match(message), str(excinfo.value))
@@ -90,6 +231,12 @@ def assert_raises(expect_error):
     if expected_details is not None:
         actual_details = getattr(excinfo.value, "details", [])
         for expected in expected_details:
+            if isinstance(expected, Mapping):
+                assert_known_keys(
+                    expected,
+                    _EXPECT_ERROR_DETAIL_KEYS,
+                    "expect_error.details[]",
+                )
             exp_path = expected["path"]
             exp_code = expected["code"]
             found = False
@@ -120,11 +267,21 @@ def _align_error_match(expect_error: str) -> str:
     return expect_error
 
 
+def category_of(error: BaseException) -> str:
+    """The suite's category for an error, or its class name if it has none."""
+    for category, cls in CATEGORY_TO_EXCEPTION.items():
+        if isinstance(error, cls):
+            return category
+    return type(error).__name__
+
+
 def part_to_dict(part) -> dict:
     if isinstance(part, TextPart):
         return {"text": part.text}
     if isinstance(part, A2uiPart):
         return {"a2ui": to_message_dicts(part.a2ui)}
+    if isinstance(part, ErrorPart):
+        return {"error": {"category": category_of(part.error)}}
     raise TypeError(f"Unexpected part type: {type(part)}")
 
 
@@ -133,36 +290,23 @@ def assert_parts_match(actual_parts, expected_parts):
     assert actual_dicts == expected_parts
 
 
-def get_conformance_cases(filename):
-    if filename in SKIP_TEST_SUITES or os.path.basename(filename) in SKIP_TEST_SUITES:
-        return []
-
-    cases = load_tests(filename)
-    filtered = []
-    for case in cases:
-        name = case.get("name")
-        catalog = (
-            case.get("catalog", {}) if isinstance(case.get("catalog"), dict) else {}
-        )
-        catalogs = (
-            case.get("catalogs", []) if isinstance(case.get("catalogs"), list) else []
-        )
-        first_catalog = (
-            catalogs[0] if catalogs and isinstance(catalogs[0], dict) else {}
-        )
-        version = str(
-            case.get("protocolVersion")
-            or catalog.get("protocolVersion")
-            or first_catalog.get("protocolVersion")
-            or "v0.9"
-        )
-        if not version.startswith("v"):
-            version = f"v{version}"
-
-        if version not in SUPPORTED_PROTOCOL_VERSIONS or name in SKIP_TEST_NAMES:
-            continue
-        filtered.append((name, case))
-    return filtered
+def _case_protocol_version(case: Mapping[str, Any]) -> str:
+    catalog = case.get("catalog", {}) if isinstance(case.get("catalog"), dict) else {}
+    catalogs = (
+        case.get("catalogs", []) if isinstance(case.get("catalogs"), list) else []
+    )
+    first_catalog = catalogs[0] if catalogs and isinstance(catalogs[0], dict) else {}
+    version = str(
+        case.get("protocolVersion")
+        or catalog.get("protocolVersion")
+        or first_catalog.get("protocolVersion")
+        or "v0.9"
+    )
+    if version.startswith("0."):
+        return f"v{version}"
+    if version == "v1.0":
+        return "1.0"
+    return version
 
 
 CONFORMANCE_SURFACE_ID = "default_surface"
@@ -171,30 +315,7 @@ DEFAULT_CATALOG = "test_data/catalogs/simplified_catalog_v1_0.json"
 
 # Cases the suites fix and this SDK does not yet satisfy. Marked strict so that
 # fixing the implementation fails the marker instead of passing silently.
-KNOWN_GAPS: dict[str, str] = {
-    "test_compile_express_checks_on_uncheckable_component_is_a_validation_error": (
-        "ExpressCompiler does not reject check lists on components that do not"
-        " declare checks (https://github.com/a2ui-project/a2ui/issues/3099)"
-    ),
-    "test_compile_express_components_without_root_is_update_components": (
-        "ExpressCompiler does not emit updateComponents for component blocks"
-        " that omit root (https://github.com/a2ui-project/a2ui/issues/3099)"
-    ),
-    "test_compile_express_inline_array_id_collision_is_a_validation_error": (
-        "ExpressCompiler does not reject inline array child IDs that collide"
-        " with assigned variables"
-        " (https://github.com/a2ui-project/a2ui/issues/3099)"
-    ),
-    "test_compile_express_inline_id_collision_is_a_validation_error": (
-        "ExpressCompiler does not reject inline child IDs that collide with"
-        " assigned variables (https://github.com/a2ui-project/a2ui/issues/3099)"
-    ),
-    "test_decompile_express_update_data_model_map_at_path": (
-        "ExpressDecompiler does not flatten map values in updateDataModel at a"
-        " non-root path into per-leaf assignments"
-        " (https://github.com/a2ui-project/a2ui/issues/3099)"
-    ),
-}
+KNOWN_GAPS: dict[str, str] = {}
 
 # Cases this SDK has no API to run at all, as opposed to running and
 # disagreeing.
@@ -220,7 +341,7 @@ def catalog_config_from_document(ref) -> CatalogConfig:
     if isinstance(ref, dict):
         catalog = InMemoryCatalogProvider(
             ref,
-            protocol_version=None if "protocolVersion" in ref else "v1.0",
+            protocol_version=None if "protocolVersion" in ref else "1.0",
             catalog_id=None if "catalogId" in ref else "inline",
         ).load()
         return CatalogConfig(
@@ -233,7 +354,7 @@ def catalog_config_from_document(ref) -> CatalogConfig:
     return CatalogConfig.from_path(
         catalog_path=get_conformance_path(relative_path),
         transformers=transformers,
-        protocol_version=None if "protocolVersion" in doc else "v1.0",
+        protocol_version=None if "protocolVersion" in doc else "1.0",
         catalog_id=(
             None
             if "catalogId" in doc
@@ -254,20 +375,37 @@ def _catalogs_for(args):
 
 
 def _protocol_version(catalogs) -> str:
-    """The `vX.Y` protocol version of the first catalog, which Express targets."""
-    version = str(getattr(catalogs[0].protocol_version, "value", None) or "")
-    if not version:
-        version = str(catalogs[0].protocol_version)
-    return version if version.startswith("v") else f"v{version}"
+    """The canonical wire protocol version of the first catalog, which Express targets."""
+    return to_protocol_version(catalogs[0].protocol_version).value
 
 
-def make_parser(args):
+def compile_checked(parser, content):
+    """Compiles one block and checks its messages on their own.
+
+    A conformance `compile` case fixes the messages an agent sends for one
+    block, so they are checked the way `validate_payload` checks a payload: a
+    surface that the block updates without creating is assumed to exist. A
+    failure to compile that isn't an `A2uiError` is raised as
+    `A2uiCompilationError`, as `parse_response` raises it.
+    """
+    try:
+        messages = parser.compile(content)
+    except A2uiError:
+        raise
+    except Exception as e:
+        raise A2uiCompilationError(f"Failed to compile A2UI block: {e}", content) from e
+    validate_payload(parser.catalogs, messages)
+    return to_message_models(messages)
+
+
+def make_parser(args, *, buffer_incomplete_components: bool = False):
     """Builds the parser for the format a case names."""
     return _format_for(
         args["format"],
         _catalogs_for(args),
         allowed_messages=args.get("allowed_messages"),
         progressive_keys=args.get("progressive_keys"),
+        buffer_incomplete_components=buffer_incomplete_components,
     ).create_parser()
 
 
@@ -277,14 +415,19 @@ def _format_for(
     examples=None,
     allowed_messages=None,
     progressive_keys=None,
+    buffer_incomplete_components: bool = False,
 ):
     if format_name == "express":
+        express_kwargs = {}
+        if progressive_keys is not None:
+            express_kwargs["progressive_keys"] = frozenset(progressive_keys)
         return ExpressFormat(
             catalogs=catalogs,
             examples=examples,
             allowed_messages=allowed_messages,
             surface_id=CONFORMANCE_SURFACE_ID,
             version=_protocol_version(catalogs),
+            **express_kwargs,
         )
     if format_name == "elemental":
         return ElementalFormat(
@@ -308,12 +451,15 @@ def _format_for(
             catalogs=catalogs,
             examples=examples,
             allowed_messages=allowed_messages,
+            buffer_incomplete_components=buffer_incomplete_components,
             **kwargs,
         )
     raise ValueError(f"Unknown inference format: {format_name}")
 
 
-def stage_examples(examples, tmp_path):
+def stage_examples(
+    examples, tmp_path, *, lower: bool = False, default_catalog_id: str | None = None
+):
     """Copies a case's example files into a directory and loads them."""
     if not examples or tmp_path is None:
         return None
@@ -325,11 +471,21 @@ def stage_examples(examples, tmp_path):
         dst = os.path.join(examples_dir, f"{idx:02d}_{os.path.basename(ex_rel)}")
         with open(src, "rb") as rf, open(dst, "wb") as wf:
             wf.write(rf.read())
-        loaded.append(to_message_models(load_json_file(ex_rel)))
+        raw_msgs = load_json_file(ex_rel)
+        if lower:
+            raw_msgs = lower_messages(raw_msgs, default_catalog_id=default_catalog_id)
+        loaded.append(to_message_models(raw_msgs))
     return loaded
 
 
-def make_format(args, tmp_path=None, catalogs=None, format_name=None):
+def make_format(
+    args,
+    tmp_path=None,
+    catalogs=None,
+    format_name=None,
+    *,
+    lower_examples: bool = False,
+):
     """Builds the InferenceFormat instance for a conformance case."""
     if catalogs is None:
         if "catalogs" in args:
@@ -342,7 +498,12 @@ def make_format(args, tmp_path=None, catalogs=None, format_name=None):
     if not catalogs:
         raise A2uiCatalogError("At least one active catalog is required.")
 
-    loaded_examples = stage_examples(args.get("examples", []), tmp_path)
+    loaded_examples = stage_examples(
+        args.get("examples", []),
+        tmp_path,
+        lower=lower_examples,
+        default_catalog_id=catalogs[0].catalog_id,
+    )
     return _format_for(
         format_name or args["format"],
         catalogs,
@@ -377,13 +538,38 @@ def get_marked_conformance_cases(*filenames):
     """Loads cases from several suites, marking the ones this SDK cannot pass."""
     params = []
     for filename in filenames:
-        for name, case in get_conformance_cases(filename):
-            marks = []
-            if name in UNSUPPORTED:
-                marks.append(pytest.mark.skip(reason=UNSUPPORTED[name]))
-            elif name in KNOWN_GAPS:
-                marks.append(pytest.mark.xfail(reason=KNOWN_GAPS[name], strict=True))
-            params.append(pytest.param(name, case, marks=marks, id=name))
+        cases = load_tests(filename)
+        suite_skip_reason = None
+        if filename in SKIP_TEST_SUITES:
+            suite_skip_reason = (
+                SKIP_TEST_SUITES[filename]
+                if isinstance(SKIP_TEST_SUITES, Mapping)
+                else f"Suite skipped by SKIP_TEST_SUITES: {filename}"
+            )
+        elif os.path.basename(filename) in SKIP_TEST_SUITES:
+            base = os.path.basename(filename)
+            suite_skip_reason = (
+                SKIP_TEST_SUITES[base]
+                if isinstance(SKIP_TEST_SUITES, Mapping)
+                else f"Suite skipped by SKIP_TEST_SUITES: {base}"
+            )
+
+        skip: dict[str, str] = dict(UNSUPPORTED)
+        for case in cases:
+            name = str(case.get("name"))
+            if suite_skip_reason is not None:
+                skip[name] = suite_skip_reason
+                continue
+            version = _case_protocol_version(case)
+            if version not in SUPPORTED_PROTOCOL_VERSIONS:
+                skip[name] = f"Unsupported protocol version: {version}"
+            elif name in SKIP_TEST_NAMES:
+                skip[name] = (
+                    SKIP_TEST_NAMES[name]
+                    if isinstance(SKIP_TEST_NAMES, Mapping) and SKIP_TEST_NAMES[name]
+                    else f"Skipped in SKIP_TEST_NAMES: {name}"
+                )
+        params.extend(case_params(filename, cases, skip=skip, xfail=KNOWN_GAPS))
     return params
 
 
@@ -393,20 +579,38 @@ cases_compiler = get_marked_conformance_cases(
 )
 
 
-@pytest.mark.parametrize("name, test_case", cases_compiler)
-def test_compiler_conformance(name, test_case):
+@pytest.mark.parametrize("version", SUITE_VERSIONS)
+@pytest.mark.parametrize("suite, test_case", cases_compiler)
+def test_compiler_conformance(suite, test_case, version):
+    assert test_case.get("action") == "compile"
+    assert_known_keys(test_case, _COMPILE_CASE_KEYS, "compile case")
+    is_express = test_case.get("args", {}).get("format") == "express"
+    inj_id = None
+    if version == "v0.9-lowered":
+        skip_reason = v09_skip_reason(suite, test_case)
+        if skip_reason:
+            pytest.skip(skip_reason)
+        inj_id = injected_catalog_id(test_case, DEFAULT_CATALOG)
+        test_case = lower_case(test_case, DEFAULT_CATALOG)
+
     parser = make_parser(test_case["args"])
     payload = test_case["input"]
 
     if "expect_error" in test_case:
         with assert_raises(test_case["expect_error"]):
-            parser.compile(payload)
+            compile_checked(parser, payload)
         return
 
-    raw_compiled = parser.compile(payload)
+    raw_compiled = compile_checked(parser, payload)
     assert isinstance(raw_compiled, list)
     assert all(hasattr(m, "model_dump") for m in raw_compiled)
     compiled = to_message_dicts(raw_compiled)
+    if version == "v0.9-lowered":
+        compiled = lift_messages(
+            compiled,
+            join=is_express,
+            injected_catalog_id=None if is_express else inj_id,
+        )
 
     if "expect_present" in test_case:
         for pointer in test_case["expect_present"]:
@@ -422,10 +626,34 @@ cases_decompiler = get_marked_conformance_cases(
 )
 
 
-@pytest.mark.parametrize("name, test_case", cases_decompiler)
-def test_decompiler_conformance(name, test_case):
+@pytest.mark.parametrize("version", SUITE_VERSIONS)
+@pytest.mark.parametrize("suite, test_case", cases_decompiler)
+def test_decompiler_conformance(suite, test_case, version):
+    assert test_case.get("action") == "decompile"
+    assert_known_keys(test_case, _DECOMPILE_CASE_KEYS, "decompile case")
+    orig_messages = test_case["messages"]
+    is_express = test_case.get("args", {}).get("format") == "express"
+    inj_id = None
+    if version == "v0.9-lowered":
+        skip_reason = v09_skip_reason(suite, test_case)
+        if skip_reason:
+            pytest.skip(skip_reason)
+        if not is_express and not any(
+            isinstance(m, dict)
+            and isinstance(m.get("createSurface"), dict)
+            and "catalogId" in m["createSurface"]
+            for m in orig_messages
+        ):
+            inj_id = first_catalog_id(test_case.get("args", {}), DEFAULT_CATALOG)
+        test_case = lower_case(test_case, DEFAULT_CATALOG)
+
     parser = make_parser(test_case["args"])
     messages = test_case["messages"]
+
+    if "expect_error" in test_case:
+        with assert_raises(test_case["expect_error"]):
+            parser.decompile(to_message_models(messages))
+        return
 
     notation = parser.decompile(to_message_models(messages))
 
@@ -435,13 +663,21 @@ def test_decompiler_conformance(name, test_case):
     for fragment in test_case.get("expect_absent", []):
         assert fragment not in notation, f"{fragment!r} unexpectedly in {notation!r}"
 
+    def recompile():
+        recompiled = to_message_dicts(compile_checked(parser, notation))
+        if version == "v0.9-lowered":
+            recompiled = lift_messages(
+                recompiled,
+                join=is_express,
+                injected_catalog_id=None if is_express else inj_id,
+            )
+        return recompiled
+
     if test_case.get("expect_round_trip"):
-        assert to_message_dicts(parser.compile(notation)) == messages
+        assert recompile() == orig_messages
 
     if "expect_recompiled" in test_case:
-        assert (
-            to_message_dicts(parser.compile(notation)) == test_case["expect_recompiled"]
-        )
+        assert recompile() == test_case["expect_recompiled"]
 
 
 # --- Response Parser Conformance ---
@@ -507,16 +743,47 @@ cases_response_parser = get_marked_conformance_cases(
 )
 
 
-@pytest.mark.parametrize("name, test_case", cases_response_parser)
-def test_response_parser_conformance(name, test_case):
+@pytest.mark.parametrize("version", SUITE_VERSIONS)
+@pytest.mark.parametrize("suite, test_case", cases_response_parser)
+def test_response_parser_conformance(suite, test_case, version):
+    is_express = test_case.get("args", {}).get("format") == "express"
+    inj_id = None
+    if version == "v0.9-lowered":
+        skip_reason = v09_skip_reason(suite, test_case)
+        if skip_reason:
+            pytest.skip(skip_reason)
+        inj_id = injected_catalog_id(test_case, DEFAULT_CATALOG)
+        test_case = lower_case(test_case, DEFAULT_CATALOG)
+
     args = test_case["args"]
     parser = make_parser(args)
     action = test_case["action"]
 
     if action == "unwrap":
-        assert_raw_parts_match(parser.unwrap(test_case["input"]), test_case["expect"])
+        assert_known_keys(test_case, _UNWRAP_CASE_KEYS, "unwrap case")
+        expected = test_case["expect"]
+        assert_raw_parts_match(parser.unwrap(test_case["input"]), expected)
+        has_any = any("a2ui_raw" in p for p in expected)
+        has_complete = any(
+            "a2ui_raw" in p and p.get("is_final", True) for p in expected
+        )
+        assert parser.has_format_content(test_case["input"]) is has_any
+        assert (
+            parser.has_format_content(test_case["input"], complete=True) is has_complete
+        )
+
+    elif action == "has_format_content":
+        assert_known_keys(
+            test_case, _HAS_FORMAT_CONTENT_CASE_KEYS, "has_format_content case"
+        )
+        complete = args.get("complete", False)
+        assert (
+            parser.has_format_content(test_case["input"], complete=complete)
+            is test_case["expect"]
+        )
 
     elif action == "wrap":
+        assert_known_keys(test_case, _WRAP_CASE_KEYS, "wrap case")
         parts = test_case["parts"]
         output = wrap_parts(parser, parts)
 
@@ -528,7 +795,10 @@ def test_response_parser_conformance(name, test_case):
             assert_raw_parts_match(parser.unwrap(output), parts)
 
     elif action == "parse_response":
-        kwargs = {} if args.get("wrapped", True) else {"wrapped": False}
+        assert_known_keys(test_case, _PARSE_RESPONSE_CASE_KEYS, "parse_response case")
+        kwargs: dict[str, Any] = {}
+        if not args.get("wrapped", True):
+            kwargs["wrapped"] = False
 
         if "expect_error" in test_case:
             with assert_raises(test_case["expect_error"]):
@@ -536,44 +806,126 @@ def test_response_parser_conformance(name, test_case):
             return
 
         parts = parser.parse_response(test_case["input"], **kwargs)
-        assert_parts_match(parts, test_case["expect"])
+        actual_dicts = [part_to_dict(p) for p in parts]
+        if version == "v0.9-lowered":
+            actual_dicts = lift_parts(
+                actual_dicts,
+                join=is_express,
+                injected_catalog_id=None if is_express else inj_id,
+            )
+        assert actual_dicts == test_case["expect"]
 
     else:
-        raise ValueError(f"Unknown response parser action: {action}")
+        pytest.fail(f"Unknown response parser action: {action!r}")
 
 
-# --- Streaming Response Conformance (Direct JSON) ---
+# --- Streaming Response Conformance (Direct JSON & Express) ---
 
 cases_response_streaming = get_marked_conformance_cases(
     "agent/direct_json/response_streaming.yaml",
+) + get_marked_conformance_cases(
+    "agent/express/response_streaming.yaml",
 )
 
 
-@pytest.mark.parametrize("name, test_case", cases_response_streaming)
-def test_response_streaming_conformance(name, test_case):
+def _merge_text_parts(parts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    merged: list[dict[str, Any]] = []
+    for p in parts:
+        if merged and "text" in merged[-1] and "text" in p:
+            merged[-1] = {"text": merged[-1]["text"] + p["text"]}
+        else:
+            merged.append(p)
+    return merged
+
+
+@pytest.mark.parametrize("version", SUITE_VERSIONS)
+@pytest.mark.parametrize("suite, test_case", cases_response_streaming)
+def test_response_streaming_conformance(suite, test_case, version):
+    assert test_case.get("action") == "parse_chunk"
+    assert_known_keys(test_case, _PARSE_CHUNK_CASE_KEYS, "parse_chunk case")
+    orig_args = test_case.get("args", {})
+    is_express = orig_args.get("format") == "express"
+    declares_v1 = case_declares_v1(orig_args)
+    inj_id = None
+    if version == "v0.9-lowered":
+        skip_reason = v09_skip_reason(suite, test_case)
+        if skip_reason:
+            pytest.skip(skip_reason)
+        inj_id = injected_catalog_id(test_case, DEFAULT_CATALOG)
+        test_case = lower_case(test_case, DEFAULT_CATALOG)
+
+    def _to_expected_dicts(parts) -> list[dict[str, Any]]:
+        dicts = [part_to_dict(p) for p in parts]
+        if version == "v0.9-lowered":
+            dicts = lift_parts(
+                dicts,
+                join=is_express,
+                injected_catalog_id=None if is_express else inj_id,
+            )
+        return dicts
+
     args = test_case["args"]
     wrapped = args.get("wrapped", True)
-    parser = make_parser(args)
+    stream = make_parser(
+        args,
+        buffer_incomplete_components=(
+            version == "v0.9-lowered" and not is_express and declares_v1
+        ),
+    ).open_stream(
+        wrapped=wrapped,
+        after_rejected_block=args.get("after_rejected_block", "end"),
+    )
+
     chunks: list[str] = []
     yielded: list[dict] = []
 
     for step in test_case["steps"]:
+        assert_known_keys(step, _PARSE_CHUNK_STEP_KEYS, "parse_chunk step")
         chunk = step["input"]
         chunks.append(chunk)
         if "expect_error" in step:
-            with assert_raises(step["expect_error"]):
-                parser.parse_chunk(chunk, wrapped=wrapped)
+            with assert_raises(step["expect_error"]) as excinfo:
+                stream.feed(chunk)
+            if "expect_partial_results" in step:
+                partial = getattr(excinfo.value, "partial_results", [])
+                assert _to_expected_dicts(partial) == step["expect_partial_results"]
+            if "expect_in_block" in step:
+                assert stream.is_in_block == step["expect_in_block"]
             return
-        parts = parser.parse_chunk(chunk, wrapped=wrapped)
-        assert_parts_match(parts, step["expect"])
-        yielded.extend(part_to_dict(p) for p in parts)
+        parts = stream.feed(chunk)
+        step_dicts = _to_expected_dicts(parts)
+        assert step_dicts == step["expect"]
+        if "expect_in_block" in step:
+            assert stream.is_in_block == step["expect_in_block"]
+        yielded.extend(step_dicts)
+
+    if "expect_error" in test_case:
+        with assert_raises(test_case["expect_error"]):
+            stream.close()
+        return
+
+    closed = stream.close()
+    closed_dicts = _to_expected_dicts(closed)
+    if "expect_close" in test_case:
+        assert closed_dicts == test_case["expect_close"]
+    yielded.extend(closed_dicts)
 
     if test_case.get("expect_matches_single_shot"):
         fresh_parser = make_parser(args)
         single_shot_parts = fresh_parser.parse_response(
             "".join(chunks), wrapped=wrapped
         )
-        assert [part_to_dict(p) for p in single_shot_parts] == yielded
+        assert _merge_text_parts(yielded) == _merge_text_parts(
+            _to_expected_dicts(single_shot_parts)
+        )
+
+
+# --- Streamed Answer Conformance ---
+
+# agent/streamed_answer.yaml covers the optional agent_renderer_app feature
+# (blueprints/features/agent_renderer_app.blueprint.md), for an app that is
+# both the agent and the renderer. This SDK has no renderer, so it does not
+# implement the feature and has no runner for the suite.
 
 
 # --- Multi-Catalog Formats Conformance (Express, Elemental, Atom, Direct JSON) ---
@@ -607,33 +959,61 @@ def _expect_snippet(snippet, contains, absent):
         assert fragment not in snippet, f"{fragment!r} unexpectedly in {snippet!r}"
 
 
-@pytest.mark.parametrize("name, test_case", cases_multi_catalog)
-def test_multi_catalog_formats_conformance(name, test_case, tmp_path):
-    run_format_case(test_case, tmp_path)
+@pytest.mark.parametrize("suite, test_case", cases_multi_catalog)
+def test_multi_catalog_formats_conformance(suite, test_case, tmp_path):
+    run_format_case(test_case, tmp_path, suite=suite)
 
 
-def run_format_case(test_case, tmp_path):
+def run_format_case(test_case, tmp_path, *, suite: str = "", version: str = "v1.0"):
     """Runs a format-level case: compile, decompile, parse, prompt, or factory."""
+    is_lowered = version == "v0.9-lowered"
+    orig_messages = test_case.get("messages")
+    effective_format = (
+        test_case.get("args", {}).get("format_override")
+        or test_case.get("args", {}).get("format")
+        or "express"
+    )
+    is_express = effective_format == "express"
+    inj_id = None
+    if is_lowered:
+        skip_reason = v09_skip_reason(suite, test_case)
+        if skip_reason:
+            pytest.skip(skip_reason)
+        inj_id = injected_catalog_id(test_case, DEFAULT_CATALOG)
+        test_case = lower_case(test_case, DEFAULT_CATALOG)
+
     action = test_case["action"]
     args = test_case["args"]
 
     if action == "compile":
+        assert_known_keys(test_case, _COMPILE_CASE_KEYS, "compile case")
         parser = make_parser(args)
         if "expect_error" in test_case:
             with assert_raises(test_case["expect_error"]):
-                parser.compile(test_case["input"])
+                compile_checked(parser, test_case["input"])
             return
-        raw_compiled = parser.compile(test_case["input"])
+        raw_compiled = compile_checked(parser, test_case["input"])
         assert isinstance(raw_compiled, list)
         assert all(hasattr(m, "model_dump") for m in raw_compiled)
         compiled = to_message_dicts(raw_compiled)
+        if is_lowered:
+            compiled = lift_messages(
+                compiled,
+                join=is_express,
+                injected_catalog_id=None if is_express else inj_id,
+            )
         assert sort_components_by_id(compiled) == sort_components_by_id(
             test_case["expect"]
         )
 
     elif action == "decompile":
+        assert_known_keys(test_case, _DECOMPILE_CASE_KEYS, "decompile case")
         parser = make_parser(args)
         messages = test_case["messages"]
+        if "expect_error" in test_case:
+            with assert_raises(test_case["expect_error"]):
+                parser.decompile(to_message_models(messages))
+            return
         notation = parser.decompile(to_message_models(messages))
         _expect_snippet(
             notation,
@@ -641,28 +1021,62 @@ def run_format_case(test_case, tmp_path):
             test_case.get("expect_absent", []),
         )
         if test_case.get("expect_round_trip"):
+            recompiled = to_message_dicts(compile_checked(parser, notation))
+            if is_lowered:
+                recompiled = lift_messages(
+                    recompiled,
+                    join=is_express,
+                    injected_catalog_id=None if is_express else inj_id,
+                )
+            assert sort_components_by_id(recompiled) == sort_components_by_id(
+                orig_messages
+            )
+        if "expect_recompiled" in test_case:
             recompiled = to_message_dicts(parser.compile(notation))
-            assert sort_components_by_id(recompiled) == sort_components_by_id(messages)
+            if is_lowered:
+                recompiled = lift_messages(
+                    recompiled,
+                    join=is_express,
+                    injected_catalog_id=None if is_express else inj_id,
+                )
+            assert sort_components_by_id(recompiled) == sort_components_by_id(
+                test_case["expect_recompiled"]
+            )
 
     elif action == "parse_response":
+        assert_known_keys(test_case, _PARSE_RESPONSE_CASE_KEYS, "parse_response case")
         parser = make_parser(args)
         if "expect_error" in test_case:
             with assert_raises(test_case["expect_error"]):
                 parser.parse_response(test_case["input"])
             return
         parts = parser.parse_response(test_case["input"])
-        assert_parts_match(parts, test_case["expect"])
+        actual_dicts = [part_to_dict(p) for p in parts]
+        if is_lowered:
+            actual_dicts = lift_parts(
+                actual_dicts,
+                join=is_express,
+                injected_catalog_id=None if is_express else inj_id,
+            )
+        assert actual_dicts == test_case["expect"]
 
     elif action == "generate_prompt_snippet":
+        assert_known_keys(
+            test_case,
+            _GENERATE_PROMPT_SNIPPET_CASE_KEYS,
+            "generate_prompt_snippet case",
+        )
 
         def generate(fmt):
             return fmt.prompt_generator.generate()
 
         if "expect_error" in test_case:
             with assert_raises(test_case["expect_error"]):
-                generate(make_format(args, tmp_path=tmp_path))
+                generate(
+                    make_format(args, tmp_path=tmp_path, lower_examples=is_lowered)
+                )
             return
-        fmt = make_format(args, tmp_path=tmp_path)
+        fmt = make_format(args, tmp_path=tmp_path, lower_examples=is_lowered)
         snippet = generate(fmt)
         if "expect_file" in test_case:
             with open(
@@ -674,26 +1088,38 @@ def run_format_case(test_case, tmp_path):
             test_case.get("expect_contains", []),
             test_case.get("expect_absent", []),
         )
+        if "expect_callable_functions" in test_case:
+            expected_callable = test_case["expect_callable_functions"]
+            assert agent_callable_functions(_catalogs_for(args)) == expected_callable
+            for fn_name in expected_callable:
+                assert fn_name in snippet, f"{fn_name!r} not in {snippet!r}"
         if test_case.get("expect_deterministic"):
             assert snippet == generate(fmt)
 
     elif action == "create_format":
+        assert_known_keys(test_case, _CREATE_FORMAT_CASE_KEYS, "create_format case")
         if "expect_error" in test_case:
             with assert_raises(test_case["expect_error"]):
-                make_format(args, tmp_path=tmp_path)
+                make_format(args, tmp_path=tmp_path, lower_examples=is_lowered)
             return
-        fmt = make_format(args, tmp_path=tmp_path)
+        fmt = make_format(args, tmp_path=tmp_path, lower_examples=is_lowered)
         expect = test_case.get("expect", {})
+        assert_known_keys(expect, _CREATE_FORMAT_EXPECT_KEYS, "create_format expect")
 
         if expect.get("parsers_are_distinct"):
             assert fmt.create_parser() is not fmt.create_parser()
         if expect.get("parser_state_isolated"):
-            chunks = args["probe_chunks"]
+            raw_chunks = args["probe_chunks"]
+            chunks = (
+                [lower_text(c) for c in raw_chunks]
+                if is_lowered and not is_express
+                else raw_chunks
+            )
 
             def read(parser):
+                stream = parser.open_stream()
                 return [
-                    [part_to_dict(p) for p in parser.parse_chunk(chunk)]
-                    for chunk in chunks
+                    [part_to_dict(p) for p in stream.feed(chunk)] for chunk in chunks
                 ]
 
             first_parts = read(fmt.create_parser())
@@ -707,10 +1133,16 @@ def run_format_case(test_case, tmp_path):
         )
 
     elif action == "create_processor":
-        run_create_processor_case(test_case, tmp_path)
+        run_create_processor_case(
+            test_case,
+            tmp_path,
+            is_lowered=is_lowered,
+            is_express=is_express,
+            inj_id=inj_id,
+        )
 
     else:
-        raise ValueError(f"Unknown format case action: {action}")
+        pytest.fail(f"Unknown format case action: {action!r}")
 
 
 # --- Prompt Generator Conformance ---
@@ -721,9 +1153,10 @@ cases_prompt_generator = get_marked_conformance_cases(
 )
 
 
-@pytest.mark.parametrize("name, test_case", cases_prompt_generator)
-def test_prompt_generator_conformance(name, test_case, tmp_path):
-    run_format_case(test_case, tmp_path)
+@pytest.mark.parametrize("version", SUITE_VERSIONS)
+@pytest.mark.parametrize("suite, test_case", cases_prompt_generator)
+def test_prompt_generator_conformance(suite, test_case, version, tmp_path):
+    run_format_case(test_case, tmp_path, suite=suite, version=version)
 
 
 # --- Request Processor Conformance ---
@@ -738,16 +1171,24 @@ def _describe_configs(configs):
     described = []
     for config in configs:
         catalog = config.transformed_catalog
-        described.append(
-            (catalog.catalog_id, sorted(catalog.components), sorted(catalog.functions))
-        )
+        described.append((
+            catalog.catalog_id,
+            sorted(catalog.components),
+            sorted(catalog.functions),
+        ))
     return described
 
 
-def _expect_catalog(catalog, expected):
+def _expect_catalog(catalog, expected, *, is_lowered: bool = False):
     """Checks a catalog against a case's expectations. Name lists are exhaustive."""
+    assert_known_keys(expected, _CATALOG_EXPECT_KEYS, "expect.catalog")
     if "catalog_id" in expected:
         assert catalog.catalog_id == expected["catalog_id"]
+    if "protocol_version" in expected and not is_lowered:
+        assert (
+            to_protocol_version(catalog.protocol_version).value
+            == expected["protocol_version"]
+        )
     if "components" in expected:
         assert sorted(catalog.components) == sorted(set(expected["components"]))
     if "functions" in expected:
@@ -761,9 +1202,13 @@ def _factory_for(format_name, allowed_messages=None, progressive_keys=None):
     from a2ui.inference_formats.express import ExpressFormatFactory
 
     if format_name == "express":
+        express_kwargs = {}
+        if progressive_keys is not None:
+            express_kwargs["progressive_keys"] = frozenset(progressive_keys)
         return ExpressFormatFactory(
             allowed_messages=allowed_messages,
             surface_id=CONFORMANCE_SURFACE_ID,
+            **express_kwargs,
         )
     if format_name == "elemental":
         return ElementalFormatFactory(
@@ -786,17 +1231,36 @@ def _factory_for(format_name, allowed_messages=None, progressive_keys=None):
     raise ValueError(f"Unknown inference format: {format_name}")
 
 
-def run_create_processor_case(test_case, tmp_path):
+def run_create_processor_case(
+    test_case,
+    tmp_path,
+    *,
+    is_lowered: bool = False,
+    is_express: bool = False,
+    inj_id: str | None = None,
+):
     from a2ui.processor import A2uiGenerator
 
+    assert_known_keys(test_case, _CREATE_PROCESSOR_CASE_KEYS, "create_processor case")
     args = test_case["args"]
     configs = [catalog_config_from_document(entry) for entry in args["catalogs"]]
     before = _describe_configs(configs)
-    loaded_examples = stage_examples(args.get("examples", []), tmp_path)
-    base_factory = _factory_for(
-        args.get("format", "direct_json"),
-        allowed_messages=args.get("allowed_messages"),
-        progressive_keys=args.get("progressive_keys"),
+    loaded_examples = stage_examples(
+        args.get("examples", []),
+        tmp_path,
+        lower=is_lowered,
+        default_catalog_id=(
+            configs[0].transformed_catalog.catalog_id if configs else None
+        ),
+    )
+    base_factory = (
+        _factory_for(
+            args["format"],
+            allowed_messages=args.get("allowed_messages"),
+            progressive_keys=args.get("progressive_keys"),
+        )
+        if isinstance(args, dict) and args.get("format") is not None
+        else None
     )
     override_factory = (
         _factory_for(
@@ -804,7 +1268,7 @@ def run_create_processor_case(test_case, tmp_path):
             allowed_messages=args.get("allowed_messages"),
             progressive_keys=args.get("progressive_keys"),
         )
-        if "format_override" in args
+        if isinstance(args, dict) and args.get("format_override") is not None
         else None
     )
     generator = A2uiGenerator(
@@ -830,10 +1294,11 @@ def run_create_processor_case(test_case, tmp_path):
     processor, snippet = create()
     active = processor.active_catalogs
     expect = test_case.get("expect", {})
+    assert_known_keys(expect, _CREATE_PROCESSOR_EXPECT_KEYS, "create_processor expect")
     if "active_catalog_ids" in expect:
         assert [c.catalog_id for c in active] == expect["active_catalog_ids"]
     for catalog, expected in zip(active, expect.get("catalogs", [])):
-        _expect_catalog(catalog, expected)
+        _expect_catalog(catalog, expected, is_lowered=is_lowered)
     _expect_snippet(
         snippet,
         expect.get("prompt_snippet_contains", []),
@@ -842,17 +1307,109 @@ def run_create_processor_case(test_case, tmp_path):
     if expect.get("generator_catalogs_unchanged"):
         assert _describe_configs(generator.catalogs) == before
 
+    def _check_parts(actual_parts, expected_parts):
+        actual_dicts = [part_to_dict(p) for p in actual_parts]
+        if is_lowered:
+            actual_dicts = lift_parts(
+                actual_dicts,
+                join=is_express,
+                injected_catalog_id=None if is_express else inj_id,
+            )
+        assert actual_dicts == expected_parts
+
     parse = test_case.get("then_parse")
     if parse is not None:
+        assert_known_keys(parse, _THEN_PARSE_KEYS, "then_parse")
+        raw_input = parse["input"]
+        cat_id = None if '"catalogId"' in raw_input else inj_id
+        parse_input = (
+            lower_text(raw_input, catalog_id=cat_id)
+            if is_lowered and not is_express
+            else raw_input
+        )
         if "expect_error" in parse:
             with assert_raises(parse["expect_error"]):
-                processor.parse_response(parse["input"])
+                processor.parse_response(parse_input)
         else:
-            assert_parts_match(
-                processor.parse_response(parse["input"]), parse["expect"]
+            _check_parts(processor.parse_response(parse_input), parse["expect"])
+
+    streamed = test_case.get("then_stream")
+    if streamed is not None:
+        _run_then_stream(
+            processor,
+            streamed,
+            is_lowered=is_lowered,
+            is_express=is_express,
+            inj_id=inj_id,
+        )
+
+
+def _run_then_stream(
+    processor,
+    streamed,
+    *,
+    is_lowered: bool = False,
+    is_express: bool = False,
+    inj_id: str | None = None,
+):
+    """Feeds `then_stream` steps through a stream the processor opened.
+
+    Each step states the parts its chunk yields, or the error feeding it
+    raises, which ends the case. After the last step the stream is closed:
+    `expect_close` states the parts that yields, `expect_error` the error it
+    raises.
+    """
+    assert_known_keys(streamed, _THEN_STREAM_KEYS, "then_stream")
+    full_text = "".join(step["input"] for step in streamed["steps"])
+    cat_id = None if '"catalogId"' in full_text else inj_id
+
+    def _check_parts(actual_parts, expected_parts):
+        actual_dicts = [part_to_dict(p) for p in actual_parts]
+        if is_lowered:
+            actual_dicts = lift_parts(
+                actual_dicts,
+                join=is_express,
+                injected_catalog_id=None if is_express else inj_id,
             )
+        assert actual_dicts == expected_parts
+
+    stream = processor.open_stream()
+    for step in streamed["steps"]:
+        assert_known_keys(step, _THEN_STREAM_STEP_KEYS, "then_stream step")
+        chunk = (
+            lower_text(step["input"], catalog_id=cat_id)
+            if is_lowered and not is_express
+            else step["input"]
+        )
+        if "expect_error" in step:
+            with assert_raises(step["expect_error"]):
+                stream.feed(chunk)
+            return
+        assert isinstance(step.get("expect"), list)
+        _check_parts(stream.feed(chunk), step["expect"])
+    if "expect_error" in streamed:
+        with assert_raises(streamed["expect_error"]):
+            stream.close()
+        return
+    closed = stream.close()
+    if "expect_close" in streamed:
+        _check_parts(closed, streamed["expect_close"])
 
 
-@pytest.mark.parametrize("name, test_case", cases_request_processor)
-def test_request_processor_conformance(name, test_case, tmp_path):
-    run_format_case(test_case, tmp_path)
+@pytest.mark.parametrize("version", SUITE_VERSIONS)
+@pytest.mark.parametrize("suite, test_case", cases_request_processor)
+def test_request_processor_conformance(suite, test_case, version, tmp_path):
+    run_format_case(test_case, tmp_path, suite=suite, version=version)
+
+
+def test_v1_only_cases_exist_in_suites():
+    """Ensures every case name listed in `V1_ONLY_CASES` matches a live YAML case."""
+    agent_root = Path(get_conformance_path("agent"))
+    all_case_names: set[str] = set()
+    for yaml_path in sorted(agent_root.rglob("*.yaml")):
+        rel = f"agent/{yaml_path.relative_to(agent_root).as_posix()}"
+        for case in load_tests(rel):
+            if isinstance(case, Mapping) and isinstance(case.get("name"), str):
+                all_case_names.add(case["name"])
+    missing = [name for name in V1_ONLY_CASES if name not in all_case_names]
+    assert missing == [], f"Stale V1_ONLY_CASES entries: {missing}"

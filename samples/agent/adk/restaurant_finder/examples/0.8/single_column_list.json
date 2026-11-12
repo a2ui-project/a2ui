@@ -183,6 +183,18 @@
   {
     "dataModelUpdate": {
       "surfaceId": "default",
+      "path": "/",
+      "contents": [
+        {
+          "key": "title",
+          "valueString": "Found Restaurants"
+        }
+      ]
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "default",
       "path": "/items",
       "contents": [
         {

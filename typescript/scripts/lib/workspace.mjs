@@ -34,13 +34,36 @@ export const ansi = {
 };
 
 /**
- * Finds all package.json files in the repository, excluding node_modules.
+ * Directory names that never contain workspace packages: installed
+ * dependencies, build output and Python virtual environments.
+ */
+const SKIPPED_DIRECTORIES = new Set(['node_modules', 'dist', 'venv']);
+
+/**
+ * Returns whether a directory entry should be skipped when looking for packages.
+ *
+ * Hidden directories (`.git`, `.venv`, `.next`, `.wireit`, `.yarn`, ...) are
+ * skipped as a group: none of them hold workspace packages, and a Python
+ * `.venv` can bundle whole third-party Node monorepos (for example the
+ * `@tsmono/*` packages inside `inspect_ai`) whose short names would otherwise
+ * shadow `@a2ui/*` packages.
+ *
+ * @param {string} name - The directory entry name.
+ * @returns {boolean} Whether to skip the entry.
+ */
+function isSkippedDirectory(name) {
+  return name.startsWith('.') || SKIPPED_DIRECTORIES.has(name);
+}
+
+/**
+ * Finds all package.json files under `dir`, skipping hidden directories,
+ * `node_modules`, `dist` and Python virtual environments.
  */
 export function findPackages(dir = ROOT_DIR, packageList = []) {
   const files = readdirSync(dir);
 
   for (const file of files) {
-    if (file === 'node_modules' || file === '.git' || file === 'dist' || file === '.next' || file === '.wireit') continue;
+    if (isSkippedDirectory(file)) continue;
 
     const fullPath = join(dir, file);
     const stat = statSync(fullPath);

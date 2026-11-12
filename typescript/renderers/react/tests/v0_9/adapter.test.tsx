@@ -18,13 +18,8 @@ import {describe, it, expect, vi} from 'vitest';
 import {render, screen, act} from '@testing-library/react';
 import {createComponentImplementation} from '../../src/adapter';
 import {A2uiSurface} from '../../src/A2uiSurface';
-import {
-  ComponentContext,
-  ComponentModel,
-  SurfaceModel,
-  Catalog,
-  CommonSchemas,
-} from '@a2ui/web_core/v0_9';
+import {Catalog, ComponentContext, ComponentModel, SurfaceModel} from '@a2ui/web_core';
+import {CommonSchemas} from '@a2ui/web_core/v0_9';
 import {z} from 'zod';
 
 const mockCatalog = new Catalog('test', '0.9', [], []);
@@ -178,8 +173,8 @@ describe('adapter', () => {
 
     const {getByTestId, queryByTestId} = render(<A2uiSurface surface={surface} />);
 
-    // Assert the missing child renders the fallback
-    expect(getByTestId('parent').textContent).toContain('[Loading child1...]');
+    // The missing child renders nothing until it arrives
+    expect(getByTestId('parent').textContent).toBe('');
 
     const countBeforeChild = parentRenderCount;
 

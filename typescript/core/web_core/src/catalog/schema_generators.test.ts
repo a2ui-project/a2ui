@@ -17,6 +17,7 @@
 import {describe, it} from 'node:test';
 import assert from 'node:assert';
 import {ExtensionsSchema} from '../types/common-types.js';
+import {ExtensionsSchema as V10ExtensionsSchema} from '../v1_0/schema/common-types.js';
 const zodCore = await import(
   new URL('../../../scripts/zod-generator-core.mjs', import.meta.url).href
 );
@@ -154,6 +155,34 @@ if (a == i) {}`;
     assert.deepStrictEqual(res, {enum: ['__REF__DynamicNumberSchema__']});
   });
 
+  it('rewrites key-presence oneOf branches into object schemas', () => {
+    const node = {
+      type: 'object',
+      properties: {a: {type: 'string', description: 'A.'}, b: {type: 'number'}},
+      oneOf: [
+        {required: ['a'], not: {required: ['b']}},
+        {required: ['b'], not: {required: ['a']}},
+      ],
+    };
+    const res = prepareRef(node, 'Parent');
+    assert.deepStrictEqual(res.anyOf, [
+      {type: 'object', properties: {a: {type: 'string'}, b: false}, required: ['a']},
+      {type: 'object', properties: {b: {type: 'number'}, a: false}, required: ['b']},
+    ]);
+  });
+
+  it('leaves oneOf branches it cannot express as key presence unchanged', () => {
+    const multiKeyNot = {not: {required: ['a', 'b']}};
+    const unknownKey = {required: ['c']};
+    const node = {
+      type: 'object',
+      properties: {a: {type: 'string'}, b: {type: 'number'}},
+      oneOf: [multiKeyNot, unknownKey],
+    };
+    const res = prepareRef(node, 'Parent');
+    assert.deepStrictEqual(res.anyOf, [multiKeyNot, unknownKey]);
+  });
+
   it('compiles a JSON Schema definition into Zod code', () => {
     const def = {
       type: 'object',
@@ -280,25 +309,28 @@ describe('generate-superset-common-types.mjs', () => {
   });
 
   it('validates ExtensionsSchema enforcing UAX #31 Unicode identifier keys', () => {
-    // Valid Unicode identifier keys
-    const valid = {
-      a2ui_custom: 'test',
-      myExt123: 42,
-      _private_key: true,
-      valid_identifier: {nested: 'value'},
-    };
-    const validResult = ExtensionsSchema.safeParse(valid);
-    assert.strictEqual(validResult.success, true);
+    for (const schema of [ExtensionsSchema, V10ExtensionsSchema]) {
+      // Valid Unicode identifier keys (including non-ASCII XID identifiers)
+      const valid = {
+        a2ui_custom: 'test',
+        myExt123: 42,
+        _private_key: true,
+        café_ext: 'unicode',
+        valid_identifier: {nested: 'value'},
+      };
+      const validResult = schema.safeParse(valid);
+      assert.strictEqual(validResult.success, true);
 
-    // Invalid keys: containing dashes, spaces, punctuation, or leading digits
-    const invalidWithDash = ExtensionsSchema.safeParse({'invalid-key': 123});
-    assert.strictEqual(invalidWithDash.success, false);
+      // Invalid keys: containing dashes, spaces, punctuation, or leading digits
+      const invalidWithDash = schema.safeParse({'invalid-key': 123});
+      assert.strictEqual(invalidWithDash.success, false);
 
-    const invalidWithSpace = ExtensionsSchema.safeParse({'invalid key': 123});
-    assert.strictEqual(invalidWithSpace.success, false);
+      const invalidWithSpace = schema.safeParse({'invalid key': 123});
+      assert.strictEqual(invalidWithSpace.success, false);
 
-    const invalidWithLeadingDigit = ExtensionsSchema.safeParse({'123start': 123});
-    assert.strictEqual(invalidWithLeadingDigit.success, false);
+      const invalidWithLeadingDigit = schema.safeParse({'123start': 123});
+      assert.strictEqual(invalidWithLeadingDigit.success, false);
+    }
   });
 });
 
@@ -557,12 +589,12 @@ describe('generate-catalog-schemas.mjs', () => {
       },
     };
 
-    const compFile = generateComponentsFile('v1.0', catalogJson, {});
+    const compFile = generateComponentsFile('1.0', catalogJson, {});
     assert.ok(compFile.includes('export const CardApi = {'));
     assert.ok(compFile.includes('satisfies ComponentApi;'));
     assert.ok(compFile.includes('BASIC_COMPONENTS: ComponentApi[]'));
 
-    const funcFile = generateFunctionsFile('v1.0', catalogJson, {});
+    const funcFile = generateFunctionsFile('1.0', catalogJson, {});
     assert.ok(funcFile.includes('export const FormatCurrencyApi = {'));
     assert.ok(funcFile.includes("name: 'formatCurrency' as const"));
     assert.ok(funcFile.includes("returnType: 'string' as const"));

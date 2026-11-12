@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import 'package:a2ui_core/a2ui_core.dart';
+import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:preact_signals/preact_signals.dart' show SignalEffectException;
 import 'package:test/test.dart';
 
@@ -238,7 +239,7 @@ void main() {
           'surf-v1',
           defaultCatalog: withDefault ? catalog : null,
           availableCatalogs: [catalog],
-          protocolVersion: 'v1.0',
+          protocolVersion: '1.0',
         );
         v1Errors = [];
         s.onError.subscribe(v1Errors.add);
@@ -255,7 +256,8 @@ void main() {
         return ComponentContext(s, root).dataContext.resolveDynamicValue(value);
       }
 
-      test('dispatches CATALOG_ERROR for a call naming an unknown catalog', () {
+      test('dispatches CATALOG_ERROR for a call naming an unknown catalog',
+          () async {
         final SurfaceModel<ComponentApi> s = v1Surface();
 
         expect(
@@ -266,6 +268,7 @@ void main() {
           }),
           isNull,
         );
+        await Future<void>.delayed(Duration.zero);
         expect(v1Errors, hasLength(1));
         expect(v1Errors.single.code, 'CATALOG_ERROR');
         expect(v1Errors.single.message, contains('Catalog not found'));
@@ -273,13 +276,14 @@ void main() {
 
       test(
           'dispatches CATALOG_ERROR for a call naming no catalog on a surface '
-          'without a default', () {
+          'without a default', () async {
         final SurfaceModel<ComponentApi> s = v1Surface(withDefault: false);
 
         expect(
           resolve(s, {'@call': 'capitalize', 'args': <String, Object?>{}}),
           isNull,
         );
+        await Future<void>.delayed(Duration.zero);
         expect(v1Errors, hasLength(1));
         expect(v1Errors.single.code, 'CATALOG_ERROR');
         expect(v1Errors.single.message, contains('no default catalogId'));
@@ -287,37 +291,41 @@ void main() {
 
       test(
           'dispatches EXPRESSION_ERROR for a function missing from the '
-          'resolved catalog', () {
+          'resolved catalog', () async {
         final SurfaceModel<ComponentApi> s = v1Surface();
 
         expect(
           resolve(s, {'@call': 'missing', 'args': <String, Object?>{}}),
           isNull,
         );
+        await Future<void>.delayed(Duration.zero);
         expect(v1Errors, hasLength(1));
         expect(v1Errors.single.code, 'EXPRESSION_ERROR');
         expect(v1Errors.single.message, contains('Function not found'));
       });
 
-      test('dispatches EXPRESSION_ERROR for an unknown system function', () {
+      test('dispatches EXPRESSION_ERROR for an unknown system function',
+          () async {
         final SurfaceModel<ComponentApi> s = v1Surface(withDefault: false);
 
         expect(
           resolve(s, {'@call': '@missing', 'args': <String, Object?>{}}),
           isNull,
         );
+        await Future<void>.delayed(Duration.zero);
         expect(v1Errors, hasLength(1));
         expect(v1Errors.single.code, 'EXPRESSION_ERROR');
       });
     });
 
-    test('dispatches an expression error immediately by default', () {
+    test('dispatches an expression error to the surface by default', () async {
       final componentContext = ComponentContext(surface, component);
 
       expect(
         componentContext.dataContext.resolveDynamicValue({'call': 'missing'}),
         isNull,
       );
+      await Future<void>.delayed(Duration.zero);
       expect(clientErrors, hasLength(1));
       expect(clientErrors.single.code, 'EXPRESSION_ERROR');
       expect(clientErrors.single.surfaceId, 'surf-1');
@@ -326,7 +334,7 @@ void main() {
 
     test(
       'an override replaces surface dispatch and follows child contexts',
-      () {
+      () async {
         final componentContext = ComponentContext(
           surface,
           component,
@@ -347,6 +355,7 @@ void main() {
         expect(child.dataContext.path, '/users/0');
         expect(errors, hasLength(2));
         expect(errors.map((error) => error.expression), ['missing', 'missing']);
+        await Future<void>.delayed(Duration.zero);
         expect(clientErrors, isEmpty);
       },
     );
@@ -603,14 +612,171 @@ void main() {
             'literal',
           ],
         },
-        'returnType': 'any',
       });
       expect(v10Ctx.adaptExpressionPart('text'), 'text');
       expect(
         v10Ctx.adaptExpressionPart({'path': '/x', 'componentId': 'row'}),
         {'path': '/x', 'componentId': 'row'},
       );
+      expect(
+        v10Ctx.adaptExpressionPart({'@call': '@index', 'catalogId': null}),
+        {'@call': '@index', 'catalogId': null, 'args': <String, Object?>{}},
+      );
     });
+
+    test(
+      'adaptExpressionPart inherits active catalog, preserves @call, '
+      'and keeps @index catalogless',
+      () {
+        Map<String, Object?>? adaptedCall;
+        Map<String, Object?>? adaptedExplicit;
+        Map<String, Object?>? adaptedIndex;
+        final catalog = Catalog<ComponentApi, FunctionImplementation>(
+          id: 'cat-a',
+          components: const [],
+          protocolVersion: A2uiProtocolVersion.v1_0,
+          functions: [
+            _SyncFn('inspect', (args, ctx) {
+              adaptedCall = ctx.adaptExpressionPart({
+                'call': 'helper',
+                'args': <String, Object?>{},
+                'returnType': 'string',
+              }) as Map<String, Object?>;
+              adaptedExplicit = ctx.adaptExpressionPart({
+                '@call': 'other',
+                'catalogId': 'cat-b',
+                'args': <String, Object?>{},
+              }) as Map<String, Object?>;
+              adaptedIndex = ctx.adaptExpressionPart({
+                'call': '@index',
+                'args': <String, Object?>{},
+              }) as Map<String, Object?>;
+              return 'done';
+            }),
+          ],
+        );
+        final ctx = DataContext(
+          dataModel,
+          catalog.invoke,
+          '/',
+          protocolVersion: A2uiProtocolVersion.v1_0,
+        );
+        expect(catalog.invoke('inspect', const {}, ctx), 'done');
+        expect(adaptedCall, {
+          '@call': 'helper',
+          'catalogId': 'cat-a',
+          'args': <String, Object?>{},
+        });
+        expect(adaptedExplicit, {
+          '@call': 'other',
+          'catalogId': 'cat-b',
+          'args': <String, Object?>{},
+        });
+        expect(adaptedIndex, {
+          '@call': '@index',
+          'args': <String, Object?>{},
+        });
+      },
+    );
+
+    test(
+      'action calls naming a catalogId report synchronous throws as '
+      'EXECUTION_ERROR while nested calls stay unmarked',
+      () async {
+        final reported = <A2uiExpressionError>[];
+        final catalog = Catalog<ComponentApi, FunctionImplementation>(
+          id: 'cat-action',
+          components: const [],
+          protocolVersion: A2uiProtocolVersion.v1_0,
+          functions: [
+            _SyncFn('boomSync', (args, ctx) => throw StateError('sync boom')),
+            _SyncFn(
+              'outerAction',
+              (args, ctx) => ctx.resolveDynamicValue({
+                '@call': 'boomSync',
+                'catalogId': 'cat-action',
+                'args': <String, Object?>{},
+              }),
+            ),
+          ],
+        );
+        final ctx = DataContext(
+          dataModel,
+          catalog.invoke,
+          '/',
+          onError: reported.add,
+          protocolVersion: A2uiProtocolVersion.v1_0,
+          invokerForCatalog: (id) => catalog.invoke,
+        );
+
+        await ctx.evaluateFunctionCall({
+          '@call': 'boomSync',
+          'catalogId': 'cat-action',
+          'args': <String, Object?>{},
+        });
+        expect(reported.single.code, 'EXECUTION_ERROR');
+        expect(reported.single.message, contains("Function 'boomSync' failed"));
+
+        reported.clear();
+        await ctx.evaluateFunctionCall({
+          '@call': 'outerAction',
+          'catalogId': 'cat-action',
+          'args': <String, Object?>{},
+        });
+        expect(reported.single.code, 'EXPRESSION_ERROR');
+      },
+    );
+
+    test(
+      'catalogless nested call on custom FunctionInvoker clears outer '
+      'active catalog scope',
+      () {
+        late final DataContext rootCtx;
+        final catA = Catalog<ComponentApi, FunctionImplementation>(
+          id: 'cat-a',
+          components: const [],
+          protocolVersion: A2uiProtocolVersion.v1_0,
+          functions: [
+            _SyncFn(
+              'outerInA',
+              (args, ctx) => ctx.resolveDynamicValue({
+                '@call': 'customFormat',
+                'args': <String, Object?>{},
+              }),
+            ),
+          ],
+        );
+        rootCtx = DataContext(
+          dataModel,
+          (name, args, ctx) {
+            if (name == 'customFormat') {
+              return ctx.adaptExpressionPart({
+                'call': 'innerHelper',
+                'args': <String, Object?>{},
+              });
+            }
+            return null;
+          },
+          '/',
+          protocolVersion: A2uiProtocolVersion.v1_0,
+          invokerForCatalog: (id) {
+            if (id == 'cat-a') return catA.invoke;
+            throw A2uiCatalogResolutionError('Missing $id', catalogId: id);
+          },
+        );
+        expect(
+          rootCtx.resolveDynamicValue({
+            '@call': 'outerInA',
+            'catalogId': 'cat-a',
+            'args': <String, Object?>{},
+          }),
+          {
+            '@call': 'innerHelper',
+            'args': <String, Object?>{},
+          },
+        );
+      },
+    );
 
     test('preserves identity of static maps in both v0.9 and v1.0', () {
       final v09Ctx = DataContext(
@@ -635,7 +801,7 @@ void main() {
         '/',
         protocolVersion: A2uiProtocolVersion.v1_0,
       );
-      final v10LiteralWithLegacyKeys = <String, Object?>{
+      final v10LiteralWithUnprefixedKeys = <String, Object?>{
         'path': '/user/name',
         'call': 'uppercase',
         'nested': [
@@ -644,15 +810,15 @@ void main() {
       };
       expect(
         identical(
-          v10Ctx.resolveDynamicValue(v10LiteralWithLegacyKeys),
-          v10LiteralWithLegacyKeys,
+          v10Ctx.resolveDynamicValue(v10LiteralWithUnprefixedKeys),
+          v10LiteralWithUnprefixedKeys,
         ),
         isTrue,
       );
       final ReadonlySignal<Object?> sig = v10Ctx.resolveSignal(
-        v10LiteralWithLegacyKeys,
+        v10LiteralWithUnprefixedKeys,
       );
-      expect(identical(sig.value, v10LiteralWithLegacyKeys), isTrue);
+      expect(identical(sig.value, v10LiteralWithUnprefixedKeys), isTrue);
     });
 
     test(
@@ -974,14 +1140,14 @@ void main() {
     });
 
     test('@index is not a system function before v1.0', () {
-      final legacy = DataContext(
+      final v09Ctx = DataContext(
         dataModel,
         (name, args, context) => throw ArgumentError('Function not found'),
         '/items/0',
         index: 0,
       );
       expect(
-        () => legacy.resolveDynamicValue(
+        () => v09Ctx.resolveDynamicValue(
             {'call': '@index', 'args': <String, Object?>{}}),
         throwsArgumentError,
       );
@@ -1074,4 +1240,19 @@ class _WatchCountingDataModel extends DataModel {
     watchCounts[path] = (watchCounts[path] ?? 0) + 1;
     return super.watch<T>(path);
   }
+}
+
+class _SyncFn extends FunctionImplementation {
+  _SyncFn(String name, this._body)
+      : super(name: name, argumentSchema: Schema.object());
+
+  final Object? Function(Map<String, dynamic> args, DataContext context) _body;
+
+  @override
+  Object? execute(
+    Map<String, dynamic> args,
+    DataContext context, [
+    CancellationSignal? cancellationSignal,
+  ]) =>
+      _body(args, context);
 }

@@ -29,42 +29,55 @@ import {compileSurfaces, surface, text} from '../../../helpers/express.js';
 import {A2uiCatalogError} from '../../../../src/errors.js';
 import {ExpressPromptGenerator} from '../../../../src/inference-formats/express/prompt-generator.js';
 
-const basicCatalogV10 = loadBasicCatalog('v1.0');
+const basicCatalogV10 = loadBasicCatalog('1.0');
 const basicCatalogV09 = loadBasicCatalog('v0.9');
+const basicCatalogV091 = loadBasicCatalog('v0.9.1');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 describe('ExpressPromptGenerator', () => {
   describe('1. Golden files byte-for-byte check', () => {
-    it('generateBaseRules() matches express_base_rules.txt except for its catalog-specific names', () => {
-      // The golden still names basic-catalog components, which the conformance pruning case
-      // forbids (see KNOWN_GAPS.md). Everything except these substitutions must match it.
+    it('generateBaseRules() for the v1.0 basic catalog matches express_base_rules.txt BYTE FOR BYTE', () => {
       const goldenPath = path.resolve(
         __dirname,
         '../../../../../../../conformance/test_data/skills/express_base_rules.txt',
       );
-      const substitutions: [string, string][] = [
-        ['date-time inputs (e.g. in DateTimeInput)', 'date-time properties'],
-        ['itemTemplate = Image($url)', 'itemTemplate = ComponentA($url)'],
-        [
-          "Parameters named 'action' (or annotated in component signatures)",
-          'Action parameters (or parameters annotated in component signatures)',
-        ],
-        ['root = Card(...)', 'root = ComponentA(...)'],
-      ];
-      let expected = fs.readFileSync(goldenPath, 'utf8');
-      for (const [from, to] of substitutions) {
-        expect(expected, `golden should contain '${from}'`).toContain(from);
-        expected = expected.replace(from, to);
-      }
+      const expected = fs.readFileSync(goldenPath, 'utf8');
 
       const generator = new ExpressPromptGenerator([basicCatalogV10]);
-      const actual = generator.generateBaseRules();
+      expect(generator.generateBaseRules()).toBe(expected);
+    });
 
-      expect(actual).toBe(expected);
-      expect(actual).not.toContain('Card(');
-      expect(actual).not.toContain('DateTimeInput');
+    it("names a component of the active catalogs in rule 15's root example", () => {
+      // The basic catalog's first container with a single child reference is `Card`.
+      expect(new ExpressPromptGenerator([basicCatalogV10]).generateBaseRules()).toContain(
+        'root = Card(...)',
+      );
+
+      // A catalog without such a container falls back to its first component, so a pruned
+      // catalog never shows a component the model can't use.
+      const textOnly = basicCatalogV10.withEntries([basicCatalogV10.components.get('Text')!], []);
+      const rules = new ExpressPromptGenerator([textOnly]).generateBaseRules();
+      expect(rules).toContain('root = Text(...)');
+      expect(rules).not.toContain('Card(');
+    });
+
+    it('teaches Event userMessage= in rule 8 for v1.0+ catalogs and omits it for v0.9 and v0.9.1', () => {
+      const v10Rules = new ExpressPromptGenerator([basicCatalogV10]).generateBaseRules();
+      expect(v10Rules).toContain('`Event(name, context?, userMessage=...)`');
+      expect(v10Rules).toContain('Event("reply", userMessage="Replying now")');
+      expect(v10Rules).toContain(
+        'Event("save_deal", {rep: $/form/rep}, userMessage=$/form/summary)',
+      );
+
+      for (const preV10Catalog of [basicCatalogV09, basicCatalogV091]) {
+        const preRules = new ExpressPromptGenerator([preV10Catalog]).generateBaseRules();
+        expect(preRules).toContain(
+          '8. Action events: represent server-side actions using the Event helper:\n   Event("save_deal", {rep: $/form/rep})',
+        );
+        expect(preRules).not.toContain('userMessage=');
+      }
     });
 
     it('generateCatalogInstructions() for the v1.0 basic catalog matches express_catalog_instructions.txt BYTE FOR BYTE', () => {
@@ -121,7 +134,7 @@ describe('ExpressPromptGenerator', () => {
         '## Positional Component Signatures\n\n' +
         'Use these exact positional signatures to instantiate components. Do not output property keys:\n' +
         '• TextField(label, value?, placeholder?, checks? (static))\n' +
-        '  - Description: A single line text input.\n\n' +
+        "  - Description: A single line text input. It composes the protocol's Checkable mixin, so its validation checks travel in `@checks`.\n\n" +
         '## Positional Function Signatures\n\n' +
         'Use these exact positional signatures to instantiate check rules or logic functions:\n' +
         '• regex(value, pattern)\n' +
@@ -234,14 +247,14 @@ describe('ExpressPromptGenerator', () => {
       const examples: Record<string, AgentToRendererMessage[]> = {
         [cat.id]: [
           {
-            version: 'v1.0',
+            version: '1.0',
             createSurface: {
               surfaceId: 's1',
               catalogId: 'conformance/simplified',
             },
           },
           {
-            version: 'v1.0',
+            version: '1.0',
             updateComponents: {
               surfaceId: 's1',
               components: [
@@ -321,14 +334,14 @@ describe('ExpressPromptGenerator', () => {
       const examples: Record<string, AgentToRendererMessage[]> = {
         [cat1.id]: [
           {
-            version: 'v1.0',
+            version: '1.0',
             createSurface: {
               surfaceId: 's1',
               catalogId: 'conformance/simplified',
             },
           },
           {
-            version: 'v1.0',
+            version: '1.0',
             updateComponents: {
               surfaceId: 's1',
               components: [
@@ -355,6 +368,27 @@ describe('ExpressPromptGenerator', () => {
 
     it('test_express_no_active_catalogs_is_an_error', () => {
       expect(() => new ExpressPromptGenerator([])).toThrow(A2uiCatalogError);
+    });
+
+    it('stamps no catalogId on a system function call in an updateComponents example', () => {
+      const cat = loadConformanceCatalog('simplified_catalog_v1_0.json');
+      const components = [
+        {id: 'root', component: 'Column', children: {path: '/items', componentId: 'row'}},
+        {id: 'row', component: 'Text', text: {'@call': '@index'}},
+      ];
+      const examples = {
+        [cat.id]: [{version: '1.0', updateComponents: {surfaceId: 's1', components}}],
+      } as Record<string, AgentToRendererMessage[]>;
+      const snippet = new ExpressPromptGenerator([cat], examples).generate();
+      expect(snippet).toContain('Text(@index())');
+
+      const rawMarkdown =
+        '```json\n' +
+        JSON.stringify([{version: '1.0', updateComponents: {surfaceId: 's1', components}}]) +
+        '\n```';
+      const transformed = new ExpressPromptGenerator([cat]).transformExamples(rawMarkdown, cat);
+      expect(transformed).not.toContain('```json');
+      expect(transformed).toContain('Text(@index())');
     });
 
     it('B5: translates fenced json blocks containing updateComponents', () => {
@@ -489,7 +523,7 @@ describe('ExpressPromptGenerator', () => {
     it('generates Multiple Catalogs rules with sorted shared names when overlapping v1.0 catalogs are active', () => {
       const c1 = catalogFromTestDocument({
         catalogId: 'cat/one',
-        protocolVersion: 'v1.0',
+        protocolVersion: '1.0',
         components: {
           Zebra: {
             type: 'object',
@@ -515,7 +549,7 @@ describe('ExpressPromptGenerator', () => {
       });
       const c2 = catalogFromTestDocument({
         catalogId: 'cat/two',
-        protocolVersion: 'v1.0',
+        protocolVersion: '1.0',
         components: {
           Zebra: {
             type: 'object',
@@ -559,14 +593,14 @@ describe('ExpressPromptGenerator', () => {
       const c2 = loadConformanceCatalog('custom_catalog_v1_0.json');
       const turn1: AgentToRendererMessage[] = [
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {
             surfaceId: 's1',
             catalogId: 'conformance/simplified',
           },
         } as AgentToRendererMessage,
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 's1',
             components: [{id: 'root', component: 'Text', text: 'Hello'}],
@@ -575,14 +609,14 @@ describe('ExpressPromptGenerator', () => {
       ];
       const turn2: AgentToRendererMessage[] = [
         {
-          version: 'v1.0',
+          version: '1.0',
           createSurface: {
             surfaceId: 's1',
             catalogId: 'conformance/custom',
           },
         } as AgentToRendererMessage,
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 's1',
             components: [{id: 'root', component: 'Chart', values: [1, 2, 3]}],
@@ -602,13 +636,13 @@ describe('ExpressPromptGenerator', () => {
     it('decompiles catalog instructions, keyed examples, and markdown examples with the catalog as default when 2+ catalogs are active', () => {
       const c1Doc = {
         catalogId: 'conformance/cat_one',
-        protocolVersion: 'v1.0',
+        protocolVersion: '1.0',
         instructions:
           'Instruction example:\n```json\n' +
           JSON.stringify([
-            {version: 'v1.0', createSurface: {surfaceId: 'inst_s'}},
+            {version: '1.0', createSurface: {surfaceId: 'inst_s'}},
             {
-              version: 'v1.0',
+              version: '1.0',
               updateComponents: {
                 surfaceId: 'inst_s',
                 components: [{id: 'root', component: 'Label', text: 'FromInstructions'}],
@@ -632,9 +666,9 @@ describe('ExpressPromptGenerator', () => {
       const c2 = loadConformanceCatalog('custom_catalog_v1_0.json');
 
       const keyedMessages = [
-        {version: 'v1.0', createSurface: {surfaceId: 'keyed_s'}},
+        {version: '1.0', createSurface: {surfaceId: 'keyed_s'}},
         {
-          version: 'v1.0',
+          version: '1.0',
           updateComponents: {
             surfaceId: 'keyed_s',
             components: [{id: 'root', component: 'Label', text: 'FromKeyedExample'}],
@@ -646,7 +680,7 @@ describe('ExpressPromptGenerator', () => {
         'Markdown example:\n```json\n' +
         JSON.stringify([
           {
-            version: 'v1.0',
+            version: '1.0',
             updateComponents: {
               surfaceId: 'md_s',
               components: [{id: 'root', component: 'Chart', values: [4, 5]}],
@@ -665,6 +699,95 @@ describe('ExpressPromptGenerator', () => {
       expect(snippet).toContain('root = Label("FromInstructions")');
       expect(snippet).toContain('root = Label("FromKeyedExample")');
       expect(snippet).toContain('root = Chart([4, 5])');
+    });
+
+    it('emits the standalone call rule listing only agent-callable functions in v1.0', () => {
+      const simplified = loadConformanceCatalog('simplified_catalog_v1_0.json');
+      const agentFns = loadConformanceCatalog('agent_functions_catalog_v1_0.json');
+      const rules = new ExpressPromptGenerator([simplified, agentFns]).generateBaseRules();
+      expect(rules).toContain(
+        'Only these functions can be called this way: `notify`, `record`, `peek`.',
+      );
+      expect(rules).not.toContain('`formatString`');
+      expect(rules).not.toContain('`openUrl`');
+      expect(rules).not.toContain('`required`');
+
+      const withoutCall = new ExpressPromptGenerator([simplified, agentFns], undefined, [
+        'createSurface',
+        'updateComponents',
+      ]).generateBaseRules();
+      expect(withoutCall).not.toContain('Only these functions can be called this way');
+    });
+
+    it('numbers multi-catalog rules sequentially alongside standalone function call rules and allowedMessages', () => {
+      const cat1 = loadConformanceCatalog('agent_functions_catalog_v1_0.json');
+      const cat2 = loadConformanceCatalog('custom_catalog_v1_0.json');
+      const rules = new ExpressPromptGenerator([cat1, cat2]).generateBaseRules();
+      const numbers = [...rules.matchAll(/^(\d+)\. /gm)].map(m => Number(m[1]));
+      expect(numbers).toEqual(Array.from({length: numbers.length}, (_, i) => i + 1));
+      expect(rules).toContain('## Multiple Catalogs');
+      expect(rules).toContain(
+        'Only these functions can be called this way: `notify`, `record`, `peek`.',
+      );
+
+      const filtered = new ExpressPromptGenerator([cat1, cat2], undefined, [
+        'createSurface',
+        'updateComponents',
+      ]).generateBaseRules();
+      const filteredNumbers = [...filtered.matchAll(/^(\d+)\. /gm)].map(m => Number(m[1]));
+      expect(filteredNumbers).toEqual(
+        Array.from({length: filteredNumbers.length}, (_, i) => i + 1),
+      );
+      expect(filtered).toContain('## Multiple Catalogs');
+      expect(filtered).not.toContain('Only these functions can be called this way');
+      expect(filtered).not.toContain('deleteSurface(');
+    });
+
+    it('stamps @catalogId on defaultless v1.0 example components with a custom catalogId property without polluting updateDataModel', () => {
+      const cat1 = catalogFromTestDocument({
+        catalogId: 'https://example.com/cat1.json',
+        protocolVersion: '1.0',
+        components: {
+          CatalogBadge: {
+            type: 'object',
+            properties: {
+              component: {const: 'CatalogBadge'},
+              catalogId: {type: 'string'},
+            },
+            required: ['component', 'catalogId'],
+          },
+        },
+      });
+      const cat2 = loadConformanceCatalog('custom_catalog_v1_0.json');
+      const examples: Record<string, AgentToRendererMessage[]> = {
+        [cat1.id]: [
+          {
+            version: '1.0',
+            updateComponents: {
+              surfaceId: 's_no_create',
+              components: [
+                {
+                  id: 'root',
+                  component: 'CatalogBadge',
+                  catalogId: 'custom-prop-val',
+                },
+              ],
+            },
+          },
+          {
+            version: '1.0',
+            updateDataModel: {
+              surfaceId: 's_no_create',
+              path: '/info',
+              value: {component: 'NotAComponent'},
+            },
+          },
+        ] as unknown as AgentToRendererMessage[],
+      };
+      const snippet = new ExpressPromptGenerator([cat1, cat2], examples).generate();
+      expect(snippet).toContain('root = CatalogBadge("custom-prop-val")');
+      expect(snippet).toContain('$/info = {component: "NotAComponent"}');
+      expect(snippet).not.toContain('@catalogId');
     });
   });
 });

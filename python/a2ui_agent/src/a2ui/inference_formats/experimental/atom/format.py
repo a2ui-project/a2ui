@@ -23,7 +23,6 @@ from a2ui.core.schema import AgentToRendererMessage
 from a2ui.inference_format import InferenceFormat
 from a2ui.inference_format import InferenceFormatFactory
 from a2ui.inference_formats._shared import check_mixed_catalogs
-from a2ui.parser import Parser
 from a2ui.utils._experimental import experimental
 
 from .parser import AtomParser
@@ -82,11 +81,6 @@ class AtomFormat(InferenceFormat):
     def create_parser(self) -> AtomParser:
         """Creates a new parser instance configured for Atom format."""
         return AtomParser(self._catalogs, self.surface_id)
-
-    @property
-    def parser(self) -> Parser:
-        """The parser instance configured for Atom format."""
-        return self.create_parser()
 
 
 class AtomFormatFactory(InferenceFormatFactory):

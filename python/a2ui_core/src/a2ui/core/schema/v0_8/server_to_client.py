@@ -13,7 +13,7 @@
 # limitations under the License.
 
 # Auto-generated. Do not edit manually.
-"""Describes a JSON payload for an A2UI (Agent to UI) message, which is used to dynamically construct and update user interfaces. A message MUST contain exactly ONE of the action properties: 'beginRendering', 'surfaceUpdate', 'dataModelUpdate', or 'deleteSurface'."""
+"""Describes a JSON payload for an A2UI message, which is used to dynamically construct and update user interfaces. A message MUST contain exactly ONE of the action properties: 'beginRendering', 'surfaceUpdate', 'dataModelUpdate', or 'deleteSurface'."""
 
 from __future__ import annotations
 from typing import Annotated, Any, Final, Literal
@@ -21,7 +21,6 @@ from pydantic import BaseModel, Field, ConfigDict
 from .._json_schema import INLINE_DEF_MARKER, SchemaKeywords
 from ..common_types import StrictBaseModel
 from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE
-
 
 ComponentsList = list[dict[str, Any]]
 Component = dict[str, Any]
@@ -44,7 +43,8 @@ class BeginRendering(StrictBaseModel):
         alias="catalogId",
         description=(
             "The identifier of the component catalog to use for this surface. If"
-            " omitted, the client MUST default to the standard catalog for this A2UI"
+            " omitted, the client MUST default to the standard catalog for this"
+            " A2UI"
             " version"
             " (https://a2ui.org/specification/v0_8/standard_catalog_definition.json)."
         ),
@@ -71,16 +71,16 @@ class SurfaceUpdateComponentsItem(StrictBaseModel):
         default=None,
         description=(
             "The relative weight of this component within a Row or Column. This"
-            " corresponds to the CSS 'flex-grow' property. Note: this may ONLY be set"
-            " when the component is a direct descendant of a Row or Column."
+            " corresponds to the CSS 'flex-grow' property. Note: this may ONLY be"
+            " set when the component is a direct descendant of a Row or Column."
         ),
     )
     component: dict[str, Any] = Field(
         ...,
         description=(
-            "A wrapper object that MUST contain exactly one key, which is the name of"
-            " the component type (e.g., 'Heading'). The value is an object containing"
-            " the properties for that specific component."
+            "A wrapper object that MUST contain exactly one key, which is the"
+            " name of the component type (e.g., 'Heading'). The value is an"
+            " object containing the properties for that specific component."
         ),
     )
 
@@ -93,9 +93,9 @@ class SurfaceUpdate(StrictBaseModel):
         ...,
         alias="surfaceId",
         description=(
-            "The unique identifier for the UI surface to be updated. If you are adding"
-            " a new surface this *must* be a new, unique identified that has never been"
-            " used for any existing surfaces shown."
+            "The unique identifier for the UI surface to be updated. If you are"
+            " adding a new surface this *must* be a new, unique identified that"
+            " has never been used for any existing surfaces shown."
         ),
     )
     components: Annotated[
@@ -155,15 +155,16 @@ class DataModelUpdate(StrictBaseModel):
     path: str | None = Field(
         default=None,
         description=(
-            "An optional path to a location within the data model (e.g., '/user/name')."
-            " If omitted, or set to '/', the entire data model will be replaced."
+            "An optional path to a location within the data model (e.g.,"
+            " '/user/name'). If omitted, or set to '/', the entire data model"
+            " will be replaced."
         ),
     )
     contents: list[DataModelUpdateContentsItem] = Field(
         ...,
         description=(
-            "An array of data entries. Each entry must contain a 'key' and exactly one"
-            " corresponding typed 'value*' property."
+            "An array of data entries. Each entry must contain a 'key' and"
+            " exactly one corresponding typed 'value*' property."
         ),
     )
 

@@ -46,7 +46,7 @@ jobs:
       - name: Generate testing matrix
         id: generate_matrix
         run: |
-          DIRS_TO_TEST=$(find samples dart -name pubspec.yaml -not -path "*/.dart_tool/*" -not -path "*/e2e_test/*" -exec dirname {} \;)
+          DIRS_TO_TEST=$(find samples dart -name pubspec.yaml -not -path "*/.dart_tool/*" -not -path "*/e2e_test/*" -not -path "*/e2e_test_v0_9/*" -exec dirname {} \;)
 
           JSON_MATRIX="["
           FIRST=true
@@ -79,7 +79,7 @@ jobs:
       - name: Check for cycles across packages
         run: |
           dart pub global activate layerlens
-          DIRS=$(find samples -name pubspec.yaml -not -path "*/.dart_tool/*" -not -path "*/e2e_test/*" -exec dirname {} \;)
+          DIRS=$(find samples -name pubspec.yaml -not -path "*/.dart_tool/*" -not -path "*/e2e_test/*" -not -path "*/e2e_test_v0_9/*" -exec dirname {} \;)
           for dir in $DIRS; do
             echo "Checking cycles in $dir..."
             (cd "$dir" && dart pub get && layerlens --fail-on-cycles --except "lib/src/schema" --except "lib/src/core")
@@ -130,12 +130,64 @@ jobs:
         run: dart run tool/generate_express_parser.dart --check
       - name: Run tests
         working-directory: ${{ matrix.package.path }}
+        env:
+          A2UI_CONFORMANCE_MANIFEST_DIR: ${{ (matrix.package.path == 'dart/a2ui_core' || matrix.package.path == 'dart/a2ui_flutter' || matrix.package.path == 'dart/a2ui_agent') && format('{0}/a2ui-manifest', runner.temp) || '' }}
         run: |
           if [ -d "test" ]; then
             flutter test --test-randomize-ordering-seed=random
           else
             echo "No 'test' directory found in ${{ matrix.package.path }}, skipping tests."
           fi
+      - name: Set up Python for conformance manifest check
+        if: matrix.package.path == 'dart/a2ui_core'
+        uses: ./.github/actions/setup-python
+      - name: Check executed conformance cases
+        if: matrix.package.path == 'dart/a2ui_core'
+        run: |
+          uv run --project conformance python conformance/scripts/check_executed_cases.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --harness dart-core \
+            --corpus core \
+            --exclude "core/message_processor_scaling.yaml=performance: runs with -P performance"
+          uv run --project conformance python conformance/scripts/check_feature_coverage.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --harness dart-core
+      - name: Set up Python for adapter conformance manifest check
+        if: matrix.package.path == 'dart/a2ui_flutter'
+        uses: ./.github/actions/setup-python
+      - name: Check executed adapter conformance cases
+        if: matrix.package.path == 'dart/a2ui_flutter'
+        run: |
+          uv run --project conformance python conformance/scripts/check_executed_cases.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --harness flutter \
+            --corpus adapter
+          uv run --project conformance python conformance/scripts/check_executed_cases.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --harness flutter \
+            --corpus e2e
+          uv run --project conformance python conformance/scripts/check_feature_coverage.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --harness flutter
+      - name: Set up Python for agent conformance manifest check
+        if: matrix.package.path == 'dart/a2ui_agent'
+        uses: ./.github/actions/setup-python
+      - name: Check executed agent conformance cases
+        if: matrix.package.path == 'dart/a2ui_agent'
+        run: |
+          uv run --project conformance python conformance/scripts/check_executed_cases.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --corpus agent \
+            --harness dart-agent \
+            --exclude "agent/direct_json/scaling.yaml=performance: runs with -P performance" \
+            --exclude "agent/express/scaling.yaml=performance: runs with -P performance"
+          uv run --project conformance python conformance/scripts/check_executed_cases.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --corpus e2e \
+            --harness dart-agent
+          uv run --project conformance python conformance/scripts/check_feature_coverage.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --harness dart-agent
 
   # The e2e_test packages are excluded from the matrix above because their
   # tests call a live Gemini model, which needs credentials and quota that are
@@ -151,6 +203,10 @@ jobs:
         package:
           - name: dart_a2ui_agent_e2e_test
             path: dart/a2ui_agent/e2e_test
+          - name: dart_a2ui_flutter_e2e_test
+            path: dart/a2ui_flutter/e2e_test
+          - name: dart_a2ui_flutter_e2e_test_v0_9
+            path: dart/a2ui_flutter/e2e_test_v0_9
           - name: samples_client_flutter_restaurant_finder_e2e_test
             path: samples/client/flutter/restaurant_finder/e2e_test
     steps:
@@ -171,3 +227,35 @@ jobs:
       - name: Analyze code
         working-directory: ${{ matrix.package.path }}
         run: flutter analyze --fatal-infos
+
+  # The tests tagged `performance` time streaming and checking payloads of two
+  # sizes, as conformance/agent/direct_json/scaling.yaml describes. A slow or
+  # loaded runner can fail them, so `dart_test.yaml` skips them in the jobs
+  # above and they run here, in a job of their own. package:test cannot stop a
+  # test that never yields, and a regression can make these run for minutes,
+  # so the job has a time limit of its own.
+  performance:
+    name: ${{ matrix.package.name }} (stable, performance)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - name: dart_a2ui_agent
+            path: dart/a2ui_agent
+          - name: dart_a2ui_core
+            path: dart/a2ui_core
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-dart
+        with:
+          channel: stable
+      - name: Install dependencies
+        working-directory: ${{ matrix.package.path }}
+        run: dart pub get
+      - name: Run performance tests
+        working-directory: ${{ matrix.package.path }}
+        run: dart test -P performance

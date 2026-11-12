@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {describe, it, beforeEach} from 'node:test';
+import {describe, it, afterEach, beforeEach} from 'node:test';
 import * as assert from 'node:assert';
 import {
   DataModel,
@@ -22,21 +22,57 @@ import {
   A2uiExpressionError,
   Catalog,
   MessageProcessor,
+  createFunctionImplementation,
 } from '@a2ui/web_core/v0_9';
 import type {CallToolResult, ReadResourceResult} from '@modelcontextprotocol/sdk/types.js';
-import {CallMcpToolApi, MCP_CATALOG_ID} from '../index.js';
+import {z} from 'zod';
+import {MCP_CATALOG_ID} from '../catalog.js';
+import {configureMcpCatalog, resetMcpCatalogConfig} from '../mcp_catalog_config.js';
 import {
   A2UI_MIME_TYPE,
+  CallMcpToolApi,
+  CallMcpToolImplementation,
+  MCP_APP_MIME_TYPE,
   createCallMcpToolImplementation,
   ensureMessageVersion,
   extractA2uiMessages,
+  extractInlineMcpAppResources,
+  extractMcpAppResourceLinkUris,
+  extractToolResultContent,
   parseA2uiMessages,
+  parseMcpAppResources,
   readUiResourceUris,
+  type McpAppResourcePayload,
   type McpToolClient,
+  type McpToolDataPayload,
 } from './callMcpTool.js';
 import mcpCatalogJson from '../catalog.json' with {type: 'json'};
+import {TransformDataImplementation} from './transform_data.js';
+import {RegexCaptureImplementation} from './regex_capture.js';
+import {SplitImplementation} from './split.js';
+import {UpdateDataModelImplementation} from './update_data_model.js';
 
 const SURFACE_CATALOG_ID = 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json';
+
+/** The functions this package implements, as a host registers them. */
+const mcpCatalog = new Catalog<any>(
+  MCP_CATALOG_ID,
+  '1.0',
+  [],
+  [
+    CallMcpToolImplementation,
+    TransformDataImplementation,
+    UpdateDataModelImplementation,
+    SplitImplementation,
+    RegexCaptureImplementation,
+  ],
+);
+
+/** A function that returns `{path: data}`, the shape a tool argument named `path` needs. */
+const PathArgumentImplementation = createFunctionImplementation(
+  {name: 'pathArgument', returnType: 'any', schema: z.object({data: z.any()})} as const,
+  (args, context) => ({path: context.resolveDynamicValue(args['data'])}),
+);
 const UI_RESOURCE_URI = 'a2ui://sample-ui';
 const SECOND_RESOURCE_URI = 'a2ui://sample-ui-2';
 
@@ -156,7 +192,13 @@ describe('callMcpTool', () => {
       MCP_CATALOG_ID,
       '0.9',
       [],
-      [createCallMcpToolImplementation(() => asClient(client), processor)],
+      [
+        createCallMcpToolImplementation(() => ({
+          defaultVersion: 'v0.9',
+          getMcpClientForTool: () => asClient(client),
+          processor,
+        })),
+      ],
     );
 
   /** Creates an inline A2UI resource content block. */
@@ -212,6 +254,12 @@ describe('callMcpTool', () => {
       });
     });
 
+    it('parses a function call as the whole arguments object', () => {
+      const call = {call: 'transformData', args: {jmespath: '{path: @}', data: {path: '/dir'}}};
+      const parsed = CallMcpToolApi.schema.parse({name: 'list_directory', arguments: call});
+      assert.deepStrictEqual(parsed, {name: 'list_directory', arguments: call});
+    });
+
     it('drops a server argument, since servers are resolved by the host', () => {
       const parsed = CallMcpToolApi.schema.parse({
         name: 'fetch_weather',
@@ -228,7 +276,7 @@ describe('callMcpTool', () => {
   });
 
   describe('tool invocation', () => {
-    it('issues tools/call on the resolved client and returns the raw result', async () => {
+    it('issues tools/call on the resolved client and returns the tool data payload', async () => {
       const client = createFakeClient();
       const catalog = catalogFor(client);
       assert.strictEqual(catalog.id, MCP_CATALOG_ID);
@@ -242,8 +290,41 @@ describe('callMcpTool', () => {
 
       assert.deepStrictEqual(client.calls, [{toolName: 'counter', args: {count: 5}}]);
       assert.deepStrictEqual(result, {
-        content: [{type: 'text', text: 'Result of counter: {"count":5}'}],
+        toolName: 'counter',
+        toolInput: {count: 5},
+        toolResult: {content: [{type: 'text', text: 'Result of counter: {"count":5}'}]},
+        text: 'Result of counter: {"count":5}',
       });
+    });
+
+    it('takes the result of a function call as the arguments, without resolving it again', async () => {
+      const client = createFakeClient();
+      const catalog = new Catalog<any>(
+        MCP_CATALOG_ID,
+        '0.9',
+        [],
+        [
+          createCallMcpToolImplementation(() => ({
+            defaultVersion: 'v0.9',
+            getMcpClientForTool: () => asClient(client),
+            processor,
+          })),
+          PathArgumentImplementation,
+        ],
+      );
+      const context = createTestDataContext(new DataModel({dir: '/home'}), catalog);
+
+      await catalog.invoker(
+        'callMcpTool',
+        {
+          name: 'list_directory',
+          arguments: {call: 'pathArgument', args: {data: {path: '/dir'}}},
+        },
+        context,
+      );
+
+      // `{path: '/home'}` is a tool argument named `path`, not a data binding.
+      assert.deepStrictEqual(client.calls[0].args, {path: '/home'});
     });
 
     it('passes an empty arguments object when no arguments are supplied', async () => {
@@ -264,10 +345,11 @@ describe('callMcpTool', () => {
         '0.9',
         [],
         [
-          createCallMcpToolImplementation(
-            toolName => asClient(toolName === 'get_time' ? clock : weather),
+          createCallMcpToolImplementation(() => ({
+            defaultVersion: 'v0.9',
+            getMcpClientForTool: toolName => asClient(toolName === 'get_time' ? clock : weather),
             processor,
-          ),
+          })),
         ],
       );
       const context = createTestDataContext(new DataModel({}), catalog);
@@ -284,7 +366,13 @@ describe('callMcpTool', () => {
         MCP_CATALOG_ID,
         '0.9',
         [],
-        [createCallMcpToolImplementation(async () => asClient(client), processor)],
+        [
+          createCallMcpToolImplementation(() => ({
+            defaultVersion: 'v0.9',
+            getMcpClientForTool: async () => asClient(client),
+            processor,
+          })),
+        ],
       );
       const context = createTestDataContext(new DataModel({}), catalog);
 
@@ -299,9 +387,13 @@ describe('callMcpTool', () => {
         '0.9',
         [],
         [
-          createCallMcpToolImplementation(() => {
-            throw new Error('No MCP client connected');
-          }, processor),
+          createCallMcpToolImplementation(() => ({
+            defaultVersion: 'v0.9',
+            getMcpClientForTool: () => {
+              throw new Error('No MCP client connected');
+            },
+            processor,
+          })),
         ],
       );
       const context = createTestDataContext(new DataModel({}), catalog);
@@ -324,7 +416,13 @@ describe('callMcpTool', () => {
         MCP_CATALOG_ID,
         '0.9',
         [],
-        [createCallMcpToolImplementation(() => undefined, processor)],
+        [
+          createCallMcpToolImplementation(() => ({
+            defaultVersion: 'v0.9',
+            getMcpClientForTool: () => undefined,
+            processor,
+          })),
+        ],
       );
       const context = createTestDataContext(new DataModel({}), catalog);
 
@@ -609,6 +707,274 @@ describe('callMcpTool', () => {
     });
   });
 
+  describe('tool data payload', () => {
+    /** Calls `toolName` once, writing to `targetDataPath` when given, and returns the payload. */
+    const invokeWithPath = async (
+      client: FakeClient,
+      dataModel: DataModel,
+      targetDataPath?: string,
+      toolName = 'get_data',
+    ) => {
+      const catalog = catalogFor(client);
+      return (await catalog.invoker(
+        'callMcpTool',
+        {name: toolName, ...(targetDataPath ? {targetDataPath} : {})},
+        createTestDataContext(dataModel, catalog),
+      )) as McpToolDataPayload;
+    };
+
+    /** A promise with its resolve function, to control the order responses arrive in. */
+    const deferred = <T>() => {
+      let resolve!: (value: T) => void;
+      const promise = new Promise<T>(res => {
+        resolve = res;
+      });
+      return {promise, resolve};
+    };
+
+    it('passes structuredContent through unchanged', async () => {
+      const structuredContent = {temperature: 21, unit: 'celsius'};
+      const client = createFakeClient({
+        result: {content: [{type: 'text', text: 'It is 21 °C.'}], structuredContent},
+      });
+      const dataModel = new DataModel({});
+
+      const payload = await invokeWithPath(client, dataModel, '/weather');
+
+      assert.deepStrictEqual(payload.structuredContent, structuredContent);
+      assert.strictEqual(payload.text, 'It is 21 °C.');
+      assert.strictEqual(payload.json, undefined);
+      assert.deepStrictEqual(dataModel.get('/weather/structuredContent'), structuredContent);
+    });
+
+    it('parses JSON sent as text', async () => {
+      const rows = [{id: 1}, {id: 2}];
+      const client = createFakeClient({
+        result: {content: [{type: 'text', text: `  ${JSON.stringify(rows)}\n`}]},
+      });
+
+      const payload = await invokeWithPath(client, new DataModel({}));
+
+      assert.deepStrictEqual(payload.json, rows);
+      assert.strictEqual(payload.structuredContent, undefined);
+    });
+
+    it('collects the JSON of several blocks, skipping a prose block', async () => {
+      const client = createFakeClient({
+        result: {
+          content: [
+            {type: 'text', text: 'Summarizer key: abc'},
+            {type: 'text', text: '{"id":1}'},
+            {type: 'text', text: '{"id":2}'},
+          ],
+        },
+      });
+
+      const payload = await invokeWithPath(client, new DataModel({}));
+
+      assert.deepStrictEqual(payload.json, [{id: 1}, {id: 2}]);
+      assert.strictEqual(payload.text, 'Summarizer key: abc\n{"id":1}\n{"id":2}');
+    });
+
+    it('keeps a JSON scalar as text only', async () => {
+      const client = createFakeClient({result: {content: [{type: 'text', text: '42'}]}});
+
+      const payload = await invokeWithPath(client, new DataModel({}));
+
+      assert.strictEqual(payload.text, '42');
+      assert.strictEqual(Object.hasOwn(payload, 'json'), false);
+    });
+
+    it('keeps plain text as text, with no json or structuredContent', async () => {
+      const client = createFakeClient({
+        result: {content: [{type: 'text', text: 'Prep time is 15 minutes.'}]},
+      });
+      const dataModel = new DataModel({});
+
+      const payload = await invokeWithPath(client, dataModel, '/recipe');
+
+      assert.deepStrictEqual(Object.keys(payload).sort(), [
+        'text',
+        'toolInput',
+        'toolName',
+        'toolResult',
+      ]);
+      assert.strictEqual(dataModel.get('/recipe/text'), 'Prep time is 15 minutes.');
+    });
+
+    it('merges the MCP App fields with structuredContent in one payload', async () => {
+      const appUri = 'ui://server/chart';
+      const client = createFakeClient({
+        result: {
+          content: [
+            {type: 'text', text: 'Rendered the chart.'},
+            {type: 'resource', resource: {uri: appUri, mimeType: MCP_APP_MIME_TYPE, text: '<p/>'}},
+          ],
+          structuredContent: {points: [1, 2, 3]},
+        } as CallToolResult,
+      });
+      const dataModel = new DataModel({});
+
+      const payload = await invokeWithPath(client, dataModel, '/chart', 'render_chart');
+
+      assert.strictEqual(payload.resourceUri, appUri);
+      assert.strictEqual(payload.html, '<p/>');
+      assert.deepStrictEqual(payload.structuredContent, {points: [1, 2, 3]});
+      assert.strictEqual(payload.toolName, 'render_chart');
+      assert.deepStrictEqual(dataModel.get('/chart'), payload);
+    });
+
+    it('writes nothing when the result is flagged isError', async () => {
+      const client = createFakeClient({
+        result: {isError: true, content: [{type: 'text', text: 'boom'}]},
+      });
+      const dataModel = new DataModel({result: 'previous'});
+
+      await assert.rejects(() => invokeWithPath(client, dataModel, '/result'));
+
+      assert.strictEqual(dataModel.get('/result'), 'previous');
+    });
+
+    it('returns exactly the payload it writes, toolName included', async () => {
+      const client = createFakeClient({result: {content: [{type: 'text', text: '{"a":1}'}]}});
+      const dataModel = new DataModel({});
+
+      const payload = await invokeWithPath(client, dataModel, '/out', 'get_a');
+
+      assert.deepStrictEqual(dataModel.get('/out'), payload);
+      assert.strictEqual(payload.toolName, 'get_a');
+      assert.deepStrictEqual(payload.toolInput, {});
+    });
+
+    it('replaces the whole object at targetDataPath on each call', async () => {
+      const client = createFakeClient({result: {content: [{type: 'text', text: 'plain'}]}});
+      const dataModel = new DataModel({out: {json: {stale: true}, extra: 'old'}});
+
+      await invokeWithPath(client, dataModel, '/out');
+
+      assert.strictEqual(dataModel.get('/out/json'), undefined);
+      assert.strictEqual(dataModel.get('/out/extra'), undefined);
+      assert.strictEqual(dataModel.get('/out/text'), 'plain');
+    });
+
+    it('writes nothing without targetDataPath, and still returns the payload', async () => {
+      const client = createFakeClient({result: {content: [{type: 'text', text: 'hello'}]}});
+      const dataModel = new DataModel({});
+
+      const payload = await invokeWithPath(client, dataModel);
+
+      assert.deepStrictEqual(dataModel.get('/'), {});
+      assert.strictEqual(payload.text, 'hello');
+    });
+
+    it('writes only the latest of two overlapping calls to the same targetDataPath', async () => {
+      const first = deferred<CallToolResult>();
+      const second = deferred<CallToolResult>();
+      const pending = [first.promise, second.promise];
+      const received: McpAppResourcePayload[] = [];
+      const client = createFakeClient({result: () => pending.shift()});
+      const catalog = new Catalog<any>(
+        MCP_CATALOG_ID,
+        '0.9',
+        [],
+        [
+          createCallMcpToolImplementation(() => ({
+            defaultVersion: 'v0.9',
+            getMcpClientForTool: () => asClient(client),
+            processor,
+            onMcpAppResource: payload => received.push(payload),
+          })),
+        ],
+      );
+      const dataModel = new DataModel({});
+      const context = createTestDataContext(dataModel, catalog);
+      const appBlock = (html: string) => ({
+        type: 'resource' as const,
+        resource: {uri: 'ui://server/suggest', mimeType: MCP_APP_MIME_TYPE, text: html},
+      });
+
+      const firstCall = catalog.invoker(
+        'callMcpTool',
+        {name: 'suggest', arguments: {q: 'a'}, targetDataPath: '/suggestions'},
+        context,
+      );
+      const secondCall = catalog.invoker(
+        'callMcpTool',
+        {name: 'suggest', arguments: {q: 'ab'}, targetDataPath: '/suggestions'},
+        context,
+      );
+      second.resolve({content: [{type: 'text', text: '["ab"]'}, appBlock('<p>ab</p>')]});
+      const secondPayload = (await secondCall) as McpToolDataPayload;
+      first.resolve({content: [{type: 'text', text: '["a"]'}, appBlock('<p>a</p>')]});
+      const firstPayload = (await firstCall) as McpToolDataPayload;
+
+      assert.deepStrictEqual(dataModel.get('/suggestions/json'), ['ab']);
+      assert.deepStrictEqual(dataModel.get('/suggestions'), secondPayload);
+      // The superseded call still returns its own payload, but does not reach the host.
+      assert.deepStrictEqual(firstPayload.json, ['a']);
+      assert.deepStrictEqual(
+        received.map(payload => payload.html),
+        ['<p>ab</p>'],
+      );
+    });
+
+    it('writes overlapping calls to different targetDataPaths', async () => {
+      const first = deferred<CallToolResult>();
+      const second = deferred<CallToolResult>();
+      const pending = [first.promise, second.promise];
+      const client = createFakeClient({result: () => pending.shift()});
+      const catalog = catalogFor(client);
+      const dataModel = new DataModel({});
+      const context = createTestDataContext(dataModel, catalog);
+
+      const firstCall = catalog.invoker(
+        'callMcpTool',
+        {name: 'get_a', targetDataPath: '/a'},
+        context,
+      );
+      const secondCall = catalog.invoker(
+        'callMcpTool',
+        {name: 'get_b', targetDataPath: '/b'},
+        context,
+      );
+      second.resolve({content: [{type: 'text', text: 'B'}]});
+      await secondCall;
+      first.resolve({content: [{type: 'text', text: 'A'}]});
+      await firstCall;
+
+      assert.strictEqual(dataModel.get('/a/text'), 'A');
+      assert.strictEqual(dataModel.get('/b/text'), 'B');
+    });
+
+    it('lets transformData read the text of the returned payload', async () => {
+      const client = createFakeClient({
+        result: {content: [{type: 'text', text: 'Title: Foo\nURL: https://foo'}]},
+      });
+      const catalog = new Catalog<any>(
+        MCP_CATALOG_ID,
+        '0.9',
+        [],
+        [
+          createCallMcpToolImplementation(() => ({
+            defaultVersion: 'v0.9',
+            getMcpClientForTool: () => asClient(client),
+            processor,
+          })),
+          TransformDataImplementation,
+        ],
+      );
+      const context = createTestDataContext(new DataModel({}), catalog);
+
+      const text = await context.resolveDynamicValue({
+        call: 'transformData',
+        args: {jmespath: 'text', data: {call: 'callMcpTool', args: {name: 'search'}}},
+        returnType: 'any',
+      });
+
+      assert.strictEqual(text, 'Title: Foo\nURL: https://foo');
+    });
+  });
+
   describe('dynamic values', () => {
     it('resolves dynamic data bindings for name and arguments via DataContext', async () => {
       const client = createFakeClient();
@@ -653,7 +1019,11 @@ describe('callMcpTool', () => {
 
     it('passes literal objects that merely contain a path property through untouched', async () => {
       const client = createFakeClient();
-      const impl = createCallMcpToolImplementation(() => asClient(client), processor);
+      const impl = createCallMcpToolImplementation(() => ({
+        defaultVersion: 'v0.9',
+        getMcpClientForTool: () => asClient(client),
+        processor,
+      }));
       const catalog = new Catalog('test-literal-objects', '0.9', [], [impl]);
       const dataModel = new DataModel({docs: 'SHOULD_NOT_RESOLVE', city: 'Paris'});
       const context = createTestDataContext(dataModel, catalog);
@@ -676,9 +1046,7 @@ describe('callMcpTool', () => {
 
   describe('catalog.json Schema Verification', () => {
     it('loads schema into a valid Catalog using Catalog.fromJson', () => {
-      // v0.9 catalog JSONs predate the `protocolVersion` field, so the loader
-      // needs it supplied.
-      const schemaCatalog = Catalog.fromJson(mcpCatalogJson, '0.9');
+      const schemaCatalog = Catalog.fromJson(mcpCatalogJson);
       assert.strictEqual(schemaCatalog.id, MCP_CATALOG_ID);
       assert.strictEqual(schemaCatalog.functions.has('callMcpTool'), true);
 
@@ -691,9 +1059,9 @@ describe('callMcpTool', () => {
       assert.deepStrictEqual(valid, {name: 'read_resource', arguments: {uri: 'a2ui://form'}});
     });
 
-    it('declares exactly the supported arguments in the published schema', () => {
+    it('declares the supported arguments in the published schema', () => {
       const args = (mcpCatalogJson as any).functions.callMcpTool.properties.args;
-      assert.deepStrictEqual(Object.keys(args.properties), ['name', 'arguments']);
+      assert.deepStrictEqual(Object.keys(args.properties), ['name', 'arguments', 'targetDataPath']);
       // A server argument is not among them: the host resolves servers.
       assert.strictEqual(args.additionalProperties, false);
     });
@@ -706,31 +1074,24 @@ describe('callMcpTool', () => {
 
     it('publishes every function a host registers', () => {
       // A function missing from the JSON is invisible to an agent writing a
-      // payload, however well it works at runtime. The v0.9 schema also lists
-      // the data functions, which now live with the filesystem sample.
-      const registered = [
-        createCallMcpToolImplementation(
-          () => asClient(createFakeClient()),
-          new MessageProcessor([], async () => {}),
-        ),
-      ].map(fn => fn.name);
-      assert.deepStrictEqual(registered, ['callMcpTool']);
-      const published = Object.keys((mcpCatalogJson as any).functions);
-      for (const name of registered) {
-        assert.ok(published.includes(name), `${name} is not published`);
-      }
+      // payload, however well it works at runtime.
+      const registered = [...mcpCatalog.functions.keys()];
+      assert.deepStrictEqual(
+        Object.keys((mcpCatalogJson as any).functions).sort(),
+        registered.sort(),
+      );
     });
 
     it('publishes the argument names and descriptions the schemas carry', () => {
       // The catalog JSON is what an agent reads before writing a payload, and
       // it is generated from these schemas. This catches it going stale.
-      for (const api of [CallMcpToolApi]) {
+      for (const api of mcpCatalog.functions.values()) {
         const published = (mcpCatalogJson as any).functions[api.name];
         assert.ok(published, `${api.name} is not published`);
-        assert.strictEqual(published.properties.returnType.const, api.returnType);
+        assert.strictEqual(published.returnType, api.returnType);
 
         const args = published.properties.args;
-        const shape = api.schema.shape as Record<string, {isOptional(): boolean}>;
+        const shape = (api.schema as z.ZodObject<Record<string, z.ZodTypeAny>>).shape;
         const fields = Object.keys(shape);
         assert.deepStrictEqual(Object.keys(args.properties), fields, `${api.name} arguments`);
         assert.deepStrictEqual(
@@ -743,7 +1104,7 @@ describe('callMcpTool', () => {
         for (const field of fields) {
           assert.strictEqual(
             args.properties[field].description,
-            (api.schema.shape as Record<string, {description?: string}>)[field].description,
+            shape[field].description,
             `${api.name}.${field} description`,
           );
         }
@@ -779,7 +1140,10 @@ describe('callMcpTool', () => {
       );
 
       assert.deepStrictEqual(result, {
-        content: [{type: 'text', text: 'Result of get_user: {"id":"123"}'}],
+        toolName: 'get_user',
+        toolInput: {id: '123'},
+        toolResult: {content: [{type: 'text', text: 'Result of get_user: {"id":"123"}'}]},
+        text: 'Result of get_user: {"id":"123"}',
       });
     });
   });
@@ -870,6 +1234,56 @@ describe('message decoding', () => {
     });
   });
 
+  describe('extractToolResultContent', () => {
+    it('returns nothing for a result without text or structured content', () => {
+      assert.deepStrictEqual(extractToolResultContent({content: []}), {});
+    });
+
+    it('ignores structuredContent that is not an object', () => {
+      assert.deepStrictEqual(
+        extractToolResultContent({content: [], structuredContent: 'text' as any}),
+        {},
+      );
+    });
+
+    it('joins the text blocks and parses them as one document when they form one', () => {
+      assert.deepStrictEqual(
+        extractToolResultContent({
+          content: [
+            {type: 'text', text: '{"rows":'},
+            {type: 'image', data: 'AAAA', mimeType: 'image/png'},
+            {type: 'text', text: '[1, 2]}'},
+          ],
+        }),
+        {text: '{"rows":\n[1, 2]}', json: {rows: [1, 2]}},
+      );
+    });
+
+    it('collects a single JSON block next to a header block as a one-element array', () => {
+      assert.deepStrictEqual(
+        extractToolResultContent({
+          content: [
+            {type: 'text', text: 'Found one row:'},
+            {type: 'text', text: '{"id":1}'},
+          ],
+        }),
+        {text: 'Found one row:\n{"id":1}', json: [{id: 1}]},
+      );
+    });
+
+    it('returns no json when none of several blocks is JSON', () => {
+      assert.deepStrictEqual(
+        extractToolResultContent({
+          content: [
+            {type: 'text', text: 'Found no rows.'},
+            {type: 'text', text: 'Try another query.'},
+          ],
+        }),
+        {text: 'Found no rows.\nTry another query.'},
+      );
+    });
+  });
+
   describe('readUiResourceUris', () => {
     it('reads _meta.ui.resourceUri from results and tool descriptors alike', () => {
       assert.deepStrictEqual(readUiResourceUris({_meta: {ui: {resourceUri: 'a2ui://t'}}}), [
@@ -943,18 +1357,18 @@ describe('message decoding', () => {
   });
 
   describe('ensureMessageVersion', () => {
-    it('sets version to v0.9 when version property is missing', () => {
+    it('sets version to 1.0 when version property is missing', () => {
       const msg = {createSurface: {surfaceId: 's', catalogId: 'c'}} as any;
       assert.deepStrictEqual(ensureMessageVersion(msg), {
-        version: 'v0.9',
+        version: '1.0',
         createSurface: {surfaceId: 's', catalogId: 'c'},
       });
     });
 
-    it('sets version to v0.9 when version is null or undefined', () => {
+    it('sets version to 1.0 when version is null or undefined', () => {
       const msgNull = {version: null, createSurface: {surfaceId: 's', catalogId: 'c'}} as any;
       assert.deepStrictEqual(ensureMessageVersion(msgNull), {
-        version: 'v0.9',
+        version: '1.0',
         createSurface: {surfaceId: 's', catalogId: 'c'},
       });
 
@@ -963,13 +1377,13 @@ describe('message decoding', () => {
         createSurface: {surfaceId: 's', catalogId: 'c'},
       } as any;
       assert.deepStrictEqual(ensureMessageVersion(msgUndefined), {
-        version: 'v0.9',
+        version: '1.0',
         createSurface: {surfaceId: 's', catalogId: 'c'},
       });
     });
 
     it('preserves existing explicit version', () => {
-      const msg1 = {version: 'v1.0', createSurface: {surfaceId: 's', catalogId: 'c'}} as any;
+      const msg1 = {version: '1.0', createSurface: {surfaceId: 's', catalogId: 'c'}} as any;
       assert.deepStrictEqual(ensureMessageVersion(msg1), msg1);
 
       const msg09 = {version: 'v0.9', createSurface: {surfaceId: 's', catalogId: 'c'}} as any;
@@ -981,5 +1395,267 @@ describe('message decoding', () => {
       assert.strictEqual(ensureMessageVersion(undefined as any), undefined);
       assert.strictEqual(ensureMessageVersion('test' as any), 'test');
     });
+
+    it('sets the given default version when version property is missing', () => {
+      const msg = {createSurface: {surfaceId: 's', catalogId: 'c'}} as any;
+      assert.deepStrictEqual(ensureMessageVersion(msg, 'v0.9'), {
+        version: 'v0.9',
+        createSurface: {surfaceId: 's', catalogId: 'c'},
+      });
+
+      const msg1 = {version: '1.0', createSurface: {surfaceId: 's', catalogId: 'c'}} as any;
+      assert.deepStrictEqual(ensureMessageVersion(msg1, 'v0.9'), msg1);
+    });
+  });
+});
+
+describe('createCallMcpToolImplementation defaultVersion option', () => {
+  /** Processes every message through a processor that records the versions it receives. */
+  const invokeWith = async (options?: {defaultVersion: string}) => {
+    const versions: unknown[] = [];
+    const processor = {
+      processMessages(messages: unknown[]) {
+        versions.push(...messages.map(message => (message as {version: unknown}).version));
+      },
+      model: {getSurface: () => undefined},
+    } as unknown as MessageProcessor<any>;
+    const client = createFakeClient({
+      result: {
+        content: [
+          {
+            type: 'resource',
+            resource: {
+              uri: 'a2ui://inline',
+              mimeType: A2UI_MIME_TYPE,
+              text: JSON.stringify([
+                {updateDataModel: {surfaceId: 's', value: {}}},
+                {version: 'v0.9', updateDataModel: {surfaceId: 's', value: {}}},
+              ]),
+            },
+          },
+        ],
+      },
+    });
+    const catalog = new Catalog<any>(
+      MCP_CATALOG_ID,
+      '0.9',
+      [],
+      [
+        createCallMcpToolImplementation(() => ({
+          getMcpClientForTool: () => asClient(client),
+          processor,
+          ...options,
+        })),
+      ],
+    );
+    await catalog.invoker(
+      'callMcpTool',
+      {name: 'tool'},
+      createTestDataContext(new DataModel({}), catalog),
+    );
+    return versions;
+  };
+
+  it('stamps 1.0 on messages without a version by default', async () => {
+    assert.deepStrictEqual(await invokeWith(), ['1.0', 'v0.9']);
+  });
+
+  it('stamps the given version on messages without one and keeps explicit versions', async () => {
+    assert.deepStrictEqual(await invokeWith({defaultVersion: 'v0.9'}), ['v0.9', 'v0.9']);
+  });
+});
+
+describe('CallMcpToolImplementation', () => {
+  const catalog = new Catalog<any>(MCP_CATALOG_ID, '0.9', [], [CallMcpToolImplementation]);
+
+  afterEach(() => {
+    resetMcpCatalogConfig();
+  });
+
+  it('fails with a message naming configureMcpCatalog until the host configures it', async () => {
+    await assert.rejects(
+      catalog.invoker(
+        'callMcpTool',
+        {name: 'ping'},
+        createTestDataContext(new DataModel({}), catalog),
+      ),
+      (err: any) => {
+        assert.ok(err instanceof A2uiExpressionError);
+        assert.strictEqual(err.expression, 'callMcpTool');
+        assert.ok(err.message.includes('configureMcpCatalog'));
+        return true;
+      },
+    );
+  });
+
+  it('calls the client the host configured, reading the configuration on each call', async () => {
+    const first = createFakeClient();
+    const second = createFakeClient();
+    const processor = new MessageProcessor([], async () => {});
+    const context = createTestDataContext(new DataModel({}), catalog);
+
+    configureMcpCatalog({getMcpClientForTool: () => asClient(first), processor});
+    await catalog.invoker('callMcpTool', {name: 'ping'}, context);
+    configureMcpCatalog({getMcpClientForTool: () => asClient(second)});
+    await catalog.invoker('callMcpTool', {name: 'ping'}, context);
+
+    assert.strictEqual(first.calls.length, 1);
+    assert.strictEqual(second.calls.length, 1);
+  });
+});
+
+describe('MCP App HTML resources in callMcpTool', () => {
+  const APP_URI = 'ui://server/dashboard';
+  const APP_HTML = '<!doctype html><div id="app">Dashboard</div>';
+
+  it('extracts MCP App HTML from resources/read and writes it to targetDataPath and onMcpAppResource', async () => {
+    const processor = new MessageProcessor([], async () => {});
+    const client = createFakeClient({
+      result: {
+        content: [{type: 'text', text: 'Loaded dashboard'}],
+        structuredContent: {total: 42},
+        _meta: {ui: {resourceUri: APP_URI}},
+      } as any,
+      resources: {
+        [APP_URI]: {
+          contents: [
+            {
+              uri: APP_URI,
+              mimeType: MCP_APP_MIME_TYPE,
+              text: APP_HTML,
+              _meta: {
+                ui: {
+                  csp: {connectDomains: ['https://api.example.com']},
+                  permissions: {clipboardWrite: {}},
+                },
+              },
+            } as any,
+          ],
+        },
+      },
+    });
+
+    const received: McpAppResourcePayload[] = [];
+    const impl = createCallMcpToolImplementation(() => ({
+      defaultVersion: 'v0.9',
+      getMcpClientForTool: () => asClient(client),
+      processor,
+      onMcpAppResource: payload => received.push(payload),
+    }));
+    const catalog = new Catalog(MCP_CATALOG_ID, '0.9', [], [impl]);
+    const dataModel = new DataModel({});
+    const context = createTestDataContext(dataModel, catalog);
+
+    await catalog.invoker(
+      'callMcpTool',
+      {
+        name: 'open_dashboard',
+        arguments: {region: 'eu'},
+        targetDataPath: '/mcpApp',
+      },
+      context,
+    );
+
+    assert.strictEqual(received.length, 1);
+    assert.strictEqual(received[0].resourceUri, APP_URI);
+    assert.strictEqual(received[0].html, APP_HTML);
+    assert.deepStrictEqual(received[0].csp, {connectDomains: ['https://api.example.com']});
+    assert.deepStrictEqual(received[0].permissions, {clipboardWrite: {}});
+    assert.deepStrictEqual(received[0].toolInput, {region: 'eu'});
+    assert.strictEqual((received[0].toolResult as any).structuredContent.total, 42);
+    assert.deepStrictEqual(dataModel.get('/mcpApp'), received[0]);
+  });
+
+  it('resolves resource_link content blocks and inline MCP App resources', async () => {
+    const processor = new MessageProcessor([], async () => {});
+    const linkUri = 'ui://server/linked-widget';
+    const inlineUri = 'ui://server/inline-widget';
+    const client = createFakeClient({
+      result: {
+        content: [
+          {type: 'resource_link', uri: linkUri, mimeType: MCP_APP_MIME_TYPE},
+          {
+            type: 'resource',
+            resource: {
+              uri: inlineUri,
+              mimeType: MCP_APP_MIME_TYPE,
+              blob: btoa('<p>Inline blob</p>'),
+            },
+          },
+        ],
+      } as any,
+      resources: {
+        [linkUri]: {
+          contents: [{uri: linkUri, mimeType: MCP_APP_MIME_TYPE, text: '<p>Linked</p>'}],
+        },
+      },
+    });
+
+    const received: McpAppResourcePayload[] = [];
+    const impl = createCallMcpToolImplementation(() => ({
+      defaultVersion: 'v0.9',
+      getMcpClientForTool: () => asClient(client),
+      processor,
+      onMcpAppResource: payload => received.push(payload),
+    }));
+    const catalog = new Catalog(MCP_CATALOG_ID, '0.9', [], [impl]);
+    const context = createTestDataContext(new DataModel({}), catalog);
+
+    await catalog.invoker('callMcpTool', {name: 'load_widgets'}, context);
+
+    assert.strictEqual(received.length, 2);
+    assert.strictEqual(received[0].resourceUri, linkUri);
+    assert.strictEqual(received[0].html, '<p>Linked</p>');
+    assert.strictEqual(received[1].resourceUri, inlineUri);
+    assert.strictEqual(received[1].html, '<p>Inline blob</p>');
+  });
+
+  it('unit-tests extractMcpAppResourceLinkUris, extractInlineMcpAppResources, and parseMcpAppResources', () => {
+    assert.deepStrictEqual(
+      extractMcpAppResourceLinkUris([
+        {type: 'resource_link', uri: 'ui://app/one', mimeType: 'text/html'},
+        {type: 'resource_link', uri: 'https://example.com/app', mimeType: MCP_APP_MIME_TYPE},
+        {type: 'resource_link', uri: 'a2ui://ignore', mimeType: A2UI_MIME_TYPE},
+      ] as any),
+      ['ui://app/one', 'https://example.com/app'],
+    );
+
+    assert.deepStrictEqual(
+      extractInlineMcpAppResources([
+        {
+          type: 'resource',
+          resource: {uri: 'ui://app/inline', mimeType: MCP_APP_MIME_TYPE, text: '<h1>Hi</h1>'},
+        },
+      ] as any),
+      [{resourceUri: 'ui://app/inline', html: '<h1>Hi</h1>'}],
+    );
+
+    // RFC 2045 allows whitespace around the parameter separator; servers write both forms.
+    assert.deepStrictEqual(
+      extractInlineMcpAppResources([
+        {
+          type: 'resource',
+          resource: {
+            uri: 'ui://app/spaced',
+            mimeType: 'text/html; profile=mcp-app',
+            text: '<p>S</p>',
+          },
+        },
+      ] as any),
+      [{resourceUri: 'ui://app/spaced', html: '<p>S</p>'}],
+    );
+
+    assert.deepStrictEqual(
+      parseMcpAppResources(
+        {
+          contents: [
+            {uri: 'ui://app/read', mimeType: MCP_APP_MIME_TYPE, text: '<h1>Read</h1>'},
+            {uri: 'ui://app/a2ui', mimeType: A2UI_MIME_TYPE, text: '[]'},
+          ],
+        } as any,
+        'ui://app/read',
+      ),
+      [{resourceUri: 'ui://app/read', html: '<h1>Read</h1>'}],
+    );
   });
 });

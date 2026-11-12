@@ -17,13 +17,14 @@
 # unescaping (@@path -> @path).
 
 - name: test_reserved_at_path_valid
+  features: [F-CORE-16]
   description: >-
     Valid v1.0 DataBinding using the reserved @path prefix.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: validate
   payload:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: s1
         catalogId: basic
@@ -34,13 +35,14 @@
               "@path": "/user/displayName"
 
 - name: test_reserved_at_call_valid
+  features: [F-CORE-34]
   description: >-
     Valid v1.0 FunctionCall using the reserved @call prefix.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: validate
   payload:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: s1
         catalogId: basic
@@ -53,13 +55,14 @@
                 value: "Hello world"
 
 - name: test_reserved_at_call_index
+  features: [F-CORE-21, F-CORE-34]
   description: >-
     Valid v1.0 FunctionCall invoking the @index system context function within a List template.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: validate
   payload:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: s1
         catalogId: basic
@@ -77,12 +80,13 @@
                 offset: 1
 
 - name: test_plain_object_with_literal_path_and_call
+  features: [F-CORE-16]
   description: >-
     A plain object containing 'path' and 'call' keys is valid in v1.0 and is not
     intercepted as a dynamic DataBinding or FunctionCall directive.
   catalog:
     catalogId: custom
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
     components:
       CustomCard:
         type: object
@@ -91,7 +95,7 @@
             $ref: "common_types.json#/$defs/DynamicValue"
   action: validate
   payload:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: s1
         catalogId: custom
@@ -103,12 +107,13 @@
               call: "audit"
 
 - name: test_plain_object_escaped_doubled_at_key
+  features: [F-CORE-16]
   description: >-
     Literal @ keys escaped with prefix doubling (@@path, @@type) validate successfully
     as plain object keys.
   catalog:
     catalogId: custom
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
     components:
       CustomCard:
         type: object
@@ -117,7 +122,7 @@
             $ref: "common_types.json#/$defs/DynamicValue"
   action: validate
   payload:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: s1
         catalogId: custom
@@ -129,12 +134,13 @@
               "@@type": "Resource"
 
 - name: test_disallowed_unknown_single_at_key
+  features: [F-CORE-16]
   description: >-
     Dynamic objects containing unknown single-@ keys (^@([^@]|$)) are disallowed to preserve
     backward compatibility for future directives.
   catalog:
     catalogId: custom
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
     components:
       CustomCard:
         type: object
@@ -143,7 +149,7 @@
             $ref: "common_types.json#/$defs/DynamicValue"
   action: validate
   payload:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: s1
         catalogId: custom
@@ -162,7 +168,7 @@
     disallowed. It must be escaped as "@@" to appear as literal data.
   catalog:
     catalogId: custom
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
     components:
       CustomCard:
         type: object
@@ -171,7 +177,7 @@
             $ref: "common_types.json#/$defs/DynamicValue"
   action: validate
   payload:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: s1
         catalogId: custom
@@ -184,11 +190,12 @@
     category: "ValidationError"
 
 - name: test_escaped_doubled_at_unescaping
+  features: [F-CORE-16, F-CORE-34]
   description: >-
     Verifies that doubled-@ keys ('@@path') are unescaped to '@path' during dynamic evaluation in v1.0.
   catalog:
     catalogId: custom
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
     components:
       CustomCard:
         type: object
@@ -197,7 +204,7 @@
             $ref: "common_types.json#/$defs/DynamicValue"
   action: process_messages
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: s1
         catalogId: custom
@@ -214,3 +221,66 @@
             component: CustomCard
             details:
               "@path": "/static/file"
+
+- name: test_disallowed_nested_at_envelope_keys_in_dynamic_object
+  description: >-
+    Verifies that component-level @-prefixed envelope names (@metadata, @catalogId,
+    @accessibility, @checks) remain disallowed as unescaped single-@ keys inside
+    nested dynamic objects such as component property maps or action contexts.
+  catalog:
+    catalogId: custom
+    protocolVersion: "1.0"
+    components:
+      CustomCard:
+        type: object
+        properties:
+          details:
+            $ref: "common_types.json#/$defs/DynamicValue"
+  action: validate
+  payload:
+    - version: "1.0"
+      createSurface:
+        surfaceId: s1
+        catalogId: custom
+        components:
+          - id: root
+            component: CustomCard
+            details:
+              "@metadata":
+                extensions:
+                  com_example_nested: "disallowed"
+  expectError:
+    category: "ValidationError"
+
+- name: test_escaped_doubled_at_metadata_unescaping
+  description: >-
+    Verifies that doubled-@ '@@metadata' inside a nested dynamic object validates
+    and unescapes to literal '@metadata' during dynamic evaluation in v1.0.
+  catalog:
+    catalogId: custom
+    protocolVersion: "1.0"
+    components:
+      CustomCard:
+        type: object
+        properties:
+          details:
+            $ref: "common_types.json#/$defs/DynamicValue"
+  action: process_messages
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: s1
+        catalogId: custom
+        components:
+          - id: root
+            component: CustomCard
+            details:
+              "@@metadata": "literal-value"
+  expect:
+    surfaces:
+      s1:
+        components:
+          - id: root
+            component: CustomCard
+            details:
+              "@metadata": "literal-value"

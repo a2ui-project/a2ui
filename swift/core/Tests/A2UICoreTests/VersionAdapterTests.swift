@@ -125,7 +125,7 @@ struct VersionAdapterTests {
     let v10WithThemePayload: JSONValue = try .parse(
       """
       {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
           "surfaceId": "s2",
           "catalogId": "basic",
@@ -143,7 +143,7 @@ struct VersionAdapterTests {
     let v10Payload: JSONValue = try .parse(
       """
       {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
           "surfaceId": "s2",
           "catalogId": "basic",
@@ -170,6 +170,62 @@ struct VersionAdapterTests {
     } else {
       Issue.record("Expected .createSurface operation")
     }
+  }
+
+  private static let v10CreateSurfaceWithThemeMessage = """
+    {
+      "version": "1.0",
+      "createSurface": {
+        "surfaceId": "s1",
+        "catalogId": "basic",
+        "theme": { "primaryColor": "#FF0000" }
+      }
+    }
+    """
+
+  @Test(
+    arguments: [
+      v10CreateSurfaceWithThemeMessage,
+      "[\(v10CreateSurfaceWithThemeMessage)]",
+      "{ \"messages\": [\(v10CreateSurfaceWithThemeMessage)] }",
+    ]
+  )
+  func v10AdapterDropsCreateSurfaceThemeOnlyWhenUnknownElementsAllowed(
+    rawPayload: String
+  ) throws {
+    let adapter = V10VersionAdapter()
+    let payload = try JSONValue.parse(rawPayload)
+
+    #expect(throws: A2UIValidationError.self) {
+      _ = try adapter.extractOperations(from: payload, allowUnknownElements: false)
+    }
+    let operations = try adapter.extractOperations(from: payload, allowUnknownElements: true)
+    #expect(operations.count == 1)
+    guard case .createSurface(let createOperation) = try #require(operations.first) else {
+      Issue.record("Expected .createSurface operation")
+      return
+    }
+    #expect(createOperation.surfaceID == "s1")
+    #expect(createOperation.catalogID == "basic")
+    #expect(createOperation.theme == nil)
+  }
+
+  @Test func v10AdapterStillRejectsOtherUnknownCreateSurfaceKeysWhenUnknownElementsAllowed()
+    throws
+  {
+    let adapter = V10VersionAdapter()
+    let payload: JSONValue = try .parse(
+      """
+      {
+        "version": "1.0",
+        "createSurface": { "surfaceId": "s1", "catalogId": "basic", "styles": {} }
+      }
+      """
+    )
+    let error = try #require(throws: A2UIValidationError.self) {
+      _ = try adapter.extractOperations(from: payload, allowUnknownElements: true)
+    }
+    #expect(error.message.contains("unrecognized property 'styles'"))
   }
 
   // MARK: - Action Validation & Cross-Version Action Errors
@@ -202,7 +258,7 @@ struct VersionAdapterTests {
     let conflictingPayload: JSONValue = try .parse(
       """
       {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": { "surfaceId": "s1" },
         "deleteSurface": { "surfaceId": "s1" }
       }
@@ -221,7 +277,7 @@ struct VersionAdapterTests {
       """
       [
         {
-          "version": "v1.0",
+          "version": "1.0",
           "callRendererFunction": {
             "functionCallId": "call-1",
             "callFunction": {
@@ -232,7 +288,7 @@ struct VersionAdapterTests {
           }
         },
         {
-          "version": "v1.0",
+          "version": "1.0",
           "agentFunctionResponse": {
             "functionCallId": "call-2",
             "value": { "ok": true }
@@ -283,7 +339,7 @@ struct VersionAdapterTests {
     let payload: JSONValue = try .parse(
       """
       {
-        "version": "v1.0",
+        "version": "1.0",
         "deleteSurface": { "surfaceId": "s1" }
       }
       """
@@ -330,7 +386,7 @@ struct VersionAdapterTests {
     let textSchema = try Schema(instance: "{\"type\": \"object\"}")
     let catalog = Catalog(
       id: "basic",
-      protocolVersion: "v1.0",
+      protocolVersion: "1.0",
       components: [AnyComponentAPI(name: "Text", schema: textSchema)]
     )
     let processor = MessageProcessor(catalogs: [catalog])
@@ -339,7 +395,7 @@ struct VersionAdapterTests {
       """
       [
         {
-          "version": "v1.0",
+          "version": "1.0",
           "createSurface": {
             "surfaceId": "s1",
             "catalogId": "basic",
@@ -364,7 +420,7 @@ struct VersionAdapterTests {
     let emptyCreateComponents: JSONValue = try .parse(
       """
       {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
           "surfaceId": "s1",
           "catalogId": "basic",
@@ -380,7 +436,7 @@ struct VersionAdapterTests {
     let emptyUpdateComponents: JSONValue = try .parse(
       """
       {
-        "version": "v1.0",
+        "version": "1.0",
         "updateComponents": {
           "surfaceId": "s1",
           "components": []

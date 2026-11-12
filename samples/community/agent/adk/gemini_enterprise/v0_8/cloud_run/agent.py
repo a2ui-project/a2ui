@@ -27,11 +27,12 @@ from a2a.types import (
 )
 from a2ui.a2a import (
     get_a2ui_agent_extension,
-    parse_response_to_parts,
+    to_a2a_parts,
 )
 from a2ui.constants import A2UI_CLOSE_TAG, A2UI_OPEN_TAG
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import ProtocolVersion
+from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
 from a2ui.parser import A2uiPart
 from a2ui.processor import A2uiGenerator, A2uiRequestProcessor, CatalogConfig
 from a2ui.utils import to_version_number
@@ -88,7 +89,10 @@ class ContactAgent:
 
     def _build_generator(self, version: str) -> A2uiGenerator:
         # Gemini Enerprise only supports ProtocolVersion.V0_8 for now.
-        return A2uiGenerator([CatalogConfig(BasicCatalog(version))])
+        return A2uiGenerator(
+            [CatalogConfig(BasicCatalog(version))],
+            inference_format_factory=DirectJsonFormatFactory(),
+        )
 
     def _build_processor(
         self, version: str, generator: A2uiGenerator
@@ -364,8 +368,8 @@ class ContactAgent:
                 )
 
                 # Already validated, so we can return the parts.
-                if ui_version:
-                    return parse_response_to_parts(final_response_content)
+                if ui_version and processor:
+                    return to_a2a_parts(response_parts)
                 else:
                     return [Part(root=TextPart(text=final_response_content))]
 

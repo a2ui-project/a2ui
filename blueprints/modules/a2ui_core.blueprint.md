@@ -30,7 +30,7 @@ Its core responsibilities include:
 6. **Validation:** Performs structural JSON Schema checks, reference checks, loop/recursion analysis, and layout integrity checks. See [Validation Layer](#c-validation-layer-a2uicorevalidation).
 7. **Resolution:** Resolves bound context paths and binds state variables to components for local evaluation. See [Resolution Layer](#f-resolution-layer-a2uicoreresolution).
 8. **Multi-Version Protocol Branching:** Supports multiple versions of the protocol. See [Version Adapters](#version-adapters-a2uicoreprocessingadapters).
-9. **Mixable Catalog Surface Resolution (v1.0+):** Tracks every catalog a surface may draw from, and resolves per-component and per-function `catalogId` overrides against that set rather than against a single surface-wide default. See [Mixable catalogs and component resolution logic](../../specification/v1_0/docs/a2ui_protocol.md#mixable-catalogs-and-component-resolution-logic).
+9. **Mixable Catalog Surface Resolution (v1.0+):** Tracks every catalog a surface may draw from, and resolves per-component `@catalogId` and per-function `catalogId` overrides against that set rather than against a single surface-wide default. See [Mixable catalogs and component resolution logic](../../specification/v1_0/docs/a2ui_protocol.md#mixable-catalogs-and-component-resolution-logic).
 10. **Bidirectional RPC Execution (v1.0+):** Coordinates asynchronous and synchronous remote function calls between renderers and server agents via `RpcHandler` (only available starting from version 1.0), managing correlation IDs, timeouts, cancellation callbacks, permission boundaries, and lifecycle disposal. See [Bidirectional RPC Layer](#d-bidirectional-remote-procedure-call-rpc-layer-a2uicorerpc).
 
 ### Package Boundary & Non-Goals
@@ -239,6 +239,8 @@ export class Catalog<
 
 A `Catalog` is immutable once constructed.
 
+An agent's copy of a catalog may also hold agent functions: function definitions with a handler that runs on the agent, added through `copyWith(agentFunctions: [...])` rather than the constructor. They are ordinary entries of `functions`, so validation and serialization treat them like any other declared function, and `agentFunctions` and `rendererFunctions` split `functions` by whether an entry is an agent function. Renderer code never sets them. The optional [`agent_functions`](../features/agent_functions.blueprint.md) feature specifies them.
+
 `TFunction` is instantiated as [`FunctionApi`](#functionapi--functionimplementation) for a schema-only catalog used to validate or describe payloads, and as `FunctionImplementation` for a catalog that can also execute its functions. The schema-only case is named [`CatalogApi`](#catalogapi).
 
 Both parameters default to their constraint, so code that does not care about the concrete component or function type may write `Catalog` unparameterized. The rest of this document does so wherever the distinction is irrelevant.
@@ -287,6 +289,18 @@ interface ComponentApi {
   readonly name: string;
   /** The technical definition used for validation and generating renderer capabilities. */
   readonly schema: Schema;
+  /**
+   * Static 'ComponentDefinition.metadata' from the catalog document (v1.0+), with every
+   * 'extensions' key validated as a UAX #31 identifier at load. Round-trips through
+   * 'Catalog.fromJson' and 'Catalog.toJson'. The catalog document root carries no
+   * 'metadata'; only component definitions do.
+   */
+  readonly metadata?: A2uiMetadata;
+}
+
+/** Matches 'metadata' containers in the v1.0 wire schemas: '{ extensions?: Extensions }'. */
+interface A2uiMetadata {
+  readonly extensions?: Readonly<Record<string, unknown>>;
 }
 ```
 
@@ -391,6 +405,32 @@ The Basic Catalog requires a `formatString` function capable of interpreting `${
 2.  **Tokenization**: Distinguish between DataPaths (e.g., `${/user/name}`) and FunctionCalls (e.g., `${now()}`).
 3.  **Escaping**: Literal `${` sequences must be handled (typically escaping as `\${`).
 4.  **Reactive Coercion**: Results are transformed into strings using the standard Type Coercion rules.
+5.  **Catalog Inheritance (v1.0+)**: Because the `${...}` template syntax cannot specify a `catalogId` and `formatString` interpolates functions from its own catalog, non-system function calls parsed from `${...}` expressions (at any call-argument nesting depth) MUST inherit the `catalogId` that the enclosing `formatString` call resolved to—even when the surface declares a different default `catalogId`. Reserved `@`-prefixed system functions (such as `${@index()}`) belong to no catalog and MUST NOT be stamped with a `catalogId`. When a nested wire `{"@call": ...}` call omits `catalogId` on a context or handler that resolves no default catalog ID, the active call catalog scope is cleared (`null` / `nil`) rather than inheriting the outer call's `catalogId`.
+
+##### Regular expression guard (`regex`)
+
+The `regex` validation function and any other catalog function that accepts a regular expression pattern MUST enforce the A2UI regex dialect and static safety check defined in [The `regex` function](../../specification/v1_0/docs/a2ui_protocol.md#the-regex-function).
+
+**Implementation Requirements**:
+
+1. **Shared Subset Parser**: Each SDK MUST parse the pattern with a subset parser shared by the safety check and host-engine translation, rather than passing raw strings directly to the host regex engine.
+2. **Host-Engine Translation**:
+
+   | Language       | Engine & Translation Strategy                                                                                                                                                                                                                                                                      |
+   | :------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | **TypeScript** | Evaluates with `new RegExp(pattern, 'u')` after the subset parser and static safety check pass (replacing `redos-detector`).                                                                                                                                                                       |
+   | **Dart**       | Evaluates with `RegExp(pattern, unicode: true)` after the subset parser and static safety check pass.                                                                                                                                                                                              |
+   | **Python**     | Translates the parsed AST to Python `re`: replaces `$` with `\Z` so `$` never matches before a trailing newline, expands `\d`/`\D`, `\w`/`\W`, and `\s`/`\S` to explicit ASCII/ECMAScript character classes, expands `\b`/`\B` to explicit boundary assertions, and translates `\u{H...}` escapes. |
+   | **Swift**      | Translates the parsed AST to ICU (`NSRegularExpression`): replaces `$` with `\z`, expands `\d`/`\D`, `\w`/`\W`, and `\s`/`\S` to explicit ASCII/ECMAScript classes, expands `\b`/`\B` to explicit boundary assertions, and normalizes Unicode code point escapes.                                  |
+
+3. **Error Reporting and Stable Tokens**: Rejections MUST raise `A2uiExpressionError` (reported on the wire as `EXPRESSION_ERROR`) whose message contains one stable diagnostic token that conformance tests match on:
+   - `PATTERN_TOO_LONG`: Pattern exceeds 256 code points (rule 1).
+   - `UNSUPPORTED_SYNTAX`: Pattern fails to parse in the A2UI regex dialect or uses a disallowed construct.
+   - `NESTED_QUANTIFIER`: A quantifier with upper bound above 1 wraps a subexpression containing an unbounded quantifier (rule 2).
+   - `OVERLAPPING_ALTERNATION`: An unbounded quantifier wraps an alternation whose branches can start with the same character (rule 3).
+   - `ADJACENT_OVERLAP`: Two unbounded-quantified atoms with overlapping character sets are adjacent in one concatenation (rule 4).
+4. **Value Length Cap**: Input values longer than 4,096 code points do not match; `regex` returns `{"valid": false}` without raising an error.
+5. **Version Applicability**: The guard MUST apply to v1.0 surfaces and SHOULD apply to v0.9 and v0.9.1 surfaces, since v0.9.1 leaves the regular expression dialect unspecified.
 
 #### Composing Your Own Catalog
 
@@ -406,6 +446,18 @@ myCustomCatalog = Catalog(
   functions=basicCatalog.functions,
   components=basicCatalog.components + [MyCompanyLogoComponent()],
   themeSchema=basicCatalog.themeSchema # Inherit theme schema
+)
+```
+
+To keep some entries of an existing catalog under a new id, derive a catalog from it. A name keeps the source's entry of that name, an entry adds it, and leaving a list out keeps all of the source's entries of that kind. An unknown name is an `A2uiCatalogError`. The derived catalog keeps the source's protocol version, theme and document layout, and not its `$id`, title, description or instructions, which describe the source: the basic catalog's instructions name its id in their examples, so they would teach a model to write messages for the wrong catalog.
+
+```python
+# Pseudocode
+chatCatalog = basicCatalog.derive(
+  catalogId="https://mycompany.com/catalogs/chat.json",
+  components=["Text", "Image", "Row", "Column", "Button", MyCarouselComponent()],
+  functions=["openUrl"],
+  instructions=chatInstructions,
 )
 ```
 
@@ -468,6 +520,12 @@ export interface MessageProcessorOptions {
   defaultTimeoutSeconds?: number;
 }
 
+/** Options for one call of 'processMessages' or 'processMessagesAsync'. */
+export interface ExecutionContext {
+  /** Whether the call runs in an active user gesture. */
+  isUserActivated?: boolean;
+}
+
 class MessageProcessor<T extends ComponentApi> {
   readonly model: SurfaceGroupModel<T>;
   readonly rpc: RpcHandler;
@@ -479,8 +537,11 @@ class MessageProcessor<T extends ComponentApi> {
   );
 
   // Synchronous and asynchronous message processing
-  processMessages(messages: AgentToRendererMessagePayload): void;
-  processMessagesAsync(messages: AgentToRendererMessagePayload): Promise<void>;
+  processMessages(messages: AgentToRendererMessagePayload, context?: ExecutionContext): void;
+  processMessagesAsync(
+    messages: AgentToRendererMessagePayload,
+    context?: ExecutionContext,
+  ): Promise<void>;
 
   // Outbound RPC convenience delegation to 'rpc' (v1.0+)
   callAgentFunction<T = unknown>(
@@ -502,6 +563,8 @@ class MessageProcessor<T extends ComponentApi> {
   dispose(reason?: string): void;
 }
 ```
+
+The optional [`agent_renderer_app`](../features/agent_renderer_app.blueprint.md) feature adds `MessageProcessor.catalogs`, and a validation config for one call in `ExecutionContext`, for an agent that checks its messages against the renderer's own processor.
 
 ##### RPC ownership
 
@@ -533,9 +596,9 @@ When a surface is created with `sendDataModel: true`, the renderer is responsibl
 
 ##### `createSurface` operation ordering
 
-A `createSurface` message may carry an initial data model and an initial component list at once. The processor MUST apply the data model before the components. Components are validated and bound against the data model, so applying them first reports spurious missing-binding warnings for data that is about to arrive in the same message.
+A `createSurface` message may carry an initial data model and an initial component list at once. The processor MUST apply the data model before the components (see [`createSurface`](../../specification/v1_0/docs/a2ui_protocol.md#createsurface)). Components are validated and bound against the data model, so applying them first reports spurious missing-binding warnings for data that is about to arrive in the same message.
 
-The initial data model is applied as one operation per top-level key, merging into the existing root, rather than as a single write to `/`. A single root write replaces the whole document and fires one cascade over every path, which changes both the resulting tree and the notification count that subscribers observe.
+The initial data model MUST be applied as one operation per top-level key, merging into the existing root, rather than as a single write to `/`. A single root write replaces the whole document and fires one cascade over every path, which changes both the resulting tree and the notification count that subscribers observe. This second rule is a core blueprint requirement verified by a notification-count unit test in each core SDK.
 
 #### [Capabilities Objects](../../docs/public/concepts/glossary.md#capabilities-object)
 
@@ -733,7 +796,7 @@ A shared base class should implement `extractOperations` once, covering payload 
 5. **Semantic version compatibility (`isCatalogVersionCompatible`)**: Compares protocol versions using SemVer rules rather than strict string equality. Leading `'v'` prefixes are stripped, and compatibility checks allow matching major/minor specifications while rejecting breaking mismatches, for example `v0.9` against `v1.0`. An absent catalog version is accepted for pre-v1.0 surfaces and rejected for v1.0 and later. Callers pass the version straight through and act on the result; they MUST NOT skip the call when the version is missing, since that converts an unversioned catalog into a universally compatible one.
 6. **Per-version `createSurface` fields**: Adapters extract only the fields their version defines, and MUST NOT carry a field forward into a version that removed it.
    - `root`: present in v0.8 only. The adapter extracts it into `SurfaceModel.rootId`, which the topology check uses as the tree root. Hardcoding the root id to `'root'` rejects valid v0.8 payloads that name it otherwise, and omitting `root` from `InternalCreateSurfaceOp` makes those payloads impossible to represent.
-   - `theme`: present in v0.8 and v0.9/v0.9.1 only. **v1.0 removed `theme` with no replacement field** (see [`agent_to_renderer.json`](../../specification/v1_0/json/agent_to_renderer.json)), so the v1.0 adapter MUST NOT extract it. Extracting it anyway lets a non-conformant payload through and triggers theme validation that should never run for v1.0.
+   - `theme`: present in v0.8 and v0.9/v0.9.1 only. **v1.0 removed `theme` with no replacement field** (see [`agent_to_renderer.json`](../../specification/v1_0/json/agent_to_renderer.json)), so the v1.0 adapter MUST NOT extract it. Extracting it anyway lets a non-conformant payload through and triggers theme validation that should never run for v1.0. Under strict validation a v1.0 `createSurface` carrying `theme` raises `A2uiValidationError` (`VALIDATION_FAILED`). Under `RELAXED_VALIDATION` the adapter drops the field and the surface model's `theme` stays unset.
    - `catalogId`, `sendDataModel`: present in v0.9 and later.
 
 #### Renderer vs. Agent Execution Patterns
@@ -758,14 +821,14 @@ const agentProcessor = new MessageProcessor({
 agentProcessor.processMessages(AgentToRendererMessage.parseAll(parsedModelPayload));
 ```
 
-| Execution Aspect              | Renderer                                                                                                          | Agent                                                                      |
-| :---------------------------- | :---------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------- |
-| **Architectural Role**        | Processes inbound messages and updates surface state.                                                             | Optional helper for checking and converting outbound messages.             |
-| **`catalogs` Parameter**      | Passes all renderer-supported catalogs (`catalogs: [catA, catB]`), one validator built per catalog.               | Passes single negotiated catalog (`catalogs: [negotiatedCatalog]`).        |
-| **Entry Point**               | `processMessages` — applies the payload and checks each message against the surface it joins.                     | `processMessages`, under the default strict `ValidationConfig`.            |
-| **`actionHandler` Parameter** | UI event callback (`actionHandler: onUiEvent`).                                                                   | Omitted or `undefined` (`actionHandler: undefined`).                       |
-| **Catalog Compliance**        | Matches `createSurface.catalogId` and component/function `catalogId` overrides against renderer's supported list. | Fails if model generates payload referencing un-negotiated catalog.        |
-| **Primary Goal**              | Maintains live view models and routes user action events.                                                         | Verifies model-generated payloads and data path references before sending. |
+| Execution Aspect              | Renderer                                                                                                               | Agent                                                                      |
+| :---------------------------- | :--------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------- |
+| **Architectural Role**        | Processes inbound messages and updates surface state.                                                                  | Optional helper for checking and converting outbound messages.             |
+| **`catalogs` Parameter**      | Passes all renderer-supported catalogs (`catalogs: [catA, catB]`), one validator built per catalog.                    | Passes single negotiated catalog (`catalogs: [negotiatedCatalog]`).        |
+| **Entry Point**               | `processMessages`: applies the payload and checks each message against the surface it joins.                           | `processMessages`, under the default strict `ValidationConfig`.            |
+| **`actionHandler` Parameter** | UI event callback (`actionHandler: onUiEvent`).                                                                        | Omitted or `undefined` (`actionHandler: undefined`).                       |
+| **Catalog Compliance**        | Matches `createSurface.catalogId`, component `@catalogId`, and function `catalogId` against renderer's supported list. | Fails if model generates payload referencing un-negotiated catalog.        |
+| **Primary Goal**              | Maintains live view models and routes user action events.                                                              | Verifies model-generated payloads and data path references before sending. |
 
 ---
 
@@ -812,10 +875,12 @@ export class PayloadValidator {
   /** Validates one function call's arguments against the catalog's schema for it. */
   validateFunction(name: string, args: Record<string, any>): void;
 
-  /** Validates theme / surfaceProperties against the catalog's theme schema. */
+  /** Validates theme / surfaceProperties against the catalog's theme schema (pre-v1.0 only). */
   validateTheme(surfaceProperties: Record<string, any> | null): void;
 }
 ```
+
+`allowUnknownElements` covers functions as well as components: under `false`, a call to a function that the catalog it resolves to doesn't declare is rejected as an unrecognized function. From v1.0 such a call would otherwise be [routed to the agent](#rpc-execution-lifecycle--safeguards), so a renderer that validates strictly and uses agent-side functions has two options. It can set `allowUnknownElements: true`, which keeps the other checks. Or it can declare the agent functions it expects as schema-only entries in the catalog the calls resolve to, which keeps every check, including argument validation, and still routes the calls, because a schema-only function has no local implementation. Supplying no `ValidationConfig` at all skips these checks, so calls to undeclared functions are accepted and routed.
 
 ##### In-Memory Schema Resolution (Zero Network, Zero Disk I/O)
 
@@ -865,16 +930,16 @@ The non-throwing `validateReferences()` accessor sits outside this pipeline. It 
 
 #### Catalog Scope
 
-A component belongs to exactly one catalog, and from v1.0 one surface may mix catalogs: `createSurface.catalogId` is only the surface-level default, and a component or function call may carry a `catalogId` of its own that overrides it. So the catalog is a **per-item** question, and answering it needs every supported catalog. That splits the work in two.
+A component belongs to exactly one catalog, and from v1.0 one surface may mix catalogs: `createSurface.catalogId` is only the surface-level default, and a component (through `@catalogId`) or function call (through `catalogId`) may name a catalog of its own that overrides it. So the catalog is a **per-item** question, and answering it needs every supported catalog. That splits the work in two.
 
 **`PayloadValidator` holds one catalog and checks one item against it.** Take the catalog in the constructor. Expose `validateComponent`, `validateFunction` and `validateTheme`, each checking a single item. Do not give it a payload-level entry point and do not let it reject a payload for naming another catalog: it cannot know which catalog an item belongs to, so deciding is not its job.
 
 **`MessageProcessor` holds every supported catalog and does the routing.** It is the entry point for validation as well as for processing:
 
 - Build one validator per supported catalog, on first use, and reuse it, so resolved component schemas are cached across messages rather than rebuilt per batch.
-- Resolve the catalog for each item the same way: the `catalogId` the item names, which must be one of the surface's available catalogs, else the surface's default catalog from `createSurface`. If the item names a catalog the surface doesn't have, or names none on a surface with no default, raise `A2uiCatalogError` rather than skipping the item; skipping would report a payload valid that nothing had checked.
+- Resolve the catalog for each item the same way: the catalog the item names (`@catalogId` on a v1.0 component, `catalogId` on a function call), which must be one of the surface's available catalogs, else the surface's default catalog from `createSurface`. If the item names a catalog the surface doesn't have, or names none on a surface with no default, raise `A2uiCatalogError` rather than skipping the item; skipping would report a payload valid that nothing had checked.
 - Do not fall back to any other catalog, such as the first or only supported one. A fallback turns a typo in `catalogId` into a call to a same-named function in an unrelated catalog.
-- An empty `catalogId` names a catalog like any other string (one that never exists), so it does not mean "use the default". A `catalogId` that isn't a string, on a component or a call, violates the schema and raises `A2uiValidationError`; it is never ignored, which would resolve the item to the surface default.
+- An empty `catalogId` names a catalog like any other string (one that never exists), so it does not mean "use the default". A catalog ID that isn't a string, on a component or a call, violates the schema and raises `A2uiValidationError`; it is never ignored, which would resolve the item to the surface default.
 - Raise `A2uiCatalogError` when a resolved `catalogId` is not one this processor supports.
 - Record the default and available catalogs on the `SurfaceModel` when the surface is created, so a later `updateComponents` resolves against them.
 - Expose `processMessages` as the single entry point for applying a payload to surface state and checking each message against the surface it joins. An agent uses it over its own output too, keeping a processor for the session so each payload is checked against the state the previous ones built.
@@ -887,46 +952,57 @@ In an agent, pass the negotiated catalog as the only supported one.
 ##### v1.0 Resolution Details
 
 - **The surface default may be absent.** From v1.0 `createSurface.catalogId` is optional. A surface created without one has no default catalog, and every component and function call on it must name its own.
-- **Updates resolve afresh.** A v1.0 `updateComponents` entry resolves its catalog like a new component, and does not inherit the catalog of the component it replaces. `component` is required on every entry. When the type or the resolved catalog changes, the processor replaces the `ComponentModel` rather than updating its properties. Before v1.0, an update that names no `catalogId` keeps the replaced component's catalog.
+- **Updates resolve afresh.** A v1.0 `updateComponents` entry resolves its catalog like a new component, and does not inherit the catalog of the component it replaces. `component` is required on every entry. When the type or the resolved catalog changes, the processor replaces the `ComponentModel` rather than updating its properties. Before v1.0, components carry no catalog override: every component is in the surface catalog, and a bare `catalogId` on a component is an ordinary property.
 - **A `ComponentModel` always has a catalog.** The processor resolves the catalog first and raises `A2uiCatalogError` if it can't, so it never builds a component model without one.
-- **Nested function calls resolve per call.** A call inside a component's properties runs in the catalog it names, else in the surface default. That is not necessarily the component's own catalog: a component from catalog A may call a function that only the default catalog B has. So the two objects split the checks:
+- **Nested function calls resolve per call.** Wire `{"@call": ...}` calls inside component properties or outer function arguments resolve per call: each runs in the catalog it names, else in the surface default (whereas non-system function calls parsed from `${...}` template expressions inside `formatString` inherit `formatString`'s resolved `catalogId`; see [Expression Resolution Logic (`formatString`)](#expression-resolution-logic-formatstring)). That is not necessarily the component's own catalog: a component from catalog A may call a function that only the default catalog B has. So the two objects split the checks:
   - `PayloadValidator` fully checks a nested call only when it runs in the validator's catalog: the call names that catalog, or the call names none and the component is in the surface default catalog. For any other call it checks only the function and argument identifiers. In the component schema, a v1.0 `FunctionCall` is checked only as an envelope (`@call`, `args`, `catalogId`), so that a call into another catalog isn't rejected by the component's catalog.
-  - Called directly, the validator takes a component with no `catalogId` to be in the surface default catalog, and one that names a `catalogId` to possibly be in another. `SurfaceComponentsModel.validateComponentsUpdate` knows the surface default, so it passes the component's `catalogId` to the validator only when the component's catalog isn't the default.
+  - Called directly, the validator takes a component with no `@catalogId` to be in the surface default catalog, and one that names a `@catalogId` to possibly be in another. `SurfaceComponentsModel.validateComponentsUpdate` knows the surface default, so it passes the component's `@catalogId` to the validator only when the component's catalog isn't the default.
   - `MessageProcessor` walks every nested call before mutating state, resolves its catalog, and raises `A2uiCatalogError` if that fails, even without a `ValidationConfig`, since the call could never run. With a config it checks the arguments of the calls the validator left alone against the catalog they resolve to. It reports these errors in the same `A2uiValidationError` as the batch's component schema errors, so neither hides the other.
 - **System functions belong to no catalog.** Reserved `@`-prefixed functions such as `@index` resolve without a catalog, so they work on a surface with no default. A call to one must not name a `catalogId`, and an unknown `@` name is an error. Calls nested in their arguments still resolve normally.
 - **Before v1.0, a call's `catalogId` is ignored**, both at runtime and in validation: every call runs in, and is checked against, the surface catalog.
+
+#### Component Envelope Keys
+
+From v1.0 the optional component envelope mixins use reserved `@` keys at the root of a component object: `@catalogId`, `@accessibility`, and `@metadata` (from `ComponentCommon`), and `@checks` (from `Checkable`). `id` and `component` stay bare. The prefix keeps the envelope apart from catalog properties, so a v1.0 component schema may declare its own `catalogId`, `accessibility`, `metadata`, or `checks` property and receive it in `properties` like any other. See [Component envelope mixin keys](../../specification/v1_0/docs/evolution_guide.md#29-component-envelope-mixin-keys).
+
+- **Split by the component schema, not by name.** The validator and processor decide which keys are envelope and which are properties from the resolved component schema: a bare key that the schema declares as its own property is a property; the `@` keys and the standard `ComponentCommon` / `Checkable` mixins are envelope.
+- **Transition dual-read.** During the v1.0 transition, a v1.0 component may still carry a legacy bare `catalogId`, `accessibility`, `metadata`, or `checks`. Read it as the envelope key when the component schema does not declare a property of that name. A component that carries both `@foo` and bare `foo` for the same envelope key raises `A2uiValidationError`.
+- **Validation.** `@metadata` is checked against `ComponentCommon.@metadata` (an `extensions` map with UAX #31 keys), `@catalogId` must be a string, `@accessibility` against `AccessibilityAttributes`, and `@checks` is allowed only on a component whose schema composes `Checkable`. Nested function calls inside `@accessibility` and `@checks` resolve and validate like calls in properties.
+- **Root only.** The `@` exemption covers only the four envelope keys at the component root. A single-`@` key such as `"@metadata"` inside nested dynamic data (an `Action.event.context` value, a literal map) is still an `INVALID_RESERVED_KEY` unless escaped as `"@@metadata"`.
+- **Serialization.** On v1.0 surfaces, `ComponentModel.componentTree` (`component_tree`) emits `@metadata`, and Dart's `ComponentModel.toJson()` emits `@catalogId` and `@metadata`, never the bare keys.
+- **Pre-1.0 surfaces are unchanged.** v0.8, v0.9, and v0.9.1 keep bare `accessibility` and `checks`. A bare `metadata` or `catalogId` on a pre-1.0 component is an ordinary property, and an `@`-prefixed envelope key is rejected by the strict component schema.
 
 #### Validation Implementation Matrix
 
 The matrix below details the specific validation checks, their responsible component/method in `a2ui_core`, and the specific error class raised upon failure:
 
-| Validation Category      | Specific Validation Check                                                                         | Responsible Component / Implementation                                    | Raised Error Type                          |
-| :----------------------- | :------------------------------------------------------------------------------------------------ | :------------------------------------------------------------------------ | :----------------------------------------- |
-| **Protocol Envelope**    | Single update type per message (`createSurface`, `updateComponents`, etc.)                        | `AgentToRendererMessage.parseAll()` (static, no catalog needed)           | `A2uiValidationError`                      |
-| **Protocol Envelope**    | Valid `version` tag (`v0.8`, `v0.9`, `v1.0`) & required envelope keys                             | `AgentToRendererMessage.parseAll()` (static, no catalog needed)           | `A2uiValidationError`                      |
-| **Identifier Syntax**    | Component, property, and function names comply with UAX #31 identifier syntax                     | `PayloadValidator` (`common/uax31`)                                       | `A2uiValidationError`                      |
-| **Schema Referencing**   | In-memory `$ref` resolution against relative paths (`common_types.json`) without disk or network  | `PayloadValidator` (`referencing.Registry` / `Ajv`)                       | `A2uiValidationError`                      |
-| **Surface Lifecycle**    | Surface non-existence on `createSurface` (no duplicates)                                          | `MessageProcessor.processCreateSurface()` (`SurfaceGroupModel`)           | `A2uiIntegrityError`                       |
-| **Surface Lifecycle**    | Surface existence on `updateComponents`, `updateDataModel`, `deleteSurface`                       | `MessageProcessor.processUpdateComponents()` / `processUpdateDataModel()` | `A2uiIntegrityError`                       |
-| **Catalog Negotiation**  | `createSurface.catalogId` and component/function `catalogId` match negotiated renderer capability | `new MessageProcessor({ catalogs: [negotiatedCatalog] })`                 | `A2uiCatalogError`                         |
-| **Catalog Resolution**   | `createSurface.catalogId` and component/function `catalogId` exist in supported catalogs list     | `MessageProcessor.catalogFor()`                                           | `A2uiCatalogError`                         |
-| **Catalog Scope**        | Each item resolved to its own catalog: item's `catalogId`, else surface default, else error       | `MessageProcessor.processMessages()` / `SurfaceModel.resolveCatalog()`    | `A2uiCatalogError`                         |
-| **Catalog Scope**        | Component checked against the catalog it resolves to, not the whole supported set                 | `MessageProcessor.validatorFor(resolvedCatalog)`                          | `A2uiValidationError`                      |
-| **Catalog Scope**        | v1.0 nested function call checked against the catalog it resolves to (not the component's)        | `MessageProcessor` nested-call pass / `PayloadValidator`                  | `A2uiCatalogError` / `A2uiValidationError` |
-| **Component Keys**       | Required `id` and `component` (type name) on creation                                             | `PayloadValidator` (Zod envelope schema)                                  | `A2uiValidationError`                      |
-| **Component Properties** | Property schema validation against catalog definition                                             | `PayloadValidator.validateComponent()`                                    | `A2uiValidationError`                      |
-| **Function Arguments**   | Function call arguments validated against the catalog's function schema                           | `PayloadValidator.validateFunction()` / `RpcHandler`                      | `A2uiValidationError`                      |
-| **Theme / Properties**   | `Theme` / `surfaceProperties` validation against catalog schema                                   | `PayloadValidator.validateTheme()`                                        | `A2uiValidationError`                      |
-| **Graph Integrity**      | Duplicate component IDs within surface                                                            | `SurfaceComponentsModel.upsertComponent()`                                | `A2uiIntegrityError`                       |
-| **Graph Integrity**      | Missing root component (`id="root"`)                                                              | `SurfaceComponentsModel.validateSurfaceCompleteness()`                    | `A2uiIntegrityError`                       |
-| **Graph Integrity**      | Dangling component references (pointers to missing IDs)                                           | `SurfaceComponentsModel.validateSurfaceCompleteness()`                    | `A2uiIntegrityError`                       |
-| **Graph Topology**       | Self-reference detection (`comp_id == ref_id`)                                                    | `SurfaceComponentsModel.upsertComponent()`                                | `A2uiIntegrityError`                       |
-| **Graph Topology**       | Circular reference / cycle detection (DFS stack)                                                  | `SurfaceComponentsModel.detectCycles()`                                   | `A2uiIntegrityError`                       |
-| **Graph Topology**       | Unreachable / orphan component detection                                                          | `SurfaceComponentsModel.validateSurfaceCompleteness()`                    | `A2uiIntegrityError`                       |
-| **Graph Topology**       | Composition constraints (`allowedParents` / `allowedChildren`)                                    | `SurfaceComponentsModel.validateComponentsUpdate()`                       | `A2uiValidationError`                      |
-| **State Invariant**      | Duplicate component ID against the live surface (mutation guard, not a validation pass)           | `SurfaceComponentsModel.addComponent()`                                   | `A2uiStateError`                           |
-| **Depth & Syntax**       | Global recursion depth limit (>50) & function nesting (>5)                                        | `SurfaceComponentsModel.detectCycles()`                                   | `A2uiRecursionError`                       |
-| **Depth & Syntax**       | JSON Pointer path syntax validation                                                               | `MessageProcessor.processMessages()`                                      | `A2uiValidationError`                      |
+| Validation Category      | Specific Validation Check                                                                            | Responsible Component / Implementation                                    | Raised Error Type                          |
+| :----------------------- | :--------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------ | :----------------------------------------- |
+| **Protocol Envelope**    | Single update type per message (`createSurface`, `updateComponents`, etc.)                           | `AgentToRendererMessage.parseAll()` (static, no catalog needed)           | `A2uiValidationError`                      |
+| **Protocol Envelope**    | Valid `version` tag (`v0.8`, `v0.9`, `v1.0`) & required envelope keys                                | `AgentToRendererMessage.parseAll()` (static, no catalog needed)           | `A2uiValidationError`                      |
+| **Identifier Syntax**    | Component, property, and function names comply with UAX #31 identifier syntax                        | `PayloadValidator` (`common/uax31`)                                       | `A2uiValidationError`                      |
+| **Schema Referencing**   | In-memory `$ref` resolution against relative paths (`common_types.json`) without disk or network     | `PayloadValidator` (`referencing.Registry` / `Ajv`)                       | `A2uiValidationError`                      |
+| **Surface Lifecycle**    | Surface non-existence on `createSurface` (no duplicates)                                             | `MessageProcessor.processCreateSurface()` (`SurfaceGroupModel`)           | `A2uiIntegrityError`                       |
+| **Surface Lifecycle**    | Surface existence on `updateComponents`, `updateDataModel`, `deleteSurface`                          | `MessageProcessor.processUpdateComponents()` / `processUpdateDataModel()` | `A2uiIntegrityError`                       |
+| **Catalog Negotiation**  | `createSurface.catalogId`, component `@catalogId`, and function `catalogId` match negotiated catalog | `new MessageProcessor({ catalogs: [negotiatedCatalog] })`                 | `A2uiCatalogError`                         |
+| **Catalog Resolution**   | `createSurface.catalogId`, component `@catalogId`, and function `catalogId` exist in supported list  | `MessageProcessor.catalogFor()`                                           | `A2uiCatalogError`                         |
+| **Catalog Scope**        | Each item resolved to its own catalog: item's `@catalogId`/`catalogId`, else default, else error     | `MessageProcessor.processMessages()` / `SurfaceModel.resolveCatalog()`    | `A2uiCatalogError`                         |
+| **Catalog Scope**        | Component checked against the catalog it resolves to, not the whole supported set                    | `MessageProcessor.validatorFor(resolvedCatalog)`                          | `A2uiValidationError`                      |
+| **Catalog Scope**        | v1.0 nested function call checked against the catalog it resolves to (not the component's)           | `MessageProcessor` nested-call pass / `PayloadValidator`                  | `A2uiCatalogError` / `A2uiValidationError` |
+| **Component Keys**       | Required `id` and `component` (type name) on creation                                                | `PayloadValidator` (Zod envelope schema)                                  | `A2uiValidationError`                      |
+| **Component Properties** | Property schema validation against catalog definition                                                | `PayloadValidator.validateComponent()`                                    | `A2uiValidationError`                      |
+| **Function Arguments**   | Function call arguments validated against the catalog's function schema                              | `PayloadValidator.validateFunction()` / `RpcHandler`                      | `A2uiValidationError`                      |
+| **Theme / Properties**   | `Theme` / `surfaceProperties` validation against catalog schema (pre-v1.0 only)                      | `PayloadValidator.validateTheme()`                                        | `A2uiValidationError`                      |
+| **Graph Integrity**      | Duplicate component IDs within surface                                                               | `SurfaceComponentsModel.upsertComponent()`                                | `A2uiIntegrityError`                       |
+| **Graph Integrity**      | Missing root component (`id="root"`)                                                                 | `SurfaceComponentsModel.validateSurfaceCompleteness()`                    | `A2uiIntegrityError`                       |
+| **Graph Integrity**      | Dangling component references (pointers to missing IDs)                                              | `SurfaceComponentsModel.validateSurfaceCompleteness()`                    | `A2uiIntegrityError`                       |
+| **Graph Topology**       | Self-reference detection (`comp_id == ref_id`)                                                       | `SurfaceComponentsModel.upsertComponent()`                                | `A2uiIntegrityError`                       |
+| **Graph Topology**       | Circular reference / cycle detection (DFS stack)                                                     | `SurfaceComponentsModel.detectCycles()`                                   | `A2uiIntegrityError`                       |
+| **Graph Topology**       | Unreachable / orphan component detection                                                             | `SurfaceComponentsModel.validateSurfaceCompleteness()`                    | `A2uiIntegrityError`                       |
+| **Graph Topology**       | Composition constraints (`allowedParents` / `allowedChildren`)                                       | `SurfaceComponentsModel.validateComponentsUpdate()`                       | `A2uiValidationError`                      |
+| **State Invariant**      | Duplicate component ID against the live surface (mutation guard, not a validation pass)              | `SurfaceComponentsModel.addComponent()`                                   | `A2uiStateError`                           |
+| **Depth & Syntax**       | Global recursion depth limit (>50) & function nesting (>5)                                           | `SurfaceComponentsModel.detectCycles()`                                   | `A2uiRecursionError`                       |
+| **Depth & Syntax**       | JSON Pointer path syntax validation                                                                  | `MessageProcessor.processMessages()`                                      | `A2uiValidationError`                      |
 
 ---
 
@@ -992,6 +1068,9 @@ export class RpcHandler {
   /** Correlates and settles an inbound agentFunctionResponse message with its pending call. */
   handleAgentFunctionResponse(message: AgentFunctionResponseMessage): void;
 
+  /** Fails every pending outbound call made from the surface with `RpcErrorCode.CANCELLED`. */
+  cancelSurfaceCalls(surfaceId: string): void;
+
   /** Disposes the handler, cancelling all pending outbound requests. */
   dispose(reason?: string): void;
 }
@@ -1000,15 +1079,14 @@ export class RpcHandler {
 #### RPC Execution Lifecycle & Safeguards
 
 1. **Inbound Call Execution (`handleCallRendererFunction`)**:
-   - **Catalog Resolution Order**: An explicit `catalogId` and its absence are two separate paths, not steps in one fallback chain.
-     1. If the call carries a `catalogId`, resolve it against the surface's `availableCatalogs`, then against the processor's global catalog list. If neither has it, return `RpcErrorCode.INVALID_FUNCTION_CALL`. Do not fall through to the surface default: the caller named a catalog, and answering with a different one is worse than failing.
-     2. If the call carries no `catalogId`, use the surface's `defaultCatalog`.
-     3. If neither path yields a catalog, return `RpcErrorCode.INVALID_FUNCTION_CALL`.
+   - **Catalog Resolution Order**: Resolve the call's `catalogId` against the surface's `availableCatalogs`, then against the processor's global catalog list. If neither has it, return `RpcErrorCode.INVALID_FUNCTION_CALL`. Do not fall through to the surface default.
 
-     Falling back to the first entry of the global catalog list is wrong for the same reason. It resolves against a catalog the surface may never have negotiated, so a typo in `catalogId` executes a same-named function from an unrelated catalog instead of failing. Once resolved, verify the catalog's `protocolVersion` is compatible with the surface before executing.
+     Falling back to the first entry of the global catalog list is also wrong. It resolves against a catalog the surface may never have negotiated, so a typo in `catalogId` executes a same-named function from an unrelated catalog instead of failing. Once resolved, verify the catalog's `protocolVersion` is compatible with the surface before executing.
+
+     A call with no `catalogId` should not reach this step. The schema requires `catalogId` on `callRendererFunction`, so inbound parsing should reject the message with `A2uiValidationError` and no `rendererFunctionResponse` will be sent. Agents should check this field against the schema before sending the message.
 
    - **Function Resolution & Argument Coercion**: Look up the function in the resolved catalog. If it is absent, or argument validation fails, return `RpcErrorCode.INVALID_FUNCTION_CALL`. Execute with the coerced arguments returned by `validateFunction`, never the raw payload.
-   - **Permission & Activation Boundaries**: Verifies execution permissions. If a function requires user activation (e.g., audio playback or clipboard write), execution checks that `isUserActivated === true`.
+   - **Permission & Activation Boundaries**: Verifies execution permissions. The function's `allowedCallers` must be `rendererOrAgent` or `agentOnly`; a `rendererOnly` function, including one that declares no `allowedCallers`, returns `RpcErrorCode.INVALID_FUNCTION_CALL`. If a function requires user activation (e.g., audio playback or clipboard write), execution checks that `isUserActivated === true`.
    - **Headless Fallback Context**: If called without an active DOM view context, provisions a headless `DataContext` backed by the surface or root data model so dynamic value resolutions and data path updates resolve cleanly without null reference errors.
    - **Execution Error Trapping**: Catches any unhandled exceptions during execution, converts them to structured error messages with `RpcErrorCode.EXECUTION_ERROR`, and emits `RendererFunctionResponseMessage`.
 
@@ -1019,12 +1097,34 @@ export class RpcHandler {
    - **Listener Task Error Trapping**: Transport listener task completion callbacks must only remove or reject pending calls when the listener task itself fails or is cancelled; successful outbound delivery preserves the pending call to await the agent's correlated response.
    - **Timeout Enforcement**: If no correlated response is received before `timeoutSeconds` expires (default: 30 seconds), the pending call is rejected with `RpcErrorCode.TIMEOUT` and cleaned up.
 
-3. **Synchronous & Asynchronous Loop Bridging**:
+3. **Renderer Fallback Routing (v1.0+)**:
+
+   A renderer sends a function call it cannot run locally to the agent, as "Function Location Resolution & Fallback Routing" under `callAgentFunction` in the [v1.0 protocol](../../specification/v1_0/docs/a2ui_protocol.md) requires. This is required behavior for every renderer core, not an optional feature. The agent's side is the optional [`agent_functions`](../features/agent_functions.blueprint.md) feature.
+
+   - **When a call routes**: All of the following hold. The surface is v1.0 or later. The function is not a reserved `@` system function. The call's catalog resolves (its `catalogId`, else the surface default; see [Catalog Scope](#catalog-scope)); a call whose catalog doesn't resolve is a `CATALOG_ERROR` and is never sent. The resolved catalog has no executable implementation of the function: it either doesn't declare it, or declares it schema-only. The surface has an agent function caller. Otherwise nothing changes: an implemented function runs locally, and a missing one is the usual local `EXPRESSION_ERROR`.
+   - **The surface's agent function caller**: `SurfaceModel` holds an optional caller that sends a call to the agent and resolves with its result. `MessageProcessor` installs it on each v1.0 surface only when it has an outbound listener, and dispatches through `RpcHandler.callAgentFunction` with the processor's timeout. Without a listener there is no way to reach the agent, so calls keep failing locally rather than with `NO_LISTENER`.
+   - **Resolved `catalogId`**: Every outbound `callFunction` names the catalog the call resolved to, also when the payload left `catalogId` out and relied on the surface default, so the agent never tracks surface defaults. `args` carries resolved values.
+   - **Schema-only functions**: For a function the resolved catalog declares without an implementation, apply the same checks a local call gets before sending: refuse an `agentOnly` function and enforce `requiresUserActivation`, both as `EXPRESSION_ERROR`, then validate the arguments against the declared schema. A validation failure is an `EXPRESSION_ERROR` and nothing is sent. Send the result of the same full schema parse a local implementation's arguments get, with the schema's defaults applied, nested object defaults included, whether the catalog came from code or from a document. A function the catalog doesn't declare is sent with its resolved arguments as they are. A schema-only `rendererOnly` function routes: routing is a renderer-initiated call, which `rendererOnly` allows.
+   - **Pending value and errors**: The value is pending (the language's null or undefined) until `agentFunctionResponse` arrives. An agent error response or a timeout is always reported on the surface as `EXPRESSION_ERROR`, carrying the agent's message and the `functionCallId`, and the value stays null. A call that fails with `CANCELLED` (the surface was deleted or disposed, or its calls were cancelled) reports nothing. A check rule whose condition waits on the agent doesn't fail while it is pending, so the component isn't shown as invalid; when the call settles the rule is evaluated, and a failed call makes it invalid and notifies subscribers. Routing applies to every renderer call: property bindings, check rules, `functionCall` actions, and the `context` and `userMessage` of event actions.
+   - **Nested arguments**: Settle asynchronous argument values before the call runs or is sent, as for local calls. A call whose argument is a pending agent result waits for it instead of running with a null argument. If a nested argument failed, the enclosing call does not run or send, and the failure is reported once rather than again for each enclosing call. Sibling arguments inside one function call, or one object or list, resolve concurrently, so their agent calls are all sent before any is answered. When one fails, the siblings not yet sent are aborted where possible, late failures are silent, and the enclosing call doesn't run. Event action entries are the exception: they resolve in order (see Event actions).
+   - **Arguments must be JSON**: A call is sent only when its resolved arguments have a faithful JSON form: whatever the SDK's standard JSON encoder serializes faithfully, minus NaN and the infinities. Values the SDK injects itself, such as schema defaults, always pass. A value without one (NaN or an infinity in every language, and in JavaScript also a `Date`, function, symbol, bigint or other non-plain object) fails the call locally with `EXPRESSION_ERROR`, naming the function, and it is not sent, shared or cached. An object property whose value is absent (JavaScript `undefined`) is left out, as JSON does, so an optional argument bound to a missing path still works; an absent array element is an error.
+   - **Event actions**: An event action's `context` entries resolve in declared order, then its `userMessage`, one at a time: an entry that calls the agent is awaited before the next one is evaluated. The first entry that fails stops resolution, so no later entry is evaluated and no later call is sent, and the action is not dispatched; the failure is reported once. Event actions are user-activated by default, and an explicit user activation setting applies to them as it does to `functionCall` actions. A `userMessage` that resolves to a value that is neither a string nor null is an `INVALID_ACTION` and nothing is dispatched, whether it resolved synchronously or after an agent call; one that resolves to null, such as a binding to a missing path, is absent and the action is dispatched without it. This check belongs to action resolution; the low-level dispatch never validates and leaves out a `userMessage` that isn't a non-empty string. A malformed context value, such as an object with an unknown `@` key, is an `EXPRESSION_ERROR` carrying `surfaceId` and the message "Action event context entry '<key>' is invalid: <reason>" ("Action event userMessage is invalid: <reason>" for `userMessage`), and the action isn't dispatched. The result is the same whether the entry comes first or after one that waited on the agent.
+   - **Error codes in actions**: A local function that ran and threw or failed while running an action (`functionCall`, an event's `context` or `userMessage`, or a binder action closure) is an `EXECUTION_ERROR`. A refusal is an `EXPRESSION_ERROR` in every context, actions included: an unknown function, arguments that fail validation, an `agentOnly` function, or a function that requires user activation in a passive evaluation. Agent errors and timeouts stay `EXPRESSION_ERROR`. Action closures never return internal pending or failed values.
+   - **Evaluations that can't wait never route**: A call is routed only where its result can wait for a pending value: a binding, a check rule or an action.
+     - A one-shot synchronous read outside any binding or action never sends. It returns the answer the surface already holds for the exact same call (same resolved `catalogId`, name and arguments), if one has settled, and otherwise reports `EXPRESSION_ERROR`.
+     - A `formatString` template part (`${...}`) that calls a function the catalog doesn't implement is refused: `EXPRESSION_ERROR` naming the function, nothing sent, and the part renders empty. Template parts never wait, and the refusal holds even when the surface already holds an answer for that call.
+     - The arguments of an agent-initiated `callRendererFunction` are never routed, even when the surface holds an answer. A nested unimplemented function fails as before routing existed: the response is `EXECUTION_ERROR` carrying the local error message, and a nested argument that failed without a message gives "An argument of the function call could not be resolved."
+   - **Sharing and caching**: The protocol lets a renderer share an identical in-flight call and reuse a settled answer within a surface for reactive evaluations (bindings and checks) only; imperative evaluations (actions) must send each time, so agent functions with side effects belong in actions. Calls are identified by resolved `catalogId`, function name and arguments, compared with object keys in canonical order and array order kept. For reactive evaluation, an identical call still awaiting its response shares that request, and the surface caches settled answers so that re-evaluating a binding, or a bound argument returning to an earlier value, does not send the request again. Each caller gets its own copy of a shared or cached answer. When a call settles, only the bindings that made it re-evaluate, never every binding on the surface. The cache is bounded (256 entries by default, evicting the oldest entry first; configurable per SDK), and an answer a mounted binding still uses is never lost to eviction in a way that makes the binding send again in a loop: the binding keeps its own settled value, or live entries aren't evicted. Replacing or clearing the surface's agent function caller drops the shared calls and the cache, and an answer that arrives for a replaced caller isn't cached. A failed call (an agent error or a timeout) is evicted before subscribers are notified, so a new evaluation (such as a newly mounted component) sends it again, but a subscription that already saw it fail remembers the failure, and sends the call again only when the call's own `catalogId`, name or arguments change or the node mounts again, not when an unrelated path the binding reads changes. A cancellation is never remembered as a failure: after a call is cancelled on a live surface, the next re-evaluation with equal arguments sends it again. Imperative calls from actions never share a request or read the cache: each one sends a fresh call.
+   - **Surface deletion and disposal**: `deleteSurface` cancels the surface's pending calls through `RpcHandler.cancelSurfaceCalls` (code `CANCELLED`), and the cancellation is not reported. Disposing the surface removes its caller and clears its shared calls and cache. A call made on a deleted or disposed surface, including one from an action that resumes after `deleteSurface`, sends nothing and fails with `CANCELLED`, and an evaluation that was already aborted sends nothing.
+   - **Inbound calls are unaffected**: Fallback routing applies only to calls the renderer evaluates. An agent's `callRendererFunction` for a function the resolved catalog doesn't have still gets `RpcErrorCode.INVALID_FUNCTION_CALL`, and its arguments are never routed (see Evaluations that can't wait never route).
+   - **Validation**: Fallback routing only applies to calls validation accepts. See `allowUnknownElements` under [`ValidationConfig`](#validationconfig--payloadvalidator) for what a strict renderer must do. Inside expression evaluation, a call to a function the catalog lacks is not rejected before routing when the surface has a caller.
+
+4. **Synchronous & Asynchronous Loop Bridging**:
    - In hybrid or synchronous runtime environments (e.g. Python synchronous SDK consumers), calling asynchronous RPC handlers while an event loop is already active must avoid re-entrant loop conflicts (such as `RuntimeError: This event loop is already running`).
    - Implementations bridge this by dispatching the asynchronous execution to a dedicated background single-worker thread (`ThreadPoolExecutor(max_workers=1)`) and waiting on the result synchronously.
 
-4. **Lifecycle Disposal (`dispose`)**:
-   - Calling `dispose(reason)` cancels all outstanding pending calls with `RpcErrorCode.DISPOSED`, clears all active timeout timers, removes registered transport listeners, and cleans up internal executor threads.
+5. **Lifecycle Disposal (`dispose`)**:
+   - Calling `dispose(reason)` cancels all outstanding pending calls with `RpcErrorCode.CANCELLED`, rejects subsequent calls with `RpcErrorCode.DISPOSED`, clears all active timeout timers, removes registered transport listeners, and cleans up internal executor threads.
 
 ---
 
@@ -1133,11 +1233,31 @@ interface A2uiRendererAction {
    * actions contributed by different catalogs on the same surface.
    */
   catalogId?: string;
+  /** Optional 'action.metadata' envelope ('{ extensions }') attached at dispatch time. */
+  metadata?: A2uiMetadata;
 }
 
 type ActionListener = (action: A2uiRendererAction) => void | Promise<void>;
 
-class SurfaceModel<T extends ComponentApi> {
+/**
+ * Shared metadata contract of SurfaceModel and ComponentModel. Every write validates
+ * 'extensions' keys as UAX #31 identifiers (A2uiValidationError otherwise), stores a
+ * defensive deep copy, and is a no-op when the new value is structurally equal to the
+ * stored one. Removing the last extension key clears 'metadata' to undefined.
+ */
+interface MetadataHolder {
+  /** Synchronous snapshot of the current metadata envelope; assigning validates and updates reactively. */
+  metadata: A2uiMetadata | undefined;
+  /** Convenience view of 'metadata.extensions'. */
+  readonly extensions: Readonly<Record<string, unknown>> | undefined;
+  /** Fires after a write changes the stored value, from the wire or from a local mutation. */
+  readonly onMetadataChanged: EventSource<A2uiMetadata | undefined>;
+  /** Sets one extension key. 'null' is a stored value, not a deletion. */
+  setExtension(key: string, value: unknown): void;
+  removeExtension(key: string): void;
+}
+
+class SurfaceModel<T extends ComponentApi> implements MetadataHolder {
   readonly id: string;
 ...
   /**
@@ -1173,13 +1293,28 @@ class SurfaceModel<T extends ComponentApi> {
   /** If true, the renderer should send the full data model with actions. */
   readonly sendDataModel: boolean;
 
+  /**
+   * 'createSurface.metadata' (v1.0+), mutable locally through the 'metadata'
+   * property setter and 'setExtension'/'removeExtension' methods. Also exposed
+   * as a read-only reactive signal because adapter views reach the surface
+   * through ambient context rather than through a node.
+   */
+  metadata: A2uiMetadata | undefined;
+  readonly metadataSignal: ReadonlySignal<A2uiMetadata | undefined>;
+
   readonly onAction: EventSource<A2uiRendererAction>;
   /**
    * Dispatches an action from this surface.
    * @param payload The raw action event from the component.
    * @param sourceComponentId The ID of the component that triggered the action.
+   * @param metadata Optional 'action.metadata' envelope; its 'extensions' keys are
+   *   validated as UAX #31 identifiers and the copy is attached to the emitted action.
    */
-  dispatchAction(payload: Record<string, any>, sourceComponentId: string): Promise<void>;
+  dispatchAction(
+    payload: Record<string, any>,
+    sourceComponentId: string,
+    metadata?: A2uiMetadata,
+  ): Promise<void>;
 }
 ```
 
@@ -1219,7 +1354,7 @@ class SurfaceComponentsModel {
    * surface, so a rejected update leaves state untouched. Checks payload-local duplicate IDs,
    * per-component property schemas, composition constraints, then delegates to validateTopology.
    * Holds the surface default catalog, so on v1.0 it gives the validator a component's
-   * 'catalogId' only when the component's catalog is not the default (see Catalog Scope).
+   * '@catalogId' only when the component's catalog is not the default (see Catalog Scope).
    */
   validateComponentsUpdate(
     newComponents: ComponentModel[],
@@ -1252,17 +1387,17 @@ class SurfaceComponentsModel {
   readonly onDeleted: EventSource<string>;
 }
 
-class ComponentModel {
+class ComponentModel implements MetadataHolder {
   readonly id: string;
   readonly type: string; // Component name (e.g. 'Button')
 
   /**
-   * The catalog that declares this component: the catalog its 'catalogId' names,
+   * The catalog that declares this component: the catalog its '@catalogId' names,
    * else the surface's 'defaultCatalog'. Required: the processor resolves it
    * before building the model and fails with A2uiCatalogError if it can't, so a
    * component model never exists without a catalog. Property validation and
    * node resolution both use this, never the surface default directly. The
-   * model does not keep the 'catalogId' it was written with; whether the
+   * model does not keep the '@catalogId' it was written with; whether the
    * component is in the surface default catalog is read by comparing this
    * catalog with 'defaultCatalog'.
    */
@@ -1271,9 +1406,25 @@ class ComponentModel {
   get properties(): Record<string, any>;
   set properties(newProps: Record<string, any>);
 
+  /**
+   * 'ComponentCommon.@metadata' (v1.0+), kept apart from 'properties' so a schema
+   * property named 'metadata' never collides with the envelope. An
+   * 'updateComponents' entry replaces the definition in full: the processor
+   * assigns 'metadata' with the incoming '@metadata' value (undefined when omitted), so stale
+   * metadata never survives an update. The model exposes no public metadata
+   * signal; resolved nodes derive 'ComponentNode.metadata' from the model (see the
+   * node resolution feature blueprint), and 'onMetadataChanged' serves non-signal
+   * consumers. In languages where ComponentModel is a value type or property setters
+   * cannot throw (e.g. Swift), throwing mutators live on ComponentModel and
+   * SurfaceComponentsModel (e.g. 'setMetadata(metadata, forComponentId)').
+   */
+  metadata: A2uiMetadata | undefined;
+
   readonly onUpdated: EventSource<ComponentModel>;
 }
 ```
+
+The processor applies an `updateComponents` entry to an existing component inside one reactive batch, so property and metadata signal writes coalesce for signal consumers. `onUpdated` fires only when `properties` changed; a metadata-only update fires `onMetadataChanged` alone and never re-emits resolved `props`.
 
 ##### `DataModel`
 
@@ -1307,11 +1458,16 @@ class DataModel {
 
 **Type Coercion Standards**:
 
+These rules apply to component properties and to function arguments whose schema type is `DynamicBoolean`, `DynamicString` or `DynamicNumber`.
+
 | Input Type                 | Target Type | Result                                                                  |
 | :------------------------- | :---------- | :---------------------------------------------------------------------- |
 | `String` ("true", "false") | `Boolean`   | `true` or `false` (case-insensitive). Any other string maps to `false`. |
 | `Number` (non-zero)        | `Boolean`   | `true`                                                                  |
 | `Number` (0)               | `Boolean`   | `false`                                                                 |
+| `null` / absent            | `Boolean`   | `false`                                                                 |
+| `ValidationResult`         | `Boolean`   | Its `valid` property                                                    |
+| Other object or array      | `Boolean`   | `false`                                                                 |
 | `Any`                      | `String`    | Locale-neutral string representation                                    |
 | `null` / `undefined`       | `String`    | `""` (empty string)                                                     |
 | `null` / `undefined`       | `Number`    | `0`                                                                     |
@@ -1340,6 +1496,8 @@ _Per-call catalog dispatch._ A `FunctionCall` may carry a `catalogId`. `DataCont
 
 This depends on `catalogId` surviving deserialization. If the `FunctionCall` model used at runtime is the pre-v1.0 shape (`call`, `args`, `returnType`), a strict schema library strips `catalogId` before resolution ever sees it, and every call silently resolves against the default catalog. Version-specific schema models must be selected by the surface's protocol version rather than aliased back to a legacy definition.
 
+_Renderer callers._ Every call `DataContext` evaluates is a renderer call: a property binding, a check, a `functionCall` action, the `context` or `userMessage` of an event action, or a call nested in the arguments of any of them. A function whose `allowedCallers` is `agentOnly` runs only for an agent-initiated `callRendererFunction`, which `RpcHandler` executes without going through `DataContext`'s function invocation. `DataContext` therefore refuses an `agentOnly` function with `A2uiExpressionError`, before the user activation check and before running it, and reports it as an `EXPRESSION_ERROR` on the surface. A function that declares no `allowedCallers` is `rendererOnly` and runs.
+
 _Recursion into nested containers._ `resolveDynamicValue` recurses into plain objects and arrays, resolving bindings at any depth. Returning a plain object unresolved means a nested binding such as `{"style": {"color": {"@path": "/accent"}}}` reaches the renderer as a raw pointer object. Recovering that only through a higher-level schema walk leaves direct `DataContext` callers, including conformance harnesses, with different results from the framework path.
 
 _Expression errors are dispatched, not thrown._ A failure while evaluating a bound expression (unknown function, bad arguments) dispatches an `EXPRESSION_ERROR` to the surface and yields an undefined value for that binding. A call whose catalog can't be resolved dispatches a `CATALOG_ERROR` instead: the expression may be fine, and the function may exist in a catalog the surface doesn't have, so the agent needs to tell the two apart. Throwing out of the resolution pass aborts the whole tree, so one malformed binding blanks an otherwise renderable surface. The RPC path is different: it returns a structured error response, since there is a caller waiting on a result.
@@ -1352,7 +1510,9 @@ _Parser bounds._ The expression parser enforces one shared maximum nesting depth
 
 `GenericBinder` walks a component's declared schema to classify each property as dynamic, action, structural, or checkable, and produces the bound property set the renderer consumes, including two-way setters and action closures.
 
-Classification is driven by the catalog schema, never by inspecting values or matching property names. Hardcoding a property name (for example, treating a key literally named `checks` as special) is a catalog-agnostic violation under `AGENTS.md` §8: it silently privileges one catalog's vocabulary and breaks any catalog that names the concept differently.
+Classification reaches into lists and objects, so an action, binding or child list inside a list item is bound as it is at the top level. In a language that types the bound property set, its type says so too: a nested action is a function, not the raw action object. A list of check rules is the exception: the binder evaluates the rules and passes the list on as it is.
+
+Classification is driven by the catalog schema, never by inspecting values or matching property names. Hardcoding a catalog property name (for example, treating a bare property literally named `checks` as special) is a catalog-agnostic violation under `AGENTS.md` §8: it silently privileges one catalog's vocabulary and breaks any catalog that names the concept differently.
 
 _Escape Hatch_: Component implementations can use `ctx.surfaceComponents` to inspect the metadata of other components in the same surface (e.g. a `Row` checking if children have a `weight` property). This is discouraged but necessary for some layout engines.
 
@@ -1451,3 +1611,5 @@ export class A2uiExpressionError extends A2uiError {
 See [Conformance README](../../conformance/README.md) for setup and schema definitions.
 
 `conformance/core/` covers this module.
+
+- `conformance/core/agent_function_routing.yaml` covers renderer fallback routing: when a call routes, the resolved `catalogId`, schema-only functions, nested and failed arguments, arguments with no JSON form, sharing and caching, check rules (including pending ones), actions, event actions (order, the first failure, `userMessage`, and malformed context values), `agentOnly` functions, cancellation on `deleteSurface` and on a live surface, when a failed or cancelled call is sent again, template parts that never route, sibling arguments sent together, and refused calls in actions.

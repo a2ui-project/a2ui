@@ -17,14 +17,35 @@
 // Phase 0: Foundations
 export {type ProtocolVersion} from './types.js';
 
-// The v1.0 agent-to-renderer protocol message. Re-exported because it appears in public
-// signatures -- notably the `examples` parameter of `A2uiGenerator` -- so callers must be
-// able to name it.
-export type {AgentToRendererMessage} from './internal/web-core.js';
+// The v1.0 agent-to-renderer and renderer-to-agent protocol messages. Re-exported because
+// they appear in public signatures -- notably `A2uiGenerator`,
+// `RendererToAgentMessageProcessor`, and `RendererFunctionCalls`.
+export type {
+  ActionMessage,
+  AgentFunctionResponseMessage,
+  AgentToRendererMessage,
+  CallAgentFunctionMessage,
+  CallRendererFunctionMessage,
+  ErrorMessage,
+  RendererFunctionResponseMessage,
+  RendererToAgentMessage,
+} from './internal/web-core.js';
 
 // The renderer capabilities a request is negotiated against. Re-exported because
 // `A2uiGenerator.createProcessor` and `resolveCatalogs` take it.
 export type {RendererCapabilities} from './internal/web-core.js';
+
+export {
+  AgentFunction,
+  type AgentFunctionContext,
+  type AgentFunctionHandler,
+  type AgentFunctionInit,
+  Catalog,
+  type CatalogApi,
+  type CatalogInterface,
+  type CopyWithCatalogOptions,
+  isAgentFunction,
+} from './internal/web-core.js';
 
 export {
   A2uiError,
@@ -34,6 +55,8 @@ export {
   A2uiStateError,
   A2uiIntegrityError,
   A2uiRecursionError,
+  A2uiRpcError,
+  RpcErrorCode,
   ParseError,
   A2uiCompilationError,
   A2uiCompilationParseError,
@@ -48,9 +71,17 @@ export {
   type RawResponsePart,
   type A2uiPart,
   type ResponsePart,
+  type ErrorPart,
+  type StreamPart,
 } from './parser/response-part.js';
 
-export {Parser} from './parser/parser.js';
+export {
+  type ContinuingStreamOptions,
+  type ParseOptions,
+  type StreamOptions,
+  Parser,
+} from './parser/parser.js';
+export {type ResponseStream} from './parser/response-stream.js';
 
 export {PromptGenerator} from './prompt/generator.js';
 
@@ -72,17 +103,32 @@ export {
 
 export {CatalogConfig} from './processor/catalog-config.js';
 
+export {agentCallableFunctions} from './utils/agent-callable.js';
 export {resolveCatalogs} from './utils/catalog-resolver.js';
+export {
+  A2UI_CLIENT_CAPABILITIES_KEY,
+  A2UI_RENDERER_CAPABILITIES_KEY,
+  readRendererCapabilities,
+} from './utils/renderer-capabilities.js';
+
+// Renderer state and payload validation
+export {RendererState} from './utils/renderer-state.js';
+export {validatePayload} from './utils/validation.js';
+
+// The surface model of web_core. Re-exported because `RendererState.getSurface` returns it.
+export type {SurfaceModel} from './internal/web-core.js';
 
 // Direct JSON inference format
-export {DirectJsonFormat, DirectJsonFormatFactory} from './inference-formats/direct-json/format.js';
-export {DirectJsonParser} from './inference-formats/direct-json/parser.js';
-export type {
-  DirectJsonStreamProcessorFactory,
-  DirectJsonStreamProcessorOptions,
-  DirectJsonStreamProcessor,
-} from './inference-formats/direct-json/streaming-types.js';
-export {DirectJsonStreamProcessorImpl} from './inference-formats/direct-json/streaming.js';
+export {
+  type DirectJsonFormatOptions,
+  DirectJsonFormat,
+  DirectJsonFormatFactory,
+} from './inference-formats/direct-json/format.js';
+export {
+  type DirectJsonParserOptions,
+  DirectJsonParser,
+} from './inference-formats/direct-json/parser.js';
+export {DirectJsonResponseStream} from './inference-formats/direct-json/response-stream.js';
 export {DirectJsonPromptGenerator} from './inference-formats/direct-json/prompt-generator.js';
 export type {DirectJsonExamples} from './inference-formats/direct-json/prompt-generator.js';
 export {DirectJsonDecompiler} from './inference-formats/direct-json/decompiler.js';
@@ -90,10 +136,17 @@ export {DirectJsonDecompiler} from './inference-formats/direct-json/decompiler.j
 // Express inference format
 export {
   type ExpressFormatOptions,
+  type ExpressFormatFactoryOptions,
   ExpressFormat,
   ExpressFormatFactory,
 } from './inference-formats/express/format.js';
-export {ExpressParser} from './inference-formats/express/parser.js';
+export {type ExpressParserOptions, ExpressParser} from './inference-formats/express/parser.js';
+export {
+  DEFAULT_EXPRESS_PROGRESSIVE_KEYS,
+  type ExpressStreamOptions,
+  type ExpressStreamSource,
+  ExpressResponseStream,
+} from './inference-formats/express/response-stream.js';
 export {ExpressPromptGenerator} from './inference-formats/express/prompt-generator.js';
 export {ExpressDecompiler} from './inference-formats/express/decompiler.js';
 export {
@@ -112,10 +165,46 @@ export {
   ExpressDuplicateParamError,
   ExpressForbiddenDatabindingError,
   ExpressIdCollisionError,
-  ExpressInvalidIdentifierError,
   ExpressUnknownCatalogError,
 } from './inference-formats/express/errors.js';
 
 // Facades
 export {A2uiGenerator} from './processor/generator.js';
-export {A2uiRequestProcessor} from './processor/processor.js';
+export {type A2uiRequestProcessorOptions, A2uiRequestProcessor} from './processor/processor.js';
+export {
+  type AnswerPart,
+  type AnswerSurfacePart,
+  type AnswerTextPart,
+  type StreamedAnswerOptions,
+  StreamedAnswer,
+} from './processor/streamed-answer.js';
+
+// Skill generator
+export {
+  type GenerateCatalogSkillOptions,
+  type GenerateCoreSkillOptions,
+  type GenerateSkillOptions,
+  type GenerateSkillSetOptions,
+  type SkillOptions,
+  Skill,
+  SkillGenerator,
+  SkillSet,
+} from './skill/index.js';
+
+// Renderer-to-agent messages
+export {
+  type ProcessResult,
+  type RendererMessageCallback,
+  RendererToAgentMessageProcessor,
+  type RendererToAgentMessageProcessorOptions,
+} from './rpc/renderer-to-agent-message-processor.js';
+
+// The agent's calls to renderer functions
+export {
+  type CallRendererFunctionOptions,
+  type CancellablePromise,
+  DEFAULT_RENDERER_CALL_TIMEOUT_MS,
+  type PendingRendererCall,
+  RendererFunctionCalls,
+  type RendererFunctionCallsOptions,
+} from './rpc/renderer-function-calls.js';

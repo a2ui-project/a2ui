@@ -15,11 +15,28 @@
 /// The A2UI agent SDK: capability negotiation, prompting and response parsing
 /// for agents that generate A2UI.
 ///
-/// Implements protocols v0.9 and v1.0 in two inference formats: direct JSON,
-/// which can be read as it streams, and Express. The protocol version is the
-/// one the active catalogs target, which the agent negotiates with each
+/// Implements protocols v0.9 and v1.0 in two inference formats: direct JSON
+/// and Express, both of which can be read as they stream. The protocol version
+/// is the one the active catalogs target, which the agent negotiates with each
 /// renderer.
 library;
+
+export 'package:a2ui_core/a2ui_core.dart'
+    show
+        A2uiFunctionResponse,
+        A2uiFunctionResponseError,
+        A2uiRpcError,
+        ActionMessage,
+        AgentFunction,
+        AgentFunctionContext,
+        AgentFunctionHandler,
+        AgentFunctionResponseMessage,
+        CallAgentFunctionMessage,
+        CallRendererFunctionMessage,
+        ErrorMessage,
+        RendererFunctionResponseMessage,
+        RendererToAgentMessage,
+        RpcErrorCode;
 
 export 'src/catalog_transformers/base.dart';
 export 'src/catalog_transformers/pruning.dart';
@@ -32,11 +49,24 @@ export 'src/inference_formats/express/decompiler.dart';
 export 'src/inference_formats/express/format.dart';
 export 'src/inference_formats/express/parser.dart';
 export 'src/inference_formats/express/prompt_generator.dart';
+export 'src/inference_formats/express/response_stream.dart'
+    show
+        ExpressContinuingResponseStream,
+        ExpressResponseStream,
+        defaultExpressProgressiveKeys;
 export 'src/parser/parser.dart';
 export 'src/parser/response_part.dart';
+export 'src/parser/response_stream.dart' hide attachPartialResults;
 export 'src/processor/catalog_config.dart';
 export 'src/processor/catalog_providers.dart';
 export 'src/processor/generator.dart';
 export 'src/processor/processor.dart';
+export 'src/processor/streamed_answer.dart';
 export 'src/prompt/generator.dart';
+export 'src/rpc/renderer_function_calls.dart';
+export 'src/rpc/renderer_to_agent_message_processor.dart';
 export 'src/utils/catalog_resolver.dart';
+export 'src/utils/catalogs.dart' show agentCallableFunctions;
+export 'src/utils/renderer_capabilities.dart';
+export 'src/utils/renderer_state.dart' show RendererState;
+export 'src/utils/validation.dart';

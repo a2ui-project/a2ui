@@ -127,8 +127,9 @@ void main() {
       final List<Map<String, Object?>> checkable = reader.schemas(
         <String, Object?>{r'$ref': r'common_types.json#/$defs/Checkable'},
       );
+      final Map<String, Object?> checkableProps = reader.properties(checkable);
       final List<Map<String, Object?>> checks = reader.schemas(
-        reader.properties(checkable)['checks'],
+        checkableProps['@checks'] ?? checkableProps['checks'],
       );
       expect(reader.isCheckable(checks), isTrue);
       return reader.schemas(reader.items(checks)).firstWhere(
@@ -584,20 +585,30 @@ void main() {
             'type': 'object',
             'returnType': 'void',
             'allowedCallers': 'agentOnly',
-            'requiresUserActivation': true,
             'properties': {
               '@call': {'const': 'guarded'},
+            },
+          },
+          'activated': {
+            'type': 'object',
+            'returnType': 'void',
+            'requiresUserActivation': true,
+            'properties': {
+              '@call': {'const': 'activated'},
             },
           },
         },
       }).validationSchema['functions']! as Map<String, Object?>;
       final plain = functions['plain']! as Map;
       final guarded = functions['guarded']! as Map;
+      final activated = functions['activated']! as Map;
 
       expect(plain.containsKey('allowedCallers'), isFalse);
       expect(plain.containsKey('requiresUserActivation'), isFalse);
       expect(guarded['allowedCallers'], 'agentOnly');
-      expect(guarded['requiresUserActivation'], isTrue);
+      expect(guarded.containsKey('requiresUserActivation'), isFalse);
+      expect(activated.containsKey('allowedCallers'), isFalse);
+      expect(activated['requiresUserActivation'], isTrue);
     });
 
     test('closes the entry and restates returnType before protocol 1.0', () {
@@ -687,7 +698,7 @@ void main() {
     test('reads instructions and protocolVersion from a document', () {
       final CatalogApi catalog = Catalog.fromJson({
         'catalogId': 'c',
-        'protocolVersion': 'v1.0',
+        'protocolVersion': '1.0',
         'instructions': 'Prefer cards.',
         'components': <String, Object?>{},
       });
@@ -772,6 +783,109 @@ void main() {
       );
       // A null argument is unresolved data, which the function handles.
       expect(catalog.invoke('echo', {'value': null}, context), isNull);
+    });
+
+    group('invoke checks a validation result argument', () {
+      final context = DataContext(DataModel(), (_, __, ___) => null, '/');
+      const result = ValidationResult(valid: true);
+
+      /// A catalog whose `echo` takes a `value` object of [properties].
+      Catalog<ComponentApi, FunctionImplementation> catalogWith(
+        Map<String, Schema> properties, {
+        A2uiProtocolVersion? protocolVersion = A2uiProtocolVersion.v1_0,
+      }) =>
+          Catalog<ComponentApi, FunctionImplementation>(
+            id: 'c',
+            protocolVersion: protocolVersion,
+            components: const [],
+            functions: [
+              _EchoFunction(
+                argumentSchema: Schema.object(
+                  properties: {'value': Schema.object(properties: properties)},
+                  required: ['value'],
+                ),
+              ),
+            ],
+          );
+
+      test('in a boolean position, nested in an object, as its validity', () {
+        expect(
+          catalogWith({'flag': Schema.boolean()}).invoke(
+            'echo',
+            {
+              'value': {'flag': result},
+            },
+            context,
+          ),
+          {'flag': result},
+        );
+      });
+
+      test('in an object position as it is', () {
+        final Catalog<ComponentApi, FunctionImplementation> catalog =
+            catalogWith({
+          'status': Schema.object(
+            properties: {'valid': Schema.boolean(), 'note': Schema.string()},
+          ),
+        });
+        final args = <String, dynamic>{
+          'value': {
+            'status': {'valid': true, 'note': 'checked'},
+          },
+        };
+
+        expect(catalog.invoke('echo', args, context), args['value']);
+        expect(
+          catalog.invoke(
+            'echo',
+            {
+              'value': {'status': result},
+            },
+            context,
+          ),
+          {'status': result},
+        );
+      });
+
+      test('in a boolean position as a map with a boolean valid', () {
+        final Catalog<ComponentApi, FunctionImplementation> catalog =
+            catalogWith({'flag': Schema.boolean()});
+        final args = <String, dynamic>{
+          'value': {
+            'flag': {'valid': false, 'message': 'no'},
+          },
+        };
+
+        expect(catalog.invoke('echo', args, context), args['value']);
+        expect(
+          () => catalog.invoke(
+            'echo',
+            {
+              'value': {
+                'flag': {'valid': 'yes'},
+              },
+            },
+            context,
+          ),
+          throwsA(isA<A2uiExpressionError>()),
+        );
+      });
+
+      test('in a catalog before v1.0 as its JSON object', () {
+        expect(
+          () => catalogWith(
+            {'flag': Schema.boolean()},
+            protocolVersion: null,
+          ).invoke(
+            'echo',
+            {
+              'value': {'flag': result},
+            },
+            context,
+          ),
+          throwsA(isA<A2uiExpressionError>()),
+        );
+      });
     });
 
     group('invoke resolves argument schema references', () {
@@ -1455,6 +1569,131 @@ void main() {
       );
       expect(_catalogDefinitionErrors(out), isEmpty);
     });
+
+    test(
+        'inlines catalog definitions in component schemas and '
+        'resolvedComponentSchemas and restores catalogDefRef markers', () {
+      final Catalog<ComponentApi, FunctionImplementation> v10 =
+          BasicCatalog.v1_0();
+      final textInMemory =
+          v10.components['Text']!.schema.value['properties']! as Map;
+      expect(textInMemory['weight'], {
+        'type': 'number',
+        'description': 'The relative weight of this component within a Row or '
+            "Column. This is similar to the CSS 'flex-grow' property. Note: "
+            'this may ONLY be set when the component is a direct descendant '
+            'of a Row or Column.',
+        'catalogDefRef': r'#/$defs/Weight',
+      });
+      final textResolved = v10
+          .resolvedComponentSchema('Text')!
+          .value['properties']! as Map<String, Object?>;
+      expect(textResolved['weight'], {
+        'type': 'number',
+        'description': 'The relative weight of this component within a Row or '
+            "Column. This is similar to the CSS 'flex-grow' property. Note: "
+            'this may ONLY be set when the component is a direct descendant '
+            'of a Row or Column.',
+      });
+
+      final Catalog<ComponentApi, FunctionApi> roundTripped =
+          Catalog.fromJson(v10.toJson());
+      final rtTextInMemory =
+          roundTripped.components['Text']!.schema.value['properties']! as Map;
+      expect(rtTextInMemory['weight'], {
+        'type': 'number',
+        'description': 'The relative weight of this component within a Row or '
+            "Column. This is similar to the CSS 'flex-grow' property. Note: "
+            'this may ONLY be set when the component is a direct descendant '
+            'of a Row or Column.',
+        'catalogDefRef': r'#/$defs/Weight',
+      });
+      final rtTextResolved = roundTripped
+          .resolvedComponentSchema('Text')!
+          .value['properties']! as Map<String, Object?>;
+      expect(rtTextResolved['weight'], {
+        'type': 'number',
+        'description': 'The relative weight of this component within a Row or '
+            "Column. This is similar to the CSS 'flex-grow' property. Note: "
+            'this may ONLY be set when the component is a direct descendant '
+            'of a Row or Column.',
+      });
+      expect(roundTripped.toJson(), equals(v10.toJson()));
+
+      final custom = Catalog<ComponentApi, FunctionApi>(
+        id: 'https://example.com/catalog-def-marker',
+        protocolVersion: A2uiProtocolVersion.v1_0,
+        definitions: {
+          'Weight': {
+            'type': 'number',
+            'description': 'Custom weight definition.',
+          },
+        },
+        components: [
+          ComponentApi(
+            name: 'Box',
+            schema: Schema.fromMap({
+              'type': 'object',
+              'properties': {
+                'component': {'const': 'Box'},
+                'weight': {
+                  'type': 'number',
+                  'catalogDefRef': r'#/$defs/Weight',
+                },
+                'overriddenWeight': {
+                  'type': 'number',
+                  'description': 'Box-specific weight.',
+                  'default': 1,
+                  'catalogDefRef': r'#/$defs/Weight',
+                },
+              },
+              'required': ['component'],
+            }),
+          ),
+        ],
+      );
+
+      final boxResolved = custom
+          .resolvedComponentSchema('Box')!
+          .value['properties']! as Map<String, Object?>;
+      expect(boxResolved['weight'], {
+        'type': 'number',
+        'description': 'Custom weight definition.',
+      });
+      expect(boxResolved['overriddenWeight'], {
+        'type': 'number',
+        'description': 'Box-specific weight.',
+        'default': 1,
+      });
+
+      final Map<String, Object?> doc = custom.toJson();
+      final boxDocProps =
+          ((doc['components']! as Map)['Box']! as Map)['properties']! as Map;
+      expect(boxDocProps['weight'], {r'$ref': r'#/$defs/Weight'});
+      expect(boxDocProps['overriddenWeight'], {
+        r'$ref': r'#/$defs/Weight',
+        'description': 'Box-specific weight.',
+        'default': 1,
+      });
+      expect((doc[r'$defs']! as Map)['Weight'], {
+        'type': 'number',
+        'description': 'Custom weight definition.',
+      });
+
+      final Map<String, Object?> val = custom.validationSchema;
+      final boxValProps =
+          ((val['components']! as Map)['Box']! as Map)['properties']! as Map;
+      expect(boxValProps['weight'], {r'$ref': r'#/$defs/Weight'});
+      expect(boxValProps['overriddenWeight'], {
+        r'$ref': r'#/$defs/Weight',
+        'description': 'Box-specific weight.',
+        'default': 1,
+      });
+      expect((val[r'$defs']! as Map)['Weight'], {
+        'type': 'number',
+        'description': 'Custom weight definition.',
+      });
+    });
   });
 
   group('Catalog.validationSchema', () {
@@ -1864,11 +2103,12 @@ void main() {
         'Extensions',
       );
       final metadata =
-          (common['properties']! as Map)['metadata'] as Map<String, Object?>;
+          (common['properties']! as Map)['@metadata'] as Map<String, Object?>;
 
-      expect(properties.keys, containsAll(['accessibility', 'metadata']));
+      expect(properties.keys, containsAll(['@accessibility', '@metadata']));
+      expect(properties.containsKey('@catalogId'), isFalse);
       expect(properties.containsKey('catalogId'), isFalse);
-      expect(properties['metadata'], {
+      expect(properties['@metadata'], {
         ...metadata,
         'properties': {
           'extensions': {
@@ -1920,12 +2160,12 @@ void main() {
       ).toJson();
 
       expect(
-        ((json['v1.0']! as Map)['inlineCatalogs'] as List).single,
+        ((json['1.0']! as Map)['inlineCatalogs'] as List).single,
         equals(_v10Document()),
       );
     });
 
-    test('use the legacy inline catalog shape before v1.0', () {
+    test('use the v0.9 inline catalog shape before v1.0', () {
       final Map<String, Object?> json = A2uiRendererCapabilities(
         versions: {
           A2uiProtocolVersion.v0_9: A2uiVersionCapabilities(
@@ -1935,11 +2175,11 @@ void main() {
         },
       ).toJson();
 
-      final legacy = ((json['v0.9']! as Map)['inlineCatalogs'] as List).single
-          as Map<String, Object?>;
-      expect(legacy, equals(catalog.toLegacyInlineCatalog()));
-      expect(legacy.keys, ['catalogId', 'components', 'functions']);
-      expect((legacy['functions']! as List).single, {
+      final v09Inline = ((json['v0.9']! as Map)['inlineCatalogs'] as List)
+          .single as Map<String, Object?>;
+      expect(v09Inline, equals(catalog.toV09InlineCatalog()));
+      expect(v09Inline.keys, ['catalogId', 'components', 'functions']);
+      expect((v09Inline['functions']! as List).single, {
         'name': 'launch',
         'description': 'Launches a URL.',
         'returnType': 'void',
@@ -1971,12 +2211,20 @@ void main() {
           .toJson();
 
       expect(
-        ((json['v1.0']! as Map)['inlineCatalogs'] as List).single,
+        ((json['1.0']! as Map)['inlineCatalogs'] as List).single,
         equals(TestCatalog().toJson()),
       );
       expect(
         ((json['v0.9']! as Map)['inlineCatalogs'] as List).single,
-        equals(TestCatalog().toLegacyInlineCatalog()),
+        equals(TestCatalog().toV09InlineCatalog()),
+      );
+    });
+
+    test('keep toLegacyInlineCatalog as a deprecated alias', () {
+      expect(
+        // ignore: deprecated_member_use_from_same_package
+        catalog.toLegacyInlineCatalog(),
+        equals(catalog.toV09InlineCatalog()),
       );
     });
   });
@@ -2152,6 +2400,89 @@ void main() {
       final props = requiredFn['properties']! as Map<String, Object?>;
       expect(props[r'@call'], {'const': 'required'});
       expect(props.containsKey('call'), isFalse);
+    });
+  });
+
+  group('Catalog.customComponentProperties', () {
+    /// The custom properties of a v1.0 component whose `properties` block
+    /// holds [properties], plus `id` when [inlineId].
+    Set<String> customOf(
+      Map<String, Object?> properties, {
+      required bool inlineId,
+    }) {
+      final CatalogApi catalog = Catalog.fromJson({
+        'catalogId': 'inline-mixins',
+        'protocolVersion': '1.0',
+        'components': {
+          'Box': {
+            'type': 'object',
+            'properties': {
+              if (inlineId) 'id': {'type': 'string'},
+              'component': {'const': 'Box'},
+              ...properties,
+            },
+          },
+        },
+      });
+      return catalog.customComponentProperties('Box');
+    }
+
+    const Map<String, Object?> standardMetadata = {
+      'type': 'object',
+      'properties': {
+        'extensions': {'type': 'object'},
+      },
+    };
+
+    test(
+        'reads an inline catalogId as the mixin only beside id and as a '
+        'string', () {
+      expect(
+        customOf({
+          'catalogId': {'type': 'string'},
+        }, inlineId: true),
+        isEmpty,
+      );
+      expect(
+        customOf({
+          'catalogId': {'type': 'integer'},
+        }, inlineId: true),
+        {'catalogId'},
+      );
+      expect(
+        customOf({
+          'catalogId': {'type': 'string'},
+        }, inlineId: false),
+        {'catalogId'},
+      );
+    });
+
+    test(
+        'reads an inline metadata as the mixin only beside id and as an '
+        'object holding only extensions', () {
+      expect(customOf({'metadata': standardMetadata}, inlineId: true), isEmpty);
+      expect(
+        customOf({
+          'metadata': {'type': 'string'},
+        }, inlineId: true),
+        {'metadata'},
+      );
+      expect(
+        customOf({
+          'metadata': {
+            'type': 'object',
+            'properties': {
+              'extensions': {'type': 'object'},
+              'pageNumber': {'type': 'number'},
+            },
+          },
+        }, inlineId: true),
+        {'metadata'},
+      );
+      expect(
+        customOf({'metadata': standardMetadata}, inlineId: false),
+        {'metadata'},
+      );
     });
   });
 }

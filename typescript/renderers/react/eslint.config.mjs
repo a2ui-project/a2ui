@@ -20,6 +20,11 @@ import reactPlugin from 'eslint-plugin-react';
 import reactHooksPlugin from 'eslint-plugin-react-hooks';
 import prettierConfig from 'eslint-config-prettier';
 import gts from 'gts';
+import {
+  BOUNDARY_ALLOWLIST,
+  BOUNDARY_FORBIDDEN_PATTERNS,
+  BOUNDARY_RESTRICTED,
+} from './eslint.boundary.mjs';
 
 export default tseslint.config(
   // Google TypeScript style guide plugin.
@@ -80,9 +85,52 @@ export default tseslint.config(
     },
   },
 
-  // Prevent self-package imports inside src/
+  // Prevent self-package imports and enforce the adapter view boundary inside src/
   {
     files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/v0_8/**', ...BOUNDARY_ALLOWLIST],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: BOUNDARY_RESTRICTED.from.map(name => ({
+            name,
+            importNames: BOUNDARY_RESTRICTED.names,
+            message:
+              'Adapter views must read ComponentNode.props instead of importing ComponentContext, GenericBinder, or DataContext.',
+          })),
+          patterns: [
+            {
+              group: ['@a2ui/react', '@a2ui/react/*'],
+              message:
+                'Use relative imports within @a2ui/react instead of self-importing the package.',
+            },
+            ...BOUNDARY_FORBIDDEN_PATTERNS,
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: [...BOUNDARY_ALLOWLIST],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@a2ui/react', '@a2ui/react/*'],
+              message:
+                'Use relative imports within @a2ui/react instead of self-importing the package.',
+            },
+            ...BOUNDARY_FORBIDDEN_PATTERNS,
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/v0_8/**/*.{ts,tsx}'],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -113,6 +161,6 @@ export default tseslint.config(
 
   // Ignored paths
   {
-    ignores: ['dist/**', 'node_modules/**', 'visual-parity/**', '**/*.d.ts'],
+    ignores: ['dist/**', 'node_modules/**', '**/*.d.ts'],
   },
 );

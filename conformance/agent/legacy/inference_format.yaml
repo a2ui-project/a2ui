@@ -15,6 +15,7 @@
 # --- Catalog Selection Tests ---
 
 - name: test_select_catalog_default
+  features: [F-AGT-25]
   description: If supported_catalog_ids is not provided, return the first supported catalog.
   action: select_catalog
   args:
@@ -29,6 +30,7 @@
   expectSelected: id_basic
 
 - name: test_select_catalog_intersection
+  features: [F-AGT-25]
   description: Find the intersection, return any catalog that matches.
   action: select_catalog
   args:
@@ -44,6 +46,7 @@
   expectSelected: id_custom2
 
 - name: test_select_catalog_priority
+  features: [F-AGT-25]
   description: Priority is determined by the order in supported_catalog_ids.
   action: select_catalog
   args:
@@ -311,7 +314,7 @@
 - name: test_agent_v1_0_direct_json_envelope_parsing
   description: Verifies parsing Direct JSON v1.0 payload envelopes wrapped in <a2ui-json> sentinel tags.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
     catalogSchema:
       catalogId: "basic"
   disableValidation: true
@@ -322,7 +325,7 @@
         <a2ui-json>
         [
           {
-            "version": "v1.0",
+            "version": "1.0",
             "createSurface": {
               "surfaceId": "main",
               "catalogId": "basic",
@@ -340,7 +343,7 @@
       expect:
         - text: "Here is the requested user interface:\n"
           a2ui:
-            - version: "v1.0"
+            - version: "1.0"
               createSurface:
                 surfaceId: "main"
                 catalogId: "basic"
@@ -352,7 +355,7 @@
 - name: test_express_compile_basic_column_and_text
   description: Compiles Express Pythonic DSL into standard v1.0 createSurface payload.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: parse_full
   format: express
   input: |
@@ -363,7 +366,7 @@
   expect:
     - text: ""
       a2ui:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "main"
             catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
@@ -379,7 +382,7 @@
 - name: test_elemental_compile_html_template_and_actions
   description: Compiles Elemental HTML DSL with button action and text child into standard v1.0 createSurface payload.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: parse_full
   format: elemental
   input: |
@@ -393,7 +396,7 @@
   expect:
     - text: ""
       a2ui:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "main"
             catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
@@ -412,7 +415,7 @@
 - name: test_atom_compile_s_expressions_and_data_model
   description: Compiles Atom S-expression DSL into standard v1.0 createSurface payload with data model and components.
   catalog:
-    protocolVersion: "v1.0"
+    protocolVersion: "1.0"
   action: parse_full
   format: atom
   input: |
@@ -425,7 +428,7 @@
   expect:
     - text: ""
       a2ui:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "main"
             catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"

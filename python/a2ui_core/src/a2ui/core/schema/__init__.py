@@ -29,7 +29,7 @@ class A2uiProtocolVersion(str, Enum):
     V0_8 = "v0.8"
     V0_9 = "v0.9"
     V0_9_1 = "v0.9.1"
-    V1_0 = "v1.0"
+    V1_0 = "1.0"
 
 
 ProtocolVersion = A2uiProtocolVersion
@@ -37,6 +37,7 @@ ProtocolVersion = A2uiProtocolVersion
 # Re-exports from primary schema namespace for backwards compatibility
 from .v0_9.common_types import *
 from .v0_9.constants import *
+
 # The envelope names (`AgentToRendererMessage`, `A2uiMessage` and the like)
 # are left out: the multi-version unions below define them.
 from .v0_9.server_to_client import (

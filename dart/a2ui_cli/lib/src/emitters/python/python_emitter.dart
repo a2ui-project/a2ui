@@ -23,6 +23,7 @@ library;
 
 import 'dart:io';
 
+import 'package:a2ui_core/a2ui_core.dart';
 import 'package:path/path.dart' as p;
 
 import '../../analyzer/catalog_analyzer.dart' show capitalize;
@@ -95,10 +96,22 @@ String extractCatalogName(String catalogId) {
   return last.replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '_');
 }
 
+/// Protocol versions supported by the Python code generator.
+const Set<A2uiProtocolVersion> supportedCodegenVersions = {
+  A2uiProtocolVersion.v0_9,
+  A2uiProtocolVersion.v0_9_1,
+  A2uiProtocolVersion.v1_0,
+};
+
 String _resolveDefaultBaseImport(String specVersion) {
-  // Code generation currently targets the v0.9/v0.9.1 builder runtime.
-  // v1.0 builder support will be added when the Python v1.0 runtime lands.
-  return 'a2ui.builder.v0_9';
+  final A2uiProtocolVersion version =
+      A2uiProtocolVersion.tryParseSemVer(specVersion) ??
+      A2uiProtocolVersion.v0_9_1;
+  return switch (version) {
+    A2uiProtocolVersion.v0_9 ||
+    A2uiProtocolVersion.v0_9_1 => 'a2ui.builder.v0_9',
+    A2uiProtocolVersion.v1_0 => 'a2ui.builder.v1_0',
+  };
 }
 
 /// Renders a catalog description as a one-line Python docstring.
@@ -243,6 +256,7 @@ class PythonEmitter {
     }
 
     final Iterable<String> pydanticNames = [
+      'AliasChoices',
       'BaseModel',
       'ConfigDict',
       'Field',
@@ -369,12 +383,31 @@ class PythonEmitter {
       '    component: Literal[$compLiteral] = $compLiteral',
     ];
 
-    final seenNames = <String>{'component', 'id'};
+    final isV1 =
+        (A2uiProtocolVersion.tryParseSemVer(catalog.specVersion) ??
+            A2uiProtocolVersion.v0_9_1) ==
+        A2uiProtocolVersion.v1_0;
+    final bool hasAtChecks = comp.properties.containsKey('@checks');
+    final bool hasCustomChecks = comp.properties.containsKey('checks');
+    final seenNames = <String>{
+      'component',
+      'id',
+      if (isV1) ...[
+        'catalog_id',
+        'accessibility',
+        'extensions',
+        'metadata',
+        'with_extension',
+      ],
+      if (hasAtChecks) 'checks',
+    };
     for (final MapEntry<String, PropertyDescriptor> entry
         in comp.properties.entries) {
       // `component` is pinned above and `id` belongs to the base node.
       if (entry.key == 'component' || entry.key == 'id') continue;
-      lines.add(_fieldDeclaration(entry.key, entry.value, seenNames));
+      lines.add(
+        _fieldDeclaration(entry.key, entry.value, seenNames, hasCustomChecks),
+      );
     }
 
     return lines.join('\n');
@@ -385,9 +418,11 @@ class PythonEmitter {
     String rawName,
     PropertyDescriptor prop, [
     Set<String>? seenNames,
+    bool hasCustomChecks = false,
   ]) {
-    String pyName = toSnakeCase(rawName);
-    if (seenNames != null) {
+    final isAtChecks = rawName == '@checks';
+    String pyName = isAtChecks ? 'checks' : toSnakeCase(rawName);
+    if (seenNames != null && !isAtChecks) {
       var candidate = pyName;
       var suffix = 2;
       while (seenNames.contains(candidate)) {
@@ -395,6 +430,8 @@ class PythonEmitter {
         suffix++;
       }
       pyName = candidate;
+      seenNames.add(pyName);
+    } else if (seenNames != null) {
       seenNames.add(pyName);
     }
     final String pyType = typeToPython(prop.type);
@@ -408,7 +445,14 @@ class PythonEmitter {
 
     final args = <String>[
       if (!prop.isRequired) 'default=${defaultLiteral ?? 'None'}',
-      'alias=${_pyString(rawName)}',
+      if (isAtChecks) ...[
+        'serialization_alias="@checks"',
+        if (pyName == 'checks' && !hasCustomChecks)
+          'validation_alias=AliasChoices("@checks", "checks")'
+        else
+          'validation_alias="@checks"',
+      ] else
+        'alias=${_pyString(rawName)}',
     ];
     final annotation = prop.isRequired ? pyType : 'Optional[$pyType]';
     final oneLine = '    $pyName: $annotation = Field(${args.join(', ')})';

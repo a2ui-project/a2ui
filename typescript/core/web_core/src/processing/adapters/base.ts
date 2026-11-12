@@ -18,12 +18,13 @@ import {z} from 'zod';
 import {InternalOperation} from '../operations.js';
 import {A2uiValidationError} from '../../errors.js';
 import {formatZodIssue} from '../format-zod-issue.js';
+import {extractEnvelopeErrorContext, mapErrorToRendererMessage} from '../message-error-mapper.js';
 import {SemVer, normalizeVersionString, toSemVer, toCanonicalVersion} from '../../common/semver.js';
 
 /**
  * Union of supported A2UI protocol version strings.
  */
-export type ProtocolVersion = 'v0.8' | 'v0.9' | 'v0.9.1' | 'v1.0' | (string & {});
+export type ProtocolVersion = 'v0.8' | 'v0.9' | 'v0.9.1' | '1.0' | (string & {});
 
 /**
  * Canonical protocol versions supported by the A2UI runtime.
@@ -135,9 +136,13 @@ export interface VersionAdapter {
    * Converts a raw message payload or payload list into canonical internal operations.
    *
    * @param payload The raw JSON message payload or message array.
+   * @param options Optional validation configuration options.
    * @returns Array of canonical internal operations.
    */
-  extractOperations(payload: unknown): InternalOperation[];
+  extractOperations(
+    payload: unknown,
+    options?: {allowUnknownElements?: boolean},
+  ): InternalOperation[];
 }
 
 /** Provider callback returning the set of all known action keys across registered adapters. */
@@ -167,10 +172,49 @@ function validateActionSurfaceIds(
         actionObj.surfaceId !== undefined &&
         typeof actionObj.surfaceId !== 'string'
       ) {
-        throw new A2uiValidationError('surfaceId must be a string');
+        const msg = 'surfaceId must be a string';
+        throw new A2uiValidationError(
+          msg,
+          [{path: `/${key}/surfaceId`, code: 'type_mismatch', message: msg}],
+          'VALIDATION_ERROR',
+          {path: '/surfaceId'},
+        );
       }
     }
   }
+}
+
+/**
+ * Narrows a root-level `invalid_union` `ZodError` to the union branch matching `actionKey`
+ * when the envelope defines a single native action key, avoiding unrelated union-branch noise.
+ */
+function selectActionUnionError(
+  error: z.ZodError,
+  actionKey: string,
+  nativeActionKeys: readonly string[],
+): z.ZodError {
+  if (error.issues.length !== 1) {
+    return error;
+  }
+  const rootIssue = error.issues[0];
+  if (rootIssue.code !== z.ZodIssueCode.invalid_union || rootIssue.path.length !== 0) {
+    return error;
+  }
+  const matchingBranches = rootIssue.unionErrors.filter(
+    branchErr =>
+      !branchErr.issues.some(
+        issue =>
+          (issue.code === z.ZodIssueCode.unrecognized_keys &&
+            issue.path.length === 0 &&
+            issue.keys.includes(actionKey)) ||
+          (issue.code === z.ZodIssueCode.invalid_type &&
+            issue.path.length === 1 &&
+            issue.path[0] !== actionKey &&
+            nativeActionKeys.includes(String(issue.path[0])) &&
+            issue.received === 'undefined'),
+      ),
+  );
+  return matchingBranches.length === 1 ? matchingBranches[0] : error;
 }
 
 /**
@@ -202,20 +246,23 @@ export abstract class BaseVersionAdapter implements VersionAdapter {
 
   protected abstract getNativeActionKeys(): string[];
 
-  extractOperations(payload: unknown): InternalOperation[] {
+  extractOperations(
+    payload: unknown,
+    options?: {allowUnknownElements?: boolean},
+  ): InternalOperation[] {
     if (!payload || typeof payload !== 'object') return [];
     if (Array.isArray(payload)) {
-      return payload.flatMap(item => this.extractOperations(item));
+      return payload.flatMap(item => this.extractOperations(item, options));
     }
     const msgObj = payload as Record<string, unknown>;
     if (Array.isArray(msgObj.messages)) {
-      return this.extractOperations(msgObj.messages);
+      return this.extractOperations(msgObj.messages, options);
     }
 
     const nativeActionKeys = this.getNativeActionKeys();
     validateActionSurfaceIds(msgObj, nativeActionKeys);
 
-    const presentNativeKeys = nativeActionKeys.filter(k => k in msgObj).sort();
+    const presentNativeKeys = nativeActionKeys.filter(k => Object.hasOwn(msgObj, k)).sort();
 
     if (presentNativeKeys.length > 1) {
       throw new A2uiValidationError(
@@ -232,8 +279,12 @@ export abstract class BaseVersionAdapter implements VersionAdapter {
       );
       const sortedAllowed = nativeActionKeys.slice().sort().join(', ');
       if (otherAction) {
+        const msg = `Invalid ${this.version} message: action '${otherAction}' is not supported in protocol version ${this.version}. Allowed actions: ${sortedAllowed}.`;
         throw new A2uiValidationError(
-          `Invalid ${this.version} message: action '${otherAction}' is not supported in protocol version ${this.version}. Allowed actions: ${sortedAllowed}.`,
+          msg,
+          [{path: '/version', code: 'invalid_value', message: msg}],
+          'VALIDATION_ERROR',
+          {path: '/version'},
         );
       }
       throw new A2uiValidationError(
@@ -241,17 +292,29 @@ export abstract class BaseVersionAdapter implements VersionAdapter {
       );
     }
 
-    const preparedPayload = this.preparePayloadForValidation(msgObj);
+    const preparedPayload = this.preparePayloadForValidation(msgObj, options);
     const parseResult = this.schema.safeParse(preparedPayload);
     if (!parseResult.success) {
-      const formattedErrors = parseResult.error.errors.map(formatZodIssue).join('; ');
-      throw new A2uiValidationError(
-        `Invalid ${this.version} message: ${formattedErrors}`,
+      const scopedError = selectActionUnionError(
         parseResult.error,
+        presentNativeKeys[0],
+        nativeActionKeys,
       );
+      const formattedErrors = scopedError.errors.map(formatZodIssue).join('; ');
+      const envCtx = extractEnvelopeErrorContext(msgObj, this.version);
+      const preliminaryErr = new A2uiValidationError(
+        `Invalid ${this.version} message: ${formattedErrors}`,
+        scopedError,
+        'VALIDATION_ERROR',
+      );
+      const mapped = mapErrorToRendererMessage(preliminaryErr, envCtx);
+      preliminaryErr.path = mapped.error.path;
+      preliminaryErr.surfaceId = mapped.error.surfaceId || undefined;
+      preliminaryErr.functionCallId = mapped.error.functionCallId;
+      throw preliminaryErr;
     }
 
-    return this.extractOperationsFromObject(msgObj);
+    return this.extractOperationsFromObject(preparedPayload);
   }
 
   /**
@@ -260,9 +323,13 @@ export abstract class BaseVersionAdapter implements VersionAdapter {
    * Defaults to attaching `version` if not present.
    *
    * @param msgObj Raw message object.
+   * @param _options Optional validation configuration options.
    * @returns Normalized message payload for schema validation.
    */
-  protected preparePayloadForValidation(msgObj: Record<string, unknown>): Record<string, unknown> {
+  protected preparePayloadForValidation(
+    msgObj: Record<string, unknown>,
+    _options?: {allowUnknownElements?: boolean},
+  ): Record<string, unknown> {
     return 'version' in msgObj ? msgObj : {version: this.version, ...msgObj};
   }
 

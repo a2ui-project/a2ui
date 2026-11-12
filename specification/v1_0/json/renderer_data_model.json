@@ -6,7 +6,7 @@
   "type": "object",
   "properties": {
     "version": {
-      "const": "v1.0"
+      "const": "1.0"
     },
     "surfaces": {
       "type": "object",

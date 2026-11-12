@@ -246,6 +246,54 @@ void main() {
       },
     );
 
+    test('generates code from the authoritative v1.0 basic catalog schema', () {
+      final String catalogPath = p.join(
+        repoRoot,
+        'catalogs/basic/v1/catalog.json',
+      );
+      final catalogJson =
+          jsonDecode(File(catalogPath).readAsStringSync())
+              as Map<String, dynamic>;
+      final catalog = CodegenCatalog.fromJson(catalogJson);
+      final AnalysedCatalog analysed = CatalogAnalyzer.analyzeCodegen(catalog);
+      final emitter = PythonEmitter(analysed);
+      final String generated = emitter.generate();
+
+      expect(
+        generated,
+        contains('"""Type-safe A2UI builders for basic (version 1.0).'),
+      );
+      expect(generated, contains('from a2ui.builder.v1_0 import ('));
+      expect(generated, contains('class Button(ComponentBuilderNode):'));
+      expect(generated, contains('child: Child'));
+      expect(generated, contains('class TextField(ComponentBuilderNode):'));
+      expect(
+        generated,
+        contains(
+          'placeholder: Optional[str | DataBinding | FunctionCall] = None',
+        ),
+      );
+      expect(generated, contains('class Slider(ComponentBuilderNode):'));
+      expect(generated, contains('steps: Optional[float] = None'));
+      expect(generated, contains('class Video(ComponentBuilderNode):'));
+      expect(generated, contains('alias="posterUrl"'));
+
+      final String checkedInPath = p.join(
+        repoRoot,
+        'python/a2ui_agent/src/a2ui/builder/v1_0/catalogs/basic.py',
+      );
+      expect(
+        generated,
+        equals(File(checkedInPath).readAsStringSync()),
+        reason:
+            'Generated v1.0 basic catalog output must match checked-in Python '
+            'agent SDK file byte-for-byte. Regenerate with:\n'
+            'dart run dart/a2ui_cli/bin/a2ui.dart codegen '
+            '--catalog catalogs/basic/v1/catalog.json '
+            '--out python/a2ui_agent/src/a2ui/builder/v1_0/catalogs/basic.py',
+      );
+    });
+
     test('snake_cases function parameters in Python function classes', () {
       final json = <String, Object?>{
         'catalogId': 'param_catalog',
@@ -434,5 +482,98 @@ void main() {
         ),
       );
     });
+
+    test(
+      'emits v1.0 @checks with AliasChoices and avoids envelope collisions for '
+      'custom metadata, catalogId, accessibility, and checks properties',
+      () {
+        final json = <String, dynamic>{
+          'catalogId': 'https://a2ui.org/catalogs/test/v1_envelope',
+          'protocolVersion': '1.0',
+          'components': {
+            'CheckInput': {
+              'type': 'object',
+              'allOf': [
+                {r'$ref': r'common_types.json#/$defs/Checkable'},
+                {
+                  'type': 'object',
+                  'properties': {
+                    'component': {'const': 'CheckInput'},
+                    'label': {'type': 'string'},
+                  },
+                  'required': ['component', 'label'],
+                },
+              ],
+            },
+            'CustomProps': {
+              'type': 'object',
+              'allOf': [
+                {r'$ref': r'common_types.json#/$defs/Checkable'},
+                {
+                  'type': 'object',
+                  'properties': {
+                    'component': {'const': 'CustomProps'},
+                    'metadata': {'type': 'string'},
+                    'catalogId': {'type': 'string'},
+                    'accessibility': {'type': 'string'},
+                    'checks': {'type': 'integer'},
+                  },
+                  'required': ['component', 'metadata'],
+                },
+              ],
+            },
+          },
+        };
+        final catalog = CodegenCatalog.fromJson(json);
+        final AnalysedCatalog analysed = CatalogAnalyzer.analyzeCodegen(
+          catalog,
+        );
+        final emitter = PythonEmitter(analysed);
+        final String code = emitter.generate();
+
+        expect(code, contains('from pydantic import AliasChoices, Field'));
+        expect(
+          code,
+          contains(
+            '    checks: Optional[Sequence[CheckRule]] = Field(\n'
+            '        default=None,\n'
+            '        serialization_alias="@checks",\n'
+            '        validation_alias=AliasChoices("@checks", "checks"),\n'
+            '    )',
+          ),
+        );
+        expect(code, contains('    metadata_2: str = Field(alias="metadata")'));
+        expect(
+          code,
+          contains(
+            '    catalog_id_2: Optional[str] = Field(default=None, '
+            'alias="catalogId")',
+          ),
+        );
+        expect(
+          code,
+          contains(
+            '    accessibility_2: Optional[str] = Field('
+            'default=None, alias="accessibility")',
+          ),
+        );
+        expect(
+          code,
+          contains(
+            '    checks_2: Optional[float] = Field(default=None, '
+            'alias="checks")',
+          ),
+        );
+        expect(
+          code,
+          contains(
+            '    checks: Optional[Sequence[CheckRule]] = Field(\n'
+            '        default=None, serialization_alias="@checks", '
+            'validation_alias="@checks"\n'
+            '    )',
+          ),
+        );
+      },
+    );
   });
 }

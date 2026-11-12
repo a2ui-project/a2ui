@@ -1,0 +1,94 @@
+[
+  {
+    "version": "1.0",
+    "createSurface": {
+      "surfaceId": "conformance",
+      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+    }
+  },
+  {
+    "version": "1.0",
+    "updateComponents": {
+      "surfaceId": "conformance",
+      "components": [
+        {
+          "component": "TextField",
+          "id": "root__textfield_1",
+          "label": "Work Email",
+          "value": {
+            "@path": "/form/email"
+          },
+          "placeholder": {
+            "@path": "/form/emailPlaceholder"
+          },
+          "variant": "shortText",
+          "@checks": [
+            {
+              "condition": {
+                "@call": "required",
+                "args": {
+                  "value": {
+                    "@path": "/form/email"
+                  }
+                }
+              },
+              "message": "Email is required"
+            }
+          ]
+        },
+        {
+          "component": "List",
+          "id": "root__list_1",
+          "children": {
+            "path": "/form/items",
+            "componentId": "item_tmpl"
+          },
+          "direction": "vertical",
+          "align": "stretch"
+        },
+        {
+          "component": "Text",
+          "id": "root__text_1",
+          "text": "Submit",
+          "variant": "body"
+        },
+        {
+          "component": "Button",
+          "id": "root__button_1",
+          "child": "root__text_1",
+          "variant": "primary",
+          "action": {
+            "event": {
+              "name": "submit_form",
+              "userMessage": "Submit registration",
+              "context": {
+                "email": {
+                  "@path": "/form/email"
+                }
+              }
+            }
+          }
+        },
+        {
+          "component": "Column",
+          "id": "root__column_1",
+          "children": ["root__textfield_1", "root__list_1", "root__button_1"],
+          "justify": "start",
+          "align": "stretch"
+        },
+        {
+          "component": "Card",
+          "id": "root",
+          "child": "root__column_1"
+        },
+        {
+          "component": "Text",
+          "id": "item_tmpl",
+          "text": {
+            "@path": "/itemLabel"
+          }
+        }
+      ]
+    }
+  }
+]

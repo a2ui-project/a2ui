@@ -14,6 +14,7 @@
 
 import A2UICore
 import JSONSchema
+import OrderedCollections
 
 /// Performs string interpolation of data model values and other functions.
 public final class FormatStringFunction: FunctionImplementation, Sendable {
@@ -46,7 +47,11 @@ public final class FormatStringFunction: FunctionImplementation, Sendable {
     var result = ""
 
     for part in parts {
-      let resolved = context.resolveDynamicValue(part)
+      let dynamicPart =
+        context.atLeastV10
+        ? Self.adaptedForV10(part, catalogID: context.activeFunctionCatalogID)
+        : part
+      let resolved = context.resolveDynamicValue(dynamicPart)
 
       switch resolved {
       case .string(let s):
@@ -72,5 +77,53 @@ public final class FormatStringFunction: FunctionImplementation, Sendable {
     }
 
     return .string(result)
+  }
+
+  /// Rewrites a parsed `path` or `call` part into its v1.0 `@path` or `@call` form.
+  ///
+  /// `ExpressionParser` emits v0.9 directive keys, which a v1.0 `DataContext` reads as plain
+  /// object keys. On a v1.0 surface each part, including nested call arguments, is adapted
+  /// before it is resolved. Non-system calls inherit `catalogID` from the enclosing
+  /// `formatString` call when present.
+  private static func adaptedForV10(_ part: JSONValue, catalogID: String? = nil) -> JSONValue {
+    switch part {
+    case .array(let items):
+      return .array(items.map { adaptedForV10($0, catalogID: catalogID) })
+    case .object(let entries):
+      if let path = entries["path"]?.stringValue,
+        entries["componentId"] == nil,
+        entries["@path"] == nil
+      {
+        return .object(["@path": .string(path)])
+      }
+      if entries["@call"]?.stringValue != nil {
+        var adapted = entries
+        if let rawArguments = entries["args"]?.objectValue {
+          adapted["args"] = .object(
+            rawArguments.mapValues { adaptedForV10($0, catalogID: catalogID) }
+          )
+        }
+        return .object(adapted)
+      }
+      if entries["@call"] == nil, let callName = entries["call"]?.stringValue {
+        let arguments =
+          entries["args"]?.objectValue?.mapValues {
+            adaptedForV10($0, catalogID: catalogID)
+          } ?? [:]
+        var adapted: OrderedDictionary<String, JSONValue> = [
+          "@call": .string(callName),
+          "args": .object(arguments),
+        ]
+        if let existingCatalogID = entries["catalogId"], existingCatalogID != .null {
+          adapted["catalogId"] = existingCatalogID
+        } else if let catalogID, !callName.hasPrefix("@") {
+          adapted["catalogId"] = .string(catalogID)
+        }
+        return .object(adapted)
+      }
+      return .object(entries.mapValues { adaptedForV10($0, catalogID: catalogID) })
+    default:
+      return part
+    }
   }
 }

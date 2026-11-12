@@ -119,15 +119,10 @@ class SurfaceHarness {
   Object? data(String path, {String surfaceId = testSurfaceId}) =>
       surface(surfaceId).dataModel.get(path);
 
-  /// Processes [messages] without pumping a frame. Processing errors are
-  /// thrown.
+  /// Processes [messages], each under the version it declares, without
+  /// pumping a frame. Processing errors are thrown.
   void process(List<Map<String, Object?>> messages) {
-    processor.processMessages(
-      AgentToRendererMessagePayload.fromJson(
-        messages,
-        protocolVersion: A2uiProtocolVersion.v0_9,
-      ),
-    );
+    processor.processMessages(messages);
   }
 
   /// Processes [messages] and pumps a frame.
@@ -137,9 +132,10 @@ class SurfaceHarness {
   }
 }
 
-/// Builds a processor over [catalog] (the fixture catalog by default),
-/// processes [messages], and pumps an app that renders every surface the
-/// processor creates, in creation order, each in an [A2uiSurface].
+/// Builds a processor over [catalog] (the fixture catalog by default) and
+/// [moreCatalogs], processes [messages], and pumps an app that renders every
+/// surface the processor creates, in creation order, each in an
+/// [A2uiSurface].
 ///
 /// A null [validationConfig] builds the processor without one.
 ///
@@ -149,14 +145,14 @@ Future<SurfaceHarness> pumpSurface(
   WidgetTester tester,
   List<Map<String, Object?>> messages, {
   CatalogImplementation? catalog,
+  List<CatalogImplementation> moreCatalogs = const [],
   ValidationConfig? validationConfig = ValidationConfig.strict,
   SurfaceHost host = scrollingHost,
 }) async {
   final harness = SurfaceHarness._(
     tester,
     MessageProcessor<ComponentImplementation>(
-      catalogs: [catalog ?? fixtureCatalog()],
-      defaultVersion: A2uiProtocolVersion.v0_9,
+      catalogs: [catalog ?? fixtureCatalog(), ...moreCatalogs],
       validationConfig: validationConfig,
     ),
   );

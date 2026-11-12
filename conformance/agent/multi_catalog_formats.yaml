@@ -36,7 +36,7 @@
     surface("s1")
     root = Text("Quarterly Revenue")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -46,7 +46,8 @@
             text: "Quarterly Revenue"
 
 - name: test_express_compile_component_catalog_override
-  description: With multiple active catalogs, createSurface omits catalogId and each component resolves its catalog by name or explicit catalogId override and carries catalogId in the compiled output.
+  features: [F-AGT-05]
+  description: With multiple active catalogs, createSurface omits catalogId and each component resolves its catalog by name or explicit catalogId override and carries `@catalogId` in the compiled output.
   action: compile
   args:
     format: express
@@ -59,21 +60,21 @@
     title = Text("Quarterly Revenue")
     chart = Chart([10, 20, 30], "Q1-Q3", catalogId="conformance/custom")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         components:
           - id: "root"
             component: "Column"
-            catalogId: "conformance/simplified"
+            "@catalogId": "conformance/simplified"
             children: ["title", "chart"]
           - id: "title"
             component: "Text"
-            catalogId: "conformance/simplified"
+            "@catalogId": "conformance/simplified"
             text: "Quarterly Revenue"
           - id: "chart"
             component: "Chart"
-            catalogId: "conformance/custom"
+            "@catalogId": "conformance/custom"
             values: [10, 20, 30]
             caption: "Q1-Q3"
 
@@ -84,7 +85,7 @@
     format: express
     catalogs:
       - catalogId: "conformance/cat_a"
-        protocolVersion: "v1.0"
+        protocolVersion: "1.0"
         components:
           Column:
             type: object
@@ -99,7 +100,7 @@
               label: {$ref: "common_types.json#/$defs/DynamicString"}
             required: ["component", "label"]
       - catalogId: "conformance/cat_b"
-        protocolVersion: "v1.0"
+        protocolVersion: "1.0"
         components:
           Badge:
             type: object
@@ -114,21 +115,21 @@
     b1 = Badge("Active", catalogId="conformance/cat_a")
     b2 = Badge(42, "items", catalogId="conformance/cat_b")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         components:
           - id: "root"
             component: "Column"
-            catalogId: "conformance/cat_a"
+            "@catalogId": "conformance/cat_a"
             children: ["b1", "b2"]
           - id: "b1"
             component: "Badge"
-            catalogId: "conformance/cat_a"
+            "@catalogId": "conformance/cat_a"
             label: "Active"
           - id: "b2"
             component: "Badge"
-            catalogId: "conformance/cat_b"
+            "@catalogId": "conformance/cat_b"
             count: 42
             unit: "items"
 
@@ -144,13 +145,13 @@
     surface("s1")
     root = Text(percent(75, catalogId="conformance/custom"))
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         components:
           - id: "root"
             component: "Text"
-            catalogId: "conformance/simplified"
+            "@catalogId": "conformance/simplified"
             text:
               "@call": "percent"
               catalogId: "conformance/custom"
@@ -170,13 +171,13 @@
     root = Text(share)
     share = percent(75, catalogId="conformance/custom")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         components:
           - id: "root"
             component: "Text"
-            catalogId: "conformance/simplified"
+            "@catalogId": "conformance/simplified"
             text:
               "@call": "percent"
               catalogId: "conformance/custom"
@@ -242,7 +243,7 @@
   input: |
     notify("Saved", catalogId="conformance/agent_functions")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       callRendererFunction:
         functionCallId: "call_1"
         callFunction:
@@ -302,17 +303,17 @@
       - "test_data/catalogs/simplified_catalog_v1_0.json"
       - "test_data/catalogs/custom_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         components:
           - id: "root"
             component: "Column"
-            catalogId: "conformance/simplified"
+            "@catalogId": "conformance/simplified"
             children: ["title", "chart"]
           - id: "title"
             component: "Text"
-            catalogId: "conformance/simplified"
+            "@catalogId": "conformance/simplified"
             text:
               "@call": "percent"
               catalogId: "conformance/custom"
@@ -320,7 +321,7 @@
                 value: 75
           - id: "chart"
             component: "Chart"
-            catalogId: "conformance/custom"
+            "@catalogId": "conformance/custom"
             values: [10, 20]
             caption: "Total"
   expect_contains:
@@ -341,13 +342,13 @@
       - "test_data/catalogs/simplified_catalog_v1_0.json"
       - "test_data/catalogs/custom_catalog_v1_0.json"
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         components:
           - id: "root"
             component: "Text"
-            catalogId: "conformance/simplified"
+            "@catalogId": "conformance/simplified"
             text: "Hello"
   expect_contains:
     - 'root = Text("Hello")'
@@ -366,13 +367,13 @@
     surface("s1")
     root = Text(percent(75), catalogId="conformance/simplified")
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         components:
           - id: "root"
             component: "Text"
-            catalogId: "conformance/simplified"
+            "@catalogId": "conformance/simplified"
             text:
               "@call": "percent"
               catalogId: "conformance/custom"
@@ -400,7 +401,7 @@
     format: express
     catalogs:
       - catalogId: "conformance/cat_a"
-        protocolVersion: "v1.0"
+        protocolVersion: "1.0"
         components:
           Badge:
             type: object
@@ -409,7 +410,7 @@
               label: {$ref: "common_types.json#/$defs/DynamicString"}
             required: ["component", "label"]
       - catalogId: "conformance/cat_b"
-        protocolVersion: "v1.0"
+        protocolVersion: "1.0"
         components:
           Badge:
             type: object
@@ -418,13 +419,13 @@
               count: {$ref: "common_types.json#/$defs/DynamicNumber"}
             required: ["component", "count"]
   messages:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         components:
           - id: "root"
             component: "Badge"
-            catalogId: "conformance/cat_b"
+            "@catalogId": "conformance/cat_b"
             count: 42
   expect_contains:
     - 'surface("s1")'
@@ -482,21 +483,21 @@
   expect:
     - text: "Here is your report."
     - a2ui:
-        - version: "v1.0"
+        - version: "1.0"
           createSurface:
             surfaceId: "s1"
             components:
               - id: "root"
                 component: "Column"
-                catalogId: "conformance/simplified"
+                "@catalogId": "conformance/simplified"
                 children: ["header", "chart"]
               - id: "header"
                 component: "Text"
-                catalogId: "conformance/simplified"
+                "@catalogId": "conformance/simplified"
                 text: "Revenue"
               - id: "chart"
                 component: "Chart"
-                catalogId: "conformance/custom"
+                "@catalogId": "conformance/custom"
                 values: [5, 10]
                 caption: "H1"
 
@@ -514,7 +515,7 @@
   input: |
     [
       {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
           "surfaceId": "s1",
           "catalogId": "conformance/simplified",
@@ -534,7 +535,7 @@
       }
     ]
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         catalogId: "conformance/simplified"
@@ -557,20 +558,20 @@
   input: |
     [
       {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
           "surfaceId": "s1",
           "components": [
             {
               "id": "root",
               "component": "Column",
-              "catalogId": "conformance/simplified",
+              "@catalogId": "conformance/simplified",
               "children": ["title", "chart", "gauge"]
             },
             {
               "id": "title",
               "component": "Text",
-              "catalogId": "conformance/simplified",
+              "@catalogId": "conformance/simplified",
               "text": {
                 "@call": "formatString",
                 "catalogId": "conformance/simplified",
@@ -582,14 +583,14 @@
             {
               "id": "chart",
               "component": "Chart",
-              "catalogId": "conformance/custom",
+              "@catalogId": "conformance/custom",
               "values": [10, 20, 30],
               "caption": "Q1-Q3"
             },
             {
               "id": "gauge",
               "component": "Gauge",
-              "catalogId": "conformance/custom",
+              "@catalogId": "conformance/custom",
               "value": 75
             }
           ]
@@ -597,17 +598,17 @@
       }
     ]
   expect:
-    - version: "v1.0"
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
         components:
           - id: "root"
             component: "Column"
-            catalogId: "conformance/simplified"
+            "@catalogId": "conformance/simplified"
             children: ["title", "chart", "gauge"]
           - id: "title"
             component: "Text"
-            catalogId: "conformance/simplified"
+            "@catalogId": "conformance/simplified"
             text:
               "@call": "formatString"
               catalogId: "conformance/simplified"
@@ -615,12 +616,12 @@
                 value: "Quarterly Revenue"
           - id: "chart"
             component: "Chart"
-            catalogId: "conformance/custom"
+            "@catalogId": "conformance/custom"
             values: [10, 20, 30]
             caption: "Q1-Q3"
           - id: "gauge"
             component: "Gauge"
-            catalogId: "conformance/custom"
+            "@catalogId": "conformance/custom"
             value: 75
 
 - name: test_direct_json_compile_unknown_component_catalog_override_fails
@@ -634,7 +635,7 @@
   input: |
     [
       {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
           "surfaceId": "s1",
           "catalogId": "conformance/simplified",
@@ -642,7 +643,7 @@
             {
               "id": "root",
               "component": "Text",
-              "catalogId": "conformance/unknown",
+              "@catalogId": "conformance/unknown",
               "text": "Hello"
             }
           ]
@@ -652,238 +653,380 @@
   expect_error:
     category: ValidationError
 
-# =============================================================================
-# 3. Cross-Catalog Schema References ($ref across peer catalogs)
-# =============================================================================
-
-- name: test_express_compile_cross_catalog_component_and_function_refs
-  description: Components and functions whose schemas reference peer catalog components and property subschemas via external $refs resolve their own and inherited positional parameters, types, enums, actions, and children across catalogs.
-  action: compile
-  args:
-    format: express
-    catalogs:
-      - "test_data/catalogs/simplified_catalog_v1_0.json"
-      - "test_data/catalogs/cross_ref_catalog_v1_0.json"
-  input: |
-    surface("s1")
-    root = StyledCard("Q1 Summary", Event("expand"), header)
-    header = CustomText(formatBadge("NEW: ${/count}"), "Quarterly Revenue", "caption")
-  expect:
-    - version: "v1.0"
-      createSurface:
-        surfaceId: "s1"
-        components:
-          - id: "root"
-            component: "StyledCard"
-            catalogId: "conformance/cross_ref"
-            subtitle: "Q1 Summary"
-            action:
-              event:
-                name: "expand"
-            child: "header"
-          - id: "header"
-            component: "CustomText"
-            catalogId: "conformance/cross_ref"
-            badge:
-              "@call": "formatBadge"
-              catalogId: "conformance/cross_ref"
-              args:
-                value: "NEW: ${/count}"
-            text: "Quarterly Revenue"
-            variant: "caption"
-
-- name: test_express_compile_cross_catalog_missing_inherited_required_property_fails
-  description: A component that inherits a peer catalog component via allOf requires the peer component's required properties during compilation.
-  action: compile
-  args:
-    format: express
-    catalogs:
-      - "test_data/catalogs/simplified_catalog_v1_0.json"
-      - "test_data/catalogs/cross_ref_catalog_v1_0.json"
-  input: |
-    surface("s1")
-    root = CustomText("NEW")
-  expect_error:
-    category: ValidationError
-
-- name: test_express_compile_cross_catalog_invalid_inherited_enum_fails
-  description: A component that inherits an enum property from a peer catalog component validates the property value against the inherited enum choices.
-  action: compile
-  args:
-    format: express
-    catalogs:
-      - "test_data/catalogs/simplified_catalog_v1_0.json"
-      - "test_data/catalogs/cross_ref_catalog_v1_0.json"
-  input: |
-    surface("s1")
-    root = CustomText("NEW", "Quarterly Revenue", "invalid_variant")
-  expect_error:
-    category: ValidationError
-
-- name: test_express_decompile_cross_catalog_component_and_function_refs
-  description: Decompiling a surface whose components and functions inherit schemas from a peer catalog preserves positional parameter order and round-trips cleanly.
-  action: decompile
-  args:
-    format: express
-    catalogs:
-      - "test_data/catalogs/simplified_catalog_v1_0.json"
-      - "test_data/catalogs/cross_ref_catalog_v1_0.json"
-  messages:
-    - version: "v1.0"
-      createSurface:
-        surfaceId: "s1"
-        components:
-          - id: "root"
-            component: "StyledCard"
-            catalogId: "conformance/cross_ref"
-            subtitle: "Q1 Summary"
-            action:
-              event:
-                name: "expand"
-            child: "header"
-          - id: "header"
-            component: "CustomText"
-            catalogId: "conformance/cross_ref"
-            badge:
-              "@call": "formatBadge"
-              catalogId: "conformance/cross_ref"
-              args:
-                value: "NEW"
-            text: "Quarterly Revenue"
-            variant: "caption"
-  expect_contains:
-    - 'surface("s1")'
-    - 'StyledCard("Q1 Summary", Event("expand")'
-    - 'CustomText(formatBadge("NEW"), "Quarterly Revenue", "caption")'
-  expect_round_trip: true
-
-- name: test_direct_json_compile_cross_catalog_component_and_function_refs
-  description: Direct JSON validates components and functions that reference peer catalog schemas via external $refs.
+- name: test_direct_json_compile_same_component_name_in_two_catalogs
+  description: Two catalogs that declare a component with the same name but different property schemas validate each direct JSON component against its explicit catalogId override.
   action: compile
   args:
     format: direct_json
     catalogs:
-      - "test_data/catalogs/simplified_catalog_v1_0.json"
-      - "test_data/catalogs/cross_ref_catalog_v1_0.json"
+      - catalogId: "conformance/cat_a"
+        protocolVersion: "1.0"
+        components:
+          Column:
+            type: object
+            properties:
+              component: {const: "Column"}
+              children: {$ref: "common_types.json#/$defs/ChildList"}
+            required: ["component", "children"]
+          Badge:
+            type: object
+            properties:
+              component: {const: "Badge"}
+              label: {$ref: "common_types.json#/$defs/DynamicString"}
+            required: ["component", "label"]
+      - catalogId: "conformance/cat_b"
+        protocolVersion: "1.0"
+        components:
+          Badge:
+            type: object
+            properties:
+              component: {const: "Badge"}
+              count: {$ref: "common_types.json#/$defs/DynamicNumber"}
+              unit: {$ref: "common_types.json#/$defs/DynamicString"}
+            required: ["component", "count"]
   input: |
     [
       {
-        "version": "v1.0",
+        "version": "1.0",
         "createSurface": {
           "surfaceId": "s1",
           "components": [
             {
               "id": "root",
-              "component": "StyledCard",
-              "catalogId": "conformance/cross_ref",
-              "subtitle": "Q1 Summary",
-              "action": {
-                "event": {
-                  "name": "expand"
+              "component": "Column",
+              "catalogId": "conformance/cat_a",
+              "children": ["b1", "b2"]
+            },
+            {
+              "id": "b1",
+              "component": "Badge",
+              "catalogId": "conformance/cat_a",
+              "label": "Active"
+            },
+            {
+              "id": "b2",
+              "component": "Badge",
+              "catalogId": "conformance/cat_b",
+              "count": 42,
+              "unit": "items"
+            }
+          ]
+        }
+      }
+    ]
+  expect:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Column"
+            catalogId: "conformance/cat_a"
+            children: ["b1", "b2"]
+          - id: "b1"
+            component: "Badge"
+            catalogId: "conformance/cat_a"
+            label: "Active"
+          - id: "b2"
+            component: "Badge"
+            catalogId: "conformance/cat_b"
+            count: 42
+            unit: "items"
+
+- name: test_direct_json_compile_component_not_in_overridden_catalog_fails
+  description: A direct JSON component whose catalogId override names a registered catalog that does not declare that component fails validation.
+  action: compile
+  args:
+    format: direct_json
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |
+    [
+      {
+        "version": "1.0",
+        "createSurface": {
+          "surfaceId": "s1",
+          "components": [
+            {
+              "id": "root",
+              "component": "Chart",
+              "catalogId": "conformance/simplified",
+              "values": [1, 2],
+              "caption": "Q1"
+            }
+          ]
+        }
+      }
+    ]
+  expect_error:
+    category: ValidationError
+
+- name: test_direct_json_compile_unknown_function_catalog_override_fails
+  description: A direct JSON function call whose catalogId override names a catalog that does not declare that function fails validation.
+  action: compile
+  args:
+    format: direct_json
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |
+    [
+      {
+        "version": "1.0",
+        "createSurface": {
+          "surfaceId": "s1",
+          "components": [
+            {
+              "id": "root",
+              "component": "Text",
+              "catalogId": "conformance/simplified",
+              "text": {
+                "@call": "percent",
+                "catalogId": "conformance/simplified",
+                "args": {
+                  "value": 50
                 }
-              },
-              "child": "header"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  expect_error:
+    category: ValidationError
+
+- name: test_direct_json_compile_standalone_function_catalog_override
+  description: A direct JSON callRendererFunction message with an explicit catalogId on callFunction validates against that catalog.
+  action: compile
+  args:
+    format: direct_json
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: |
+    [
+      {
+        "version": "1.0",
+        "callRendererFunction": {
+          "functionCallId": "call_1",
+          "callFunction": {
+            "catalogId": "conformance/agent_functions",
+            "@call": "notify",
+            "args": {
+              "message": "Saved"
+            }
+          }
+        }
+      }
+    ]
+  expect:
+    - version: "1.0"
+      callRendererFunction:
+        functionCallId: "call_1"
+        callFunction:
+          catalogId: "conformance/agent_functions"
+          "@call": "notify"
+          args:
+            message: "Saved"
+
+- name: test_direct_json_decompile_mixed_catalog_components_and_functions
+  description: Decompiling a multi-catalog direct JSON surface preserves per-component and per-function catalogId fields and round-trips cleanly.
+  action: decompile
+  args:
+    format: direct_json
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s1"
+        components:
+          - id: "root"
+            component: "Column"
+            catalogId: "conformance/simplified"
+            children: ["title", "chart"]
+          - id: "title"
+            component: "Text"
+            catalogId: "conformance/simplified"
+            text:
+              "@call": "percent"
+              catalogId: "conformance/custom"
+              args:
+                value: 75
+          - id: "chart"
+            component: "Chart"
+            catalogId: "conformance/custom"
+            values: [10, 20]
+            caption: "Total"
+  expect_contains:
+    - '"conformance/simplified"'
+    - '"conformance/custom"'
+    - '"percent"'
+    - '"Chart"'
+  expect_round_trip: true
+
+- name: test_direct_json_create_format_rejects_duplicate_catalog_ids
+  description: Binding two catalogs that share a catalogId in Direct JSON fails with a CatalogError.
+  action: create_format
+  args:
+    format: direct_json
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  expect_error:
+    category: CatalogError
+
+- name: test_direct_json_parse_response_mixed_catalogs
+  description: Parsing a wrapped Direct JSON response containing mixed-catalog components returns the conversational text and the compiled mixed-catalog surface message.
+  action: parse_response
+  args:
+    format: direct_json
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/custom_catalog_v1_0.json"
+  input: |
+    Here is your report.<a2ui-json>[
+      {
+        "version": "1.0",
+        "createSurface": {
+          "surfaceId": "s1",
+          "components": [
+            {
+              "id": "root",
+              "component": "Column",
+              "catalogId": "conformance/simplified",
+              "children": ["header", "chart"]
             },
             {
               "id": "header",
-              "component": "CustomText",
-              "catalogId": "conformance/cross_ref",
-              "badge": {
-                "@call": "formatBadge",
-                "catalogId": "conformance/cross_ref",
-                "args": {
-                  "value": "NEW"
-                }
-              },
-              "text": "Quarterly Revenue",
-              "variant": "caption"
+              "component": "Text",
+              "catalogId": "conformance/simplified",
+              "text": "Revenue"
+            },
+            {
+              "id": "chart",
+              "component": "Chart",
+              "catalogId": "conformance/custom",
+              "values": [5, 10],
+              "caption": "H1"
             }
           ]
         }
       }
-    ]
+    ]</a2ui-json>
   expect:
-    - version: "v1.0"
+    - text: "Here is your report."
+    - a2ui:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "s1"
+            components:
+              - id: "root"
+                component: "Column"
+                catalogId: "conformance/simplified"
+                children: ["header", "chart"]
+              - id: "header"
+                component: "Text"
+                catalogId: "conformance/simplified"
+                text: "Revenue"
+              - id: "chart"
+                component: "Chart"
+                catalogId: "conformance/custom"
+                values: [5, 10]
+                caption: "H1"
+
+# A call nested in the arguments of a callRendererFunction runs in the catalog
+# it names. One that names none runs in the default catalog of the surface the
+# callRendererFunction names, or in the catalog of the call when it names no
+# surface.
+
+- name: test_direct_json_compile_call_renderer_function_nested_call_to_another_catalog
+  description: A call nested in a typed argument of a callRendererFunction that names another active catalog is checked against that catalog, not the catalog of the call.
+  action: compile
+  args:
+    format: direct_json
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "notify", "catalogId": "conformance/agent_functions", "args": {"message": {"@call": "formatString", "catalogId": "conformance/simplified", "args": {"value": "Saved"}}}}}}]'
+  expect:
+    - version: "1.0"
+      callRendererFunction:
+        functionCallId: "c1"
+        callFunction:
+          "@call": "notify"
+          catalogId: "conformance/agent_functions"
+          args:
+            message:
+              "@call": "formatString"
+              catalogId: "conformance/simplified"
+              args:
+                value: "Saved"
+
+- name: test_direct_json_compile_call_renderer_function_nested_call_runs_in_surface_catalog
+  description: A call nested in the arguments of a callRendererFunction on a surface, naming no catalog, runs in the surface's default catalog rather than the catalog of the call.
+  action: compile
+  args:
+    format: direct_json
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}, {"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "surfaceId": "s1", "callFunction": {"@call": "notify", "catalogId": "conformance/agent_functions", "args": {"message": {"@call": "formatString", "args": {"value": "Saved"}}}}}}]'
+  expect:
+    - version: "1.0"
       createSurface:
         surfaceId: "s1"
-        components:
-          - id: "root"
-            component: "StyledCard"
-            catalogId: "conformance/cross_ref"
-            subtitle: "Q1 Summary"
-            action:
-              event:
-                name: "expand"
-            child: "header"
-          - id: "header"
-            component: "CustomText"
-            catalogId: "conformance/cross_ref"
-            badge:
-              "@call": "formatBadge"
-              catalogId: "conformance/cross_ref"
+        catalogId: "conformance/simplified"
+    - version: "1.0"
+      callRendererFunction:
+        functionCallId: "c1"
+        surfaceId: "s1"
+        callFunction:
+          "@call": "notify"
+          catalogId: "conformance/agent_functions"
+          args:
+            message:
+              "@call": "formatString"
               args:
-                value: "NEW"
-            text: "Quarterly Revenue"
-            variant: "caption"
+                value: "Saved"
 
-- name: test_direct_json_compile_cross_catalog_missing_inherited_required_property_fails
-  description: Direct JSON rejects a component that omits a required property inherited via an external $ref to a peer catalog component.
+- name: test_direct_json_compile_call_renderer_function_nested_call_on_surface_without_catalog_fails
+  description: A call nested in the arguments of a callRendererFunction on a surface created without a default catalog must name its catalog, or the renderer has nowhere to run it.
   action: compile
   args:
     format: direct_json
     catalogs:
       - "test_data/catalogs/simplified_catalog_v1_0.json"
-      - "test_data/catalogs/cross_ref_catalog_v1_0.json"
-  input: |
-    [
-      {
-        "version": "v1.0",
-        "createSurface": {
-          "surfaceId": "s1",
-          "catalogId": "conformance/cross_ref",
-          "components": [
-            {
-              "id": "root",
-              "component": "CustomText",
-              "badge": "NEW"
-            }
-          ]
-        }
-      }
-    ]
+      - "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "createSurface": {"surfaceId": "s1"}}, {"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "surfaceId": "s1", "callFunction": {"@call": "notify", "catalogId": "conformance/agent_functions", "args": {"message": {"@call": "formatString", "args": {"value": "Saved"}}}}}}]'
   expect_error:
     category: ValidationError
+    message: "default catalog"
 
-- name: test_direct_json_compile_cross_catalog_dangling_inherited_child_ref_fails
-  description: Direct JSON rejects a component whose Child property inherited from a peer catalog component references a missing component ID.
+- name: test_direct_json_compile_call_renderer_function_nested_call_requiring_user_activation_fails
+  description: A call nested in the arguments of a callRendererFunction to a function that requires a user activation fails validation, since a call from the agent has none.
   action: compile
   args:
     format: direct_json
     catalogs:
       - "test_data/catalogs/simplified_catalog_v1_0.json"
-      - "test_data/catalogs/cross_ref_catalog_v1_0.json"
-  input: |
-    [
-      {
-        "version": "v1.0",
-        "createSurface": {
-          "surfaceId": "s1",
-          "catalogId": "conformance/cross_ref",
-          "components": [
-            {
-              "id": "root",
-              "component": "StyledCard",
-              "subtitle": "Q1 Summary",
-              "action": {
-                "event": {
-                  "name": "expand"
-                }
-              },
-              "child": "nonexistent"
-            }
-          ]
-        }
-      }
-    ]
+      - "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "record", "catalogId": "conformance/agent_functions", "args": {"value": {"@call": "openUrl", "catalogId": "conformance/simplified", "args": {"url": "https://example.com"}}}}}}]'
   expect_error:
     category: ValidationError
+    message: "user activation"
+
+- name: test_direct_json_compile_call_renderer_function_nested_agent_only_call_in_named_catalog_fails
+  description: A call nested in the arguments of a callRendererFunction on a surface whose default catalog is another one, naming the catalog of an agentOnly function, fails validation, since the renderer makes nested calls.
+  action: compile
+  args:
+    format: direct_json
+    catalogs:
+      - "test_data/catalogs/simplified_catalog_v1_0.json"
+      - "test_data/catalogs/agent_functions_catalog_v1_0.json"
+  input: '[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}, {"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "surfaceId": "s1", "callFunction": {"@call": "record", "catalogId": "conformance/agent_functions", "args": {"value": {"@call": "peek", "catalogId": "conformance/agent_functions", "args": {"key": "mood"}}}}}}]'
+  expect_error:
+    category: ValidationError
+    message: "agentOnly"
