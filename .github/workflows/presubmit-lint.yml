@@ -80,7 +80,7 @@ jobs:
           '
 
   format-check:
-    runs-on: ubuntu-24.04 # setup-swift does not support Ubuntu 26.04 yet
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -93,12 +93,17 @@ jobs:
         uses: dart-lang/setup-dart@65eb853c7ba17dde3be364c3d2858773e7144260 # v1.7.2
         with:
           sdk: stable
-      - name: Set up Swift
-        uses: swift-actions/setup-swift@7ca6abe6b3b0e8b5421b88be48feee39cbf52c6a # v2
-        with:
-          swift-version: "6.0"
       - name: Run enforce-formatting check
-        run: ./scripts/fix_format.sh --check
+        run: ./scripts/fix_format.sh --check --skip-swift
+
+  format-check-swift:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run enforce-formatting check (Swift)
+        run: ./scripts/fix_format.sh --check --only-swift
 
   workspace-lint:
     runs-on: ubuntu-latest

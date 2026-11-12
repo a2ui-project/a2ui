@@ -15,14 +15,7 @@
 import OrderedJSON
 import SwiftUI
 
-struct A2UISurfaceMetadataKey: EnvironmentKey {
-  static let defaultValue: [String: JSONValue]? = nil
-}
-
 extension EnvironmentValues {
   /// The A2UI surface metadata dictionary injected by ``Surface``.
-  public var a2uiSurfaceMetadata: [String: JSONValue]? {
-    get { self[A2UISurfaceMetadataKey.self] }
-    set { self[A2UISurfaceMetadataKey.self] = newValue }
-  }
+  @Entry public var a2uiSurfaceMetadata: [String: JSONValue]? = nil
 }

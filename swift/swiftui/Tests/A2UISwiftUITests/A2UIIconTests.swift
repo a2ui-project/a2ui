@@ -73,6 +73,18 @@ struct A2UIIconTests {
     #expect(!path.isEmpty)
   }
 
+  @Test func svgPathParserHandlesScientificNotationAndPlusDelimitedCoordinates() {
+    let path = SVGPathParser.parse("M1e1+20 L30+4e1 Z")
+    #expect(path.boundingRect == CGRect(x: 10, y: 20, width: 20, height: 20))
+  }
+
+  @Test func svgPathShapeScalesAndCentersPathInRect() {
+    let shape = SVGPathShape(pathData: "M0 0 H12 V12 H0 Z")
+    let fitted = shape.path(in: CGRect(x: 0, y: 0, width: 48, height: 48))
+    // Reference size is max(12, 12, 24) = 24, so scale = 48 / 24 = 2 (24x24 centered in 48x48).
+    #expect(fitted.boundingRect == CGRect(x: 12, y: 12, width: 24, height: 24))
+  }
+
   @Test func iconDataBoundSVGPathRendersEndToEnd() async throws {
     let catalog = Catalog(
       id: "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json",
