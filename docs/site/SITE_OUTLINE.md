@@ -267,7 +267,7 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 
 #### Glossary (`/concepts/glossary/`) [P2]
 
-- Port [`docs/public/concepts/glossary.md`](../public/concepts/glossary.md), updated with `v1.0` terminology (`agent_to_renderer`, `renderer_to_agent`, `@path`, `@call`, `callAgentFunction`, `callRendererFunction`).
+- Port `docs/public/concepts/glossary.md`, updated with `v1.0` terminology (`agent_to_renderer`, `renderer_to_agent`, `@path`, `@call`, `callAgentFunction`, `callRendererFunction`).
 
 ### Guides
 
@@ -289,7 +289,7 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 
 #### How to Integrate A2UI into an Agent (`/guides/agent-integration/`) [P1]
 
-- **Sources**: Link to [SDKs](#sdks) (`/concepts/sdks/#agent-sdk`) for package coordinates; verify APIs against `python/a2ui_agent/`, `python/a2ui_adk/`, `python/a2ui_a2a/`, `typescript/agents/a2ui_agent/`, `dart/a2ui_agent/`, and [`docs/public/guides/a2ui-with-any-agent-framework.md`](../public/guides/a2ui-with-any-agent-framework.md).
+- **Sources**: Link to [SDKs](#sdks) (`/concepts/sdks/#agent-sdk`) for package coordinates; verify APIs against `python/a2ui_agent/`, `python/a2ui_adk/`, `python/a2ui_a2a/`, `typescript/agents/a2ui_agent/`, `dart/a2ui_agent/`, and `docs/public/guides/a2ui-with-any-agent-framework.md`.
 - **Content Outline** (tabbed across `TypeScript` | `Python` | `Dart`):
     1. **Overview**: Direct purpose statement linking to `/concepts/sdks/#agent-sdk`, noting single-binary co-location via shared Core SDK data structures, and cross-linking to `/guides/client-integration/`, `/guides/defining-a-catalog/`, and `/concepts/inference-formats/`.
     2. **Step 1: Install Dependencies**: Tabbed install commands matching `/concepts/sdks/#agent-sdk`.
@@ -304,7 +304,7 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 
 #### How to Define a Catalog (`/guides/defining-a-catalog/`) [P1]
 
-- **Sources**: [`docs/public/guides/defining-your-own-catalog.md`](../public/guides/defining-your-own-catalog.md), [`docs/public/guides/authoring-components.md`](../public/guides/authoring-components.md), `/specification/v1.0/schemas/#catalog_definition.json`, [`catalogs/basic/v1/catalog.json`](../../catalogs/basic/v1/catalog.json), and [`specification/v0_9_1/catalogs/basic/catalog.json`](../../specification/v0_9_1/catalogs/basic/catalog.json).
+- **Sources**: `docs/public/guides/defining-your-own-catalog.md`, `docs/public/guides/authoring-components.md`, `/specification/v1.0/schemas/#catalog_definition.json`, [`catalogs/basic/v1/catalog.json`](../../catalogs/basic/v1/catalog.json), and [`specification/v0_9_1/catalogs/basic/catalog.json`](../../specification/v0_9_1/catalogs/basic/catalog.json).
 - **Content Outline**:
     1. **When You Need a Standalone `catalog.json`**: Sharing a language-agnostic contract across separate agent and client runtimes.
     2. **Catalog Schema Anatomy (`v1.0` vs. `v0.9.1` Tabs)**: Envelope metadata (`$schema`, `$id`, `catalogId` URI, `title`, `description`, plus v1.0-only `protocolVersion`, `metadata`, and `instructions`), top-level `components` and `functions` maps (direct component properties + `allowedParents`/`allowedChildren` + `Checkable` `checks` support and function `returnType`/`allowedCallers`/`requiresUserActivation` in v1.0 vs. `allOf` `ComponentCommon` wrappers in v0.9.1), and `$defs` (`anyComponent`, `anyFunction`).
@@ -360,7 +360,7 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 
 #### A2UI over MCP (`/guides/a2ui-over-mcp/`) [P1]
 
-- Port [`docs/public/guides/a2ui_over_mcp.md`](../public/guides/a2ui_over_mcp.md), referencing [`samples/community/mcp/a2ui-over-mcp-recipe/`](../../samples/community/mcp/a2ui-over-mcp-recipe/).
+- Port `docs/public/guides/a2ui_over_mcp.md`, referencing [`samples/community/mcp/a2ui-over-mcp-recipe/`](../../samples/community/mcp/a2ui-over-mcp-recipe/).
 
 <a id="mcp-apps-in-a2ui-surfaces"></a>
 
@@ -372,13 +372,13 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 
 #### A2UI Dynamic Rendering within MCP Applications (`/guides/a2ui-in-mcp-apps/`) [P1]
 
-- Port [`docs/public/guides/a2ui-in-mcp-apps.md`](../public/guides/a2ui-in-mcp-apps.md), referencing [`samples/community/mcp/a2ui-in-mcpapps/`](../../samples/community/mcp/a2ui-in-mcpapps/).
+- Port `docs/public/guides/a2ui-in-mcp-apps.md`, referencing [`samples/community/mcp/a2ui-in-mcpapps/`](../../samples/community/mcp/a2ui-in-mcpapps/).
 
 <a id="authoring-universal-web-components"></a>
 
 #### Authoring Universal Web Components (`/guides/authoring-universal-components/`) [P1]
 
-- Port [`docs/public/guides/authoring-universal-components.md`](../public/guides/authoring-universal-components.md) (`A2uiLitElement` from `@a2ui/web_core/v0_9/universal` or `@a2ui/lit/v0_9`, consumed across React, Angular, and Lit via `WebComponentImplementation`).
+- Port `docs/public/guides/authoring-universal-components.md` (`A2uiLitElement` from `@a2ui/web_core/v0_9/universal` or `@a2ui/lit/v0_9`, consumed across React, Angular, and Lit via `WebComponentImplementation`).
 
 <a id="sdk-development"></a>
 
@@ -407,7 +407,7 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 
 ### Community Projects (`/ecosystem/renderers/`) [P1]
 
-- Port and clean up [`docs/public/ecosystem/renderers.md`](../public/ecosystem/renderers.md):
+- Port and clean up `docs/public/ecosystem/renderers.md`:
     1. **Introduction & Disclaimer**: Clarify community maintenance and link to [`/concepts/sdks/`](#sdks) for official first-party SDKs.
     2. **Unified Community Renderers Table**: Project/package name, target platform/framework, supported protocol versions (`v0.8`, `v0.9.1`, `v1.0`), maintenance status, and repo/registry links.
     3. **Agent-Side Libraries & Ecosystem Utilities**: Community server libraries, transports, and developer tools.
