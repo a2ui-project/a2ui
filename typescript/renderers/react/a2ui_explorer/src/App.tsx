@@ -15,8 +15,8 @@
  */
 
 import {useState, useEffect, useCallback, useRef} from 'react';
-import {compareSemVer} from '@a2ui/web_core';
-import {MessageProcessor, type A2uiClientAction} from '@a2ui/web_core/v0_9';
+import {compareSemVer, MessageProcessor} from '@a2ui/web_core';
+import type {A2uiClientAction} from '@a2ui/web_core/v0_9';
 import {A2uiSurface, MarkdownContext, type ReactCatalogComponent} from '@a2ui/react';
 import {mcpCatalog} from '@a2ui/catalog-mcp';
 import {basicCatalog as basicCatalogV10} from '@a2ui/web_core/catalogs/basic/v1';
