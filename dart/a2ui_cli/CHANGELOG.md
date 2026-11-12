@@ -11,9 +11,11 @@
   before analysis and rejects numeric precision loss, overflow, and underflow
   instead of silently changing catalog values.
   Enum values that Python `Literal` cannot represent now fail generation explicitly.
+  [#4189](https://github.com/a2ui-project/a2ui/pull/4189)
 - Preserve `null` branches in generated Python annotations, including required
   nullable properties, and deduplicate nested unions so repeated null branches
   remain importable. Required nullable fields still require an explicit value.
+  [#4189](https://github.com/a2ui-project/a2ui/pull/4189)
 
 - (v1_0) Filter `@catalogId`, `@metadata`, and `@accessibility` from component
   builder properties in `CatalogAnalyzer`, detect checkable components from
