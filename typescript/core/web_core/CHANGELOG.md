@@ -41,6 +41,7 @@
 - `extractRefFields`, `NodeResolver`, `GenericBinder`, `scrapeSchemaBehavior`, `scrapeComponentBehavior` (newly exported), and `Catalog.componentRefMap` now resolve child references and dynamic bindings across wrapped (`ZodCatch`, `ZodPipeline`), composite (`ZodIntersection`, `ZodUnion`, `ZodDiscriminatedUnion`), empty-shape (`z.object({})`), open (`.passthrough()`, `.catchall()`, `z.record()`, `z.any()`, `z.unknown()`), and unannotated `child` / `children` component schemas ([#3783](https://github.com/a2ui-project/a2ui/issues/3783), [#3938](https://github.com/a2ui-project/a2ui/pull/3938)).
 - Export `getMarkdownRenderer`, `markdown`, and `setMarkdownRenderer` from `@a2ui/web_core/universal`, make `Catalog<T, F>` covariant in `T` and `F`, and infer `T` from the `catalogs` argument of `new MessageProcessor(catalogs)` so `SurfaceModel` instances carry the component implementation type of their registered catalogs ([#3423](https://github.com/a2ui-project/a2ui/issues/3423), [#4181](https://github.com/a2ui-project/a2ui/pull/4181)).
 - `A2uiLitElement.adoptLightDomStyles` scopes styles per element class, so a subclass registered under another tag gets its own stylesheet instead of reusing its parent's. [#4129](https://github.com/a2ui-project/a2ui/pull/4129)
+- Return the `onAction` emit promise from `SurfaceGroupModel` surface subscriptions so `SurfaceModel.dispatchAction` resolves only after group `onAction` listeners settle. [#4205](https://github.com/a2ui-project/a2ui/pull/4205)
 
 ## 0.15.0
 

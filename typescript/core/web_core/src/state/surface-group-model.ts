@@ -67,9 +67,9 @@ export class SurfaceGroupModel<T extends ComponentApi> {
     this.surfaces.set(surface.id, surface);
 
     // Subscribe to surface actions and errors and propagate
-    const sub = surface.onAction.subscribe(action => {
-      void this._onAction.emit(action);
-    });
+    // Return the emit promise so that `surface.dispatchAction` only settles
+    // once the group's action listeners have settled.
+    const sub = surface.onAction.subscribe(action => this._onAction.emit(action));
     this.surfaceUnsubscribers.set(surface.id, sub);
     const errSub = surface.onError.subscribe(err => {
       void this._onError.emit(err);
