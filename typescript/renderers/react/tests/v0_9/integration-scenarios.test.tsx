@@ -17,7 +17,7 @@
 import {describe, it, expect} from 'vitest';
 import {render, screen, act, fireEvent} from '@testing-library/react';
 import React from 'react';
-import {MessageProcessor} from '@a2ui/web_core/v0_9';
+import {MessageProcessor} from '@a2ui/web_core';
 import {basicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
 import {A2uiSurface} from '@a2ui/react/v0_9';
 

@@ -33,4 +33,9 @@ export {
   createAccessibilityTargets,
   type AccessibilityTargets,
 } from './host_accessibility.js';
+export {
+  getMarkdownRenderer,
+  markdown,
+  setMarkdownRenderer,
+} from './basic_catalog/directives/directives.js';
 export type {WebComponentImplementation} from './web_component_implementation.js';
