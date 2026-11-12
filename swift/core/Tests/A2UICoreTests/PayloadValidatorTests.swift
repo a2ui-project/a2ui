@@ -954,7 +954,7 @@ struct PayloadValidatorTests {
         "args": .object([
           "value": .object(["path": .string("/name")]),
           "min": .integer(1),
-          "items": .array([.object(["path": .string("/flag")]), .bool(true)]),
+          "items": .array([.object(["path": .string("/flag")]), .boolean(true)]),
         ]),
         "returnType": .string("boolean"),
       ]),
@@ -983,7 +983,7 @@ struct PayloadValidatorTests {
           "args": .object([
             "value": .object(["path": .string("/name")]),
             "min": .integer(1),
-            "extra": .bool(true),
+            "extra": .boolean(true),
           ]),
           "returnType": .string("boolean"),
         ]),
