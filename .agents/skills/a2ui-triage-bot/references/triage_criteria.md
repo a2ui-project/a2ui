@@ -1,6 +1,6 @@
 # Triage criteria for the triage bot
 
-This document says how to turn an issue or a PR into a [`TriageSuggestion`](../../../../tools/internal/triage_new/pkgs/triage/lib/src/triage_bot/triage_suggestion.dart). It adds triage bot rules to the canonical sources; where they disagree, the canonical sources win:
+This document says how to turn an issue or a PR into a [`TriageSuggestion`](../../../../tools/internal/triage_new/pkgs/triage/lib/src/triage_bot/triage_suggestion.dart), and what a [response comment](../SKILL.md#response-comment) suggests. It adds triage bot rules to the canonical sources; where they disagree, the canonical sources win:
 
 1. [triage.md](../../../../docs/contributing/triage/triage.md): goals of triage, priority definitions (`P0` to `P3`), and how to triage a PR.
 2. [labels.md](../../../../docs/contributing/triage/labels.md): triage labels and who manages each one.
@@ -20,11 +20,11 @@ Triage of an issue is done when the issue has a priority and no comment from an 
 8. If a team member agreed in a comment that a contributor works on the issue, but did not assign them, suggest assigning them in `new_assignees`.
 9. If the item cannot be triaged without more expertise, find an expert in the affected area from the commit history (see step 4 of the [skill](../SKILL.md#step-4-research-the-item)), and name them in `suggestion` with the evidence, such as "wrote 6 of the last 20 commits to `renderers/lit`". Then follow the [second-line triage](../../../../docs/contributing/triage/triage.md#second-line-triage-weekly-by-triager) steps:
    1. If the item does not have `status: needs-team-input`, suggest adding it, and say which question the team needs to answer.
-   2. If it has `status: needs-team-input`, the team could not triage it in a couple of minutes. Suggest assigning the expert in `new_assignees`, adding `status: assigned-for-triage`, and removing `status: needs-team-input`.
+   2. If it has `status: needs-team-input`, the team is discussing it. Write no suggestion, and answer only the requests to the triage bot, in a response comment.
 
    If you find no expert who can be assigned, say so, and suggest only `status: needs-team-input`.
 
-10. If a team member asked the triage bot for something, answer it at the start of `suggestion`, as [Requests to the triage bot](../SKILL.md#requests-to-the-triage-bot) says. Follow these rules for what the answer suggests: a request does not override them.
+10. If a team member asked the triage bot for something, answer it at the start of `suggestion`, or in a response comment on an item with `status: needs-team-input`, as [Requests to the triage bot](../SKILL.md#requests-to-the-triage-bot) says. Follow these rules for what the answer suggests: a request does not override them.
 
 ## Issues
 
