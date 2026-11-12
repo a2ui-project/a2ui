@@ -21,8 +21,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:triage/triage.dart';
 import 'package:triage_ui/src/github_item.dart';
 import 'package:triage_ui/src/model/item_context.dart';
+import 'package:triage_ui/src/model/report_prompt.dart';
 import 'package:triage_ui/src/model/triage_controller.dart';
 import 'package:triage_ui/src/model/triage_item.dart';
+import 'package:triage_ui/src/model/triage_session.dart';
 import 'package:triage_ui/src/ui/chip_list_field.dart';
 import 'package:triage_ui/src/ui/item_info.dart';
 import 'package:triage_ui/src/ui/item_list.dart';
@@ -1002,6 +1004,55 @@ void main() {
     await tester.pump();
     expect(tester.widget<FilledButton>(apply).onPressed, isNotNull);
     expect(find.widgetWithText(ActionChip, 'Duplicate of #7'), findsOneWidget);
+  });
+
+  testWidgets('Create report shows the prompt for the session, to copy', (
+    tester,
+  ) async {
+    final DateTime started = DateTime.now().subtract(const Duration(days: 3));
+    controller = TriageController(
+      connect: () async => github.service(),
+      session: TriageSession(started: started),
+    );
+    await pumpApp(tester, selectFirst: false);
+
+    Future<void> openDialog() async {
+      await tester.tap(find.byTooltip('Menu'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Create report'));
+      await tester.pumpAndSettle();
+    }
+
+    await openDialog();
+    final String prompt = reportPrompt(controller.session, DateTime.now());
+    expect(find.text(prompt.trimRight()), findsOneWidget);
+    expect(
+      find.textContaining(
+        'in this session, from ${isoDate(started)} to '
+        '${isoDate(DateTime.now())}',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('the agent asks whether to unsubscribe you'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+    expect(find.text('Create report'), findsNothing);
+    expect(clipboard, isEmpty);
+
+    await openDialog();
+    await tester.tap(find.text('Copy and close'));
+    await tester.pumpAndSettle();
+
+    expect(clipboard.last, prompt);
+    expect(find.text('Create report'), findsNothing);
+    expect(
+      find.text('Copied the prompt for the triage report'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('says when a refresh found that the item changed', (

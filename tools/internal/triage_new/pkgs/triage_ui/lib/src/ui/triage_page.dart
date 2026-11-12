@@ -18,6 +18,7 @@ import '../model/triage_controller.dart';
 import 'column_divider.dart';
 import 'item_details.dart';
 import 'item_list.dart';
+import 'report_dialog.dart';
 import 'triage_scope.dart';
 
 /// The triage UI's only page: the header, the items on the left and the
@@ -61,6 +62,16 @@ class _TriagePageState extends State<TriagePage> {
                       ? controller.refresh
                       : null,
                   child: const Text('Refresh'),
+                ),
+              ),
+              Tooltip(
+                message:
+                    'Get the prompt that asks an agent for the triage report '
+                    'of this session',
+                child: MenuItemButton(
+                  leadingIcon: const Icon(Icons.summarize_outlined),
+                  onPressed: () => showReportDialog(context),
+                  child: const Text('Create report'),
                 ),
               ),
             ],

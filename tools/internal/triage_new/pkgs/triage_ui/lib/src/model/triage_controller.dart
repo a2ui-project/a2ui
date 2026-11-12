@@ -46,13 +46,16 @@ enum ItemGroup {
 class TriageController extends ChangeNotifier {
   /// [connect] finds the triager's GitHub token and returns the service that
   /// uses it.
-  TriageController({required Future<TriageService> Function() connect})
-    : _connect = connect;
+  TriageController({
+    required Future<TriageService> Function() connect,
+    TriageSession? session,
+  }) : _connect = connect,
+       session = session ?? TriageSession();
 
   final Future<TriageService> Function() _connect;
   TriageService? _service;
 
-  final TriageSession session = TriageSession();
+  final TriageSession session;
 
   /// The items with `status: needs-triage` or `status: needs-team-input`,
   /// from all the repositories the UI triages.

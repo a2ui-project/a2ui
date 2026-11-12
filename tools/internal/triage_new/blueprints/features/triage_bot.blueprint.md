@@ -160,7 +160,7 @@ A suggestion is **current** when nothing happened on the item after the latest s
 
 ## Triage report
 
-The triage report says what a team member triaged in a period, so that the team can read it in the team chat. The triager asks the triage bot for it, usually at the end of their triage week, as in "Create the triage report for last week". The triage bot runs [triage_report.mts](../../../../../.agents/skills/a2ui-triage-bot/scripts/triage_report.mts), which collects the activity from GitHub and writes the report.
+The triage report says what a team member triaged in a period, so that the team can read it in the team chat. The triager asks the triage bot for it, usually at the end of their triage week, as in "Create the triage report for last week". **Create report** in the [triage UI](ui.blueprint.md#create-a-report) gives the triager such a prompt for the period of the triage UI session. The triage bot runs [triage_report.mts](../../../../../.agents/skills/a2ui-triage-bot/scripts/triage_report.mts), which collects the activity from GitHub and writes the report.
 
 An item is in the report when the person changed its labels, assignees or state in the period, or commented on it. These do not count:
 

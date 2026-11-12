@@ -18,7 +18,7 @@ The triager can drag the divider between the items and the details to resize the
 
 ### Header
 
-1. The hamburger menu, with **Refresh**.
+1. The hamburger menu, with **Refresh** and **Create report**.
 2. How many items of the queue the triager handled, out of all of them, as in "5/45". A handled item is one whose suggestion the triager applied, including the items sent to the team.
 
 ### Items
@@ -149,3 +149,11 @@ Ann clicks **Apply**, and GitHub refuses to assign one of the assignees. By then
 ### Refresh the queue
 
 While Ann works, a new issue arrives, and a team member triages another item on GitHub. Ann clicks **Refresh** in the hamburger menu. The list shows the new issue and drops the item that no longer has `status: needs-triage`. If the selected item changed on GitHub, the details show its current state, so Ann doesn't apply a suggestion to an old view of the item.
+
+### Create a report
+
+At the end of the triage week, Ann wants to report the week's triage to the team.
+
+1. Ann clicks **Create report** in the hamburger menu.
+2. A dialog shows a prompt that asks an agent for the [triage report](triage_bot.blueprint.md#triage-report) of the session: from the day the tool started to today, with the dates written out, as in "Create the triage report for 2026-11-06 to 2026-11-12". The prompt tells the agent to use the [a2ui-triage-bot](../../../../../.agents/skills/a2ui-triage-bot/SKILL.md) skill from the `main` branch. The dialog also says that after the report, the agent asks whether to unsubscribe Ann from the items in it.
+3. Ann clicks **Copy and close**, and pastes the prompt to an agent in the a2ui checkout. **Close** closes the dialog without copying.

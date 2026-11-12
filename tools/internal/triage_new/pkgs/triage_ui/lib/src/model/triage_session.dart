@@ -18,6 +18,11 @@ import 'triage_item.dart';
 
 /// What the triager did since the triage UI started.
 class TriageSession {
+  TriageSession({DateTime? started}) : started = started ?? DateTime.now();
+
+  /// When the triage UI started.
+  final DateTime started;
+
   /// The applied items, and whether each was sent to the team.
   final Map<ItemRef, bool> _sentToTeam = {};
   final Set<ItemRef> _replied = {};
