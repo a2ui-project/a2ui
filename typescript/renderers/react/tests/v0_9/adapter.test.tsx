@@ -18,13 +18,8 @@ import {describe, it, expect, vi} from 'vitest';
 import {render, screen, act} from '@testing-library/react';
 import {createComponentImplementation} from '../../src/adapter';
 import {A2uiSurface} from '../../src/A2uiSurface';
-import {
-  ComponentContext,
-  ComponentModel,
-  SurfaceModel,
-  Catalog,
-  CommonSchemas,
-} from '@a2ui/web_core/v0_9';
+import {Catalog, ComponentContext, ComponentModel, SurfaceModel} from '@a2ui/web_core';
+import {CommonSchemas} from '@a2ui/web_core/v0_9';
 import {z} from 'zod';
 
 const mockCatalog = new Catalog('test', '0.9', [], []);
