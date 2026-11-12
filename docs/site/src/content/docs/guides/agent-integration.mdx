@@ -297,7 +297,7 @@ Stream<AgentToRendererMessage> runTurn(
 <details>
 <summary>Wire format: outbound agent-to-renderer messages</summary>
 
-The stream compiles the model's output into standard A2UI wire messages (`agent_to_renderer.json` in `v1.0`, `server_to_client.json` in `v0.9.1`). In `v1.0`, `createSurface` embeds initial `components` and `dataModel` directly and binds dynamic values with `{"@path": "..."}`, whereas `v0.9.1` sends separate `updateComponents` and `updateDataModel` envelopes and binds paths with `{"path": "..."}`:
+The stream compiles the model's output into standard A2UI wire messages (`agent_to_renderer.json` in `v1.0`, `server_to_client.json` in `v0.9.1`). In `v1.0`, `createSurface` can embed initial `components` and `dataModel` directly, or these can arrive in subsequent updates. Dynamic values bind with `{"@path": "..."}`. The `v0.9.1` example sends separate `updateComponents` and `updateDataModel` envelopes and binds paths with `{"path": "..."}`:
 
 <SchemaChips
   items={[
