@@ -178,19 +178,25 @@ export function isActionSlot(schema: unknown): boolean {
  * @param schema The property JSON schema to inspect.
  * @returns True if schema expects option objects.
  */
-export function expectsOptionObjects(schema: unknown): boolean {
-  if (!schema || typeof schema !== 'object') {
+export function expectsOptionObjects(
+  schema: unknown,
+  helper?: CatalogSchemaHelper,
+  visited: Set<unknown> = new Set(),
+): boolean {
+  if (!schema || typeof schema !== 'object' || visited.has(schema)) {
     return false;
   }
-  const s = schema as Record<string, unknown>;
+  visited.add(schema);
+  const s = helper?.dereferenceLocalSchema(schema) ?? (schema as Record<string, unknown>);
   if ('items' in s) {
     const itemsSchema = s.items;
 
     const hasLabelValue = (sub: unknown): boolean => {
-      if (!sub || typeof sub !== 'object') {
+      if (!sub || typeof sub !== 'object' || visited.has(sub)) {
         return false;
       }
-      const subObj = sub as Record<string, unknown>;
+      visited.add(sub);
+      const subObj = helper?.dereferenceLocalSchema(sub) ?? (sub as Record<string, unknown>);
       if (
         subObj.properties &&
         typeof subObj.properties === 'object' &&
@@ -215,7 +221,7 @@ export function expectsOptionObjects(schema: unknown): boolean {
   for (const key of ['allOf', 'oneOf', 'anyOf'] as const) {
     const list = s[key];
     if (Array.isArray(list)) {
-      if (list.some(sub => expectsOptionObjects(sub))) {
+      if (list.some(sub => expectsOptionObjects(sub, helper, visited))) {
         return true;
       }
     }
@@ -953,35 +959,47 @@ export class CatalogSchemaHelper {
               ? '@checks'
               : undefined;
         if (lookupKey !== undefined) {
-          const propVal = props[lookupKey];
-          if (!propVal || typeof propVal !== 'object') {
-            return undefined;
-          }
-          const current = propVal as Record<string, unknown>;
-          const visitedPointers = new Set<string>();
-          let ref = localRef(current);
-          let merged: Record<string, unknown> = current;
-          while (ref) {
-            if (visitedPointers.has(ref)) {
-              break;
-            }
-            visitedPointers.add(ref);
-            const resolved = this.resolveJsonPointer(this.catalog, ref);
-            if (resolved && typeof resolved === 'object') {
-              merged = {
-                ...(resolved as Record<string, unknown>),
-                ...merged,
-              };
-              ref = localRef(resolved);
-            } else {
-              break;
-            }
-          }
-          return merged;
+          return this.dereferenceLocalSchema(props[lookupKey]);
         }
       }
     }
     return undefined;
+  }
+
+  /**
+   * Resolves a chain of local `#/...` `$ref`s on a schema object against the catalog,
+   * merging sibling properties onto the resolved target so outer overrides (such as
+   * `description`) win.
+   *
+   * @param schema The schema object to dereference.
+   * @returns The dereferenced schema object, or undefined if `schema` is not an object.
+   */
+  dereferenceLocalSchema(schema: unknown): Record<string, unknown> | undefined {
+    if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
+      return undefined;
+    }
+    const current = schema as Record<string, unknown>;
+    const visitedPointers = new Set<string>();
+    let ref = localRef(current);
+    let merged: Record<string, unknown> = current;
+    while (ref) {
+      if (visitedPointers.has(ref)) {
+        break;
+      }
+      visitedPointers.add(ref);
+      const resolved = this.resolveJsonPointer(this.catalog, ref);
+      if (resolved && typeof resolved === 'object' && !Array.isArray(resolved)) {
+        const {$ref: _consumedLocalRef, ...overrides} = merged;
+        merged = {
+          ...(resolved as Record<string, unknown>),
+          ...overrides,
+        };
+        ref = localRef(resolved);
+      } else {
+        break;
+      }
+    }
+    return merged;
   }
 
   /**

@@ -789,5 +789,268 @@ describe('ExpressPromptGenerator', () => {
       expect(snippet).toContain('$/info = {component: "NotAComponent"}');
       expect(snippet).not.toContain('@catalogId');
     });
+
+    it('introspects oneOf and anyOf unions for object and array-of-objects property details', () => {
+      const cat = catalogFromTestDocument({
+        catalogId: 'https://example.com/charts.json',
+        protocolVersion: '1.0',
+        components: {
+          LineChart: {
+            type: 'object',
+            description: 'Renders a line chart.',
+            properties: {
+              component: {const: 'LineChart'},
+              series: {
+                description:
+                  'Array of data series, where each series represents a package or metric line.',
+                oneOf: [
+                  {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        name: {type: 'string', description: 'Name of the series'},
+                        color: {type: 'string', description: 'Hex color code'},
+                        data: {
+                          type: 'array',
+                          description: 'Points along the line',
+                          items: {
+                            type: 'object',
+                            properties: {
+                              date: {type: 'string'},
+                              value: {type: 'number'},
+                            },
+                            required: ['value'],
+                          },
+                        },
+                      },
+                      required: ['name', 'data'],
+                    },
+                  },
+                  {
+                    $ref: 'common_types.json#/$defs/DataBinding',
+                  },
+                ],
+              },
+              points: {
+                anyOf: [
+                  {
+                    $ref: 'common_types.json#/$defs/DataBinding',
+                  },
+                  {
+                    type: 'array',
+                    items: {
+                      $ref: '#/$defs/PointItem',
+                    },
+                  },
+                ],
+              },
+              config: {
+                description: 'Chart configuration object.',
+                oneOf: [
+                  {
+                    type: 'object',
+                    properties: {
+                      showLegend: {type: 'boolean', description: 'Whether to show the legend'},
+                      yAxisLabel: {type: 'string'},
+                    },
+                  },
+                  {
+                    $ref: 'common_types.json#/$defs/DataBinding',
+                  },
+                ],
+              },
+              center: {
+                anyOf: [
+                  {
+                    type: 'object',
+                    properties: {
+                      lat: {type: 'number'},
+                      lng: {type: 'number'},
+                    },
+                  },
+                  {
+                    $ref: 'common_types.json#/$defs/DataBinding',
+                  },
+                ],
+              },
+            },
+            required: ['component', 'series'],
+          },
+        },
+        $defs: {
+          PointItem: {
+            type: 'object',
+            properties: {
+              x: {type: 'number', description: 'X coordinate'},
+              y: {type: 'number', description: 'Y coordinate'},
+            },
+            required: ['x', 'y'],
+          },
+        },
+      });
+
+      const instructions = new ExpressPromptGenerator([cat]).generateCatalogInstructions(cat);
+      expect(instructions).toContain(
+        '• LineChart(series, points?, config?, center?)\n' +
+          '  - Description: Renders a line chart.\n' +
+          '  - series: Array of data series, where each series represents a package or metric line.\n' +
+          '    List of maps keys:\n' +
+          '    * name - Name of the series\n' +
+          '    * color - Hex color code\n' +
+          '    * data - Points along the line\n' +
+          '  - points: List of maps with keys:\n' +
+          '    * x - X coordinate\n' +
+          '    * y - Y coordinate\n' +
+          '  - config: Chart configuration object.\n' +
+          '    Map keys:\n' +
+          '    * showLegend - Whether to show the legend\n' +
+          '    * yAxisLabel\n' +
+          '  - center: Map with keys:\n' +
+          '    * lat\n' +
+          '    * lng',
+      );
+    });
+
+    it('handles locally flattened wire envelopes, allOf composition, local enum $defs, and local $ref aliases to common_types', () => {
+      const cat = catalogFromTestDocument({
+        catalogId: 'https://example.com/flattened.json',
+        protocolVersion: '1.0',
+        components: {
+          CompositeWidget: {
+            type: 'object',
+            description: 'Widget exercising flattened common_types and allOf schemas.',
+            properties: {
+              component: {const: 'CompositeWidget'},
+              title: {
+                description: 'Display title.',
+                $ref: '#/$defs/common_types_DynamicString',
+              },
+              iconName: {
+                description: 'Icon identifier.',
+                oneOf: [
+                  {$ref: '#/$defs/StandardIconEnum'},
+                  {
+                    type: 'object',
+                    properties: {
+                      svgPath: {type: 'string'},
+                    },
+                  },
+                ],
+              },
+              settings: {
+                description: 'Merged settings object.',
+                allOf: [
+                  {$ref: '#/$defs/BaseSettings'},
+                  {
+                    type: 'object',
+                    properties: {
+                      theme: {type: 'string', description: 'Color theme'},
+                    },
+                  },
+                ],
+              },
+              rows: {
+                type: 'array',
+                items: {
+                  allOf: [
+                    {$ref: '#/$defs/BaseRow'},
+                    {
+                      properties: {
+                        badge: {type: 'string', description: 'Optional row badge'},
+                      },
+                    },
+                  ],
+                },
+              },
+              onTap: {
+                $ref: '#/$defs/LocalActionAlias',
+              },
+              content: {
+                $ref: '#/$defs/LocalChildAlias',
+              },
+            },
+            required: ['component', 'title'],
+          },
+        },
+        $defs: {
+          common_types_DataBinding: {
+            type: 'object',
+            properties: {
+              '@path': {type: 'string'},
+            },
+            required: ['@path'],
+          },
+          common_types_FunctionCall: {
+            type: 'object',
+            properties: {
+              '@call': {type: 'string'},
+              args: {type: 'object'},
+              returnType: {type: 'string'},
+            },
+            required: ['@call'],
+          },
+          common_types_DynamicString: {
+            oneOf: [
+              {$ref: '#/$defs/common_types_DataBinding'},
+              {
+                allOf: [
+                  {$ref: '#/$defs/common_types_FunctionCall'},
+                  {properties: {returnType: {const: 'string'}}},
+                ],
+              },
+              {
+                allOf: [
+                  {$ref: 'common_types.json#/$defs/FunctionCall'},
+                  {properties: {returnType: {const: 'string'}}},
+                ],
+              },
+              {type: 'string'},
+            ],
+          },
+          StandardIconEnum: {
+            type: 'string',
+            enum: ['home', 'search', 'settings'],
+          },
+          BaseSettings: {
+            type: 'object',
+            properties: {
+              compact: {type: 'boolean', description: 'Use compact spacing'},
+            },
+          },
+          BaseRow: {
+            type: 'object',
+            properties: {
+              id: {type: 'string', description: 'Row identifier'},
+            },
+          },
+          LocalActionAlias: {
+            $ref: 'common_types.json#/$defs/Action',
+          },
+          LocalChildAlias: {
+            $ref: 'common_types.json#/$defs/ComponentId',
+          },
+        },
+      });
+
+      const instructions = new ExpressPromptGenerator([cat]).generateCatalogInstructions(cat);
+      expect(instructions).toContain(
+        '• CompositeWidget(title, iconName? (static), settings? (static), rows? (static), onTap? (static), content? (component ID))\n' +
+          '  - Description: Widget exercising flattened common_types and allOf schemas.\n' +
+          '  - title: Display title.\n' +
+          "  - iconName: Icon identifier. Must be one of: 'home', 'search', 'settings'\n" +
+          '  - settings: Merged settings object.\n' +
+          '    Map keys:\n' +
+          '    * compact - Use compact spacing\n' +
+          '    * theme - Color theme\n' +
+          '  - rows: List of maps with keys:\n' +
+          '    * id - Row identifier\n' +
+          '    * badge - Optional row badge',
+      );
+      expect(instructions).not.toContain('@path');
+      expect(instructions).not.toContain('@call');
+      expect(instructions).not.toContain('returnType');
+      expect(instructions).not.toContain('svgPath');
+    });
   });
 });
