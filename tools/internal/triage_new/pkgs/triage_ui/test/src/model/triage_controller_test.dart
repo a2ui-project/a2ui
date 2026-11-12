@@ -465,7 +465,7 @@ void main() {
         )
         ..draftFor(
           controller.item(a2ui(40))!,
-          const TriageSuggestion(addedLabels: ['P2']),
+          const TriageSuggestion(removedLabels: [needsTeamInputLabel]),
         )
         // Fails, so it is not triaged, though it loses "status: needs-triage".
         ..draftFor(
