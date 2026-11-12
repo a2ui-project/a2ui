@@ -25,8 +25,8 @@
  */
 
 import React, {useCallback, useContext, useLayoutEffect, useMemo} from 'react';
-import {NodeResolver, effect, getValue, peekValue, type SurfaceModel} from '@a2ui/web_core/v0_9';
-import {setMarkdownRenderer} from '@a2ui/web_core/v0_9/basic_catalog';
+import {NodeResolver, effect, getValue, peekValue, type SurfaceModel} from '@a2ui/web_core';
+import {setMarkdownRenderer} from '@a2ui/web_core/universal';
 import {prepareCatalogs} from './catalog/prepare_catalogs';
 import {MarkdownComponentContext, useMarkdownRenderer} from './markdown-context';
 import {registerMarkdownHostRenderer} from './markdown_hosts';

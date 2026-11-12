@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:async';
+
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:json_schema_builder/json_schema_builder.dart';
 import 'package:test/test.dart';
@@ -1025,10 +1027,13 @@ void main() {
   });
 
   group('MessageProcessor component envelope', () {
-    Catalog<ComponentApi, FunctionImplementation> alphaCatalog(String id) =>
+    Catalog<ComponentApi, FunctionImplementation> alphaCatalog(
+      String id, {
+      A2uiProtocolVersion version = A2uiProtocolVersion.v1_0,
+    }) =>
         Catalog<ComponentApi, FunctionImplementation>(
           id: id,
-          protocolVersion: A2uiProtocolVersion.v0_9,
+          protocolVersion: version,
           components: [
             ComponentApi(
               name: 'Alpha',
@@ -1045,12 +1050,12 @@ void main() {
     setUp(() {
       processor = MessageProcessor<ComponentApi>(
         catalogs: [alphaCatalog('cat1'), alphaCatalog('cat2')],
-        defaultVersion: A2uiProtocolVersion.v0_9,
+        defaultVersion: A2uiProtocolVersion.v1_0,
       );
       processor.processMessages(
         AgentToRendererMessagePayload([
           CreateSurfaceMessage(
-            version: 'v0.9',
+            version: '1.0',
             surfaceId: 's1',
             catalogId: 'cat1',
           ),
@@ -1061,7 +1066,7 @@ void main() {
     void update(Map<String, Object?> component) => processor.processMessages(
           AgentToRendererMessagePayload([
             UpdateComponentsMessage(
-              version: 'v0.9',
+              version: '1.0',
               surfaceId: 's1',
               components: [component],
             ),
@@ -1071,13 +1076,15 @@ void main() {
     SurfaceComponentsModel components() =>
         processor.model.getSurface('s1')!.componentsModel;
 
-    test('keeps catalogId and metadata out of properties', () {
+    test(
+        'keeps v1.0 @catalogId/@metadata and legacy catalogId/metadata out of properties',
+        () {
       update({
         'id': 'root',
         'component': 'Alpha',
         'a': 'x',
-        'catalogId': 'cat2',
-        'metadata': {
+        '@catalogId': 'cat2',
+        '@metadata': {
           'extensions': {'k': 'v'},
         },
       });
@@ -1091,15 +1098,30 @@ void main() {
       expect(root.toJson(), {
         'id': 'root',
         'component': 'Alpha',
-        'catalogId': 'cat2',
-        'metadata': {
+        '@catalogId': 'cat2',
+        '@metadata': {
           'extensions': {'k': 'v'},
         },
         'a': 'x',
       });
+
+      update({
+        'id': 'root',
+        'component': 'Alpha',
+        'a': 'y',
+        'catalogId': 'cat2',
+        'metadata': {
+          'extensions': {'k': 'v2'},
+        },
+      });
+      expect(root.properties, {'a': 'y'});
+      expect(root.catalog, 'cat2');
+      expect(root.metadata, {
+        'extensions': {'k': 'v2'},
+      });
     });
 
-    test('recreates a component whose catalogId changes', () {
+    test('recreates a component whose catalogId changes on v1.0', () {
       update({'id': 'root', 'component': 'Alpha', 'a': 'x'});
       final events = <String>[];
       components().onDeleted.subscribe((id) => events.add('deleted:$id'));
@@ -1109,16 +1131,253 @@ void main() {
         'id': 'root',
         'component': 'Alpha',
         'a': 'y',
-        'catalogId': 'cat2',
+        '@catalogId': 'cat2',
       });
       expect(events, ['deleted:root', 'created:root']);
       expect(components().get('root')!.catalog, 'cat2');
+    });
 
-      // A partial update inherits the catalog rather than changing it.
-      update({'id': 'root', 'a': 'z'});
-      expect(events, ['deleted:root', 'created:root']);
-      expect(components().get('root')!.catalog, 'cat2');
-      expect(components().get('root')!.properties, {'a': 'z'});
+    test(
+        'toJson output reads back when a v1.0 schema declares an optional '
+        'catalogId and metadata that the payload omits', () {
+      Catalog<ComponentApi, FunctionImplementation> tableCatalog(String id) =>
+          Catalog<ComponentApi, FunctionImplementation>(
+            id: id,
+            protocolVersion: A2uiProtocolVersion.v1_0,
+            components: [
+              ComponentApi(
+                name: 'Table',
+                schema: Schema.object(
+                  properties: {
+                    'a': Schema.string(),
+                    'catalogId': Schema.integer(),
+                    'metadata': Schema.string(),
+                  },
+                  required: ['a'],
+                ),
+              ),
+            ],
+          );
+      ComponentModel render(Map<String, Object?> component) {
+        final tableProcessor = MessageProcessor<ComponentApi>(
+          catalogs: [tableCatalog('main'), tableCatalog('other')],
+          defaultVersion: A2uiProtocolVersion.v1_0,
+        );
+        tableProcessor.processMessages(
+          AgentToRendererMessagePayload([
+            CreateSurfaceMessage(
+              version: '1.0',
+              surfaceId: 's',
+              catalogId: 'main',
+            ),
+            UpdateComponentsMessage(
+              version: '1.0',
+              surfaceId: 's',
+              components: [component],
+            ),
+          ]),
+        );
+        return tableProcessor.model.getSurface('s')!.componentsModel.get(
+              'root',
+            )!;
+      }
+
+      final ComponentModel first = render({
+        'id': 'root',
+        'component': 'Table',
+        'a': 'x',
+        '@catalogId': 'other',
+        '@metadata': {
+          'extensions': {'k': 'v'},
+        },
+      });
+      final Map<String, dynamic> json = first.toJson();
+      expect(json, {
+        'id': 'root',
+        'component': 'Table',
+        'a': 'x',
+        '@catalogId': 'other',
+        '@metadata': {
+          'extensions': {'k': 'v'},
+        },
+      });
+
+      // A bare `catalogId` or `metadata` here would be read as the declared
+      // integer and string properties, and fail their schemas.
+      final ComponentModel second = render(json);
+      expect(second.properties, {'a': 'x'});
+      expect(second.catalog, 'other');
+      expect(second.metadata, {
+        'extensions': {'k': 'v'},
+      });
+    });
+
+    test('rejects a null @catalogId or legacy bare catalogId on v1.0', () {
+      expect(
+        () => update({
+          'id': 'root',
+          'component': 'Alpha',
+          'a': 'x',
+          'catalogId': null,
+        }),
+        throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            contains("non-string 'catalogId'"),
+          ),
+        ),
+      );
+      expect(
+        () => update({
+          'id': 'root',
+          'component': 'Alpha',
+          'a': 'x',
+          '@catalogId': null,
+        }),
+        throwsA(
+          isA<A2uiValidationError>().having(
+            (e) => e.message,
+            'message',
+            contains("invalid '@catalogId'"),
+          ),
+        ),
+      );
+      expect(components().get('root'), isNull);
+    });
+
+    test(
+        'routes a legacy bare catalogId by the default catalog schema and '
+        'drops it from properties', () {
+      final routing = MessageProcessor<ComponentApi>(
+        catalogs: [
+          alphaCatalog('main'),
+          Catalog<ComponentApi, FunctionImplementation>(
+            id: 'other',
+            protocolVersion: A2uiProtocolVersion.v1_0,
+            components: [
+              ComponentApi(
+                name: 'Alpha',
+                schema: Schema.object(
+                  properties: {
+                    'a': Schema.string(),
+                    'catalogId': Schema.string(),
+                  },
+                  required: ['a'],
+                ),
+              ),
+            ],
+          ),
+        ],
+        defaultVersion: A2uiProtocolVersion.v1_0,
+      );
+      routing.processMessages(
+        AgentToRendererMessagePayload([
+          CreateSurfaceMessage(
+            version: '1.0',
+            surfaceId: 's',
+            catalogId: 'main',
+          ),
+          UpdateComponentsMessage(
+            version: '1.0',
+            surfaceId: 's',
+            components: [
+              {
+                'id': 'root',
+                'component': 'Alpha',
+                'a': 'x',
+                'catalogId': 'other',
+              },
+            ],
+          ),
+        ]),
+      );
+      final ComponentModel root =
+          routing.model.getSurface('s')!.componentsModel.get('root')!;
+      expect(root.catalog, 'other');
+      expect(root.properties, {'a': 'x'});
+    });
+
+    test('treats bare metadata and catalogId as custom properties on v0.9', () {
+      final v09Processor = MessageProcessor<ComponentApi>(
+        catalogs: [
+          Catalog<ComponentApi, FunctionImplementation>(
+            id: 'v09-table',
+            protocolVersion: A2uiProtocolVersion.v0_9,
+            components: [
+              ComponentApi(
+                name: 'GcbpTable',
+                schema: Schema.object(
+                  properties: {
+                    'a': Schema.string(),
+                    'catalogId': Schema.string(),
+                    'metadata': Schema.object(
+                      properties: {'pageNumber': Schema.number()},
+                    ),
+                  },
+                ),
+              ),
+            ],
+          ),
+        ],
+        defaultVersion: A2uiProtocolVersion.v0_9,
+      );
+      v09Processor.processMessages([
+        {
+          'version': 'v0.9',
+          'createSurface': {'surfaceId': 's09', 'catalogId': 'v09-table'},
+        },
+        {
+          'version': 'v0.9',
+          'updateComponents': {
+            'surfaceId': 's09',
+            'components': [
+              {
+                'id': 'root',
+                'component': 'GcbpTable',
+                'a': 'initial',
+                'catalogId': 'custom-source',
+                'metadata': {'pageNumber': 1},
+              },
+            ],
+          },
+        },
+      ]);
+
+      final ComponentModel root =
+          v09Processor.model.getSurface('s09')!.componentsModel.get('root')!;
+      expect(root.catalog, isNull);
+      expect(root.metadata, isNull);
+      expect(root.properties, {
+        'a': 'initial',
+        'catalogId': 'custom-source',
+        'metadata': {'pageNumber': 1},
+      });
+
+      // Partial update on v0.9 keeps custom metadata/catalogId in properties.
+      v09Processor.processMessages([
+        {
+          'version': 'v0.9',
+          'updateComponents': {
+            'surfaceId': 's09',
+            'components': [
+              {
+                'id': 'root',
+                'a': 'updated',
+                'catalogId': 'custom-source-2',
+                'metadata': {'pageNumber': 2},
+              },
+            ],
+          },
+        },
+      ]);
+      expect(root.catalog, isNull);
+      expect(root.metadata, isNull);
+      expect(root.properties, {
+        'a': 'updated',
+        'catalogId': 'custom-source-2',
+        'metadata': {'pageNumber': 2},
+      });
     });
   });
 
@@ -1665,5 +1924,352 @@ void main() {
         resolver?.dispose();
       },
     );
+  });
+
+  group('MessageProcessor unifiedOutbound', () {
+    final Catalog<ComponentApi, FunctionImplementation> v09Catalog =
+        TestCatalog();
+    final Catalog<ComponentApi, FunctionImplementation> v10Catalog =
+        BasicCatalog.v1_0();
+
+    test('defaults to false and does not forward actions to outboundListener',
+        () async {
+      final outbound = <RendererToAgentMessage>[];
+      final actions = <A2uiRendererAction>[];
+      final processor = MessageProcessor<ComponentApi>(
+        catalogs: [v09Catalog, v10Catalog],
+        onAction: actions.add,
+        outboundListener: outbound.add,
+      );
+      addTearDown(processor.dispose);
+      expect(processor.unifiedOutbound, isFalse);
+
+      processor.processMessages({
+        'version': '1.0',
+        'createSurface': {'surfaceId': 's1', 'catalogId': v10Catalog.id},
+      });
+      final SurfaceModel<ComponentApi> surface =
+          processor.model.getSurface('s1')!;
+      await surface.dispatchAction({
+        'event': {
+          'name': 'submit',
+          'context': {'k': 'v'},
+        },
+      }, 'btn-1');
+
+      expect(actions, hasLength(1));
+      expect(actions.single.name, 'submit');
+      expect(outbound, isEmpty);
+
+      // Processing ErrorMessages still reach outboundListener as before.
+      processor.processMessagesWithErrors('not a valid payload');
+      expect(outbound, [isA<ErrorMessage>()]);
+    });
+
+    test('throws ArgumentError when unifiedOutbound is true without listener',
+        () {
+      expect(
+        () => MessageProcessor<ComponentApi>(
+          catalogs: [v09Catalog],
+          unifiedOutbound: true,
+        ),
+        throwsA(
+          isA<ArgumentError>().having(
+            (e) => e.name,
+            'name',
+            'unifiedOutbound',
+          ),
+        ),
+      );
+    });
+
+    test(
+        'forwards one ActionMessage per action on 1.0, v0.9, and v0.9.1 '
+        'surfaces while onAction still fires', () async {
+      final outbound = <RendererToAgentMessage>[];
+      final onActionCalls = <A2uiRendererAction>[];
+      final modelActionCalls = <A2uiRendererAction>[];
+      final processor = MessageProcessor<ComponentApi>(
+        catalogs: [v09Catalog, v10Catalog],
+        onAction: onActionCalls.add,
+        outboundListener: outbound.add,
+        unifiedOutbound: true,
+      );
+      addTearDown(processor.dispose);
+      processor.model.onAction.subscribe(modelActionCalls.add);
+
+      processor.processMessages([
+        {
+          'version': '1.0',
+          'createSurface': {'surfaceId': 's-10', 'catalogId': v10Catalog.id},
+        },
+        {
+          'version': 'v0.9',
+          'createSurface': {'surfaceId': 's-09', 'catalogId': v09Catalog.id},
+        },
+        {
+          'version': 'v0.9.1',
+          'createSurface': {'surfaceId': 's-091', 'catalogId': v09Catalog.id},
+        },
+      ]);
+
+      await processor.model.getSurface('s-10')!.dispatchAction(
+            {
+              'event': {
+                'name': 'submit',
+                'context': {'count': 1},
+                'userMessage': 'Submitted form',
+                'catalogId': v10Catalog.id,
+              },
+            },
+            'btn-10',
+            metadata: {
+              'extensions': {'traceId': 't-1'},
+            },
+          );
+      await processor.model.getSurface('s-09')!.dispatchAction(
+        {
+          'event': {
+            'name': 'cancel',
+            'context': <String, Object?>{},
+          },
+        },
+        'btn-09',
+      );
+      await processor.model.getSurface('s-091')!.dispatchAction(
+        {
+          'event': {
+            'name': 'retry',
+            'context': {'attempt': 2},
+            'catalogId': v09Catalog.id,
+          },
+        },
+        'btn-091',
+      );
+
+      expect(onActionCalls, hasLength(3));
+      expect(modelActionCalls, hasLength(3));
+      expect(outbound, hasLength(3));
+
+      final first = outbound[0] as ActionMessage;
+      expect(first.version, '1.0');
+      expect(first.action, same(onActionCalls[0]));
+      expect(first.toJson(), {
+        'version': '1.0',
+        'action': {
+          'name': 'submit',
+          'surfaceId': 's-10',
+          'sourceComponentId': 'btn-10',
+          'timestamp': first.action.timestamp.toUtc().toIso8601String(),
+          'context': {'count': 1},
+          'userMessage': 'Submitted form',
+          'catalogId': v10Catalog.id,
+          'metadata': {
+            'extensions': {'traceId': 't-1'},
+          },
+        },
+      });
+
+      final second = outbound[1] as ActionMessage;
+      expect(second.version, 'v0.9');
+      expect(second.action, same(onActionCalls[1]));
+      expect(second.toJson(), {
+        'version': 'v0.9',
+        'action': {
+          'name': 'cancel',
+          'surfaceId': 's-09',
+          'sourceComponentId': 'btn-09',
+          'timestamp': second.action.timestamp.toUtc().toIso8601String(),
+          'context': <String, Object?>{},
+        },
+      });
+
+      final third = outbound[2] as ActionMessage;
+      expect(third.version, 'v0.9.1');
+      expect(third.action, same(onActionCalls[2]));
+      expect(third.toJson(), {
+        'version': 'v0.9.1',
+        'action': {
+          'name': 'retry',
+          'surfaceId': 's-091',
+          'sourceComponentId': 'btn-091',
+          'timestamp': third.action.timestamp.toUtc().toIso8601String(),
+          'context': {'attempt': 2},
+          'catalogId': v09Catalog.id,
+        },
+      });
+    });
+
+    test(
+        'falls back to 1.0 when all catalogs are 1.0+ and v0.9 otherwise when '
+        'surface has no version or is no longer in model', () async {
+      final v10Outbound = <RendererToAgentMessage>[];
+      final v10Processor = MessageProcessor<ComponentApi>(
+        catalogs: [v10Catalog],
+        outboundListener: v10Outbound.add,
+        unifiedOutbound: true,
+      );
+      addTearDown(v10Processor.dispose);
+
+      final unversionedV10 = SurfaceModel<ComponentApi>('unversioned-v10');
+      v10Processor.model.addSurface(unversionedV10);
+      await unversionedV10.dispatchAction(
+        {'name': 'ping', 'context': <String, Object?>{}},
+        'c1',
+      );
+      expect((v10Outbound.single as ActionMessage).version, '1.0');
+
+      final v09Outbound = <RendererToAgentMessage>[];
+      late final MessageProcessor<ComponentApi> mixedProcessor;
+      mixedProcessor = MessageProcessor<ComponentApi>(
+        catalogs: [v09Catalog, v10Catalog],
+        onAction: (action) {
+          if (action.surfaceId == 'deleted-on-action') {
+            mixedProcessor.model.deleteSurface(action.surfaceId);
+          }
+        },
+        outboundListener: v09Outbound.add,
+        unifiedOutbound: true,
+      );
+      addTearDown(mixedProcessor.dispose);
+
+      final unversionedMixed = SurfaceModel<ComponentApi>('unversioned-mixed');
+      mixedProcessor.model.addSurface(unversionedMixed);
+      await unversionedMixed.dispatchAction(
+        {'name': 'ping', 'context': <String, Object?>{}},
+        'c1',
+      );
+      expect((v09Outbound.single as ActionMessage).version, 'v0.9');
+
+      // _forwardAction is subscribed before onAction, so when onAction removes
+      // the surface, _forwardAction still resolves the surface protocolVersion.
+      mixedProcessor.processMessages({
+        'version': '1.0',
+        'createSurface': {
+          'surfaceId': 'deleted-on-action',
+          'catalogId': v10Catalog.id,
+        },
+      });
+      final SurfaceModel<ComponentApi> transient =
+          mixedProcessor.model.getSurface('deleted-on-action')!;
+      await transient.dispatchAction(
+        {'name': 'close', 'context': <String, Object?>{}},
+        'c2',
+      );
+      expect(mixedProcessor.model.getSurface('deleted-on-action'), isNull);
+      expect(v09Outbound, hasLength(2));
+      expect((v09Outbound.last as ActionMessage).version, '1.0');
+    });
+
+    test(
+        'swallows synchronous throws and rejected futures from '
+        'outboundListener without breaking onAction subscribers', () async {
+      var mode = 'throw';
+      var listenerCalls = 0;
+      final onActionCalls = <A2uiRendererAction>[];
+      final laterSubscriberCalls = <A2uiRendererAction>[];
+      final processor = MessageProcessor<ComponentApi>(
+        catalogs: [v10Catalog],
+        onAction: onActionCalls.add,
+        outboundListener: (_) {
+          listenerCalls++;
+          if (mode == 'throw') {
+            throw StateError('sync listener failure');
+          }
+          if (mode == 'reject_object') {
+            return Future<Object?>.error(StateError('non-void future failure'));
+          }
+          return Future<void>.error(StateError('async listener failure'));
+        },
+        unifiedOutbound: true,
+      );
+      addTearDown(processor.dispose);
+      processor.model.onAction.subscribe(laterSubscriberCalls.add);
+
+      processor.processMessages({
+        'version': '1.0',
+        'createSurface': {'surfaceId': 's1', 'catalogId': v10Catalog.id},
+      });
+      final SurfaceModel<ComponentApi> surface =
+          processor.model.getSurface('s1')!;
+
+      await surface.dispatchAction(
+        {'name': 'first', 'context': <String, Object?>{}},
+        'btn',
+      );
+      mode = 'reject';
+      await surface.dispatchAction(
+        {'name': 'second', 'context': <String, Object?>{}},
+        'btn',
+      );
+      mode = 'reject_object';
+      await surface.dispatchAction(
+        {'name': 'third', 'context': <String, Object?>{}},
+        'btn',
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(listenerCalls, 3);
+      expect(
+        onActionCalls.map((a) => a.name),
+        ['first', 'second', 'third'],
+      );
+      expect(
+        laterSubscriberCalls.map((a) => a.name),
+        ['first', 'second', 'third'],
+      );
+    });
+
+    test(
+        'normalizes semver surface protocolVersion formats '
+        'with tryParseSemVer', () async {
+      final outbound = <RendererToAgentMessage>[];
+      final processor = MessageProcessor<ComponentApi>(
+        catalogs: [v09Catalog, v10Catalog],
+        outboundListener: outbound.add,
+        unifiedOutbound: true,
+      );
+      addTearDown(processor.dispose);
+
+      final semverSurface =
+          SurfaceModel<ComponentApi>('s-semver', protocolVersion: '0.9.1');
+      processor.model.addSurface(semverSurface);
+      await semverSurface.dispatchAction(
+        {'name': 'ping', 'context': <String, Object?>{}},
+        'btn',
+      );
+
+      expect((outbound.single as ActionMessage).version, 'v0.9.1');
+    });
+
+    test('forwards no ActionMessage or ErrorMessage after dispose', () async {
+      final outbound = <RendererToAgentMessage>[];
+      final processor = MessageProcessor<ComponentApi>(
+        catalogs: [v10Catalog],
+        outboundListener: outbound.add,
+        unifiedOutbound: true,
+      );
+      processor.processMessages({
+        'version': '1.0',
+        'createSurface': {'surfaceId': 's1', 'catalogId': v10Catalog.id},
+      });
+      final SurfaceModel<ComponentApi> surface =
+          processor.model.getSurface('s1')!;
+
+      processor.dispose();
+      await surface.dispatchAction(
+        {'name': 'after-dispose', 'context': <String, Object?>{}},
+        'btn',
+      );
+      processor.processMessagesWithErrors({
+        'version': '1.0',
+        'updateComponents': {
+          'surfaceId': 'missing-after-dispose',
+          'components': <Object?>[],
+        },
+      });
+
+      expect(outbound, isEmpty);
+    });
   });
 }

@@ -1,5 +1,46 @@
 # [a2ui_core](https://pub.dev/packages/a2ui_core) Changelog
 
+## Unreleased
+
+- **Breaking:** (v1_0) Update `ComponentCommon` and `Checkable` schemas, `Catalog.toJson()`, `Catalog.validationSchema`, and `ComponentModel.toJson()` to emit `@catalogId`, `@metadata`, `@accessibility`, and `@checks` on v1.0 surfaces, while `PayloadValidator` and `MessageProcessor` gate component `metadata` and `catalogId` envelope handling to v1.0+ surfaces (so pre-1.0 surfaces treat them as ordinary component properties), dual-read legacy bare `catalogId`, `metadata`, `accessibility`, and `checks` when undeclared as custom properties by the component schema, validate `@metadata.extensions` keys as UAX #31 identifiers, reject `null` `@catalogId` / legacy `catalogId`, and reject components specifying both `@`-prefixed and bare forms of the same mixin ([#1376](https://github.com/a2ui-project/a2ui/issues/1376), [#3466](https://github.com/a2ui-project/a2ui/issues/3466), [#3511](https://github.com/a2ui-project/a2ui/issues/3511), [#4012](https://github.com/a2ui-project/a2ui/issues/4012), [#4037](https://github.com/a2ui-project/a2ui/pull/4037), [#4044](https://github.com/a2ui-project/a2ui/pull/4044)).
+- Added `MessageProcessor.addCatalog`, which adds a catalog to a processor
+  after it is built. `createSurface` messages, renderer function calls and
+  `getRendererCapabilities` see the catalog from then on; surfaces created
+  before the call keep the catalogs they were created with. A catalog whose id
+  the processor already holds is rejected with `A2uiCatalogError`.
+  `MessageProcessor.catalogs` lists the added catalog too, and still cannot
+  be modified ([#3303](https://github.com/a2ui-project/a2ui/issues/3303),
+  [#3304](https://github.com/a2ui-project/a2ui/pull/3304)).
+
+## 0.7.0
+
+- **Breaking:** (v0_9) `MessageProcessor` treats a component's `metadata` key
+  as an ordinary property on v0.9 surfaces, since v0.9 defines no component
+  metadata: it stays in `ComponentModel.properties`, is checked against the
+  component's schema only, and `ComponentModel.metadata` stays null. Before,
+  it was checked against the v1.0 metadata rules and moved out of the
+  properties. To migrate, read `metadata` from `properties` on v0.9
+  surfaces, or move to v1.0 for component metadata
+  ([#4137](https://github.com/a2ui-project/a2ui/issues/4137),
+  [#4140](https://github.com/a2ui-project/a2ui/pull/4140)).
+- `MessageProcessor` takes `unifiedOutbound` (`false` by default). When `true`,
+  `outboundListener` also receives an `ActionMessage` for each action emitted
+  on `model.onAction`, carrying the surface's protocol version; `onAction` and
+  `model.onAction` still fire. Setting `unifiedOutbound: true` without an
+  `outboundListener` throws `ArgumentError`
+  ([#4015](https://github.com/a2ui-project/a2ui/issues/4015),
+  [#4079](https://github.com/a2ui-project/a2ui/pull/4079)).
+- (v1_0) Function calls inside `${...}` template expressions of `formatString`
+  now inherit the `catalogId` that the enclosing `formatString` call resolved
+  to (preserving reserved `@`-prefixed system calls such as `${@index()}` as
+  catalogless), so nested template calls resolve against `formatString`'s
+  catalog on defaultless surfaces and when the surface defines a different
+  default `catalogId`
+  ([#3727](https://github.com/a2ui-project/a2ui/issues/3727),
+  [#4029](https://github.com/a2ui-project/a2ui/pull/4029)).
+- (v1_0) Ignore `$`-prefixed JSON Schema keywords (such as `$comment` and `$defs`) when checking shorthand function parameter map keys against Unicode UAX 31 in `Catalog.fromJson` ([#3831](https://github.com/a2ui-project/a2ui/pull/3831)).
+- (v1_0) The common types `IndexSystemFunction` schema declares `"returnType": "number"`, like catalog functions do ([#3725](https://github.com/a2ui-project/a2ui/issues/3725), [#4025](https://github.com/a2ui-project/a2ui/pull/4025)).
+
 ## 0.6.0
 
 - Rename `Catalog.toLegacyInlineCatalog()` to `Catalog.toV09InlineCatalog()`.
@@ -32,15 +73,6 @@
   false, leaves such calls to the caller
   ([#3534](https://github.com/a2ui-project/a2ui/issues/3534),
   [#4008](https://github.com/a2ui-project/a2ui/pull/4008)).
-- (v1_0) The common types `IndexSystemFunction` schema declares `"returnType": "number"`, like catalog functions do ([#3725](https://github.com/a2ui-project/a2ui/issues/3725), [#4025](https://github.com/a2ui-project/a2ui/pull/4025)).
-- Added `MessageProcessor.addCatalog`, which adds a catalog to a processor
-  after it is built. `createSurface` messages, renderer function calls and
-  `getRendererCapabilities` see the catalog from then on; surfaces created
-  before the call keep the catalogs they were created with. A catalog whose id
-  the processor already holds is rejected with `A2uiCatalogError`.
-  `MessageProcessor.catalogs` lists the added catalog too, and still cannot
-  be modified ([#3303](https://github.com/a2ui-project/a2ui/issues/3303),
-  [#3304](https://github.com/a2ui-project/a2ui/pull/3304)).
 - (v0_9) Restore `listStyle` property to basic catalog `List` component schema ([#3956](https://github.com/a2ui-project/a2ui/pull/3956)).
 - `RpcHandler.dispose` takes an optional reason, which each cancelled call's
   error message names. `SurfaceModel` and `MessageProcessor` take

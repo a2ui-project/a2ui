@@ -188,7 +188,10 @@ To use `statCardComponent`, add it to a catalog and pass that catalog to your re
         provideA2Ui({
           catalogs: [myCatalog],
           useUniversalComponents: true,
-          actionHandler: (action) => console.log('Action:', action),
+          processorOptions: {
+            outboundListener: (message) => console.log('Outbound:', message),
+            unifiedOutbound: true,
+          },
         }),
       ],
     };
@@ -232,8 +235,11 @@ To use `statCardComponent`, add it to a catalog and pass that catalog to your re
     export function App() {
       const processor = useMemo(
         () =>
-          new MessageProcessor<ReactCatalogComponent>([myCatalog], (action) => {
-            console.log('Action:', action);
+          new MessageProcessor<ReactCatalogComponent>([myCatalog], undefined, {
+            outboundListener: (message) => {
+              console.log('Outbound:', message);
+            },
+            unifiedOutbound: true,
           }),
         [],
       );
@@ -285,8 +291,11 @@ To use `statCardComponent`, add it to a catalog and pass that catalog to your re
 
     @customElement('my-app')
     export class MyApp extends LitElement {
-      private readonly processor = new MessageProcessor([myCatalog], (action) => {
-        console.log('Action:', action);
+      private readonly processor = new MessageProcessor([myCatalog], undefined, {
+        outboundListener: (message) => {
+          console.log('Outbound:', message);
+        },
+        unifiedOutbound: true,
       });
 
       @state() private surfaces: SurfaceModel[] = [];

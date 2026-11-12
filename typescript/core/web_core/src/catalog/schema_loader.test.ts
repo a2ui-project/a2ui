@@ -778,8 +778,10 @@ describe('Catalog.fromJson & schema_loader', () => {
     assert.ok(!schema.safeParse({size: true}).success, 'top level beats the local definition');
     assert.deepStrictEqual(Object.keys(schema.shape), [
       'checks',
+      '@checks',
       'accessibility',
-      'metadata',
+      '@accessibility',
+      '@metadata',
       'label',
       'size',
     ]);
@@ -798,12 +800,13 @@ describe('Catalog.fromJson & schema_loader', () => {
     const catalog = Catalog.fromJson(precedenceCatalog);
     const schema = catalog.components.get('Toggle')!.schema as z.ZodObject<z.ZodRawShape>;
     assert.ok(!('catalogId' in schema.shape));
-    assert.ok('metadata' in schema.shape);
+    assert.ok(!('@catalogId' in schema.shape));
+    assert.ok('@metadata' in schema.shape);
     new PayloadValidator(catalog, STRICT_VALIDATION).validateComponent({
       id: 'toggle1',
       component: 'Toggle',
       catalogId: 'https://example.com/precedence.json',
-      metadata: {source: 'test'},
+      metadata: {extensions: {source: 'test'}},
       size: 2,
     });
   });
@@ -1068,5 +1071,84 @@ describe('Catalog.fromJson & schema_loader', () => {
     } finally {
       globalThis.fetch = originalFetch;
     }
+  });
+
+  it('preserves custom checks property on a v1.0 Checkable component that also accepts @checks', () => {
+    const catalog = Catalog.fromJson(
+      {
+        catalogId: 'https://example.com/checkable_custom_checks_v1_0.json',
+        protocolVersion: '1.0',
+        components: {
+          ScoreInput: {
+            type: 'object',
+            allOf: [
+              {$ref: 'common_types.json#/$defs/Checkable'},
+              {
+                type: 'object',
+                properties: {
+                  component: {const: 'ScoreInput'},
+                  checks: {type: 'integer'},
+                },
+                required: ['component', 'checks'],
+              },
+            ],
+          },
+        },
+      },
+      '1.0',
+    );
+    const validator = new PayloadValidator(catalog, STRICT_VALIDATION);
+    validator.validateComponent({
+      id: 'score_1',
+      component: 'ScoreInput',
+      checks: 3,
+      '@checks': [{condition: true, message: 'Must pass'}],
+    });
+  });
+
+  it('omits @-prefixed envelope mixins from pre-1.0 JSON catalog component schemas', () => {
+    const v09Catalog = Catalog.fromJson(
+      {
+        catalogId: 'https://example.com/v09_checkable.json',
+        protocolVersion: '0.9',
+        components: {
+          Field: {
+            type: 'object',
+            allOf: [
+              {$ref: 'common_types.json#/$defs/ComponentCommon'},
+              {$ref: 'common_types.json#/$defs/Checkable'},
+              {
+                type: 'object',
+                properties: {
+                  component: {const: 'Field'},
+                  label: {type: 'string'},
+                },
+                required: ['component', 'label'],
+              },
+            ],
+            unevaluatedProperties: false,
+          },
+        },
+      },
+      '0.9',
+    );
+    const shape = (v09Catalog.components.get('Field')!.schema as z.ZodObject<any>).shape;
+    assert.ok('accessibility' in shape);
+    assert.ok('checks' in shape);
+    assert.ok(!('@accessibility' in shape));
+    assert.ok(!('@metadata' in shape));
+    assert.ok(!('@checks' in shape));
+
+    const v09Validator = new PayloadValidator(v09Catalog, STRICT_VALIDATION);
+    assert.throws(
+      () =>
+        v09Validator.validateComponent({
+          id: 'f1',
+          component: 'Field',
+          label: 'Name',
+          '@checks': [{condition: true, message: 'No v1.0 @checks on v0.9'}],
+        }),
+      A2uiValidationError,
+    );
   });
 });

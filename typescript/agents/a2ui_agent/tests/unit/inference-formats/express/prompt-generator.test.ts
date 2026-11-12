@@ -134,7 +134,7 @@ describe('ExpressPromptGenerator', () => {
         '## Positional Component Signatures\n\n' +
         'Use these exact positional signatures to instantiate components. Do not output property keys:\n' +
         '• TextField(label, value?, placeholder?, checks? (static))\n' +
-        '  - Description: A single line text input.\n\n' +
+        "  - Description: A single line text input. It composes the protocol's Checkable mixin, so its validation checks travel in `@checks`.\n\n" +
         '## Positional Function Signatures\n\n' +
         'Use these exact positional signatures to instantiate check rules or logic functions:\n' +
         '• regex(value, pattern)\n' +
@@ -741,6 +741,53 @@ describe('ExpressPromptGenerator', () => {
       expect(filtered).toContain('## Multiple Catalogs');
       expect(filtered).not.toContain('Only these functions can be called this way');
       expect(filtered).not.toContain('deleteSurface(');
+    });
+
+    it('stamps @catalogId on defaultless v1.0 example components with a custom catalogId property without polluting updateDataModel', () => {
+      const cat1 = catalogFromTestDocument({
+        catalogId: 'https://example.com/cat1.json',
+        protocolVersion: '1.0',
+        components: {
+          CatalogBadge: {
+            type: 'object',
+            properties: {
+              component: {const: 'CatalogBadge'},
+              catalogId: {type: 'string'},
+            },
+            required: ['component', 'catalogId'],
+          },
+        },
+      });
+      const cat2 = loadConformanceCatalog('custom_catalog_v1_0.json');
+      const examples: Record<string, AgentToRendererMessage[]> = {
+        [cat1.id]: [
+          {
+            version: '1.0',
+            updateComponents: {
+              surfaceId: 's_no_create',
+              components: [
+                {
+                  id: 'root',
+                  component: 'CatalogBadge',
+                  catalogId: 'custom-prop-val',
+                },
+              ],
+            },
+          },
+          {
+            version: '1.0',
+            updateDataModel: {
+              surfaceId: 's_no_create',
+              path: '/info',
+              value: {component: 'NotAComponent'},
+            },
+          },
+        ] as unknown as AgentToRendererMessage[],
+      };
+      const snippet = new ExpressPromptGenerator([cat1, cat2], examples).generate();
+      expect(snippet).toContain('root = CatalogBadge("custom-prop-val")');
+      expect(snippet).toContain('$/info = {component: "NotAComponent"}');
+      expect(snippet).not.toContain('@catalogId');
     });
   });
 });

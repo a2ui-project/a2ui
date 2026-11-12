@@ -82,6 +82,7 @@ export 'src/resolution/component_node.dart'
 export 'src/resolution/data_context.dart'
     hide
         createSurfaceDataContext,
+        dataContextWithCallCatalog,
         dataContextWithoutAgentCalls,
         disposeSurfaceAgentCalls;
 export 'src/resolution/generic_binder.dart';

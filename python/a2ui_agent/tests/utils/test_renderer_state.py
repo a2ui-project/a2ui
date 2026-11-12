@@ -471,7 +471,11 @@ def test_a_rollback_restores_the_data_model():
             ]:
                 state.apply({
                     "version": "v0.9",
-                    "updateDataModel": {"surfaceId": "s", "path": path, "value": value},
+                    "updateDataModel": {
+                        "surfaceId": "s",
+                        "path": path,
+                        "value": value,
+                    },
                 })
             state.apply(_update({"id": "x", "component": "Unknown"}))
 
@@ -545,7 +549,7 @@ def test_a_rollback_restores_each_components_own_catalog_on_a_deleted_surface():
                 "surfaceId": "s",
                 "components": [
                     {"id": "root", "component": "Column", "children": ["i"]},
-                    {"id": "i", "component": "Item", "catalogId": "items"},
+                    {"id": "i", "component": "Item", "@catalogId": "items"},
                 ],
             },
         },
