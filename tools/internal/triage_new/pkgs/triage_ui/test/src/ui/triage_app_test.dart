@@ -154,6 +154,7 @@ void main() {
     expect(find.text('Why flagged for triage'), findsOneWidget);
     expect(find.text('Priority is not set.'), findsOneWidget);
     expect(find.text('Set P1 and assign octocat.'), findsOneWidget);
+    expect(find.text('Outdated'), findsNothing);
     expect(find.text('Thanks for the report.'), findsOneWidget);
     // The priority is a segmented button, not a label chip.
     expect(priorityOf(tester), {'P1'});
@@ -824,6 +825,41 @@ void main() {
     await tester.tap(inList('#11 Docs are unclear'));
     await tester.pumpAndSettle();
     expect(tester.getSize(find.byType(ItemInfo).first).width, after);
+  });
+
+  testWidgets('labels an outdated suggestion "Outdated", without a warning', (
+    tester,
+  ) async {
+    github = FakeGitHub([
+      itemNode(
+        12,
+        comments: [
+          commentNode(
+            suggestionComment(
+              'root = TriageSuggestion(summary="""A question.""", '
+              'suggestion="""Answer it.""")',
+            ),
+            at: day(2),
+          ),
+          commentNode('More details.', at: day(3), association: 'NONE'),
+        ],
+      ),
+    ]);
+    controller = TriageController(connect: () async => github.service());
+    await pumpApp(tester, selectFirst: false);
+    controller.select(a2ui(12));
+    await tester.pumpAndSettle();
+
+    final Finder heading = find.ancestor(
+      of: find.text('Suggestion'),
+      matching: find.byType(Wrap),
+    );
+    expect(
+      find.descendant(of: heading.first, matching: find.text('Outdated')),
+      findsOneWidget,
+    );
+    expect(find.byIcon(Icons.warning_amber), findsNothing);
+    expect(find.textContaining('outdated'), findsNothing);
   });
 
   testWidgets('an item without a suggestion starts removing only '

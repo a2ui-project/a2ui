@@ -115,7 +115,7 @@ The triage bot has not commented on a new issue yet, or its comment does not par
 
 ### Check an outdated suggestion
 
-Someone commented on the item after the triage bot did, so the suggestion is [outdated](triage_bot.blueprint.md#current-and-outdated-suggestions). The details say so and link to the item. Ann reads the new comment on GitHub, adjusts the suggestion, and clicks **Apply**.
+Someone commented on the item after the triage bot did, so the suggestion is [outdated](triage_bot.blueprint.md#current-and-outdated-suggestions). In the details, the "Suggestion" heading has a yellow "Outdated" label, as GitHub marks an outdated review comment. Ann opens the item from its title, reads the new comment on GitHub, adjusts the suggestion, and clicks **Apply**.
 
 ### Ask the team
 

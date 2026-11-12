@@ -197,8 +197,9 @@ class _Text extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       spacing: 4,
       children: [
-        Row(
+        Wrap(
           spacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             Text(title, style: Theme.of(context).textTheme.titleSmall),
             ?label,
@@ -217,11 +218,10 @@ class _OutdatedLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool dark = Theme.of(context).brightness == Brightness.dark;
-    final Color yellow = dark ? const Color(0xFFD29922) : const Color(0xFF9A6700);
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final yellow = dark ? const Color(0xFFD29922) : const Color(0xFF9A6700);
     return Tooltip(
-      message:
-          'Something happened on the item after the triage bot commented.',
+      message: 'Something happened on the item after the triage bot commented.',
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: yellow.withValues(alpha: dark ? 0.15 : 0.1),
