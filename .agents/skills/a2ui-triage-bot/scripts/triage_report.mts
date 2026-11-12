@@ -15,19 +15,25 @@
  */
 
 // Writes the triage report: what a person triaged in a2ui-project/a2ui in a
-// period, collected from GitHub, for the team chat. The triage bot runs it.
+// period, collected from GitHub, for the team chat space and the triage log.
+// The triage bot runs it.
 //
 // Usage, from the repository root:
 //
 //   node .agents/skills/a2ui-triage-bot/scripts/triage_report.mts report \
 //     --since <date> [--until <date>] [--login <login>] --out <dir> [--copy]
 //   node .agents/skills/a2ui-triage-bot/scripts/triage_report.mts unsubscribe <dir>/items.json
+//   node .agents/skills/a2ui-triage-bot/scripts/triage_report.mts paste <dir> --to chat|log
 //
 // `report` prints the report as plain text, and writes to <dir>:
 //
 //   report.txt: the report as plain text.
 //   report.html: the report as HTML, where "triage bot" in the last line links
 //     to the triage bot skill.
+//   report.chat.txt: the report as the text of a Google Chat message, where
+//     "triage bot" in the last line links to the skill.
+//   report.log.html: report.html followed by a horizontal line, for the top of
+//     the triage log.
 //   items.json: the items in the report, with the node IDs that `unsubscribe`
 //     takes.
 //
@@ -41,6 +47,13 @@
 //
 // `unsubscribe` unsubscribes that account from the notifications of the items
 // in items.json, as the Unsubscribe button on an item does.
+//
+// `paste` is for an agent without a Google Chat or Google Docs tool. It puts
+// the report on the macOS clipboard in the form for the destination, and opens
+// the destination in the browser for the person to paste it:
+//
+//   chat: report.html, for the go/a2ui-core-working-group chat space.
+//   log: report.log.html, for the go/a2ui-triage-log doc.
 
 import {execFile} from 'node:child_process';
 import {mkdir, readFile, writeFile} from 'node:fs/promises';
@@ -51,6 +64,22 @@ export const OWNER = 'a2ui-project';
 export const REPO = 'a2ui';
 export const SKILL_URL =
   'https://github.com/a2ui-project/a2ui/blob/main/.agents/skills/a2ui-triage-bot/SKILL.md';
+
+/**
+ * Where the triage bot posts the report. The go links resolve only for
+ * Googlers, so the script opens them in the browser and does not read them.
+ */
+export const DESTINATIONS = {
+  chat: {
+    url: 'http://go/a2ui-core-working-group',
+    paste: 'Paste the report into the chat space and send it.',
+  },
+  log: {
+    url: 'http://go/a2ui-triage-log',
+    paste:
+      'Click at the start of the line right after the horizontal line under the header, and paste the report. It ends with its own horizontal line.',
+  },
+} as const;
 
 const NEEDS_TRIAGE = 'status: needs-triage';
 const NEEDS_TEAM_INPUT = 'status: needs-team-input';
@@ -311,19 +340,30 @@ function sections(report: Report): {
   };
 }
 
-/** Renders the report as plain text. */
-export function renderText(report: Report): string {
+/** Renders the report as plain text, with `footer` as the last line. */
+function renderLines(report: Report, footer: string): string {
   const {title, summary, groups} = sections(report);
   const lines = [title, '', ...summary];
   for (const group of groups) {
-    lines.push('', `- ${group.heading}`);
+    lines.push('', group.heading);
     for (const item of group.items) {
       lines.push(`  - ${item.url}`, `    ${item.title}: ${describe(item)}`);
     }
   }
-  lines.push('', `Created by triage bot skill (${SKILL_URL})`);
+  lines.push('', footer);
   return lines.join('\n') + '\n';
 }
+
+/** Renders the report as plain text. */
+export const renderText = (report: Report): string =>
+  renderLines(report, `Created by triage bot skill (${SKILL_URL})`);
+
+/**
+ * Renders the report as the text of a Google Chat message, where
+ * `<url|text>` is a link. Chat links the item URLs by itself.
+ */
+export const renderChat = (report: Report): string =>
+  renderLines(report, `Created by <${SKILL_URL}|triage bot> skill`);
 
 const escapeHtml = (text: string): string =>
   text
@@ -348,6 +388,12 @@ export function renderHtml(report: Report): string {
   parts.push(`<p>Created by ${link(SKILL_URL, 'triage bot')} skill</p>`);
   return `<meta charset="utf-8">\n${parts.join('\n')}\n`;
 }
+
+/**
+ * Renders the report as HTML for the triage log: the report, then a
+ * horizontal line that divides it from the report below it.
+ */
+export const renderLogHtml = (report: Report): string => `${renderHtml(report)}<hr>\n`;
 
 /** The fields of an issue or PR that `itemActions` reads. */
 export const ITEM_FRAGMENT = `
@@ -499,9 +545,23 @@ function run(argv) {
 /** Puts the report files on the macOS clipboard. */
 async function copy(htmlPath: string, textPath: string): Promise<void> {
   if (process.platform !== 'darwin') {
-    throw new Error('--copy works only on macOS. Copy report.html or report.txt yourself.');
+    throw new Error(
+      'Copying works only on macOS. Open the HTML file in a browser, and copy the report from there.',
+    );
   }
   await run('osascript', ['-l', 'JavaScript', '-e', COPY_SCRIPT, htmlPath, textPath]);
+}
+
+/**
+ * Puts the report in `dir` on the clipboard in the form for `to`, opens the
+ * destination in the browser, and prints what to do there.
+ */
+async function paste(dir: string, to: keyof typeof DESTINATIONS): Promise<void> {
+  const html = join(dir, to === 'log' ? 'report.log.html' : 'report.html');
+  await copy(html, join(dir, 'report.txt'));
+  const destination = DESTINATIONS[to];
+  await run('open', [destination.url]);
+  console.log(`Copied the report and opened ${destination.url}.\n${destination.paste}`);
 }
 
 /** An item in items.json. */
@@ -538,7 +598,8 @@ async function unsubscribe(items: ItemRef[]): Promise<void> {
 
 const USAGE = `Usage:
   node .agents/skills/a2ui-triage-bot/scripts/triage_report.mts report --since <date> [--until <date>] [--login <login>] --out <dir> [--copy]
-  node .agents/skills/a2ui-triage-bot/scripts/triage_report.mts unsubscribe <dir>/items.json`;
+  node .agents/skills/a2ui-triage-bot/scripts/triage_report.mts unsubscribe <dir>/items.json
+  node .agents/skills/a2ui-triage-bot/scripts/triage_report.mts paste <dir> --to chat|log`;
 
 async function main(args: string[]): Promise<void> {
   const {values, positionals} = parseArgs({
@@ -550,11 +611,16 @@ async function main(args: string[]): Promise<void> {
       login: {type: 'string'},
       out: {type: 'string'},
       copy: {type: 'boolean', default: false},
+      to: {type: 'string'},
     },
   });
   const [command, file] = positionals;
   if (command === 'unsubscribe' && file) {
     await unsubscribe(JSON.parse(await readFile(file, 'utf8')) as ItemRef[]);
+    return;
+  }
+  if (command === 'paste' && file && (values.to === 'chat' || values.to === 'log')) {
+    await paste(file, values.to);
     return;
   }
   if (command !== 'report' || !values.since || !values.out) {
@@ -574,6 +640,8 @@ async function main(args: string[]): Promise<void> {
   const text = renderText(report);
   await writeFile(textPath, text);
   await writeFile(htmlPath, renderHtml(report));
+  await writeFile(join(values.out, 'report.chat.txt'), renderChat(report));
+  await writeFile(join(values.out, 'report.log.html'), renderLogHtml(report));
   const refs: ItemRef[] = report.items.map(({id, url}) => ({id, url}));
   await writeFile(join(values.out, 'items.json'), JSON.stringify(refs, null, 2) + '\n');
   if (values.copy) await copy(htmlPath, textPath);

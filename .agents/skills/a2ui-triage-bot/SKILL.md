@@ -4,7 +4,8 @@ description: >-
   Drafts triage suggestions for GitHub issues and pull requests in the A2UI
   repository and posts each one as a triage bot comment that the triage UI
   reads, answers team members' requests to the triage bot, and writes the
-  triage report of a period for the team chat. Use when asked to advise on
+  triage report of a period for the team chat space and the triage log. Use
+  when asked to advise on
   triage, to suggest triage for items labeled `status: needs-triage` or
   `status: needs-team-input`, to add or refresh the triage suggestion on
   specific issues or PRs, or to report what someone triaged in a period.
@@ -16,7 +17,7 @@ The triage bot is the triage job that writes triage suggestions (see [Triage job
 
 The triage bot only comments. It never adds or removes labels, assigns people, closes items, or changes milestones: those are the triager's decisions.
 
-The triage bot also writes the [triage report](#triage-report): what a team member triaged in a period, for the team chat.
+The triage bot also writes the [triage report](#triage-report): what a team member triaged in a period, for the team chat space and the triage log.
 
 Before you start, read:
 
@@ -386,7 +387,7 @@ List every item with its outcome and a link: suggestion posted, response posted,
 
 ## Triage report
 
-The triage report says what a team member triaged in a period, so that the team can read it in the team chat. The triager usually asks for it at the end of their triage week, as in "Create the triage report for last week". The report is described in [Triage report](../../../tools/internal/triage_new/blueprints/features/triage_bot.blueprint.md#triage-report).
+The triage report says what a team member triaged in a period, so that the team can read it in the go/a2ui-core-working-group chat space and in the go/a2ui-triage-log doc. The triager usually asks for it at the end of their triage week, as in "Create the triage report for last week". The report is described in [Triage report](../../../tools/internal/triage_new/blueprints/features/triage_bot.blueprint.md#triage-report).
 
 [triage_report.mts](scripts/triage_report.mts) collects the activity from GitHub and writes the report. Do not collect the activity or write the report yourself: GitHub returns stale or incomplete timelines for some queries, and the script works around them and is tested.
 
@@ -399,14 +400,61 @@ The triage report says what a team member triaged in a period, so that the team 
      --since <date> --until <date> --out <scratch>/triage_report --copy
    ```
 
-   The script prints the report as plain text. With `--copy`, it also puts the report on the macOS clipboard, as rich text for apps that paste it, such as the team chat, and as plain text for the rest. In the rich text, "triage bot" in the last line links to this skill. In `--out`, it writes `report.txt`, `report.html` and `items.json`, the items in the report.
+   The script prints the report as plain text. With `--copy`, it also puts the report on the macOS clipboard, as rich text for apps that paste it, such as Google Chat and Google Docs, and as plain text for the rest. In the rich text, "triage bot" in the last line links to this skill. In `--out`, it writes:
 
-4. Show the report in your reply exactly as the script printed it, in a `text` code block, so that it is not rendered as Markdown. Say that it is on the clipboard, ready to paste into the team chat. If `--copy` failed, for example because the computer is not a Mac, say so and give the paths of `report.html` and `report.txt`.
-5. If the report has items and you omitted `--login`, end your reply with this question, exactly: "Do you want me to unsubscribe you from all these items?" Skip the question when `--login` names someone else, since the script would unsubscribe the `gh` account, not them.
-6. If the answer is yes, run:
+   1. `report.txt` and `report.html`: the report as plain text and as HTML.
+   2. `report.chat.txt`: the report as the text of a Google Chat message, where `<url|text>` is a link.
+   3. `report.log.html`: the HTML report followed by a horizontal line, for the triage log.
+   4. `items.json`: the items in the report.
 
-   ```bash
-   node .agents/skills/a2ui-triage-bot/scripts/triage_report.mts unsubscribe <scratch>/triage_report/items.json
+4. Show the report in your reply exactly as the script printed it, in a `text` code block, so that it is not rendered as Markdown. Say that it is on the clipboard. If `--copy` failed, for example because the computer is not a Mac, say so and give the paths of `report.html` and `report.txt`.
+5. End your reply with this question, exactly:
+
+   ```text
+   Do you want me to:
+   1. Unsubscribe you from all these items?
+   2. Post the report to the go/a2ui-core-working-group chat space?
+   3. Add the report to go/a2ui-triage-log?
    ```
 
-   It works like the **Unsubscribe** button on each item: GitHub stops sending notifications about the item, unless someone mentions the person. Report how many items the script unsubscribed from, and the items it failed for, with the errors.
+   Leave out the first option, and number the rest from 1, when the report has no items or `--login` names someone else, since the script would unsubscribe the `gh` account, not them.
+
+6. Do what the triager agrees to, in the order of the options. They may agree to any of them, as in "1 and 3" or "all". Their answer is the approval to post: do not ask again before each step. When you finish, report the outcome of each step.
+
+### Unsubscribe
+
+Run:
+
+```bash
+node .agents/skills/a2ui-triage-bot/scripts/triage_report.mts unsubscribe <scratch>/triage_report/items.json
+```
+
+It works like the **Unsubscribe** button on each item: GitHub stops sending notifications about the item, unless someone mentions the person. Report how many items the script unsubscribed from, and the items it failed for, with the errors.
+
+### Post to the chat space
+
+If you have a Google Chat tool, post the contents of `report.chat.txt` as a new message in the go/a2ui-core-working-group space, from the triager's account. If the tool takes Markdown rather than the Google Chat format, post `report.txt`. If you cannot tell which space go/a2ui-core-working-group is, ask the triager for its URL. Report the link to the message, if the tool returns one.
+
+If you have no Google Chat tool, or it fails, let the triager paste the report:
+
+```bash
+node .agents/skills/a2ui-triage-bot/scripts/triage_report.mts paste <scratch>/triage_report --to chat
+```
+
+It puts the report on the clipboard as rich text, opens the space in the browser, and prints what to do there. Pass that on to the triager. If you also add the report to the triage log by pasting, ask the triager to tell you when they have sent the message, and run the next `paste` only then, since it replaces the clipboard.
+
+### Add to the triage log
+
+go/a2ui-triage-log is a Google Doc. It starts with a header that ends with a horizontal line. The reports follow, newest first, each followed by a horizontal line. A new report goes at the top: right after the header's horizontal line, and before the previous report.
+
+If you have a Google Docs tool that can insert formatted text and a horizontal line at that place, insert the contents of `report.log.html` there, keeping the links. If you cannot tell which doc go/a2ui-triage-log is, ask the triager for its URL. Do not change the header or the earlier reports.
+
+If you have no such tool, or it fails, let the triager paste the report:
+
+```bash
+node .agents/skills/a2ui-triage-bot/scripts/triage_report.mts paste <scratch>/triage_report --to log
+```
+
+It puts the report and its horizontal line on the clipboard as rich text, opens the doc in the browser, and prints where to paste. Pass that on to the triager.
+
+If `paste` fails because the computer is not a Mac, give the triager the path of `report.html` for the chat space or `report.log.html` for the triage log: they can open it in a browser and copy the report from there.

@@ -1066,9 +1066,10 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.textContaining('the agent asks whether to unsubscribe you'),
+      find.textContaining('the agent will ask you whether to'),
       findsOneWidget,
     );
+    expect(find.textContaining('go/a2ui-triage-log'), findsOneWidget);
 
     await tester.tap(find.text('Close'));
     await tester.pumpAndSettle();

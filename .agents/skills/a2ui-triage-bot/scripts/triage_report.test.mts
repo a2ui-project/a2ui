@@ -26,7 +26,9 @@ import {
   itemActions,
   itemsQuery,
   parseDate,
+  renderChat,
   renderHtml,
+  renderLogHtml,
   renderText,
   searchTime,
   SKILL_URL,
@@ -270,19 +272,19 @@ Triaged 4 items: 3 issues and 1 PR.
 Sent 1 issue to the team.
 4 items still need triage.
 
-- Closed: 1 PR
+Closed: 1 PR
   - https://github.com/a2ui-project/a2ui/pull/4065
     Add a Slider to the Lit renderer: closed, commented
 
-- Assigned P3: 1 issue
+Assigned P3: 1 issue
   - https://github.com/a2ui-project/a2ui/issues/4080
     Fix typo in the quickstart: added P3
 
-- Needs team input: 1 issue
+Needs team input: 1 issue
   - https://github.com/a2ui-project/a2ui/issues/4082
     Stream <partial> updates: added status: needs-team-input, commented
 
-- Commented: 1 issue
+Commented: 1 issue
   - https://github.com/a2ui-project/a2ui/issues/4090
     Document the Express format: commented
 
@@ -313,6 +315,22 @@ describe('renderHtml', () => {
       /<a href="https:\/\/github.com\/a2ui-project\/a2ui\/issues\/4082">https:\/\/github.com\/a2ui-project\/a2ui\/issues\/4082<\/a><br>Stream &lt;partial&gt; updates/,
     );
     assert.ok(html.includes(`<p>Created by <a href="${SKILL_URL}">triage bot</a> skill</p>`));
+  });
+});
+
+describe('renderChat', () => {
+  it('renders the text report, with the skill linked in the Google Chat format', () => {
+    const chat = renderChat(REPORT);
+    const text = renderText(REPORT);
+    const body = (report: string) => report.slice(0, report.lastIndexOf('Created by'));
+    assert.equal(body(chat), body(text));
+    assert.ok(chat.endsWith(`\n\nCreated by <${SKILL_URL}|triage bot> skill\n`));
+  });
+});
+
+describe('renderLogHtml', () => {
+  it('ends the HTML report with a horizontal line', () => {
+    assert.equal(renderLogHtml(REPORT), `${renderHtml(REPORT)}<hr>\n`);
   });
 });
 
