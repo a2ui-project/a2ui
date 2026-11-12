@@ -18,15 +18,11 @@ import {describe, it, expect, beforeEach} from 'vitest';
 import React, {createContext, useContext} from 'react';
 import {render, screen, act, fireEvent, within} from '@testing-library/react';
 import {z} from 'zod';
+import {Catalog, ComponentModel, NodeResolver, SurfaceModel, getValue} from '@a2ui/web_core';
 import {
-  Catalog,
-  CommonSchemas,
-  ComponentModel,
-  NodeResolver,
-  SurfaceModel,
   ChildListSchema,
+  CommonSchemas,
   ComponentIdSchema,
-  getValue,
   type A2uiClientAction,
 } from '@a2ui/web_core/v0_9';
 import {
@@ -194,13 +190,14 @@ const RawItemImpl: ReactComponentImplementation = {
 };
 
 /**
- * A child reference typed as a bare string, which is what a catalog gets when
- * it replaces `ComponentIdSchema`'s description instead of using `componentId()`.
- * The resolver cannot identify the property, so the id reaches `buildChild`.
+ * A custom child-referencing property typed as a bare string rather than
+ * `componentId()` (unlike canonical `child`/`children`, custom property names
+ * are not inferred automatically). The resolver cannot identify the property,
+ * so the id reaches `buildChild`.
  */
 const UnmarkedParentImpl = createComponentImplementation(
-  {name: 'UnmarkedParent', schema: z.object({child: z.string().optional()})},
-  ({props, buildChild}) => <div>{props.child ? buildChild(props.child as string) : null}</div>,
+  {name: 'UnmarkedParent', schema: z.object({content: z.string().optional()})},
+  ({props, buildChild}) => <div>{props.content ? buildChild(props.content as string) : null}</div>,
 );
 
 const Theme = createContext('no provider');
@@ -478,7 +475,7 @@ describe('A2uiSurface', () => {
     surface.onError.subscribe(e => {
       errors.push(e as Record<string, unknown>);
     });
-    add(surface, 'root', 'UnmarkedParent', {child: 'kid'});
+    add(surface, 'root', 'UnmarkedParent', {content: 'kid'});
     add(surface, 'kid', 'Text', {text: 'never reached'});
 
     const {container} = render(<A2uiSurface surface={surface} />);
@@ -497,7 +494,7 @@ describe('A2uiSurface', () => {
     surface.onError.subscribe(e => {
       errors.push(e as Record<string, unknown>);
     });
-    add(surface, 'root', 'UnmarkedParent', {child: 'ghost'});
+    add(surface, 'root', 'UnmarkedParent', {content: 'ghost'});
 
     render(<A2uiSurface surface={surface} />);
 
@@ -509,7 +506,7 @@ describe('A2uiSurface', () => {
 
   it('reports unresolved references after render, so error subscribers may set state', async () => {
     const surface = setup();
-    add(surface, 'root', 'UnmarkedParent', {child: 'lost'});
+    add(surface, 'root', 'UnmarkedParent', {content: 'lost'});
     add(surface, 'lost', 'Text', {text: 'x'});
 
     // A subscriber that sets state would trigger React's cannot-update

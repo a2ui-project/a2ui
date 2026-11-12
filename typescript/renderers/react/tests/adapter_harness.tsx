@@ -27,6 +27,7 @@ import {
   Catalog,
   type ComponentNode,
   createFunctionImplementation,
+  type FunctionImplementation,
   isComponentNode,
   MessageProcessor,
   peekValue,
@@ -37,7 +38,7 @@ import {
 import {basicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
 import {basicCatalog as v09BasicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
 import {A2uiClientMessageSchema, CommonSchemas} from '@a2ui/web_core/v0_9';
-import type {A2uiWebComponentElement} from '@a2ui/web_core/v0_9/universal';
+import type {A2uiWebComponentElement} from '@a2ui/web_core/universal';
 import {RendererToAgentMessageSchema} from '@a2ui/web_core/v1_0';
 import {A2uiSurface, createComponentImplementation, type ReactCatalogComponent} from '../src';
 

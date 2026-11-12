@@ -73,6 +73,7 @@ function* extractPointers(
   val: unknown,
   currentPath: string,
   nestedKeys?: ReadonlySet<string>,
+  inArray = false,
 ): Generator<[string, string]> {
   if (typeof val === 'string') {
     yield [val, currentPath];
@@ -80,24 +81,42 @@ function* extractPointers(
     for (let idx = 0; idx < val.length; idx++) {
       const item = val[idx];
       const subPath = `${currentPath}[${idx}]`;
-      yield* extractPointers(item, subPath, nestedKeys);
+      yield* extractPointers(item, subPath, nestedKeys, true);
     }
   } else if (typeof val === 'object' && val !== null) {
     const obj = val as Record<string, unknown>;
+    const isTemplate =
+      Object.hasOwn(obj, 'componentId') &&
+      typeof obj['componentId'] === 'string' &&
+      (Object.hasOwn(obj, 'path') ||
+        Object.hasOwn(obj, '@path') ||
+        Object.hasOwn(obj, 'dataBinding'));
+    const isV08ListWrapper =
+      !inArray &&
+      (Array.isArray(obj['explicitList']) ||
+        (typeof obj['template'] === 'object' && obj['template'] !== null));
     if (
-      'componentId' in obj &&
-      typeof obj.componentId === 'string' &&
-      ('path' in obj || 'dataBinding' in obj)
+      nestedKeys?.size &&
+      (inArray ||
+        (!isTemplate && !isV08ListWrapper) ||
+        Array.from(nestedKeys).some(subKey => Object.hasOwn(obj, subKey)))
     ) {
-      yield [obj.componentId, `${currentPath}.componentId`];
-    } else if (nestedKeys?.size) {
       // The catalog declared exactly which sub-keys carry a child, so sibling
       // properties such as a tab title are not references.
       for (const subKey of nestedKeys) {
-        if (subKey in obj) {
+        if (Object.hasOwn(obj, subKey)) {
           yield* extractPointers(obj[subKey], `${currentPath}.${subKey}`);
         }
       }
+    } else if (isTemplate) {
+      yield [obj['componentId'] as string, `${currentPath}.componentId`];
+    } else if (
+      Object.hasOwn(obj, 'path') ||
+      Object.hasOwn(obj, '@path') ||
+      Object.hasOwn(obj, 'call') ||
+      Object.hasOwn(obj, '@call')
+    ) {
+      return;
     } else {
       for (const [subKey, subVal] of Object.entries(obj)) {
         yield* extractPointers(subVal, `${currentPath}.${subKey}`);
@@ -230,8 +249,11 @@ function traverseRecursionAndPaths(item: unknown, globalDepth: number, funcDepth
     }
 
     const isFunctionCallWrapper =
-      'functionCall' in obj && typeof obj.functionCall === 'object' && obj.functionCall !== null;
-    const isBareFunctionCall = ('call' in obj || '@call' in obj) && 'args' in obj;
+      Object.hasOwn(obj, 'functionCall') &&
+      typeof obj.functionCall === 'object' &&
+      obj.functionCall !== null;
+    const isBareFunctionCall =
+      (Object.hasOwn(obj, 'call') || Object.hasOwn(obj, '@call')) && Object.hasOwn(obj, 'args');
 
     if (isFunctionCallWrapper) {
       if (funcDepth >= MAX_FUNC_CALL_DEPTH) {

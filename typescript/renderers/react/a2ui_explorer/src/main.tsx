@@ -16,7 +16,7 @@
 
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
-import {setMarkdownRenderer} from '@a2ui/web_core/v0_9/basic_catalog';
+import {setMarkdownRenderer} from '@a2ui/web_core/universal';
 import {renderMarkdown} from '@a2ui/markdown-it';
 import './index.css';
 import {App} from './App.tsx';

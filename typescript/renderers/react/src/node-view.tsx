@@ -53,7 +53,7 @@ import {
   type NodeProps,
   type Signal,
   type SurfaceModel,
-} from '@a2ui/web_core/v0_9';
+} from '@a2ui/web_core';
 import {HostOwner, HostRegistry} from './host_registry';
 import {HostedMarkdown} from './markdown_hosts';
 import type {

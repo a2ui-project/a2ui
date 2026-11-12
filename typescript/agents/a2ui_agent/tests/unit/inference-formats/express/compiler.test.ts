@@ -336,16 +336,16 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
   describe('3. Specific error cases (§Wave 2a item 3)', () => {
     it('throws ExpressSyntaxError on lexer error', () => {
       const compiler = new ExpressCompiler([simplifiedCatalog], '1.0');
-      expect(() => compiler.compile('root = @Text("Hello")')).toThrow(ExpressSyntaxError);
+      expect(() => compiler.compile('root = ^Text("Hello")')).toThrow(ExpressSyntaxError);
       try {
-        compiler.compile('root = @Text("Hello")');
+        compiler.compile('root = ^Text("Hello")');
       } catch (err: unknown) {
         expect(err).toBeInstanceOf(ExpressSyntaxError);
         const synErr = err as ExpressSyntaxError;
         expect(synErr.isLexer).toBe(true);
         expect(synErr.line).toBe(1);
         expect(synErr.column).toBe(7);
-        expect(synErr.message).toContain("token recognition error at: '@'");
+        expect(synErr.message).toContain("token recognition error at: '^'");
       }
     });
 
@@ -469,9 +469,9 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       const compiler = new ExpressCompiler([basicCatalogV10], '1.0');
       const [root] = createSurfaceComponents(
         compiler.compile('root = TextField("L", {"@path": "/x"}, ?required)'),
-      ) as Array<{checks: Array<{condition: {args: Record<string, unknown>}}>}>;
+      ) as Array<{'@checks': Array<{condition: {args: Record<string, unknown>}}>}>;
 
-      expect(root.checks[0].condition.args).toEqual({});
+      expect(root['@checks'][0].condition.args).toEqual({});
     });
   });
 
@@ -833,6 +833,14 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       expect(() => new ExpressCompiler(basicCatalogV09, '1.0')).toThrow(A2uiCatalogError);
     });
 
+    it('names a per-call version in a system function error', () => {
+      const compiler = new ExpressCompiler(basicCatalogV09);
+      const dsl = 'root = List(_template($/items, itemRow))\nitemRow = Text(@index())';
+      expect(() => compiler.compile(dsl, 's', true, 'v0.9.1')).toThrow(
+        /Unknown system function '@index' in A2UI v0\.9\.1\. System functions: none\./,
+      );
+    });
+
     it('rejects a per-call v1.0 version for a v0.9 catalog', () => {
       const compiler = new ExpressCompiler(basicCatalogV09);
       expect(() => compiler.compile('root = Text("Hi")', 's', true, '1.0')).toThrow(
@@ -897,26 +905,26 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
               {
                 id: 'root',
                 component: 'Column',
-                catalogId: simplifiedCatalog.id,
+                '@catalogId': simplifiedCatalog.id,
                 children: ['g', 'f'],
               },
               {
                 id: 'g',
                 component: 'Gauge',
-                catalogId: customCatalog.id,
+                '@catalogId': customCatalog.id,
                 value: 0.75,
               },
               {
                 id: 'f',
                 component: 'TextField',
-                catalogId: formsCatalog.id,
+                '@catalogId': formsCatalog.id,
                 label: {
                   '@call': 'formatString',
                   catalogId: simplifiedCatalog.id,
                   args: {value: 'Zip'},
                 },
                 value: {'@path': '/zip'},
-                checks: [
+                '@checks': [
                   {
                     condition: {
                       '@call': 'regex',
@@ -950,13 +958,13 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
               {
                 id: 'root',
                 component: 'Column',
-                catalogId: simplifiedCatalog.id,
+                '@catalogId': simplifiedCatalog.id,
                 children: ['t1', 't2', 'tf'],
               },
               {
                 id: 't1',
                 component: 'Text',
-                catalogId: simplifiedCatalog.id,
+                '@catalogId': simplifiedCatalog.id,
                 text: {
                   '@call': 'formatString',
                   catalogId: simplifiedCatalog.id,
@@ -966,7 +974,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
               {
                 id: 't2',
                 component: 'Text',
-                catalogId: 'test/labels',
+                '@catalogId': 'test/labels',
                 label: {
                   '@call': 'formatString',
                   catalogId: 'test/labels',
@@ -976,10 +984,10 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
               {
                 id: 'tf',
                 component: 'TextField',
-                catalogId: formsCatalog.id,
+                '@catalogId': formsCatalog.id,
                 label: 'Name',
                 value: {'@path': '/name'},
-                checks: [
+                '@checks': [
                   {
                     condition: {
                       '@call': 'required',
@@ -1129,7 +1137,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
               {
                 id: 'root',
                 component: 'Chart',
-                catalogId: customCatalog.id,
+                '@catalogId': customCatalog.id,
                 values: [1, 2],
                 caption: {
                   '@call': 'formatString',
@@ -1249,7 +1257,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
                 id: 'root',
                 component: 'Text',
                 text: 'Hello',
-                metadata: {extensions: {trace: {spanId: '1'}}},
+                '@metadata': {extensions: {trace: {spanId: '1'}}},
               },
             ],
           },

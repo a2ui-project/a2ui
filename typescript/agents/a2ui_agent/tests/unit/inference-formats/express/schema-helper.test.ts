@@ -112,7 +112,7 @@ function declaredComponent(doc: Schema, commonDefs: Record<string, Schema>, name
   const commonCheckLists = common.flatMap(defName =>
     Object.entries((commonDefs[defName]?.properties ?? {}) as Record<string, Schema>)
       .filter(([, prop]) => isCheckRuleList(prop))
-      .map(([propName]) => propName),
+      .map(([propName]) => propName.replace(/^@/, '')),
   );
   const properties = [
     ...new Set([
@@ -647,6 +647,112 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
       expect(helper.getComponentProperties('Text')).toEqual(
         helperV09.getComponentProperties('Text'),
       );
+    });
+
+    it('filters @-prefixed envelope properties while preserving custom envelope-named properties', () => {
+      const doc: Record<string, unknown> = {
+        catalogId: 'test_envelope',
+        protocolVersion: '1.0',
+        components: {
+          AtInline: {
+            type: 'object',
+            properties: {
+              component: {const: 'AtInline'},
+              label: {type: 'string'},
+              '@catalogId': {type: 'string'},
+              '@accessibility': {$ref: 'common_types.json#/$defs/AccessibilityAttributes'},
+              '@metadata': {type: 'object'},
+              '@checks': {
+                type: 'array',
+                items: {$ref: 'common_types.json#/$defs/CheckRule'},
+              },
+            },
+            required: ['component'],
+          },
+          BareChecks: {
+            type: 'object',
+            properties: {
+              component: {const: 'BareChecks'},
+              checks: {
+                type: 'array',
+                items: {$ref: 'common_types.json#/$defs/CheckRule'},
+              },
+              label: {type: 'string'},
+            },
+            required: ['component'],
+          },
+          Custom: {
+            type: 'object',
+            properties: {
+              component: {const: 'Custom'},
+              metadata: {type: 'string'},
+              accessibility: {type: 'boolean'},
+              checks: {type: 'integer'},
+              catalogId: {type: 'string'},
+            },
+            required: ['component'],
+          },
+        },
+      };
+      const mockCatalog = {
+        id: 'test_envelope',
+        protocolVersion: '1.0',
+        components: new Map([
+          ['AtInline', {name: 'AtInline'}],
+          ['BareChecks', {name: 'BareChecks'}],
+          ['Custom', {name: 'Custom'}],
+        ]),
+        functions: new Map(),
+        toJson: () => doc,
+      } as unknown as ReturnType<typeof Catalog.fromJson>;
+      const helper = new CatalogSchemaHelper(mockCatalog, '1.0');
+
+      expect(helper.getComponentProperties('AtInline')).toEqual(['label', 'checks']);
+      expect(helper.isCheckable('AtInline')).toBe(true);
+      expect([...helper.getCustomEnvelopeProperties('AtInline')]).toEqual([]);
+
+      expect(helper.getComponentProperties('BareChecks')).toEqual(['label', 'checks']);
+      expect(helper.isCheckable('BareChecks')).toBe(true);
+      expect([...helper.getCustomEnvelopeProperties('BareChecks')]).toEqual([]);
+
+      expect(helper.getComponentProperties('Custom')).toEqual([
+        'metadata',
+        'accessibility',
+        'checks',
+        'catalogId',
+      ]);
+      expect(helper.isCheckable('Custom')).toBe(false);
+      expect(helper.getCustomEnvelopeProperties('Custom')).toEqual(
+        new Set(['metadata', 'accessibility', 'checks', 'catalogId']),
+      );
+    });
+
+    it('preserves a custom checks property on a v1.0 Checkable component', () => {
+      const cat = Catalog.fromJson({
+        catalogId: 'test_checkable_custom_checks',
+        protocolVersion: '1.0',
+        components: {
+          ScoreInput: {
+            type: 'object',
+            allOf: [
+              {$ref: 'common_types.json#/$defs/Checkable'},
+              {
+                type: 'object',
+                properties: {
+                  component: {const: 'ScoreInput'},
+                  checks: {type: 'integer'},
+                  label: {type: 'string'},
+                },
+                required: ['component', 'checks'],
+              },
+            ],
+          },
+        },
+      });
+      const helper = new CatalogSchemaHelper(cat, '1.0');
+      expect(helper.isCheckable('ScoreInput')).toBe(true);
+      expect(helper.getCustomEnvelopeProperties('ScoreInput').has('checks')).toBe(true);
+      expect(helper.getComponentProperties('ScoreInput')).toEqual(['checks', 'label']);
     });
   });
 });

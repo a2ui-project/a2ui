@@ -205,9 +205,9 @@ export class SurfaceModel<
   /**
    * Protocol version this surface speaks.
    *
-   * Defaults to the default catalog's version. A surface without a default
-   * catalog (allowed from v1.0) takes it from the `protocolVersion`
-   * constructor argument instead. Stored in the canonical wire form used by
+   * Taken from the `protocolVersion` constructor argument when provided (for
+   * example from a `createSurface` message's version), falling back to the
+   * default catalog's version. Stored in the canonical wire form used by
    * messages (for example `'1.0'` or `'v0.9'`), whichever form it was given in.
    */
   readonly protocolVersion: string | undefined;
@@ -312,9 +312,9 @@ export class SurfaceModel<
    *   full ownership of its lifecycle and will dispose it when dispose() is called.
    * @param rootId Identifier of the root component on this surface (defaults to `'root'`).
    * @param metadata Optional surface-level metadata for vendor extensions.
-   * @param protocolVersion Protocol version of the surface. Defaults to the
-   *   default catalog's version; surfaces without a default catalog pass it
-   *   explicitly.
+   * @param protocolVersion Protocol version of the surface. Takes precedence
+   *   over the default catalog's version when provided, falling back to the
+   *   default catalog's version when omitted.
    * @param maxAgentCallCacheEntries The most settled agent function answers
    *   to cache (256 by default). See {@link maxAgentCallCacheEntries}.
    * @throws {RangeError} If `maxAgentCallCacheEntries` isn't a positive integer.
@@ -387,7 +387,7 @@ export class SurfaceModel<
         typeof availableCatalogsOrTheme === 'object' &&
         !Array.isArray(availableCatalogsOrTheme)
       ) {
-        // Legacy v0.9 signature:
+        // Pre-1.0 (v0.9) signature:
         // `new SurfaceModel(id, catalog, theme, sendDataModel?, dataModel?)`.
         // A plain object in the third slot is the theme of a pre-1.0 caller,
         // which had no catalogs to pass here, so the arguments after it

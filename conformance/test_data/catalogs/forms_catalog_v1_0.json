@@ -8,18 +8,20 @@
   "components": {
     "TextField": {
       "type": "object",
-      "description": "A single line text input.",
-      "properties": {
-        "component": { "const": "TextField" },
-        "label": { "$ref": "common_types.json#/$defs/DynamicString" },
-        "value": { "$ref": "common_types.json#/$defs/DataBinding" },
-        "placeholder": { "$ref": "common_types.json#/$defs/DynamicString" },
-        "checks": {
-          "type": "array",
-          "items": { "$ref": "common_types.json#/$defs/CheckRule" }
+      "description": "A single line text input. It composes the protocol's Checkable mixin, so its validation checks travel in `@checks`.",
+      "allOf": [
+        { "$ref": "common_types.json#/$defs/Checkable" },
+        {
+          "type": "object",
+          "properties": {
+            "component": { "const": "TextField" },
+            "label": { "$ref": "common_types.json#/$defs/DynamicString" },
+            "value": { "$ref": "common_types.json#/$defs/DataBinding" },
+            "placeholder": { "$ref": "common_types.json#/$defs/DynamicString" }
+          },
+          "required": ["component", "label"]
         }
-      },
-      "required": ["component", "label"]
+      ]
     }
   },
   "functions": {
