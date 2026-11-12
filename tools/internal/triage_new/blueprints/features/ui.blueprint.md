@@ -19,7 +19,7 @@ The triager can drag the divider between the items and the details to resize the
 ### Header
 
 1. The hamburger menu, with **Refresh** and **Session report**.
-2. The number of items that need triage.
+2. How many items of the queue the triager handled, out of all of them, as in "5/45". A handled item is one whose suggestion the triager applied, including the items sent to the team.
 
 ### Items
 
@@ -29,20 +29,20 @@ The list of items holds the issues and PRs of [`a2ui-project/a2ui`](https://gith
 2. **Needs team input**: open items with `status: needs-team-input`.
 3. **Not in the queue**: items that the triager opened from a [suggestion comment](triage_bot.blueprint.md#the-suggestion-comment) or by URL, and that are in neither group above.
 
-The groups are set when the items load. An item that the triager sends to the team in this session stays in its group, and also shows in **Needs team input**, so it is listed twice until a refresh. The triager selects such an item in one of its groups, and only that copy shows as selected. The next item after **Apply** or **Needs team input** is the next one in that group that the triager has not handled yet, and after the end of the group, the next one in the groups below.
+The groups are set when the items load. An item that the triager adds `status: needs-team-input` to in this session stays in its group, and also shows in **Needs team input**, so it is listed twice until a refresh. The triager selects such an item in one of its groups, and only that copy shows as selected. The next item after **Apply** is the next one in that group that the triager has not handled yet, and after the end of the group, the next one in the groups below.
 
 An item in `flutter/genui` shows "genui" before its number, as in "genui #12", because the two repositories number their items separately. The tool triages it as an item in `a2ui-project/a2ui`, except that its changes go to `flutter/genui`, and its label, assignee and milestone choices are those of `flutter/genui`. The triage bot comments only on `a2ui-project/a2ui`, so items in `flutter/genui` have no suggestion.
 
 The groups list issues with open PRs first, then issues without open PRs, then PRs with linked issues, then PRs without linked issues. Each of these lists starts with the items that have a suggestion, current or outdated, and then the items without one. Within each of these, the least recently updated item comes first.
 
-Each group has a subgroup for each type of item it has. An open PR of an issue is any open PR linked to close the issue, whoever opened it. Closed and merged PRs do not count. The groups and the subgroups start collapsed. When the tool selects an item itself, such as an item opened from its suggestion comment or the next item after **Apply**, the list expands the item's group and subgroup, and scrolls to the item.
+Each group and subgroup shows how many of its items the triager handled, out of all of them, as in "New (5/45)". Each group has a subgroup for each type of item it has. An open PR of an issue is any open PR linked to close the issue, whoever opened it. Closed and merged PRs do not count. The groups and the subgroups start collapsed. When the tool selects an item itself, such as an item opened from its suggestion comment or the next item after **Apply**, the list expands the item's group and subgroup, and scrolls to the item.
 
 An item's flags show:
 
 1. Whether it has a suggestion, and whether the suggestion is [current or outdated](triage_bot.blueprint.md#current-and-outdated-suggestions). A suggestion comment that does not parse counts as no suggestion.
 2. Its linked PRs, for an issue, and its linked issues, for a PR.
 3. `status: needs-team-input`.
-4. Whether the triager has applied its suggestion or sent it to the team in this session. A sent item shows a team icon in both of its groups.
+4. Whether the triager has applied its suggestion in this session. An item whose applied suggestion adds `status: needs-team-input` shows a team icon instead, in both of its groups. While **Apply** is applying the item, a spinner shows in that place.
 
 Issues are green and PRs are orange, in every group. Each type of item has its own icon:
 
@@ -58,11 +58,11 @@ Tabs at the top: one for the selected item, and one for each linked PR or issue,
 Each tab shows its item in two columns, on the page background, without a card frame:
 
 1. On the left, what the triager should know about the item: its title, age, author, labels and assignees, notices about its state, the triage bot's `summary`, `reason` and `suggestion`, the comment for the team, and the related items.
-2. On the right, two tabs:
+2. On the right, two tabs, and **Apply** below them:
    - **Edit**: the rest of the [editable suggestion](#editable-suggestion), and **Revert**, which undoes the triager's changes to this item's suggestion. **Revert** is enabled when the suggestion has changes. If the last **Apply** of the item failed, the tab shows which changes it made and which failed.
-   - **Log**: what the tool did to the item in this session, newest first, each with its time. For each **Apply** and **Needs team input**, the log lists every change in order, whether it was made, skipped, failed or not tried, why it failed, and the full text of the reply or comment it posted. It also says when a refresh found that the item changed on GitHub and reset its suggestion. The tab shows how many entries the log has, as in "Log (2)".
+   - **Log**: what the tool did to the item in this session, newest first, each with its time. For each **Apply**, the log lists every change in order, whether it was made, skipped, failed or not tried, why it failed, and the full text of the reply it posted. It also says when a refresh found that the item changed on GitHub and reset its suggestion. The tab shows how many entries the log has, as in "Log (2)".
 
-Below the tabs are the buttons, which act on all the items in the tabs together.
+The triager can drag the divider between the columns to resize them. Every tab and item keeps the new widths.
 
 Nothing is selected when the tool starts, unless it starts with an item from a suggestion comment. Clicking the selected item again deselects it.
 
@@ -70,7 +70,7 @@ Nothing is selected when the tool starts, unless it starts with an item from a s
 
 The editable suggestion is the triage UI's implementation of the [`TriageSuggestion`](triage_bot.blueprint.md#the-triagesuggestion-component) A2UI component. It renders the component from the item's latest suggestion comment, or an empty one when the item has no suggestion.
 
-The `summary`, the `reason` and the `suggestion` are shown as text in the left column, with each URL in them as a link that opens in the browser. Below them is the latest comment for the team, if the item has one: a comment by a team member that starts with `**From triager for team discussion:**`, as **Needs team input** posts it. It is shown the same way, without the heading, under "From @login for team discussion", so the team reads the triager's question together with the triage bot's suggestion. The triager can change the other properties: the reply, how to close the item, the labels and the assignees. The triager also sets the item's priority, and its milestone, which the triage bot does not suggest.
+The `summary`, the `reason` and the `suggestion` are shown as text in the left column, with each URL in them as a link that opens in the browser. Below them is the latest comment for the team, if the item has one: a comment by a team member that starts with `**From triager for team discussion:**`, as [triage.md](../../../../../docs/contributing/triage/triage.md#second-line-triage-weekly-by-triager) asks the triager to write when they add `status: needs-team-input`. It is shown the same way, without the heading, under "From @login for team discussion", so the team reads the triager's question together with the triage bot's suggestion. The triager can change the other properties: the reply, how to close the item, the labels and the assignees. The triager also sets the item's priority, and its milestone, which the triage bot does not suggest.
 
 1. The priority is a segmented button with `P0` to `P3`, without a field frame, with none or one of them selected. Selecting a priority adds its label and removes the item's other priority labels. Clicking the selected priority again removes them all. The other fields leave out the priority labels.
 2. The triager checks the labels, people and milestone to add in a dropdown: the repository's labels, the people who can be assigned, and its open milestones. An item has at most one milestone, so checking one in its dropdown unchecks the other. The dropdown lists the checked options first. A dropdown with more than 7 options has a search field at the top.
@@ -78,10 +78,7 @@ The `summary`, the `reason` and the `suggestion` are shown as text in the left c
 
 Labels have their colors from the repository, as on GitHub. The related issues and PRs are links, and the link to a closed item says "(closed)", or "(merged)" for a merged PR. Every link outside that text, and every button that opens a link, has a small **Copy link** button on its right.
 
-The buttons below the tabs:
-
-1. **Apply** applies the suggestion of each item in the tabs to it on GitHub, skipping the suggestions that change nothing. If an item has `status: needs-team-input` and its suggestion does not add it, the tool also removes that label, as [triage.md](../../../../../docs/contributing/triage/triage.md#second-line-triage-weekly-by-triager) asks once the item is triaged.
-2. **Needs team input** adds `status: needs-team-input` to the selected item and to the linked items that need triage, the ones that do not have the label yet, and posts the triager's comment on each, if they write one, under the heading `**From triager for team discussion:**` and a blank line. It does not apply the suggestions, so the items stay open even if a tab closes them, and the replies, labels and assignees in the tabs are not changed. The button's tooltip says so. The button is shown only when one of these items does not have the label.
+**Apply**, in the right column of every tab, applies the suggestion of each item in the tabs to it on GitHub, skipping the suggestions that change nothing. If an item has `status: needs-team-input` and its suggestion does not add it, the tool also removes that label, as [triage.md](../../../../../docs/contributing/triage/triage.md#second-line-triage-weekly-by-triager) asks once the item is triaged. `status: needs-team-input` is an ordinary label otherwise: the triager adds it with the other labels, and **Apply** adds it.
 
 ## CUJ
 
@@ -90,7 +87,7 @@ Ann is this week's triager.
 ### Go through the queue
 
 1. Ann wants to triage GitHub items and opens the tool from VS Code, with the `triage_ui` launch configuration.
-2. The header shows how many items need triage. The list on the left shows the **New** group, then the **Needs team input** group.
+2. The header shows how many items Ann has handled, out of all of them: "0/45". The list on the left shows the **New** group, then the **Needs team input** group.
 3. Ann selects the first item in **New**. The details show its suggestion, with a tab for it and for each linked item that needs triage.
 4. Ann reads the summary, why the item is flagged and the suggestion, changes what to apply if needed, and clicks **Apply**.
 5. The tool applies the suggestion to the item on GitHub, marks the item as applied in the list, and selects the next item.
@@ -122,7 +119,7 @@ Someone commented on the item after the triage bot did, so the suggestion is [ou
 
 ### Ask the team
 
-Ann cannot triage an item in a couple of minutes, or the suggestion says that the triage bot could not decide. Ann clicks **Needs team input** and writes a comment for the team. The tool adds `status: needs-team-input`, posts the comment under "From triager for team discussion", and adds the item to the **Needs team input** group. The item also stays in its own group, with a team icon. It stays open, even if its suggestion closes it.
+Ann cannot triage an item in a couple of minutes, or the suggestion says that the triage bot could not decide. Ann adds `status: needs-team-input` to the labels, leaves out what the team should decide, writes a reply for the team that starts with `**From triager for team discussion:**`, and clicks **Apply**. The tool adds the label, posts the reply, and adds the item to the **Needs team input** group. The item also stays in its own group, with a team icon.
 
 ### Triage with the team
 
@@ -154,7 +151,7 @@ While Ann works, a new issue arrives, and a team member triages another item on 
 Ann wants to tell the team what was triaged.
 
 1. Ann selects **Session report** in the hamburger menu.
-2. A dialog shows the report as text. It starts with the numbers: how many items Ann triaged and how many of them were issues and PRs, how many items Ann sent to the team, and how many items still need triage. Groups follow, by what Ann did: **Closed**, **Assigned P0** to **Assigned P3**, **Assigned for triage**, **Needs team input**, and **Updated** for the rest. Each group lists its items, with each item's URL, title and what Ann did.
+2. A dialog shows the report as text. It starts with the numbers: how many items Ann triaged and how many of them were issues and PRs, how many items Ann sent to the team by adding `status: needs-team-input`, and how many items still need triage. Groups follow, by what Ann did: **Closed**, **Assigned P0** to **Assigned P3**, **Assigned for triage**, **Needs team input**, and **Updated** for the rest. Each group lists its items, with each item's URL, title and what Ann did.
 3. Ann clicks **Copy** and pastes the report into the team chat.
 
 For example:
@@ -178,7 +175,7 @@ Sent 1 issue to the team.
 
 - Needs team input: 1 issue
   - https://github.com/a2ui-project/a2ui/issues/4082
-    Stream partial updates to the Angular renderer: added status: needs-team-input, commented
+    Stream partial updates to the Angular renderer: added status: needs-team-input, replied
 ```
 
-If Ann closes the tool after triaging items or sending them to the team, but without copying the report, the tool shows the report first, with two buttons: **Copy and close** and **Close**.
+If Ann closes the tool after applying suggestions, but without copying the report, the tool shows the report first, with two buttons: **Copy and close** and **Close**.

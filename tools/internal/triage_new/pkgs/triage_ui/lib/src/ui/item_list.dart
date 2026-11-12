@@ -122,7 +122,7 @@ class _ItemListState extends State<ItemList> {
           for (final (ItemGroup group, String title, List<TriageItem> items)
               in sections) ...[
             _GroupHeader(
-              '$title (${items.length})',
+              '$title (${_progress(controller, items)})',
               expanded: _expanded.contains(title),
               onTap: () => setState(() {
                 if (!_expanded.remove(title)) _expanded.add(title);
@@ -162,7 +162,7 @@ class _ItemListState extends State<ItemList> {
           ItemKind.issueWithoutPrs => 'Issues without open PRs',
           ItemKind.prWithIssues => 'PRs with issues',
           ItemKind.prWithoutIssues => 'PRs without issues',
-        }} (${items.length})',
+        }} (${_progress(TriageScope.of(context), items)})',
         expanded: expanded,
         indent: 24,
         icon: Icon(icon, size: 18, color: color),
@@ -181,6 +181,15 @@ class _ItemListState extends State<ItemList> {
           ),
     ];
   }
+}
+
+/// How many of [items] the triager handled, out of all of them, as in
+/// "5/45".
+String _progress(TriageController controller, List<TriageItem> items) {
+  final int done = items
+      .where((i) => controller.session.isHandled(i.ref))
+      .length;
+  return '$done/${items.length}';
 }
 
 /// The key of the subgroup of [kind] in the group [title], in
@@ -303,7 +312,18 @@ class _ItemTile extends StatelessWidget {
           ],
         ),
       ),
-      trailing: applied
+      trailing: controller.isApplying(item.ref)
+          ? const SizedBox.square(
+              dimension: 24,
+              child: Padding(
+                padding: EdgeInsets.all(2),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  semanticsLabel: 'Applying',
+                ),
+              ),
+            )
+          : applied
           ? Icon(
               Icons.check_circle,
               color: theme.colorScheme.primary,

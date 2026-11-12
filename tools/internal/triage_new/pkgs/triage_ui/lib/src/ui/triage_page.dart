@@ -17,6 +17,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import '../model/triage_controller.dart';
+import 'column_divider.dart';
 import 'item_details.dart';
 import 'item_list.dart';
 import 'session_report_dialog.dart';
@@ -67,7 +68,8 @@ class _TriagePageState extends State<TriagePage> {
   Widget build(BuildContext context) {
     final TriageController controller = TriageScope.of(context);
     final String? error = controller.error;
-    final int remaining = controller.remaining;
+    final int total = controller.queueLength;
+    final int done = total - controller.remaining;
     // Every text on the page can be selected and copied.
     return SelectionArea(
       child: Scaffold(
@@ -108,9 +110,11 @@ class _TriagePageState extends State<TriagePage> {
             if (controller.isConnected)
               Padding(
                 padding: const EdgeInsets.only(right: 24),
-                child: Text(
-                  '$remaining ${remaining == 1 ? 'item needs' : 'items need'} '
-                  'triage',
+                child: Tooltip(
+                  message:
+                      '$done of the $total items in the queue are triaged or '
+                      'sent to the team',
+                  child: Text('$done/$total'),
                 ),
               ),
           ],
@@ -140,12 +144,9 @@ class _TriagePageState extends State<TriagePage> {
               child: controller.isConnected
                   ? LayoutBuilder(
                       builder: (context, constraints) {
-                        final double width = _listWidth.clamp(
-                          _minColumnWidth,
-                          (constraints.maxWidth - _minColumnWidth).clamp(
-                            _minColumnWidth,
-                            double.infinity,
-                          ),
+                        final double width = clampColumnWidth(
+                          _listWidth,
+                          constraints.maxWidth,
                         );
                         return Row(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -158,7 +159,8 @@ class _TriagePageState extends State<TriagePage> {
                               width: width,
                               child: const SelectionArea(child: ItemList()),
                             ),
-                            _ColumnDivider(
+                            ColumnDivider(
+                              label: 'Resize the item list',
                               onDrag: (double delta) =>
                                   setState(() => _listWidth = width + delta),
                             ),
@@ -193,32 +195,4 @@ class _TriagePageState extends State<TriagePage> {
       ),
     );
   }
-}
-
-/// The narrowest that the item list and the details can be.
-const double _minColumnWidth = 240;
-
-/// The divider between the item list and the details, which the triager
-/// drags to resize them.
-class _ColumnDivider extends StatelessWidget {
-  const _ColumnDivider({required this.onDrag});
-
-  /// Called with how far the divider moved to the right.
-  final void Function(double delta) onDrag;
-
-  @override
-  Widget build(BuildContext context) => Semantics(
-    label: 'Resize the item list',
-    child: MouseRegion(
-      cursor: SystemMouseCursors.resizeColumn,
-      child: GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onHorizontalDragUpdate: (DragUpdateDetails d) => onDrag(d.delta.dx),
-        child: const SizedBox(
-          width: 9,
-          child: VerticalDivider(width: 9, thickness: 1),
-        ),
-      ),
-    ),
-  );
 }

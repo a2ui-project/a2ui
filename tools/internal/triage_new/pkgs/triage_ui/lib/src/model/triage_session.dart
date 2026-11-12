@@ -31,9 +31,8 @@ final class AppliedItem {
   final TriageSuggestion suggestion;
   final MilestoneChange milestone;
 
-  /// Whether the triager sent the item to the team: added
-  /// `status: needs-team-input` with the **Needs team input** button, or
-  /// with a suggestion that adds the label.
+  /// Whether the triager sent the item to the team: applied a suggestion
+  /// that adds `status: needs-team-input`.
   bool get sentToTeam => suggestion.addedLabels.contains(needsTeamInputLabel);
 }
 
@@ -70,13 +69,6 @@ class TriageSession {
       ..[item.ref] = AppliedItem(item, suggestion, milestone: milestone);
     _version++;
   }
-
-  /// Records that the triager sent [item] to the team, with [comment] if
-  /// they wrote one.
-  void recordSentToTeam(TriageItem item, {String? comment}) => recordApplied(
-    item,
-    TriageSuggestion(addedLabels: const [needsTeamInputLabel], reply: comment),
-  );
 
   bool hasReplied(ItemRef item) => _replied.contains(item);
 
@@ -156,8 +148,7 @@ class TriageSession {
     return _updated;
   }
 
-  /// What was applied, such as "added P1, assigned octocat". The reply of
-  /// an item sent to the team is the triager's comment for the team.
+  /// What was applied, such as "added P1, assigned octocat".
   static String _describe(AppliedItem applied) {
     final TriageSuggestion s = applied.suggestion;
     return [
@@ -171,7 +162,7 @@ class TriageSession {
       if (applied.milestone.remove case final String m
           when applied.milestone.set == null)
         'removed milestone $m',
-      if (s.reply != null) applied.sentToTeam ? 'commented' : 'replied',
+      if (s.reply != null) 'replied',
     ].join(', ');
   }
 

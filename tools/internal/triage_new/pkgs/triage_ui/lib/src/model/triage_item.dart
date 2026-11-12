@@ -34,9 +34,9 @@ const String needsTriageLabel = 'status: needs-triage';
 /// discuss. See `docs/contributing/triage/triage.md`.
 const String needsTeamInputLabel = 'status: needs-team-input';
 
-/// The heading of the comment that the triager posts for the team with
-/// **Needs team input**. The triage UI shows the latest such comment with
-/// the item's suggestion. See `ui.blueprint.md`.
+/// The heading of the comment that the triager posts for the team when they
+/// add [needsTeamInputLabel]. The triage UI shows the latest such comment
+/// with the item's suggestion. See `docs/contributing/triage/triage.md`.
 const String teamNoteHeading = '**From triager for team discussion:**\n\n';
 
 /// The types of items, in the order the list shows them. See
@@ -222,8 +222,8 @@ final class TriageItem {
   /// The URL of the suggestion comment, if the item has one.
   final String? suggestionUrl;
 
-  /// The latest comment that a triager posted for the team with **Needs
-  /// team input**, if the item has one.
+  /// The latest comment that a triager posted for the team, if the item has
+  /// one.
   final TeamNote? teamNote;
 
   bool get needsTriage => labels.contains(needsTriageLabel);
@@ -302,8 +302,8 @@ final class TriageItem {
   }
 }
 
-/// A comment that a triager posted for the team with **Needs team input**:
-/// a team member's comment that starts with [teamNoteHeading].
+/// A comment that a triager posted for the team: a team member's comment
+/// that starts with [teamNoteHeading].
 final class TeamNote {
   const TeamNote({required this.text, this.author, required this.url});
 

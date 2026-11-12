@@ -362,22 +362,21 @@ void main() {
     expect(controller.session.isSentToTeam(a2ui(40)), isTrue);
   });
 
-  test('sends an item to the team', () async {
+  test('applying a suggestion that adds the label lists the item under '
+      'Needs team input too', () async {
     await controller.start();
     controller.select(a2ui(10));
-
-    await controller.sendToTeam(
+    controller.draftFor(
       controller.item(a2ui(10))!,
-      comment: 'Thoughts.',
+      const TriageSuggestion(addedLabels: [needsTeamInputLabel]),
     );
 
+    await controller.apply(controller.item(a2ui(10))!);
+
     expect(github.calls, [
+      'DELETE issues/10/labels/status%3A%20needs-triage',
       'POST issues/10/labels {"labels":["status: needs-team-input"]}',
-      'POST issues/10/comments '
-          '{"body":"**From triager for team discussion:**\\n\\nThoughts."}',
     ]);
-    // The tool picks up the comment, to show it with the suggestion.
-    expect(controller.item(a2ui(10))!.teamNote?.text, 'Thoughts.');
     // The item stays in its group, and is also under Needs team input.
     expect(numbers(controller.newItems), [11, 10, 20, 21]);
     expect(numbers(controller.teamInputItems), [10, 40, 41]);
@@ -386,20 +385,17 @@ void main() {
     expect(controller.remaining, 5);
     expect(controller.session.isSentToTeam(a2ui(10)), isTrue);
     expect(controller.report(), contains('Sent 1 issue to the team.'));
-    final LogEntry entry = controller.logOf(a2ui(10)).single;
-    expect(entry.title, 'Sent the item to the team');
-    expect(entry.steps.map((StepResult s) => s.description), [
-      'Add labels: status: needs-team-input',
-      'Post the comment for the team',
-    ]);
-    expect(entry.steps.last.text, 'Thoughts.');
   });
 
   test(
     'selects the next item in the group in which the item was selected',
     () async {
       await controller.start();
-      await controller.sendToTeam(controller.item(a2ui(10))!);
+      controller.draftFor(
+        controller.item(a2ui(10))!,
+        const TriageSuggestion(addedLabels: [needsTeamInputLabel]),
+      );
+      await controller.apply(controller.item(a2ui(10))!);
       // Listed in New and in Needs team input.
       controller.select(a2ui(10));
       expect(controller.selectedGroup, ItemGroup.newItems);
@@ -415,37 +411,22 @@ void main() {
     },
   );
 
-  test('sends an item opened by URL to the team', () async {
+  test('lists an item opened by URL under Needs team input after applying '
+      'a suggestion that adds the label', () async {
     await controller.start();
     await controller.open(url('issues/30'));
-
-    await controller.sendToTeam(controller.item(a2ui(30))!);
-
-    expect(github.calls, [
-      'POST issues/30/labels {"labels":["status: needs-team-input"]}',
-    ]);
-    expect(numbers(controller.opened), [30]);
-    expect(numbers(controller.teamInputItems), [30, 40, 41]);
-  });
-
-  test('reports a failure to send an item to the team', () async {
-    github.failing.add('POST issues/10/labels');
-    await controller.start();
-
-    await controller.sendToTeam(
-      controller.item(a2ui(10))!,
-      comment: 'Thoughts.',
+    controller.draftFor(
+      controller.item(a2ui(30))!,
+      const TriageSuggestion(addedLabels: [needsTeamInputLabel]),
     );
 
-    expect(controller.error, contains('Could not add'));
-    expect(github.calls.where((c) => c.contains('comments')), isEmpty);
-    expect(controller.session.isSentToTeam(a2ui(10)), isFalse);
-    expect(numbers(controller.newItems), [11, 10, 20, 21]);
-    final LogEntry entry = controller.logOf(a2ui(10)).single;
-    expect(entry.failed, isTrue);
-    expect(entry.steps.map((StepResult s) => s.status), [
-      StepStatus.failed,
-      StepStatus.notRun,
-    ]);
+    await controller.apply(controller.item(a2ui(30))!);
+
+    expect(
+      github.calls,
+      contains('POST issues/30/labels {"labels":["status: needs-team-input"]}'),
+    );
+    expect(numbers(controller.opened), [30]);
+    expect(numbers(controller.teamInputItems), [30, 40, 41]);
   });
 }

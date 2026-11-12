@@ -12,15 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:triage/triage.dart';
 import 'package:triage_ui/src/github_item.dart';
 import 'package:triage_ui/src/model/triage_controller.dart';
 import 'package:triage_ui/src/model/triage_item.dart';
 import 'package:triage_ui/src/ui/chip_list_field.dart';
+import 'package:triage_ui/src/ui/item_info.dart';
 import 'package:triage_ui/src/ui/item_list.dart';
 import 'package:triage_ui/src/ui/label_colors.dart';
 import 'package:triage_ui/src/ui/triage_app.dart';
@@ -126,18 +129,18 @@ void main() {
   ) async {
     await pumpApp(tester);
 
-    expect(find.text('3 items need triage'), findsOneWidget);
-    expect(find.text('Needs team input (0)'), findsOneWidget);
+    expect(find.text('0/3'), findsOneWidget);
+    expect(find.text('Needs team input (0/0)'), findsOneWidget);
     // The groups start collapsed.
     expect(find.byType(ListTile), findsNothing);
 
-    await expand(tester, 'New (3)');
+    await expand(tester, 'New (0/3)');
     // So do the subgroups, which only show the kinds the group has.
     expect(find.byType(ListTile), findsNothing);
-    expect(find.text('PRs without issues (0)'), findsNothing);
-    await expand(tester, 'Issues with open PRs (1)');
-    await expand(tester, 'Issues without open PRs (1)');
-    await expand(tester, 'PRs with issues (1)');
+    expect(find.text('PRs without issues (0/0)'), findsNothing);
+    await expand(tester, 'Issues with open PRs (0/1)');
+    await expand(tester, 'Issues without open PRs (0/1)');
+    await expand(tester, 'PRs with issues (0/1)');
     expect(find.byTooltip('Issue with open PRs'), findsOneWidget);
     expect(find.byTooltip('Issue without open PRs'), findsOneWidget);
     expect(find.byTooltip('PR with issues'), findsOneWidget);
@@ -216,11 +219,47 @@ void main() {
       'DELETE issues/20/labels/status%3A%20needs-triage',
     ]);
     // Apply handles both tabs, the issue and its PR #20.
-    expect(find.text('1 item needs triage'), findsOneWidget);
+    expect(find.text('2/3'), findsOneWidget);
     // The list shows the next item, #11, which is in another subgroup.
-    await expand(tester, 'Issues with open PRs (1)');
+    await expand(tester, 'Issues with open PRs (1/1)');
     expect(find.byIcon(Icons.check_circle), findsOneWidget);
     expect(find.text('Issue #11: Docs are unclear'), findsOneWidget);
+  });
+
+  testWidgets('shows a spinner on the item in the list while it applies', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    await expand(tester, 'New (0/3)');
+    await expand(tester, 'Issues with open PRs (0/1)');
+    final Finder spinner = find.descendant(
+      of: find.widgetWithText(
+        ListTile,
+        '#10 Flutter renderer crashes on an empty Row',
+      ),
+      matching: find.byType(CircularProgressIndicator),
+    );
+    expect(spinner, findsNothing);
+
+    final Finder apply = find.widgetWithText(FilledButton, 'Apply').first;
+    await tester.ensureVisible(apply);
+    await tester.pumpAndSettle();
+    final Completer<void> hold = github.hold = Completer<void>();
+    await tester.tap(apply);
+    await tester.pump();
+    expect(spinner, findsOneWidget);
+
+    hold.complete();
+    github.hold = null;
+    for (var i = 0; i < 100 && controller.isApplying(a2ui(10)); i++) {
+      await tester.pump(const Duration(milliseconds: 10));
+    }
+    await tester.pumpAndSettle();
+    expect(spinner, findsNothing);
+    expect(find.byIcon(Icons.check_circle), findsOneWidget);
+    expect(find.text('2/3'), findsOneWidget);
+    expect(find.text('New (2/3)'), findsOneWidget);
+    expect(find.text('Issues with open PRs (1/1)'), findsOneWidget);
   });
 
   testWidgets('removes labels, assignees and the milestone with checkboxes, '
@@ -448,51 +487,66 @@ void main() {
     expect(find.byType(MenuItemButton), findsNWidgets(8));
   }, variant: TargetPlatformVariant.desktop());
 
-  testWidgets('sends the item and its linked PR to the team', (tester) async {
-    await pumpApp(tester);
-
-    await tester.tap(
-      find.widgetWithText(OutlinedButton, 'Needs team input').first,
-    );
+  testWidgets('applying suggestions that add "$needsTeamInputLabel" lists '
+      'the items under Needs team input too', (tester) async {
+    await pumpApp(tester, selectFirst: false);
+    controller
+      ..draftFor(
+        controller.item(a2ui(10))!,
+        const TriageSuggestion(
+          addedLabels: [needsTeamInputLabel],
+          reply: '${teamNoteHeading}Is this a P0?',
+        ),
+      )
+      ..draftFor(
+        controller.item(a2ui(20))!,
+        const TriageSuggestion(addedLabels: [needsTeamInputLabel]),
+      )
+      ..select(a2ui(10));
     await tester.pumpAndSettle();
-    await tester.enterText(
-      find.widgetWithText(TextField, 'Comment for the team'),
-      'Is this a P0?',
-    );
-    await settle(tester, () async {
-      await tester.tap(find.text('Add "$needsTeamInputLabel"'));
-      await Future<void>.delayed(const Duration(milliseconds: 10));
-    });
 
-    expect(github.calls, [
-      'POST issues/10/labels {"labels":["status: needs-team-input"]}',
-      'POST issues/10/comments '
-          '{"body":"**From triager for team discussion:**\\n\\nIs this a P0?"}',
-      'POST issues/20/labels {"labels":["status: needs-team-input"]}',
-      'POST issues/20/comments '
-          '{"body":"**From triager for team discussion:**\\n\\nIs this a P0?"}',
-    ]);
+    await tester.tap(find.widgetWithText(FilledButton, 'Apply'));
+    await tester.pump();
+    for (
+      var i = 0;
+      i < 100 &&
+          (controller.isApplying(a2ui(10)) || controller.isApplying(a2ui(20)));
+      i++
+    ) {
+      await tester.pump(const Duration(milliseconds: 10));
+    }
+    await tester.pumpAndSettle();
+
+    expect(
+      github.calls,
+      containsAll([
+        'POST issues/10/labels {"labels":["status: needs-team-input"]}',
+        'POST issues/10/comments '
+            '{"body":"**From triager for team discussion:**\\n\\nIs this a P0?"}',
+        'POST issues/20/labels {"labels":["status: needs-team-input"]}',
+      ]),
+    );
     // The items stay in their group, and are also under Needs team input,
     // marked as sent to the team in both.
-    expect(find.text('New (3)'), findsOneWidget);
+    expect(find.text('New (2/3)'), findsOneWidget);
     expect(find.text('Issue #11: Docs are unclear'), findsOneWidget);
-    await expand(tester, 'Needs team input (2)');
-    await expand(tester, 'Issues with open PRs (1)');
+    await expand(tester, 'Needs team input (2/2)');
+    await expand(tester, 'Issues with open PRs (1/1)');
     expect(find.byIcon(Icons.groups), findsOneWidget);
-    await tester.tap(find.text('Issues with open PRs (1)').first);
+    await tester.tap(find.text('Issues with open PRs (1/1)').first);
     await tester.pumpAndSettle();
     final Finder sent = inList('#10 Flutter renderer crashes on an empty Row');
     expect(sent, findsNWidgets(2));
     expect(find.byIcon(Icons.groups), findsNWidgets(2));
 
-    // The comment shows with the suggestion.
+    // The reply, posted under the heading for the team, shows as the
+    // comment for the team.
     await tester.tap(sent.last);
     await tester.pumpAndSettle();
     expect(sent, findsNWidgets(2));
     expect(controller.selectedGroup, ItemGroup.teamInput);
     expect(find.text('From @octocat for team discussion'), findsOneWidget);
     expect(find.text('Is this a P0?'), findsOneWidget);
-    expect(find.text('Summary'), findsOneWidget);
   });
 
   testWidgets('marks edited tabs, reverts them, and applies all tabs '
@@ -658,8 +712,8 @@ void main() {
     expect(controller.selected, isNull);
     expect(find.text('Select an item.'), findsOneWidget);
 
-    await expand(tester, 'New (3)');
-    await expand(tester, 'Issues without open PRs (1)');
+    await expand(tester, 'New (0/3)');
+    await expand(tester, 'Issues without open PRs (0/1)');
     await tester.tap(inList('#11 Docs are unclear'));
     await tester.pumpAndSettle();
     expect(controller.selected!.number, 11);
@@ -704,9 +758,9 @@ void main() {
     );
     await pumpApp(tester, selectFirst: false);
 
-    expect(find.text('4 items need triage'), findsOneWidget);
-    await expand(tester, 'New (4)');
-    await expand(tester, 'PRs without issues (1)');
+    expect(find.text('0/4'), findsOneWidget);
+    await expand(tester, 'New (0/4)');
+    await expand(tester, 'PRs without issues (0/1)');
     await tester.tap(inList('genui #7 Add a Slider'));
     await tester.pumpAndSettle();
 
@@ -727,7 +781,7 @@ void main() {
       'DELETE flutter/genui/issues/7/labels/status%3A%20needs-triage',
       'POST flutter/genui/issues/7/labels {"labels":["P1"]}',
     ]);
-    expect(find.text('3 items need triage'), findsOneWidget);
+    expect(find.text('1/4'), findsOneWidget);
   });
 
   testWidgets('the divider resizes the item list', (tester) async {
@@ -744,11 +798,39 @@ void main() {
     expect(tester.getSize(list).width, greaterThan(500));
   });
 
+  testWidgets('the divider resizes the columns of the item, in every tab', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    final Finder info = find.byType(ItemInfo).first;
+    final double before = tester.getSize(info).width;
+
+    await tester.drag(
+      find.bySemanticsLabel('Resize the columns'),
+      const Offset(150, 0),
+    );
+    await tester.pumpAndSettle();
+    final double after = tester.getSize(info).width;
+    expect(after, greaterThan(before + 100));
+
+    // The linked item's tab has the same columns.
+    await tester.tap(find.widgetWithText(Tab, '#20'));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(find.byType(ItemInfo).first).width, after);
+
+    // So does another item.
+    await expand(tester, 'New (0/3)');
+    await expand(tester, 'Issues without open PRs (0/1)');
+    await tester.tap(inList('#11 Docs are unclear'));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(find.byType(ItemInfo).first).width, after);
+  });
+
   testWidgets('an item without a suggestion starts removing only '
       '"$needsTriageLabel"', (tester) async {
     await pumpApp(tester);
-    await expand(tester, 'New (3)');
-    await expand(tester, 'Issues without open PRs (1)');
+    await expand(tester, 'New (0/3)');
+    await expand(tester, 'Issues without open PRs (0/1)');
     await tester.tap(inList('#11 Docs are unclear'));
     await tester.pumpAndSettle();
 

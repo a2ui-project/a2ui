@@ -84,8 +84,17 @@ Triaged 5 items: 4 issues and 1 PR.
   test('reports the items sent to the team apart from the triaged ones', () {
     final session = TriageSession()
       ..recordApplied(item(1, 'A'), const TriageSuggestion(addedLabels: ['P2']))
-      ..recordSentToTeam(item(2, 'B', pr: true), comment: 'Why?')
-      ..recordSentToTeam(item(3, 'C'));
+      ..recordApplied(
+        item(2, 'B', pr: true),
+        const TriageSuggestion(
+          addedLabels: ['status: needs-team-input'],
+          reply: 'Why?',
+        ),
+      )
+      ..recordApplied(
+        item(3, 'C'),
+        const TriageSuggestion(addedLabels: ['status: needs-team-input']),
+      );
 
     expect(session.isApplied(a2ui(2)), isFalse);
     expect(session.isSentToTeam(a2ui(2)), isTrue);
@@ -102,7 +111,7 @@ Sent 1 issue and 1 PR to the team.
 
 - Needs team input: 1 issue and 1 PR
   - https://github.com/a2ui-project/a2ui/pull/2
-    B: added status: needs-team-input, commented
+    B: added status: needs-team-input, replied
   - https://github.com/a2ui-project/a2ui/issues/3
     C: added status: needs-team-input''');
   });

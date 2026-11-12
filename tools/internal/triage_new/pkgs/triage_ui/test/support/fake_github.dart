@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -160,6 +161,10 @@ class FakeGitHub {
   /// Request lines, such as `POST issues/12/labels`, that fail with 500.
   final Set<String> failing = {};
 
+  /// While set, the REST requests wait for it to complete, to keep an apply
+  /// going.
+  Completer<void>? hold;
+
   // Sorted by name, as GitHub returns them, so the priorities are not first.
   List<String> labels = [
     'area: docs',
@@ -207,6 +212,7 @@ class FakeGitHub {
       );
     }
 
+    await hold?.future;
     final String repository = path.startsWith('repos/$genuiRepository/')
         ? genuiRepository
         : a2uiRepository;

@@ -23,8 +23,8 @@ import 'links.dart';
 import 'triage_scope.dart';
 
 /// What the tool did to [item] in this session, newest first: each apply
-/// and send to the team with its steps, errors and posted texts, and each
-/// refresh that reset the suggestion.
+/// with its steps, errors and posted texts, and each refresh that reset the
+/// suggestion.
 class ItemLog extends StatelessWidget {
   const ItemLog({super.key, required this.item});
 
@@ -84,8 +84,8 @@ class _Entry extends StatelessWidget {
   }
 }
 
-/// The steps of an apply or a send to the team: an icon for how each went,
-/// its description, why it failed, and the text it posted.
+/// The steps of an apply: an icon for how each went, its description, why
+/// it failed, and the text it posted.
 class StepList extends StatelessWidget {
   const StepList(this.steps, {super.key});
 

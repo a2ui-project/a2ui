@@ -63,9 +63,10 @@ class TriageController extends ChangeNotifier {
   Set<ItemRef> _loadedTeamInput = const {};
 
   /// The items that the list shows under **Needs team input**: the ones in
-  /// [_loadedTeamInput], and the ones that the triager sent to the team
-  /// since, which also stay in their own group. An item stays in the group
-  /// until a refresh, even if the triager removes the label.
+  /// [_loadedTeamInput], and the ones that the triager applied a suggestion
+  /// that adds the label to since, which also stay in their own group. An
+  /// item stays in the group until a refresh, even if the triager removes
+  /// the label.
   Set<ItemRef> _teamInput = const {};
 
   /// When each item in [_queue] was last updated, as of the last load. The
@@ -117,8 +118,8 @@ class TriageController extends ChangeNotifier {
       _sorted(_queue.where((i) => !_loadedTeamInput.contains(i.ref)));
 
   /// The items in the **Needs team input** group, in the order the list
-  /// shows them. An item that the triager sent to the team is also in its
-  /// own group.
+  /// shows them. An item that the triager applied a suggestion that adds
+  /// `status: needs-team-input` to is also in its own group.
   List<TriageItem> get teamInputItems =>
       _sorted([..._queue, ..._opened].where((i) => _teamInput.contains(i.ref)));
 
@@ -140,8 +141,11 @@ class TriageController extends ChangeNotifier {
       for (final TriageItem i in itemsIn(g)) (g, i),
   ];
 
-  /// How many items in the queue the triager neither applied a suggestion
-  /// to nor sent to the team.
+  /// How many items are in the queue: the items in **New** and **Needs team
+  /// input** when they loaded.
+  int get queueLength => _queue.length;
+
+  /// How many items in the queue the triager did not apply a suggestion to.
   int get remaining => _queue.where((i) => !session.isHandled(i.ref)).length;
 
   TriageItem? get selected => _selected == null ? null : item(_selected!);
@@ -439,88 +443,6 @@ class TriageController extends ChangeNotifier {
     }
     await _finish(n);
     return result.succeeded;
-  }
-
-  /// Sends [item] to the team: adds `status: needs-team-input` and posts
-  /// [comment] under [teamNoteHeading], if the triager wrote one. Does not
-  /// apply the draft, so the item stays open even if the draft closes it.
-  ///
-  /// On success, records the item in the session, adds it to the
-  /// **Needs team input** group, keeping it in its own group too, and, if it
-  /// is selected, selects the next item that is not handled yet.
-  Future<void> sendToTeam(TriageItem item, {String? comment}) =>
-      sendAllToTeam([item], comment: comment);
-
-  /// Sends those of [items] that do not have `status: needs-team-input` to
-  /// the team, each with [comment], as [sendToTeam] does.
-  Future<void> sendAllToTeam(List<TriageItem> items, {String? comment}) async {
-    final List<(ItemGroup, TriageItem)> order = _listed;
-    final ItemGroup? group = selectedGroup;
-    var succeeded = true;
-    for (final i in items) {
-      if (i.needsTeamInput) continue;
-      if (!await _sendOne(i, comment: comment)) succeeded = false;
-    }
-    if (succeeded) _selectNextAfterGroup(items, group, order);
-    notifyListeners();
-  }
-
-  /// Sends [item] to the team, and returns whether it succeeded.
-  Future<bool> _sendOne(TriageItem item, {String? comment}) async {
-    final ItemRef n = item.ref;
-    _applying.add(n);
-    _results.remove(n);
-    _error = null;
-    notifyListeners();
-
-    const addLabel = 'Add labels: $needsTeamInputLabel';
-    const postComment = 'Post the comment for the team';
-    try {
-      await _service!.addLabels(n, const [needsTeamInputLabel]);
-    } on GitHubException catch (e) {
-      _error =
-          'Could not add "$needsTeamInputLabel" to ${item.name}: '
-          '${e.message}';
-      _log(
-        n,
-        LogEntry(
-          'Could not send the item to the team',
-          steps: [
-            StepResult(addLabel, StepStatus.failed, error: e.message),
-            if (comment != null)
-              StepResult(postComment, StepStatus.notRun, text: comment),
-          ],
-        ),
-      );
-      await _finish(n);
-      return false;
-    }
-    final steps = [const StepResult(addLabel, StepStatus.done)];
-    var commented = comment != null;
-    if (comment != null) {
-      try {
-        await _service!.postComment(n, '$teamNoteHeading$comment');
-        steps.add(StepResult(postComment, StepStatus.done, text: comment));
-      } on GitHubException catch (e) {
-        commented = false;
-        _error =
-            'Added "$needsTeamInputLabel" to ${item.name}, but could not '
-            'post the comment: ${e.message}';
-        steps.add(
-          StepResult(
-            postComment,
-            StepStatus.failed,
-            error: e.message,
-            text: comment,
-          ),
-        );
-      }
-    }
-    _log(n, LogEntry('Sent the item to the team', steps: steps));
-    session.recordSentToTeam(item, comment: commented ? comment : null);
-    _addToTeamInput(item);
-    await _finish(n);
-    return true;
   }
 
   /// Adds `status: needs-triage` to the labels that [suggestion] removes,

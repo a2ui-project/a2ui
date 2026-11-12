@@ -18,6 +18,7 @@ import 'package:triage/triage.dart';
 import '../model/suggestion_draft.dart';
 import '../model/triage_controller.dart';
 import '../model/triage_item.dart';
+import 'column_divider.dart';
 import 'group_actions.dart';
 import 'item_info.dart';
 import 'item_list.dart';
@@ -26,10 +27,19 @@ import 'suggestion_editor.dart';
 import 'suggestion_surface.dart';
 import 'triage_scope.dart';
 
-/// The selected item and the items linked to it, each in a tab of its own,
-/// and the buttons that act on all of them.
-class ItemDetails extends StatelessWidget {
+/// The selected item and the items linked to it, each in a tab of its own.
+class ItemDetails extends StatefulWidget {
   const ItemDetails({super.key});
+
+  @override
+  State<ItemDetails> createState() => _ItemDetailsState();
+}
+
+class _ItemDetailsState extends State<ItemDetails> {
+  /// The share of an [ItemView]'s width that its left column takes, which
+  /// the triager changes by dragging the divider. Every tab and item uses the
+  /// same share.
+  double _infoShare = 0.4;
 
   @override
   Widget build(BuildContext context) {
@@ -54,12 +64,18 @@ class ItemDetails extends StatelessWidget {
           Expanded(
             child: TabBarView(
               children: [
-                for (final i in items) ItemView(key: ValueKey(i.ref), item: i),
+                for (final i in items)
+                  ItemView(
+                    key: ValueKey(i.ref),
+                    item: i,
+                    group: items,
+                    infoShare: _infoShare,
+                    onResize: (double share) =>
+                        setState(() => _infoShare = share),
+                  ),
               ],
             ),
           ),
-          const Divider(height: 1),
-          GroupActions(items: items),
         ],
       ),
     );
@@ -113,67 +129,100 @@ class _ItemTab extends StatelessWidget {
 
 /// One item in two columns: on the left, what the triager should know about
 /// it; on the right, the tabs **Edit**, with its editable suggestion, and
-/// **Log**, with what the tool did to it in this session.
+/// **Log**, with what the tool did to it in this session, and below them
+/// **Apply**, which applies the suggestions of all the items in [group]. The
+/// triager drags the divider between the columns to resize them.
 class ItemView extends StatelessWidget {
-  const ItemView({super.key, required this.item});
+  const ItemView({
+    super.key,
+    required this.item,
+    required this.group,
+    required this.infoShare,
+    required this.onResize,
+  });
 
   final TriageItem item;
+
+  /// The items in the details' tabs: the selected item and the items linked
+  /// to it.
+  final List<TriageItem> group;
+
+  /// The share of the width that the left column takes.
+  final double infoShare;
+
+  /// Called with the left column's new share when the triager drags the
+  /// divider.
+  final void Function(double share) onResize;
 
   @override
   Widget build(BuildContext context) {
     final TriageController controller = TriageScope.of(context);
     final SuggestionPayload? payload = item.suggestion;
     final int logLength = controller.logOf(item.ref).length;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Expanded(
-          flex: 2,
-          child: ListView(
-            padding: const EdgeInsets.all(24),
-            children: [ItemInfo(item: item)],
-          ),
-        ),
-        const VerticalDivider(width: 1),
-        Expanded(
-          flex: 3,
-          child: DefaultTabController(
-            length: 2,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                TabBar(
-                  isScrollable: true,
-                  tabAlignment: TabAlignment.start,
-                  tabs: [
-                    const Tab(text: 'Edit'),
-                    Tab(text: logLength == 0 ? 'Log' : 'Log ($logLength)'),
-                  ],
-                ),
-                Expanded(
-                  child: TabBarView(
-                    children: [
-                      ListView(
-                        padding: const EdgeInsets.all(24),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double maxWidth = constraints.maxWidth;
+        final double infoWidth = clampColumnWidth(
+          infoShare * maxWidth,
+          maxWidth,
+        );
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              width: infoWidth,
+              child: ListView(
+                padding: const EdgeInsets.all(24),
+                children: [ItemInfo(item: item)],
+              ),
+            ),
+            ColumnDivider(
+              label: 'Resize the columns',
+              onDrag: (double delta) =>
+                  onResize((infoWidth + delta) / maxWidth),
+            ),
+            Expanded(
+              child: DefaultTabController(
+                length: 2,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TabBar(
+                      isScrollable: true,
+                      tabAlignment: TabAlignment.start,
+                      tabs: [
+                        const Tab(text: 'Edit'),
+                        Tab(text: logLength == 0 ? 'Log' : 'Log ($logLength)'),
+                      ],
+                    ),
+                    Expanded(
+                      child: TabBarView(
                         children: [
-                          if (payload != null)
-                            SuggestionSurface(item: item, payload: payload)
-                          else
-                            SuggestionEditor(item: item),
+                          ListView(
+                            padding: const EdgeInsets.all(24),
+                            children: [
+                              if (payload != null)
+                                SuggestionSurface(item: item, payload: payload)
+                              else
+                                SuggestionEditor(item: item),
+                            ],
+                          ),
+                          ListView(
+                            padding: const EdgeInsets.all(24),
+                            children: [ItemLog(item: item)],
+                          ),
                         ],
                       ),
-                      ListView(
-                        padding: const EdgeInsets.all(24),
-                        children: [ItemLog(item: item)],
-                      ),
-                    ],
-                  ),
+                    ),
+                    const Divider(height: 1),
+                    GroupActions(items: group),
+                  ],
                 ),
-              ],
+              ),
             ),
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 }

@@ -19,8 +19,8 @@ import '../model/triage_controller.dart';
 import '../model/triage_item.dart';
 import 'triage_scope.dart';
 
-/// The buttons that act on all of [items] together: **Apply** and **Needs
-/// team input**. Each item's **Revert** is in its **Edit** tab.
+/// **Apply**, which acts on all of [items] together, with what keeps it
+/// disabled. Each item's **Revert** is in its **Edit** tab.
 class GroupActions extends StatelessWidget {
   const GroupActions({super.key, required this.items});
 
@@ -44,12 +44,6 @@ class GroupActions extends StatelessWidget {
               items.length == 1 ? problem : '${items[k].name}: $problem',
           if (!anyChanges) 'Nothing to apply.',
         ];
-        // The selected item, and the linked items that need triage. A
-        // linked item that does not need triage stays as it is.
-        final List<TriageItem> toTeam = [
-          for (final (int k, TriageItem i) in items.indexed)
-            if (!i.needsTeamInput && (k == 0 || i.needsTriage)) i,
-        ];
         final all = items.length == 1 ? 'the item' : 'the items';
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
@@ -69,23 +63,6 @@ class GroupActions extends StatelessWidget {
                   child: const Text('Apply'),
                 ),
               ),
-              if (toTeam.isNotEmpty)
-                Tooltip(
-                  message:
-                      'Add "$needsTeamInputLabel" to $all, so that the team '
-                      'discusses them, and post your comment for the team, '
-                      'if you write one, under "From triager for team '
-                      'discussion". The suggestions are not applied: '
-                      '$all stay open, even if a tab closes them, and the '
-                      'replies, labels and assignees in the tabs do not '
-                      'change.',
-                  child: OutlinedButton(
-                    onPressed: busy
-                        ? null
-                        : () => _sendToTeam(context, controller, toTeam),
-                    child: const Text('Needs team input'),
-                  ),
-                ),
               if (busy)
                 const SizedBox.square(
                   dimension: 20,
@@ -97,94 +74,6 @@ class GroupActions extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-}
-
-/// Asks for an optional comment for the team, then sends [items] to the
-/// team.
-Future<void> _sendToTeam(
-  BuildContext context,
-  TriageController controller,
-  List<TriageItem> items,
-) async {
-  final String? comment = await showDialog<String>(
-    context: context,
-    builder: (context) => _TeamInputDialog(items),
-  );
-  if (comment == null) return;
-  await controller.sendAllToTeam(
-    items,
-    comment: comment.isEmpty ? null : comment,
-  );
-}
-
-/// Asks for a comment for the team. Pops with the comment, which is empty
-/// when the triager wrote none, or with null when they cancel.
-class _TeamInputDialog extends StatefulWidget {
-  const _TeamInputDialog(this.items);
-
-  final List<TriageItem> items;
-
-  @override
-  State<_TeamInputDialog> createState() => _TeamInputDialogState();
-}
-
-class _TeamInputDialogState extends State<_TeamInputDialog> {
-  final _comment = TextEditingController();
-
-  @override
-  void dispose() {
-    _comment.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final List<String> names = [for (final i in widget.items) i.name];
-    final String list = names.length < 3
-        ? names.join(' and ')
-        : '${names.sublist(0, names.length - 1).join(', ')} and '
-              '${names.last}';
-    return SelectionArea(
-      child: AlertDialog(
-        title: Text('Send $list to the team?'),
-        content: SizedBox(
-          width: 560,
-          child: TextField(
-            controller: _comment,
-            autofocus: true,
-            minLines: 3,
-            maxLines: 10,
-            decoration: InputDecoration(
-              labelText: 'Comment for the team',
-              helperText:
-                  'Optional. Posted from your account on '
-                  '${names.length == 1 ? 'the item' : 'each item'}, under '
-                  '"From triager for team discussion". The suggestions '
-                  'are not applied, and the items stay open.',
-              border: const OutlineInputBorder(),
-              alignLabelWithHint: true,
-            ),
-          ),
-        ),
-        actions: [
-          Tooltip(
-            message: 'Change nothing on GitHub',
-            child: TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-          ),
-          Tooltip(
-            message: 'Add the label, and post the comment if there is one',
-            child: FilledButton(
-              onPressed: () => Navigator.pop(context, _comment.text.trim()),
-              child: const Text('Add "$needsTeamInputLabel"'),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

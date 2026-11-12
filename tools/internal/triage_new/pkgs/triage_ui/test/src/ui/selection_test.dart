@@ -55,7 +55,7 @@ void main() {
     await tester.runAsync(controller.start);
     await tester.pumpWidget(TriageApp(controller: controller));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('New (2)'));
+    await tester.tap(find.text('New (0/2)'));
     await tester.pumpAndSettle();
     await tester.tap(find.textContaining(RegExp('^Issues')).first);
     await tester.pumpAndSettle();
