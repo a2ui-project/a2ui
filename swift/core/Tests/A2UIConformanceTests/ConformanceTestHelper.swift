@@ -1230,6 +1230,8 @@ extension ConformanceTestHelper {
       "agent_to_renderer_schema is not implemented in the Swift core harness",
     "core/message_processor_v0_8.yaml":
       "protocol version v0.8 is not supported by A2UICore",
+    "core/url_security_policy.yaml":
+      "URL security policy not implemented yet (#4045)",
     "core/validator_v0_8.yaml":
       "protocol version v0.8 is not supported by A2UICore",
   ]

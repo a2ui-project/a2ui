@@ -107,6 +107,7 @@ UNRUNNABLE_SUITES: dict[str, str] = {
         " not have access to. Pending v1.0 catalogs for those renderers."
     ),
     "core/adapter_conformance.yaml": "UI framework adapter suite",
+    "core/url_security_policy.yaml": "URL security policy not implemented yet (#4045)",
 }
 
 # Individual `<suite>#<case>` entries that use an optional feature or key the

@@ -115,6 +115,8 @@ const Map<String, String> unsupportedCoreSuites = {
       'Protocol envelope schema generation is not implemented in a2ui_core.',
   'core/message_processor_v0_8.yaml':
       'Targets protocol v0.8, which a2ui_core does not implement.',
+  'core/url_security_policy.yaml':
+      'URL security policy not implemented yet (#4045)',
   'core/validator_v0_8.yaml':
       'Targets protocol v0.8, which a2ui_core does not implement.',
 };
