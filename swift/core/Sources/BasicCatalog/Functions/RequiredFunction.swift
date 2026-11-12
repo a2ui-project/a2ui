@@ -31,7 +31,8 @@ public final class RequiredFunction: FunctionImplementation, Sendable {
             "properties": {
               "value": {}
             },
-            "required": ["value"]
+            "required": ["value"],
+            "additionalProperties": false
           }
           """
       )

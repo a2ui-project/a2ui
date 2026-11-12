@@ -29,12 +29,15 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 import copy
+import re
 import sys
 from typing import Annotated, Any, Final
 
 from pydantic import GetCoreSchemaHandler, GetJsonSchemaHandler, TypeAdapter
 from pydantic.json_schema import JsonSchemaValue
 from pydantic_core import core_schema
+
+_URI_RE: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:\S*\Z")
 
 # Pydantic rejects `$ref`s it has not registered while it generates a schema,
 # so declared keywords reference other defs through these markers, which
@@ -373,6 +376,21 @@ class SchemaKeywords:
             return None
         return [list(branch["required"]) for branch in branches]
 
+    def required_any_of(self) -> list[list[str]] | None:
+        """Returns the property groups of an `anyOf` of required properties.
+
+        For example `LengthArgs` and `NumericArgs` require at least one of
+        `min` and `max`. Returns None if the keywords have no such `anyOf`.
+        """
+        branches = self.keywords.get("anyOf")
+        if not (
+            isinstance(branches, list)
+            and branches
+            and all(isinstance(b, dict) and set(b) == {"required"} for b in branches)
+        ):
+            return None
+        return [list(branch["required"]) for branch in branches]
+
     def apply(self, schema: dict[str, Any]) -> None:
         """Applies the keywords to `schema` in place."""
         if self.spec_only and not is_spec_schema():
@@ -391,6 +409,20 @@ class SchemaKeywords:
     def __call__(self, schema: dict[str, Any], cls: type[Any]) -> None:
         if self.declared_by(cls):
             self.apply(schema)
+
+    def __get_pydantic_core_schema__(
+        self, source: Any, handler: GetCoreSchemaHandler
+    ) -> core_schema.CoreSchema:
+        inner = handler(source)
+        if self.keywords.get("format") != "uri":
+            return inner
+        return core_schema.no_info_after_validator_function(self._validate_uri, inner)
+
+    @staticmethod
+    def _validate_uri(value: Any) -> Any:
+        if isinstance(value, str) and _URI_RE.match(value) is None:
+            raise ValueError(f"Invalid URI '{value}'")
+        return value
 
     def __get_pydantic_json_schema__(
         self, schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler

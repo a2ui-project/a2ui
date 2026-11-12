@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **BREAKING CHANGE**: Enforce object-level (`anyOf`, `additionalProperties: false`) and
+  array-level (`minItems`, `maxItems`, `prefixItems`) JSON Schema constraints on function arguments
+  containing dynamic bindings in `PayloadValidator`, validate declared `returnType` values on nested
+  function calls against the catalog function definition on pre-1.0 surfaces, disallow undeclared
+  arguments across all `BasicCatalog` functions, and enforce RFC 3986 scheme-prefixed URI syntax on
+  `openUrl.args.url`. Recommended migration: remove undeclared function arguments, supply at least
+  one bound on `length` and `numeric`, pass a scheme-prefixed URI to `openUrl.url`, and match or
+  omit `returnType` on nested function calls.
+  [#4173](https://github.com/a2ui-project/a2ui/issues/4173),
+  [#4187](https://github.com/a2ui-project/a2ui/pull/4187)
 - Report the component definition ID rather than the synthesized `:index` instance ID as
   `sourceComponentID` on actions dispatched from template-expanded components.
   [#4043](https://github.com/a2ui-project/a2ui/pull/4043)

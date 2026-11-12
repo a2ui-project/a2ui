@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:a2ui_core/a2ui_core.dart';
 import 'package:a2ui_core/src/validation/component_graph.dart'
     show maxFunctionCallArgs, maxFunctionCallDepth;
@@ -1674,5 +1677,48 @@ void v1RulesTests() {
         throwsA(isA<A2uiValidationError>()),
       );
     });
+  });
+
+  group('v0.9 function_catalog_validation.json specification suite', () {
+    final suiteJson = jsonDecode(
+      File(
+        '../../specification/v0_9/test/cases/function_catalog_validation.json',
+      ).readAsStringSync(),
+    ) as Map<String, Object?>;
+    final List<Map<String, Object?>> tests =
+        (suiteJson['tests'] as List<Object?>).cast<Map<String, Object?>>();
+
+    for (final testCase in tests) {
+      final description = testCase['description']! as String;
+      final expectedValid = testCase['valid']! as bool;
+      final data = testCase['data']! as Map<String, Object?>;
+      final update = data['updateComponents']! as Map<String, Object?>;
+      final List<Map<String, Object?>> components =
+          (update['components'] as List<Object?>).cast<Map<String, Object?>>();
+
+      test(description, () {
+        final validator = PayloadValidator<ComponentApi, FunctionApi>(
+          catalog: BasicCatalog.v0_9(),
+          config: ValidationConfig.strict,
+        );
+        if (expectedValid) {
+          for (final component in components) {
+            expect(
+              () => validator.validateComponent(component),
+              returnsNormally,
+            );
+          }
+        } else {
+          expect(
+            () {
+              for (final component in components) {
+                validator.validateComponent(component);
+              }
+            },
+            throwsA(isA<A2uiValidationError>()),
+          );
+        }
+      });
+    }
   });
 }

@@ -58,6 +58,7 @@ export const ThemeDefSchema = specDef(
     'iconUrl': spec(
       z
         .string()
+        .refine(v => v.trim().length > 0 && !/\s/.test(v.trim()), 'Invalid URI')
         .describe(
           'A URL for an image that identifies the agent or tool associated with the surface.',
         ),

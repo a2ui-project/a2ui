@@ -746,3 +746,48 @@ def test_call_agent_function_response_done_future():
     }])
 
     assert fut.cancelled()
+
+
+def _load_v09_function_catalog_validation_cases() -> list[dict[str, Any]]:
+    import json
+    from pathlib import Path
+
+    spec_path = (
+        Path(__file__).resolve().parents[3]
+        / "specification"
+        / "v0_9"
+        / "test"
+        / "cases"
+        / "function_catalog_validation.json"
+    )
+    return json.loads(spec_path.read_text(encoding="utf-8"))["tests"]
+
+
+@pytest.mark.parametrize("catalog_mode", ["pydantic", "json_schema"])
+@pytest.mark.parametrize(
+    "case",
+    _load_v09_function_catalog_validation_cases(),
+    ids=lambda c: c["description"],
+)
+def test_v09_function_catalog_validation_spec_cases(
+    catalog_mode: str, case: dict[str, Any]
+) -> None:
+    from a2ui.core import A2uiValidationError, Catalog, PayloadValidator
+    from a2ui.core.basic_catalog.v0_9 import BasicCatalog as V09BasicCatalog
+
+    pydantic_cat = V09BasicCatalog()
+    cat = (
+        pydantic_cat
+        if catalog_mode == "pydantic"
+        else Catalog.from_json(pydantic_cat.to_json())
+    )
+    validator = PayloadValidator(cat)
+    components = case["data"]["updateComponents"]["components"]
+
+    if case["valid"]:
+        for comp in components:
+            validator.validate_component(comp)
+    else:
+        with pytest.raises(A2uiValidationError):
+            for comp in components:
+                validator.validate_component(comp)

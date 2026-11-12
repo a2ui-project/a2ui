@@ -261,13 +261,27 @@ function generateNode(schema, ctx, isRequired = true) {
   // 5. Primitive types
   const primCode = generatePrimitiveZod(schema);
   if (primCode) {
-    const pattern =
-      schema.type === 'string' && typeof schema.pattern === 'string'
-        ? `.regex(new RegExp(${literal(schema.pattern)}))`
-        : '';
+    let modifiers = '';
     const prediction = primitivePrediction(schema);
-    if (pattern) prediction.pattern = schema.pattern;
-    return withModifiers(primCode + pattern, prediction, schema);
+    if (schema.type === 'string') {
+      if (typeof schema.pattern === 'string') {
+        modifiers += `.regex(new RegExp(${literal(schema.pattern)}))`;
+        prediction.pattern = schema.pattern;
+      }
+      if (schema.format === 'uri') {
+        modifiers += ".refine(v => v.trim().length > 0 && !/\\s/.test(v.trim()), 'Invalid URI')";
+      }
+    } else if (schema.type === 'number' || schema.type === 'integer') {
+      if (typeof schema.minimum === 'number') {
+        modifiers += `.min(${literal(schema.minimum)})`;
+        prediction.minimum = schema.minimum;
+      }
+      if (typeof schema.maximum === 'number') {
+        modifiers += `.max(${literal(schema.maximum)})`;
+        prediction.maximum = schema.maximum;
+      }
+    }
+    return withModifiers(primCode + modifiers, prediction, schema);
   }
 
   // 6. Objects
@@ -905,6 +919,31 @@ export function generateFunctionsFile(version, catalogJson, commonDefs, options 
     if (required.length > 0) prediction.required = required;
 
     bodyCode += `  })`;
+    if (argsSchema?.additionalProperties === false || argsSchema?.unevaluatedProperties === false) {
+      bodyCode += `.strict()`;
+    }
+    if (
+      Array.isArray(argsSchema?.anyOf) &&
+      argsSchema.anyOf.length > 0 &&
+      argsSchema.anyOf.every(
+        b =>
+          b &&
+          typeof b === 'object' &&
+          !Array.isArray(b) &&
+          Array.isArray(b.required) &&
+          b.required.length > 0 &&
+          b.required.every(k => typeof k === 'string') &&
+          Object.keys(b).length === 1,
+      )
+    ) {
+      const cond = argsSchema.anyOf
+        .map(b => b.required.map(k => `args[${literal(k)}] !== undefined`).join(' && '))
+        .join(' || ');
+      const label = argsSchema.anyOf
+        .map(b => b.required.map(k => `'${escapeStr(k)}'`).join('+'))
+        .join(', ');
+      bodyCode += `.refine(args => ${cond}, {message: "At least one of ${label} must be provided."})`;
+    }
     if (reproduce) {
       // Every argument model is annotated, which marks it as one whose call
       // schema `toJson` computes.
