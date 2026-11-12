@@ -185,6 +185,7 @@
             name: "Alice"
 
 - name: test_v10_get_renderer_capabilities
+  features: [F-CORE-31]
   description: Tests generating v1.0 renderer capabilities structure.
   action: get_renderer_capabilities
   catalogs:
@@ -199,9 +200,11 @@
         - "cat-v10"
 
 - name: test_v10_get_renderer_capabilities_inline_catalogs
+  features: [F-CORE-31]
   description: >-
     Tests that v1.0 inline catalogs list each component as a plain schema, without the v0.9
-    ComponentCommon allOf envelope, because v1.0 applies ComponentCommon at the message envelope.
+    ComponentCommon allOf envelope, because v1.0 applies ComponentCommon at the message envelope,
+    and advertise both unions that catalog_definition.json requires, with an empty one as not {}.
   action: get_renderer_capabilities
   catalogs:
     - catalogId: cat-v10
@@ -218,6 +221,14 @@
           required:
             - component
             - label
+      $defs:
+        anyComponent:
+          oneOf:
+            - $ref: "#/components/Button"
+          discriminator:
+            propertyName: "component"
+        anyFunction:
+          not: {}
   args:
     includeInlineCatalogs: true
     version: "1.0"
@@ -240,6 +251,14 @@
               required:
                 - "component"
                 - "label"
+          $defs:
+            anyComponent:
+              oneOf:
+                - $ref: "#/components/Button"
+              discriminator:
+                propertyName: "component"
+            anyFunction:
+              not: {}
 
 - name: test_multiple_update_types_error
   description: Tests that sending a single message envelope containing multiple update actions raises a ValidationError.
@@ -2718,7 +2737,7 @@
 
 - name: test_v10_call_naming_catalog_of_other_protocol_version_errors
   description: >-
-    Every catalog a v1.0 surface uses must be built for v1.0. A call that names legacy-v09, a v0.9 catalog the client has, cannot be resolved on a v1.0 surface. The message check only requires the error to name the catalog, since SDKs word the reason differently.
+    Every catalog a v1.0 surface uses must be built for v1.0. A call that names v09-catalog, a v0.9 catalog the client has, cannot be resolved on a v1.0 surface. The message check only requires the error to name the catalog, since SDKs word the reason differently.
   action: process_messages
   protocolVersion: "1.0"
   strictMode: true
@@ -2772,7 +2791,7 @@
               required: ["value"]
               additionalProperties: false
           required: ["@call", "args"]
-    - catalogId: "legacy-v09"
+    - catalogId: "v09-catalog"
       protocolVersion: "v0.9"
       components:
         Badge:
@@ -2796,12 +2815,12 @@
             component: "Text"
             text:
               "@call": "formatString"
-              catalogId: "legacy-v09"
+              catalogId: "v09-catalog"
               args:
                 value: "hi"
   expectError:
     category: "CatalogError"
-    message: "legacy-v09"
+    message: "v09-catalog"
 
 - name: test_v10_call_with_non_string_catalog_id_errors
   description: >-
@@ -3086,7 +3105,7 @@
           - id: "root"
             component: "Text"
             text: "Hello"
-            metadata:
+            "@metadata":
               extensions:
                 com_example_trace: "t1"
 
@@ -3130,7 +3149,7 @@
           - id: "root"
             component: "Text"
             text: "Hello"
-            metadata:
+            "@metadata":
               extensions:
                 com_example_state: "final"
 
@@ -3170,7 +3189,7 @@
           - id: "root"
             component: "Text"
             text: "Hello"
-            metadata: null
+            "@metadata": null
 
 - name: test_v10_update_components_metadata_extension_key_must_be_identifier
   description: Tests that v1.0 updateComponents rejects component metadata extensions whose key is not a Unicode identifier (UAX 31) when the component is first created.
@@ -3318,3 +3337,619 @@
           primaryColor: "#ff0000"
   expectError:
     category: "ValidationError"
+
+# ------------------------------------------------------------------------------
+# v1.0 @-prefixed component envelope mixins & custom property coexistence (#1376)
+# ------------------------------------------------------------------------------
+
+- name: test_v10_update_components_stores_at_prefixed_component_metadata
+  description: >-
+    Tests that v1.0 updateComponents accepts @metadata on a component, stores it
+    on ComponentModel.metadata, replaces it on subsequent updateComponents, and
+    clears it when omitted.
+  action: process_messages
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  steps:
+    - messages:
+        - version: "1.0"
+          createSurface:
+            surfaceId: "s_v10_at_meta"
+            catalogId: "test-catalog-v10"
+        - version: "1.0"
+          updateComponents:
+            surfaceId: "s_v10_at_meta"
+            components:
+              - id: "root"
+                component: "Text"
+                text: "Hello @metadata"
+                "@metadata":
+                  extensions:
+                    com_example_trace: "t1"
+      expect:
+        surfaces:
+          s_v10_at_meta:
+            exists: true
+            components:
+              - id: "root"
+                component: "Text"
+                text: "Hello @metadata"
+                "@metadata":
+                  extensions:
+                    com_example_trace: "t1"
+    - messages:
+        - version: "1.0"
+          updateComponents:
+            surfaceId: "s_v10_at_meta"
+            components:
+              - id: "root"
+                component: "Text"
+                text: "Hello @metadata"
+                "@metadata":
+                  extensions:
+                    com_example_state: "updated"
+      expect:
+        surfaces:
+          s_v10_at_meta:
+            exists: true
+            components:
+              - id: "root"
+                component: "Text"
+                text: "Hello @metadata"
+                "@metadata":
+                  extensions:
+                    com_example_state: "updated"
+    - messages:
+        - version: "1.0"
+          updateComponents:
+            surfaceId: "s_v10_at_meta"
+            components:
+              - id: "root"
+                component: "Text"
+                text: "Hello @metadata"
+      expect:
+        surfaces:
+          s_v10_at_meta:
+            exists: true
+            components:
+              - id: "root"
+                component: "Text"
+                text: "Hello @metadata"
+                "@metadata": null
+
+- name: test_v10_at_prefixed_envelope_coexists_with_custom_component_properties
+  description: >-
+    Tests that a v1.0 custom catalog component whose schema declares its own
+    'metadata', 'catalogId', 'accessibility', and 'checks' properties can receive
+    those bare custom properties alongside @metadata and @accessibility envelope
+    mixins without collision (#1376).
+  action: process_messages
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: custom-v10-table-cat
+      components:
+        CustomTable:
+          type: object
+          properties:
+            metadata:
+              type: object
+              properties:
+                pageNumber:
+                  type: number
+                pageSize:
+                  type: number
+              additionalProperties: false
+            catalogId:
+              type: string
+            accessibility:
+              type: string
+            checks:
+              type: array
+              items:
+                type: string
+          required:
+            - component
+            - metadata
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s_v10_coexist"
+        catalogId: "custom-v10-table-cat"
+    - version: "1.0"
+      updateComponents:
+        surfaceId: "s_v10_coexist"
+        components:
+          - id: "root"
+            component: "CustomTable"
+            metadata:
+              pageNumber: 0
+              pageSize: 20
+            catalogId: "custom-prop-catalog"
+            accessibility: "compact-mode"
+            checks:
+              - "non_empty_rows"
+            "@metadata":
+              extensions:
+                com_example_vendor: "acme"
+            "@accessibility":
+              label: "Quarterly revenue table"
+  expect:
+    surfaces:
+      s_v10_coexist:
+        exists: true
+        components:
+          - id: "root"
+            component: "CustomTable"
+            metadata:
+              pageNumber: 0
+              pageSize: 20
+            catalogId: "custom-prop-catalog"
+            accessibility: "compact-mode"
+            checks:
+              - "non_empty_rows"
+            "@metadata":
+              extensions:
+                com_example_vendor: "acme"
+
+- name: test_v10_legacy_catalog_id_routes_by_default_catalog_schema
+  description: >-
+    Tests that during the v1.0 transition a legacy bare 'catalogId' that the
+    component's schema in the surface default catalog does not declare routes
+    the component to the catalog it names, and is not kept as a property even
+    when the component's schema in that catalog declares a 'catalogId'
+    property of its own.
+  action: process_messages
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: legacy-route-main
+      components:
+        Label:
+          type: object
+          properties:
+            text:
+              type: string
+          required:
+            - component
+    - catalogId: legacy-route-other
+      components:
+        Label:
+          type: object
+          properties:
+            text:
+              type: string
+            catalogId:
+              type: string
+          required:
+            - component
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s_v10_legacy_route"
+        catalogId: "legacy-route-main"
+    - version: "1.0"
+      updateComponents:
+        surfaceId: "s_v10_legacy_route"
+        components:
+          - id: "root"
+            component: "Label"
+            text: "Hi"
+            catalogId: "legacy-route-other"
+  expect:
+    surfaces:
+      s_v10_legacy_route:
+        exists: true
+        components:
+          - id: "root"
+            component: "Label"
+            text: "Hi"
+
+- name: test_v10_legacy_catalog_id_routes_when_target_declares_non_string_catalog_id
+  description: >-
+    Tests that during the v1.0 transition a legacy bare 'catalogId' that the
+    component's schema in the surface default catalog does not declare routes
+    the component to the catalog it names, and is not validated as the
+    component's own 'catalogId' property there, even when that property is
+    not a string.
+  action: process_messages
+  protocolVersion: "1.0"
+  strictMode: true
+  catalogs:
+    - catalogId: legacy-route-int-main
+      components:
+        Label:
+          type: object
+          properties:
+            text:
+              type: string
+          required:
+            - component
+    - catalogId: legacy-route-int-other
+      components:
+        Label:
+          type: object
+          properties:
+            text:
+              type: string
+            catalogId:
+              type: integer
+          required:
+            - component
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s_v10_legacy_route_int"
+        catalogId: "legacy-route-int-main"
+    - version: "1.0"
+      updateComponents:
+        surfaceId: "s_v10_legacy_route_int"
+        components:
+          - id: "root"
+            component: "Label"
+            text: "Hi"
+            catalogId: "legacy-route-int-other"
+  expect:
+    surfaces:
+      s_v10_legacy_route_int:
+        exists: true
+        components:
+          - id: "root"
+            component: "Label"
+            text: "Hi"
+
+- name: test_v10_at_catalog_id_routes_when_target_declares_optional_custom_catalog_id
+  description: >-
+    Tests that a v1.0 '@catalogId' routes a component to a catalog whose schema
+    for it declares an optional 'catalogId' property of another type, which the
+    payload omits. The routing catalog ID is not validated as that property.
+  action: process_messages
+  protocolVersion: "1.0"
+  strictMode: true
+  catalogs:
+    - catalogId: at-route-int-main
+      components:
+        Label:
+          type: object
+          properties:
+            text:
+              type: string
+          required:
+            - component
+    - catalogId: at-route-int-other
+      components:
+        Label:
+          type: object
+          properties:
+            text:
+              type: string
+            catalogId:
+              type: integer
+          required:
+            - component
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s_v10_at_route_int"
+        catalogId: "at-route-int-main"
+    - version: "1.0"
+      updateComponents:
+        surfaceId: "s_v10_at_route_int"
+        components:
+          - id: "root"
+            component: "Label"
+            text: "Hi"
+            "@catalogId": "at-route-int-other"
+  expect:
+    surfaces:
+      s_v10_at_route_int:
+        exists: true
+        components:
+          - id: "root"
+            component: "Label"
+            text: "Hi"
+
+- name: test_v10_at_metadata_with_omitted_optional_custom_metadata_property
+  description: >-
+    Tests that a v1.0 component whose schema declares an optional 'metadata'
+    property of its own, which the payload omits, accepts and stores
+    '@metadata' envelope metadata. The envelope metadata is not validated as
+    that property.
+  action: process_messages
+  protocolVersion: "1.0"
+  strictMode: true
+  catalogs:
+    - catalogId: at-meta-omit-cat
+      components:
+        Note:
+          type: object
+          properties:
+            text:
+              type: string
+            metadata:
+              type: string
+          required:
+            - component
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s_v10_at_meta_omit"
+        catalogId: "at-meta-omit-cat"
+    - version: "1.0"
+      updateComponents:
+        surfaceId: "s_v10_at_meta_omit"
+        components:
+          - id: "root"
+            component: "Note"
+            text: "Hi"
+            "@metadata":
+              extensions:
+                com_example_trace: "t1"
+  expect:
+    surfaces:
+      s_v10_at_meta_omit:
+        exists: true
+        components:
+          - id: "root"
+            component: "Note"
+            text: "Hi"
+            "@metadata":
+              extensions:
+                com_example_trace: "t1"
+
+- name: test_v10_update_components_rejects_null_at_catalog_id
+  description: >-
+    Tests that v1.0 updateComponents rejects a component whose '@catalogId' is
+    null instead of resolving it to the surface default catalog.
+  action: process_messages
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s_v10_null_at_cat"
+        catalogId: "test-catalog-v10"
+    - version: "1.0"
+      updateComponents:
+        surfaceId: "s_v10_null_at_cat"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+            "@catalogId": null
+  expectError:
+    category: "ValidationError"
+
+- name: test_v10_update_components_rejects_null_legacy_catalog_id
+  description: >-
+    Tests that v1.0 updateComponents rejects a component whose legacy bare
+    'catalogId', which its schema doesn't declare as a property of its own, is
+    null instead of resolving it to the surface default catalog.
+  action: process_messages
+  protocolVersion: "1.0"
+  catalogPaths:
+    - "catalogs/basic/v1/catalog.json"
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s_v10_null_legacy_cat"
+        catalogId: "test-catalog-v10"
+    - version: "1.0"
+      updateComponents:
+        surfaceId: "s_v10_null_legacy_cat"
+        components:
+          - id: "root"
+            component: "Text"
+            text: "Hello"
+            catalogId: null
+  expectError:
+    category: "ValidationError"
+
+- name: test_v10_custom_envelope_properties_declared_in_combiner_branches
+  description: >-
+    Tests that a v1.0 component whose schema declares its own 'metadata' in a
+    'oneOf' branch and its own 'catalogId' in an 'anyOf' branch, both nested in
+    an 'allOf' member, keeps the bare 'metadata' and 'catalogId' as component
+    properties alongside '@metadata' envelope metadata, without a conflict
+    between the bare and '@' forms.
+  action: process_messages
+  protocolVersion: "1.0"
+  strictMode: true
+  catalogs:
+    - catalogId: combiner-custom-cat
+      components:
+        Pager:
+          type: object
+          properties:
+            text:
+              type: string
+          allOf:
+            - oneOf:
+                - properties:
+                    metadata:
+                      type: string
+                  required:
+                    - metadata
+                - properties:
+                    mode:
+                      const: "none"
+                  required:
+                    - mode
+              anyOf:
+                - properties:
+                    catalogId:
+                      type: string
+          required:
+            - component
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s_v10_combiner_custom"
+        catalogId: "combiner-custom-cat"
+    - version: "1.0"
+      updateComponents:
+        surfaceId: "s_v10_combiner_custom"
+        components:
+          - id: "root"
+            component: "Pager"
+            text: "Hi"
+            metadata: "page-2"
+            catalogId: "page-catalog"
+            "@metadata":
+              extensions:
+                com_example_trace: "t1"
+  expect:
+    surfaces:
+      s_v10_combiner_custom:
+        exists: true
+        components:
+          - id: "root"
+            component: "Pager"
+            text: "Hi"
+            metadata: "page-2"
+            catalogId: "page-catalog"
+            "@metadata":
+              extensions:
+                com_example_trace: "t1"
+
+- name: test_v10_inline_catalog_id_and_metadata_standard_only_beside_inline_id
+  description: >-
+    Tests that during the v1.0 transition a bare 'catalogId' or 'metadata'
+    declared inline in a component's 'properties' is the standard
+    ComponentCommon mixin only when the same 'properties' block also declares
+    'id' and the property has the standard shape (a string 'catalogId', or an
+    object 'metadata' whose only property is 'extensions'). Otherwise it is a
+    property of the component, kept beside '@metadata' envelope metadata.
+  action: process_messages
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: inline-rule-cat
+      components:
+        InlineCommon:
+          type: object
+          properties:
+            id:
+              type: string
+            text:
+              type: string
+            catalogId:
+              type: string
+            metadata:
+              type: object
+              properties:
+                extensions:
+                  type: object
+          required:
+            - component
+        InlineIdOtherTypes:
+          type: object
+          properties:
+            id:
+              type: string
+            text:
+              type: string
+            catalogId:
+              type: integer
+            metadata:
+              type: string
+          required:
+            - component
+        NoInlineId:
+          type: object
+          properties:
+            text:
+              type: string
+            catalogId:
+              type: string
+            metadata:
+              type: object
+              properties:
+                extensions:
+                  type: object
+          required:
+            - component
+  messages:
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s_v10_inline_common"
+        catalogId: "inline-rule-cat"
+    - version: "1.0"
+      updateComponents:
+        surfaceId: "s_v10_inline_common"
+        components:
+          - id: "root"
+            component: "InlineCommon"
+            text: "Hi"
+            catalogId: "inline-rule-cat"
+            metadata:
+              extensions:
+                com_example_trace: "t1"
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s_v10_inline_other_types"
+        catalogId: "inline-rule-cat"
+    - version: "1.0"
+      updateComponents:
+        surfaceId: "s_v10_inline_other_types"
+        components:
+          - id: "root"
+            component: "InlineIdOtherTypes"
+            text: "Hi"
+            catalogId: 7
+            metadata: "page-2"
+            "@metadata":
+              extensions:
+                com_example_trace: "t2"
+    - version: "1.0"
+      createSurface:
+        surfaceId: "s_v10_no_inline_id"
+        catalogId: "inline-rule-cat"
+    - version: "1.0"
+      updateComponents:
+        surfaceId: "s_v10_no_inline_id"
+        components:
+          - id: "root"
+            component: "NoInlineId"
+            text: "Hi"
+            catalogId: "not-a-catalog"
+            metadata:
+              extensions:
+                com_example_page: "p2"
+            "@metadata":
+              extensions:
+                com_example_trace: "t3"
+  expect:
+    surfaces:
+      s_v10_inline_common:
+        exists: true
+        components:
+          - id: "root"
+            component: "InlineCommon"
+            text: "Hi"
+            "@metadata":
+              extensions:
+                com_example_trace: "t1"
+      s_v10_inline_other_types:
+        exists: true
+        components:
+          - id: "root"
+            component: "InlineIdOtherTypes"
+            text: "Hi"
+            catalogId: 7
+            metadata: "page-2"
+            "@metadata":
+              extensions:
+                com_example_trace: "t2"
+      s_v10_no_inline_id:
+        exists: true
+        components:
+          - id: "root"
+            component: "NoInlineId"
+            text: "Hi"
+            catalogId: "not-a-catalog"
+            metadata:
+              extensions:
+                com_example_page: "p2"
+            "@metadata":
+              extensions:
+                com_example_trace: "t3"

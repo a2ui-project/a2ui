@@ -21,6 +21,10 @@ This installs `a2ui-agent-sdk` and `a2a-sdk` as dependencies.
   `try_activate_a2ui_extension` activates the A2UI extension for a request
   when the client asks for it. `get_a2ui_extension_uri` and
   `A2UI_EXTENSION_BASE_URI` give the extension URI for a protocol version.
+- Capability helpers: `renderer_capabilities_from_message` reads and validates
+  renderer capabilities from an inbound A2A `Message` (`message.metadata`,
+  each `DataPart`'s `metadata`, or legacy `data["metadata"]`) into a
+  version-keyed dictionary accepted by `resolve_catalogs`.
 - Part helpers: `create_a2ui_part`, `is_a2ui_part` and `get_a2ui_datapart`
   wrap and unwrap A2UI messages in A2A `DataPart`s. `to_a2a_parts` converts
   the parts that `A2uiRequestProcessor.parse_response()` returns, and

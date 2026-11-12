@@ -32,6 +32,7 @@ from a2ui.core import (
     CatalogApi,
 )
 from a2ui.core.schema import AgentToRendererMessage, ProtocolVersion
+from a2ui.inference_formats._shared.schema_helper import CatalogSchemaHelper
 from a2ui.transformers.macros.macro import (
     MacroVersionFamily,
     _MacroMetadata,
@@ -41,17 +42,42 @@ from a2ui.transformers.macros.macro import (
 )
 from a2ui.transformers.macros.processor import _MacroProcessor
 from a2ui.utils import to_version_number
+from a2ui.utils.component_envelope import (
+    ENVELOPE_MIXIN_NAMES,
+    envelope_key,
+    envelope_read_key,
+    get_envelope_value,
+    is_envelope_key,
+)
 
 logger = logging.getLogger(__name__)
 
 _DEFAULT_MACRO_CATALOG_ID = "https://a2ui.org/catalogs/macros"
 _MAX_TRACKED_SURFACES = 256
 
-_COMPONENT_ENVELOPE_KEYS: frozenset[str] = frozenset({
-    "catalogId",
-    "accessibility",
-    "metadata",
-})
+
+def _instance_envelope_value(
+    comp: Mapping[str, Any],
+    name: str,
+    *,
+    is_v1_0: bool,
+    declared_params: Mapping[str, Any],
+) -> Any:
+    """Reads an envelope mixin property from a macro instance component.
+
+    In v1.0 the `@`-prefixed key wins, and the bare key is the legacy fallback
+    unless the macro declares a parameter of that name. Before v1.0 the bare key
+    is the envelope property unless the macro declares a parameter of that name.
+
+    Returns:
+        The value, or None when the instance does not set the envelope property.
+    """
+    key = envelope_read_key(
+        comp, name, at_least_v10=is_v1_0, custom_properties=declared_params
+    )
+    if key is None or (key == name and name in declared_params):
+        return None
+    return comp[key]
 
 
 def _apply_envelope_fields(
@@ -62,7 +88,13 @@ def _apply_envelope_fields(
     instance_id: str | None,
     protocol_version: str | None = None,
 ) -> None:
-    """Propagates undeclared root envelope fields from a macro instance onto its expanded root."""
+    """Propagates root envelope fields from a macro instance onto its expanded root.
+
+    `accessibility` and `checks` propagate in every version and `metadata` from
+    v1.0. In v1.0 they are written as `@accessibility`, `@checks` and
+    `@metadata`. The instance's `catalogId` names the macro catalog, so it is
+    never copied; `MacroExpander` stamps primitive catalog IDs separately.
+    """
     if not expanded_macro:
         return
 
@@ -73,35 +105,53 @@ def _apply_envelope_fields(
                 root_comp = item
                 break
 
-    if comp.get("accessibility") is not None and "accessibility" not in declared_params:
-        a11y_copy = copy.deepcopy(comp["accessibility"])
-        if isinstance(root_comp.get("accessibility"), dict) and isinstance(
-            a11y_copy, dict
-        ):
-            root_comp["accessibility"] = {
-                **root_comp["accessibility"],
-                **a11y_copy,
-            }
-        else:
-            root_comp["accessibility"] = a11y_copy
+    is_v1_0 = protocol_version == to_version_number(ProtocolVersion.V1_0)
 
-    if protocol_version != to_version_number(ProtocolVersion.V1_0):
+    def read(name: str) -> Any:
+        return _instance_envelope_value(
+            comp, name, is_v1_0=is_v1_0, declared_params=declared_params
+        )
+
+    a11y = read("accessibility")
+    if a11y is not None:
+        a11y_key = envelope_key("accessibility", is_v1_0)
+        a11y_copy = copy.deepcopy(a11y)
+        if isinstance(root_comp.get(a11y_key), dict) and isinstance(a11y_copy, dict):
+            root_comp[a11y_key] = {**root_comp[a11y_key], **a11y_copy}
+        else:
+            root_comp[a11y_key] = a11y_copy
+
+    checks = read("checks")
+    if checks is not None:
+        checks_key = envelope_key("checks", is_v1_0)
+        checks_copy = copy.deepcopy(checks)
+        if isinstance(root_comp.get(checks_key), list) and isinstance(
+            checks_copy, list
+        ):
+            root_comp[checks_key] = [*root_comp[checks_key], *checks_copy]
+        else:
+            root_comp[checks_key] = checks_copy
+
+    if not is_v1_0:
         return
 
-    if comp.get("metadata") is not None and "metadata" not in declared_params:
-        meta_copy = copy.deepcopy(comp["metadata"])
-        if isinstance(root_comp.get("metadata"), dict) and isinstance(meta_copy, dict):
-            merged_meta = {**root_comp["metadata"], **meta_copy}
-            if isinstance(root_comp["metadata"].get("extensions"), dict) and isinstance(
+    meta = read("metadata")
+    if meta is not None:
+        meta_key = envelope_key("metadata", is_v1_0)
+        meta_copy = copy.deepcopy(meta)
+        root_meta = root_comp.get(meta_key)
+        if isinstance(root_meta, dict) and isinstance(meta_copy, dict):
+            merged_meta = {**root_meta, **meta_copy}
+            if isinstance(root_meta.get("extensions"), dict) and isinstance(
                 meta_copy.get("extensions"), dict
             ):
                 merged_meta["extensions"] = {
-                    **root_comp["metadata"]["extensions"],
+                    **root_meta["extensions"],
                     **meta_copy["extensions"],
                 }
-            root_comp["metadata"] = merged_meta
+            root_comp[meta_key] = merged_meta
         else:
-            root_comp["metadata"] = meta_copy
+            root_comp[meta_key] = meta_copy
 
 
 class MacroExpander:
@@ -210,6 +260,7 @@ class MacroExpander:
         )
         self.catalog_id: str | None = catalog_id
         self._catalog_base_components: dict[str, set[str]] = {}
+        self._catalog_helpers: dict[str, CatalogSchemaHelper] = {}
         self._registered_base_catalog_ids: list[str] = []
         if catalog_id is not None:
             self._catalog_base_components[catalog_id] = set()
@@ -231,6 +282,10 @@ class MacroExpander:
         comps_map = schema.get(CATALOG_COMPONENTS_KEY, {})
         if isinstance(comps_map, Mapping):
             self._catalog_base_components[catalog.catalog_id] = set(comps_map.keys())
+            try:
+                self._catalog_helpers[catalog.catalog_id] = CatalogSchemaHelper(catalog)
+            except Exception:
+                pass
             if catalog.catalog_id not in self._registered_base_catalog_ids:
                 self._registered_base_catalog_ids.append(catalog.catalog_id)
 
@@ -526,7 +581,7 @@ class MacroExpander:
             return
 
         for prim in primitives:
-            if not isinstance(prim, dict) or prim.get("catalogId") is not None:
+            if not isinstance(prim, dict):
                 continue
             p_name = prim.get("component")
             if not isinstance(p_name, str):
@@ -541,14 +596,33 @@ class MacroExpander:
             ):
                 continue
 
+            owners = [
+                cid
+                for cid in self._registered_base_catalog_ids
+                if p_name in self._catalog_base_components.get(cid, set())
+            ]
+            custom_props: frozenset[str] = frozenset()
+            if owners and all(
+                cid in self._catalog_helpers
+                and "catalogId"
+                in self._catalog_helpers[cid].get_custom_envelope_properties(p_name)
+                for cid in owners
+            ):
+                custom_props = frozenset({"catalogId"})
+            if (
+                get_envelope_value(
+                    prim,
+                    "catalogId",
+                    at_least_v10=True,
+                    custom_properties=custom_props,
+                )
+                is not None
+            ):
+                continue
+
             if transport_surface_catalog_id is None:
-                owners = [
-                    cid
-                    for cid in self._registered_base_catalog_ids
-                    if p_name in self._catalog_base_components.get(cid, set())
-                ]
                 if len(owners) == 1:
-                    prim["catalogId"] = owners[0]
+                    prim["@catalogId"] = owners[0]
                 elif len(owners) > 1:
                     raise A2uiCatalogError(
                         f"Expanded component {p_name!r} has no catalogId on"
@@ -570,13 +644,8 @@ class MacroExpander:
                     transport_surface_catalog_id, set()
                 )
             ):
-                owners = [
-                    cid
-                    for cid in self._registered_base_catalog_ids
-                    if p_name in self._catalog_base_components.get(cid, set())
-                ]
                 if len(owners) == 1:
-                    prim["catalogId"] = owners[0]
+                    prim["@catalogId"] = owners[0]
                 elif len(owners) > 1:
                     raise A2uiCatalogError(
                         f"Expanded component {p_name!r} has no catalogId on surface"
@@ -648,18 +717,16 @@ class MacroExpander:
                 if isinstance(del_sid, str):
                     active_surfaces.pop(del_sid, None)
 
-            for envelope_key in (
+            for body_key in (
                 "surfaceUpdate",
                 "createSurface",
                 "updateComponents",
             ):
-                if envelope_key in msg_dict and isinstance(
-                    msg_dict[envelope_key], dict
-                ):
-                    body = dict(msg_dict[envelope_key])
+                if body_key in msg_dict and isinstance(msg_dict[body_key], dict):
+                    body = dict(msg_dict[body_key])
                     body_modified = False
                     surface_id = body.get("surfaceId")
-                    if envelope_key == "createSurface" and isinstance(surface_id, str):
+                    if body_key == "createSurface" and isinstance(surface_id, str):
                         cid = body.get("catalogId")
                         inf_cid, trans_cid = self._resolve_surface_catalog_pair(
                             cid if isinstance(cid, str) else None,
@@ -710,7 +777,7 @@ class MacroExpander:
                         )
                         body_modified = True
                     if body_modified:
-                        msg_dict[envelope_key] = body
+                        msg_dict[body_key] = body
 
             lowered = type(msg).model_validate(msg_dict)
             result.append(lowered)
@@ -783,7 +850,12 @@ class MacroExpander:
 
             meta = self.processor.get_macro(c_name)
             effective_catalog_id: str | None = None
-            raw_cid = comp.get("catalogId")
+            raw_cid = get_envelope_value(
+                comp,
+                "catalogId",
+                at_least_v10=is_v1_0,
+                custom_properties=meta.parameters if meta is not None else (),
+            )
 
             if meta is not None:
                 if raw_cid is not None:
@@ -868,7 +940,7 @@ class MacroExpander:
                     comp.get("parameters"), dict
                 ):
                     params = dict(comp["parameters"])
-                    for env_key in _COMPONENT_ENVELOPE_KEYS:
+                    for env_key in ENVELOPE_MIXIN_NAMES:
                         if (
                             env_key in meta.parameters
                             and comp.get(env_key) is not None
@@ -885,7 +957,11 @@ class MacroExpander:
                         k: v
                         for k, v in comp.items()
                         if k not in excluded_keys
-                        and (k not in _COMPONENT_ENVELOPE_KEYS or k in meta.parameters)
+                        and not is_envelope_key(
+                            k,
+                            at_least_v10=is_v1_0,
+                            custom_properties=meta.parameters,
+                        )
                     }
                 try:
                     expanded_macro = self.processor.expand(

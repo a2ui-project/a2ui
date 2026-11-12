@@ -781,6 +781,7 @@ macros:
 
 tests:
   - id: "01_status_badge_expansion"
+    features: [F-AGT-26]
     description: "Macro expanding to Card, Row, and Text components with root stitching and namespacing"
     golden: "01_status_badge_expansion.json"
     surface_id: "conformance"
@@ -793,6 +794,7 @@ tests:
       title: "Server 1"
 
   - id: "02_slot_boundary_preservation"
+    features: [F-AGT-26]
     description: "Single child slot referencing an external component ID without namespacing or re-emission"
     golden: "02_slot_boundary_preservation.json"
     surface_id: "conformance"
@@ -1053,7 +1055,7 @@ tests:
         - "Text"
 
   - id: "19_envelope_attributes_preservation"
-    description: "Macro invocations with component envelope attributes (catalogId, accessibility, metadata) expand cleanly, merging accessibility and metadata onto the expanded root without copying macro catalogId onto emitted primitives"
+    description: "Macro invocations with v1.0 component envelope attributes (@catalogId, @accessibility, @metadata) expand cleanly, merging @accessibility and @metadata onto the expanded root without copying the macro's @catalogId onto emitted primitives"
     golden: "19_envelope_attributes_preservation.json"
     surface_id: "conformance"
     envelope_version: "1.0"
@@ -1068,11 +1070,11 @@ tests:
         id: "btn_basic"
         label: "Submit"
         action: "submit_form"
-        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
-        accessibility:
+        "@catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        "@accessibility":
           label: "Submit form button"
           description: "Submits the current form"
-        metadata:
+        "@metadata":
           extensions:
             telemetry:
               traceId: "t1"
@@ -1080,8 +1082,8 @@ tests:
         id: "btn_standalone"
         label: "Cancel"
         action: "cancel_form"
-        catalogId: "https://a2ui.org/catalogs/macros"
-        accessibility:
+        "@catalogId": "https://a2ui.org/catalogs/macros"
+        "@accessibility":
           label: "Cancel form button"
 
   - id: "20_mixable_catalogs_resolution"
@@ -1099,7 +1101,7 @@ tests:
           - "basic_text"
       - component: "Text"
         id: "brand_text"
-        catalogId: "https://example.com/brand.json"
+        "@catalogId": "https://example.com/brand.json"
         text: "Brand Header"
         variant: "body"
       - component: "Text"
@@ -1297,7 +1299,7 @@ tests:
       has_any_function: true
 
   - id: "30_root_envelope_deep_merge_and_declared_override"
-    description: "v1.0 macro expansion deep-merges undeclared accessibility and metadata.extensions with root defaults while passing declared accessibility and weight parameters to the macro"
+    description: "v1.0 macro expansion deep-merges @accessibility and @metadata.extensions with root defaults while passing the declared accessibility and weight parameters (custom properties) to the macro"
     golden: "30_root_envelope_deep_merge_and_declared_override.json"
     surface_id: "conformance"
     envelope_version: "1.0"
@@ -1313,10 +1315,10 @@ tests:
         id: "ann_badge"
         status: "ok"
         title: "Primary"
-        catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
-        accessibility:
+        "@catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+        "@accessibility":
           label: "Server status badge"
-        metadata:
+        "@metadata":
           extensions:
             telemetry:
               traceId: "t1"
@@ -1458,13 +1460,13 @@ tests:
           components:
             - id: "root"
               component: "FooPanel"
-              catalogId: "https://example.com/catalogs/foo/v1/catalog.json"
+              "@catalogId": "https://example.com/catalogs/foo/v1/catalog.json"
               children:
                 - "baz_1"
                 - "extra_bar_btn"
             - id: "baz_1"
               component: "BazMacro"
-              catalogId: "https://example.com/catalogs/baz_macros.json"
+              "@catalogId": "https://example.com/catalogs/baz_macros.json"
               headline:
                 "@path": "/dashboard/headline"
               badge_tag: "LIVE"
@@ -1474,7 +1476,7 @@ tests:
                 userMessage: "Deploy release"
             - id: "extra_bar_btn"
               component: "BarButton"
-              catalogId: "https://example.com/catalogs/bar/v1/catalog.json"
+              "@catalogId": "https://example.com/catalogs/bar/v1/catalog.json"
               label: "Cancel"
               action:
                 event:
@@ -1492,7 +1494,7 @@ tests:
               child: "baz_themed"
             - id: "baz_themed"
               component: "BazMacro"
-              catalogId: "https://example.com/catalogs/baz_macros.json"
+              "@catalogId": "https://example.com/catalogs/baz_macros.json"
               headline: "Themed Dashboard"
               badge_tag: "CANARY"
               cta_label: "Promote"
@@ -1519,7 +1521,7 @@ tests:
           components:
             - id: "root"
               component: "UnannotatedBrandCard"
-              catalogId: "https://example.com/brand.json"
+              "@catalogId": "https://example.com/brand.json"
               title: "Auto stamped"
 
   - id: "35b_error_ambiguous_primitive_on_defaultless_surface"
@@ -1540,7 +1542,7 @@ tests:
           components:
             - id: "root"
               component: "UnannotatedBrandCard"
-              catalogId: "https://example.com/brand.json"
+              "@catalogId": "https://example.com/brand.json"
               title: "Ambiguous BrandBox"
     expect_error:
       category: "CatalogError"
@@ -1577,7 +1579,7 @@ tests:
               variant: "body"
             - id: "t_brand"
               component: "Text"
-              catalogId: "https://example.com/brand_surface.json"
+              "@catalogId": "https://example.com/brand_surface.json"
               text: "Brand title"
               variant: "body"
       - version: "1.0"
@@ -1593,7 +1595,7 @@ tests:
           components:
             - id: "root"
               component: "Column"
-              catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
+              "@catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
               children:
                 - "t_recreated"
                 - "b_null_cid"
@@ -1603,7 +1605,7 @@ tests:
               variant: "body"
             - id: "b_null_cid"
               component: "BrandBadge"
-              catalogId: null
+              "@catalogId": null
               label: "Null cid"
 
   - id: "37a_stateless_surface_catalogs_override_expands"
@@ -1666,7 +1668,7 @@ tests:
         text: "Should remain plain"
       - id: "empty_cid_text"
         component: "Text"
-        catalogId: ""
+        "@catalogId": ""
         text: "Invalid empty catalogId"
       - id: "untracked_badge"
         component: "BrandBadge"
@@ -1678,7 +1680,7 @@ tests:
           text: "Should remain plain"
         - id: "empty_cid_text"
           component: "Text"
-          catalogId: ""
+          "@catalogId": ""
           text: "Invalid empty catalogId"
         - id: "untracked_badge"
           component: "BrandBadge"
@@ -1697,7 +1699,7 @@ tests:
     input:
       id: "root"
       component: "Text"
-      catalogId: "https://a2ui.org/catalogs/macros"
+      "@catalogId": "https://a2ui.org/catalogs/macros"
     expect:
       component_types:
         - "Text"
@@ -1759,11 +1761,11 @@ tests:
                 - "p_cat_b"
             - id: "p_cat_a"
               component: "ProductCard"
-              catalogId: "https://example.com/catalog_a.json"
+              "@catalogId": "https://example.com/catalog_a.json"
               sku: "SKU-1"
             - id: "p_cat_b"
               component: "ProductCard"
-              catalogId: "https://example.com/catalog_b.json"
+              "@catalogId": "https://example.com/catalog_b.json"
               name: "Widget"
       - version: "1.0"
         createSurface:
@@ -1775,7 +1777,7 @@ tests:
           components:
             - id: "root"
               component: "BrandBox"
-              catalogId: "https://example.com/catalog_b.json"
+              "@catalogId": "https://example.com/catalog_b.json"
               title: "Wrapped"
       - version: "1.0"
         createSurface:
@@ -1787,7 +1789,7 @@ tests:
           components:
             - id: "root"
               component: "OuterPanelInherited"
-              catalogId: "https://example.com/catalog_b.json"
+              "@catalogId": "https://example.com/catalog_b.json"
               title: "Inherited"
 
   - id: "38b_scoped_nested_macro_and_non_basic_surface"
@@ -1812,7 +1814,7 @@ tests:
           components:
             - id: "root"
               component: "OuterPanelScoped"
-              catalogId: "https://example.com/brand.json"
+              "@catalogId": "https://example.com/brand.json"
               title: "Staging"
       - version: "1.0"
         createSurface:
@@ -1829,7 +1831,7 @@ tests:
                 - "c_plain"
             - id: "c_brand"
               component: "Chart"
-              catalogId: "https://example.com/brand.json"
+              "@catalogId": "https://example.com/brand.json"
               series: "revenue"
             - id: "c_plain"
               component: "Chart"
@@ -1845,7 +1847,7 @@ tests:
     input:
       id: "root"
       component: "DeferredCycle"
-      catalogId: "https://example.com/catalog_b.json"
+      "@catalogId": "https://example.com/catalog_b.json"
       label: "loop"
     expect_error:
       category: "RecursionError"
@@ -1866,7 +1868,7 @@ tests:
           components:
             - id: "root"
               component: "CycleA"
-              catalogId: "https://example.com/catalog_b.json"
+              "@catalogId": "https://example.com/catalog_b.json"
               label: "loop"
     expect_error:
       category: "RecursionError"
@@ -1888,7 +1890,7 @@ tests:
           components:
             - id: "root"
               component: "CycleA"
-              catalogId: "https://example.com/catalog_b.json"
+              "@catalogId": "https://example.com/catalog_b.json"
               label: "loop"
     expect_error:
       category: "RecursionError"
@@ -1977,7 +1979,7 @@ tests:
     input:
       id: "root"
       component: "EmitsSurface"
-      catalogId: "https://example.com/catalog_b.json"
+      "@catalogId": "https://example.com/catalog_b.json"
     expect_error:
       category: "ValidationError"
 

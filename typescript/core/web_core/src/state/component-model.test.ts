@@ -34,9 +34,9 @@ describe('ComponentModel', () => {
   });
 
   it('constructs without a catalog for pre-1.0 callers', () => {
-    const legacy = new ComponentModel('c2', 'Text', {text: 'Hi'});
-    assert.strictEqual(legacy.catalog, undefined);
-    assert.strictEqual(legacy.properties.text, 'Hi');
+    const v09Component = new ComponentModel('c2', 'Text', {text: 'Hi'});
+    assert.strictEqual(v09Component.catalog, undefined);
+    assert.strictEqual(v09Component.properties.text, 'Hi');
   });
 
   it('updates properties', () => {
@@ -96,7 +96,7 @@ describe('ComponentModel', () => {
     });
   });
 
-  it('keeps the component metadata over a property named metadata in the tree', () => {
+  it('writes the component metadata as @metadata beside a property named metadata', () => {
     const chart = new ComponentModel(
       'chart1',
       'Chart',
@@ -105,11 +105,26 @@ describe('ComponentModel', () => {
       {extensions: {owner: 'agent'}},
     );
     assert.deepStrictEqual(chart.componentTree, {
-      id: 'chart1',
-      component: 'Chart',
-      metadata: {extensions: {owner: 'agent'}},
-      title: 'Sales',
+      'id': 'chart1',
+      'component': 'Chart',
+      'metadata': 'prop',
+      '@metadata': {extensions: {owner: 'agent'}},
+      'title': 'Sales',
     });
+  });
+
+  it('writes the component metadata as @metadata when no property is named metadata', () => {
+    const chart = new ComponentModel('chart1', 'Chart', {title: 'Sales'}, defaultCatalog, {
+      extensions: {owner: 'agent'},
+    });
+    const tree = chart.componentTree;
+    assert.deepStrictEqual(tree, {
+      'id': 'chart1',
+      'component': 'Chart',
+      '@metadata': {extensions: {owner: 'agent'}},
+      'title': 'Sales',
+    });
+    assert.ok(!('metadata' in tree));
   });
 
   it('stores and exposes a Catalog reference', () => {

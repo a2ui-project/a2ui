@@ -21,6 +21,7 @@ import {isAtLeastVersion} from '../common/semver.js';
 import {assertUax31Identifier} from '../common/uax31.js';
 import {A2uiCatalogError} from '../errors.js';
 import {CommonSchemas, ComponentCommonSchema} from '../types/common-types.js';
+import {markStandardMixinSchema} from './component_envelope.js';
 import {exclusiveUnion} from './exclusive_union.js';
 import {JsonComponentApi, JsonFunctionApi} from './json_entries.js';
 import {
@@ -696,7 +697,7 @@ function convertPropertyToZod(
 
 /**
  * Whether a property name is one of the component envelope fields (`id`,
- * `component`, `catalogId`), which route a component rather than configure it.
+ * `component`, `@catalogId`), which route a component rather than configure it.
  * The validation schema leaves them out of a component for the same reason, and
  * `PayloadValidator` strips them before parsing a component.
  *
@@ -704,7 +705,42 @@ function convertPropertyToZod(
  * @returns True if the property belongs to the envelope rather than the component.
  */
 function isEnvelopeField(propName: string): boolean {
-  return propName === 'id' || propName === 'component' || propName === 'catalogId';
+  // A bare `catalogId` a component declares is its own property: below v1.0
+  // the protocol has no per-component catalog, and from v1.0 the envelope
+  // field is `@catalogId`.
+  return propName === 'id' || propName === 'component' || propName === '@catalogId';
+}
+
+/**
+ * Whether a `properties` block declares `catalogId` or `metadata` as part of
+ * an inlined `ComponentCommon`, as flattened validation schemas do: beside
+ * `id`, and with the standard shape (a string `catalogId`, or a `metadata`
+ * object whose only property is `extensions`). Such a property is the
+ * standard mixin rather than a custom property of the same name.
+ *
+ * @param properties The `properties` block that declares the property.
+ * @param propName The property's name.
+ * @param propSchema The property's JSON Schema.
+ * @returns Whether the property is the inlined standard mixin.
+ */
+function isInlineStandardMixinProperty(
+  properties: Record<string, unknown>,
+  propName: string,
+  propSchema: unknown,
+): boolean {
+  if (!Object.hasOwn(properties, 'id') || !isPlainObject(propSchema)) return false;
+  switch (propName) {
+    case 'catalogId':
+      return propSchema.type === 'string';
+    case 'metadata': {
+      const metadataProps = propSchema.properties;
+      if (propSchema.type !== 'object' || !isPlainObject(metadataProps)) return false;
+      const keys = Object.keys(metadataProps);
+      return keys.length === 1 && keys[0] === 'extensions';
+    }
+    default:
+      return false;
+  }
 }
 
 /**
@@ -714,7 +750,7 @@ function isEnvelopeField(propName: string): boolean {
  *
  * @param properties Property name to property schema mapping.
  * @param requiredSet Set of required property names.
- * @param omitEnvelopeFields Whether to omit component envelope fields (`id`, `component`, `catalogId`).
+ * @param omitEnvelopeFields Whether to omit component envelope fields (`id`, `component`, `@catalogId`).
  * @param rootDoc Optional root schema document for reference resolution.
  * @param visitedPointers Set of reference pointers currently on the resolution stack.
  * @param defCache Cache mapping reference strings to resolved Zod schemas.
@@ -760,6 +796,14 @@ function convertPropertiesToShape(
       }, zodField);
     } else {
       shape[propName] = zodField;
+    }
+  }
+  for (const [propName, propSchema] of Object.entries(properties)) {
+    if (
+      Object.hasOwn(shape, propName) &&
+      isInlineStandardMixinProperty(properties, propName, propSchema)
+    ) {
+      markStandardMixinSchema(shape[propName]);
     }
   }
   return shape;
@@ -858,6 +902,29 @@ type ComponentSubSchema =
   | {kind: 'zod'; properties: Record<string, z.ZodTypeAny>};
 
 /**
+ * Returns the `ComponentCommon` properties a component schema that composes
+ * `common_types.json#/$defs/ComponentCommon` inherits, marked as standard
+ * mixin properties.
+ *
+ * The component's `id` and catalog are envelope fields rather than
+ * properties, and below v1.0 `metadata` is not part of the protocol.
+ *
+ * @param isAtLeastV10 Whether the catalog targets protocol v1.0 or higher.
+ * @returns The inherited property schemas, keyed by their wire names.
+ */
+function componentCommonMixinProperties(isAtLeastV10: boolean): Record<string, z.ZodTypeAny> {
+  const properties: Record<string, z.ZodTypeAny> = {};
+  for (const [key, schema] of Object.entries(ComponentCommonSchema.shape)) {
+    if (!isAtLeastV10 && key.startsWith('@')) continue;
+    const bareKey = key.replace(/^@/, '');
+    if (bareKey === 'id' || bareKey === 'catalogId') continue;
+    if (bareKey === 'metadata' && !isAtLeastV10) continue;
+    properties[key] = markStandardMixinSchema(schema as z.ZodTypeAny);
+  }
+  return properties;
+}
+
+/**
  * Collects all property definitions and constraints from a component schema.
  *
  * Resolves local document `$defs` and canonical protocol references, including
@@ -896,13 +963,9 @@ function collectComponentSubSchemas(
         const ref = sub.$ref;
         if (ref.includes('common_types.json') && ref.includes('ComponentCommon')) {
           // Protocol common properties: accessibility attributes, and from
-          // v1.0 also the component's metadata. `catalogId` is an envelope
-          // field, like `id`.
-          const {accessibility, metadata} = ComponentCommonSchema.shape;
-          mixins.push({
-            kind: 'zod',
-            properties: isAtLeastV10 ? {accessibility, metadata} : {accessibility},
-          });
+          // v1.0 also the component's metadata, under their bare or
+          // `@`-prefixed names. `catalogId` is an envelope field, like `id`.
+          mixins.push({kind: 'zod', properties: componentCommonMixinProperties(isAtLeastV10)});
         } else if (ref.startsWith('#/')) {
           if (!visitedPointers.has(ref)) {
             visitedPointers.add(ref);
@@ -920,7 +983,12 @@ function collectComponentSubSchemas(
           // how `checks` used to disappear from every Checkable component.
           const mirror = resolveProtocolRef(ref);
           if (mirror instanceof z.ZodObject) {
-            mixins.push({kind: 'zod', properties: {...mirror.shape}});
+            const properties: Record<string, z.ZodTypeAny> = {};
+            for (const [key, prop] of Object.entries(mirror.shape as z.ZodRawShape)) {
+              if (!isAtLeastV10 && key.startsWith('@')) continue;
+              properties[key] = markStandardMixinSchema(prop);
+            }
+            mixins.push({kind: 'zod', properties});
           }
         }
       } else {
@@ -944,7 +1012,7 @@ function collectComponentSubSchemas(
  *
  * @param rawSchema Raw component schema definition.
  * @param rootDoc Root schema document for resolving references.
- * @param omitEnvelopeFields Whether to omit envelope fields (`id`, `component`, `catalogId`). Defaults to true.
+ * @param omitEnvelopeFields Whether to omit envelope fields (`id`, `component`, `@catalogId`). Defaults to true.
  * @param defCache Cache mapping reference strings to resolved Zod schemas.
  * @param isAtLeastV10 Whether the catalog targets protocol v1.0 or higher.
  * @returns Zod object schema validating component properties.

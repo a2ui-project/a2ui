@@ -146,21 +146,21 @@ The comparer fails on any `MISSING` (corpus case without a record), `DUPLICATE` 
 
 Implement the suites in stages so each layer is tested before higher-level components depend on it:
 
-| Stage                                     | Suites to add                                                                                                                                                                          | SDK surface checked                                                                                                                          |
-| :---------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------- |
-| C1. Data model and expressions            | `core/data_model.yaml`, `core/data_model_pointers.yaml`, `core/data_deletion.yaml`, `core/data_context.yaml`, `core/expressions.yaml`                                                  | `DataModel` pointer reads, writes, deletes, and observers; relative path resolution; the expression template parser                          |
-| C2. Catalogs and schemas                  | `core/catalog.yaml`, `core/common_types.yaml`, `core/agent_to_renderer.yaml`                                                                                                           | `Catalog.fromJson`, `toJson`, `derive`, `validationSchema`; schema generation from the SDK's own models                                      |
-| C3. Validation and message processing     | `core/validator_v*.yaml`, `core/error_responses.yaml`, `core/message_processor_v*.yaml`, `core/composition_constraints.yaml`, `core/reserved_keys.yaml`, `core/validation_result.yaml` | Strict validation, outbound renderer error envelopes, `MessageProcessor` lifecycle, per-call `validationConfig`, capabilities and data reads |
-| C4. Functions, actions, and multi-catalog | `core/functions.yaml`, `core/index_function.yaml`, `core/multi_catalog.yaml`, `core/actions.yaml`, `core/rpc_functions.yaml`, `core/agent_function_routing.yaml`                       | Basic catalog functions, call resolution across catalogs, action dispatch, bidirectional RPC, v1.0 fallback routing to the agent             |
-| C5. Node resolution and timing            | `core/node_resolution.yaml`, `core/message_processor_scaling.yaml`                                                                                                                     | `NodeResolver` identity, scoped bindings, and notifications; linear-time message processing                                                  |
-| A1. Catalog plumbing                      | `agent/catalog_provider.yaml`, `agent/catalog_transformer.yaml`, `agent/catalog_resolution.yaml`                                                                                       | `FileSystemCatalogProvider`, `InMemoryCatalogProvider`, `CatalogConfig`, pruning transformers, and `resolveCatalogs`                         |
-| A2. Direct JSON format                    | `agent/direct_json/response_parser.yaml`, `compiler.yaml`, `decompiler.yaml`, `prompt_generator.yaml`, `response_streaming.yaml`                                                       | Sentinel framing (`<a2ui-json>`), single-block compilation, prompt golden matching, and incremental JSON streaming                           |
-| A3. Express format                        | `agent/express/response_parser.yaml`, `compiler.yaml`, `decompiler.yaml`, `prompt_generator.yaml`                                                                                      | Sentinel framing (`<a2ui>`), Express grammar parsing, compilation, decompilation, and prompt generation                                      |
-| A4. Multi-catalog and session pipeline    | `agent/multi_catalog_formats.yaml`, `agent/request_processor.yaml`, `agent/streamed_answer.yaml`                                                                                       | Cross-catalog lookup, `InferenceFormatFactory`, `A2uiGenerator`, `A2uiRequestProcessor`, and `StreamedAnswer`                                |
-| A5. Specification round-trips             | `catalogs/basic/v1/examples/*.json` (and v0.9 examples if supported)                                                                                                                   | End-to-end `decompile` followed by `compile` across every published basic catalog example                                                    |
-| A6. Skills, macros, and scaling           | `agent/skill.yaml`, `agent/builder/builder.yaml`, `agent/macros/macros.yaml`, `agent/*/scaling.yaml`                                                                                   | Skill generation, typesafe fluent builders, macros, and linear-time parsing                                                                  |
-| A7. Agent functions                       | `agent/agent_functions.yaml`, `agent/renderer_function_calls.yaml`                                                                                                                     | Agent functions on a catalog, answering `callAgentFunction`, routing renderer messages, and calling renderer functions on a fake clock       |
-| F1. Framework adapter                     | `core/adapter_conformance.yaml`, `core/accessibility.yaml`                                                                                                                             | Rendered view trees, repeaters, two-way bindings, action and user-activation gating, validation state, accessibility, and unmount cleanup    |
+| Stage                                     | Suites to add                                                                                                                                                                          | SDK surface checked                                                                                                                              |
+| :---------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------- |
+| C1. Data model and expressions            | `core/data_model.yaml`, `core/data_model_pointers.yaml`, `core/data_deletion.yaml`, `core/data_context.yaml`, `core/expressions.yaml`                                                  | `DataModel` pointer reads, writes, deletes, and observers; relative path resolution; the expression template parser                              |
+| C2. Catalogs and schemas                  | `core/catalog.yaml`, `core/common_types.yaml`, `core/agent_to_renderer.yaml`                                                                                                           | `Catalog.fromJson`, `toJson`, `derive`, `validationSchema`; schema generation from the SDK's own models                                          |
+| C3. Validation and message processing     | `core/validator_v*.yaml`, `core/error_responses.yaml`, `core/message_processor_v*.yaml`, `core/composition_constraints.yaml`, `core/reserved_keys.yaml`, `core/validation_result.yaml` | Strict validation, outbound renderer error envelopes, `MessageProcessor` lifecycle, per-call `validationConfig`, capabilities and data reads     |
+| C4. Functions, actions, and multi-catalog | `core/functions.yaml`, `core/index_function.yaml`, `core/multi_catalog.yaml`, `core/actions.yaml`, `core/rpc_functions.yaml`, `core/agent_function_routing.yaml`                       | Basic catalog functions, call resolution across catalogs, action dispatch, bidirectional RPC, v1.0 fallback routing to the agent                 |
+| C5. Node resolution and timing            | `core/node_resolution.yaml`, `core/message_processor_scaling.yaml`                                                                                                                     | `NodeResolver` identity, scoped bindings, and notifications; linear-time message processing                                                      |
+| A1. Catalog plumbing                      | `agent/catalog_provider.yaml`, `agent/catalog_transformer.yaml`, `agent/catalog_resolution.yaml`, `agent/renderer_capabilities.yaml`                                                   | `FileSystemCatalogProvider`, `InMemoryCatalogProvider`, `CatalogConfig`, pruning transformers, `readRendererCapabilities`, and `resolveCatalogs` |
+| A2. Direct JSON format                    | `agent/direct_json/response_parser.yaml`, `compiler.yaml`, `decompiler.yaml`, `prompt_generator.yaml`, `response_streaming.yaml`                                                       | Sentinel framing (`<a2ui-json>`), single-block compilation, prompt golden matching, and incremental JSON streaming                               |
+| A3. Express format                        | `agent/express/response_parser.yaml`, `compiler.yaml`, `decompiler.yaml`, `prompt_generator.yaml`                                                                                      | Sentinel framing (`<a2ui>`), Express grammar parsing, compilation, decompilation, and prompt generation                                          |
+| A4. Multi-catalog and session pipeline    | `agent/multi_catalog_formats.yaml`, `agent/request_processor.yaml`, `agent/streamed_answer.yaml`                                                                                       | Cross-catalog lookup, `InferenceFormatFactory`, `A2uiGenerator`, `A2uiRequestProcessor`, and `StreamedAnswer`                                    |
+| A5. Specification round-trips             | `catalogs/basic/v1/examples/*.json` (and v0.9 examples if supported)                                                                                                                   | End-to-end `decompile` followed by `compile` across every published basic catalog example                                                        |
+| A6. Skills, macros, and scaling           | `agent/skill.yaml`, `agent/builder/builder.yaml`, `agent/macros/macros.yaml`, `agent/*/scaling.yaml`                                                                                   | Skill generation, typesafe fluent builders, macros, and linear-time parsing                                                                      |
+| A7. Agent functions                       | `agent/agent_functions.yaml`, `agent/renderer_function_calls.yaml`                                                                                                                     | Agent functions on a catalog, answering `callAgentFunction`, routing renderer messages, and calling renderer functions on a fake clock           |
+| F1. Framework adapter                     | `core/adapter_conformance.yaml`, `core/accessibility.yaml`                                                                                                                             | Rendered view trees, repeaters, two-way bindings, action and user-activation gating, validation state, accessibility, and unmount cleanup        |
 
 Notice that `agent/express/` has no `response_streaming.yaml` file. Express parses whole buffered blocks and does not implement `openStream`.
 
@@ -248,6 +248,7 @@ Implement a shared `compileChecked(parser, content)` helper for all `compile` ca
 1. `provide_catalog` (`agent/catalog_provider.yaml`): Construct `FileSystemCatalogProvider` pointing to `conformancePath(args.path)`, passing optional `args.catalog_id` and `args.protocol_version`. Call `load()`. Compare `expect.catalog_id` and `expect.protocol_version` for equality, and compare `expect.components` and `expect.functions` as unordered sets of names.
 2. `transform_catalog` (`agent/catalog_transformer.yaml`): Wrap `args.catalog` and `args.transformers` in a `CatalogConfig` and inspect `transformedCatalog` using the same catalog expectation helper.
 3. `resolve_catalogs` (`agent/catalog_resolution.yaml`): Build the list of `CatalogConfig` registrations from `args.catalogs`. Pass them to `resolveCatalogs` along with `args.renderer_capabilities` (preserving `null` or `undefined` when omitted from `args`) and `args.accepts_inline_catalogs` (default `false`). Compare `expect.active_catalog_ids` as an unordered set, and match each item in `expect.catalogs` to the resolved catalog with the same `catalog_id` rather than by list index.
+4. `read_renderer_capabilities` (`agent/renderer_capabilities.yaml`): Call `readRendererCapabilities(args.metadata, args.version)` (skipping cases whose `args.version` your SDK does not implement). Compare the serialized version-keyed capabilities map (or `null` when absent) against `expect`, or check `expect_error` (`CatalogError` when the metadata value or version entry is malformed).
 
 ### Response framing and whole-response parsing
 
@@ -260,7 +261,7 @@ All four actions in `response_parser.yaml` run against `format.createParser()`:
 
 ### Compilation, decompilation, and multi-catalog ordering
 
-1. `compile` (`compiler.yaml` and `multi_catalog_formats.yaml`): Run `compileChecked(parser, input)` and serialize the messages to JSON maps. When `expect_present` is set (such as `"/0/createSurface/components/0/checks/0/message"` in `agent/express/compiler.yaml`), resolve each RFC 6901 JSON Pointer in the serialized messages. These pointers target dynamic object properties (such as generated error messages or diagnostics) rather than array indices. Verify that each pointer resolves to a non-null and non-empty value, delete that object property key at the leaf of the pointer from the compiled structure, and then compare the remaining structure against `expect`.
+1. `compile` (`compiler.yaml` and `multi_catalog_formats.yaml`): Run `compileChecked(parser, input)` and serialize the messages to JSON maps. When `expect_present` is set (such as `"/0/createSurface/components/0/@checks/0/message"` in `agent/express/compiler.yaml`), resolve each RFC 6901 JSON Pointer in the serialized messages. These pointers target dynamic object properties (such as generated error messages or diagnostics) rather than array indices. Verify that each pointer resolves to a non-null and non-empty value, delete that object property key at the leaf of the pointer from the compiled structure, and then compare the remaining structure against `expect`.
 2. Multi-catalog component order (`agent/multi_catalog_formats.yaml`): Component array order inside `createSurface.components` and `updateComponents.components` carries no meaning in A2UI. Sort `components` lists by component `id` on both actual and expected messages before asserting equality in multi-catalog cases.
 3. `decompile` (`decompiler.yaml` and `multi_catalog_formats.yaml`): Parse `messages` into `AgentToRendererMessage` objects, call `parser.decompile(messages)`, and check `expect_output`, `expect_contains`, and `expect_absent`. When `expect_round_trip` is `true`, recompile the output with `compileChecked` on a fresh parser and compare against `messages`. When `expect_recompiled` is set (where Express merges a root `updateDataModel` into `createSurface.dataModel`), recompile the output and compare against `expect_recompiled` instead.
 
@@ -358,6 +359,52 @@ Each case in `core/accessibility.yaml` (`action: accessibility_check`) provides 
 2. `axeCore` lists axe-core rule IDs (`button-name`, `aria-valid-attr-value`, `aria-allowed-attr`, `aria-hidden-focus`) that the mounted DOM must pass. Angular runs axe-core on the rendered container; Lit and React (jsdom/DOM shim) keep the attribute-level subset and list `axeCore` as `UNSUPPORTED` with reason "no layout engine"; non-web adapters skip `axeCore` with a reason.
 
 Where a browser-based test runner cannot read YAML from disk at test time, parse the suite files in the runner configuration and inject them as JSON. For example, [typescript/renderers/angular/karma.conf.js](../typescript/renderers/angular/karma.conf.js) parses `accessibility.yaml`, `adapter_conformance.yaml`, and `catalogs/basic/v1/catalog.json` in Node and exposes them to Jasmine browser specs via `client.conformanceSuites`.
+
+## Golden-transcript harness (`conformance/e2e/`)
+
+The end-to-end golden-transcript harness exercises complete conversational scenarios containing multi-turn exchanges between an agent and a renderer. Each scenario case specifies `action: e2e_scenario`, a `protocolVersion`, `catalogPaths`, `formats`, and a list of `turns`.
+
+### Agent half algorithm
+
+The agent half tests response chunk parsing and wire fidelity:
+
+1. Initialize the inference format parser for each declared format (`direct_json`, `express`), configured with the scenario's catalogs.
+2. Initialize and maintain an empty parser `RendererState` across the turns of the scenario.
+3. For each turn in `scenario["turns"]`:
+   - Stream the chunks from `turn["modelChunks"][format]` through `parser.open_stream(state=state)`.
+   - Concatenate all returned `ResponsePart` items, merging adjacent `TextPart` items.
+   - Assert that the resulting response parts match `turn["expectWire"]`.
+   - Concatenate all chunks into a single string and parse via `parser.parse_response(full_text, state=state)`, verifying single-shot equality with `expectWire`.
+
+### Renderer half algorithm
+
+The renderer half tests UI tree construction, interaction, and outbound messaging:
+
+1. Initialize a `MessageProcessor` or UI framework adapter with the catalogs declared in `catalogPaths`.
+2. For each turn in `scenario["turns"]`:
+   - Feed the `a2ui` messages from `turn["expectWire"]` in order (chat text parts are ignored by renderers).
+   - Assert that the rendered view tree for each surface matches `turn["expectViewTree"]` (or that the surface is absent if expected value is `null`).
+   - If `turn["uiOps"]` is provided, execute each operation in sequence (`user_input`, `user_gesture`, `programmatic_invoke`) against the specified `targetNode` on `surfaceId`.
+   - If `turn["expectDataModel"]` is provided, assert the updated surface data model state.
+   - If `turn["expectOutbound"]` is provided, capture all outbound envelopes emitted during the turn (schema-validated with wildcards handled via `{"$match": "any"}`) and assert they match `expectOutbound`.
+
+### Manifest records & harness names
+
+- Each runner records one manifest entry per scenario in its executed-case manifest (`A2UI_CONFORMANCE_MANIFEST_DIR`).
+- A scenario is recorded as `failed` if any declared format, turn, assertion, or operation fails.
+- Active harness names:
+  - Agent harnesses: `python-agent`, `ts-agent`, `dart-agent`.
+  - Renderer harnesses: `lit`, `react`, `angular`, `flutter`, `swiftui`.
+
+### Renderer-visible outcome definition
+
+A transcript's renderer-visible outcome is defined by `outcome_of(scenario)` in `conformance/scripts/e2e_outcome.py`:
+
+- Each turn's `a2ui` messages are applied to `MessageProcessor`.
+- Each active surface's resolved node tree is walked depth-first, mapping each node to `{type, text?, label?, value?, enabled?, action?}`.
+- Model-chosen IDs (`id`, `surfaceId`, `functionCallId`) are mapped to canonical first-seen ordinals.
+- Outbound envelopes undergo identical ID normalization with `timestamp` dropped.
+- Two transcripts have identical outcomes when their normalized node trees and outbound messages match for every turn, ignoring conversational text differences.
 
 ## Extension harnesses (`conformance/extensions/`)
 

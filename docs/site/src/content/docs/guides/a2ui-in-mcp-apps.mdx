@@ -28,6 +28,8 @@ Instead of requiring every MCP client (such as Claude Desktop, the MCP Inspector
 
 ---
 
+<span id="quick-start-run-the-sample"></span>
+
 ## Quick start: run the community sample
 
 The [`samples/community/mcp/a2ui-in-mcpapps/`](https://github.com/a2ui-project/a2ui/blob/main/samples/community/mcp/a2ui-in-mcpapps/README.md) directory contains a runnable end-to-end sample with a Python MCP server (`server/server.py`), two single-file Angular micro-apps (`ui://editor/app` for a generative document editor and `ui://basic/app` for a counter), and a sample Angular MCP Apps host (`client/`) that runs a double-iframe sandbox on `http://localhost:4200`.
@@ -827,7 +829,7 @@ You can also override `--a2ui-color-primary`, `--a2ui-border-radius`, or `--a2ui
 
 Because A2UI JSON messages travel inside MCP `CallToolResult` payloads and are parsed inside the client's sandboxed iframe, an invalid component property or missing child ID fails inside the iframe rather than at the server boundary. Validate generated or static message arrays on your MCP server before returning them from `tools/call` using `validatePayload` (`validate_payload` in Python) from the A2UI Agent SDK.
 
-Swift (`A2UISwiftCore` and `A2UISwiftUI`) focuses on client-side rendering rather than server-side generation, so Agent SDK payload validation is available in TypeScript, Python, and Dart:
+Swift (`A2UISwiftCore` and `A2UISwiftUI`) and Kotlin (`androidx.a2ui` and `androidx.a2ui.compose`) focus on client-side rendering rather than server-side generation, so Agent SDK payload validation is available in TypeScript, Python, and Dart:
 
 <Tabs syncKey="sdk-lang">
   <TabItem label="TypeScript">

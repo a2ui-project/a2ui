@@ -468,7 +468,9 @@ def _is_progressive_slot(
             if frame.kwarg_name is not None:
                 return frame.kwarg_name in progressive_keys
             props = [
-                p for p in helper.get_component_properties(frame.name) if p != "checks"
+                p
+                for p in helper.get_component_properties(frame.name)
+                if p not in ("checks", "@checks")
             ]
             if frame.arg_index < len(props):
                 return props[frame.arg_index] in progressive_keys
