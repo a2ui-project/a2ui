@@ -21,15 +21,14 @@ import {A2uiRendererService} from './a2ui-renderer.service';
 import {
   A2uiMetadata,
   ComponentApi,
-  ComponentIdSchema,
   ComponentModel,
-  DynamicStringSchema,
   NodeResolver,
   SurfaceModel,
   getValue,
-} from '@a2ui/web_core/v0_9';
+} from '@a2ui/web_core';
+import {WebComponentImplementation} from '@a2ui/web_core/universal';
+import {ComponentIdSchema, DynamicStringSchema} from '@a2ui/web_core/v0_9';
 import {A2uiText} from '@a2ui/web_core/v0_9/basic_catalog';
-import {WebComponentImplementation} from '@a2ui/web_core/v0_9/universal';
 import {
   Component,
   EnvironmentInjector,

@@ -21,17 +21,190 @@
  * message processing, and validation infrastructure for A2UI renderers and clients.
  */
 
-export * from './catalog/index.js';
-export * from './state/index.js';
-export * from './processing/index.js';
-export * from './resolution/index.js';
-export * from './validation/index.js';
-export * from './reactivity/index.js';
-export * from './expressions/index.js';
-export * from './errors.js';
-export * from './common/events.js';
-export * from './common/markdown.js';
-export * from './common/sanitize_media_url.js';
+export {
+  JsonComponentApi,
+  JsonFunctionApi,
+  spec,
+  specDef,
+  type SpecAnnotation,
+  type SpecMixin,
+  createFunctionImplementation,
+  type ComponentChildRefs,
+  AgentFunction,
+  isAgentFunction,
+  type AgentFunctionContext,
+  type AgentFunctionHandler,
+  type AgentFunctionInit,
+  type A2uiReturnTypeMap,
+  type A2uiReturnType,
+  type InferA2uiReturnType,
+  type FunctionApi,
+  type JsonSchemaObject,
+  type FunctionImplementation,
+  type ResolvedDynamic,
+  type ResolvedFunctionArgs,
+  type ComponentApi,
+  type InferredComponentApiSchemaType,
+  type CatalogUnions,
+  type CatalogDocumentOptions,
+  type CatalogOptions,
+  type CopyWithCatalogOptions,
+  type DeriveCatalogOptions,
+  type CatalogInterface,
+  Catalog,
+  type CatalogApi,
+  type FunctionInvoker,
+} from './catalog/index.js';
+export {
+  type ActionPayload,
+  type A2uiErrorPayload,
+  type A2uiWarningPayload,
+  type ActionListener,
+  type AgentFunctionCall,
+  type AgentFunctionCallOptions,
+  type AgentFunctionCaller,
+  SurfaceModel,
+  SurfaceGroupModel,
+  SurfaceComponentsModel,
+  ComponentModel,
+  type DataSubscription,
+  MAX_ARRAY_INDEX,
+  DataModel,
+} from './state/index.js';
+export {
+  mapErrorToRendererMessage,
+  extractEnvelopeErrorContext,
+  normalizeJsonPointer,
+  type RendererErrorMessage,
+  type A2uiRendererError,
+  type ValidationFailedErrorBody,
+  type GenericErrorBody,
+  type ErrorEnvelopeContext,
+  type ProcessableMessage,
+  type ProcessableMessagePayload,
+  type RendererCapabilities,
+  type ClientCapabilities,
+  type ValidationConfig,
+  type OutboundActionMessage,
+  type OutboundMessageListener,
+  type CallOptions,
+  STRICT_VALIDATION,
+  RELAXED_VALIDATION,
+  A2uiRpcError,
+  RpcErrorCode,
+  type ExecutionContext,
+  type CapabilitiesOptions,
+  type MessageProcessorOptions,
+  formatZodIssue,
+  MessageProcessor,
+  VersionAdapterFactory,
+  defaultVersionAdapterFactory,
+  isCatalogVersionCompatible,
+  registerKnownActionsProvider,
+  type ProtocolVersion,
+  SUPPORTED_PROTOCOL_VERSIONS,
+  DEFAULT_CATALOG_COMPATIBILITY,
+  type VersionAdapterResolver,
+  type VersionAdapter,
+  type KnownActionsProvider,
+  BaseVersionAdapter,
+  type A2uiErrorDetail,
+  type A2uiErrorContext,
+  A2uiError,
+  A2uiValidationError,
+  A2uiDataError,
+  A2uiExpressionError,
+  A2uiStateError,
+  A2uiCatalogError,
+  A2uiIntegrityError,
+  A2uiRecursionError,
+} from './processing/index.js';
+export {
+  PLACEHOLDER_TYPE,
+  isComponentNode,
+  type ComponentNode,
+  type NodeAction,
+  type NodeProps,
+  type NodeState,
+  type MarkdownRenderer,
+  type MarkdownRendererOptions,
+  type MarkdownRendererTagClassMap,
+  ComponentContext,
+  getKnownSchemaKeys,
+  validateFunctionArgs,
+  isSingleAtKey,
+  unescapeObjectKey,
+  validateReservedDirectives,
+  resolveContextIndex,
+  MAX_DYNAMIC_VALUE_DEPTH,
+  DataContext,
+  scrapeComponentBehavior,
+  scrapeSchemaBehavior,
+  getSafeChildList,
+  type BehaviorNode,
+  type ResolvedChildRef,
+  type ResolveA2uiProp,
+  type GenerateSetters,
+  type ResolveA2uiProps,
+  MAX_DYNAMIC_CHILD_LIST_SIZE,
+  GenericBinder,
+  NodeResolver,
+  extractRefFields,
+  type RefKind,
+  type RefFields,
+  isWritable,
+  sameBinding,
+  ResolvedBinding,
+  WritableBinding,
+} from './resolution/index.js';
+export {
+  PayloadValidator,
+  getComponentReferences,
+  validateRecursionAndPaths,
+  MAX_GLOBAL_DEPTH,
+  MAX_FUNC_CALL_DEPTH,
+  RELAXED_PATH_PATTERN,
+  type ChildRefAnalysis,
+  type ChildRefAnalysisOptions,
+  type ComponentRefMap,
+  analyzeChildRefSchema,
+  assertUax31Identifier,
+  buildComponentRefMap,
+  isChildListSchema,
+  isChildOrChildListSchema,
+  isChildSchema,
+  isValidUax31Identifier,
+  V08_CHILD_REF_OPTIONS,
+  V09_CHILD_REF_OPTIONS,
+  V10_CHILD_REF_OPTIONS,
+  type TopologyOptions,
+} from './validation/index.js';
+export {
+  setSignalImplementation,
+  signal,
+  computed,
+  effect,
+  batchWrite,
+  isSignal,
+  getValue,
+  setValue,
+  peekValue,
+  type Signal,
+  type SignalImplementations,
+  _PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION,
+} from './reactivity/index.js';
+export {
+  MAX_EXPRESSION_TEMPLATE_LENGTH,
+  MAX_EXPRESSION_PARTS,
+  ExpressionParser,
+} from './expressions/index.js';
+export {
+  type Subscription,
+  type EventListener,
+  type EventSource,
+  EventEmitter,
+} from './common/events.js';
+export {sanitizeMediaUrl} from './common/sanitize_media_url.js';
 export {
   validateMetadata,
   cloneMetadata,
@@ -40,8 +213,15 @@ export {
   type Extensions,
   type ActionDispatchOptions,
 } from './common/metadata.js';
-export * from './common/semver.js';
-export * from './common/uax31.js';
+export {
+  normalizeVersionString,
+  parseSemVer,
+  toSemVer,
+  toCanonicalVersion,
+  compareSemVer,
+  isAtLeastVersion,
+  type SemVer,
+} from './common/semver.js';
 export {
   MAX_REGEX_PATTERN_CODE_POINTS,
   MAX_REGEX_VALUE_CODE_POINTS,
@@ -55,5 +235,5 @@ export {
   type RegexNode,
   type RegexRejection,
 } from './common/regex_subset.js';
-export * from './spec_versions.js';
+export {SpecVersion} from './spec_versions.js';
 export {isSafeRegex, type SafeRegexOptions} from './v0_9/basic_catalog/functions/safe_regex.js';

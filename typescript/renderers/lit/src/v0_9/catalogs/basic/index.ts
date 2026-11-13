@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {Catalog} from '@a2ui/web_core/v0_9';
+import {Catalog} from '@a2ui/web_core';
 import {
   BASIC_FUNCTIONS,
   A2uiAudioPlayer,

@@ -8,11 +8,11 @@ description: Core SDK specification for catalog representation, reactive state m
 
 This document describes the detailed programmatic specification and architecture of the A2UI Core SDK. The Core SDK serves as the foundational data, state, and processing layer of A2UI.
 
-This layer handles JSON parsing, state models, JSON pointers, catalogs, and schemas. This logic remains completely framework-agnostic, allowing it to be implemented identically across all target environments (including [**agent**](../../docs/public/concepts/glossary.md#a2ui-agent-and-a2ui-renderer)-side or headless languages where there is no [**renderer**](../../docs/public/concepts/glossary.md#a2ui-agent-and-a2ui-renderer)).
+This layer handles JSON parsing, state models, JSON pointers, catalogs, and schemas. This logic remains completely framework-agnostic, allowing it to be implemented identically across all target environments (including [**agent**](../../docs/site/src/content/docs/concepts/glossary.mdx#a2ui-agent-and-a2ui-renderer)-side or headless languages where there is no [**renderer**](../../docs/site/src/content/docs/concepts/glossary.mdx#a2ui-agent-and-a2ui-renderer)).
 
-For a high-level overview of the entire A2UI ecosystem (including the Inference SDK and [Framework Adapter](../../docs/public/concepts/glossary.md#fw-adapter) structure), see the [A2UI Unified SDK Architecture](../../specification/v0_9_1/docs/sdks_spec.md). For UI framework integration and rendering details, see the [A2UI Framework Adapter Blueprint](a2ui_framework_adapter.blueprint.md).
+For a high-level overview of the entire A2UI ecosystem (including the Inference SDK and [Framework Adapter](../../docs/site/src/content/docs/concepts/glossary.mdx#fw-adapter) structure), see the [A2UI Unified SDK Architecture](../../specification/v0_9_1/docs/sdks_spec.md). For UI framework integration and rendering details, see the [A2UI Framework Adapter Blueprint](a2ui_framework_adapter.blueprint.md).
 
-Terms in **bold** on first use are defined in the [Glossary](../../docs/public/concepts/glossary.md).
+Terms in **bold** on first use are defined in the [Glossary](../../docs/site/src/content/docs/concepts/glossary.mdx).
 
 ---
 
@@ -22,9 +22,9 @@ The A2UI Core SDK acts as the central state coordinator. It is designed to repre
 
 Its core responsibilities include:
 
-1. **[Catalog](../../docs/public/concepts/glossary.md#catalog) Representation:** Define `Catalog` structures and pure technical [**component**](../../docs/public/concepts/glossary.md#genui-component) metadata/schemas (`ComponentApi`, `FunctionApi`). See [Catalog Layer](#a-catalog-layer-a2uicorecatalog).
+1. **[Catalog](../../docs/site/src/content/docs/concepts/glossary.mdx#catalog) Representation:** Define `Catalog` structures and pure technical [**component**](../../docs/site/src/content/docs/concepts/glossary.mdx#genui-component) metadata/schemas (`ComponentApi`, `FunctionApi`). See [Catalog Layer](#a-catalog-layer-a2uicorecatalog).
 2. **Protocol Definitions:** Model strongly-typed inbound and outbound message structures (e.g., `RendererToAgent`, `AgentToRenderer`, etc.). See [Protocol Models & Serialization](#protocol-models--serialization).
-3. **[Surface](../../docs/public/concepts/glossary.md#surface) State Containers:** Track mutable, long-lived rendering states via `SurfaceModel`, `ComponentModel`, and `DataModel`. See [The State Models](#the-state-models).
+3. **[Surface](../../docs/site/src/content/docs/concepts/glossary.mdx#surface) State Containers:** Track mutable, long-lived rendering states via `SurfaceModel`, `ComponentModel`, and `DataModel`. See [The State Models](#the-state-models).
 4. **Message Processor:** Parse inbound message sequences to mutate local state containers via `MessageProcessor`. See [`MessageProcessor`](#messageprocessor).
 5. **JSON Pointer Scope:** Standardize relative pointer evaluation and reactivity via scoped context managers. See [`DataModel`](#datamodel).
 6. **Validation:** Performs structural JSON Schema checks, reference checks, loop/recursion analysis, and layout integrity checks. See [Validation Layer](#c-validation-layer-a2uicorevalidation).
@@ -332,8 +332,8 @@ Functions in A2UI accept statically resolved values as input arguments (not obse
 Functions generally fall into a few common patterns:
 
 1.  **Pure Logic (Synchronous)**: Functions like `add` or `concat`. Their logic is immediate and depends only on their inputs. They typically return a static value.
-2.  **External State (Reactive)**: Functions like `clock()` or `networkStatus()`. These return long-lived streams that push updates to the UI independently of [**data model**](../../docs/public/concepts/glossary.md#data-model) changes.
-3.  **Effect Functions**: Side-effect handlers (e.g., `openUrl`, `closeModal`) that return `void`. These are triggered by user [**actions**](../../docs/public/concepts/glossary.md#action) rather than interpolation.
+2.  **External State (Reactive)**: Functions like `clock()` or `networkStatus()`. These return long-lived streams that push updates to the UI independently of [**data model**](../../docs/site/src/content/docs/concepts/glossary.mdx#data-model) changes.
+3.  **Effect Functions**: Side-effect handlers (e.g., `openUrl`, `closeModal`) that return `void`. These are triggered by user [**actions**](../../docs/site/src/content/docs/concepts/glossary.mdx#action) rather than interpolation.
 
 If a function returns a reactive stream, it MUST use an idiomatic listening mechanism that supports standard unsubscription. To properly support an AI agent, functions SHOULD include a schema to generate accurate renderer capabilities.
 
@@ -350,7 +350,7 @@ Every SDK that has a schema-only catalog exports it from its public facade under
 - **Use `CatalogApi`** where functions are described or checked but never run: an agent writing a system prompt, validating generated payloads, or reading the inline catalogs in renderer capabilities.
 - **Use a catalog of `FunctionImplementation`** where functions are evaluated, as in a renderer resolving values or handling actions. APIs that evaluate functions SHOULD bound their catalog type to `FunctionImplementation`, so that passing a `CatalogApi` fails at compile time rather than resolving to nothing at runtime.
 
-#### The [Basic Catalog](../../docs/public/concepts/glossary.md#basic-catalog) Standard (Core APIs)
+#### The [Basic Catalog](../../docs/site/src/content/docs/concepts/glossary.mdx#basic-catalog) Standard (Core APIs)
 
 The standard A2UI Basic Catalog specifies a set of core components (Button, Text, Row, Column) and functions.
 
@@ -467,7 +467,7 @@ chatCatalog = basicCatalog.derive(
 
 #### `MessageProcessor`
 
-The "Controller" that accepts the raw stream of [**A2UI messages**](../../docs/public/concepts/glossary.md#a2ui-message), parses them, mutates the state models, and delegates bidirectional RPC execution. It also handles the aggregation of renderer state for synchronization.
+The "Controller" that accepts the raw stream of [**A2UI messages**](../../docs/site/src/content/docs/concepts/glossary.mdx#a2ui-message), parses them, mutates the state models, and delegates bidirectional RPC execution. It also handles the aggregation of renderer state for synchronization.
 
 ##### Accepted Input (`AgentToRendererMessagePayload`)
 
@@ -600,7 +600,7 @@ A `createSurface` message may carry an initial data model and an initial compone
 
 The initial data model MUST be applied as one operation per top-level key, merging into the existing root, rather than as a single write to `/`. A single root write replaces the whole document and fires one cascade over every path, which changes both the resulting tree and the notification count that subscribers observe. This second rule is a core blueprint requirement verified by a notification-count unit test in each core SDK.
 
-#### [Capabilities Objects](../../docs/public/concepts/glossary.md#capabilities-object)
+#### [Capabilities Objects](../../docs/site/src/content/docs/concepts/glossary.mdx#capabilities-object)
 
 Both sides advertise their capabilities to each other.
 
