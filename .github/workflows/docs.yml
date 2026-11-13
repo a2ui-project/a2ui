@@ -132,6 +132,9 @@ jobs:
       - name: Validate documentation example validator
         run: uv run pytest docs/scripts/test_validate_doc_examples.py
 
+      - name: Validate agent integration buffered retries
+        run: uv run --package a2ui-agent-sdk --with pytest pytest docs/scripts/test_agent_integration_retry.py
+
       - name: Validate JSON examples in documentation
         run: uv run python docs/scripts/validate_doc_examples.py --paths docs/site/src/content/docs
 
