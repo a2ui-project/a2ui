@@ -28,7 +28,7 @@ Communication occurs via a stream of JSON objects. The renderer parses each obje
 - `updateDataModel`: Provides new data to be inserted into or to replace a surface's data model.
 - `deleteSurface`: Explicitly removes a surface and its contents from the UI.
 
-End of agent turn is signaled by [transport layer](../../../docs/public/concepts/transports.md).
+End of agent turn is signaled by [transport layer](../../../docs/site/src/content/docs/concepts/messages.mdx).
 
 ## Changes from previous versions
 
