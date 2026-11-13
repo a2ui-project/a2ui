@@ -28,7 +28,7 @@ from inspect_ai.scorer import Score, Scorer, Target, scorer
 from inspect_ai.solver import TaskState
 
 from a2ui_eval.dataset import load_a2ui_dataset
-from a2ui_eval.runner import validate_version
+from a2ui_eval.runner import SUPPORTED_FORMATS, validate_version
 from a2ui_eval.scorers import a2ui_scorer, measured_model_graded_qa
 from a2ui_eval.strategies import get_solver
 
@@ -147,9 +147,7 @@ def build_task(
         subagent_format: Inference format of the `subagent_tool` specialist.
     """
     _check_task_inputs(active_version, dataset)
-    format_name = (
-        strategy if strategy in ["express", "elemental", "atom"] else "direct_json"
-    )
+    format_name = strategy if strategy in SUPPORTED_FORMATS else "direct_json"
     if strategy == "skill_mode":
         format_name = "express"
     elif strategy == "subagent_tool":

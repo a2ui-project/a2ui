@@ -270,9 +270,11 @@ def test_main_rejects_unknown_strategy() -> None:
 
 def test_main_experimental_strategies_are_opt_in() -> None:
     """Naming an experimental strategy explicitly still runs it."""
-    _, mock_v1_eval, mock_v09_eval = _run_main(["--strategies", "elemental,skill_mode"])
+    _, mock_v1_eval, mock_v09_eval = _run_main(
+        ["--strategies", "elemental,skill_mode,vertical"]
+    )
     strategies = {c[0] for c in _calls(mock_v1_eval) + _calls(mock_v09_eval)}
-    assert strategies == {"elemental", "skill_mode"}
+    assert strategies == {"elemental", "skill_mode", "vertical"}
 
 
 def test_resolve_model_name_provider_prefixes() -> None:

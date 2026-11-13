@@ -639,6 +639,26 @@ async def test_a2ui_atom_solvers() -> None:
     assert '"component": "Card"' in state.output.completion
 
 
+def test_vertical_solver() -> None:
+    solvers = STRATEGIES["vertical"]("1.0")
+    assert len(solvers) == 3
+
+
+@pytest.mark.asyncio
+async def test_format_solvers_vertical() -> None:
+    prompt_solver = format_system_prompt("vertical", version="1.0")
+    state = await prompt_solver(_state({"catalog": str(V1_CATALOG)}), dummy_generate)
+    assert len(state.messages) == 1
+    assert state.messages[0].role == "system"
+    assert "A2UI Vertical" in state.messages[0].content
+
+    compile_solver = compile_format_payload("vertical", version="1.0")
+    _set_completion(state, '<a2ui>Text("Hello world!")</a2ui>')
+    state = await compile_solver(state, dummy_generate)
+    assert "<a2ui-json>" in state.output.completion
+    assert '"component": "Text"' in state.output.completion
+
+
 @pytest.mark.asyncio
 async def test_compile_format_payload_uses_default_timeout() -> None:
     runner = _FakeRunner()
@@ -904,7 +924,25 @@ async def test_compile_express_with_real_python_runner() -> None:
     assert '"component": "Text"' in state.output.completion
 
 
-@pytest.mark.parametrize("format_name", ["direct_json", "express"])
+@pytest.mark.asyncio
+async def test_compile_vertical_with_real_python_runner() -> None:
+    """End to end Vertical compilation with the real Python runner."""
+    solver = compile_format_payload("vertical", version="1.0")
+    state = _state(
+        {"catalog": str(V1_CATALOG)},
+        completion='<a2ui>\nText("Vertical runner check")\n</a2ui>',
+    )
+    state = await solver(state, _ScriptedGenerate([]))
+    assert state.metadata["pass_at_1"] is True
+    compiled = state.metadata["compiled_messages"]
+    assert isinstance(compiled, list) and len(compiled) == 1
+    assert compiled[0]["createSurface"]["components"][0]["text"] == (
+        "Vertical runner check"
+    )
+    assert '"component": "Text"' in state.output.completion
+
+
+@pytest.mark.parametrize("format_name", ["direct_json", "express", "vertical"])
 def test_format_solver_chain_length(format_name: str) -> None:
     assert len(format_solver(format_name, "1.0")) == 3
     assert len(format_solver(format_name, "1.0", max_validation_retries=1)) == 3

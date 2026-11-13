@@ -1,0 +1,477 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/a2ui/eval/standalone_components/v1_0/catalog.json",
+  "protocolVersion": "1.0",
+  "title": "A2UI Standalone Components Catalog (v1.0)",
+  "description": "Evaluation catalog of 10 standalone widget components for assistant chat cards.",
+  "catalogId": "https://example.com/a2ui/eval/standalone_components/v1_0/catalog.json",
+  "components": {
+    "FlightStatusCard": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "FlightStatusCard"
+        },
+        "flightNumber": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Flight number, e.g. UA 421",
+          "positionalIndex": 0
+        },
+        "airline": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Airline name",
+          "positionalIndex": 1
+        },
+        "origin": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Origin airport code",
+          "positionalIndex": 2
+        },
+        "destination": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Destination airport code",
+          "positionalIndex": 3
+        },
+        "departureTime": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Departure time string"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["on_time", "delayed", "cancelled", "boarding"],
+          "description": "Flight status"
+        },
+        "gate": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Departure gate"
+        },
+        "weight": {
+          "$ref": "#/$defs/Weight"
+        }
+      },
+      "required": ["component", "flightNumber", "airline", "origin", "destination", "status"]
+    },
+    "StockTicker": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "StockTicker"
+        },
+        "symbol": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Stock ticker symbol",
+          "positionalIndex": 0
+        },
+        "companyName": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Company name",
+          "positionalIndex": 1
+        },
+        "price": {
+          "$ref": "common_types.json#/$defs/DynamicNumber",
+          "description": "Current price",
+          "positionalIndex": 2
+        },
+        "change": {
+          "$ref": "common_types.json#/$defs/DynamicNumber",
+          "description": "Absolute price change"
+        },
+        "changePercent": {
+          "$ref": "common_types.json#/$defs/DynamicNumber",
+          "description": "Percentage price change"
+        },
+        "currency": {
+          "type": "string",
+          "description": "Currency code (e.g. USD)"
+        },
+        "weight": {
+          "$ref": "#/$defs/Weight"
+        }
+      },
+      "required": ["component", "symbol", "price"]
+    },
+    "WeatherWidget": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "WeatherWidget"
+        },
+        "city": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "City name",
+          "positionalIndex": 0
+        },
+        "temperature": {
+          "$ref": "common_types.json#/$defs/DynamicNumber",
+          "description": "Current temperature",
+          "positionalIndex": 1
+        },
+        "condition": {
+          "type": "string",
+          "enum": ["sunny", "cloudy", "rainy", "snowy", "windy"],
+          "description": "Weather condition"
+        },
+        "high": {
+          "$ref": "common_types.json#/$defs/DynamicNumber",
+          "description": "Daily high temperature"
+        },
+        "low": {
+          "$ref": "common_types.json#/$defs/DynamicNumber",
+          "description": "Daily low temperature"
+        },
+        "humidity": {
+          "$ref": "common_types.json#/$defs/DynamicNumber",
+          "description": "Humidity percentage"
+        },
+        "unit": {
+          "type": "string",
+          "enum": ["celsius", "fahrenheit"],
+          "default": "fahrenheit"
+        },
+        "weight": {
+          "$ref": "#/$defs/Weight"
+        }
+      },
+      "required": ["component", "city", "temperature", "condition"]
+    },
+    "OrderTrackingTile": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "OrderTrackingTile"
+        },
+        "orderId": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Order identifier",
+          "positionalIndex": 0
+        },
+        "carrier": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Shipping carrier name",
+          "positionalIndex": 1
+        },
+        "status": {
+          "type": "string",
+          "enum": ["ordered", "shipped", "in_transit", "out_for_delivery", "delivered"],
+          "description": "Current tracking status"
+        },
+        "estimatedDelivery": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Estimated delivery date or timeframe"
+        },
+        "trackingNumber": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Shipment tracking number"
+        },
+        "packageCount": {
+          "type": "number",
+          "description": "Number of packages"
+        },
+        "weight": {
+          "$ref": "#/$defs/Weight"
+        }
+      },
+      "required": ["component", "orderId", "status", "estimatedDelivery"]
+    },
+    "RestaurantReservation": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "RestaurantReservation"
+        },
+        "restaurantName": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Name of the restaurant",
+          "positionalIndex": 0
+        },
+        "date": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Reservation date (YYYY-MM-DD)",
+          "positionalIndex": 1
+        },
+        "time": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Reservation time (HH:MM)",
+          "positionalIndex": 2
+        },
+        "partySize": {
+          "$ref": "common_types.json#/$defs/DynamicNumber",
+          "description": "Number of guests"
+        },
+        "confirmationCode": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Reservation confirmation code"
+        },
+        "tableType": {
+          "type": "string",
+          "enum": ["indoor", "outdoor", "bar", "booth"],
+          "default": "indoor"
+        },
+        "weight": {
+          "$ref": "#/$defs/Weight"
+        }
+      },
+      "required": ["component", "restaurantName", "date", "time", "partySize"]
+    },
+    "ProductCard": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "ProductCard"
+        },
+        "title": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Product title",
+          "positionalIndex": 0
+        },
+        "price": {
+          "$ref": "common_types.json#/$defs/DynamicNumber",
+          "description": "Product price",
+          "positionalIndex": 1
+        },
+        "brand": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Product brand"
+        },
+        "rating": {
+          "$ref": "common_types.json#/$defs/DynamicNumber",
+          "description": "Average review rating (1-5)"
+        },
+        "imageUrl": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "URL of product image"
+        },
+        "inStock": {
+          "$ref": "common_types.json#/$defs/DynamicBoolean",
+          "description": "Whether product is in stock"
+        },
+        "weight": {
+          "$ref": "#/$defs/Weight"
+        }
+      },
+      "required": ["component", "title", "price"]
+    },
+    "UserProfileCard": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "UserProfileCard"
+        },
+        "name": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "User full name",
+          "positionalIndex": 0
+        },
+        "role": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Job title or role",
+          "positionalIndex": 1
+        },
+        "department": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Department or organization"
+        },
+        "email": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "User email address"
+        },
+        "avatarUrl": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Avatar image URL"
+        },
+        "online": {
+          "$ref": "common_types.json#/$defs/DynamicBoolean",
+          "description": "Online status"
+        },
+        "weight": {
+          "$ref": "#/$defs/Weight"
+        }
+      },
+      "required": ["component", "name", "role"]
+    },
+    "AppointmentReminder": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "AppointmentReminder"
+        },
+        "title": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Appointment title or purpose",
+          "positionalIndex": 0
+        },
+        "providerName": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Name of doctor or provider",
+          "positionalIndex": 1
+        },
+        "dateTime": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Appointment date and time",
+          "positionalIndex": 2
+        },
+        "location": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Office or facility location"
+        },
+        "notes": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Preparation instructions or notes"
+        },
+        "weight": {
+          "$ref": "#/$defs/Weight"
+        }
+      },
+      "required": ["component", "title", "dateTime"]
+    },
+    "MetricsTile": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "MetricsTile"
+        },
+        "label": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Metric name",
+          "positionalIndex": 0
+        },
+        "value": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Formatted metric value",
+          "positionalIndex": 1
+        },
+        "changePercent": {
+          "$ref": "common_types.json#/$defs/DynamicNumber",
+          "description": "Percentage change"
+        },
+        "trend": {
+          "type": "string",
+          "enum": ["up", "down", "neutral"],
+          "description": "Direction of trend"
+        },
+        "period": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Time period comparison"
+        },
+        "weight": {
+          "$ref": "#/$defs/Weight"
+        }
+      },
+      "required": ["component", "label", "value"]
+    },
+    "MediaPlaybackTile": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "MediaPlaybackTile"
+        },
+        "trackTitle": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Track or episode title",
+          "positionalIndex": 0
+        },
+        "artist": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Artist or author name",
+          "positionalIndex": 1
+        },
+        "album": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Album or show name"
+        },
+        "durationSeconds": {
+          "type": "number",
+          "description": "Track duration in seconds"
+        },
+        "coverArtUrl": {
+          "$ref": "common_types.json#/$defs/DynamicString",
+          "description": "Cover art image URL"
+        },
+        "isPlaying": {
+          "$ref": "common_types.json#/$defs/DynamicBoolean",
+          "description": "Whether currently playing"
+        },
+        "weight": {
+          "$ref": "#/$defs/Weight"
+        }
+      },
+      "required": ["component", "trackTitle", "artist"]
+    }
+  },
+  "functions": {
+    "openUrl": {
+      "type": "object",
+      "description": "Opens a given URL in the browser.",
+      "returnType": "void",
+      "properties": {
+        "@call": {
+          "const": "openUrl"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "$ref": "common_types.json#/$defs/DynamicString"
+            }
+          },
+          "required": ["url"],
+          "unevaluatedProperties": false
+        }
+      },
+      "required": ["@call", "args"]
+    }
+  },
+  "$defs": {
+    "Weight": {
+      "type": "number",
+      "description": "The relative weight of this component within a Row or Column."
+    },
+    "anyComponent": {
+      "oneOf": [
+        {
+          "$ref": "#/components/FlightStatusCard"
+        },
+        {
+          "$ref": "#/components/StockTicker"
+        },
+        {
+          "$ref": "#/components/WeatherWidget"
+        },
+        {
+          "$ref": "#/components/OrderTrackingTile"
+        },
+        {
+          "$ref": "#/components/RestaurantReservation"
+        },
+        {
+          "$ref": "#/components/ProductCard"
+        },
+        {
+          "$ref": "#/components/UserProfileCard"
+        },
+        {
+          "$ref": "#/components/AppointmentReminder"
+        },
+        {
+          "$ref": "#/components/MetricsTile"
+        },
+        {
+          "$ref": "#/components/MediaPlaybackTile"
+        }
+      ],
+      "discriminator": {
+        "propertyName": "component"
+      }
+    },
+    "anyFunction": {
+      "oneOf": [
+        {
+          "$ref": "#/functions/openUrl"
+        }
+      ],
+      "discriminator": {
+        "propertyName": "@call"
+      }
+    }
+  }
+}
