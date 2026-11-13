@@ -22,12 +22,12 @@ import {
   ComponentRef,
   NgZone,
 } from '@angular/core';
-import {ComponentContext, type ComponentNode, effect, getValue} from '@a2ui/web_core/v0_9';
+import {ComponentContext, type ComponentNode, effect, getValue} from '@a2ui/web_core';
 import {
   type AccessibilityTargets,
   bindHostAccessibility,
   createAccessibilityTargets,
-} from '@a2ui/web_core/v0_9/universal';
+} from '@a2ui/web_core/universal';
 import type {AngularCatalog, AngularComponentImplementation} from './types';
 
 import {A2UI_ACCESSIBILITY_TARGETS} from '../core/accessibility';

@@ -24,7 +24,8 @@ import {SurfaceNodeResolver} from './surface-node-resolver.service';
 import {initializeAngularReactivity} from './reactivity';
 import {CatalogComponentInstance} from './catalog_component_instance';
 import {AngularCatalog, createComponentImplementation} from '../catalog/types';
-import {ComponentModel, DynamicStringSchema, SurfaceModel} from '@a2ui/web_core/v0_9';
+import {ComponentModel, SurfaceModel} from '@a2ui/web_core';
+import {DynamicStringSchema} from '@a2ui/web_core/v0_9';
 import {z} from 'zod';
 
 @Component({

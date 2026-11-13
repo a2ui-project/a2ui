@@ -18,7 +18,7 @@ import {setupTestDom, teardownTestDom, asyncUpdate} from './dom-setup.js';
 import assert from 'node:assert';
 import {describe, it, beforeEach, after, before} from 'node:test';
 import type {A2uiSurface} from '../surface/a2ui-surface.js';
-import {ComponentModel, MessageProcessor, isComponentNode} from '@a2ui/web_core/v0_9';
+import {ComponentModel, MessageProcessor, isComponentNode} from '@a2ui/web_core';
 
 /**
  * These tests verify that the surface element:

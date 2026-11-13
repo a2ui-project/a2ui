@@ -10,11 +10,12 @@ Basic Catalog (`@a2ui/lit/v0_9`), with no LLM agent involved.
 
 ## What This Sample Shows
 
-- **Multi-catalog composition**: [`app.ts`](app.ts) initializes
-  `MessageProcessor` with both `basicCatalog` and `vegachartCatalog`. Layout and
-  typography components (`Column`, `Card`, `Text`) resolve from the surface's
-  default Basic Catalog, while `VegaChart` components declare
-  `"catalogId": "https://a2ui.org/specification/v0_9/catalogs/vegachart/catalog.json"`.
+- **Catalog composition**: A v0.9 surface uses exactly one catalog, so
+  [`app.ts`](app.ts) builds one from the components, functions and theme of
+  `basicCatalog` plus the `VegaChart` component of `vegachartCatalog`, under
+  the id `https://a2ui.org/samples/vegachart/catalog.json`. The payload's
+  `createSurface` names that id, and layout, typography and chart components
+  all resolve from it.
 - **Reactive data model bindings**: Each `VegaChart` component binds its `spec`
   property to a JSON pointer in the surface data model. Each chart exercises a
   different feature:

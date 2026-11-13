@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {setMarkdownRenderer} from '@a2ui/web_core/v0_9/basic_catalog';
+import {setMarkdownRenderer} from '@a2ui/web_core/universal';
 import {renderMarkdown} from '@a2ui/markdown-it';
 import './local-gallery.js';
 

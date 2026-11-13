@@ -17,18 +17,9 @@
 import {Component, EnvironmentInjector, Injector, Type} from '@angular/core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {z} from 'zod';
-import {
-  CommonSchemas,
-  ComponentApi,
-  ComponentModel,
-  NodeResolver,
-  SurfaceModel,
-  getValue,
-} from '@a2ui/web_core/v0_9';
-import {
-  isWebComponentImplementation,
-  registerUniversalElement,
-} from '@a2ui/web_core/v0_9/universal';
+import {ComponentApi, ComponentModel, NodeResolver, SurfaceModel, getValue} from '@a2ui/web_core';
+import {isWebComponentImplementation, registerUniversalElement} from '@a2ui/web_core/universal';
+import {CommonSchemas} from '@a2ui/web_core/v0_9';
 import {AccessibilityTargetDirective, ValidationErrorsDirective} from './accessibility';
 import {A2uiRendererService} from './a2ui-renderer.service';
 import {CatalogComponent} from './catalog_component';

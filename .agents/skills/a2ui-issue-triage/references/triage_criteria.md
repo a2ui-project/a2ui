@@ -31,7 +31,7 @@ All triaged issues must be tagged with the `status: first-line-handled` label.
 ### 2. Feature Requests
 
 - **Analysis**:
-  - Verify if the request aligns with the [A2UI roadmap](../../../../docs/public/roadmap.md) and design philosophy for the affected components.
+  - Verify if the request aligns with the [A2UI roadmap](../../../../docs/site/src/content/docs/roadmap.mdx) and design philosophy for the affected components.
 - **Action**:
   - If aligned, set action to `backlog` with priority `P2` or `P3` and suggest component/type labels (e.g., `component: standard catalog specification`, `type: feature/enhancement`).
   - If out of scope, set priority to `None` and action to `close_invalid` (closes the issue as not planned). Draft the response using the [Out of Scope template](../../../../docs/contributing/triage/templates.md#out-of-scope--roadmap-conflict).
@@ -42,7 +42,7 @@ All triaged issues must be tagged with the `status: first-line-handled` label.
   - Identify if the issue is a question about usage or setup rather than a bug.
 - **Action**:
   - Set action to `close_resolved` or `close_invalid`.
-  - Answer the question directly or provide links to relevant guides (e.g., [quickstart.md](../../../../docs/public/quickstart.md)) or GitHub Discussions, then close the issue.
+  - Answer the question directly or provide links to relevant guides (e.g., [quickstart.mdx](../../../../docs/site/src/content/docs/quickstart.mdx)) or GitHub Discussions, then close the issue.
 
 ---
 

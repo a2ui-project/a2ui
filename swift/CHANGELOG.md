@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **BREAKING CHANGE**: Remove the default `= []` argument on
+  `Surface.init(viewModel:catalogs:defaultCatalogID:)` so callers explicitly choose a catalog list
+  (or pass `catalogs: []`). Recommended migration: pass `BasicCatalogImplementation.allCatalogs`,
+  use `Surface.makeWithBasicCatalogs(viewModel:)`, or pass `catalogs: []` explicitly.
+  [#4024](https://github.com/a2ui-project/a2ui/pull/4024)
+- Add `A2UICardStyle` (`.automatic`, `.elevated`, `.outlined`), `A2UIButtonStyle` (`.automatic`),
+  `View.a2uiCardStyle(_:)`, `View.a2uiButtonStyle(_:)`, and
+  `Surface.makeWithBasicCatalogs(viewModel:)` in `BasicCatalogSwiftUI`.
+  [#4024](https://github.com/a2ui-project/a2ui/pull/4024)
 - Report the component definition ID rather than the synthesized `:index` instance ID as
   `sourceComponentID` on actions dispatched from template-expanded components.
   [#4043](https://github.com/a2ui-project/a2ui/pull/4043)
@@ -11,6 +20,14 @@
   `A2UIChoicePicker` Dynamic Type scaling, multi-line `TextField(axis: .vertical)` for `longText`
   `A2UITextField`, and SVG path parsing improvements in `SVGPathParser` / `SVGPathShape`).
   [#4023](https://github.com/a2ui-project/a2ui/pull/4023)
+- Send the message of an error thrown by a renderer function in the `rendererFunctionResponse`
+  error, falling back to the generic execution-error text only when that message is empty.
+  [#4105](https://github.com/a2ui-project/a2ui/pull/4105)
+- Announce visible text changes in `live` regions: a live component or container now announces its
+  explicit `label` followed by the text its subtree reports with the new `.a2uiAccessibleText(_:)`
+  modifier (collected through `A2UIAccessibleTextKey`). `A2UIText` reports its text without
+  Markdown syntax, and custom components that render text can call the modifier too.
+  [#4021](https://github.com/a2ui-project/a2ui/pull/4021)
 
 ## 0.10.0
 
