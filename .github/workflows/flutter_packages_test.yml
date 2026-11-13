@@ -244,8 +244,14 @@ jobs:
         package:
           - name: dart_a2ui_agent
             path: dart/a2ui_agent
+            harness: dart-agent
+            corpus: agent
+            suites: agent/*/scaling.yaml
           - name: dart_a2ui_core
             path: dart/a2ui_core
+            harness: dart-core
+            corpus: core
+            suites: core/message_processor_scaling.yaml
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -258,4 +264,17 @@ jobs:
         run: dart pub get
       - name: Run performance tests
         working-directory: ${{ matrix.package.path }}
+        env:
+          A2UI_CONFORMANCE_MANIFEST_DIR: ${{ runner.temp }}/a2ui-manifest
         run: dart test -P performance
+      # The test jobs above exclude the scaling suites from their manifest
+      # check, so this job checks that every scaling case ran.
+      - name: Set up Python for conformance manifest check
+        uses: ./.github/actions/setup-python
+      - name: Check executed performance conformance cases
+        run: |
+          uv run --project conformance python conformance/scripts/check_executed_cases.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --harness ${{ matrix.package.harness }} \
+            --corpus ${{ matrix.package.corpus }} \
+            --only '${{ matrix.package.suites }}'
