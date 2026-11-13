@@ -3,7 +3,7 @@
     "version": "v0.9",
     "createSurface": {
       "surfaceId": "vegachart-dashboard",
-      "catalogId": "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
+      "catalogId": "https://a2ui.org/samples/vegachart/catalog.json"
     }
   },
   {
@@ -55,7 +55,6 @@
         {
           "id": "revenue_chart",
           "component": "VegaChart",
-          "catalogId": "https://a2ui.org/specification/v0_9/catalogs/vegachart/catalog.json",
           "height": 300,
           "spec": {"path": "/charts/quarterlyRevenue"}
         },
@@ -85,7 +84,6 @@
         {
           "id": "traffic_chart",
           "component": "VegaChart",
-          "catalogId": "https://a2ui.org/specification/v0_9/catalogs/vegachart/catalog.json",
           "height": 300,
           "spec": {"path": "/charts/monthlyTraffic"}
         },
@@ -115,7 +113,6 @@
         {
           "id": "latency_chart",
           "component": "VegaChart",
-          "catalogId": "https://a2ui.org/specification/v0_9/catalogs/vegachart/catalog.json",
           "height": 300,
           "spec": {"path": "/charts/latency"}
         },
@@ -145,7 +142,6 @@
         {
           "id": "regional_facet_chart",
           "component": "VegaChart",
-          "catalogId": "https://a2ui.org/specification/v0_9/catalogs/vegachart/catalog.json",
           "spec": {"path": "/charts/regionalSales"}
         },
 
@@ -174,7 +170,6 @@
         {
           "id": "tickets_chart",
           "component": "VegaChart",
-          "catalogId": "https://a2ui.org/specification/v0_9/catalogs/vegachart/catalog.json",
           "spec": {"path": "/charts/ticketsByTeam"}
         }
       ]
