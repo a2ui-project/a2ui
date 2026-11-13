@@ -101,7 +101,10 @@ class MessageReader {
     Map<String, String?> surfaces,
   ) {
     switch (message) {
-      case CreateSurfaceMessage(:final String surfaceId, :final catalogId?):
+      case CreateSurfaceMessage(
+        :final String surfaceId,
+        :final String catalogId?,
+      ):
         _validator(
           catalogId,
           "Surface '$surfaceId'",
