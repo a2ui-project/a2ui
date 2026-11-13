@@ -88,9 +88,9 @@ String assembleInstructions(
     parts.add(generator.generateCatalogInstructions());
     examples.add(generator.generateExamples());
   } else {
-    for (final CatalogApi catalog in targets) {
+    for (final catalog in targets) {
       parts.add(generator.generateCatalogInstructions(catalog: catalog));
-      final text = generator.generateExamples(catalog: catalog);
+      final String text = generator.generateExamples(catalog: catalog);
       if (!examples.contains(text)) examples.add(text);
     }
   }
