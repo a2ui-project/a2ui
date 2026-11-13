@@ -54,6 +54,15 @@ var knownA2UIEnvelopeKeys = map[string]bool{
 	"userAction":               true,
 }
 
+var v08A2UIEnvelopeKeys = map[string]bool{
+	"beginRendering":  true,
+	"surfaceUpdate":   true,
+	"dataModelUpdate": true,
+	"deleteSurface":   true,
+	"userAction":      true,
+	"error":           true,
+}
+
 // PartConverterOptions configures PartConverter.
 type PartConverterOptions struct {
 	// BypassToolCheck converts the validated A2UI output of any tool response,
@@ -190,6 +199,13 @@ func EncodeA2APartToGenAI(part a2a.Part) (*genai.Part, error) {
 			gp.Thought = thought
 		}
 		return gp, nil
+	case a2a.FilePart:
+		return encodeFilePartToGenAI(p)
+	case *a2a.FilePart:
+		if p == nil {
+			return nil, nil
+		}
+		return encodeFilePartToGenAI(*p)
 	case a2a.DataPart:
 		return encodeDataPartToGenAI(p)
 	case *a2a.DataPart:
@@ -202,8 +218,98 @@ func EncodeA2APartToGenAI(part a2a.Part) (*genai.Part, error) {
 	}
 }
 
+func encodeFilePartToGenAI(fp a2a.FilePart) (*genai.Part, error) {
+	switch f := fp.File.(type) {
+	case a2a.FileBytes:
+		raw, err := base64.StdEncoding.DecodeString(f.Bytes)
+		if err != nil {
+			return nil, err
+		}
+		return &genai.Part{
+			InlineData: &genai.Blob{
+				Data:        raw,
+				MIMEType:    f.MimeType,
+				DisplayName: f.Name,
+			},
+		}, nil
+	case *a2a.FileBytes:
+		if f == nil {
+			return nil, nil
+		}
+		raw, err := base64.StdEncoding.DecodeString(f.Bytes)
+		if err != nil {
+			return nil, err
+		}
+		return &genai.Part{
+			InlineData: &genai.Blob{
+				Data:        raw,
+				MIMEType:    f.MimeType,
+				DisplayName: f.Name,
+			},
+		}, nil
+	case a2a.FileURI:
+		return &genai.Part{
+			FileData: &genai.FileData{
+				FileURI:     f.URI,
+				MIMEType:    f.MimeType,
+				DisplayName: f.Name,
+			},
+		}, nil
+	case *a2a.FileURI:
+		if f == nil {
+			return nil, nil
+		}
+		return &genai.Part{
+			FileData: &genai.FileData{
+				FileURI:     f.URI,
+				MIMEType:    f.MimeType,
+				DisplayName: f.Name,
+			},
+		}, nil
+	default:
+		return nil, nil
+	}
+}
+
 func encodeDataPartToGenAI(dp a2a.DataPart) (*genai.Part, error) {
-	raw, err := json.Marshal(dp.Data)
+	if adkType, _ := dp.Metadata[adkTypeMetaKey].(string); adkType != "" {
+		switch adkType {
+		case "function_call":
+			var fc genai.FunctionCall
+			if err := mapToStruct(dp.Data, &fc); err != nil {
+				return nil, err
+			}
+			return &genai.Part{FunctionCall: &fc}, nil
+		case "function_response":
+			var fr genai.FunctionResponse
+			if err := mapToStruct(dp.Data, &fr); err != nil {
+				return nil, err
+			}
+			return &genai.Part{FunctionResponse: &fr}, nil
+		case "executable_code":
+			var ec genai.ExecutableCode
+			if err := mapToStruct(dp.Data, &ec); err != nil {
+				return nil, err
+			}
+			return &genai.Part{ExecutableCode: &ec}, nil
+		case "code_execution_result":
+			var cer genai.CodeExecutionResult
+			if err := mapToStruct(dp.Data, &cer); err != nil {
+				return nil, err
+			}
+			return &genai.Part{CodeExecutionResult: &cer}, nil
+		}
+	}
+
+	var payload any = dp.Data
+	if len(dp.Metadata) > 0 {
+		payload = map[string]any{
+			"kind":     "data",
+			"data":     dp.Data,
+			"metadata": dp.Metadata,
+		}
+	}
+	raw, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err
 	}
@@ -275,16 +381,34 @@ func extractA2UIMessagesFromDecodedDataPart(val any) []map[string]any {
 }
 
 func unwrapTaggedDataPartA2UI(obj map[string]any) ([]map[string]any, bool) {
+	dp, ok := asWrappedDataPart(obj)
+	if !ok {
+		return nil, false
+	}
+	if a2aext.IsA2UIPart(dp) {
+		return []map[string]any{dp.Data}, true
+	}
+	return nil, true
+}
+
+func asWrappedDataPart(obj map[string]any) (a2a.DataPart, bool) {
 	meta, hasMeta := obj["metadata"].(map[string]any)
 	data, hasData := obj["data"].(map[string]any)
 	if !hasMeta || !hasData {
-		return nil, false
+		return a2a.DataPart{}, false
 	}
-	dp := a2a.DataPart{Data: data, Metadata: meta}
-	if a2aext.IsA2UIPart(dp) {
-		return []map[string]any{data}, true
+	for k, v := range obj {
+		switch k {
+		case "data", "metadata":
+		case "kind":
+			if kindStr, ok := v.(string); !ok || kindStr != "data" {
+				return a2a.DataPart{}, false
+			}
+		default:
+			return a2a.DataPart{}, false
+		}
 	}
-	return nil, true
+	return a2a.DataPart{Data: data, Metadata: meta}, true
 }
 
 func extractTaggedDataPartJSON(part *genai.Part) ([]byte, bool) {
@@ -306,13 +430,33 @@ func extractTaggedDataPartJSON(part *genai.Part) ([]byte, bool) {
 }
 
 func isA2UIEnvelopeMap(m map[string]any) bool {
-	for k := range m {
-		if k == "version" {
-			continue
+	if rawVer, hasVer := m["version"]; hasVer {
+		if len(m) != 2 {
+			return false
 		}
-		if knownA2UIEnvelopeKeys[k] {
-			return true
+		verStr, ok := rawVer.(string)
+		if !ok || verStr == "" {
+			return false
 		}
+		if _, err := core.ToProtocolVersion(verStr); err != nil {
+			return false
+		}
+		for k, v := range m {
+			if k == "version" {
+				continue
+			}
+			body, ok := v.(map[string]any)
+			return knownA2UIEnvelopeKeys[k] && ok && body != nil
+		}
+		return false
+	}
+
+	if len(m) != 1 {
+		return false
+	}
+	for k, v := range m {
+		body, ok := v.(map[string]any)
+		return v08A2UIEnvelopeKeys[k] && ok && body != nil
 	}
 	return false
 }
@@ -335,10 +479,8 @@ func convertDefaultGenAIPartToA2AParts(part *genai.Part) ([]a2a.Part, error) {
 		}
 		switch typed := val.(type) {
 		case map[string]any:
-			if meta, ok := typed["metadata"].(map[string]any); ok {
-				if data, ok := typed["data"].(map[string]any); ok {
-					return []a2a.Part{a2a.DataPart{Data: data, Metadata: meta}}, nil
-				}
+			if dp, isWrapped := asWrappedDataPart(typed); isWrapped {
+				return []a2a.Part{dp}, nil
 			}
 			if isA2UIEnvelopeMap(typed) {
 				return []a2a.Part{a2aext.CreateA2UIPart(typed, "")}, nil
@@ -400,6 +542,26 @@ func convertDefaultGenAIPartToA2AParts(part *genai.Part) ([]a2a.Part, error) {
 			Metadata: map[string]any{adkTypeMetaKey: "function_response"},
 		}}, nil
 	}
+	if part.ExecutableCode != nil {
+		data, err := structToMap(part.ExecutableCode)
+		if err != nil {
+			return nil, err
+		}
+		return []a2a.Part{a2a.DataPart{
+			Data:     data,
+			Metadata: map[string]any{adkTypeMetaKey: "executable_code"},
+		}}, nil
+	}
+	if part.CodeExecutionResult != nil {
+		data, err := structToMap(part.CodeExecutionResult)
+		if err != nil {
+			return nil, err
+		}
+		return []a2a.Part{a2a.DataPart{
+			Data:     data,
+			Metadata: map[string]any{adkTypeMetaKey: "code_execution_result"},
+		}}, nil
+	}
 	return []a2a.Part{}, nil
 }
 
@@ -413,6 +575,14 @@ func structToMap(v any) (map[string]any, error) {
 		return nil, err
 	}
 	return out, nil
+}
+
+func mapToStruct(m map[string]any, dst any) error {
+	raw, err := json.Marshal(m)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(raw, dst)
 }
 
 func coerceMessageMaps(v any) []map[string]any {

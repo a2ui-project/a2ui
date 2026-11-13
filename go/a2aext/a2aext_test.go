@@ -223,3 +223,108 @@ func TestStreamResponseToParts(t *testing.T) {
 		t.Fatalf("expected closed stream with 3 parts, got closed=%v len=%d", st.closed, len(out))
 	}
 }
+
+func TestCreateA2UIPartWireNormalizationAndMapCloning(t *testing.T) {
+	v08Input := map[string]any{
+		"version":       "v0.8",
+		"deleteSurface": map[string]any{"surfaceId": "legacy-s1"},
+	}
+	part := a2aext.CreateA2UIPart(v08Input, "")
+	dp, ok := a2aext.A2UIDataPart(part)
+	if !ok {
+		t.Fatalf("expected A2UI DataPart, got %#v", part)
+	}
+	if gotMime := dp.Metadata[a2aext.MIMETypeKey]; gotMime != a2aext.DeprecatedA2UIMIMEType {
+		t.Fatalf("mimeType = %v, want %q", gotMime, a2aext.DeprecatedA2UIMIMEType)
+	}
+	if _, hasVer := dp.Data["version"]; hasVer {
+		t.Fatalf("expected v0.8 version stripped from wire Data, got %#v", dp.Data)
+	}
+	if v08Input["version"] != "v0.8" {
+		t.Fatalf("expected caller map to remain unmodified, got %#v", v08Input)
+	}
+
+	v10Input := map[string]any{
+		"version":       "1.0",
+		"deleteSurface": map[string]any{"surfaceId": "s1"},
+	}
+	partV10 := a2aext.CreateA2UIPart(v10Input, "")
+	dpV10, _ := a2aext.A2UIDataPart(partV10)
+	v10Input["injected"] = true
+	if _, leaked := dpV10.Data["injected"]; leaked {
+		t.Fatalf("expected CreateA2UIPart to clone top-level map, got %#v", dpV10.Data)
+	}
+}
+
+func TestExtractA2UIJSONToPartsParity(t *testing.T) {
+	t.Run("heals smart quotes and preserves smart quotes inside ASCII strings", func(t *testing.T) {
+		raw := "<a2ui-json>\n[\n" +
+			"  {\u201cversion\u201d: \u201c1.0\u201d, \u201cdeleteSurface\u201d: {\u201csurfaceId\u201d: \u201cs-smart\u201d},},\n" +
+			"  {\"version\": \"1.0\", \"deleteSurface\": {\"surfaceId\": \"keep-\u201cinner\u201d\"},}\n" +
+			"]\n</a2ui-json>"
+		parts, err := a2aext.ExtractA2UIJSONToParts(raw, nil)
+		if err != nil {
+			t.Fatalf("ExtractA2UIJSONToParts: %v", err)
+		}
+		msgs := a2aext.A2UIMessages(parts)
+		if len(msgs) != 2 {
+			t.Fatalf("expected 2 A2UI messages, got %#v", msgs)
+		}
+		if ds, _ := msgs[0]["deleteSurface"].(map[string]any); ds["surfaceId"] != "s-smart" {
+			t.Fatalf("unexpected healed smart-quote message: %#v", msgs[0])
+		}
+		if ds, _ := msgs[1]["deleteSurface"].(map[string]any); ds["surfaceId"] != "keep-\u201cinner\u201d" {
+			t.Fatalf("smart quotes inside ASCII string were corrupted: %#v", msgs[1])
+		}
+	})
+
+	t.Run("missing open tag skips prose brackets closed fences and recovers multiple blocks", func(t *testing.T) {
+		raw := "[1] Results:\n[Note] Sample config:\n```json\n{\"not_a2ui\": true}\n```\n" +
+			"[{\"version\":\"1.0\",\"deleteSurface\":{\"surfaceId\":\"recovered-1\"}}]\n</a2ui-json>\n" +
+			"Middle text\n<a2ui-json>[{\"version\":\"1.0\",\"deleteSurface\":{\"surfaceId\":\"tagged-2\"}}]</a2ui-json>"
+		parts, err := a2aext.ExtractA2UIJSONToParts(raw, nil)
+		if err != nil {
+			t.Fatalf("ExtractA2UIJSONToParts: %v", err)
+		}
+		if len(parts) != 4 {
+			t.Fatalf("expected 4 parts (text, a2ui, text, a2ui), got %d: %#v", len(parts), parts)
+		}
+		tp0, ok := parts[0].(a2a.TextPart)
+		if !ok || tp0.Text == "" || tp0.Text[:12] != "[1] Results:" {
+			t.Fatalf("expected prose brackets and closed fence preserved in first TextPart, got %#v", parts[0])
+		}
+		msgs := a2aext.A2UIMessages(parts)
+		if len(msgs) != 2 {
+			t.Fatalf("expected 2 A2UI messages, got %#v", msgs)
+		}
+		if ds0, _ := msgs[0]["deleteSurface"].(map[string]any); ds0["surfaceId"] != "recovered-1" {
+			t.Fatalf("unexpected first message: %#v", msgs[0])
+		}
+		if ds1, _ := msgs[1]["deleteSurface"].(map[string]any); ds1["surfaceId"] != "tagged-2" {
+			t.Fatalf("unexpected second message: %#v", msgs[1])
+		}
+	})
+
+	t.Run("case-insensitive tags ignore close tag inside JSON strings and strip outer fences", func(t *testing.T) {
+		raw := "Before\n```json\n<A2UI-JSON>\n" +
+			"[{\"version\":\"1.0\",\"updateDataModel\":{\"surfaceId\":\"s1\",\"value\":{\"note\":\"literal </A2UI-JSON> inside string\"}}}]\n" +
+			"</A2UI-JSON >\n```\nAfter"
+		parts, err := a2aext.ExtractA2UIJSONToParts(raw, nil)
+		if err != nil {
+			t.Fatalf("ExtractA2UIJSONToParts: %v", err)
+		}
+		if len(parts) != 3 {
+			t.Fatalf("expected 3 parts without dangling fence TextParts, got %d: %#v", len(parts), parts)
+		}
+		if tp, ok := parts[0].(a2a.TextPart); !ok || tp.Text != "Before" {
+			t.Fatalf("part[0] = %#v, want TextPart(\"Before\")", parts[0])
+		}
+		if tp, ok := parts[2].(a2a.TextPart); !ok || tp.Text != "After" {
+			t.Fatalf("part[2] = %#v, want TextPart(\"After\")", parts[2])
+		}
+		msgs := a2aext.A2UIMessages(parts)
+		if len(msgs) != 1 {
+			t.Fatalf("expected 1 A2UI message, got %#v", msgs)
+		}
+	})
+}

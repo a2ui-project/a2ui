@@ -115,13 +115,15 @@ func sameBindingValue(a, b any) bool {
 }
 
 type nodePropsSub struct {
-	id int
-	fn func(map[string]any)
+	id     int
+	active bool
+	fn     func(map[string]any)
 }
 
 type nodeDestroySub struct {
-	id int
-	fn func()
+	id     int
+	active bool
+	fn     func()
 }
 
 // ComponentNode represents a resolved, mounted node in a SurfaceModel's component hierarchy.
@@ -141,9 +143,9 @@ type ComponentNode struct {
 	metadata          map[string]any
 	disposed          bool
 	nextSubID         int
-	onUpdated         []nodePropsSub
-	onMetadataChanged []compMetaSub
-	onDestroyed       []nodeDestroySub
+	onUpdated         []*nodePropsSub
+	onMetadataChanged []*compMetaSub
+	onDestroyed       []*nodeDestroySub
 }
 
 // Metadata returns a defensive copy of the node's envelope metadata, or nil if unset.
@@ -167,10 +169,15 @@ func (n *ComponentNode) IsPlaceholder() bool {
 
 // SubscribeUpdated registers fn to run when Props change and returns an unsubscribe function.
 func (n *ComponentNode) SubscribeUpdated(fn func(map[string]any)) func() {
+	if n.disposed {
+		return func() {}
+	}
 	n.nextSubID++
 	id := n.nextSubID
-	n.onUpdated = append(n.onUpdated, nodePropsSub{id: id, fn: fn})
+	entry := &nodePropsSub{id: id, active: true, fn: fn}
+	n.onUpdated = append(n.onUpdated, entry)
 	return func() {
+		entry.active = false
 		for i, sub := range n.onUpdated {
 			if sub.id == id {
 				n.onUpdated = append(n.onUpdated[:i], n.onUpdated[i+1:]...)
@@ -182,10 +189,15 @@ func (n *ComponentNode) SubscribeUpdated(fn func(map[string]any)) func() {
 
 // SubscribeMetadataChanged registers fn to run when Metadata changes and returns an unsubscribe function.
 func (n *ComponentNode) SubscribeMetadataChanged(fn func(map[string]any)) func() {
+	if n.disposed {
+		return func() {}
+	}
 	n.nextSubID++
 	id := n.nextSubID
-	n.onMetadataChanged = append(n.onMetadataChanged, compMetaSub{id: id, fn: fn})
+	entry := &compMetaSub{id: id, active: true, fn: fn}
+	n.onMetadataChanged = append(n.onMetadataChanged, entry)
 	return func() {
+		entry.active = false
 		for i, sub := range n.onMetadataChanged {
 			if sub.id == id {
 				n.onMetadataChanged = append(n.onMetadataChanged[:i], n.onMetadataChanged[i+1:]...)
@@ -197,10 +209,15 @@ func (n *ComponentNode) SubscribeMetadataChanged(fn func(map[string]any)) func()
 
 // SubscribeDestroyed registers fn to run when the node is disposed and returns an unsubscribe function.
 func (n *ComponentNode) SubscribeDestroyed(fn func()) func() {
+	if n.disposed {
+		return func() {}
+	}
 	n.nextSubID++
 	id := n.nextSubID
-	n.onDestroyed = append(n.onDestroyed, nodeDestroySub{id: id, fn: fn})
+	entry := &nodeDestroySub{id: id, active: true, fn: fn}
+	n.onDestroyed = append(n.onDestroyed, entry)
 	return func() {
+		entry.active = false
 		for i, sub := range n.onDestroyed {
 			if sub.id == id {
 				n.onDestroyed = append(n.onDestroyed[:i], n.onDestroyed[i+1:]...)
@@ -215,9 +232,12 @@ func (n *ComponentNode) setProps(nextProps map[string]any, changed bool) {
 		return
 	}
 	n.Props = nextProps
-	subs := append([]nodePropsSub(nil), n.onUpdated...)
+	subs := append([]*nodePropsSub(nil), n.onUpdated...)
 	for _, sub := range subs {
-		if sub.fn != nil {
+		if n.disposed {
+			break
+		}
+		if sub.active && sub.fn != nil {
 			sub.fn(n.Props)
 		}
 	}
@@ -230,15 +250,19 @@ func (n *ComponentNode) setMetadata(nextMeta map[string]any) {
 	norm := normalizeComponentMetadata(nextMeta)
 	if !reflect.DeepEqual(n.metadata, norm) {
 		n.metadata = norm
-		subs := append([]compMetaSub(nil), n.onMetadataChanged...)
+		subs := append([]*compMetaSub(nil), n.onMetadataChanged...)
 		for _, sub := range subs {
+			if n.disposed {
+				break
+			}
+			if !sub.active || sub.fn == nil {
+				continue
+			}
 			var arg map[string]any
 			if n.metadata != nil {
 				arg, _ = CloneJSONValue(n.metadata).(map[string]any)
 			}
-			if sub.fn != nil {
-				sub.fn(arg)
-			}
+			sub.fn(arg)
 		}
 	}
 }
@@ -248,14 +272,21 @@ func (n *ComponentNode) dispose() {
 		return
 	}
 	n.disposed = true
-	subs := append([]nodeDestroySub(nil), n.onDestroyed...)
+	for _, sub := range n.onUpdated {
+		sub.active = false
+	}
+	for _, sub := range n.onMetadataChanged {
+		sub.active = false
+	}
+	subs := append([]*nodeDestroySub(nil), n.onDestroyed...)
 	n.onDestroyed = nil
 	n.onMetadataChanged = nil
 	n.onUpdated = nil
 	for _, sub := range subs {
-		if sub.fn != nil {
+		if sub.active && sub.fn != nil {
 			sub.fn()
 		}
+		sub.active = false
 	}
 }
 
@@ -318,8 +349,9 @@ type nodeRecord struct {
 }
 
 type rootReplacedSub struct {
-	id int
-	fn func(*ComponentNode)
+	id     int
+	active bool
+	fn     func(*ComponentNode)
 }
 
 // NodeResolver projects a SurfaceModel's flat ComponentModel map into a reactive ComponentNode tree.
@@ -337,7 +369,7 @@ type NodeResolver struct {
 	rootRecord         *nodeRecord
 	disposed           bool
 	nextSubID          int
-	onRootReplaced     []rootReplacedSub
+	onRootReplaced     []*rootReplacedSub
 }
 
 // NewNodeResolver constructs a reactive NodeResolver attached to surf.
@@ -393,10 +425,15 @@ func (r *NodeResolver) Disposed() bool {
 
 // SubscribeRootReplaced registers fn to run when the root ComponentNode is created, replaced, or cleared.
 func (r *NodeResolver) SubscribeRootReplaced(fn func(*ComponentNode)) func() {
+	if r.disposed {
+		return func() {}
+	}
 	r.nextSubID++
 	id := r.nextSubID
-	r.onRootReplaced = append(r.onRootReplaced, rootReplacedSub{id: id, fn: fn})
+	entry := &rootReplacedSub{id: id, active: true, fn: fn}
+	r.onRootReplaced = append(r.onRootReplaced, entry)
 	return func() {
+		entry.active = false
 		for i, sub := range r.onRootReplaced {
 			if sub.id == id {
 				r.onRootReplaced = append(r.onRootReplaced[:i], r.onRootReplaced[i+1:]...)
@@ -407,9 +444,9 @@ func (r *NodeResolver) SubscribeRootReplaced(fn func(*ComponentNode)) func() {
 }
 
 func (r *NodeResolver) emitRootReplaced(node *ComponentNode) {
-	subs := append([]rootReplacedSub(nil), r.onRootReplaced...)
+	subs := append([]*rootReplacedSub(nil), r.onRootReplaced...)
 	for _, sub := range subs {
-		if sub.fn != nil {
+		if sub.active && sub.fn != nil {
 			sub.fn(node)
 		}
 	}
@@ -728,7 +765,7 @@ func (r *NodeResolver) isExistingUpToDate(
 	hasAPI := false
 	if model != nil {
 		if cat := r.resolveModelCatalog(model); cat != nil {
-			_, hasAPI = cat.Components()[model.Type]
+			_, hasAPI = cat.components[model.Type]
 		}
 	}
 	if existing.IsPlaceholder() {
@@ -866,12 +903,27 @@ func (r *NodeResolver) materialize(rec *nodeRecord) {
 }
 
 func getSafeChildList(val any) []any {
-	if arr, ok := val.([]any); ok {
+	switch typed := val.(type) {
+	case []any:
+		return typed
+	case []string:
+		out := make([]any, len(typed))
+		for i, s := range typed {
+			out[i] = s
+		}
+		return out
+	case map[string]any:
+		if expl, okE := typed["explicitList"]; okE {
+			return append([]any(nil), getSafeChildList(expl)...)
+		}
+		return []any{}
+	}
+	if arr, ok := CloneJSONValue(val).([]any); ok {
 		return arr
 	}
-	if m, ok := val.(map[string]any); ok {
-		if expl, okE := m["explicitList"].([]any); okE {
-			return append([]any(nil), expl...)
+	if m, ok := CloneJSONValue(val).(map[string]any); ok {
+		if expl, okE := m["explicitList"]; okE {
+			return append([]any(nil), getSafeChildList(expl)...)
 		}
 	}
 	return []any{}
@@ -904,7 +956,7 @@ func (r *NodeResolver) resolveAllChildRefs(rec *nodeRecord, nextProps map[string
 	sort.Strings(listKeys)
 	for _, key := range listKeys {
 		if subKeys, hasNested := rec.refSpec.NestedSingleRefs[key]; hasNested && len(subKeys) > 0 {
-			arr, ok := nextProps[key].([]any)
+			arr, ok := CloneJSONValue(nextProps[key]).([]any)
 			if !ok {
 				continue
 			}
@@ -1293,5 +1345,8 @@ func (r *NodeResolver) Dispose() {
 	r.dispatchedErrors = map[string]map[string]map[string]bool{}
 	r.rootRecord = nil
 	r.emitRootReplaced(nil)
+	for _, sub := range r.onRootReplaced {
+		sub.active = false
+	}
 	r.onRootReplaced = nil
 }

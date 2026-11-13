@@ -80,6 +80,12 @@ func PassthroughOnly(names ...string) func(componentName string) bool {
 	return func(componentName string) bool { return allowed[componentName] }
 }
 
+type surfaceOp struct {
+	isDelete  bool
+	surfaceID string
+	catalogID string
+}
+
 type surfaceCatalogTracker struct {
 	mu      sync.Mutex
 	logger  *slog.Logger
@@ -89,6 +95,15 @@ type surfaceCatalogTracker struct {
 
 func newSurfaceCatalogTracker(logger *slog.Logger) *surfaceCatalogTracker {
 	return &surfaceCatalogTracker{logger: logger, entries: make(map[string]string)}
+}
+
+func (t *surfaceCatalogTracker) cloneStaged() *surfaceCatalogTracker {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return &surfaceCatalogTracker{
+		entries: maps.Clone(t.entries),
+		order:   slices.Clone(t.order),
+	}
 }
 
 func (t *surfaceCatalogTracker) get(surfaceID string) (string, bool) {
@@ -130,9 +145,10 @@ func (t *surfaceCatalogTracker) set(surfaceID, catalogID string) {
 		delete(t.entries, evicted)
 		didEvict = true
 	}
+	logger := t.logger
 	t.mu.Unlock()
-	if didEvict {
-		t.logger.Warn("evicted oldest tracked surface from TransportSession", "surfaceId", evicted, "limit", maxTrackedSurfaces)
+	if didEvict && logger != nil {
+		logger.Warn("evicted oldest tracked surface from TransportSession", "surfaceId", evicted, "limit", maxTrackedSurfaces)
 	}
 }
 
@@ -223,6 +239,9 @@ func NewMacroExpander(macros []*Macro, opts *ExpanderOptions) (*MacroExpander, e
 	for _, m := range macros {
 		if m == nil {
 			continue
+		}
+		if _, dup := macroMap[m.name]; dup {
+			return nil, core.NewValidationErrorf("duplicate macro %q registered on MacroExpander", m.name)
 		}
 		macroList = append(macroList, m)
 		macroMap[m.name] = m
@@ -420,11 +439,6 @@ func (e *MacroExpander) Transform(catalog *core.Catalog) (*core.Catalog, error) 
 //   - In v1.0, optionally prunes base components via PassthroughFilter and appends ToCatalog()
 //     as a sidecar catalog (or augments in place when CatalogID matches one of catalogs).
 func (e *MacroExpander) TransformCatalogs(catalogs []*core.Catalog) ([]*core.Catalog, error) {
-	for _, cat := range catalogs {
-		if err := e.RegisterCatalog(cat); err != nil {
-			return nil, err
-		}
-	}
 	if len(catalogs) == 0 {
 		if len(e.macros) == 0 {
 			return []*core.Catalog{}, nil
@@ -436,7 +450,34 @@ func (e *MacroExpander) TransformCatalogs(catalogs []*core.Catalog) ([]*core.Cat
 		return []*core.Catalog{sidecar}, nil
 	}
 
-	if e.targetFamilySnapshot() == builder.VersionFamily1_0 {
+	effectiveFam := e.targetFamilySnapshot()
+	for _, cat := range catalogs {
+		if cat == nil {
+			return nil, core.NewCatalogError("catalog in TransformCatalogs must not be nil")
+		}
+		if pv := cat.ProtocolVersion(); pv != "" {
+			catFam, err := normalizeVersionFamily(string(pv))
+			if err != nil {
+				return nil, err
+			}
+			if effectiveFam != builder.VersionFamilyUnspecified && effectiveFam != catFam {
+				return nil, newMacroProtocolErrorf("cannot register %s catalog with v%s MacroExpander", cat.ProtocolVersion().Label(), effectiveFam)
+			}
+			if effectiveFam == builder.VersionFamilyUnspecified {
+				if catFam == builder.VersionFamily1_0 {
+					for _, m := range e.macros {
+						if err := validateV1_0MacroName(m.name); err != nil {
+							return nil, err
+						}
+					}
+				}
+				effectiveFam = catFam
+			}
+		}
+	}
+
+	var out []*core.Catalog
+	if effectiveFam == builder.VersionFamily1_0 {
 		hasMatchingCID := false
 		if e.catalogID != "" {
 			for _, c := range catalogs {
@@ -446,10 +487,10 @@ func (e *MacroExpander) TransformCatalogs(catalogs []*core.Catalog) ([]*core.Cat
 				}
 			}
 		}
-		out := make([]*core.Catalog, 0, len(catalogs)+1)
+		out = make([]*core.Catalog, 0, len(catalogs)+1)
 		for _, c := range catalogs {
 			if hasMatchingCID && c.CatalogID() == e.catalogID {
-				aug, err := e.TransformToInferenceCatalog(c)
+				aug, err := e.buildInferenceCatalog(c, effectiveFam)
 				if err != nil {
 					return nil, err
 				}
@@ -465,23 +506,29 @@ func (e *MacroExpander) TransformCatalogs(catalogs []*core.Catalog) ([]*core.Cat
 			}
 		}
 		if !hasMatchingCID && len(e.macros) > 0 {
-			sidecar, err := e.ToCatalog()
+			sidecar, err := e.buildSidecarCatalog(effectiveFam)
 			if err != nil {
 				return nil, err
 			}
 			out = append(out, sidecar)
 		}
-		return out, nil
+	} else {
+		if len(catalogs) != 1 {
+			return nil, core.NewCatalogError("A2UI v0.9 supports only a single catalog per surface")
+		}
+		aug, err := e.buildInferenceCatalog(catalogs[0], effectiveFam)
+		if err != nil {
+			return nil, err
+		}
+		out = []*core.Catalog{aug}
 	}
 
-	if len(catalogs) != 1 {
-		return nil, core.NewCatalogError("A2UI v0.9 supports only a single catalog per surface")
+	for _, cat := range catalogs {
+		if err := e.RegisterCatalog(cat); err != nil {
+			return nil, err
+		}
 	}
-	aug, err := e.TransformToInferenceCatalog(catalogs[0])
-	if err != nil {
-		return nil, err
-	}
-	return []*core.Catalog{aug}, nil
+	return out, nil
 }
 
 func pruneCatalogComponents(cat *core.Catalog, keep func(componentName string) bool) (*core.Catalog, error) {
@@ -545,6 +592,18 @@ func (e *MacroExpander) TransformToInferenceCatalog(baseCatalog *core.Catalog) (
 	if baseCatalog == nil {
 		return nil, core.NewCatalogError("baseCatalog must not be nil")
 	}
+	aug, err := e.buildInferenceCatalog(baseCatalog, e.targetFamilySnapshot())
+	if err != nil {
+		return nil, err
+	}
+	e.registerBaseComponents(baseCatalog)
+	return aug, nil
+}
+
+func (e *MacroExpander) buildInferenceCatalog(baseCatalog *core.Catalog, targetFam builder.VersionFamily) (*core.Catalog, error) {
+	if baseCatalog == nil {
+		return nil, core.NewCatalogError("baseCatalog must not be nil")
+	}
 	var baseFamily builder.VersionFamily
 	if pv := baseCatalog.ProtocolVersion(); pv != "" {
 		var err error
@@ -553,7 +612,6 @@ func (e *MacroExpander) TransformToInferenceCatalog(baseCatalog *core.Catalog) (
 			return nil, err
 		}
 	}
-	targetFam := e.targetFamilySnapshot()
 	if targetFam != builder.VersionFamilyUnspecified && baseFamily != builder.VersionFamilyUnspecified && targetFam != baseFamily {
 		return nil, newMacroProtocolErrorf("cannot augment %s catalog with v%s macros", baseCatalog.ProtocolVersion().Label(), targetFam)
 	}
@@ -669,7 +727,6 @@ func (e *MacroExpander) TransformToInferenceCatalog(baseCatalog *core.Catalog) (
 		}
 	}
 
-	e.registerBaseComponents(baseCatalog)
 	schemaCopy[catalogComponentsKey] = compsMap
 
 	return core.CatalogFromJSON(schemaCopy, &core.CatalogLoadOptions{
@@ -681,10 +738,14 @@ func (e *MacroExpander) TransformToInferenceCatalog(baseCatalog *core.Catalog) (
 // ToCatalog exports a standalone Catalog containing exclusively the registered macro component schemas.
 // When neither ProtocolVersion, BaseCatalogs, nor v1.0 macro annotations are present, it defaults to "0.9.1".
 func (e *MacroExpander) ToCatalog() (*core.Catalog, error) {
+	return e.buildSidecarCatalog(e.targetFamilySnapshot())
+}
+
+func (e *MacroExpander) buildSidecarCatalog(targetFam builder.VersionFamily) (*core.Catalog, error) {
 	version := core.Version0_9_1.NumberString()
 	if e.explicitProtocolVersion != "" {
 		version = e.explicitProtocolVersion
-	} else if e.targetFamilySnapshot() == builder.VersionFamily1_0 {
+	} else if targetFam == builder.VersionFamily1_0 {
 		version = core.Version1_0.NumberString()
 	}
 
@@ -761,6 +822,13 @@ func (e *MacroExpander) ToCatalog() (*core.Catalog, error) {
 	})
 }
 
+func (s expanderSnapshot) isV1_0Envelope(protocolVersion string) bool {
+	if protocolVersion != "" {
+		return protocolVersion == core.Version1_0.NumberString()
+	}
+	return s.targetFamily == builder.VersionFamily1_0
+}
+
 func (s expanderSnapshot) isPureMacroSidecarID(cid string) bool {
 	return cid != "" && cid == s.macroCatalogID && !slices.Contains(s.registeredBaseCIDs, cid)
 }
@@ -808,7 +876,7 @@ func (s *TransportSession) TrackSurface(surfaceID, catalogID string) {
 
 // TransformToTransport lowers outbound inference messages by expanding macro components into
 // flat primitive subtrees, updating the session's surface state from createSurface and
-// deleteSurface messages.
+// deleteSurface messages once the entire batch succeeds.
 func (s *TransportSession) TransformToTransport(messages []core.AgentToRendererMessage) ([]core.AgentToRendererMessage, error) {
 	return s.expander.transformToTransport(messages, s.surfaces)
 }
@@ -833,6 +901,9 @@ func (e *MacroExpander) transformToTransport(
 		return out, nil
 	}
 
+	stagedSurfaces := activeSurfaces.cloneStaged()
+	var stagedOps []surfaceOp
+
 	result := make([]core.AgentToRendererMessage, 0, len(messages))
 	for _, msg := range messages {
 		msgDict := msg.Clone()
@@ -852,22 +923,28 @@ func (e *MacroExpander) transformToTransport(
 			}
 		}
 
+		isV1_0 := snap.isV1_0Envelope(protocolVersion)
+		if delBody, ok := toStringAnyMap(msgDict["deleteSurface"]); ok {
+			if delSID, ok := delBody["surfaceId"].(string); ok && delSID != "" {
+				stagedSurfaces.delete(delSID)
+				stagedOps = append(stagedOps, surfaceOp{isDelete: true, surfaceID: delSID})
+			}
+		}
+
 		if len(e.macros) == 0 {
 			result = append(result, msgDict)
 			continue
 		}
 
-		isV1_0 := protocolVersion == core.Version1_0.NumberString()
-		if delBody, ok := msgDict["deleteSurface"].(map[string]any); ok {
-			if delSID, ok := delBody["surfaceId"].(string); ok && delSID != "" {
-				activeSurfaces.delete(delSID)
-			}
-		}
-
 		for _, envelopeKey := range []string{"surfaceUpdate", "createSurface", "updateComponents"} {
 			body, ok := msgDict[envelopeKey].(map[string]any)
 			if !ok {
-				continue
+				if normBody, normOK := toStringAnyMap(msgDict[envelopeKey]); normOK {
+					body = normBody
+					msgDict[envelopeKey] = body
+				} else {
+					continue
+				}
 			}
 			surfaceID, hasSID := body["surfaceId"].(string)
 			if envelopeKey == "createSurface" && hasSID {
@@ -883,14 +960,15 @@ func (e *MacroExpander) transformToTransport(
 						delete(body, "catalogId")
 					}
 				}
-				activeSurfaces.set(surfaceID, infCID)
+				stagedSurfaces.set(surfaceID, infCID)
+				stagedOps = append(stagedOps, surfaceOp{surfaceID: surfaceID, catalogID: infCID})
 			}
 
 			surfaceKnown := false
 			surfaceCID := ""
 			transportSurfaceCID := ""
 			if hasSID {
-				if trackedInfCID, ok := activeSurfaces.get(surfaceID); ok {
+				if trackedInfCID, ok := stagedSurfaces.get(surfaceID); ok {
 					surfaceKnown = true
 					var err error
 					surfaceCID, transportSurfaceCID, err = snap.resolveSurfaceCatalogPair(trackedInfCID, isV1_0, false)
@@ -933,6 +1011,14 @@ func (e *MacroExpander) transformToTransport(
 
 		result = append(result, msgDict)
 	}
+
+	for _, op := range stagedOps {
+		if op.isDelete {
+			activeSurfaces.delete(op.surfaceID)
+		} else {
+			activeSurfaces.set(op.surfaceID, op.catalogID)
+		}
+	}
 	return result, nil
 }
 
@@ -948,7 +1034,7 @@ func toComponentMapSlice(raw any) ([]map[string]any, error) {
 	case []any:
 		out := make([]map[string]any, 0, len(list))
 		for i, elem := range list {
-			m, ok := elem.(map[string]any)
+			m, ok := toStringAnyMap(elem)
 			if !ok {
 				return nil, core.NewValidationErrorf("component[%d] must be an object, got %T", i, elem)
 			}
@@ -957,6 +1043,20 @@ func toComponentMapSlice(raw any) ([]map[string]any, error) {
 		}
 		return out, nil
 	default:
+		rv := reflect.ValueOf(raw)
+		if rv.IsValid() && (rv.Kind() == reflect.Slice || rv.Kind() == reflect.Array) {
+			out := make([]map[string]any, 0, rv.Len())
+			for i := range rv.Len() {
+				elem := rv.Index(i).Interface()
+				m, ok := toStringAnyMap(elem)
+				if !ok {
+					return nil, core.NewValidationErrorf("component[%d] must be an object, got %T", i, elem)
+				}
+				cloned, _ := core.CloneJSONValue(m).(map[string]any)
+				out = append(out, cloned)
+			}
+			return out, nil
+		}
 		return nil, core.NewValidationErrorf("components must be an array, got %T", raw)
 	}
 }
@@ -1016,7 +1116,7 @@ func (s expanderSnapshot) expandComponentList(components []map[string]any, st ex
 		)
 	}
 
-	isV1_0 := st.protocolVersion == core.Version1_0.NumberString()
+	isV1_0 := s.isV1_0Envelope(st.protocolVersion)
 	expanded := make([]map[string]any, 0, len(components))
 
 	for _, comp := range components {
@@ -1149,15 +1249,15 @@ func (s expanderSnapshot) expandComponentList(components []map[string]any, st ex
 
 func extractMacroInvocationParams(comp map[string]any, meta *Macro, isV1_0 bool) map[string]any {
 	if !meta.HasParameter("parameters") {
-		if nestedParams, ok := comp["parameters"].(map[string]any); ok {
+		if nestedParams, ok := toStringAnyMap(comp["parameters"]); ok {
 			params := make(map[string]any, len(nestedParams)+len(meta.customEnvelope))
 			for k, v := range nestedParams {
 				params[k] = v
 			}
 			for envKey := range meta.customEnvelope {
-				if comp[envKey] != nil {
+				if val, present := comp[envKey]; present && (val != nil || meta.paramMap[envKey].GoType == anyIfaceType) {
 					if _, exists := params[envKey]; !exists {
-						params[envKey] = comp[envKey]
+						params[envKey] = val
 					}
 				}
 			}
@@ -1208,7 +1308,7 @@ func (s expanderSnapshot) executeSingleMacro(
 	if err != nil {
 		return nil, err
 	}
-	if rootNode == nil {
+	if builder.IsNilValue(rootNode) {
 		return nil, fmt.Errorf("macro %q returned nil root node", meta.name)
 	}
 
@@ -1273,17 +1373,23 @@ func applyRootEnvelopeFields(
 	if a11y := read("accessibility"); a11y != nil {
 		key := envelope.Key("accessibility", isV1_0)
 		a11yCopy := core.CloneJSONValue(a11y)
-		rootA11y, okRoot := rootComp[key].(map[string]any)
-		inA11y, okIn := a11yCopy.(map[string]any)
+		rootA11y, okRoot := toStringAnyMap(rootComp[key])
+		inA11y, okIn := toStringAnyMap(a11yCopy)
 		if okRoot && okIn {
 			merged := make(map[string]any, len(rootA11y)+len(inA11y))
 			for k, v := range rootA11y {
 				merged[k] = v
 			}
 			for k, v := range inA11y {
-				merged[k] = v
+				merged[k] = core.CloneJSONValue(v)
 			}
 			rootComp[key] = merged
+		} else if okIn {
+			normalized := make(map[string]any, len(inA11y))
+			for k, v := range inA11y {
+				normalized[k] = core.CloneJSONValue(v)
+			}
+			rootComp[key] = normalized
 		} else {
 			rootComp[key] = a11yCopy
 		}
@@ -1292,10 +1398,12 @@ func applyRootEnvelopeFields(
 	if checks := read("checks"); checks != nil {
 		key := envelope.Key("checks", isV1_0)
 		checksCopy := core.CloneJSONValue(checks)
-		rootChecks, okRoot := rootComp[key].([]any)
-		inChecks, okIn := checksCopy.([]any)
+		rootChecks, okRoot := toAnySlice(rootComp[key])
+		inChecks, okIn := toAnySlice(checksCopy)
 		if okRoot && okIn {
 			rootComp[key] = slices.Concat(rootChecks, inChecks)
+		} else if okIn {
+			rootComp[key] = inChecks
 		} else {
 			rootComp[key] = checksCopy
 		}
@@ -1308,29 +1416,48 @@ func applyRootEnvelopeFields(
 	if metadata := read("metadata"); metadata != nil {
 		key := envelope.Key("metadata", isV1_0)
 		metaCopy := core.CloneJSONValue(metadata)
-		rootMeta, okRoot := rootComp[key].(map[string]any)
-		inMeta, okIn := metaCopy.(map[string]any)
+		rootMeta, okRoot := toStringAnyMap(rootComp[key])
+		inMeta, okIn := toStringAnyMap(metaCopy)
 		if okRoot && okIn {
 			mergedMeta := make(map[string]any, len(rootMeta)+len(inMeta))
 			for k, v := range rootMeta {
 				mergedMeta[k] = v
 			}
 			for k, v := range inMeta {
-				mergedMeta[k] = v
+				mergedMeta[k] = core.CloneJSONValue(v)
 			}
-			rootExt, okRootExt := rootMeta["extensions"].(map[string]any)
-			inExt, okInExt := inMeta["extensions"].(map[string]any)
+			rootExt, okRootExt := toStringAnyMap(rootMeta["extensions"])
+			inExt, okInExt := toStringAnyMap(inMeta["extensions"])
 			if okRootExt && okInExt {
 				mergedExt := make(map[string]any, len(rootExt)+len(inExt))
 				for k, v := range rootExt {
-					mergedExt[k] = v
+					mergedExt[k] = core.CloneJSONValue(v)
 				}
 				for k, v := range inExt {
-					mergedExt[k] = v
+					mergedExt[k] = core.CloneJSONValue(v)
 				}
 				mergedMeta["extensions"] = mergedExt
+			} else if okInExt {
+				normalizedExt := make(map[string]any, len(inExt))
+				for k, v := range inExt {
+					normalizedExt[k] = core.CloneJSONValue(v)
+				}
+				mergedMeta["extensions"] = normalizedExt
 			}
 			rootComp[key] = mergedMeta
+		} else if okIn {
+			normalizedMeta := make(map[string]any, len(inMeta))
+			for k, v := range inMeta {
+				normalizedMeta[k] = core.CloneJSONValue(v)
+			}
+			if inExt, okInExt := toStringAnyMap(inMeta["extensions"]); okInExt {
+				normalizedExt := make(map[string]any, len(inExt))
+				for k, v := range inExt {
+					normalizedExt[k] = core.CloneJSONValue(v)
+				}
+				normalizedMeta["extensions"] = normalizedExt
+			}
+			rootComp[key] = normalizedMeta
 		} else {
 			rootComp[key] = metaCopy
 		}

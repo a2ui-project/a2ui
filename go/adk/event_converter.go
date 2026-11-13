@@ -154,9 +154,7 @@ func (c *EventConverter) ConvertEvent(ctx context.Context, sessionID string, eve
 	taskInfo := a2a.TaskInfo{TaskID: taskID, ContextID: contextID}
 
 	if event.ErrorCode != "" || event.ErrorMessage != "" {
-		if !event.Partial {
-			c.closeStream(key)
-		}
+		c.closeStream(key)
 		errMsg := event.ErrorMessage
 		if errMsg == "" {
 			errMsg = event.ErrorCode
@@ -227,12 +225,7 @@ func (c *EventConverter) convertParts(event *session.Event, key streamKey, proc 
 		out = append(out, ps...)
 	}
 	if !event.Partial {
-		// A final event with no text parts, such as a bare tool response, never
-		// closes the stream above. Its trailing parts have no event to go in.
-		if trailing := c.closeStream(key); len(trailing) > 0 {
-			c.logger.Warn("Dropped trailing A2UI parts of a stream whose final event had no text",
-				"count", len(trailing), "invocationID", key.invocationID)
-		}
+		out = append(out, c.closeStream(key)...)
 	}
 	return out, nil
 }
@@ -249,7 +242,7 @@ func (c *EventConverter) convertStreamingPart(
 		if err != nil {
 			return nil, false, err
 		}
-		if !isPartial && c.hasStream(key) {
+		if !part.Thought && !isPartial && c.hasStream(key) {
 			return append(c.closeStream(key), parts...), true, nil
 		}
 		return parts, false, nil

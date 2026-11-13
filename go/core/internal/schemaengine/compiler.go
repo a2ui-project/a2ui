@@ -265,38 +265,67 @@ func NormalizeJSON(v any) any {
 		return nil
 	}
 	switch val := v.(type) {
-	case string, bool, json.Number:
+	case string, bool:
 		return val
-	case float64:
-		if math.IsNaN(val) || math.IsInf(val, 0) {
+	case json.Number:
+		if !json.Valid([]byte(val)) {
+			return math.NaN()
+		}
+		if _, err := val.Int64(); err == nil {
 			return val
 		}
+		if f, err := val.Float64(); err == nil && !math.IsNaN(f) && !math.IsInf(f, 0) {
+			return val
+		}
+		return math.NaN()
+	case float64:
 		return val
 	case float32:
 		return float64(val)
 	case int:
 		return json.Number(strconv.Itoa(val))
-	case int64:
-		return json.Number(strconv.FormatInt(val, 10))
+	case int8:
+		return json.Number(strconv.FormatInt(int64(val), 10))
+	case int16:
+		return json.Number(strconv.FormatInt(int64(val), 10))
 	case int32:
 		return json.Number(strconv.FormatInt(int64(val), 10))
+	case int64:
+		return json.Number(strconv.FormatInt(val, 10))
 	case uint:
+		return json.Number(strconv.FormatUint(uint64(val), 10))
+	case uint8:
+		return json.Number(strconv.FormatUint(uint64(val), 10))
+	case uint16:
+		return json.Number(strconv.FormatUint(uint64(val), 10))
+	case uint32:
 		return json.Number(strconv.FormatUint(uint64(val), 10))
 	case uint64:
 		return json.Number(strconv.FormatUint(val, 10))
+	case []byte:
+		return val
 	case map[string]any:
+		if val == nil {
+			return nil
+		}
 		out := make(map[string]any, len(val))
 		for k, item := range val {
 			out[k] = NormalizeJSON(item)
 		}
 		return out
 	case []any:
+		if val == nil {
+			return nil
+		}
 		out := make([]any, len(val))
 		for i, item := range val {
 			out[i] = NormalizeJSON(item)
 		}
 		return out
 	case []string:
+		if val == nil {
+			return nil
+		}
 		out := make([]any, len(val))
 		for i, item := range val {
 			out[i] = item
@@ -305,6 +334,11 @@ func NormalizeJSON(v any) any {
 	default:
 		rv := reflect.ValueOf(v)
 		switch rv.Kind() {
+		case reflect.Pointer:
+			if rv.IsNil() {
+				return nil
+			}
+			return v
 		case reflect.Slice:
 			if rv.IsNil() {
 				return nil

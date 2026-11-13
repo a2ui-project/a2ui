@@ -125,7 +125,11 @@ func RPCCallback(cfg RPCCallbackConfig) (adkagent.BeforeAgentCallback, error) {
 				agentCalls = append(agentCalls, m)
 				continue
 			}
-			if !processNonCallRPCMessage(cbCtx, callsProc, calls, m, logger) {
+			handled, err := processNonCallRPCMessage(cbCtx, callsProc, calls, m, logger)
+			if err != nil {
+				return nil, err
+			}
+			if !handled {
 				allOtherHandled = false
 			}
 		}
@@ -192,21 +196,21 @@ func RPCCallback(cfg RPCCallbackConfig) (adkagent.BeforeAgentCallback, error) {
 	}, nil
 }
 
-func processNonCallRPCMessage(ctx context.Context, proc *agent.RendererToAgentMessageProcessor, calls *agent.RendererFunctionCalls, message map[string]any, logger *slog.Logger) bool {
+func processNonCallRPCMessage(ctx context.Context, proc *agent.RendererToAgentMessageProcessor, calls *agent.RendererFunctionCalls, message map[string]any, logger *slog.Logger) (bool, error) {
 	res, err := proc.ProcessMessageMap(ctx, message)
 	if err == nil {
-		return res.Handled
+		return res.Handled, nil
 	}
 	var valErr *core.ValidationError
 	if errors.As(err, &valErr) {
 		if calls != nil && rpcMessageKind(message) == kindRendererFunctionResponse && calls.ResolveMessage(message) {
-			return true
+			return true, nil
 		}
 		logger.Warn("Passing an invalid A2UI message on to the agent", "errorType", fmt.Sprintf("%T", err))
 		logger.Debug("Invalid A2UI message error", "err", err)
-		return false
+		return false, nil
 	}
-	return false
+	return false, err
 }
 
 func processAgentCallRPCMessage(ctx context.Context, proc *agent.RendererToAgentMessageProcessor, message map[string]any, logger *slog.Logger) ([]core.AgentToRendererMessage, error) {

@@ -37,7 +37,7 @@ func (ChoicePickerOption) BuilderVersionFamily() builder.VersionFamily {
 
 // SerializeBuilderValue emits {"label": ..., "value": ...}.
 func (o ChoicePickerOption) SerializeBuilderValue(ctx *builder.FlattenContext) (any, error) {
-	if o.Label == nil {
+	if builder.IsNilValue(o.Label) {
 		return nil, core.NewValidationError("ChoicePickerOption.Label is required")
 	}
 	lbl, err := o.Label.SerializeBuilderValue(ctx)
@@ -113,7 +113,7 @@ func (c *Button) Flatten(rootID string) ([]map[string]any, error) {
 
 // SerializeComponent implements builder.ComponentSerializer.
 func (c *Button) SerializeComponent(ctx *builder.FlattenContext) (map[string]any, error) {
-	if c.Child == nil {
+	if builder.IsNilValue(c.Child) {
 		return nil, core.NewValidationError("Button.Child is required")
 	}
 	out := make(map[string]any)
@@ -138,8 +138,8 @@ func (c *Button) SerializeComponent(ctx *builder.FlattenContext) (map[string]any
 		return nil, err
 	}
 	out["action"] = act
-	if c.Weight != nil {
-		out["weight"] = *c.Weight
+	if err := setWeight(out, "Button.weight", c.Weight); err != nil {
+		return nil, err
 	}
 	if c.Checks != nil {
 		chks, err := serializeChecks(ctx, c.Checks)
@@ -212,7 +212,7 @@ func (c *TextField) Flatten(rootID string) ([]map[string]any, error) {
 
 // SerializeComponent implements builder.ComponentSerializer.
 func (c *TextField) SerializeComponent(ctx *builder.FlattenContext) (map[string]any, error) {
-	if c.Label == nil {
+	if builder.IsNilValue(c.Label) {
 		return nil, core.NewValidationError("TextField.Label is required")
 	}
 	out := make(map[string]any)
@@ -224,7 +224,7 @@ func (c *TextField) SerializeComponent(ctx *builder.FlattenContext) (map[string]
 		return nil, err
 	}
 	out["label"] = lbl
-	if c.Value != nil {
+	if !builder.IsNilValue(c.Value) {
 		val, err := c.Value.SerializeBuilderValue(ctx)
 		if err != nil {
 			return nil, err
@@ -242,8 +242,8 @@ func (c *TextField) SerializeComponent(ctx *builder.FlattenContext) (map[string]
 	if c.ValidationRegexp != nil {
 		out["validationRegexp"] = *c.ValidationRegexp
 	}
-	if c.Weight != nil {
-		out["weight"] = *c.Weight
+	if err := setWeight(out, "TextField.weight", c.Weight); err != nil {
+		return nil, err
 	}
 	if c.Checks != nil {
 		chks, err := serializeChecks(ctx, c.Checks)
@@ -302,10 +302,10 @@ func (c *CheckBox) Flatten(rootID string) ([]map[string]any, error) {
 
 // SerializeComponent implements builder.ComponentSerializer.
 func (c *CheckBox) SerializeComponent(ctx *builder.FlattenContext) (map[string]any, error) {
-	if c.Label == nil {
+	if builder.IsNilValue(c.Label) {
 		return nil, core.NewValidationError("CheckBox.Label is required")
 	}
-	if c.Value == nil {
+	if builder.IsNilValue(c.Value) {
 		return nil, core.NewValidationError("CheckBox.Value is required")
 	}
 	out := make(map[string]any)
@@ -322,8 +322,8 @@ func (c *CheckBox) SerializeComponent(ctx *builder.FlattenContext) (map[string]a
 	}
 	out["label"] = lbl
 	out["value"] = val
-	if c.Weight != nil {
-		out["weight"] = *c.Weight
+	if err := setWeight(out, "CheckBox.weight", c.Weight); err != nil {
+		return nil, err
 	}
 	if c.Checks != nil {
 		chks, err := serializeChecks(ctx, c.Checks)
@@ -414,14 +414,14 @@ func (c *ChoicePicker) SerializeComponent(ctx *builder.FlattenContext) (map[stri
 	if c.Options == nil {
 		return nil, core.NewValidationError("ChoicePicker.Options is required")
 	}
-	if c.Value == nil {
+	if builder.IsNilValue(c.Value) {
 		return nil, core.NewValidationError("ChoicePicker.Value is required")
 	}
 	out := make(map[string]any)
 	if err := c.SerializeEnvelopeAttributes(ctx, out, ""); err != nil {
 		return nil, err
 	}
-	if c.Label != nil {
+	if !builder.IsNilValue(c.Label) {
 		lbl, err := c.Label.SerializeBuilderValue(ctx)
 		if err != nil {
 			return nil, err
@@ -463,8 +463,8 @@ func (c *ChoicePicker) SerializeComponent(ctx *builder.FlattenContext) (map[stri
 		filterable = *c.Filterable
 	}
 	out["filterable"] = filterable
-	if c.Weight != nil {
-		out["weight"] = *c.Weight
+	if err := setWeight(out, "ChoicePicker.weight", c.Weight); err != nil {
+		return nil, err
 	}
 	if c.Checks != nil {
 		chks, err := serializeChecks(ctx, c.Checks)
@@ -532,14 +532,14 @@ func (c *Slider) Flatten(rootID string) ([]map[string]any, error) {
 
 // SerializeComponent implements builder.ComponentSerializer.
 func (c *Slider) SerializeComponent(ctx *builder.FlattenContext) (map[string]any, error) {
-	if c.Value == nil {
+	if builder.IsNilValue(c.Value) {
 		return nil, core.NewValidationError("Slider.Value is required")
 	}
 	out := make(map[string]any)
 	if err := c.SerializeEnvelopeAttributes(ctx, out, ""); err != nil {
 		return nil, err
 	}
-	if c.Label != nil {
+	if !builder.IsNilValue(c.Label) {
 		lbl, err := c.Label.SerializeBuilderValue(ctx)
 		if err != nil {
 			return nil, err
@@ -550,6 +550,12 @@ func (c *Slider) SerializeComponent(ctx *builder.FlattenContext) (map[string]any
 	if c.Min != nil {
 		minVal = *c.Min
 	}
+	if err := builder.ValidateFiniteFloat("Slider.min", minVal); err != nil {
+		return nil, err
+	}
+	if err := builder.ValidateFiniteFloat("Slider.max", c.Max); err != nil {
+		return nil, err
+	}
 	out["min"] = minVal
 	out["max"] = c.Max
 	val, err := c.Value.SerializeBuilderValue(ctx)
@@ -557,8 +563,8 @@ func (c *Slider) SerializeComponent(ctx *builder.FlattenContext) (map[string]any
 		return nil, err
 	}
 	out["value"] = val
-	if c.Weight != nil {
-		out["weight"] = *c.Weight
+	if err := setWeight(out, "Slider.weight", c.Weight); err != nil {
+		return nil, err
 	}
 	if c.Checks != nil {
 		chks, err := serializeChecks(ctx, c.Checks)
@@ -637,7 +643,7 @@ func (c *DateTimeInput) Flatten(rootID string) ([]map[string]any, error) {
 
 // SerializeComponent implements builder.ComponentSerializer.
 func (c *DateTimeInput) SerializeComponent(ctx *builder.FlattenContext) (map[string]any, error) {
-	if c.Value == nil {
+	if builder.IsNilValue(c.Value) {
 		return nil, core.NewValidationError("DateTimeInput.Value is required")
 	}
 	out := make(map[string]any)
@@ -659,29 +665,33 @@ func (c *DateTimeInput) SerializeComponent(ctx *builder.FlattenContext) (map[str
 	}
 	out["enableDate"] = enableDate
 	out["enableTime"] = enableTime
-	if c.Min != nil {
+	if !builder.IsNilValue(c.Min) {
 		mv, err := ctx.SerializeValue(c.Min)
 		if err != nil {
 			return nil, err
 		}
-		out["min"] = mv
+		if mv != nil {
+			out["min"] = mv
+		}
 	}
-	if c.Max != nil {
+	if !builder.IsNilValue(c.Max) {
 		mv, err := ctx.SerializeValue(c.Max)
 		if err != nil {
 			return nil, err
 		}
-		out["max"] = mv
+		if mv != nil {
+			out["max"] = mv
+		}
 	}
-	if c.Label != nil {
+	if !builder.IsNilValue(c.Label) {
 		lbl, err := c.Label.SerializeBuilderValue(ctx)
 		if err != nil {
 			return nil, err
 		}
 		out["label"] = lbl
 	}
-	if c.Weight != nil {
-		out["weight"] = *c.Weight
+	if err := setWeight(out, "DateTimeInput.weight", c.Weight); err != nil {
+		return nil, err
 	}
 	if c.Checks != nil {
 		chks, err := serializeChecks(ctx, c.Checks)

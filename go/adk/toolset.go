@@ -206,15 +206,10 @@ func (t *SendA2UIToClientTool) ProcessRequest(ctx adkagent.Context, req *model.L
 		if rules := pg.GenerateBaseRules(nil); rules != "" {
 			sections = append(sections, section{key: rules, text: "## Workflow Description:\n" + rules})
 		}
-		catInst := renderAllCatalogInstructions(pg, proc.ActiveCatalogs())
-		if catInst != "" {
+		if catInst := pg.GenerateCatalogInstructions(true, nil); catInst != "" {
 			sections = append(sections, section{key: catInst, text: catInst})
 		}
-		var firstCat *core.Catalog
-		if cats := proc.ActiveCatalogs(); len(cats) > 0 {
-			firstCat = cats[0]
-		}
-		examples, exErr := pg.GenerateExamples(firstCat, false)
+		examples, exErr := pg.GenerateExamples(nil, false)
 		if exErr != nil {
 			return exErr
 		}
@@ -344,22 +339,6 @@ func normalizeToolWireMessage(msg core.AgentToRendererMessage) map[string]any {
 		delete(cloned, "version")
 	}
 	return cloned
-}
-
-func renderAllCatalogInstructions(pg agent.PromptGenerator, catalogs []*core.Catalog) string {
-	if len(catalogs) == 0 {
-		return pg.GenerateCatalogInstructions(true, nil)
-	}
-	if len(catalogs) == 1 {
-		return pg.GenerateCatalogInstructions(true, catalogs[0])
-	}
-	var blocks []string
-	for _, cat := range catalogs {
-		if desc := strings.TrimSpace(pg.GenerateCatalogInstructions(true, cat)); desc != "" {
-			blocks = append(blocks, "# Catalog `"+cat.CatalogID()+"`\n\n"+desc)
-		}
-	}
-	return strings.Join(blocks, "\n\n")
 }
 
 func packADKTool(req *model.LLMRequest, t *SendA2UIToClientTool) error {

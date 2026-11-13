@@ -30,6 +30,7 @@ var forbiddenPointerSegments = map[string]bool{
 
 type dataWatcher struct {
 	id       uint64
+	active   bool
 	normPath string
 	tokens   []string
 	callback func(val any)
@@ -47,7 +48,7 @@ type DataModel struct {
 func NewDataModel(initial map[string]any) *DataModel {
 	root := map[string]any{}
 	if initial != nil {
-		if copied, ok := CloneJSONValue(initial).(map[string]any); ok {
+		if copied, ok := CloneJSONValue(initial).(map[string]any); ok && copied != nil {
 			root = copied
 		}
 	}
@@ -56,10 +57,11 @@ func NewDataModel(initial map[string]any) *DataModel {
 
 // NewDataModelFromAny creates a DataModel initialized with an arbitrary JSON value (defaulting nil to {}).
 func NewDataModelFromAny(initial any) *DataModel {
-	if initial == nil {
+	norm := CloneJSONValue(initial)
+	if norm == nil {
 		return &DataModel{root: map[string]any{}}
 	}
-	return &DataModel{root: CloneJSONValue(initial)}
+	return &DataModel{root: norm}
 }
 
 func parseDataPointer(path string) ([]string, error) {
@@ -167,7 +169,8 @@ func (d *DataModel) Set(pointer string, val any) error {
 	if err != nil {
 		return err
 	}
-	if val == nil && len(tokens) > 0 {
+	normVal := CloneJSONValue(val)
+	if normVal == nil && len(tokens) > 0 {
 		exists, err := d.HasPath(pointer)
 		if err != nil {
 			return err
@@ -193,10 +196,10 @@ func (d *DataModel) Set(pointer string, val any) error {
 	}
 
 	if len(tokens) == 0 {
-		if val == nil {
+		if normVal == nil {
 			d.root = map[string]any{}
 		} else {
-			d.root = CloneJSONValue(val)
+			d.root = normVal
 		}
 		d.notifyCascade(tokens, snapshots)
 		return nil
@@ -256,14 +259,14 @@ func (d *DataModel) Set(pointer string, val any) error {
 	lastTok := tokens[len(tokens)-1]
 	switch container := cur.(type) {
 	case map[string]any:
-		if val == nil {
+		if normVal == nil {
 			delete(container, lastTok)
 		} else {
-			container[lastTok] = CloneJSONValue(val)
+			container[lastTok] = normVal
 		}
 	case []any:
 		idx, _ := parseCanonicalArrayIndex(lastTok)
-		if val == nil {
+		if normVal == nil {
 			if idx < len(container) {
 				container[idx] = nil
 			}
@@ -271,7 +274,7 @@ func (d *DataModel) Set(pointer string, val any) error {
 			for len(container) <= idx {
 				container = append(container, nil)
 			}
-			container[idx] = CloneJSONValue(val)
+			container[idx] = normVal
 			d.assignSliceAt(tokens[:len(tokens)-1], container)
 		}
 	}
@@ -438,6 +441,12 @@ func (d *DataModel) notifyCascade(mutatedTokens []string, snapshots map[string]s
 	}
 	active := append([]*dataWatcher(nil), d.watchers...)
 	for _, w := range active {
+		if d.disposed {
+			break
+		}
+		if !w.active || w.callback == nil {
+			continue
+		}
 		if !tokensRelated(w.tokens, mutatedTokens) {
 			continue
 		}
@@ -482,12 +491,14 @@ func (d *DataModel) Watch(pointer string, callback func(val any)) (func(), error
 	id := d.nextID
 	w := &dataWatcher{
 		id:       id,
+		active:   true,
 		normPath: normPath,
 		tokens:   tokens,
 		callback: callback,
 	}
 	d.watchers = append(d.watchers, w)
 	return func() {
+		w.active = false
 		for i, existing := range d.watchers {
 			if existing.id == id {
 				d.watchers = append(d.watchers[:i], d.watchers[i+1:]...)
@@ -500,6 +511,9 @@ func (d *DataModel) Watch(pointer string, callback func(val any)) (func(), error
 // Dispose releases all watchers on the DataModel.
 func (d *DataModel) Dispose() {
 	d.disposed = true
+	for _, w := range d.watchers {
+		w.active = false
+	}
 	d.watchers = nil
 }
 

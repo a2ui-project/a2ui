@@ -81,14 +81,14 @@ func (AccessibilityAttributes) BuilderVersionFamily() builder.VersionFamily {
 // SerializeBuilderValue converts non-empty accessibility attributes to a wire map.
 func (a AccessibilityAttributes) SerializeBuilderValue(ctx *builder.FlattenContext) (any, error) {
 	out := make(map[string]any)
-	if a.Label != nil {
+	if !builder.IsNilValue(a.Label) {
 		v, err := a.Label.SerializeBuilderValue(ctx)
 		if err != nil {
 			return nil, err
 		}
 		out["label"] = v
 	}
-	if a.Description != nil {
+	if !builder.IsNilValue(a.Description) {
 		v, err := a.Description.SerializeBuilderValue(ctx)
 		if err != nil {
 			return nil, err
@@ -101,7 +101,7 @@ func (a AccessibilityAttributes) SerializeBuilderValue(ctx *builder.FlattenConte
 		}
 		out["live"] = string(a.Live)
 	}
-	if a.Hidden != nil {
+	if !builder.IsNilValue(a.Hidden) {
 		v, err := a.Hidden.SerializeBuilderValue(ctx)
 		if err != nil {
 			return nil, err
@@ -127,7 +127,7 @@ func (CheckRule) BuilderVersionFamily() builder.VersionFamily { return builder.V
 
 // SerializeBuilderValue converts CheckRule into {"condition": ..., "message"?: ...}.
 func (r CheckRule) SerializeBuilderValue(ctx *builder.FlattenContext) (any, error) {
-	if r.Condition == nil {
+	if builder.IsNilValue(r.Condition) {
 		return nil, core.NewValidationError("CheckRule condition must not be nil")
 	}
 	cond, err := r.Condition.SerializeBuilderValue(ctx)
@@ -161,7 +161,7 @@ func (e ActionEvent) SerializeBuilderValue(ctx *builder.FlattenContext) (any, er
 	out := map[string]any{
 		"name": e.Name,
 	}
-	if e.UserMessage != nil {
+	if !builder.IsNilValue(e.UserMessage) {
 		um, err := e.UserMessage.SerializeBuilderValue(ctx)
 		if err != nil {
 			return nil, err
@@ -171,7 +171,7 @@ func (e ActionEvent) SerializeBuilderValue(ctx *builder.FlattenContext) (any, er
 	if len(e.Context) > 0 {
 		ctxMap := make(map[string]any, len(e.Context))
 		for k, v := range e.Context {
-			if v == nil {
+			if builder.IsNilValue(v) {
 				continue
 			}
 			ser, err := v.SerializeBuilderValue(ctx)
@@ -180,7 +180,9 @@ func (e ActionEvent) SerializeBuilderValue(ctx *builder.FlattenContext) (any, er
 			}
 			ctxMap[k] = ser
 		}
-		out["context"] = ctxMap
+		if len(ctxMap) > 0 {
+			out["context"] = ctxMap
+		}
 	}
 	return out, nil
 }
@@ -244,13 +246,13 @@ type ComponentNode struct {
 }
 
 // ComponentType returns Component (custom structs typically override ComponentType with a constant).
-func (n *ComponentNode) ComponentType() string { return n.Component }
+func (n ComponentNode) ComponentType() string { return n.Component }
 
 // ComponentID returns the explicit author-assigned component ID, if any.
-func (n *ComponentNode) ComponentID() string { return n.ID }
+func (n ComponentNode) ComponentID() string { return n.ID }
 
 // BuilderVersionFamily returns VersionFamily1_0.
-func (n *ComponentNode) BuilderVersionFamily() builder.VersionFamily { return builder.VersionFamily1_0 }
+func (n ComponentNode) BuilderVersionFamily() builder.VersionFamily { return builder.VersionFamily1_0 }
 
 // SetExtension validates key as a UAX #31 identifier and sets value on Extensions.
 func (n *ComponentNode) SetExtension(key string, value any) error {
@@ -266,7 +268,7 @@ func (n *ComponentNode) SetExtension(key string, value any) error {
 
 // SerializeEnvelopeAttributes writes catalogId, accessibility, and metadata.extensions into dst
 // under the v1.0 @catalogId, @accessibility, and @metadata keys.
-func (n *ComponentNode) SerializeEnvelopeAttributes(ctx *builder.FlattenContext, dst map[string]any, defaultCatalogID string) error {
+func (n ComponentNode) SerializeEnvelopeAttributes(ctx *builder.FlattenContext, dst map[string]any, defaultCatalogID string) error {
 	cid := n.CatalogID
 	if cid == "" {
 		cid = defaultCatalogID
@@ -288,5 +290,16 @@ func (n *ComponentNode) SerializeEnvelopeAttributes(ctx *builder.FlattenContext,
 		}
 		dst["@metadata"] = map[string]any{"extensions": extVal}
 	}
+	return nil
+}
+
+func setWeight(out map[string]any, field string, w *float64) error {
+	if w == nil {
+		return nil
+	}
+	if err := builder.ValidateFiniteFloat(field, *w); err != nil {
+		return err
+	}
+	out["weight"] = *w
 	return nil
 }

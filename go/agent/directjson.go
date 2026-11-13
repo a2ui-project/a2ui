@@ -65,14 +65,7 @@ var (
 		"dataModelUpdate",
 	}
 
-	directJSONBlockLexer = blocklexer.MustNew(&blocklexer.Options{
-		OpenTag:             JSONOpenTag,
-		CloseTag:            JSONCloseTag,
-		StringDelimiters:    []byte{'"'},
-		SingleLineComments:  []string{},
-		PayloadStartPattern: blocklexer.JSONPayloadStartRE,
-		StripEdgeBackticks:  true,
-	})
+	directJSONBlockLexer = blocklexer.JSONBlockLexer()
 )
 
 // DefaultDirectJSONProgressiveKeys returns the default string keys eligible for progressive streaming healing when opted in.
@@ -499,6 +492,66 @@ func (p *DirectJSONParser) WrapDecompiledBlocks(blocks []string) string {
 	return decomp.WrapDecompiledBlocks(blocks)
 }
 
+// ExtractRawDirectJSONParts splits content into conversational text and A2UI JSON message parts
+// using the standard <a2ui-json> lexer (with case-insensitive tags, missing-open-tag recovery,
+// markdown fence stripping, and quote/comma/newline healing) without requiring a catalog or
+// validating against protocol schemas.
+func ExtractRawDirectJSONParts(content string) ([]ResponsePart, error) {
+	tokens := directJSONBlockLexer.Tokenize(content)
+	var out []ResponsePart
+	for _, tok := range tokens {
+		if tok.IsText {
+			out = append(out, NewTextPart(tok.Text))
+			continue
+		}
+		if !tok.IsFinal {
+			err := core.NewParseErrorf("The response ended inside an unclosed %s block.", JSONOpenTag)
+			return nil, attachPartialResults(err, out, tok.A2UIRaw)
+		}
+		cleaned := blocklexer.CleanRaw(tok.A2UIRaw)
+		if cleaned == "" {
+			err := core.NewParseError("The direct JSON block is empty.")
+			return nil, attachPartialResults(err, out, tok.A2UIRaw)
+		}
+		decoded, err := directjson.ReadJSON(cleaned)
+		if err != nil {
+			parseErr := core.NewParseErrorf("The direct JSON block is not JSON: %v", err)
+			parseErr.Cause = err
+			return nil, attachPartialResults(parseErr, out, tok.A2UIRaw)
+		}
+		msgs, err := toRawMessageObjects(decoded)
+		if err != nil {
+			return nil, attachPartialResults(err, out, tok.A2UIRaw)
+		}
+		out = append(out, NewA2UIPart(msgs))
+	}
+	return out, nil
+}
+
+func toRawMessageObjects(decoded any) ([]core.AgentToRendererMessage, error) {
+	switch v := decoded.(type) {
+	case map[string]any:
+		if v == nil {
+			return nil, core.NewValidationError("Invalid A2UI message payload: expected JSON object.")
+		}
+		cloned, _ := core.CloneJSONValue(v).(map[string]any)
+		return []core.AgentToRendererMessage{core.AgentToRendererMessage(cloned)}, nil
+	case []any:
+		out := make([]core.AgentToRendererMessage, len(v))
+		for i, item := range v {
+			m, ok := item.(map[string]any)
+			if !ok || m == nil {
+				return nil, core.NewValidationErrorf("Invalid A2UI message payload at index %d: expected JSON object.", i)
+			}
+			cloned, _ := core.CloneJSONValue(m).(map[string]any)
+			out[i] = core.AgentToRendererMessage(cloned)
+		}
+		return out, nil
+	default:
+		return nil, core.NewValidationError("Invalid A2UI message payload: expected JSON object or array of JSON objects.")
+	}
+}
+
 // ParseResponse parses and validates a complete LLM response string.
 func (p *DirectJSONParser) ParseResponse(content string, opts *ParseOptions) ([]ResponsePart, error) {
 	return ExecuteParseResponse(p, content, opts)
@@ -791,6 +844,13 @@ func (s *DirectJSONResponseStream) feedInto(chunk string, parts *[]StreamPart) e
 			if m := streamTrailingTicksRE.FindStringIndex(textToEmit); m != nil {
 				s.heldBackticks = textToEmit[m[0]:]
 				textToEmit = textToEmit[:m[0]]
+			}
+		}
+		if s.held == "" && s.heldBackticks == "" {
+			completeLen := blocklexer.CompleteUTF8PrefixLen(textToEmit)
+			if completeLen < len(textToEmit) {
+				s.held = textToEmit[completeLen:]
+				textToEmit = textToEmit[:completeLen]
 			}
 		}
 		if txt, ok := s.textRun.Emit(textToEmit); ok {

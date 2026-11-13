@@ -22,6 +22,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/a2ui-project/a2ui/go/core/internal/formatting"
 )
@@ -182,10 +183,24 @@ func coerceToString(val any) string {
 		return "false"
 	case int:
 		return strconv.Itoa(v)
-	case int64:
-		return strconv.FormatInt(v, 10)
+	case int8:
+		return strconv.FormatInt(int64(v), 10)
+	case int16:
+		return strconv.FormatInt(int64(v), 10)
 	case int32:
 		return strconv.FormatInt(int64(v), 10)
+	case int64:
+		return strconv.FormatInt(v, 10)
+	case uint:
+		return strconv.FormatUint(uint64(v), 10)
+	case uint8:
+		return strconv.FormatUint(uint64(v), 10)
+	case uint16:
+		return strconv.FormatUint(uint64(v), 10)
+	case uint32:
+		return strconv.FormatUint(uint64(v), 10)
+	case uint64:
+		return strconv.FormatUint(v, 10)
 	case float64:
 		if math.IsInf(v, -1) {
 			return "-Infinity"
@@ -203,14 +218,35 @@ func coerceToString(val any) string {
 	case float32:
 		return coerceToString(float64(v))
 	case json.Number:
+		if i, err := v.Int64(); err == nil {
+			return strconv.FormatInt(i, 10)
+		}
+		if f, err := v.Float64(); err == nil {
+			return coerceToString(f)
+		}
 		return v.String()
 	case map[string]any, []any:
-		b, err := json.Marshal(normalizeIntegralJSONNumbers(val))
+		norm := CloneJSONValue(val)
+		if norm == nil {
+			return ""
+		}
+		b, err := json.Marshal(normalizeIntegralJSONNumbers(norm))
 		if err == nil {
 			return string(b)
 		}
 		return fmt.Sprintf("%v", val)
 	default:
+		norm := CloneJSONValue(val)
+		if norm == nil {
+			return ""
+		}
+		switch norm.(type) {
+		case map[string]any, []any:
+			b, err := json.Marshal(normalizeIntegralJSONNumbers(norm))
+			if err == nil {
+				return string(b)
+			}
+		}
 		return fmt.Sprintf("%v", val)
 	}
 }
@@ -222,6 +258,8 @@ func normalizeIntegralJSONNumbers(val any) any {
 			return int64(v)
 		}
 		return v
+	case float32:
+		return normalizeIntegralJSONNumbers(float64(v))
 	case map[string]any:
 		out := make(map[string]any, len(v))
 		for k, item := range v {
@@ -247,11 +285,21 @@ func toStrictFloat(val any) (float64, bool) {
 		return float64(v), true
 	case int:
 		return float64(v), true
-	case int64:
+	case int8:
+		return float64(v), true
+	case int16:
 		return float64(v), true
 	case int32:
 		return float64(v), true
+	case int64:
+		return float64(v), true
 	case uint:
+		return float64(v), true
+	case uint8:
+		return float64(v), true
+	case uint16:
+		return float64(v), true
+	case uint32:
 		return float64(v), true
 	case uint64:
 		return float64(v), true
@@ -261,8 +309,11 @@ func toStrictFloat(val any) (float64, bool) {
 		}
 		return 0, true
 	case json.Number:
+		if !json.Valid([]byte(v)) {
+			return 0, false
+		}
 		f, err := v.Float64()
-		return f, err == nil
+		return f, err == nil && !math.IsNaN(f) && !math.IsInf(f, 0)
 	case string:
 		trimmed := strings.TrimSpace(v)
 		if trimmed == "" {
@@ -330,7 +381,8 @@ func buildBasicFunctionEvaluators(isV10 bool, locale string) map[string]Function
 
 	return map[string]FunctionEvaluator{
 		"required": func(args map[string]any, _ *DataContext) (any, error) {
-			val, exists := args["value"]
+			rawVal, exists := args["value"]
+			val := CloneJSONValue(rawVal)
 			if !exists || val == nil || val == "" {
 				return wrapValidation(false, "", ""), nil
 			}
@@ -354,15 +406,17 @@ func buildBasicFunctionEvaluators(isV10 bool, locale string) map[string]Function
 		},
 
 		"length": func(args map[string]any, _ *DataContext) (any, error) {
-			val := args["value"]
+			val := CloneJSONValue(args["value"])
 			var length int
 			switch typed := val.(type) {
 			case []any:
 				length = len(typed)
+			case map[string]any:
+				length = len(typed)
 			case nil:
 				length = 0
 			default:
-				length = len(coerceToString(val))
+				length = utf8.RuneCountInString(coerceToString(val))
 			}
 			valid := true
 			if minRaw, ok := args["min"]; ok && minRaw != nil {
@@ -545,7 +599,7 @@ func buildBasicFunctionEvaluators(isV10 bool, locale string) map[string]Function
 		},
 
 		"and": func(args map[string]any, _ *DataContext) (any, error) {
-			values, ok := args["values"].([]any)
+			values, ok := CloneJSONValue(args["values"]).([]any)
 			if !ok || len(values) < 2 {
 				return nil, NewExpressionError("AndFunction requires at least 2 values")
 			}
@@ -558,7 +612,7 @@ func buildBasicFunctionEvaluators(isV10 bool, locale string) map[string]Function
 		},
 
 		"or": func(args map[string]any, _ *DataContext) (any, error) {
-			values, ok := args["values"].([]any)
+			values, ok := CloneJSONValue(args["values"]).([]any)
 			if !ok || len(values) < 2 {
 				return nil, NewExpressionError("OrFunction requires at least 2 values")
 			}

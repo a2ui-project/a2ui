@@ -23,6 +23,7 @@ import (
 	"maps"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/a2aproject/a2a-go/a2a"
 
@@ -30,7 +31,12 @@ import (
 	"github.com/a2ui-project/a2ui/go/core"
 )
 
-var jsonPayloadStartRe = regexp.MustCompile(`(?m)^[ \t]*(?:\{|\[)`)
+var (
+	jsonPayloadStartRe  = regexp.MustCompile(`(?m)^[ \t]*(?:\[\s*(?:\{|\]|$)|\{\s*(?:"|\x{201c}|\x{201d}|\}|$))`)
+	a2uiJSONOpenTagRe   = regexp.MustCompile(`(?i)<a2ui-json(?:\s[^>]*)?>`)
+	a2uiJSONCloseTagRe  = regexp.MustCompile(`(?i)</a2ui-json\s*>`)
+	inlineFencedBlockRe = regexp.MustCompile("(?i)^([ \\t]*)`{3,}[a-zA-Z0-9_-]*[ \\t]*(<a2ui-json(?:\\s[^>]*)?>.*</a2ui-json\\s*>)[ \\t]*`{3,}[ \\t]*$")
+)
 
 // ParseContentOptions configures ParseContentToParts and ExtractA2UIJSONToParts.
 type ParseContentOptions struct {
@@ -47,9 +53,10 @@ type ParseContentOptions struct {
 // any version use DeprecatedA2UIMIMEType ("application/json+a2ui"); later versions use
 // A2UIMIMEType ("application/a2ui+json").
 func CreateA2UIPart(message core.AgentToRendererMessage, version core.ProtocolVersion) a2a.Part {
+	mime := mimeTypeFor(message, version)
 	return a2a.DataPart{
-		Data:     map[string]any(message),
-		Metadata: map[string]any{MIMETypeKey: mimeTypeFor(message, version)},
+		Data:     map[string]any(normalizeWireMessage(message)),
+		Metadata: map[string]any{MIMETypeKey: mime},
 	}
 }
 
@@ -110,7 +117,7 @@ func A2UIMessagesFromMessage(message *a2a.Message) []map[string]any {
 func CreateA2UIParts(messages []core.AgentToRendererMessage, version core.ProtocolVersion) []a2a.Part {
 	out := make([]a2a.Part, 0, len(messages))
 	for _, msg := range messages {
-		out = append(out, CreateA2UIPart(normalizeWireMessage(msg), version))
+		out = append(out, CreateA2UIPart(msg, version))
 	}
 	return out
 }
@@ -126,7 +133,7 @@ func ToA2AParts(responseParts []agent.ResponsePart, version core.ProtocolVersion
 			continue
 		}
 		for _, msg := range part.A2UI {
-			out = append(out, CreateA2UIPart(normalizeWireMessage(msg), version))
+			out = append(out, CreateA2UIPart(msg, version))
 		}
 	}
 	return out
@@ -214,7 +221,7 @@ func ExtractA2UIJSONToParts(content string, opts *ParseContentOptions) ([]a2a.Pa
 			continue
 		}
 		for _, msg := range messages {
-			parts = append(parts, CreateA2UIPart(normalizeWireMessage(msg), resolved.Version))
+			parts = append(parts, CreateA2UIPart(msg, resolved.Version))
 		}
 	}
 	return withFallback(parts, resolved.FallbackText), errors.Join(errs...)
@@ -242,66 +249,287 @@ type jsonSegment struct {
 	isFinal bool
 }
 
-func tokenizeJSONBlocks(content string) []jsonSegment {
-	openTag := agent.JSONOpenTag
-	closeTag := agent.JSONCloseTag
-
-	if !strings.Contains(content, openTag) && strings.Contains(content, closeTag) {
-		closeIdx := strings.Index(content, closeTag)
-		prefix := content[:closeIdx]
-		if loc := findRecoveredJSONBlockStart(prefix); loc >= 0 {
-			var out []jsonSegment
-			if loc > 0 {
-				out = append(out, jsonSegment{isText: true, text: prefix[:loc], isFinal: true})
-			}
-			out = append(out, jsonSegment{raw: prefix[loc:], isFinal: true})
-			rest := content[closeIdx+len(closeTag):]
-			if rest != "" {
-				out = append(out, jsonSegment{isText: true, text: rest, isFinal: true})
-			}
-			return out
-		}
+func appendTextSegment(segments *[]jsonSegment, text string) {
+	if text == "" {
+		return
 	}
+	if n := len(*segments); n > 0 && (*segments)[n-1].isText {
+		(*segments)[n-1].text += text
+		return
+	}
+	*segments = append(*segments, jsonSegment{isText: true, text: text, isFinal: true})
+}
 
+func tokenizeJSONBlocks(content string) []jsonSegment {
+	content = unwrapOuterFencedA2UIBlocks(content)
 	var segments []jsonSegment
 	pos := 0
 	for pos < len(content) {
-		openIdx := strings.Index(content[pos:], openTag)
-		if openIdx < 0 {
-			segments = append(segments, jsonSegment{isText: true, text: content[pos:], isFinal: true})
+		rest := content[pos:]
+		openLoc := a2uiJSONOpenTagRe.FindStringIndex(rest)
+		closeLoc := a2uiJSONCloseTagRe.FindStringIndex(rest)
+
+		if openLoc == nil && closeLoc == nil {
+			appendTextSegment(&segments, rest)
 			break
 		}
-		openAbs := pos + openIdx
-		if openAbs > pos {
-			segments = append(segments, jsonSegment{isText: true, text: content[pos:openAbs], isFinal: true})
+
+		if closeLoc != nil && (openLoc == nil || closeLoc[0] < openLoc[0]) {
+			prefix := rest[:closeLoc[0]]
+			rec, unclosedTicks := findRecoveredJSONBlockStart(prefix)
+			if rec >= 0 {
+				if rec > 0 {
+					appendTextSegment(&segments, prefix[:rec])
+				}
+				segments = append(segments, jsonSegment{raw: prefix[rec:], isFinal: true})
+				pos += closeLoc[1]
+				if unclosedTicks > 0 {
+					pos += consumeClosingFenceAfterTag(content[pos:], unclosedTicks)
+				}
+			} else {
+				appendTextSegment(&segments, rest[:closeLoc[1]])
+				pos += closeLoc[1]
+			}
+			continue
 		}
-		bodyStart := openAbs + len(openTag)
-		closeRel := findCloseTagOutsideJSONStrings(content[bodyStart:], closeTag)
-		if closeRel < 0 {
+
+		if openLoc[0] > 0 {
+			appendTextSegment(&segments, rest[:openLoc[0]])
+		}
+		bodyStart := pos + openLoc[1]
+		closeStart, closeEnd := findCloseTagOutsideJSONStrings(content[bodyStart:])
+		if closeStart < 0 {
 			segments = append(segments, jsonSegment{raw: content[bodyStart:], isFinal: false})
 			break
 		}
-		segments = append(segments, jsonSegment{raw: content[bodyStart : bodyStart+closeRel], isFinal: true})
-		pos = bodyStart + closeRel + len(closeTag)
+		segments = append(segments, jsonSegment{raw: content[bodyStart : bodyStart+closeStart], isFinal: true})
+		pos = bodyStart + closeEnd
 	}
 	return segments
 }
 
-func findRecoveredJSONBlockStart(prefix string) int {
-	if fenceIdx := strings.Index(prefix, "```"); fenceIdx >= 0 {
-		lineEnd := strings.IndexByte(prefix[fenceIdx:], '\n')
-		if lineEnd >= 0 {
-			return fenceIdx
+func unwrapOuterFencedA2UIBlocks(content string) string {
+	var out strings.Builder
+	out.Grow(len(content))
+
+	inFence := false
+	fenceTicks := 0
+	fenceOpenLine := ""
+	var bodyBuf strings.Builder
+
+	for pos := 0; pos < len(content); {
+		nl := strings.IndexByte(content[pos:], '\n')
+		var line string
+		if nl < 0 {
+			line = content[pos:]
+			pos = len(content)
+		} else {
+			line = content[pos : pos+nl+1]
+			pos += nl + 1
+		}
+
+		if !inFence {
+			rawLine, ending := splitLineEnding(line)
+			if sub := inlineFencedBlockRe.FindStringSubmatch(rawLine); sub != nil {
+				out.WriteString(sub[1])
+				out.WriteString(sub[2])
+				out.WriteString(ending)
+				continue
+			}
+			if ticks, ok := parseFenceOpenLine(rawLine); ok {
+				inFence = true
+				fenceTicks = ticks
+				fenceOpenLine = line
+				bodyBuf.Reset()
+				continue
+			}
+			out.WriteString(line)
+			continue
+		}
+
+		rawLine, _ := splitLineEnding(line)
+		if parseFenceCloseLine(rawLine, fenceTicks) {
+			body := bodyBuf.String()
+			if isA2UIWrappedFenceBody(body) {
+				out.WriteString(body)
+			} else {
+				out.WriteString(fenceOpenLine)
+				out.WriteString(body)
+				out.WriteString(line)
+			}
+			inFence = false
+			fenceTicks = 0
+			fenceOpenLine = ""
+			bodyBuf.Reset()
+			continue
+		}
+		bodyBuf.WriteString(line)
+	}
+
+	if inFence {
+		body := bodyBuf.String()
+		if isA2UIWrappedFenceBody(body) {
+			out.WriteString(body)
+		} else {
+			out.WriteString(fenceOpenLine)
+			out.WriteString(body)
 		}
 	}
-	loc := jsonPayloadStartRe.FindStringIndex(prefix)
-	if loc == nil {
-		return -1
-	}
-	return loc[0]
+	return out.String()
 }
 
-func findCloseTagOutsideJSONStrings(s, closeTag string) int {
+func isA2UIWrappedFenceBody(body string) bool {
+	trimmed := strings.TrimSpace(body)
+	loc := a2uiJSONOpenTagRe.FindStringIndex(trimmed)
+	if loc == nil || loc[0] != 0 {
+		return false
+	}
+	pos := 0
+	for pos < len(trimmed) {
+		openLoc := a2uiJSONOpenTagRe.FindStringIndex(trimmed[pos:])
+		if openLoc == nil {
+			return strings.TrimSpace(trimmed[pos:]) == ""
+		}
+		if strings.TrimSpace(trimmed[pos:pos+openLoc[0]]) != "" {
+			return false
+		}
+		bodyStart := pos + openLoc[1]
+		_, closeEnd := findCloseTagOutsideJSONStrings(trimmed[bodyStart:])
+		if closeEnd < 0 {
+			return true
+		}
+		pos = bodyStart + closeEnd
+	}
+	return true
+}
+
+func splitLineEnding(line string) (raw, ending string) {
+	if strings.HasSuffix(line, "\r\n") {
+		return line[:len(line)-2], "\r\n"
+	}
+	if strings.HasSuffix(line, "\n") {
+		return line[:len(line)-1], "\n"
+	}
+	return line, ""
+}
+
+func parseFenceOpenLine(rawLine string) (int, bool) {
+	trimmed := strings.TrimLeft(rawLine, " \t")
+	ticks := 0
+	for ticks < len(trimmed) && trimmed[ticks] == '`' {
+		ticks++
+	}
+	if ticks < 3 {
+		return 0, false
+	}
+	if strings.ContainsRune(trimmed[ticks:], '`') {
+		return 0, false
+	}
+	return ticks, true
+}
+
+func parseFenceCloseLine(rawLine string, minTicks int) bool {
+	trimmed := strings.TrimLeft(rawLine, " \t")
+	ticks := 0
+	for ticks < len(trimmed) && trimmed[ticks] == '`' {
+		ticks++
+	}
+	if ticks < minTicks {
+		return false
+	}
+	return strings.Trim(trimmed[ticks:], " \t") == ""
+}
+
+func consumeClosingFenceAfterTag(rest string, minTicks int) int {
+	i := 0
+	for i < len(rest) && (rest[i] == ' ' || rest[i] == '\t') {
+		i++
+	}
+	if i < len(rest) && rest[i] == '\r' {
+		i++
+	}
+	if i < len(rest) && rest[i] == '\n' {
+		i++
+	}
+	nl := strings.IndexByte(rest[i:], '\n')
+	var line string
+	var end int
+	if nl < 0 {
+		line = rest[i:]
+		end = len(rest)
+	} else {
+		line = rest[i : i+nl+1]
+		end = i + nl + 1
+	}
+	rawLine, _ := splitLineEnding(line)
+	if parseFenceCloseLine(rawLine, minTicks) {
+		return end
+	}
+	return 0
+}
+
+func findRecoveredJSONBlockStart(prefix string) (int, int) {
+	inFence := false
+	fenceTicks := 0
+	openStart := -1
+	bodyStart := -1
+	hasNewlineAfterOpen := false
+
+	lastClosedOpen := -1
+	lastClosedBody := ""
+	lastClosedEnd := 0
+
+	for pos := 0; pos < len(prefix); {
+		lineStart := pos
+		nl := strings.IndexByte(prefix[pos:], '\n')
+		var line string
+		hadNL := false
+		if nl < 0 {
+			line = prefix[pos:]
+			pos = len(prefix)
+		} else {
+			line = prefix[pos : pos+nl+1]
+			pos += nl + 1
+			hadNL = true
+		}
+		rawLine, _ := splitLineEnding(line)
+		if !inFence {
+			if ticks, ok := parseFenceOpenLine(rawLine); ok {
+				inFence = true
+				fenceTicks = ticks
+				openStart = lineStart
+				bodyStart = pos
+				hasNewlineAfterOpen = hadNL
+			}
+			continue
+		}
+		if parseFenceCloseLine(rawLine, fenceTicks) {
+			inFence = false
+			lastClosedOpen = openStart
+			lastClosedBody = prefix[bodyStart:lineStart]
+			lastClosedEnd = pos
+			fenceTicks = 0
+		}
+	}
+
+	if inFence && hasNewlineAfterOpen {
+		return openStart, fenceTicks
+	}
+	if !inFence && lastClosedOpen >= 0 && strings.TrimSpace(prefix[lastClosedEnd:]) == "" {
+		if jsonPayloadStartRe.MatchString(lastClosedBody) {
+			return lastClosedOpen, 0
+		}
+	}
+	tail := prefix[lastClosedEnd:]
+	loc := jsonPayloadStartRe.FindStringIndex(tail)
+	if loc == nil {
+		return -1, 0
+	}
+	return lastClosedEnd + loc[0], 0
+}
+
+func findCloseTagOutsideJSONStrings(s string) (int, int) {
+	const closePrefix = "</a2ui-json"
 	inString := false
 	escaped := false
 	for i := 0; i < len(s); i++ {
@@ -324,11 +552,17 @@ func findCloseTagOutsideJSONStrings(s, closeTag string) int {
 			inString = true
 			continue
 		}
-		if strings.HasPrefix(s[i:], closeTag) {
-			return i
+		if ch == '<' && len(s)-i > len(closePrefix) && strings.EqualFold(s[i:i+len(closePrefix)], closePrefix) {
+			j := i + len(closePrefix)
+			for j < len(s) && (s[j] == ' ' || s[j] == '\t' || s[j] == '\n' || s[j] == '\r') {
+				j++
+			}
+			if j < len(s) && s[j] == '>' {
+				return i, j + 1
+			}
 		}
 	}
-	return -1
+	return -1, -1
 }
 
 func parseRawJSONMessages(raw string) ([]core.AgentToRendererMessage, error) {
@@ -360,12 +594,24 @@ func parseRawJSONMessages(raw string) ([]core.AgentToRendererMessage, error) {
 
 func stripMarkdownFence(s string) string {
 	trimmed := strings.TrimSpace(s)
-	if strings.HasPrefix(trimmed, "```") {
+	if ticks, _ := parseFenceOpenLinePrefix(trimmed); ticks >= 3 {
 		if nl := strings.IndexByte(trimmed, '\n'); nl >= 0 {
 			inner := trimmed[nl+1:]
-			if end := strings.LastIndex(inner, "```"); end >= 0 && strings.TrimSpace(inner[end+3:]) == "" {
-				return strings.TrimSpace(inner[:end])
+			closeFence := strings.Repeat("`", ticks)
+			if end := strings.LastIndex(inner, closeFence); end >= 0 {
+				after := inner[end:]
+				allTicksOrSpace := true
+				for i := 0; i < len(after); i++ {
+					if after[i] != '`' && after[i] != ' ' && after[i] != '\t' && after[i] != '\r' && after[i] != '\n' {
+						allTicksOrSpace = false
+						break
+					}
+				}
+				if allTicksOrSpace {
+					return strings.TrimSpace(inner[:end])
+				}
 			}
+			return strings.TrimSpace(inner)
 		}
 	}
 	if len(trimmed) >= 2 && trimmed[0] == '`' && trimmed[len(trimmed)-1] == '`' {
@@ -374,57 +620,89 @@ func stripMarkdownFence(s string) string {
 	return trimmed
 }
 
+func parseFenceOpenLinePrefix(s string) (int, bool) {
+	nl := strings.IndexByte(s, '\n')
+	firstLine := s
+	if nl >= 0 {
+		firstLine = s[:nl]
+	}
+	raw, _ := splitLineEnding(firstLine)
+	return parseFenceOpenLine(raw)
+}
+
+func isSmartDoubleQuote(r rune) bool {
+	return r == '\u201c' || r == '\u201d'
+}
+
 func healSimpleJSON(s string) string {
 	var b strings.Builder
 	b.Grow(len(s))
-	inString := false
+	var quoteKind rune
 	escaped := false
-	for i := 0; i < len(s); i++ {
-		ch := s[i]
-		if inString {
+	for i := 0; i < len(s); {
+		r, w := utf8.DecodeRuneInString(s[i:])
+		if quoteKind != 0 {
 			if escaped {
-				b.WriteByte(ch)
+				b.WriteString(s[i : i+w])
 				escaped = false
+				i += w
 				continue
 			}
-			if ch == '\\' {
-				b.WriteByte(ch)
+			if r == '\\' {
+				b.WriteByte('\\')
 				escaped = true
+				i += w
 				continue
 			}
-			if ch == '\n' {
+			if r == '\n' {
 				b.WriteString(`\n`)
+				i += w
 				continue
 			}
-			if ch == '\r' {
+			if r == '\r' {
 				b.WriteString(`\r`)
+				i += w
 				continue
 			}
-			if ch == '\t' {
+			if r == '\t' {
 				b.WriteString(`\t`)
+				i += w
 				continue
 			}
-			if ch == '"' {
-				inString = false
+			if r == '"' || (quoteKind == '\u201c' && isSmartDoubleQuote(r)) {
+				quoteKind = 0
+				b.WriteByte('"')
+				i += w
+				continue
 			}
-			b.WriteByte(ch)
+			b.WriteString(s[i : i+w])
+			i += w
 			continue
 		}
-		if ch == '"' {
-			inString = true
-			b.WriteByte(ch)
+		if r == '"' {
+			quoteKind = '"'
+			b.WriteByte('"')
+			i += w
 			continue
 		}
-		if ch == ',' {
-			j := i + 1
+		if isSmartDoubleQuote(r) {
+			quoteKind = '\u201c'
+			b.WriteByte('"')
+			i += w
+			continue
+		}
+		if r == ',' {
+			j := i + w
 			for j < len(s) && (s[j] == ' ' || s[j] == '\t' || s[j] == '\n' || s[j] == '\r') {
 				j++
 			}
 			if j < len(s) && (s[j] == '}' || s[j] == ']') {
+				i += w
 				continue
 			}
 		}
-		b.WriteByte(ch)
+		b.WriteString(s[i : i+w])
+		i += w
 	}
 	return b.String()
 }

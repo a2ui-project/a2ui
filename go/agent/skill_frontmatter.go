@@ -15,12 +15,16 @@
 package agent
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
+	"reflect"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/a2ui-project/a2ui/go/core"
 )
 
 // The SKILL.md frontmatter is written the way PyYAML's `yaml.dump(..., sort_keys=False)`
@@ -123,7 +127,11 @@ func (w *frontmatterWriter) writeKey(key string) {
 // writeValue writes the value of a mapping entry or sequence item. indent is the
 // indentation of the enclosing collection; scalars fold at indent+2.
 func (w *frontmatterWriter) writeValue(value any, indent int, inMapping bool) {
-	switch v := value.(type) {
+	norm := value
+	if _, isBytes := value.([]byte); !isBytes {
+		norm = core.CloneJSONValue(value)
+	}
+	switch v := norm.(type) {
 	case map[string]any:
 		if len(v) == 0 {
 			w.write(" {}")
@@ -141,14 +149,37 @@ func (w *frontmatterWriter) writeValue(value any, indent int, inMapping bool) {
 		w.writeMapping(entries, indent+frontmatterBestIndent)
 	case []any:
 		w.writeSequence(v, indent, inMapping)
-	case []string:
-		items := make([]any, len(v))
-		for i, s := range v {
-			items[i] = s
-		}
-		w.writeSequence(items, indent, inMapping)
 	default:
-		w.writeScalar(value, indent+frontmatterBestIndent)
+		if norm != nil {
+			rv := reflect.ValueOf(norm)
+			if rv.Kind() == reflect.Map {
+				if rv.IsNil() {
+					w.writeScalar(nil, indent+frontmatterBestIndent)
+					return
+				}
+				if rv.Len() == 0 {
+					w.write(" {}")
+					return
+				}
+				rawKeys := rv.MapKeys()
+				type kv struct {
+					key string
+					val any
+				}
+				kvs := make([]kv, len(rawKeys))
+				for i, rk := range rawKeys {
+					kvs[i] = kv{key: fmt.Sprint(rk.Interface()), val: rv.MapIndex(rk).Interface()}
+				}
+				sort.Slice(kvs, func(i, j int) bool { return kvs[i].key < kvs[j].key })
+				entries := make([]frontmatterEntry, len(kvs))
+				for i, item := range kvs {
+					entries[i] = frontmatterEntry{key: item.key, value: item.val}
+				}
+				w.writeMapping(entries, indent+frontmatterBestIndent)
+				return
+			}
+		}
+		w.writeScalar(norm, indent+frontmatterBestIndent)
 	}
 }
 
@@ -163,9 +194,13 @@ func (w *frontmatterWriter) writeSequence(items []any, indent int, inMapping boo
 		seqIndent = indent + frontmatterBestIndent
 	}
 	for _, item := range items {
+		normItem := item
+		if _, isBytes := item.([]byte); !isBytes {
+			normItem = core.CloneJSONValue(item)
+		}
 		w.writeIndent(seqIndent)
 		w.write("-")
-		if m, ok := item.(map[string]any); ok && len(m) > 0 {
+		if m, ok := normItem.(map[string]any); ok && len(m) > 0 {
 			keys := make([]string, 0, len(m))
 			for k := range m {
 				keys = append(keys, k)
@@ -183,7 +218,7 @@ func (w *frontmatterWriter) writeSequence(items []any, indent int, inMapping boo
 			}
 			continue
 		}
-		w.writeValue(item, seqIndent, false)
+		w.writeValue(normItem, seqIndent, false)
 	}
 }
 
@@ -195,11 +230,21 @@ func (w *frontmatterWriter) writeScalar(value any, indent int) {
 		w.write(" " + strconv.FormatBool(v))
 	case int:
 		w.write(" " + strconv.Itoa(v))
-	case int64:
-		w.write(" " + strconv.FormatInt(v, 10))
+	case int8:
+		w.write(" " + strconv.FormatInt(int64(v), 10))
+	case int16:
+		w.write(" " + strconv.FormatInt(int64(v), 10))
 	case int32:
 		w.write(" " + strconv.FormatInt(int64(v), 10))
+	case int64:
+		w.write(" " + strconv.FormatInt(v, 10))
 	case uint:
+		w.write(" " + strconv.FormatUint(uint64(v), 10))
+	case uint8:
+		w.write(" " + strconv.FormatUint(uint64(v), 10))
+	case uint16:
+		w.write(" " + strconv.FormatUint(uint64(v), 10))
+	case uint32:
 		w.write(" " + strconv.FormatUint(uint64(v), 10))
 	case uint64:
 		w.write(" " + strconv.FormatUint(v, 10))
@@ -207,6 +252,14 @@ func (w *frontmatterWriter) writeScalar(value any, indent int) {
 		w.write(" " + formatFrontmatterFloat(float64(v)))
 	case float64:
 		w.write(" " + formatFrontmatterFloat(v))
+	case json.Number:
+		if i, err := v.Int64(); err == nil {
+			w.write(" " + strconv.FormatInt(i, 10))
+		} else if f, err := v.Float64(); err == nil {
+			w.write(" " + formatFrontmatterFloat(f))
+		} else {
+			w.writeScalar(v.String(), indent)
+		}
 	case string:
 		switch chooseFrontmatterStyle(v, false) {
 		case 0:

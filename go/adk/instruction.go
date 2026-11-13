@@ -15,13 +15,16 @@
 package adk
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"regexp"
 	"slices"
 	"strings"
 	"unicode"
 
 	adkagent "google.golang.org/adk/v2/agent"
+	"google.golang.org/adk/v2/session"
 )
 
 var statePlaceholderRe = regexp.MustCompile(`\{+[^{}]*\}+`)
@@ -119,6 +122,9 @@ func resolveTemplateInstruction(ctx adkagent.ReadonlyContext, template string) (
 	var b strings.Builder
 	last := 0
 	for _, idx := range matches {
+		if idx[0] > 0 && (template[idx[0]-1] == '$' || template[idx[0]-1] == '\\') {
+			continue
+		}
 		b.WriteString(template[last:idx[0]])
 		rawMatch := template[idx[0]:idx[1]]
 		replaced, err := replaceTemplateMatch(ctx, rawMatch)
@@ -150,7 +156,7 @@ func replaceTemplateMatch(ctx adkagent.ReadonlyContext, match string) (string, e
 		}
 		resp, err := artifactsCtx.Artifacts().Load(ctx, after)
 		if err != nil {
-			if optional {
+			if optional && errors.Is(err, fs.ErrNotExist) {
 				return "", nil
 			}
 			return "", fmt.Errorf("failed to load artifact %s: %w", after, err)
@@ -173,7 +179,7 @@ func replaceTemplateMatch(ctx adkagent.ReadonlyContext, match string) (string, e
 	}
 	val, err := st.Get(varName)
 	if err != nil {
-		if optional {
+		if optional && errors.Is(err, session.ErrStateKeyNotExist) {
 			return "", nil
 		}
 		return "", fmt.Errorf("context variable %q not found: %w", varName, err)

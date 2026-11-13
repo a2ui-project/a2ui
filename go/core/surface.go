@@ -21,13 +21,15 @@ import (
 )
 
 type compUpdateSub struct {
-	id int
-	fn func(*ComponentModel)
+	id     int
+	active bool
+	fn     func(*ComponentModel)
 }
 
 type compMetaSub struct {
-	id int
-	fn func(map[string]any)
+	id     int
+	active bool
+	fn     func(map[string]any)
 }
 
 // ComponentModel holds the state and raw properties of a single component instance on a surface.
@@ -38,9 +40,10 @@ type ComponentModel struct {
 	Properties map[string]any
 	Metadata   map[string]any
 
+	disposed          bool
 	nextSubID         int
-	onUpdated         []compUpdateSub
-	onMetadataChanged []compMetaSub
+	onUpdated         []*compUpdateSub
+	onMetadataChanged []*compMetaSub
 }
 
 // NewComponentModel constructs a ComponentModel with defensive copies of properties and normalized metadata.
@@ -170,10 +173,15 @@ func (c *ComponentModel) ApplyUpdate(newProps map[string]any, newMetadata map[st
 
 // SubscribeUpdated registers fn to be notified when Properties change and returns an unsubscribe function.
 func (c *ComponentModel) SubscribeUpdated(fn func(*ComponentModel)) func() {
+	if c.disposed {
+		return func() {}
+	}
 	c.nextSubID++
 	id := c.nextSubID
-	c.onUpdated = append(c.onUpdated, compUpdateSub{id: id, fn: fn})
+	entry := &compUpdateSub{id: id, active: true, fn: fn}
+	c.onUpdated = append(c.onUpdated, entry)
 	return func() {
+		entry.active = false
 		for i, sub := range c.onUpdated {
 			if sub.id == id {
 				c.onUpdated = append(c.onUpdated[:i], c.onUpdated[i+1:]...)
@@ -185,10 +193,15 @@ func (c *ComponentModel) SubscribeUpdated(fn func(*ComponentModel)) func() {
 
 // SubscribeMetadataChanged registers fn to be notified when Metadata changes and returns an unsubscribe function.
 func (c *ComponentModel) SubscribeMetadataChanged(fn func(map[string]any)) func() {
+	if c.disposed {
+		return func() {}
+	}
 	c.nextSubID++
 	id := c.nextSubID
-	c.onMetadataChanged = append(c.onMetadataChanged, compMetaSub{id: id, fn: fn})
+	entry := &compMetaSub{id: id, active: true, fn: fn}
+	c.onMetadataChanged = append(c.onMetadataChanged, entry)
 	return func() {
+		entry.active = false
 		for i, sub := range c.onMetadataChanged {
 			if sub.id == id {
 				c.onMetadataChanged = append(c.onMetadataChanged[:i], c.onMetadataChanged[i+1:]...)
@@ -199,15 +212,32 @@ func (c *ComponentModel) SubscribeMetadataChanged(fn func(map[string]any)) func(
 }
 
 func (c *ComponentModel) emitUpdated() {
-	subs := append([]compUpdateSub(nil), c.onUpdated...)
+	if c.disposed {
+		return
+	}
+	subs := append([]*compUpdateSub(nil), c.onUpdated...)
 	for _, sub := range subs {
-		sub.fn(c)
+		if c.disposed {
+			break
+		}
+		if sub.active && sub.fn != nil {
+			sub.fn(c)
+		}
 	}
 }
 
 func (c *ComponentModel) emitMetadataChanged() {
-	subs := append([]compMetaSub(nil), c.onMetadataChanged...)
+	if c.disposed {
+		return
+	}
+	subs := append([]*compMetaSub(nil), c.onMetadataChanged...)
 	for _, sub := range subs {
+		if c.disposed {
+			break
+		}
+		if !sub.active || sub.fn == nil {
+			continue
+		}
 		var arg map[string]any
 		if c.Metadata != nil {
 			arg, _ = CloneJSONValue(c.Metadata).(map[string]any)
@@ -218,6 +248,13 @@ func (c *ComponentModel) emitMetadataChanged() {
 
 // Dispose clears listeners on the ComponentModel.
 func (c *ComponentModel) Dispose() {
+	c.disposed = true
+	for _, sub := range c.onUpdated {
+		sub.active = false
+	}
+	for _, sub := range c.onMetadataChanged {
+		sub.active = false
+	}
 	c.onUpdated = nil
 	c.onMetadataChanged = nil
 }
@@ -228,7 +265,7 @@ func (c *ComponentModel) ChildReferences() []ChildReference {
 		return nil
 	}
 	if c.Catalog != nil {
-		refMap := c.Catalog.ComponentRefMap()
+		refMap := c.Catalog.refMap()
 		if spec, ok := refMap[c.Type]; ok {
 			if len(spec.SingleRefs) > 0 || len(spec.ListRefs) > 0 {
 				return spec.ExtractChildReferences(c.Properties)
@@ -310,38 +347,84 @@ func isV08StructuralChildProp(key string, val any) bool {
 }
 
 type compDeleteSub struct {
-	id int
-	fn func(string)
+	id     int
+	active bool
+	fn     func(string)
 }
 
 // SurfaceComponentsModel maintains an ordered map of ComponentModel instances on a surface.
 type SurfaceComponentsModel struct {
 	DefaultCatalog *Catalog
 
-	byID      map[string]*ComponentModel
-	order     []string
-	changes   int
-	bound     *componentGraphBound
-	boundAt   int
-	nextSubID int
-	onCreated []compUpdateSub
-	onDeleted []compDeleteSub
+	byID           map[string]*ComponentModel
+	compUnsubs     map[string]func()
+	order          []string
+	changes        int
+	bound          *componentGraphBound
+	boundAt        int
+	pendingBound   *componentGraphBound
+	pendingBoundAt int
+	disposed       bool
+	nextSubID      int
+	onCreated      []*compUpdateSub
+	onDeleted      []*compDeleteSub
 }
 
 // NewSurfaceComponentsModel constructs an empty SurfaceComponentsModel.
 func NewSurfaceComponentsModel() *SurfaceComponentsModel {
 	return &SurfaceComponentsModel{
-		byID:    make(map[string]*ComponentModel),
-		boundAt: -1,
+		byID:           make(map[string]*ComponentModel),
+		compUnsubs:     make(map[string]func()),
+		boundAt:        -1,
+		pendingBoundAt: -1,
 	}
+}
+
+func (m *SurfaceComponentsModel) watchComponent(comp *ComponentModel) {
+	if comp == nil {
+		return
+	}
+	if m.compUnsubs == nil {
+		m.compUnsubs = make(map[string]func())
+	}
+	if prev, ok := m.compUnsubs[comp.ID]; ok {
+		prev()
+		delete(m.compUnsubs, comp.ID)
+	}
+	m.compUnsubs[comp.ID] = comp.SubscribeUpdated(func(_ *ComponentModel) {
+		m.changes++
+		m.bound = nil
+		m.boundAt = -1
+	})
+}
+
+func (m *SurfaceComponentsModel) unwatchComponent(id string) {
+	if prev, ok := m.compUnsubs[id]; ok {
+		prev()
+		delete(m.compUnsubs, id)
+	}
+}
+
+func (m *SurfaceComponentsModel) commitValidatedUpdate() {
+	if m.pendingBound != nil && m.changes == m.pendingBoundAt {
+		m.bound = m.pendingBound
+		m.boundAt = m.changes
+	}
+	m.pendingBound = nil
+	m.pendingBoundAt = -1
 }
 
 // SubscribeCreated registers fn to run when a component is added or replaced and returns an unsubscribe function.
 func (m *SurfaceComponentsModel) SubscribeCreated(fn func(*ComponentModel)) func() {
+	if m.disposed {
+		return func() {}
+	}
 	m.nextSubID++
 	id := m.nextSubID
-	m.onCreated = append(m.onCreated, compUpdateSub{id: id, fn: fn})
+	entry := &compUpdateSub{id: id, active: true, fn: fn}
+	m.onCreated = append(m.onCreated, entry)
 	return func() {
+		entry.active = false
 		for i, sub := range m.onCreated {
 			if sub.id == id {
 				m.onCreated = append(m.onCreated[:i], m.onCreated[i+1:]...)
@@ -353,10 +436,15 @@ func (m *SurfaceComponentsModel) SubscribeCreated(fn func(*ComponentModel)) func
 
 // SubscribeDeleted registers fn to run when a component is removed or replaced and returns an unsubscribe function.
 func (m *SurfaceComponentsModel) SubscribeDeleted(fn func(string)) func() {
+	if m.disposed {
+		return func() {}
+	}
 	m.nextSubID++
 	id := m.nextSubID
-	m.onDeleted = append(m.onDeleted, compDeleteSub{id: id, fn: fn})
+	entry := &compDeleteSub{id: id, active: true, fn: fn}
+	m.onDeleted = append(m.onDeleted, entry)
 	return func() {
+		entry.active = false
 		for i, sub := range m.onDeleted {
 			if sub.id == id {
 				m.onDeleted = append(m.onDeleted[:i], m.onDeleted[i+1:]...)
@@ -367,16 +455,32 @@ func (m *SurfaceComponentsModel) SubscribeDeleted(fn func(string)) func() {
 }
 
 func (m *SurfaceComponentsModel) emitCreated(comp *ComponentModel) {
-	subs := append([]compUpdateSub(nil), m.onCreated...)
+	if m.disposed {
+		return
+	}
+	subs := append([]*compUpdateSub(nil), m.onCreated...)
 	for _, sub := range subs {
-		sub.fn(comp)
+		if m.disposed {
+			break
+		}
+		if sub.active && sub.fn != nil {
+			sub.fn(comp)
+		}
 	}
 }
 
 func (m *SurfaceComponentsModel) emitDeleted(id string) {
-	subs := append([]compDeleteSub(nil), m.onDeleted...)
+	if m.disposed {
+		return
+	}
+	subs := append([]*compDeleteSub(nil), m.onDeleted...)
 	for _, sub := range subs {
-		sub.fn(id)
+		if m.disposed {
+			break
+		}
+		if sub.active && sub.fn != nil {
+			sub.fn(id)
+		}
 	}
 }
 
@@ -405,18 +509,30 @@ func (m *SurfaceComponentsModel) Upsert(comp *ComponentModel) {
 	if !exists {
 		m.order = append(m.order, comp.ID)
 		m.byID[comp.ID] = comp
+		m.watchComponent(comp)
 		m.changes++
+		m.bound = nil
+		m.boundAt = -1
 		m.emitCreated(comp)
 		return
 	}
 	if old.Type == comp.Type && old.Catalog == comp.Catalog {
-		m.changes++
+		prevChanges := m.changes
+		m.bound = nil
+		m.boundAt = -1
 		_ = old.ApplyUpdate(comp.Properties, comp.Metadata)
+		if m.changes == prevChanges {
+			m.changes++
+		}
 		return
 	}
+	m.unwatchComponent(comp.ID)
 	old.Dispose()
 	m.byID[comp.ID] = comp
+	m.watchComponent(comp)
 	m.changes++
+	m.bound = nil
+	m.boundAt = -1
 	m.emitDeleted(comp.ID)
 	m.emitCreated(comp)
 }
@@ -433,7 +549,10 @@ func (m *SurfaceComponentsModel) InsertAt(pos int, comp *ComponentModel) {
 		m.order = append(m.order[:pos], append([]string{comp.ID}, m.order[pos:]...)...)
 	}
 	m.byID[comp.ID] = comp
+	m.watchComponent(comp)
 	m.changes++
+	m.bound = nil
+	m.boundAt = -1
 	m.emitCreated(comp)
 }
 
@@ -443,6 +562,7 @@ func (m *SurfaceComponentsModel) Remove(id string) {
 	if !exists {
 		return
 	}
+	m.unwatchComponent(id)
 	delete(m.byID, id)
 	old.Dispose()
 	for i, k := range m.order {
@@ -452,7 +572,36 @@ func (m *SurfaceComponentsModel) Remove(id string) {
 		}
 	}
 	m.changes++
+	m.bound = nil
+	m.boundAt = -1
 	m.emitDeleted(id)
+}
+
+// Dispose cleans up listeners on the SurfaceComponentsModel and its ComponentModels.
+func (m *SurfaceComponentsModel) Dispose() {
+	if m == nil || m.disposed {
+		return
+	}
+	m.disposed = true
+	for id, unsub := range m.compUnsubs {
+		unsub()
+		delete(m.compUnsubs, id)
+	}
+	for _, comp := range m.byID {
+		comp.Dispose()
+	}
+	for _, sub := range m.onCreated {
+		sub.active = false
+	}
+	for _, sub := range m.onDeleted {
+		sub.active = false
+	}
+	m.onCreated = nil
+	m.onDeleted = nil
+	m.bound = nil
+	m.boundAt = -1
+	m.pendingBound = nil
+	m.pendingBoundAt = -1
 }
 
 // SurfaceModel represents an active UI surface managed by a MessageProcessor or RendererState.
@@ -576,8 +725,14 @@ func (s *SurfaceModel) DispatchError(errBody map[string]any) {
 	} else {
 		payload["surfaceId"] = s.ID
 	}
-	for _, fn := range s.OnError {
-		fn(payload)
+	subs := append(([]func(map[string]any))(nil), s.OnError...)
+	for _, fn := range subs {
+		if s.disposed {
+			break
+		}
+		if fn != nil {
+			fn(payload)
+		}
 	}
 }
 
@@ -591,8 +746,14 @@ func (s *SurfaceModel) DispatchAction(actionMsg map[string]any) {
 	if s == nil || s.disposed {
 		return
 	}
-	for _, fn := range s.OnAction {
-		fn(actionMsg)
+	subs := append(([]func(map[string]any))(nil), s.OnAction...)
+	for _, fn := range subs {
+		if s.disposed {
+			break
+		}
+		if fn != nil {
+			fn(actionMsg)
+		}
 	}
 }
 
@@ -617,6 +778,9 @@ func (s *SurfaceModel) Dispose() {
 		if fn != nil {
 			fn()
 		}
+	}
+	if s.ComponentsModel != nil {
+		s.ComponentsModel.Dispose()
 	}
 }
 

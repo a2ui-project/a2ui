@@ -755,6 +755,7 @@ func classifySchemaBehavior(schema any, defs map[string]any) *behaviorNode {
 }
 
 func classifyValueFallback(key string, val any, atLeastV10 bool) *behaviorNode {
+	val = CloneJSONValue(val)
 	if key == "checks" || key == "@checks" {
 		if arr, ok := val.([]any); ok {
 			if key == "@checks" || len(arr) == 0 {
@@ -820,8 +821,9 @@ type cachedActionEntry struct {
 }
 
 type binderListener struct {
-	id int
-	fn func(map[string]any)
+	id     int
+	active bool
+	fn     func(map[string]any)
 }
 
 // GenericBinder reactively binds a ComponentContext's properties against its SurfaceModel's DataModel.
@@ -831,10 +833,11 @@ type GenericBinder struct {
 	behaviorTree    *behaviorNode
 	CurrentProps    map[string]any
 
+	disposed       bool
 	dataUnsubs     []func()
 	compUnsub      func()
 	nextSubID      int
-	listeners      []binderListener
+	listeners      []*binderListener
 	actionClosures map[string]cachedActionEntry
 }
 
@@ -891,13 +894,18 @@ func NewGenericBinder(ctx *ComponentContext, expandTemplates bool) *GenericBinde
 
 // Subscribe registers fn to receive the initial and all subsequent resolved property maps.
 func (b *GenericBinder) Subscribe(fn func(map[string]any)) func() {
+	if b.disposed {
+		return func() {}
+	}
 	b.nextSubID++
 	id := b.nextSubID
-	b.listeners = append(b.listeners, binderListener{id: id, fn: fn})
+	entry := &binderListener{id: id, active: true, fn: fn}
+	b.listeners = append(b.listeners, entry)
 	if fn != nil {
 		fn(b.CurrentProps)
 	}
 	return func() {
+		entry.active = false
 		for i, sub := range b.listeners {
 			if sub.id == id {
 				b.listeners = append(b.listeners[:i], b.listeners[i+1:]...)
@@ -909,6 +917,7 @@ func (b *GenericBinder) Subscribe(fn func(map[string]any)) func() {
 
 // Dispose unsubscribes all DataModel and ComponentModel listeners held by this binder.
 func (b *GenericBinder) Dispose() {
+	b.disposed = true
 	if b.compUnsub != nil {
 		b.compUnsub()
 		b.compUnsub = nil
@@ -917,13 +926,22 @@ func (b *GenericBinder) Dispose() {
 		u()
 	}
 	b.dataUnsubs = nil
+	for _, sub := range b.listeners {
+		sub.active = false
+	}
 	b.listeners = nil
 }
 
 func (b *GenericBinder) notify() {
-	subs := append([]binderListener(nil), b.listeners...)
+	if b.disposed {
+		return
+	}
+	subs := append([]*binderListener(nil), b.listeners...)
 	for _, sub := range subs {
-		if sub.fn != nil {
+		if b.disposed {
+			break
+		}
+		if sub.active && sub.fn != nil {
 			sub.fn(b.CurrentProps)
 		}
 	}
@@ -986,18 +1004,20 @@ func (b *GenericBinder) resolveAndBind(val any, beh *behaviorNode, parentDict ma
 	case behaviorAction:
 		return b.bindAction(val, path)
 	case behaviorStructural:
+		normVal := CloneJSONValue(val)
 		if b.ExpandTemplates {
-			if m, ok := val.(map[string]any); ok {
+			if m, ok := normVal.(map[string]any); ok {
 				return b.bindStructuralTemplate(m, path)
 			}
 		}
-		return CloneJSONValue(val)
+		return normVal
 	case behaviorCheckable:
 		return b.bindCheckable(val, parentDict, path)
 	case behaviorArray:
-		arr, ok := val.([]any)
+		normVal := CloneJSONValue(val)
+		arr, ok := normVal.([]any)
 		if !ok {
-			return CloneJSONValue(val)
+			return normVal
 		}
 		elemBeh := beh.Element
 		if elemBeh == nil {
@@ -1011,10 +1031,11 @@ func (b *GenericBinder) resolveAndBind(val any, beh *behaviorNode, parentDict ma
 		}
 		return out
 	case behaviorObject:
-		if m, ok := val.(map[string]any); ok {
+		normVal := CloneJSONValue(val)
+		if m, ok := normVal.(map[string]any); ok {
 			return b.bindObject(m, beh.Shape, path)
 		}
-		return CloneJSONValue(val)
+		return normVal
 	default:
 		return CloneJSONValue(val)
 	}
@@ -1104,7 +1125,7 @@ func (b *GenericBinder) bindStructuralTemplate(val map[string]any, path []string
 	}
 
 	mapItems := func(arr any) []any {
-		slice, ok := arr.([]any)
+		slice, ok := CloneJSONValue(arr).([]any)
 		if !ok {
 			return []any{}
 		}
@@ -1291,7 +1312,8 @@ func toAnyMapSlice(ms []map[string]any) []any {
 }
 
 func (b *GenericBinder) bindCheckable(val any, parentDict map[string]any, path []string) any {
-	rules, _ := val.([]any)
+	normVal := CloneJSONValue(val)
+	rules, _ := normVal.([]any)
 	ruleResults := make([]map[string]any, len(rules))
 	for i := range ruleResults {
 		ruleResults[i] = map[string]any{"valid": true, "message": "", "severity": "error"}

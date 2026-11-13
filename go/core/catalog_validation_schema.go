@@ -130,10 +130,11 @@ func buildCatalogValidationSchema(c *Catalog) map[string]any {
 		}
 	}
 	if len(fnNames) > 0 {
+		fnSnap := c.snapshotFunctions()
 		fnsOut := make(map[string]any, len(fnNames))
 		anyFnOneOf := make([]any, 0, len(fnNames))
 		for _, name := range fnNames {
-			fn := c.functions[name]
+			fn := fnSnap[name]
 			fnsOut[name] = buildSingleFunctionValidationSchema(name, fn, standardDefs, authoredDefs, isV10)
 			anyFnOneOf = append(anyFnOneOf, map[string]any{
 				"$ref": "#/functions/" + escapeJSONPointerToken(name),

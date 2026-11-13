@@ -16,6 +16,7 @@ package core
 
 import (
 	"fmt"
+	"reflect"
 	"regexp"
 	"sort"
 	"strings"
@@ -828,7 +829,7 @@ func lookupCatalogFunction(cat *Catalog, name string) (FunctionAPI, bool) {
 	if cat == nil || name == "" {
 		return FunctionAPI{}, false
 	}
-	fns := cat.functions
+	fns := cat.snapshotFunctions()
 	if f, ok := fns[name]; ok {
 		return f, true
 	}
@@ -910,9 +911,10 @@ func (v *PayloadValidator) ValidateFunctionArgs(name string, args any) (map[stri
 	var normArgs map[string]any
 	if args == nil {
 		normArgs = map[string]any{}
-	} else if m, ok := args.(map[string]any); ok {
-		copied, _ := CloneJSONValue(m).(map[string]any)
-		normArgs = copied
+	} else if m, ok := CloneJSONValue(args).(map[string]any); ok {
+		normArgs = m
+	} else if rv := reflect.ValueOf(args); rv.Kind() == reflect.Map && rv.Type().Key().Kind() == reflect.String && rv.IsNil() {
+		normArgs = map[string]any{}
 	} else {
 		return nil, nonObjectArgsError(name)
 	}
@@ -1042,7 +1044,7 @@ func (v *PayloadValidator) compileFunctionArgsSchema(fnName string) (map[string]
 	}
 	// The validation schema closes every object args schema, but a call is validated against the args
 	// as authored (as the reference SDK does), so unlisted arguments pass unless the author closed them.
-	if fnAPI, found := v.Catalog.functions[fnName]; found && fnAPI.Schema != nil {
+	if fnAPI, found := v.Catalog.functionByName(fnName); found && fnAPI.Schema != nil {
 		authoredArgs := extractAuthoredFunctionArgs(fnAPI.Schema)
 		if !hasKey(authoredArgs, "additionalProperties") && !hasKey(authoredArgs, "unevaluatedProperties") {
 			delete(full, "unevaluatedProperties")

@@ -67,6 +67,12 @@ func newRestaurantExecutor(repoRoot string, format a2uiFormat, backend modelBack
 
 // Execute handles one incoming A2A message turn and publishes Task and TaskStatusUpdateEvent items to queue.
 func (e *restaurantExecutor) Execute(ctx context.Context, reqCtx *a2asrv.RequestContext, queue eventqueue.Queue) error {
+	var extCtx a2aext.ExtensionContext
+	if exts, ok := a2asrv.ExtensionsFrom(ctx); ok {
+		extCtx = exts
+	}
+	picked, pickErr := pickA2UI(reqCtx.Message, extCtx, e.agentCard)
+
 	if reqCtx.StoredTask == nil {
 		initialTask := a2a.NewSubmittedTask(reqCtx, reqCtx.Message)
 		if err := queue.Write(ctx, initialTask); err != nil {
@@ -74,7 +80,11 @@ func (e *restaurantExecutor) Execute(ctx context.Context, reqCtx *a2asrv.Request
 		}
 	}
 
-	if err := e.runTurn(ctx, reqCtx, queue); err != nil {
+	err := pickErr
+	if err == nil {
+		err = e.runTurn(ctx, reqCtx, queue, picked)
+	}
+	if err != nil {
 		slog.Error("Task execution failed", "taskID", reqCtx.TaskID, "err", err)
 		errMsg := a2a.NewMessageForTask(
 			a2a.MessageRoleAgent,
@@ -95,16 +105,7 @@ func (e *restaurantExecutor) Cancel(ctx context.Context, reqCtx *a2asrv.RequestC
 	return queue.Write(ctx, cancelEvt)
 }
 
-func (e *restaurantExecutor) runTurn(ctx context.Context, reqCtx *a2asrv.RequestContext, queue eventqueue.Queue) error {
-	var extCtx a2aext.ExtensionContext
-	if exts, ok := a2asrv.ExtensionsFrom(ctx); ok {
-		extCtx = exts
-	}
-
-	picked, err := pickA2UI(reqCtx.Message, extCtx, e.agentCard)
-	if err != nil {
-		return err
-	}
+func (e *restaurantExecutor) runTurn(ctx context.Context, reqCtx *a2asrv.RequestContext, queue eventqueue.Queue, picked pickedA2UI) error {
 	proc, err := e.createProcessor(picked.Profile, picked.CatalogIDs)
 	if err != nil {
 		return err
@@ -161,22 +162,28 @@ func (e *restaurantExecutor) generateUI(
 ) ([]a2a.Part, bool, error) {
 	query := turn.Query
 	for attempt := range maxAttempts {
-		published := false
-		var trackedPublish func(parts []a2a.Part) error
-		if publish != nil {
-			trackedPublish = func(parts []a2a.Part) error {
-				published = true
-				return publish(parts)
-			}
-		}
-
 		attemptTurn := turn
 		attemptTurn.Query = query
-		parts, err := e.answerAttempt(ctx, attemptTurn, catalogIDs, trackedPublish)
+		parts, streamed, err := e.answerAttempt(ctx, attemptTurn, catalogIDs, publish != nil)
 		if err == nil && !containsA2UIDataPart(parts) {
 			err = fmt.Errorf("the response contains no A2UI messages")
 		}
 		if err == nil {
+			published := false
+			if publish != nil && len(parts) > 0 {
+				if streamed {
+					for _, part := range parts {
+						if pubErr := publish([]a2a.Part{part}); pubErr != nil {
+							return nil, false, pubErr
+						}
+					}
+				} else {
+					if pubErr := publish(parts); pubErr != nil {
+						return nil, false, pubErr
+					}
+				}
+				published = true
+			}
 			return parts, published, nil
 		}
 
@@ -192,51 +199,42 @@ func (e *restaurantExecutor) answerAttempt(
 	ctx context.Context,
 	turn turnInput,
 	catalogIDs []string,
-	publish func(parts []a2a.Part) error,
-) ([]a2a.Part, error) {
+	useStreaming bool,
+) ([]a2a.Part, bool, error) {
 	proc, err := e.createProcessor(turn.Profile, catalogIDs)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	turn.Processor = proc
 	mimeVersion := sampleMIMEVersion(turn.Profile)
 
-	if publish != nil && proc.Parser().SupportsStreaming() {
+	if useStreaming && proc.Parser().SupportsStreaming() {
 		stream, err := proc.OpenStream(nil)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		var allParts []a2a.Part
 		for part, partErr := range a2aext.StreamResponseToParts(ctx, stream, e.backend.StreamTurn(ctx, turn), mimeVersion) {
 			if partErr != nil {
-				return nil, partErr
+				return nil, false, partErr
 			}
 			allParts = append(allParts, part)
-			if pubErr := publish([]a2a.Part{part}); pubErr != nil {
-				return nil, pubErr
-			}
 		}
-		return allParts, nil
+		return allParts, true, nil
 	}
 
 	var sb strings.Builder
 	for chunk, chunkErr := range e.backend.StreamTurn(ctx, turn) {
 		if chunkErr != nil {
-			return nil, chunkErr
+			return nil, false, chunkErr
 		}
 		sb.WriteString(chunk)
 	}
 	parsed, err := proc.ParseResponse(sb.String(), nil)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	parts := a2aext.ToA2AParts(parsed, mimeVersion)
-	if publish != nil && containsA2UIDataPart(parts) {
-		if pubErr := publish(parts); pubErr != nil {
-			return nil, pubErr
-		}
-	}
-	return parts, nil
+	return a2aext.ToA2AParts(parsed, mimeVersion), false, nil
 }
 
 func (e *restaurantExecutor) createProcessor(profile versionProfile, catalogIDs []string) (*agent.RequestProcessor, error) {

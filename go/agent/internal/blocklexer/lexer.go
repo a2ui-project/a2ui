@@ -53,7 +53,21 @@ var (
 	JSONPayloadStartRE = regexp.MustCompile(
 		`(?m)^[ \t]*(?:\[\s*(?:\{|\]|$)|\{\s*(?:"|\}|$))`,
 	)
+
+	jsonBlockLexer = MustNew(&Options{
+		OpenTag:             "<a2ui-json>",
+		CloseTag:            "</a2ui-json>",
+		StringDelimiters:    []byte{'"'},
+		SingleLineComments:  []string{},
+		PayloadStartPattern: JSONPayloadStartRE,
+		StripEdgeBackticks:  true,
+	})
 )
+
+// JSONBlockLexer returns the shared BlockLexer configured for <a2ui-json> Direct JSON blocks.
+func JSONBlockLexer() *BlockLexer {
+	return jsonBlockLexer
+}
 
 // RawBlock represents a tokenized conversational text segment or raw A2UI block.
 type RawBlock struct {

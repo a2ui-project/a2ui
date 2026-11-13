@@ -20,6 +20,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/a2ui-project/a2ui/go/agent/internal/blocklexer"
 	"github.com/a2ui-project/a2ui/go/agent/internal/schemahelper"
 	"github.com/a2ui-project/a2ui/go/core"
 )
@@ -498,8 +499,8 @@ func HealProgressiveFragment(
 	if !isProgressiveSlot(fragment, calls, helpers, helperOrder, progressiveKeys) {
 		return "", false
 	}
-	healed := fragment
-	if !isRaw && hasOddTrailingBackslashes(healed) {
+	healed := fragment[:strStart+blocklexer.CompleteUTF8PrefixLen(fragment[strStart:])]
+	if !isRaw && hasOddTrailingBackslashes(healed[strStart:]) {
 		healed = healed[:len(healed)-1]
 	}
 	if delim == `"""` && strings.HasSuffix(healed[strStart:], `"`) {

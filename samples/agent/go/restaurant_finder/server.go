@@ -20,6 +20,8 @@ import (
 	"net/http"
 	"path/filepath"
 	"regexp"
+	"strings"
+	"sync"
 
 	"github.com/a2aproject/a2a-go/a2a"
 	"github.com/a2aproject/a2a-go/a2asrv"
@@ -52,8 +54,8 @@ func buildAgentCard(port int, baseURL string, stub bool) *a2a.AgentCard {
 		name = "Restaurant Agent (stub)"
 	}
 	endpointURL := fmt.Sprintf("http://localhost:%d/a2a/json-rpc", port)
-	if baseURL != "" {
-		endpointURL = baseURL + "/a2a/json-rpc"
+	if trimmed := strings.TrimRight(baseURL, "/"); trimmed != "" {
+		endpointURL = trimmed + "/a2a/json-rpc"
 	}
 
 	extensions := make([]a2a.AgentExtension, 0, len(servedVersions))
@@ -140,8 +142,8 @@ func createServerApp(ctx context.Context, opts createServerOptions) (*serverApp,
 		return nil, err
 	}
 
-	reqHandler := a2asrv.NewHandler(executor)
-	jsonrpcHandler := a2asrv.NewJSONRPCHandler(reqHandler)
+	reqHandler := a2asrv.NewHandler(executor, a2asrv.WithCallInterceptor(extensionCallInterceptor{}))
+	jsonrpcHandler := withActivatedExtensionsHeader(a2asrv.NewJSONRPCHandler(reqHandler))
 	cardHandler := a2asrv.NewStaticAgentCardHandler(card)
 
 	imagesDir := filepath.Join(resolvePythonSampleDir(repoRoot), "images")
@@ -168,6 +170,10 @@ func createServerApp(ctx context.Context, opts createServerOptions) (*serverApp,
 
 func localhostCORSMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Vary", "Origin")
+		if r.Method == http.MethodOptions {
+			w.Header().Add("Vary", "Access-Control-Request-Headers")
+		}
 		origin := r.Header.Get("Origin")
 		if origin != "" && localhostOriginRe.MatchString(origin) {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
@@ -184,5 +190,83 @@ func localhostCORSMiddleware(next http.Handler) http.Handler {
 			return
 		}
 		next.ServeHTTP(w, r)
+	})
+}
+
+type callContextHolderKey struct{}
+
+type callContextHolder struct {
+	mu      sync.Mutex
+	callCtx *a2asrv.CallContext
+}
+
+func (h *callContextHolder) set(callCtx *a2asrv.CallContext) {
+	h.mu.Lock()
+	h.callCtx = callCtx
+	h.mu.Unlock()
+}
+
+func (h *callContextHolder) activatedURIs() []string {
+	h.mu.Lock()
+	cc := h.callCtx
+	h.mu.Unlock()
+	if cc == nil {
+		return nil
+	}
+	return cc.Extensions().ActivatedURIs()
+}
+
+type extensionCallInterceptor struct {
+	a2asrv.PassthroughCallInterceptor
+}
+
+func (extensionCallInterceptor) Before(ctx context.Context, callCtx *a2asrv.CallContext, _ *a2asrv.Request) (context.Context, error) {
+	if h, ok := ctx.Value(callContextHolderKey{}).(*callContextHolder); ok {
+		h.set(callCtx)
+	}
+	return ctx, nil
+}
+
+type extensionResponseWriter struct {
+	http.ResponseWriter
+	holder      *callContextHolder
+	wroteHeader bool
+}
+
+func (w *extensionResponseWriter) applyExtensionHeader() {
+	if w.wroteHeader {
+		return
+	}
+	w.wroteHeader = true
+	if uris := w.holder.activatedURIs(); len(uris) > 0 {
+		w.Header().Set(a2asrv.ExtensionsMetaKey, strings.Join(uris, ", "))
+	}
+}
+
+func (w *extensionResponseWriter) WriteHeader(statusCode int) {
+	w.applyExtensionHeader()
+	w.ResponseWriter.WriteHeader(statusCode)
+}
+
+func (w *extensionResponseWriter) Write(p []byte) (int, error) {
+	w.applyExtensionHeader()
+	return w.ResponseWriter.Write(p)
+}
+
+func (w *extensionResponseWriter) Flush() {
+	if f, ok := w.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+func (w *extensionResponseWriter) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
+}
+
+func withActivatedExtensionsHeader(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		holder := &callContextHolder{}
+		ctx := context.WithValue(r.Context(), callContextHolderKey{}, holder)
+		next.ServeHTTP(&extensionResponseWriter{ResponseWriter: w, holder: holder}, r.WithContext(ctx))
 	})
 }

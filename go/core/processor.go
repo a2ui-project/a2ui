@@ -17,6 +17,7 @@ package core
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
 	"sync"
@@ -135,9 +136,31 @@ func NewMessageProcessor(catalogs []*Catalog, opts *MessageProcessorOptions) (*M
 func (p *MessageProcessor) ProcessMessages(messages []AgentToRendererMessage, execCtx *ExecutionContext) error {
 	raw := make([]any, len(messages))
 	for i, m := range messages {
-		raw[i] = map[string]any(m)
+		if m == nil {
+			raw[i] = nil
+		} else {
+			raw[i] = map[string]any(m)
+		}
 	}
 	return p.ProcessPayload(raw, execCtx)
+}
+
+func normalizeProcessorPayload(payload any) any {
+	if payload == nil {
+		return nil
+	}
+	rv := reflect.ValueOf(payload)
+	switch rv.Kind() {
+	case reflect.Slice:
+		if rv.Type() != reflect.TypeFor[[]byte]() && rv.IsNil() {
+			return []any{}
+		}
+	case reflect.Map:
+		if rv.Type().Key().Kind() == reflect.String && rv.IsNil() {
+			return (map[string]any)(nil)
+		}
+	}
+	return CloneJSONValue(payload)
 }
 
 // ProcessPayload validates and applies an A2UI message payload (slice, wrapper object, or single envelope).
@@ -148,9 +171,10 @@ func (p *MessageProcessor) ProcessPayload(payload any, execCtx *ExecutionContext
 
 // ProcessPayloadWithResponses validates and applies payload, returning any synchronously generated rendererFunctionResponse envelopes.
 func (p *MessageProcessor) ProcessPayloadWithResponses(payload any, execCtx *ExecutionContext) ([]map[string]any, error) {
-	ops, err := extractOperationsFromPayload(payload, p.effectiveValidationConfig(execCtx))
+	normPayload := normalizeProcessorPayload(payload)
+	ops, err := extractOperationsFromPayload(normPayload, p.effectiveValidationConfig(execCtx))
 	if err != nil {
-		p.reportError(err, payload)
+		p.reportError(err, normPayload)
 		if p.Options.ReportErrorsOnly {
 			return nil, nil
 		}
@@ -160,7 +184,7 @@ func (p *MessageProcessor) ProcessPayloadWithResponses(payload any, execCtx *Exe
 	for _, op := range ops {
 		resp, err := p.applyOperationWithResponse(op, execCtx)
 		if err != nil {
-			p.reportError(err, payload)
+			p.reportError(err, normPayload)
 			if p.Options.ReportErrorsOnly {
 				return responses, nil
 			}
@@ -330,7 +354,7 @@ func generateV09InlineCatalog(cat *Catalog, envelopeRef string) map[string]any {
 	for _, name := range cat.ComponentNames() {
 		resolved := cat.ResolvedComponentSchema(name)
 		if resolved == nil {
-			resolved = cat.Components()[name].Schema
+			resolved = cat.components[name].Schema
 		}
 		sCopy, _ := CloneJSONValue(resolved).(map[string]any)
 		props := map[string]any{}
@@ -366,7 +390,7 @@ func generateV09InlineCatalog(cat *Catalog, envelopeRef string) map[string]any {
 
 	var functions []any
 	for _, name := range cat.FunctionNames() {
-		fn := cat.Functions()[name]
+		fn, _ := cat.functionByName(name)
 		resolved := cat.ResolvedFunctionSchema(name)
 		sCopy, _ := CloneJSONValue(resolved).(map[string]any)
 		var params map[string]any
@@ -660,7 +684,8 @@ func initEnvelopeSchemas() {
 }
 
 func resolveAdapterVersionFromPayload(payload any) (ProtocolVersion, error) {
-	switch typed := payload.(type) {
+	norm := normalizeProcessorPayload(payload)
+	switch typed := norm.(type) {
 	case []any:
 		if len(typed) == 0 {
 			return "", NewValidationError(
@@ -670,8 +695,10 @@ func resolveAdapterVersionFromPayload(payload any) (ProtocolVersion, error) {
 		}
 		return resolveAdapterFromItem(typed[0], 0)
 	case map[string]any:
-		if msgs, ok := typed["messages"].([]any); ok {
-			return resolveAdapterVersionFromPayload(msgs)
+		if typed != nil {
+			if msgs, ok := typed["messages"].([]any); ok {
+				return resolveAdapterVersionFromPayload(msgs)
+			}
 		}
 		return resolveAdapterFromItem(typed, 0)
 	default:
@@ -722,6 +749,7 @@ func extractOperationsFromPayload(payload any, cfg *ValidationConfig) ([]interna
 	if payload == nil {
 		return nil, nil
 	}
+	payload = normalizeProcessorPayload(payload)
 	adapterVer, err := resolveAdapterVersionFromPayload(payload)
 	if err != nil {
 		return nil, err

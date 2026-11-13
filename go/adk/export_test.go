@@ -14,7 +14,13 @@
 
 package adk
 
-import "github.com/a2ui-project/a2ui/go/core"
+import (
+	"context"
+	"log/slog"
+
+	"github.com/a2ui-project/a2ui/go/agent"
+	"github.com/a2ui-project/a2ui/go/core"
+)
 
 // This file exposes internals to the external adk_test package only.
 
@@ -33,4 +39,15 @@ func SetToolPayloadValidator(t *SendA2UIToClientTool, validate func([]*core.Cata
 // ToolInstruction returns the system instruction section that ts's tool appends to requests.
 func ToolInstruction(ts *SendA2UIToClientToolset) string {
 	return ts.uiTool.toolInstruction()
+}
+
+// ProcessNonCallRPCMessage exposes processNonCallRPCMessage for unit testing.
+func ProcessNonCallRPCMessage(
+	ctx context.Context,
+	proc *agent.RendererToAgentMessageProcessor,
+	calls *agent.RendererFunctionCalls,
+	message map[string]any,
+	logger *slog.Logger,
+) (bool, error) {
+	return processNonCallRPCMessage(ctx, proc, calls, message, logger)
 }

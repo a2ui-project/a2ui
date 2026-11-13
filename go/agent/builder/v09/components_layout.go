@@ -35,10 +35,10 @@ func (TabItem) BuilderVersionFamily() builder.VersionFamily { return builder.Ver
 
 // SerializeBuilderValue resolves Child to its component ID and emits {"title": ..., "child": id}.
 func (t TabItem) SerializeBuilderValue(ctx *builder.FlattenContext) (any, error) {
-	if t.Title == nil {
+	if builder.IsNilValue(t.Title) {
 		return nil, core.NewValidationError("TabItem.Title is required")
 	}
-	if t.Child == nil {
+	if builder.IsNilValue(t.Child) {
 		return nil, core.NewValidationError("TabItem.Child is required")
 	}
 	titleVal, err := t.Title.SerializeBuilderValue(ctx)
@@ -98,7 +98,7 @@ func (c *Row) Flatten(rootID string) ([]map[string]any, error) {
 
 // SerializeComponent implements builder.ComponentSerializer.
 func (c *Row) SerializeComponent(ctx *builder.FlattenContext) (map[string]any, error) {
-	if c.Children == nil {
+	if builder.IsNilValue(c.Children) {
 		return nil, core.NewValidationError("Row.Children is required")
 	}
 	out := make(map[string]any)
@@ -126,8 +126,8 @@ func (c *Row) SerializeComponent(ctx *builder.FlattenContext) (map[string]any, e
 		return nil, err
 	}
 	out["align"] = string(align)
-	if c.Weight != nil {
-		out["weight"] = *c.Weight
+	if err := setWeight(out, "Row.weight", c.Weight); err != nil {
+		return nil, err
 	}
 	return out, nil
 }
@@ -175,7 +175,7 @@ func (c *Column) Flatten(rootID string) ([]map[string]any, error) {
 
 // SerializeComponent implements builder.ComponentSerializer.
 func (c *Column) SerializeComponent(ctx *builder.FlattenContext) (map[string]any, error) {
-	if c.Children == nil {
+	if builder.IsNilValue(c.Children) {
 		return nil, core.NewValidationError("Column.Children is required")
 	}
 	out := make(map[string]any)
@@ -203,8 +203,8 @@ func (c *Column) SerializeComponent(ctx *builder.FlattenContext) (map[string]any
 		return nil, err
 	}
 	out["align"] = string(align)
-	if c.Weight != nil {
-		out["weight"] = *c.Weight
+	if err := setWeight(out, "Column.weight", c.Weight); err != nil {
+		return nil, err
 	}
 	return out, nil
 }
@@ -252,7 +252,7 @@ func (c *List) Flatten(rootID string) ([]map[string]any, error) {
 
 // SerializeComponent implements builder.ComponentSerializer.
 func (c *List) SerializeComponent(ctx *builder.FlattenContext) (map[string]any, error) {
-	if c.Children == nil {
+	if builder.IsNilValue(c.Children) {
 		return nil, core.NewValidationError("List.Children is required")
 	}
 	out := make(map[string]any)
@@ -280,8 +280,8 @@ func (c *List) SerializeComponent(ctx *builder.FlattenContext) (map[string]any, 
 		return nil, err
 	}
 	out["align"] = string(align)
-	if c.Weight != nil {
-		out["weight"] = *c.Weight
+	if err := setWeight(out, "List.weight", c.Weight); err != nil {
+		return nil, err
 	}
 	return out, nil
 }
@@ -321,7 +321,7 @@ func (c *Card) Flatten(rootID string) ([]map[string]any, error) {
 
 // SerializeComponent implements builder.ComponentSerializer.
 func (c *Card) SerializeComponent(ctx *builder.FlattenContext) (map[string]any, error) {
-	if c.Child == nil {
+	if builder.IsNilValue(c.Child) {
 		return nil, core.NewValidationError("Card.Child is required")
 	}
 	out := make(map[string]any)
@@ -333,8 +333,8 @@ func (c *Card) SerializeComponent(ctx *builder.FlattenContext) (map[string]any, 
 		return nil, err
 	}
 	out["child"] = childID
-	if c.Weight != nil {
-		out["weight"] = *c.Weight
+	if err := setWeight(out, "Card.weight", c.Weight); err != nil {
+		return nil, err
 	}
 	return out, nil
 }
@@ -393,8 +393,8 @@ func (c *Tabs) SerializeComponent(ctx *builder.FlattenContext) (map[string]any, 
 		items = append(items, ser)
 	}
 	out["tabs"] = items
-	if c.Weight != nil {
-		out["weight"] = *c.Weight
+	if err := setWeight(out, "Tabs.weight", c.Weight); err != nil {
+		return nil, err
 	}
 	return out, nil
 }
@@ -435,10 +435,10 @@ func (c *Modal) Flatten(rootID string) ([]map[string]any, error) {
 
 // SerializeComponent implements builder.ComponentSerializer.
 func (c *Modal) SerializeComponent(ctx *builder.FlattenContext) (map[string]any, error) {
-	if c.Trigger == nil {
+	if builder.IsNilValue(c.Trigger) {
 		return nil, core.NewValidationError("Modal.Trigger is required")
 	}
-	if c.Content == nil {
+	if builder.IsNilValue(c.Content) {
 		return nil, core.NewValidationError("Modal.Content is required")
 	}
 	out := make(map[string]any)
@@ -455,8 +455,8 @@ func (c *Modal) SerializeComponent(ctx *builder.FlattenContext) (map[string]any,
 	}
 	out["trigger"] = trigID
 	out["content"] = contID
-	if c.Weight != nil {
-		out["weight"] = *c.Weight
+	if err := setWeight(out, "Modal.weight", c.Weight); err != nil {
+		return nil, err
 	}
 	return out, nil
 }
@@ -511,8 +511,8 @@ func (c *Divider) SerializeComponent(ctx *builder.FlattenContext) (map[string]an
 		return nil, err
 	}
 	out["axis"] = string(axis)
-	if c.Weight != nil {
-		out["weight"] = *c.Weight
+	if err := setWeight(out, "Divider.weight", c.Weight); err != nil {
+		return nil, err
 	}
 	return out, nil
 }

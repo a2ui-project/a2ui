@@ -17,6 +17,8 @@ package builder_test
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"math"
 	"reflect"
 	"testing"
 
@@ -342,5 +344,477 @@ func TestAnonymousEmbeddedStructFlattening(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got["config"], wantCfg) {
 		t.Fatalf("nested struct config = %#v, want %#v", got["config"], wantCfg)
+	}
+}
+
+func TestFlattenComponentForestCollisionPrevention(t *testing.T) {
+	// Explicit root IDs stay unchanged.
+	explicitForest, err := builder.FlattenComponentForest([]builder.Node{
+		v1.NewText(v1.Str("Header")).WithID("header_text"),
+		v1.NewDivider().WithID("divider_0"),
+		v1.NewText(v1.Str("Body")).WithID("body_text"),
+	}, "")
+	if err != nil {
+		t.Fatalf("explicit FlattenComponentForest failed: %v", err)
+	}
+	gotExplicitIDs := []string{
+		explicitForest[0]["id"].(string),
+		explicitForest[1]["id"].(string),
+		explicitForest[2]["id"].(string),
+	}
+	if !reflect.DeepEqual(gotExplicitIDs, []string{"header_text", "divider_0", "body_text"}) {
+		t.Fatalf("got explicit forest IDs %v", gotExplicitIDs)
+	}
+
+	// Duplicate explicit IDs across the forest are rejected.
+	_, err = builder.FlattenComponentForest([]builder.Node{
+		v1.NewText(v1.Str("A")).WithID("dup_id"),
+		v1.NewText(v1.Str("B")).WithID("dup_id"),
+	}, "")
+	var valErr *core.ValidationError
+	if !errors.As(err, &valErr) {
+		t.Fatalf("expected *core.ValidationError for duplicate explicit forest IDs, got %v", err)
+	}
+
+	// Multiple unnamed roots allocate distinct IDs instead of colliding on "root__text_1".
+	unnamedRoots, err := builder.FlattenComponentForest([]builder.Node{
+		v1.NewText(v1.Str("a")),
+		v1.NewText(v1.Str("b")),
+	}, "")
+	if err != nil {
+		t.Fatalf("unnamed roots FlattenComponentForest failed: %v", err)
+	}
+	if unnamedRoots[0]["id"] != "root__text_1" || unnamedRoots[1]["id"] != "root__text_2" {
+		t.Fatalf("unexpected unnamed root IDs: %v, %v", unnamedRoots[0]["id"], unnamedRoots[1]["id"])
+	}
+
+	// Unnamed roots with same-typed unnamed descendants never collide across trees.
+	nestedForest, err := builder.FlattenComponentForest([]builder.Node{
+		v1.NewCard(v1.NewText(v1.Str("a"))),
+		v1.NewRow(v1.Children(v1.NewText(v1.Str("b")))),
+	}, "")
+	if err != nil {
+		t.Fatalf("nested unnamed FlattenComponentForest failed: %v", err)
+	}
+	gotNestedIDs := make([]string, len(nestedForest))
+	for i, c := range nestedForest {
+		gotNestedIDs[i] = c["id"].(string)
+	}
+	wantNestedIDs := []string{"root__text_1", "root__card_1", "root__text_2", "root__row_1"}
+	if !reflect.DeepEqual(gotNestedIDs, wantNestedIDs) {
+		t.Fatalf("got nested forest IDs %v, want %v", gotNestedIDs, wantNestedIDs)
+	}
+}
+
+type ptrEnvelopeCarrierNode struct {
+	ID    string `json:"-"`
+	Title string `json:"title"`
+}
+
+func (n ptrEnvelopeCarrierNode) ComponentType() string { return "PtrCarrier" }
+func (n ptrEnvelopeCarrierNode) ComponentID() string   { return n.ID }
+func (ptrEnvelopeCarrierNode) BuilderVersionFamily() builder.VersionFamily {
+	return builder.VersionFamily1_0
+}
+
+func (n *ptrEnvelopeCarrierNode) SerializeEnvelopeAttributes(_ *builder.FlattenContext, dst map[string]any, defaultCID string) error {
+	if defaultCID != "" {
+		dst["@catalogId"] = defaultCID
+	}
+	dst["@metadata"] = map[string]any{"extensions": map[string]any{"fromPtr": true}}
+	return nil
+}
+
+func (ptrEnvelopeCarrierNode) DefaultCatalogID() string {
+	return "https://example.com/ptr_carrier.json"
+}
+
+type standaloneCatalogProviderV1 struct {
+	Label string `json:"label"`
+}
+
+func (standaloneCatalogProviderV1) ComponentType() string { return "StandaloneWidget" }
+func (standaloneCatalogProviderV1) ComponentID() string   { return "" }
+func (standaloneCatalogProviderV1) BuilderVersionFamily() builder.VersionFamily {
+	return builder.VersionFamily1_0
+}
+func (standaloneCatalogProviderV1) DefaultCatalogID() string {
+	return "https://example.com/standalone/v1.json"
+}
+
+type standaloneCatalogProviderV09 struct {
+	Label string `json:"label"`
+}
+
+func (standaloneCatalogProviderV09) ComponentType() string { return "StandaloneV09" }
+func (standaloneCatalogProviderV09) ComponentID() string   { return "" }
+func (standaloneCatalogProviderV09) BuilderVersionFamily() builder.VersionFamily {
+	return builder.VersionFamily0_9
+}
+func (standaloneCatalogProviderV09) DefaultCatalogID() string {
+	return "https://example.com/standalone/v09.json"
+}
+
+type FallbackNamedStruct struct {
+	v1.ComponentNode
+	Caption string `json:"caption"`
+}
+
+func TestValueTypeNodesAndDefaultCatalogIDProviders(t *testing.T) {
+	// Value-type custom component embedding v1.ComponentNode works as a builder.Node directly.
+	valMetric := metricCard{
+		Label: "Memory",
+		Value: v1.Str("64%"),
+	}
+	valMetric.ID = "mem_1"
+	flatVal, err := builder.FlattenComponentTree(valMetric, "")
+	if err != nil {
+		t.Fatalf("value-type metricCard flatten failed: %v", err)
+	}
+	if flatVal[0]["id"] != "mem_1" || flatVal[0]["@catalogId"] != "https://example.com/catalogs/metrics/v1/catalog.json" {
+		t.Fatalf("unexpected value-type metricCard output: %#v", flatVal[0])
+	}
+
+	// Pointer-receiver EnvelopeAttributeCarrier on a value-type Node is invoked via addressable copy.
+	flatPtrCarrier, err := builder.FlattenComponentTree(ptrEnvelopeCarrierNode{ID: "pc1", Title: "Hello"}, "")
+	if err != nil {
+		t.Fatalf("ptrEnvelopeCarrierNode value flatten failed: %v", err)
+	}
+	if flatPtrCarrier[0]["@catalogId"] != "https://example.com/ptr_carrier.json" {
+		t.Fatalf("missing @catalogId from pointer-receiver carrier: %#v", flatPtrCarrier[0])
+	}
+	if !reflect.DeepEqual(flatPtrCarrier[0]["@metadata"], map[string]any{"extensions": map[string]any{"fromPtr": true}}) {
+		t.Fatalf("missing @metadata from pointer-receiver carrier: %#v", flatPtrCarrier[0])
+	}
+
+	// Standalone DefaultCatalogIDProvider without EnvelopeAttributeCarrier emits @catalogId in v1.0, not v0.9.
+	flatStandaloneV1, err := builder.FlattenComponentTree(standaloneCatalogProviderV1{Label: "ok"}, "sw1")
+	if err != nil {
+		t.Fatalf("standalone v1 provider failed: %v", err)
+	}
+	if flatStandaloneV1[0]["@catalogId"] != "https://example.com/standalone/v1.json" {
+		t.Fatalf("expected standalone @catalogId, got %#v", flatStandaloneV1[0])
+	}
+
+	flatStandaloneV09, err := builder.FlattenComponentTree(standaloneCatalogProviderV09{Label: "ok"}, "sw09")
+	if err != nil {
+		t.Fatalf("standalone v09 provider failed: %v", err)
+	}
+	if _, hasAtCID := flatStandaloneV09[0]["@catalogId"]; hasAtCID {
+		t.Fatalf("v0.9 standalone provider must not emit @catalogId: %#v", flatStandaloneV09[0])
+	}
+
+	// Custom struct without ComponentType() override resolves struct type name as both root and child.
+	parent := v1.NewCard(&FallbackNamedStruct{Caption: "leaf"}).WithID("root")
+	flatFallback, err := builder.FlattenComponentTree(parent, "")
+	if err != nil {
+		t.Fatalf("FallbackNamedStruct child flatten failed: %v", err)
+	}
+	if flatFallback[0]["component"] != "FallbackNamedStruct" || flatFallback[0]["id"] != "root__fallbacknamedstruct_1" {
+		t.Fatalf("unexpected fallback component type/id: %#v", flatFallback[0])
+	}
+}
+
+type nodeSliceContainer struct {
+	v1.ComponentNode
+	Items []builder.Node `json:"items"`
+}
+
+func (nodeSliceContainer) ComponentType() string { return "NodeSliceContainer" }
+
+func TestTypedNilSafetyAndChildNodeSlices(t *testing.T) {
+	var nilTree *builder.ComponentTree
+	if _, err := nilTree.Flatten(); err == nil {
+		t.Fatal("expected nil *ComponentTree.Flatten() to return error")
+	}
+	if _, err := nilTree.MarshalJSON(); err == nil {
+		t.Fatal("expected nil *ComponentTree.MarshalJSON() to return error")
+	}
+
+	typedNilRoot := (*v1.Text)(nil)
+	if _, err := builder.NewComponentTree(typedNilRoot, "s1").Flatten(); err == nil {
+		t.Fatal("expected ComponentTree with typed-nil Root to return error")
+	}
+
+	var nilV1Str *v1.StringLiteral
+	var nilV09Str *v09.StringLiteral
+	var nilV1Num *v1.IntLiteral
+	var nilV1Func *v1.FunctionCall
+
+	requiredFailures := []builder.Node{
+		v1.NewText(nilV1Str),
+		v09.NewText(nilV09Str),
+		v1.NewCard(typedNilRoot),
+		v1.NewSlider(10, nilV1Num),
+		v1.NewTextField(v1.Str("Lbl"), v1.Str("Val")).WithChecks(v1.NewCheckRule(nilV1Func, "bad")),
+		v1.NewTabs(v1.NewTabItem(nilV1Str, v1.NewText(v1.Str("ok")))),
+	}
+	for i, n := range requiredFailures {
+		_, err := builder.FlattenComponentTree(n, "root")
+		var valErr *core.ValidationError
+		if !errors.As(err, &valErr) {
+			t.Fatalf("case %d: expected *core.ValidationError on typed-nil required field, got %v", i, err)
+		}
+	}
+
+	// Typed-nil optional fields are cleanly omitted without panicking or emitting null.
+	var nilStrPtr *string
+	dtV1 := v1.NewDateTimeInput(v1.Str("2026-05-01")).
+		WithMin(nilStrPtr).
+		WithMax(nilV1Str).
+		WithLabel(nilV1Str).
+		WithAccessibility(v1.AccessibilityAttributes{Label: nilV1Str, Description: v1.Str("Date")})
+	flatDT, err := dtV1.Flatten("dt")
+	if err != nil {
+		t.Fatalf("DateTimeInput with typed-nil optional fields failed: %v", err)
+	}
+	if _, hasMin := flatDT[0]["min"]; hasMin {
+		t.Fatalf("expected typed-nil Min to be omitted, got %#v", flatDT[0])
+	}
+	if _, hasMax := flatDT[0]["max"]; hasMax {
+		t.Fatalf("expected typed-nil Max to be omitted, got %#v", flatDT[0])
+	}
+	if _, hasLbl := flatDT[0]["label"]; hasLbl {
+		t.Fatalf("expected typed-nil Label to be omitted, got %#v", flatDT[0])
+	}
+
+	dtV09 := v09.NewDateTimeInput(v09.Str("2026-05-01")).WithMin(nilStrPtr).WithMax(nilV09Str)
+	flatDTV09, err := dtV09.Flatten("dt09")
+	if err != nil {
+		t.Fatalf("v0.9 DateTimeInput with typed-nil optional fields failed: %v", err)
+	}
+	if _, hasMin := flatDTV09[0]["min"]; hasMin {
+		t.Fatalf("expected v0.9 typed-nil Min to be omitted, got %#v", flatDTV09[0])
+	}
+
+	// []builder.Node containing nil or typed-nil child fails validation rather than emitting null.
+	badSlice := &nodeSliceContainer{Items: []builder.Node{v1.NewText(v1.Str("ok")), nil}}
+	if _, err := builder.FlattenComponentTree(badSlice, "root"); err == nil {
+		t.Fatal("expected nil element in []builder.Node to fail validation")
+	}
+	badTypedNilSlice := &nodeSliceContainer{Items: []builder.Node{typedNilRoot}}
+	if _, err := builder.FlattenComponentTree(badTypedNilSlice, "root"); err == nil {
+		t.Fatal("expected typed-nil element in []builder.Node to fail validation")
+	}
+}
+
+type cyclicEmbeddedStruct struct {
+	*cyclicEmbeddedStruct
+	Label string `json:"label"`
+}
+
+type innerShadowBase struct {
+	Title string `json:"title"`
+}
+
+type outerShadowOmitEmpty struct {
+	v1.ComponentNode
+	innerShadowBase
+	Title       string               `json:"title,omitempty"`
+	LiteralDash string               `json:"-,"`
+	Skipped     string               `json:"-"`
+	Cyclic      cyclicEmbeddedStruct `json:"cyclic"`
+	ZeroArr     [2]int               `json:"zeroArr,omitempty"`
+	EmptyArr    [0]int               `json:"emptyArr,omitempty"`
+}
+
+func (outerShadowOmitEmpty) ComponentType() string { return "OuterShadow" }
+
+type tieUntaggedMixin struct {
+	Shared string
+}
+
+type tieTaggedMixin struct {
+	Other string `json:"shared"`
+}
+
+type tieResolvedNode struct {
+	v1.ComponentNode
+	tieUntaggedMixin
+	tieTaggedMixin
+}
+
+func (tieResolvedNode) ComponentType() string { return "TieResolved" }
+
+type jsonMarshalerBox struct {
+	Code int
+}
+
+func (b jsonMarshalerBox) MarshalJSON() ([]byte, error) {
+	return []byte(fmt.Sprintf(`{"code":%d}`, b.Code)), nil
+}
+
+type textMarshalerTag struct {
+	Tag string
+}
+
+func (t *textMarshalerTag) MarshalText() ([]byte, error) {
+	return []byte("tag:" + t.Tag), nil
+}
+
+type ptrReceiverEnum string
+
+func (*ptrReceiverEnum) EnumValues() []string { return []string{"alpha", "beta"} }
+
+type marshalerAndEnumNode struct {
+	v1.ComponentNode
+	Box    jsonMarshalerBox  `json:"box"`
+	NilBox *jsonMarshalerBox `json:"nilBox,omitempty"`
+	Tag    textMarshalerTag  `json:"tag"`
+	NilTag *textMarshalerTag `json:"nilTag,omitempty"`
+	Mode   ptrReceiverEnum   `json:"mode"`
+}
+
+func (marshalerAndEnumNode) ComponentType() string { return "MarshalerNode" }
+
+type selfRefStruct struct {
+	Next *selfRefStruct `json:"next"`
+}
+
+func TestComponentRefReservationMarshalersEnumsArraysCyclesAndFloats(t *testing.T) {
+	// ComponentRef reserves its ID in Pass 1 so Pass 2 auto-allocation skips it.
+	colWithRef := v1.NewColumn(v1.Children(
+		v1.NewText(v1.Str("Auto text")),
+		builder.NewComponentRef("root__text_1"),
+	)).WithID("root")
+	flatRef, err := builder.FlattenComponentTree(colWithRef, "")
+	if err != nil {
+		t.Fatalf("FlattenComponentTree with ComponentRef failed: %v", err)
+	}
+	if flatRef[0]["id"] != "root__text_2" {
+		t.Fatalf("expected auto-allocated Text to skip reserved ComponentRef ID 'root__text_1', got %v", flatRef[0]["id"])
+	}
+
+	// BFS typeFields: cyclic embedded pointer, json:"-," vs json:"-", omitempty dominance, and [N]T omitempty.
+	shadow := &outerShadowOmitEmpty{
+		innerShadowBase: innerShadowBase{Title: "inner-must-not-leak"},
+		Title:           "",
+		LiteralDash:     "dash-val",
+		Skipped:         "hidden",
+		Cyclic:          cyclicEmbeddedStruct{Label: "leaf"},
+	}
+	flatShadow, err := builder.FlattenComponentTree(shadow, "sh1")
+	if err != nil {
+		t.Fatalf("outerShadowOmitEmpty flatten failed: %v", err)
+	}
+	gotShadow := flatShadow[0]
+	if _, leaked := gotShadow["title"]; leaked {
+		t.Fatalf("shadowed inner Title leaked despite outer omitempty field: %#v", gotShadow)
+	}
+	if gotShadow["-"] != "dash-val" {
+		t.Fatalf("expected json:\"-,'\" to emit under key \"-\", got %#v", gotShadow)
+	}
+	if _, hasSkipped := gotShadow["skipped"]; hasSkipped {
+		t.Fatalf("expected json:\"-\" field to be skipped: %#v", gotShadow)
+	}
+	if !reflect.DeepEqual(gotShadow["cyclic"], map[string]any{"label": "leaf"}) {
+		t.Fatalf("unexpected cyclic embedded struct output: %#v", gotShadow["cyclic"])
+	}
+	if !reflect.DeepEqual(gotShadow["zeroArr"], []any{int64(0), int64(0)}) {
+		t.Fatalf("expected non-zero-length [2]int with omitempty to be preserved, got %#v", gotShadow["zeroArr"])
+	}
+	if _, hasEmptyArr := gotShadow["emptyArr"]; hasEmptyArr {
+		t.Fatalf("expected [0]int with omitempty to be omitted, got %#v", gotShadow)
+	}
+
+	// Same-depth tie breaking favors explicitly JSON-tagged field.
+	tie := &tieResolvedNode{
+		tieUntaggedMixin: tieUntaggedMixin{Shared: "untagged"},
+		tieTaggedMixin:   tieTaggedMixin{Other: "tagged-wins"},
+	}
+	flatTie, err := builder.FlattenComponentTree(tie, "tie1")
+	if err != nil {
+		t.Fatalf("tieResolvedNode flatten failed: %v", err)
+	}
+	if flatTie[0]["shared"] != "tagged-wins" {
+		t.Fatalf("expected tagged field to win same-depth tie, got %#v", flatTie[0])
+	}
+
+	// json.Marshaler, encoding.TextMarshaler, and pointer-receiver StringEnum.
+	mNode := &marshalerAndEnumNode{
+		Box:  jsonMarshalerBox{Code: 200},
+		Tag:  textMarshalerTag{Tag: "v1"},
+		Mode: "alpha",
+	}
+	flatM, err := builder.FlattenComponentTree(mNode, "m1")
+	if err != nil {
+		t.Fatalf("marshalerAndEnumNode flatten failed: %v", err)
+	}
+	if !reflect.DeepEqual(flatM[0]["box"], map[string]any{"code": int64(200)}) || flatM[0]["tag"] != "tag:v1" || flatM[0]["mode"] != "alpha" {
+		t.Fatalf("unexpected marshaler/enum output: %#v", flatM[0])
+	}
+	badEnumNode := &marshalerAndEnumNode{Tag: textMarshalerTag{Tag: "x"}, Mode: "gamma"}
+	if _, err := builder.FlattenComponentTree(badEnumNode, "m2"); err == nil {
+		t.Fatal("expected invalid pointer-receiver StringEnum to fail strict validation")
+	}
+	if _, err := builder.FlattenComponentTreeWithOptions(badEnumNode, "m2", builder.FlattenOptions{AllowOpenEnums: true}); err != nil {
+		t.Fatalf("expected AllowOpenEnums to permit unknown pointer-receiver StringEnum, got %v", err)
+	}
+
+	// Cyclic pointer, map, and slice values return *core.RecursionError.
+	cycPtr := &selfRefStruct{}
+	cycPtr.Next = cycPtr
+	var recErr *core.RecursionError
+	if _, err := (&builder.FlattenContext{}).SerializeValue(cycPtr); !errors.As(err, &recErr) {
+		t.Fatalf("expected *core.RecursionError for cyclic struct pointer, got %v", err)
+	}
+	cycMap := map[string]any{}
+	cycMap["self"] = cycMap
+	if _, err := (&builder.FlattenContext{}).SerializeValue(cycMap); !errors.As(err, &recErr) {
+		t.Fatalf("expected *core.RecursionError for cyclic map, got %v", err)
+	}
+	cycSlice := []any{nil}
+	cycSlice[0] = cycSlice
+	if _, err := (&builder.FlattenContext{}).SerializeValue(cycSlice); !errors.As(err, &recErr) {
+		t.Fatalf("expected *core.RecursionError for cyclic slice, got %v", err)
+	}
+
+	// NaN and Inf floats are rejected with *core.ValidationError.
+	var valErr *core.ValidationError
+	for _, badFloat := range []float64{math.NaN(), math.Inf(1), math.Inf(-1)} {
+		if _, err := (&builder.FlattenContext{}).SerializeValue(badFloat); !errors.As(err, &valErr) {
+			t.Fatalf("expected *core.ValidationError for SerializeValue(%v), got %v", badFloat, err)
+		}
+		if _, err := builder.FlattenComponentTree(v1.NewSlider(10, v1.Num(badFloat)), "s"); !errors.As(err, &valErr) {
+			t.Fatalf("expected *core.ValidationError for v1.Num(%v), got %v", badFloat, err)
+		}
+		if _, err := builder.FlattenComponentTree(v09.NewSlider(10, v09.Num(badFloat)), "s"); !errors.As(err, &valErr) {
+			t.Fatalf("expected *core.ValidationError for v09.Num(%v), got %v", badFloat, err)
+		}
+		if _, err := builder.FlattenComponentTree(v1.NewSlider(badFloat, v1.Num(1)), "s"); !errors.As(err, &valErr) {
+			t.Fatalf("expected *core.ValidationError for Slider.Max=%v, got %v", badFloat, err)
+		}
+		if _, err := builder.FlattenComponentTree(v1.NewText(v1.Str("hi")).WithWeight(badFloat), "t"); !errors.As(err, &valErr) {
+			t.Fatalf("expected *core.ValidationError for Weight=%v, got %v", badFloat, err)
+		}
+	}
+
+	// Explicit nil FunctionCall args are preserved, while typed-nil option helpers omit unset entries.
+	reqV1, err := v1.Required(nil).SerializeBuilderValue(&builder.FlattenContext{})
+	if err != nil {
+		t.Fatalf("v1.Required(nil) failed: %v", err)
+	}
+	wantReqV1 := map[string]any{"@call": "required", "args": map[string]any{"value": nil}}
+	if !reflect.DeepEqual(reqV1, wantReqV1) {
+		t.Fatalf("v1.Required(nil) = %#v, want %#v", reqV1, wantReqV1)
+	}
+	reqV09, err := v09.Required(nil).SerializeBuilderValue(&builder.FlattenContext{})
+	if err != nil {
+		t.Fatalf("v09.Required(nil) failed: %v", err)
+	}
+	wantReqV09 := map[string]any{"call": "required", "args": map[string]any{"value": nil}}
+	if !reflect.DeepEqual(reqV09, wantReqV09) {
+		t.Fatalf("v09.Required(nil) = %#v, want %#v", reqV09, wantReqV09)
+	}
+
+	var nilDec *v1.IntLiteral
+	var nilGrp *v1.BoolLiteral
+	fnOpt, err := v1.FormatNumber(v1.Num(12.5), v1.WithDecimals(nilDec), v1.WithGrouping(nilGrp)).SerializeBuilderValue(&builder.FlattenContext{})
+	if err != nil {
+		t.Fatalf("FormatNumber with typed-nil options failed: %v", err)
+	}
+	wantFnOpt := map[string]any{"@call": "formatNumber", "args": map[string]any{"value": 12.5}}
+	if !reflect.DeepEqual(fnOpt, wantFnOpt) {
+		t.Fatalf("FormatNumber with typed-nil options = %#v, want %#v", fnOpt, wantFnOpt)
 	}
 }

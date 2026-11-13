@@ -92,18 +92,21 @@ func (s StringLiteral) SerializeBuilderValue(_ *builder.FlattenContext) (any, er
 func (StringLiteral) isV1DynamicString() {}
 func (StringLiteral) isV1DynamicValue()  {}
 
-// IntLiteral is a static integer implementing DynamicNumber and DynamicValue.
-type IntLiteral int
+// IntLiteral is a static 64-bit integer implementing DynamicNumber and DynamicValue.
+type IntLiteral int64
 
-// Int wraps an integer as a v1.0 IntLiteral.
+// Int wraps an int as a v1.0 IntLiteral.
 func Int(v int) IntLiteral { return IntLiteral(v) }
+
+// Int64 wraps an int64 as a v1.0 IntLiteral.
+func Int64(v int64) IntLiteral { return IntLiteral(v) }
 
 // BuilderVersionFamily returns VersionFamily1_0.
 func (IntLiteral) BuilderVersionFamily() builder.VersionFamily { return builder.VersionFamily1_0 }
 
-// SerializeBuilderValue returns the underlying integer.
+// SerializeBuilderValue returns the underlying int64.
 func (n IntLiteral) SerializeBuilderValue(_ *builder.FlattenContext) (any, error) {
-	return int(n), nil
+	return int64(n), nil
 }
 
 func (IntLiteral) isV1DynamicNumber() {}
@@ -118,8 +121,11 @@ func Num(v float64) NumberLiteral { return NumberLiteral(v) }
 // BuilderVersionFamily returns VersionFamily1_0.
 func (NumberLiteral) BuilderVersionFamily() builder.VersionFamily { return builder.VersionFamily1_0 }
 
-// SerializeBuilderValue returns the underlying float64.
+// SerializeBuilderValue validates finiteness and returns the underlying float64.
 func (n NumberLiteral) SerializeBuilderValue(_ *builder.FlattenContext) (any, error) {
+	if err := builder.ValidateFiniteFloat("NumberLiteral", float64(n)); err != nil {
+		return nil, err
+	}
 	return float64(n), nil
 }
 
@@ -310,16 +316,11 @@ func (f FunctionCall) SerializeBuilderValue(ctx *builder.FlattenContext) (any, e
 	if len(f.Args) > 0 {
 		argsOut := make(map[string]any, len(f.Args))
 		for k, v := range f.Args {
-			if v == nil {
-				continue
-			}
 			ser, err := ctx.SerializeValue(v)
 			if err != nil {
 				return nil, err
 			}
-			if ser != nil {
-				argsOut[k] = ser
-			}
+			argsOut[k] = ser
 		}
 		out["args"] = argsOut
 	}
@@ -379,7 +380,7 @@ func (DynamicChildList) BuilderVersionFamily() builder.VersionFamily { return bu
 
 // SerializeBuilderValue emits Template as a sibling component and returns {"path": Path, "componentId": id}.
 func (d DynamicChildList) SerializeBuilderValue(ctx *builder.FlattenContext) (any, error) {
-	if d.Template == nil {
+	if builder.IsNilValue(d.Template) {
 		return nil, core.NewValidationError("DynamicChildList template must not be nil")
 	}
 	compID, err := ctx.EmitChild(d.Template)

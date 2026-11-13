@@ -265,7 +265,10 @@ func (r *RPCHandler) ResolveCatalog(catalogID string) *Catalog {
 	if catalogID == "" {
 		return nil
 	}
-	for _, cat := range r.catalogs {
+	r.mu.Lock()
+	cats := append([]*Catalog(nil), r.catalogs...)
+	r.mu.Unlock()
+	for _, cat := range cats {
 		if cat != nil && cat.CatalogID() == catalogID {
 			return cat
 		}
@@ -380,7 +383,7 @@ func (r *RPCHandler) HandleCallRendererFunction(
 		return resp, nil
 	}
 
-	fn, exists := matchedCat.Functions()[req.CallFunction.Call]
+	fn, exists := matchedCat.functionByName(req.CallFunction.Call)
 	if !exists {
 		resp := buildRendererErrorResponse(
 			callID,
@@ -494,8 +497,11 @@ func (r *RPCHandler) ensureDataContext(ctx *DataContext, matchedCat *Catalog, ca
 	if ctx != nil {
 		return ctx
 	}
+	r.mu.Lock()
+	cats := append([]*Catalog(nil), r.catalogs...)
+	r.mu.Unlock()
 	fallback := NewSurfaceModel("_rpc_fallback_"+callID, matchedCat.CatalogID(), matchedCat)
-	for _, cat := range r.catalogs {
+	for _, cat := range cats {
 		if cat != nil && isCatalogVersionCompatible(string(cat.ProtocolVersion()), string(matchedCat.ProtocolVersion())) {
 			fallback.AvailableCatalogs[cat.CatalogID()] = cat
 		}
@@ -708,7 +714,21 @@ func (r *RPCHandler) CallAgentFunction(surfaceID string, call CallFunctionPayloa
 		},
 	}
 
+	delivered := false
+	defer func() {
+		if !delivered {
+			r.mu.Lock()
+			if cur, ok := r.pending[callID]; ok && cur == entry {
+				delete(r.pending, callID)
+			}
+			r.mu.Unlock()
+			if entry.timer != nil {
+				entry.timer.Stop()
+			}
+		}
+	}()
 	listener(outboundMsg)
+	delivered = true
 	return fut, nil
 }
 

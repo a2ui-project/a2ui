@@ -34,7 +34,7 @@ func (IconNameSVGPath) BuilderVersionFamily() builder.VersionFamily { return bui
 
 // SerializeBuilderValue emits {"svgPath": ...}.
 func (p IconNameSVGPath) SerializeBuilderValue(ctx *builder.FlattenContext) (any, error) {
-	if p.SVGPath == nil {
+	if builder.IsNilValue(p.SVGPath) {
 		return nil, core.NewValidationError("IconNameSVGPath.SVGPath is required")
 	}
 	v, err := p.SVGPath.SerializeBuilderValue(ctx)
@@ -91,7 +91,7 @@ func (c *Text) Flatten(rootID string) ([]map[string]any, error) {
 
 // SerializeComponent implements builder.ComponentSerializer.
 func (c *Text) SerializeComponent(ctx *builder.FlattenContext) (map[string]any, error) {
-	if c.Text == nil {
+	if builder.IsNilValue(c.Text) {
 		return nil, core.NewValidationError("Text.Text is required")
 	}
 	out := make(map[string]any)
@@ -111,8 +111,8 @@ func (c *Text) SerializeComponent(ctx *builder.FlattenContext) (map[string]any, 
 		return nil, err
 	}
 	out["variant"] = string(variant)
-	if c.Weight != nil {
-		out["weight"] = *c.Weight
+	if err := setWeight(out, "Text.weight", c.Weight); err != nil {
+		return nil, err
 	}
 	return out, nil
 }
@@ -170,7 +170,7 @@ func (c *Image) Flatten(rootID string) ([]map[string]any, error) {
 
 // SerializeComponent implements builder.ComponentSerializer.
 func (c *Image) SerializeComponent(ctx *builder.FlattenContext) (map[string]any, error) {
-	if c.URL == nil {
+	if builder.IsNilValue(c.URL) {
 		return nil, core.NewValidationError("Image.URL is required")
 	}
 	out := make(map[string]any)
@@ -182,7 +182,7 @@ func (c *Image) SerializeComponent(ctx *builder.FlattenContext) (map[string]any,
 		return nil, err
 	}
 	out["url"] = uv
-	if c.Description != nil {
+	if !builder.IsNilValue(c.Description) {
 		dv, err := c.Description.SerializeBuilderValue(ctx)
 		if err != nil {
 			return nil, err
@@ -205,8 +205,8 @@ func (c *Image) SerializeComponent(ctx *builder.FlattenContext) (map[string]any,
 		return nil, err
 	}
 	out["variant"] = string(variant)
-	if c.Weight != nil {
-		out["weight"] = *c.Weight
+	if err := setWeight(out, "Image.weight", c.Weight); err != nil {
+		return nil, err
 	}
 	return out, nil
 }
@@ -252,7 +252,7 @@ func (c *Icon) Flatten(rootID string) ([]map[string]any, error) {
 
 // SerializeComponent implements builder.ComponentSerializer.
 func (c *Icon) SerializeComponent(ctx *builder.FlattenContext) (map[string]any, error) {
-	if c.Name == nil {
+	if builder.IsNilValue(c.Name) {
 		return nil, core.NewValidationError("Icon.Name is required")
 	}
 	out := make(map[string]any)
@@ -264,8 +264,8 @@ func (c *Icon) SerializeComponent(ctx *builder.FlattenContext) (map[string]any, 
 		return nil, err
 	}
 	out["name"] = nv
-	if c.Weight != nil {
-		out["weight"] = *c.Weight
+	if err := setWeight(out, "Icon.weight", c.Weight); err != nil {
+		return nil, err
 	}
 	return out, nil
 }
@@ -315,7 +315,7 @@ func (c *Video) Flatten(rootID string) ([]map[string]any, error) {
 
 // SerializeComponent implements builder.ComponentSerializer.
 func (c *Video) SerializeComponent(ctx *builder.FlattenContext) (map[string]any, error) {
-	if c.URL == nil {
+	if builder.IsNilValue(c.URL) {
 		return nil, core.NewValidationError("Video.URL is required")
 	}
 	out := make(map[string]any)
@@ -327,15 +327,15 @@ func (c *Video) SerializeComponent(ctx *builder.FlattenContext) (map[string]any,
 		return nil, err
 	}
 	out["url"] = uv
-	if c.PosterURL != nil {
+	if !builder.IsNilValue(c.PosterURL) {
 		pv, err := c.PosterURL.SerializeBuilderValue(ctx)
 		if err != nil {
 			return nil, err
 		}
 		out["posterUrl"] = pv
 	}
-	if c.Weight != nil {
-		out["weight"] = *c.Weight
+	if err := setWeight(out, "Video.weight", c.Weight); err != nil {
+		return nil, err
 	}
 	return out, nil
 }
@@ -385,7 +385,7 @@ func (c *AudioPlayer) Flatten(rootID string) ([]map[string]any, error) {
 
 // SerializeComponent implements builder.ComponentSerializer.
 func (c *AudioPlayer) SerializeComponent(ctx *builder.FlattenContext) (map[string]any, error) {
-	if c.URL == nil {
+	if builder.IsNilValue(c.URL) {
 		return nil, core.NewValidationError("AudioPlayer.URL is required")
 	}
 	out := make(map[string]any)
@@ -397,15 +397,15 @@ func (c *AudioPlayer) SerializeComponent(ctx *builder.FlattenContext) (map[strin
 		return nil, err
 	}
 	out["url"] = uv
-	if c.Description != nil {
+	if !builder.IsNilValue(c.Description) {
 		dv, err := c.Description.SerializeBuilderValue(ctx)
 		if err != nil {
 			return nil, err
 		}
 		out["description"] = dv
 	}
-	if c.Weight != nil {
-		out["weight"] = *c.Weight
+	if err := setWeight(out, "AudioPlayer.weight", c.Weight); err != nil {
+		return nil, err
 	}
 	return out, nil
 }

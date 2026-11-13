@@ -24,8 +24,13 @@ import (
 	"net/http/httptest"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
+
+	"google.golang.org/adk/v2/model"
+	"google.golang.org/adk/v2/session"
+	"google.golang.org/genai"
 
 	"github.com/a2ui-project/a2ui/go/a2aext"
 )
@@ -463,5 +468,386 @@ func TestValidationSelfRepairRetry(t *testing.T) {
 	msgMap, _ := status["message"].(map[string]any)
 	if msgs := extractA2UIFromParts(t, msgMap["parts"]); len(msgs) == 0 {
 		t.Fatalf("expected repaired A2UI messages on attempt 2")
+	}
+}
+
+type streamingFlakyBackend struct {
+	mu    sync.Mutex
+	calls atomic.Int32
+	stub  *stubBackend
+	seen  []string
+}
+
+func (b *streamingFlakyBackend) StreamTurn(ctx context.Context, input turnInput) iter.Seq2[string, error] {
+	n := b.calls.Add(1)
+	b.mu.Lock()
+	b.seen = append(b.seen, input.Query)
+	b.mu.Unlock()
+	if n == 1 {
+		return func(yield func(string, error) bool) {
+			if !yield("Intro from broken attempt\n<a2ui>\nsurface(\"broken\")\n", nil) {
+				return
+			}
+			yield("root = NonExistentWidget(\"bad\")\n</a2ui>", nil)
+		}
+	}
+	return b.stub.StreamTurn(ctx, input)
+}
+
+func TestStreamingValidationSelfRepairRetryDoesNotLeakBrokenAttempt(t *testing.T) {
+	repoRoot, err := resolveRepoRoot()
+	if err != nil {
+		t.Fatalf("resolveRepoRoot: %v", err)
+	}
+	catalogs, err := loadBasicCatalogs(repoRoot)
+	if err != nil {
+		t.Fatalf("loadBasicCatalogs: %v", err)
+	}
+	stub, err := newStubBackend(repoRoot, formatExpress, catalogs)
+	if err != nil {
+		t.Fatalf("newStubBackend: %v", err)
+	}
+	flaky := &streamingFlakyBackend{stub: stub}
+
+	app, err := createServerApp(context.Background(), createServerOptions{
+		Env: map[string]string{
+			"STUB_LLM":    "true",
+			"A2UI_FORMAT": "express",
+		},
+		Backend: flaky,
+	})
+	if err != nil {
+		t.Fatalf("createServerApp: %v", err)
+	}
+	srv := httptest.NewServer(app.Handler)
+	defer srv.Close()
+
+	events := streamJSONRPCMessage(t, srv.URL+"/a2a/json-rpc", map[string]any{
+		"kind":      "message",
+		"messageId": "m-stream-retry",
+		"role":      "user",
+		"parts": []any{
+			map[string]any{"kind": "text", "text": "Find Chinese food in NY"},
+		},
+	})
+	if flaky.calls.Load() != 2 {
+		t.Fatalf("expected 2 attempts under useStreaming=true, got %d", flaky.calls.Load())
+	}
+
+	var allMsgs []map[string]any
+	var allTexts []string
+	for _, ev := range events {
+		if ev["kind"] != "status-update" {
+			continue
+		}
+		st, _ := ev["status"].(map[string]any)
+		msg, ok := st["message"].(map[string]any)
+		if !ok {
+			continue
+		}
+		allMsgs = append(allMsgs, extractA2UIFromParts(t, msg["parts"])...)
+		if parts, ok := msg["parts"].([]any); ok {
+			for _, p := range parts {
+				if pm, ok := p.(map[string]any); ok && pm["kind"] == "text" {
+					if txt, ok := pm["text"].(string); ok {
+						allTexts = append(allTexts, txt)
+					}
+				}
+			}
+		}
+	}
+	if slices.Contains(createdSurfaceIDs(allMsgs), "broken") {
+		t.Fatalf("broken attempt surface leaked onto SSE stream: %#v", allMsgs)
+	}
+	for _, txt := range allTexts {
+		if strings.Contains(txt, "Intro from broken attempt") {
+			t.Fatalf("broken attempt text leaked onto SSE stream: %q", txt)
+		}
+	}
+	if len(allMsgs) == 0 {
+		t.Fatalf("expected repaired A2UI messages on SSE stream")
+	}
+}
+
+func TestCapabilityNegotiationHeaderParityAndUnsupportedVersions(t *testing.T) {
+	srv := startStubTestServer(t, formatExpress)
+	defer srv.Close()
+
+	postWithHeaders := func(message map[string]any, extHeader string) (*http.Response, map[string]any) {
+		body, err := json.Marshal(map[string]any{
+			"jsonrpc": "2.0",
+			"id":      "req-ext",
+			"method":  "message/send",
+			"params":  map[string]any{"message": message},
+		})
+		if err != nil {
+			t.Fatalf("marshal: %v", err)
+		}
+		req, err := http.NewRequest(http.MethodPost, srv.URL+"/a2a/json-rpc", bytes.NewReader(body))
+		if err != nil {
+			t.Fatalf("NewRequest: %v", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		if extHeader != "" {
+			req.Header.Set("X-A2A-Extensions", extHeader)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("Do: %v", err)
+		}
+		raw, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			t.Fatalf("ReadAll: %v", err)
+		}
+		var env rpcEnvelope
+		if err := json.Unmarshal(raw, &env); err != nil {
+			t.Fatalf("Unmarshal(%s): %v", string(raw), err)
+		}
+		return resp, env.Result
+	}
+
+	bothExts := "https://a2ui.org/a2a-extension/a2ui/v0.9, https://a2ui.org/a2a-extension/a2ui/v1.0"
+
+	// 1. Capabilities match v0.9 -> activates ONLY v0.9 extension URI even when v1.0 was also requested.
+	respV09, _ := postWithHeaders(map[string]any{
+		"kind":      "message",
+		"messageId": "m-cap-v09",
+		"role":      "user",
+		"parts":     []any{map[string]any{"kind": "text", "text": "hello"}},
+		"metadata": map[string]any{
+			"a2uiClientCapabilities": map[string]any{
+				"v0.9": map[string]any{
+					"supportedCatalogIds": []string{v09Profile.BasicCatalogID},
+				},
+			},
+		},
+	}, bothExts)
+	if gotExt := respV09.Header.Get("X-A2A-Extensions"); gotExt != "https://a2ui.org/a2a-extension/a2ui/v0.9" {
+		t.Fatalf("X-A2A-Extensions = %q, want only v0.9 URI", gotExt)
+	}
+
+	// 2. Unsupported capability versions across message.Metadata, DataPart.Metadata, and DataPart.Data["metadata"]
+	// classify bare supportedCatalogIds as v0.8, sort deterministically, and do NOT activate any extension.
+	respUnsupported, resUnsupported := postWithHeaders(map[string]any{
+		"kind":      "message",
+		"messageId": "m-cap-unsupported",
+		"role":      "user",
+		"metadata": map[string]any{
+			"a2uiRendererCapabilities": map[string]any{
+				"2.0": map[string]any{"supportedCatalogIds": []string{"cat-2"}},
+			},
+		},
+		"parts": []any{
+			map[string]any{
+				"kind": "data",
+				"metadata": map[string]any{
+					"a2uiClientCapabilities": map[string]any{
+						"supportedCatalogIds": []string{"cat-08"},
+					},
+				},
+				"data": map[string]any{
+					"metadata": map[string]any{
+						"a2uiRendererCapabilities": map[string]any{
+							"0.9.1": map[string]any{"supportedCatalogIds": []string{"cat-091"}},
+						},
+					},
+				},
+			},
+		},
+	}, bothExts)
+	if gotExt := respUnsupported.Header.Get("X-A2A-Extensions"); gotExt != "" {
+		t.Fatalf("expected no activated extension on unsupported capabilities, got %q", gotExt)
+	}
+	stUnsupported, _ := resUnsupported["status"].(map[string]any)
+	if stUnsupported["state"] != "failed" {
+		t.Fatalf("expected failed task state, got %#v", resUnsupported)
+	}
+	msgUnsupported, _ := stUnsupported["message"].(map[string]any)
+	partsUnsupported, _ := msgUnsupported["parts"].([]any)
+	errPart, _ := partsUnsupported[0].(map[string]any)
+	errText, _ := errPart["text"].(string)
+	wantSubstr := "the renderer supports A2UI 0.9.1, 2.0, v0.8, but this agent serves only v0.9, 1.0"
+	if !strings.Contains(errText, wantSubstr) {
+		t.Fatalf("error text = %q, want substring %q", errText, wantSubstr)
+	}
+
+	// 3. No capabilities metadata falls back to extension negotiation (activates v1.0).
+	respFallbackExt, resFallbackExt := postWithHeaders(map[string]any{
+		"kind":      "message",
+		"messageId": "m-ext-only",
+		"role":      "user",
+		"parts": []any{
+			map[string]any{"kind": "text", "text": "Top 5 Chinese restaurants in New York"},
+			map[string]any{"kind": "data", "data": map[string]any{"useStreaming": false}},
+		},
+	}, bothExts)
+	if gotExt := respFallbackExt.Header.Get("X-A2A-Extensions"); gotExt != "https://a2ui.org/a2a-extension/a2ui/v1.0" {
+		t.Fatalf("X-A2A-Extensions = %q, want v1.0 URI", gotExt)
+	}
+	stExt, _ := resFallbackExt["status"].(map[string]any)
+	msgExt, _ := stExt["message"].(map[string]any)
+	msgsExt := extractA2UIFromParts(t, msgExt["parts"])
+	if len(msgsExt) == 0 || msgsExt[0]["version"] != "1.0" {
+		t.Fatalf("expected v1.0 messages from extension fallback, got %#v", msgsExt)
+	}
+}
+
+func TestAgentCardTrailingSlashAndCORSVaryHeaders(t *testing.T) {
+	card := buildAgentCard(10002, "https://agent.example.com/", true)
+	if card.URL != "https://agent.example.com/a2a/json-rpc" {
+		t.Fatalf("card.URL = %q, want https://agent.example.com/a2a/json-rpc", card.URL)
+	}
+
+	srv := startStubTestServer(t, formatExpress)
+	defer srv.Close()
+
+	optReq, _ := http.NewRequest(http.MethodOptions, srv.URL+"/a2a/json-rpc", nil)
+	optReq.Header.Set("Origin", "http://localhost:5173")
+	optResp, err := http.DefaultClient.Do(optReq)
+	if err != nil {
+		t.Fatalf("OPTIONS: %v", err)
+	}
+	optResp.Body.Close()
+	varyOpt := optResp.Header.Values("Vary")
+	if !slices.Contains(varyOpt, "Origin") || !slices.Contains(varyOpt, "Access-Control-Request-Headers") {
+		t.Fatalf("OPTIONS Vary = %v, want Origin and Access-Control-Request-Headers", varyOpt)
+	}
+
+	getResp, err := http.Get(srv.URL + "/.well-known/agent-card.json")
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	getResp.Body.Close()
+	if !slices.Contains(getResp.Header.Values("Vary"), "Origin") {
+		t.Fatalf("GET Vary = %v, want Origin", getResp.Header.Values("Vary"))
+	}
+}
+
+type scriptedADKModel struct {
+	mu    sync.Mutex
+	turns [][]*model.LLMResponse
+}
+
+func (m *scriptedADKModel) Name() string { return "scripted-adk" }
+
+func (m *scriptedADKModel) GenerateContent(_ context.Context, _ *model.LLMRequest, _ bool) iter.Seq2[*model.LLMResponse, error] {
+	m.mu.Lock()
+	var turn []*model.LLMResponse
+	if len(m.turns) > 0 {
+		turn, m.turns = m.turns[0], m.turns[1:]
+	}
+	m.mu.Unlock()
+	return func(yield func(*model.LLMResponse, error) bool) {
+		for _, resp := range turn {
+			if !yield(resp, nil) {
+				return
+			}
+		}
+	}
+}
+
+func TestADKBackendDrainsInterruptedTurnCleansProcessorsAndEvictsLRU(t *testing.T) {
+	repoRoot, err := resolveRepoRoot()
+	if err != nil {
+		t.Fatalf("resolveRepoRoot: %v", err)
+	}
+	catalogs, err := loadBasicCatalogs(repoRoot)
+	if err != nil {
+		t.Fatalf("loadBasicCatalogs: %v", err)
+	}
+	exec, err := newRestaurantExecutor(repoRoot, formatExpress, nil, catalogs, nil)
+	if err != nil {
+		t.Fatalf("newRestaurantExecutor: %v", err)
+	}
+	proc, err := exec.createProcessor(v10Profile, []string{v10Profile.BasicCatalogID})
+	if err != nil {
+		t.Fatalf("createProcessor: %v", err)
+	}
+
+	chunk1 := "<a2ui>\nsurface(\"broken\")\n"
+	chunk2 := "root = NonExistent(\"bad\")\n</a2ui>"
+	full1 := chunk1 + chunk2
+	validReply := "<a2ui>\nsurface(\"default\")\nroot = Text(\"Repaired\")\n</a2ui>"
+
+	llm := &scriptedADKModel{
+		turns: [][]*model.LLMResponse{
+			{
+				{Content: genai.NewContentFromText(chunk1, genai.RoleModel), Partial: true},
+				{Content: genai.NewContentFromText(chunk2, genai.RoleModel), Partial: true},
+				{Content: genai.NewContentFromText(full1, genai.RoleModel), Partial: false, TurnComplete: true},
+			},
+			{{Content: genai.NewContentFromText(validReply, genai.RoleModel), Partial: false, TurnComplete: true}},
+			{{Content: genai.NewContentFromText(validReply, genai.RoleModel), Partial: false, TurnComplete: true}},
+			{{Content: genai.NewContentFromText(validReply, genai.RoleModel), Partial: false, TurnComplete: true}},
+		},
+	}
+
+	backend, err := newADKBackendWithModel(llm, "http://localhost:10002", resolvePythonSampleDir(repoRoot), formatExpress, 2)
+	if err != nil {
+		t.Fatalf("newADKBackendWithModel: %v", err)
+	}
+
+	// Stop consuming after the first partial chunk; backend must still drain the ADK turn and remove the processor.
+	count := 0
+	for _, turnErr := range backend.StreamTurn(context.Background(), turnInput{
+		ContextID:    "ctx-1",
+		Query:        "first",
+		Profile:      v10Profile,
+		Processor:    proc,
+		UseStreaming: true,
+	}) {
+		if turnErr != nil {
+			t.Fatalf("StreamTurn: %v", turnErr)
+		}
+		count++
+		break
+	}
+	if count != 1 {
+		t.Fatalf("expected 1 consumed chunk, got %d", count)
+	}
+	if n := backend.processors.Len(); n != 0 {
+		t.Fatalf("expected ProcessorStore cleaned up after turn, got %d", n)
+	}
+
+	sessResp, err := backend.sessionService.Get(context.Background(), &session.GetRequest{
+		AppName:   adkAppName,
+		UserID:    adkUserID,
+		SessionID: "ctx-1:1.0",
+	})
+	if err != nil {
+		t.Fatalf("sessionService.Get(ctx-1:1.0): %v", err)
+	}
+	if gotEvents := sessResp.Session.Events().Len(); gotEvents < 2 {
+		t.Fatalf("expected balanced user+model events recorded after drained turn, got %d", gotEvents)
+	}
+
+	// Run 3 more distinct sessions (maxSessions=2) and verify ctx-1:1.0 is evicted from sessionService.
+	for _, cid := range []string{"ctx-2", "ctx-3", "ctx-4"} {
+		for _, turnErr := range backend.StreamTurn(context.Background(), turnInput{
+			ContextID:    cid,
+			Query:        "hi",
+			Profile:      v10Profile,
+			Processor:    proc,
+			UseStreaming: false,
+		}) {
+			if turnErr != nil {
+				t.Fatalf("StreamTurn(%s): %v", cid, turnErr)
+			}
+		}
+	}
+	if _, err := backend.sessionService.Get(context.Background(), &session.GetRequest{
+		AppName:   adkAppName,
+		UserID:    adkUserID,
+		SessionID: "ctx-1:1.0",
+	}); err == nil {
+		t.Fatalf("expected oldest session ctx-1:1.0 to be evicted from sessionService")
+	}
+	if _, err := backend.sessionService.Get(context.Background(), &session.GetRequest{
+		AppName:   adkAppName,
+		UserID:    adkUserID,
+		SessionID: "ctx-4:1.0",
+	}); err != nil {
+		t.Fatalf("expected recent session ctx-4:1.0 to remain in sessionService: %v", err)
 	}
 }

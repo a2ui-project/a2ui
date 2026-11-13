@@ -732,6 +732,7 @@ func (r *reader) readString(healable bool, stripNewlines bool) (string, error) {
 
 	if healable && r.partial() {
 		value := buf.String()
+		value = value[:blocklexer.CompleteUTF8PrefixLen(value)]
 		isURL := false
 		for _, pfx := range urlPrefixes {
 			if strings.HasPrefix(value, pfx) {

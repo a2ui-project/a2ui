@@ -14,7 +14,11 @@
 
 package core
 
-import "encoding/json"
+import (
+	"bytes"
+	"encoding/json"
+	"reflect"
+)
 
 // AgentToRendererMessage represents an outbound A2UI protocol message envelope
 // (createSurface, updateComponents, updateDataModel, deleteSurface,
@@ -50,11 +54,105 @@ type ActionPayload struct {
 	Metadata          map[string]any `json:"metadata,omitempty"`
 }
 
+// UnmarshalJSON decodes an ActionPayload while preserving int64 precision in Context and Metadata.
+func (p *ActionPayload) UnmarshalJSON(data []byte) error {
+	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
+		return nil
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*p = ActionPayload{}
+	if v, ok := raw["name"]; ok {
+		if err := json.Unmarshal(v, &p.Name); err != nil {
+			return err
+		}
+	}
+	if v, ok := raw["surfaceId"]; ok {
+		if err := json.Unmarshal(v, &p.SurfaceID); err != nil {
+			return err
+		}
+	}
+	if v, ok := raw["sourceComponentId"]; ok {
+		if err := json.Unmarshal(v, &p.SourceComponentID); err != nil {
+			return err
+		}
+	}
+	if v, ok := raw["timestamp"]; ok {
+		if err := json.Unmarshal(v, &p.Timestamp); err != nil {
+			return err
+		}
+	}
+	if v, ok := raw["userMessage"]; ok {
+		if err := json.Unmarshal(v, &p.UserMessage); err != nil {
+			return err
+		}
+	}
+	if v, ok := raw["context"]; ok && !bytes.Equal(bytes.TrimSpace(v), []byte("null")) {
+		parsed, err := ParseJSON(v)
+		if err != nil {
+			return err
+		}
+		m, isMap := parsed.(map[string]any)
+		if !isMap {
+			return NewParseError("invalid JSON: action.context must be an object")
+		}
+		p.Context = m
+	}
+	if v, ok := raw["metadata"]; ok && !bytes.Equal(bytes.TrimSpace(v), []byte("null")) {
+		parsed, err := ParseJSON(v)
+		if err != nil {
+			return err
+		}
+		m, isMap := parsed.(map[string]any)
+		if !isMap {
+			return NewParseError("invalid JSON: action.metadata must be an object")
+		}
+		p.Metadata = m
+	}
+	return nil
+}
+
 // CallFunctionPayload represents a function invocation descriptor.
 type CallFunctionPayload struct {
 	Call      string         `json:"@call"`
 	CatalogID string         `json:"catalogId,omitempty"`
 	Args      map[string]any `json:"args,omitempty"`
+}
+
+// UnmarshalJSON decodes a CallFunctionPayload while preserving int64 precision in Args.
+func (p *CallFunctionPayload) UnmarshalJSON(data []byte) error {
+	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
+		return nil
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*p = CallFunctionPayload{}
+	if v, ok := raw["@call"]; ok {
+		if err := json.Unmarshal(v, &p.Call); err != nil {
+			return err
+		}
+	}
+	if v, ok := raw["catalogId"]; ok {
+		if err := json.Unmarshal(v, &p.CatalogID); err != nil {
+			return err
+		}
+	}
+	if v, ok := raw["args"]; ok && !bytes.Equal(bytes.TrimSpace(v), []byte("null")) {
+		parsed, err := ParseJSON(v)
+		if err != nil {
+			return err
+		}
+		m, isMap := parsed.(map[string]any)
+		if !isMap {
+			return NewParseError("invalid JSON: callFunction.args must be an object")
+		}
+		p.Args = m
+	}
+	return nil
 }
 
 // CallAgentFunctionPayload represents a renderer-to-agent remote function call.
@@ -220,22 +318,65 @@ func (e RendererCapabilityEntry) MarshalJSON() ([]byte, error) {
 // RendererCapabilities maps canonical or wire version keys (such as "1.0" or "v0.9") to capability entries.
 type RendererCapabilities map[string]RendererCapabilityEntry
 
-// CloneJSONValue recursively copies JSON-compatible Go maps and slices.
+// CloneJSONValue recursively copies and normalizes JSON-compatible Go maps and slices.
 func CloneJSONValue(v any) any {
+	if v == nil {
+		return nil
+	}
 	switch val := v.(type) {
+	case string, bool, int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64, json.Number:
+		return val
 	case map[string]any:
+		if val == nil {
+			return nil
+		}
 		out := make(map[string]any, len(val))
 		for k, item := range val {
 			out[k] = CloneJSONValue(item)
 		}
 		return out
 	case []any:
+		if val == nil {
+			return nil
+		}
 		out := make([]any, len(val))
 		for i, item := range val {
 			out[i] = CloneJSONValue(item)
 		}
 		return out
-	default:
-		return v
+	case []byte:
+		if val == nil {
+			return nil
+		}
+		return append([]byte(nil), val...)
 	}
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
+	case reflect.Pointer:
+		if rv.IsNil() {
+			return nil
+		}
+	case reflect.Slice:
+		if rv.IsNil() {
+			return nil
+		}
+		out := make([]any, rv.Len())
+		for i := 0; i < rv.Len(); i++ {
+			out[i] = CloneJSONValue(rv.Index(i).Interface())
+		}
+		return out
+	case reflect.Map:
+		if rv.IsNil() {
+			return nil
+		}
+		if rv.Type().Key().Kind() == reflect.String {
+			out := make(map[string]any, rv.Len())
+			iter := rv.MapRange()
+			for iter.Next() {
+				out[iter.Key().String()] = CloneJSONValue(iter.Value().Interface())
+			}
+			return out
+		}
+	}
+	return v
 }

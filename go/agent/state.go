@@ -17,6 +17,7 @@ package agent
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"regexp"
 	"sort"
@@ -102,6 +103,7 @@ type baselineComponent struct {
 	compType   string
 	catalog    *core.Catalog
 	properties map[string]any
+	metadata   map[string]any
 }
 
 // RendererState mirrors the surfaces held by a client renderer across one turn (chat)
@@ -305,27 +307,30 @@ func (s *RendererState) DropProvisionalComponent(surfaceID, componentID string) 
 	cm := surface.ComponentsModel
 	if existing := cm.Get(componentID); existing != nil {
 		pos := indexOfKey(cm.Keys(), componentID)
+		savedType := existing.Type
+		savedCatalog := existing.Catalog
 		savedProps, _ := core.CloneJSONValue(existing.Properties).(map[string]any)
-		saved := &core.ComponentModel{
-			ID:         componentID,
-			Type:       existing.Type,
-			Catalog:    existing.Catalog,
-			Properties: savedProps,
-		}
+		savedMeta, _ := core.CloneJSONValue(existing.Metadata).(map[string]any)
 		cm.Remove(componentID)
 		if baseEntry != nil {
-			restoredProps, _ := core.CloneJSONValue(baseEntry.properties).(map[string]any)
-			cm.InsertAt(baseEntry.position, &core.ComponentModel{
-				ID:         componentID,
-				Type:       baseEntry.compType,
-				Catalog:    baseEntry.catalog,
-				Properties: restoredProps,
-			})
+			cm.InsertAt(baseEntry.position, restoreComponentModel(
+				componentID,
+				baseEntry.compType,
+				baseEntry.catalog,
+				baseEntry.properties,
+				baseEntry.metadata,
+			))
 		}
 		s.record(func() {
 			if surf := s.processor.Model.Surface(surfaceID); surf != nil {
 				surf.ComponentsModel.Remove(componentID)
-				surf.ComponentsModel.InsertAt(pos, saved)
+				surf.ComponentsModel.InsertAt(pos, restoreComponentModel(
+					componentID,
+					savedType,
+					savedCatalog,
+					savedProps,
+					savedMeta,
+				))
 			}
 		})
 	}
@@ -518,11 +523,13 @@ func (s *RendererState) noteBaseline(surfaceID string, compIDs map[string]bool) 
 				pos = math.MaxInt
 			}
 			copiedProps, _ := core.CloneJSONValue(existing.Properties).(map[string]any)
+			copiedMeta, _ := core.CloneJSONValue(existing.Metadata).(map[string]any)
 			baseMap[cid] = &baselineComponent{
 				position:   pos,
 				compType:   existing.Type,
 				catalog:    existing.Catalog,
 				properties: copiedProps,
+				metadata:   copiedMeta,
 			}
 		}
 	}
@@ -737,6 +744,7 @@ type savedComponentEntry struct {
 	id       string
 	existing *core.ComponentModel
 	copyProp map[string]any
+	copyMeta map[string]any
 }
 
 func (s *RendererState) componentsRestorer(body map[string]any) func() {
@@ -745,7 +753,7 @@ func (s *RendererState) componentsRestorer(body map[string]any) func() {
 	if !ok {
 		return nil
 	}
-	rawComps, ok := body["components"].([]any)
+	rawComps, ok := normalizedComponentSlice(body["components"])
 	if !ok {
 		return nil
 	}
@@ -770,8 +778,10 @@ func (s *RendererState) componentsRestorer(body map[string]any) func() {
 		seen[cid] = true
 		existing := cm.Get(cid)
 		var copiedProps map[string]any
+		var copiedMeta map[string]any
 		if existing != nil {
 			copiedProps, _ = core.CloneJSONValue(existing.Properties).(map[string]any)
+			copiedMeta, _ = core.CloneJSONValue(existing.Metadata).(map[string]any)
 			if s.replacesComponent(compMap, existing, surface) {
 				replaced[cid] = true
 			}
@@ -780,6 +790,7 @@ func (s *RendererState) componentsRestorer(body map[string]any) func() {
 			id:       cid,
 			existing: existing,
 			copyProp: copiedProps,
+			copyMeta: copiedMeta,
 		})
 	}
 	if len(previous) == 0 {
@@ -812,7 +823,7 @@ func (s *RendererState) componentsRestorer(body map[string]any) func() {
 			if entry.existing == nil {
 				curCM.Remove(entry.id)
 			} else if current != nil && current.Type == entry.existing.Type && current.Catalog == entry.existing.Catalog {
-				current.Properties = entry.copyProp
+				_ = current.ApplyUpdate(entry.copyProp, entry.copyMeta)
 			} else {
 				curCM.Remove(entry.id)
 				pos, hasPos := positions[entry.id]
@@ -821,12 +832,13 @@ func (s *RendererState) componentsRestorer(body map[string]any) func() {
 				}
 				restored = append(restored, posComp{
 					pos: pos,
-					comp: &core.ComponentModel{
-						ID:         entry.id,
-						Type:       entry.existing.Type,
-						Catalog:    entry.existing.Catalog,
-						Properties: entry.copyProp,
-					},
+					comp: restoreComponentModel(
+						entry.id,
+						entry.existing.Type,
+						entry.existing.Catalog,
+						entry.copyProp,
+						entry.copyMeta,
+					),
 				})
 			}
 		}
@@ -963,44 +975,90 @@ func buildSurfaceRestorer(surface *core.SurfaceModel) func() *core.SurfaceModel 
 	sid := surface.ID
 	cid := surface.CatalogID
 	cat := surface.Catalog
+	pVer := surface.ProtocolVersion
+	availCats := maps.Clone(surface.AvailableCatalogs)
 	rootID := surface.RootID
+	locale := surface.Locale
 	sendDM := surface.SendDataModel
+	maxCache := surface.MaxAgentCallCacheEntries
+	execFn := surface.AgentCallExecutor
+	callerFn := surface.AgentFunctionCaller
 	theme, _ := core.CloneJSONValue(surface.Theme).(map[string]any)
 	meta, _ := core.CloneJSONValue(surface.Metadata).(map[string]any)
 	dataVal, _, _ := surface.DataModel.Get("/")
 	savedData := core.CloneJSONValue(dataVal)
 
+	type savedCompSnapshot struct {
+		id       string
+		compType string
+		catalog  *core.Catalog
+		props    map[string]any
+		meta     map[string]any
+	}
 	keys := surface.ComponentsModel.Keys()
-	savedComps := make([]*core.ComponentModel, 0, len(keys))
+	savedComps := make([]savedCompSnapshot, 0, len(keys))
 	for _, k := range keys {
 		if comp := surface.ComponentsModel.Get(k); comp != nil {
 			props, _ := core.CloneJSONValue(comp.Properties).(map[string]any)
-			savedComps = append(savedComps, &core.ComponentModel{
-				ID:         comp.ID,
-				Type:       comp.Type,
-				Catalog:    comp.Catalog,
-				Properties: props,
+			compMeta, _ := core.CloneJSONValue(comp.Metadata).(map[string]any)
+			savedComps = append(savedComps, savedCompSnapshot{
+				id:       comp.ID,
+				compType: comp.Type,
+				catalog:  comp.Catalog,
+				props:    props,
+				meta:     compMeta,
 			})
 		}
 	}
 
 	return func() *core.SurfaceModel {
 		restored := core.NewSurfaceModel(sid, cid, cat)
+		restored.ProtocolVersion = pVer
+		if availCats != nil {
+			restored.AvailableCatalogs = maps.Clone(availCats)
+		}
 		restored.RootID = rootID
+		restored.Locale = locale
 		restored.SendDataModel = sendDM
+		restored.MaxAgentCallCacheEntries = maxCache
+		restored.AgentCallExecutor = execFn
+		restored.AgentFunctionCaller = callerFn
 		restored.Theme, _ = core.CloneJSONValue(theme).(map[string]any)
 		restored.Metadata, _ = core.CloneJSONValue(meta).(map[string]any)
 		_ = restored.DataModel.Set("/", core.CloneJSONValue(savedData))
 		for _, comp := range savedComps {
-			props, _ := core.CloneJSONValue(comp.Properties).(map[string]any)
-			restored.ComponentsModel.Upsert(&core.ComponentModel{
-				ID:         comp.ID,
-				Type:       comp.Type,
-				Catalog:    comp.Catalog,
-				Properties: props,
-			})
+			restored.ComponentsModel.Upsert(restoreComponentModel(
+				comp.id,
+				comp.compType,
+				comp.catalog,
+				comp.props,
+				comp.meta,
+			))
 		}
 		return restored
+	}
+}
+
+func restoreComponentModel(id, compType string, catalog *core.Catalog, props, meta map[string]any) *core.ComponentModel {
+	if comp, err := core.NewComponentModel(id, compType, catalog, props, meta); err == nil {
+		return comp
+	}
+	copiedProps := map[string]any{}
+	if props != nil {
+		if m, ok := core.CloneJSONValue(props).(map[string]any); ok {
+			copiedProps = m
+		}
+	}
+	var copiedMeta map[string]any
+	if meta != nil {
+		copiedMeta, _ = core.CloneJSONValue(meta).(map[string]any)
+	}
+	return &core.ComponentModel{
+		ID:         id,
+		Type:       compType,
+		Catalog:    catalog,
+		Properties: copiedProps,
+		Metadata:   copiedMeta,
 	}
 }
 
@@ -1151,7 +1209,7 @@ func (s *RendererState) checkMessage(msg core.AgentToRendererMessage, index int)
 
 	for _, action := range []string{"createSurface", "updateComponents", "surfaceUpdate"} {
 		if body, ok := msg[action].(map[string]any); ok {
-			if comps, isList := body["components"].([]any); isList && len(comps) == 0 {
+			if comps, isList := normalizedComponentSlice(body["components"]); isList && len(comps) == 0 {
 				return core.NewValidationErrorf("Message %d (%s) has an empty 'components' list.", index, action)
 			}
 		}
@@ -1229,11 +1287,21 @@ func collectSurfaceUpdates(surfaceID string, payload []core.AgentToRendererMessa
 	return updates
 }
 
+func normalizedComponentSlice(raw any) ([]any, bool) {
+	if comps, ok := raw.([]any); ok {
+		return comps, comps != nil
+	}
+	if comps, ok := core.CloneJSONValue(raw).([]any); ok {
+		return comps, true
+	}
+	return nil, false
+}
+
 func messageComponentLists(msg core.AgentToRendererMessage) [][]any {
 	var lists [][]any
 	for _, action := range []string{"createSurface", "updateComponents", "surfaceUpdate"} {
 		if body, ok := msg[action].(map[string]any); ok {
-			if comps, isList := body["components"].([]any); isList {
+			if comps, isList := normalizedComponentSlice(body["components"]); isList {
 				lists = append(lists, comps)
 			}
 		}

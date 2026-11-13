@@ -261,7 +261,7 @@ func ValidateCompositionConstraints(
 		if model == nil || model.Catalog == nil {
 			continue
 		}
-		api, ok := model.Catalog.Components()[model.Type]
+		api, ok := model.Catalog.components[model.Type]
 		if !ok {
 			continue
 		}
@@ -426,11 +426,13 @@ func (m *SurfaceComponentsModel) ValidateComponentsUpdate(
 	}
 
 	var bound *componentGraphBound
-	if m.boundAt == m.changes {
+	if m.bound != nil && m.boundAt == m.changes {
 		bound = m.bound
 	}
 	m.bound = nil
 	m.boundAt = -1
+	m.pendingBound = nil
+	m.pendingBoundAt = -1
 
 	deferred := cfg.AllowDanglingReferences && (cfg.AllowOrphanComponents || cfg.AllowMissingRoot)
 	if deferred && bound != nil {
@@ -462,8 +464,8 @@ func (m *SurfaceComponentsModel) ValidateComponentsUpdate(
 			return ok1 || ok2
 		}) {
 			bound.recordBatch(batch)
-			m.bound = bound
-			m.boundAt = m.changes + len(newComponents)
+			m.pendingBound = bound
+			m.pendingBoundAt = m.changes + len(newComponents)
 			return nil
 		}
 		prospective := m.All()
@@ -490,8 +492,8 @@ func (m *SurfaceComponentsModel) ValidateComponentsUpdate(
 		return attachSurfaceID(err, surfaceID)
 	}
 	if deferred {
-		m.bound = buildGraphBound(prospective)
-		m.boundAt = m.changes + len(newComponents)
+		m.pendingBound = buildGraphBound(prospective)
+		m.pendingBoundAt = m.changes + len(newComponents)
 	}
 	return nil
 }
@@ -524,7 +526,7 @@ func catalogDeclaresCompositionRules(cat *Catalog) bool {
 	if cat == nil {
 		return false
 	}
-	for _, api := range cat.Components() {
+	for _, api := range cat.components {
 		if len(api.AllowedParents) > 0 || len(api.AllowedChildren) > 0 {
 			return true
 		}
@@ -687,7 +689,7 @@ func componentAPIOf(model *ComponentModel) (ComponentAPI, bool) {
 	if model == nil || model.Catalog == nil {
 		return ComponentAPI{}, false
 	}
-	api, ok := model.Catalog.Components()[model.Type]
+	api, ok := model.Catalog.components[model.Type]
 	return api, ok
 }
 

@@ -16,6 +16,8 @@ package adk
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -108,10 +110,22 @@ func RemoveSurfaceOwner(ctx context.Context, svc session.Service, sess session.S
 }
 
 func appendStateDelta(ctx context.Context, svc session.Service, sess session.Session, delta map[string]any) error {
-	ev := session.NewEvent(ctx, "")
+	invID, err := randomHex()
+	if err != nil {
+		return err
+	}
+	ev := session.NewEvent(ctx, "e-"+invID)
 	ev.Author = "system"
 	ev.Actions = session.EventActions{StateDelta: delta}
 	return svc.AppendEvent(ctx, sess, ev)
+}
+
+func randomHex() (string, error) {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", fmt.Errorf("generate invocation ID: %w", err)
+	}
+	return hex.EncodeToString(b[:]), nil
 }
 
 // UpdateSurfaceOwnership updates surface ownership in sess from an outbound A2UI part

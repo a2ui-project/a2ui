@@ -33,14 +33,14 @@ func (AccessibilityAttributes) BuilderVersionFamily() builder.VersionFamily {
 // SerializeBuilderValue converts non-empty accessibility attributes to a wire map.
 func (a AccessibilityAttributes) SerializeBuilderValue(ctx *builder.FlattenContext) (any, error) {
 	out := make(map[string]any)
-	if a.Label != nil {
+	if !builder.IsNilValue(a.Label) {
 		v, err := a.Label.SerializeBuilderValue(ctx)
 		if err != nil {
 			return nil, err
 		}
 		out["label"] = v
 	}
-	if a.Description != nil {
+	if !builder.IsNilValue(a.Description) {
 		v, err := a.Description.SerializeBuilderValue(ctx)
 		if err != nil {
 			return nil, err
@@ -66,7 +66,7 @@ func (CheckRule) BuilderVersionFamily() builder.VersionFamily { return builder.V
 
 // SerializeBuilderValue converts CheckRule into {"condition": ..., "message": ...}.
 func (r CheckRule) SerializeBuilderValue(ctx *builder.FlattenContext) (any, error) {
-	if r.Condition == nil {
+	if builder.IsNilValue(r.Condition) {
 		return nil, core.NewValidationError("CheckRule condition must not be nil")
 	}
 	if r.Message == "" {
@@ -102,7 +102,7 @@ func (e ActionEvent) SerializeBuilderValue(ctx *builder.FlattenContext) (any, er
 	if len(e.Context) > 0 {
 		ctxMap := make(map[string]any, len(e.Context))
 		for k, v := range e.Context {
-			if v == nil {
+			if builder.IsNilValue(v) {
 				continue
 			}
 			ser, err := v.SerializeBuilderValue(ctx)
@@ -111,7 +111,9 @@ func (e ActionEvent) SerializeBuilderValue(ctx *builder.FlattenContext) (any, er
 			}
 			ctxMap[k] = ser
 		}
-		out["context"] = ctxMap
+		if len(ctxMap) > 0 {
+			out["context"] = ctxMap
+		}
 	}
 	return out, nil
 }
@@ -172,16 +174,16 @@ type ComponentNode struct {
 }
 
 // ComponentType returns Component (custom structs typically override ComponentType with a constant).
-func (n *ComponentNode) ComponentType() string { return n.Component }
+func (n ComponentNode) ComponentType() string { return n.Component }
 
 // ComponentID returns the explicit author-assigned component ID, if any.
-func (n *ComponentNode) ComponentID() string { return n.ID }
+func (n ComponentNode) ComponentID() string { return n.ID }
 
 // BuilderVersionFamily returns VersionFamily0_9.
-func (n *ComponentNode) BuilderVersionFamily() builder.VersionFamily { return builder.VersionFamily0_9 }
+func (n ComponentNode) BuilderVersionFamily() builder.VersionFamily { return builder.VersionFamily0_9 }
 
 // SerializeEnvelopeAttributes writes accessibility into dst when present.
-func (n *ComponentNode) SerializeEnvelopeAttributes(ctx *builder.FlattenContext, dst map[string]any, _ string) error {
+func (n ComponentNode) SerializeEnvelopeAttributes(ctx *builder.FlattenContext, dst map[string]any, _ string) error {
 	if n.Accessibility != nil {
 		a11y, err := n.Accessibility.SerializeBuilderValue(ctx)
 		if err != nil {
@@ -189,5 +191,16 @@ func (n *ComponentNode) SerializeEnvelopeAttributes(ctx *builder.FlattenContext,
 		}
 		dst["accessibility"] = a11y
 	}
+	return nil
+}
+
+func setWeight(out map[string]any, field string, w *float64) error {
+	if w == nil {
+		return nil
+	}
+	if err := builder.ValidateFiniteFloat(field, *w); err != nil {
+		return err
+	}
+	out["weight"] = *w
 	return nil
 }

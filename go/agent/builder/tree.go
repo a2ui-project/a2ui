@@ -14,7 +14,11 @@
 
 package builder
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/a2ui-project/a2ui/go/core"
+)
 
 // ComponentTree pairs a root builder Node with an optional target SurfaceID.
 type ComponentTree struct {
@@ -33,8 +37,11 @@ func NewComponentTree(root Node, surfaceID string) *ComponentTree {
 // Flatten serializes the primary tree into flat post-order component maps,
 // defaulting the root ID to Root.ComponentID() or "root".
 func (t *ComponentTree) Flatten() ([]map[string]any, error) {
+	if t == nil {
+		return nil, core.NewValidationError("ComponentTree must not be nil")
+	}
 	rootID := ""
-	if t.Root != nil {
+	if !isNilNode(t.Root) {
 		rootID = t.Root.ComponentID()
 	}
 	if rootID == "" {

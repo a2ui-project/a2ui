@@ -15,12 +15,15 @@
 package main
 
 import (
+	"container/list"
 	"context"
 	"fmt"
 	"iter"
+	"sync"
 
 	adkagent "google.golang.org/adk/v2/agent"
 	"google.golang.org/adk/v2/agent/llmagent"
+	"google.golang.org/adk/v2/model"
 	"google.golang.org/adk/v2/model/gemini"
 	"google.golang.org/adk/v2/runner"
 	"google.golang.org/adk/v2/session"
@@ -109,11 +112,29 @@ func (b *stubBackend) StreamTurn(_ context.Context, input turnInput) iter.Seq2[s
 	}
 }
 
+const (
+	adkAppName         = "restaurant_finder"
+	adkUserID          = "remote_agent"
+	defaultMaxSessions = 1000
+)
+
+type sessionEntry struct {
+	key  string
+	mu   sync.Mutex
+	refs int
+}
+
 // adkBackend executes turns through Google ADK-Go (llmagent + gemini + runner + go/adk).
 type adkBackend struct {
-	runner     *runner.Runner
-	processors *adk.ProcessorStore
-	baseURL    string
+	runner         *runner.Runner
+	sessionService session.Service
+	processors     *adk.ProcessorStore
+	baseURL        string
+	maxSessions    int
+
+	mu       sync.Mutex
+	lru      *list.List
+	sessions map[string]*list.Element
 }
 
 // adkBackendOptions configures NewADKBackend.
@@ -145,13 +166,25 @@ func newADKBackend(ctx context.Context, opts adkBackendOptions) (*adkBackend, er
 		return nil, fmt.Errorf("initialize Gemini model %q: %w", opts.Config.ModelName, err)
 	}
 
-	restaurantsTool, err := newGetRestaurantsTool(opts.BaseURL, opts.PythonSampleDir)
+	return newADKBackendWithModel(llm, opts.BaseURL, opts.PythonSampleDir, opts.Config.Format, defaultMaxSessions)
+}
+
+func newADKBackendWithModel(
+	llm model.LLM,
+	baseURL, pythonSampleDir string,
+	format a2uiFormat,
+	maxSessions int,
+) (*adkBackend, error) {
+	if maxSessions <= 0 {
+		maxSessions = defaultMaxSessions
+	}
+	restaurantsTool, err := newGetRestaurantsTool(baseURL, pythonSampleDir)
 	if err != nil {
 		return nil, fmt.Errorf("create get_restaurants tool: %w", err)
 	}
 
 	processors := adk.NewProcessorStore()
-	baseInst := buildBaseInstruction(opts.Config.Format)
+	baseInst := buildBaseInstruction(format)
 
 	llmAgent, err := llmagent.New(llmagent.Config{
 		Name:        "restaurant_agent",
@@ -171,10 +204,11 @@ func newADKBackend(ctx context.Context, opts adkBackendOptions) (*adkBackend, er
 		return nil, fmt.Errorf("create ADK LLMAgent: %w", err)
 	}
 
+	sessSvc := session.InMemoryService()
 	r, err := runner.New(runner.Config{
-		AppName:           "restaurant_finder",
+		AppName:           adkAppName,
 		Agent:             llmAgent,
-		SessionService:    session.InMemoryService(),
+		SessionService:    sessSvc,
 		AutoCreateSession: true,
 	})
 	if err != nil {
@@ -182,18 +216,97 @@ func newADKBackend(ctx context.Context, opts adkBackendOptions) (*adkBackend, er
 	}
 
 	return &adkBackend{
-		runner:     r,
-		processors: processors,
-		baseURL:    opts.BaseURL,
+		runner:         r,
+		sessionService: sessSvc,
+		processors:     processors,
+		baseURL:        baseURL,
+		maxSessions:    maxSessions,
+		lru:            list.New(),
+		sessions:       make(map[string]*list.Element),
 	}, nil
 }
 
+func (b *adkBackend) acquireSession(ctx context.Context, sessionKey string, proc *agent.RequestProcessor) (func(), error) {
+	b.mu.Lock()
+	var entry *sessionEntry
+	if elem, ok := b.sessions[sessionKey]; ok {
+		entry = elem.Value.(*sessionEntry)
+		entry.refs++
+		b.lru.MoveToFront(elem)
+	} else {
+		entry = &sessionEntry{key: sessionKey, refs: 1}
+		b.sessions[sessionKey] = b.lru.PushFront(entry)
+	}
+	evicted := b.collectEvictionsLocked()
+	b.mu.Unlock()
+
+	b.deleteSessions(ctx, evicted)
+
+	entry.mu.Lock()
+	if err := ctx.Err(); err != nil {
+		entry.mu.Unlock()
+		b.mu.Lock()
+		entry.refs--
+		moreEvicted := b.collectEvictionsLocked()
+		b.mu.Unlock()
+		b.deleteSessions(ctx, moreEvicted)
+		return nil, err
+	}
+	b.processors.Set(sessionKey, proc)
+
+	return func() {
+		b.processors.Remove(sessionKey)
+		entry.mu.Unlock()
+		b.mu.Lock()
+		entry.refs--
+		moreEvicted := b.collectEvictionsLocked()
+		b.mu.Unlock()
+		b.deleteSessions(ctx, moreEvicted)
+	}, nil
+}
+
+func (b *adkBackend) collectEvictionsLocked() []string {
+	var evicted []string
+	for elem := b.lru.Back(); elem != nil && b.lru.Len() > b.maxSessions; {
+		prev := elem.Prev()
+		entry := elem.Value.(*sessionEntry)
+		if entry.refs == 0 {
+			b.lru.Remove(elem)
+			delete(b.sessions, entry.key)
+			evicted = append(evicted, entry.key)
+		}
+		elem = prev
+	}
+	return evicted
+}
+
+func (b *adkBackend) deleteSessions(ctx context.Context, keys []string) {
+	if len(keys) == 0 {
+		return
+	}
+	bgCtx := context.WithoutCancel(ctx)
+	for _, key := range keys {
+		b.processors.Remove(key)
+		_ = b.sessionService.Delete(bgCtx, &session.DeleteRequest{
+			AppName:   adkAppName,
+			UserID:    adkUserID,
+			SessionID: key,
+		})
+	}
+}
+
 // StreamTurn runs one ADK session turn, streaming incremental SSE text chunks without duplicating
-// ADK's final aggregated event text.
+// ADK's final aggregated event text. If the caller stops consuming early (for example, mid-stream
+// A2UI validation failure), the underlying ADK turn is still drained so session history stays balanced.
 func (b *adkBackend) StreamTurn(ctx context.Context, input turnInput) iter.Seq2[string, error] {
 	return func(yield func(string, error) bool) {
 		sessionKey := fmt.Sprintf("%s:%s", input.ContextID, input.Profile.Version)
-		b.processors.Set(sessionKey, input.Processor)
+		release, err := b.acquireSession(ctx, sessionKey, input.Processor)
+		if err != nil {
+			yield("", err)
+			return
+		}
+		defer release()
 
 		mode := adkagent.StreamingModeSSE
 		if !input.UseStreaming {
@@ -202,17 +315,26 @@ func (b *adkBackend) StreamTurn(ctx context.Context, input turnInput) iter.Seq2[
 		userMsg := genai.NewContentFromText(input.Query, genai.RoleUser)
 
 		sawPartialInStep := false
+		stopped := false
 		for ev, err := range b.runner.Run(
 			ctx,
-			"remote_agent",
+			adkUserID,
 			sessionKey,
 			userMsg,
 			adkagent.RunConfig{StreamingMode: mode},
 			runner.WithStateDelta(map[string]any{"base_url": b.baseURL}),
 		) {
 			if err != nil {
-				yield("", err)
+				if !stopped {
+					yield("", err)
+				}
 				return
+			}
+			if stopped {
+				if ctx.Err() != nil {
+					return
+				}
+				continue
 			}
 			if ev == nil || ev.Content == nil {
 				continue
@@ -234,7 +356,8 @@ func (b *adkBackend) StreamTurn(ctx context.Context, input turnInput) iter.Seq2[
 					if p != nil && p.Text != "" && !p.Thought {
 						sawPartialInStep = true
 						if !yield(p.Text, nil) {
-							return
+							stopped = true
+							break
 						}
 					}
 				}
@@ -245,7 +368,8 @@ func (b *adkBackend) StreamTurn(ctx context.Context, input turnInput) iter.Seq2[
 				for _, p := range ev.Content.Parts {
 					if p != nil && p.Text != "" && !p.Thought {
 						if !yield(p.Text, nil) {
-							return
+							stopped = true
+							break
 						}
 					}
 				}

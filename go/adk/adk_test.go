@@ -16,13 +16,21 @@ package adk_test
 
 import (
 	"context"
+	"encoding/base64"
+	"errors"
 	"fmt"
+	"io/fs"
+	"iter"
+	"log/slog"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/a2aproject/a2a-go/a2a"
+	adkagent "google.golang.org/adk/v2/agent"
+	"google.golang.org/adk/v2/artifact"
 	"google.golang.org/adk/v2/model"
 	"google.golang.org/adk/v2/session"
 	"google.golang.org/genai"
@@ -544,5 +552,435 @@ func TestDecodeGenAIPartA2UIMessagesArrayPayloads(t *testing.T) {
 	}
 	if got := adk.DecodeGenAIPartA2UIMessages(nonA2UIArrayPart); got != nil {
 		t.Fatalf("expected nil for non-A2UI JSON array, got %#v", got)
+	}
+}
+
+func TestPartConverterNonA2UIDataPartsMetadataAndFileParts(t *testing.T) {
+	conv := adk.NewPartConverter(nil, nil)
+
+	// 1. FilePart (FileBytes and FileURI) round-trips through EncodeA2APartToGenAI + PartConverter.
+	rawBytes := []byte("menu-pdf-bytes")
+	fbPart := a2a.FilePart{
+		File: a2a.FileBytes{
+			Bytes: base64.StdEncoding.EncodeToString(rawBytes),
+			FileMeta: a2a.FileMeta{
+				MimeType: "application/pdf",
+				Name:     "menu.pdf",
+			},
+		},
+	}
+	gpBytes, err := adk.EncodeA2APartToGenAI(fbPart)
+	if err != nil || gpBytes == nil || gpBytes.InlineData == nil {
+		t.Fatalf("EncodeA2APartToGenAI(FileBytes) = (%#v, %v)", gpBytes, err)
+	}
+	if !reflect.DeepEqual(gpBytes.InlineData.Data, rawBytes) || gpBytes.InlineData.MIMEType != "application/pdf" || gpBytes.InlineData.DisplayName != "menu.pdf" {
+		t.Fatalf("unexpected InlineData: %#v", gpBytes.InlineData)
+	}
+	roundBytes, err := conv.Convert(gpBytes)
+	if err != nil || len(roundBytes) != 1 {
+		t.Fatalf("Convert(InlineData) = (%#v, %v)", roundBytes, err)
+	}
+	if !reflect.DeepEqual(roundBytes[0], fbPart) {
+		t.Fatalf("FileBytes round-trip mismatch: got %#v, want %#v", roundBytes[0], fbPart)
+	}
+
+	fuPart := a2a.FilePart{
+		File: a2a.FileURI{
+			URI: "gs://bucket/photo.jpg",
+			FileMeta: a2a.FileMeta{
+				MimeType: "image/jpeg",
+				Name:     "photo.jpg",
+			},
+		},
+	}
+	gpURI, err := adk.EncodeA2APartToGenAI(&fuPart)
+	if err != nil || gpURI == nil || gpURI.FileData == nil {
+		t.Fatalf("EncodeA2APartToGenAI(FileURI) = (%#v, %v)", gpURI, err)
+	}
+	roundURI, err := conv.Convert(gpURI)
+	if err != nil || len(roundURI) != 1 || !reflect.DeepEqual(roundURI[0], fuPart) {
+		t.Fatalf("FileURI round-trip mismatch: got %#v, err=%v", roundURI, err)
+	}
+
+	// 2. ADK typed DataParts (function_call, function_response, executable_code, code_execution_result).
+	adkTypedCases := []a2a.DataPart{
+		{
+			Data:     map[string]any{"name": "lookup", "args": map[string]any{"q": "sushi"}},
+			Metadata: map[string]any{"adk_type": "function_call"},
+		},
+		{
+			Data:     map[string]any{"name": "lookup", "response": map[string]any{"ok": true}},
+			Metadata: map[string]any{"adk_type": "function_response"},
+		},
+		{
+			Data:     map[string]any{"code": "print(1)", "language": "PYTHON"},
+			Metadata: map[string]any{"adk_type": "executable_code"},
+		},
+		{
+			Data:     map[string]any{"outcome": "OUTCOME_OK", "output": "1\n"},
+			Metadata: map[string]any{"adk_type": "code_execution_result"},
+		},
+	}
+	for _, dp := range adkTypedCases {
+		gp, encErr := adk.EncodeA2APartToGenAI(dp)
+		if encErr != nil || gp == nil {
+			t.Fatalf("EncodeA2APartToGenAI(%v) = (%#v, %v)", dp.Metadata["adk_type"], gp, encErr)
+		}
+		back, decErr := conv.Convert(gp)
+		if decErr != nil || len(back) != 1 {
+			t.Fatalf("Convert(%v) = (%#v, %v)", dp.Metadata["adk_type"], back, decErr)
+		}
+		gotDP, ok := back[0].(a2a.DataPart)
+		if !ok || gotDP.Metadata["adk_type"] != dp.Metadata["adk_type"] {
+			t.Fatalf("round-trip adk_type mismatch: got %#v, want %#v", back[0], dp)
+		}
+	}
+
+	// 3. Non-A2UI DataPart with custom Metadata survives round-trip without A2UI misclassification.
+	customMetaPart := a2a.DataPart{
+		Data:     map[string]any{"action": map[string]any{"name": "custom"}},
+		Metadata: map[string]any{"mimeType": "application/vnd.custom+json", "traceId": "t-42"},
+	}
+	gpCustom, err := adk.EncodeA2APartToGenAI(customMetaPart)
+	if err != nil {
+		t.Fatalf("EncodeA2APartToGenAI(customMetaPart): %v", err)
+	}
+	if msgs := adk.DecodeGenAIPartA2UIMessages(gpCustom); msgs != nil {
+		t.Fatalf("expected nil A2UI messages for custom mimeType DataPart, got %#v", msgs)
+	}
+	roundCustom, err := conv.Convert(gpCustom)
+	if err != nil || len(roundCustom) != 1 {
+		t.Fatalf("Convert(gpCustom) = (%#v, %v)", roundCustom, err)
+	}
+	if a2aext.IsA2UIPart(roundCustom[0]) {
+		t.Fatalf("custom mimeType DataPart was misclassified as A2UI: %#v", roundCustom[0])
+	}
+	if !reflect.DeepEqual(roundCustom[0], customMetaPart) {
+		t.Fatalf("customMetaPart round-trip = %#v, want %#v", roundCustom[0], customMetaPart)
+	}
+
+	// 4. Unwrapped user payload containing "data", "metadata", and extra keys ("id") is not unwrapped.
+	userPayload := a2a.DataPart{
+		Data: map[string]any{
+			"id":       "123",
+			"data":     map[string]any{"nested": "value"},
+			"metadata": map[string]any{"mimeType": a2aext.A2UIMIMEType},
+		},
+	}
+	gpUser, err := adk.EncodeA2APartToGenAI(userPayload)
+	if err != nil {
+		t.Fatalf("EncodeA2APartToGenAI(userPayload): %v", err)
+	}
+	if msgs := adk.DecodeGenAIPartA2UIMessages(gpUser); msgs != nil {
+		t.Fatalf("expected unwrapped user payload with extra 'id' key not to be treated as wrapped A2UI: %#v", msgs)
+	}
+	roundUser, err := conv.Convert(gpUser)
+	if err != nil || len(roundUser) != 1 {
+		t.Fatalf("Convert(gpUser) = (%#v, %v)", roundUser, err)
+	}
+	gotUser, ok := roundUser[0].(a2a.DataPart)
+	if !ok || gotUser.Data["id"] != "123" || a2aext.IsA2UIPart(gotUser) {
+		t.Fatalf("user payload was corrupted on round-trip: %#v", roundUser[0])
+	}
+
+	// 5. Arbitrary application DataParts with overlapping field names are not misclassified as A2UI.
+	nonA2UIPayloads := []map[string]any{
+		{"action": "login", "user": "alice"},
+		{"error": "not found", "code": float64(404)},
+		{"callAgentFunction": "ping"},
+		{"action": map[string]any{"name": "login"}}, // v0.9+ "action" without "version"
+		{"version": "99.0", "deleteSurface": map[string]any{"surfaceId": "s1"}},
+	}
+	for _, payload := range nonA2UIPayloads {
+		gp, encErr := adk.EncodeA2APartToGenAI(a2a.DataPart{Data: payload})
+		if encErr != nil {
+			t.Fatalf("EncodeA2APartToGenAI(%v): %v", payload, encErr)
+		}
+		if msgs := adk.DecodeGenAIPartA2UIMessages(gp); msgs != nil {
+			t.Fatalf("expected nil A2UI messages for %#v, got %#v", payload, msgs)
+		}
+		converted, convErr := conv.Convert(gp)
+		if convErr != nil || len(converted) != 1 {
+			t.Fatalf("Convert(%#v) = (%#v, %v)", payload, converted, convErr)
+		}
+		if a2aext.IsA2UIPart(converted[0]) {
+			t.Fatalf("application DataPart %#v misclassified as A2UI: %#v", payload, converted[0])
+		}
+	}
+}
+
+func TestEventConverterPartialErrorThoughtOrderingAndEmptyFinalFlush(t *testing.T) {
+	cat := core.MustBasicCatalog(core.Version1_0)
+	proc, err := agent.NewRequestProcessor([]*core.Catalog{cat}, nil)
+	if err != nil {
+		t.Fatalf("NewRequestProcessor: %v", err)
+	}
+	converter := adk.NewEventConverter(adk.EventConverterConfig{
+		ProcessorProvider: func(context.Context, string) (*agent.RequestProcessor, error) {
+			return proc, nil
+		},
+	})
+
+	// 1. Partial error event closes stream immediately.
+	partialChunk := &session.Event{
+		InvocationID: "inv-err",
+		Author:       "assistant",
+		LLMResponse: model.LLMResponse{
+			Partial: true,
+			Content: genai.NewContentFromText("<a2ui>\nsurface(\"main\")\n", genai.RoleModel),
+		},
+	}
+	if _, err := converter.ConvertEvent(context.Background(), "s1", partialChunk, "t1", "s1"); err != nil {
+		t.Fatalf("ConvertEvent(partialChunk): %v", err)
+	}
+	if got := converter.ActiveStreamCount(); got != 1 {
+		t.Fatalf("ActiveStreamCount = %d, want 1", got)
+	}
+	partialErr := &session.Event{
+		InvocationID: "inv-err",
+		Author:       "assistant",
+		LLMResponse: model.LLMResponse{
+			Partial:      true,
+			ErrorCode:    "STREAM_INTERRUPTED",
+			ErrorMessage: "Model stream broke",
+		},
+	}
+	errEvts, err := converter.ConvertEvent(context.Background(), "s1", partialErr, "t1", "s1")
+	if err != nil || len(errEvts) != 1 {
+		t.Fatalf("ConvertEvent(partialErr) = (%#v, %v)", errEvts, err)
+	}
+	if got := converter.ActiveStreamCount(); got != 0 {
+		t.Fatalf("ActiveStreamCount after partial error = %d, want 0", got)
+	}
+
+	// 2. Final event with leading Thought part preserves [thought, trailing answer] order.
+	p1 := &session.Event{
+		InvocationID: "inv-thought",
+		Author:       "assistant",
+		LLMResponse: model.LLMResponse{
+			Partial: true,
+			Content: genai.NewContentFromText("Answer tail", genai.RoleModel),
+		},
+	}
+	if _, err := converter.ConvertEvent(context.Background(), "s1", p1, "t2", "s1"); err != nil {
+		t.Fatalf("ConvertEvent(p1): %v", err)
+	}
+	finalWithThought := &session.Event{
+		InvocationID: "inv-thought",
+		Author:       "assistant",
+		LLMResponse: model.LLMResponse{
+			Partial: false,
+			Content: &genai.Content{
+				Role: genai.RoleModel,
+				Parts: []*genai.Part{
+					{Text: "Model reasoning", Thought: true},
+					{Text: "Answer tail", Thought: false},
+				},
+			},
+		},
+	}
+	thoughtEvts, err := converter.ConvertEvent(context.Background(), "s1", finalWithThought, "t2", "s1")
+	if err != nil || len(thoughtEvts) != 1 {
+		t.Fatalf("ConvertEvent(finalWithThought) = (%#v, %v)", thoughtEvts, err)
+	}
+	su := thoughtEvts[0].(*a2a.TaskStatusUpdateEvent)
+	if len(su.Status.Message.Parts) < 1 {
+		t.Fatalf("expected parts on final event, got %#v", su.Status.Message)
+	}
+	firstTP, ok := su.Status.Message.Parts[0].(a2a.TextPart)
+	if !ok || firstTP.Text != "Model reasoning" || firstTP.Metadata["adk_thought"] != true {
+		t.Fatalf("expected Thought part first, got %#v", su.Status.Message.Parts)
+	}
+
+	// 3. Final TurnComplete event with nil Content flushes buffered trailing stream parts instead of dropping them.
+	// Hold trailing text inside an incomplete opening tag prefix ("<a2") that flushes as text on Close().
+	bufferedPartial := &session.Event{
+		InvocationID: "inv-empty-final",
+		Author:       "assistant",
+		LLMResponse: model.LLMResponse{
+			Partial: true,
+			Content: genai.NewContentFromText("<a2", genai.RoleModel),
+		},
+	}
+	preEvts, err := converter.ConvertEvent(context.Background(), "s1", bufferedPartial, "t3", "s1")
+	if err != nil || len(preEvts) != 0 {
+		t.Fatalf("expected buffered partial to hold '<a2' until close, got (%#v, %v)", preEvts, err)
+	}
+	emptyFinal := &session.Event{
+		InvocationID: "inv-empty-final",
+		Author:       "assistant",
+		LLMResponse: model.LLMResponse{
+			Partial:      false,
+			TurnComplete: true,
+			Content:      nil,
+		},
+	}
+	flushedEvts, err := converter.ConvertEvent(context.Background(), "s1", emptyFinal, "t3", "s1")
+	if err != nil || len(flushedEvts) != 1 {
+		t.Fatalf("expected flushed trailing part on nil-Content final event, got (%#v, %v)", flushedEvts, err)
+	}
+	flushedSU := flushedEvts[0].(*a2a.TaskStatusUpdateEvent)
+	if tp, ok := flushedSU.Status.Message.Parts[0].(a2a.TextPart); !ok || tp.Text != "<a2" {
+		t.Fatalf("unexpected flushed part: %#v", flushedSU.Status.Message.Parts)
+	}
+}
+
+type failingReadonlyState struct {
+	err error
+}
+
+func (s failingReadonlyState) Get(string) (any, error)     { return nil, s.err }
+func (s failingReadonlyState) All() iter.Seq2[string, any] { return func(func(string, any) bool) {} }
+
+type failingArtifacts struct {
+	err error
+}
+
+func (a failingArtifacts) Save(context.Context, string, *genai.Part) (*artifact.SaveResponse, error) {
+	return nil, a.err
+}
+func (a failingArtifacts) List(context.Context) (*artifact.ListResponse, error) {
+	return nil, a.err
+}
+func (a failingArtifacts) Load(context.Context, string) (*artifact.LoadResponse, error) {
+	return nil, a.err
+}
+func (a failingArtifacts) LoadVersion(context.Context, string, int) (*artifact.LoadResponse, error) {
+	return nil, a.err
+}
+
+type customInstructionContext struct {
+	*fakeToolContext
+	roState   session.ReadonlyState
+	artifacts adkagent.Artifacts
+}
+
+func (c *customInstructionContext) ReadonlyState() session.ReadonlyState { return c.roState }
+func (c *customInstructionContext) Artifacts() adkagent.Artifacts        { return c.artifacts }
+
+func TestInstructionProviderEscapedPlaceholdersAndStorageErrors(t *testing.T) {
+	ctx := newFakeToolContext("s-esc", map[string]any{"city": "Tokyo"})
+	provider := adk.InstructionProvider(adk.InstructionConfig{
+		Instruction: "Search {city}, keep ${total} and \\{escaped}, omit {missing_opt?}.",
+		Disabled:    true,
+	})
+	got, err := provider(ctx)
+	if err != nil {
+		t.Fatalf("InstructionProvider: %v", err)
+	}
+	want := "Search Tokyo, keep ${total} and \\{escaped}, omit ."
+	if got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+
+	// Missing artifact with fs.ErrNotExist is suppressed when optional (?).
+	notFoundArtifactCtx := &customInstructionContext{
+		fakeToolContext: ctx,
+		roState:         ctx.ReadonlyState(),
+		artifacts:       failingArtifacts{err: fmt.Errorf("wrap: %w", fs.ErrNotExist)},
+	}
+	optArtProvider := adk.InstructionProvider(adk.InstructionConfig{
+		Instruction: "Doc: {artifact.guide?}",
+		Disabled:    true,
+	})
+	if out, err := optArtProvider(notFoundArtifactCtx); err != nil || out != "Doc: " {
+		t.Fatalf("expected empty optional missing artifact, got (%q, %v)", out, err)
+	}
+
+	// Genuine storage errors on optional state and artifact lookups propagate.
+	storageErr := errors.New("backend unavailable")
+	brokenStateCtx := &customInstructionContext{
+		fakeToolContext: ctx,
+		roState:         failingReadonlyState{err: storageErr},
+	}
+	optStateProvider := adk.InstructionProvider(adk.InstructionConfig{
+		Instruction: "City: {city?}",
+		Disabled:    true,
+	})
+	if _, err := optStateProvider(brokenStateCtx); !errors.Is(err, storageErr) {
+		t.Fatalf("expected state storage error %v, got %v", storageErr, err)
+	}
+
+	brokenArtCtx := &customInstructionContext{
+		fakeToolContext: ctx,
+		roState:         ctx.ReadonlyState(),
+		artifacts:       failingArtifacts{err: storageErr},
+	}
+	if _, err := optArtProvider(brokenArtCtx); !errors.Is(err, storageErr) {
+		t.Fatalf("expected artifact storage error %v, got %v", storageErr, err)
+	}
+}
+
+func TestSubagentInvocationIDRPCCallbackErrorsAndMultiCatalogToolsetDedup(t *testing.T) {
+	// 1. Subagent state-delta events carry a non-empty "e-..." InvocationID.
+	svc := &fakeSessionService{}
+	sess := &fakeSession{id: "sess-inv", state: newFakeState(nil)}
+	if err := adk.SetSurfaceOwner(context.Background(), svc, sess, "surf-1", "sub-a"); err != nil {
+		t.Fatalf("SetSurfaceOwner: %v", err)
+	}
+	if len(svc.appended) != 1 || !strings.HasPrefix(svc.appended[0].InvocationID, "e-") || len(svc.appended[0].InvocationID) <= 2 {
+		t.Fatalf("expected non-empty 'e-...' InvocationID, got %#v", svc.appended)
+	}
+
+	// 2. processNonCallRPCMessage propagates non-ValidationError errors instead of swallowing them.
+	callbackBoom := errors.New("dispatcher backend failure")
+	msgProc, err := agent.NewRendererToAgentMessageProcessor(nil, &agent.RendererToAgentOptions{
+		OnAction: func(context.Context, *core.RendererToAgentMessage) (bool, error) {
+			return false, callbackBoom
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewRendererToAgentMessageProcessor: %v", err)
+	}
+	validAction := map[string]any{
+		"version": "1.0",
+		"action": map[string]any{
+			"name":              "click",
+			"surfaceId":         "s1",
+			"sourceComponentId": "b1",
+			"timestamp":         "2026-01-01T00:00:00Z",
+			"context":           map[string]any{},
+		},
+	}
+	if _, err := adk.ProcessNonCallRPCMessage(context.Background(), msgProc, nil, validAction, slog.Default()); !errors.Is(err, callbackBoom) {
+		t.Fatalf("expected callbackBoom propagated, got %v", err)
+	}
+
+	// 3. Multi-catalog DirectJSON SendA2UIToClientTool deduplicates catalog instructions cleanly.
+	cat1 := core.MustBasicCatalog(core.Version1_0)
+	cat2, err := cat1.CopyWith(core.CopyWithOptions{
+		CatalogID:       "https://example.com/custom/catalog.json",
+		ClearComponents: true,
+		ClearFunctions:  true,
+	})
+	if err != nil {
+		t.Fatalf("CopyWith: %v", err)
+	}
+	proc, err := agent.NewRequestProcessor([]*core.Catalog{cat1, cat2}, &agent.RequestProcessorOptions{
+		FormatFactory: agent.NewDirectJSONFormatFactory(nil),
+	})
+	if err != nil {
+		t.Fatalf("NewRequestProcessor: %v", err)
+	}
+	ts := adk.NewSendA2UIToClientToolset(adk.ToolsetConfig{
+		ProcessorProvider: func(adkagent.ReadonlyContext) (*agent.RequestProcessor, error) {
+			return proc, nil
+		},
+	})
+	catInstructions := proc.Format().PromptGenerator().GenerateCatalogInstructions(true, nil)
+	req := &model.LLMRequest{
+		Config: &genai.GenerateContentConfig{
+			SystemInstruction: genai.NewContentFromText(catInstructions, genai.RoleUser),
+		},
+	}
+	if err := ts.Tool().ProcessRequest(newFakeToolContext("s-multi", nil), req); err != nil {
+		t.Fatalf("Tool().ProcessRequest: %v", err)
+	}
+	var sys strings.Builder
+	for _, p := range req.Config.SystemInstruction.Parts {
+		sys.WriteString(p.Text)
+	}
+	if count := strings.Count(sys.String(), cat2.CatalogID()); count != 1 {
+		t.Fatalf("expected second catalog ID %q once in system instruction, got %d:\n%s", cat2.CatalogID(), count, sys.String())
 	}
 }

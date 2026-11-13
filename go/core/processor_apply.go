@@ -211,10 +211,11 @@ func (p *MessageProcessor) applyCreateSurface(op internalCreateSurfaceOp, valCfg
 				if rm == nil {
 					rm = map[string]any{}
 				}
-				if val == nil && isV10 {
+				normVal := CloneJSONValue(val)
+				if normVal == nil && isV10 {
 					delete(rm, "")
 				} else {
-					rm[""] = CloneJSONValue(val)
+					rm[""] = normVal
 				}
 				if err := newSurf.DataModel.Set("/", rm); err != nil {
 					return rollback(attachSurfaceID(err, surfaceID))
@@ -268,7 +269,7 @@ func (p *MessageProcessor) applyUpdateComponents(op internalUpdateComponentsOp, 
 		return ie
 	}
 
-	components, ok := op.components.([]any)
+	components, ok := CloneJSONValue(op.components).([]any)
 	if !ok {
 		ve := NewValidationError("Components payload must be a list.")
 		ve.Path = "/components"
@@ -550,12 +551,15 @@ func (p *MessageProcessor) applyUpdateComponents(op internalUpdateComponentsOp, 
 		return nestedErr
 	}
 	if nestedErr != nil {
+		surface.ComponentsModel.pendingBound = nil
+		surface.ComponentsModel.pendingBoundAt = -1
 		return nestedErr
 	}
 
 	for _, comp := range newModels {
 		surface.ComponentsModel.Upsert(comp)
 	}
+	surface.ComponentsModel.commitValidatedUpdate()
 	return nil
 }
 
@@ -824,16 +828,18 @@ type errorEnvelopeContext struct {
 
 func extractErrorContextFromPayload(raw any) errorEnvelopeContext {
 	ctx := errorEnvelopeContext{version: "1.0"}
-	switch typed := raw.(type) {
-	case []AgentToRendererMessage:
-		if len(typed) > 0 {
-			return extractErrorContextFromPayload(map[string]any(typed[len(typed)-1]))
-		}
+	if raw == nil {
+		return ctx
+	}
+	switch typed := normalizeProcessorPayload(raw).(type) {
 	case []any:
 		if len(typed) > 0 {
 			return extractErrorContextFromPayload(typed[len(typed)-1])
 		}
 	case map[string]any:
+		if typed == nil {
+			return ctx
+		}
 		if msgs, ok := typed["messages"].([]any); ok && len(msgs) > 0 {
 			return extractErrorContextFromPayload(msgs[len(msgs)-1])
 		}

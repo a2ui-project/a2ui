@@ -662,7 +662,7 @@ func (c *DataContext) executeFunction(
 			}
 		}
 
-		if api, exists := targetCatalog.Functions()[name]; exists {
+		if api, exists := targetCatalog.functionByName(name); exists {
 			apiCopy := api
 			fnSpec = &apiCopy
 			localEval = apiCopy.Evaluate

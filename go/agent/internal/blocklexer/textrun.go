@@ -17,6 +17,7 @@ package blocklexer
 import (
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 // TextRun emits conversational text between blocks during streaming, trimming leading
@@ -51,4 +52,23 @@ func (r *TextRun) Emit(text string) (string, bool) {
 func (r *TextRun) Reset() {
 	r.started = false
 	r.heldSpace = ""
+}
+
+// CompleteUTF8PrefixLen returns len(s) minus 1..3 trailing bytes when s ends
+// with a valid, incomplete multi-byte UTF-8 rune prefix, or len(s) otherwise.
+func CompleteUTF8PrefixLen(s string) int {
+	n := len(s)
+	for k := 1; k <= 3 && k <= n; k++ {
+		b := s[n-k]
+		if b < utf8.RuneSelf {
+			return n
+		}
+		if utf8.RuneStart(b) {
+			if !utf8.FullRuneInString(s[n-k:]) {
+				return n - k
+			}
+			return n
+		}
+	}
+	return n
 }

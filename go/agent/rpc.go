@@ -18,10 +18,12 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
 	"math"
+	"reflect"
 	"slices"
 	"sort"
 	"strings"
@@ -1143,6 +1145,18 @@ func checkJSONValue(val any, path string) (string, any) {
 	switch v := val.(type) {
 	case nil, bool, string, int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
 		return "", v
+	case json.Number:
+		if !json.Valid([]byte(v)) {
+			return fmt.Sprintf("%q is %q, which isn't a JSON number.", path, v), nil
+		}
+		if i, err := v.Int64(); err == nil {
+			return "", i
+		}
+		f, err := v.Float64()
+		if err != nil || math.IsNaN(f) || math.IsInf(f, 0) {
+			return fmt.Sprintf("%q is %q, which isn't a JSON number.", path, v), nil
+		}
+		return "", f
 	case float32:
 		if math.IsNaN(float64(v)) || math.IsInf(float64(v), 0) {
 			return fmt.Sprintf("%q is %v, which isn't a JSON number.", path, v), nil
@@ -1153,7 +1167,12 @@ func checkJSONValue(val any, path string) (string, any) {
 			return fmt.Sprintf("%q is %v, which isn't a JSON number.", path, v), nil
 		}
 		return "", v
+	case []byte:
+		return fmt.Sprintf("%q is a %T, which isn't a JSON value.", path, val), nil
 	case []any:
+		if v == nil {
+			return "", nil
+		}
 		out := make([]any, len(v))
 		for i, item := range v {
 			prob, c := checkJSONValue(item, fmt.Sprintf("%s[%d]", path, i))
@@ -1164,6 +1183,9 @@ func checkJSONValue(val any, path string) (string, any) {
 		}
 		return "", out
 	case map[string]any:
+		if v == nil {
+			return "", nil
+		}
 		out := make(map[string]any, len(v))
 		for _, k := range slices.Sorted(maps.Keys(v)) {
 			prob, c := checkJSONValue(v[k], path+"."+k)
@@ -1174,6 +1196,50 @@ func checkJSONValue(val any, path string) (string, any) {
 		}
 		return "", out
 	default:
+		rv := reflect.ValueOf(val)
+		switch rv.Kind() {
+		case reflect.Pointer:
+			if rv.IsNil() {
+				return "", nil
+			}
+		case reflect.Slice:
+			if rv.IsNil() {
+				return "", nil
+			}
+			out := make([]any, rv.Len())
+			for i := 0; i < rv.Len(); i++ {
+				prob, c := checkJSONValue(rv.Index(i).Interface(), fmt.Sprintf("%s[%d]", path, i))
+				if prob != "" {
+					return prob, nil
+				}
+				out[i] = c
+			}
+			return "", out
+		case reflect.Map:
+			if rv.Type().Key().Kind() == reflect.String {
+				if rv.IsNil() {
+					return "", nil
+				}
+				rawKeys := rv.MapKeys()
+				keyMap := make(map[string]reflect.Value, len(rawKeys))
+				keys := make([]string, 0, len(rawKeys))
+				for _, rk := range rawKeys {
+					ks := rk.String()
+					keys = append(keys, ks)
+					keyMap[ks] = rk
+				}
+				sort.Strings(keys)
+				out := make(map[string]any, len(keys))
+				for _, k := range keys {
+					prob, c := checkJSONValue(rv.MapIndex(keyMap[k]).Interface(), path+"."+k)
+					if prob != "" {
+						return prob, nil
+					}
+					out[k] = c
+				}
+				return "", out
+			}
+		}
 		return fmt.Sprintf("%q is a %T, which isn't a JSON value.", path, val), nil
 	}
 }

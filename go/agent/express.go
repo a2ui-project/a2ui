@@ -586,7 +586,8 @@ func (s *ExpressResponseStream) feed(chunk string, parts *[]StreamPart) error {
 			continue
 		}
 		if s.afterBlock {
-			if express.MatchesOuterLeadingFencePrefix(inputStr, s.wrappedInInlineBacktick) {
+			complete := blocklexer.CompleteUTF8PrefixLen(inputStr)
+			if express.MatchesOuterLeadingFencePrefix(inputStr[:complete], s.wrappedInInlineBacktick) {
 				s.held = inputStr
 				return nil
 			}
@@ -648,6 +649,9 @@ func (s *ExpressResponseStream) consumeOutsideText(parts *[]StreamPart, inputStr
 
 	tagStart := express.PossibleOpenTagStart(inputStr)
 	hold := express.PossibleOuterFenceStart(inputStr[:tagStart])
+	if hold == len(inputStr) {
+		hold = blocklexer.CompleteUTF8PrefixLen(inputStr)
+	}
 	s.emitText(parts, inputStr[:hold])
 	s.held = inputStr[hold:]
 	return ""

@@ -14,6 +14,8 @@
 
 package v1
 
+import "github.com/a2ui-project/a2ui/go/agent/builder"
+
 // RangeOption configures optional min/max bounds on Length and Numeric function builders.
 type RangeOption func(args map[string]any)
 
@@ -33,7 +35,7 @@ type NumberFormatOption func(args map[string]any)
 // WithDecimals sets the "decimals" argument on FormatNumber or FormatCurrency.
 func WithDecimals(decimals DynamicNumber) NumberFormatOption {
 	return func(args map[string]any) {
-		if decimals != nil {
+		if !builder.IsNilValue(decimals) {
 			args["decimals"] = decimals
 		}
 	}
@@ -42,7 +44,7 @@ func WithDecimals(decimals DynamicNumber) NumberFormatOption {
 // WithGrouping sets the "grouping" argument on FormatNumber or FormatCurrency.
 func WithGrouping(grouping DynamicBoolean) NumberFormatOption {
 	return func(args map[string]any) {
-		if grouping != nil {
+		if !builder.IsNilValue(grouping) {
 			args["grouping"] = grouping
 		}
 	}
@@ -54,7 +56,7 @@ type PluralizeOption func(args map[string]any)
 // WithPluralZero sets the "zero" category form on Pluralize.
 func WithPluralZero(s DynamicString) PluralizeOption {
 	return func(args map[string]any) {
-		if s != nil {
+		if !builder.IsNilValue(s) {
 			args["zero"] = s
 		}
 	}
@@ -63,7 +65,7 @@ func WithPluralZero(s DynamicString) PluralizeOption {
 // WithPluralOne sets the "one" category form on Pluralize.
 func WithPluralOne(s DynamicString) PluralizeOption {
 	return func(args map[string]any) {
-		if s != nil {
+		if !builder.IsNilValue(s) {
 			args["one"] = s
 		}
 	}
@@ -72,7 +74,7 @@ func WithPluralOne(s DynamicString) PluralizeOption {
 // WithPluralTwo sets the "two" category form on Pluralize.
 func WithPluralTwo(s DynamicString) PluralizeOption {
 	return func(args map[string]any) {
-		if s != nil {
+		if !builder.IsNilValue(s) {
 			args["two"] = s
 		}
 	}
@@ -81,7 +83,7 @@ func WithPluralTwo(s DynamicString) PluralizeOption {
 // WithPluralFew sets the "few" category form on Pluralize.
 func WithPluralFew(s DynamicString) PluralizeOption {
 	return func(args map[string]any) {
-		if s != nil {
+		if !builder.IsNilValue(s) {
 			args["few"] = s
 		}
 	}
@@ -90,7 +92,7 @@ func WithPluralFew(s DynamicString) PluralizeOption {
 // WithPluralMany sets the "many" category form on Pluralize.
 func WithPluralMany(s DynamicString) PluralizeOption {
 	return func(args map[string]any) {
-		if s != nil {
+		if !builder.IsNilValue(s) {
 			args["many"] = s
 		}
 	}

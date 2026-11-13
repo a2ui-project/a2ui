@@ -18,6 +18,7 @@ import (
 	"context"
 	"maps"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -219,6 +220,7 @@ type Catalog struct {
 
 	components      map[string]ComponentAPI
 	componentOrder  []string
+	funcMu          sync.RWMutex
 	functions       map[string]FunctionAPI
 	functionOrder   []string
 	agentFunctions  map[string]*AgentFunction
@@ -274,36 +276,137 @@ func (c *Catalog) KeyOrder() map[string][]string {
 	return out
 }
 
-// Components returns a shallow copy of the components defined by this catalog.
-func (c *Catalog) Components() map[string]ComponentAPI {
+func cloneComponentAPI(api ComponentAPI) ComponentAPI {
+	cp := api
+	if api.Schema != nil {
+		cp.Schema, _ = CloneJSONValue(api.Schema).(map[string]any)
+	}
+	if api.AllowedParents != nil {
+		cp.AllowedParents = slices.Clone(api.AllowedParents)
+	}
+	if api.AllowedChildren != nil {
+		cp.AllowedChildren = slices.Clone(api.AllowedChildren)
+	}
+	if api.Metadata != nil {
+		cp.Metadata, _ = CloneJSONValue(api.Metadata).(map[string]any)
+	}
+	return cp
+}
+
+func cloneFunctionAPI(api FunctionAPI) FunctionAPI {
+	cp := api
+	if api.Schema != nil {
+		cp.Schema, _ = CloneJSONValue(api.Schema).(map[string]any)
+	}
+	return cp
+}
+
+func cloneAgentFunction(af *AgentFunction) *AgentFunction {
+	if af == nil {
+		return nil
+	}
+	cp := *af
+	if af.ArgsSchema != nil {
+		cp.ArgsSchema, _ = CloneJSONValue(af.ArgsSchema).(map[string]any)
+	}
+	if af.fromDeclaration != nil {
+		decl := cloneFunctionAPI(*af.fromDeclaration)
+		cp.fromDeclaration = &decl
+	}
+	return &cp
+}
+
+func cloneComponentRefSpec(spec ComponentRefSpec) ComponentRefSpec {
+	cp := ComponentRefSpec{}
+	if spec.SingleRefs != nil {
+		cp.SingleRefs = slices.Clone(spec.SingleRefs)
+	}
+	if spec.ListRefs != nil {
+		cp.ListRefs = slices.Clone(spec.ListRefs)
+	}
+	if spec.NestedSingleRefs != nil {
+		cp.NestedSingleRefs = make(map[string][]string, len(spec.NestedSingleRefs))
+		for k, v := range spec.NestedSingleRefs {
+			cp.NestedSingleRefs[k] = slices.Clone(v)
+		}
+	}
+	return cp
+}
+
+func (c *Catalog) functionByName(name string) (FunctionAPI, bool) {
+	if c == nil {
+		return FunctionAPI{}, false
+	}
+	c.funcMu.RLock()
+	fn, ok := c.functions[name]
+	c.funcMu.RUnlock()
+	return fn, ok
+}
+
+func (c *Catalog) snapshotFunctions() map[string]FunctionAPI {
 	if c == nil {
 		return nil
 	}
-	return maps.Clone(c.components)
+	c.funcMu.RLock()
+	defer c.funcMu.RUnlock()
+	return maps.Clone(c.functions)
+}
+
+// Components returns a deep copy of the components defined by this catalog.
+func (c *Catalog) Components() map[string]ComponentAPI {
+	if c == nil || c.components == nil {
+		return nil
+	}
+	out := make(map[string]ComponentAPI, len(c.components))
+	for k, v := range c.components {
+		out[k] = cloneComponentAPI(v)
+	}
+	return out
 }
 
 // ComponentNames returns the ordered component names defined in this catalog.
 func (c *Catalog) ComponentNames() []string { return append([]string(nil), c.componentOrder...) }
 
-// Functions returns a shallow copy of all functions (renderer and agent) declared on this catalog.
+// Functions returns a deep copy of all functions (renderer and agent) declared on this catalog.
 func (c *Catalog) Functions() map[string]FunctionAPI {
 	if c == nil {
 		return nil
 	}
-	return maps.Clone(c.functions)
+	c.funcMu.RLock()
+	defer c.funcMu.RUnlock()
+	if c.functions == nil {
+		return nil
+	}
+	out := make(map[string]FunctionAPI, len(c.functions))
+	for k, v := range c.functions {
+		out[k] = cloneFunctionAPI(v)
+	}
+	return out
 }
 
 // SetFunctionEvaluator attaches or replaces the local FunctionEvaluator for a declared function.
 func (c *Catalog) SetFunctionEvaluator(name string, eval FunctionEvaluator) bool {
-	if c == nil || c.functions == nil {
+	if c == nil {
+		return false
+	}
+	c.funcMu.Lock()
+	if c.functions == nil {
+		c.funcMu.Unlock()
 		return false
 	}
 	fn, ok := c.functions[name]
 	if !ok {
+		c.funcMu.Unlock()
 		return false
 	}
 	fn.Evaluate = eval
 	c.functions[name] = fn
+	c.funcMu.Unlock()
+
+	cache := getCompiledCache(c)
+	cache.mu.Lock()
+	delete(cache.functions, name)
+	cache.mu.Unlock()
 	return true
 }
 
@@ -312,26 +415,43 @@ func (c *Catalog) FunctionNames() []string { return append([]string(nil), c.func
 
 // RendererFunctions returns only functions declared in the catalog (excluding added AgentFunctions).
 func (c *Catalog) RendererFunctions() map[string]FunctionAPI {
+	if c == nil {
+		return nil
+	}
+	c.funcMu.RLock()
+	defer c.funcMu.RUnlock()
 	out := make(map[string]FunctionAPI, len(c.functions))
 	for k, fn := range c.functions {
 		if _, isAgent := c.agentFunctions[k]; !isAgent {
-			out[k] = fn
+			out[k] = cloneFunctionAPI(fn)
 		}
 	}
 	return out
 }
 
-// AgentFunctions returns a shallow copy of the server-side AgentFunction handlers registered on this catalog.
+// AgentFunctions returns a deep copy of the server-side AgentFunction handlers registered on this catalog.
 func (c *Catalog) AgentFunctions() map[string]*AgentFunction {
-	if c == nil {
+	if c == nil || c.agentFunctions == nil {
 		return nil
 	}
-	return maps.Clone(c.agentFunctions)
+	out := make(map[string]*AgentFunction, len(c.agentFunctions))
+	for k, af := range c.agentFunctions {
+		out[k] = cloneAgentFunction(af)
+	}
+	return out
 }
 
 // ComponentRefMap returns structural child reference metadata per component name.
 func (c *Catalog) ComponentRefMap() map[string]ComponentRefSpec {
-	return maps.Clone(c.refMap())
+	if c == nil {
+		return nil
+	}
+	src := c.refMap()
+	out := make(map[string]ComponentRefSpec, len(src))
+	for k, spec := range src {
+		out[k] = cloneComponentRefSpec(spec)
+	}
+	return out
 }
 
 func (c *Catalog) refMap() map[string]ComponentRefSpec {
@@ -342,6 +462,53 @@ func (c *Catalog) refMap() map[string]ComponentRefSpec {
 }
 
 func (c *Catalog) clone() *Catalog {
+	comps := make(map[string]ComponentAPI, len(c.components))
+	for k, v := range c.components {
+		comps[k] = cloneComponentAPI(v)
+	}
+	c.funcMu.RLock()
+	fns := make(map[string]FunctionAPI, len(c.functions))
+	for k, v := range c.functions {
+		fns[k] = cloneFunctionAPI(v)
+	}
+	c.funcMu.RUnlock()
+
+	agentFns := make(map[string]*AgentFunction, len(c.agentFunctions))
+	for k, af := range c.agentFunctions {
+		agentFns[k] = cloneAgentFunction(af)
+	}
+	var themeCopy map[string]any
+	if c.themeSchema != nil {
+		themeCopy, _ = CloneJSONValue(c.themeSchema).(map[string]any)
+	}
+	var unionCopy map[string]any
+	if c.unionDefs != nil {
+		unionCopy = make(map[string]any, len(c.unionDefs))
+		for k, v := range c.unionDefs {
+			unionCopy[k] = CloneJSONValue(v)
+		}
+	}
+	var defsCopy map[string]any
+	if c.defs != nil {
+		defsCopy, _ = CloneJSONValue(c.defs).(map[string]any)
+	}
+	var extrasCopy map[string]any
+	if c.extras != nil {
+		extrasCopy, _ = CloneJSONValue(c.extras).(map[string]any)
+	}
+	var rawDocCopy map[string]any
+	if c.rawDoc != nil {
+		rawDocCopy, _ = CloneJSONValue(c.rawDoc).(map[string]any)
+	}
+	var dialectCopy, idCopy *string
+	if c.schemaDialect != nil {
+		s := *c.schemaDialect
+		dialectCopy = &s
+	}
+	if c.schemaID != nil {
+		s := *c.schemaID
+		idCopy = &s
+	}
 	return &Catalog{
 		catalogID:               c.catalogID,
 		protocolVersion:         c.protocolVersion,
@@ -350,28 +517,28 @@ func (c *Catalog) clone() *Catalog {
 		declaresCatalogID:       c.declaresCatalogID,
 		declaresComponents:      c.declaresComponents,
 		declaresDefs:            c.declaresDefs,
-		schemaDialect:           c.schemaDialect,
-		schemaID:                c.schemaID,
+		schemaDialect:           dialectCopy,
+		schemaID:                idCopy,
 		title:                   c.title,
 		hasTitle:                c.hasTitle,
 		description:             c.description,
 		hasDescription:          c.hasDescription,
 		instructions:            c.instructions,
 		hasInstructions:         c.hasInstructions,
-		themeSchema:             c.themeSchema,
+		themeSchema:             themeCopy,
 		themeLocation:           c.themeLocation,
 		functionsForm:           c.functionsForm,
-		unionDefs:               c.unionDefs,
-		nullUnions:              c.nullUnions,
-		defs:                    c.defs,
-		extras:                  c.extras,
-		keyOrder:                c.keyOrder,
-		components:              maps.Clone(c.components),
+		unionDefs:               unionCopy,
+		nullUnions:              maps.Clone(c.nullUnions),
+		defs:                    defsCopy,
+		extras:                  extrasCopy,
+		keyOrder:                c.KeyOrder(),
+		components:              comps,
 		componentOrder:          append([]string(nil), c.componentOrder...),
-		functions:               maps.Clone(c.functions),
+		functions:               fns,
 		functionOrder:           append([]string(nil), c.functionOrder...),
-		agentFunctions:          maps.Clone(c.agentFunctions),
-		rawDoc:                  c.rawDoc,
+		agentFunctions:          agentFns,
+		rawDoc:                  rawDocCopy,
 	}
 }
 
@@ -417,7 +584,7 @@ func (c *Catalog) ResolvedComponentSchema(name string) map[string]any {
 
 // ResolvedFunctionSchema returns the schema for function name with local $defs resolved and cross-document refs localized.
 func (c *Catalog) ResolvedFunctionSchema(name string) map[string]any {
-	api, ok := c.functions[name]
+	api, ok := c.functionByName(name)
 	if !ok {
 		return nil
 	}
@@ -444,8 +611,9 @@ func (c *Catalog) normalizedLocalRoot() map[string]any {
 	for k, comp := range c.components {
 		comps[k] = comp.Schema
 	}
-	fns := make(map[string]any, len(c.functions))
-	for k, fn := range c.functions {
+	fnSnap := c.snapshotFunctions()
+	fns := make(map[string]any, len(fnSnap))
+	for k, fn := range fnSnap {
 		if fn.Schema != nil {
 			fns[k] = fn.Schema
 		}
@@ -508,9 +676,10 @@ func (c *Catalog) buildDocument() map[string]any {
 		doc["components"] = comps
 	}
 
+	fnSnap := c.snapshotFunctions()
 	var docFnNames []string
 	for _, name := range c.functionOrder {
-		fn := c.functions[name]
+		fn := fnSnap[name]
 		if fn.Schema != nil || !strings.HasPrefix(name, "@") {
 			docFnNames = append(docFnNames, name)
 		}
@@ -519,7 +688,7 @@ func (c *Catalog) buildDocument() map[string]any {
 		if c.functionsForm == "list" {
 			list := make([]any, 0, len(docFnNames))
 			for _, name := range docFnNames {
-				fn := c.functions[name]
+				fn := fnSnap[name]
 				entry := buildFunctionDocEntry(name, fn, IsAtLeastVersion(string(c.protocolVersion), Version1_0), true)
 				list = append(list, entry)
 			}
@@ -527,7 +696,7 @@ func (c *Catalog) buildDocument() map[string]any {
 		} else {
 			fnMap := make(map[string]any, len(docFnNames))
 			for _, name := range docFnNames {
-				fn := c.functions[name]
+				fn := fnSnap[name]
 				fnMap[name] = buildFunctionDocEntry(name, fn, IsAtLeastVersion(string(c.protocolVersion), Version1_0), false)
 			}
 			doc["functions"] = fnMap
@@ -721,12 +890,13 @@ func (c *Catalog) CopyWith(opts CopyWithOptions) (*Catalog, error) {
 	if opts.CatalogID != "" {
 		catID = opts.CatalogID
 	}
+	fnSnap := c.snapshotFunctions()
 
 	var compOrder []string
 	comps := make(map[string]ComponentAPI)
 	if opts.ClearComponents || len(opts.Components) > 0 {
 		for k, v := range opts.Components {
-			comps[k] = v
+			comps[k] = cloneComponentAPI(v)
 		}
 		if len(opts.ComponentOrder) > 0 {
 			for _, name := range opts.ComponentOrder {
@@ -752,7 +922,7 @@ func (c *Catalog) CopyWith(opts CopyWithOptions) (*Catalog, error) {
 	} else {
 		compOrder = append([]string(nil), c.componentOrder...)
 		for k, v := range c.components {
-			comps[k] = v
+			comps[k] = cloneComponentAPI(v)
 		}
 	}
 
@@ -762,9 +932,9 @@ func (c *Catalog) CopyWith(opts CopyWithOptions) (*Catalog, error) {
 
 	if opts.ClearFunctions || len(opts.Functions) > 0 {
 		for k, v := range opts.Functions {
-			fns[k] = v
+			fns[k] = cloneFunctionAPI(v)
 			if existingAgent, ok := c.agentFunctions[k]; ok {
-				newAgentFns[k] = existingAgent
+				newAgentFns[k] = cloneAgentFunction(existingAgent)
 			}
 		}
 		if len(opts.FunctionOrder) > 0 {
@@ -793,21 +963,21 @@ func (c *Catalog) CopyWith(opts CopyWithOptions) (*Catalog, error) {
 		for _, name := range c.functionOrder {
 			if af, wasAgent := c.agentFunctions[name]; wasAgent {
 				if af.fromDeclaration != nil {
-					fns[name] = *af.fromDeclaration
+					fns[name] = cloneFunctionAPI(*af.fromDeclaration)
 					fnOrder = append(fnOrder, name)
 				}
-			} else {
-				fns[name] = c.functions[name]
+			} else if baseFn, ok := fnSnap[name]; ok {
+				fns[name] = cloneFunctionAPI(baseFn)
 				fnOrder = append(fnOrder, name)
 			}
 		}
 	} else {
 		fnOrder = append([]string(nil), c.functionOrder...)
-		for k, v := range c.functions {
-			fns[k] = v
+		for k, v := range fnSnap {
+			fns[k] = cloneFunctionAPI(v)
 		}
 		for k, v := range c.agentFunctions {
-			newAgentFns[k] = v
+			newAgentFns[k] = cloneAgentFunction(v)
 		}
 	}
 
@@ -831,70 +1001,96 @@ func (c *Catalog) CopyWith(opts CopyWithOptions) (*Catalog, error) {
 		}
 		seenAgent := map[string]bool{}
 		for _, af := range opts.AgentFunctions {
-			if af == nil {
-				return nil, NewCatalogErrorf("catalog %q was given a nil AgentFunction", catID)
+			afClean, hoisted, err := validateAndHoistAgentFunction(catID, c.protocolVersion, af, mergedDefs, nil, seenAgent)
+			if err != nil {
+				return nil, err
 			}
-			if !IsValidUAX31Identifier(af.Name) {
-				return nil, NewCatalogErrorf("invalid UAX #31 function identifier: %q", af.Name)
+			if hoisted {
+				hasMergedDefs = true
 			}
-			var effectiveArgsSchema map[string]any
-			if af.ArgsSchema != nil {
-				effectiveArgsSchema, _ = CloneJSONValue(af.ArgsSchema).(map[string]any)
-				if localDefs, ok := effectiveArgsSchema["$defs"].(map[string]any); ok {
-					delete(effectiveArgsSchema, "$defs")
-					hasMergedDefs = true
-					defNames := make([]string, 0, len(localDefs))
-					for k := range localDefs {
-						defNames = append(defNames, k)
-					}
-					sort.Strings(defNames)
-					for _, defName := range defNames {
-						defVal := localDefs[defName]
-						if existingDef, already := mergedDefs[defName]; already {
-							if !reflect.DeepEqual(existingDef, defVal) {
-								return nil, NewCatalogErrorf("agent function %q local $defs entry %q conflicts with an existing definition of %q", af.Name, defName, defName)
-							}
-						} else {
-							mergedDefs[defName] = CloneJSONValue(defVal)
-						}
-					}
-				}
-			}
-			for _, pName := range extractReachableParamNames(effectiveArgsSchema, mergedDefs) {
-				if !IsValidUAX31Identifier(pName) {
-					return nil, NewCatalogErrorf("invalid UAX #31 argument identifier %q in agent function %q", pName, af.Name)
-				}
-			}
-			if seenAgent[af.Name] {
-				return nil, NewCatalogErrorf("catalog %q was given duplicate agent function %q", catID, af.Name)
-			}
-			seenAgent[af.Name] = true
-
-			afClean := *af
-			if effectiveArgsSchema != nil {
-				afClean.ArgsSchema = effectiveArgsSchema
-			}
-			_, exists := fns[af.Name]
+			_, exists := fns[afClean.Name]
 			if !exists {
-				if af.fromDeclaration != nil {
-					return nil, NewCatalogErrorf("catalog %q has no function named %q for AgentFunctionFromAPI to replace", catID, af.Name)
+				if afClean.fromDeclaration != nil {
+					return nil, NewCatalogErrorf("catalog %q has no function named %q for AgentFunctionFromAPI to replace", catID, afClean.Name)
 				}
-				fns[af.Name] = agentFunctionToAPI(&afClean)
-				fnOrder = append(fnOrder, af.Name)
-				newAgentFns[af.Name] = &afClean
-			} else if af.fromDeclaration != nil {
-				fns[af.Name] = agentFunctionToAPI(&afClean)
-				newAgentFns[af.Name] = &afClean
+				fns[afClean.Name] = agentFunctionToAPI(afClean, mergedDefs)
+				fnOrder = append(fnOrder, afClean.Name)
+				newAgentFns[afClean.Name] = afClean
+			} else if afClean.fromDeclaration != nil {
+				fns[afClean.Name] = agentFunctionToAPI(afClean, mergedDefs)
+				newAgentFns[afClean.Name] = afClean
 			} else {
-				return nil, NewCatalogErrorf("catalog %q already declares a function named %q", catID, af.Name)
+				return nil, NewCatalogErrorf("catalog %q already declares a function named %q", catID, afClean.Name)
 			}
 		}
 	}
 
-	return c.rebuild(catID, c.protocolVersion, c.schemaID, c.hasTitle, c.title, c.hasDescription, c.description, c.hasInstructions, c.instructions, c.themeSchema, c.declaresCatalogID, comps, compOrder, fns, fnOrder, newAgentFns, mergedDefs, hasMergedDefs), nil
+	return c.rebuild(catID, c.protocolVersion, c.schemaID, c.hasTitle, c.title, c.hasDescription, c.description, c.hasInstructions, c.instructions, c.themeSchema, c.declaresCatalogID, comps, compOrder, fns, fnOrder, newAgentFns, mergedDefs, hasMergedDefs, nil), nil
 }
 
-func agentFunctionToAPI(af *AgentFunction) FunctionAPI {
+func validateAndHoistAgentFunction(
+	catID string,
+	pVer ProtocolVersion,
+	af *AgentFunction,
+	mergedDefs map[string]any,
+	hoistedOut map[string]any,
+	seenAgent map[string]bool,
+) (*AgentFunction, bool, error) {
+	if !IsAtLeastVersion(string(pVer), Version1_0) {
+		return nil, false, NewCatalogErrorf("catalog %q targets protocol version %s, which does not support agent functions (requires v1.0 or later)", catID, pVer)
+	}
+	if af == nil {
+		return nil, false, NewCatalogErrorf("catalog %q was given a nil AgentFunction", catID)
+	}
+	if !IsValidUAX31Identifier(af.Name) {
+		return nil, false, NewCatalogErrorf("invalid UAX #31 function identifier: %q", af.Name)
+	}
+	hoisted := false
+	var effectiveArgsSchema map[string]any
+	if af.ArgsSchema != nil {
+		effectiveArgsSchema, _ = CloneJSONValue(af.ArgsSchema).(map[string]any)
+		if localDefs, ok := effectiveArgsSchema["$defs"].(map[string]any); ok {
+			delete(effectiveArgsSchema, "$defs")
+			hoisted = true
+			defNames := make([]string, 0, len(localDefs))
+			for k := range localDefs {
+				defNames = append(defNames, k)
+			}
+			sort.Strings(defNames)
+			for _, defName := range defNames {
+				defVal := localDefs[defName]
+				if existingDef, already := mergedDefs[defName]; already {
+					if !reflect.DeepEqual(existingDef, defVal) {
+						return nil, false, NewCatalogErrorf("agent function %q local $defs entry %q conflicts with an existing definition of %q", af.Name, defName, defName)
+					}
+				} else {
+					clonedDef := CloneJSONValue(defVal)
+					mergedDefs[defName] = clonedDef
+				}
+				if hoistedOut != nil {
+					hoistedOut[defName] = CloneJSONValue(defVal)
+				}
+			}
+		}
+	}
+	for _, pName := range extractReachableParamNames(effectiveArgsSchema, mergedDefs) {
+		if !IsValidUAX31Identifier(pName) {
+			return nil, false, NewCatalogErrorf("invalid UAX #31 argument identifier %q in agent function %q", pName, af.Name)
+		}
+	}
+	if seenAgent[af.Name] {
+		return nil, false, NewCatalogErrorf("catalog %q was given duplicate agent function %q", catID, af.Name)
+	}
+	seenAgent[af.Name] = true
+
+	afClean := cloneAgentFunction(af)
+	if effectiveArgsSchema != nil {
+		afClean.ArgsSchema = effectiveArgsSchema
+	}
+	return afClean, hoisted, nil
+}
+
+func agentFunctionToAPI(af *AgentFunction, defs map[string]any) FunctionAPI {
 	argsSchema := af.ArgsSchema
 	if argsSchema == nil {
 		argsSchema = map[string]any{"type": "object", "properties": map[string]any{}}
@@ -903,7 +1099,7 @@ func agentFunctionToAPI(af *AgentFunction) FunctionAPI {
 	if rt == "" {
 		rt = ReturnTypeAny
 	}
-	hasReq := schemaRequiresArgs(argsSchema, nil, map[string]bool{})
+	hasReq := schemaRequiresArgs(argsSchema, defs, map[string]bool{})
 	req := []any{"@call"}
 	if hasReq {
 		req = []any{"@call", "args"}
@@ -950,13 +1146,14 @@ func (c *Catalog) Derive(opts DeriveOptions) (*Catalog, error) {
 		}
 		pVer = norm
 	}
+	fnSnap := c.snapshotFunctions()
 
 	var compOrder []string
 	comps := make(map[string]ComponentAPI)
 	if opts.Components == nil {
 		compOrder = append([]string(nil), c.componentOrder...)
 		for k, v := range c.components {
-			comps[k] = v
+			comps[k] = cloneComponentAPI(v)
 		}
 	} else {
 		for _, item := range opts.Components {
@@ -969,12 +1166,12 @@ func (c *Catalog) Derive(opts DeriveOptions) (*Catalog, error) {
 				if !containsString(compOrder, v) {
 					compOrder = append(compOrder, v)
 				}
-				comps[v] = orig
+				comps[v] = cloneComponentAPI(orig)
 			case ComponentAPI:
 				if !containsString(compOrder, v.Name) {
 					compOrder = append(compOrder, v.Name)
 				}
-				comps[v.Name] = v
+				comps[v.Name] = cloneComponentAPI(v)
 			case map[string]any:
 				if len(v) != 1 {
 					return nil, NewCatalogErrorf("derived component map entry must have exactly one component name key")
@@ -1002,49 +1199,99 @@ func (c *Catalog) Derive(opts DeriveOptions) (*Catalog, error) {
 	var fnOrder []string
 	fns := make(map[string]FunctionAPI)
 	newAgentFns := make(map[string]*AgentFunction)
+	var hoistedDefs map[string]any
 	if opts.Functions == nil {
 		fnOrder = append([]string(nil), c.functionOrder...)
-		for k, v := range c.functions {
-			fns[k] = v
+		for k, v := range fnSnap {
+			fns[k] = cloneFunctionAPI(v)
 		}
 		for k, v := range c.agentFunctions {
-			newAgentFns[k] = v
+			newAgentFns[k] = cloneAgentFunction(v)
 		}
 	} else {
+		var mergedDefs map[string]any
+		seenAgent := map[string]bool{}
+		ensureMergedDefs := func() {
+			if mergedDefs != nil {
+				return
+			}
+			mergedDefs = make(map[string]any, len(c.defs))
+			for k, v := range c.defs {
+				mergedDefs[k] = CloneJSONValue(v)
+			}
+			hoistedDefs = map[string]any{}
+		}
+		addDerivedAgentFn := func(af *AgentFunction) error {
+			ensureMergedDefs()
+			afClean, _, err := validateAndHoistAgentFunction(opts.CatalogID, pVer, af, mergedDefs, hoistedDefs, seenAgent)
+			if err != nil {
+				return err
+			}
+			_, inDerived := fns[afClean.Name]
+			_, inSource := fnSnap[afClean.Name]
+			if afClean.fromDeclaration != nil {
+				if !inDerived && !inSource {
+					return NewCatalogErrorf("catalog %q has no function named %q for AgentFunctionFromAPI to replace", opts.CatalogID, afClean.Name)
+				}
+				if !containsString(fnOrder, afClean.Name) {
+					fnOrder = append(fnOrder, afClean.Name)
+				}
+				fns[afClean.Name] = agentFunctionToAPI(afClean, mergedDefs)
+				newAgentFns[afClean.Name] = afClean
+				return nil
+			}
+			if inDerived {
+				return NewCatalogErrorf("catalog %q already declares a function named %q", opts.CatalogID, afClean.Name)
+			}
+			fnOrder = append(fnOrder, afClean.Name)
+			fns[afClean.Name] = agentFunctionToAPI(afClean, mergedDefs)
+			newAgentFns[afClean.Name] = afClean
+			return nil
+		}
+
 		for _, item := range opts.Functions {
 			switch v := item.(type) {
 			case string:
-				orig, ok := c.functions[v]
+				if seenAgent[v] {
+					return nil, NewCatalogErrorf("catalog %q already declares a function named %q", opts.CatalogID, v)
+				}
+				orig, ok := fnSnap[v]
 				if !ok {
 					return nil, NewCatalogErrorf("catalog %q has no function %q to derive catalog %q from", c.catalogID, v, opts.CatalogID)
 				}
 				if !containsString(fnOrder, v) {
 					fnOrder = append(fnOrder, v)
 				}
-				fns[v] = orig
+				fns[v] = cloneFunctionAPI(orig)
 				if af, isAg := c.agentFunctions[v]; isAg {
-					newAgentFns[v] = af
+					newAgentFns[v] = cloneAgentFunction(af)
 				}
 			case FunctionAPI:
+				if seenAgent[v.Name] {
+					return nil, NewCatalogErrorf("catalog %q already declares a function named %q", opts.CatalogID, v.Name)
+				}
 				if !containsString(fnOrder, v.Name) {
 					fnOrder = append(fnOrder, v.Name)
 				}
-				fns[v.Name] = v
+				fns[v.Name] = cloneFunctionAPI(v)
 				delete(newAgentFns, v.Name)
 			case *AgentFunction:
-				if v == nil {
-					return nil, NewCatalogError("nil AgentFunction in Catalog.Derive")
+				if err := addDerivedAgentFn(v); err != nil {
+					return nil, err
 				}
-				if !containsString(fnOrder, v.Name) {
-					fnOrder = append(fnOrder, v.Name)
+			case AgentFunction:
+				vCopy := v
+				if err := addDerivedAgentFn(&vCopy); err != nil {
+					return nil, err
 				}
-				fns[v.Name] = agentFunctionToAPI(v)
-				newAgentFns[v.Name] = v
 			case map[string]any:
 				if len(v) != 1 {
 					return nil, NewCatalogErrorf("derived function map entry must have exactly one function name key")
 				}
 				for name, rawSchema := range v {
+					if seenAgent[name] {
+						return nil, NewCatalogErrorf("catalog %q already declares a function named %q", opts.CatalogID, name)
+					}
 					sMap, ok := rawSchema.(map[string]any)
 					if !ok {
 						return nil, NewCatalogErrorf("derived function %q schema must be an object", name)
@@ -1075,7 +1322,7 @@ func (c *Catalog) Derive(opts DeriveOptions) (*Catalog, error) {
 		instr = *opts.Instructions
 	}
 
-	return c.rebuild(opts.CatalogID, pVer, nil, false, "", false, "", hasInstr, instr, theme, true, comps, compOrder, fns, fnOrder, newAgentFns, nil, false), nil
+	return c.rebuild(opts.CatalogID, pVer, nil, false, "", false, "", hasInstr, instr, theme, true, comps, compOrder, fns, fnOrder, newAgentFns, nil, false, hoistedDefs), nil
 }
 
 func (c *Catalog) rebuild(
@@ -1097,6 +1344,7 @@ func (c *Catalog) rebuild(
 	agentFns map[string]*AgentFunction,
 	explicitDefs map[string]any,
 	hasExplicitDefs bool,
+	hoistedDefs map[string]any,
 ) *Catalog {
 	var unionDefs map[string]any
 	nullUnions := map[string]bool{}
@@ -1138,6 +1386,9 @@ func (c *Catalog) rebuild(
 		for _, fn := range fns {
 			newRoots = append(newRoots, fn.Schema)
 		}
+		for _, hDef := range hoistedDefs {
+			newRoots = append(newRoots, hDef)
+		}
 		if len(theme) > 0 {
 			newRoots = append(newRoots, theme)
 		}
@@ -1160,6 +1411,9 @@ func (c *Catalog) rebuild(
 			if !oldReachable[name] || newReachable[name] {
 				newDefs[name] = CloneJSONValue(defSchema)
 			}
+		}
+		for name, defSchema := range hoistedDefs {
+			newDefs[name] = CloneJSONValue(defSchema)
 		}
 	}
 
@@ -1224,11 +1478,12 @@ func (c *Catalog) rebuild(
 }
 
 func (c *Catalog) documentRoots() []any {
+	fnSnap := c.snapshotFunctions()
 	var roots []any
 	for _, comp := range c.components {
 		roots = append(roots, comp.Schema)
 	}
-	for _, fn := range c.functions {
+	for _, fn := range fnSnap {
 		roots = append(roots, fn.Schema)
 	}
 	if len(c.themeSchema) > 0 {

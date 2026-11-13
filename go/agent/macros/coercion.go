@@ -26,6 +26,91 @@ import (
 	"github.com/a2ui-project/a2ui/go/core"
 )
 
+func fieldByIndexAlloc(v reflect.Value, index []int) reflect.Value {
+	for _, x := range index {
+		if v.Kind() == reflect.Pointer {
+			if v.IsNil() {
+				v.Set(reflect.New(v.Type().Elem()))
+			}
+			v = v.Elem()
+		}
+		v = v.Field(x)
+	}
+	return v
+}
+
+func toStringAnyMap(raw any) (map[string]any, bool) {
+	if raw == nil {
+		return nil, false
+	}
+	if m, ok := raw.(map[string]any); ok {
+		if m == nil {
+			return nil, false
+		}
+		return m, true
+	}
+	rv := reflect.ValueOf(raw)
+	if rv.Kind() == reflect.Map && rv.Type().Key().Kind() == reflect.String {
+		if rv.IsNil() {
+			return nil, false
+		}
+		out := make(map[string]any, rv.Len())
+		iter := rv.MapRange()
+		for iter.Next() {
+			out[iter.Key().String()] = iter.Value().Interface()
+		}
+		return out, true
+	}
+	return nil, false
+}
+
+func toAnySlice(raw any) ([]any, bool) {
+	if raw == nil {
+		return nil, false
+	}
+	if s, ok := raw.([]any); ok {
+		if s == nil {
+			return nil, false
+		}
+		out := make([]any, len(s))
+		for i, elem := range s {
+			out[i] = core.CloneJSONValue(elem)
+		}
+		return out, true
+	}
+	rv := reflect.ValueOf(raw)
+	if (rv.Kind() == reflect.Slice || rv.Kind() == reflect.Array) && (rv.Kind() == reflect.Array || !rv.IsNil()) {
+		out := make([]any, rv.Len())
+		for i := range rv.Len() {
+			out[i] = core.CloneJSONValue(rv.Index(i).Interface())
+		}
+		return out, true
+	}
+	return nil, false
+}
+
+func extractPlainString(raw any) (string, bool) {
+	if s, ok := raw.(string); ok {
+		return s, true
+	}
+	rv := reflect.ValueOf(raw)
+	if rv.IsValid() && rv.Kind() == reflect.String {
+		return rv.String(), true
+	}
+	return "", false
+}
+
+func extractPlainBool(raw any) (bool, bool) {
+	if b, ok := raw.(bool); ok {
+		return b, true
+	}
+	rv := reflect.ValueOf(raw)
+	if rv.IsValid() && rv.Kind() == reflect.Bool {
+		return rv.Bool(), true
+	}
+	return false, false
+}
+
 func coerceStructArgs[Args any](
 	rawArgs map[string]any,
 	params []macroParam,
@@ -43,13 +128,17 @@ func coerceStructArgs[Args any](
 	outVal := reflect.New(reflect.TypeFor[Args]()).Elem()
 	for _, p := range params {
 		raw, present := rawArgs[p.Name]
+		if present && raw == nil && p.GoType == anyIfaceType {
+			fieldByIndexAlloc(outVal, p.FieldIndex).Set(reflect.Zero(anyIfaceType))
+			continue
+		}
 		if !present || raw == nil {
 			if p.HasDefault {
 				coerced, err := coerceValue(p.DefaultVal, p.GoType, p.EnumChoices, useV1_0, p.Name, macroName)
 				if err != nil {
 					return zero, err
 				}
-				outVal.Field(p.FieldIndex).Set(coerced)
+				fieldByIndexAlloc(outVal, p.FieldIndex).Set(coerced)
 				continue
 			}
 			if p.Required {
@@ -61,7 +150,7 @@ func coerceStructArgs[Args any](
 		if err != nil {
 			return zero, err
 		}
-		outVal.Field(p.FieldIndex).Set(coerced)
+		fieldByIndexAlloc(outVal, p.FieldIndex).Set(coerced)
 	}
 	return outVal.Interface().(Args), nil
 }
@@ -75,10 +164,27 @@ func coerceValue(
 	macroName string,
 ) (reflect.Value, error) {
 	if raw == nil {
-		if target.Kind() == reflect.Pointer || target.Kind() == reflect.Interface || target.Kind() == reflect.Map || target.Kind() == reflect.Slice {
+		if target == anyIfaceType {
+			return reflect.Zero(target), nil
+		}
+		if target.Kind() == reflect.Pointer && target != compRefPtrType && !target.Implements(nodeType) {
+			return reflect.Zero(target), nil
+		}
+		if !target.Implements(nodeType) && (target.Kind() == reflect.Map || target.Kind() == reflect.Slice) {
 			return reflect.Zero(target), nil
 		}
 		return reflect.Value{}, fmt.Errorf("parameter %q of macro %q cannot be null", paramName, macroName)
+	}
+
+	rawRV := reflect.ValueOf(raw)
+	if rawRV.Kind() == reflect.Pointer && rawRV.IsNil() {
+		if target == anyIfaceType {
+			return reflect.Zero(target), nil
+		}
+		if target.Kind() == reflect.Pointer && target != compRefPtrType && !target.Implements(nodeType) {
+			return reflect.Zero(target), nil
+		}
+		return reflect.Value{}, fmt.Errorf("parameter %q of macro %q cannot be nil", paramName, macroName)
 	}
 
 	// Pointer unwrap (excluding *builder.ComponentRef and concrete pointer Node types).
@@ -92,20 +198,33 @@ func coerceValue(
 		return ptr, nil
 	}
 
-	// 1. Single child slot: string ID -> ComponentRef.
+	// 1. Single child slot: string ID -> ComponentRef (or programmatic *ComponentRef / Node).
 	if target == nodeType || target == compRefPtrType {
-		if s, ok := raw.(string); ok {
+		if s, ok := extractPlainString(raw); ok {
+			if s == "" {
+				return reflect.Value{}, fmt.Errorf("parameter %q of macro %q component ID must not be empty", paramName, macroName)
+			}
 			return reflect.ValueOf(builder.NewComponentRef(s)), nil
 		}
+		if ref, ok := raw.(*builder.ComponentRef); ok {
+			if ref == nil || ref.ID == "" {
+				return reflect.Value{}, fmt.Errorf("parameter %q of macro %q ComponentRef ID must not be empty", paramName, macroName)
+			}
+			return reflect.ValueOf(ref), nil
+		}
 		if n, ok := raw.(builder.Node); ok {
+			if builder.IsNilValue(n) {
+				return reflect.Value{}, fmt.Errorf("parameter %q of macro %q child node must not be nil", paramName, macroName)
+			}
 			if target == nodeType {
 				return reflect.ValueOf(n), nil
 			}
+			return reflect.Value{}, fmt.Errorf("parameter %q of macro %q expects component ID reference (*builder.ComponentRef), got %T", paramName, macroName, raw)
 		}
 		return reflect.Value{}, fmt.Errorf("parameter %q of macro %q expects component ID string, got %T", paramName, macroName, raw)
 	}
 
-	// 2. ChildList / DynamicChildList / []builder.Node.
+	// 2. ChildList / DynamicChildList / []builder.Node / []*builder.ComponentRef.
 	if isChildListSlotType(target) {
 		return coerceChildListValue(raw, target, useV1_0, paramName, macroName)
 	}
@@ -263,11 +382,12 @@ func coerceValue(
 		}
 		return reflect.ValueOf(a), nil
 	case v1ExtensionsType:
-		m, ok := raw.(map[string]any)
+		m, ok := toStringAnyMap(raw)
 		if !ok {
 			return reflect.Value{}, fmt.Errorf("parameter %q of macro %q expects Extensions map, got %T", paramName, macroName, raw)
 		}
-		ext := v1.Extensions(core.CloneJSONValue(m).(map[string]any))
+		cloned, _ := core.CloneJSONValue(m).(map[string]any)
+		ext := v1.Extensions(cloned)
 		if err := ext.Validate(); err != nil {
 			return reflect.Value{}, err
 		}
@@ -281,7 +401,7 @@ func coerceValue(
 	// 4. Primitives & enums (strictly reject dicts/bindings!).
 	switch target.Kind() {
 	case reflect.String:
-		s, ok := raw.(string)
+		s, ok := extractPlainString(raw)
 		if !ok {
 			return reflect.Value{}, fmt.Errorf("parameter %q of macro %q expects string, got %T", paramName, macroName, raw)
 		}
@@ -295,11 +415,18 @@ func coerceValue(
 			if !slices.Contains(se.EnumValues(), s) {
 				return reflect.Value{}, fmt.Errorf("parameter %q of macro %q got %q, expected one of %v", paramName, macroName, s, se.EnumValues())
 			}
+		} else if reflect.PointerTo(target).Implements(stringEnumType) {
+			ptr := reflect.New(target)
+			ptr.Elem().Set(out)
+			se := ptr.Interface().(builder.StringEnum)
+			if !slices.Contains(se.EnumValues(), s) {
+				return reflect.Value{}, fmt.Errorf("parameter %q of macro %q got %q, expected one of %v", paramName, macroName, s, se.EnumValues())
+			}
 		}
 		return out, nil
 
 	case reflect.Bool:
-		b, ok := raw.(bool)
+		b, ok := extractPlainBool(raw)
 		if !ok {
 			return reflect.Value{}, fmt.Errorf("parameter %q of macro %q expects bool, got %T", paramName, macroName, raw)
 		}
@@ -313,7 +440,22 @@ func coerceValue(
 			return reflect.Value{}, fmt.Errorf("parameter %q of macro %q expects integer, got %T", paramName, macroName, raw)
 		}
 		out := reflect.New(target).Elem()
+		if out.OverflowInt(iv) {
+			return reflect.Value{}, fmt.Errorf("parameter %q of macro %q value %d overflows %s", paramName, macroName, iv, target)
+		}
 		out.SetInt(iv)
+		return out, nil
+
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		uv, ok := extractStrictUint(raw)
+		if !ok {
+			return reflect.Value{}, fmt.Errorf("parameter %q of macro %q expects unsigned integer, got %T", paramName, macroName, raw)
+		}
+		out := reflect.New(target).Elem()
+		if out.OverflowUint(uv) {
+			return reflect.Value{}, fmt.Errorf("parameter %q of macro %q value %d overflows %s", paramName, macroName, uv, target)
+		}
+		out.SetUint(uv)
 		return out, nil
 
 	case reflect.Float32, reflect.Float64:
@@ -322,6 +464,9 @@ func coerceValue(
 			return reflect.Value{}, fmt.Errorf("parameter %q of macro %q expects number, got %T", paramName, macroName, raw)
 		}
 		out := reflect.New(target).Elem()
+		if out.OverflowFloat(fv) {
+			return reflect.Value{}, fmt.Errorf("parameter %q of macro %q value %g overflows %s", paramName, macroName, fv, target)
+		}
 		out.SetFloat(fv)
 		return out, nil
 
@@ -332,7 +477,7 @@ func coerceValue(
 		}
 		sliceOut := reflect.MakeSlice(target, rv.Len(), rv.Len())
 		for i := range rv.Len() {
-			elemVal, err := coerceValue(rv.Index(i).Interface(), target.Elem(), nil, useV1_0, fmt.Sprintf("%s[%d]", paramName, i), macroName)
+			elemVal, err := coerceValue(rv.Index(i).Interface(), target.Elem(), enumChoices, useV1_0, fmt.Sprintf("%s[%d]", paramName, i), macroName)
 			if err != nil {
 				return reflect.Value{}, err
 			}
@@ -340,27 +485,56 @@ func coerceValue(
 		}
 		return sliceOut, nil
 
+	case reflect.Array:
+		rv := reflect.ValueOf(raw)
+		if rv.Kind() != reflect.Slice && rv.Kind() != reflect.Array {
+			return reflect.Value{}, fmt.Errorf("parameter %q of macro %q expects array of length %d, got %T", paramName, macroName, target.Len(), raw)
+		}
+		if rv.Len() != target.Len() {
+			return reflect.Value{}, fmt.Errorf("parameter %q of macro %q expects %d items, got %d", paramName, macroName, target.Len(), rv.Len())
+		}
+		arrOut := reflect.New(target).Elem()
+		for i := range rv.Len() {
+			elemVal, err := coerceValue(rv.Index(i).Interface(), target.Elem(), enumChoices, useV1_0, fmt.Sprintf("%s[%d]", paramName, i), macroName)
+			if err != nil {
+				return reflect.Value{}, err
+			}
+			arrOut.Index(i).Set(elemVal)
+		}
+		return arrOut, nil
+
 	case reflect.Map:
-		m, ok := raw.(map[string]any)
+		m, ok := toStringAnyMap(raw)
 		if !ok || target.Key().Kind() != reflect.String {
 			return reflect.Value{}, fmt.Errorf("parameter %q of macro %q expects object map, got %T", paramName, macroName, raw)
 		}
 		mapOut := reflect.MakeMapWithSize(target, len(m))
 		for k, v := range m {
+			keyVal := reflect.ValueOf(k).Convert(target.Key())
 			if target.Elem() == anyIfaceType {
-				mapOut.SetMapIndex(reflect.ValueOf(k), reflect.ValueOf(v))
+				if v == nil {
+					mapOut.SetMapIndex(keyVal, reflect.Zero(anyIfaceType))
+				} else {
+					mapOut.SetMapIndex(keyVal, reflect.ValueOf(v))
+				}
 				continue
 			}
 			valCoerced, err := coerceValue(v, target.Elem(), nil, useV1_0, fmt.Sprintf("%s[%q]", paramName, k), macroName)
 			if err != nil {
 				return reflect.Value{}, err
 			}
-			mapOut.SetMapIndex(reflect.ValueOf(k), valCoerced)
+			mapOut.SetMapIndex(keyVal, valCoerced)
 		}
 		return mapOut, nil
 
 	case reflect.Struct:
-		m, ok := raw.(map[string]any)
+		if rawRV.Type() == target {
+			return rawRV, nil
+		}
+		if rawRV.Kind() == reflect.Pointer && !rawRV.IsNil() && rawRV.Elem().Type() == target {
+			return rawRV.Elem(), nil
+		}
+		m, ok := toStringAnyMap(raw)
 		if !ok {
 			return reflect.Value{}, fmt.Errorf("parameter %q of macro %q expects object for %s, got %T", paramName, macroName, target.Name(), raw)
 		}
@@ -377,7 +551,7 @@ func coerceNestedStruct(
 	paramName string,
 	macroName string,
 ) (reflect.Value, error) {
-	params, paramMap, err := inspectStructParams(target, macroName)
+	params, paramMap, err := inspectStructParams(target, macroName, useV1_0)
 	if err != nil {
 		return reflect.Value{}, err
 	}
@@ -389,13 +563,17 @@ func coerceNestedStruct(
 	outVal := reflect.New(target).Elem()
 	for _, p := range params {
 		raw, present := m[p.Name]
+		if present && raw == nil && p.GoType == anyIfaceType {
+			fieldByIndexAlloc(outVal, p.FieldIndex).Set(reflect.Zero(anyIfaceType))
+			continue
+		}
 		if !present || raw == nil {
 			if p.HasDefault {
 				cv, err := coerceValue(p.DefaultVal, p.GoType, p.EnumChoices, useV1_0, paramName+"."+p.Name, macroName)
 				if err != nil {
 					return reflect.Value{}, err
 				}
-				outVal.Field(p.FieldIndex).Set(cv)
+				fieldByIndexAlloc(outVal, p.FieldIndex).Set(cv)
 				continue
 			}
 			if p.Required {
@@ -407,7 +585,7 @@ func coerceNestedStruct(
 		if err != nil {
 			return reflect.Value{}, err
 		}
-		outVal.Field(p.FieldIndex).Set(cv)
+		fieldByIndexAlloc(outVal, p.FieldIndex).Set(cv)
 	}
 	return outVal, nil
 }
@@ -419,18 +597,43 @@ func coerceChildListValue(
 	paramName string,
 	macroName string,
 ) (reflect.Value, error) {
-	if m, ok := raw.(map[string]any); ok {
+	if dcl, ok := raw.(v1.DynamicChildList); ok {
+		if target != v1ChildListType && target != v1DCLType {
+			return reflect.Value{}, fmt.Errorf("parameter %q of macro %q does not admit v1.0 DynamicChildList", paramName, macroName)
+		}
+		if builder.IsNilValue(dcl.Template) {
+			return reflect.Value{}, fmt.Errorf("DynamicChildList template must not be nil on %q of macro %q", paramName, macroName)
+		}
+		return reflect.ValueOf(dcl), nil
+	}
+	if dclPtr, ok := raw.(*v1.DynamicChildList); ok && dclPtr != nil {
+		return coerceChildListValue(*dclPtr, target, useV1_0, paramName, macroName)
+	}
+	if dcl, ok := raw.(v09.DynamicChildList); ok {
+		if target != v09ChildListType && target != v09DCLType {
+			return reflect.Value{}, fmt.Errorf("parameter %q of macro %q does not admit v0.9 DynamicChildList", paramName, macroName)
+		}
+		if builder.IsNilValue(dcl.Template) {
+			return reflect.Value{}, fmt.Errorf("DynamicChildList template must not be nil on %q of macro %q", paramName, macroName)
+		}
+		return reflect.ValueOf(dcl), nil
+	}
+	if dclPtr, ok := raw.(*v09.DynamicChildList); ok && dclPtr != nil {
+		return coerceChildListValue(*dclPtr, target, useV1_0, paramName, macroName)
+	}
+
+	if m, ok := toStringAnyMap(raw); ok {
 		admitsDCL := target == v1ChildListType || target == v1DCLType || target == v09ChildListType || target == v09DCLType
 		if !admitsDCL {
 			return reflect.Value{}, fmt.Errorf("parameter %q of macro %q expects static child list, got map", paramName, macroName)
 		}
-		path, okPath := m["path"].(string)
+		path, okPath := extractPlainString(m["path"])
 		tmplKey := "componentId"
 		if _, hasCID := m["componentId"]; !hasCID {
 			tmplKey = "template"
 		}
-		tmplID, okTmpl := m[tmplKey].(string)
-		if !okPath || !okTmpl || len(m) != 2 {
+		tmplID, okTmpl := extractPlainString(m[tmplKey])
+		if !okPath || !okTmpl || path == "" || tmplID == "" || len(m) != 2 {
 			return reflect.Value{}, fmt.Errorf("invalid DynamicChildList map on parameter %q of macro %q", paramName, macroName)
 		}
 		ref := builder.NewComponentRef(tmplID)
@@ -451,9 +654,15 @@ func coerceChildListValue(
 	nodes := make([]builder.Node, 0, rv.Len())
 	for i := range rv.Len() {
 		elem := rv.Index(i).Interface()
-		if s, ok := elem.(string); ok {
+		if s, ok := extractPlainString(elem); ok {
+			if s == "" {
+				return reflect.Value{}, fmt.Errorf("parameter %q[%d] of macro %q component ID must not be empty", paramName, i, macroName)
+			}
 			nodes = append(nodes, builder.NewComponentRef(s))
 		} else if n, ok := elem.(builder.Node); ok {
+			if builder.IsNilValue(n) {
+				return reflect.Value{}, fmt.Errorf("parameter %q[%d] of macro %q child node must not be nil", paramName, i, macroName)
+			}
 			nodes = append(nodes, n)
 		} else {
 			return reflect.Value{}, fmt.Errorf("parameter %q[%d] of macro %q expects component ID string, got %T", paramName, i, macroName, elem)
@@ -466,30 +675,86 @@ func coerceChildListValue(
 	case v09ChildListType, v09StaticCLType:
 		return reflect.ValueOf(v09.Children(nodes...)), nil
 	default:
-		// []builder.Node
-		return reflect.ValueOf(nodes), nil
+		sliceOut := reflect.MakeSlice(target, len(nodes), len(nodes))
+		elemType := target.Elem()
+		for i, n := range nodes {
+			if elemType == compRefPtrType {
+				ref, ok := n.(*builder.ComponentRef)
+				if !ok {
+					return reflect.Value{}, fmt.Errorf("parameter %q[%d] of macro %q expects component ID reference (*builder.ComponentRef), got %T", paramName, i, macroName, n)
+				}
+				sliceOut.Index(i).Set(reflect.ValueOf(ref))
+			} else {
+				sliceOut.Index(i).Set(reflect.ValueOf(n))
+			}
+		}
+		return sliceOut, nil
+	}
+}
+
+const (
+	maxInt64PlusOneFloat  = 9223372036854775808.0  // 2^63
+	minInt64Float         = -9223372036854775808.0 // -2^63
+	maxUint64PlusOneFloat = 18446744073709551616.0 // 2^64
+)
+
+func extractExactInt64(raw any) (int64, bool) {
+	rv := reflect.ValueOf(raw)
+	if !rv.IsValid() {
+		return 0, false
+	}
+	switch rv.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return rv.Int(), true
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		uv := rv.Uint()
+		if uv > math.MaxInt64 {
+			return 0, false
+		}
+		return int64(uv), true
+	default:
+		return 0, false
 	}
 }
 
 func extractStrictInt(raw any) (int64, bool) {
-	switch v := raw.(type) {
-	case int:
-		return int64(v), true
-	case int8:
-		return int64(v), true
-	case int16:
-		return int64(v), true
-	case int32:
-		return int64(v), true
-	case int64:
-		return v, true
-	case uint:
-		return int64(v), true
-	case uint64:
-		return int64(v), true
-	case float64:
-		if !math.IsNaN(v) && !math.IsInf(v, 0) && math.Trunc(v) == v {
-			return int64(v), true
+	if iv, ok := extractExactInt64(raw); ok {
+		return iv, true
+	}
+	rv := reflect.ValueOf(raw)
+	if !rv.IsValid() {
+		return 0, false
+	}
+	switch rv.Kind() {
+	case reflect.Float32, reflect.Float64:
+		fv := rv.Float()
+		if !math.IsNaN(fv) && !math.IsInf(fv, 0) && math.Trunc(fv) == fv && fv >= minInt64Float && fv < maxInt64PlusOneFloat {
+			return int64(fv), true
+		}
+		return 0, false
+	default:
+		return 0, false
+	}
+}
+
+func extractStrictUint(raw any) (uint64, bool) {
+	rv := reflect.ValueOf(raw)
+	if !rv.IsValid() {
+		return 0, false
+	}
+	switch rv.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		iv := rv.Int()
+		if iv < 0 {
+			return 0, false
+		}
+		return uint64(iv), true
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		return rv.Uint(), true
+	case reflect.Float32, reflect.Float64:
+		fv := rv.Float()
+		if !math.IsNaN(fv) && !math.IsInf(fv, 0) && math.Trunc(fv) == fv && fv >= 0 && fv < maxUint64PlusOneFloat {
+			return uint64(fv), true
 		}
 		return 0, false
 	default:
@@ -498,23 +763,18 @@ func extractStrictInt(raw any) (int64, bool) {
 }
 
 func extractStrictFloat(raw any) (float64, bool) {
-	switch v := raw.(type) {
-	case int:
-		return float64(v), true
-	case int8:
-		return float64(v), true
-	case int16:
-		return float64(v), true
-	case int32:
-		return float64(v), true
-	case int64:
-		return float64(v), true
-	case uint:
-		return float64(v), true
-	case float32:
-		return float64(v), !math.IsNaN(float64(v)) && !math.IsInf(float64(v), 0)
-	case float64:
-		return v, !math.IsNaN(v) && !math.IsInf(v, 0)
+	rv := reflect.ValueOf(raw)
+	if !rv.IsValid() {
+		return 0, false
+	}
+	switch rv.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return float64(rv.Int()), true
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		return float64(rv.Uint()), true
+	case reflect.Float32, reflect.Float64:
+		fv := rv.Float()
+		return fv, !math.IsNaN(fv) && !math.IsInf(fv, 0)
 	default:
 		return 0, false
 	}
@@ -526,7 +786,7 @@ func isV1BindingMap(m map[string]any) (string, bool) {
 	if len(m) != 1 {
 		return "", false
 	}
-	p, ok := m["@path"].(string)
+	p, ok := extractPlainString(m["@path"])
 	return p, ok
 }
 
@@ -534,7 +794,7 @@ func coerceV1DataBinding(raw any, paramName, macroName string) (v1.DataBinding, 
 	if db, ok := raw.(v1.DataBinding); ok {
 		return db, nil
 	}
-	m, ok := raw.(map[string]any)
+	m, ok := toStringAnyMap(raw)
 	if !ok {
 		return v1.DataBinding{}, fmt.Errorf("parameter %q of macro %q expects v1.0 DataBinding, got %T", paramName, macroName, raw)
 	}
@@ -549,11 +809,11 @@ func coerceV1FunctionCall(raw any, paramName, macroName string) (v1.FunctionCall
 	if fc, ok := raw.(v1.FunctionCall); ok {
 		return fc, nil
 	}
-	m, ok := raw.(map[string]any)
+	m, ok := toStringAnyMap(raw)
 	if !ok {
 		return v1.FunctionCall{}, fmt.Errorf("parameter %q of macro %q expects v1.0 FunctionCall, got %T", paramName, macroName, raw)
 	}
-	callName, ok := m["@call"].(string)
+	callName, ok := extractPlainString(m["@call"])
 	if !ok || callName == "" {
 		return v1.FunctionCall{}, fmt.Errorf("invalid v1.0 FunctionCall '@call' on %q of macro %q", paramName, macroName)
 	}
@@ -564,12 +824,16 @@ func coerceV1FunctionCall(raw any, paramName, macroName string) (v1.FunctionCall
 	}
 	var args map[string]any
 	if rawArgs, hasArgs := m["args"]; hasArgs && rawArgs != nil {
-		argsMap, ok := rawArgs.(map[string]any)
+		argsMap, ok := toStringAnyMap(rawArgs)
 		if !ok {
 			return v1.FunctionCall{}, fmt.Errorf("FunctionCall args must be map in %q of macro %q", paramName, macroName)
 		}
 		args = make(map[string]any, len(argsMap))
 		for k, v := range argsMap {
+			if v == nil {
+				args[k] = nil
+				continue
+			}
 			dv, err := coerceV1DynamicValue(v, paramName+".args."+k, macroName)
 			if err != nil {
 				return v1.FunctionCall{}, err
@@ -578,20 +842,20 @@ func coerceV1FunctionCall(raw any, paramName, macroName string) (v1.FunctionCall
 		}
 	}
 	fc := v1.NewFunctionCall(callName, args)
-	if cid, ok := m["catalogId"].(string); ok && cid != "" {
+	if cid, ok := extractPlainString(m["catalogId"]); ok && cid != "" {
 		fc = fc.WithCatalogID(cid)
 	}
 	return fc, nil
 }
 
 func coerceV1DynamicString(raw any, paramName, macroName string) (v1.DynamicString, error) {
-	if ds, ok := raw.(v1.DynamicString); ok {
+	if ds, ok := raw.(v1.DynamicString); ok && !builder.IsNilValue(ds) {
 		return ds, nil
 	}
-	if s, ok := raw.(string); ok {
+	if s, ok := extractPlainString(raw); ok {
 		return v1.Str(s), nil
 	}
-	if m, ok := raw.(map[string]any); ok {
+	if m, ok := toStringAnyMap(raw); ok {
 		if p, ok := isV1BindingMap(m); ok {
 			return v1.Bind(p), nil
 		}
@@ -603,16 +867,16 @@ func coerceV1DynamicString(raw any, paramName, macroName string) (v1.DynamicStri
 }
 
 func coerceV1DynamicNumber(raw any, paramName, macroName string) (v1.DynamicNumber, error) {
-	if dn, ok := raw.(v1.DynamicNumber); ok {
+	if dn, ok := raw.(v1.DynamicNumber); ok && !builder.IsNilValue(dn) {
 		return dn, nil
 	}
-	if iv, ok := raw.(int); ok {
-		return v1.Int(iv), nil
+	if iv, ok := extractExactInt64(raw); ok {
+		return v1.Int64(iv), nil
 	}
 	if fv, ok := extractStrictFloat(raw); ok {
 		return v1.Num(fv), nil
 	}
-	if m, ok := raw.(map[string]any); ok {
+	if m, ok := toStringAnyMap(raw); ok {
 		if p, ok := isV1BindingMap(m); ok {
 			return v1.Bind(p), nil
 		}
@@ -624,13 +888,13 @@ func coerceV1DynamicNumber(raw any, paramName, macroName string) (v1.DynamicNumb
 }
 
 func coerceV1DynamicBoolean(raw any, paramName, macroName string) (v1.DynamicBoolean, error) {
-	if db, ok := raw.(v1.DynamicBoolean); ok {
+	if db, ok := raw.(v1.DynamicBoolean); ok && !builder.IsNilValue(db) {
 		return db, nil
 	}
-	if b, ok := raw.(bool); ok {
+	if b, ok := extractPlainBool(raw); ok {
 		return v1.Bool(b), nil
 	}
-	if m, ok := raw.(map[string]any); ok {
+	if m, ok := toStringAnyMap(raw); ok {
 		if p, ok := isV1BindingMap(m); ok {
 			return v1.Bind(p), nil
 		}
@@ -642,10 +906,10 @@ func coerceV1DynamicBoolean(raw any, paramName, macroName string) (v1.DynamicBoo
 }
 
 func coerceV1DynamicStringList(raw any, paramName, macroName string) (v1.DynamicStringList, error) {
-	if dl, ok := raw.(v1.DynamicStringList); ok {
+	if dl, ok := raw.(v1.DynamicStringList); ok && !builder.IsNilValue(dl) {
 		return dl, nil
 	}
-	if m, ok := raw.(map[string]any); ok {
+	if m, ok := toStringAnyMap(raw); ok {
 		if p, ok := isV1BindingMap(m); ok {
 			return v1.Bind(p), nil
 		}
@@ -658,7 +922,7 @@ func coerceV1DynamicStringList(raw any, paramName, macroName string) (v1.Dynamic
 	if rv.Kind() == reflect.Slice || rv.Kind() == reflect.Array {
 		strs := make([]string, 0, rv.Len())
 		for i := range rv.Len() {
-			s, ok := rv.Index(i).Interface().(string)
+			s, ok := extractPlainString(rv.Index(i).Interface())
 			if !ok {
 				return nil, fmt.Errorf("parameter %q[%d] of macro %q expects string, got %T", paramName, i, macroName, rv.Index(i).Interface())
 			}
@@ -670,22 +934,22 @@ func coerceV1DynamicStringList(raw any, paramName, macroName string) (v1.Dynamic
 }
 
 func coerceV1DynamicValue(raw any, paramName, macroName string) (v1.DynamicValue, error) {
-	if dv, ok := raw.(v1.DynamicValue); ok {
+	if dv, ok := raw.(v1.DynamicValue); ok && !builder.IsNilValue(dv) {
 		return dv, nil
 	}
-	if s, ok := raw.(string); ok {
+	if s, ok := extractPlainString(raw); ok {
 		return v1.Str(s), nil
 	}
-	if b, ok := raw.(bool); ok {
+	if b, ok := extractPlainBool(raw); ok {
 		return v1.Bool(b), nil
 	}
-	if iv, ok := raw.(int); ok {
-		return v1.Int(iv), nil
+	if iv, ok := extractExactInt64(raw); ok {
+		return v1.Int64(iv), nil
 	}
 	if fv, ok := extractStrictFloat(raw); ok {
 		return v1.Num(fv), nil
 	}
-	if m, ok := raw.(map[string]any); ok {
+	if m, ok := toStringAnyMap(raw); ok {
 		if p, ok := isV1BindingMap(m); ok {
 			return v1.Bind(p), nil
 		}
@@ -731,10 +995,10 @@ func coerceV1DynamicValue(raw any, paramName, macroName string) (v1.DynamicValue
 }
 
 func coerceV1CheckCondition(raw any, paramName, macroName string) (v1.CheckCondition, error) {
-	if cc, ok := raw.(v1.CheckCondition); ok {
+	if cc, ok := raw.(v1.CheckCondition); ok && !builder.IsNilValue(cc) {
 		return cc, nil
 	}
-	m, ok := raw.(map[string]any)
+	m, ok := toStringAnyMap(raw)
 	if !ok {
 		return nil, fmt.Errorf("v1.0 CheckRule condition on %q of macro %q must be DataBinding or FunctionCall", paramName, macroName)
 	}
@@ -745,17 +1009,20 @@ func coerceV1CheckCondition(raw any, paramName, macroName string) (v1.CheckCondi
 }
 
 func coerceV1IconName(raw any, paramName, macroName string) (v1.IconNameValue, error) {
-	if iv, ok := raw.(v1.IconNameValue); ok {
+	if iv, ok := raw.(v1.IconNameValue); ok && !builder.IsNilValue(iv) {
+		if in, isEnum := iv.(v1.IconName); isEnum && !slices.Contains(in.EnumValues(), string(in)) {
+			return nil, fmt.Errorf("invalid IconName %q on %q of macro %q", in, paramName, macroName)
+		}
 		return iv, nil
 	}
-	if s, ok := raw.(string); ok {
+	if s, ok := extractPlainString(raw); ok {
 		icon := v1.IconName(s)
 		if !slices.Contains(icon.EnumValues(), s) {
 			return nil, fmt.Errorf("invalid IconName %q on %q of macro %q", s, paramName, macroName)
 		}
 		return icon, nil
 	}
-	if m, ok := raw.(map[string]any); ok {
+	if m, ok := toStringAnyMap(raw); ok {
 		if p, ok := isV1BindingMap(m); ok {
 			return v1.Bind(p), nil
 		}
@@ -774,7 +1041,16 @@ func coerceV1IconName(raw any, paramName, macroName string) (v1.IconNameValue, e
 }
 
 func coerceV1ActionEventMap(raw any, paramName, macroName string) (v1.ActionEvent, error) {
-	m, ok := raw.(map[string]any)
+	if ev, ok := raw.(v1.ActionEvent); ok {
+		if ev.Name == "" {
+			return v1.ActionEvent{}, fmt.Errorf("v1.0 ActionEvent requires non-empty name on %q of macro %q", paramName, macroName)
+		}
+		return ev, nil
+	}
+	if evPtr, ok := raw.(*v1.ActionEvent); ok && evPtr != nil {
+		return coerceV1ActionEventMap(*evPtr, paramName, macroName)
+	}
+	m, ok := toStringAnyMap(raw)
 	if !ok {
 		return v1.ActionEvent{}, fmt.Errorf("ActionEvent on %q of macro %q must be object", paramName, macroName)
 	}
@@ -783,7 +1059,7 @@ func coerceV1ActionEventMap(raw any, paramName, macroName string) (v1.ActionEven
 			return v1.ActionEvent{}, fmt.Errorf("unknown field %q on v1.0 ActionEvent in %q of macro %q", k, paramName, macroName)
 		}
 	}
-	name, ok := m["name"].(string)
+	name, ok := extractPlainString(m["name"])
 	if !ok || name == "" {
 		return v1.ActionEvent{}, fmt.Errorf("v1.0 ActionEvent requires non-empty name on %q of macro %q", paramName, macroName)
 	}
@@ -800,7 +1076,7 @@ func coerceV1ActionEventMap(raw any, paramName, macroName string) (v1.ActionEven
 		ev.UserMessage = um
 	}
 	if ctxRaw, hasCtx := m["context"]; hasCtx && ctxRaw != nil {
-		ctxMap, ok := ctxRaw.(map[string]any)
+		ctxMap, ok := toStringAnyMap(ctxRaw)
 		if !ok {
 			return v1.ActionEvent{}, fmt.Errorf("ActionEvent.context must be map on %q of macro %q", paramName, macroName)
 		}
@@ -820,10 +1096,16 @@ func coerceV1Action(raw any, paramName, macroName string) (v1.Action, error) {
 	if act, ok := raw.(v1.Action); ok {
 		return act, act.Validate()
 	}
-	if s, ok := raw.(string); ok {
+	if actPtr, ok := raw.(*v1.Action); ok && actPtr != nil {
+		return *actPtr, actPtr.Validate()
+	}
+	if s, ok := extractPlainString(raw); ok {
+		if s == "" {
+			return v1.Action{}, fmt.Errorf("v1.0 Action event name must not be empty on %q of macro %q", paramName, macroName)
+		}
 		return v1.EventAction(s, nil), nil
 	}
-	m, ok := raw.(map[string]any)
+	m, ok := toStringAnyMap(raw)
 	if !ok {
 		return v1.Action{}, fmt.Errorf("parameter %q of macro %q expects Action string or object, got %T", paramName, macroName, raw)
 	}
@@ -834,7 +1116,7 @@ func coerceV1Action(raw any, paramName, macroName string) (v1.Action, error) {
 	}
 
 	if hasEv && !hasFC {
-		if evName, isStr := m["event"].(string); isStr {
+		if evName, isStr := extractPlainString(m["event"]); isStr {
 			evPayload := make(map[string]any, len(m))
 			for k, v := range m {
 				if k != "event" {
@@ -864,7 +1146,6 @@ func coerceV1Action(raw any, paramName, macroName string) (v1.Action, error) {
 		return v1.Action{Event: &ev}, nil
 	}
 
-	// Standard Action envelope: {"event": {...}} or {"functionCall": {...}}
 	for k := range m {
 		if k != "event" && k != "functionCall" && k != "function_call" {
 			return v1.Action{}, fmt.Errorf("unknown field %q on v1.0 Action in %q of macro %q", k, paramName, macroName)
@@ -889,9 +1170,15 @@ func coerceV1Action(raw any, paramName, macroName string) (v1.Action, error) {
 
 func coerceV1CheckRule(raw any, paramName, macroName string) (v1.CheckRule, error) {
 	if cr, ok := raw.(v1.CheckRule); ok {
+		if builder.IsNilValue(cr.Condition) {
+			return v1.CheckRule{}, fmt.Errorf("CheckRule condition must not be nil on %q of macro %q", paramName, macroName)
+		}
 		return cr, nil
 	}
-	m, ok := raw.(map[string]any)
+	if crPtr, ok := raw.(*v1.CheckRule); ok && crPtr != nil {
+		return coerceV1CheckRule(*crPtr, paramName, macroName)
+	}
+	m, ok := toStringAnyMap(raw)
 	if !ok {
 		return v1.CheckRule{}, fmt.Errorf("CheckRule on %q of macro %q must be object", paramName, macroName)
 	}
@@ -906,7 +1193,7 @@ func coerceV1CheckRule(raw any, paramName, macroName string) (v1.CheckRule, erro
 	}
 	var msg string
 	if msgRaw, hasMsg := m["message"]; hasMsg && msgRaw != nil {
-		s, ok := msgRaw.(string)
+		s, ok := extractPlainString(msgRaw)
 		if !ok {
 			return v1.CheckRule{}, fmt.Errorf("CheckRule.message must be string on %q of macro %q", paramName, macroName)
 		}
@@ -919,7 +1206,10 @@ func coerceV1A11y(raw any, paramName, macroName string) (v1.AccessibilityAttribu
 	if a, ok := raw.(v1.AccessibilityAttributes); ok {
 		return a, nil
 	}
-	m, ok := raw.(map[string]any)
+	if aPtr, ok := raw.(*v1.AccessibilityAttributes); ok && aPtr != nil {
+		return *aPtr, nil
+	}
+	m, ok := toStringAnyMap(raw)
 	if !ok {
 		return v1.AccessibilityAttributes{}, fmt.Errorf("AccessibilityAttributes on %q of macro %q must be object", paramName, macroName)
 	}
@@ -944,7 +1234,7 @@ func coerceV1A11y(raw any, paramName, macroName string) (v1.AccessibilityAttribu
 		out.Description = ds
 	}
 	if v, has := m["live"]; has && v != nil {
-		s, ok := v.(string)
+		s, ok := extractPlainString(v)
 		if !ok {
 			return out, fmt.Errorf("AccessibilityAttributes.live must be string")
 		}
@@ -970,7 +1260,7 @@ func isV09BindingMap(m map[string]any) (string, bool) {
 	if len(m) != 1 {
 		return "", false
 	}
-	p, ok := m["path"].(string)
+	p, ok := extractPlainString(m["path"])
 	return p, ok
 }
 
@@ -978,7 +1268,7 @@ func coerceV09DataBinding(raw any, paramName, macroName string) (v09.DataBinding
 	if db, ok := raw.(v09.DataBinding); ok {
 		return db, nil
 	}
-	m, ok := raw.(map[string]any)
+	m, ok := toStringAnyMap(raw)
 	if !ok {
 		return v09.DataBinding{}, fmt.Errorf("parameter %q of macro %q expects v0.9 DataBinding, got %T", paramName, macroName, raw)
 	}
@@ -993,11 +1283,11 @@ func coerceV09FunctionCall(raw any, paramName, macroName string) (v09.FunctionCa
 	if fc, ok := raw.(v09.FunctionCall); ok {
 		return fc, nil
 	}
-	m, ok := raw.(map[string]any)
+	m, ok := toStringAnyMap(raw)
 	if !ok {
 		return v09.FunctionCall{}, fmt.Errorf("parameter %q of macro %q expects v0.9 FunctionCall, got %T", paramName, macroName, raw)
 	}
-	callName, ok := m["call"].(string)
+	callName, ok := extractPlainString(m["call"])
 	if !ok || callName == "" {
 		return v09.FunctionCall{}, fmt.Errorf("invalid v0.9 FunctionCall 'call' on %q of macro %q", paramName, macroName)
 	}
@@ -1008,13 +1298,17 @@ func coerceV09FunctionCall(raw any, paramName, macroName string) (v09.FunctionCa
 	}
 	var args map[string]any
 	if rawArgs, hasArgs := m["args"]; hasArgs && rawArgs != nil {
-		argsMap, ok := rawArgs.(map[string]any)
+		argsMap, ok := toStringAnyMap(rawArgs)
 		if !ok {
 			return v09.FunctionCall{}, fmt.Errorf("FunctionCall args must be map in %q of macro %q", paramName, macroName)
 		}
 		args = make(map[string]any, len(argsMap))
 		for k, v := range argsMap {
-			if subMap, isMap := v.(map[string]any); isMap {
+			if v == nil {
+				args[k] = nil
+				continue
+			}
+			if subMap, isMap := toStringAnyMap(v); isMap {
 				if p, ok := isV09BindingMap(subMap); ok {
 					args[k] = v09.Bind(p)
 					continue
@@ -1038,22 +1332,22 @@ func coerceV09FunctionCall(raw any, paramName, macroName string) (v09.FunctionCa
 		}
 	}
 	fc := v09.NewFunctionCall(callName, args)
-	if rt, ok := m["returnType"].(string); ok && rt != "" {
+	if rt, ok := extractPlainString(m["returnType"]); ok && rt != "" {
 		fc = fc.WithReturnType(rt)
-	} else if rt, ok := m["return_type"].(string); ok && rt != "" {
+	} else if rt, ok := extractPlainString(m["return_type"]); ok && rt != "" {
 		fc = fc.WithReturnType(rt)
 	}
 	return fc, nil
 }
 
 func coerceV09DynamicString(raw any, paramName, macroName string) (v09.DynamicString, error) {
-	if ds, ok := raw.(v09.DynamicString); ok {
+	if ds, ok := raw.(v09.DynamicString); ok && !builder.IsNilValue(ds) {
 		return ds, nil
 	}
-	if s, ok := raw.(string); ok {
+	if s, ok := extractPlainString(raw); ok {
 		return v09.Str(s), nil
 	}
-	if m, ok := raw.(map[string]any); ok {
+	if m, ok := toStringAnyMap(raw); ok {
 		if p, ok := isV09BindingMap(m); ok {
 			return v09.Bind(p), nil
 		}
@@ -1065,16 +1359,16 @@ func coerceV09DynamicString(raw any, paramName, macroName string) (v09.DynamicSt
 }
 
 func coerceV09DynamicNumber(raw any, paramName, macroName string) (v09.DynamicNumber, error) {
-	if dn, ok := raw.(v09.DynamicNumber); ok {
+	if dn, ok := raw.(v09.DynamicNumber); ok && !builder.IsNilValue(dn) {
 		return dn, nil
 	}
-	if iv, ok := raw.(int); ok {
-		return v09.Int(iv), nil
+	if iv, ok := extractExactInt64(raw); ok {
+		return v09.Int64(iv), nil
 	}
 	if fv, ok := extractStrictFloat(raw); ok {
 		return v09.Num(fv), nil
 	}
-	if m, ok := raw.(map[string]any); ok {
+	if m, ok := toStringAnyMap(raw); ok {
 		if p, ok := isV09BindingMap(m); ok {
 			return v09.Bind(p), nil
 		}
@@ -1086,13 +1380,13 @@ func coerceV09DynamicNumber(raw any, paramName, macroName string) (v09.DynamicNu
 }
 
 func coerceV09DynamicBoolean(raw any, paramName, macroName string) (v09.DynamicBoolean, error) {
-	if db, ok := raw.(v09.DynamicBoolean); ok {
+	if db, ok := raw.(v09.DynamicBoolean); ok && !builder.IsNilValue(db) {
 		return db, nil
 	}
-	if b, ok := raw.(bool); ok {
+	if b, ok := extractPlainBool(raw); ok {
 		return v09.Bool(b), nil
 	}
-	if m, ok := raw.(map[string]any); ok {
+	if m, ok := toStringAnyMap(raw); ok {
 		if p, ok := isV09BindingMap(m); ok {
 			return v09.Bind(p), nil
 		}
@@ -1104,10 +1398,10 @@ func coerceV09DynamicBoolean(raw any, paramName, macroName string) (v09.DynamicB
 }
 
 func coerceV09DynamicStringList(raw any, paramName, macroName string) (v09.DynamicStringList, error) {
-	if dl, ok := raw.(v09.DynamicStringList); ok {
+	if dl, ok := raw.(v09.DynamicStringList); ok && !builder.IsNilValue(dl) {
 		return dl, nil
 	}
-	if m, ok := raw.(map[string]any); ok {
+	if m, ok := toStringAnyMap(raw); ok {
 		if p, ok := isV09BindingMap(m); ok {
 			return v09.Bind(p), nil
 		}
@@ -1120,7 +1414,7 @@ func coerceV09DynamicStringList(raw any, paramName, macroName string) (v09.Dynam
 	if rv.Kind() == reflect.Slice || rv.Kind() == reflect.Array {
 		strs := make([]string, 0, rv.Len())
 		for i := range rv.Len() {
-			s, ok := rv.Index(i).Interface().(string)
+			s, ok := extractPlainString(rv.Index(i).Interface())
 			if !ok {
 				return nil, fmt.Errorf("parameter %q[%d] of macro %q expects string, got %T", paramName, i, macroName, rv.Index(i).Interface())
 			}
@@ -1132,22 +1426,22 @@ func coerceV09DynamicStringList(raw any, paramName, macroName string) (v09.Dynam
 }
 
 func coerceV09DynamicValue(raw any, paramName, macroName string) (v09.DynamicValue, error) {
-	if dv, ok := raw.(v09.DynamicValue); ok {
+	if dv, ok := raw.(v09.DynamicValue); ok && !builder.IsNilValue(dv) {
 		return dv, nil
 	}
-	if s, ok := raw.(string); ok {
+	if s, ok := extractPlainString(raw); ok {
 		return v09.Str(s), nil
 	}
-	if b, ok := raw.(bool); ok {
+	if b, ok := extractPlainBool(raw); ok {
 		return v09.Bool(b), nil
 	}
-	if iv, ok := raw.(int); ok {
-		return v09.Int(iv), nil
+	if iv, ok := extractExactInt64(raw); ok {
+		return v09.Int64(iv), nil
 	}
 	if fv, ok := extractStrictFloat(raw); ok {
 		return v09.Num(fv), nil
 	}
-	if m, ok := raw.(map[string]any); ok {
+	if m, ok := toStringAnyMap(raw); ok {
 		if p, ok := isV09BindingMap(m); ok {
 			return v09.Bind(p), nil
 		}
@@ -1177,24 +1471,27 @@ func coerceV09DynamicValue(raw any, paramName, macroName string) (v09.DynamicVal
 }
 
 func coerceV09IconName(raw any, paramName, macroName string) (v09.IconNameValue, error) {
-	if iv, ok := raw.(v09.IconNameValue); ok {
+	if iv, ok := raw.(v09.IconNameValue); ok && !builder.IsNilValue(iv) {
+		if in, isEnum := iv.(v09.IconName); isEnum && !slices.Contains(in.EnumValues(), string(in)) {
+			return nil, fmt.Errorf("invalid IconName %q on %q of macro %q", in, paramName, macroName)
+		}
 		return iv, nil
 	}
-	if s, ok := raw.(string); ok {
+	if s, ok := extractPlainString(raw); ok {
 		icon := v09.IconName(s)
 		if !slices.Contains(icon.EnumValues(), s) {
 			return nil, fmt.Errorf("invalid IconName %q on %q of macro %q", s, paramName, macroName)
 		}
 		return icon, nil
 	}
-	if m, ok := raw.(map[string]any); ok {
+	if m, ok := toStringAnyMap(raw); ok {
 		if p, ok := isV09BindingMap(m); ok {
 			return v09.Bind(p), nil
 		}
 		if _, hasCall := m["call"]; hasCall {
 			return coerceV09FunctionCall(m, paramName, macroName)
 		}
-		if svg, ok := m["svgPath"].(string); ok && len(m) == 1 {
+		if svg, ok := extractPlainString(m["svgPath"]); ok && len(m) == 1 {
 			return v09.NewIconNameSVGPath(svg), nil
 		}
 	}
@@ -1202,7 +1499,16 @@ func coerceV09IconName(raw any, paramName, macroName string) (v09.IconNameValue,
 }
 
 func coerceV09ActionEventMap(raw any, paramName, macroName string) (v09.ActionEvent, error) {
-	m, ok := raw.(map[string]any)
+	if ev, ok := raw.(v09.ActionEvent); ok {
+		if ev.Name == "" {
+			return v09.ActionEvent{}, fmt.Errorf("v0.9 ActionEvent requires non-empty name on %q of macro %q", paramName, macroName)
+		}
+		return ev, nil
+	}
+	if evPtr, ok := raw.(*v09.ActionEvent); ok && evPtr != nil {
+		return coerceV09ActionEventMap(*evPtr, paramName, macroName)
+	}
+	m, ok := toStringAnyMap(raw)
 	if !ok {
 		return v09.ActionEvent{}, fmt.Errorf("ActionEvent on %q of macro %q must be object", paramName, macroName)
 	}
@@ -1211,13 +1517,13 @@ func coerceV09ActionEventMap(raw any, paramName, macroName string) (v09.ActionEv
 			return v09.ActionEvent{}, fmt.Errorf("unknown field %q on v0.9 ActionEvent in %q of macro %q", k, paramName, macroName)
 		}
 	}
-	name, ok := m["name"].(string)
+	name, ok := extractPlainString(m["name"])
 	if !ok || name == "" {
 		return v09.ActionEvent{}, fmt.Errorf("v0.9 ActionEvent requires non-empty name on %q of macro %q", paramName, macroName)
 	}
 	ev := v09.ActionEvent{Name: name}
 	if ctxRaw, hasCtx := m["context"]; hasCtx && ctxRaw != nil {
-		ctxMap, ok := ctxRaw.(map[string]any)
+		ctxMap, ok := toStringAnyMap(ctxRaw)
 		if !ok {
 			return v09.ActionEvent{}, fmt.Errorf("ActionEvent.context must be map on %q of macro %q", paramName, macroName)
 		}
@@ -1237,10 +1543,16 @@ func coerceV09Action(raw any, paramName, macroName string) (v09.Action, error) {
 	if act, ok := raw.(v09.Action); ok {
 		return act, act.Validate()
 	}
-	if s, ok := raw.(string); ok {
+	if actPtr, ok := raw.(*v09.Action); ok && actPtr != nil {
+		return *actPtr, actPtr.Validate()
+	}
+	if s, ok := extractPlainString(raw); ok {
+		if s == "" {
+			return v09.Action{}, fmt.Errorf("v0.9 Action event name must not be empty on %q of macro %q", paramName, macroName)
+		}
 		return v09.EventAction(s, nil), nil
 	}
-	m, ok := raw.(map[string]any)
+	m, ok := toStringAnyMap(raw)
 	if !ok {
 		return v09.Action{}, fmt.Errorf("parameter %q of macro %q expects Action string or object, got %T", paramName, macroName, raw)
 	}
@@ -1251,7 +1563,7 @@ func coerceV09Action(raw any, paramName, macroName string) (v09.Action, error) {
 	}
 
 	if hasEv && !hasFC {
-		if evName, isStr := m["event"].(string); isStr {
+		if evName, isStr := extractPlainString(m["event"]); isStr {
 			evPayload := make(map[string]any, len(m))
 			for k, v := range m {
 				if k != "event" {
@@ -1305,9 +1617,15 @@ func coerceV09Action(raw any, paramName, macroName string) (v09.Action, error) {
 
 func coerceV09CheckRule(raw any, paramName, macroName string) (v09.CheckRule, error) {
 	if cr, ok := raw.(v09.CheckRule); ok {
+		if builder.IsNilValue(cr.Condition) || cr.Message == "" {
+			return v09.CheckRule{}, fmt.Errorf("v0.9 CheckRule requires condition and non-empty message on %q of macro %q", paramName, macroName)
+		}
 		return cr, nil
 	}
-	m, ok := raw.(map[string]any)
+	if crPtr, ok := raw.(*v09.CheckRule); ok && crPtr != nil {
+		return coerceV09CheckRule(*crPtr, paramName, macroName)
+	}
+	m, ok := toStringAnyMap(raw)
 	if !ok {
 		return v09.CheckRule{}, fmt.Errorf("CheckRule on %q of macro %q must be object", paramName, macroName)
 	}
@@ -1320,7 +1638,7 @@ func coerceV09CheckRule(raw any, paramName, macroName string) (v09.CheckRule, er
 	if err != nil {
 		return v09.CheckRule{}, err
 	}
-	msg, ok := m["message"].(string)
+	msg, ok := extractPlainString(m["message"])
 	if !ok || msg == "" {
 		return v09.CheckRule{}, fmt.Errorf("v0.9 CheckRule requires non-empty message on %q of macro %q", paramName, macroName)
 	}
@@ -1331,7 +1649,10 @@ func coerceV09A11y(raw any, paramName, macroName string) (v09.AccessibilityAttri
 	if a, ok := raw.(v09.AccessibilityAttributes); ok {
 		return a, nil
 	}
-	m, ok := raw.(map[string]any)
+	if aPtr, ok := raw.(*v09.AccessibilityAttributes); ok && aPtr != nil {
+		return *aPtr, nil
+	}
+	m, ok := toStringAnyMap(raw)
 	if !ok {
 		return v09.AccessibilityAttributes{}, fmt.Errorf("AccessibilityAttributes on %q of macro %q must be object", paramName, macroName)
 	}
@@ -1359,7 +1680,10 @@ func coerceV09A11y(raw any, paramName, macroName string) (v09.AccessibilityAttri
 }
 
 func coerceAnyDynamic(raw any, useV1_0 bool) reflect.Value {
-	if m, ok := raw.(map[string]any); ok {
+	if raw == nil {
+		return reflect.Zero(anyIfaceType)
+	}
+	if m, ok := toStringAnyMap(raw); ok {
 		if useV1_0 {
 			if p, ok := isV1BindingMap(m); ok {
 				return reflect.ValueOf(v1.Bind(p))
@@ -1369,8 +1693,8 @@ func coerceAnyDynamic(raw any, useV1_0 bool) reflect.Value {
 					return reflect.ValueOf(fc)
 				}
 			}
-			if path, okP := m["path"].(string); okP && len(m) == 2 {
-				if cid, okC := m["componentId"].(string); okC && path != "" && cid != "" {
+			if path, okP := extractPlainString(m["path"]); okP && len(m) == 2 {
+				if cid, okC := extractPlainString(m["componentId"]); okC && path != "" && cid != "" {
 					return reflect.ValueOf(v1.NewDynamicChildList(path, builder.NewComponentRef(cid)))
 				}
 			}
@@ -1383,8 +1707,8 @@ func coerceAnyDynamic(raw any, useV1_0 bool) reflect.Value {
 					return reflect.ValueOf(fc)
 				}
 			}
-			if path, okP := m["path"].(string); okP && len(m) == 2 {
-				if tmpl, okT := m["template"].(string); okT && path != "" && tmpl != "" {
+			if path, okP := extractPlainString(m["path"]); okP && len(m) == 2 {
+				if tmpl, okT := extractPlainString(m["template"]); okT && path != "" && tmpl != "" {
 					return reflect.ValueOf(v09.NewDynamicChildList(path, builder.NewComponentRef(tmpl)))
 				}
 			}
@@ -1397,60 +1721,71 @@ func collectReturnedNodeVersions(val any, out map[builder.VersionFamily]bool, se
 	if val == nil {
 		return
 	}
-	rv := reflect.ValueOf(val)
-	if (rv.Kind() == reflect.Pointer || rv.Kind() == reflect.Interface || rv.Kind() == reflect.Slice || rv.Kind() == reflect.Map) && rv.IsNil() {
+	collectReturnedNodeVersionsValue(reflect.ValueOf(val), out, seen)
+}
+
+func collectReturnedNodeVersionsValue(rv reflect.Value, out map[builder.VersionFamily]bool, seen map[uintptr]bool) {
+	if !rv.IsValid() {
 		return
 	}
-	if node, ok := val.(builder.Node); ok {
-		if _, isRef := builder.ComponentRefID(node); isRef {
+	if rv.Kind() == reflect.Interface {
+		if rv.IsNil() {
 			return
 		}
-		if fam := node.BuilderVersionFamily(); fam != builder.VersionFamilyUnspecified {
-			out[fam] = true
+		collectReturnedNodeVersionsValue(rv.Elem(), out, seen)
+		return
+	}
+	if (rv.Kind() == reflect.Pointer || rv.Kind() == reflect.Slice || rv.Kind() == reflect.Map) && rv.IsNil() {
+		return
+	}
+
+	if rv.CanInterface() {
+		val := rv.Interface()
+		if node, ok := val.(builder.Node); ok {
+			if _, isRef := builder.ComponentRefID(node); isRef {
+				return
+			}
+			if fam := node.BuilderVersionFamily(); fam != builder.VersionFamilyUnspecified {
+				out[fam] = true
+			}
+		} else if vm, ok := val.(builder.VersionedModel); ok {
+			if fam := vm.BuilderVersionFamily(); fam != builder.VersionFamilyUnspecified {
+				out[fam] = true
+			}
 		}
-	} else if vm, ok := val.(builder.VersionedModel); ok {
-		if fam := vm.BuilderVersionFamily(); fam != builder.VersionFamilyUnspecified {
+	} else {
+		if rv.Type() == compRefPtrType || rv.Type() == compRefPtrType.Elem() {
+			return
+		}
+		if fam := directTypeVersionFamily(rv.Type()); fam != builder.VersionFamilyUnspecified {
 			out[fam] = true
 		}
 	}
 
 	switch rv.Kind() {
 	case reflect.Pointer:
-		if rv.IsNil() {
-			return
-		}
 		ptr := rv.Pointer()
 		if seen[ptr] {
 			return
 		}
 		seen[ptr] = true
-		collectReturnedNodeVersions(rv.Elem().Interface(), out, seen)
+		collectReturnedNodeVersionsValue(rv.Elem(), out, seen)
 	case reflect.Struct:
+		rt := rv.Type()
 		for i := range rv.NumField() {
-			if rv.Type().Field(i).IsExported() {
-				fv := rv.Field(i)
-				if fv.Kind() == reflect.Interface && fv.IsNil() {
-					continue
-				}
-				collectReturnedNodeVersions(fv.Interface(), out, seen)
+			sf := rt.Field(i)
+			if sf.IsExported() || sf.Anonymous {
+				collectReturnedNodeVersionsValue(rv.Field(i), out, seen)
 			}
 		}
 	case reflect.Slice, reflect.Array:
 		for i := range rv.Len() {
-			elem := rv.Index(i)
-			if elem.Kind() == reflect.Interface && elem.IsNil() {
-				continue
-			}
-			collectReturnedNodeVersions(elem.Interface(), out, seen)
+			collectReturnedNodeVersionsValue(rv.Index(i), out, seen)
 		}
 	case reflect.Map:
 		iter := rv.MapRange()
 		for iter.Next() {
-			mv := iter.Value()
-			if mv.Kind() == reflect.Interface && mv.IsNil() {
-				continue
-			}
-			collectReturnedNodeVersions(mv.Interface(), out, seen)
+			collectReturnedNodeVersionsValue(iter.Value(), out, seen)
 		}
 	}
 }

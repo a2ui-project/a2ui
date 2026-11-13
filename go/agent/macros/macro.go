@@ -171,10 +171,16 @@ var (
 )
 
 func directTypeVersionFamily(t reflect.Type) builder.VersionFamily {
+	if t == compRefPtrType {
+		return builder.VersionFamilyUnspecified
+	}
 	for t.Kind() == reflect.Pointer {
+		if t == compRefPtrType {
+			return builder.VersionFamilyUnspecified
+		}
 		t = t.Elem()
 	}
-	if t == nodeType || t == compRefPtrType {
+	if t == nodeType || t == compRefPtrType.Elem() {
 		return builder.VersionFamilyUnspecified
 	}
 	pkg := t.PkgPath()
@@ -200,6 +206,9 @@ func collectTypeVersions(t reflect.Type, out map[builder.VersionFamily]bool, see
 		return
 	}
 	for t.Kind() == reflect.Pointer {
+		if t == compRefPtrType {
+			return
+		}
 		t = t.Elem()
 	}
 	if seen[t] {
@@ -229,17 +238,14 @@ func collectTypeVersions(t reflect.Type, out map[builder.VersionFamily]bool, see
 }
 
 func isSingleChildSlotType(t reflect.Type) bool {
-	for t.Kind() == reflect.Pointer {
-		t = t.Elem()
-	}
-	if t == nodeType {
-		return true
-	}
-	return t.Implements(nodeType) || reflect.PointerTo(t).Implements(nodeType)
+	return t == nodeType || t == compRefPtrType
 }
 
 func isChildListSlotType(t reflect.Type) bool {
 	for t.Kind() == reflect.Pointer {
+		if t == compRefPtrType {
+			return false
+		}
 		t = t.Elem()
 	}
 	switch t {
@@ -252,10 +258,58 @@ func isChildListSlotType(t reflect.Type) bool {
 	return false
 }
 
+func validateMacroParamType(t reflect.Type, paramName, macroName string, useV1_0 bool, seen map[reflect.Type]bool) error {
+	if t == nil {
+		return nil
+	}
+	for t.Kind() == reflect.Pointer {
+		if t == compRefPtrType {
+			return nil
+		}
+		t = t.Elem()
+	}
+	if t == nodeType {
+		return nil
+	}
+	if t.Kind() != reflect.Interface && (t.Implements(nodeType) || reflect.PointerTo(t).Implements(nodeType)) {
+		return core.NewValidationErrorf(
+			"parameter %q of macro %q cannot use concrete component type %s; use builder.Node or *builder.ComponentRef",
+			paramName, macroName, t,
+		)
+	}
+	switch t.Kind() {
+	case reflect.Slice, reflect.Array:
+		return validateMacroParamType(t.Elem(), paramName, macroName, useV1_0, seen)
+	case reflect.Map:
+		if t.Key().Kind() != reflect.String {
+			return core.NewValidationErrorf("parameter %q of macro %q has unsupported non-string map key type %s", paramName, macroName, t.Key())
+		}
+		return validateMacroParamType(t.Elem(), paramName, macroName, useV1_0, seen)
+	case reflect.Struct:
+		if seen[t] {
+			return nil
+		}
+		switch t {
+		case v1DCLType, v09DCLType, v1BindType, v09BindType, v1FuncCallType, v09FuncCallType,
+			v1ActionType, v09ActionType, v1ActionEventType, v09ActionEventType,
+			v1CheckRuleType, v09CheckRuleType, v1A11yType, v09A11yType:
+			return nil
+		}
+		nextSeen := make(map[reflect.Type]bool, len(seen)+1)
+		for k, v := range seen {
+			nextSeen[k] = v
+		}
+		nextSeen[t] = true
+		_, _, err := inspectStructParamsSeen(t, macroName, useV1_0, nextSeen)
+		return err
+	}
+	return nil
+}
+
 // macroParam describes a single parameter on a Macro.
 type macroParam struct {
 	Name        string
-	FieldIndex  int
+	FieldIndex  []int
 	GoType      reflect.Type
 	Required    bool
 	HasDefault  bool
@@ -310,7 +364,7 @@ func (m *Macro) HasParameter(paramName string) bool {
 //   - json:"name,omitempty": sets the wire parameter name; omitempty marks the parameter optional.
 //   - default:"val": marks the parameter optional and supplies a default when omitted.
 //   - desc:"...": sets the parameter's JSON Schema description.
-//   - enum:"a,b,c": constrains a string parameter to specific literal choices.
+//   - enum:"a,b,c": constrains a string or string-slice parameter to specific literal choices.
 func NewMacro[Args any, Out builder.Node](
 	name string,
 	description string,
@@ -346,7 +400,8 @@ func NewMacro[Args any, Out builder.Node](
 		}
 	}
 
-	params, paramMap, err := inspectStructParams(argsType, name)
+	useV1_0 := targetVer == builder.VersionFamily1_0
+	params, paramMap, err := inspectStructParamsSeen(argsType, name, useV1_0, map[reflect.Type]bool{argsType: true})
 	if err != nil {
 		return nil, err
 	}
@@ -357,8 +412,8 @@ func NewMacro[Args any, Out builder.Node](
 		}
 	}
 
-	invoke := func(rawArgs map[string]any, useV1_0 bool) (builder.Node, error) {
-		argsVal, err := coerceStructArgs[Args](rawArgs, params, paramMap, useV1_0, name)
+	invoke := func(rawArgs map[string]any, invokeV1_0 bool) (builder.Node, error) {
+		argsVal, err := coerceStructArgs[Args](rawArgs, params, paramMap, invokeV1_0, name)
 		if err != nil {
 			return nil, err
 		}
@@ -420,33 +475,198 @@ func MustNewPureMacro[Args any, Out builder.Node](
 	return m
 }
 
-func inspectStructParams(argsType reflect.Type, macroName string) ([]macroParam, map[string]macroParam, error) {
-	params := make([]macroParam, 0, argsType.NumField())
-	paramMap := make(map[string]macroParam, argsType.NumField())
+type paramCandidate struct {
+	name      string
+	index     []int
+	sf        reflect.StructField
+	omitEmpty bool
+	tagged    bool
+}
 
-	for i := range argsType.NumField() {
-		sf := argsType.Field(i)
-		if !sf.IsExported() {
-			continue
+func resolveDominantCandidate(group []paramCandidate) (paramCandidate, bool) {
+	if len(group) == 1 {
+		return group[0], true
+	}
+	minDepth := len(group[0].index)
+	for _, c := range group[1:] {
+		if len(c.index) < minDepth {
+			minDepth = len(c.index)
 		}
-		paramName, omitEmpty, skip := parseFieldTag(sf)
-		if skip {
-			continue
+	}
+	var shallowest []paramCandidate
+	for _, c := range group {
+		if len(c.index) == minDepth {
+			shallowest = append(shallowest, c)
 		}
-		if _, dup := paramMap[paramName]; dup {
-			return nil, nil, core.NewValidationErrorf("duplicate parameter %q on macro %q", paramName, macroName)
+	}
+	if len(shallowest) == 1 {
+		return shallowest[0], true
+	}
+	var tagged []paramCandidate
+	for _, c := range shallowest {
+		if c.tagged {
+			tagged = append(tagged, c)
 		}
+	}
+	if len(tagged) == 1 {
+		return tagged[0], true
+	}
+	return paramCandidate{}, false
+}
 
-		desc := sf.Tag.Get("desc")
+func collectStructParamCandidates(argsType reflect.Type, macroName string) ([]paramCandidate, error) {
+	type fieldScan struct {
+		typ   reflect.Type
+		index []int
+	}
 
-		var enumChoices []string
-		if enumTag := sf.Tag.Get("enum"); enumTag != "" {
-			for _, part := range strings.Split(enumTag, ",") {
-				if trimmed := strings.TrimSpace(part); trimmed != "" {
-					enumChoices = append(enumChoices, trimmed)
+	var current []fieldScan
+	next := []fieldScan{{typ: argsType}}
+	var nextCount map[reflect.Type]int
+	visited := make(map[reflect.Type]bool)
+	var candidates []paramCandidate
+
+	for len(next) > 0 {
+		current, next = next, current[:0]
+		count := nextCount
+		nextCount = nil
+
+		for _, scan := range current {
+			if visited[scan.typ] {
+				continue
+			}
+			visited[scan.typ] = true
+			seenInStruct := make(map[string]bool, scan.typ.NumField())
+
+			for i := range scan.typ.NumField() {
+				sf := scan.typ.Field(i)
+				if sf.Anonymous {
+					ft := sf.Type
+					if ft.Kind() == reflect.Pointer {
+						ft = ft.Elem()
+					}
+					if !sf.IsExported() && ft.Kind() != reflect.Struct {
+						continue
+					}
+				} else if !sf.IsExported() {
+					continue
+				}
+
+				explicitName, omitEmpty, skip := parseExplicitFieldTag(sf)
+				if skip {
+					continue
+				}
+
+				idx := make([]int, len(scan.index)+1)
+				copy(idx, scan.index)
+				idx[len(scan.index)] = i
+
+				ft := sf.Type
+				if ft.Kind() == reflect.Pointer {
+					ft = ft.Elem()
+				}
+				if explicitName == "" && sf.Anonymous && ft.Kind() == reflect.Struct {
+					if !visited[ft] {
+						if nextCount == nil {
+							nextCount = make(map[reflect.Type]int)
+						}
+						nextCount[ft]++
+						if nextCount[ft] == 1 {
+							next = append(next, fieldScan{typ: ft, index: idx})
+						}
+					}
+					continue
+				}
+
+				paramName := explicitName
+				tagged := explicitName != ""
+				if paramName == "" {
+					runes := []rune(sf.Name)
+					runes[0] = unicode.ToLower(runes[0])
+					paramName = string(runes)
+				}
+				if seenInStruct[paramName] {
+					return nil, core.NewValidationErrorf("duplicate parameter %q on macro %q", paramName, macroName)
+				}
+				seenInStruct[paramName] = true
+
+				cand := paramCandidate{
+					name:      paramName,
+					index:     idx,
+					sf:        sf,
+					omitEmpty: omitEmpty,
+					tagged:    tagged,
+				}
+				if count[scan.typ] > 1 {
+					candidates = append(candidates, cand, cand)
+				} else {
+					candidates = append(candidates, cand)
 				}
 			}
 		}
+	}
+
+	byName := make(map[string][]paramCandidate, len(candidates))
+	var order []string
+	for _, c := range candidates {
+		if _, exists := byName[c.name]; !exists {
+			order = append(order, c.name)
+		}
+		byName[c.name] = append(byName[c.name], c)
+	}
+
+	resolved := make([]paramCandidate, 0, len(order))
+	for _, name := range order {
+		if win, ok := resolveDominantCandidate(byName[name]); ok {
+			resolved = append(resolved, win)
+		}
+	}
+	return resolved, nil
+}
+
+func parseEnumTagChoices(sf reflect.StructField) []string {
+	var enumChoices []string
+	if enumTag := sf.Tag.Get("enum"); enumTag != "" {
+		for _, part := range strings.Split(enumTag, ",") {
+			if trimmed := strings.TrimSpace(part); trimmed != "" {
+				enumChoices = append(enumChoices, trimmed)
+			}
+		}
+	}
+	return enumChoices
+}
+
+func inspectStructParams(argsType reflect.Type, macroName string, useV1_0 bool) ([]macroParam, map[string]macroParam, error) {
+	return inspectStructParamsSeen(argsType, macroName, useV1_0, map[reflect.Type]bool{argsType: true})
+}
+
+func inspectStructParamsSeen(
+	argsType reflect.Type,
+	macroName string,
+	useV1_0 bool,
+	seen map[reflect.Type]bool,
+) ([]macroParam, map[string]macroParam, error) {
+	candidates, err := collectStructParamCandidates(argsType, macroName)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	params := make([]macroParam, 0, len(candidates))
+	paramMap := make(map[string]macroParam, len(candidates))
+
+	for _, c := range candidates {
+		sf := c.sf
+		paramName := c.name
+
+		if err := validateMacroParamType(sf.Type, paramName, macroName, useV1_0, seen); err != nil {
+			return nil, nil, err
+		}
+
+		desc := sf.Tag.Get("desc")
+		if desc == "" {
+			desc = sf.Tag.Get("description")
+		}
+		enumChoices := parseEnumTagChoices(sf)
 
 		hasDefault := false
 		var defaultVal any
@@ -455,16 +675,19 @@ func inspectStructParams(argsType reflect.Type, macroName string) ([]macroParam,
 			if err != nil {
 				return nil, nil, core.NewValidationErrorf("invalid default %q on parameter %q of macro %q: %v", defRaw, paramName, macroName, err)
 			}
+			if _, err := coerceValue(parsedDef, sf.Type, enumChoices, useV1_0, paramName, macroName); err != nil {
+				return nil, nil, core.NewValidationErrorf("invalid default %q on parameter %q of macro %q: %v", defRaw, paramName, macroName, err)
+			}
 			hasDefault = true
 			defaultVal = parsedDef
 		}
 
 		isPointer := sf.Type.Kind() == reflect.Pointer && sf.Type != compRefPtrType && !sf.Type.Implements(nodeType)
-		required := !omitEmpty && !hasDefault && !isPointer
+		required := !c.omitEmpty && !hasDefault && !isPointer
 
 		mp := macroParam{
 			Name:        paramName,
-			FieldIndex:  i,
+			FieldIndex:  c.index,
 			GoType:      sf.Type,
 			Required:    required,
 			HasDefault:  hasDefault,
@@ -478,26 +701,21 @@ func inspectStructParams(argsType reflect.Type, macroName string) ([]macroParam,
 	return params, paramMap, nil
 }
 
-func parseFieldTag(sf reflect.StructField) (name string, omitEmpty bool, skip bool) {
+func parseExplicitFieldTag(sf reflect.StructField) (explicitName string, omitEmpty bool, skip bool) {
 	tag := sf.Tag.Get("json")
 	if tag == "-" {
 		return "", false, true
 	}
 	if tag != "" {
 		parts := strings.Split(tag, ",")
-		name = parts[0]
+		explicitName = parts[0]
 		for _, opt := range parts[1:] {
 			if opt == "omitempty" {
 				omitEmpty = true
 			}
 		}
 	}
-	if name == "" {
-		runes := []rune(sf.Name)
-		runes[0] = unicode.ToLower(runes[0])
-		name = string(runes)
-	}
-	return name, omitEmpty, false
+	return explicitName, omitEmpty, false
 }
 
 func parseDefaultTagValue(raw string, target reflect.Type) (any, error) {
@@ -511,10 +729,25 @@ func parseDefaultTagValue(raw string, target reflect.Type) (any, error) {
 	case reflect.Bool:
 		return strconv.ParseBool(raw)
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return strconv.Atoi(raw)
+		return strconv.ParseInt(raw, 10, 64)
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return strconv.ParseUint(raw, 10, 64)
 	case reflect.Float32, reflect.Float64:
 		return strconv.ParseFloat(raw, 64)
+	case reflect.Slice, reflect.Array, reflect.Map, reflect.Struct:
+		return core.ParseJSON([]byte(raw))
 	default:
+		if base == v1DynStringType || base == v09DynStringType || base == v1IconNameValType || base == v09IconNameValType {
+			if len(raw) > 0 && raw[0] == '{' {
+				if parsed, err := core.ParseJSON([]byte(raw)); err == nil {
+					return parsed, nil
+				}
+			}
+			return raw, nil
+		}
+		if parsed, err := core.ParseJSON([]byte(raw)); err == nil {
+			return parsed, nil
+		}
 		return raw, nil
 	}
 }
@@ -595,7 +828,7 @@ func mapGoTypeToSchema(
 		childRefName = "Child"
 	}
 
-	if len(enumChoices) > 0 {
+	if len(enumChoices) > 0 && t.Kind() != reflect.Slice && t.Kind() != reflect.Array {
 		return withOptionalDescription(map[string]any{
 			"type": "string",
 			"enum": stringsToAnySlice(enumChoices),
@@ -619,6 +852,33 @@ func mapGoTypeToSchema(
 		return withOptionalDescription(map[string]any{"$ref": refPrefix + "FunctionCall"}, desc)
 	case v1ActionType, v09ActionType:
 		return withOptionalDescription(map[string]any{"$ref": refPrefix + "Action"}, desc)
+	case v1ActionEventType:
+		return withOptionalDescription(map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"name":        map[string]any{"type": "string"},
+				"userMessage": map[string]any{"$ref": refPrefix + "DynamicString"},
+				"context": map[string]any{
+					"type":                 "object",
+					"additionalProperties": map[string]any{"$ref": refPrefix + "DynamicValue"},
+				},
+			},
+			"required":             []any{"name"},
+			"additionalProperties": false,
+		}, desc)
+	case v09ActionEventType:
+		return withOptionalDescription(map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"name": map[string]any{"type": "string"},
+				"context": map[string]any{
+					"type":                 "object",
+					"additionalProperties": map[string]any{"$ref": refPrefix + "DynamicValue"},
+				},
+			},
+			"required":             []any{"name"},
+			"additionalProperties": false,
+		}, desc)
 	case v1CheckRuleType, v09CheckRuleType:
 		return withOptionalDescription(map[string]any{"$ref": refPrefix + "CheckRule"}, desc)
 	case v1A11yType, v09A11yType:
@@ -656,12 +916,21 @@ func mapGoTypeToSchema(
 		return withOptionalDescription(map[string]any{"$ref": refPrefix + childRefName}, desc)
 	}
 
-	if t.Kind() != reflect.Interface && t.Implements(stringEnumType) {
-		se := reflect.Zero(t).Interface().(builder.StringEnum)
-		return withOptionalDescription(map[string]any{
-			"type": "string",
-			"enum": stringsToAnySlice(se.EnumValues()),
-		}, desc)
+	if t.Kind() != reflect.Interface {
+		if t.Implements(stringEnumType) {
+			se := reflect.Zero(t).Interface().(builder.StringEnum)
+			return withOptionalDescription(map[string]any{
+				"type": "string",
+				"enum": stringsToAnySlice(se.EnumValues()),
+			}, desc)
+		}
+		if reflect.PointerTo(t).Implements(stringEnumType) {
+			se := reflect.New(t).Interface().(builder.StringEnum)
+			return withOptionalDescription(map[string]any{
+				"type": "string",
+				"enum": stringsToAnySlice(se.EnumValues()),
+			}, desc)
+		}
 	}
 
 	if t == anyIfaceType {
@@ -679,7 +948,7 @@ func mapGoTypeToSchema(
 	case reflect.Bool:
 		return withOptionalDescription(map[string]any{"type": "boolean"}, desc)
 	case reflect.Slice, reflect.Array:
-		itemSchema := mapGoTypeToSchema(t.Elem(), "", nil, refPrefix, useV1_0, seen)
+		itemSchema := mapGoTypeToSchema(t.Elem(), "", enumChoices, refPrefix, useV1_0, seen)
 		return withOptionalDescription(map[string]any{
 			"type":  "array",
 			"items": itemSchema,
@@ -700,25 +969,21 @@ func mapGoTypeToSchema(
 		}
 		nextSeen[t] = true
 
-		subProps := make(map[string]any)
+		candidates, _ := collectStructParamCandidates(t, "")
+		subProps := make(map[string]any, len(candidates))
 		var subReq []any
-		for i := range t.NumField() {
-			sf := t.Field(i)
-			if !sf.IsExported() {
-				continue
-			}
-			fName, omitEmpty, skip := parseFieldTag(sf)
-			if skip {
-				continue
-			}
-			fDesc := sf.Tag.Get("desc")
+		for _, c := range candidates {
+			sf := c.sf
+			fDesc := strings.TrimSpace(sf.Tag.Get("desc"))
 			if fDesc == "" {
-				fDesc = sf.Tag.Get("description")
+				fDesc = strings.TrimSpace(sf.Tag.Get("description"))
 			}
-			subProps[fName] = mapGoTypeToSchema(sf.Type, fDesc, nil, refPrefix, useV1_0, nextSeen)
+			fEnums := parseEnumTagChoices(sf)
+			subProps[c.name] = mapGoTypeToSchema(sf.Type, fDesc, fEnums, refPrefix, useV1_0, nextSeen)
+			_, hasDef := sf.Tag.Lookup("default")
 			isPtr := sf.Type.Kind() == reflect.Pointer && sf.Type != compRefPtrType && !sf.Type.Implements(nodeType)
-			if !omitEmpty && !isPtr {
-				subReq = append(subReq, fName)
+			if !c.omitEmpty && !hasDef && !isPtr {
+				subReq = append(subReq, c.name)
 			}
 		}
 		modelSchema := map[string]any{
