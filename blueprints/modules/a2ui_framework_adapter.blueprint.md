@@ -6,7 +6,7 @@ description: Framework Adapter specification for rendering the Core SDK node tre
 
 # A2UI Framework Adapter Specification
 
-A [Framework Adapter](../../docs/public/concepts/glossary.md#fw-adapter) renders A2UI surfaces with a native UI framework. It bridges the platform-agnostic [Core SDK](a2ui_core.blueprint.md) to a target UI technology—such as React, Lit, Angular, Flutter, SwiftUI, or AngularDart—translating reactive layout state into platform-native widgets and views.
+A [Framework Adapter](../../docs/site/src/content/docs/concepts/glossary.mdx#fw-adapter) renders A2UI surfaces with a native UI framework. It bridges the platform-agnostic [Core SDK](a2ui_core.blueprint.md) to a target UI technology—such as React, Lit, Angular, Flutter, SwiftUI, or AngularDart—translating reactive layout state into platform-native widgets and views.
 
 This specification describes what a framework adapter must build and expose. It is written for a developer implementing an adapter for a new language or UI framework.
 

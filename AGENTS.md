@@ -52,7 +52,7 @@ Use these rules when you mention a protocol version in documentation, READMEs, s
 
 [`specification/versions.json`](specification/versions.json) is the machine-readable source of truth for version status (`release-candidate`, `current`, `previous`, or `deprecated`, listed newest first). Use the display label `Release Candidate` for `release-candidate`, `Current` for `current`, `Deprecated` for `deprecated`, and no label for `previous` (`Previous` only when a table cell needs a value).
 
-1. Name a version's status only where readers choose between versions: version tables (`docs/public/index.md`, the roadmap), spec page titles, badges, and the callout at the top of a spec page, the `**Status:**` field in a spec, specification `README.md` files, sidebar and nav labels, the root `README.md` version note, "use this version" pointers (including the protocol line in agent skill files), and this section.
+1. Name a version's status only where readers choose between versions: version tables (`docs/site/src/pages/index.astro`, the roadmap), spec page titles, badges, and the callout at the top of a spec page, the `**Status:**` field in a spec, specification `README.md` files, sidebar and nav labels, the root `README.md` version note, "use this version" pointers (including the protocol line in agent skill files), and this section.
 2. Everywhere else (running prose, code comments, test names, tab labels), use plain version numbers. To contrast versions, use ranges such as "v1.0 and later", "before v1.0", "pre-1.0", or "v0.9 and v0.9.1".
 3. Outside the places in rule 1, never attach these words to a specific version: current, latest, newest, active, stable, production, candidate, release candidate, draft, or preview. They become wrong when the next version ships.
 4. You may call v0.8 "legacy" or "deprecated" anywhere. Never call v0.9 or v0.9.1 legacy, stable, current, or active.
@@ -79,7 +79,7 @@ For a detailed explanation of the methodology, lifecycle, and workflows, read th
 ## 4. Codebase & Repository Structure
 
 - **`blueprints/`**: Isolated central repository for language-agnostic module blueprints (`modules/`), feature blueprints (`features/`, `features/archived/`), codebase compliance blueprints (`codebases/`), and SDD skills (`skills/`).
-- **`docs/`**: Documentation hierarchy. Public site documentation published via MkDocs resides in `docs/public/`, while non-public contributor or internal documentation resides under `docs/` alongside `docs/scripts/`.
+- **`docs/`**: Documentation hierarchy. Public site documentation published via Astro and Starlight resides in `docs/site/`, while non-public contributor or internal documentation resides under `docs/` alongside `docs/scripts/`.
 - **`catalogs/`**: Canonical `catalog.json` schemas for the catalogs maintained by the A2UI team (e.g. `catalogs/basic/v1/`, `catalogs/mcp/`). Catalogs are versioned independently of the protocol.
 - **`specification/`**: Versioned subdirectories (`v0_8/`, `v0_9/`, `v0_9_1/`, `v1_0/`) containing JSON schemas and human-readable guides (older versions also bundle their basic catalog). The `specification/<version>/docs/a2ui_protocol.md` file is the most important source of truth for each protocol version, and the `specification/<version>/json` directory contains the associated schemas for the protocol.
 - **`python/`**: Core state SDK (`a2ui_core/`), framework-agnostic agent SDK (`a2ui_agent/`), agent framework integrations for A2A (`a2ui_a2a/`) and ADK (`a2ui_adk/`), and catalog packages (`catalogs/`) for Python.
