@@ -190,9 +190,11 @@ class ManifestTest(unittest.TestCase):
             self._load([self._entry(ecosystem="cargo")])
 
     def test_rejects_wildcard_exclude_ending_in_slash(self):
-        with self.assertRaises(rn.ManifestError) as ctx:
-            self._load([self._entry(exclude=["**/Tests/"])])
-        self.assertIn("**/Tests/**", str(ctx.exception))
+        for pattern in ("**/Tests/", "src/?ests/", "src/[Tt]ests/"):
+            with self.subTest(pattern=pattern):
+                with self.assertRaises(rn.ManifestError) as ctx:
+                    self._load([self._entry(exclude=[pattern])])
+                self.assertIn(pattern + "**", str(ctx.exception))
         specs = self._load(
             [self._entry(exclude=["**/Tests/**", "typescript/p/tests/"])]
         )
