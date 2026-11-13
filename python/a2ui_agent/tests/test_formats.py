@@ -14,21 +14,23 @@
 
 
 import pytest
+
 from a2ui.core import A2uiValidationError, Catalog
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import ProtocolVersion
+from a2ui.inference_formats import VerticalFormat, VerticalParser
 from a2ui.inference_formats.direct_json import (
     DEFAULT_PROGRESSIVE_KEYS,
     DEFAULT_WORKFLOW_RULES,
     DirectJsonFormat,
     DirectJsonParser,
 )
-from a2ui.utils import resolve_catalogs
-from a2ui.inference_formats.express import ExpressFormat, ExpressParser
 from a2ui.inference_formats.experimental.elemental import (
     ElementalFormat,
     ElementalParser,
 )
+from a2ui.inference_formats.express import ExpressFormat, ExpressParser
+from a2ui.utils import resolve_catalogs
 
 
 @pytest.fixture
@@ -209,6 +211,11 @@ def test_supports_streaming_property(test_catalog):
     assert elemental_fmt.supports_streaming is False
     assert elemental_fmt.create_parser().supports_streaming is False
 
+    # 4. VerticalFormat parser supports streaming
+    vertical_fmt = VerticalFormat([test_catalog])
+    assert vertical_fmt.supports_streaming is True
+    assert vertical_fmt.create_parser().supports_streaming is True
+
 
 def test_open_stream_raises_not_implemented(test_catalog):
     from a2ui.inference_formats.express import ExpressResponseStream
@@ -268,6 +275,12 @@ def test_decompiler_delegation(test_catalog):
     decompiled_dsl = expr_parser.decompile(to_message_models(envelopes))
     assert 'root = Text("Hello World")' in decompiled_dsl
 
+    # Verify Vertical Parser Decompile
+    vertical_fmt = VerticalFormat([test_catalog])
+    vert_parser = vertical_fmt.create_parser()
+    decompiled_vert = vert_parser.decompile(to_message_models(envelopes))
+    assert 'Text(text="Hello World")' in decompiled_vert
+
     # Verify wrap_decompiled_blocks implementation
     assert (
         direct_json_fmt.create_parser().wrap_decompiled_blocks(["{}", "{}"])
@@ -276,6 +289,10 @@ def test_decompiler_delegation(test_catalog):
     assert (
         expr_parser.wrap_decompiled_blocks(["a = 1", "b = 2"])
         == "<a2ui>\na = 1\nb = 2\n</a2ui>"
+    )
+    assert (
+        vert_parser.wrap_decompiled_blocks(["Text()", "Divider()"])
+        == "<a2ui>\nText()\nDivider()\n</a2ui>"
     )
 
     # A generator whose hooks render nothing renders an empty snippet.

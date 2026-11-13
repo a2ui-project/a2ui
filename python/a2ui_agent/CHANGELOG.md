@@ -61,6 +61,18 @@
   `value=DataBinding(path="/form/email")`. The path does not have to exist yet
   ([#3830](https://github.com/a2ui-project/a2ui/issues/3830),
   [#3868](https://github.com/a2ui-project/a2ui/pull/3868)).
+- Add the experimental A2UI Vertical inference format (`VerticalFormat`,
+  `VerticalFormatFactory`, `VerticalParser`, and `VerticalResponseStream` in
+  `a2ui.inference_formats`, along with `VerticalParseError` and
+  `VerticalValidationError` in `a2ui.inference_formats.experimental.vertical`),
+  a flat constructor-based format that compiles each standalone component
+  statement into an independent surface across protocol versions v0.9, v0.9.1,
+  and v1.0 (including multi-catalog component and function resolution,
+  `@path`/`@call` wire keys, `Event(..., userMessage=...)`, `extensions=`,
+  `?check(...)` rules, standalone `callRendererFunction` messages, and
+  incremental streaming).
+  ([#2550](https://github.com/a2ui-project/a2ui/issues/2550),
+  [#2866](https://github.com/a2ui-project/a2ui/pull/2866))
 - (v1_0) Express compiles, decompiles and prompts the protocol's system
   functions, which no catalog defines: `@index()` and `@index(offset=1)`
   compile to `{"@call": "@index", ...}` without a `catalogId`, the decompiler

@@ -21,7 +21,11 @@ import os
 import pytest
 
 from a2ui.core.basic_catalog import BasicCatalog
-from a2ui.inference_formats import to_message_dicts, to_message_models
+from a2ui.inference_formats import (
+    VerticalFormat,
+    to_message_dicts,
+    to_message_models,
+)
 from a2ui.inference_formats.experimental.atom import AtomFormat
 from a2ui.inference_formats.experimental.elemental import ElementalFormat
 from a2ui.inference_formats.express import ExpressFormat
@@ -149,6 +153,9 @@ class TestSpecificationRoundtripAllFormats:
         self.express_fmt = ExpressFormat([self.catalog])
         self.elemental_fmt = ElementalFormat([self.catalog])
         self.atom_fmt = AtomFormat([self.catalog])
+        self.vertical_fmt = VerticalFormat(
+            [self.catalog], surface_id="main", version="1.0"
+        )
 
     @pytest.mark.parametrize(
         "json_file", EXAMPLE_FILES, ids=lambda p: os.path.basename(p)
@@ -234,5 +241,22 @@ class TestSpecificationRoundtripAllFormats:
                 processed += 1
         except Exception as e:
             print(f"\n[Atom Error] {os.path.basename(json_file)}: {e}")
+
+        # 4. Test Vertical Format Roundtrip (for non-nested / standalone components)
+        if (
+            len(all_components) == 1
+            and not any(p in all_components[0] for p in ("child", "children"))
+            and not self.vertical_fmt.prompt_generator.component_requires_children(
+                str(all_components[0].get("component", ""))
+            )
+        ):
+            vertical_dsl = self.vertical_fmt.create_parser().decompile(surface_payload)
+            assert vertical_dsl, (
+                "Vertical decompile produced empty output for"
+                f" {os.path.basename(json_file)}"
+            )
+            recompiled = self.vertical_fmt.create_parser().compile(vertical_dsl)
+            _assert_recompiled_matches_payload(recompiled, surface_id, all_components)
+            processed += 1
 
         assert processed > 0, f"No formats processed for {os.path.basename(json_file)}"

@@ -72,6 +72,11 @@ export const UNSUPPORTED_SUITES: Readonly<Record<string, string>> = {
     'the composite macro API is a Python-only helper not implemented in TypeScript',
   'agent/legacy/streaming_parser.yaml':
     'superseded by direct_json/response_streaming.yaml and express/response_streaming.yaml',
+  'agent/vertical/compiler.yaml': 'Vertical is experimental and Python-only',
+  'agent/vertical/decompiler.yaml': 'Vertical is experimental and Python-only',
+  'agent/vertical/prompt_generator.yaml': 'Vertical is experimental and Python-only',
+  'agent/vertical/response_parser.yaml': 'Vertical is experimental and Python-only',
+  'agent/vertical/response_streaming.yaml': 'Vertical is experimental and Python-only',
 };
 
 function discoverAgentSuites(dir: string): string[] {
