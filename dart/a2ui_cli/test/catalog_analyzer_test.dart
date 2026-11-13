@@ -139,11 +139,25 @@ void main() {
       final AnalysedCatalog analysed = CatalogAnalyzer.analyzeCodegen(catalog);
       final AnalysedComponentApi box = analysed.components['NullableBox']!;
       final PropertyDescriptor labelProp = box.properties['label']!;
-      expect(labelProp.type, isA<PrimitiveType>());
-      expect(
-        (labelProp.type as PrimitiveType).primitive,
-        equals(PrimitiveKind.string),
-      );
+      expect(labelProp.type, isA<UnionType>());
+      expect(typeToPython(labelProp.type), equals('str | None'));
+    });
+
+    test('preserves scalar enum values instead of stringifying them', () {
+      final catalog = CodegenCatalog.fromJson({
+        'catalogId': 'scalar_enums',
+        'components': {
+          'Input': {
+            'properties': {
+              'choice': {
+                'enum': [1, true, '1', null],
+              },
+            },
+          },
+        },
+      });
+      final AnalysedCatalog analysed = CatalogAnalyzer.analyzeCodegen(catalog);
+      expect(analysed.enums['InputChoice']!.values, [1, true, '1', null]);
     });
 
     test('falls back to default v0.9.1 when protocolVersion is omitted', () {

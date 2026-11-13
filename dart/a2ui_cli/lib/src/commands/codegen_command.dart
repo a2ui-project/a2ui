@@ -85,7 +85,7 @@ class CodegenCommand extends Command<int> {
     Map<String, dynamic> catalogJson;
     try {
       final String rawContent = catalogFile.readAsStringSync();
-      catalogJson = jsonDecode(rawContent) as Map<String, dynamic>;
+      catalogJson = _decodeCatalog(rawContent);
     } catch (e) {
       errSink.writeln('Error reading or parsing catalog JSON: $e');
       return 1;
@@ -133,4 +133,59 @@ class CodegenCommand extends Command<int> {
     }
     return 0;
   }
+}
+
+Map<String, dynamic> _decodeCatalog(String source) {
+  // Validate the original syntax first: normalizing 0.0.1 must not repair it.
+  jsonDecode(source);
+  final tokens = RegExp(
+    r'"(?:[^"\\]|\\.)*"|-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?',
+  );
+  final String normalized = source.replaceAllMapped(tokens, (match) {
+    final String token = match[0]!;
+    if (token.startsWith('"')) return token;
+    final ({String digits, BigInt exponent}) exact = _decimalParts(token);
+    if (exact.digits == '0') return '0';
+    if (exact.exponent >= BigInt.zero) {
+      final int digitCount = exact.digits.replaceFirst('-', '').length;
+      if (exact.exponent <= BigInt.from(19 - digitCount)) {
+        final int? integer = int.tryParse(
+          exact.digits + '0' * exact.exponent.toInt(),
+        );
+        if (integer != null) return integer.toString();
+      }
+    } else {
+      final double value = double.parse(token);
+      if (value.isFinite && _decimalParts(value.toString()) == exact) {
+        return token;
+      }
+    }
+    throw FormatException(
+      'Catalog number loses precision or exceeds the supported integer range',
+      source,
+      match.start,
+    );
+  });
+  return jsonDecode(normalized) as Map<String, dynamic>;
+}
+
+// Compare decimal spellings without passing their coefficients through double.
+({String digits, BigInt exponent}) _decimalParts(String token) {
+  final List<String> parts = token.toLowerCase().split('e');
+  final String mantissa = parts.first;
+  final int dot = mantissa.indexOf('.');
+  final int fractionLength = dot < 0 ? 0 : mantissa.length - dot - 1;
+  final String digits = mantissa
+      .replaceFirst('-', '')
+      .replaceAll('.', '')
+      .replaceFirst(RegExp(r'^0+'), '');
+  if (digits.isEmpty) return (digits: '0', exponent: BigInt.zero);
+  final String significant = digits.replaceFirst(RegExp(r'0+$'), '');
+  return (
+    digits: '${mantissa.startsWith('-') ? '-' : ''}$significant',
+    exponent:
+        (parts.length == 1 ? BigInt.zero : BigInt.parse(parts.last)) -
+        BigInt.from(fractionLength) +
+        BigInt.from(digits.length - significant.length),
+  );
 }

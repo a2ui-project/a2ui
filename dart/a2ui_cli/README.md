@@ -41,6 +41,27 @@ dart pub global activate --source path dart/a2ui_cli
 a2ui codegen -c path/to/catalog.json -o path/to/output_dir/
 ```
 
+Generated Python enum types preserve string, integer, boolean, and null values.
+Integral JSON numbers such as `1.0` generate integer literals when exactly
+representable as signed 64-bit integers; out-of-range values fail generation
+instead of being clamped or rounded.
+Numeric and boolean enums reject string substitutes and do not treat booleans as
+numbers. Fractional numbers, arrays, and objects cannot be Python `Literal`
+members; code generation reports an error for these enum values.
+
+The `codegen` file reader normalizes integral numeric tokens exactly before
+analysis, including `9007199254740993.0`. It rejects integers outside signed
+64-bit range and fractional tokens whose decimal value changes when converted
+to a Dart double and back, including overflow and underflow. This check covers
+the whole document, including nested schemas and local reference targets;
+quoted strings and escapes are unchanged. Programmatic callers supplying
+already-decoded maps must preserve numeric precision in their own decoder.
+
+Nullable properties retain `None` in their Python annotations. A required nullable
+property must still be supplied. Serialization is owned by the Python builder SDK:
+SDK 0.11.0's `flatten_component_tree` omits `None` values, including required nullable
+properties. The generator does not change that runtime behavior.
+
 ## Regenerating Checked-In Python Builders
 
 After changing the generator or a basic catalog schema, regenerate the Python SDK builder catalog using:

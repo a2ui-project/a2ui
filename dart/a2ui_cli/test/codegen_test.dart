@@ -35,6 +35,132 @@ void main() {
   final String fixturesDir = p.join(repoRoot, 'dart/a2ui_cli/test/fixtures');
 
   group('CatalogAnalyzer & PythonEmitter Codegen Tests', () {
+    test('flattens and deduplicates nested union annotations', () {
+      expect(
+        typeToPython(
+          const UnionType([
+            PrimitiveType(PrimitiveKind.nullValue),
+            UnionType([
+              PrimitiveType(PrimitiveKind.nullValue),
+              PrimitiveType(PrimitiveKind.string),
+            ]),
+          ]),
+        ),
+        'None | str',
+      );
+      expect(
+        typeToPython(
+          const UnionType([
+            PrimitiveType(PrimitiveKind.nullValue),
+            UnionType([PrimitiveType(PrimitiveKind.nullValue)]),
+          ]),
+        ),
+        'None',
+      );
+      expect(
+        typeToPython(
+          const UnionType([
+            DynamicType(
+              UnionType([
+                PrimitiveType(PrimitiveKind.nullValue),
+                PrimitiveType(PrimitiveKind.string),
+              ]),
+            ),
+            DynamicType(PrimitiveType(PrimitiveKind.string)),
+          ]),
+        ),
+        'None | str | DataBinding | FunctionCall',
+      );
+    });
+
+    test('normalizes integral double enum literals without clamping', () {
+      final catalogJson =
+          jsonDecode(
+                File(
+                  p.join(fixturesDir, 'catalogs/scalar_types.json'),
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
+      final String generated = PythonEmitter(
+        CatalogAnalyzer.analyzeCodegen(CodegenCatalog.fromJson(catalogJson)),
+      ).generate();
+      expect(generated, contains('IntegralInputCount = Annotated['));
+      expect(generated, contains('Literal[1, 2]'));
+      expect(generated, isNot(contains('Literal[1.0, 2.0]')));
+      expect(
+        generated,
+        contains('9007199254740992, -9223372036854775808, 9223372036854774784'),
+      );
+    });
+
+    test('rejects enum values Python Literal cannot represent', () {
+      for (final Object value in [
+        1.5,
+        double.nan,
+        double.infinity,
+        double.negativeInfinity,
+        9223372036854775808.0,
+        -9223372036854777856.0,
+        1e100,
+        <String, Object>{},
+        <Object>[],
+      ]) {
+        final AnalysedCatalog analysed = CatalogAnalyzer.analyzeCodegen(
+          CodegenCatalog.fromJson({
+            'catalogId': 'unsupported_enum',
+            'components': {
+              'Input': {
+                'properties': {
+                  'choice': {
+                    'enum': [value],
+                  },
+                },
+              },
+            },
+          }),
+        );
+        expect(
+          () => PythonEmitter(analysed).generate(),
+          throwsA(
+            isA<UnsupportedError>().having(
+              (error) => error.message,
+              'message',
+              contains('InputChoice'),
+            ),
+          ),
+        );
+      }
+    });
+
+    test('emits numeric literals and required nullable field annotations', () {
+      final catalogJson =
+          jsonDecode(
+                File(
+                  p.join(fixturesDir, 'catalogs/scalar_types.json'),
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
+      final String generated = PythonEmitter(
+        CatalogAnalyzer.analyzeCodegen(CodegenCatalog.fromJson(catalogJson)),
+      ).generate();
+
+      expect(generated, contains('Literal[1, 2]'));
+      expect(generated, contains('Literal[True]'));
+      expect(
+        generated,
+        contains('value: str | None | DataBinding | FunctionCall'),
+      );
+      expect(
+        generated,
+        isNot(contains('value: str | None | DataBinding | FunctionCall =')),
+      );
+      expect(generated, contains('explicit_null: str | None = Field('));
+      expect(
+        generated,
+        contains('optional_value: Optional[str | None] = Field('),
+      );
+    });
+
     test('data-driven golden file tests match exact byte-for-byte output', () {
       final goldenCases = <String, String>{
         'minimal.json': 'minimal.py',

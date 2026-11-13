@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-enum PrimitiveKind { string, integer, float, boolean, any }
+enum PrimitiveKind { string, integer, float, boolean, nullValue, any }
 
 sealed class TypeDescriptor {
   const TypeDescriptor();
@@ -25,7 +25,7 @@ class PrimitiveType extends TypeDescriptor {
 
 class EnumType extends TypeDescriptor {
   final String name;
-  final List<String> values;
+  final List<Object?> values;
   final String? description;
 
   const EnumType({required this.name, required this.values, this.description});

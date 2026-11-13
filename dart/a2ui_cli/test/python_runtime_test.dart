@@ -137,6 +137,82 @@ void main() {
         tempDir.deleteSync(recursive: true);
       });
 
+      test('raw JSON integral enums retain exact decimal values', () async {
+        final input = File(p.join(tempDir.path, 'precision.json'))
+          ..writeAsStringSync(r'''
+{
+  "catalogId": "precision",
+  "components": {
+    "Input": {
+      "properties": {
+        "value": {"$ref": "#/$defs/Value"},
+        "ratio": {"type": "number", "default": 0.1, "minimum": 1e-300, "maximum": 1.5},
+        "label": {
+          "type": "string",
+          "enum": ["-9223372036854775809", "1.0000000000000000001", "quote\"9007199254740993.0\\end"]
+        }
+      },
+      "required": ["value", "label"]
+    }
+  },
+  "$defs": {
+    "Value": {
+      "type": "integer",
+      "enum": [9007199254740993.0, 9223372036854775807.0, -9223372036854775808.0, 12300e-2, 1.2300e2]
+    }
+  }
+}
+''');
+        final stderr = StringBuffer();
+        final int result = await runCli(
+          [
+            'codegen',
+            '-c',
+            input.path,
+            '-o',
+            p.join(tempDir.path, 'precision.py'),
+          ],
+          stdout: StringBuffer(),
+          stderr: stderr,
+        );
+        expect(result, 0, reason: stderr.toString());
+        final ProcessResult validation = Process.runSync(
+          pythonBin,
+          [
+            '-c',
+            r'''
+from typing import get_args
+
+from pydantic import ValidationError
+from precision import Input, InputLabel
+
+assert get_args(get_args(InputLabel)[0]) == (
+    "-9223372036854775809", "1.0000000000000000001",
+    'quote"9007199254740993.0\\end',
+)
+
+for value in [9007199254740993, 9223372036854775807, -9223372036854775808, 123]:
+    node = Input(value=value, label="-9223372036854775809")
+    assert node.value == value and type(node.value) is int
+    assert node.ratio == 0.1
+for label in ["1.0000000000000000001", 'quote"9007199254740993.0\\end']:
+    assert Input(value=123, label=label).label == label
+for value in [9007199254740992, 9223372036854775806, -9223372036854775809,
+              "9007199254740993", True]:
+    try:
+        Input(value=value, label="-9223372036854775809")
+    except ValidationError:
+        pass
+    else:
+        raise AssertionError(f"Incorrect accepted value: {value!r}")
+''',
+          ],
+          environment: pyEnv,
+          workingDirectory: tempDir.path,
+        );
+        expect(validation.exitCode, 0, reason: validation.stderr.toString());
+      });
+
       test('all generated Python files compile cleanly via py_compile', () {
         final Iterable<File> generatedFiles = tempDir
             .listSync()
@@ -332,6 +408,161 @@ except ValidationError as e:
         expect(
           pyResult.stdout.toString().trim(),
           equals('VALIDATION_ERROR_SUCCESS'),
+        );
+      });
+
+      test(
+        'scalar enums reject wrong JSON types and nullable fields stay required',
+        () {
+          const pyScript = '''
+from pydantic import ValidationError
+from scalar_types import DataBinding, ScalarInput, flatten_component_tree
+
+values = dict(count=1, enabled=True, label="small", value=None, explicitNull=None)
+node = ScalarInput.model_validate(values)
+assert node.value is None
+assert node.explicit_null is None
+assert node.optional_value is None
+assert ScalarInput.model_fields["value"].is_required()
+assert ScalarInput.model_fields["explicit_null"].is_required()
+assert not ScalarInput.model_fields["optional_value"].is_required()
+assert node.model_dump(by_alias=True)["value"] is None
+assert type(flatten_component_tree(node)[0]["count"]) is int
+assert type(flatten_component_tree(node)[0]["enabled"]) is bool
+
+for value in (1, False, "small", None):
+    parsed = ScalarInput.model_validate(dict(values, mixed=value))
+    assert parsed.mixed == value and type(parsed.mixed) is type(value)
+
+for value in ("2030-01-02", {"path": "/input"}):
+    parsed = ScalarInput.model_validate(dict(values, value=value))
+    assert isinstance(parsed.value, (str, DataBinding))
+
+for field, invalid_values in {
+    "count": ["1", "2", True, False, 3],
+    "enabled": ["true", 1, False],
+    "label": [1, True, "unknown"],
+    "value": [7, True],
+    "explicitNull": [7, True],
+    "mixed": [True, 0, "1"],
+}.items():
+    for invalid in invalid_values:
+        try:
+            ScalarInput.model_validate(dict(values, **{field: invalid}))
+        except ValidationError:
+            pass
+        else:
+            raise AssertionError((field, invalid))
+
+for field in ("count", "enabled", "label", "value", "explicitNull"):
+    omitted = {key: value for key, value in values.items() if key != field}
+    try:
+        ScalarInput.model_validate(omitted)
+    except ValidationError:
+        pass
+    else:
+        raise AssertionError(f"Missing required field accepted: {field}")
+''';
+          final scriptFile = File(p.join(tempDir.path, 'test_scalar_types.py'))
+            ..writeAsStringSync(pyScript);
+          final ProcessResult result = Process.runSync(
+            pythonBin,
+            [scriptFile.path],
+            workingDirectory: tempDir.path,
+            environment: pyEnv,
+          );
+          expect(
+            result.exitCode,
+            0,
+            reason: '${result.stdout}\n${result.stderr}',
+          );
+        },
+      );
+
+      test(
+        'nested nullable unions import and keep required fields required',
+        () {
+          const pyScript = '''
+from pydantic import ValidationError
+from scalar_types import NullableInput
+
+for value in (None, "2030-01-02"):
+    node = NullableInput(value=value, onlyNull=None)
+    assert node.value == value
+    assert node.only_null is None
+    assert node.optional_value is None
+assert NullableInput.model_fields["value"].is_required()
+assert NullableInput.model_fields["only_null"].is_required()
+assert not NullableInput.model_fields["optional_value"].is_required()
+
+for invalid in (
+    {"value": None},
+    {"onlyNull": None},
+    {"value": 7, "onlyNull": None},
+    {"value": None, "onlyNull": "wrong"},
+):
+    try:
+        NullableInput.model_validate(invalid)
+    except ValidationError:
+        pass
+    else:
+        raise AssertionError(invalid)
+''';
+          final scriptFile = File(
+            p.join(tempDir.path, 'test_nullable_unions.py'),
+          )..writeAsStringSync(pyScript);
+          final ProcessResult result = Process.runSync(
+            pythonBin,
+            [scriptFile.path],
+            workingDirectory: tempDir.path,
+            environment: pyEnv,
+          );
+          expect(
+            result.exitCode,
+            0,
+            reason: '${result.stdout}\n${result.stderr}',
+          );
+        },
+      );
+
+      test('integral double enums emit exact integer literals', () {
+        const pyScript = '''
+from pydantic import ValidationError
+from scalar_types import IntegralInput, flatten_component_tree
+
+for count in (1, 2):
+    for size in (9007199254740992, -9223372036854775808, 9223372036854774784):
+        node = IntegralInput(count=count, size=size)
+        wire = flatten_component_tree(node)[0]
+        assert wire["count"] == count and type(wire["count"]) is int
+        assert wire["size"] == size and type(wire["size"]) is int
+
+for invalid in (
+    {"count": "1", "size": 9007199254740992},
+    {"count": "2", "size": 9007199254740992},
+    {"count": True, "size": 9007199254740992},
+    {"count": 1, "size": "9007199254740992"},
+    {"count": 1, "size": 9223372036854775807},
+):
+    try:
+        IntegralInput.model_validate(invalid)
+    except ValidationError:
+        pass
+    else:
+        raise AssertionError(invalid)
+''';
+        final scriptFile = File(p.join(tempDir.path, 'test_integral_enums.py'))
+          ..writeAsStringSync(pyScript);
+        final ProcessResult result = Process.runSync(
+          pythonBin,
+          [scriptFile.path],
+          workingDirectory: tempDir.path,
+          environment: pyEnv,
+        );
+        expect(
+          result.exitCode,
+          0,
+          reason: '${result.stdout}\n${result.stderr}',
         );
       });
 
