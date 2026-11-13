@@ -45,11 +45,12 @@ class _TextFormat extends InferenceFormat {
 class _TextPromptGenerator extends PromptGenerator {
   const _TextPromptGenerator(this.catalogs, {required this.examples});
 
+  @override
   final List<CatalogApi> catalogs;
   final List<List<AgentToRendererMessage>> examples;
 
   @override
-  String generate() =>
+  String generateBaseRules() =>
       'Answer in text. Catalogs: ${catalogs.map((c) => c.id)}. '
       'Examples: ${examples.length}.';
 }

@@ -34,6 +34,7 @@ class ExpressPromptGenerator extends PromptGenerator {
   });
 
   /// The catalogs whose components and functions the snippet describes.
+  @override
   final List<CatalogApi> catalogs;
 
   /// Example turns the snippet shows the model, in order. Each is the list of
@@ -44,85 +45,102 @@ class ExpressPromptGenerator extends PromptGenerator {
   /// for all of them.
   final List<String>? allowedMessages;
 
-  /// Each of [examples] is shown as the Express block it decompiles to.
+  /// The output contract and the grammar rules, followed with several
+  /// catalogs by how a call names its catalog, and by the protocol's system
+  /// functions.
   ///
   /// The grammar rules describe only the statements that compile to
   /// [allowedMessages], so without `deleteSurface` the model is not told about
-  /// `deleteSurface(...)`.
-  ///
-  /// From v1.0 the snippet also carries each catalog's `instructions`, with
-  /// the JSON examples in them written in Express where they can be, and,
-  /// when `callRendererFunction` is allowed, the functions the model may ask
-  /// the renderer to run: those the agent may call. With several catalogs it
-  /// tells the model how a component or function call names its catalog.
+  /// `deleteSurface(...)`. From v1.0, when `callRendererFunction` is allowed,
+  /// they also name the functions the model may ask the renderer to run:
+  /// those the agent may call.
   ///
   /// Throws [A2uiCatalogError] if [catalogs] is empty, since there would be
   /// nothing the model could be told to write, or target different protocol
-  /// versions, [ArgumentError] if [allowedMessages] names a message type the
-  /// catalogs' version does not have, and [A2uiValidationError] if an example
-  /// has no Express notation; see [ExpressDecompiler.decompile].
+  /// versions, and [ArgumentError] if [allowedMessages] names a message type
+  /// the catalogs' version does not have.
   @override
-  String generate() {
-    if (catalogs.isEmpty) {
-      throw A2uiCatalogError('An Express prompt needs at least one catalog.');
-    }
-    final decompiler = ExpressDecompiler(catalogs);
-    final A2uiProtocolVersion version = catalogsProtocolVersion(catalogs);
+  String generateBaseRules() {
+    final A2uiProtocolVersion version = _version();
     final bool v1 = version.isAtLeast(A2uiProtocolVersion.v1_0);
     final List<String> allowed = resolveAllowedMessages(
       allowedMessages,
       version,
     );
-    final buffer = StringBuffer(
+    final List<String> sections = [
       _rules(
         allowed,
         v1: v1,
         callable: v1 ? agentCallableFunctions(catalogs) : const [],
       ),
-    );
-    // System functions belong to the protocol, not a catalog, so they are
-    // listed once, after the rules for the catalogs.
-    final String systemFunctions =
-        allowed.contains('createSurface') ||
-            allowed.contains('updateComponents')
-        ? _systemFunctionSignatures(CatalogSchemaHelper(catalogs.first))
-        : '';
+      if (catalogs.length > 1)
+        v1 ? _catalogsV1(catalogs) : _catalogsV0_9(catalogs),
+      // System functions belong to the protocol, not a catalog, so they are
+      // listed once, after the rules for the catalogs.
+      if (allowed.contains('createSurface') ||
+          allowed.contains('updateComponents'))
+        _systemFunctionSignatures(CatalogSchemaHelper(catalogs.first)),
+    ];
+    return sections.where((s) => s.isNotEmpty).join('\n\n');
+  }
+
+  /// The positional signatures of the components and functions of [catalog],
+  /// or of each of [catalogs] under a heading naming it when there are
+  /// several.
+  ///
+  /// From v1.0 a catalog's section also carries its `instructions`, with the
+  /// JSON examples in them written in Express where they can be.
+  ///
+  /// Throws [A2uiCatalogError] if [catalogs] is empty or targets different
+  /// protocol versions.
+  @override
+  String generateCatalogInstructions({CatalogApi? catalog}) {
+    final A2uiProtocolVersion version = _version();
+    final bool v1 = version.isAtLeast(A2uiProtocolVersion.v1_0);
+    final decompiler = ExpressDecompiler(catalogs);
     String section(CatalogApi catalog, String heading) => _catalogSection(
       CatalogSchemaHelper(catalog),
       heading,
       instructions: v1 ? _instructions(catalog, decompiler, version) : null,
     );
-    if (catalogs.length == 1) {
-      if (systemFunctions.isNotEmpty) buffer.write('\n\n$systemFunctions');
-      buffer
-        ..write('\n\n')
-        ..write(section(catalogs.single, '##'));
-    } else {
-      buffer.write(v1 ? _catalogsV1(catalogs) : _catalogsV0_9(catalogs));
-      if (systemFunctions.isNotEmpty) buffer.write('\n\n$systemFunctions');
-      for (final CatalogApi catalog in catalogs) {
-        buffer
-          ..write('\n\n## Catalog `${catalog.id}`\n\n')
-          ..write(section(catalog, '###'));
-      }
+    if (catalog != null) return section(catalog, '##');
+    if (catalogs.length == 1) return section(catalogs.single, '##');
+    return [
+      for (final CatalogApi catalog in catalogs)
+        '## Catalog `${catalog.id}`\n\n${section(catalog, '###')}',
+    ].join('\n\n');
+  }
+
+  /// Each of [examples] as the Express block it decompiles to.
+  ///
+  /// The examples are not kept per catalog, so [catalog] does not change
+  /// them.
+  ///
+  /// Throws [A2uiValidationError] if an example has no Express notation; see
+  /// [ExpressDecompiler.decompile].
+  @override
+  String generateExamples({CatalogApi? catalog}) {
+    if (examples.isEmpty) return '';
+    final decompiler = ExpressDecompiler(catalogs);
+    return [
+      'Each example is one complete response block.',
+      for (final List<AgentToRendererMessage> example in examples)
+        '<a2ui>\n${decompiler.decompile(example)}\n</a2ui>',
+    ].join('\n\n');
+  }
+
+  A2uiProtocolVersion _version() {
+    if (catalogs.isEmpty) {
+      throw A2uiCatalogError('An Express prompt needs at least one catalog.');
     }
-    if (examples.isNotEmpty) {
-      buffer.write(
-        '\n\n## Examples\n\n'
-        'Each example is one complete response block.',
-      );
-      for (final List<AgentToRendererMessage> example in examples) {
-        buffer.write('\n\n<a2ui>\n${decompiler.decompile(example)}\n</a2ui>');
-      }
-    }
-    return buffer.toString();
+    return catalogsProtocolVersion(catalogs);
   }
 }
 
 /// Before v1.0 a surface uses one catalog, which its `surface(...)` line
 /// names unless it is the first.
 String _catalogsV0_9(List<CatalogApi> catalogs) =>
-    '\n\n## Catalogs\n\n'
+    '## Catalogs\n\n'
     'Components and functions come from the catalogs below. A surface '
     'uses one catalog. The first catalog, `${catalogs.first.id}`, is the '
     'default. To build a surface from another catalog, name it in the '
@@ -134,7 +152,7 @@ String _catalogsV0_9(List<CatalogApi> catalogs) =>
 String _catalogsV1(List<CatalogApi> catalogs) {
   final String example = catalogs.last.id;
   final buffer = StringBuffer(
-    '\n\n## Catalogs\n\n'
+    '## Catalogs\n\n'
     'Components and functions come from the catalogs below. A surface names '
     'no catalog, so do not name one in the surface line. Each component and '
     'function call, including checks, actions, nested calls and components '

@@ -80,10 +80,7 @@ String assembleInstructions(
 }) {
   final List<CatalogApi> own = generator.catalogs;
   final List<CatalogApi> targets = catalogs ?? own;
-  final bool isOwn =
-      targets.length == own.length &&
-      [for (var i = 0; i < own.length; i++) identical(targets[i], own[i])]
-          .every((same) => same);
+  final bool isOwn = _sameCatalogs(targets, own);
 
   final parts = <String>[generator.generateBaseRules()];
   final examples = <String>[];
@@ -93,11 +90,20 @@ String assembleInstructions(
   } else {
     for (final CatalogApi catalog in targets) {
       parts.add(generator.generateCatalogInstructions(catalog: catalog));
-      final String text = generator.generateExamples(catalog: catalog);
+      final text = generator.generateExamples(catalog: catalog);
       if (!examples.contains(text)) examples.add(text);
     }
   }
   final List<String> shown = examples.where((e) => e.isNotEmpty).toList();
   if (shown.isNotEmpty) parts.add('$examplesHeading${shown.join('\n\n')}');
   return parts.where((p) => p.isNotEmpty).join('\n\n');
+}
+
+/// Whether [a] and [b] hold the same catalog objects in the same order.
+bool _sameCatalogs(List<CatalogApi> a, List<CatalogApi> b) {
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (!identical(a[i], b[i])) return false;
+  }
+  return true;
 }

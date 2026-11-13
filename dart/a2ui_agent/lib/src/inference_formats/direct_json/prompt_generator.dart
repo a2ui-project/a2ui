@@ -52,6 +52,7 @@ class DirectJsonPromptGenerator extends PromptGenerator {
   });
 
   /// The catalogs whose components and functions the snippet describes.
+  @override
   final List<CatalogApi> catalogs;
 
   /// Example turns the snippet shows the model, in order. Each is the list of
@@ -62,15 +63,14 @@ class DirectJsonPromptGenerator extends PromptGenerator {
   /// for all of them.
   final List<String>? allowedMessages;
 
-  /// Renders the output rules and the JSON schemas of the messages, the
-  /// common types, and the catalogs [catalogs] declare, pruned to
-  /// [allowedMessages], followed by [examples] as JSON payloads.
+  /// The output rules and the JSON schemas of the messages and the common
+  /// types, pruned to [allowedMessages] and to what the catalogs use.
   ///
   /// Throws [A2uiCatalogError] if [catalogs] is empty or mixes protocol
   /// versions, and [ArgumentError] if [allowedMessages] names an unknown
   /// message type.
   @override
-  String generate() {
+  String generateBaseRules() {
     if (catalogs.isEmpty) {
       throw A2uiCatalogError(
         'A direct JSON prompt needs at least one catalog.',
@@ -81,18 +81,13 @@ class DirectJsonPromptGenerator extends PromptGenerator {
     if (allowedMessages != null) {
       a2rSchema = _pruneMessagesSchema(a2rSchema, allowedMessages!);
     }
-
-    final List<Map<String, Object?>> catalogDocs = [
-      for (final CatalogApi c in catalogs) c.toJson(),
-    ];
     final Map<String, Object?> commonTypesSchema = _pruneCommonTypesSchema(
       PayloadValidator.commonTypesFor(version),
-      [...catalogDocs, a2rSchema],
+      [for (final CatalogApi c in catalogs) c.toJson(), a2rSchema],
     );
 
     // The protocol schemas sit in one schema block after the rules, and each
-    // catalog schema in a block of its own, so the snippet is the rules, the
-    // catalogs' blocks and the examples joined, as the other SDKs render it.
+    // catalog schema in a block of its own, as the other SDKs render it.
     final protocolSections = <String>[
       '### Agent to Renderer Schema:\n${jsonEncode(a2rSchema)}',
     ];
@@ -102,23 +97,29 @@ class DirectJsonPromptGenerator extends PromptGenerator {
         '### Common Types Schema:\n${jsonEncode(commonTypesSchema)}',
       );
     }
+    return '$_defaultWorkflowRules\n\n${_schemaBlock(protocolSections)}';
+  }
 
-    final parts = <String>[
-      '$_defaultWorkflowRules\n\n${_schemaBlock(protocolSections)}',
-      for (final catalogDoc in catalogDocs)
-        _schemaBlock(['### Catalog Schema:\n${jsonEncode(catalogDoc)}']),
-    ];
-    if (examples.isNotEmpty) {
-      const encoder = JsonEncoder.withIndent('  ');
-      final List<String> blocks = [
-        for (final List<AgentToRendererMessage> turn in examples)
-          '<a2ui-json>\n'
-              '${encoder.convert(turn.map(_exampleMessageJson).toList())}\n'
-              '</a2ui-json>',
-      ];
-      parts.add('### Examples:\n\n${blocks.join('\n\n')}');
-    }
-    return parts.join('\n\n');
+  /// The schema block of [catalog], or of each of [catalogs].
+  @override
+  String generateCatalogInstructions({CatalogApi? catalog}) => [
+    for (final CatalogApi c in catalog == null ? catalogs : [catalog])
+      _schemaBlock(['### Catalog Schema:\n${jsonEncode(c.toJson())}']),
+  ].join('\n\n');
+
+  /// Each of [examples] as a JSON payload in `<a2ui-json>` tags.
+  ///
+  /// The examples are not kept per catalog, so [catalog] does not change
+  /// them.
+  @override
+  String generateExamples({CatalogApi? catalog}) {
+    const encoder = JsonEncoder.withIndent('  ');
+    return [
+      for (final List<AgentToRendererMessage> turn in examples)
+        '<a2ui-json>\n'
+            '${encoder.convert(turn.map(_exampleMessageJson).toList())}\n'
+            '</a2ui-json>',
+    ].join('\n\n');
   }
 }
 
