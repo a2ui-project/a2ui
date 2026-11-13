@@ -1,0 +1,176 @@
+[
+  {
+    "surfaceUpdate": {
+      "surfaceId": "gallery-credit-card",
+      "components": [
+        {
+          "id": "root",
+          "component": {
+            "Card": {
+              "child": "main-column"
+            }
+          }
+        },
+        {
+          "id": "main-column",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["card-type-row", "card-number", "card-details"]
+              }
+            }
+          }
+        },
+        {
+          "id": "card-type-row",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["card-icon", "card-type"]
+              },
+              "distribution": "spaceBetween",
+              "alignment": "center"
+            }
+          }
+        },
+        {
+          "id": "card-icon",
+          "component": {
+            "Icon": {
+              "name": {
+                "literalString": "payment"
+              }
+            }
+          }
+        },
+        {
+          "id": "card-type",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/cardType"
+              },
+              "usageHint": "h4"
+            }
+          }
+        },
+        {
+          "id": "card-number",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/cardNumber"
+              },
+              "usageHint": "h2"
+            }
+          }
+        },
+        {
+          "id": "card-details",
+          "component": {
+            "Row": {
+              "children": {
+                "explicitList": ["holder-col", "expiry-col"]
+              },
+              "distribution": "spaceBetween"
+            }
+          }
+        },
+        {
+          "id": "holder-col",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["holder-label", "holder-name"]
+              }
+            }
+          }
+        },
+        {
+          "id": "holder-label",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "CARD HOLDER"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "holder-name",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/holderName"
+              },
+              "usageHint": "body"
+            }
+          }
+        },
+        {
+          "id": "expiry-col",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["expiry-label", "expiry-date"]
+              },
+              "alignment": "end"
+            }
+          }
+        },
+        {
+          "id": "expiry-label",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "EXPIRES"
+              },
+              "usageHint": "caption"
+            }
+          }
+        },
+        {
+          "id": "expiry-date",
+          "component": {
+            "Text": {
+              "text": {
+                "path": "/expiryDate"
+              },
+              "usageHint": "body"
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "dataModelUpdate": {
+      "surfaceId": "gallery-credit-card",
+      "contents": [
+        {
+          "key": "cardType",
+          "valueString": "VISA"
+        },
+        {
+          "key": "cardNumber",
+          "valueString": "\u2022\u2022\u2022\u2022 \u2022\u2022\u2022\u2022 \u2022\u2022\u2022\u2022 4242"
+        },
+        {
+          "key": "holderName",
+          "valueString": "SARAH JOHNSON"
+        },
+        {
+          "key": "expiryDate",
+          "valueString": "09/27"
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "gallery-credit-card",
+      "root": "root"
+    }
+  }
+]
