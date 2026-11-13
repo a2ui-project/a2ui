@@ -15,31 +15,21 @@
 import A2UICore
 import A2UISwiftUI
 import BasicCatalog
-import Foundation
 
 extension Surface {
   /// Creates an A2UI surface configured with all built-in Basic Catalog SwiftUI component
   /// implementations (`v0.9`, `v0.9.1`, and `v1.0`).
   ///
-  /// - Parameters:
-  ///   - viewModel: The surface state model to render.
-  ///   - locale: The locale used by locale-aware formatting functions. Defaults to
-  ///     `BasicFunctions.defaultLocale` (`en_US`).
+  /// - Parameter viewModel: The surface state model to render.
   @MainActor
   public static func makeWithBasicCatalogs(
-    viewModel: SurfaceViewModel,
-    locale: Locale = BasicFunctions.defaultLocale
+    viewModel: SurfaceViewModel
   ) -> Surface {
-    let catalogs =
-      locale == BasicFunctions.defaultLocale
-      ? BasicCatalogImplementation.allCatalogs
-      : A2UIProtocolVersion.allCases.map {
-        BasicCatalogImplementation.makeCatalog(version: $0, locale: locale)
-      }
-    return Surface(
+    Surface(
       viewModel: viewModel,
-      catalogs: catalogs,
-      defaultCatalogID: viewModel.defaultCatalogID ?? BasicCatalog.catalogURI(version: .v091)
+      catalogs: BasicCatalogImplementation.allCatalogs,
+      defaultCatalogID: viewModel.defaultCatalogID
+        ?? BasicCatalog.catalogURI(version: viewModel.protocolVersion)
     )
   }
 }

@@ -239,4 +239,34 @@ struct SurfaceTests {
     #expect(secondSurface.surfaceID == "surface-b")
     #expect(secondViewModel.rootNode?.string(for: "text") == "Surface B")
   }
+
+  @Test(arguments: A2UIProtocolVersion.allCases)
+  func makeWithBasicCatalogsConfiguresAllVersionsAndProtocolFallback(
+    version: A2UIProtocolVersion
+  ) {
+    let customCatalog = AnyCatalog(
+      id: "https://example.com/custom",
+      protocolVersion: version,
+      components: []
+    )
+    let explicitDefaultViewModel = SurfaceViewModel(
+      surfaceID: "explicit-default",
+      catalogs: [customCatalog.id: customCatalog],
+      defaultCatalogID: customCatalog.id,
+      protocolVersion: version
+    )
+    let explicitSurface = Surface.makeWithBasicCatalogs(viewModel: explicitDefaultViewModel)
+    #expect(explicitSurface.catalogs.count == A2UIProtocolVersion.allCases.count)
+    #expect(explicitSurface.defaultCatalogID == customCatalog.id)
+
+    let nilDefaultViewModel = SurfaceViewModel(
+      surfaceID: "nil-default",
+      catalogs: [:],
+      defaultCatalogID: nil,
+      protocolVersion: version
+    )
+    #expect(nilDefaultViewModel.defaultCatalogID == nil)
+    let fallbackSurface = Surface.makeWithBasicCatalogs(viewModel: nilDefaultViewModel)
+    #expect(fallbackSurface.defaultCatalogID == BasicCatalog.catalogURI(version: version))
+  }
 }
