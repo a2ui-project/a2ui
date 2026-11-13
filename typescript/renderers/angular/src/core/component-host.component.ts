@@ -44,9 +44,12 @@ import {
   isComponentNode,
 } from '@a2ui/web_core';
 import {
+  A2UI_ELEMENT_CONNECTED_EVENT,
   bindHostAccessibility,
+  dispatchA2uiElementConnected,
   isWebComponentImplementation,
   registerUniversalElement,
+  type A2uiWebComponentElement,
   type WebComponentImplementation,
 } from '@a2ui/web_core/universal';
 import {A2UI_ACCESSIBILITY_TARGETS, provideAccessibilityTargets} from './accessibility';
@@ -65,6 +68,12 @@ interface UniversalComponentHostElement extends HTMLElement {
   context?: ComponentContext;
   injector?: Injector;
 }
+
+/**
+ * Connected events a `ComponentHostComponent` already handed to `onElementConnected`.
+ * Ancestor hosts skip these instead of stopping propagation, so other listeners still see them.
+ */
+const handledConnectedEvents = new WeakSet<Event>();
 
 /** The key of the component to render: an ID string or a {@link Child} reference. */
 export type ComponentKey = string | Child;
@@ -205,6 +214,10 @@ export class ComponentHostComponent {
 
   constructor() {
     registerUniversalHostInjector(this.elementRef.nativeElement, this.injector);
+    this.elementRef.nativeElement.addEventListener(
+      A2UI_ELEMENT_CONNECTED_EVENT,
+      this.onElementConnected,
+    );
 
     effect(() => {
       const key = this.componentKey();
@@ -225,11 +238,34 @@ export class ComponentHostComponent {
 
     this.destroyRef.onDestroy(() => {
       registerUniversalHostInjector(this.elementRef.nativeElement, undefined);
+      this.elementRef.nativeElement.removeEventListener(
+        A2UI_ELEMENT_CONNECTED_EVENT,
+        this.onElementConnected,
+      );
       this.resetState();
       this.ownResolver?.ngOnDestroy();
       this.ownResolver = undefined;
     });
   }
+
+  /**
+   * Hands a universal element that connected below this host to its catalog entry's
+   * `onElementConnected` callback. The nearest host marks the event as handled, so ancestor
+   * hosts skip it while other listeners above can still observe it.
+   */
+  private readonly onElementConnected = (event: Event): void => {
+    if (handledConnectedEvents.has(event)) return;
+    // The event is composed, so `event.target` is retargeted to the outermost shadow host
+    // in this tree. The first entry of the composed path is the element that dispatched it.
+    const element = event.composedPath()[0] as A2uiWebComponentElement | undefined;
+    const context = element?.context ?? element?.node?.context;
+    const componentModel = context?.componentModel;
+    if (!element || !context || !componentModel) return;
+    handledConnectedEvents.add(event);
+    const catalog = componentModel.catalog as AngularCatalog;
+    const entry = catalog?.components?.get(componentModel.type);
+    entry?.onElementConnected?.(element, context, this.injector);
+  };
 
   private waitForSurface(surfaceId: string): void {
     this.resetState();
@@ -411,6 +447,8 @@ export class ComponentHostComponent {
     el.node = node;
     this.mountedWcEl = el;
     this.elementRef.nativeElement.appendChild(el);
+    // Lit elements report themselves on connect; this covers elements of any other base class.
+    dispatchA2uiElementConnected(el);
   }
 
   /**

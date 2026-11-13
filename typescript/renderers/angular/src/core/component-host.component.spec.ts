@@ -21,12 +21,13 @@ import {A2uiRendererService} from './a2ui-renderer.service';
 import {
   A2uiMetadata,
   ComponentApi,
+  ComponentContext,
   ComponentModel,
   NodeResolver,
   SurfaceModel,
   getValue,
 } from '@a2ui/web_core';
-import {WebComponentImplementation} from '@a2ui/web_core/universal';
+import {A2UI_ELEMENT_CONNECTED_EVENT, WebComponentImplementation} from '@a2ui/web_core/universal';
 import {ComponentIdSchema, DynamicStringSchema} from '@a2ui/web_core/v0_9';
 import {A2uiColumn, A2uiText} from '@a2ui/web_core/v0_9/basic_catalog';
 import {
@@ -34,6 +35,7 @@ import {
   EnvironmentInjector,
   EventEmitter,
   InjectionToken,
+  Injector,
   Input,
   NgZone,
   Type,
@@ -45,7 +47,11 @@ import {CatalogComponent} from './catalog_component';
 import {CatalogComponentInstance} from './catalog_component_instance';
 import {A2UI_RENDERER_CONFIG} from './a2ui-renderer.service';
 import {SurfaceComponent} from './surface.component';
-import {AngularCatalog, createComponentImplementation} from '../catalog/types';
+import {
+  AngularCatalog,
+  type AngularComponentImplementation,
+  createComponentImplementation,
+} from '../catalog/types';
 import {UniversalOnlyComponent} from '../catalog/universal_only.component';
 import {initializeAngularReactivity} from './reactivity';
 import {ComponentBinder} from './component-binder.service';
@@ -738,6 +744,271 @@ describe('ComponentHostComponent', () => {
       fixtureA.destroy();
       fixtureA.nativeElement.remove();
       fixtureB.nativeElement.remove();
+    });
+
+    it('calls onElementConnected once for root and nested universal elements', async () => {
+      const LOG_LABEL = new InjectionToken<string>('LOG_LABEL');
+      const connected: string[] = [];
+      const onElementConnected = (
+        element: HTMLElement,
+        context: ComponentContext,
+        injector: Injector,
+      ) => {
+        connected.push(
+          `${element.localName}:${context.componentModel.id}:${injector.get(LOG_LABEL)}`,
+        );
+      };
+      const column: WebComponentImplementation &
+        Pick<AngularComponentImplementation, 'onElementConnected'> = {
+        ...A2uiColumn,
+        onElementConnected,
+      };
+      const text: WebComponentImplementation &
+        Pick<AngularComponentImplementation, 'onElementConnected'> = {
+        ...A2uiText,
+        onElementConnected,
+      };
+      const hookCatalog = new AngularCatalog('hook-catalog', '0.9', [column, text]);
+
+      @Component({
+        selector: 'test-hook-host',
+        imports: [SurfaceComponent],
+        providers: [
+          {provide: LOG_LABEL, useValue: 'host'},
+          {
+            provide: A2UI_RENDERER_CONFIG,
+            useValue: {catalogs: [hookCatalog], useUniversalComponents: true},
+          },
+          A2uiRendererService,
+        ],
+        template: '<a2ui-v09-surface surfaceId="hook" />',
+      })
+      class TestHookHostComponent {
+        readonly renderer = inject(A2uiRendererService);
+      }
+
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({imports: [TestHookHostComponent]});
+      const hookFixture = TestBed.createComponent(TestHookHostComponent);
+      document.body.appendChild(hookFixture.nativeElement);
+
+      hookFixture.componentInstance.renderer.processMessages([
+        {version: 'v0.9', createSurface: {surfaceId: 'hook', catalogId: 'hook-catalog'}},
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 'hook',
+            components: [
+              {id: 'root', component: 'Column', children: ['title']},
+              {id: 'title', component: 'Text', text: 'Hi'},
+            ],
+          },
+        },
+      ]);
+      flush(hookFixture);
+      await settle();
+      flush(hookFixture);
+
+      expect(connected).toEqual([
+        `${A2uiColumn.tagName}:root:host`,
+        `${A2uiText.tagName}:title:host`,
+      ]);
+      hookFixture.destroy();
+      hookFixture.nativeElement.remove();
+    });
+
+    it('calls onElementConnected once when the element sits below nested component hosts', async () => {
+      @Component({
+        selector: 'test-hook-wrapper',
+        imports: [ComponentHostComponent],
+        template:
+          '<a2ui-v09-component-host [componentKey]="props.child.value()" [surfaceId]="surfaceId!" />',
+      })
+      class TestHookWrapperComponent {
+        @Input() props: any;
+        @Input() surfaceId?: string;
+        @Input() componentId?: string;
+        @Input() dataContextPath?: string;
+      }
+      const onElementConnected = jasmine.createSpy('onElementConnected');
+      const text: WebComponentImplementation &
+        Pick<AngularComponentImplementation, 'onElementConnected'> = {
+        ...A2uiText,
+        onElementConnected,
+      };
+      const nestedCatalog = new AngularCatalog('nested-hook-catalog', '0.9', [
+        createComponentImplementation(
+          {name: 'Wrapper', schema: z.object({child: ComponentIdSchema})},
+          TestHookWrapperComponent as unknown as Type<CatalogComponentInstance>,
+        ),
+        text,
+      ]);
+
+      @Component({
+        selector: 'test-nested-hook-host',
+        imports: [SurfaceComponent],
+        providers: [
+          {
+            provide: A2UI_RENDERER_CONFIG,
+            useValue: {catalogs: [nestedCatalog], useUniversalComponents: true},
+          },
+          A2uiRendererService,
+        ],
+        template: '<a2ui-v09-surface surfaceId="nested-hook" />',
+      })
+      class TestNestedHookHostComponent {
+        readonly renderer = inject(A2uiRendererService);
+      }
+
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({imports: [TestNestedHookHostComponent]});
+      const nestedFixture = TestBed.createComponent(TestNestedHookHostComponent);
+      document.body.appendChild(nestedFixture.nativeElement);
+
+      nestedFixture.componentInstance.renderer.processMessages([
+        {
+          version: 'v0.9',
+          createSurface: {surfaceId: 'nested-hook', catalogId: 'nested-hook-catalog'},
+        },
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 'nested-hook',
+            components: [
+              {id: 'root', component: 'Wrapper', child: 'title'},
+              {id: 'title', component: 'Text', text: 'Hi'},
+            ],
+          },
+        },
+      ]);
+      flush(nestedFixture);
+      await settle();
+      flush(nestedFixture);
+
+      const textElement: HTMLElement = nestedFixture.nativeElement.querySelector(A2uiText.tagName);
+      const innerHost = textElement.closest('a2ui-v09-component-host');
+      expect(innerHost?.parentElement?.closest('a2ui-v09-component-host')).toBeTruthy();
+      expect(onElementConnected).toHaveBeenCalledOnceWith(
+        textElement,
+        jasmine.objectContaining({componentModel: jasmine.objectContaining({id: 'title'})}),
+        jasmine.anything(),
+      );
+      nestedFixture.destroy();
+      nestedFixture.nativeElement.remove();
+    });
+
+    it('calls onElementConnected once for plain HTMLElement universal elements', async () => {
+      class PlainElement extends HTMLElement {}
+      const onElementConnected = jasmine.createSpy('onElementConnected');
+      const plain: WebComponentImplementation &
+        Pick<AngularComponentImplementation, 'onElementConnected'> = {
+        name: 'Plain',
+        schema: z.object({}),
+        tagName: 'test-hook-plain-element',
+        element: PlainElement,
+        onElementConnected,
+      };
+      const plainCatalog = new AngularCatalog('plain-hook-catalog', '0.9', [A2uiColumn, plain]);
+
+      @Component({
+        selector: 'test-plain-hook-host',
+        imports: [SurfaceComponent],
+        providers: [
+          {
+            provide: A2UI_RENDERER_CONFIG,
+            useValue: {catalogs: [plainCatalog], useUniversalComponents: true},
+          },
+          A2uiRendererService,
+        ],
+        template:
+          '<a2ui-v09-surface surfaceId="plain-root" /><a2ui-v09-surface surfaceId="plain-child" />',
+      })
+      class TestPlainHookHostComponent {
+        readonly renderer = inject(A2uiRendererService);
+      }
+
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({imports: [TestPlainHookHostComponent]});
+      const plainFixture = TestBed.createComponent(TestPlainHookHostComponent);
+      document.body.appendChild(plainFixture.nativeElement);
+
+      plainFixture.componentInstance.renderer.processMessages([
+        {
+          version: 'v0.9',
+          createSurface: {surfaceId: 'plain-root', catalogId: 'plain-hook-catalog'},
+        },
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 'plain-root',
+            components: [{id: 'root', component: 'Plain'}],
+          },
+        },
+        {
+          version: 'v0.9',
+          createSurface: {surfaceId: 'plain-child', catalogId: 'plain-hook-catalog'},
+        },
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 'plain-child',
+            components: [
+              {id: 'root', component: 'Column', children: ['leaf']},
+              {id: 'leaf', component: 'Plain'},
+            ],
+          },
+        },
+      ]);
+      flush(plainFixture);
+      await settle();
+      flush(plainFixture);
+      await settle();
+
+      const [rootElement, childElement] = Array.from(
+        plainFixture.nativeElement.querySelectorAll('test-hook-plain-element'),
+      ) as HTMLElement[];
+      expect(rootElement.parentElement?.localName).toBe('a2ui-v09-component-host');
+      expect(childElement.closest(A2uiColumn.tagName)).toBeTruthy();
+      expect(onElementConnected.calls.allArgs()).toEqual([
+        [
+          rootElement,
+          jasmine.objectContaining({componentModel: jasmine.objectContaining({id: 'root'})}),
+          jasmine.anything(),
+        ],
+        [
+          childElement,
+          jasmine.objectContaining({componentModel: jasmine.objectContaining({id: 'leaf'})}),
+          jasmine.anything(),
+        ],
+      ]);
+      plainFixture.destroy();
+      plainFixture.nativeElement.remove();
+    });
+
+    it('passes the dispatching element to onElementConnected when the event crosses a shadow root', () => {
+      const onElementConnected = jasmine.createSpy('onElementConnected');
+      const hookedCatalog = new AngularCatalog('shadow-hook-catalog', '0.9', [
+        {
+          ...createComponentImplementation(
+            TestTypeApi,
+            TestChildComponent as unknown as Type<CatalogComponentInstance>,
+          ),
+          onElementConnected,
+        },
+      ]);
+      const context = {
+        componentModel: new ComponentModel('inner', 'TestType', {}, hookedCatalog),
+      } as unknown as ComponentContext;
+      const shadowHost = document.createElement('div');
+      const inner = Object.assign(document.createElement('span'), {context});
+      shadowHost.attachShadow({mode: 'open'}).appendChild(inner);
+      fixture.nativeElement.appendChild(shadowHost);
+
+      inner.dispatchEvent(
+        new CustomEvent(A2UI_ELEMENT_CONNECTED_EVENT, {bubbles: true, composed: true}),
+      );
+
+      expect(onElementConnected).toHaveBeenCalledOnceWith(inner, context, jasmine.anything());
     });
   });
 });
