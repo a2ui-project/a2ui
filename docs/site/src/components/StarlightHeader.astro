@@ -268,6 +268,7 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
         }
         for (const link of searchContainer.querySelectorAll('a[aria-selected]')) {
           link.removeAttribute('aria-selected');
+          link.removeAttribute('role');
         }
         const links = getResultLinks();
         if (nextIndex < 0 || nextIndex >= links.length) {
@@ -276,6 +277,7 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
         }
         activeIndex = nextIndex;
         const activeLink = links[activeIndex];
+        activeLink.setAttribute('role', 'option');
         activeLink.setAttribute('aria-selected', 'true');
         getResultRow(activeLink)?.classList.add('is-keyboard-selected');
         activeLink.scrollIntoView({ block: 'nearest' });
@@ -286,10 +288,11 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
         const input = searchContainer.querySelector<HTMLInputElement>('.pagefind-ui__search-input');
         const query = input?.value.trim() ?? '';
         const hasResults = searchContainer.querySelector('.pagefind-ui__result') !== null;
+        const isLoading = searchContainer.querySelector('.pagefind-ui__loading') !== null;
         const messageEl = searchContainer.querySelector<HTMLElement>('.pagefind-ui__message');
         const messageText = messageEl?.textContent?.trim() ?? '';
-        const isSearching = /searching/i.test(messageText);
-        const showEmpty = query.length > 0 && !hasResults && messageText.length > 0 && !isSearching;
+        const isZeroResults = /^\s*0\b/.test(messageText);
+        const showEmpty = query.length > 0 && !hasResults && !isLoading && isZeroResults;
 
         emptyState.hidden = !showEmpty;
         if (emptyTitle) {
@@ -318,10 +321,7 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
               baseUrl: import.meta.env.BASE_URL,
               bundlePath: import.meta.env.BASE_URL.replace(/\/$/, '') + '/pagefind/',
               showImages: false,
-              translations: {
-                placeholder: 'Search docs',
-                zero_results: 'No results found for "[SEARCH_TERM]"',
-              },
+              translations: { placeholder: 'Search docs' },
               showSubResults: true,
               processResult: (result: { url: string; sub_results?: Array<{ url: string }> }) => {
                 result.url = formatURL(result.url);
@@ -386,7 +386,7 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
       };
 
       const onDialogKeyDown = (e: KeyboardEvent) => {
-        if (!dialog.open) return;
+        if (e.isComposing || !dialog.open) return;
         const links = getResultLinks();
         if (!links.length) return;
 

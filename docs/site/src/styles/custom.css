@@ -79,8 +79,15 @@ header.header {
 
 header.header > .a2-sl-header {
   box-sizing: border-box;
-  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
   padding: 0 24px;
+}
+
+html[data-has-sidebar] header.header > .a2-sl-header {
+  width: 100%;
+  max-width: none;
+  margin: 0;
 }
 
 .site-title {
