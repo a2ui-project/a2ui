@@ -108,7 +108,7 @@ In your agent file (e.g., `agent.py`), import the necessary classes:
 from a2ui.adk import A2uiInstruction
 from a2ui.core.basic_catalog import BasicCatalog
 from a2ui.core.schema import ProtocolVersion
-from a2ui.inference_formats import DirectJsonFormatFactory
+from a2ui.inference_formats.direct_json import DirectJsonFormatFactory
 from a2ui.processor import A2uiRequestProcessor
 ```
 
@@ -133,7 +133,7 @@ UI_DESCRIPTION = """
 # Initialize the processor with the Basic Catalog. Pass `examples=` to add
 # few-shot example turns to the prompt.
 processor = A2uiRequestProcessor(
-    [BasicCatalog(ProtocolVersion.V1_0)],
+    [BasicCatalog(ProtocolVersion.V0_9)],
     format_factory=DirectJsonFormatFactory(),
 )
 
@@ -153,35 +153,7 @@ root_agent = Agent(
 
 ## Understanding the Output
 
-Your agent will no longer strictly output text. Instead, it will output text and, between `<a2ui-json>` tags, a **JSON list** of A2UI messages. In v1.0, each message has `"version": "1.0"` and exactly one of these keys, as defined in [`agent_to_renderer.json`](https://a2ui.org/specification/v1_0/agent_to_renderer.json):
-
-- `createSurface` creates a surface and names the catalog it uses.
-- `updateComponents` adds or replaces components on a surface.
-- `updateDataModel` sets a value in a surface's data model.
-- `deleteSurface` removes a surface.
-- `callRendererFunction` asks the renderer to run a function from its catalog.
-- `agentFunctionResponse` returns the result of a function the renderer asked the agent to run.
-
-A model writing a UI usually emits `createSurface`, then `updateComponents` and `updateDataModel`:
-
-```json
-[
-  {
-    "version": "1.0",
-    "createSurface": {
-      "surfaceId": "restaurants",
-      "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
-    }
-  },
-  {
-    "version": "1.0",
-    "updateComponents": {
-      "surfaceId": "restaurants",
-      "components": [{"id": "root", "component": "Text", "text": "Top restaurants"}]
-    }
-  }
-]
-```
+Your agent will no longer strictly output text. Instead, it will output text and, between `<a2ui-json>` tags, a **JSON list** of A2UI messages such as `createSurface`, `updateComponents`, and `updateDataModel`.
 
 Do not parse that JSON yourself: models put Markdown fences around it and make other small mistakes. The processor's `parse_response` method reads the response in the processor's inference format, repairs what it can, and validates every message against the catalogs, so your client never receives malformed UI instructions.
 
@@ -200,77 +172,4 @@ for part in processor.parse_response(response_text):
 
 `parse_response` raises `A2uiParseError` when a block cannot be read and `A2uiValidationError` when a message does not match the catalog; the `restaurant_finder` sample catches these and asks the model to try again.
 
-## Sending messages to the client
-
-A2UI does not require a particular transport. Without the A2A extension, you can send each message as JSON over Server-Sent Events (SSE), WebSockets, or any other channel your client reads. `A2uiPart.a2ui` holds message models, so convert each one to a dictionary before you serialize it with `json.dumps`:
-
-```python
-from a2ui.parser import A2uiPart
-
-
-def message_payloads(parts):
-    """Yields each A2UI message in `parts` as a dictionary, skipping text parts."""
-    for part in parts:
-        if isinstance(part, A2uiPart):
-            for message in part.a2ui:
-                yield message.model_dump(by_alias=True, exclude_unset=True)
-```
-
-### Stream the response
-
-`parse_response` needs the whole response. To show the UI while the model is still writing, open a stream with `processor.open_stream()`, pass each chunk of model text to `feed`, and call `close` after the last chunk. Both return the parts that are ready: text as it arrives, and A2UI messages once each message is complete and valid.
-
-If a block fails, `feed` or `close` raises `A2uiParseError` or `A2uiValidationError` (both subclasses of `A2uiError` in `a2ui.core`) and the stream ends. The error's `partial_results` holds the parts that were ready before the failure. The client already shows the messages from earlier chunks, so send these parts too before you ask the model to try again:
-
-```python
-from a2ui.core import A2uiError
-
-
-async def stream_a2ui(model_chunks):
-    """Reads the model's text chunks and yields validated A2UI messages."""
-    stream = processor.open_stream()
-    try:
-        async for chunk in model_chunks:
-            for payload in message_payloads(stream.feed(chunk)):
-                yield payload
-        for payload in message_payloads(stream.close()):
-            yield payload
-    except A2uiError as e:
-        for payload in message_payloads(getattr(e, "partial_results", [])):
-            yield payload
-        raise
-```
-
-A minimal SSE endpoint with FastAPI looks like this, where `call_model` is any function that yields the model's text chunks:
-
-```python
-import json
-
-from fastapi import FastAPI, Request
-from fastapi.responses import StreamingResponse
-
-app = FastAPI()
-
-
-@app.post("/api/agent")
-async def handle_agent(request: Request):
-    body = await request.json()
-
-    async def event_stream():
-        async for payload in stream_a2ui(call_model(body["prompt"])):
-            yield f"data: {json.dumps(payload)}\n\n"
-
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
-```
-
-### Structured JSON output
-
-If you ask the model for JSON only (for example, with `response_mime_type="application/json"` in Gemini), the response has no `<a2ui-json>` tags: the whole response is one JSON list of messages. Pass `wrapped=False` to read it:
-
-```python
-parts = processor.parse_response(response_text, wrapped=False)
-```
-
-`open_stream(wrapped=False)` does the same for a streamed response.
-
-For a complete walkthrough with capability negotiation, renderer actions, and TypeScript and Dart examples, see the [Agent integration guide](https://a2ui.org/guides/agent-integration/).
+TODO: Continue this guide with examples of how to send the output to the client renderer without the A2A extension.
