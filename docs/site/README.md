@@ -90,7 +90,7 @@ To include every specification version on `a2ui.org` **without duplicating Markd
 
 ## 6. Local Development
 
-`docs/site` is a standalone `npm` package (outside the root Yarn workspaces, with its own `package-lock.json`), so use `npm` rather than `yarn`. Because the root `package.json` declares `yarn` as `packageManager`, set `COREPACK_ENABLE_STRICT=0` when running `npm` inside the repository.
+`docs/site` is currently a standalone `npm` package (outside the root Yarn workspaces, with its own `package-lock.json`), so use `npm` rather than `yarn` (tracked for possible Yarn Berry migration in [#4220](https://github.com/a2ui-project/a2ui/issues/4220)). Because the root `package.json` declares `yarn` as `packageManager`, set `COREPACK_ENABLE_STRICT=0` when running `npm` inside the repository.
 
 ```bash
 # Install dependencies
