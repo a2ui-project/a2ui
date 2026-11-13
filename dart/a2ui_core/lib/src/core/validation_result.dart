@@ -80,7 +80,7 @@ class ValidationResult {
   /// the basic catalog's `and`, `or`, and `not` functions use it to read their
   /// operands, so a value cannot pass as a check and fail as an operand.
   static bool? validityOf(Object? value) => switch (value) {
-        ValidationResult(:final valid) => valid,
+        ValidationResult(:final bool valid) => valid,
         final Map<Object?, Object?> map when map.containsKey('valid') =>
           map['valid'] == true,
         _ => null,
@@ -191,7 +191,7 @@ class ValidationResult {
 /// - `null`, any other map, or any list coerces to `false`.
 bool coerceDynamicBoolean(Object? value) => switch (value) {
       final bool b => b,
-      ValidationResult(:final valid) => valid,
+      ValidationResult(:final bool valid) => valid,
       final Map<Object?, Object?> map when map['valid'] is bool =>
         map['valid']! as bool,
       final String s => s.toLowerCase() == 'true',
