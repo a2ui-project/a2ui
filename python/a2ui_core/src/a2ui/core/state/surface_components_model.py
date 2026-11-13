@@ -12,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections.abc import ItemsView, KeysView, Mapping, ValuesView
+import copy
+import re
+from collections.abc import Collection, ItemsView, KeysView, Mapping, ValuesView
+from typing import Any
 from ..catalog import CatalogApi
 from ..common.events import EventSource
 from ..common.semver import is_at_least_version
@@ -34,6 +37,8 @@ from .validation_helpers import (
     validate_composition_constraints,
 )
 from ..validation.payload_validator import PayloadValidator, ValidationConfig
+
+_PARTIAL_REMOVED = object()
 
 
 class SurfaceComponentsModel:
@@ -281,6 +286,160 @@ class SurfaceComponentsModel:
     def get_child_ids(self, component_id: str) -> list[str]:
         """Returns list of referenced child component IDs for a given component identifier."""
         return [ref_id for ref_id, _ in self.get_child_references(component_id)]
+
+    def get_partial_components(
+        self, *, exclude_ids: Collection[str] = (), root_id: str = "root"
+    ) -> list[dict[str, Any]]:
+        """Returns a detached, valid rooted view of an incomplete component graph.
+
+        Missing or excluded children are removed from their enclosing list item,
+        or from their single-child property. If that violates the catalog schema
+        (for example, a required single child), the parent is unavailable too.
+        Only components reachable from the root are returned. An unavailable root
+        or an invalid projected graph yields an empty list.
+
+        Catalog reference metadata identifies child slots; ordinary strings are
+        never treated as references. ``exclude_ids`` lets a caller defer components
+        whose external prerequisites, such as binding data, have not arrived.
+        This does not change accumulated state or replace final validation.
+        """
+        excluded = set(exclude_ids)
+        projected: dict[str, ComponentModel | None] = {}
+        visiting: set[str] = set()
+        config = ValidationConfig(root_id=root_id)
+
+        def removal_target(
+            properties: dict[str, Any], path: str
+        ) -> tuple[str | int, ...] | None:
+            # Reference paths are display strings, not escaped JSON pointers.
+            # Match actual property names before interpreting separators; an
+            # ambiguous spelling cannot safely identify a slot to remove.
+            current: Any = properties
+            tokens: list[str | int] = []
+            while isinstance(current, dict):
+                keys = [
+                    key
+                    for key in current
+                    if path == key
+                    or path.startswith(key + ".")
+                    or path.startswith(key + "[")
+                ]
+                if len(keys) != 1:
+                    return None
+                key = keys[0]
+                tokens.append(key)
+                current = current[key]
+                path = path[len(key) :]
+                if not path:
+                    return tuple(tokens)
+                if isinstance(current, list):
+                    match = re.match(r"\[(\d+)\]", path)
+                    if match is None or int(match.group(1)) >= len(current):
+                        return None
+                    # Drop the enclosing entry, rather than leave a shell
+                    # without its required nested child property.
+                    return (*tokens, int(match.group(1)))
+                if not path.startswith("."):
+                    return None
+                path = path[1:]
+            return None
+
+        def project(component_id: str, depth: int = 0) -> ComponentModel | None:
+            if component_id in projected:
+                return projected[component_id]
+            component = self.get(component_id)
+            if (
+                component is None
+                or component_id in excluded
+                or component_id in visiting
+                or depth > MAX_GLOBAL_DEPTH
+            ):
+                return None
+            visiting.add(component_id)
+            properties = copy.deepcopy(component.properties)
+            removals: set[tuple[str | int, ...]] = set()
+            for child_id, path in component.get_child_references(self.keys):
+                if project(child_id, depth + 1) is not None:
+                    continue
+                removal = removal_target(properties, path)
+                if removal is None:
+                    visiting.remove(component_id)
+                    projected[component_id] = None
+                    return None
+                removals.add(removal)
+            # Mark list entries before compacting so indices never shift.
+            for removal in removals:
+                parent: Any = properties
+                for token in removal[:-1]:
+                    parent = parent[token]
+                if removal:
+                    token = removal[-1]
+                    if isinstance(parent, list) and isinstance(token, int):
+                        parent[token] = _PARTIAL_REMOVED
+                    elif isinstance(parent, dict):
+                        parent.pop(token, None)
+
+            def compact(value: Any) -> Any:
+                if isinstance(value, list):
+                    return [
+                        compact(item) for item in value if item is not _PARTIAL_REMOVED
+                    ]
+                if isinstance(value, dict):
+                    return {key: compact(item) for key, item in value.items()}
+                return value
+
+            candidate = ComponentModel(
+                component.id,
+                component.type,
+                component.catalog,
+                compact(properties),
+                metadata=component.metadata,
+            )
+            try:
+                self._validate_component(candidate, config)
+            except A2uiError:
+                projected[component_id] = None
+            else:
+                projected[component_id] = candidate
+            visiting.remove(component_id)
+            return projected[component_id]
+
+        if project(root_id) is None:
+            return []
+        reachable: dict[str, ComponentModel] = {}
+
+        def collect(component_id: str) -> None:
+            if component_id in reachable:
+                return
+            candidate = projected.get(component_id)
+            if candidate is None:
+                return
+            reachable[component_id] = candidate
+            for child_id, _ in candidate.get_child_references(projected.keys()):
+                collect(child_id)
+
+        collect(root_id)
+        try:
+            validate_component_integrity(reachable, root_id=root_id, config=config)
+            analyze_topology(reachable, root_id=root_id, config=config)
+            validate_composition_constraints(reachable, root_id=root_id)
+        except A2uiError:
+            return []
+        result: list[dict[str, Any]] = []
+        for key in self.keys:
+            if key not in reachable:
+                continue
+            component = reachable[key]
+            tree = copy.deepcopy(component.component_tree)
+            version = component.catalog.protocol_version
+            if (
+                component.catalog is not self.default_catalog
+                and version
+                and is_at_least_version(version, ProtocolVersion.V1_0)
+            ):
+                tree["catalogId"] = component.catalog.catalog_id
+            result.append(tree)
+        return result
 
     def detect_cycles(
         self,
