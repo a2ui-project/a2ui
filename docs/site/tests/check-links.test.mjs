@@ -20,7 +20,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import {checkDistLinks, parseHtmlDocument} from '../scripts/check-links.mjs';
+import {checkDistLinks, parseHtmlDocument, verifyDistCname} from '../scripts/check-links.mjs';
 import {cleanMdxOutsideFences, renderLlmsHeader} from '../scripts/emit-markdown-bundle.mjs';
 import {formatAssetFilename, verifyManifestAndRepoAssets} from '../scripts/upload-doc-asset.mjs';
 import {findRepoRoot, normalizeBasePrefix} from '../src/lib/spec-schemas.mjs';
@@ -406,4 +406,15 @@ test('upload-doc-asset formats content-addressed filenames, verifies live manife
     badResult.errors[0],
     /Binary media file .*screenshot\.png.* checked into src\/assets\//,
   );
+});
+
+test('verifyDistCname enforces CNAME presence and domain, and docs/site/CNAME exists', t => {
+  const siteRoot = path.resolve(import.meta.dirname, '..');
+  assert.equal(verifyDistCname(siteRoot).ok, true);
+
+  const missingDir = createTempDist(t, {'index.html': '<!doctype html>'});
+  assert.equal(verifyDistCname(missingDir).ok, false);
+
+  const wrongDir = createTempDist(t, {CNAME: 'example.com\n'});
+  assert.equal(verifyDistCname(wrongDir).ok, false);
 });
