@@ -14,10 +14,30 @@
 
 from __future__ import annotations
 
+from . import decision as decision
 from . import direct_json as direct_json
 from . import express as express
 from ._shared import to_message_dicts
 from ._shared import to_message_models
+from .decision import ActionSpec
+from .decision import CatalogDecisionGraph
+from .decision import DecisionBackend
+from .decision import DecisionBackendError
+from .decision import DecisionBlock
+from .decision import DecisionFormat
+from .decision import DecisionFormatFactory
+from .decision import DecisionParser
+from .decision import DecisionPromptGenerator
+from .decision import DecisionRenderTool
+from .decision import DecisionSynthesizer
+from .decision import PlanCache
+from .decision import PlanCacheKey
+from .decision import SurfaceOperation
+from .decision import SynthesisConfig
+from .decision import SynthesisOutput
+from .decision import SynthesisStage
+from .decision import TemplateRegistry
+from .decision import create_decision_backend
 from .direct_json import DirectJsonDecompiler
 from .direct_json import DirectJsonFormat
 from .direct_json import DirectJsonFormatFactory
@@ -37,6 +57,26 @@ __all__ = [
     "AtomFormat",
     "AtomFormatFactory",
     "AtomParser",
+    "ActionSpec",
+    "CatalogDecisionGraph",
+    "DecisionBackend",
+    "DecisionBackendError",
+    "DecisionBlock",
+    "DecisionFormat",
+    "DecisionFormatFactory",
+    "DecisionParser",
+    "DecisionPromptGenerator",
+    "DecisionRenderTool",
+    "DecisionSynthesizer",
+    "PlanCache",
+    "PlanCacheKey",
+    "SurfaceOperation",
+    "SynthesisConfig",
+    "SynthesisOutput",
+    "SynthesisStage",
+    "TemplateRegistry",
+    "create_decision_backend",
+    "decision",
     "DirectJsonDecompiler",
     "DirectJsonFormat",
     "DirectJsonFormatFactory",

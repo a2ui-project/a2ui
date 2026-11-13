@@ -20,6 +20,82 @@
   metadata (`a2uiRendererCapabilities` in v1.0 and `a2uiClientCapabilities` in
   v0.8, v0.9, and v0.9.1).
   [#4013](https://github.com/a2ui-project/a2ui/pull/4013)
+- Add the decision inference format, `a2ui.inference_formats.decision`, in
+  which the model emits an intent and data and a decision model picks and binds
+  the components. The format is experimental and supports protocol v1.0 only;
+  a catalog with another protocol version raises `ValueError` at construction.
+  - `DecisionFormat` and `DecisionFormatFactory` implement `InferenceFormat`
+    and `InferenceFormatFactory`, so `A2uiRequestProcessor(catalogs,
+format_factory=DecisionFormatFactory(backend=create_decision_backend()))`
+    works like the Express and Direct JSON factories. `DecisionPromptGenerator`
+    asks for `<a2ui>` decision blocks, few-shot examples are `DecisionBlock`
+    instances passed as `block_examples` (A2UI message examples are ignored
+    with a warning), and `DecisionParser` renders blocks through
+    `DecisionSynthesizer`.
+  - A `DecisionBlock` carries `intent`, `payload`, `surfaceId`, `actions` (a
+    map from action id to a label or an options object, parsed into
+    `ActionSpec` with `ActionStyle`), `exclude`, `replace`, `region`, `labels`
+    (pointer-to-label overrides), `mutablePaths`, `layout`, `title`, `summary`,
+    and `fallbackDsl`. The action id is the event name the agent receives;
+    labels are presentational only.
+  - Every constructor requires an explicit `DecisionBackend`;
+    `create_decision_backend()` reads `A2UI_DECISION_BACKEND` and raises
+    `ValueError` when it is unset (the mock backend is used only when asked
+    for). Backends answer a whole `DecisionBatch` in one `answer()` call and
+    declare `backend_kind`, a pinned `model_id` (TypeSafe defaults to
+    `jev-1.14.0`, and the Google Gemini Decisions API defaults to
+    `gemini-decision-1`), and `BackendCapabilities`; a per-model `Calibration`
+    is loaded from a bundled profile file. HTTP requests time out after 30
+    seconds by default, and timeouts or transport failures raise
+    `DecisionBackendError`, which the parser reports as a compilation error
+    with no fallback.
+  - `DecisionSynthesizer.synthesize` plans each surface with one `answer()`
+    call (two for backends that declare `two_stage`), renders a registered
+    template when the batch's template question picks one, and otherwise
+    expands the planned layout archetype. When the model abstains (including
+    when `job.family` picks `none` at or above `thresholds.noFit`, returning
+    `PlanReason.NO_FIT`) it runs `fallback_dsl`, then `fallback_fn`, then one
+    `facts` pattern rendering of the payload, and raises `A2uiCompilationError`
+    if none applies. `LayoutPlan` and `PlanOutcome` carry `fit_score`, and
+    `SynthesisOutput` reports `fallback_source` (`FallbackSource`),
+    `fallback_reason`, `backend_kind`, `model_id`, `cache_hit`, and the
+    `SurfaceOperation` it emitted.
+  - Surfaces persist across turns: `DecisionParser` reads the
+    `RendererState`, so reusing a `surfaceId` replaces the surface's root in
+    place (`updateComponents` with stable per-block component ids and
+    `updateDataModel`), or emits only `updateDataModel` with no backend call
+    (`cache_hit=True`) when `PlanCache` (`PlanCacheKey`, `CachedPlan`,
+    `plan_shape_signature`) has a matching entry for that `RendererState` and
+    surface. Setting `region` re-plans only that block's questions
+    (`LayoutPlanner.build_block_batch` and `read_block`) and updates its
+    subtree in place; `replace: true` invalidates the cache, sends
+    `deleteSurface`, and creates the surface again. An update whose actions
+    need `sendDataModel` on a surface created without it becomes a replace.
+    Without a bound state, `DecisionFormat.create_parser(conversation_id=...)`
+    keeps one `RendererState` per conversation.
+  - `DecisionRenderTool` supplies a JSON Schema tool declaration (with
+    `actions`, `exclude`, `replace`, `region`, and `labels`), `run_async` /
+    `run_sync` runners with a tool-mode plan cache keyed by tool name, and
+    `promote(template_id, description)` to export the last cached plan into a
+    `SurfaceTemplate` via `TemplateRegistry.promote_plan`; build one with
+    `DecisionRenderTool.create(catalogs, backend=...)`.
+  - `SynthesisConfig` holds `default_surface_id`, `max_pairs`, and
+    `conservativeness`, which scales the action confidence gate between the
+    grammar's `actionGateFloor` and `actionGateCap`; every other threshold
+    lives in the versioned grammar (`grammarVersion`).
+  - `LayoutPlanner`, `ArchetypeGrammar`, `PatternLibrary`, `MergedPatternLibrary`,
+    and `PatternExpander` plan and expand multi-block layout archetypes
+    (`feed`, `compare`, `dashboard`, `detail`, `result`, `confirm`, `checkout`,
+    `form`, `settings`, `guide`, `article`, `timeline`, `location`, `chat`)
+    from a catalog's `patterns.json`. `PatternExpander` returns `Expansion`
+    objects; `lint_components` checks expanded layouts without catalog
+    component names.
+  - `SemanticType` and `classify_scalar` classify payload pointers;
+    `DecisionQuestion`, `DecisionAnswer`, `DecisionBatch`, and `QuestionKind`
+    (`choice`, `boolean`, `score`) describe batched questions;
+    `TemplateRegistry` holds reviewable surface templates, and
+    `promote_synthesized` turns an output into one
+    ([#4155](https://github.com/a2ui-project/a2ui/pull/4155)).
 
 ## 0.11.0 (2026-11-10)
 

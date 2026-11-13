@@ -963,6 +963,27 @@ def test_generic_token_does_not_select_the_hosted_url(
         create_decision_backend("jev")
 
 
+def test_decision_synthesizer_from_env(clean_env: pytest.MonkeyPatch) -> None:
+    from a2ui.core import Catalog
+    from a2ui.inference_formats.decision import DecisionSynthesizer
+
+    clean_env.setenv("A2UI_DECISION_BACKEND", "mock")
+    cat = Catalog.from_json({
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "catalogId": "https://example.com/cat",
+        "protocolVersion": "1.0",
+        "components": {
+            "Card": {
+                "type": "object",
+                "properties": {"component": {"const": "Card"}},
+                "required": ["component"],
+            }
+        },
+    })
+    synth = DecisionSynthesizer.from_env([cat])
+    assert isinstance(synth.backend, DeterministicMockBackend)
+
+
 def test_step_zero_completion_payload_handles_query_parameters() -> None:
     chat_backend = StepZeroLogprobBackend(
         "https://example.openai.azure.com/openai/deployments/gpt/chat/completions?api-version=2024-06-01",
