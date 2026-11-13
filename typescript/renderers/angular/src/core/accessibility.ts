@@ -17,7 +17,7 @@
 /**
  * The directives an Angular catalog component uses to mark elements for its
  * host's accessibility attributes (see `bindHostAccessibility` in
- * `@a2ui/web_core/v0_9/universal`). Each host element, `ComponentHostComponent`
+ * `@a2ui/web_core/universal`). Each host element, `ComponentHostComponent`
  * or `AngularWcHost`, provides its own `A2UI_ACCESSIBILITY_TARGETS`, so a
  * directive marks an element for the nearest host above it.
  */
@@ -30,8 +30,8 @@ import {
   type Provider,
   inject,
 } from '@angular/core';
-import {peekValue, setValue, type Signal} from '@a2ui/web_core/v0_9';
-import {type AccessibilityTargets, createAccessibilityTargets} from '@a2ui/web_core/v0_9/universal';
+import {peekValue, setValue, type Signal} from '@a2ui/web_core';
+import {type AccessibilityTargets, createAccessibilityTargets} from '@a2ui/web_core/universal';
 
 /** The accessibility targets of the host element the current component renders in. */
 export const A2UI_ACCESSIBILITY_TARGETS = new InjectionToken<AccessibilityTargets>(

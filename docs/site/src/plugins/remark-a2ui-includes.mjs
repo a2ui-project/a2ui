@@ -245,7 +245,11 @@ export function resolveAstUrl(rawTarget, originFilePath, options = {}) {
     return rawTarget;
   }
 
-  // 4. Links to legacy `docs/public/...` pages or assets
+  // 4. Links to `docs/assets/...` or legacy `docs/public/...` pages or assets
+  if (relToRepo.startsWith('docs/assets/')) {
+    const assetRel = relToRepo.slice('docs/assets/'.length);
+    return `${basePrefix}/assets/${assetRel}${search}${anchor}`;
+  }
   if (relToRepo.startsWith('docs/public/assets/')) {
     const assetRel = relToRepo.slice('docs/public/assets/'.length);
     return `${basePrefix}/assets/${assetRel}${search}${anchor}`;

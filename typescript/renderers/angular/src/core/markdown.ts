@@ -15,10 +15,7 @@
  */
 
 import {Injectable} from '@angular/core';
-import type {
-  MarkdownRenderer as MarkdownRendererFn,
-  MarkdownRendererOptions,
-} from '@a2ui/web_core/v0_9';
+import type {MarkdownRenderer as MarkdownRendererFn, MarkdownRendererOptions} from '@a2ui/web_core';
 
 export abstract class MarkdownRenderer {
   abstract render(markdown: string, options?: MarkdownRendererOptions): Promise<string>;

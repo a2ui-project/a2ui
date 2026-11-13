@@ -32,13 +32,13 @@ import {
   CallOptions,
   SurfaceGroupModel,
   ActionListener,
-} from '@a2ui/web_core/v0_9';
+} from '@a2ui/web_core';
 import {AngularComponentImplementation, AngularCatalog} from '../catalog/types';
 import {
   clearDefaultUniversalInjector,
   setDefaultUniversalInjector,
 } from '../catalog/angular_wc_host';
-import {setMarkdownRenderer} from '@a2ui/web_core/v0_9/basic_catalog';
+import {setMarkdownRenderer} from '@a2ui/web_core/universal';
 import {MarkdownRenderer} from './markdown';
 import {initializeAngularReactivity} from './reactivity';
 

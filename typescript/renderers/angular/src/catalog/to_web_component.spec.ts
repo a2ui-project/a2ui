@@ -20,13 +20,19 @@ import {TestBed} from '@angular/core/testing';
 import {z} from 'zod';
 import {
   Catalog,
+  ComponentApi,
   ComponentContext,
   ComponentModel,
-  DynamicStringSchema,
   NodeResolver,
   SurfaceModel,
   getValue,
-} from '@a2ui/web_core/v0_9';
+} from '@a2ui/web_core';
+import {
+  isWebComponentImplementation,
+  registerUniversalElement,
+  WebComponentImplementation,
+} from '@a2ui/web_core/universal';
+import {DynamicStringSchema} from '@a2ui/web_core/v0_9';
 import {toWebComponent} from './to_web_component';
 import {AngularWcHost, setDefaultUniversalInjector} from './angular_wc_host';
 import {ComponentBinder} from '../core/component-binder.service';
@@ -36,12 +42,6 @@ import {
   AngularComponentImplementation,
   createComponentImplementation,
 } from './types';
-import {ComponentApi} from '@a2ui/web_core/v0_9';
-import {
-  isWebComponentImplementation,
-  registerUniversalElement,
-  WebComponentImplementation,
-} from '@a2ui/web_core/v0_9/universal';
 
 // Typed api for the test components that read `props().text`, so that the
 // template type checker sees a concrete property rather than an index signature.
