@@ -34,7 +34,7 @@ To run inference and compiler validation using a standard remote Gemini model (e
 
    # Run inference against Gemini API (using the a2ui_agent project environment)
    A2UI_EXPRESS_ENABLED=true uv run --project ../../../python/a2ui_agent scripts/run_inference.py \
-     ../../../catalogs/basic/v1/examples/01_flight-status.json \
+     ../../../catalogs/basic/v1/examples/flight-status.json \
      --model gemini-3.1-flash-lite
    ```
 
@@ -77,7 +77,7 @@ A2UI_EXPRESS_ENABLED=true uv run --project ../../../python/a2ui_agent scripts/ru
 Convert a standard A2UI v1.0 JSON example back into compact A2UI Express code. The script takes the components of the example's first `updateComponents` message, wraps them in a `createSurface` for the basic catalog, and prints the resulting `surface(...)` block:
 
 ```bash
-A2UI_EXPRESS_ENABLED=true uv run --project ../../../python/a2ui_agent scripts/run_decompiler.py ../../../catalogs/basic/v1/examples/01_flight-status.json
+A2UI_EXPRESS_ENABLED=true uv run --project ../../../python/a2ui_agent scripts/run_decompiler.py ../../../catalogs/basic/v1/examples/flight-status.json
 ```
 
 ### Regenerate documentation examples
