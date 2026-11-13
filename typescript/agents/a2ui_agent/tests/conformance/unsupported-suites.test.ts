@@ -64,6 +64,16 @@ export const PERFORMANCE_SUITES: ReadonlySet<string> = new Set([
 ]);
 
 export const UNSUPPORTED_SUITES: Readonly<Record<string, string>> = {
+  'agent/a2ui_xml/compiler.yaml':
+    'the a2ui-xml format is an experimental Python agent inference format not implemented in TypeScript',
+  'agent/a2ui_xml/decompiler.yaml':
+    'the a2ui-xml format is an experimental Python agent inference format not implemented in TypeScript',
+  'agent/a2ui_xml/prompt_generator.yaml':
+    'the a2ui-xml format is an experimental Python agent inference format not implemented in TypeScript',
+  'agent/a2ui_xml/response_parser.yaml':
+    'the a2ui-xml format is an experimental Python agent inference format not implemented in TypeScript',
+  'agent/a2ui_xml/response_streaming.yaml':
+    'the a2ui-xml format is an experimental Python agent inference format not implemented in TypeScript',
   'agent/atom/compiler.yaml': 'Elemental and Atom are experimental and Python-only',
   'agent/builder/builder.yaml':
     'the fluent builder API is a Python-only helper not implemented in TypeScript',

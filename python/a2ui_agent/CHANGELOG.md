@@ -61,6 +61,12 @@
   `value=DataBinding(path="/form/email")`. The path does not have to exist yet
   ([#3830](https://github.com/a2ui-project/a2ui/issues/3830),
   [#3868](https://github.com/a2ui-project/a2ui/pull/3868)).
+- Add `a2ui-xml` experimental inference format (`A2uiXmlFormat`,
+  `A2uiXmlFormatFactory`, `A2uiXmlCompiler`, `A2uiXmlDecompiler`,
+  `A2uiXmlParser`, `A2uiXmlPromptGenerator`, `A2uiXmlResponseStream`) in
+  `a2ui.inference_formats.experimental.a2ui_xml` providing concise XML-based UI
+  generation with progressive streaming, data-model binding, and catalog
+  pruning ([#3989](https://github.com/a2ui-project/a2ui/pull/3989)).
 - (v1_0) Express compiles, decompiles and prompts the protocol's system
   functions, which no catalog defines: `@index()` and `@index(offset=1)`
   compile to `{"@call": "@index", ...}` without a `catalogId`, the decompiler

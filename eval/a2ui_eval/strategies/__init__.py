@@ -75,6 +75,7 @@ STRATEGIES: dict[str, Callable[..., list[Solver]]] = {
     "direct": _format_strategy("direct_json"),
     "subagent_tool": _subagent_strategy,
     "express": _format_strategy("express"),
+    "a2ui_xml": _format_strategy("a2ui_xml"),
     "skill_mode": _skill_mode,
     "elemental": _format_strategy("elemental"),
     "atom": _format_strategy("atom"),
