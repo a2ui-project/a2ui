@@ -15,7 +15,6 @@
 import A2UICore
 import A2UISwiftUI
 import BasicCatalog
-import OrderedJSON
 import SwiftUI
 
 // MARK: - Component Implementation
@@ -31,7 +30,7 @@ extension BasicCatalogImplementation {
 
 /// SwiftUI component view for the A2UI Basic Catalog `Button` component.
 public struct A2UIButton: View {
-  @Environment(\.a2uiTheme) private var theme
+  @Environment(\.a2uiButtonStyle) private var buttonStyle
   @Environment(\.a2uiModalTriggerAction) private var modalTriggerAction
 
   public let node: Node
@@ -40,7 +39,8 @@ public struct A2UIButton: View {
     self.node = node
   }
 
-  /// Whether the button is disabled due to a blocking validation error (`!node.isValid`) or explicit `disabled` property.
+  /// Whether the button is disabled due to a blocking validation error (`!node.isValid`) or
+  /// explicit `disabled` property.
   public var isDisabled: Bool {
     !node.isValid || node.bool(for: "disabled") == true
   }
@@ -53,8 +53,8 @@ public struct A2UIButton: View {
     node.child(for: "child")
   }
 
-  private var variant: String {
-    node.string(for: "variant") ?? "default"
+  private var variant: A2UIButtonStyleConfiguration.Variant {
+    A2UIButtonStyleConfiguration.Variant(rawValue: node.string(for: "variant") ?? "") ?? .standard
   }
 
   private var action: ResolvedAction? {
@@ -62,28 +62,23 @@ public struct A2UIButton: View {
   }
 
   public var body: some View {
+    let style = buttonStyle
     Button(action: {
       action?()
       modalTriggerAction?()
     }) {
-      Group {
-        if let childNode {
-          ComponentNodeView(node: childNode)
-        }
+      if let childNode {
+        ComponentNodeView(node: childNode)
       }
-      .padding(.horizontal, variant == "borderless" ? 0 : 16)
-      .padding(.vertical, variant == "borderless" ? 0 : 10)
-      .frame(minHeight: variant == "borderless" ? nil : 40)
-      .background(backgroundView)
-      .foregroundStyle(foregroundStyle)
-      .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-      .overlay(
-        RoundedRectangle(cornerRadius: 8, style: .continuous)
-          .stroke(borderColor, lineWidth: variant == "default" ? 1 : 0)
-      )
-      .opacity(node.isValid ? 1.0 : 0.5)
     }
-    .buttonStyle(.plain)
+    .buttonStyle(
+      A2UIButtonStyleBridge(
+        resolveStyle: { style.resolve(configuration: $0) },
+        variant: variant,
+        isDisabled: isDisabled,
+        node: node
+      )
+    )
     .disabled(isDisabled)
     .accessibilityIdentifier("a2ui-\(node.id)")
     // The button combines its content into one element, so an explicit label replaces the
@@ -93,31 +88,24 @@ public struct A2UIButton: View {
     }
     .preference(key: A2UIModalTriggerHandledKey.self, value: modalTriggerAction != nil)
   }
+}
 
-  @ViewBuilder
-  private var backgroundView: some View {
-    switch variant {
-    case "primary":
-      Color.a2uiPrimary(from: theme)
-    case "borderless":
-      Color.clear
-    default:
-      Color.gray.opacity(0.12)
-    }
-  }
+private struct A2UIButtonStyleBridge: ButtonStyle {
+  @Environment(\.isEnabled) private var isEnabled
 
-  private var foregroundStyle: AnyShapeStyle {
-    switch variant {
-    case "primary":
-      return AnyShapeStyle(Color.white)
-    case "borderless":
-      return AnyShapeStyle(Color.a2uiPrimary(from: theme))
-    default:
-      return AnyShapeStyle(Color.primary)
-    }
-  }
+  let resolveStyle: @MainActor (A2UIButtonStyleConfiguration) -> AnyView
+  let variant: A2UIButtonStyleConfiguration.Variant
+  let isDisabled: Bool
+  let node: Node
 
-  private var borderColor: Color {
-    Color.primary.opacity(0.12)
+  func makeBody(configuration: Configuration) -> some View {
+    let styleConfiguration = A2UIButtonStyleConfiguration(
+      label: A2UIButtonStyleConfiguration.Label(configuration.label),
+      variant: variant,
+      isPressed: configuration.isPressed,
+      isDisabled: isDisabled || !isEnabled,
+      node: node
+    )
+    resolveStyle(styleConfiguration)
   }
 }

@@ -84,7 +84,8 @@ struct SurfaceTests {
       catalog: catalog
     )
     let surface = Surface(
-      viewModel: viewModel
+      viewModel: viewModel,
+      catalogs: []
     )
     #expect(surface.surfaceID == "s1")
   }
@@ -96,10 +97,12 @@ struct SurfaceTests {
       catalog: catalog
     )
     let firstSurface = Surface(
-      viewModel: viewModel
+      viewModel: viewModel,
+      catalogs: []
     )
     let secondSurface = Surface(
-      viewModel: viewModel
+      viewModel: viewModel,
+      catalogs: []
     )
     #expect(firstSurface.surfaceID == secondSurface.surfaceID)
   }
@@ -115,10 +118,12 @@ struct SurfaceTests {
       catalog: catalog
     )
     let firstSurface = Surface(
-      viewModel: firstViewModel
+      viewModel: firstViewModel,
+      catalogs: []
     )
     let secondSurface = Surface(
-      viewModel: secondViewModel
+      viewModel: secondViewModel,
+      catalogs: []
     )
     #expect(firstSurface.surfaceID != secondSurface.surfaceID)
   }
@@ -233,5 +238,35 @@ struct SurfaceTests {
     #expect(firstViewModel.rootNode?.string(for: "text") == "Surface A")
     #expect(secondSurface.surfaceID == "surface-b")
     #expect(secondViewModel.rootNode?.string(for: "text") == "Surface B")
+  }
+
+  @Test(arguments: A2UIProtocolVersion.allCases)
+  func makeWithBasicCatalogsConfiguresAllVersionsAndProtocolFallback(
+    version: A2UIProtocolVersion
+  ) {
+    let customCatalog = AnyCatalog(
+      id: "https://example.com/custom",
+      protocolVersion: version,
+      components: []
+    )
+    let explicitDefaultViewModel = SurfaceViewModel(
+      surfaceID: "explicit-default",
+      catalogs: [customCatalog.id: customCatalog],
+      defaultCatalogID: customCatalog.id,
+      protocolVersion: version
+    )
+    let explicitSurface = Surface.makeWithBasicCatalogs(viewModel: explicitDefaultViewModel)
+    #expect(explicitSurface.catalogs.count == A2UIProtocolVersion.allCases.count)
+    #expect(explicitSurface.defaultCatalogID == customCatalog.id)
+
+    let nilDefaultViewModel = SurfaceViewModel(
+      surfaceID: "nil-default",
+      catalogs: [:],
+      defaultCatalogID: nil,
+      protocolVersion: version
+    )
+    #expect(nilDefaultViewModel.defaultCatalogID == nil)
+    let fallbackSurface = Surface.makeWithBasicCatalogs(viewModel: nilDefaultViewModel)
+    #expect(fallbackSurface.defaultCatalogID == BasicCatalog.catalogURI(version: version))
   }
 }
