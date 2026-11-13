@@ -35,7 +35,7 @@
       ]
     },
     "test:vite-compilation": {
-      "command": "vitest run --environment jsdom tests/smoke-test.spec.ts",
+      "command": "vitest run --environment jsdom",
       "dependencies": [
         "build"
       ]
