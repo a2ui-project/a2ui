@@ -149,7 +149,7 @@ In A2A, renderer capabilities ride on message metadata, so they are scoped to th
 
 ### `a2uiRendererDataModel`
 
-When a surface enables Data Model Sync, the renderer sends `message.metadata["a2uiRendererDataModel"]` = [Renderer Data Model Schema](/json/renderer_data_model.json) on every message. This model provides the agent with the latest UI state. For more details, see the [Actions Guide](/docs/public/concepts/actions.md).
+When a surface enables Data Model Sync, the renderer sends `message.metadata["a2uiRendererDataModel"]` = [Renderer Data Model Schema](/json/renderer_data_model.json) on every message. This model provides the agent with the latest UI state. For more details, see the [Actions Guide](/docs/site/src/content/docs/concepts/actions-and-functions.mdx).
 
 **Example `SendMessageRequest` with Data Model:**
 
