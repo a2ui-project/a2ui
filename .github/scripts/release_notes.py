@@ -27,7 +27,7 @@ result before publishing.
 Subcommands:
 
   draft           Draft a package's next CHANGELOG section as Markdown or JSON.
-  check-pr        Lint a pull request's title, body, and labels (L1 to L5).
+  check-pr        Lint a pull request's title, body, labels, and paths (L1 to L6).
   read-section    Print the body of a `## X.Y.Z` section.
   verify-release  Check a CHANGELOG before publishing a version.
   tag             Create the release tag once the public registry has it.
@@ -95,6 +95,10 @@ GROUPS = ("Breaking", "Added", "Changed", "Fixed")
 GROUP_BY_TYPE = {"feat": "Added", "fix": "Fixed"}
 
 BREAKING_LABEL = "breaking-change"
+# Lets a non-release PR fix an already released CHANGELOG section (L6).
+CHANGELOG_EDIT_LABEL = "changelog-edit"
+# Title type of the pull request that cuts a release and writes the section.
+RELEASE_TYPE = "release"
 BREAKING_FOOTERS = ("BREAKING CHANGE:", "BREAKING-CHANGE:")
 BREAKING_FOOTER = BREAKING_FOOTERS[0]
 
@@ -998,6 +1002,32 @@ def _check_bullets(
     return violations
 
 
+def _check_changelog_edits(
+    parsed: ParsedTitle,
+    labels: Sequence[str],
+    touched_paths: Sequence[str],
+    specs: Sequence[PackageSpec],
+) -> list[Violation]:
+    """L6: only release PRs (or a labeled exception) may edit a CHANGELOG.md."""
+    if parsed.type == RELEASE_TYPE or CHANGELOG_EDIT_LABEL in set(labels):
+        return []
+    changelogs = {spec.changelog for spec in specs}
+    touched = sorted(path for path in touched_paths if path in changelogs)
+    if not touched:
+        return []
+    return [
+        Violation(
+            "L6",
+            "error",
+            "CHANGELOG.md is generated at release time; do not edit "
+            + ", ".join(touched)
+            + ". Put consumer-facing notes in a ```release-notes block in the PR"
+            f" description instead, or add the '{CHANGELOG_EDIT_LABEL}' label for a"
+            " fix to an already released section.",
+        )
+    ]
+
+
 def check_pr(
     title: str,
     body: str,
@@ -1005,7 +1035,7 @@ def check_pr(
     touched_paths: Iterable[str],
     specs: Sequence[PackageSpec],
 ) -> list[Violation]:
-    """Applies the title and body rules L1 to L5."""
+    """Applies the title and body rules L1 to L6."""
     parsed = parse_title(title)
     if parsed is None:
         types = ", ".join(ALLOWED_TYPES)
@@ -1021,6 +1051,7 @@ def check_pr(
     return [
         *_check_breaking_consistency(parsed, body, labels),
         *_check_bullets(parsed, release_notes_block(body), touched_paths, specs),
+        *_check_changelog_edits(parsed, labels, touched_paths, specs),
     ]
 
 
@@ -1119,7 +1150,7 @@ def _cmd_check_pr(args: argparse.Namespace, specs: list[PackageSpec]) -> int:
         print(f"{violation.level}: [{violation.rule}] {violation.message}", file=stream)
     if any(v.level == "error" for v in violations):
         return EXIT_USAGE
-    print("ok: title and release notes pass L1 to L5")
+    print("ok: title and release notes pass L1 to L6")
     return EXIT_OK
 
 

@@ -666,7 +666,14 @@ class TagReleaseTest(unittest.TestCase):
 
 class CheckPrTest(unittest.TestCase):
 
-    SPECS = [spec(), spec(id="lit", paths=("typescript/renderers/lit/",))]
+    SPECS = [
+        spec(),
+        spec(
+            id="lit",
+            paths=("typescript/renderers/lit/",),
+            changelog="typescript/renderers/lit/CHANGELOG.md",
+        ),
+    ]
     NOTES = "```release-notes\n- [web_core] x. Migration: y.\n```"
     PKG = ["typescript/core/web_core/src/index.ts"]
 
@@ -736,6 +743,55 @@ class CheckPrTest(unittest.TestCase):
         for title, body, labels, paths, expected in cases:
             with self.subTest(title=title, body=body[:20], labels=labels):
                 self.assertEqual(self.rules(title, body, labels, paths), expected)
+
+    CHANGELOG = "typescript/core/web_core/CHANGELOG.md"
+
+    def test_l6_blocks_changelog_edits_outside_release_prs(self):
+        cases = [
+            # A feature PR touching a manifest changelog fails, even with notes.
+            ("fix(web_core): x", (), [self.CHANGELOG, *self.PKG], [("L6", "error")]),
+            # The release PR type is exempt.
+            ("release(npm): web_core 0.16.0", (), [self.CHANGELOG], []),
+            # So is the escape-hatch label.
+            (
+                "docs(web_core): fix dead link",
+                ("changelog-edit",),
+                [self.CHANGELOG],
+                [],
+            ),
+            # `chore(release)` is not the release type and is not exempt.
+            ("chore(release): bump", (), [self.CHANGELOG], [("L6", "error")]),
+            # Changelogs outside the manifest (samples) are not checked.
+            ("docs(samples): notes", (), ["samples/client/lit/CHANGELOG.md"], []),
+            # The check is on exact manifest paths, not any file named CHANGELOG.
+            (
+                "fix(web_core): x",
+                (),
+                ["typescript/core/web_core/docs/CHANGELOG.md.bak"],
+                [],
+            ),
+        ]
+        for title, labels, paths, expected in cases:
+            with self.subTest(title=title, labels=labels, paths=paths):
+                self.assertEqual(self.rules(title, "", labels, paths), expected)
+
+    def test_l6_message_names_every_changelog_and_the_label(self):
+        lit = "typescript/renderers/lit/CHANGELOG.md"
+        violations = rn.check_pr(
+            "fix(web_core): x", "", (), [lit, self.CHANGELOG], self.SPECS
+        )
+        self.assertEqual([v.rule for v in violations], ["L6"])
+        self.assertIn(f"{self.CHANGELOG}, {lit}", violations[0].message)
+        self.assertIn("changelog-edit", violations[0].message)
+        self.assertIn("release-notes", violations[0].message)
+
+    def test_l6_combines_with_other_rules(self):
+        violations = self.rules(
+            "feat(web_core)!: x", "", (), [self.CHANGELOG, *self.PKG]
+        )
+        self.assertEqual(
+            violations, [("L2", "error"), ("L3", "error"), ("L6", "error")]
+        )
 
 
 class GoldenRepoTest(unittest.TestCase):
