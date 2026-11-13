@@ -42,13 +42,13 @@ import {
   effect as webCoreEffect,
   getValue,
   isComponentNode,
-} from '@a2ui/web_core/v0_9';
+} from '@a2ui/web_core';
 import {
   bindHostAccessibility,
   isWebComponentImplementation,
   registerUniversalElement,
   type WebComponentImplementation,
-} from '@a2ui/web_core/v0_9/universal';
+} from '@a2ui/web_core/universal';
 import {A2UI_ACCESSIBILITY_TARGETS, provideAccessibilityTargets} from './accessibility';
 import {A2uiRendererService} from './a2ui-renderer.service';
 import {Child, ComponentBinder} from './component-binder.service';
@@ -56,6 +56,7 @@ import {SurfaceNodeResolver} from './surface-node-resolver.service';
 import {BoundProperty} from './types';
 
 import type {AngularCatalog, AngularComponentImplementation} from '../catalog/types';
+import {registerUniversalHostInjector} from '../catalog/angular_wc_host';
 import {CatalogComponentInstance} from './catalog_component_instance';
 
 interface UniversalComponentHostElement extends HTMLElement {
@@ -174,6 +175,7 @@ export class ComponentHostComponent {
     return mirror?.inputs.some(i => i.templateName === 'metadata') ?? false;
   });
   protected readonly componentInputs = computed<Record<string, unknown>>(() => {
+    // prettier-ignore
     const inputs: Record<string, unknown> = {
       // Quoted to prevent property renaming under Closure Compiler.
       'props': this.props(),
@@ -202,6 +204,8 @@ export class ComponentHostComponent {
   private stopAccessibility?: () => void;
 
   constructor() {
+    registerUniversalHostInjector(this.elementRef.nativeElement, this.injector);
+
     effect(() => {
       const key = this.componentKey();
       const surfaceId = this.surfaceId();
@@ -220,6 +224,7 @@ export class ComponentHostComponent {
     });
 
     this.destroyRef.onDestroy(() => {
+      registerUniversalHostInjector(this.elementRef.nativeElement, undefined);
       this.resetState();
       this.ownResolver?.ngOnDestroy();
       this.ownResolver = undefined;

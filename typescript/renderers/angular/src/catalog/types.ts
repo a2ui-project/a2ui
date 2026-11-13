@@ -15,11 +15,8 @@
  */
 
 import {Type} from '@angular/core';
-import {Catalog, ComponentApi, FunctionImplementation} from '@a2ui/web_core/v0_9';
-import {
-  WebComponentImplementation,
-  isWebComponentImplementation,
-} from '@a2ui/web_core/v0_9/universal';
+import {Catalog, ComponentApi, FunctionImplementation} from '@a2ui/web_core';
+import {WebComponentImplementation, isWebComponentImplementation} from '@a2ui/web_core/universal';
 import {z} from 'zod';
 import {CatalogComponentInstance} from '../core/catalog_component_instance';
 import {componentApiFields, toWebComponent} from './to_web_component';
@@ -129,6 +126,16 @@ function toAngularComponentImplementation(
     // then every catalog entry must carry an Angular component, so Web Component-only entries
     // get a placeholder that reports the missing flag instead of rendering.
     return {...entry, component: UniversalOnlyComponent};
+  }
+  if (!isWebComponentImplementation(entry)) {
+    // Attach a lazy Web Component wrapper to plain `{...api, component}` entries so universal
+    // container elements (`a2ui-basic-column`, `a2ui-card`, etc.) can resolve them by `tagName`
+    // via `renderA2uiNode` without requiring callers to wrap with `createComponentImplementation`.
+    // The fields are added to the entry itself so callers keep entry identity (for example
+    // `catalog.components.get('X') === X_IMPL`); only non-extensible entries are copied.
+    const webComponent = toWebComponent(entry);
+    const fields = {tagName: webComponent.tagName, element: webComponent.element};
+    return Object.isExtensible(entry) ? Object.assign(entry, fields) : {...entry, ...fields};
   }
   return entry;
 }

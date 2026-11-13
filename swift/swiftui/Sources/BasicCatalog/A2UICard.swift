@@ -15,7 +15,6 @@
 import A2UICore
 import A2UISwiftUI
 import BasicCatalog
-import OrderedJSON
 import SwiftUI
 
 // MARK: - Component Implementation
@@ -31,6 +30,8 @@ extension BasicCatalogImplementation {
 
 /// SwiftUI component view for the A2UI Basic Catalog `Card` container component.
 public struct A2UICard: View {
+  @Environment(\.a2uiCardStyle) private var cardStyle
+
   public let node: Node
 
   public init(node: Node) {
@@ -42,19 +43,11 @@ public struct A2UICard: View {
   }
 
   public var body: some View {
-    VStack(alignment: .leading, spacing: 0) {
-      if let childNode {
-        ComponentNodeView(node: childNode)
-      }
-    }
-    .padding(16)
-    .background(Color.gray.opacity(0.1))
-    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-    .overlay(
-      RoundedRectangle(cornerRadius: 12, style: .continuous)
-        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+    let configuration = A2UICardStyleConfiguration(
+      content: A2UICardStyleConfiguration.Content(childNode: childNode),
+      node: node
     )
-    .shadow(color: Color.black.opacity(0.04), radius: 6, x: 0, y: 2)
-    .a2uiAccessibilityElement(for: node, children: .contain)
+    cardStyle.resolve(configuration: configuration)
+      .a2uiAccessibilityElement(for: node, children: .contain)
   }
 }

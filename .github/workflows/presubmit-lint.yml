@@ -65,6 +65,13 @@ jobs:
       - name: Check license headers
         run: ./scripts/fix_licenses.py --check
 
+      - uses: ./.github/actions/setup-node
+        with:
+          install: false
+
+      - name: Check for wildcard barrel exports
+        run: node --test scripts/no_wildcard_exports.test.mjs
+
       - name: Run CLI installer tests
         run: ./scripts/test_install_cli.sh
 

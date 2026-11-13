@@ -21,26 +21,30 @@ import {A2uiRendererService} from './a2ui-renderer.service';
 import {
   A2uiMetadata,
   ComponentApi,
-  ComponentIdSchema,
   ComponentModel,
-  DynamicStringSchema,
   NodeResolver,
   SurfaceModel,
   getValue,
-} from '@a2ui/web_core/v0_9';
-import {A2uiText} from '@a2ui/web_core/v0_9/basic_catalog';
-import {WebComponentImplementation} from '@a2ui/web_core/v0_9/universal';
+} from '@a2ui/web_core';
+import {WebComponentImplementation} from '@a2ui/web_core/universal';
+import {ComponentIdSchema, DynamicStringSchema} from '@a2ui/web_core/v0_9';
+import {A2uiColumn, A2uiText} from '@a2ui/web_core/v0_9/basic_catalog';
 import {
   Component,
   EnvironmentInjector,
   EventEmitter,
+  InjectionToken,
   Input,
   NgZone,
   Type,
   computed,
+  inject,
   input,
 } from '@angular/core';
+import {CatalogComponent} from './catalog_component';
 import {CatalogComponentInstance} from './catalog_component_instance';
+import {A2UI_RENDERER_CONFIG} from './a2ui-renderer.service';
+import {SurfaceComponent} from './surface.component';
 import {AngularCatalog, createComponentImplementation} from '../catalog/types';
 import {UniversalOnlyComponent} from '../catalog/universal_only.component';
 import {initializeAngularReactivity} from './reactivity';
@@ -603,6 +607,137 @@ describe('ComponentHostComponent', () => {
       expect(testFixture.nativeElement.querySelector(A2uiText.tagName)).toBeTruthy();
       expect(testFixture.nativeElement.querySelector('a2ui-ng-testtype')).toBeFalsy();
       testFixture.destroy();
+    });
+
+    it('renders plain object-literal Angular components inside universal containers and isolates multi-instance injectors', async () => {
+      const BUBBLE_LABEL = new InjectionToken<string>('BUBBLE_LABEL');
+
+      @Component({
+        selector: 'test-plain-custom-leaf',
+        template: '<span class="plain-leaf">{{ bubbleLabel }}:{{ props()?.text?.value() }}</span>',
+      })
+      class PlainCustomLeafComponent extends CatalogComponent<typeof TestTypeApi> {
+        readonly bubbleLabel = inject(BUBBLE_LABEL);
+      }
+
+      const compositeCatalog = new AngularCatalog('composite-catalog', '0.9', [
+        A2uiColumn,
+        {
+          ...TestTypeApi,
+          component: PlainCustomLeafComponent,
+        },
+      ]);
+
+      @Component({
+        selector: 'test-bubble-host-a',
+        imports: [SurfaceComponent],
+        providers: [
+          {provide: BUBBLE_LABEL, useValue: 'bubble-1'},
+          {
+            provide: A2UI_RENDERER_CONFIG,
+            useValue: {catalogs: [compositeCatalog], useUniversalComponents: true},
+          },
+          A2uiRendererService,
+        ],
+        template: '<a2ui-v09-surface surfaceId="s1" />',
+      })
+      class TestBubbleHostAComponent {
+        readonly renderer = inject(A2uiRendererService);
+      }
+
+      @Component({
+        selector: 'test-bubble-host-b',
+        imports: [SurfaceComponent],
+        providers: [
+          {provide: BUBBLE_LABEL, useValue: 'bubble-2'},
+          {
+            provide: A2UI_RENDERER_CONFIG,
+            useValue: {catalogs: [compositeCatalog], useUniversalComponents: true},
+          },
+          A2uiRendererService,
+        ],
+        template: '<a2ui-v09-surface surfaceId="s2" />',
+      })
+      class TestBubbleHostBComponent {
+        readonly renderer = inject(A2uiRendererService);
+      }
+
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        imports: [TestBubbleHostAComponent, TestBubbleHostBComponent],
+      });
+
+      const fixtureA = TestBed.createComponent(TestBubbleHostAComponent);
+      const fixtureB = TestBed.createComponent(TestBubbleHostBComponent);
+      document.body.appendChild(fixtureA.nativeElement);
+      document.body.appendChild(fixtureB.nativeElement);
+
+      fixtureA.componentInstance.renderer.processMessages([
+        {version: 'v0.9', createSurface: {surfaceId: 's1', catalogId: 'composite-catalog'}},
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [
+              {id: 'root', component: 'Column', children: ['leaf-1']},
+              {id: 'leaf-1', component: 'TestType', text: 'First'},
+            ],
+          },
+        },
+      ]);
+      fixtureB.componentInstance.renderer.processMessages([
+        {version: 'v0.9', createSurface: {surfaceId: 's2', catalogId: 'composite-catalog'}},
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 's2',
+            components: [
+              {id: 'root', component: 'Column', children: ['leaf-2']},
+              {id: 'leaf-2', component: 'TestType', text: 'Second'},
+            ],
+          },
+        },
+      ]);
+
+      flush(fixtureA);
+      flush(fixtureB);
+      await settle();
+      flush(fixtureA);
+      flush(fixtureB);
+
+      expect(fixtureA.nativeElement.querySelector('.plain-leaf')?.textContent).toBe(
+        'bubble-1:First',
+      );
+      expect(fixtureB.nativeElement.querySelector('.plain-leaf')?.textContent).toBe(
+        'bubble-2:Second',
+      );
+
+      // Destroy the second bubble and dynamically append another child to the first bubble.
+      fixtureB.destroy();
+      fixtureA.componentInstance.renderer.processMessages([
+        {
+          version: 'v0.9',
+          updateComponents: {
+            surfaceId: 's1',
+            components: [
+              {id: 'root', component: 'Column', children: ['leaf-1', 'leaf-3']},
+              {id: 'leaf-3', component: 'TestType', text: 'AfterDestroy'},
+            ],
+          },
+        },
+      ]);
+      await settle();
+      flush(fixtureA);
+      await settle();
+      flush(fixtureA);
+
+      const leaves = Array.from<HTMLElement>(
+        fixtureA.nativeElement.querySelectorAll('.plain-leaf'),
+      ).map(el => el.textContent);
+      expect(leaves).toEqual(['bubble-1:First', 'bubble-1:AfterDestroy']);
+      fixtureA.destroy();
+      fixtureA.nativeElement.remove();
+      fixtureB.nativeElement.remove();
     });
   });
 });

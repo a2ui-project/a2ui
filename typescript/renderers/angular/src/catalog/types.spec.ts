@@ -15,10 +15,10 @@
  */
 
 import {Component} from '@angular/core';
-import {ComponentApi, MessageProcessor} from '@a2ui/web_core/v0_9';
+import {ComponentApi, MessageProcessor} from '@a2ui/web_core';
+import {isWebComponentImplementation} from '@a2ui/web_core/universal';
 import {A2uiText} from '@a2ui/web_core/v0_9/basic_catalog';
 import {CommonSchemas} from '@a2ui/web_core/v1_0';
-import {isWebComponentImplementation} from '@a2ui/web_core/v0_9/universal';
 import {AngularCatalog, createComponentImplementation} from './types';
 import {UniversalOnlyComponent} from './universal_only.component';
 import {BASIC_COMPONENTS} from '../v0_9/catalog/basic/basic-catalog';
@@ -221,7 +221,7 @@ describe('AngularCatalog & Catalog Types', () => {
     expect(impl.component).toBe(TestCustomComponent);
   });
 
-  it('preserves native AngularComponentImplementation without converting to Web Component', () => {
+  it('attaches a Web Component wrapper to plain AngularComponentImplementation entries', () => {
     const catalog = new AngularCatalog('test-catalog', '0.9', [
       {
         name: 'CustomNative',
@@ -230,7 +230,20 @@ describe('AngularCatalog & Catalog Types', () => {
       },
     ]);
     const comp = catalog.components.get('CustomNative');
-    expect(comp).toBeDefined();
-    expect(comp?.component).toBe(TestCustomComponent);
+    expect(comp).toEqual(
+      jasmine.objectContaining({
+        component: TestCustomComponent,
+        tagName: jasmine.stringContaining('a2ui-ng-'),
+        element: jasmine.any(Function),
+      }),
+    );
+    expect(isWebComponentImplementation(comp)).toBeTrue();
+  });
+
+  it('keeps the identity of plain entries it attaches a Web Component wrapper to', () => {
+    const entry = {name: 'CustomIdentity', schema: z.object({}), component: TestCustomComponent};
+    const catalog = new AngularCatalog('test-catalog', '0.9', [entry]);
+    expect(catalog.components.get('CustomIdentity')).toBe(entry);
+    expect(isWebComponentImplementation(entry)).toBeTrue();
   });
 });
