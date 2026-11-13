@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add explicit static types to pattern variable bindings for Dart 3.12 `specify_nonobvious_local_variable_types` ([#4224](https://github.com/a2ui-project/a2ui/issues/4224), [#4225](https://github.com/a2ui-project/a2ui/pull/4225)).
 - (v1_0) Filter `@catalogId`, `@metadata`, and `@accessibility` from component
   builder properties in `CatalogAnalyzer`, detect checkable components from
   `@checks`, and emit `serialization_alias="@checks"` and

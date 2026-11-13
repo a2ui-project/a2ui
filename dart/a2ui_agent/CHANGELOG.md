@@ -13,6 +13,10 @@
   [#3466](https://github.com/a2ui-project/a2ui/issues/3466),
   [#4012](https://github.com/a2ui-project/a2ui/issues/4012),
   [#4044](https://github.com/a2ui-project/a2ui/pull/4044)).
+- Add explicit static types to pattern variable bindings for Dart 3.12
+  `specify_nonobvious_local_variable_types`
+  ([#4224](https://github.com/a2ui-project/a2ui/issues/4224),
+  [#4225](https://github.com/a2ui-project/a2ui/pull/4225)).
 
 ## 0.3.0
 

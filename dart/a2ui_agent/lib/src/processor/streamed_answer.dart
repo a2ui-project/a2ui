@@ -131,7 +131,8 @@ class StreamedAnswer<T extends ComponentApi> {
           for (final message in a2ui) {
             switch (message) {
               case CreateSurfaceMessage(:final String surfaceId):
-                if (renderer.model.getSurface(surfaceId) case final surface?) {
+                if (renderer.model.getSurface(surfaceId)
+                    case final SurfaceModel<T> surface) {
                   parts.add(AnswerSurfacePart<T>(surface));
                   changed = true;
                 }
