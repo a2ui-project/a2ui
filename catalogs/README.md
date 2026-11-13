@@ -42,14 +42,22 @@ catalogs/
   catalog at its existing `$id` URL
   (`https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json`), so
   moving files here does not affect consumers.
-- `basic/v1/patterns.json` maps the 17 abstract block patterns onto Basic
-  Catalog components for decision-model layout synthesis.
+- `basic/v1/patterns.json` maps the 17 abstract block patterns (`page`, `banner`,
+  `picture`, `media`, `filters`, `headline`, `facts`, `prose`, `collection`,
+  `comparison`, `steps`, `form`, `groups`, `actions`, `outcome`, `conversation`,
+  `compose`) onto Basic Catalog components for decision-model layout synthesis.
   `decision/v1/archetypes.json` defines the catalog-agnostic layout archetype
   grammar (`ArchetypeGrammar`), accompanied by `archetype_definition.json`,
-  `pattern_definition.json`, and `decision/README.md`. A catalog's
-  `patterns.json` is part of the catalog: after any component change, it must
-  still validate via the `a2ui-generate-catalog-patterns` skill's `validate`
-  command. These decision files are experimental.
+  `pattern_definition.json`, and `decision/README.md`.
+- For any custom catalog (inside this directory or in an external repository),
+  use the [a2ui-generate-catalog-patterns](../.agents/skills/a2ui-generate-catalog-patterns/SKILL.md)
+  skill and its CLI (`catalog_patterns_tool.py`) to inspect `catalog.json` and
+  generate and validate `patterns.json` (composable blocks), `templates.json`
+  (fixed-surface `SurfaceTemplate` definitions), and `sample_payloads.json`
+  alongside `catalog.json`.
+  A catalog's `patterns.json` is part of the catalog: after any component
+  change, it must still validate via the `a2ui-generate-catalog-patterns`
+  skill's `validate` command. These decision files are experimental.
 - `basic/` is versioned by catalog major version (`v1/`), which is independent
   of the protocol version. Newer catalogs start unversioned
   (`catalogs/<catalog>/catalog.json`) and add a version directory only when

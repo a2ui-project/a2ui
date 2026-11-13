@@ -1,0 +1,143 @@
+---
+name: a2ui-generate-catalog-patterns
+description: >-
+  Prepares any custom A2UI catalog (in this repository or an external
+  repository) for decision-model synthesis by inspecting catalog.json and
+  generating and validating patterns.json, templates.json, and
+  sample_payloads.json in the catalog's directory. Use when onboarding a custom
+  catalog to the decision route, updating catalog pattern or template sidecars,
+  or checking archetype and template coverage.
+metadata:
+  internal: true
+---
+
+# Generate Catalog Patterns and Templates for A2UI Decision Synthesis
+
+This skill prepares any A2UI v1.0 component catalog (`catalog.json`) for the decision-model synthesis pipeline (`a2ui.inference_formats.decision`). It works on catalogs inside this repository (such as `catalogs/basic/v1/catalog.json`) as well as custom catalogs in external repositories, emitting the sidecar files directly alongside `catalog.json` (or into `--out-dir`).
+
+## Catalog Ownership and Validation Contract
+
+- **Catalog authors own `patterns.json`**: A catalog's `patterns.json` is part of that catalog and lives beside `catalog.json`.
+- **One file per catalog and protocol version**: Each `patterns.json` declares a single `"catalogId"` (matching its `catalog.json`) and `"grammarVersion": "1"` (matching `catalogs/decision/v1/archetypes.json`). The decision format supports A2UI protocol v1.0 only.
+- **No post-expansion coercion**: `PatternExpander` does not coerce component names, required properties, enum values, or icon names after expansion. Every expanded component must validate directly against `catalog.json`.
+- **Run `validate` after any component change**: Whenever `catalog.json` or `patterns.json` changes (for example, adding a required property or changing an enum), run `catalog_patterns_tool.py validate` to verify that every pattern variant still expands and passes schema validation.
+
+Depending on the catalog's structure, the workflow generates and validates one or both sidecar files plus a required sample payload verification bundle:
+
+1. `patterns.json`: Maps the 19 layout grammar blocks (`page` plus the 19 content blocks in `archetypes.json`) onto the catalog's composable container and leaf components.
+2. `templates.json`: Registers deterministic `SurfaceTemplate` definitions for monolithic fixed-surface or domain-card components.
+3. `sample_payloads.json`: Representative JSON payloads required by the validator to verify runtime archetype eligibility and template matching.
+
+Read [references/patterns_authoring_guide.md](references/patterns_authoring_guide.md) before authoring or editing `patterns.json`, `templates.json`, or `sample_payloads.json`.
+
+## End-to-End Workflow
+
+### Step 1: Inspect the Target Catalog
+
+Run [scripts/catalog_patterns_tool.py](scripts/catalog_patterns_tool.py) `inspect` on the target `catalog.json` path:
+
+```bash
+uv run python .agents/skills/a2ui-generate-catalog-patterns/scripts/catalog_patterns_tool.py \
+  inspect <path/to/catalog.json> \
+  --format markdown
+```
+
+Pass `--out-dir <dir>` if the generated sidecar files should be written to a directory other than the parent directory of `catalog.json`.
+
+The inspection report classifies the catalog into one of three synthesis modes and lists `target_dir`, `grammar_version`, `patterns_scaffold`, and `recommended_files`:
+
+- `composable`: The catalog has at least one multi-child container component (`children` slot) and no monolithic multi-field action cards. Generate `<target_dir>/patterns.json` and `<target_dir>/sample_payloads.json`.
+- `fixed_surface`: The catalog has no multi-child container (for example, a catalog of three fixed domain forms). Archetype composition cannot assemble pages without a container; generate `<target_dir>/templates.json` and `<target_dir>/sample_payloads.json`.
+- `hybrid`: The catalog has both multi-child containers and monolithic multi-field domain components with action slots. Generate both `<target_dir>/patterns.json` and `<target_dir>/templates.json`, plus `<target_dir>/sample_payloads.json`.
+
+### Step 2: Author `patterns.json` and/or `templates.json` in `target_dir`
+
+Follow the mode reported by `inspect`:
+
+#### When `mode` is `composable` or `hybrid`: Author `<target_dir>/patterns.json`
+
+Use the **Components**, **Page Container Candidates**, **Patterns Scaffold**, and **Layout Grammar Block Candidates** sections from the inspection report, along with [references/patterns_authoring_guide.md](references/patterns_authoring_guide.md):
+
+1. Set `"$schema": "https://a2ui.org/specification/v1_0/decision/pattern_definition.json"`, `"catalogId": "<catalog_id>"`, and `"grammarVersion": "1"`.
+2. Author `"page"` first using the top candidate in `page_candidates` (such as `Column` or `Stack`). Include `"title"`, `"subtitle"`, `"mark"`, and `{"$blocks": true}` in its children list.
+3. Author the foundational content patterns in priority order:
+   - `headline`, `facts`, `prose`, `picture`, `collection`, `actions`, `form`
+   - Any additional blocks from the 19 grammar blocks that have matching components in the catalog (`banner`, `filters`, `media`, `chart`, `comparison`, `steps`, `groups`, `timeline`, `map`, `conversation`, `compose`, `outcome`).
+4. Bind interactive actions using `{"$event": "action", "$default": "<fallback_name>", "context": {"$actionContext": true}}` (or explicit slot bindings in `"context"`). Never bind `"$event"` to a display label slot (`"label"`).
+5. When a specialized block (such as `chart`, `timeline`, `map`, `banner`, `outcome`, `steps`, `comparison`, `groups`, or `conversation`) has no dedicated component in the catalog, either omit that pattern so `resolve_fallback_pattern` uses its fallback chain (`headline`, `facts`, `prose`, `collection:rows`, `form`, or `steps`), or author a capability substitution using the catalog's primitives.
+
+#### When `mode` is `fixed_surface` or `hybrid`: Author `<target_dir>/templates.json`
+
+Use the **Surface Template Candidates** table from the inspection report and the [Surface Templates](references/patterns_authoring_guide.md#surface-templates) section of the authoring guide:
+
+1. Set `"version": "1.0"`, `"catalogId": "<catalog_id>"`, and `"protocolVersion": "1.0"`.
+2. For each `TemplateCandidate`, add an entry under `"templates"` keyed by `suggested_template_id`:
+   - Set `"requiredPointers"` to the candidate's `suggested_required_pointers` (or the domain pointers that uniquely identify when this surface applies).
+   - Set `"isMutable": true` when the template collects user input or triggers a state-changing action.
+   - Define `"components"` with `"id": "root"` on the root component, binding each required data property to its JSON pointer (`{"@path": "/..."}`) and each action property to `{"event": {"name": "...", "context": ...}}`.
+
+### Step 3: Prepare `<target_dir>/sample_payloads.json`
+
+Payload validation is mandatory. If the user supplied sample payloads, place or reference them at `<target_dir>/sample_payloads.json`. Otherwise, author `<target_dir>/sample_payloads.json` with a `"samples"` map containing representative domain payloads:
+
+- For `patterns.json`, include payloads whose pointer shapes exercise the catalog's target task families (for example, an array of 3+ homogeneous item objects for `browse`, numeric metrics for `monitor`, and mutable fields for `input`).
+- For `templates.json`, include at least one sample payload per registered `SurfaceTemplate` that populates all of that template's `requiredPointers` with valid sample values.
+
+### Step 4: Validate Patterns, Templates, and Sample Payloads
+
+Run `validate` with `--catalog` and `--payload` after creating sidecars or after any component change in `catalog.json`:
+
+```bash
+uv run python .agents/skills/a2ui-generate-catalog-patterns/scripts/catalog_patterns_tool.py \
+  validate \
+  --catalog <path/to/catalog.json> \
+  --payload <target_dir>/sample_payloads.json \
+  --format markdown
+```
+
+By default, `validate` auto-discovers `<target_dir>/patterns.json` and `<target_dir>/templates.json` next to `catalog.json` (or in `--out-dir`). You can also pass explicit `--patterns <path>` and/or `--templates <path>` flags, and `--strict` to fail if `patterns.json` defines pattern names outside `{page} | set(grammar.blocks)`.
+
+The validator checks four stages and exits `0` only when every stage passes:
+
+- `expand`: Dry-runs `PatternExpander.expand_page` and `PatternExpander.expand_block` across every knob combination of every pattern and fallback block using synthetic bindings and `ActionSpec`s.
+- `lint`: Validates `$event` and `$actionContext` directives on every pattern template and runs `lint_components` on every expanded pattern surface and `SurfaceTemplate`.
+- `schema`: Validates every expanded pattern surface and every rendered `SurfaceTemplate` message batch (`createSurface`, `updateComponents`, `updateDataModel`) against the catalog's JSON Schema via `validate_payload`.
+- `payload`: Runs `eligible_archetypes` and `TemplateRegistry.matching_templates` across every sample in `--payload`, failing if `patterns.json` yields zero eligible archetypes or if any `SurfaceTemplate` in `templates.json` matches zero sample payloads.
+
+Every validation failure names the file, pattern, component ID, property, and broken catalog rule, and links to the relevant section of [references/patterns_authoring_guide.md](references/patterns_authoring_guide.md). Fix any reported failure and re-run `validate` until it exits `0`.
+
+### Step 5: Report Coverage and Runtime Wiring
+
+Present the validation summary to the user (eligible archetypes, degraded fallback blocks, validated templates, and per-sample eligibility) along with the Python snippet to load the generated files from the catalog directory at runtime:
+
+```python
+import json
+from pathlib import Path
+from a2ui.core import Catalog
+from a2ui.inference_formats.decision import (
+    CatalogDecisionGraph,
+    DecisionSynthesizer,
+    MergedPatternLibrary,
+    PatternLibrary,
+    TemplateRegistry,
+    create_decision_backend,
+)
+
+catalog_dir = Path("<target_dir>")
+catalog = Catalog.from_json(json.loads((catalog_dir / "catalog.json").read_text()))
+graph = CatalogDecisionGraph([catalog])
+backend = create_decision_backend("gemini")
+
+# Load patterns.json when present (composable or hybrid catalogs):
+pattern_lib = MergedPatternLibrary([PatternLibrary.from_file(catalog_dir)])
+
+# Load templates.json when present (fixed_surface or hybrid catalogs):
+template_registry = TemplateRegistry.from_file(catalog_dir)
+
+synthesizer = DecisionSynthesizer(
+    graph,
+    backend,
+    registry=template_registry,
+    patterns=pattern_lib,
+)
+```
