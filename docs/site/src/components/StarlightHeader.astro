@@ -117,6 +117,27 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
           <button type="button" data-close-modal class="a2-sl-search-cancel">Cancel</button>
           <div class="a2-sl-search-container">
             <div id="starlight__search"></div>
+            <div class="a2-sl-search-empty" hidden aria-live="polite">
+              <svg
+                class="a2-sl-search-empty__icon"
+                width="28"
+                height="28"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.75"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <path d="m21 21-4.3-4.3" />
+              </svg>
+              <p class="a2-sl-search-empty__title" data-empty-title>No results found</p>
+              <p class="a2-sl-search-empty__hint">
+                Try a different keyword, or press <kbd>Esc</kbd> to close.
+              </p>
+            </div>
           </div>
         </div>
       </dialog>
@@ -225,11 +246,69 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
       const dialog = this.querySelector<HTMLDialogElement>('dialog');
       const dialogFrame = this.querySelector<HTMLElement>('.a2-sl-dialog-frame');
       const searchContainer = this.querySelector<HTMLElement>('#starlight__search');
+      const emptyState = this.querySelector<HTMLElement>('.a2-sl-search-empty');
+      const emptyTitle = this.querySelector<HTMLElement>('[data-empty-title]');
       if (!openBtn || !closeBtn || !dialog || !dialogFrame || !searchContainer) return;
 
       const shouldStrip = this.dataset.stripTrailingSlash !== undefined;
       const stripTrailingSlash = (path: string) => path.replace(/(.)\/(#.*)?$/, '$1$2');
       const formatURL = shouldStrip ? stripTrailingSlash : (path: string) => path;
+
+      let activeIndex = -1;
+
+      const getResultLinks = () =>
+        Array.from(searchContainer.querySelectorAll<HTMLAnchorElement>('.pagefind-ui__result-link'));
+
+      const getResultRow = (link: HTMLAnchorElement) =>
+        link.closest<HTMLElement>('.pagefind-ui__result-nested') ??
+        link.closest<HTMLElement>('.pagefind-ui__result-title');
+
+      const setActiveIndex = (nextIndex: number) => {
+        for (const selected of searchContainer.querySelectorAll('.is-keyboard-selected')) {
+          selected.classList.remove('is-keyboard-selected');
+        }
+        for (const link of searchContainer.querySelectorAll('a[aria-selected]')) {
+          link.removeAttribute('aria-selected');
+          link.removeAttribute('role');
+        }
+        const links = getResultLinks();
+        if (nextIndex < 0 || nextIndex >= links.length) {
+          activeIndex = -1;
+          return;
+        }
+        activeIndex = nextIndex;
+        const activeLink = links[activeIndex];
+        activeLink.setAttribute('role', 'option');
+        activeLink.setAttribute('aria-selected', 'true');
+        getResultRow(activeLink)?.classList.add('is-keyboard-selected');
+        activeLink.scrollIntoView({ block: 'nearest' });
+      };
+
+      const updateEmptyState = () => {
+        if (!emptyState) return;
+        const input = searchContainer.querySelector<HTMLInputElement>('.pagefind-ui__search-input');
+        const query = input?.value.trim() ?? '';
+        const hasResults = searchContainer.querySelector('.pagefind-ui__result') !== null;
+        const isLoading = searchContainer.querySelector('.pagefind-ui__loading') !== null;
+        const messageEl = searchContainer.querySelector<HTMLElement>('.pagefind-ui__message');
+        const messageText = messageEl?.textContent?.trim() ?? '';
+        const isZeroResults = /^\s*0\b/.test(messageText);
+        const showEmpty = query.length > 0 && !hasResults && !isLoading && isZeroResults;
+
+        emptyState.hidden = !showEmpty;
+        if (emptyTitle) {
+          emptyTitle.textContent = showEmpty ? `No results found for “${query}”` : 'No results found';
+        }
+        if (messageEl) {
+          messageEl.hidden = showEmpty;
+        }
+      };
+
+      const observer = new MutationObserver(() => {
+        setActiveIndex(-1);
+        updateEmptyState();
+      });
+      observer.observe(searchContainer, { childList: true, subtree: true });
 
       const ensurePagefind = () => {
         if (this.pagefindPromise) return this.pagefindPromise;
@@ -302,8 +381,46 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
       };
 
       const onDialogClose = () => {
+        setActiveIndex(-1);
         document.body.toggleAttribute('data-search-modal-open', false);
         window.removeEventListener('click', onClick);
+      };
+
+      const onDialogKeyDown = (e: KeyboardEvent) => {
+        if (e.isComposing || !dialog.open) return;
+        const links = getResultLinks();
+        if (!links.length) return;
+
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          setActiveIndex(activeIndex < links.length - 1 ? activeIndex + 1 : 0);
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          if (activeIndex <= 0) {
+            setActiveIndex(-1);
+            focusSearchInput();
+          } else {
+            setActiveIndex(activeIndex - 1);
+          }
+        } else if (e.key === 'Enter') {
+          const input = searchContainer.querySelector<HTMLInputElement>('.pagefind-ui__search-input');
+          const targetLink =
+            activeIndex >= 0
+              ? links[activeIndex]
+              : document.activeElement === input
+                ? links[0]
+                : null;
+          if (targetLink) {
+            e.preventDefault();
+            targetLink.click();
+            closeModal();
+          }
+        }
+      };
+
+      const onSearchInput = () => {
+        setActiveIndex(-1);
+        updateEmptyState();
       };
 
       const onKeyDown = (e: KeyboardEvent) => {
@@ -316,6 +433,8 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
       openBtn.addEventListener('click', openModal);
       closeBtn.addEventListener('click', closeModal);
       dialog.addEventListener('close', onDialogClose);
+      dialog.addEventListener('keydown', onDialogKeyDown);
+      searchContainer.addEventListener('input', onSearchInput);
       window.addEventListener('keydown', onKeyDown);
 
       const onIdle = window.requestIdleCallback || ((cb: () => void) => window.setTimeout(cb, 1));
@@ -331,9 +450,12 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
       }
 
       this.cleanup = () => {
+        observer.disconnect();
         openBtn.removeEventListener('click', openModal);
         closeBtn.removeEventListener('click', closeModal);
         dialog.removeEventListener('close', onDialogClose);
+        dialog.removeEventListener('keydown', onDialogKeyDown);
+        searchContainer.removeEventListener('input', onSearchInput);
         window.removeEventListener('keydown', onKeyDown);
         window.removeEventListener('click', onClick);
         window.removeEventListener('DOMContentLoaded', triggerIdle);
@@ -821,6 +943,51 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
     }
   }
 
+  .a2-sl-search-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 28px 16px 20px;
+    text-align: center;
+    color: var(--a2-hdr-text-secondary);
+  }
+
+  .a2-sl-search-empty[hidden] {
+    display: none;
+  }
+
+  .a2-sl-search-empty__icon {
+    color: var(--a2-hdr-text-muted);
+    margin-bottom: 4px;
+    opacity: 0.75;
+  }
+
+  .a2-sl-search-empty__title {
+    margin: 0;
+    font-size: 14.5px;
+    font-weight: 600;
+    color: var(--a2-hdr-text);
+  }
+
+  .a2-sl-search-empty__hint {
+    margin: 0;
+    font-size: 13px;
+    color: var(--a2-hdr-text-secondary);
+  }
+
+  .a2-sl-search-empty__hint kbd {
+    font-family: var(--sl-font-mono, var(--font-mono, ui-monospace, monospace));
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 5px;
+    border-radius: 4px;
+    background: var(--a2-hdr-hover-bg);
+    border: 1px solid var(--a2-hdr-border);
+    color: var(--a2-hdr-text-secondary);
+  }
+
   @media (max-width: 440px) {
     .a2-sl-tab__xlong {
       display: none;
@@ -947,14 +1114,20 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
   #starlight__search .pagefind-ui__result-title:not(:where(.pagefind-ui__result-nested *)):hover,
   #starlight__search
     .pagefind-ui__result-title:not(:where(.pagefind-ui__result-nested *)):focus-within,
+  #starlight__search
+    .pagefind-ui__result-title:not(:where(.pagefind-ui__result-nested *)).is-keyboard-selected,
   #starlight__search .pagefind-ui__result-nested:hover,
-  #starlight__search .pagefind-ui__result-nested:focus-within {
+  #starlight__search .pagefind-ui__result-nested:focus-within,
+  #starlight__search .pagefind-ui__result-nested.is-keyboard-selected {
     outline: 1px solid var(--sl-color-accent-high, #aecbfa);
   }
 
   #starlight__search
     .pagefind-ui__result-title:not(:where(.pagefind-ui__result-nested *)):focus-within,
-  #starlight__search .pagefind-ui__result-nested:focus-within {
+  #starlight__search
+    .pagefind-ui__result-title:not(:where(.pagefind-ui__result-nested *)).is-keyboard-selected,
+  #starlight__search .pagefind-ui__result-nested:focus-within,
+  #starlight__search .pagefind-ui__result-nested.is-keyboard-selected {
     background-color: var(--sl-color-accent-low, #0f2a57);
   }
 
