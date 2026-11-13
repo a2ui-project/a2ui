@@ -15,17 +15,17 @@
  */
 
 import {Injectable, inject, Signal as AngularSignal, EnvironmentInjector} from '@angular/core';
-import {isAtLeastVersion} from '@a2ui/web_core';
 import {
   ComponentContext,
   type ComponentNode,
   ResolvedBinding,
   computed,
   getValue,
+  isAtLeastVersion,
   isComponentNode,
   isWritable,
   peekValue,
-} from '@a2ui/web_core/v0_9';
+} from '@a2ui/web_core';
 import {BoundProperty, ComponentTemplate} from './types';
 import {assertAngularSignal, initializeAngularReactivity} from './reactivity';
 

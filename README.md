@@ -8,7 +8,7 @@ low latency, native renderers for web and mobile frameworks, and agent SDKs
 in several popular languages. With A2UI, your agents can communicate with
 your users using natively rendered widgets, in addition to text.
 
-<img src="docs/public/assets/a2ui_gallery_examples.png" alt="Gallery of A2UI components" height="400">
+<img src="docs/assets/a2ui_gallery_examples.png" alt="Gallery of A2UI components" height="400">
 
 _Examples of UI compositions that A2UI can express._
 
