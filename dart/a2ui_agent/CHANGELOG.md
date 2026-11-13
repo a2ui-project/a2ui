@@ -13,6 +13,20 @@
   [#3466](https://github.com/a2ui-project/a2ui/issues/3466),
   [#4012](https://github.com/a2ui-project/a2ui/issues/4012),
   [#4044](https://github.com/a2ui-project/a2ui/pull/4044)).
+- **Breaking:** `PromptGenerator` declares `catalogs` and renders its snippet
+  from three sections, `generateBaseRules()`,
+  `generateCatalogInstructions({catalog})` and `generateExamples({catalog})`,
+  which `generate()` joins with the new `assembleInstructions`. `generate()`
+  is `@nonVirtual`, so a custom format implements `catalogs` and the sections
+  instead of overriding it. The Express prompt now introduces its examples
+  with `### Examples:`, like the direct JSON prompt, instead of `## Examples`
+  ([#4217](https://github.com/a2ui-project/a2ui/pull/4217)).
+
+- Add `Skill`, `SkillSet` and `SkillGenerator`, which build `SKILL.md` skill
+  packages from an inference format and its catalogs: one monolithic skill, a
+  core skill with the format's rules, a skill per catalog, or a `SkillSet` of
+  all of them that `exportToDirectory` writes to disk
+  ([#4217](https://github.com/a2ui-project/a2ui/pull/4217)).
 
 ## 0.3.0
 

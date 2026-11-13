@@ -41,6 +41,7 @@ const Set<String> activeAgentSuites = {
   'agent/renderer_function_calls.yaml',
   'agent/renderer_state.yaml',
   'agent/request_processor.yaml',
+  'agent/skill.yaml',
   'agent/streamed_answer.yaml',
 };
 
@@ -73,8 +74,6 @@ const Map<String, String> unsupportedAgentSuites = {
   'agent/macros/macros.yaml':
       'The composite macro suite targets the Python macro API, which '
       'a2ui_agent for Dart does not implement.',
-  'agent/skill.yaml':
-      'a2ui_agent for Dart does not implement the skill generation API.',
 };
 
 Set<String> _discoverAgentSuites() {

@@ -42,7 +42,7 @@ Our goal is for your agent to know when and how to use each component.
 
 **Available today**
 
-1. The skill generator (`SkillGenerator`) in the Python and TypeScript [Agent SDKs](../concepts/sdks/#agent-sdk) builds an A2UI skill from your catalog, with grammar rules for the chosen inference format and the signatures of your components and functions. Because the skill comes from the catalog, it changes when your components change. See [Generate the skill](../concepts/overview/#generate-the-skill).
+1. The skill generator (`SkillGenerator`) in the Python, TypeScript and Dart [Agent SDKs](../concepts/sdks/#agent-sdk) builds an A2UI skill from your catalog, with grammar rules for the chosen inference format and the signatures of your components and functions. Because the skill comes from the catalog, it changes when your components change. See [Generate the skill](../concepts/overview/#generate-the-skill).
 2. [Catalog negotiation](../concepts/catalogs/#catalog-negotiation-and-multi-catalog-surfaces) selects the catalogs and protocol version that each client supports. See [Using a catalog in an agent](../concepts/catalogs/#using-a-catalog-in-an-agent).
 3. [Inference formats](../concepts/inference-formats/), such as Express and Direct JSON, compile model output into standard A2UI messages without client changes.
 4. The Agent SDKs [validate output against live surface state](../concepts/overview/#compile-and-validate-the-output), so errors go back to the model before anything reaches the client.

@@ -13,39 +13,70 @@
 # limitations under the License.
 
 # --- Skill Generator Conformance Tests ---
+#
+# Each case builds one format from `args.catalog` and checks the skill it
+# generates: its frontmatter against `expected_frontmatter`, the YAML between
+# the `---` lines, byte for byte, and its body against the sections of that
+# SDK's own prompt generator, so the cases hold for every SDK whatever its
+# prompt says (the prompt suites check the wording):
+#
+# - `from_format`: the body is the format's prompt snippet, trimmed.
+# - `core_syntax`: the body is `generate_base_rules()`, trimmed.
+# - `from_catalog`: the body is `generate_catalog_instructions(catalog)`,
+#   followed, when `generate_examples(catalog)` renders anything, by a blank
+#   line, `### Examples:`, a blank line and the examples, all trimmed.
+#
+# The serialized skill is `---`, a newline, `expected_frontmatter` (which ends
+# with a newline), `---`, a blank line, and the body ending with a newline.
 
 - name: test_express_monolithic_skill
   features: [F-AGT-06]
-  description: Generates a complete monolithic skill for Express format and basic catalog.
+  description: Generates a monolithic skill for the Express format and the basic catalog.
   action: from_format
   args:
     format: express
     catalog: catalogs/basic/v1/catalog.json
     name: a2ui
-  expected_file: conformance/test_data/skills/express_basic_monolithic.skill.md
+  expected_frontmatter: |
+    name: a2ui
+    description: Generates interactive user interface components for user requests.
 
 - name: test_express_core_skill
   features: [F-AGT-06]
-  description: Generates a core syntax skill for Express format.
+  description: Generates a core syntax skill for the Express format.
   action: core_syntax
   args:
     format: express
     catalog: catalogs/basic/v1/catalog.json
     name: a2ui-core
-  expected_file: conformance/test_data/skills/express_core.skill.md
+  expected_frontmatter: |
+    name: a2ui-core
+    description: Core A2UI protocol instructions and syntax rules for UI generation.
 
 - name: test_express_catalog_skill
   features: [F-AGT-06]
-  description: Generates a catalog skill for basic catalog in Express format.
+  description: >-
+    Generates a catalog skill for the basic catalog in the Express format. Its
+    default description is longer than a line, so it wraps after column 80 as
+    PyYAML wraps it.
   action: from_catalog
   args:
     format: express
     catalog: catalogs/basic/v1/catalog.json
-  expected_file: conformance/test_data/skills/express_basic_catalog.skill.md
+  expected_frontmatter: |
+    name: a2ui-basic
+    description: UI component catalog signatures for basic. Use when building basic user
+      interface components.
+
+# A `skill_set` case generates the format's SkillSet and checks that its
+# filenames are `expected_skills`, in order, and that the core skill is what
+# `core_syntax` generates with the default name and each catalog skill what
+# `from_catalog` generates for its catalog. The format is built without
+# examples, so no catalog skill drops examples that an earlier one holds.
 
 - name: test_express_skill_set
   features: [F-AGT-06]
-  description: Generates a modular SkillSet for Express format.
+  description: Generates a modular SkillSet for the Express format.
   action: skill_set
   args:
     format: express
@@ -53,9 +84,6 @@
   expected_skills:
     - a2ui-core/SKILL.md
     - a2ui-basic/SKILL.md
-  expected_skill_files:
-    a2ui-core/SKILL.md: conformance/test_data/skills/express_core.skill.md
-    a2ui-basic/SKILL.md: conformance/test_data/skills/express_basic_catalog.skill.md
 
 # --- SkillSet.export_to_directory cleanup scope ---
 #

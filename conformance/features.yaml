@@ -497,8 +497,6 @@
     - python-agent
     - ts-agent
     - dart-agent
-  knownGaps:
-    dart-agent: a2ui_agent for Dart does not implement the skill generation API.
 - id: F-AGT-07
   title: Common Parser interface (has_a2ui_content, unwrap, wrap, parse_response,
     parse_chunk)

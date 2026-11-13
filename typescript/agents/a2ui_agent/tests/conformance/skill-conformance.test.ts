@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'fs';
+import {existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'fs';
 import {tmpdir} from 'os';
 import {dirname, join, resolve} from 'path';
 
@@ -29,6 +29,7 @@ import {
   SkillSet,
 } from '../../src/index.js';
 import {CatalogApi} from '../../src/internal/web-core.js';
+import {EXAMPLES_HEADING} from '../../src/prompt/generator.js';
 import {loadBasicCatalog, REPO_ROOT} from '../helpers/basic-catalogs.js';
 import {classify, KNOWN_FAILURES, loadCases, LoadedCase} from './loader.js';
 import {
@@ -41,13 +42,8 @@ import {
 
 const basicCatalogV10 = loadBasicCatalog('1.0');
 
-const SINGLE_FILE_CASE_KEYS = new Set([...CASE_METADATA_KEYS, 'args', 'expected_file']);
-const SKILL_SET_CASE_KEYS = new Set([
-  ...CASE_METADATA_KEYS,
-  'args',
-  'expected_skills',
-  'expected_skill_files',
-]);
+const SINGLE_SKILL_CASE_KEYS = new Set([...CASE_METADATA_KEYS, 'args', 'expected_frontmatter']);
+const SKILL_SET_CASE_KEYS = new Set([...CASE_METADATA_KEYS, 'args', 'expected_skills']);
 const EXPORT_CASE_KEYS = new Set([
   ...CASE_METADATA_KEYS,
   'args',
@@ -56,9 +52,9 @@ const EXPORT_CASE_KEYS = new Set([
   'expected_absent_files',
 ]);
 const SKILL_CASE_KEYS: Record<string, ReadonlySet<string>> = {
-  from_format: SINGLE_FILE_CASE_KEYS,
-  core_syntax: SINGLE_FILE_CASE_KEYS,
-  from_catalog: SINGLE_FILE_CASE_KEYS,
+  from_format: SINGLE_SKILL_CASE_KEYS,
+  core_syntax: SINGLE_SKILL_CASE_KEYS,
+  from_catalog: SINGLE_SKILL_CASE_KEYS,
   skill_set: SKILL_SET_CASE_KEYS,
   export_to_directory: EXPORT_CASE_KEYS,
   monolithic_skill_equals_prompt_snippet: new Set([...CASE_METADATA_KEYS, 'args']),
@@ -67,6 +63,7 @@ const SKILL_CASE_KEYS: Record<string, ReadonlySet<string>> = {
 interface SkillCaseContext {
   args: Record<string, unknown>;
   catalog?: CatalogApi;
+  catalogs: CatalogApi[];
   format: ExpressFormat | DirectJsonFormat;
   generator: SkillGenerator;
 }
@@ -86,44 +83,62 @@ function buildSkillContext(testCase: LoadedCase): SkillCaseContext {
       ? new ExpressFormat(catalogs)
       : new DirectJsonFormat(catalogs.length > 0 ? catalogs : [basicCatalogV10]);
   const generator = new SkillGenerator(format);
-  return {args, catalog, format, generator};
+  return {args, catalog, catalogs, format, generator};
 }
 
-function runFromFormatCase(testCase: LoadedCase, {args, generator}: SkillCaseContext): void {
-  const monoName = (args.name as string | undefined) ?? 'a2ui';
-  const skillObj = generator.generateSkill({name: monoName});
-  const expectedRel = testCase.expected_file as string;
-  const expectedContent = readFileSync(resolve(REPO_ROOT, expectedRel), 'utf-8');
-  expect(skillObj.toMarkdown()).toBe(expectedContent);
+/**
+ * Checks a generated skill's frontmatter against the case and its body against `body`, a
+ * section of the format's own prompt.
+ */
+function expectSkill(testCase: LoadedCase, skill: Skill, body: string): void {
+  const frontmatter = testCase.expected_frontmatter as string;
+  expect(skill.toMarkdown()).toBe(`---\n${frontmatter}---\n\n${body.trim()}\n`);
 }
 
-function runCoreSyntaxCase(testCase: LoadedCase, {args, generator}: SkillCaseContext): void {
-  const coreName = (args.name as string | undefined) ?? 'a2ui-core';
-  const skillObj = generator.generateCoreSkill({name: coreName});
-  const expectedRel = testCase.expected_file as string;
-  const expectedContent = readFileSync(resolve(REPO_ROOT, expectedRel), 'utf-8');
-  expect(skillObj.toMarkdown()).toBe(expectedContent);
+/** The body a catalog skill holds: the catalog's section, then its examples. */
+function catalogBody(format: SkillCaseContext['format'], catalog: CatalogApi): string {
+  const promptGen = format.promptGenerator;
+  const examples = promptGen.generateExamples(catalog);
+  const instructions = promptGen.generateCatalogInstructions(catalog);
+  return examples ? `${instructions}\n\n${EXAMPLES_HEADING}${examples}` : instructions;
 }
 
-function runFromCatalogCase(testCase: LoadedCase, {catalog, generator}: SkillCaseContext): void {
-  const skillObj = generator.generateCatalogSkill({catalog});
-  const expectedRel = testCase.expected_file as string;
-  const expectedContent = readFileSync(resolve(REPO_ROOT, expectedRel), 'utf-8');
-  expect(skillObj.toMarkdown()).toBe(expectedContent);
+function runFromFormatCase(
+  testCase: LoadedCase,
+  {args, format, generator}: SkillCaseContext,
+): void {
+  const name = (args.name as string | undefined) ?? 'a2ui';
+  expectSkill(testCase, generator.generateSkill({name}), format.promptGenerator.generate());
 }
 
-function runSkillSetCase(testCase: LoadedCase, {generator}: SkillCaseContext): void {
-  const skillSet = generator.generateSkillSet();
-  const expectedKeys = (testCase.expected_skills as string[]) || [];
-  const dict = skillSet.toDict();
-  for (const k of expectedKeys) {
-    expect(Object.hasOwn(dict, k), `expected skill ${k}`).toBe(true);
-  }
-  const expectedFiles = (testCase.expected_skill_files as Record<string, string>) || {};
-  for (const [k, goldenRel] of Object.entries(expectedFiles)) {
-    const golden = readFileSync(resolve(REPO_ROOT, goldenRel), 'utf-8');
-    expect(dict[k], `content of ${k}`).toBe(golden);
-  }
+function runCoreSyntaxCase(
+  testCase: LoadedCase,
+  {args, format, generator}: SkillCaseContext,
+): void {
+  const name = (args.name as string | undefined) ?? 'a2ui-core';
+  expectSkill(
+    testCase,
+    generator.generateCoreSkill({name}),
+    format.promptGenerator.generateBaseRules(),
+  );
+}
+
+function runFromCatalogCase(
+  testCase: LoadedCase,
+  {catalog, format, generator}: SkillCaseContext,
+): void {
+  expect(catalog).toBeDefined();
+  expectSkill(testCase, generator.generateCatalogSkill({catalog}), catalogBody(format, catalog!));
+}
+
+function runSkillSetCase(testCase: LoadedCase, {catalogs, generator}: SkillCaseContext): void {
+  const dict = generator.generateSkillSet().toDict();
+  expect(Object.keys(dict)).toEqual(testCase.expected_skills);
+  const expected = [
+    generator.generateCoreSkill(),
+    ...catalogs.map(catalog => generator.generateCatalogSkill({catalog})),
+  ];
+  expect(Object.values(dict)).toEqual(expected.map(skill => skill.toMarkdown()));
 }
 
 interface LiteralSkill {
