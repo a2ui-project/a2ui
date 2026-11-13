@@ -20,6 +20,9 @@ Contribute the fix to the code and/or table below if:
 | [Restaurant finder][rf-l-readme] | Python | Lit      |                 | [2026-04-14][rf-l-video] |        |
 | [Restaurant finder][rf-r-readme] | Python | React    |                 | [2026-06-17][rf-r-video] |        |
 
+The [Go restaurant finder agent][rf-go-readme] serves the Lit, Angular, and React restaurant finder
+clients in place of the Python agent.
+
 ## Community samples
 
 Have you built and open-sourced a sample using A2UI? Show it on our [Community Showcase](https://a2ui.org/ecosystem/community/#community-showcase).
@@ -44,6 +47,10 @@ Have you built and open-sourced a sample using A2UI? Show it on our [Community S
 
 [rf-a-video]: https://github.com/user-attachments/assets/1ba25c6f-f49a-4000-a8cd-c7692d15ab5e
 [rf-a-readme]: client/angular/README.md
+
+<!-- Restaurant finder, Go agent -->
+
+[rf-go-readme]: agent/go/restaurant_finder/README.md
 
 <!-- Simple Chat, Flutter -->
 

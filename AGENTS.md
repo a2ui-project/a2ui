@@ -85,9 +85,10 @@ For a detailed explanation of the methodology, lifecycle, and workflows, read th
 - **`python/`**: Core state SDK (`a2ui_core/`), framework-agnostic agent SDK (`a2ui_agent/`), agent framework integrations for A2A (`a2ui_a2a/`) and ADK (`a2ui_adk/`), and catalog packages (`catalogs/`) for Python.
 - **`conformance/`**: Language-agnostic test suites (`core/`, `agent/`, `extensions/`) and test data (`test_data/`) for verifying behavioral parity across all SDK implementations.
 - **`dart/`**: Dart implementations including core state model (`a2ui_core/`), agent SDK (`a2ui_agent/`), and Flutter framework adapter (`a2ui_flutter/`).
+- **`go/`**: Go workspace (`go.work`) with one module per package: core state SDK (`core/`), framework-agnostic agent SDK (`agent/`, including the typesafe `builder/` and `macros/` packages), and agent framework integrations for A2A (`a2aext/`) and ADK (`adk/`).
 - **`kotlin/`**: Legacy Kotlin agent SDK (`agent_sdk_legacy/`).
 - **`typescript/`**: Framework-agnostic Web Core state and protocol logic (`core/web_core/`), web framework renderers (`renderers/lit/`, `renderers/angular/`, `renderers/react/`), Markdown renderer (`renderers/markdown-it/`), TypeScript agent SDK (`agents/a2ui_agent/`), TypeScript catalog packages (`catalogs/`), and release scripts (`scripts/`).
-- **`samples/`**: Ready-to-run demo agents utilizing Python ADK (`agent/adk/`), MCP server (`agent/mcp/`), and sample clients (`client/lit/`, `client/angular/`, `client/react/`, `client/flutter/`).
+- **`samples/`**: Ready-to-run demo agents utilizing Python ADK (`agent/adk/`), Go ADK (`agent/go/`), MCP server (`agent/mcp/`), and sample clients (`client/lit/`, `client/angular/`, `client/react/`, `client/flutter/`).
 - **`swift/`**: Native Apple implementation including core state engine (`core/`), SwiftUI adapter (`swiftui/`), and sample iOS client (`sample/`).
 - **`tools/`**: Developer utility suite including visual Composer (`composer/`) and catalog builder (`build_catalog/`).
 
@@ -113,7 +114,7 @@ When creating or modifying workspaces, guarantee strict script uniformity by imp
 Do not use hardcoded or guessed build/run sequences. Each subdirectory contains detailed setup, build, dependency resolution, and execution steps.
 
 - **Prerequisite:** Consult the `README.md` files under `typescript/core/web_core/` and `typescript/renderers/` to build the shared web core and renderer packages before running any web tools or clients.
-- **Running SDKs & Samples:** Consult the local `README.md` inside any targeted directory under `python/`, `kotlin/`, `samples/`, or `tools/` for specific run/test/build commands.
+- **Running SDKs & Samples:** Consult the local `README.md` inside any targeted directory under `python/`, `go/`, `kotlin/`, `samples/`, or `tools/` for specific run/test/build commands.
 
 ---
 
@@ -135,5 +136,5 @@ To ensure the integrity, consistency, and high quality of the repository, all ag
 - **Maintain Agent-Agnostic Instructions**: When creating or modifying agent instruction files, skills, or guides, write them in a generic, vendor-agnostic manner. Avoid proprietary or environment-specific names (e.g., model names, specific tool terms) and use generic terms (e.g., "assistant", "subagent", "retrieval tool").
 - **Enforce Script Uniformity**: Strictly maintain Yarn workspace script hygiene. Ensure all Node/TypeScript packages implement the five canonical targets (`build`, `lint`, `lint:fix`, `test`, `format`, `format:check`).
 - **Keep Inference Formats Catalog-Agnostic**: When implementing or updating inference formats (Express, Elemental, Atom, Direct JSON, etc.), system prompt rules, compilers, and parsers must remain catalog-agnostic. Catalog-specific constraints, component property rules, or syntax hints must be defined in and derived dynamically from the component catalog JSON schema, rather than hardcoding catalog-specific logic or string filters into format generators.
-- **Export Public Facades and Ban Deep Imports**: Packages across all languages must expose their public API through root or versioned facade barrels (e.g. `__all__` in Python `__init__.py`, `exports` in Node `package.json`, `lib/*.dart` in Dart). Never expose, rely on, or demonstrate deep internal submodule import paths in code, tests, docstrings, or README examples.
-- **Sort and Group Imports**: Across all languages (Python, TypeScript, Dart, Swift), maintain clean, predictable import ordering. Group imports into standard/system libraries, external third-party dependencies, and internal/local packages, separated by a single empty line. Within each group, sort module paths and imported symbols alphabetically. Never use wildcard imports.
+- **Export Public Facades and Ban Deep Imports**: Packages across all languages must expose their public API through root or versioned facade barrels (e.g. `__all__` in Python `__init__.py`, `exports` in Node `package.json`, `lib/*.dart` in Dart, exported identifiers of a module's public packages in Go, with implementation code under `internal/`). Never expose, rely on, or demonstrate deep internal submodule import paths in code, tests, docstrings, or README examples.
+- **Sort and Group Imports**: Across all languages (Python, TypeScript, Dart, Swift, Go), maintain clean, predictable import ordering. Group imports into standard/system libraries, external third-party dependencies, and internal/local packages, separated by a single empty line. Within each group, sort module paths and imported symbols alphabetically. Never use wildcard imports.

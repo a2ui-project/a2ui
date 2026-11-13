@@ -6,7 +6,7 @@ Community and third-party A2UI renderer implementations.
 > These renderers are maintained by their respective authors, not the A2UI team. Check each project for compatibility, version support, and maintenance status.
 
 > TIP
-> Looking for the **official** A2UI React renderer? See [`@a2ui/react`](https://www.npmjs.com/package/@a2ui/react) — the core A2UI React renderer maintained by the A2UI team.
+> Looking for the **official** A2UI SDKs? The A2UI team maintains official Renderer SDKs for React ([`@a2ui/react`](https://www.npmjs.com/package/@a2ui/react)), Lit, Angular, Flutter, SwiftUI, and Jetpack Compose, Core SDKs for TypeScript, Python, Dart, Go, Swift, and Kotlin, and Agent SDKs for TypeScript, Python, Dart, and Go ([`go/`](../../../go/README.md)).
 
 ## Community Renderers
 

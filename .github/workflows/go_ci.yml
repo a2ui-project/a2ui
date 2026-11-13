@@ -1,0 +1,161 @@
+# Copyright 2024 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Go CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "go/**"
+      - "samples/agent/go/**"
+      - "samples/agent/adk/restaurant_finder/**"
+      - "specification/**"
+      - "catalogs/**"
+      - "conformance/**"
+      - ".github/workflows/go_ci.yml"
+  pull_request:
+    paths:
+      - "go/**"
+      - "samples/agent/go/**"
+      - "samples/agent/adk/restaurant_finder/**"
+      - "specification/**"
+      - "catalogs/**"
+      - "conformance/**"
+      - ".github/workflows/go_ci.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # go/go.work has no root module, so commands run in the workspace name each
+  # module's packages.
+  GO_PACKAGES: ./core/... ./agent/... ./a2aext/... ./adk/...
+  # Each module, and the sample, also builds and tests on its own, with only
+  # its go.mod and replace directives, as a project outside the workspace
+  # would use it.
+  GO_MODULE_DIRS: go/core go/agent go/a2aext go/adk samples/agent/go/restaurant_finder
+
+jobs:
+  go-ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: "1.26.x"
+          check-latest: true
+          cache-dependency-path: |
+            go/*/go.sum
+            samples/agent/go/restaurant_finder/go.sum
+      - name: Check formatting
+        run: |
+          unformatted="$(gofmt -s -l go samples/agent/go)"
+          if [ -n "$unformatted" ]; then
+            echo "::error::These files are not formatted. Run gofmt -s -w on them:"
+            echo "$unformatted"
+            exit 1
+          fi
+      - name: Check that go.mod and go.sum are tidy
+        env:
+          GOWORK: "off"
+        run: |
+          for dir in $GO_MODULE_DIRS; do
+            (cd "$dir" && go mod tidy -diff)
+          done
+      - name: Vet
+        working-directory: go
+        run: go vet $GO_PACKAGES
+      - name: Run tests
+        working-directory: go
+        env:
+          A2UI_CONFORMANCE_MANIFEST_DIR: ${{ runner.temp }}/a2ui-manifest
+        run: go test -race $GO_PACKAGES
+      - name: Run tests for each module outside the workspace
+        env:
+          GOWORK: "off"
+        run: |
+          for dir in $GO_MODULE_DIRS; do
+            echo "::group::$dir"
+            (cd "$dir" && go vet ./... && go test ./...)
+            echo "::endgroup::"
+          done
+      - uses: ./.github/actions/setup-python
+      - name: Check executed conformance cases
+        run: |
+          uv run --project conformance python conformance/scripts/check_executed_cases.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --harness go-core \
+            --corpus core
+          uv run --project conformance python conformance/scripts/check_executed_cases.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --harness go-agent \
+            --corpus agent
+          uv run --project conformance python conformance/scripts/check_executed_cases.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --harness go-agent \
+            --corpus e2e
+          uv run --project conformance python conformance/scripts/check_executed_cases.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --harness go-a2a \
+            --corpus extensions \
+            --only 'extensions/a2a/**'
+          uv run --project conformance python conformance/scripts/check_executed_cases.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --harness go-adk \
+            --corpus extensions \
+            --only 'extensions/adk/**'
+      - name: Check conformance feature coverage
+        run: |
+          for h in go-core go-agent go-a2a go-adk; do
+            uv run --project conformance python conformance/scripts/check_feature_coverage.py \
+              --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+              --harness "$h"
+          done
+
+  # The timing cases of conformance/core/message_processor_scaling.yaml and the
+  # scaling.yaml suites compare the time to process a payload written at two
+  # sizes, as conformance/agent/direct_json/scaling.yaml describes. A slow or
+  # loaded runner can fail them, so the job above records them as skipped and
+  # they run here, with A2UI_RUN_TIMING=1, in a job of their own. A regression
+  # can make them run for minutes, so the job has a time limit.
+  go-timing:
+    name: go (timing)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: "1.26.x"
+          check-latest: true
+          cache-dependency-path: go/*/go.sum
+      - name: Run timing cases
+        working-directory: go
+        env:
+          A2UI_RUN_TIMING: "1"
+        run: |
+          go test -count=1 -run 'TestConformanceSuite/core/message_processor_scaling' ./core/
+          go test -count=1 -run 'TestAgentConformance/agent/direct_json/scaling' ./agent/
+          go test -count=1 -run 'TestExpressScalingConformance' ./agent/

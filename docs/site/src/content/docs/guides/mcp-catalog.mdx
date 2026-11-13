@@ -133,8 +133,8 @@ export const appConfig: ApplicationConfig = {
 
 Include the [MCP catalog schema](#mcp_catalog.json) in your agent setup so it knows how to emit MCP tool calls and `McpApp` components:
 
-1. Load `@a2ui/catalog-mcp/catalog.json` (or [`catalogs/mcp/v1/catalog.json`](https://github.com/a2ui-project/a2ui/blob/main/catalogs/mcp/v1/catalog.json) on non-Node backends) alongside your component catalog when building your agent's prompt and schema validator.
-2. Advertise the MCP catalog ID (`https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json`, exported as `mcpCatalog.id` and `MCP_CATALOG_ID`) in `supportedCatalogIds`. Calling `processor.getRendererCapabilities({versions: ['1.0']})` includes every registered catalog automatically.
+1. Load the MCP catalog alongside your component catalog when building your agent's prompt and schema validator: read `@a2ui/catalog-mcp/catalog.json` in TypeScript, call `core.MCPCatalog()` alongside `core.BasicCatalog(core.Version1_0)` in the Go Core SDK (`github.com/a2ui-project/a2ui/go/core`), or load [`catalogs/mcp/v1/catalog.json`](https://github.com/a2ui-project/a2ui/blob/main/catalogs/mcp/v1/catalog.json) in Python and Dart.
+2. Advertise the MCP catalog ID (`https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json`, exported as `mcpCatalog.id` and `MCP_CATALOG_ID` in TypeScript and returned by `mcpCat.CatalogID()` in Go) in `supportedCatalogIds`. Calling `processor.getRendererCapabilities({versions: ['1.0']})` on web clients includes every registered catalog automatically.
 
 You are ready to call MCP tools from your UI. If you also embed `McpApp` HTML widgets, complete the extra sandbox file step in [Embed MCP Apps in A2UI Surfaces](../mcp-apps-in-a2ui/#serve-the-sandbox-files).
 

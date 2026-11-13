@@ -395,7 +395,7 @@ Set `"sendDataModel": true` in the [`createSurface`](/specification/v1.0/schemas
 
 ## Accessing the data model across SDKs
 
-Each Core SDK provides a `dataModel` interface on the surface model for reading values by JSON Pointer path:
+Each Core SDK provides a `dataModel` interface (`DataModel` in Go) on the surface model for reading and updating values by JSON Pointer path, watching changes, and resolving scoped paths:
 
 <Tabs syncKey="sdk-lang">
   <TabItem label="TypeScript">
@@ -419,6 +419,54 @@ email = surface.data_model.get("/reservation/guestEmail") if surface else None
 ```dart
 final surface = processor.model.getSurface('booking');
 final email = surface?.dataModel.get('/reservation/guestEmail');
+```
+
+  </TabItem>
+  <TabItem label="Go">
+
+```go
+import (
+	"fmt"
+
+	"github.com/a2ui-project/a2ui/go/core"
+)
+
+func readBookingState(processor *core.MessageProcessor) error {
+	if surface := processor.Model.Surface("booking"); surface != nil {
+		email, _, err := surface.DataModel.Get("/reservation/guestEmail")
+		if err != nil {
+			return err
+		}
+
+		// Resolve a relative binding inside a collection item scope.
+		guestCtx := core.NewDataContext(surface, "/guests/0")
+		guestName, err := guestCtx.ResolveDynamicValue(map[string]any{"@path": "name"})
+		if err != nil {
+			return err
+		}
+		fmt.Println(email, guestName)
+	}
+
+	// Create, watch, and update a DataModel directly.
+	dm := core.NewDataModel(nil)
+	stop, err := dm.Watch("/reservation/guestEmail", func(val any) {
+		fmt.Println("updated:", val)
+	})
+	if err != nil {
+		return err
+	}
+	defer stop()
+
+	if err := dm.Set("/reservation/guestEmail", "alex@example.com"); err != nil {
+		return err
+	}
+	val, ok, err := dm.Get("/reservation/guestEmail")
+	if err != nil {
+		return err
+	}
+	fmt.Println(val, ok)
+	return nil
+}
 ```
 
   </TabItem>

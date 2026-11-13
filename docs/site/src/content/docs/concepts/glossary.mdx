@@ -37,9 +37,9 @@ See [Inference Formats](../inference-formats/).
 
 ### A2uiGenerator
 
-The top-level coordinator class in an [Agent SDK](#agent-sdk) that holds the agent's supported `CatalogConfig` entries, optional prompt examples, and default [inference format](#inference-format) factory (`ExpressFormatFactory` by default).
+The top-level coordinator class in an [Agent SDK](#agent-sdk) (`Generator` in Go) that holds the agent's supported `CatalogConfig` entries, optional prompt examples, and default [inference format](#inference-format) factory (`ExpressFormatFactory` by default).
 
-For each session or request, calling `createProcessor` (in TypeScript and Dart) or `create_processor` (in Python) with the renderer's [capabilities](#capabilities) negotiates the active [catalogs](#catalog) and returns an `A2uiRequestProcessor` that generates system prompt instructions and parses and validates model responses against `RendererState`.
+For each session or request, calling `createProcessor` (in TypeScript and Dart), `create_processor` (in Python), or `CreateProcessor` (in Go) with the renderer's [capabilities](#capabilities) negotiates the active [catalogs](#catalog) and returns an `A2uiRequestProcessor` (`RequestProcessor` in Go) that generates system prompt instructions and parses and validates model responses against `RendererState`.
 
 See [Agent SDK](../sdks/#agent-sdk) and [How to Integrate A2UI into an Agent](../../guides/agent-integration/).
 
@@ -67,7 +67,7 @@ See [Overview: How A2UI Works](../overview/) and [How to Integrate A2UI into an 
 
 ### Agent SDK
 
-A first-party agent-side library (published for TypeScript, Python, and Dart on top of each language's [Core SDK](#core-sdk)) that manages an [agent](#agent)'s interaction with language models and [renderers](#renderer).
+A first-party agent-side library (available for TypeScript, Python, Dart, and Go on top of each language's [Core SDK](#core-sdk)) that manages an [agent](#agent)'s interaction with language models and [renderers](#renderer).
 
 An Agent SDK loads and prunes [catalogs](#catalog) via [catalog transformers](#catalog-transformer), negotiates renderer [capabilities](#capabilities) through [`A2uiGenerator`](#a2uigenerator), generates model skills and system prompt snippets, compiles [inference format](#inference-format) output into wire JSON, and validates payloads against `RendererState` so errors can be fed back to the model for self-correction.
 
@@ -160,7 +160,7 @@ See [Catalogs](../catalogs/), [How to Define a Catalog](../../guides/defining-a-
 
 An [Agent SDK](#agent-sdk) interface (`CatalogTransformer`) that filters or adapts a [catalog](#catalog) before prompt instructions are generated and validation schemas are compiled.
 
-Pruning unused components and functions lowers prompt token consumption and restricts what UI capabilities a model can emit for a specific task or user role. Built-in implementations in the TypeScript, Python, and Dart Agent SDKs include `ComponentPruningTransformer` (which keeps an allowlist of component names) and `FunctionPruningTransformer` (which keeps an allowlist of function names). For server-side composite component expansion, see [`MacroExpander`](#macroexpander).
+Pruning unused components and functions lowers prompt token consumption and restricts what UI capabilities a model can emit for a specific task or user role. Built-in implementations in the TypeScript, Python, Dart, and Go Agent SDKs include `ComponentPruningTransformer` (which keeps an allowlist of component names) and `FunctionPruningTransformer` (which keeps an allowlist of function names). For server-side composite component expansion, see [`MacroExpander`](#macroexpander).
 
 See [Agent SDK](../sdks/#agent-sdk).
 
@@ -333,11 +333,11 @@ The structured notation in which a language model writes UI blocks inside [A2UI 
 
 Because inference formats are decoupled from the wire protocol, an agent can switch formats on [`A2uiGenerator`](#a2uigenerator) without modifying client renderers. Supported formats include Express (`ExpressFormatFactory`, the default compact positional DSL that cuts output tokens and decode latency), Direct JSON (`DirectJsonFormatFactory`, raw JSON message arrays with incremental stream healing), and experimental Python-only formats (Atom and Elemental).
 
-When reading a model response (`parseResponse` / `parse_response` or streaming `openStream` / `open_stream`), the Agent SDK parser runs three stages:
+When reading a model response (`parseResponse` / `parse_response` / `ParseResponse` or streaming `openStream` / `open_stream` / `OpenStream` and `Stream`), the Agent SDK parser runs three stages:
 
 1. Tag unwrapping (`unwrap`): Scans model output for opening and closing A2UI tags to separate conversational prose from raw UI blocks.
 2. Compilation (`compile`): Translates each raw block from format notation into `agent_to_renderer` messages without checking catalogs or `RendererState`.
-3. Validation and state tracking: `parseResponse` / `parse_response` and `openStream` / `open_stream` validate compiled messages against the active [catalogs](#catalog) and update `RendererState`.
+3. Validation and state tracking: `parseResponse` / `parse_response` / `ParseResponse` and `openStream` / `open_stream` / `Stream` validate compiled messages against the active [catalogs](#catalog) and update `RendererState`.
 
 See [Inference Formats](../inference-formats/).
 
@@ -345,9 +345,9 @@ See [Inference Formats](../inference-formats/).
 
 ### MacroExpander
 
-An asymmetric catalog and message transformer in the Python [Agent SDK](#agent-sdk) (`a2ui.transformers.macros`) that lets developers define coarse-grained composite components on the server with the `@macro` decorator and lower them into standard [catalog](#catalog) primitives before wire transmission.
+An asymmetric catalog and message transformer in the Python (`a2ui.transformers.macros`) and Go (`github.com/a2ui-project/a2ui/go/agent/macros`) [Agent SDKs](#agent-sdk) that lets developers define coarse-grained composite components on the server (`@macro` in Python, `NewPureMacro` in Go) and lower them into standard [catalog](#catalog) primitives before wire transmission.
 
-`MacroExpander.transform_to_inference_catalog` augments a base catalog with component schemas synthesized from `@macro` function type annotations and docstrings for model prompting, and `MacroExpander.transform_to_transport` expands macro components emitted by the model into primitive `createSurface` and `updateComponents` subtrees so client [renderers](#renderer) need no custom widget code.
+`MacroExpander.transform_to_inference_catalog` (`TransformToInferenceCatalog` in Go) augments a base catalog with component schemas synthesized from macro definitions for model prompting, and `MacroExpander.transform_to_transport` (`TransformToTransport` in Go) expands macro components emitted by the model into primitive `createSurface` and `updateComponents` subtrees so client [renderers](#renderer) need no custom widget code.
 
 See [Using Macros](../../guides/macros/) and [Agent SDK](../sdks/#agent-sdk).
 

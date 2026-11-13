@@ -18,7 +18,7 @@ A catalog is a collection of components and functions that acts as a contract be
 
 Every catalog has a `catalogId` string, conventionally formatted as a URI such as `https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json` or `https://example.com/catalogs/travel/v1/catalog.json`, along with optional `instructions`, `components`, and `functions`. Both sides of the connection read from that contract:
 
-1. On the agent, the agent SDK (`@a2ui/agent`, `a2ui-agent-sdk`, `a2ui_agent`) reads the component schemas, function signatures, and `instructions` to build the LLM system prompt and validate outgoing messages.
+1. On the agent, the agent SDK (`@a2ui/agent`, `a2ui-agent-sdk`, `a2ui_agent`, `github.com/a2ui-project/a2ui/go/agent`) reads the component schemas, function signatures, and `instructions` to build the LLM system prompt and validate outgoing messages.
 2. On the renderer, the core and framework SDKs (`@a2ui/web_core`, `a2ui_core`, `A2UICore`, `androidx.a2ui`) pair each component schema with a native widget and each local function signature with code that runs on the client.
 
 ## Components
@@ -190,7 +190,7 @@ Each entry in a catalog's `functions` map declares a `returnType` (`"string"`, `
 
 ## Using a catalog in an agent
 
-An agent loads a catalog from its JSON document and passes it to `A2uiGenerator` through a `CatalogConfig`. The generator uses the catalog to build the LLM system prompt and to validate the messages the LLM produces.
+An agent loads a catalog from its JSON document and passes it to `A2uiGenerator` (`Generator` in Go) through a `CatalogConfig`. The generator uses the catalog to build the LLM system prompt, negotiate renderer capabilities, and validate the messages the LLM produces.
 
 <Tabs syncKey="sdk-lang">
   <TabItem label="TypeScript">
@@ -251,6 +251,50 @@ void main() {
     catalogs: [CatalogConfig(travelCatalog)],
     inferenceFormatFactory: const ExpressFormatFactory(),
   );
+}
+```
+
+  </TabItem>
+  <TabItem label="Go">
+
+```go
+import (
+	"os"
+
+	"github.com/a2ui-project/a2ui/go/agent"
+	"github.com/a2ui-project/a2ui/go/core"
+)
+
+func newTravelProcessor(caps core.RendererCapabilities) (*agent.RequestProcessor, error) {
+	basicCatalog, err := core.BasicCatalog(core.Version1_0)
+	if err != nil {
+		return nil, err
+	}
+	raw, err := os.ReadFile("./catalogs/travel.json")
+	if err != nil {
+		return nil, err
+	}
+	travelCatalog, err := core.CatalogFromJSONBytes(raw, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	basicCfg, err := agent.NewCatalogConfig(basicCatalog)
+	if err != nil {
+		return nil, err
+	}
+	travelCfg, err := agent.NewCatalogConfig(travelCatalog)
+	if err != nil {
+		return nil, err
+	}
+
+	gen := agent.NewGenerator(
+		[]*agent.CatalogConfig{basicCfg, travelCfg},
+		&agent.GeneratorOptions{
+			InferenceFormatFactory: agent.NewExpressFormatFactory(nil),
+		},
+	)
+	return gen.CreateProcessor(caps, nil)
 }
 ```
 

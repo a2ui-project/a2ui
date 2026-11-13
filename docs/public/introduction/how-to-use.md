@@ -39,8 +39,10 @@ Create an agent that generates A2UI responses for any compatible client.
 
 **Choose your framework:**
 
-- **Python:** Google ADK, LangChain, custom.
-- **Node.js:** A2A SDK, Vercel AI SDK, custom.
+- **Python:** `a2ui-agent-sdk` with Google ADK (`a2ui-adk`), A2A (`a2ui-a2a`), LangChain, or custom servers.
+- **Node.js / TypeScript:** `@a2ui/agent` with A2A SDK, Vercel AI SDK, or custom servers.
+- **Go:** [`github.com/a2ui-project/a2ui/go/agent`](../../../go/agent/README.md) with Google ADK for Go ([`go/adk`](../../../go/adk/README.md)), A2A ([`go/a2aext`](../../../go/a2aext/README.md)), or custom HTTP/SSE servers.
+- **Dart:** `a2ui_agent` for server or client-hosted Dart agents.
 
 Include the A2UI schema in your LLM prompts, generate JSONL messages, and stream to clients over SSE, WebSockets, or A2A.
 

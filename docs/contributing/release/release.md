@@ -286,6 +286,74 @@ In a scratch package that depends on
 run `swift package resolve`. `Package.resolved` should show
 `<version>+swift` at the tagged commit.
 
+### Go modules
+
+The Go SDK is four modules in the [go](../../../go/README.md) workspace:
+`go/core`, `go/agent`, `go/a2aext` and `go/adk`. Each module has its own
+version, following [Semver](https://semver.org/). Before 1.0.0, a breaking
+change bumps the minor version. From 2.0.0 on, Go also requires a major version
+suffix on the module path, such as `github.com/a2ui-project/a2ui/go/core/v2`.
+
+Go has no package registry. The `go` command downloads a module from this
+repository through the Go module proxy and takes its versions from tags that
+start with the module's directory:
+
+- `go/core/v<version>`
+- `go/agent/v<version>`
+- `go/a2aext/v<version>`
+- `go/adk/v<version>`
+
+The directory prefix keeps these tags apart from the Swift tags described above.
+
+Each `go.mod` requires the A2UI modules it imports at a released version and
+points them at the local directories with relative `replace` directives. The
+`go` command ignores `replace` directives in dependencies, so users get the
+required versions, while builds in this repository use the local code. The
+modules depend on each other in this order: `go/agent` requires `go/core`,
+`go/a2aext` requires both, and `go/adk` requires all three. The first release
+of each module is `v0.1.0`, the version the `go.mod` files already require.
+
+**1. Open a release pull request**
+
+A module has something to release when its `CHANGELOG.md` has notes under
+`## Unreleased`. In one pull request, for each module to release:
+
+- Choose the next version.
+- Rename `## Unreleased` in `CHANGELOG.md` to `## <version>`.
+- If the module needs changes made since the last release of a module it
+  requires, release that module too, and raise the version in the `require`
+  line to match. Then run `GOWORK=off go mod tidy` in the module directory.
+
+**2. Tag the commit**
+
+Pick the commit that merged the release pull request, and check that the
+[Go CI](../../../.github/workflows/go_ci.yml) workflow passed on it. Tag the
+modules in dependency order, `go/core` first, then `go/agent`, `go/a2aext` and
+`go/adk`, skipping modules that this release leaves out:
+
+```bash
+git tag go/core/v<version> <commit>
+git push origin go/core/v<version>
+```
+
+Create a GitHub release for each tag with its changelog notes. Never move or
+delete a pushed tag. The module proxy and the checksum database keep the first
+content they see for each version.
+
+**3. Check the release**
+
+In a scratch module outside this repository, `go get` the last module you
+tagged, for example:
+
+```bash
+go mod init example.com/check
+go get github.com/a2ui-project/a2ui/go/adk@v<version>
+```
+
+`go get` should resolve the module and the tagged versions of the A2UI modules
+it requires. The request through the proxy also lists the new versions on
+[pkg.go.dev](https://pkg.go.dev/github.com/a2ui-project/a2ui/go/core).
+
 ### Documentation website
 
 [MkDocs](https://www.mkdocs.org/), configured in [.github/workflows/docs.yml](../../../.github/workflows/docs.yml), updates https://a2ui.org/ whenever the content of [docs/public](../../public) changes.

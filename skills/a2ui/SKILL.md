@@ -60,8 +60,10 @@ different message names. Your training data is likely outdated.
 | Flutter                 | `flutter pub add a2ui_flutter a2ui_core` (see the [README](https://github.com/a2ui-project/a2ui/tree/main/dart/a2ui_flutter))                      |
 | SwiftUI (alpha)         | see [swift/swiftui](https://github.com/a2ui-project/a2ui/tree/main/swift/swiftui)                                                                  |
 | Jetpack Compose (alpha) | https://developer.android.com/develop/ui/compose/agentic                                                                                           |
-| Agent, Python           | `pip install a2ui-agent-sdk`                                                                                                                       |
+| Agent, Python           | `pip install a2ui-agent-sdk` (plus `a2ui-adk`, `a2ui-a2a`)                                                                                         |
 | Agent, TypeScript       | `npm install @a2ui/agent` (early 0.x, see [known gaps](https://github.com/a2ui-project/a2ui/blob/main/typescript/agents/a2ui_agent/KNOWN_GAPS.md)) |
+| Agent, Dart             | `dart pub add a2ui_agent`                                                                                                                          |
+| Agent, Go (unreleased)  | Build from source at [go/](https://github.com/a2ui-project/a2ui/tree/main/go) (`go/core`, `go/agent`, `go/adk`, `go/a2aext`; not yet published)    |
 
 Do **not** use `flutter_genui` or `genui_a2ui`: both are discontinued.
 

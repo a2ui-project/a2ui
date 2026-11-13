@@ -9,7 +9,7 @@ Define a custom A2UI catalog by writing a `catalog.json` schema file, loading it
 
 ## When you need a catalog.json file
 
-If your agent and client share the same language and repository, you can define component schemas directly in code, as shown in [Catalogs](../../concepts/catalogs/#registering-a-catalog-in-a-renderer). Write a standalone `catalog.json` file when your backend agent and client app use different languages (for example, a Python agent serving a Flutter, React, SwiftUI, or Jetpack Compose app) or when you publish a reusable catalog for other teams.
+If your agent and client share the same language and repository, you can define component schemas directly in code, as shown in [Catalogs](../../concepts/catalogs/#registering-a-catalog-in-a-renderer). Write a standalone `catalog.json` file when your backend agent and client app use different languages (for example, a Python or Go agent serving a Flutter, React, SwiftUI, or Jetpack Compose app) or when you publish a reusable catalog for other teams.
 
 In A2UI v1.0, your catalog works alongside the built-in [basic catalog](../../specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json), so you keep standard layout widgets (`Column`, `Row`, `Text`, `Button`) and define only the custom widgets unique to your app. See [Catalogs](../../concepts/catalogs/) for how catalog negotiation works at runtime.
 
@@ -118,7 +118,7 @@ Create a file named `status_catalog.json` that defines a single `StatusBadge` co
 
 ## Step 2: Load the catalog on your agent
 
-Load `status_catalog.json` with `Catalog.fromJson` (`Catalog.from_json` in Python) and pass it to `A2uiGenerator` alongside the basic catalog. `A2uiGenerator` automatically includes your component schema in the LLM prompt and validates generated messages against it.
+Load `status_catalog.json` with `Catalog.fromJson` (TypeScript and Dart), `Catalog.from_json` (Python), or `core.CatalogFromJSONBytes` (Go), and pass it to `A2uiGenerator` (`agent.NewGenerator` in Go) alongside the basic catalog. The generator includes your component schema in the LLM prompt and validates generated messages against it.
 
 <Tabs syncKey="sdk-lang">
   <TabItem label="TypeScript">
@@ -189,9 +189,105 @@ final generator = A2uiGenerator(
 ```
 
   </TabItem>
+  <TabItem label="Go">
+
+Install the Go agent and core modules (requires Go 1.26 or later):
+
+```bash
+go get github.com/a2ui-project/a2ui/go/agent github.com/a2ui-project/a2ui/go/core
+```
+
+Until the initial Go module tags are published, add `replace` directives in your `go.mod` pointing `github.com/a2ui-project/a2ui/go/agent` and `github.com/a2ui-project/a2ui/go/core` to a local checkout of `github.com/a2ui-project/a2ui`.
+
+```go
+package main
+
+import (
+	"os"
+
+	"github.com/a2ui-project/a2ui/go/agent"
+	"github.com/a2ui-project/a2ui/go/core"
+)
+
+func newStatusGenerator() (*agent.Generator, error) {
+	raw, err := os.ReadFile("./status_catalog.json")
+	if err != nil {
+		return nil, err
+	}
+	statusCatalog, err := core.CatalogFromJSONBytes(raw, nil)
+	if err != nil {
+		return nil, err
+	}
+	basicCatalog, err := core.BasicCatalog(core.Version1_0)
+	if err != nil {
+		return nil, err
+	}
+
+	basicCfg, err := agent.NewCatalogConfig(basicCatalog)
+	if err != nil {
+		return nil, err
+	}
+	statusCfg, err := agent.NewCatalogConfig(statusCatalog)
+	if err != nil {
+		return nil, err
+	}
+
+	return agent.NewGenerator(
+		[]*agent.CatalogConfig{basicCfg, statusCfg},
+		&agent.GeneratorOptions{
+			InferenceFormatFactory: agent.NewExpressFormatFactory(nil),
+		},
+	), nil
+}
+```
+
+To expose a subset of components under a new `catalogId` or attach server-side `core.AgentFunction` handlers without mutating a parsed catalog, call `Derive` or `CopyWith`:
+
+```go
+package main
+
+import (
+	"context"
+
+	"github.com/a2ui-project/a2ui/go/core"
+)
+
+func customizeCatalogs(basicCatalog, statusCatalog *core.Catalog) (*core.Catalog, *core.Catalog, error) {
+	compactBasic, err := basicCatalog.Derive(core.DeriveOptions{
+		CatalogID:  "https://example.com/catalogs/compact-basic/v1/catalog.json",
+		Components: []any{"Card", "Column", "Text"},
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	extendedStatus, err := statusCatalog.CopyWith(core.CopyWithOptions{
+		AgentFunctions: []*core.AgentFunction{{
+			Name:           "lookupIncidentStatus",
+			Description:    "Returns the live tone for a service ID.",
+			ReturnType:     core.ReturnTypeString,
+			AllowedCallers: core.AllowedCallersRendererOrAgent,
+			ArgsSchema: map[string]any{
+				"type":       "object",
+				"properties": map[string]any{"serviceId": map[string]any{"type": "string"}},
+				"required":   []any{"serviceId"},
+			},
+			Handler: func(_ context.Context, args map[string]any, _ core.AgentFunctionContext) (any, error) {
+				return "success", nil
+			},
+		}},
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	return compactBasic, extendedStatus, nil
+}
+```
+
+  </TabItem>
 </Tabs>
 
-Swift (`A2UISwiftCore` and `A2UISwiftUI`) and Kotlin (`androidx.a2ui` and `androidx.a2ui.compose`) are client-side renderer SDKs and do not include a server-side agent generator; see [How to Integrate A2UI into an Agent](../../guides/agent-integration/) for full backend setup.
+Swift (`A2UISwiftCore` and `A2UISwiftUI`) and Kotlin (`androidx.a2ui` and `androidx.a2ui.compose`) are client-side renderer SDKs and do not include a server-side agent generator; Python and Go run on the agent backend while client renderers register matching UI widgets in Step 3. See [How to Integrate A2UI into an Agent](../../guides/agent-integration/) for full backend setup.
 
 ## Step 3: Register the widget on your client
 
@@ -1713,9 +1809,9 @@ In your native component implementation, map resolved `AccessibilityAttributes` 
 
 ### Schema parity tests in CI
 
-When your backend agent loads `status_catalog.json` and your client defines schemas in code (with Zod, `json_schema_builder`, `JSONSchema`, or `A2uiProperty` and `A2uiSchema`), avoid comparing serialized JSON files as raw strings. Code-built schemas and hand-authored JSON files often differ in key order, `$schema` or `instructions` fields, and localized `#/$defs/...` pointers inside `validationSchema`.
+When your backend agent loads `status_catalog.json` and your client or shared package defines schemas in code (with Zod, `json_schema_builder`, `core.NewCatalog`, `JSONSchema`, or `A2uiProperty` and `A2uiSchema`), avoid comparing serialized JSON files as raw strings. Code-built schemas and hand-authored JSON files often differ in key order, `$schema` or `instructions` fields, and localized `#/$defs/...` pointers inside `validationSchema`.
 
-Instead, parse `status_catalog.json` in a unit test with `Catalog.fromJson` (TypeScript and Dart), `Catalog.from_json` (Python), `JSONSerialization` (Swift), or `kotlinx.serialization.json.Json` (Kotlin), and compare the normalized catalog properties (`id`, `protocolVersion`, component names and `allowedParents`/`allowedChildren`, and function `returnType` and `allowedCallers`) against your client catalog.
+Instead, parse `status_catalog.json` in a unit test with `Catalog.fromJson` (TypeScript and Dart), `Catalog.from_json` (Python), `core.CatalogFromJSONBytes` (Go), `JSONSerialization` (Swift), or `kotlinx.serialization.json.Json` (Kotlin), and compare the normalized catalog properties (`id`/`CatalogID`, `protocolVersion`, component names and `allowedParents`/`allowedChildren`, and function `returnType` and `allowedCallers`) against your code-defined catalog.
 
 <Tabs syncKey="sdk-lang">
   <TabItem label="TypeScript">
@@ -1835,6 +1931,77 @@ void main() {
       expect(clientFn.allowedCallers, entry.value.allowedCallers);
     }
   });
+}
+```
+
+  </TabItem>
+  <TabItem label="Go">
+
+```go
+package catalog_test
+
+import (
+	"maps"
+	"os"
+	"slices"
+	"testing"
+
+	"github.com/a2ui-project/a2ui/go/core"
+
+	"example.com/myapp/catalog"
+)
+
+func TestStatusCatalogParity(t *testing.T) {
+	raw, err := os.ReadFile("./status_catalog.json")
+	if err != nil {
+		t.Fatalf("read status_catalog.json: %v", err)
+	}
+	specCatalog, err := core.CatalogFromJSONBytes(raw, nil)
+	if err != nil {
+		t.Fatalf("parse status_catalog.json: %v", err)
+	}
+
+	codeCatalog := catalog.StatusCatalog
+	if codeCatalog.CatalogID() != specCatalog.CatalogID() {
+		t.Fatalf("catalogId = %q, want %q", codeCatalog.CatalogID(), specCatalog.CatalogID())
+	}
+	if codeCatalog.ProtocolVersion() != specCatalog.ProtocolVersion() {
+		t.Fatalf("protocolVersion = %q, want %q", codeCatalog.ProtocolVersion(), specCatalog.ProtocolVersion())
+	}
+
+	codeCompNames := slices.Sorted(maps.Keys(codeCatalog.Components()))
+	specCompNames := slices.Sorted(maps.Keys(specCatalog.Components()))
+	if !slices.Equal(codeCompNames, specCompNames) {
+		t.Fatalf("components = %v, want %v", codeCompNames, specCompNames)
+	}
+
+	codeFnNames := slices.Sorted(maps.Keys(codeCatalog.Functions()))
+	specFnNames := slices.Sorted(maps.Keys(specCatalog.Functions()))
+	if !slices.Equal(codeFnNames, specFnNames) {
+		t.Fatalf("functions = %v, want %v", codeFnNames, specFnNames)
+	}
+
+	codeComps := codeCatalog.Components()
+	for name, specComp := range specCatalog.Components() {
+		codeComp := codeComps[name]
+		if !slices.Equal(codeComp.AllowedParents, specComp.AllowedParents) {
+			t.Errorf("%s allowedParents = %v, want %v", name, codeComp.AllowedParents, specComp.AllowedParents)
+		}
+		if !slices.Equal(codeComp.AllowedChildren, specComp.AllowedChildren) {
+			t.Errorf("%s allowedChildren = %v, want %v", name, codeComp.AllowedChildren, specComp.AllowedChildren)
+		}
+	}
+
+	codeFns := codeCatalog.Functions()
+	for name, specFn := range specCatalog.Functions() {
+		codeFn := codeFns[name]
+		if codeFn.ReturnType != specFn.ReturnType {
+			t.Errorf("%s returnType = %q, want %q", name, codeFn.ReturnType, specFn.ReturnType)
+		}
+		if codeFn.AllowedCallers != specFn.AllowedCallers {
+			t.Errorf("%s allowedCallers = %q, want %q", name, codeFn.AllowedCallers, specFn.AllowedCallers)
+		}
+	}
 }
 ```
 

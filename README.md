@@ -156,6 +156,18 @@ The Swift libraries are distributed via Swift Package Manager from
 | [A2UISwiftCore, BasicCatalog](swift/core/)         | Message processor, data model, expression evaluation, and basic catalog definitions. |
 | [A2UISwiftUI, BasicCatalogSwiftUI](swift/swiftui/) | SwiftUI renderer and basic catalog views.                                            |
 
+### Go
+
+The Go modules share a [workspace](go/README.md) under `go/`. Their import
+paths start with `github.com/a2ui-project/a2ui/go/`.
+
+| Module               | Description                                                                                             | Version           |
+| -------------------- | ------------------------------------------------------------------------------------------------------- | ----------------- |
+| [core](go/core/)     | Protocol messages, data model, data binding, expression evaluation, and catalog validation.             | Not published yet |
+| [agent](go/agent/)   | Agent SDK: negotiates catalogs, generates prompts and skills, and compiles model output into A2UI.      | Not published yet |
+| [a2aext](go/a2aext/) | Connects the agent SDK to the [Agent-to-Agent (A2A) protocol](https://a2a-protocol.org).                | Not published yet |
+| [adk](go/adk/)       | Connects the agent SDK to the [Agent Development Kit (ADK) for Go](https://google.github.io/adk-docs/). | Not published yet |
+
 ## Roadmap
 
 - **Protocol v1.1**: We are collecting requirements for the next iteration of

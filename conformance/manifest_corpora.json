@@ -16,6 +16,7 @@
       "python-agent",
       "ts-agent",
       "dart-agent",
+      "go-agent",
       "lit",
       "react",
       "angular",

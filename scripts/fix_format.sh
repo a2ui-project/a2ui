@@ -30,6 +30,7 @@ SKIP_PRETTIER=false
 SKIP_PYTHON=false
 SKIP_DART=false
 SKIP_SWIFT=false
+SKIP_GO=false
 SKIP_KOTLIN=false
 for arg in "$@"; do
   case "$arg" in
@@ -41,6 +42,7 @@ for arg in "$@"; do
       SKIP_PYTHON=true
       SKIP_DART=true
       SKIP_SWIFT=false
+      SKIP_GO=true
       SKIP_KOTLIN=true
       ;;
     --skip-prettier)
@@ -55,12 +57,15 @@ for arg in "$@"; do
     --skip-swift)
       SKIP_SWIFT=true
       ;;
+    --skip-go)
+      SKIP_GO=true
+      ;;
     --skip-kotlin)
       SKIP_KOTLIN=true
       ;;
     *)
       echo "Unknown option: $arg" >&2
-      echo "Usage: $0 [--check] [--only-swift] [--skip-prettier] [--skip-python] [--skip-dart] [--skip-swift] [--skip-kotlin]" >&2
+      echo "Usage: $0 [--check] [--only-swift] [--skip-prettier] [--skip-python] [--skip-dart] [--skip-swift] [--skip-go] [--skip-kotlin]" >&2
       exit 2
       ;;
   esac
@@ -175,6 +180,26 @@ if [ "$SKIP_SWIFT" = false ]; then
     fi
   else
     echo "Warning: swift format command not found. Skipping Swift formatting."
+  fi
+fi
+
+if [ "$SKIP_GO" = false ]; then
+  echo "Running gofmt for Go files..."
+  cd "$REPO_ROOT"
+  if command -v gofmt >/dev/null 2>&1; then
+    GO_PATHS=(go samples/agent/go)
+    if [ "$CHECK_ONLY" = true ]; then
+      UNFORMATTED_GO="$(gofmt -s -l "${GO_PATHS[@]}")"
+      if [ -n "$UNFORMATTED_GO" ]; then
+        echo "These Go files are not formatted. Run gofmt -s -w on them:"
+        echo "$UNFORMATTED_GO"
+        exit 1
+      fi
+    else
+      gofmt -s -w "${GO_PATHS[@]}"
+    fi
+  else
+    echo "Warning: gofmt command not found. Skipping Go formatting."
   fi
 fi
 
