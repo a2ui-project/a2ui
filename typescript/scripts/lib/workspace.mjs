@@ -156,6 +156,44 @@ export function incrementVersion(version) {
 }
 
 /**
+ * Checks whether a target version satisfies a semver caret range (e.g., '^0.14.0' or '^1.2.3').
+ *
+ * Returns true for non-caret ranges so only standard `^x.y.z` ranges produced by
+ * `prepare-publish.mjs` are enforced.
+ *
+ * @param {string | null | undefined} range - The caret range string (e.g., '^0.14.0').
+ * @param {string | null | undefined} version - The version string to test (e.g., '0.15.0').
+ * @returns {boolean} Whether `version` satisfies `range`.
+ */
+export function satisfiesCaretRange(range, version) {
+  if (!range || !version || typeof range !== 'string' || typeof version !== 'string') {
+    return true;
+  }
+  const trimmedRange = range.trim();
+  if (!trimmedRange.startsWith('^')) {
+    return true;
+  }
+
+  const [rCore] = trimmedRange.slice(1).trim().split(/[+-]/, 1);
+  const [vCore] = version.trim().split(/[+-]/, 1);
+
+  const [rMaj, rMin, rPat] = rCore.split('.').map(Number);
+  const [vMaj, vMin, vPat] = vCore.split('.').map(Number);
+
+  if ([rMaj, rMin, rPat, vMaj, vMin, vPat].some(Number.isNaN)) {
+    return true;
+  }
+
+  if (rMaj > 0) {
+    return vMaj === rMaj && (vMin > rMin || (vMin === rMin && vPat >= rPat));
+  }
+  if (rMin > 0) {
+    return vMaj === 0 && vMin === rMin && vPat >= rPat;
+  }
+  return vMaj === 0 && vMin === 0 && vPat === rPat;
+}
+
+/**
  * Converts a command and arguments to a readable string.
  */
 function commandToString(command, args, options = {}) {

@@ -20,7 +20,7 @@ import {tmpdir} from 'node:os';
 import {join, relative} from 'node:path';
 import {after, before, describe, it} from 'node:test';
 
-import {findPackages} from './lib/workspace.mjs';
+import {findPackages, satisfiesCaretRange} from './lib/workspace.mjs';
 
 /**
  * Writes an empty package.json at `dir/.../package.json`, creating directories as needed.
@@ -76,5 +76,21 @@ describe('findPackages', () => {
       'typescript/core/web_core/package.json',
       'typescript/renderers/react/package.json',
     ]);
+  });
+});
+
+describe('satisfiesCaretRange', () => {
+  it('enforces 0.x minor boundaries for caret ranges', () => {
+    assert.strictEqual(satisfiesCaretRange('^0.14.0', '0.14.0'), true);
+    assert.strictEqual(satisfiesCaretRange('^0.14.0', '0.14.5'), true);
+    assert.strictEqual(satisfiesCaretRange('^0.14.0', '0.15.0'), false);
+    assert.strictEqual(satisfiesCaretRange('^0.14.2', '0.14.1'), false);
+  });
+
+  it('enforces 0.0.x patch boundaries and >=1.x major boundaries', () => {
+    assert.strictEqual(satisfiesCaretRange('^0.0.3', '0.0.3'), true);
+    assert.strictEqual(satisfiesCaretRange('^0.0.3', '0.0.4'), false);
+    assert.strictEqual(satisfiesCaretRange('^1.2.0', '1.3.0'), true);
+    assert.strictEqual(satisfiesCaretRange('^1.2.0', '2.0.0'), false);
   });
 });

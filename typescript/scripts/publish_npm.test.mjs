@@ -205,4 +205,71 @@ describe('publish_npm script integration test', () => {
       }
     }
   });
+
+  it('should throw when a skipped SAME-version workspace dependency has an incompatible peerDependency range', async () => {
+    const {getPackageGraph} = await import('./lib/workspace.mjs');
+    const graph = getPackageGraph();
+    const mdVersion = graph['@a2ui/markdown-it'].version;
+
+    const mocks = {
+      runCommand: () => {},
+      execSync: cmd => {
+        if (cmd.includes('gcloud auth')) return 'dummy_token\n';
+        if (cmd.includes('npm info @a2ui/markdown-it')) {
+          return JSON.stringify({
+            version: mdVersion,
+            peerDependencies: {'@a2ui/web_core': '^0.14.0'},
+          });
+        }
+        if (cmd.includes('npm info')) return JSON.stringify({version: '0.14.0'});
+        return '';
+      },
+    };
+
+    await assert.rejects(
+      () => main(['--package=react', '--skip-tests'], mocks),
+      err => {
+        assert.match(err.message, /Incompatible dependency version for @a2ui\/markdown-it/);
+        return true;
+      },
+    );
+  });
+
+  it('should allow skipping a SAME-version workspace dependency when its peerDependency range is compatible', async () => {
+    const {getPackageGraph} = await import('./lib/workspace.mjs');
+    const graph = getPackageGraph();
+    const mdVersion = graph['@a2ui/markdown-it'].version;
+    const webCoreVersion = graph['@a2ui/web_core'].version;
+    const executedCommands = [];
+
+    const mocks = {
+      runCommand: (cmd, args, options) => {
+        executedCommands.push(
+          `${cmd} ${args.join(' ')} (in ${options?.cwd ? options.cwd.split('/').pop() : 'root'})`,
+        );
+      },
+      execSync: cmd => {
+        if (cmd.includes('gcloud auth')) return 'dummy_token\n';
+        if (cmd.includes('npm info @a2ui/markdown-it')) {
+          return JSON.stringify({
+            version: mdVersion,
+            peerDependencies: {'@a2ui/web_core': `^${webCoreVersion}`},
+          });
+        }
+        if (cmd.includes('npm info @a2ui/web_core')) {
+          return JSON.stringify({version: webCoreVersion});
+        }
+        if (cmd.includes('npm info')) return JSON.stringify({version: '0.0.1'});
+        return '';
+      },
+    };
+
+    await main(['--package=react', '--skip-tests'], mocks);
+    const hasReactInstall = executedCommands.some(cmd => cmd.includes('yarn install (in react)'));
+    const hasMdInstall = executedCommands.some(cmd =>
+      cmd.includes('yarn install (in markdown-it)'),
+    );
+    assert.ok(hasReactInstall, 'Should still test/prepare react');
+    assert.strictEqual(hasMdInstall, false, 'Should skip markdown-it when already compatible');
+  });
 });
