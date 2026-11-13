@@ -7010,6 +7010,30 @@ Future<List<AgentToRendererMessage>> generateValidatedTurn(
 }
 ```
 
+### Parse JSON-only model output
+
+By default, the parser looks for A2UI blocks between tags in the model's text. If the whole response is one block with no tags, pass `wrapped: false` (`wrapped=False` in Python) to `parseResponse` or `openStream`. This is the case when you use `DirectJsonFormatFactory` (see [Customize catalogs, examples, and inference formats](#customize-catalogs-examples-and-inference-formats)) and turn on the model's JSON-only output mode, such as `responseMimeType: "application/json"` in Gemini. The response is then a JSON list of A2UI messages:
+
+#### TypeScript
+
+```typescript
+const parts = processor.parseResponse(rawText, {wrapped: false});
+```
+
+#### Python
+
+```python
+parts = processor.parse_response(raw_text, wrapped=False)
+```
+
+#### Dart
+
+```dart
+final parts = processor.parseResponse(rawText, wrapped: false);
+```
+
+An unwrapped response has no surrounding text, so every part it returns is an A2UI part.
+
 ### Customize catalogs, examples, and inference formats
 
 Prune large catalogs, attach few-shot A2UI JSON examples, or customize inference format options on the generator to steer layout quality and reduce prompt size.
