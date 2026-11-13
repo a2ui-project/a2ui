@@ -545,6 +545,72 @@ void main() {
   });
 
   group('formatString coercion', () {
+    final largeNumbers = <String, (double, String, String)>{
+      'below 2^63': (
+        9223372036854774784.0,
+        '9223372036854774784',
+        '9223372036854774784',
+      ),
+      '2^63': (
+        9223372036854775808.0,
+        '9223372036854776000',
+        '9223372036854776000.0',
+      ),
+      '1e20': (1e20, '100000000000000000000', '100000000000000000000.0'),
+      'below 1e21': (
+        1e21 - 131072,
+        '999999999999999900000',
+        '999999999999999900000.0',
+      ),
+      '1e21': (1e21, '1e+21', '1e+21'),
+      '-2^63': (
+        -9223372036854775808.0,
+        '-9223372036854775808',
+        '-9223372036854775808',
+      ),
+      'below -2^63': (
+        -9223372036854775808.0 - 2048,
+        '-9223372036854778000',
+        '-9223372036854778000.0',
+      ),
+      '-1e20': (-1e20, '-100000000000000000000', '-100000000000000000000.0'),
+      'above -1e21': (
+        -1e21 + 131072,
+        '-999999999999999900000',
+        '-999999999999999900000.0',
+      ),
+      '-1e21': (-1e21, '-1e+21', '-1e+21'),
+      '1e300': (1e300, '1e+300', '1e+300'),
+      '-1e300': (-1e300, '-1e+300', '-1e+300'),
+    };
+    for (final MapEntry<String, (double, String, String)> entry
+        in largeNumbers.entries) {
+      final (double number, String text, String json) = entry.value;
+      final shapes = <String, (Object, String)>{
+        'bare': (number, text),
+        'list': ([number], '[$json]'),
+        'object': ({'total': number}, '{"total":$json}'),
+      };
+      for (final MapEntry<String, (Object, String)> shape in shapes.entries) {
+        test('interpolates ${entry.key} ${shape.key}', () {
+          final dataModel = DataModel();
+          dataModel.set('/v', shape.value.$1);
+          final DataContext context = _contextFor(
+            v10,
+            protocolVersion: A2uiProtocolVersion.v1_0,
+            dataModel: dataModel,
+          );
+          expect(
+            context.resolveDynamicValue({
+              '@call': 'formatString',
+              'args': {'value': r'${/v}'},
+            }),
+            shape.value.$2,
+          );
+        });
+      }
+    }
+
     final cases = <String, (Object?, String)>{
       'integral double': (3.0, '3'),
       'fractional double': (2.5, '2.5'),

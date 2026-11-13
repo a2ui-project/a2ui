@@ -114,16 +114,24 @@ String _numberToString(num value) {
   if (value is double &&
       value.isFinite &&
       value == value.truncateToDouble() &&
-      value.abs() < 1e21) {
+      value >= -9223372036854775808.0 &&
+      value < 9223372036854775808.0) {
     return value.toInt().toString();
   }
-  return value.toString();
+  final text = value.toString();
+  return text.endsWith('.0') ? text.substring(0, text.length - 2) : text;
 }
 
-/// Rewrites integral doubles nested in [value] as integers, so JSON output
-/// prints `3` rather than `3.0`.
+/// Rewrites integral doubles in the signed 64-bit range nested in [value] as
+/// integers, so JSON output prints `3` rather than `3.0`. Larger values stay
+/// doubles to avoid clamping them to an integer limit.
 Object? _normalizeNumbers(Object? value) => switch (value) {
-      final double d when d.isFinite && d == d.truncateToDouble() => d.toInt(),
+      final double d
+          when d.isFinite &&
+              d == d.truncateToDouble() &&
+              d >= -9223372036854775808.0 &&
+              d < 9223372036854775808.0 =>
+        d.toInt(),
       final Map<Object?, Object?> m => {
           for (final MapEntry<Object?, Object?> e in m.entries)
             e.key.toString(): _normalizeNumbers(e.value),
