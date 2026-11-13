@@ -19,6 +19,7 @@ on:
     branches: [main]
     paths:
       - "python/**"
+      - "eval/**"
       - "specification/**/json/**"
       - "specification/inference_formats/**"
       - "catalogs/**"
@@ -34,6 +35,7 @@ on:
   pull_request:
     paths:
       - "python/**"
+      - "eval/**"
       - "specification/**/json/**"
       - "specification/inference_formats/**"
       - "catalogs/**"

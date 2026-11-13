@@ -386,3 +386,21 @@ def test_main_tags_flag_takes_precedence_over_tier() -> None:
         "smoke",
     ])
     assert _task_kwargs(mock_v1_eval)[0]["tags"] == "smoke,stateful"
+
+
+def test_main_decision_backend_and_cache_generations() -> None:
+    from main import parse_strategies
+
+    assert parse_strategies(["decision"]) == ["decision"]
+
+    _, mock_v1_eval, _ = _run_main([
+        "--strategies",
+        "decision",
+        "--decision-backend",
+        "jev",
+        "--cache-generations",
+    ])
+    task_kwargs = _task_kwargs(mock_v1_eval)[0]
+    assert task_kwargs["strategy"] == "decision"
+    assert task_kwargs["decision_backend"] == "jev"
+    assert task_kwargs["cache_generations"] is True

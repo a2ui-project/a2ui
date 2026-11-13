@@ -42,6 +42,7 @@ from datasets.defaults import (
 
 SCHEMA_PATH = GIT_ROOT / "eval" / "datasets" / "dataset_schema.json"
 DATASETS_DIR = GIT_ROOT / "eval" / "datasets"
+OPT_IN_DATASETS: frozenset[str] = frozenset({"decision_v1_0"})
 
 
 def _version_to_dir_name(version: str) -> str:
@@ -51,7 +52,7 @@ def _version_to_dir_name(version: str) -> str:
 
 # Catalogs that moved from `specification/<version>/catalogs/` to the top-level
 # `catalogs/` directory. Dataset entries (including the encrypted ones) may still
-# use the old location, so both spellings resolve to the same file.
+# use the old location, so both paths resolve to the same file.
 _MOVED_CATALOG_PREFIXES = {
     "specification/v1_0/catalogs/basic/": "catalogs/basic/v1/",
 }
@@ -106,7 +107,7 @@ def _normalize_catalog_specs(
 
 
 def _matches_tags(item: dict[str, Any], tags: list[str] | None) -> bool:
-    """True when no tag filter is set or the item carries one of the tags."""
+    """Returns True when no tag filter is set or the item carries one of `tags`."""
     if not tags:
         return True
     return bool(set(item.get("tags") or ()) & set(tags))
@@ -226,6 +227,12 @@ def load_a2ui_dataset(
             workflow descriptions.
         tags: Tag(s) a sample must carry to be kept, as a list or
             comma-separated string. None keeps every sample.
+
+    Returns:
+        An Inspect AI `MemoryDataset` containing the loaded `Sample` objects.
+
+    Raises:
+        FileNotFoundError: If `file_path` does not exist.
     """
     with open(SCHEMA_PATH, "r", encoding="utf-8") as f:
         schema = json.load(f)
@@ -246,6 +253,9 @@ def load_a2ui_dataset(
             target_files.append(yaml_file)
 
     is_json = format_name is None or format_name == "direct_json"
+    default_datasets = (
+        OPT_IN_DATASETS if (format_name == "decision" and not file_path) else None
+    )
     samples: list[Sample] = []
 
     for target_file in target_files:
@@ -257,7 +267,13 @@ def load_a2ui_dataset(
 
         for item in data:
             item_dataset = item.get("dataset") or inferred_dataset
-            if filter_names and item_dataset not in filter_names:
+            if filter_names:
+                if item_dataset not in filter_names:
+                    continue
+            elif default_datasets is not None:
+                if item_dataset not in default_datasets:
+                    continue
+            elif not file_path and item_dataset in OPT_IN_DATASETS:
                 continue
 
             # Skip datasets specifically targeted at another protocol version if version is set

@@ -28,23 +28,24 @@ JUDGE_SCORER = "measured_model_graded_qa"
 
 
 def a2ui_scorer_passed(sample: dict[str, Any]) -> bool:
-    """True when the sample's Stage 1/2 (`a2ui_scorer`) score is 1.0."""
+    """Returns True when the sample's Stage 1/2 (`a2ui_scorer`) score is 1.0."""
     scores = sample.get("scores", {}) or {}
     return (scores.get(A2UI_SCORER, {}) or {}).get("value") == 1.0
 
 
 def judge_grade(sample: dict[str, Any]) -> Any:
-    """The sample's judge grade ("C", "P" or "I"), or "N/A" when it is absent."""
+    """Returns the sample's judge grade ('C', 'P', or 'I'), or 'N/A' when absent."""
     scores = sample.get("scores", {}) or {}
     return (scores.get(JUDGE_SCORER, {}) or {}).get("value", "N/A")
 
 
 def sample_passed(sample: dict[str, Any]) -> bool:
-    """A sample passes when Stage 1/2 validated and the judge graded it "C"."""
+    """Returns True when Stage 1/2 validated and the judge graded the sample 'C'."""
     return a2ui_scorer_passed(sample) and judge_grade(sample) == "C"
 
 
 def _has_both_scores(sample: dict[str, Any]) -> bool:
+    """Returns True when `sample` carries both `a2ui_scorer` and judge scores."""
     scores = sample.get("scores", {}) or {}
     return A2UI_SCORER in scores and JUDGE_SCORER in scores
 
@@ -175,7 +176,7 @@ def print_results_summary(log_data: dict[str, Any]) -> None:
 
             if not passed_sample:
                 if not a2ui_passed:
-                    print(f"  [Algorithmic Failure Reason]:")
+                    print("  [Algorithmic Failure Reason]:")
                     expl = a2ui_score.get("explanation") or "No explanation provided."
                     for line in str(expl).splitlines():
                         print(f"    {line}")
@@ -204,6 +205,111 @@ def print_results_summary(log_data: dict[str, Any]) -> None:
             f" {med_duration:.2f}s"
         )
     print("==================================")
+
+
+def _numeric_metadata_values(samples: list[dict[str, Any]], key: str) -> list[float]:
+    """Collects non-null numeric metadata values for `key` across `samples`."""
+    values: list[float] = []
+    for sample in samples:
+        raw = (sample.get("metadata") or {}).get(key)
+        if raw is not None:
+            values.append(float(raw))
+    return values
+
+
+def _first_string_metadata(samples: list[dict[str, Any]], key: str) -> str | None:
+    """Returns the first non-empty string value for metadata `key`, if any."""
+    for sample in samples:
+        raw = (sample.get("metadata") or {}).get(key)
+        if raw:
+            return str(raw)
+    return None
+
+
+def _median_unless_cached(values: list[float], cached: bool) -> float | None:
+    """Returns `statistics.median(values)` when non-empty and not `cached`."""
+    if not values or cached:
+        return None
+    return statistics.median(values)
+
+
+def _empty_strategy_summary() -> dict[str, Any]:
+    """Returns the zeroed `strategy_summary` dictionary for an empty log."""
+    return {
+        "total_samples": 0,
+        "algorithmic_pass_rate": 0.0,
+        "judge_pass_rate": 0.0,
+        "combined_pass_rate": 0.0,
+        "median_input_tokens": None,
+        "median_output_tokens": None,
+        "median_duration_seconds": None,
+        "median_decision_latency_ms": None,
+        "round_trips_per_surface": None,
+        "fallback_rate": 0.0,
+        "decision_backend": None,
+        "decision_backend_kind": None,
+        "decision_model_id": None,
+        "cached": False,
+    }
+
+
+def _count_fallbacks(samples: list[dict[str, Any]]) -> int:
+    """Counts samples whose metadata records a `decision_fallback_source`."""
+    count = 0
+    for sample in samples:
+        if (sample.get("metadata") or {}).get("decision_fallback_source"):
+            count += 1
+    return count
+
+
+def strategy_summary(log_data: dict[str, Any]) -> dict[str, Any]:
+    """Computes aggregate performance metrics for a strategy run.
+
+    Args:
+        log_data: Parsed Inspect AI evaluation log dictionary.
+
+    Returns:
+        Dictionary of pass rates, median token counts, latencies, and decision metadata.
+    """
+    samples = log_data.get("samples") or []
+    total = len(samples)
+    if not total:
+        return _empty_strategy_summary()
+
+    a2ui_pass_cnt = sum(1 for s in samples if a2ui_scorer_passed(s))
+    judge_pass_cnt = sum(1 for s in samples if judge_grade(s) == "C")
+    both_pass_cnt = sum(1 for s in samples if sample_passed(s))
+
+    inputs = _numeric_metadata_values(samples, "inference_input_tokens")
+    outputs = _numeric_metadata_values(samples, "inference_output_tokens")
+    durations = _numeric_metadata_values(samples, "inference_duration_seconds")
+    decision_lats = _numeric_metadata_values(samples, "decision_latency_ms")
+    decision_calls = _numeric_metadata_values(samples, "decision_calls")
+    backend = _first_string_metadata(samples, "decision_backend")
+    backend_kind = _first_string_metadata(samples, "decision_backend_kind") or backend
+    model_id = _first_string_metadata(samples, "decision_model_id")
+    cached = bool(inputs and all(tok == 0.0 for tok in inputs))
+
+    return {
+        "total_samples": total,
+        "algorithmic_pass_rate": a2ui_pass_cnt / total,
+        "judge_pass_rate": judge_pass_cnt / total,
+        "combined_pass_rate": both_pass_cnt / total,
+        "median_input_tokens": _median_unless_cached(inputs, cached),
+        "median_output_tokens": _median_unless_cached(outputs, cached),
+        "median_duration_seconds": _median_unless_cached(durations, cached),
+        "median_decision_latency_ms": (
+            statistics.median(decision_lats) if decision_lats else None
+        ),
+        "round_trips_per_surface": (
+            statistics.mean(decision_calls) if decision_calls else None
+        ),
+        "fallback_rate": _count_fallbacks(samples) / total,
+        "decision_backend": backend,
+        "decision_backend_kind": backend_kind,
+        "decision_model_id": model_id,
+        "cached": cached,
+    }
 
 
 def generate_markdown_summary(
@@ -274,9 +380,24 @@ def generate_markdown_summary(
             )
         lines.append("")
 
+    has_decision = any(
+        s.get("metadata", {}).get("decision_stage")
+        or s.get("metadata", {}).get("decision_archetype")
+        for s in samples
+    )
+
     lines.append("#### Sample Results")
-    lines.append("| Sample / Task | Algorithmic | Judging | Inference Time | Status |")
-    lines.append("| :--- | :---: | :---: | :---: | :---: |")
+    if has_decision:
+        lines.append(
+            "| Sample / Task | Algorithmic | Judging | Inference Time | Path |"
+            " Decision ms | Status |"
+        )
+        lines.append("| :--- | :---: | :---: | :---: | :---: | :---: | :---: |")
+    else:
+        lines.append(
+            "| Sample / Task | Algorithmic | Judging | Inference Time | Status |"
+        )
+        lines.append("| :--- | :---: | :---: | :---: | :---: |")
 
     failures = []
 
@@ -299,10 +420,22 @@ def generate_markdown_summary(
         passed_sample = sample_passed(sample)
         sample_status_str = "PASS" if passed_sample else "FAIL"
 
-        lines.append(
-            f"| {name} | {a2ui_str} | {qa_val} | {inference_time_str} |"
-            f" {sample_status_str} |"
-        )
+        if has_decision:
+            meta = sample.get("metadata", {}) or {}
+            stage = meta.get("decision_stage") or "-"
+            arch = meta.get("decision_archetype") or "-"
+            path_str = f"{stage} · {arch}"
+            dec_ms = meta.get("decision_latency_ms")
+            dec_ms_str = f"{float(dec_ms):.1f}ms" if dec_ms is not None else "-"
+            lines.append(
+                f"| {name} | {a2ui_str} | {qa_val} | {inference_time_str} |"
+                f" {path_str} | {dec_ms_str} | {sample_status_str} |"
+            )
+        else:
+            lines.append(
+                f"| {name} | {a2ui_str} | {qa_val} | {inference_time_str} |"
+                f" {sample_status_str} |"
+            )
 
         if not passed_sample:
             failures.append((

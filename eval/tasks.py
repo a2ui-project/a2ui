@@ -39,6 +39,12 @@ def dataset_protocol_version(dataset_name: str) -> str | None:
     Datasets whose name ends in a version suffix (e.g. 'core_v0_9_1' or
     'core_v1_0') only run under that protocol version. Other datasets run under
     any version.
+
+    Args:
+        dataset_name: Logical dataset identifier string.
+
+    Returns:
+        Pinned protocol version (`'0.9.1'` or `'1.0'`), or `None`.
     """
     if dataset_name.endswith("v0_9_1"):
         return "0.9.1"
@@ -48,7 +54,14 @@ def dataset_protocol_version(dataset_name: str) -> str | None:
 
 
 def split_dataset_names(dataset: str | Sequence[str] | None) -> list[str]:
-    """Splits a comma-separated dataset string or list into dataset names."""
+    """Splits a comma-separated dataset string or sequence into dataset names.
+
+    Args:
+        dataset: Optional comma-separated string or sequence of dataset names.
+
+    Returns:
+        List of trimmed non-empty dataset name strings.
+    """
     if not dataset:
         return []
     raw = dataset.split(",") if isinstance(dataset, str) else dataset
@@ -57,6 +70,10 @@ def split_dataset_names(dataset: str | Sequence[str] | None) -> list[str]:
 
 def _check_task_inputs(version: str, dataset: str | Sequence[str] | None) -> None:
     """Validates the protocol version and datasets of a task.
+
+    Args:
+        version: Target A2UI protocol version string.
+        dataset: Optional dataset filter string or sequence of dataset names.
 
     Raises:
         ValueError: If the protocol version is unsupported, or a requested
@@ -77,7 +94,10 @@ def _check_task_inputs(version: str, dataset: str | Sequence[str] | None) -> Non
 
 @scorer(metrics=[])
 def dummy_scorer() -> Scorer:
+    """Returns a no-op Inspect AI scorer that always passes."""
+
     async def score(state: TaskState, target: Target) -> Score:  # pylint: disable=unused-argument
+        """Returns a constant passing `Score`."""
         return Score(value=1.0, explanation="Dummy pass")
 
     return score
@@ -132,6 +152,8 @@ def build_task(
     no_judge: bool = False,
     max_validation_retries: int = 0,
     subagent_format: str = "direct_json",
+    decision_backend: str | None = None,
+    cache_generations: bool = False,
 ) -> Task:
     """Builds the evaluation task for one protocol version.
 
@@ -145,10 +167,15 @@ def build_task(
         no_judge: Skip the LLM judge and grade on Stage 1 and 2 only.
         max_validation_retries: Validation self-retries per sample (Pass@K).
         subagent_format: Inference format of the `subagent_tool` specialist.
+        decision_backend: Short name of the decision backend
+            ('mock', 'jev', 'gemini', 'systemone', 'step0').
+        cache_generations: Whether to cache LLM generations across runs.
     """
     _check_task_inputs(active_version, dataset)
     format_name = (
-        strategy if strategy in ["express", "elemental", "atom"] else "direct_json"
+        strategy
+        if strategy in ["express", "elemental", "atom", "decision"]
+        else "direct_json"
     )
     if strategy == "skill_mode":
         format_name = "express"
@@ -170,6 +197,8 @@ def build_task(
             version=active_version,
             max_validation_retries=max_validation_retries,
             subagent_format=subagent_format,
+            decision_backend=decision_backend,
+            cache_generations=cache_generations,
         ),
         scorer=[
             a2ui_scorer(version=active_version),
@@ -186,6 +215,8 @@ def build_task(
             "max_validation_retries": max_validation_retries,
             "no_judge": no_judge,
             "tags": tags,
+            "decision_backend": decision_backend,
+            "cache_generations": cache_generations,
         },
     )
 
@@ -200,6 +231,8 @@ def a2ui_v0_9_1_eval(
     no_judge: bool = False,
     max_validation_retries: int = 0,
     subagent_format: str = "direct_json",
+    decision_backend: str | None = None,
+    cache_generations: bool = False,
 ) -> Task:
     """Evaluation task for A2UI v0.9.1 protocol generation.
 
@@ -212,6 +245,9 @@ def a2ui_v0_9_1_eval(
         no_judge: Skip the LLM judge and grade on Stage 1 and 2 only.
         max_validation_retries: Validation self-retries per sample (Pass@K).
         subagent_format: Inference format of the `subagent_tool` specialist.
+        decision_backend: Short name of the decision backend
+            ('mock', 'jev', 'gemini', 'systemone', 'step0').
+        cache_generations: Whether to cache LLM generations across runs.
 
     Returns:
         An Inspect Task object configured for A2UI v0.9.1 evaluation.
@@ -228,6 +264,8 @@ def a2ui_v0_9_1_eval(
         no_judge=no_judge,
         max_validation_retries=max_validation_retries,
         subagent_format=subagent_format,
+        decision_backend=decision_backend,
+        cache_generations=cache_generations,
     )
 
 
@@ -241,6 +279,8 @@ def a2ui_v1_0_eval(
     no_judge: bool = False,
     max_validation_retries: int = 0,
     subagent_format: str = "direct_json",
+    decision_backend: str | None = None,
+    cache_generations: bool = False,
 ) -> Task:
     """Evaluation task for A2UI v1.0 protocol generation.
 
@@ -253,6 +293,9 @@ def a2ui_v1_0_eval(
         no_judge: Skip the LLM judge and grade on Stage 1 and 2 only.
         max_validation_retries: Validation self-retries per sample (Pass@K).
         subagent_format: Inference format of the `subagent_tool` specialist.
+        decision_backend: Short name of the decision backend
+            ('mock', 'jev', 'gemini', 'systemone', 'step0').
+        cache_generations: Whether to cache LLM generations across runs.
 
     Returns:
         An Inspect Task object configured for A2UI v1.0 evaluation.
@@ -269,4 +312,6 @@ def a2ui_v1_0_eval(
         no_judge=no_judge,
         max_validation_retries=max_validation_retries,
         subagent_format=subagent_format,
+        decision_backend=decision_backend,
+        cache_generations=cache_generations,
     )
