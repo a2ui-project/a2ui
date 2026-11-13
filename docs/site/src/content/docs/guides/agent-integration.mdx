@@ -1810,21 +1810,23 @@ class OrderA2aExecutor(AgentExecutor):
 
 ### AG-UI and CopilotKit
 
-Enable A2UI on `CopilotRuntime` to stream A2UI surfaces over [AG-UI](https://docs.ag-ui.com/) across Python and TypeScript agent backends.
-
-When `injectA2UITool: true` is set (or when the frontend supplies a catalog), CopilotKit injects the A2UI generation tool and translates tool calls and state deltas into AG-UI events across integrations including Google ADK (`ag_ui_adk`), LangGraph (`CopilotKitMiddleware`), and AWS Strands (`@ag-ui/aws-strands`). See the [CopilotKit A2UI documentation](https://docs.copilotkit.ai/generative-ui/a2ui) for runtime setup details:
+CopilotKit can render A2UI surfaces from [AG-UI](https://docs.ag-ui.com/) agents. Enable its A2UI middleware with `a2ui: {}` on `CopilotRuntime`:
 
 ```typescript
-import {CopilotRuntime} from '@copilotkit/runtime';
+import {CopilotRuntime} from '@copilotkit/runtime/v2';
 
 const runtime = new CopilotRuntime({
   agents: {
     order_agent: myOrderAgent, // Your AG-UI compatible agent instance
   },
-  a2ui: {
-    injectA2UITool: true, // Optional (default: false)
-  },
+  a2ui: {},
 });
 ```
+
+The `a2ui: {}` setting enables middleware that translates your agent's A2UI output into AG-UI events for the frontend to render. By itself, it does not supply a generation tool. To have the runtime supply `render_a2ui`, set `injectA2UITool: true` inside `a2ui`. Your agent must make the run's supplied tools available to its model so it can call them. Supplying an A2UI catalog on the frontend can enable the middleware and tool injection automatically. See the [CopilotKit A2UI setup](https://docs.copilotkit.ai/generative-ui/a2ui) for configuration details.
+
+CopilotKit's [Components and surfaces integration](https://docs.copilotkit.ai/generative-ui/components/transports) is a separate A2UI v1.0 engine, configured through the provider's `generativeUI` option. Its default transport supplies the `render_ui` tool and validates streamed operations in the runtime before the app renders them. See the [migration guide](https://docs.copilotkit.ai/generative-ui/components/from-a2ui) for the different provider and tool contracts.
+
+With `transport: 'markdown'` inside `generativeUI`, the agent writes operations in `a2ui` fenced code blocks alongside prose. The client validates and renders the blocks as surfaces within the reply, without a dedicated rendering tool. Choose the tool transport when your agent supports the supplied tools; choose markdown when it only streams text or when the UI belongs within the reply.
 
 For Model Context Protocol tool servers that attach interactive UI resources (`ui://`), see [Serve A2UI Layouts from an MCP Server](../../guides/a2ui-over-mcp/) and [MCP Integration Overview](../../guides/mcp-overview/).
