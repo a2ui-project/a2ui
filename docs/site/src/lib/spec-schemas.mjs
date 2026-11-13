@@ -67,7 +67,7 @@ export const SPEC_DOC_ROUTES = {
 };
 
 /**
- * Categorized JSON Schema catalog for v1.0 and v0.9.1.
+ * Categorized JSON Schema catalog for v1.0 and v0.9.1 (matching SITE_OUTLINE.md 4.2.1).
  */
 export const SPEC_SCHEMAS = {
   'v1.0': [

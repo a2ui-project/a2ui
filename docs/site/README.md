@@ -24,9 +24,13 @@ It is designed to replace the legacy MkDocs Material site (`docs/public/` and `m
 
 ---
 
-## 2. Site Architecture & Authoring
+## 2. Site Architecture & Content Outline
 
-Site navigation and Starlight sidebar configuration live in [`astro.config.mjs`](./astro.config.mjs), custom landing/marketing pages live in `src/pages/`, and documentation pages live in `src/content/docs/`. Authoring conventions and page-type standards are maintained in [`.agents/skills/public-documentation/SKILL.md`](../../.agents/skills/public-documentation/SKILL.md).
+The complete information architecture and content outline covering the **Landing Page**, **Docs Section**, and **Specifications Section** is maintained in the internal planning metadoc:
+
+👉 **[`SITE_OUTLINE.md`](./SITE_OUTLINE.md)**
+
+Please update and iterate on [`SITE_OUTLINE.md`](./SITE_OUTLINE.md) when planning site navigation, sections, concepts, and guides.
 
 ---
 
