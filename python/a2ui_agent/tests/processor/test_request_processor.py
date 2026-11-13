@@ -189,3 +189,37 @@ def test_generator_rejects_a_state_for_other_catalogs():
 
     with pytest.raises(A2uiCatalogError, match="active catalogs"):
         generator.create_processor(capabilities, state=other)
+
+
+def test_generator_accepts_a_v0_9_1_inline_catalog_beside_the_basic_catalog():
+    basic = BasicCatalog("0.9.1")
+    generator = A2uiGenerator(
+        catalogs=[CatalogConfig(basic)],
+        inference_format_factory=DirectJsonFormatFactory(),
+        accepts_inline_catalogs=True,
+    )
+    capabilities = {
+        "v0.9.1": {
+            "supportedCatalogIds": [basic.catalog_id],
+            "inlineCatalogs": [
+                {"catalogId": "inline", "components": {"Badge": {"type": "object"}}}
+            ],
+        }
+    }
+
+    processor = generator.create_processor(capabilities)
+
+    assert [c.catalog_id for c in processor.active_catalogs] == [
+        basic.catalog_id,
+        "inline",
+    ]
+    assert [c.protocol_version for c in processor.active_catalogs] == ["v0.9", "v0.9.1"]
+    assert "<a2ui-json>" in processor.prompt_snippet
+    parts = processor.parse_response(
+        '<a2ui-json>[{"version": "v0.9.1", "createSurface": {"surfaceId": "s1",'
+        f' "catalogId": "{basic.catalog_id}"}}}},'
+        ' {"version": "v0.9.1", "updateComponents": {"surfaceId": "s1", "components":'
+        ' [{"id": "root", "component": "Text", "text": "Hi"}]}}]</a2ui-json>'
+    )
+    assert len(parts) == 1
+    assert isinstance(parts[0], A2uiPart)

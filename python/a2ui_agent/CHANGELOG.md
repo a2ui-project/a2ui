@@ -20,6 +20,15 @@
   metadata (`a2uiRendererCapabilities` in v1.0 and `a2uiClientCapabilities` in
   v0.8, v0.9, and v0.9.1).
   [#4013](https://github.com/a2ui-project/a2ui/pull/4013)
+- `resolve_catalogs` reads the capabilities of v0.9 and v0.9.1 catalogs from
+  the `v0.9.1` entry, falling back to `v0.9` when `v0.9.1` is absent or
+  activates no catalog. When a renderer sends both entries, both are validated,
+  and each inline catalog targets the protocol version of its declaring entry.
+  `read_renderer_capabilities` returns each of the two entries present.
+  [#3135](https://github.com/a2ui-project/a2ui/pull/3135)
+- `DirectJsonFormat`, `DirectJsonParser` and `schema_to_prompt` accept v0.9 and
+  v0.9.1 catalogs together, as `RendererState` does.
+  [#3135](https://github.com/a2ui-project/a2ui/pull/3135)
 
 ## 0.11.0 (2026-11-10)
 
