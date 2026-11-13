@@ -215,7 +215,7 @@ void _registerExamples(
             (message! as Map).cast<String, Object?>(),
         ];
 
-        // `31_incremental-dashboard` streams components across messages where
+        // `incremental-dashboard` streams components across messages where
         // placeholders become orphaned when their parents are updated.
         final processor = MessageProcessor<ComponentApi>(
           catalogs: [catalog()],
