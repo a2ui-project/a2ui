@@ -12562,7 +12562,7 @@ Communication occurs via a stream of JSON objects. The renderer parses each obje
 - `updateDataModel`: Provides new data to be inserted into or to replace a surface's data model.
 - `deleteSurface`: Explicitly removes a surface and its contents from the UI.
 
-End of agent turn is signaled by [transport layer](/docs/public/concepts/transports.md).
+End of agent turn is signaled by [transport layer](/docs/site/src/content/docs/concepts/messages.mdx).
 
 ## Changes from previous versions
 
@@ -14380,7 +14380,7 @@ In A2A, renderer capabilities ride on message metadata, so they are scoped to th
 
 ### `a2uiRendererDataModel`
 
-When a surface enables Data Model Sync, the renderer sends `message.metadata["a2uiRendererDataModel"]` = [Renderer Data Model Schema](/json/renderer_data_model.json) on every message. This model provides the agent with the latest UI state. For more details, see the [Actions Guide](/docs/public/concepts/actions.md).
+When a surface enables Data Model Sync, the renderer sends `message.metadata["a2uiRendererDataModel"]` = [Renderer Data Model Schema](/json/renderer_data_model.json) on every message. This model provides the agent with the latest UI state. For more details, see the [Actions Guide](/docs/site/src/content/docs/concepts/actions-and-functions.mdx).
 
 **Example `SendMessageRequest` with Data Model:**
 
@@ -16043,7 +16043,7 @@ The client sends `sendMessageRequest.message["a2uiClientCapabilities"]` = [Clien
 
 ### `a2uiClientDataModel`
 
-When a surface enables Data Model Sync, the client sends `sendMessageRequest.message["a2uiClientDataModel"]` = [Client Data Model Schema](/specification/json/client_data_model.json) on every message. This model provides the agent with the latest UI state. For more details, see the [Actions Guide](/docs/public/concepts/actions.md).
+When a surface enables Data Model Sync, the client sends `sendMessageRequest.message["a2uiClientDataModel"]` = [Client Data Model Schema](/specification/json/client_data_model.json) on every message. This model provides the agent with the latest UI state. For more details, see the [Actions Guide](https://a2ui.org/concepts/actions-and-functions/).
 
 **Example `SendMessageRequest` with Data Model:**
 
