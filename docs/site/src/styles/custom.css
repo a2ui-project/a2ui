@@ -84,12 +84,6 @@ header.header > .a2-sl-header {
   padding: 0 24px;
 }
 
-html[data-has-sidebar] header.header > .a2-sl-header {
-  width: 100%;
-  max-width: none;
-  margin: 0;
-}
-
 .site-title {
   font-family: var(--a2-font-display);
   font-weight: 600;
