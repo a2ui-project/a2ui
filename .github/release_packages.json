@@ -1,0 +1,211 @@
+{
+  "$comment": "Published packages and where their release notes come from. Read by .github/scripts/release_notes.py. Python entries are listed in dependency order (release_version.py releases them in this order). Tag patterns must not look like a bare version (vX.Y.Z) unless the ecosystem is swiftpm, because SwiftPM reads every such tag as a Swift package version.",
+  "packages": [
+    {
+      "id": "a2ui-core",
+      "ecosystem": "python",
+      "name": "a2ui-core",
+      "paths": ["python/a2ui_core/"],
+      "exclude": ["python/a2ui_core/tests/", "**/*.md"],
+      "changelog": "python/a2ui_core/CHANGELOG.md",
+      "tag": "python/a2ui-core/v{version}",
+      "bootstrap_version": "0.1.1",
+      "heading_date": true
+    },
+    {
+      "id": "a2ui-agent-sdk",
+      "ecosystem": "python",
+      "name": "a2ui-agent-sdk",
+      "paths": ["python/a2ui_agent/"],
+      "exclude": ["python/a2ui_agent/tests/", "**/*.md"],
+      "changelog": "python/a2ui_agent/CHANGELOG.md",
+      "tag": "python/a2ui-agent-sdk/v{version}",
+      "bootstrap_version": "0.6.0",
+      "heading_date": true
+    },
+    {
+      "id": "a2ui-a2a",
+      "ecosystem": "python",
+      "name": "a2ui-a2a",
+      "paths": ["python/a2ui_a2a/"],
+      "exclude": ["python/a2ui_a2a/tests/", "**/*.md"],
+      "changelog": "python/a2ui_a2a/CHANGELOG.md",
+      "tag": "python/a2ui-a2a/v{version}",
+      "bootstrap_version": "0.0.0",
+      "heading_date": true
+    },
+    {
+      "id": "a2ui-adk",
+      "ecosystem": "python",
+      "name": "a2ui-adk",
+      "paths": ["python/a2ui_adk/"],
+      "exclude": ["python/a2ui_adk/tests/", "**/*.md"],
+      "changelog": "python/a2ui_adk/CHANGELOG.md",
+      "tag": "python/a2ui-adk/v{version}",
+      "bootstrap_version": "0.0.0",
+      "heading_date": true
+    },
+    {
+      "id": "dart-a2ui_core",
+      "ecosystem": "pub",
+      "name": "a2ui_core",
+      "paths": ["dart/a2ui_core/"],
+      "exclude": [
+        "dart/a2ui_core/test/",
+        "dart/a2ui_core/example/",
+        "dart/a2ui_core/tool/",
+        "**/*.md"
+      ],
+      "changelog": "dart/a2ui_core/CHANGELOG.md",
+      "tag": "dart/a2ui_core/v{version}",
+      "bootstrap_since": "b3ac4298344c6131bc8a64157357f7609fd826e7",
+      "breaking_prefix": "Breaking: "
+    },
+    {
+      "id": "dart-a2ui_agent",
+      "ecosystem": "pub",
+      "name": "a2ui_agent",
+      "paths": ["dart/a2ui_agent/"],
+      "exclude": [
+        "dart/a2ui_agent/test/",
+        "dart/a2ui_agent/e2e_test/",
+        "dart/a2ui_agent/example/",
+        "dart/a2ui_agent/tool/",
+        "**/*.md"
+      ],
+      "changelog": "dart/a2ui_agent/CHANGELOG.md",
+      "tag": "dart/a2ui_agent/v{version}",
+      "bootstrap_since": "b3ac4298344c6131bc8a64157357f7609fd826e7",
+      "breaking_prefix": "Breaking: "
+    },
+    {
+      "id": "dart-a2ui_flutter",
+      "ecosystem": "pub",
+      "name": "a2ui_flutter",
+      "paths": ["dart/a2ui_flutter/"],
+      "exclude": [
+        "dart/a2ui_flutter/test/",
+        "dart/a2ui_flutter/e2e_test/",
+        "dart/a2ui_flutter/e2e_test_v0_9/",
+        "dart/a2ui_flutter/example/",
+        "dart/a2ui_flutter/example_v0_9/",
+        "dart/a2ui_flutter/a2ui_explorer/",
+        "**/*.md"
+      ],
+      "changelog": "dart/a2ui_flutter/CHANGELOG.md",
+      "tag": "dart/a2ui_flutter/v{version}",
+      "bootstrap_since": "b3ac4298344c6131bc8a64157357f7609fd826e7",
+      "breaking_prefix": "Breaking: "
+    },
+    {
+      "id": "a2ui_cli",
+      "ecosystem": "pub",
+      "name": "a2ui_cli",
+      "paths": ["dart/a2ui_cli/"],
+      "exclude": ["dart/a2ui_cli/test/", "dart/a2ui_cli/tool/", "**/*.md"],
+      "changelog": "dart/a2ui_cli/CHANGELOG.md",
+      "tag": "cli-v{version}",
+      "breaking_prefix": "Breaking: "
+    },
+    {
+      "id": "web_core",
+      "ecosystem": "npm",
+      "name": "@a2ui/web_core",
+      "paths": ["typescript/core/web_core/"],
+      "exclude": ["typescript/core/web_core/tests/", "**/*.test.ts", "**/*.md"],
+      "changelog": "typescript/core/web_core/CHANGELOG.md",
+      "tag": "npm/web_core/v{version}",
+      "bootstrap_since": "4fdc4c632cf761af64fa474530df8211483fa282"
+    },
+    {
+      "id": "lit",
+      "ecosystem": "npm",
+      "name": "@a2ui/lit",
+      "paths": ["typescript/renderers/lit/"],
+      "exclude": ["typescript/renderers/lit/a2ui_explorer/", "**/*.test.ts", "**/*.md"],
+      "changelog": "typescript/renderers/lit/CHANGELOG.md",
+      "tag": "npm/lit/v{version}",
+      "bootstrap_since": "4fdc4c632cf761af64fa474530df8211483fa282"
+    },
+    {
+      "id": "react",
+      "ecosystem": "npm",
+      "name": "@a2ui/react",
+      "paths": ["typescript/renderers/react/"],
+      "exclude": [
+        "typescript/renderers/react/a2ui_explorer/",
+        "typescript/renderers/react/tests/",
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*.md"
+      ],
+      "changelog": "typescript/renderers/react/CHANGELOG.md",
+      "tag": "npm/react/v{version}",
+      "bootstrap_since": "4fdc4c632cf761af64fa474530df8211483fa282"
+    },
+    {
+      "id": "angular",
+      "ecosystem": "npm",
+      "name": "@a2ui/angular",
+      "paths": ["typescript/renderers/angular/"],
+      "exclude": [
+        "typescript/renderers/angular/a2ui_explorer/",
+        "typescript/renderers/angular/tests/",
+        "**/*.spec.ts",
+        "**/*.md"
+      ],
+      "changelog": "typescript/renderers/angular/CHANGELOG.md",
+      "tag": "npm/angular/v{version}",
+      "bootstrap_since": "4fdc4c632cf761af64fa474530df8211483fa282"
+    },
+    {
+      "id": "markdown-it",
+      "ecosystem": "npm",
+      "name": "@a2ui/markdown-it",
+      "paths": ["typescript/renderers/markdown-it/"],
+      "exclude": ["**/*.test.ts", "**/*.md"],
+      "changelog": "typescript/renderers/markdown-it/CHANGELOG.md",
+      "tag": "npm/markdown-it/v{version}",
+      "bootstrap_since": "45633b97636daf89bafb43fa7db23e3cd916461d"
+    },
+    {
+      "id": "agent",
+      "ecosystem": "npm",
+      "name": "@a2ui/agent",
+      "paths": ["typescript/agents/a2ui_agent/"],
+      "exclude": ["typescript/agents/a2ui_agent/tests/", "**/*.test.ts", "**/*.md"],
+      "changelog": "typescript/agents/a2ui_agent/CHANGELOG.md",
+      "tag": "npm/agent/v{version}",
+      "bootstrap_since": "4fdc4c632cf761af64fa474530df8211483fa282"
+    },
+    {
+      "id": "catalog-mcp",
+      "ecosystem": "npm",
+      "name": "@a2ui/catalog-mcp",
+      "paths": ["typescript/catalogs/mcp/", "catalogs/mcp/"],
+      "exclude": ["typescript/catalogs/mcp/tests/", "**/*.test.ts", "**/*.md"],
+      "changelog": "typescript/catalogs/mcp/CHANGELOG.md",
+      "tag": "npm/catalog-mcp/v{version}",
+      "bootstrap_since": "f005e440d134338e11a013267fe44d7d09ff5d08"
+    },
+    {
+      "id": "catalog-vegachart",
+      "ecosystem": "npm",
+      "name": "@a2ui/catalog-vegachart",
+      "paths": ["typescript/catalogs/vegachart/"],
+      "exclude": ["**/*.test.ts", "**/*.md"],
+      "changelog": "typescript/catalogs/vegachart/CHANGELOG.md",
+      "tag": "npm/catalog-vegachart/v{version}",
+      "bootstrap_since": "3a64be7990d257a64a2ae3c5ae68adb10cbe4d28"
+    },
+    {
+      "id": "swift",
+      "ecosystem": "swiftpm",
+      "name": "a2ui",
+      "paths": ["swift/core/", "swift/swiftui/", "Package.swift"],
+      "exclude": ["swift/sample/", "**/Tests/**", "**/*.md"],
+      "changelog": "swift/CHANGELOG.md",
+      "tag": "v{version}+swift"
+    }
+  ]
+}
