@@ -193,7 +193,7 @@ def _check_exclude(package_id: str, pattern: str) -> None:
     wildcard pattern that ends in `/` (such as `**/Tests/`) matches no file.
     Write `**/Tests/**` instead. Literal directory prefixes are fine.
     """
-    if "*" in pattern and pattern.endswith("/"):
+    if any(char in pattern for char in "*?[") and pattern.endswith("/"):
         raise ManifestError(
             f"{package_id}: exclude {pattern!r} ends in '/' but contains a wildcard,"
             f" so git matches nothing; use {pattern + '**'!r}"
@@ -759,6 +759,16 @@ def insert_section(changelog: str, section: str) -> str:
 # --- Verification and tagging ------------------------------------------------
 
 
+def _heading_versions(changelog: str) -> list[tuple[int, int, int]]:
+    """Returns the parsed version of every `## X.Y.Z` heading, in file order."""
+    versions = []
+    for heading, _ in _sections(changelog):
+        match = HEADING_RE.match(heading)
+        if match:
+            versions.append(parse_version(match.group("version")))
+    return versions
+
+
 def _parsed_range(changelog: str, version: str) -> tuple[str, str] | None:
     for heading, body in _sections(changelog):
         match = HEADING_RE.match(heading)
@@ -800,11 +810,7 @@ def verify_release(
             "the carried-notes marker is still present; merge the carried entries"
             " into the section and delete the marker"
         )
-    versions = [
-        parse_version(HEADING_RE.match(h).group("version"))
-        for h, _ in _sections(changelog)
-        if HEADING_RE.match(h)
-    ]
+    versions = _heading_versions(changelog)
     if versions != sorted(versions, reverse=True):
         errors.append("version headings are not in descending order")
     if tag_exists(spec, version, git):
@@ -933,15 +939,15 @@ class Violation:
 
 
 def _touches_package(touched: Iterable[str], specs: Sequence[PackageSpec]) -> bool:
-    paths = [path for spec in specs for path in spec.paths]
-    return any(any(file.startswith(prefix) for prefix in paths) for file in touched)
+    paths = tuple(path for spec in specs for path in spec.paths)
+    return any(file.startswith(paths) for file in touched)
 
 
 def _check_breaking_consistency(
     parsed: ParsedTitle, body: str, labels: Iterable[str]
 ) -> list[Violation]:
     """L2: `!` in the title if and only if a label or footer marks it breaking."""
-    labeled = BREAKING_LABEL in set(labels)
+    labeled = BREAKING_LABEL in labels
     footer = has_breaking_footer(body)
     if parsed.breaking and not (labeled or footer):
         return [
@@ -1009,7 +1015,7 @@ def _check_changelog_edits(
     specs: Sequence[PackageSpec],
 ) -> list[Violation]:
     """L6: only release PRs (or a labeled exception) may edit a CHANGELOG.md."""
-    if parsed.type == RELEASE_TYPE or CHANGELOG_EDIT_LABEL in set(labels):
+    if parsed.type == RELEASE_TYPE or CHANGELOG_EDIT_LABEL in labels:
         return []
     changelogs = {spec.changelog for spec in specs}
     touched = sorted(path for path in touched_paths if path in changelogs)
