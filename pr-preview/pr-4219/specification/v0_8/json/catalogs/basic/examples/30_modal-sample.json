@@ -1,0 +1,87 @@
+[
+  {
+    "surfaceUpdate": {
+      "surfaceId": "modal-sample-surface",
+      "components": [
+        {
+          "id": "root",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["title", "modal-comp"]
+              }
+            }
+          }
+        },
+        {
+          "id": "title",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Modal Component Sample"
+              },
+              "usageHint": "h2"
+            }
+          }
+        },
+        {
+          "id": "modal-comp",
+          "component": {
+            "Modal": {
+              "entryPointChild": "open-btn",
+              "contentChild": "modal-content"
+            }
+          }
+        },
+        {
+          "id": "open-btn-text",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "Open Modal"
+              }
+            }
+          }
+        },
+        {
+          "id": "open-btn",
+          "component": {
+            "Button": {
+              "child": "open-btn-text",
+              "primary": true,
+              "action": {
+                "name": "openModalEvent"
+              }
+            }
+          }
+        },
+        {
+          "id": "modal-content",
+          "component": {
+            "Column": {
+              "children": {
+                "explicitList": ["modal-text"]
+              }
+            }
+          }
+        },
+        {
+          "id": "modal-text",
+          "component": {
+            "Text": {
+              "text": {
+                "literalString": "This is the content inside the modal."
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "beginRendering": {
+      "surfaceId": "modal-sample-surface",
+      "root": "root"
+    }
+  }
+]

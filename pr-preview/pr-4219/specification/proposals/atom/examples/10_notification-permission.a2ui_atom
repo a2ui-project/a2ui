@@ -1,0 +1,15 @@
+<a2ui>
+(data
+  $/icon "check"
+  $/title "Enable notification"
+  $/description "Get alerts for order status changes")
+
+(Card
+  (Column :align "center"
+    (Icon $/icon)
+    (Text $/title)
+    (Text $/description "body")
+    (Row :justify "center"
+      (Button :action (Event "accept") (Text "Yes"))
+      (Button :action (Event "decline") (Text "No")))))
+</a2ui>
