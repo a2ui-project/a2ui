@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2ui.org/demos/macros-music/v1/catalog.json",
+  "catalogId": "https://a2ui.org/demos/macros-music/v1/catalog.json",
+  "protocolVersion": "1.0",
+  "title": "Liner Notes music catalog",
+  "description": "Music-specific presentation components for the A2UI macros music demo. Combine them with the basic catalog's layout components.",
+  "components": {
+    "ArtistAvatar": {
+      "type": "object",
+      "description": "A circular monogram avatar for an artist, tinted with the artist's color.",
+      "properties": {
+        "component": {"const": "ArtistAvatar"},
+        "name": {
+          "type": "string",
+          "description": "Artist display name. The initials are derived from it."
+        },
+        "hue": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 360,
+          "description": "Color hue for the avatar gradient."
+        },
+        "size": {"type": "string", "enum": ["small", "medium", "large"], "default": "medium"}
+      },
+      "required": ["component", "name"]
+    },
+    "AlbumArt": {
+      "type": "object",
+      "description": "A generated square album cover showing the album title and artist.",
+      "properties": {
+        "component": {"const": "AlbumArt"},
+        "title": {"type": "string", "description": "Album title."},
+        "artist": {"type": "string", "description": "Artist name."},
+        "hue": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 360,
+          "description": "Color hue for the cover."
+        },
+        "size": {"type": "string", "enum": ["small", "medium", "large"], "default": "medium"}
+      },
+      "required": ["component", "title", "artist"]
+    },
+    "GenreTags": {
+      "type": "object",
+      "description": "A wrapping row of genre chips.",
+      "properties": {
+        "component": {"const": "GenreTags"},
+        "genres": {"type": "array", "items": {"type": "string"}, "description": "Genre names."}
+      },
+      "required": ["component", "genres"]
+    },
+    "TrackList": {
+      "type": "object",
+      "description": "A numbered album track list with durations.",
+      "properties": {
+        "component": {"const": "TrackList"},
+        "tracks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": {"type": "string"},
+              "duration": {"type": "string", "description": "Duration formatted as m:ss."}
+            },
+            "required": ["title"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["component", "tracks"]
+    },
+    "DateBadge": {
+      "type": "object",
+      "description": "A calendar tile showing a concert date, with an optional ticket status ribbon.",
+      "properties": {
+        "component": {"const": "DateBadge"},
+        "date": {"type": "string", "description": "ISO 8601 date, for example 2027-01-15."},
+        "status": {
+          "type": "string",
+          "enum": ["onSale", "fewLeft", "soldOut"],
+          "description": "Ticket availability."
+        }
+      },
+      "required": ["component", "date"]
+    },
+    "Timeline": {
+      "type": "object",
+      "description": "A vertical timeline of dated career events.",
+      "properties": {
+        "component": {"const": "Timeline"},
+        "events": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "year": {"type": "integer"},
+              "title": {"type": "string"},
+              "detail": {"type": "string"}
+            },
+            "required": ["year", "title"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["component", "events"]
+    }
+  },
+  "$defs": {
+    "anyComponent": {
+      "oneOf": [
+        {"$ref": "#/components/ArtistAvatar"},
+        {"$ref": "#/components/AlbumArt"},
+        {"$ref": "#/components/GenreTags"},
+        {"$ref": "#/components/TrackList"},
+        {"$ref": "#/components/DateBadge"},
+        {"$ref": "#/components/Timeline"}
+      ],
+      "discriminator": {"propertyName": "component"}
+    },
+    "anyFunction": {"not": {}}
+  }
+}

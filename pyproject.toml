@@ -44,6 +44,7 @@ members = [
   "samples/community/mcp/a2ui-over-mcp-recipe",
   "samples/community/mcp/mcp-apps-calculator",
   "samples/community/macros",
+  "samples/community/macros-music/agent",
   "python/catalogs/mcp",
   "tools/build_catalog",
 ]
@@ -76,6 +77,7 @@ testpaths = [
     "samples/agent/adk/tests",
     "samples/community/agent/adk/file_upload_summarizer/tests",
     "samples/community/agent/adk/personalized_learning/tests",
+    "samples/community/macros-music/agent/tests",
     "samples/community/mcp/a2ui-over-mcp-recipe/tests",
     "tools/build_catalog/tests",
 ]
