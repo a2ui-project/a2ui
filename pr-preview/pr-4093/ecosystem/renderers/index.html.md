@@ -1,10 +1,10 @@
 # Community Projects
 
-> Community-maintained renderers, agent libraries, and tools built around the A2UI protocol.
+> Community-maintained renderers, catalogs, agent libraries, and tools built around the A2UI protocol.
 
 Canonical URL: https://a2ui.org/ecosystem/renderers/
 
-Community authors and organizations maintain client renderers, server libraries, and related generative UI tools built around the A2UI protocol.
+Community authors and organizations maintain client renderers, domain catalogs, server libraries, and related generative UI tools built around the A2UI protocol.
 
 > **Note**
   Third-party projects listed here are maintained by their respective authors and organizations, not
@@ -54,6 +54,14 @@ The following server-side libraries assist in generating and validating A2UI pay
 | **[Max-Health-Inc/prefab](https://github.com/Max-Health-Inc/prefab)**<br />(`@maxhealth.tech/prefab`) · [Docs](https://max-health-inc.github.io/prefab/guide/a2ui) | TypeScript | Active | Server-side component library that generates A2UI payloads from a typed component tree, validates catalog compatibility, and serves A2UI over MCP as an `a2ui://` resource. |
 | **[satorunooshie/a2ui-go](https://github.com/satorunooshie/a2ui-go)**                                                                                              | Go         | Active | Transport-agnostic Go (`v0.9.1`) server primitives for schema validation, message decoding, and action routing.                                                             |
 | **[tmc/a2ui](https://github.com/tmc/a2ui)** · [pkg.go.dev](https://pkg.go.dev/github.com/tmc/a2ui)                                                                 | Go         | Active | Go (`v0.9.x`) protocol type definitions and streaming JSONL parser (`a2uistream`).                                                                                          |
+
+## Catalogs and component libraries
+
+The following projects publish domain-specific catalogs together with the renderers and agent code that use them:
+
+| Project                                                                                                                                                                                                                            | Platforms                                                          | Versions | Status       | Description                                                                                                                                                                  |
+| :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------- | :------- | :----------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **[googlemaps/a2ui](https://github.com/googlemaps/a2ui)**<br />(`@googlemaps/a2ui`, `maui-a2ui-python`) · [Docs](https://developers.google.com/maps/ai/agentic-ui-toolkit) · [Samples](https://github.com/googlemaps-samples/a2ui) | Web (Lit), Android (Views), iOS (SwiftUI), Python agent (ADK, A2A) | `v0.9.x` | Experimental | Google Maps Platform Agentic UI toolkit. Extends the basic catalog with `GoogleMap` and `PlaceDetailsCompact` components so agents can show maps, routes, and place details. |
 
 ## Related generative UI projects
 

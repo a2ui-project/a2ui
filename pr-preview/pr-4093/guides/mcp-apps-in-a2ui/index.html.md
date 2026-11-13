@@ -70,7 +70,7 @@ Place `McpApp` on an A2UI v1.0 surface with its HTML document (`htmlContent`), a
 {
   "id": "scene3d_app",
   "component": "McpApp",
-  "catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
+  "@catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json",
   "title": "3D Holographic Geometry Studio",
   "allowedTools": ["capture_3d_snapshot"],
   "data": {
@@ -130,6 +130,8 @@ a2ui-mcp-app {
 </details>
 
 ---
+
+<span id="samples"></span>
 
 ## Quick start: run the Kanban showcase
 
@@ -195,9 +197,9 @@ Open `http://localhost:5173/` and try these interactions to see the widget, the 
 5. Open the **Protocol Debug Inspector** drawer on the right side of the page to inspect the live A2UI messages, `postMessage` frames, and MCP tool calls behind each action.
 
 <details>
-<summary>Legacy pre-v1.0 samples (Calculator, Pong, and standalone Lit)</summary>
+<summary>Pre-1.0 sample (Calculator and Pong)</summary>
 
-The two earlier samples below predate A2UI v1.0 and `@a2ui/catalog-mcp` (the Calculator and Pong sample uses protocol v0.9 and the standalone Lit sample uses protocol v0.8). Each defines its own sample-local custom component rather than importing `McpApp` from `@a2ui/catalog-mcp`.
+This earlier sample predates A2UI v1.0 and `@a2ui/catalog-mcp` (using protocol v0.9) and defines its own sample-local custom component rather than importing `McpApp` from `@a2ui/catalog-mcp`.
 
 #### Calculator and Pong (Angular v0.9 + proxy agent + MCP server)
 
@@ -254,28 +256,6 @@ This sample runs an SSE Calculator MCP server, a Python ADK proxy agent, and an 
      </tbody>
    </table>
 
-#### Standalone Lit MCP App sample (Lit v0.8 + ADK agent)
-
-This minimal two-process sample pairs an ADK agent with a Lit client to test button actions inside a sandboxed iframe:
-
-1. Start the ADK agent on `http://localhost:8000`:
-
-   ```bash
-   cd samples/community/agent/adk/mcp-apps-in-a2ui-sample
-   export GEMINI_API_KEY="your-api-key"
-   uv run agent.py
-   ```
-
-2. In a second terminal, install dependencies and start the Lit client on `http://localhost:5173`:
-
-   ```bash
-   cd samples/community/client/lit/mcp-apps-in-a2ui-sample
-   yarn install
-   yarn dev
-   ```
-
-3. Open `http://localhost:5173/` and click **"Call Agent Tool"** inside the iframe to send a tool action through the host to the agent.
-
 </details>
 
 <details>
@@ -291,7 +271,7 @@ If a sample fails to build or load, check these common issues:
 | Angular client shows a blank page or missing renderer imports     | Run `yarn build:all` at the repository root before running `yarn start mcp_calculator` in `samples/community/client/angular/`.                   |
 | `ng serve` not found in the Angular sample                        | Run `yarn install` inside `samples/community/client/angular/` to install `@angular/cli`.                                                         |
 | `"URL with hostname not allowed"` in Angular                      | Open `http://localhost:4200/` rather than `0.0.0.0` (Angular's dev server restricts allowed hosts by default).                                   |
-| Security self-test error in the legacy Angular sample             | Append `?disable_security_self_test=true` to `http://localhost:4200/`.                                                                           |
+| Security self-test error in the pre-1.0 Angular sample            | Append `?disable_security_self_test=true` to `http://localhost:4200/`.                                                                           |
 
 </details>
 

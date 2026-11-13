@@ -12,6 +12,14 @@ If your agent and client share the same language and repository, you can define 
 
 In A2UI v1.0, your catalog works alongside the built-in [basic catalog](/specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json), so you keep standard layout widgets (`Column`, `Row`, `Text`, `Button`) and define only the custom widgets unique to your app. See [Catalogs](/concepts/catalogs/) for how catalog negotiation works at runtime.
 
+> **Note**
+  The experimental [Google Maps Platform Agentic UI
+  toolkit](https://developers.google.com/maps/ai/agentic-ui-toolkit) follows this pattern. Its
+  [`maps_catalog_extension.json`](https://github.com/googlemaps/a2ui/blob/main/agent/python_agent/shared/schema/maps_catalog_extension.json)
+  defines `GoogleMap` and `PlaceDetailsCompact` components, and its web client [registers
+  them](https://github.com/googlemaps/a2ui/blob/main/client/web/src/lit/catalog.ts) alongside the
+  basic catalog's components and functions under one `catalogId`.
+
 ## Step 1: Create a minimal catalog.json
 
 Create a file named `status_catalog.json` that defines a single `StatusBadge` component with two properties: a bindable `label` string and a `status` tone.
@@ -470,7 +478,7 @@ fun createProcessor(context: Context): A2uiMessageProcessor {
   To share a single web widget across Lit, React, and Angular without rewriting view code, see
   [Authoring Universal Web Components](/guides/authoring-universal-components/).
 
-Once registered on both sides, your agent can combine basic layout components and `StatusBadge` on the same v1.0 surface by tagging the custom component with its `catalogId` (in v0.9.1, each surface binds to a single `catalogId`):
+Once registered on both sides, your agent can combine basic layout components and `StatusBadge` on the same v1.0 surface by tagging the custom component with its catalog ID in `@catalogId` (in v0.9.1, each surface binds to a single `catalogId`):
 
 #### v1.0
 
@@ -493,7 +501,7 @@ Once registered on both sides, your agent can combine basic layout components an
       },
       {
         "id": "build_badge",
-        "catalogId": "https://example.com/catalogs/status/v1/catalog.json",
+        "@catalogId": "https://example.com/catalogs/status/v1/catalog.json",
         "component": "StatusBadge",
         "label": "All checks passing",
         "status": "success"
@@ -542,7 +550,7 @@ A catalog's `functions` map exposes custom client capabilities to generated surf
 | Device-local data and state    | `"string"`, `"number"`, `"boolean"`, or `"object"` (`"rendererOnly"`) | Reading device timezone, locale, or platform capabilities that are not stored on the server.    |
 | Device-local native actions    | `"void"` (`"rendererOnly"`, `"requiresUserActivation": true`)         | Triggering native share sheets, clipboard writes, or deep links from a user-initiated `Action`. |
 | Local formatting & computation | `"string"`, `"number"`, `"array"`, or `"any"` (`"rendererOrAgent"`)   | Computing derived values reactively from bound data-model fields.                               |
-| Input validation (`checks`)    | `"validationResult"` (`"rendererOnly"`; `"boolean"` in v0.9.1)        | Validating user input synchronously and returning `{"valid": false, "message": "..."}` in v1.0. |
+| Input validation (`@checks`)   | `"validationResult"` (`"rendererOnly"`; `"boolean"` in v0.9.1)        | Validating user input synchronously and returning `{"valid": false, "message": "..."}` in v1.0. |
 
 In v1.0, each [`FunctionDefinition`](/specification/v1.0/schemas/#catalog_definition.json/$defs/FunctionDefinition) declares `returnType` at the top level of the function object and uses `"@call"` inside `properties`. You can set `allowedCallers` to `"rendererOnly"` (default), `"agentOnly"`, or `"rendererOrAgent"`. Side-effecting device functions can set `"requiresUserActivation": true` so they run only from direct user interactions; functions that require user activation must keep `allowedCallers` set to `"rendererOnly"` (or omit it).
 
@@ -1365,7 +1373,7 @@ val ProductCard: A2uiComponent =
 
 ### Interactive actions and input checks
 
-Reference [`Action`](/specification/v1.0/schemas/#common_types.json/$defs/Action) on interactive properties to let surfaces dispatch server events or run local functions (such as `shareProduct`). When an input component supports client-side validation rules (`checks`), compose [`Checkable`](/specification/v1.0/schemas/#common_types.json/$defs/Checkable) via `allOf` so the renderer evaluates bound `CheckRule` conditions and exposes `isValid` and `validationErrors` to your widget.
+Reference [`Action`](/specification/v1.0/schemas/#common_types.json/$defs/Action) on interactive properties to let surfaces dispatch server events or run local functions (such as `shareProduct`). When an input component supports client-side validation rules (`@checks` in v1.0, `checks` in v0.9.1), compose [`Checkable`](/specification/v1.0/schemas/#common_types.json/$defs/Checkable) via `allOf` so the renderer evaluates bound `CheckRule` conditions and exposes `isValid` and `validationErrors` to your widget.
 
 #### v1.0
 
@@ -1576,6 +1584,58 @@ Place shared scalar or enum schemas (such as `BadgeTone`) under `$defs` alongsid
   }
 }
 ```
+
+### Accessibility
+
+Accessible custom catalogs divide responsibility between the component schema and the native widget implementation. JSON Schema alone cannot tell whether a control gets its screen reader name from a schema property, visible child text, or fixed native code. Design each component schema around how much its meaning varies across instances.
+
+#### Generic vs. domain-specific components
+
+Generic, reusable controls such as `TextField`, `CheckBox`, and `Slider` need a `label` property in their component schema because their purpose changes per instance. Without a schema `label` property, the agent has no standard field to name what the user is editing or toggling.
+
+Domain-specific components such as `UsernameInput` or `SearchSubmitButton` already have a fixed purpose. Build their default accessible labels directly into the native widget implementation instead of exposing a schema `label` property. Omitting a redundant `label` property saves model tokens and prevents inconsistent model-generated text across screens.
+
+#### Inherited accessibility attributes and renderer mapping
+
+In v1.0, every component inherits the optional `@accessibility` object from [`ComponentCommon`](/specification/v1.0/schemas/#common_types.json/$defs/ComponentCommon) at the message envelope level. Do not redeclare `@accessibility` or wrap v1.0 component definitions with `ComponentCommon`. In v0.9 and v0.9.1, reference [`ComponentCommon`](/specification/v0.9.1/schemas/#common_types.json/$defs/ComponentCommon) once via `allOf` in each component schema without redeclaring `id` or `accessibility`.
+
+In v0.9, v0.9.1, and v1.0, [`AccessibilityAttributes`](/specification/v1.0/schemas/#common_types.json/$defs/AccessibilityAttributes) provides `label` and `description`, and both accept literal strings, data bindings, or function calls. Version 1.0 also adds `live` (`"off"`, `"polite"`, or `"assertive"`) for live-region announcements and `hidden` for excluding decorative elements from assistive technologies.
+
+Agents can set `@accessibility` (or `accessibility` in v0.9 and v0.9.1) on any component instance to supply or override assistive text when visual context is missing, such as an icon-only `Button`:
+
+#### v1.0
+
+```json
+{
+  "id": "close_button",
+  "component": "Button",
+  "child": "close_icon",
+  "action": {"event": {"name": "close_dialog"}},
+  "@accessibility": {
+    "label": "Close dialog",
+    "description": {"@path": "/dialog/unsavedWarning"}
+  }
+}
+```
+
+#### v0.9.1
+
+```json
+{
+  "id": "close_button",
+  "component": "Button",
+  "child": "close_icon",
+  "action": {"event": {"name": "close_dialog"}},
+  "accessibility": {
+    "label": "Close dialog",
+    "description": {"path": "/dialog/unsavedWarning"}
+  }
+}
+```
+
+Notice that v1.0 uses `@accessibility` and `@path`, whereas v0.9.1 uses `accessibility` and `path`.
+
+In your native component implementation, map resolved `AccessibilityAttributes` and visible child text or titles to platform accessibility APIs. Use WAI-ARIA attributes on the web, `Semantics` widgets in Flutter, and `.accessibilityLabel` or `.accessibilityHint` modifiers in SwiftUI. When an instance sets `@accessibility.label` or `@accessibility.description` (or `accessibility.label` and `accessibility.description` in v0.9 and v0.9.1), let those values override any label inferred from visible text (see [Catalog-Agnostic Accessibility Requirements](/specification/v1.0-a2ui/#catalog-agnostic-accessibility-requirements)).
 
 ### Schema parity tests in CI
 
