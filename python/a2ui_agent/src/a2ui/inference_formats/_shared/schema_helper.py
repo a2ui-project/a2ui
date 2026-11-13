@@ -35,6 +35,20 @@ from a2ui.core.schema import ProtocolVersion
 from a2ui.utils.component_envelope import AT_ENVELOPE_MIXIN_KEYS, ENVELOPE_MIXIN_NAMES
 
 _COMMON_DEF_RE = re.compile(r"(?:^|/)common_types\.json#/(?:\$defs|definitions)/(\w+)$")
+_LOCAL_DEF_RE = re.compile(r"^#/(?:\$defs|definitions)/(\w+)$")
+
+
+def _load_common_def_names() -> frozenset[str]:
+    names: set[str] = {"ComponentCommon", "ComponentCommonMetadata", "Checkable"}
+    for ver in (ProtocolVersion.V0_9, ProtocolVersion.V1_0):
+        schema_map = get_common_types_schema_map(ver)
+        defs = schema_map.get("$defs") or schema_map.get("definitions")
+        if isinstance(defs, dict):
+            names.update(str(k) for k in defs.keys())
+    return frozenset(names)
+
+
+_PRESERVED_COMMON_DEF_NAMES: frozenset[str] = _load_common_def_names()
 
 _STANDARD_CATALOG_ID_DESCRIPTION = (
     "The catalog ID for this component, overriding any surface-level default catalogId."
@@ -64,15 +78,42 @@ def _is_standard_catalog_id_schema(schema: Any) -> bool:
     )
 
 
-def _common_def_name(ref: Any) -> str | None:
-    """Returns the common type a `$ref` names, or None if it is not one."""
+def common_def_name(ref: Any) -> str | None:
+    """Returns the common type a `$ref` names, or None if it is not one.
+
+    Matches both explicit `common_types.json#/$defs/<Name>` references and
+    catalog-local `#/$defs/<Name>` references preserved by `inline_local_refs`.
+    """
     if not isinstance(ref, str):
         return None
     m = _COMMON_DEF_RE.search(ref)
-    return m.group(1) if m else None
+    if m:
+        return m.group(1)
+    local_m = _LOCAL_DEF_RE.match(ref)
+    if local_m and local_m.group(1) in _PRESERVED_COMMON_DEF_NAMES:
+        return local_m.group(1)
+    return None
 
 
-def is_action_slot(schema: Any) -> bool:
+def is_common_def_ref(ref: Any) -> bool:
+    """Returns whether `ref` points to a protocol common type definition."""
+    return common_def_name(ref) is not None
+
+
+def combinator_subschemas(
+    s: dict[str, Any],
+    keys: tuple[str, ...] = ("oneOf", "anyOf", "allOf"),
+) -> list[Any]:
+    """Returns all sub-schemas under the given combinator keys."""
+    result: list[Any] = []
+    for k in keys:
+        subs = s.get(k)
+        if isinstance(subs, list):
+            result.extend(subs)
+    return result
+
+
+def is_action_slot(schema: Any, visited: set[int] | None = None) -> bool:
     """Checks whether a property schema is an Action slot.
 
     A property is an action slot when its schema references the common `Action`
@@ -80,34 +121,51 @@ def is_action_slot(schema: Any) -> bool:
 
     Args:
         schema: The property JSON schema to inspect.
+        visited: Active schema object IDs on the current recursion path.
 
     Returns:
         True if the schema references the common `Action` type.
     """
     if not isinstance(schema, dict):
         return False
-    if _common_def_name(schema.get("$ref")) == "Action":
-        return True
-    for key in ("allOf", "oneOf", "anyOf"):
-        subs = schema.get(key)
-        if isinstance(subs, list) and any(is_action_slot(sub) for sub in subs):
+    if visited is None:
+        visited = set()
+    obj_id = id(schema)
+    if obj_id in visited:
+        return False
+    visited.add(obj_id)
+    try:
+        if common_def_name(schema.get("$ref")) == "Action":
             return True
-    return False
+        return any(
+            is_action_slot(sub, visited)
+            for sub in combinator_subschemas(schema, ("allOf", "oneOf", "anyOf"))
+        )
+    finally:
+        visited.remove(obj_id)
 
 
-def _find_enum(s: Any) -> list[Any] | None:
+def _find_enum(s: Any, visited: set[int] | None = None) -> list[Any] | None:
     """Returns the first `enum` list found in a schema or its combinators."""
-    if isinstance(s, dict):
+    if not isinstance(s, dict):
+        return None
+    if visited is None:
+        visited = set()
+    obj_id = id(s)
+    if obj_id in visited:
+        return None
+    visited.add(obj_id)
+    try:
         enum = s.get("enum")
         if isinstance(enum, list):
             return enum
-        for k in ("oneOf", "anyOf", "allOf"):
-            if k in s and isinstance(s[k], list):
-                for sub_s in s[k]:
-                    res = _find_enum(sub_s)
-                    if res:
-                        return res
-    return None
+        for sub_s in combinator_subschemas(s):
+            res = _find_enum(sub_s, visited)
+            if res:
+                return res
+        return None
+    finally:
+        visited.remove(obj_id)
 
 
 def system_function_schemas(common_types: Any) -> dict[str, dict[str, Any]]:
@@ -177,28 +235,46 @@ def _ordered_component_sub_schemas(schema: Any) -> list[dict[str, Any]]:
         return []
     specific: list[dict[str, Any]] = []
     common: list[dict[str, Any]] = []
+    visited: set[int] = set()
 
     def _visit(node: Any, is_root: bool = False) -> None:
-        if not isinstance(node, dict):
+        if not isinstance(node, dict) or id(node) in visited:
             return
-        props = node.get("properties")
-        is_specific = isinstance(props, dict) and "component" in props
-        if is_specific:
-            specific.append(node)
-        elif (
-            not is_root
-            or isinstance(props, dict)
-            or "required" in node
-            or "$ref" in node
-        ):
-            common.append(node)
-        all_of = node.get("allOf")
-        if isinstance(all_of, list):
-            for sub in all_of:
-                _visit(sub, is_root=False)
+        visited.add(id(node))
+        try:
+            props = node.get("properties")
+            is_specific = isinstance(props, dict) and "component" in props
+            if is_specific:
+                specific.append(node)
+            elif (
+                not is_root
+                or isinstance(props, dict)
+                or "required" in node
+                or "$ref" in node
+            ):
+                common.append(node)
+            all_of = node.get("allOf")
+            if isinstance(all_of, list):
+                for sub in all_of:
+                    _visit(sub, is_root=False)
+        finally:
+            visited.remove(id(node))
 
     _visit(schema, is_root=True)
     return [*specific, *common]
+
+
+def _semantic_ref_type(ref: Any) -> str | None:
+    """Returns the semantic property type ('ChildList', 'Child', 'Action') for a $ref."""
+    if not isinstance(ref, str):
+        return None
+    if "ChildList" in ref:
+        return "ChildList"
+    if "Child" in ref or "ComponentId" in ref:
+        return "Child"
+    if "Action" in ref:
+        return "Action"
+    return None
 
 
 class CatalogSchemaHelper:
@@ -516,23 +592,24 @@ class CatalogSchemaHelper:
         if not p_schema:
             return None
 
-        def _crawl_ref(s: Any) -> str | None:
-            if isinstance(s, dict):
-                if "$ref" in s and isinstance(s["$ref"], str):
-                    ref = s["$ref"]
-                    if "ChildList" in ref:
-                        return "ChildList"
-                    if "Child" in ref or "ComponentId" in ref:
-                        return "Child"
-                    if "Action" in ref:
-                        return "Action"
-                for k in ("oneOf", "anyOf", "allOf"):
-                    if k in s and isinstance(s[k], list):
-                        for sub_s in s[k]:
-                            res = _crawl_ref(sub_s)
-                            if res:
-                                return res
-            return None
+        def _crawl_ref(s: Any, visited: set[int] | None = None) -> str | None:
+            if not isinstance(s, dict):
+                return None
+            visited = visited if visited is not None else set()
+            if id(s) in visited:
+                return None
+            visited.add(id(s))
+            try:
+                return _semantic_ref_type(s.get("$ref")) or next(
+                    (
+                        res
+                        for sub_s in combinator_subschemas(s)
+                        if (res := _crawl_ref(sub_s, visited)) is not None
+                    ),
+                    None,
+                )
+            finally:
+                visited.remove(id(s))
 
         return _crawl_ref(p_schema)
 
@@ -699,7 +776,7 @@ class CatalogSchemaHelper:
 
             ref = s.get("$ref")
             if isinstance(ref, str):
-                def_name = _common_def_name(ref)
+                def_name = common_def_name(ref)
                 if def_name:
                     found = _resolve(self._lookup_common_def(def_name), True)
                 elif in_common_types and (

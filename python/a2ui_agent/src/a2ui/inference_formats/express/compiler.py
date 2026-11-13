@@ -38,6 +38,7 @@ from a2ui.inference_formats._shared import (
     catalogs_defining,
     catalogs_protocol_version,
     check_mixed_catalogs,
+    combinator_subschemas,
     is_action_slot,
     surface_catalog_id,
     to_message_models,
@@ -282,35 +283,48 @@ def _set_nested_path(d: dict[str, Any], path_str: str, val: Any) -> None:
     current[idx] = val
 
 
-def _schema_allows_databinding(schema: Any) -> bool:
+def _is_direct_databinding_schema(schema: dict[str, Any]) -> bool:
+    """Returns whether `schema` directly declares a dynamic or data-binding shape."""
+    ref = schema.get("$ref")
+    if isinstance(ref, str) and ("DataBinding" in ref or "Dynamic" in ref):
+        return True
+    props = schema.get("properties")
+    return (
+        isinstance(props, dict)
+        and ("path" in props or "@path" in props)
+        and "componentId" not in props
+    )
+
+
+def _schema_allows_databinding(schema: Any, visited: set[int] | None = None) -> bool:
     """Recursively checks if a property's schema allows a dynamic DataBinding ref.
 
     Args:
         schema: The JSON schema dict for the target property.
+        visited: Active schema object IDs on the current recursion path.
 
     Returns:
         True if the schema permits dynamic databinding; False otherwise.
     """
     if not isinstance(schema, dict):
         return False
-    if "$ref" in schema:
-        ref = schema["$ref"]
-        if isinstance(ref, str) and ("DataBinding" in ref or "Dynamic" in ref):
+    if visited is None:
+        visited = set()
+    obj_id = id(schema)
+    if obj_id in visited:
+        return False
+    visited.add(obj_id)
+    try:
+        if _is_direct_databinding_schema(schema):
             return True
-    if "properties" in schema and (
-        "path" in schema["properties"] or "@path" in schema["properties"]
-    ):
-        if "componentId" not in schema["properties"]:
+        if "items" in schema and _schema_allows_databinding(schema["items"], visited):
             return True
-    if "items" in schema:
-        if _schema_allows_databinding(schema["items"]):
-            return True
-    for key in ["allOf", "oneOf", "anyOf"]:
-        if key in schema and isinstance(schema[key], list):
-            for sub in schema[key]:
-                if _schema_allows_databinding(sub):
-                    return True
-    return False
+        return any(
+            _schema_allows_databinding(sub, visited)
+            for sub in combinator_subschemas(schema, ("allOf", "oneOf", "anyOf"))
+        )
+    finally:
+        visited.remove(obj_id)
 
 
 def _describe_express_value(val: Any) -> str:
@@ -407,34 +421,49 @@ def _has_databinding(
     return False
 
 
-def _schema_expects_option_objects(schema: Any) -> bool:
+def _schema_has_label_value(sub: Any, visited: set[int] | None = None) -> bool:
+    """Returns whether an item schema (or its combinators) declares `label` and `value`."""
+    if not isinstance(sub, dict):
+        return False
+    if visited is None:
+        visited = set()
+    obj_id = id(sub)
+    if obj_id in visited:
+        return False
+    visited.add(obj_id)
+    try:
+        props = sub.get("properties")
+        if isinstance(props, dict) and "label" in props and "value" in props:
+            return True
+        return any(
+            _schema_has_label_value(s, visited)
+            for s in combinator_subschemas(sub, ("allOf", "oneOf", "anyOf"))
+        )
+    finally:
+        visited.remove(obj_id)
+
+
+def _schema_expects_option_objects(
+    schema: Any, visited: set[int] | None = None
+) -> bool:
     """Checks if a property's schema expects a list of objects with label/value properties."""
     if not isinstance(schema, dict):
         return False
-    if "items" in schema:
-        items_schema = schema["items"]
-
-        def has_label_value(sub: Any) -> bool:
-            if not isinstance(sub, dict):
-                return False
-            if (
-                "properties" in sub
-                and "label" in sub["properties"]
-                and "value" in sub["properties"]
-            ):
-                return True
-            for k in ["allOf", "oneOf", "anyOf"]:
-                if k in sub and isinstance(sub[k], list):
-                    if any(has_label_value(s) for s in sub[k]):
-                        return True
-            return False
-
-        return has_label_value(items_schema)
-    for key in ["allOf", "oneOf", "anyOf"]:
-        if key in schema and isinstance(schema[key], list):
-            if any(_schema_expects_option_objects(sub) for sub in schema[key]):
-                return True
-    return False
+    if visited is None:
+        visited = set()
+    obj_id = id(schema)
+    if obj_id in visited:
+        return False
+    visited.add(obj_id)
+    try:
+        if "items" in schema:
+            return _schema_has_label_value(schema["items"])
+        return any(
+            _schema_expects_option_objects(sub, visited)
+            for sub in combinator_subschemas(schema, ("allOf", "oneOf", "anyOf"))
+        )
+    finally:
+        visited.remove(obj_id)
 
 
 _IDENT_START = r"a-zA-Z_"
@@ -2106,16 +2135,21 @@ class ExpressCompiler:
                 ),
                 slot=_ValueSlot(prop_schema, comp_helper) if prop_schema else None,
             )
-            if prop_schema and not _schema_allows_databinding(prop_schema):
-                if _has_databinding(arg, raw_symbols):
-                    raise ExpressForbiddenDatabindingError(comp_name, prop_name)
-                if isinstance(mapped_val, list) and _schema_expects_option_objects(
-                    prop_schema
-                ):
-                    mapped_val = [
-                        {"label": opt, "value": opt} if isinstance(opt, str) else opt
-                        for opt in mapped_val
-                    ]
+            if (
+                prop_schema
+                and not _schema_allows_databinding(prop_schema)
+                and _has_databinding(arg, raw_symbols)
+            ):
+                raise ExpressForbiddenDatabindingError(comp_name, prop_name)
+            if (
+                prop_schema
+                and isinstance(mapped_val, list)
+                and _schema_expects_option_objects(prop_schema)
+            ):
+                mapped_val = [
+                    {"label": opt, "value": opt} if isinstance(opt, str) else opt
+                    for opt in mapped_val
+                ]
             enum_vals = comp_helper.get_property_enum(comp_name, prop_name)
             if enum_vals and not isinstance(mapped_val, (dict, list)):
                 if mapped_val not in enum_vals:

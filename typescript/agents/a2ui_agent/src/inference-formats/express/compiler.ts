@@ -2284,12 +2284,10 @@ export class ExpressCompiler {
       }
 
       // Sanctioned departure §5.2 item 2: option-object coercion
-      if (propSchema && !compHelper.admitsPath(propSchema)) {
-        if (Array.isArray(mappedVal) && expectsOptionObjects(propSchema)) {
-          mappedVal = mappedVal.map(opt =>
-            typeof opt === 'string' ? {label: opt, value: opt} : opt,
-          );
-        }
+      if (propSchema && Array.isArray(mappedVal) && expectsOptionObjects(propSchema, compHelper)) {
+        mappedVal = mappedVal.map(opt =>
+          typeof opt === 'string' ? {label: opt, value: opt} : opt,
+        );
       }
 
       // Enum validation (compiler.py:557-565)

@@ -291,31 +291,251 @@ String _componentSignatures(CatalogSchemaHelper helper) {
   return signatures.join('\n');
 }
 
+const Set<String> _commonTypeDefNames = {
+  'ComponentId',
+  'DynamicString',
+  'DynamicNumber',
+  'DynamicBoolean',
+  'DynamicStringList',
+  'DynamicValue',
+  'DataBinding',
+  'FunctionCall',
+  'ChildList',
+  'Action',
+  'CheckRule',
+  'AccessibilityAttributes',
+  'Child',
+  'FunctionCommon',
+  'IndexSystemFunction',
+  'Surface',
+  'CallId',
+  'FunctionResponse',
+  'Extensions',
+  'ComponentCommon',
+  'ComponentCommonMetadata',
+  'Checkable',
+};
+
+bool _isCommonTypeRef(Map<String, Object?> schema) {
+  final Object? ref = schema[r'$ref'] ?? schema['commonTypesRef'];
+  if (ref is! String) return false;
+  if (ref.contains('common_types.json#/')) return true;
+  if (ref.startsWith(r'#/$defs/') || ref.startsWith('#/definitions/')) {
+    final String name = ref.substring(ref.lastIndexOf('/') + 1);
+    return _commonTypeDefNames.contains(name);
+  }
+  return false;
+}
+
+typedef _StructuredProperty = ({
+  bool isArray,
+  Map<Object?, Object?> properties,
+});
+
+bool _isSingleKeyEnvelope(Map<String, Object?> schema, String key) {
+  if (key == '@path' || key == 'path') return true;
+  if (key != 'event' && key != 'functionCall') return false;
+  final Object? required = schema['required'];
+  return required is List && required.contains(key);
+}
+
+bool _isFlattenedWireEnvelope(Map<String, Object?> schema) {
+  final Object? rawProps = schema['properties'];
+  if (rawProps is! Map) return false;
+  final Set<String> keys = rawProps.keys.whereType<String>().toSet();
+  if (keys.length == 1 && _isSingleKeyEnvelope(schema, keys.first)) return true;
+  if (keys.contains('@call')) return true;
+  if (keys.contains('call') &&
+      (keys.contains('args') || keys.contains('returnType'))) {
+    return true;
+  }
+  return keys.length == 2 &&
+      keys.contains('componentId') &&
+      keys.contains('path');
+}
+
+Map<String, Object?>? _asStringMap(Object? raw) => switch (raw) {
+  final Map<String, Object?> map => map,
+  final Map<Object?, Object?> map => map.cast<String, Object?>(),
+  _ => null,
+};
+
+/// Whether [schema] is an A2UI protocol wire envelope (`DataBinding`,
+/// `FunctionCall`, `ChildList` template, or `Action` branch) rather than a
+/// user-defined map property.
+bool _isProtocolWireEnvelope(
+  Map<String, Object?> schema, [
+  Set<Object>? visited,
+]) {
+  if (_isCommonTypeRef(schema)) return true;
+  final Object? allOf = schema['allOf'];
+  if (allOf is List) {
+    final Set<Object> seen = visited ?? Set<Object>.identity();
+    for (final Object? rawSub in allOf) {
+      if (_asStringMap(rawSub) case final Map<String, Object?> sub
+          when seen.add(sub)) {
+        try {
+          if (_isProtocolWireEnvelope(sub, seen)) {
+            return true;
+          }
+        } finally {
+          seen.remove(sub);
+        }
+      }
+    }
+  }
+  return _isFlattenedWireEnvelope(schema);
+}
+
+Iterable<Map<String, Object?>> _combinatorSubschemas(
+  Map<String, Object?> schema,
+  List<String> keys,
+) => [
+  for (final key in keys)
+    if (schema[key] case final List<Object?> list)
+      for (final Object? sub in list)
+        if (_asStringMap(sub) case final Map<String, Object?> map) map,
+];
+
+Map<Object?, Object?>? _directObjectProperties(Map<String, Object?> schema) {
+  final Object? type = schema['type'];
+  if (type != 'object' && type != null) return null;
+  final Object? props = schema['properties'];
+  return props is Map<Object?, Object?> && props.isNotEmpty ? props : null;
+}
+
+Map<Object?, Object?>? _mergeAllOfProperties(
+  Map<String, Object?> schema,
+  List<Object?> allOf,
+  Set<Object> seen,
+) {
+  final merged = <Object?, Object?>{};
+  for (final rawSub in allOf) {
+    if (_asStringMap(rawSub) case final Map<String, Object?> sub) {
+      final Map<Object?, Object?>? subProps = _resolveObjectProperties(
+        sub,
+        seen,
+      );
+      if (subProps != null) merged.addAll(subProps);
+    }
+  }
+  final Object? ownProps = schema['properties'];
+  if (ownProps is Map<Object?, Object?>) {
+    merged.addAll(ownProps);
+  }
+  return merged.isNotEmpty ? merged : null;
+}
+
+Map<Object?, Object?>? _resolveUnionObjectProperties(
+  Map<String, Object?> schema,
+  Set<Object> seen,
+) {
+  for (final Map<String, Object?> sub in _combinatorSubschemas(schema, const [
+    'oneOf',
+    'anyOf',
+  ])) {
+    final Map<Object?, Object?>? props = _resolveObjectProperties(sub, seen);
+    if (props != null) return props;
+  }
+  return null;
+}
+
+Map<Object?, Object?>? _resolveObjectProperties(
+  Map<String, Object?>? schema, [
+  Set<Object>? visited,
+]) {
+  if (schema == null) return null;
+  final Set<Object> seen = visited ?? Set<Object>.identity();
+  if (!seen.add(schema)) return null;
+  try {
+    if (_isProtocolWireEnvelope(schema)) return null;
+    final Object? allOf = schema['allOf'];
+    if (allOf is List<Object?>) {
+      final Map<Object?, Object?>? merged = _mergeAllOfProperties(
+        schema,
+        allOf,
+        seen,
+      );
+      if (merged != null) return merged;
+    }
+    return _directObjectProperties(schema) ??
+        _resolveUnionObjectProperties(schema, seen);
+  } finally {
+    seen.remove(schema);
+  }
+}
+
+_StructuredProperty? _resolveCombinatorStructured(
+  Map<String, Object?> schema,
+  Set<Object> seen,
+) {
+  for (final Map<String, Object?> sub in _combinatorSubschemas(schema, const [
+    'oneOf',
+    'anyOf',
+    'allOf',
+  ])) {
+    final _StructuredProperty? resolved = _resolveStructuredProperty(sub, seen);
+    if (resolved != null) return resolved;
+  }
+  return null;
+}
+
+_StructuredProperty? _resolveStructuredProperty(
+  Map<String, Object?>? schema, [
+  Set<Object>? visited,
+]) {
+  if (schema == null) return null;
+  final Set<Object> seen = visited ?? Set<Object>.identity();
+  if (seen.contains(schema) || _isProtocolWireEnvelope(schema)) return null;
+  if (schema['allOf'] is List) {
+    final Map<Object?, Object?>? objProps = _resolveObjectProperties(
+      schema,
+      seen,
+    );
+    if (objProps != null) return (isArray: false, properties: objProps);
+  }
+  seen.add(schema);
+  try {
+    final Map<Object?, Object?>? directProps = _directObjectProperties(schema);
+    if (directProps != null) return (isArray: false, properties: directProps);
+    if (schema['type'] == 'array') {
+      if (_asStringMap(schema['items']) case final Map<String, Object?> items) {
+        final Map<Object?, Object?>? itemProps = _resolveObjectProperties(
+          items,
+          seen,
+        );
+        if (itemProps != null) return (isArray: true, properties: itemProps);
+      }
+    }
+    return _resolveCombinatorStructured(schema, seen);
+  } finally {
+    seen.remove(schema);
+  }
+}
+
 /// What the model needs to know about one property beyond its name.
 String? _propertyDetail(String property, Map<String, Object?>? schema) {
   if (schema == null) return null;
+  final List<Object?>? enumValues = enumOf(schema);
   final parts = <String>[
     if (schema['description'] case final String description) description,
-    if (enumOf(schema) case final List<Object?> values)
-      "Must be one of: ${values.map((v) => "'$v'").join(', ')}",
+    if (enumValues != null)
+      "Must be one of: ${enumValues.map((v) => "'$v'").join(', ')}",
   ];
-  final String? keys = switch (schema) {
-    {'type': 'object', 'properties': final Map<Object?, Object?> properties} =>
-      'Map with keys:\n${_keys(properties)}',
-    {'type': 'array', 'items': final Map<Object?, Object?> items} =>
-      switch (items) {
-        {
-          'type': 'object',
-          'properties': final Map<Object?, Object?> properties,
-        } =>
-          'List of maps with keys:\n${_keys(properties)}',
-        _ => null,
-      },
-    _ => null,
-  };
-  if (parts.isEmpty && keys == null) return null;
+  final _StructuredProperty? structured = enumValues == null
+      ? _resolveStructuredProperty(schema)
+      : null;
+  if (parts.isEmpty && structured == null) return null;
   final line = StringBuffer('  - $property: ${parts.join(' ')}');
-  if (keys != null) line.write(parts.isEmpty ? keys : '\n    $keys');
+  if (structured != null) {
+    final String heading = switch ((structured.isArray, parts.isEmpty)) {
+      (false, true) => 'Map with keys:',
+      (false, false) => '\n    Map keys:',
+      (true, true) => 'List of maps with keys:',
+      (true, false) => '\n    List of maps keys:',
+    };
+    line.write('$heading\n${_keys(structured.properties)}');
+  }
   return line.toString();
 }
 

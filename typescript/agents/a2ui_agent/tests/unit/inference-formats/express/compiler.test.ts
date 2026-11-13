@@ -1301,5 +1301,64 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
         },
       ]);
     });
+
+    it('coerces string option literals when options uses oneOf with DataBinding and local $defs item ref', () => {
+      const unionOptionsCatalog = catalogFromTestDocument({
+        $schema: 'https://json-schema.org/draft/2020-12/schema',
+        catalogId: 'test/union_options',
+        protocolVersion: '1.0',
+        components: {
+          ToggleGroup: {
+            type: 'object',
+            properties: {
+              component: {const: 'ToggleGroup'},
+              options: {
+                oneOf: [
+                  {
+                    type: 'array',
+                    items: {$ref: '#/$defs/SelectOption'},
+                  },
+                  {
+                    $ref: 'common_types.json#/$defs/DataBinding',
+                  },
+                ],
+              },
+            },
+            required: ['component', 'options'],
+          },
+        },
+        $defs: {
+          SelectOption: {
+            type: 'object',
+            properties: {
+              label: {$ref: 'common_types.json#/$defs/DynamicString'},
+              value: {type: 'string'},
+            },
+            required: ['label', 'value'],
+          },
+        },
+      });
+      const compiler = new ExpressCompiler([unionOptionsCatalog], '1.0');
+      const inlineMessages = compiler.compile('root = ToggleGroup(["Day", "Week"])');
+      expect(createSurfaceComponents(inlineMessages)).toEqual([
+        {
+          id: 'root',
+          component: 'ToggleGroup',
+          options: [
+            {label: 'Day', value: 'Day'},
+            {label: 'Week', value: 'Week'},
+          ],
+        },
+      ]);
+
+      const boundMessages = compiler.compile('root = ToggleGroup($/choices)');
+      expect(createSurfaceComponents(boundMessages)).toEqual([
+        {
+          id: 'root',
+          component: 'ToggleGroup',
+          options: {'@path': '/choices'},
+        },
+      ]);
+    });
   });
 });
