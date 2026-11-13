@@ -72,6 +72,8 @@ When the model abstains, the synthesizer tries, in order, the block's `fallbackD
 
 Custom catalogs can ship `patterns.json` and `templates.json` alongside `catalog.json`. A `patterns.json` names one `catalogId` and the `grammarVersion` it was written for. A catalog with templates but no patterns can still render through the template question.
 
+To onboard any custom `catalog.json` (in this repository or an external repository) to the decision synthesis route, use the [a2ui-generate-catalog-patterns](../../../../../.agents/skills/a2ui-generate-catalog-patterns/SKILL.md) skill and its helper CLI (`catalog_patterns_tool.py`). Depending on whether the catalog provides composable containers, fixed domain surfaces, or both, the skill generates and validates `patterns.json`, `templates.json`, and `sample_payloads.json` alongside `catalog.json`.
+
 ```python
 import json
 from pathlib import Path
