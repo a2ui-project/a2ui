@@ -33,7 +33,7 @@ import {Catalog, ComponentApi} from './types.js';
 import {V08_CHILD_REF_OPTIONS} from '../v0_8/standard_defs.js';
 import {V09_CHILD_REF_OPTIONS} from '../v0_9/standard_defs.js';
 import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 describe('reference-map schema introspection', () => {
   it('identifies JSON Schema $ref pointers to ChildList and ComponentId', () => {
@@ -293,7 +293,7 @@ describe('reference-map schema introspection', () => {
         z.boolean(),
         z.null(),
         z.array(jsonSchema),
-        z.record(jsonSchema),
+        z.record(z.string(), jsonSchema),
       ]),
     );
 
@@ -453,11 +453,11 @@ describe('reference-map schema introspection', () => {
     };
     const recordApi: ComponentApi = {
       name: 'RecordBox',
-      schema: z.record(z.unknown()),
+      schema: z.record(z.string(), z.unknown()),
     };
     const intersectedOpenApi: ComponentApi = {
       name: 'IntersectedOpenBox',
-      schema: z.object({title: z.string().optional()}).and(z.record(z.unknown())),
+      schema: z.object({title: z.string().optional()}).and(z.record(z.string(), z.unknown())),
     };
     const unmarkedAndWrappedApi: ComponentApi = {
       name: 'UnmarkedAndWrapped',
@@ -468,7 +468,10 @@ describe('reference-map schema introspection', () => {
             .union([z.array(z.string()), z.object({componentId: z.string(), path: z.string()})])
             .catch([])
             .pipe(z.any()),
-          incompatiblePipedSlot: z.string().describe('REF:#/$defs/Child').pipe(z.number()),
+          incompatiblePipedSlot: z
+            .string()
+            .describe('REF:#/$defs/Child')
+            .pipe(z.number() as unknown as z.ZodType<number, string>),
         })
         .and(
           z.object({
@@ -538,11 +541,17 @@ describe('reference-map schema introspection', () => {
       },
     );
     assert.deepStrictEqual(
-      analyzeChildRefSchema(childSchema.pipe(z.number()), V10_CHILD_REF_OPTIONS),
+      analyzeChildRefSchema(
+        childSchema.pipe(z.number() as unknown as z.ZodType<number, string>),
+        V10_CHILD_REF_OPTIONS,
+      ),
       {isChild: false, isChildList: false},
     );
     assert.deepStrictEqual(
-      analyzeChildRefSchema(z.number().pipe(childSchema), V10_CHILD_REF_OPTIONS),
+      analyzeChildRefSchema(
+        (z.number() as z.ZodType).pipe(childSchema as unknown as z.ZodType),
+        V10_CHILD_REF_OPTIONS,
+      ),
       {isChild: false, isChildList: false},
     );
 

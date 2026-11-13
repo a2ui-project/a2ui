@@ -20,7 +20,7 @@
  * Matches `catalogs/vegachart/v1/catalog.json`.
  */
 
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 import {
   Catalog,
@@ -49,8 +49,8 @@ export const VegaChartV1Api = {
           'REF:#/$defs/DynamicNumber|Optional height of the chart in pixels. Defaults to 290.',
         ).optional(),
       })
-      .describe('Displays a Vega or Vega-Lite chart.')
-      .strict(),
+      .strict()
+      .describe('Displays a Vega or Vega-Lite chart.'),
     {mixins: [], required: ['spec']},
   ),
 } satisfies ComponentApi;

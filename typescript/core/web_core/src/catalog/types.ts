@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {z} from 'zod';
+import * as z from 'zod/v4';
 import type {ProtocolVersion} from '../processing/adapters/base.js';
 import {DataContext} from '../resolution/data-context.js';
 import {allowsAgentRouting, withActiveCallCatalogId} from '../resolution/data-context-internal.js';
@@ -144,7 +144,7 @@ export type ResolvedFunctionArgs<Schema extends z.ZodTypeAny> = z.infer<Schema>;
  * @returns A complete FunctionImplementation object.
  */
 export function createFunctionImplementation<
-  Schema extends z.ZodTypeAny = z.ZodTypeAny,
+  Schema extends z.ZodTypeAny = z.ZodType<any>,
   TReturn extends A2uiReturnType = A2uiReturnType,
 >(
   api: {
@@ -183,7 +183,7 @@ import {FunctionInvoker} from './function_invoker.js';
  *
  * @template Schema The Zod schema type for the component's properties.
  */
-export interface ComponentApi<Schema extends z.ZodTypeAny = z.ZodTypeAny> {
+export interface ComponentApi<Schema extends z.ZodTypeAny = z.ZodType<any>> {
   /** Name of the component as it appears in A2UI JSON (e.g., 'Button'). */
   name: string;
 
@@ -1224,7 +1224,7 @@ function createCatalogInvoker<F extends FunctionApi>(
     return whenArgumentsSettle(rawArgs, abortSignal, resolvedArgs => {
       try {
         const args = coerceDynamicBooleans(fn.schema, resolvedArgs);
-        const safeArgs = fn.schema.parse(args);
+        const safeArgs = fn.schema.parse(args) as Record<string, unknown>;
         return execute.call(fn, safeArgs, callCtx, abortSignal);
       } catch (e: any) {
         if (e?.name === 'ZodError' || e instanceof z.ZodError) {
@@ -1302,7 +1302,7 @@ function routeToAgent(
         throw new A2uiExpressionError(
           `Validation failed for function '${name}': ${parsed.error.message}`,
           name,
-          parsed.error.errors,
+          parsed.error.issues,
         );
       }
       args = parsed.data as Record<string, unknown>;

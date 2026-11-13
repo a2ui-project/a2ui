@@ -23,7 +23,7 @@ import {AngularCatalog, createComponentImplementation} from './types';
 import {UniversalOnlyComponent} from './universal_only.component';
 import {BASIC_COMPONENTS} from '../v0_9/catalog/basic/basic-catalog';
 import {CatalogComponent} from '../core/catalog_component';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 @Component({
   selector: 'test-comp',

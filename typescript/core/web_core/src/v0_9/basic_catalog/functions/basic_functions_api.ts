@@ -16,7 +16,7 @@
 
 // AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
 // Generated from specification/ catalogs via scripts/generate-catalog-schemas.mjs
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 import {spec} from '../../../catalog/spec_annotations.js';
 import {

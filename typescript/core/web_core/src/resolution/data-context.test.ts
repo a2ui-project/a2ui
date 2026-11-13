@@ -26,7 +26,7 @@ import {
   setSignalImplementation,
   _PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION,
 } from '../reactivity/signals.js';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 import {DataModel} from '../state/data-model.js';
 import {SurfaceModel} from '../state/surface-model.js';
 import {
@@ -526,7 +526,6 @@ describe('DataContext', () => {
           {
             code: 'invalid_type',
             expected: 'string',
-            received: 'number',
             path: ['foo'],
             message: 'Expected string, received number',
           },

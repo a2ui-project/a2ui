@@ -25,7 +25,7 @@ import {
   createFunctionImplementation,
 } from '@a2ui/web_core/v0_9';
 import type {CallToolResult, ReadResourceResult} from '@modelcontextprotocol/sdk/types.js';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 import {MCP_CATALOG_ID} from '../catalog.js';
 import {configureMcpCatalog, resetMcpCatalogConfig} from '../mcp_catalog_config.js';
 import {

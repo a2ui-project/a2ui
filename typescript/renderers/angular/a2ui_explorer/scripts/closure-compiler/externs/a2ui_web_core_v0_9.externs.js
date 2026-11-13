@@ -313,71 +313,35 @@ function ZodExterns() {}
 /** @type {?} */ ZodExterns.prototype.pattern;
 /** @type {?} */ ZodExterns.prototype.innerType;
 /** @type {?} */ ZodExterns.prototype.shape;
-// `_def` members that `@a2ui/web_core`'s `GenericBinder`, `NodeResolver`, and child-reference
-// analysis read through plain `_def` objects (`typeName`, `getter`, `unknownKeys`, `catchall`,
-// `valueType`, `in`, `out`, `effect`, `left`, `right`) and the `markChildRef` stamp
-// (`a2uiChildRef`). Zod creates those `_def` objects in its own classes, so without externs
-// ADVANCED mode renames each side differently and every schema reads as `STATIC`: child references
-// stay strings and bindings never resolve.
-/** @type {?} */ ZodExterns.prototype.typeName;
+// Zod 4 definition members that `@a2ui/web_core`'s schema reflection (`GenericBinder`,
+// `NodeResolver`, child-reference analysis, `spec_shape`) reads through plain `_zod.def` objects
+// (`type`, `innerType`, `element`, `shape`, `catchall`, `options`, `in`, `out`, `left`, `right`,
+// `getter`, `checks`, `check`, `format`, `values`, `entries`, `defaultValue`) and the
+// `markChildRef` stamp (`a2uiChildRef`). Zod creates those `def` objects in its own classes, so
+// without externs ADVANCED mode renames each side differently and every schema reads as `STATIC`:
+// child references stay strings and bindings never resolve.
+/** @type {?} */ ZodExterns.prototype.def;
+/** @type {?} */ ZodExterns.prototype.type;
+/** @type {?} */ ZodExterns.prototype.element;
 /** @type {?} */ ZodExterns.prototype.getter;
-/** @type {?} */ ZodExterns.prototype.unknownKeys;
 /** @type {?} */ ZodExterns.prototype.catchall;
-/** @type {?} */ ZodExterns.prototype.valueType;
 /** @type {?} */ ZodExterns.prototype.in;
 /** @type {?} */ ZodExterns.prototype.out;
-/** @type {?} */ ZodExterns.prototype.effect;
 /** @type {?} */ ZodExterns.prototype.left;
 /** @type {?} */ ZodExterns.prototype.right;
+/** @type {?} */ ZodExterns.prototype.checks;
+/** @type {?} */ ZodExterns.prototype.check;
+/** @type {?} */ ZodExterns.prototype.format;
+/** @type {?} */ ZodExterns.prototype.values;
+/** @type {?} */ ZodExterns.prototype.entries;
+/** @type {?} */ ZodExterns.prototype.options;
+/** @type {?} */ ZodExterns.prototype.defaultValue;
+/** @type {?} */ ZodExterns.prototype.valueType;
+/** @type {?} */ ZodExterns.prototype.minimum;
+/** @type {?} */ ZodExterns.prototype.maximum;
+/** @type {?} */ ZodExterns.prototype.inclusive;
+/** @type {?} */ ZodExterns.prototype.value;
 /** @type {?} */ ZodExterns.prototype.a2uiChildRef;
-
-/**
- * Externs for Zod's `ZodFirstPartyTypeKind` enum members.
- * Required because esbuild emits the enum with bracket assignments
- * (`ZodFirstPartyTypeKind["ZodObject"] = "ZodObject"`) while Zod constructs every `_def` with a
- * dot read (`typeName: ZodFirstPartyTypeKind.ZodObject`). Without these, ADVANCED mode renames
- * the reads, `_def.typeName` is `undefined` on every schema, and `@a2ui/web_core`'s reflection
- * over `typeName` (`GenericBinder`, `NodeResolver`, child-reference analysis) stops working.
- * @record
- * @struct
- */
-function ZodFirstPartyTypeKindExterns() {}
-/** @type {?} */ ZodFirstPartyTypeKindExterns.prototype.ZodAny;
-/** @type {?} */ ZodFirstPartyTypeKindExterns.prototype.ZodArray;
-/** @type {?} */ ZodFirstPartyTypeKindExterns.prototype.ZodBigInt;
-/** @type {?} */ ZodFirstPartyTypeKindExterns.prototype.ZodBoolean;
-/** @type {?} */ ZodFirstPartyTypeKindExterns.prototype.ZodBranded;
-/** @type {?} */ ZodFirstPartyTypeKindExterns.prototype.ZodCatch;
-/** @type {?} */ ZodFirstPartyTypeKindExterns.prototype.ZodDate;
-/** @type {?} */ ZodFirstPartyTypeKindExterns.prototype.ZodDefault;
-/** @type {?} */ ZodFirstPartyTypeKindExterns.prototype.ZodDiscriminatedUnion;
-/** @type {?} */ ZodFirstPartyTypeKindExterns.prototype.ZodEffects;
-/** @type {?} */ ZodFirstPartyTypeKindExterns.prototype.ZodEnum;
-/** @type {?} */ ZodFirstPartyTypeKindExterns.prototype.ZodFunction;
-/** @type {?} */ ZodFirstPartyTypeKindExterns.prototype.ZodIntersection;
-/** @type {?} */ ZodFirstPartyTypeKindExterns.prototype.ZodLazy;
-/** @type {?} */ ZodFirstPartyTypeKindExterns.prototype.ZodLiteral;
-/** @type {?} */ ZodFirstPartyTypeKindExterns.prototype.ZodMap;
-/** @type {?} */ ZodFirstPartyTypeKindExterns.prototype.ZodNaN;
-/** @type {?} */ ZodFirstPartyTypeKindExterns.prototype.ZodNativeEnum;
-/** @type {?} */ ZodFirstPartyTypeKindExterns.prototype.ZodNever;
-/** @type {?} */ ZodFirstPartyTypeKindExterns.prototype.ZodNull;
-/** @type {?} */ ZodFirstPartyTypeKindExterns.prototype.ZodNullable;
-/** @type {?} */ ZodFirstPartyTypeKindExterns.prototype.ZodNumber;
-/** @type {?} */ ZodFirstPartyTypeKindExterns.prototype.ZodObject;
-/** @type {?} */ ZodFirstPartyTypeKindExterns.prototype.ZodOptional;
-/** @type {?} */ ZodFirstPartyTypeKindExterns.prototype.ZodPipeline;
-/** @type {?} */ ZodFirstPartyTypeKindExterns.prototype.ZodPromise;
-/** @type {?} */ ZodFirstPartyTypeKindExterns.prototype.ZodReadonly;
-/** @type {?} */ ZodFirstPartyTypeKindExterns.prototype.ZodRecord;
-/** @type {?} */ ZodFirstPartyTypeKindExterns.prototype.ZodSet;
-/** @type {?} */ ZodFirstPartyTypeKindExterns.prototype.ZodString;
-/** @type {?} */ ZodFirstPartyTypeKindExterns.prototype.ZodSymbol;
-/** @type {?} */ ZodFirstPartyTypeKindExterns.prototype.ZodTuple;
-/** @type {?} */ ZodFirstPartyTypeKindExterns.prototype.ZodUndefined;
-/** @type {?} */ ZodFirstPartyTypeKindExterns.prototype.ZodUnion;
-/** @type {?} */ ZodFirstPartyTypeKindExterns.prototype.ZodUnknown;
-/** @type {?} */ ZodFirstPartyTypeKindExterns.prototype.ZodVoid;
 /** @type {?} */ ZodExterns.prototype.safeint;
 /** @type {?} */ ZodExterns.prototype.int32;
 /** @type {?} */ ZodExterns.prototype.uint32;

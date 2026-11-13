@@ -20,7 +20,7 @@ import {
   createFunctionImplementation,
   type FunctionImplementation,
 } from '@a2ui/web_core/v1_0';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 import {compileSafeRegex, mapTextValue} from './regex_support.js';
 

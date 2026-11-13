@@ -16,7 +16,7 @@
 
 // AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
 // Generated from specification/ catalogs via scripts/generate-catalog-schemas.mjs
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 import {spec, specDef} from '../../../../catalog/spec_annotations.js';
 import {CatalogDocumentOptions, ComponentApi} from '../../../../catalog/types.js';
@@ -235,10 +235,10 @@ export const RowApi = {
           .optional(),
         'weight': WeightSchema.optional(),
       })
+      .strict()
       .describe(
         'A layout component that arranges its children horizontally. To create a grid layout, nest Columns within this Row.',
-      )
-      .strict(),
+      ),
     {mixins: []},
   ),
 } satisfies ComponentApi;
@@ -267,10 +267,10 @@ export const ColumnApi = {
           .optional(),
         'weight': WeightSchema.optional(),
       })
+      .strict()
       .describe(
         'A layout component that arranges its children vertically. To create a grid layout, nest Rows within this Column.',
-      )
-      .strict(),
+      ),
     {mixins: []},
   ),
 } satisfies ComponentApi;
@@ -500,8 +500,8 @@ export const ChoicePickerApi = {
           .optional(),
         'weight': WeightSchema.optional(),
       })
-      .describe('A component that allows selecting one or more options from a list.')
-      .strict(),
+      .strict()
+      .describe('A component that allows selecting one or more options from a list.'),
     {mixins: ['Checkable']},
   ),
 } satisfies ComponentApi;

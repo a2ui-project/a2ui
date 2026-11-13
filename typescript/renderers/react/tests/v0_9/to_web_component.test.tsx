@@ -17,7 +17,7 @@
 import {describe, it, expect, afterEach, beforeAll, vi} from 'vitest';
 import {render, act, cleanup, fireEvent, within} from '@testing-library/react';
 import React, {useState} from 'react';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 import {
   Catalog,
   ComponentModel,

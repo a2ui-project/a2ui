@@ -142,7 +142,7 @@ import {
 import type {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {CallToolResultSchema} from '@modelcontextprotocol/sdk/types.js';
 import type {CallToolResult, ReadResourceResult} from '@modelcontextprotocol/sdk/types.js';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 import {isFunctionCall, isRecord, resolveDynamicRecord} from '../dynamic-values.js';
 import {DEFAULT_MESSAGE_VERSION, getMcpCatalogConfig} from '../mcp_catalog_config.js';
@@ -236,7 +236,7 @@ export const CallMcpToolApi = {
     // Quoted to prevent Google Closure Compiler property renaming.
     'name': DynamicStringSchema.describe('The name of the MCP tool to execute.'),
     'arguments': z
-      .union([z.custom<FunctionCall>(isArgumentsCall), z.record(DynamicValueSchema)])
+      .union([z.custom<FunctionCall>(isArgumentsCall), z.record(z.string(), DynamicValueSchema)])
       .optional()
       .default({})
       .describe(

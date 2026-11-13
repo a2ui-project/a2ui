@@ -20,7 +20,7 @@ import {useState, useRef, useEffect} from 'react';
 import {useRouter} from 'next/navigation';
 import {v4 as uuidv4} from 'uuid';
 import {useAgent, useCopilotKit, useFrontendTool} from '@copilotkit/react-core/v2';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 import {WidgetInput} from './widget-input';
 import {useWidgets} from '@/contexts/widgets-context';
 import {useSpecVersion} from '@/contexts/spec-version-context';

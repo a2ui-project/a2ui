@@ -27,7 +27,7 @@
  * them.
  */
 
-import type {z} from 'zod';
+import type * as z from 'zod/v4';
 
 import {effect, getValue, signal, type Signal} from '../reactivity/signals.js';
 import type {ComponentNode, NodeProps} from '../resolution/component-node.js';

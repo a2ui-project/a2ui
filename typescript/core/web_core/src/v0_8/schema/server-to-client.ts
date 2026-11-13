@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {z} from 'zod';
+import * as z from 'zod/v4';
 import {DataValueSchema} from './common-types.js';
 
 const _validateValueProperty = (val: any, ctx: z.RefinementCtx) => {
@@ -25,7 +25,7 @@ const _validateValueProperty = (val: any, ctx: z.RefinementCtx) => {
   if (val.valueMap !== undefined) count++;
   if (count !== 1) {
     ctx.addIssue({
-      code: z.ZodIssueCode.custom,
+      code: 'custom',
       message: `Must have exactly one value property (valueString, valueNumber, valueBoolean, valueMap), found ${count}.`,
     });
   }
@@ -36,7 +36,7 @@ export const ValueMapSchema = DataValueSchema.describe(
 );
 
 export const ComponentPropertiesSchema = z
-  .record(z.any())
+  .record(z.string(), z.any())
   .refine(
     val => Object.keys(val).length === 1,
     "A wrapper object that MUST contain exactly one key, which is the name of the component type (e.g., 'Heading').",
@@ -108,7 +108,7 @@ export const SurfaceUpdateMessageSchema = z
       if (c.id) {
         if (componentIds.has(c.id)) {
           ctx.addIssue({
-            code: z.ZodIssueCode.custom,
+            code: 'custom',
             message: `Duplicate component ID found: ${c.id}`,
             path: ['components'],
           });
@@ -121,7 +121,7 @@ export const SurfaceUpdateMessageSchema = z
       for (const id of ids) {
         if (id && !componentIds.has(id)) {
           ctx.addIssue({
-            code: z.ZodIssueCode.custom,
+            code: 'custom',
             message: `Component '${componentId}' references non-existent component ID '${id}'.`,
             path: ['components'],
           });
@@ -146,7 +146,7 @@ export const SurfaceUpdateMessageSchema = z
             const hasTemplate = !!properties.children.template;
             if ((hasExplicit && hasTemplate) || (!hasExplicit && !hasTemplate)) {
               ctx.addIssue({
-                code: z.ZodIssueCode.custom,
+                code: 'custom',
                 message: `Component '${component.id}' must have either 'explicitList' or 'template' in children, but not both or neither.`,
               });
             }
@@ -216,7 +216,7 @@ export const A2uiMessageSchema = z
     );
     if (keys.length !== 1) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         message:
           'A2UI Protocol message must have exactly one of: surfaceUpdate, dataModelUpdate, beginRendering, deleteSurface.',
       });

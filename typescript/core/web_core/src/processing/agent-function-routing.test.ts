@@ -16,7 +16,7 @@
 
 import * as assert from 'node:assert';
 import {afterEach, beforeEach, describe, it} from 'node:test';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 import {Catalog, createFunctionImplementation, FunctionApi} from '../catalog/types.js';
 import {getValue, peekValue, setValue, signal} from '../reactivity/signals.js';

@@ -16,7 +16,7 @@
 
 import {Component, EnvironmentInjector, Injector, Type} from '@angular/core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 import {ComponentApi, ComponentModel, NodeResolver, SurfaceModel, getValue} from '@a2ui/web_core';
 import {isWebComponentImplementation, registerUniversalElement} from '@a2ui/web_core/universal';
 import {CommonSchemas} from '@a2ui/web_core/v0_9';

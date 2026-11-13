@@ -45,7 +45,7 @@
     "playwright": "1.58.1",
     "playwright-core": "1.58.1",
     "typescript": "5.9.3",
-    "zod": "^3.25.76",
+    "zod": "^4.6.7",
     "hono": "^4.11.10",
     "react-resizable-panels": "^3.0.6",
     "@a2ui/web_core": "workspace:*",

@@ -40,7 +40,7 @@
 import {App} from '@modelcontextprotocol/ext-apps';
 import type {Protocol} from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type {Notification, Request, Result} from '@modelcontextprotocol/sdk/types.js';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 const DataModelUpdateNotificationSchema = z.object({
   method: z.literal('ui/notifications/data-model-update'),

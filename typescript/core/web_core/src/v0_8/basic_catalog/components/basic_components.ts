@@ -17,7 +17,7 @@
 // AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
 // Generated from specification/v0_8/json/standard_catalog_definition.json via
 // src/v0_8/scripts/generate-catalog.mjs
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 import {spec} from '../../../catalog/spec_annotations.js';
 import {CatalogDocumentOptions, ComponentApi} from '../../../catalog/types.js';

@@ -19,7 +19,7 @@ import {fileURLToPath} from 'node:url';
 import {isDeepStrictEqual} from 'node:util';
 
 import yaml from 'js-yaml';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 import {Catalog, createFunctionImplementation} from '../../dist/src/catalog/types.js';
 import {basicCatalog as V1_0_SDK_BASIC_CATALOG} from '../../dist/src/catalogs/basic/v1/catalog.js';
@@ -1719,8 +1719,7 @@ function assertExpectedConformanceError(thrown, emittedErrorMsg, expErrObj) {
         : String(d.path ?? '');
       const isMissing =
         d.code === 'missing_field' ||
-        (d.code === 'invalid_type' && d.received === 'undefined') ||
-        d.message === 'Required';
+        (d.code === 'invalid_type' && 'input' in d && d.input === undefined);
       return {
         ...d,
         path: rawPath,

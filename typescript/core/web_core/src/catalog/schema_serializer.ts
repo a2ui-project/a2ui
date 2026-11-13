@@ -15,12 +15,10 @@
  * limitations under the License.
  */
 
-import type {z} from 'zod';
-import {zodToJsonSchema} from 'zod-to-json-schema';
+import * as z from 'zod/v4';
 
 import {isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
 import {isAgentFunction} from './agent_function_brand.js';
-import {exclusiveUnionOverride} from './exclusive_union.js';
 import {loadedDefinition} from './json_entries.js';
 import {getSpecAnnotation, type JsonSchemaObject} from './spec_annotations.js';
 import {
@@ -287,11 +285,7 @@ function zodToUnbundledJson(
   if (!schema || typeof schema !== 'object' || !('safeParse' in schema)) {
     return {type: 'object', properties: {}};
   }
-  const json = zodToJsonSchema(schema, {
-    target: 'jsonSchema2019-09',
-    $refStrategy: 'none',
-    override: exclusiveUnionOverride,
-  }) as JsonObject;
+  const json = z.toJSONSchema(schema, {io: 'input', unrepresentable: 'any'}) as JsonObject;
   delete json.definitions;
   delete json.$defs;
   rewriteRefMarkers(json, localDefs, commonTypesUri);

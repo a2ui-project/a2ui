@@ -15,11 +15,9 @@
  * limitations under the License.
  */
 
-import {zodToJsonSchema} from 'zod-to-json-schema';
-
+import * as z from 'zod/v4';
 import {isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
 import {CommonSchemas} from '../types/common-types.js';
-import {exclusiveUnionOverride} from './exclusive_union.js';
 import {
   catalogDocumentModel,
   deepCopyJson,
@@ -111,7 +109,7 @@ function transformRefDescriptionNode(obj: Record<string, unknown>): boolean {
  *
  * A `z.union` comes out as `anyOf`, and stays `anyOf`: a value may match more
  * than one branch. Only a union that requires exactly one match comes out as
- * `oneOf` (see `exclusiveUnionOverride`).
+ * `oneOf` (`z.xor`).
  */
 function cleanSchemaProperties(
   obj: Record<string, unknown>,
@@ -536,10 +534,9 @@ function processTheme(
     return;
   }
 
-  const themeRaw = zodToJsonSchema(catalog.themeSchema, {
-    target: 'jsonSchema2019-09',
-    $refStrategy: 'none',
-    override: exclusiveUnionOverride,
+  const themeRaw = z.toJSONSchema(catalog.themeSchema, {
+    io: 'input',
+    unrepresentable: 'any',
   }) as JsonObject;
   cleanSchemaNode(themeRaw);
   mergeGeneratedDefs(themeRaw, defs, generated);
@@ -599,11 +596,7 @@ function extractZodComponentSchema(
   if (!comp.schema || typeof comp.schema !== 'object' || !('safeParse' in comp.schema)) {
     return {props: {}, reqList: [], additionalProps: undefined};
   }
-  const rawZod = zodToJsonSchema(comp.schema, {
-    target: 'jsonSchema2019-09',
-    $refStrategy: 'none',
-    override: exclusiveUnionOverride,
-  }) as JsonObject;
+  const rawZod = z.toJSONSchema(comp.schema, {io: 'input', unrepresentable: 'any'}) as JsonObject;
   cleanSchemaNode(rawZod);
   mergeGeneratedDefs(rawZod, defs, generated);
 
@@ -775,11 +768,7 @@ function buildFunctionArgsSchema(
     paramSchemaObj = deepCopyJson(authored);
     restoreSourceRefs(paramSchemaObj, context.standardDefs, false);
   } else if (fn.schema && typeof fn.schema === 'object' && 'safeParse' in fn.schema) {
-    const rawZod = zodToJsonSchema(fn.schema, {
-      target: 'jsonSchema2019-09',
-      $refStrategy: 'none',
-      override: exclusiveUnionOverride,
-    }) as JsonObject;
+    const rawZod = z.toJSONSchema(fn.schema, {io: 'input', unrepresentable: 'any'}) as JsonObject;
     cleanSchemaNode(rawZod);
     mergeGeneratedDefs(rawZod, defs, generated);
     generated.push(rawZod);

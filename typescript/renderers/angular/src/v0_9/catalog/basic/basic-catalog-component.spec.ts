@@ -20,7 +20,7 @@ import {BasicCatalogComponent} from './basic-catalog-component';
 import {A2uiRendererService, A2UI_RENDERER_CONFIG} from '@a2ui/angular';
 import {BasicCatalog} from './basic-catalog';
 import {ComponentApi} from '@a2ui/web_core/v0_9';
-import z from 'zod';
+import * as z from 'zod/v4';
 
 export const TestComponentApi = {
   name: 'TestComponent',

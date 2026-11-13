@@ -16,7 +16,7 @@
 
 // AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
 // Generated from specification/v0.9/json/ via src/v0_9/scripts/generate-schemas.mjs
-import {z} from 'zod';
+import * as z from 'zod/v4';
 import {markChildRef} from '../../types/child-ref-helpers.js';
 
 export const ComponentIdSchema = markChildRef(

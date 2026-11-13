@@ -30,7 +30,7 @@
  * agents written before the `@` keys keep working during the transition.
  */
 
-import {z} from 'zod';
+import * as z from 'zod/v4';
 import {A2uiValidationError} from '../errors.js';
 import {isAtLeastVersion} from '../common/semver.js';
 import {getSpecAnnotation} from './spec_annotations.js';
@@ -113,20 +113,26 @@ const EMPTY_LAYOUT: ComponentMixinLayout = {customKeys: new Set(), schemaKeys: n
 const layoutCache = new WeakMap<object, ComponentMixinLayout>();
 
 const INNER_TYPE_WRAPPERS = new Set([
-  'ZodOptional',
-  'ZodNullable',
-  'ZodDefault',
-  'ZodCatch',
-  'ZodReadonly',
+  'optional',
+  'nullable',
+  'default',
+  'prefault',
+  'catch',
+  'readonly',
 ]);
 
 /** Returns the inner schema wrapped by a single Zod wrapper node, if any. */
 function unwrapSchemaLayer(def: any): any {
-  const typeName = def?.typeName;
-  if (typeName === 'ZodEffects') return def.schema;
-  if (INNER_TYPE_WRAPPERS.has(typeName)) return def.innerType;
-  if (typeName === 'ZodBranded') return def.type;
-  if (typeName === 'ZodLazy') return def.getter();
+  const type = def?.type;
+  if (INNER_TYPE_WRAPPERS.has(type)) return def.innerType;
+  // `.transform()` is `pipe(schema, transform)` and `z.preprocess()` is
+  // `pipe(transform, schema)`; any other pipe is not a wrapper.
+  if (type === 'pipe') {
+    if (def.out?._zod.def.type === 'transform') return def.in;
+    if (def.in?._zod.def.type === 'transform') return def.out;
+    return undefined;
+  }
+  if (type === 'lazy') return def.getter();
   return undefined;
 }
 
@@ -160,11 +166,10 @@ function collectDeclaredProperties(
   let current: any = schema;
   while (current && !visited.has(current)) {
     visited.add(current);
-    const def = current._def;
-    switch (def?.typeName) {
-      case 'ZodObject': {
-        const siblings: Record<string, z.ZodTypeAny> =
-          typeof current.shape === 'function' ? current.shape() : current.shape;
+    const def = current._zod?.def;
+    switch (def?.type) {
+      case 'object': {
+        const siblings: Record<string, z.ZodTypeAny> = current.shape;
         for (const [key, prop] of Object.entries(siblings)) {
           const declaration = {schema: prop, siblings};
           const declarations = declared.get(key);
@@ -176,16 +181,14 @@ function collectDeclaredProperties(
         }
         return declared;
       }
-      case 'ZodIntersection':
+      case 'intersection':
         collectDeclaredProperties(def.left, declared, visited);
         collectDeclaredProperties(def.right, declared, visited);
         return declared;
-      case 'ZodUnion':
-      case 'ZodDiscriminatedUnion':
+      case 'union':
         for (const option of def.options) collectDeclaredProperties(option, declared, visited);
         return declared;
-      case 'ZodPipeline':
-        // `exclusiveUnion` (JSON Schema `oneOf`) pipes a guard into a union.
+      case 'pipe':
         collectDeclaredProperties(def.in, declared, visited);
         collectDeclaredProperties(def.out, declared, visited);
         return declared;
@@ -199,7 +202,7 @@ function collectDeclaredProperties(
 function unwrapProperty(schema: z.ZodTypeAny): any {
   let current: any = schema;
   while (current && !standardMixinSchemas.has(current)) {
-    const inner = unwrapSchemaLayer(current._def);
+    const inner = unwrapSchemaLayer(current._zod?.def);
     if (!inner) break;
     current = inner;
   }
@@ -234,16 +237,16 @@ function isStandardMixinProperty(
   switch (key) {
     case 'checks': {
       if (mixins.includes('Checkable')) return true;
-      if (inner?._def?.typeName !== 'ZodArray') return false;
-      const element = unwrapProperty(inner._def.type);
+      if (inner?._zod?.def.type !== 'array') return false;
+      const element = unwrapProperty(inner._zod.def.element);
       return standardMixinSchemas.has(element) || refDefName(element) === 'CheckRule';
     }
     case 'accessibility':
       return refDefName(inner) === 'AccessibilityAttributes';
     case 'catalogId':
-      return Object.hasOwn(siblings, 'id') && inner?._def?.typeName === 'ZodString';
+      return Object.hasOwn(siblings, 'id') && inner?._zod?.def.type === 'string';
     case 'metadata': {
-      if (!Object.hasOwn(siblings, 'id') || inner?._def?.typeName !== 'ZodObject') return false;
+      if (!Object.hasOwn(siblings, 'id') || inner?._zod?.def.type !== 'object') return false;
       const keys = Object.keys(typeof inner.shape === 'function' ? inner.shape() : inner.shape);
       return keys.length === 1 && keys[0] === 'extensions';
     }

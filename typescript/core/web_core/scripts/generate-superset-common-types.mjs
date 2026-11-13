@@ -485,7 +485,7 @@ export function generateSupersetCommonTypes(options = {}) {
   ]);
 
   let outTs = HEADER;
-  outTs += `import {z} from 'zod';
+  outTs += `import * as z from 'zod/v4';
 import {isValidUax31Identifier} from '../common/uax31.js';
 import {markChildRef} from './child-ref-helpers.js';
 

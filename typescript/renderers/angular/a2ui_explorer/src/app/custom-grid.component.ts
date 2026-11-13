@@ -21,7 +21,7 @@ import {
   ComponentHostComponent,
   createComponentImplementation,
 } from '@a2ui/angular/v0_9';
-import z from 'zod';
+import * as z from 'zod/v4';
 import {ComponentApi} from '@a2ui/web_core';
 import {DynamicStringSchema, ChildListSchema} from '@a2ui/web_core/v0_9';
 

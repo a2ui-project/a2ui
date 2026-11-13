@@ -23,7 +23,7 @@ import {
   useAgentContext,
   useFrontendTool,
 } from '@copilotkit/react-core/v2';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 import {parseRobustJSON} from '@/lib/json-parser';
 import {EditorHeader} from './editor-header';
 import {CodeEditor} from './code-editor';

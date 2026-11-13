@@ -28,14 +28,12 @@
  * This module is internal to web_core and is not re-exported by any facade.
  */
 
-import {z} from 'zod';
-import {zodToJsonSchema} from 'zod-to-json-schema';
+import * as z from 'zod/v4';
 
 import {isAtLeastVersion, normalizeVersionString, toCanonicalVersion} from '../common/semver.js';
 import {V08_STANDARD_DEFS} from '../v0_8/standard_defs.js';
 import {V09_STANDARD_DEFS} from '../v0_9/standard_defs.js';
 import {V10_STANDARD_DEFS} from '../v1_0/standard_defs.js';
-import {exclusiveUnionOverride} from './exclusive_union.js';
 import {getSpecAnnotation, type SpecAnnotation, type SpecMixin} from './spec_annotations.js';
 
 type JsonObject = Record<string, unknown>;
@@ -206,13 +204,20 @@ function provablyDisjoint(a: unknown, b: unknown, resolve: RefResolver, depth = 
 
 /** The Zod definition fields the shaper reads. */
 interface ZodDefLike {
-  readonly typeName?: string;
-  readonly description?: string;
+  readonly type: string;
+  readonly checks?: readonly z.core.$ZodCheck[];
   readonly [key: string]: unknown;
 }
 
-function defOf(schema: z.ZodTypeAny): ZodDefLike {
-  return schema._def as ZodDefLike;
+function defOf(schema: z.core.$ZodType): ZodDefLike {
+  return schema._zod.def as unknown as ZodDefLike;
+}
+
+/** The definitions of a schema's checks (`min_length`, `string_format`, ...). */
+function checkDefs(def: ZodDefLike): Array<{check: string; [key: string]: unknown}> {
+  return (def.checks ?? []).map(
+    check => check._zod.def as unknown as {check: string; [key: string]: unknown},
+  );
 }
 
 /** The properties of a component that the message envelope declares. */
@@ -303,7 +308,7 @@ function collectAnnotation(
   const chain: SpecAnnotation[] = [];
   const stopAnnotation = stopAt ? getSpecAnnotation(stopAt) : undefined;
   let node: z.ZodTypeAny | undefined = schema;
-  while (node && typeof node === 'object' && '_def' in node) {
+  while (node && typeof node === 'object' && '_zod' in node) {
     const annotation = getSpecAnnotation(node);
     if (
       stopAt !== undefined &&
@@ -322,16 +327,21 @@ function collectAnnotation(
 /** Returns the schema a wrapper (`optional`, `default`, ...) wraps. */
 function innerSchema(schema: z.ZodTypeAny): z.ZodTypeAny | undefined {
   const def = defOf(schema);
-  switch (def.typeName) {
-    case 'ZodOptional':
-    case 'ZodDefault':
-    case 'ZodCatch':
-    case 'ZodReadonly':
+  switch (def.type) {
+    case 'optional':
+    case 'prefault':
+    case 'default':
+    case 'catch':
+    case 'readonly':
       return def['innerType'] as z.ZodTypeAny;
-    case 'ZodEffects':
-      return def['schema'] as z.ZodTypeAny;
-    case 'ZodBranded':
-      return def['type'] as z.ZodTypeAny;
+    case 'pipe': {
+      // `.transform()` is `pipe(schema, transform)` and `z.preprocess()` is
+      // `pipe(transform, schema)`; any other pipe is not a wrapper.
+      const pipe = def as unknown as z.core.$ZodPipeDef;
+      if (pipe.out._zod.def.type === 'transform') return pipe.in as z.ZodTypeAny;
+      if (pipe.in._zod.def.type === 'transform') return pipe.out as z.ZodTypeAny;
+      return undefined;
+    }
     default:
       return undefined;
   }
@@ -506,9 +516,7 @@ export class SpecShaper {
   private mixinProperties(mixin: SpecMixin): string[] {
     if (typeof mixin !== 'string') {
       const core = coreSchema(mixin);
-      return defOf(core).typeName === 'ZodObject'
-        ? Object.keys((core as z.AnyZodObject).shape)
-        : [];
+      return defOf(core).type === 'object' ? Object.keys((core as z.ZodObject).shape) : [];
     }
     const names: string[] = [];
     const collect = (def: unknown, seen: Set<unknown>): void => {
@@ -633,39 +641,41 @@ export class SpecShaper {
     catalogDefs?: Map<string, z.ZodTypeAny>,
   ): JsonObject {
     const def = defOf(schema);
-    switch (def.typeName) {
-      case 'ZodObject':
-        return this.objectSchema(schema as z.AnyZodObject, annotation, () => true, catalogDefs);
-      case 'ZodString':
+    switch (def.type) {
+      case 'object':
+        return this.objectSchema(schema as z.ZodObject, annotation, () => true, catalogDefs);
+      case 'string':
         return stringSchema(def);
-      case 'ZodNumber':
+      case 'number':
         return numberSchema(def);
-      case 'ZodBoolean':
+      case 'boolean':
         return {type: 'boolean'};
-      case 'ZodNull':
+      case 'null':
         return {type: 'null'};
-      case 'ZodEnum':
-        return {type: 'string', enum: [...(def['values'] as unknown[])]};
-      case 'ZodLiteral':
-        return {const: def['value']};
-      case 'ZodAny':
-      case 'ZodUnknown':
+      case 'enum':
+        return {type: 'string', enum: Object.values(def['entries'] as Record<string, unknown>)};
+      case 'literal': {
+        const values = def['values'] as unknown[];
+        if (values.length === 1) return {const: values[0]};
+        return fallbackJson(schema);
+      }
+      case 'any':
+      case 'unknown':
         return {};
-      case 'ZodNever':
+      case 'never':
         return {not: {}};
-      case 'ZodArray': {
+      case 'array': {
         const result: JsonObject = {
           type: 'array',
-          items: this.toJson(def['type'] as z.ZodTypeAny, catalogDefs),
+          items: this.toJson(def['element'] as z.ZodTypeAny, catalogDefs),
         };
-        const min = def['minLength'] as {value: number} | null;
-        const max = def['maxLength'] as {value: number} | null;
-        if (min) result['minItems'] = min.value;
-        if (max) result['maxItems'] = max.value;
+        for (const check of checkDefs(def)) {
+          if (check.check === 'min_length') result['minItems'] = check['minimum'];
+          else if (check.check === 'max_length') result['maxItems'] = check['maximum'];
+        }
         return result;
       }
-      case 'ZodUnion':
-      case 'ZodDiscriminatedUnion': {
+      case 'union': {
         // A union accepts a value any of its branches accepts, as `anyOf`
         // does. It is written as `oneOf`, as the specification writes its
         // unions, only when no value matches two branches, so that both
@@ -685,12 +695,12 @@ export class SpecShaper {
         );
         return {[disjoint ? 'oneOf' : 'anyOf']: branches};
       }
-      case 'ZodRecord':
+      case 'record':
         return {
           type: 'object',
           additionalProperties: this.toJson(def['valueType'] as z.ZodTypeAny, catalogDefs),
         };
-      case 'ZodLazy':
+      case 'lazy':
         return this.toJson((def['getter'] as () => z.ZodTypeAny)(), catalogDefs);
       default:
         return fallbackJson(schema);
@@ -708,8 +718,8 @@ export class SpecShaper {
     catalogDefs?: Map<string, z.ZodTypeAny>,
   ): JsonObject {
     const def = defOf(schema);
-    if (def.typeName !== 'ZodObject') return this.toJson(schema, catalogDefs);
-    const shape = (schema as z.AnyZodObject).shape as Record<string, z.ZodTypeAny>;
+    if (def.type !== 'object') return this.toJson(schema, catalogDefs);
+    const shape = (schema as z.ZodObject).shape as Record<string, z.ZodTypeAny>;
     const properties: JsonObject = {};
     const required: string[] = [];
     for (const [key, value] of Object.entries(shape)) {
@@ -721,17 +731,18 @@ export class SpecShaper {
     const order = annotation.required?.filter(key => required.includes(key));
     const unordered = required.filter(key => !order?.includes(key));
     if (required.length > 0) result['required'] = order ? [...order, ...unordered] : required;
-    const unknownKeys = def['unknownKeys'];
+    // `.strict()` is a `never` catchall and `.passthrough()` an `unknown` one.
     const catchall = def['catchall'] as z.ZodTypeAny | undefined;
+    const catchallType = catchall ? defOf(catchall).type : undefined;
     const keyword =
-      annotation.closure ?? (unknownKeys === 'strict' ? 'additionalProperties' : 'none');
-    if (catchall && defOf(catchall).typeName !== 'ZodNever') {
+      annotation.closure ?? (catchallType === 'never' ? 'additionalProperties' : 'none');
+    if (catchall && catchallType !== 'never' && catchallType !== 'unknown') {
       result[keyword === 'none' ? 'additionalProperties' : keyword] = this.toJson(
         catchall,
         catalogDefs,
       );
     } else if (keyword !== 'none') {
-      result[keyword] = unknownKeys === 'passthrough';
+      result[keyword] = catchallType === 'unknown';
     }
     return result;
   }
@@ -747,7 +758,7 @@ function coreSchema(schema: z.ZodTypeAny): z.ZodTypeAny {
 /** Returns the description of a schema's outermost node that has one. */
 function schemaDescription(schema: z.ZodTypeAny): string | undefined {
   for (let node: z.ZodTypeAny | undefined = schema; node; node = innerSchema(node)) {
-    const description = defOf(node).description;
+    const description = (node as z.ZodType).description;
     if (typeof description === 'string') return description;
   }
   return undefined;
@@ -763,7 +774,7 @@ function plainDescription(schema: z.ZodTypeAny): string | undefined {
 function schemaDefault(schema: z.ZodTypeAny): unknown {
   for (let node: z.ZodTypeAny | undefined = schema; node; node = innerSchema(node)) {
     const def = defOf(node);
-    if (def.typeName === 'ZodDefault') return (def['defaultValue'] as () => unknown)();
+    if (def.type === 'default' || def.type === 'prefault') return def['defaultValue'];
   }
   return undefined;
 }
@@ -780,37 +791,43 @@ const STRING_FORMATS: Readonly<Record<string, string>> = {
 
 function stringSchema(def: ZodDefLike): JsonObject {
   const result: JsonObject = {type: 'string'};
-  for (const check of (def['checks'] as Array<{kind: string; [key: string]: unknown}>) ?? []) {
-    if (check.kind === 'regex') result['pattern'] = (check['regex'] as RegExp).source;
-    else if (check.kind === 'min') result['minLength'] = check['value'];
-    else if (check.kind === 'max') result['maxLength'] = check['value'];
-    else if (check.kind in STRING_FORMATS) result['format'] = STRING_FORMATS[check.kind];
+  // `z.email()` and friends carry their format on the schema itself.
+  const formats = [def, ...checkDefs(def)];
+  for (const check of formats) {
+    const format = check['format'] as string | undefined;
+    if (format === 'regex') result['pattern'] = (check['pattern'] as RegExp).source;
+    else if (format !== undefined && format in STRING_FORMATS) {
+      result['format'] = STRING_FORMATS[format];
+    }
+  }
+  for (const check of checkDefs(def)) {
+    if (check.check === 'min_length') result['minLength'] = check['minimum'];
+    else if (check.check === 'max_length') result['maxLength'] = check['maximum'];
   }
   return result;
 }
 
+const INTEGER_FORMATS = new Set(['safeint', 'int32', 'uint32']);
+
 function numberSchema(def: ZodDefLike): JsonObject {
-  const checks = (def['checks'] as Array<{kind: string; [key: string]: unknown}>) ?? [];
-  const result: JsonObject = {
-    type: checks.some(check => check.kind === 'int') ? 'integer' : 'number',
-  };
+  const checks = checkDefs(def);
+  const isInteger =
+    INTEGER_FORMATS.has(def['format'] as string) ||
+    checks.some(check => INTEGER_FORMATS.has(check['format'] as string));
+  const result: JsonObject = {type: isInteger ? 'integer' : 'number'};
   for (const check of checks) {
-    if (check.kind === 'min') {
+    if (check.check === 'greater_than') {
       result[check['inclusive'] ? 'minimum' : 'exclusiveMinimum'] = check['value'];
-    } else if (check.kind === 'max') {
+    } else if (check.check === 'less_than') {
       result[check['inclusive'] ? 'maximum' : 'exclusiveMaximum'] = check['value'];
     }
   }
   return result;
 }
 
-/** Converts a schema the shaper has no rule for with `zod-to-json-schema`. */
+/** Converts a schema the shaper has no rule for with `z.toJSONSchema`. */
 function fallbackJson(schema: z.ZodTypeAny): JsonObject {
-  const json = zodToJsonSchema(schema, {
-    target: 'jsonSchema2019-09',
-    $refStrategy: 'none',
-    override: exclusiveUnionOverride,
-  }) as JsonObject;
+  const json = z.toJSONSchema(schema, {io: 'input', unrepresentable: 'any'}) as JsonObject;
   delete json['$schema'];
   delete json['definitions'];
   delete json['$defs'];

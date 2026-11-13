@@ -23,7 +23,7 @@
 
 import assert from 'node:assert';
 import {describe, it} from 'node:test';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 import {
   Catalog,
   CatalogApi,
@@ -1612,7 +1612,7 @@ describe('NodeResolver omitted property pruning on update (#3779)', () => {
       name: 'WidgetWithChild',
       schema: z.object({
         variant: z.string().nullable().optional(),
-        extraMap: z.record(z.string()).optional(),
+        extraMap: z.record(z.string(), z.string()).optional(),
         grid: z
           .array(
             z.array(
@@ -1762,7 +1762,7 @@ describe('NodeResolver @accessibility mirror', () => {
 describe('NodeResolver dynamic and unannotated ref schemas (#3783)', () => {
   it('resolves child and children for z.record, z.any, and z.unknown schemas and disposes removed children', () => {
     for (const [label, dynamicSchema] of [
-      ['z.record', z.record(z.unknown())],
+      ['z.record', z.record(z.string(), z.unknown())],
       ['z.any', z.any()],
       ['z.unknown', z.unknown()],
     ] as const) {
@@ -1984,7 +1984,7 @@ describe('NodeResolver dynamic and unannotated ref schemas (#3783)', () => {
     };
     const RecordListApi: ComponentApi = {
       name: 'RecordList',
-      schema: z.record(z.unknown()),
+      schema: z.record(z.string(), z.unknown()),
     };
 
     const catalog = new Catalog<ComponentApi>('template-catalog', '0.9', [
@@ -2167,7 +2167,7 @@ describe('NodeResolver dynamic and unannotated ref schemas (#3783)', () => {
     };
     const ActionRecordApi: ComponentApi = {
       name: 'ActionRecordBox',
-      schema: z.record(ActionSchema),
+      schema: z.record(z.string(), ActionSchema),
     };
 
     const catalog = new Catalog<ComponentApi>('catchall-catalog', '0.9', [
@@ -2354,7 +2354,7 @@ describe('NodeResolver dynamic and unannotated ref schemas (#3783)', () => {
     const CatchallWithChildApi: ComponentApi = {
       name: 'CatchallWithChild',
       schema: z.union([
-        z.record(CommonSchemas.DynamicString),
+        z.record(z.string(), CommonSchemas.DynamicString),
         z.object({fixed: CommonSchemas.Action, child: ComponentIdSchema.optional()}),
       ]),
     };

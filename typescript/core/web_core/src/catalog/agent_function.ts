@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 import {A2uiCatalogError} from '../errors.js';
 import {AGENT_FUNCTION_BRAND, isAgentFunction} from './agent_function_brand.js';
@@ -299,19 +299,19 @@ function resolveAgentFunctionSchema(
   schema: z.ZodTypeAny | Record<string, unknown> | undefined,
 ): z.ZodTypeAny {
   if (schema === undefined) {
-    return z.record(z.unknown());
+    return z.record(z.string(), z.unknown());
   }
   if (isZodSchema(schema)) {
     return schema;
   }
   if (typeof schema === 'object' && schema !== null && !Array.isArray(schema)) {
     if (Object.keys(schema).length === 0) {
-      return z.record(z.unknown());
+      return z.record(z.string(), z.unknown());
     }
     // A v1.0 catalog checks the parameter names when the function is added.
     return convertFunctionArgsJsonSchemaToZod(schema, schema);
   }
-  return z.record(z.unknown());
+  return z.record(z.string(), z.unknown());
 }
 
 function isPlainDefsMap(value: unknown): value is Readonly<Record<string, unknown>> {
@@ -379,7 +379,7 @@ export function bindAgentFunctionDefs(
     : {...jsonSchema};
   const resolvedSchema =
     Object.keys(jsonSchema).length === 0
-      ? z.record(z.unknown())
+      ? z.record(z.string(), z.unknown())
       : convertFunctionArgsJsonSchemaToZod(jsonSchema, rootDoc);
   const declaredParameterNames = functionParameterNames(jsonSchema, rootDoc);
   const init: BoundDefsInit = {

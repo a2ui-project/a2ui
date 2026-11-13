@@ -18,7 +18,7 @@
 import assert from 'node:assert';
 import {describe, it} from 'node:test';
 
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 import {CheckRuleSchema} from '../types/common-types.js';
 import {V09_STANDARD_DEFS} from '../v0_9/standard_defs.js';

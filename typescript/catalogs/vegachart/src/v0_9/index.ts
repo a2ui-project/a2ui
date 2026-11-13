@@ -20,7 +20,7 @@
  * Matches `catalogs/vegachart/v0_9/catalog.json`.
  */
 
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 import {
   Catalog,
@@ -44,25 +44,12 @@ const V09_COMMON_TYPES = 'https://a2ui.org/specification/v0_9/common_types.json'
  * branch. The explicit `anyOf` keeps the serialized schema identical to the
  * published `catalog.json`.
  */
-const SpecValueSchema = z.union([DynamicValueSchema, z.record(z.string(), z.unknown())]);
-
-const SpecSchema = spec(
-  z.unknown().superRefine((val, ctx) => {
-    const parsed = SpecValueSchema.safeParse(val);
-    if (!parsed.success) {
-      for (const issue of parsed.error.issues) {
-        ctx.addIssue(issue);
-      }
-    }
-  }),
-  {
-    keywords: {
-      description: 'The Vega-Lite spec to render as a JSON object.',
-      anyOf: [{$ref: `${V09_COMMON_TYPES}#/$defs/DynamicValue`}, {type: 'object'}],
-    },
+const SpecSchema = spec(z.union([DynamicValueSchema, z.record(z.string(), z.unknown())]), {
+  keywords: {
+    description: 'The Vega-Lite spec to render as a JSON object.',
+    anyOf: [{$ref: `${V09_COMMON_TYPES}#/$defs/DynamicValue`}, {type: 'object'}],
   },
-);
-Object.defineProperty(SpecSchema, 'description', {value: 'REF:#/$defs/DynamicValue'});
+});
 
 /** Component API for `VegaChart` (protocol v0.9). */
 export const VegaChartApi = {
@@ -75,8 +62,8 @@ export const VegaChartApi = {
           'REF:#/$defs/DynamicNumber|Optional height of the chart in pixels. Defaults to 290.',
         ).optional(),
       })
-      .describe('Displays a Vega or Vega-Lite chart.')
-      .strict(),
+      .strict()
+      .describe('Displays a Vega or Vega-Lite chart.'),
     {mixins: ['ComponentCommon'], required: ['spec']},
   ),
 } satisfies ComponentApi;

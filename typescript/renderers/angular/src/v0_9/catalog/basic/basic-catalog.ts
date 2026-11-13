@@ -45,7 +45,7 @@ import {
   A2uiDateTimeInput,
 } from '@a2ui/web_core/v0_9/basic_catalog';
 import {FunctionImplementation} from '@a2ui/web_core/v0_9';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 import {TextComponent} from './text.component';
 import {RowComponent} from './row.component';

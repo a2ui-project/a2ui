@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 /**
  * Formats a single Zod issue into a human-readable diagnostic message.
@@ -27,35 +27,43 @@ import {z} from 'zod';
  * @param err Zod validation issue to format.
  * @return Human-readable formatted error message.
  */
-export function formatZodIssue(err: z.ZodIssue): string {
+export function formatZodIssue(err: z.core.$ZodIssue): string {
   const path = err.path.join('.') || 'root';
 
   switch (err.code) {
-    case z.ZodIssueCode.invalid_union: {
-      const unionIssues = (err as z.ZodInvalidUnionIssue).unionErrors?.flatMap(uErr => uErr.issues);
-      if (unionIssues && unionIssues.length > 0) {
+    case 'invalid_union': {
+      // A branch's issue paths are relative to the union.
+      const unionIssues = err.errors
+        .flat()
+        .map(issue => ({...issue, path: [...err.path, ...issue.path]}));
+      if (unionIssues.length > 0) {
         return unionIssues.map(formatZodIssue).join('; ');
       }
       return `${path}: Invalid union`;
     }
 
-    case z.ZodIssueCode.unrecognized_keys: {
-      const keysStr = (err as z.ZodUnrecognizedKeysIssue).keys.map(k => `'${k}'`).join(', ');
+    case 'unrecognized_keys': {
+      const keysStr = err.keys.map(k => `'${k}'`).join(', ');
       return `${path}: Unrecognized key(s) in object: ${keysStr}`;
     }
 
-    case z.ZodIssueCode.invalid_enum_value: {
-      const issue = err as z.ZodInvalidEnumValueIssue;
-      const optionsStr = issue.options.map(o => String(o)).join(' | ');
-      return `${path}: Invalid enum value. Expected ${optionsStr}, received '${String(issue.received)}'`;
+    case 'invalid_value': {
+      if (err.values.length === 1) {
+        return `${path}: Invalid literal value, expected ${JSON.stringify(err.values[0])}`;
+      }
+      const optionsStr = err.values.map(o => String(o)).join(' | ');
+      return `${path}: Invalid enum value. Expected ${optionsStr}, received '${String(err.input)}'`;
     }
 
-    case z.ZodIssueCode.invalid_type: {
-      const issue = err as z.ZodInvalidTypeIssue;
-      return `${path}: Expected ${issue.expected}, received ${issue.received}`;
+    case 'invalid_type': {
+      // `input` is on the issue only when parsed with `reportInput`.
+      if (!('input' in err)) return `${path}: ${err.message}`;
+      const input = err.input;
+      const received = input === null ? 'null' : Array.isArray(input) ? 'array' : typeof input;
+      return `${path}: Expected ${err.expected}, received ${received}`;
     }
 
-    case z.ZodIssueCode.custom:
+    case 'custom':
       return `${path}: ${err.message}`;
 
     default:

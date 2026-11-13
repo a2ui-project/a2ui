@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 /**
  * Base primitives
@@ -129,8 +129,8 @@ export const ActionSchema = z.object({
             literalNumber: z.number().optional(),
             literalBoolean: z.boolean().optional(),
           })
-          .describe('The dynamic value. Define EXACTLY ONE of the nested properties.')
           .strict()
+          .describe('The dynamic value. Define EXACTLY ONE of the nested properties.')
           .superRefine(exactlyOneKey),
       }),
     )

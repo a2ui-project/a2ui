@@ -27,7 +27,7 @@
  * @deprecated Define these functions in your own catalog instead.
  */
 
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 const nullableNumber = () => z.preprocess(v => (v === null ? undefined : v), z.coerce.number());
 const stringArg = () =>

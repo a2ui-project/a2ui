@@ -20,7 +20,7 @@ import {resolve} from 'node:path';
 import {describe, it} from 'node:test';
 import {isDeepStrictEqual} from 'node:util';
 
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 import {basicCatalog as v10BasicCatalog} from '../catalogs/basic/v1/catalog.js';
 import {A2uiText as V10Text} from '../catalogs/basic/v1/components/index.js';
@@ -29,7 +29,6 @@ import {MessageProcessor, STRICT_VALIDATION} from '../processing/message-process
 import {basicCatalog as v08BasicCatalog} from '../v0_8/basic_catalog/catalog.js';
 import {basicCatalog as v09BasicCatalog} from '../v0_9/basic_catalog/catalog.js';
 import {A2uiText as V09Text} from '../v0_9/basic_catalog/components/index.js';
-import {exclusiveUnion} from './exclusive_union.js';
 import {JsonComponentApi, JsonFunctionApi} from './json_entries.js';
 import {generateValidationSchema} from './schema_generator.js';
 import {DEFAULT_PROTOCOL_VERSION} from './schema_loader.js';
@@ -480,6 +479,20 @@ describe('Catalog.toJson', () => {
     assert.deepStrictEqual(v09Comps.CatchallComp.unevaluatedProperties, {type: 'number'});
   });
 
+  it('writes a schema JSON Schema cannot express, such as z.custom, as an open schema', () => {
+    const fn = createFunctionImplementation(
+      {
+        name: 'invoke',
+        returnType: 'void',
+        schema: z.object({handler: z.custom<() => void>(v => typeof v === 'function')}),
+      },
+      () => undefined,
+    );
+    const out = new Catalog('https://example.com/custom', '1.0', [], [fn]).toJson();
+    const invoke = (out.functions as Record<string, any>).invoke;
+    assert.deepStrictEqual(invoke.properties.args.properties.handler, {});
+  });
+
   it('serializes code-defined functions in the call shape of the protocol version', () => {
     const fn = createFunctionImplementation(
       {
@@ -741,7 +754,7 @@ describe('union export', () => {
           returnType: 'string',
           schema: z.object({
             inclusive: z.union(branches),
-            exclusive: exclusiveUnion(branches),
+            exclusive: z.xor(branches),
           }),
         },
         () => '',
@@ -1264,7 +1277,7 @@ describe('composite catalogs', () => {
         );
 
         const reloaded = Catalog.fromJson(doc, version);
-        const shape = (reloaded.components.get('Text')!.schema as z.AnyZodObject).shape;
+        const shape = (reloaded.components.get('Text')!.schema as z.ZodObject).shape;
         assert.ok('weight' in shape, 'fromJson(toJson()) keeps weight');
         assert.ok(
           reloaded.components.get('Text')!.schema.safeParse({text: 'hi', weight: 1}).success,
@@ -1406,8 +1419,8 @@ describe('specification annotations', () => {
           }),
           size: z.number().int().optional(),
         })
-        .describe('A badge.')
-        .strict(),
+        .strict()
+        .describe('A badge.'),
       {mixins: ['ComponentCommon', Common], required: ['tone', 'label']},
     ),
   };

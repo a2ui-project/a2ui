@@ -30,7 +30,7 @@
  * model. Version-isolated wire validation and catalog schemas are maintained
  * separately in src/v<version>/ directories, e.g. src/v1_0/.
  */
-import {z} from 'zod';
+import * as z from 'zod/v4';
 import {isValidUax31Identifier} from '../common/uax31.js';
 import {markChildRef} from './child-ref-helpers.js';
 

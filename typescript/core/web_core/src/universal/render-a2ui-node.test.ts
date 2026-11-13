@@ -18,7 +18,7 @@ import * as assert from 'node:assert';
 import {describe, it, beforeEach, after} from 'node:test';
 import {setupTestDom, teardownTestDom} from '../test/dom-setup.js';
 import {html, nothing, render} from 'lit';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 import {ComponentContext} from '../resolution/component-context.js';
 import {NodeResolver} from '../resolution/node-resolver.js';

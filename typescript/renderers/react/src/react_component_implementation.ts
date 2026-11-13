@@ -24,7 +24,7 @@
  */
 
 import type React from 'react';
-import type {ZodTypeAny} from 'zod';
+import type {ZodTypeAny} from 'zod/v4';
 import type {A2uiMetadata, ComponentApi, ComponentContext, ComponentNode} from '@a2ui/web_core';
 import type {WebComponentImplementation} from '@a2ui/web_core/universal';
 

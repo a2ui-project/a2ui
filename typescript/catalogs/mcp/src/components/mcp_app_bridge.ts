@@ -40,7 +40,7 @@ import {
   type Implementation,
   type LoggingMessageNotification,
 } from '@modelcontextprotocol/sdk/types.js';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 import {DataModelSync, type DataModelUpdate} from '../shared/sandbox/data_model_sync.js';
 import type {FrameHost} from '../shared/sandbox/frame_host.js';
 import {
@@ -78,7 +78,7 @@ export const FunctionCallRequestSchema = z.object({
   method: z.literal(FUNCTION_CALL_METHOD),
   params: z.object({
     call: z.string(),
-    args: z.record(z.unknown()).optional(),
+    args: z.record(z.string(), z.unknown()).optional(),
   }),
 });
 

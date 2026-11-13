@@ -95,7 +95,7 @@ A2UI separates a component's API (Schema) from its implementation.
 Use Zod to define the properties.
 
 ```typescript
-import {z} from 'zod';
+import * as z from 'zod/v4';
 import {CommonSchemas} from '@a2ui/web_core/v1_0';
 
 export const MyProfileApi = {

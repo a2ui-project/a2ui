@@ -16,7 +16,7 @@
 
 import * as assert from 'node:assert';
 import {describe, it} from 'node:test';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 import {
   GenericBinder,
   getSafeChildList,
@@ -1855,7 +1855,7 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
 
     const binder = new GenericBinder<Record<string, unknown>>(
       new ComponentContext(surface, 'c1'),
-      z.record(z.unknown()),
+      z.record(z.string(), z.unknown()),
     );
 
     assert.notStrictEqual(binder.snapshot, compModel.properties);
@@ -1910,9 +1910,12 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
     assert.deepStrictEqual(scrapeSchemaBehavior(CommonSchemas.ChildList.and(z.number())), {
       type: 'STATIC',
     });
-    assert.deepStrictEqual(scrapeSchemaBehavior(CommonSchemas.ChildList.pipe(z.number())), {
-      type: 'STATIC',
-    });
+    assert.deepStrictEqual(
+      scrapeSchemaBehavior(CommonSchemas.ChildList.pipe(z.number() as never)),
+      {
+        type: 'STATIC',
+      },
+    );
     assert.deepStrictEqual(
       scrapeSchemaBehavior(z.union([componentIdSchema, CommonSchemas.ChildList]).and(z.string())),
       {type: 'STATIC'},
@@ -1937,14 +1940,14 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
     const scrapedVariant = scrapeSchemaBehavior(variantUnionSchema);
     assert.strictEqual(scrapedVariant.type, 'OBJECT');
 
-    const scrapedOpenRecord = scrapeSchemaBehavior(z.record(z.unknown()));
+    const scrapedOpenRecord = scrapeSchemaBehavior(z.record(z.string(), z.unknown()));
     assert.strictEqual(scrapedOpenRecord.type, 'OBJECT');
     if (scrapedOpenRecord.type === 'OBJECT') {
       assert.deepStrictEqual(scrapedOpenRecord.shape.children, {type: 'STRUCTURAL'});
       assert.strictEqual(scrapedOpenRecord.shape.accessibility?.type, 'OBJECT');
     }
 
-    const scrapedNumericRecord = scrapeSchemaBehavior(z.record(z.number()));
+    const scrapedNumericRecord = scrapeSchemaBehavior(z.record(z.string(), z.number()));
     assert.strictEqual(scrapedNumericRecord.type, 'OBJECT');
     if (scrapedNumericRecord.type === 'OBJECT') {
       assert.strictEqual(Object.hasOwn(scrapedNumericRecord.shape, 'children'), false);
@@ -2032,11 +2035,13 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
 
     const recordInIntersection = z
       .object({heading: CommonSchemas.DynamicString.optional()})
-      .and(z.record(z.unknown()));
-    const recordInPipeline = z.record(z.unknown()).pipe(z.record(z.unknown()));
+      .and(z.record(z.string(), z.unknown()));
+    const recordInPipeline = z
+      .record(z.string(), z.unknown())
+      .pipe(z.record(z.string(), z.unknown()));
     const recordInUnion = z.union([
       z.object({mode: z.literal('typed'), heading: CommonSchemas.DynamicString}),
-      z.record(z.unknown()),
+      z.record(z.string(), z.unknown()),
     ]);
 
     for (const recSchema of [recordInIntersection, recordInPipeline, recordInUnion]) {
@@ -2136,13 +2141,13 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
       })
       .catchall(CommonSchemas.DynamicString);
 
-    const recordActionSchema = z.record(CommonSchemas.Action);
+    const recordActionSchema = z.record(z.string(), CommonSchemas.Action);
     const compositeCatchallSchema = z
       .object({id: z.string()})
       .passthrough()
-      .and(z.record(CommonSchemas.DynamicString));
+      .and(z.record(z.string(), CommonSchemas.DynamicString));
     const unionCatchallSchema = z.union([
-      z.record(CommonSchemas.DynamicString),
+      z.record(z.string(), CommonSchemas.DynamicString),
       z.object({fixed: CommonSchemas.Action}),
     ]);
 
@@ -2161,7 +2166,9 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
       assert.deepStrictEqual(scrapedComposite.catchall, {type: 'DYNAMIC'});
     }
     const scrapedCompositeReversed = scrapeSchemaBehavior(
-      z.record(CommonSchemas.DynamicString).and(z.object({id: z.string()}).passthrough()),
+      z
+        .record(z.string(), CommonSchemas.DynamicString)
+        .and(z.object({id: z.string()}).passthrough()),
     );
     assert.deepStrictEqual(scrapedCompositeReversed, scrapedComposite);
 
@@ -2312,7 +2319,7 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
     const compositeCatchallSchema = z
       .object({id: z.string()})
       .passthrough()
-      .and(z.record(CommonSchemas.DynamicString));
+      .and(z.record(z.string(), CommonSchemas.DynamicString));
 
     const structuredItems = z.array(
       z.object({
@@ -2461,26 +2468,26 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
     // 4. Intersecting or unioning explicit ACTION and ComponentId properties with dynamic catchall (both orders)
     const explicitAndCatchallLeft = z
       .object({fixed: CommonSchemas.Action, child: ComponentIdRef.optional()})
-      .and(z.record(CommonSchemas.DynamicString));
+      .and(z.record(z.string(), CommonSchemas.DynamicString));
     const explicitAndCatchallRight = z
-      .record(CommonSchemas.DynamicString)
+      .record(z.string(), CommonSchemas.DynamicString)
       .and(z.object({fixed: CommonSchemas.Action, child: ComponentIdRef.optional()}));
     const explicitOrCatchallLeft = z.union([
-      z.record(CommonSchemas.DynamicString),
+      z.record(z.string(), CommonSchemas.DynamicString),
       z.object({fixed: CommonSchemas.Action, child: ComponentIdRef.optional()}),
     ]);
     const explicitOrCatchallRight = z.union([
       z.object({fixed: CommonSchemas.Action, child: ComponentIdRef.optional()}),
-      z.record(CommonSchemas.DynamicString),
+      z.record(z.string(), CommonSchemas.DynamicString),
     ]);
 
     // 5. Object union where only one branch has a dynamic catchall does not infect closed sibling props
     const unionPartialCatchallLeft = z.union([
       z.object({kind: z.literal('open')}).catchall(CommonSchemas.DynamicString),
-      z.object({kind: z.literal('closed'), meta: z.record(z.unknown())}),
+      z.object({kind: z.literal('closed'), meta: z.record(z.string(), z.unknown())}),
     ]);
     const unionPartialCatchallRight = z.union([
-      z.object({kind: z.literal('closed'), meta: z.record(z.unknown())}),
+      z.object({kind: z.literal('closed'), meta: z.record(z.string(), z.unknown())}),
       z.object({kind: z.literal('open')}).catchall(CommonSchemas.DynamicString),
     ]);
 

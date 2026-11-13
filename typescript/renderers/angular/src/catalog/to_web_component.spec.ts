@@ -17,7 +17,7 @@
 import {Component, InjectionToken, Injector, inject} from '@angular/core';
 
 import {TestBed} from '@angular/core/testing';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 import {
   Catalog,
   ComponentApi,

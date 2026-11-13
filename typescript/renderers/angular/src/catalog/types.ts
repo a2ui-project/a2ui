@@ -17,7 +17,7 @@
 import {Injector, Type} from '@angular/core';
 import {Catalog, ComponentApi, ComponentContext, FunctionImplementation} from '@a2ui/web_core';
 import {WebComponentImplementation, isWebComponentImplementation} from '@a2ui/web_core/universal';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 import {CatalogComponentInstance} from '../core/catalog_component_instance';
 import {componentApiFields, toWebComponent} from './to_web_component';
 import {UniversalOnlyComponent} from './universal_only.component';

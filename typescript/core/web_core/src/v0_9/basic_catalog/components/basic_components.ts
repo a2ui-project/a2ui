@@ -16,7 +16,7 @@
 
 // AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
 // Generated from specification/ catalogs via scripts/generate-catalog-schemas.mjs
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 import {spec, specDef} from '../../../catalog/spec_annotations.js';
 import {CatalogDocumentOptions, ComponentApi} from '../../../catalog/types.js';
@@ -282,10 +282,10 @@ export const RowApi = {
           )
           .optional(),
       })
+      .strict()
       .describe(
         'A layout component that arranges its children horizontally. To create a grid layout, nest Columns within this Row.',
-      )
-      .strict(),
+      ),
     {mixins: ['ComponentCommon', CatalogComponentCommonSchema]},
   ),
 } satisfies ComponentApi;
@@ -317,10 +317,10 @@ export const ColumnApi = {
           )
           .optional(),
       })
+      .strict()
       .describe(
         'A layout component that arranges its children vertically. To create a grid layout, nest Rows within this Column.',
-      )
-      .strict(),
+      ),
     {mixins: ['ComponentCommon', CatalogComponentCommonSchema]},
   ),
 } satisfies ComponentApi;
@@ -592,8 +592,8 @@ export const ChoicePickerApi = {
           .describe('If true, displays a search input to filter the options.')
           .optional(),
       })
-      .describe('A component that allows selecting one or more options from a list.')
-      .strict(),
+      .strict()
+      .describe('A component that allows selecting one or more options from a list.'),
     {mixins: ['ComponentCommon', CatalogComponentCommonSchema, 'Checkable']},
   ),
 } satisfies ComponentApi;

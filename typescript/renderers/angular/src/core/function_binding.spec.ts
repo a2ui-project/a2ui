@@ -19,7 +19,7 @@ import {TestBed} from '@angular/core/testing';
 import {DestroyRef, EnvironmentInjector} from '@angular/core';
 import {BASIC_FUNCTIONS, BasicCatalogBase} from '../v0_9/catalog/basic/basic-catalog';
 import {assertAngularSignal, initializeAngularReactivity} from './reactivity';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 describe('Function Bindings', () => {
   let mockDestroyRef: jasmine.SpyObj<DestroyRef>;

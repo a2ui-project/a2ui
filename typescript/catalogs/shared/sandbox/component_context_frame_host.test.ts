@@ -24,7 +24,7 @@ import {
   type FunctionImplementation,
   type SurfaceModel,
 } from '@a2ui/web_core/v1_0';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 import {ComponentContextFrameHost} from './component_context_frame_host.js';
 
 const CATALOG_ID = 'https://example.com/catalogs/frame-host-test.json';

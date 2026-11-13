@@ -21,7 +21,7 @@ import * as path from 'node:path';
 import {act, fireEvent, render, type RenderResult} from '@testing-library/react';
 import React from 'react';
 import {expect} from 'vitest';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 import {
   Catalog,

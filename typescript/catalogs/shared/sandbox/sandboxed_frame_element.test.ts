@@ -31,7 +31,7 @@ import {
   type WebComponentImplementation,
 } from '@a2ui/web_core/v1_0';
 import {render} from 'lit';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 import type {SandboxProtocol, SandboxResource} from './sandbox_bootstrap.js';
 import {resetSandboxConfig, resolveSandboxUrl, type SandboxMode} from './sandbox_config.js';
 import {

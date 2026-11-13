@@ -16,7 +16,7 @@
 
 import {type FunctionApi} from '@a2ui/web_core';
 import {afterEach, describe, expect, test, vi} from 'vitest';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 import {
   A2uiCatalogError,

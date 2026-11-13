@@ -16,7 +16,7 @@
 
 import * as assert from 'node:assert';
 import {describe, it} from 'node:test';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 import {ComponentContext} from '../resolution/component-context.js';
 import {DataContext} from '../resolution/data-context.js';
@@ -84,7 +84,7 @@ describe('isDynamicBooleanSchema', () => {
       },
     });
     const schema = catalog.functions.get('flag')!.schema as z.ZodObject<z.ZodRawShape>;
-    assert.ok(isDynamicBooleanSchema(schema.shape['on']));
+    assert.ok(isDynamicBooleanSchema(schema.shape['on'] as z.ZodTypeAny));
   });
 
   it('does not match other common types or plain booleans', () => {

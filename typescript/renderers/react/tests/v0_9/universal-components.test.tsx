@@ -29,7 +29,7 @@
 import {describe, it, expect, afterEach, vi} from 'vitest';
 import {act, fireEvent, render, waitFor, within} from '@testing-library/react';
 import React, {createContext, useContext, useLayoutEffect, useRef} from 'react';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 import {Catalog, ComponentModel, SurfaceModel} from '@a2ui/web_core';
 import type {A2uiWebComponentElement} from '@a2ui/web_core/universal';
 import {CommonSchemas, ComponentIdSchema} from '@a2ui/web_core/v0_9';

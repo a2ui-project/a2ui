@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 import {createFunctionImplementation, FunctionImplementation} from '../../catalog/types.js';
 import {A2uiValidationError} from '../../errors.js';

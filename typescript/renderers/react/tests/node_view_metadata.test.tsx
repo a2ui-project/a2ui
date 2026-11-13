@@ -17,7 +17,7 @@
 import React from 'react';
 import {describe, it, expect} from 'vitest';
 import {render, act, waitFor} from '@testing-library/react';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 import {Catalog, MessageProcessor} from '@a2ui/web_core';
 import {ChildListSchema, CommonSchemas} from '@a2ui/web_core/v1_0';
 import {A2uiSurface, useA2uiSurface} from '../src/A2uiSurface';
