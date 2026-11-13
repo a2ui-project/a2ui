@@ -22,21 +22,39 @@ A package has something to release when its `CHANGELOG.md` has notes under
 
 - [a2ui_core CHANGELOG.md](../../../dart/a2ui_core/CHANGELOG.md)
 - [a2ui_agent CHANGELOG.md](../../../dart/a2ui_agent/CHANGELOG.md)
+- [a2ui_flutter CHANGELOG.md](../../../dart/a2ui_flutter/CHANGELOG.md)
+- [a2ui_cli CHANGELOG.md](../../../dart/a2ui_cli/CHANGELOG.md)
+
+When `a2ui_core` has a breaking change, every package that depends on it has
+something to release, even without notes. Otherwise its version on pub.dev
+still requires the old `a2ui_core`, and an app cannot use the two together.
+
+A non-breaking `a2ui_core` release leaves the other packages alone unless they
+have notes of their own. Their `^` constraints already accept it.
 
 **2. Open a release pull request**
 
 In one pull request, for each package to release:
 
 - Choose the next version, as described in
-  [Versioning](pub-dev.md#versioning).
-- Rename `## Unreleased` in `CHANGELOG.md` to `## <version>`.
+  [Versioning](pub-dev.md#versioning). A package whose constraint is raised for
+  a breaking `a2ui_core` change takes a breaking version change too, because
+  its API exposes `a2ui_core` types.
+- Rename `## Unreleased` in `CHANGELOG.md` to `## <version>`. If there is no
+  `## Unreleased`, add `## <version>` above the newest version. Then add an
+  empty `## Unreleased` above it for the next changes.
 - Set `version:` in `pubspec.yaml` to the same version.
+- Set the `a2ui_core` constraint to `^<new a2ui_core version>` if `a2ui_core`
+  has a breaking change or the package's notes say it needs the new
+  `a2ui_core`, and note the new constraint under `## <version>`.
 
 Change nothing else, and merge the pull request.
 
 **3. Publish the packages**
 
-For each package in the release pull request:
+Publish each package that the release pull request released, starting with
+`a2ui_core` if it is one of them. Wait until the new `a2ui_core` version shows
+on pub.dev before publishing the packages that depend on it. For each package:
 
 - Check out the commit that merged the release pull request, not the latest
   `main`, which may already have unreleased changes.
