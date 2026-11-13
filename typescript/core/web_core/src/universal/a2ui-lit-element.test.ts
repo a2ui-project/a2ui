@@ -157,9 +157,32 @@ describe('A2uiLitElement', () => {
 
     assert.strictEqual(el.renderRoot, el);
     assert.strictEqual(el.shadowRoot, null);
-    assert.ok((TestLightStyledElement as any)._processedCss?.includes('test-light-styled-element'));
-    assert.ok((TestLightStyledElement as any)._adoptedRoots?.has(document));
     assert.strictEqual(document.adoptedStyleSheets.length, 1);
+
+    // A second element of the same class reuses the adopted sheet.
+    document.body.appendChild(document.createElement('test-light-styled-element'));
+    assert.strictEqual(document.adoptedStyleSheets.length, 1);
+  });
+
+  it('adopts a separate scoped sheet for a subclass registered under another tag', () => {
+    class TestBaseStyledElement extends A2uiLitElement<any> {
+      static override styles = css`
+        .title {
+          color: green;
+        }
+      `;
+      override createController() {
+        return {dispose: () => {}} as any;
+      }
+    }
+    class TestDerivedStyledElement extends TestBaseStyledElement {}
+    customElements.define('test-base-styled-element', TestBaseStyledElement);
+    customElements.define('test-derived-styled-element', TestDerivedStyledElement);
+
+    document.body.appendChild(document.createElement('test-base-styled-element'));
+    document.body.appendChild(document.createElement('test-derived-styled-element'));
+
+    assert.strictEqual(document.adoptedStyleSheets.length, 2);
   });
 
   it('does not adopt its styles into the document when it renders into a ShadowRoot', () => {
@@ -184,7 +207,6 @@ describe('A2uiLitElement', () => {
 
     assert.ok(el.renderRoot instanceof (globalThis as any).ShadowRoot);
     assert.deepStrictEqual(document.adoptedStyleSheets, sheetsBefore);
-    assert.strictEqual((TestShadowStyledElement as any)._processedCss, undefined);
   });
 
   it('should create controller when context is set', async () => {

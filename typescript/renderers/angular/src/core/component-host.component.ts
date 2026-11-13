@@ -56,6 +56,7 @@ import {SurfaceNodeResolver} from './surface-node-resolver.service';
 import {BoundProperty} from './types';
 
 import type {AngularCatalog, AngularComponentImplementation} from '../catalog/types';
+import {registerUniversalHostInjector} from '../catalog/angular_wc_host';
 import {CatalogComponentInstance} from './catalog_component_instance';
 
 interface UniversalComponentHostElement extends HTMLElement {
@@ -203,6 +204,8 @@ export class ComponentHostComponent {
   private stopAccessibility?: () => void;
 
   constructor() {
+    registerUniversalHostInjector(this.elementRef.nativeElement, this.injector);
+
     effect(() => {
       const key = this.componentKey();
       const surfaceId = this.surfaceId();
@@ -221,6 +224,7 @@ export class ComponentHostComponent {
     });
 
     this.destroyRef.onDestroy(() => {
+      registerUniversalHostInjector(this.elementRef.nativeElement, undefined);
       this.resetState();
       this.ownResolver?.ngOnDestroy();
       this.ownResolver = undefined;

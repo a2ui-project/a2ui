@@ -22,7 +22,13 @@ import {
   ComponentRef,
   NgZone,
 } from '@angular/core';
-import {ComponentContext, type ComponentNode, effect, getValue} from '@a2ui/web_core';
+import {
+  ComponentContext,
+  type ComponentNode,
+  type SurfaceGroupModel,
+  effect,
+  getValue,
+} from '@a2ui/web_core';
 import {
   type AccessibilityTargets,
   bindHostAccessibility,
@@ -34,32 +40,108 @@ import {A2UI_ACCESSIBILITY_TARGETS} from '../core/accessibility';
 import {ComponentBinder} from '../core/component-binder.service';
 import type {BoundProperty} from '../core/types';
 
-let defaultInjector: Injector | undefined;
+const activeInjectors: Injector[] = [];
+const hostInjectors = new WeakMap<Node, Injector>();
+const surfaceGroupInjectors = new Map<
+  SurfaceGroupModel<AngularComponentImplementation>,
+  Injector
+>();
 
 /**
  * Sets the Angular `Injector` used by wrapped Angular components whose host element was not
- * given one explicitly.
+ * given one explicitly and cannot resolve one from a DOM ancestor or `SurfaceGroupModel`.
  *
  * Wrapped components are created at catalog definition time, before any injector exists, so the
  * injector is resolved when the element connects: the element's own `injector` property wins
- * (the Angular `ComponentHostComponent` sets it on the elements it mounts), and this default is
- * the fallback for elements created by universal container components. `A2uiRendererService`
- * registers its injector here on construction.
+ * (the Angular `ComponentHostComponent` sets it on the elements it mounts), followed by the
+ * nearest registered DOM host ancestor, the `SurfaceGroupModel` owning the surface, and finally
+ * the most recently registered active injector.
  *
- * @param injector The injector to use as a fallback, or `undefined` to clear it.
+ * @param injector The injector to use as a fallback, or `undefined` to clear all fallback injectors.
  */
 export function setDefaultUniversalInjector(injector: Injector | undefined): void {
-  defaultInjector = injector;
+  if (!injector) {
+    activeInjectors.length = 0;
+    return;
+  }
+  const existingIndex = activeInjectors.indexOf(injector);
+  if (existingIndex !== -1) {
+    activeInjectors.splice(existingIndex, 1);
+  }
+  activeInjectors.push(injector);
 }
 
 /**
- * Clears the default injector if it is still `injector`, so that a destroyed injector is not
- * handed to elements connected later.
+ * Removes `injector` from the active fallback injector stack so that a destroyed injector is not
+ * handed to elements connected later while preserving other live renderer injectors.
  */
 export function clearDefaultUniversalInjector(injector: Injector): void {
-  if (defaultInjector === injector) {
-    defaultInjector = undefined;
+  const index = activeInjectors.indexOf(injector);
+  if (index !== -1) {
+    activeInjectors.splice(index, 1);
   }
+}
+
+/**
+ * Associates a DOM host node (such as `ComponentHostComponent`'s host element) with its Angular
+ * `Injector` so descendant universal elements can discover their enclosing component-tree injector.
+ *
+ * @param injector The host's injector, or `undefined` to drop the association.
+ */
+export function registerUniversalHostInjector(host: Node, injector: Injector | undefined): void {
+  if (injector) {
+    hostInjectors.set(host, injector);
+  } else {
+    hostInjectors.delete(host);
+  }
+}
+
+/**
+ * Associates an `A2uiRendererService`'s `SurfaceGroupModel` with its Angular `Injector` so
+ * universal elements can resolve the owning renderer's injector even when detached from a host.
+ *
+ * @param injector The renderer's injector, or `undefined` to drop the association.
+ */
+export function registerSurfaceGroupInjector(
+  group: SurfaceGroupModel<AngularComponentImplementation>,
+  injector: Injector | undefined,
+): void {
+  if (injector) {
+    surfaceGroupInjectors.set(group, injector);
+  } else {
+    surfaceGroupInjectors.delete(group);
+  }
+}
+
+/**
+ * Resolves the Angular `Injector` for a universal custom element from its DOM ancestry, its
+ * owning `SurfaceGroupModel`, or the active fallback injector stack.
+ */
+export function resolveUniversalInjector(
+  node: Node | null,
+  context?: ComponentContext,
+): Injector | undefined {
+  let current: Node | null = node;
+  while (current) {
+    const hostInjector = hostInjectors.get(current);
+    if (hostInjector) {
+      return hostInjector;
+    }
+    current =
+      current.parentNode ??
+      (typeof ShadowRoot !== 'undefined' && current instanceof ShadowRoot ? current.host : null);
+  }
+
+  const surface = context?.dataContext.surface;
+  if (surface) {
+    for (const [group, groupInjector] of surfaceGroupInjectors) {
+      if (group.getSurface(surface.id) === surface) {
+        return groupInjector;
+      }
+    }
+  }
+
+  return activeInjectors[activeInjectors.length - 1];
 }
 
 /**
@@ -98,7 +180,7 @@ export class AngularWcHost extends HTMLElement {
   }
 
   get injector(): Injector | undefined {
-    return this._injector ?? defaultInjector;
+    return this._injector ?? resolveUniversalInjector(this.parentNode, this._context);
   }
 
   connectedCallback() {
@@ -113,6 +195,7 @@ export class AngularWcHost extends HTMLElement {
             `'provideA2Ui'.`,
         );
       }
+      registerUniversalHostInjector(this, injector);
       const node = this._node;
       const context = this._context;
       if (!node && !context) {
@@ -295,6 +378,7 @@ export class AngularWcHost extends HTMLElement {
   }
 
   disconnectedCallback() {
+    registerUniversalHostInjector(this, undefined);
     this.unbindAccessibility();
     this.contextSubscription?.unsubscribe();
     this.contextSubscription = undefined;
