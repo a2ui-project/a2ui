@@ -322,6 +322,73 @@ class BuildDraftTest(unittest.TestCase):
             [rn.Bullet(None, "[Foo](https://x) was removed.")],
         )
 
+    def test_scope_lists_and_markdown_escapes(self):
+        cases = {
+            # Comma-separated lists, with and without spaces, expand to one
+            # bullet per id in the order written.
+            "- [web_core, lit] shared": [("web_core", "shared"), ("lit", "shared")],
+            "- [web_core,lit,react] shared": [
+                ("web_core", "shared"),
+                ("lit", "shared"),
+                ("react", "shared"),
+            ],
+            "- [ web_core , lit ] shared": [("web_core", "shared"), ("lit", "shared")],
+            # Markdown-escaped underscores, backticks, and trailing commas.
+            r"- [web\_core] escaped": [("web_core", "escaped")],
+            r"- [web\_core, a2ui\_cli] escaped": [
+                ("web_core", "escaped"),
+                ("a2ui_cli", "escaped"),
+            ],
+            "- [`web_core`, `lit`] ticked": [("web_core", "ticked"), ("lit", "ticked")],
+            "- [web_core,] trailing comma": [("web_core", "trailing comma")],
+            # Ids with the other allowed characters.
+            "- [dart-a2ui_core, markdown-it, catalog.v2] ok": [
+                ("dart-a2ui_core", "ok"),
+                ("markdown-it", "ok"),
+                ("catalog.v2", "ok"),
+            ],
+            # Brackets that are not an id list stay literal text.
+            "- [web_core lit] no comma": [(None, "[web_core lit] no comma")],
+            "- [] empty": [(None, "[] empty")],
+            "- [ , ] only commas": [(None, "[ , ] only commas")],
+            "- [see issue #12] prose": [(None, "[see issue #12] prose")],
+            "- [x] task box": [("x", "task box")],
+            # A scope with no text is dropped, like any empty bullet.
+            "- [web_core]": [],
+            "- [web_core]   ": [],
+        }
+        for line, expected in cases.items():
+            with self.subTest(line=line):
+                bullets = rn.release_notes_block(f"```release-notes\n{line}\n```")
+                self.assertEqual([(b.scope, b.text) for b in bullets], expected)
+
+    def test_scope_list_feeds_draft_and_lint(self):
+        body = "```release-notes\n- [web_core, lit] shared note\n- [lit, nope] bad\n```"
+        for package, expected in (
+            ("web_core", ["shared note"]),
+            ("lit", ["shared note", "bad"]),
+        ):
+            with self.subTest(package=package):
+                draft = rn.build_draft(
+                    spec(id=package), [commit("s1", "feat(x): y (#9)", body)], "a", "b"
+                )
+                self.assertEqual([e.text for e in draft.entries], expected)
+        specs = [spec(), spec(id="lit", paths=("typescript/renderers/lit/",))]
+        violations = rn.check_pr(
+            "fix(x): y", body, (), ["typescript/renderers/lit/a.ts"], specs
+        )
+        self.assertEqual([(v.rule, v.level) for v in violations], [("L4", "error")])
+        self.assertIn("[nope]", violations[0].message)
+        # Escaped ids pass L4 because they are unescaped before the lookup.
+        clean = rn.check_pr(
+            "fix(x): y",
+            "```release-notes\n- [web\\_core, `lit`] fine\n```",
+            (),
+            ["typescript/renderers/lit/a.ts"],
+            specs,
+        )
+        self.assertEqual(clean, [])
+
     def test_commented_out_block_and_footer_are_ignored(self):
         body = (
             "<!--\n```release-notes\n- Example bullet\n```\nBREAKING CHANGE: no\n-->\n"

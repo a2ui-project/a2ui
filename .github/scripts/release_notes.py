@@ -16,10 +16,13 @@
 
 Feature pull requests do not edit CHANGELOG.md. The pull request title (a
 conventional commit title, `!` for a breaking change) and an optional fenced
-`release-notes` block in its description are the source. At release time this
-script lists the squash commits that touched a package since its last release
-tag, drafts the `## X.Y.Z` section from them, and checks the result before
-publishing.
+`release-notes` block in its description are the source. A bullet in that
+block may start with `[id]` or `[id1, id2]` to target specific packages
+(Markdown-escaped underscores and backticked ids are accepted); a bullet
+without a scope applies to every package the pull request touched. At release
+time this script lists the squash commits that touched a package since its
+last release tag, drafts the `## X.Y.Z` section from them, and checks the
+result before publishing.
 
 Subcommands:
 
@@ -114,7 +117,10 @@ SWIFTPM_TAG_RE = re.compile(r"^v?\d+\.\d+(\.\d+)?(\+.*)?$")
 FENCE_OPEN_RE = re.compile(r"^```\s*release-notes\s*$")
 FENCE_CLOSE_RE = re.compile(r"^```\s*$")
 # `[web_core] text`, but not a Markdown link such as `[Foo](https://...)`.
-SCOPED_BULLET_RE = re.compile(r"^\[(?P<scope>[A-Za-z0-9_.-]+)\](?!\()\s*(?P<text>.*)$")
+# A scope prefix is `[ids] text` where `ids` is one package id or a
+# comma-separated list. A Markdown link (`[Foo](https://...)`) is not a scope.
+SCOPE_PREFIX_RE = re.compile(r"^\[(?P<scopes>[^\]\n]*)\](?!\()\s*(?P<text>.*)$")
+SCOPE_ID_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 REVERT_SHA_RE = re.compile(r"This reverts commit ([0-9a-f]{7,40})")
 REVERT_PR_RE = re.compile(r"\(#(\d+)\)")
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
@@ -323,6 +329,34 @@ def has_release_notes_block(body: str) -> bool:
     return _block_lines(body) is not None
 
 
+def parse_scopes(raw: str) -> list[str] | None:
+    """Parses the inside of a `[...]` prefix into package ids.
+
+    Accepts `web_core`, `web_core, lit`, Markdown-escaped `web\\_core`, and
+    ids wrapped in backticks. Returns None when the brackets hold anything
+    that is not an id list, so the bullet is treated as plain text.
+    """
+    ids: list[str] = []
+    for part in raw.split(","):
+        candidate = part.strip().strip("`").replace("\\", "").strip()
+        if not candidate:
+            continue
+        if not SCOPE_ID_RE.match(candidate):
+            return None
+        ids.append(candidate)
+    return ids or None
+
+
+def _bullets_from(raw: str) -> list[Bullet]:
+    """Expands one raw bullet into one Bullet per scope (or one unscoped)."""
+    match = SCOPE_PREFIX_RE.match(raw)
+    scopes = parse_scopes(match.group("scopes")) if match else None
+    if match and scopes:
+        text = match.group("text").strip()
+        return [Bullet(scope, text) for scope in scopes]
+    return [Bullet(None, raw)]
+
+
 def release_notes_block(body: str) -> list[Bullet]:
     """Parses the bullets of the first `release-notes` fence in a PR body."""
     lines = _block_lines(body)
@@ -339,13 +373,7 @@ def release_notes_block(body: str) -> list[Bullet]:
             raw_bullets[-1] = f"{raw_bullets[-1]} {stripped}"
         else:
             raw_bullets.append(stripped)
-    bullets = []
-    for raw in raw_bullets:
-        scoped = SCOPED_BULLET_RE.match(raw)
-        if scoped:
-            bullets.append(Bullet(scoped.group("scope"), scoped.group("text").strip()))
-        else:
-            bullets.append(Bullet(None, raw))
+    bullets = [bullet for raw in raw_bullets for bullet in _bullets_from(raw)]
     return [bullet for bullet in bullets if bullet.text]
 
 
