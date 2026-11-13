@@ -260,7 +260,8 @@ if (project.trailingSlash === 'never') dataAttributes['data-strip-trailing-slash
         Array.from(searchContainer.querySelectorAll<HTMLAnchorElement>('.pagefind-ui__result-link'));
 
       const getResultRow = (link: HTMLAnchorElement) =>
-        link.closest<HTMLElement>('.pagefind-ui__result-title, .pagefind-ui__result-nested');
+        link.closest<HTMLElement>('.pagefind-ui__result-nested') ??
+        link.closest<HTMLElement>('.pagefind-ui__result-title');
 
       const setActiveIndex = (nextIndex: number) => {
         for (const selected of searchContainer.querySelectorAll('.is-keyboard-selected')) {
