@@ -16,7 +16,16 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict
+from typing import Any, cast
+
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    GetCoreSchemaHandler,
+    SerializationInfo,
+    SerializerFunctionWrapHandler,
+)
+from pydantic_core import core_schema
 
 
 class BuilderBaseModel(BaseModel):
@@ -27,3 +36,66 @@ class BuilderBaseModel(BaseModel):
         arbitrary_types_allowed=False,
         validate_by_name=True,
     )
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls, source: type[BaseModel], handler: GetCoreSchemaHandler, /
+    ) -> core_schema.CoreSchema:
+        schema = handler(source)
+        model_schema: core_schema.CoreSchema = schema
+        while model_schema["type"] in (
+            "function-before",
+            "function-after",
+            "function-wrap",
+        ):
+            model_schema = model_schema["schema"]
+        if (
+            model_schema["type"] == "model"
+            and not model_schema.get("root_model", False)
+            and "serialization" not in model_schema
+        ):
+            # Bind to the declared schema, not the runtime type of a nested value.
+            model = cast(core_schema.ModelSchema, model_schema)
+            model["serialization"] = core_schema.wrap_serializer_function_ser_schema(
+                cls._serialize_for_flatten, info_arg=True
+            )
+        return schema
+
+    @classmethod
+    def _serialize_for_flatten(
+        cls,
+        value: BuilderBaseModel,
+        handler: SerializerFunctionWrapHandler,
+        info: SerializationInfo,
+    ) -> dict[str, Any]:
+        from .child import flatten_context_of
+
+        payload: dict[str, Any] = handler(value)
+        if not info.exclude_none or flatten_context_of(info) is None:
+            return payload
+
+        # exclude_none omits required nullable fields too. Restore only those
+        # fields during flattening; optional None values remain omitted.
+        for name, field in cls.model_fields.items():
+            if (
+                not field.is_required()
+                or field.exclude
+                or getattr(value, name) is not None
+            ):
+                continue
+            if info.include is not None and name not in info.include:
+                continue
+            if info.exclude is not None and name in info.exclude:
+                if isinstance(info.exclude, set):
+                    continue
+                excluded: Any = info.exclude[name]
+                if excluded is True or excluded is ...:
+                    continue
+            exclude_if = getattr(field, "exclude_if", None)
+            if exclude_if is not None and exclude_if(None):
+                continue
+            if info.exclude_unset and name not in value.model_fields_set:
+                continue
+            key = field.serialization_alias if info.by_alias else name
+            payload[name if key is None else key] = None
+        return payload
