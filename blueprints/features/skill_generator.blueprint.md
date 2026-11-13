@@ -287,12 +287,14 @@ description: UI component catalog signatures for basic. Use when building basic 
 
 ## **Language Conformance Verification Protocol**
 
-To guarantee 100% behavioral parity across multi-language SDKs, all implementations MUST pass the language-agnostic conformance test suite specified in `conformance/agent/skill.yaml` against shared golden test vectors under `conformance/test_data/skills/`:
+All implementations MUST pass the language-agnostic conformance suite in `conformance/agent/skill.yaml`. It checks the skill API, not the wording of a format's prompt, which the prompt suites cover, so each case compares a generated skill against the sections of the same SDK's prompt generator:
 
-1. **`express_core.skill.md`**: Validates base grammar and sentinel tag instructions.
-2. **`express_basic_catalog.skill.md`**: Validates basic catalog component signatures.
-3. **`express_basic_monolithic.skill.md`**: Validates monolithic bundled skill output.
-4. **`skill_set` modular test**: Validates that generating a skillset produces `a2ui-core/SKILL.md` and `a2ui-basic/SKILL.md`.
+1. **`from_format`**: The monolithic skill's frontmatter matches `expected_frontmatter` byte for byte, and its body is the format's prompt snippet.
+2. **`core_syntax`**: The core skill's frontmatter matches, and its body is `generate_base_rules()`.
+3. **`from_catalog`**: The catalog skill's frontmatter matches, including PyYAML's wrapping of a long description after column 80, and its body is the catalog's instructions followed by its examples.
+4. **`skill_set`**: The skillset holds `a2ui-core/SKILL.md` and `a2ui-basic/SKILL.md`, in that order, and they equal the core and catalog skills.
+5. **`monolithic_skill_equals_prompt_snippet`**: For Express and Direct JSON, with one catalog and with two, the monolithic skill's body equals the prompt snippet.
+6. **`export_to_directory`**: Export removes only each skill's own directory and rejects filenames that leave the output directory.
 
 ---
 
@@ -309,4 +311,4 @@ When implementing this feature in a client language SDK:
    - Implement `generate_core_skill()`, `generate_catalog_skill()`, `generate_skill()`, and `generate_skillset()` adhering to catalog defaulting semantics.
    - Implement `clean_catalog_name()` helper.
 4. **Wire Format Implementations**: Ensure specific format prompt generators (e.g. `ExpressPromptGenerator`, `DirectJsonPromptGenerator`) implement the `catalogs` property and the decomposed sub-methods without overriding `generate()`, and keep them internal to their format packages.
-5. **Verify Conformance**: Run unit tests and execute the shared test suite in `conformance/agent/skill.yaml` against `conformance/test_data/skills/` golden files.
+5. **Verify Conformance**: Run unit tests and execute the shared test suite in `conformance/agent/skill.yaml`.

@@ -277,16 +277,16 @@
           },
           "description": "Paths observed for the duration of the case. A path may repeat to attach more than one observer."
         },
-        "expected_file": {
+        "expected_frontmatter": {
           "type": "string",
-          "description": "File path to file containing expected text or markdown content."
+          "description": "The YAML a generated skill writes between its `---` lines, ending with a newline."
         },
         "expected_skills": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "List of expected skill filenames or keys."
+          "description": "The filenames a generated SkillSet holds, in order."
         }
       },
       "allOf": [
@@ -1411,11 +1411,12 @@
         "args": {
           "type": "object"
         },
-        "expected_file": {
-          "type": "string"
+        "expected_frontmatter": {
+          "type": "string",
+          "description": "The skill's frontmatter, byte for byte. Its body must be the format's prompt snippet, trimmed."
         }
       },
-      "required": ["action", "args", "expected_file"]
+      "required": ["action", "args", "expected_frontmatter"]
     },
     "CoreSyntaxTest": {
       "type": "object",
@@ -1427,11 +1428,12 @@
         "args": {
           "type": "object"
         },
-        "expected_file": {
-          "type": "string"
+        "expected_frontmatter": {
+          "type": "string",
+          "description": "The skill's frontmatter, byte for byte. Its body must be `generate_base_rules()`, trimmed."
         }
       },
-      "required": ["action", "args", "expected_file"]
+      "required": ["action", "args", "expected_frontmatter"]
     },
     "FromCatalogTest": {
       "type": "object",
@@ -1443,11 +1445,12 @@
         "args": {
           "type": "object"
         },
-        "expected_file": {
-          "type": "string"
+        "expected_frontmatter": {
+          "type": "string",
+          "description": "The skill's frontmatter, byte for byte. Its body must be `generate_catalog_instructions(catalog)`, followed by `### Examples:` and `generate_examples(catalog)` when that renders anything, trimmed."
         }
       },
-      "required": ["action", "args", "expected_file"]
+      "required": ["action", "args", "expected_frontmatter"]
     },
     "SkillSetTest": {
       "type": "object",
@@ -1461,15 +1464,10 @@
         },
         "expected_skills": {
           "type": "array",
-          "description": "Filenames the SkillSet must contain.",
+          "description": "The SkillSet's filenames, in order. Its core skill must equal the `core_syntax` skill with the default name, and each catalog skill the `from_catalog` skill for its catalog.",
           "items": {
             "type": "string"
           }
-        },
-        "expected_skill_files": {
-          "type": "object",
-          "description": "Golden file, relative to the repository root, that each listed skill's markdown must equal byte for byte. Keys are skill filenames.",
-          "additionalProperties": {"type": "string"}
         }
       },
       "required": ["action", "args", "expected_skills"]

@@ -22,6 +22,7 @@ from typing import Any
 
 import pytest
 
+from a2ui.constants import EXAMPLES_HEADING
 from a2ui.core import A2uiValidationError
 from a2ui.inference_formats.direct_json import DirectJsonFormat
 from a2ui.inference_formats.experimental.atom import AtomFormat
@@ -46,11 +47,8 @@ _ERROR_CATEGORIES: dict[str, type[Exception]] = {
 }
 
 _CASE_METADATA_KEYS = frozenset({"name", "description", "features", "action", "args"})
-_SINGLE_FILE_CASE_KEYS = _CASE_METADATA_KEYS | frozenset({"expected_file"})
-_SKILL_SET_CASE_KEYS = _CASE_METADATA_KEYS | frozenset({
-    "expected_skills",
-    "expected_skill_files",
-})
+_SINGLE_SKILL_CASE_KEYS = _CASE_METADATA_KEYS | frozenset({"expected_frontmatter"})
+_SKILL_SET_CASE_KEYS = _CASE_METADATA_KEYS | frozenset({"expected_skills"})
 _EXPORT_CASE_KEYS = _CASE_METADATA_KEYS | frozenset({
     "expect_error",
     "expected_files",
@@ -171,35 +169,40 @@ def test_skill_yaml_conformance_cases(suite: str, case: dict[str, Any]) -> None:
 
     generator = SkillGenerator(fmt)
 
+    prompt_gen = fmt.prompt_generator
+
+    def catalog_body(cat: Any) -> str:
+        """The body a catalog skill holds: the catalog's section and its examples."""
+        body = prompt_gen.generate_catalog_instructions(catalog=cat)
+        examples = prompt_gen.generate_examples(catalog=cat)
+        if examples:
+            body += f"\n\n{EXAMPLES_HEADING}{examples}"
+        return body
+
+    def expect_skill(skill_obj: Skill, body: str) -> None:
+        """Checks the skill's frontmatter against the case and its body against `body`."""
+        assert skill_obj.to_markdown() == (
+            f"---\n{case['expected_frontmatter']}---\n\n{body.strip()}\n"
+        )
+
     if action == "from_format":
-        assert_known_keys(case, _SINGLE_FILE_CASE_KEYS, "from_format case")
-        mono_name = args.get("name", "a2ui")
-        skill_obj = generator.generate_skill(name=mono_name)
-        expected_rel = case["expected_file"]
-        expected_abs = os.path.join(REPO_ROOT, expected_rel)
-        with open(expected_abs, "r", encoding="utf-8") as gf:
-            expected_content = gf.read()
-        assert skill_obj.to_markdown() == expected_content
+        assert_known_keys(case, _SINGLE_SKILL_CASE_KEYS, "from_format case")
+        expect_skill(
+            generator.generate_skill(name=args.get("name", "a2ui")),
+            prompt_gen.generate(),
+        )
 
     elif action == "core_syntax":
-        assert_known_keys(case, _SINGLE_FILE_CASE_KEYS, "core_syntax case")
-        core_name = args.get("name", "a2ui-core")
-        skill_obj = generator.generate_core_skill(name=core_name)
-        expected_rel = case["expected_file"]
-        expected_abs = os.path.join(REPO_ROOT, expected_rel)
-        with open(expected_abs, "r", encoding="utf-8") as gf:
-            expected_content = gf.read()
-        assert skill_obj.to_markdown() == expected_content
+        assert_known_keys(case, _SINGLE_SKILL_CASE_KEYS, "core_syntax case")
+        expect_skill(
+            generator.generate_core_skill(name=args.get("name", "a2ui-core")),
+            prompt_gen.generate_base_rules(),
+        )
 
     elif action == "from_catalog":
-        assert_known_keys(case, _SINGLE_FILE_CASE_KEYS, "from_catalog case")
+        assert_known_keys(case, _SINGLE_SKILL_CASE_KEYS, "from_catalog case")
         assert catalog is not None
-        skill_obj = generator.generate_catalog_skill(catalog)
-        expected_rel = case["expected_file"]
-        expected_abs = os.path.join(REPO_ROOT, expected_rel)
-        with open(expected_abs, "r", encoding="utf-8") as gf:
-            expected_content = gf.read()
-        assert skill_obj.to_markdown() == expected_content
+        expect_skill(generator.generate_catalog_skill(catalog), catalog_body(catalog))
 
     elif action == "monolithic_skill_equals_prompt_snippet":
         assert_known_keys(
@@ -213,13 +216,12 @@ def test_skill_yaml_conformance_cases(suite: str, case: dict[str, Any]) -> None:
 
     elif action == "skill_set":
         assert_known_keys(case, _SKILL_SET_CASE_KEYS, "skill_set case")
-        skill_set = generator.generate_skillset()
-        skills_by_file = skill_set.to_dict()
-        for k in case.get("expected_skills", []):
-            assert k in skills_by_file
-        for k, golden_rel in case.get("expected_skill_files", {}).items():
-            with open(os.path.join(REPO_ROOT, golden_rel), "r", encoding="utf-8") as gf:
-                assert skills_by_file[k] == gf.read(), k
+        skills_by_file = generator.generate_skillset().to_dict()
+        assert list(skills_by_file) == case["expected_skills"]
+        expected = [generator.generate_core_skill()] + [
+            generator.generate_catalog_skill(c) for c in catalogs
+        ]
+        assert list(skills_by_file.values()) == [s.to_markdown() for s in expected]
 
     else:
         pytest.fail(f"Unhandled conformance action: {action!r}")
