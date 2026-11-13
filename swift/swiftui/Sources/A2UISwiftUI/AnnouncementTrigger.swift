@@ -16,6 +16,8 @@ import SwiftUI
 
 /// Posts an accessibility announcement whenever `text` changes to a non-nil value.
 struct AnnouncementTrigger: ViewModifier {
+  @Environment(\.a2uiAnnouncer) private var announcer
+
   let text: String?
   let assertive: Bool
 
@@ -27,6 +29,6 @@ struct AnnouncementTrigger: ViewModifier {
 
   private func announce(_ newText: String?) {
     guard let newText else { return }
-    A2UIAccessibilityModifier.announce(newText, assertive: assertive)
+    announcer.announce(newText, assertive)
   }
 }

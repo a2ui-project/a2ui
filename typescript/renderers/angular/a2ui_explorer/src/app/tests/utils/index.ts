@@ -14,4 +14,11 @@
  * limitations under the License.
  */
 
-export * from './test_utils';
+export {
+  loadExample,
+  wait,
+  getCanvas,
+  waitForCondition,
+  Version,
+  type LoadExampleOptions,
+} from './test_utils';

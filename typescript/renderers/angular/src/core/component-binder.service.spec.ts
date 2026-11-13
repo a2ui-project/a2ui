@@ -22,9 +22,9 @@ import {
   ComponentModel,
   NodeResolver,
   SurfaceModel,
-  basicCatalog,
   getValue,
-} from '@a2ui/web_core/v0_9';
+} from '@a2ui/web_core';
+import {basicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
 
 /**
  * Helper to construct instances of SurfaceModel, ComponentModel, and ComponentContext.

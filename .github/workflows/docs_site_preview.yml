@@ -30,7 +30,7 @@ on:
       - ".github/workflows/docs_site_preview_deploy.yml"
       - "scripts/docs_site_preview.mjs"
       - "docs/site/**"
-      - "docs/public/assets/**"
+      - "docs/assets/**"
       - "specification/**"
       - "catalogs/**"
 
