@@ -104,8 +104,9 @@ Map<String, ComponentRefFields> _validationFieldsOf(ComponentRefMap refMap) {
 
 /// Whether graph validation checks a property of [kind].
 bool _checked(RefKind kind) => switch (kind) {
-      ListRef(:final inferred) => !inferred,
-      NestedRef(:final fields) => fields.values.any(_checked),
+      ListRef(:final bool inferred) => !inferred,
+      NestedRef(:final Map<String, RefKind> fields) =>
+        fields.values.any(_checked),
       SingleRef() => true,
     };
 
