@@ -36,7 +36,11 @@ To ensure consistency between the evaluation framework and the actual agent impl
 
 `a2ui_eval/runner.py` exposes `generate_prompt` to build format prompts and `parse_and_validate` to parse and validate model completions in a pooled Python worker process, isolating the harness from runaway regexes or parser loops under `DEFAULT_PARSE_TIMEOUT_SEC`.
 
-All format strategies (`direct`, `express`, `elemental`, and `atom`), `skill_mode`, and the `subagent_tool` specialist call `parse_and_validate` with `validate=True` during solver execution. The solver stores the validated messages in `state.metadata["compiled_messages"]`, and the Stage 1 scorer reuses them instead of parsing again.
+All format strategies (`direct`, `express`, `elemental`, and `atom`), `skill_mode`, `decision`, and the `subagent_tool` specialist call `parse_and_validate` with `validate=True` during solver execution. The solver stores the validated messages in `state.metadata["compiled_messages"]`, and the Stage 1 scorer reuses them instead of parsing again.
+
+### **The Decision Strategy**
+
+The `decision` strategy evaluates the two-stage decision-model synthesis route on A2UI v1.0. In Stage 1, the outer model emits `intent`, `payload`, and optional explicit `actions` maps, `exclude` pointers, `replace` flags, or layout hints in a `<a2ui>` block. In Stage 2, `DecisionSynthesizer` plans and expands the surface through an explicitly selected decision backend (`--decision-backend` or `A2UI_DECISION_BACKEND`, with no implicit mock fallback) without calling a second UI generation model. The strategy records Stage 1 validation retries (`pass_at_1`), backend kind and model identifier (`decision_backend_kind`, `decision_model_id`), decision latency (`decision_latency_ms`), round trips per surface (`decision_calls`), fallback diagnostics (`decision_fallback_source`, `decision_fallback_reason`), and planned template or archetype metadata.
 
 ### **Runner Options**
 

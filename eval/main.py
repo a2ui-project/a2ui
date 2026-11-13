@@ -25,6 +25,7 @@ from typing import Any
 from inspect_ai import Task, eval_set
 from inspect_ai.dataset import MemoryDataset
 
+from a2ui_eval.decision_common import DECISION_BACKEND_NAMES
 from a2ui_eval.runner import (
     DEFAULT_STRATEGIES,
     normalize_protocol_version,
@@ -109,7 +110,14 @@ RUNTIME_PROFILES: dict[str, dict[str, int | bool | None]] = {
 
 
 def resolve_model_name(model_name: str) -> str:
-    """Resolves convenience aliases and provider conventions to fully qualified model IDs."""
+    """Resolves convenience aliases and provider conventions to qualified model IDs.
+
+    Args:
+        model_name: Raw model identifier or alias string from the CLI.
+
+    Returns:
+        Provider-prefixed model identifier recognized by Inspect AI.
+    """
     stripped = model_name.strip()
     lower = stripped.lower()
     if lower in MODEL_ALIASES:
@@ -130,7 +138,17 @@ def resolve_model_name(model_name: str) -> str:
 
 
 def _task_function(version: str) -> Callable[..., Task]:
-    """Returns the Inspect task function for a protocol version."""
+    """Returns the Inspect task function for a protocol version.
+
+    Args:
+        version: Normalized A2UI protocol version string (`0.9.1` or `1.0`).
+
+    Returns:
+        Inspect task builder callable for `version`.
+
+    Raises:
+        ValueError: If `version` is not supported.
+    """
     # Looked up at call time so that tests can patch the task functions.
     if version == "0.9.1":
         return a2ui_v0_9_1_eval
@@ -140,7 +158,14 @@ def _task_function(version: str) -> Callable[..., Task]:
 
 
 def default_protocol_version(strategy: str) -> str:
-    """Returns the protocol version a strategy runs under when none is given."""
+    """Returns the protocol version a strategy runs under when none is given.
+
+    Args:
+        strategy: Evaluation strategy name.
+
+    Returns:
+        Default protocol version string (`0.9.1` for `subagent_tool`, else `1.0`).
+    """
     return "0.9.1" if strategy == "subagent_tool" else "1.0"
 
 
@@ -184,13 +209,27 @@ def plan_protocol_versions(
 
 
 def _parse_version_arg(value: str) -> str:
-    """Normalizes the '--version' argument (e.g. 'v1.0' -> '1.0')."""
+    """Normalizes the `--version` argument (for example `'v1.0'` to `'1.0'`).
+
+    Args:
+        value: Raw `--version` CLI argument string.
+
+    Returns:
+        Normalized version string or `'auto'`.
+    """
     cleaned = value.strip().lower()
     return cleaned if cleaned == "auto" else normalize_protocol_version(cleaned)
 
 
 def _split_strategy_args(raw: list[str]) -> list[str]:
-    """Flattens repeated or comma-separated `--strategies` values."""
+    """Flattens repeated or comma-separated `--strategies` values.
+
+    Args:
+        raw: List of raw `--strategies` argument strings.
+
+    Returns:
+        Deduplicated list of strategy names in order of appearance.
+    """
     selected: list[str] = []
     for item in raw:
         for s in item.split(","):
@@ -205,6 +244,12 @@ def parse_strategies(raw: list[str] | None) -> list[str]:
 
     Without `--strategies`, returns `DEFAULT_STRATEGIES` (the production
     formats); experimental strategies must be named explicitly.
+
+    Args:
+        raw: Optional list of raw `--strategies` CLI argument strings.
+
+    Returns:
+        Validated list of evaluation strategy names to execute.
 
     Raises:
         ValueError: If a named strategy is unknown.
@@ -227,6 +272,12 @@ def resolve_runtime_settings(args: argparse.Namespace) -> dict[str, Any]:
 
     An explicit `--max-samples`, `--max-connections` or `--working-limit`
     overrides the profile; `--no-judge` turns the judge off for any profile.
+
+    Args:
+        args: Parsed CLI `argparse.Namespace`.
+
+    Returns:
+        Dictionary of resolved runtime concurrency and judge settings.
     """
     profile = dict(RUNTIME_PROFILES[args.profile])
     if args.max_samples is not None:
@@ -240,8 +291,8 @@ def resolve_runtime_settings(args: argparse.Namespace) -> dict[str, Any]:
     return profile
 
 
-def main() -> None:
-    """Parses CLI arguments and runs the A2UI evaluation suite."""
+def _build_arg_parser() -> argparse.ArgumentParser:
+    """Constructs the CLI argument parser for `main.py`."""
     parser = argparse.ArgumentParser(description="Run A2UI evaluations")
     parser.add_argument(
         "--sanity",
@@ -326,10 +377,24 @@ def main() -> None:
         action="append",
         help=(
             "Evaluation strategies to run (choices: direct, subagent_tool,"
-            " express, skill_mode, elemental, atom). Can be comma-separated or"
-            " specified multiple times. Defaults to the production strategies"
-            " direct, subagent_tool and express."
+            " express, skill_mode, elemental, atom, decision). Can be"
+            " comma-separated or specified multiple times. Defaults to the"
+            " production strategies direct, subagent_tool and express."
         ),
+    )
+    parser.add_argument(
+        "--decision-backend",
+        choices=list(DECISION_BACKEND_NAMES),
+        default=None,
+        help=(
+            "Decision backend to use for the decision strategy ('mock',"
+            " 'jev', 'gemini', 'systemone', 'step0')."
+        ),
+    )
+    parser.add_argument(
+        "--cache-generations",
+        action="store_true",
+        help="Cache LLM generations using Inspect's GenerateConfigArgs.cache.",
     )
     parser.add_argument(
         "--profile",
@@ -418,12 +483,133 @@ def main() -> None:
         default=None,
         help="Number of epochs/repetitions to run for each evaluation sample",
     )
-    args = parser.parse_args()
-    if args.sanity:
-        model = "google/gemini-3.1-flash-lite"
-    else:
-        model = resolve_model_name(args.model)
+    return parser
 
+
+def _filter_task_prompts(task_obj: Task, prompts: list[str] | None) -> None:
+    """Filters `task_obj.dataset` in place when `--prompt` filters are given.
+
+    Args:
+        task_obj: Inspect AI `Task` whose dataset should be filtered.
+        prompts: Optional list of substring filters matched against sample names
+            or inputs.
+    """
+    if not prompts or getattr(task_obj, "dataset", None) is None:
+        return
+    prompt_list = [p.lower() for p in prompts]
+    filtered = [
+        s
+        for s in task_obj.dataset
+        if any(
+            p in str((s.metadata or {}).get("name", "")).lower()
+            or p in str(s.input).lower()
+            for p in prompt_list
+        )
+    ]
+    task_obj.dataset = MemoryDataset(samples=filtered, name=task_obj.dataset.name)
+
+
+def _build_single_task(
+    strat: str,
+    task_version: str,
+    task_datasets: list[str],
+    *,
+    args: argparse.Namespace,
+    grading_model: str,
+    runtime: dict[str, Any],
+    tags: str | None,
+) -> Task:
+    """Builds and filters a single Inspect `Task` for `(strat, task_version)`.
+
+    Args:
+        strat: Evaluation strategy name.
+        task_version: A2UI protocol version string.
+        task_datasets: Dataset names assigned to this protocol version.
+        args: Parsed CLI arguments.
+        grading_model: Qualified LLM judge model identifier.
+        runtime: Resolved runtime concurrency and judge settings.
+        tags: Optional comma-separated tag filter string.
+
+    Returns:
+        Configured Inspect AI `Task` instance.
+    """
+    task_func = _task_function(task_version)
+    task_kwargs: dict[str, Any] = {
+        "strategy": strat,
+        "grading_model": grading_model,
+        "dataset": ",".join(task_datasets) or None,
+    }
+    if tags:
+        task_kwargs["tags"] = tags
+    if runtime["no_judge"]:
+        task_kwargs["no_judge"] = True
+    if args.max_validation_retries:
+        task_kwargs["max_validation_retries"] = args.max_validation_retries
+    if args.subagent_format != "direct_json":
+        task_kwargs["subagent_format"] = args.subagent_format
+    if args.decision_backend:
+        task_kwargs["decision_backend"] = args.decision_backend
+    if args.cache_generations:
+        task_kwargs["cache_generations"] = True
+
+    task_obj = task_func(**task_kwargs)
+    _filter_task_prompts(task_obj, args.prompt)
+    return task_obj
+
+
+def _build_eval_set_kwargs(
+    *,
+    tasks: list[Task],
+    model: str,
+    args: argparse.Namespace,
+    runtime: dict[str, Any],
+) -> dict[str, Any]:
+    """Builds keyword arguments forwarded to Inspect `eval_set`.
+
+    Args:
+        tasks: List of configured Inspect AI `Task` objects to evaluate.
+        model: Qualified generation model identifier.
+        args: Parsed CLI arguments.
+        runtime: Resolved runtime concurrency and judge settings.
+
+    Returns:
+        Keyword argument dictionary for `inspect_ai.eval_set`.
+    """
+    kwargs: dict[str, Any] = {
+        "tasks": tasks,
+        "model": model,
+        "log_dir": args.log_dir,
+        "retry_attempts": 0 if args.sanity else args.max_retries,
+        "limit": 2 if args.sanity else args.limit,
+        "sample_shuffle": None if args.sanity else args.sample_shuffle,
+        "working_limit": runtime["working_limit"],
+        "log_dir_allow_dirty": True,
+        "max_samples": runtime["max_samples"],
+    }
+    if runtime["max_connections"] is not None:
+        kwargs["max_connections"] = runtime["max_connections"]
+    if args.model_base_url:
+        kwargs["model_base_url"] = args.model_base_url
+    epochs = None if args.sanity else args.epochs
+    if epochs is not None:
+        kwargs["epochs"] = epochs
+    if args.thinking_budget is not None:
+        kwargs["reasoning_tokens"] = args.thinking_budget
+    if args.temperature is not None:
+        kwargs["temperature"] = args.temperature
+    if args.max_tasks is not None:
+        kwargs["max_tasks"] = args.max_tasks
+    return kwargs
+
+
+def main() -> None:
+    """Parses CLI arguments and runs the A2UI evaluation suite."""
+    args = _build_arg_parser().parse_args()
+    model = (
+        "google/gemini-3.1-flash-lite"
+        if args.sanity
+        else resolve_model_name(args.model)
+    )
     grading_model = resolve_model_name(args.grading_model)
     if any(
         family in grading_model.lower() for family in RESTRICTED_GRADING_MODEL_FAMILIES
@@ -434,15 +620,7 @@ def main() -> None:
             " 'google/gemini-3.6-flash' or 'google/gemini-3.1-flash-lite')."
         )
 
-    limit = 2 if args.sanity else args.limit
-    retry_attempts = 0 if args.sanity else args.max_retries
-    sample_shuffle = None if args.sanity else args.sample_shuffle
-    epochs = None if args.sanity else args.epochs
-
-    # Resolve dataset filters
     selected_datasets = split_dataset_names(args.datasets or args.dataset)
-
-    # Parse and validate strategies
     selected_strategies = parse_strategies(args.strategies)
     runtime = resolve_runtime_settings(args)
     tags = args.tags or args.tier
@@ -459,63 +637,24 @@ def main() -> None:
             validate_version(task_version)
             task_plan.append((strat, task_version, task_datasets))
 
-    tasks = []
-    for strat, task_version, task_datasets in task_plan:
-        task_func = _task_function(task_version)
-        task_kwargs: dict[str, Any] = {
-            "strategy": strat,
-            "grading_model": grading_model,
-            "dataset": ",".join(task_datasets) or None,
-        }
-        if tags:
-            task_kwargs["tags"] = tags
-        if runtime["no_judge"]:
-            task_kwargs["no_judge"] = True
-        if args.max_validation_retries:
-            task_kwargs["max_validation_retries"] = args.max_validation_retries
-        if args.subagent_format != "direct_json":
-            task_kwargs["subagent_format"] = args.subagent_format
-
-        task_obj = task_func(**task_kwargs)
-        if args.prompt and getattr(task_obj, "dataset", None) is not None:
-            prompt_list = [p.lower() for p in args.prompt]
-            filtered = [
-                s
-                for s in task_obj.dataset
-                if any(
-                    p in str((s.metadata or {}).get("name", "")).lower()
-                    or p in str(s.input).lower()
-                    for p in prompt_list
-                )
-            ]
-            task_obj.dataset = MemoryDataset(
-                samples=filtered, name=task_obj.dataset.name
-            )
-        tasks.append(task_obj)
-
-    eval_set_kwargs: dict[str, Any] = {
-        "tasks": tasks,
-        "model": model,
-        "log_dir": args.log_dir,
-        "retry_attempts": retry_attempts,
-        "limit": limit,
-        "sample_shuffle": sample_shuffle,
-        "working_limit": runtime["working_limit"],
-        "log_dir_allow_dirty": True,
-    }
-    if runtime["max_connections"] is not None:
-        eval_set_kwargs["max_connections"] = runtime["max_connections"]
-    if args.model_base_url:
-        eval_set_kwargs["model_base_url"] = args.model_base_url
-    if epochs is not None:
-        eval_set_kwargs["epochs"] = epochs
-    if args.thinking_budget is not None:
-        eval_set_kwargs["reasoning_tokens"] = args.thinking_budget
-    if args.temperature is not None:
-        eval_set_kwargs["temperature"] = args.temperature
-    if args.max_tasks is not None:
-        eval_set_kwargs["max_tasks"] = args.max_tasks
-    eval_set_kwargs["max_samples"] = runtime["max_samples"]
+    tasks = [
+        _build_single_task(
+            strat,
+            task_version,
+            task_datasets,
+            args=args,
+            grading_model=grading_model,
+            runtime=runtime,
+            tags=tags,
+        )
+        for strat, task_version, task_datasets in task_plan
+    ]
+    eval_set_kwargs = _build_eval_set_kwargs(
+        tasks=tasks,
+        model=model,
+        args=args,
+        runtime=runtime,
+    )
 
     print(f"Starting evaluation for strategies {selected_strategies}...")
     success, _ = eval_set(**eval_set_kwargs)

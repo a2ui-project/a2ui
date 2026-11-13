@@ -1,0 +1,224 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "A2UI Decision Plan Benchmark Cases Schema",
+  "description": "Schema for decision plan benchmark cases across tuning and held-out splits.",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Unique identifier for this decision case."
+      },
+      "intent": {
+        "type": "string",
+        "minLength": 1,
+        "description": "User intent or instruction driving the UI synthesis."
+      },
+      "payload": {
+        "type": "object",
+        "description": "Structured JSON data payload passed to the decision synthesizer."
+      },
+      "mode": {
+        "type": "string",
+        "enum": ["chat", "tool"],
+        "default": "chat",
+        "description": "Execution mode: chat block synthesis or direct tool rendering."
+      },
+      "tool_name": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Optional tool name for mode='tool' cases."
+      },
+      "actions": {
+        "type": "object",
+        "description": "Optional map of explicit action IDs to label strings or ActionSpec option objects."
+      },
+      "exclude": {
+        "type": "array",
+        "items": {"type": "string"},
+        "description": "Optional list of JSON Pointer paths to omit from the surface."
+      },
+      "replace": {
+        "type": "boolean",
+        "description": "Whether the decision block replaces an existing surface layout."
+      },
+      "region": {
+        "type": "string",
+        "description": "Optional block role to re-plan and update in place on an existing surface."
+      },
+      "labels": {
+        "type": "object",
+        "additionalProperties": {"type": "string"},
+        "description": "Optional map of JSON Pointer paths to display labels."
+      },
+      "mutable_paths": {
+        "type": "array",
+        "items": {"type": "string"},
+        "description": "Optional list of JSON Pointer paths that are user-editable."
+      },
+      "layout": {
+        "type": "array",
+        "items": {"type": "string"},
+        "description": "Optional layout brief entries ('<role>:<key>,<key>')."
+      },
+      "title": {
+        "type": "string",
+        "description": "Optional explicit surface title."
+      },
+      "summary": {
+        "type": "string",
+        "description": "Optional explicit surface summary."
+      },
+      "fallback_dsl": {
+        "type": "string",
+        "description": "Optional A2UI Express fallback source."
+      },
+      "sensitive": {
+        "type": "array",
+        "items": {"type": "string"},
+        "description": "JSON Pointer paths in payload whose paths and values must never render on the surface."
+      },
+      "turns": {
+        "type": "array",
+        "minItems": 2,
+        "description": "Optional multi-turn sequence rendered against one conversation RendererState.",
+        "items": {
+          "type": "object",
+          "properties": {
+            "surface_id": {"type": "string"},
+            "intent": {"type": "string", "minLength": 1},
+            "payload": {"type": "object"},
+            "actions": {"type": "object"},
+            "exclude": {
+              "type": "array",
+              "items": {"type": "string"}
+            },
+            "replace": {"type": "boolean"},
+            "region": {"type": "string"},
+            "labels": {
+              "type": "object",
+              "additionalProperties": {"type": "string"}
+            },
+            "mutable_paths": {
+              "type": "array",
+              "items": {"type": "string"}
+            },
+            "layout": {
+              "type": "array",
+              "items": {"type": "string"}
+            },
+            "title": {"type": "string"},
+            "summary": {"type": "string"},
+            "fallback_dsl": {"type": "string"},
+            "expected_operation": {
+              "type": "string",
+              "enum": ["create", "update_root", "update_region", "replace"]
+            },
+            "expected_cache_hit": {"type": "boolean"}
+          },
+          "required": ["intent", "payload"],
+          "additionalProperties": false
+        }
+      },
+      "expected": {
+        "type": "object",
+        "description": "Expected synthesis outcomes for calibration and accuracy scoring.",
+        "properties": {
+          "family": {
+            "type": "string",
+            "enum": ["monitor", "browse", "inspect", "act", "input", "follow", "none"],
+            "description": "Expected job family ID, or 'none' for out-of-grammar cases."
+          },
+          "archetypes": {
+            "type": "array",
+            "items": {"type": "string"},
+            "minItems": 0,
+            "description": "Acceptable archetype names for this case (empty when family is 'none')."
+          },
+          "blocks": {
+            "type": "object",
+            "properties": {
+              "required": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Block IDs required in the synthesized layout plan."
+              },
+              "forbidden": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Block IDs that must not appear in the synthesized layout plan."
+              }
+            },
+            "additionalProperties": false
+          },
+          "action_gate": {
+            "type": "string",
+            "enum": ["pass", "abstain", "any"],
+            "default": "pass",
+            "description": "Expected action gate behavior: pass means synthesized, abstain means blocked by action gate."
+          },
+          "bindings": {
+            "type": "object",
+            "additionalProperties": {
+              "oneOf": [
+                {"type": "string"},
+                {
+                  "type": "array",
+                  "items": {"type": "string"},
+                  "minItems": 1
+                }
+              ]
+            },
+            "description": "Expected slot bindings mapping '<block_id>.<slot_name>' to JSON Pointer(s)."
+          },
+          "actions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {"type": "string"}
+            },
+            "description": "Expected rendered action IDs mapped to their bound context pointers or item keys."
+          }
+        },
+        "required": ["family", "archetypes"],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {"family": {"not": {"const": "none"}}}
+            },
+            "then": {
+              "properties": {"archetypes": {"minItems": 1}}
+            }
+          }
+        ]
+      },
+      "split": {
+        "type": "string",
+        "enum": ["tuning", "heldout"],
+        "description": "Dataset split: tuning for calibration and iteration, heldout for final evaluation."
+      },
+      "tags": {
+        "type": "array",
+        "items": {"type": "string"},
+        "description": "Classification tags (e.g. smoke, regression, multi_turn, out_of_grammar)."
+      },
+      "verified": {
+        "type": "boolean",
+        "description": "Whether this case has been human-verified and frozen as a ground truth target."
+      },
+      "source": {
+        "type": "object",
+        "properties": {
+          "log_path": {"type": "string"},
+          "sample_id": {"type": "string"}
+        },
+        "additionalProperties": true
+      }
+    },
+    "required": ["name", "intent", "payload", "expected", "split", "verified"],
+    "additionalProperties": false
+  }
+}
