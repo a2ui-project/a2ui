@@ -257,7 +257,7 @@ describe('Integrity Verification', () => {
       }
     });
 
-    it('extracts only componentId from {componentId, "@path"} templates and passes strict validateTopology alongside z.object({}) containers', () => {
+    it('extracts only componentId from {componentId, "@path"} templates and passes strict validateTopology alongside empty open containers', () => {
       const catalog = new Catalog('v10-tmpl-cat', '1.0', [
         {
           name: 'Repeater',
@@ -266,8 +266,9 @@ describe('Integrity Verification', () => {
           }),
         },
         {
+          // A strip `z.object({})` is closed; an empty container lets keys through.
           name: 'EmptyWrapper',
-          schema: z.object({}),
+          schema: z.object({}).passthrough(),
         },
         {
           name: 'LeafText',

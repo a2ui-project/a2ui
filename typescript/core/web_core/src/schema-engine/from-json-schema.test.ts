@@ -16,7 +16,9 @@
 
 import * as assert from 'node:assert';
 import {describe, it} from 'node:test';
+import type {StandardSchemaV1} from '@standard-schema/spec';
 import {fromJsonSchema} from './from-json-schema.js';
+import {toA2uiIssues} from './issues.js';
 import type {CompiledValidator, JsonSchemaValidator} from './types.js';
 
 const fakeValidator: JsonSchemaValidator = {
@@ -63,5 +65,33 @@ describe('fromJsonSchema', () => {
     };
     fromJsonSchema({}, v, {defs: {'a.json': true}});
     assert.deepStrictEqual(seen, {defs: {'a.json': true}});
+  });
+});
+
+describe('fromJsonSchema issues and defaults', () => {
+  it('keeps the keyword and params of an issue for toA2uiIssues', () => {
+    const v: JsonSchemaValidator = {
+      compile: <T>() =>
+        (() => ({
+          success: false,
+          issues: [{path: ['a'], message: 'm', keyword: 'enum', params: {allowedValues: [1, 2]}}],
+        })) as CompiledValidator<T>,
+    };
+    const r = fromJsonSchema({}, v)['~standard'].validate(0) as StandardSchemaV1.FailureResult;
+    assert.deepStrictEqual(toA2uiIssues(r.issues), [
+      {path: ['a'], message: 'm', keyword: 'enum', params: {allowedValues: [1, 2]}},
+    ]);
+  });
+
+  it('fills the schema defaults of a valid value, on a copy', () => {
+    const accept: JsonSchemaValidator = {
+      compile: <T>() =>
+        ((value: unknown) => ({success: true, data: value})) as CompiledValidator<T>,
+    };
+    const schema = {type: 'object', properties: {size: {type: 'number', default: 12}}};
+    const input = {};
+    const r = fromJsonSchema(schema, accept)['~standard'].validate(input);
+    assert.deepStrictEqual(r, {value: {size: 12}});
+    assert.deepStrictEqual(input, {});
   });
 });

@@ -1813,8 +1813,10 @@ describe('NodeResolver dynamic and unannotated ref schemas (#3783)', () => {
     }
   });
 
-  it('resolves child and children for empty-shape z.object({}), passthrough, catchall, and Catalog.fromJson schemas', () => {
-    const EmptyApi: ComponentApi = {name: 'EmptyBox', schema: z.object({})};
+  it('resolves child and children for empty passthrough, passthrough, catchall, and Catalog.fromJson schemas', () => {
+    // A strip `z.object({})` is closed (`additionalProperties: false`), so an
+    // empty container must let other keys through.
+    const EmptyApi: ComponentApi = {name: 'EmptyBox', schema: z.object({}).passthrough()};
     const PassthroughApi: ComponentApi = {
       name: 'PassthroughBox',
       schema: z.object({variant: z.string().optional()}).passthrough(),
@@ -1980,7 +1982,7 @@ describe('NodeResolver dynamic and unannotated ref schemas (#3783)', () => {
     };
     const EmptyListApi: ComponentApi = {
       name: 'EmptyList',
-      schema: z.object({}),
+      schema: z.object({}).passthrough(),
     };
     const RecordListApi: ComponentApi = {
       name: 'RecordList',

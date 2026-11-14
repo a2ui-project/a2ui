@@ -40,7 +40,8 @@ import {
   type FunctionCall,
 } from '../types/common-types.js';
 import type {JsonSchema} from '../schema-engine/types.js';
-import {toSchemaDoc} from '../schema-engine/zod-bridge.js';
+import type {AuthoredSchema} from '../catalog/entry-schema.js';
+import {cursorOf} from '../test/schema.js';
 import type {Action as V1Action, CheckRule as V1CheckRule} from '../v1_0/schema/common-types.js';
 import V10CommonTypes from '../v1_0/schemas/common_types.json' with {type: 'json'};
 import type {ChildRefAnalysisOptions} from './ref-fields.js';
@@ -66,9 +67,9 @@ const record = (values: JsonSchema = {}): JsonSchema => ({
   additionalProperties: values,
 });
 
-// ponytail: bridge until Task 8 — the binder tests below build their
-// components from Zod schemas, as code-defined catalogs do until Task 10.
-const bridged = (schema: z.ZodTypeAny) => toSchemaDoc(schema);
+// ponytail: the binder tests below build their components from zod 3
+// schemas, as code-defined catalogs do until Task 10.
+const bridged = (schema: AuthoredSchema) => cursorOf(schema);
 
 describe('GenericBinder Checkable Trait', () => {
   function setupSurfaceAndMocks() {

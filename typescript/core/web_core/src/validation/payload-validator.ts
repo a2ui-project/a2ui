@@ -14,14 +14,18 @@
  * limitations under the License.
  */
 
+import type {StandardSchemaV1} from '@standard-schema/spec';
 import {z} from 'zod';
+import {entrySchema, prepareSchema, validateWith} from '../catalog/entry-schema.js';
 import {CatalogInterface} from '../catalog/types.js';
 import {isAtLeastVersion} from '../common/semver.js';
 import {isValidUax31Identifier} from '../common/uax31.js';
 import {A2uiErrorDetail, A2uiValidationError} from '../errors.js';
 import {formatZodIssue} from '../processing/format-zod-issue.js';
 import {getKnownSchemaKeys} from '../resolution/data-context.js';
-import {componentSchemaDoc, toSchemaDoc} from '../schema-engine/zod-bridge.js';
+import {formatIssue, pickIssue, toA2uiIssues} from '../schema-engine/issues.js';
+import type {A2uiIssue} from '../schema-engine/types.js';
+import {zod3Issues} from '../schema-engine/zod3-adapter.js';
 import {AccessibilityAttributesSchema, ComponentCommonSchema} from '../types/common-types.js';
 import {
   AT_COMPONENT_MIXIN_KEYS,
@@ -207,6 +211,10 @@ export class PayloadValidator {
    * @param options Validation options. `skipNestedFunctions` leaves the
    *   function calls in the properties unchecked, as pre-1.0 renderers did
    *   when validation was off.
+   * @returns The component's own properties as its schema validated them,
+   *   with any defaults or transforms the schema applies (not the envelope
+   *   mixins, nor a key the schema dropped), or `undefined` when the catalog
+   *   does not define the component.
    * @throws {A2uiValidationError} If the identifier, the component type, any
    *   property, or any nested function call fails validation.
    */
@@ -214,7 +222,7 @@ export class PayloadValidator {
     comp: Record<string, unknown>,
     knownType?: string,
     options?: {skipNestedFunctions?: boolean},
-  ): void {
+  ): Record<string, unknown> | undefined {
     const id = comp['id'];
     if (typeof id !== 'string' || !id) {
       const msg = `Component '${comp['component']}' is missing an 'id'; entries require a valid string 'id'.`;
@@ -253,16 +261,15 @@ export class PayloadValidator {
     );
 
     const componentApi = this.catalog.components.get(componentType);
+    const prepared = componentApi
+      ? entrySchema(componentApi, 'component', this.catalog)
+      : undefined;
     // From v1.0 the envelope mixins (`@metadata`, `@catalogId`,
     // `@accessibility`, `@checks`, or their legacy bare names) are split from
     // the component's own properties. Below v1.0 every key but `id` and
     // `component` is a property.
     const split: SplitComponent = this.enforceIdentifiers
-      ? splitComponentEnvelope(
-          comp,
-          // ponytail: bridge until Task 8 — component schemas are still Zod.
-          componentMixinLayout(componentSchemaDoc(componentApi, this.catalog)),
-        )
+      ? splitComponentEnvelope(comp, componentMixinLayout(prepared?.layoutCursor))
       : {properties: stripStructuralKeys(comp), mixins: {}};
     const properties = split.properties;
     // Decides which nested calls run in this catalog; see
@@ -295,45 +302,50 @@ export class PayloadValidator {
       if (!options?.skipNestedFunctions) {
         this.validateNestedFunctions(properties, componentCatalogId);
       }
-      return;
+      return undefined;
     }
 
+    // The component's own keys, before any mixin its schema declares joins
+    // them for validation.
+    const ownKeys = new Set(Object.keys(properties));
     if (this.enforceIdentifiers) {
       this.validateEnvelopeMixins(
         split.mixins,
-        componentMixinLayout(componentSchemaDoc(componentApi, this.catalog)),
+        componentMixinLayout(prepared?.layoutCursor),
         properties,
         componentType,
         id,
         componentCatalogId,
       );
     } else {
-      // ponytail: bridge until Task 8 — component schemas are still Zod.
-      const schemaJson = toSchemaDoc(componentApi.schema, this.catalog.protocolVersion);
       this.validateLegacyAccessibility(
         properties,
-        getKnownSchemaKeys(schemaJson.node, schemaJson.doc),
+        prepared ? getKnownSchemaKeys(prepared.cursor.node, prepared.cursor.doc) : null,
         componentType,
         id,
       );
     }
 
-    const result = componentApi.schema.safeParse(properties);
-    if (!result.success) {
-      const formattedErrors = result.error.errors.map(formatZodIssue).join(', ');
-      const details = zodIssuesToDetails(result.error.issues);
-      const uniquePaths = new Set(details.map(d => d.path));
-      const firstPath = uniquePaths.size === 1 ? details[0]?.path : undefined;
-      throw new A2uiValidationError(
-        `Validation failed for component '${componentType}' (${id}): ${formattedErrors}`,
-        details,
-        'VALIDATION_ERROR',
-        {path: firstPath && firstPath !== '/' ? firstPath : undefined},
-      );
+    let validated: Record<string, unknown> | undefined;
+    if (prepared) {
+      const result = validateWith(prepared.schema, properties, `Component '${componentType}'`);
+      if (result.issues) {
+        const {message, details} = describeIssues(result.issues);
+        const uniquePaths = new Set(details.map(d => d.path));
+        const firstPath = uniquePaths.size === 1 ? details[0]?.path : undefined;
+        throw new A2uiValidationError(
+          `Validation failed for component '${componentType}' (${id}): ${message}`,
+          details,
+          'VALIDATION_ERROR',
+          {path: firstPath && firstPath !== '/' ? firstPath : undefined},
+        );
+      }
+      validated = ownValidatedProperties(result.value, ownKeys, new Set(Object.keys(properties)));
     }
     if (!options?.skipNestedFunctions) {
       this.validateNestedFunctions(properties, componentCatalogId);
     }
+    return validated;
   }
 
   /**
@@ -629,7 +641,8 @@ export class PayloadValidator {
       return (args ?? {}) as Record<string, unknown>;
     }
 
-    if (!fn.schema) {
+    const prepared = entrySchema(fn, 'function', this.catalog);
+    if (!prepared) {
       if (
         args !== undefined &&
         (typeof args !== 'object' || args === null || Array.isArray(args))
@@ -644,18 +657,17 @@ export class PayloadValidator {
       return (args ?? {}) as Record<string, unknown>;
     }
 
-    const result = fn.schema.safeParse(args ?? {});
-    if (!result.success) {
-      const formattedErrors = result.error.errors.map(formatZodIssue).join(', ');
-      const details = zodIssuesToDetails(result.error.issues, '/args');
+    const result = validateWith(prepared.schema, args ?? {}, `Function '${name}'`);
+    if (result.issues) {
+      const {message, details} = describeIssues(result.issues, '/args');
       throw new A2uiValidationError(
-        `Validation failed for function '${name}': ${formattedErrors}`,
+        `Validation failed for function '${name}': ${message}`,
         details,
         'VALIDATION_ERROR',
         {path: details[0]?.path},
       );
     }
-    return result.data as Record<string, unknown>;
+    return result.value as Record<string, unknown>;
   }
 
   /**
@@ -671,18 +683,18 @@ export class PayloadValidator {
     const themeSchema = this.catalog.themeSchema;
     if (!themeSchema) return theme;
 
-    const result = themeSchema.safeParse(theme);
-    if (!result.success) {
-      const formattedErrors = result.error.errors.map(formatZodIssue).join(', ');
-      const details = zodIssuesToDetails(result.error.issues, '/theme');
+    const what = `Theme of catalog '${this.catalog.id}'`;
+    const result = validateWith(prepareSchema(themeSchema, what).schema, theme, what);
+    if (result.issues) {
+      const {message, details} = describeIssues(result.issues, '/theme');
       throw new A2uiValidationError(
-        `Validation failed for theme: ${formattedErrors}`,
+        `Validation failed for theme: ${message}`,
         details,
         'VALIDATION_ERROR',
         {path: details[0]?.path ?? '/theme'},
       );
     }
-    return result.data;
+    return result.value;
   }
 
   /**
@@ -710,6 +722,68 @@ export class PayloadValidator {
       );
     }
   }
+}
+
+/**
+ * The own properties of a validated component value: the keys it had as its
+ * own, and any its schema added (such as defaults). Mixins validated with it
+ * are left out.
+ */
+function ownValidatedProperties(
+  value: unknown,
+  ownKeys: ReadonlySet<string>,
+  inputKeys: ReadonlySet<string>,
+): Record<string, unknown> | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  const own: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (ownKeys.has(key) || !inputKeys.has(key)) own[key] = item;
+  }
+  return own;
+}
+
+/**
+ * Words a schema's validation issues: zod 3's issues as before, and any
+ * other schema's as web_core words them, by their most informative issue.
+ *
+ * @param issues The Standard Schema issues.
+ * @param prefix JSON Pointer of the validated value.
+ * @returns The message and the error details.
+ */
+function describeIssues(
+  issues: readonly StandardSchemaV1.Issue[],
+  prefix = '',
+): {message: string; details: A2uiErrorDetail[]} {
+  // ponytail: zod wording for zod 3 schemas until Task 11.
+  const zodIssues = zod3Issues(issues);
+  if (zodIssues) {
+    return {
+      message: zodIssues.map(formatZodIssue).join(', '),
+      details: zodIssuesToDetails(zodIssues, prefix),
+    };
+  }
+  const issue = pickIssue(toA2uiIssues(issues));
+  const message = formatIssue(issue);
+  return {message, details: [issueDetail(issue, prefix, message)]};
+}
+
+/** The error detail of an issue, pointing at the offending value. */
+function issueDetail(issue: A2uiIssue, prefix: string, message: string): A2uiErrorDetail {
+  const segments = [...issue.path];
+  const missing = issue.keyword === 'required';
+  const property = issue.params?.['missingProperty'];
+  // Point at the missing key, unless the engine already does.
+  if (missing && typeof property === 'string' && segments[segments.length - 1] !== property) {
+    segments.push(property);
+  }
+  const relPath = segments
+    .map(s => `/${String(s).replace(/~/g, '~0').replace(/\//g, '~1')}`)
+    .join('');
+  return {
+    path: `${prefix}${relPath}` || '/',
+    code: missing ? 'missing_field' : 'invalid_value',
+    message,
+  };
 }
 
 /**

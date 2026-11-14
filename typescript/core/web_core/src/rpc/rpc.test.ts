@@ -189,7 +189,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     assert.strictEqual(indexValue2, 2);
 
     // Schema coercion parses string offsets and falls back safely on NaN
-    const parsedArgs = IndexImplementation.schema?.parse({offset: '5'});
+    const parsedArgs = (IndexImplementation.schema as z.ZodTypeAny).parse({offset: '5'});
     const indexValue3 = IndexImplementation.execute(parsedArgs, context2);
     assert.strictEqual(indexValue3, 7);
   });

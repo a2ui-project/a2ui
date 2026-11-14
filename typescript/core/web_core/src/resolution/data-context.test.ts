@@ -795,19 +795,25 @@ describe('DataContext', () => {
       const keys = (node: JsonSchema, defs?: Record<string, JsonSchema>) =>
         getKnownSchemaKeys(node, doc(node, defs));
 
-      const objSchema = {
+      // As JSON Schema reads it, an object without `additionalProperties`
+      // allows any other key.
+      const openSchema = {
         type: 'object',
         properties: {a: {type: 'string'}, b: {type: 'number'}},
       };
-      assert.deepStrictEqual(keys(objSchema), new Set(['a', 'b']));
+      assert.strictEqual(keys(openSchema), null);
 
-      // A closed object, or one whose extra keys are typed, still declares its keys.
+      // A closed object, or one whose extra keys are typed, declares its keys.
       const closedSchema = {
         type: 'object',
         properties: {value: {}, min: {type: 'number'}},
         additionalProperties: false,
       };
       assert.deepStrictEqual(keys(closedSchema), new Set(['value', 'min']));
+      assert.deepStrictEqual(
+        keys({type: 'object', properties: {a: {}}, unevaluatedProperties: false}),
+        new Set(['a']),
+      );
 
       const passthroughSchema = {
         type: 'object',
@@ -816,41 +822,59 @@ describe('DataContext', () => {
       };
       assert.strictEqual(keys(passthroughSchema), null);
 
+      const closed = (properties: Record<string, JsonSchema>) => ({
+        type: 'object',
+        properties,
+        additionalProperties: false,
+      });
       const unionSchema = {
-        anyOf: [
-          {type: 'object', properties: {x: {type: 'string'}}},
-          {type: 'object', properties: {y: {type: 'number'}}},
-        ],
+        anyOf: [closed({x: {type: 'string'}}), closed({y: {type: 'number'}})],
       };
       assert.deepStrictEqual(keys(unionSchema), new Set(['x', 'y']));
 
       const intersectionSchema = {
-        allOf: [
-          {type: 'object', properties: {a: {type: 'string'}}},
-          {type: 'object', properties: {b: {type: 'number'}}},
-        ],
+        allOf: [closed({a: {type: 'string'}}), closed({b: {type: 'number'}})],
       };
       assert.deepStrictEqual(keys(intersectionSchema), new Set(['a', 'b']));
 
       const intersectionWithPassthrough = {
         allOf: [
-          {type: 'object', properties: {a: {type: 'string'}}},
+          closed({a: {type: 'string'}}),
           {type: 'object', properties: {b: {type: 'number'}}, additionalProperties: true},
         ],
       };
       assert.strictEqual(keys(intersectionWithPassthrough), null);
 
+      // `unevaluatedProperties: false` next to `allOf` closes open members.
+      assert.deepStrictEqual(
+        keys({
+          allOf: [
+            {type: 'object', properties: {a: {}}},
+            {type: 'object', properties: {b: {}}},
+          ],
+          unevaluatedProperties: false,
+        }),
+        new Set(['a', 'b']),
+      );
+      assert.strictEqual(
+        keys({
+          allOf: [
+            {type: 'object', properties: {a: {}}},
+            {type: 'object', properties: {b: {}}},
+          ],
+        }),
+        null,
+      );
+
       // Properties next to `allOf` count with the members' keys.
       const ownAndAllOf = {
         type: 'object',
         properties: {own: {type: 'string'}},
-        allOf: [{type: 'object', properties: {a: {type: 'string'}}}],
+        additionalProperties: false,
+        allOf: [closed({a: {type: 'string'}})],
       };
       assert.deepStrictEqual(keys(ownAndAllOf), new Set(['own', 'a']));
-      assert.deepStrictEqual(
-        keys({type: 'object', allOf: [{type: 'object', properties: {a: {}}}]}),
-        new Set(['a']),
-      );
+      assert.deepStrictEqual(keys({type: 'object', allOf: [closed({a: {}})]}), new Set(['a']));
 
       // Nullable wrappers and `$ref`s into another document are followed.
       const nullableRef = {
@@ -858,7 +882,7 @@ describe('DataContext', () => {
       };
       assert.deepStrictEqual(
         keys(nullableRef, {
-          'common.json': {$defs: {Args: {type: 'object', properties: {n: {}}}}},
+          'common.json': {$defs: {Args: closed({n: {}})}},
         }),
         new Set(['n']),
       );

@@ -22,7 +22,7 @@ import {z} from 'zod';
 import {A2uiCatalogError, A2uiValidationError} from '../errors.js';
 import {Catalog} from './types.js';
 import {analyzeChildRefSchema} from './reference-map.js';
-import {toSchemaDoc} from '../schema-engine/zod-bridge.js';
+import {cursorOf} from '../test/schema.js';
 import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
 import {STRICT_VALIDATION} from '../validation/integrity-checker.js';
 import {PayloadValidator} from '../validation/payload-validator.js';
@@ -83,7 +83,7 @@ describe('Catalog.fromJson & schema_loader', () => {
     const rowShape = (rowComp.schema as z.ZodObject<any>).shape;
     assert.ok(rowShape.children);
 
-    const validChildren = rowComp.schema.safeParse({
+    const validChildren = (rowComp.schema as z.ZodTypeAny).safeParse({
       children: ['c1', 'c2'],
     });
     assert.strictEqual(validChildren.success, true);
@@ -94,7 +94,7 @@ describe('Catalog.fromJson & schema_loader', () => {
     const btnShape = (btnComp.schema as z.ZodObject<any>).shape;
     assert.ok(btnShape.action);
 
-    const validAction = btnComp.schema.safeParse({
+    const validAction = (btnComp.schema as z.ZodTypeAny).safeParse({
       child: 'txt1',
       action: {event: {name: 'click_me'}},
     });
@@ -123,7 +123,7 @@ describe('Catalog.fromJson & schema_loader', () => {
 
     const button = catalog.components.get('Button');
     assert.ok(button);
-    const withChecks = button.schema.safeParse({
+    const withChecks = (button.schema as z.ZodTypeAny).safeParse({
       child: 'txt1',
       action: {event: {name: 'submit'}},
       checks: [{condition: {path: '/form/valid'}, message: 'This field is required'}],
@@ -131,7 +131,7 @@ describe('Catalog.fromJson & schema_loader', () => {
     assert.strictEqual(withChecks.success, true);
 
     // The property is typed, not a free-form escape hatch.
-    const badChecks = button.schema.safeParse({
+    const badChecks = (button.schema as z.ZodTypeAny).safeParse({
       child: 'txt1',
       action: {event: {name: 'submit'}},
       checks: 'always',
@@ -186,7 +186,7 @@ describe('Catalog.fromJson & schema_loader', () => {
       const prop = shape[propName];
       assert.ok(prop, `${componentName}.${propName} is missing`);
 
-      const {node, doc} = toSchemaDoc(prop, catalog.protocolVersion);
+      const {node, doc} = cursorOf(prop, catalog.protocolVersion);
       const analysis = analyzeChildRefSchema(node, doc, V10_CHILD_REF_OPTIONS);
       assert.equal(
         analysis.isChild,
@@ -414,10 +414,10 @@ describe('Catalog.fromJson & schema_loader', () => {
     const widget = catalog.components.get('EnumWidget');
     assert.ok(widget);
 
-    const valid = widget.schema.safeParse({numEnum: 2, singleEnum: 'only_one'});
+    const valid = (widget.schema as z.ZodTypeAny).safeParse({numEnum: 2, singleEnum: 'only_one'});
     assert.strictEqual(valid.success, true);
 
-    const invalid = widget.schema.safeParse({numEnum: 99});
+    const invalid = (widget.schema as z.ZodTypeAny).safeParse({numEnum: 99});
     assert.strictEqual(invalid.success, false);
   });
 
@@ -458,7 +458,7 @@ describe('Catalog.fromJson & schema_loader', () => {
     const catalog = Catalog.fromJson(catalogJson, '0.9');
     const card = catalog.components.get('FlexibleCard');
     assert.ok(card);
-    const result = card.schema.safeParse({
+    const result = (card.schema as z.ZodTypeAny).safeParse({
       title: 'Valid title',
       extraField: 'any string value',
     });
@@ -482,7 +482,7 @@ describe('Catalog.fromJson & schema_loader', () => {
 
     const catalog = Catalog.fromJson(catalogJson, '0.9');
     assert.ok(catalog.themeSchema);
-    const result = catalog.themeSchema.safeParse({
+    const result = (catalog.themeSchema as z.ZodTypeAny).safeParse({
       id: 'theme-1',
       component: 'DarkTheme',
       primaryColor: '#000',
@@ -527,9 +527,18 @@ describe('Catalog.fromJson & schema_loader', () => {
     assert.ok(schemaCard);
     assert.ok(strictCard);
 
-    assert.strictEqual(openCard.schema.safeParse({title: 'A', extra: 'allowed'}).success, true);
-    assert.strictEqual(schemaCard.schema.safeParse({title: 'B', extra: 123}).success, true);
-    assert.strictEqual(strictCard.schema.safeParse({title: 'C', extra: 'rejected'}).success, false);
+    assert.strictEqual(
+      (openCard.schema as z.ZodTypeAny).safeParse({title: 'A', extra: 'allowed'}).success,
+      true,
+    );
+    assert.strictEqual(
+      (schemaCard.schema as z.ZodTypeAny).safeParse({title: 'B', extra: 123}).success,
+      true,
+    );
+    assert.strictEqual(
+      (strictCard.schema as z.ZodTypeAny).safeParse({title: 'C', extra: 'rejected'}).success,
+      false,
+    );
   });
 
   it('converts multi-branch oneOf unions to z.union', () => {
@@ -553,10 +562,16 @@ describe('Catalog.fromJson & schema_loader', () => {
     const inputComp = catalog.components.get('FlexibleInput');
     assert.ok(inputComp);
 
-    assert.strictEqual(inputComp.schema.safeParse({value: 'hello'}).success, true);
-    assert.strictEqual(inputComp.schema.safeParse({value: 42}).success, true);
-    assert.strictEqual(inputComp.schema.safeParse({value: true}).success, true);
-    assert.strictEqual(inputComp.schema.safeParse({value: {invalid: 'obj'}}).success, false);
+    assert.strictEqual(
+      (inputComp.schema as z.ZodTypeAny).safeParse({value: 'hello'}).success,
+      true,
+    );
+    assert.strictEqual((inputComp.schema as z.ZodTypeAny).safeParse({value: 42}).success, true);
+    assert.strictEqual((inputComp.schema as z.ZodTypeAny).safeParse({value: true}).success, true);
+    assert.strictEqual(
+      (inputComp.schema as z.ZodTypeAny).safeParse({value: {invalid: 'obj'}}).success,
+      false,
+    );
   });
 
   it('rejects a missing required property whose schema accepts any value', () => {
@@ -586,13 +601,13 @@ describe('Catalog.fromJson & schema_loader', () => {
       '0.9',
     );
     const args = catalog.functions.get('required')!.schema;
-    assert.strictEqual(args.safeParse({value: null}).success, true);
-    assert.strictEqual(args.safeParse({value: {nested: 1}}).success, true);
-    assert.strictEqual(args.safeParse({}).success, false);
+    assert.strictEqual((args as z.ZodTypeAny).safeParse({value: null}).success, true);
+    assert.strictEqual((args as z.ZodTypeAny).safeParse({value: {nested: 1}}).success, true);
+    assert.strictEqual((args as z.ZodTypeAny).safeParse({}).success, false);
 
     const holder = catalog.components.get('Holder')!.schema;
-    assert.strictEqual(holder.safeParse({payload: 0}).success, true);
-    assert.strictEqual(holder.safeParse({}).success, false);
+    assert.strictEqual((holder as z.ZodTypeAny).safeParse({payload: 0}).success, true);
+    assert.strictEqual((holder as z.ZodTypeAny).safeParse({}).success, false);
   });
 
   it('applies the default of an optional function argument that is missing', () => {
@@ -638,9 +653,12 @@ describe('Catalog.fromJson & schema_loader', () => {
     });
     const schema = catalog.functions.get('quote')!.schema;
 
-    assert.deepStrictEqual(schema.parse({symbol: 'GOOG'}), {symbol: 'GOOG', currency: 'USD'});
+    assert.deepStrictEqual((schema as z.ZodTypeAny).parse({symbol: 'GOOG'}), {
+      symbol: 'GOOG',
+      currency: 'USD',
+    });
     assert.deepStrictEqual(
-      schema.parse({symbol: 'GOOG', currency: 'EUR', options: {}, legs: [{}]}),
+      (schema as z.ZodTypeAny).parse({symbol: 'GOOG', currency: 'EUR', options: {}, legs: [{}]}),
       {
         symbol: 'GOOG',
         currency: 'EUR',
@@ -648,7 +666,7 @@ describe('Catalog.fromJson & schema_loader', () => {
         legs: [{side: 'buy'}],
       },
     );
-    assert.strictEqual(schema.safeParse({currency: 'EUR'}).success, false);
+    assert.strictEqual((schema as z.ZodTypeAny).safeParse({currency: 'EUR'}).success, false);
   });
 
   it('applies passthrough on function argument schemas when unevaluatedProperties is true or a schema object', () => {
@@ -700,9 +718,18 @@ describe('Catalog.fromJson & schema_loader', () => {
     assert.ok(schemaFn);
     assert.ok(strictFn);
 
-    assert.strictEqual(openFn.schema.safeParse({target: 'A', extra: 'allowed'}).success, true);
-    assert.strictEqual(schemaFn.schema.safeParse({target: 'B', extra: 123}).success, true);
-    assert.strictEqual(strictFn.schema.safeParse({target: 'C', extra: 'rejected'}).success, false);
+    assert.strictEqual(
+      (openFn.schema as z.ZodTypeAny).safeParse({target: 'A', extra: 'allowed'}).success,
+      true,
+    );
+    assert.strictEqual(
+      (schemaFn.schema as z.ZodTypeAny).safeParse({target: 'B', extra: 123}).success,
+      true,
+    );
+    assert.strictEqual(
+      (strictFn.schema as z.ZodTypeAny).safeParse({target: 'C', extra: 'rejected'}).success,
+      false,
+    );
   });
 
   it('keeps nested child references from inline object array items', () => {
@@ -735,8 +762,11 @@ describe('Catalog.fromJson & schema_loader', () => {
     // The item schema is structural rather than an opaque record, but still
     // tolerates keys the catalog did not declare.
     const schema = catalog.components.get('Tabs')!.schema;
-    assert.ok(schema.safeParse({tabs: [{title: 'Overview', child: 'c1', extra: 1}]}).success);
-    assert.ok(!schema.safeParse({tabs: [{title: 42}]}).success);
+    assert.ok(
+      (schema as z.ZodTypeAny).safeParse({tabs: [{title: 'Overview', child: 'c1', extra: 1}]})
+        .success,
+    );
+    assert.ok(!(schema as z.ZodTypeAny).safeParse({tabs: [{title: 42}]}).success);
   });
 
   /**
@@ -900,10 +930,13 @@ describe('Catalog.fromJson & schema_loader', () => {
     // 1. refFunc validates arguments against #/$defs/MyArgs
     const refFunc = catalog.functions.get('refFunc')!;
     assert.ok(refFunc);
-    assert.strictEqual(refFunc.schema.safeParse({valid_param: 'hello'}).success, true);
-    assert.strictEqual(refFunc.schema.safeParse({}).success, false);
     assert.strictEqual(
-      refFunc.schema.safeParse({valid_param: 'hello', unexpected: 123}).success,
+      (refFunc.schema as z.ZodTypeAny).safeParse({valid_param: 'hello'}).success,
+      true,
+    );
+    assert.strictEqual((refFunc.schema as z.ZodTypeAny).safeParse({}).success, false);
+    assert.strictEqual(
+      (refFunc.schema as z.ZodTypeAny).safeParse({valid_param: 'hello', unexpected: 123}).success,
       false,
     );
 
@@ -911,30 +944,49 @@ describe('Catalog.fromJson & schema_loader', () => {
     const allOfFunc = catalog.functions.get('allOfFunc')!;
     assert.ok(allOfFunc);
     assert.strictEqual(
-      allOfFunc.schema.safeParse({valid_param: 'hello', extra_arg: 42}).success,
+      (allOfFunc.schema as z.ZodTypeAny).safeParse({valid_param: 'hello', extra_arg: 42}).success,
       true,
     );
-    assert.strictEqual(allOfFunc.schema.safeParse({valid_param: 'hello'}).success, false);
-    assert.strictEqual(allOfFunc.schema.safeParse({extra_arg: 42}).success, false);
     assert.strictEqual(
-      allOfFunc.schema.safeParse({valid_param: 'hello', extra_arg: 42, extra: true}).success,
+      (allOfFunc.schema as z.ZodTypeAny).safeParse({valid_param: 'hello'}).success,
+      false,
+    );
+    assert.strictEqual(
+      (allOfFunc.schema as z.ZodTypeAny).safeParse({extra_arg: 42}).success,
+      false,
+    );
+    assert.strictEqual(
+      (allOfFunc.schema as z.ZodTypeAny).safeParse({
+        valid_param: 'hello',
+        extra_arg: 42,
+        extra: true,
+      }).success,
       false,
     );
 
     // 3. openFunc allows extra properties
     const openFunc = catalog.functions.get('openFunc')!;
     assert.ok(openFunc);
-    assert.strictEqual(openFunc.schema.safeParse({opt: 10, other: 'allowed'}).success, true);
+    assert.strictEqual(
+      (openFunc.schema as z.ZodTypeAny).safeParse({opt: 10, other: 'allowed'}).success,
+      true,
+    );
 
     // 4. unresolvableFunc falls back to passthrough
     const unresolvableFunc = catalog.functions.get('unresolvableFunc')!;
     assert.ok(unresolvableFunc);
-    assert.strictEqual(unresolvableFunc.schema.safeParse({anything: 123}).success, true);
+    assert.strictEqual(
+      (unresolvableFunc.schema as z.ZodTypeAny).safeParse({anything: 123}).success,
+      true,
+    );
 
     // 5. oneOfFunc falls back to passthrough
     const oneOfFunc = catalog.functions.get('oneOfFunc')!;
     assert.ok(oneOfFunc);
-    assert.strictEqual(oneOfFunc.schema.safeParse({anything: 'ok'}).success, true);
+    assert.strictEqual(
+      (oneOfFunc.schema as z.ZodTypeAny).safeParse({anything: 'ok'}).success,
+      true,
+    );
 
     assert.throws(
       () =>

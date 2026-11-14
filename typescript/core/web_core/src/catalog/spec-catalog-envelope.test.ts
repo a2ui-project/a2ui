@@ -20,7 +20,7 @@ import {describe, it} from 'node:test';
 import {BASIC_COMPONENTS as V10_BASIC_COMPONENTS} from '../catalogs/basic/v1/components/basic_components.js';
 import {objectProperties, type SchemaCursor, type SchemaDoc} from '../schema-engine/nav.js';
 import type {JsonSchema} from '../schema-engine/types.js';
-import {toSchemaDoc} from '../schema-engine/zod-bridge.js';
+import {cursorOf} from '../test/schema.js';
 import {BASIC_COMPONENTS as V09_BASIC_COMPONENTS} from '../v0_9/basic_catalog/components/basic_components.js';
 import V09BasicCatalog from '../v0_9/schemas/catalogs/basic/catalog.json' with {type: 'json'};
 import V09CommonTypes from '../v0_9/schemas/common_types.json' with {type: 'json'};
@@ -101,7 +101,7 @@ describe('Spec basic catalog component envelopes', () => {
         for (const api of c.apis) {
           assert.deepStrictEqual(
             plain(componentMixinLayout(spec(api.name))),
-            plain(componentMixinLayout(toSchemaDoc(api.schema, c.version))),
+            plain(componentMixinLayout(cursorOf(api.schema, c.version))),
             api.name,
           );
         }
@@ -110,7 +110,7 @@ describe('Spec basic catalog component envelopes', () => {
       it('finds the DynamicBoolean properties of every spec component like its bridged Zod API', () => {
         for (const api of c.apis) {
           const specProps = properties(spec(api.name));
-          const zodProps = properties(toSchemaDoc(api.schema, c.version));
+          const zodProps = properties(cursorOf(api.schema, c.version));
           for (const key of new Set([...Object.keys(specProps), ...Object.keys(zodProps)])) {
             if (Object.hasOwn(c.specOnlyKeys, key) && !Object.hasOwn(zodProps, key)) continue;
             assert.ok(specProps[key] && zodProps[key], `${api.name}.${key} declared by both`);

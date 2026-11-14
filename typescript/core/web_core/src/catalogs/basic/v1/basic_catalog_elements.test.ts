@@ -37,10 +37,11 @@ import {
 import {html, nothing} from 'lit';
 import {SliderApi} from './index.js';
 import {testValidator} from '../../../test/validator.js';
-import {toSchemaDoc} from '../../../schema-engine/zod-bridge.js';
+import type {AuthoredSchema} from '../../../catalog/entry-schema.js';
+import {cursorOf} from '../../../test/schema.js';
 
-// ponytail: bridge until Task 8 — the basic catalog's schemas are still Zod.
-const bridged = (schema: z.ZodTypeAny) => toSchemaDoc(schema, '1.0');
+// ponytail: zod 3 component schemas until Task 10.
+const bridged = (schema: AuthoredSchema) => cursorOf(schema, '1.0');
 
 describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
   let basicCatalog: Catalog<WebComponentImplementation>;

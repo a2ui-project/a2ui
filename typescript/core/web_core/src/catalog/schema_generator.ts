@@ -15,6 +15,7 @@
  * limitations under the License.
  */
 
+import type {z} from 'zod';
 import {zodToJsonSchema} from 'zod-to-json-schema';
 
 import {isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
@@ -26,6 +27,7 @@ import {
   THEME_DOCUMENT_KEYS,
   type CatalogDocumentModel,
 } from './schema_serializer.js';
+import {nonZodSchemaJson} from './entry-schema.js';
 import {isShorthandParameterMap} from './schema_loader.js';
 import {schemaRequiresArgs, standardDefsForVersion} from './spec_shape.js';
 import type {CatalogInterface, ComponentApi, FunctionApi} from './types.js';
@@ -536,11 +538,12 @@ function processTheme(
     return;
   }
 
-  const themeRaw = zodToJsonSchema(catalog.themeSchema, {
-    target: 'jsonSchema2019-09',
-    $refStrategy: 'none',
-    override: exclusiveUnionOverride,
-  }) as JsonObject;
+  const themeRaw = (nonZodSchemaJson(catalog.themeSchema) ??
+    zodToJsonSchema(catalog.themeSchema as z.ZodTypeAny, {
+      target: 'jsonSchema2019-09',
+      $refStrategy: 'none',
+      override: exclusiveUnionOverride,
+    })) as JsonObject;
   cleanSchemaNode(themeRaw);
   mergeGeneratedDefs(themeRaw, defs, generated);
 
@@ -596,14 +599,20 @@ function extractZodComponentSchema(
   reqList: string[];
   additionalProps: boolean | JsonObject | undefined;
 } {
-  if (!comp.schema || typeof comp.schema !== 'object' || !('safeParse' in comp.schema)) {
+  const custom = nonZodSchemaJson(comp.schema) as JsonObject | undefined;
+  if (
+    !custom &&
+    (!comp.schema || typeof comp.schema !== 'object' || !('safeParse' in comp.schema))
+  ) {
     return {props: {}, reqList: [], additionalProps: undefined};
   }
-  const rawZod = zodToJsonSchema(comp.schema, {
-    target: 'jsonSchema2019-09',
-    $refStrategy: 'none',
-    override: exclusiveUnionOverride,
-  }) as JsonObject;
+  const rawZod =
+    custom ??
+    (zodToJsonSchema(comp.schema as z.ZodTypeAny, {
+      target: 'jsonSchema2019-09',
+      $refStrategy: 'none',
+      override: exclusiveUnionOverride,
+    }) as JsonObject);
   cleanSchemaNode(rawZod);
   mergeGeneratedDefs(rawZod, defs, generated);
 
@@ -774,12 +783,13 @@ function buildFunctionArgsSchema(
   if (authored) {
     paramSchemaObj = deepCopyJson(authored);
     restoreSourceRefs(paramSchemaObj, context.standardDefs, false);
-  } else if (fn.schema && typeof fn.schema === 'object' && 'safeParse' in fn.schema) {
-    const rawZod = zodToJsonSchema(fn.schema, {
-      target: 'jsonSchema2019-09',
-      $refStrategy: 'none',
-      override: exclusiveUnionOverride,
-    }) as JsonObject;
+  } else if (fn.schema && typeof fn.schema === 'object') {
+    const rawZod = (nonZodSchemaJson(fn.schema) ??
+      zodToJsonSchema(fn.schema as z.ZodTypeAny, {
+        target: 'jsonSchema2019-09',
+        $refStrategy: 'none',
+        override: exclusiveUnionOverride,
+      })) as JsonObject;
     cleanSchemaNode(rawZod);
     mergeGeneratedDefs(rawZod, defs, generated);
     generated.push(rawZod);

@@ -20,7 +20,7 @@ import {GenericBinder, ResolveA2uiProps} from '../resolution/generic-binder.js';
 import {isComponentNode, type ComponentNode} from '../resolution/component-node.js';
 import {ResolvedBinding, isWritable} from '../resolution/resolved-binding.js';
 import {effect, getValue, peekValue} from '../reactivity/signals.js';
-import {toSchemaDoc} from '../schema-engine/zod-bridge.js';
+import {entrySchema} from '../catalog/entry-schema.js';
 import {ComponentApi, InferredComponentApiSchemaType} from '../catalog/types.js';
 import {A2uiLitElement} from './a2ui-lit-element.js';
 
@@ -172,11 +172,14 @@ export class A2uiController<
         peekValue(this.host.node.props),
       ) as Props;
     } else {
-      // ponytail: bridge until Task 8 — component schemas are still Zod.
+      const catalog = this.host.context.componentModel?.catalog;
       const protocolVersion =
-        this.host.context.componentModel?.catalog?.protocolVersion ??
-        this.host.context.dataContext?.surface?.protocolVersion;
-      this.binder = new GenericBinder(this.host.context, toSchemaDoc(api.schema, protocolVersion));
+        catalog?.protocolVersion ?? this.host.context.dataContext?.surface?.protocolVersion;
+      const prepared = entrySchema(api, 'component', {protocolVersion, defs: catalog?.defs});
+      this.binder = new GenericBinder(
+        this.host.context,
+        prepared?.cursor ?? {node: {}, doc: {root: {}, defs: {}}},
+      );
       this._props = this.binder.snapshot as Props;
     }
     this.host.addController(this);

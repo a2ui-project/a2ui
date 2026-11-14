@@ -21,7 +21,7 @@ import type {ComponentApi} from '../catalog/types.js';
 import {BASIC_COMPONENTS as V10_BASIC_COMPONENTS} from '../catalogs/basic/v1/components/basic_components.js';
 import type {SchemaDoc} from '../schema-engine/nav.js';
 import type {JsonSchema} from '../schema-engine/types.js';
-import {toSchemaDoc} from '../schema-engine/zod-bridge.js';
+import {cursorOf} from '../test/schema.js';
 import {BASIC_COMPONENTS as V09_BASIC_COMPONENTS} from '../v0_9/basic_catalog/components/basic_components.js';
 import V09BasicCatalog from '../v0_9/schemas/catalogs/basic/catalog.json' with {type: 'json'};
 import V09CommonTypes from '../v0_9/schemas/common_types.json' with {type: 'json'};
@@ -103,7 +103,7 @@ describe('Spec basic catalog component behaviors', () => {
         );
         for (const api of c.apis) {
           const spec = scrapeSpec(api.name);
-          const bridged = toSchemaDoc(api.schema, c.version);
+          const bridged = cursorOf(api.schema, c.version);
           const zod = scrapeComponentBehavior(bridged.node, bridged.doc, c.options);
           assert.strictEqual(
             spec.type === 'OBJECT' && spec.catchall,

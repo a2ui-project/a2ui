@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import type {z} from 'zod';
 import {zodToJsonSchema} from 'zod-to-json-schema';
 import {SurfaceModel, ActionListener, type ActionPayload} from '../state/surface-model.js';
 import {Catalog, ComponentApi} from '../catalog/types.js';
@@ -57,7 +58,7 @@ import {
 import {VersionAdapterFactory} from './adapters/factory.js';
 import type {SchemaCursor} from '../schema-engine/nav.js';
 import type {JsonSchemaValidator} from '../schema-engine/types.js';
-import {componentSchemaDoc} from '../schema-engine/zod-bridge.js';
+import {entrySchema, nonZodSchemaJson} from '../catalog/entry-schema.js';
 import {compareSemVer, isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
 import {
   InternalOperation,
@@ -439,12 +440,13 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     for (const [name, comp] of catalog.components.entries()) {
       let props: Record<string, unknown> = {};
       let reqList: string[] = [];
-      if (comp.schema && typeof comp.schema === 'object' && 'safeParse' in comp.schema) {
-        const rawZod = zodToJsonSchema(comp.schema, {
-          target: 'jsonSchema2019-09',
-          $refStrategy: 'none',
-          override: exclusiveUnionOverride,
-        }) as Record<string, unknown>;
+      if (comp.schema && typeof comp.schema === 'object') {
+        const rawZod = (nonZodSchemaJson(comp.schema) ??
+          zodToJsonSchema(comp.schema as z.ZodTypeAny, {
+            target: 'jsonSchema2019-09',
+            $refStrategy: 'none',
+            override: exclusiveUnionOverride,
+          })) as Record<string, unknown>;
         cleanSchemaNode(rawZod, undefined, {stripAdditionalProperties: true});
         props = (rawZod.properties as Record<string, unknown>) || {};
         reqList = Array.isArray(rawZod.required)
@@ -469,12 +471,13 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     const functions: Array<Record<string, unknown>> = [];
     for (const fn of catalog.functions.values()) {
       let paramSchema: Record<string, unknown> = {type: 'object', properties: {}};
-      if (fn.schema && typeof fn.schema === 'object' && 'safeParse' in fn.schema) {
-        const rawZod = zodToJsonSchema(fn.schema, {
-          target: 'jsonSchema2019-09',
-          $refStrategy: 'none',
-          override: exclusiveUnionOverride,
-        }) as Record<string, unknown>;
+      if (fn.schema && typeof fn.schema === 'object') {
+        const rawZod = (nonZodSchemaJson(fn.schema) ??
+          zodToJsonSchema(fn.schema as z.ZodTypeAny, {
+            target: 'jsonSchema2019-09',
+            $refStrategy: 'none',
+            override: exclusiveUnionOverride,
+          })) as Record<string, unknown>;
         cleanSchemaNode(rawZod, undefined, {stripAdditionalProperties: true});
         paramSchema = rawZod;
       }
@@ -488,11 +491,12 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
 
     let theme: Record<string, unknown> | undefined;
     if (catalog.themeSchema) {
-      const rawTheme = zodToJsonSchema(catalog.themeSchema, {
-        target: 'jsonSchema2019-09',
-        $refStrategy: 'none',
-        override: exclusiveUnionOverride,
-      }) as Record<string, unknown>;
+      const rawTheme = (nonZodSchemaJson(catalog.themeSchema) ??
+        zodToJsonSchema(catalog.themeSchema as z.ZodTypeAny, {
+          target: 'jsonSchema2019-09',
+          $refStrategy: 'none',
+          override: exclusiveUnionOverride,
+        })) as Record<string, unknown>;
       cleanSchemaNode(rawTheme, undefined, {stripAdditionalProperties: true});
       theme = (rawTheme.properties as Record<string, unknown>) || undefined;
     }
@@ -1289,10 +1293,16 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     this.model.deleteSurface(op.surfaceId);
   }
 
+  /**
+   * Validates a component of an update.
+   *
+   * @returns The component's own properties as its schema validated them, or
+   *   `undefined` if its catalog doesn't define it.
+   */
   private validateComponentProperties(
     comp: Record<string, unknown>,
     surface: SurfaceModel<T>,
-  ): void {
+  ): Record<string, unknown> | undefined {
     const {id, component} = comp;
 
     if (typeof id !== 'string' || !id) {
@@ -1320,16 +1330,17 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     // behavior and resolves unknown functions at evaluation time instead.
     const skipNestedFunctions =
       !this.validationConfig && !isAtLeastVersion(surface.protocolVersion, '1.0');
-    new PayloadValidator(targetCatalog, this.validationConfig).validateComponent(
+    const validated = new PayloadValidator(targetCatalog, this.validationConfig).validateComponent(
       this.componentPayloadForValidation(comp, surface, targetCatalog),
       existing?.type,
       {skipNestedFunctions},
     );
-    if (skipNestedFunctions) return;
+    if (skipNestedFunctions) return validated;
     // `validateComponent` walks the nested calls, even in a component type
     // the catalog doesn't define, and checks those that run in the
     // component's catalog; the pass below checks the rest.
     this.validateNestedFunctionCalls(comp, surface, targetCatalog);
+    return validated;
   }
 
   /**
@@ -1434,8 +1445,8 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
           ? surface.componentsModel.get(id)?.type
           : undefined;
     if (!type || !catalog) return undefined;
-    // ponytail: bridge until Task 8 — component schemas are still Zod.
-    return componentSchemaDoc(catalog.components.get(type), catalog);
+    const api = catalog.components.get(type);
+    return api ? entrySchema(api, 'component', catalog)?.layoutCursor : undefined;
   }
 
   /**
@@ -1645,7 +1656,18 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     return surface.resolveCatalog(catalogId, subject);
   }
 
-  private applyComponentUpdate(comp: Record<string, unknown>, surface: SurfaceModel<T>): void {
+  /**
+   * Applies a validated component to the surface.
+   *
+   * @param validated The component's own properties as its schema validated
+   *   them; they replace the wire values, so the component receives any
+   *   defaults or transforms its schema applies.
+   */
+  private applyComponentUpdate(
+    comp: Record<string, unknown>,
+    surface: SurfaceModel<T>,
+    validated?: Record<string, unknown>,
+  ): void {
     const {id, component} = comp;
     if (typeof id !== 'string') return;
     const targetCatalog = this.resolveComponentCatalog(comp, surface);
@@ -1655,7 +1677,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       this.componentSchema(comp, surface, targetCatalog),
       {defaultCatalogSchema: this.componentSchema(comp, surface, surface.defaultCatalog)},
     );
-    const properties = state.properties;
+    const properties = validated ? {...state.properties, ...validated} : state.properties;
     const metadata = extractComponentMetadata(state.metadata);
     const existing = surface.componentsModel.get(id);
 
@@ -1702,7 +1724,11 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     }
   }
 
-  private validateComponentsBatch(op: InternalUpdateComponentsOp, surface: SurfaceModel<T>): void {
+  private validateComponentsBatch(
+    op: InternalUpdateComponentsOp,
+    surface: SurfaceModel<T>,
+  ): Map<Record<string, unknown>, Record<string, unknown>> {
+    const validated = new Map<Record<string, unknown>, Record<string, unknown>>();
     const seenBatchIds = new Set<string>();
     for (let i = 0; i < op.components.length; i++) {
       const comp = op.components[i];
@@ -1718,12 +1744,14 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
         seenBatchIds.add(comp.id);
       }
       try {
-        this.validateComponentProperties(comp, surface);
+        const properties = this.validateComponentProperties(comp, surface);
+        if (properties) validated.set(comp, properties);
       } catch (err: unknown) {
         this.rebaseComponentValidationError(err, i, op.surfaceId);
         throw err;
       }
     }
+    return validated;
   }
 
   private validateSurfaceComponentGraph(
@@ -1760,13 +1788,13 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     }
 
     // 1. Validation pass: validate all components before mutating state
-    this.validateComponentsBatch(op, surface);
+    const validated = this.validateComponentsBatch(op, surface);
     const bound = this.validateSurfaceComponentGraph(op, surface);
 
     // 2. Mutation pass: apply state updates
     batchWrite(() => {
       for (const comp of op.components) {
-        this.applyComponentUpdate(comp, surface);
+        this.applyComponentUpdate(comp, surface, validated.get(comp));
       }
     });
     if (bound) {

@@ -936,10 +936,12 @@ function classifyProperty(
   }
 
   // Fallback for unannotated `child` / `children` (and version-specific child property names,
-  // such as v0.8's `entryPointChild`) whose types can hold component references.
+  // such as v0.8's `entryPointChild`) whose types can hold component references. A single
+  // child must be typed as a string, as Dart's `ReferenceSchemaReader` reads it: an untyped
+  // `child` is not one.
   const field = unwrapField(value);
   const isSingleChildKey = key === 'child' || Boolean(options?.childPropertyNames?.has(key));
-  if (isSingleChildKey && canHoldSingleRef(field, new Set(visited), options)) {
+  if (isSingleChildKey && canHoldSingleRef(field, new Set(visited), options, false, true)) {
     return {kind: 'single'};
   }
   if (key === 'children' && canHoldListRef(field, new Set(visited), options)) {
@@ -1248,6 +1250,7 @@ function canHoldSingleRef(
   visited = new Set<object>(),
   options?: ChildRefAnalysisOptions,
   allowDynamicValue = false,
+  requireString = false,
 ): boolean {
   if (alreadyVisited(field, visited)) {
     return false;
@@ -1259,7 +1262,13 @@ function canHoldSingleRef(
   const kind = kindOf(field.node);
   if (kind === 'intersection') {
     return intersectionParts(field).every(part =>
-      canHoldSingleRef(unwrapField(part), new Set(visited), options, allowDynamicValue),
+      canHoldSingleRef(
+        unwrapField(part),
+        new Set(visited),
+        options,
+        allowDynamicValue,
+        requireString,
+      ),
     );
   }
 
@@ -1276,7 +1285,13 @@ function canHoldSingleRef(
       return false;
     }
     return members.some(option =>
-      canHoldSingleRef(unwrapField(option), new Set(visited), options, allowDynamicValue),
+      canHoldSingleRef(
+        unwrapField(option),
+        new Set(visited),
+        options,
+        allowDynamicValue,
+        requireString,
+      ),
     );
   }
 
@@ -1284,7 +1299,7 @@ function canHoldSingleRef(
     return false;
   }
 
-  return kind === 'string' || kind === 'any';
+  return kind === 'string' || (kind === 'any' && !requireString);
 }
 
 function canHoldListRef(

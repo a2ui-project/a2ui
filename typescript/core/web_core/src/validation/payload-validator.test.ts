@@ -21,6 +21,8 @@ import {Catalog} from '../catalog/types.js';
 import {nestedCallRunsInCatalog, PayloadValidator} from './payload-validator.js';
 import {STRICT_VALIDATION} from './integrity-checker.js';
 import {A2uiValidationError} from '../errors.js';
+import {fromJsonSchema} from '../schema-engine/from-json-schema.js';
+import {testValidator} from '../test/validator.js';
 
 describe('nestedCallRunsInCatalog', () => {
   const CATALOG = 'https://example.com/a';
@@ -679,5 +681,53 @@ describe('PayloadValidator', () => {
         );
       });
     });
+  });
+});
+
+describe('PayloadValidator with CatalogSchema schemas', () => {
+  const textSchema = fromJsonSchema(
+    {
+      type: 'object',
+      properties: {text: {type: 'string'}, size: {type: 'number', default: 12}},
+      required: ['text'],
+    },
+    testValidator,
+  );
+  const cat = new Catalog(
+    'https://example.com/json',
+    '1.0',
+    [{name: 'Label', schema: textSchema}],
+    [{name: 'pad', returnType: 'string', schema: textSchema}],
+  );
+  const validator = new PayloadValidator(cat, STRICT_VALIDATION);
+
+  it('returns the own properties as the schema validated them, with defaults', () => {
+    assert.deepStrictEqual(validator.validateComponent({id: 'a', component: 'Label', text: 'x'}), {
+      text: 'x',
+      size: 12,
+    });
+  });
+
+  it('returns the function arguments as the schema validated them', () => {
+    assert.deepStrictEqual(validator.validateFunction('pad', {text: 'x'}), {text: 'x', size: 12});
+  });
+
+  it("words a JSON-backed schema's issue by its keyword and points at the missing key", () => {
+    assert.throws(
+      () => validator.validateComponent({id: 'a', component: 'Label'}),
+      (err: unknown) =>
+        err instanceof A2uiValidationError &&
+        err.message ===
+          "Validation failed for component 'Label' (a): text: missing required property 'text'" &&
+        err.path === '/text' &&
+        (err.details as Array<{code: string}>)[0].code === 'missing_field',
+    );
+    assert.throws(
+      () => validator.validateFunction('pad', {text: 1}),
+      (err: unknown) =>
+        err instanceof A2uiValidationError &&
+        err.message === "Validation failed for function 'pad': text: must be string" &&
+        err.path === '/args/text',
+    );
   });
 });

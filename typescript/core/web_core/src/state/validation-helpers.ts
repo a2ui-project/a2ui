@@ -18,7 +18,7 @@ import {componentPayloadState} from '../catalog/component_envelope.js';
 import {Catalog, ComponentApi} from '../catalog/types.js';
 import {A2uiValidationError} from '../errors.js';
 import type {SchemaCursor} from '../schema-engine/nav.js';
-import {componentSchemaDoc} from '../schema-engine/zod-bridge.js';
+import {entrySchema} from '../catalog/entry-schema.js';
 import {
   getComponentReferences,
   MAX_GLOBAL_DEPTH,
@@ -58,14 +58,22 @@ interface BatchGraph<T extends ComponentApi> {
 /** Whether each catalog declares `allowedParents` or `allowedChildren`. */
 const catalogRules = new WeakMap<Catalog<ComponentApi>, boolean>();
 
+/** The JSON Schema of a component type in `catalog`, if the catalog defines it. */
+function componentCursor<T extends ComponentApi>(
+  catalog: Catalog<T>,
+  type: string,
+): SchemaCursor | undefined {
+  const api = catalog.components.get(type);
+  return api ? entrySchema(api, 'component', catalog)?.layoutCursor : undefined;
+}
+
 /** The JSON Schema of a component type in a surface's default catalog, if any. */
 function defaultCatalogSchemaDoc<T extends ComponentApi>(
   surface: SurfaceModel<T>,
   type: string,
 ): SchemaCursor | undefined {
   const catalog = surface.defaultCatalog;
-  // ponytail: bridge until Task 8 — component schemas are still Zod.
-  return catalog ? componentSchemaDoc(catalog.components.get(type), catalog) : undefined;
+  return catalog ? componentCursor(catalog, type) : undefined;
 }
 
 /**
@@ -203,8 +211,7 @@ function batchGraph<T extends ComponentApi>(
     const {properties} = componentPayloadState(
       comp,
       surface.protocolVersion,
-      // ponytail: bridge until Task 8 — component schemas are still Zod.
-      componentSchemaDoc(catalog.components.get(type), catalog),
+      componentCursor(catalog, type),
       {defaultCatalogSchema: defaultCatalogSchemaDoc(surface, type)},
     );
     const children = Array.from(
@@ -617,8 +624,7 @@ export function validateCandidateTopology<T extends ComponentApi>(
     const {properties} = componentPayloadState(
       comp,
       surface.protocolVersion,
-      // ponytail: bridge until Task 8 — component schemas are still Zod.
-      componentSchemaDoc(targetCatalog.components.get(componentType), targetCatalog),
+      componentCursor(targetCatalog, componentType),
       {defaultCatalogSchema: defaultCatalogSchemaDoc(surface, componentType)},
     );
 

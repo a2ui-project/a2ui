@@ -24,6 +24,7 @@ import {
   functionParameterNames,
   isZodSchema,
 } from './schema_loader.js';
+import type {AuthoredSchema} from './entry-schema.js';
 import type {
   A2uiReturnType,
   FunctionApi,
@@ -70,19 +71,22 @@ export type AgentFunctionHandler<TArgs = Record<string, unknown>, TReturn = unkn
  * {@link AgentFunction.fromApi}.
  */
 export interface AgentFunctionInit<
-  Schema extends z.ZodTypeAny | Record<string, unknown> = Record<string, unknown>,
+  Schema extends AuthoredSchema | Record<string, unknown> = Record<string, unknown>,
   TReturn extends A2uiReturnType = A2uiReturnType,
 > {
   /** Name of the function as it appears in A2UI JSON payloads. */
   readonly name: string;
   /** Handler invoked on the agent when a renderer calls this function. */
   readonly handler: AgentFunctionHandler<
-    Schema extends z.ZodTypeAny ? ResolvedFunctionArgs<Schema> : Record<string, unknown>,
+    Schema extends AuthoredSchema ? ResolvedFunctionArgs<Schema> : Record<string, unknown>,
     InferA2uiReturnType<TReturn>
   >;
   /** Return type identifier for the function. Defaults to `'any'`. */
   readonly returnType?: TReturn;
-  /** Zod schema or JSON Schema object validating the function's input arguments. */
+  /**
+   * Schema validating the function's input arguments: a `CatalogSchema`, or
+   * a plain JSON Schema object.
+   */
   readonly schema?: Schema;
   /** Whether the function requires explicit user interaction before execution. Defaults to `false`. */
   readonly requiresUserActivation?: boolean;
@@ -111,7 +115,7 @@ interface BoundDefsInit extends AgentFunctionInit<any, any> {
   };
   readonly [BOUND_DEFS]: {
     readonly catalogDefs: Readonly<Record<string, unknown>> | undefined;
-    readonly resolvedSchema: z.ZodTypeAny;
+    readonly resolvedSchema: AuthoredSchema;
     readonly declaredParameterNames: ReadonlyArray<string>;
   };
 }
@@ -135,11 +139,11 @@ interface BoundDefsInit extends AgentFunctionInit<any, any> {
  * The type parameters only type the constructor's `handler` from `schema` and
  * `returnType`, so any `AgentFunction` is assignable to `AgentFunction`.
  *
- * @template Schema The Zod schema or JSON Schema object of the arguments.
+ * @template Schema The `CatalogSchema` or JSON Schema object of the arguments.
  * @template TReturn The return type identifier.
  */
 export class AgentFunction<
-  Schema extends z.ZodTypeAny | Record<string, unknown> = Record<string, unknown>,
+  Schema extends AuthoredSchema | Record<string, unknown> = Record<string, unknown>,
   TReturn extends A2uiReturnType = A2uiReturnType,
 > implements FunctionApi {
   /** @internal */
@@ -148,8 +152,11 @@ export class AgentFunction<
   readonly name: string;
   /** Return type identifier for the function. */
   readonly returnType: A2uiReturnType;
-  /** Zod schema validating the function's input arguments. */
-  readonly schema: z.ZodTypeAny;
+  /**
+   * Schema validating the function's input arguments. A plain JSON Schema
+   * `schema` is read into one on construction.
+   */
+  readonly schema: AuthoredSchema;
   /** Agent-side handler callback. Use `withHandler` to bind another one. */
   readonly handler: AgentFunctionHandler<any, any>;
   /**
@@ -198,7 +205,7 @@ export class AgentFunction<
     this.name = init.name;
     this.returnType = init.returnType ?? 'any';
     this.schema = bound ? bound.resolvedSchema : resolveAgentFunctionSchema(init.schema);
-    if (init.schema !== undefined && !isZodSchema(init.schema)) {
+    if (init.schema !== undefined && !isAuthoredSchema(init.schema)) {
       this.jsonSchema = init.schema;
       // `init.schema` is also the document its local `#/$defs/...` resolve in.
       this.declaredParameterNames = bound
@@ -295,13 +302,20 @@ export class AgentFunction<
   }
 }
 
+/** Whether `schema` is a schema object rather than a plain JSON Schema. */
+function isAuthoredSchema(schema: unknown): schema is AuthoredSchema {
+  return (
+    isZodSchema(schema) || (typeof schema === 'object' && schema !== null && '~standard' in schema)
+  );
+}
+
 function resolveAgentFunctionSchema(
-  schema: z.ZodTypeAny | Record<string, unknown> | undefined,
-): z.ZodTypeAny {
+  schema: AuthoredSchema | Record<string, unknown> | undefined,
+): AuthoredSchema {
   if (schema === undefined) {
     return z.record(z.unknown());
   }
-  if (isZodSchema(schema)) {
+  if (isAuthoredSchema(schema)) {
     return schema;
   }
   if (typeof schema === 'object' && schema !== null && !Array.isArray(schema)) {

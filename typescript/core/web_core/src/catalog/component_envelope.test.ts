@@ -20,7 +20,7 @@ import {describe, it} from 'node:test';
 import {A2uiValidationError} from '../errors.js';
 import type {SchemaCursor} from '../schema-engine/nav.js';
 import type {JsonSchema} from '../schema-engine/types.js';
-import {componentSchemaDoc} from '../schema-engine/zod-bridge.js';
+import {entrySchema} from './entry-schema.js';
 import V09CommonTypes from '../v0_9/schemas/common_types.json' with {type: 'json'};
 import V10CommonTypes from '../v1_0/schemas/common_types.json' with {type: 'json'};
 import {
@@ -219,15 +219,15 @@ describe('componentMixinLayout', () => {
       assert.deepStrictEqual([...componentMixinLayout(schema).customKeys], ['catalogId']);
     });
 
-    // ponytail: bridge until Task 8 — callers reach a loaded component's JSON
-    // definition through componentSchemaDoc.
+    // A loaded component is read through its JSON definition.
     function jsonLayoutOf(properties: Record<string, unknown>) {
       const catalog = Catalog.fromJson({
         catalogId: 'inline',
         protocolVersion: '1.0',
         components: {Widget: {type: 'object', properties}},
       });
-      return componentMixinLayout(componentSchemaDoc(catalog.components.get('Widget'), catalog));
+      const api = catalog.components.get('Widget')!;
+      return componentMixinLayout(entrySchema(api, 'component', catalog)!.layoutCursor);
     }
 
     const jsonExtensionsOnly = {

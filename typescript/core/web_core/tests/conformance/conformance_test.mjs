@@ -45,10 +45,10 @@ import {MessageProcessor, STRICT_VALIDATION} from '../../dist/src/processing/mes
 import {effect, getValue, isSignal, peekValue} from '../../dist/src/reactivity/signals.js';
 import {ComponentContext} from '../../dist/src/resolution/component-context.js';
 import {DataContext} from '../../dist/src/resolution/data-context.js';
+import {entrySchema} from '../../dist/src/catalog/entry-schema.js';
 import {GenericBinder} from '../../dist/src/resolution/generic-binder.js';
 import {NodeResolver} from '../../dist/src/resolution/node-resolver.js';
 import {ResolvedBinding} from '../../dist/src/resolution/resolved-binding.js';
-import {toSchemaDoc} from '../../dist/src/schema-engine/zod-bridge.js';
 import {ComponentModel} from '../../dist/src/state/component-model.js';
 import {DataModel} from '../../dist/src/state/data-model.js';
 import {SurfaceModel} from '../../dist/src/state/surface-model.js';
@@ -4479,10 +4479,11 @@ async function validateRouteAgentFunctionTestCase(testCase) {
           const probeId = `probe_${evaluations.length}`;
           const comp = new ComponentModel(probeId, 'Probe', {});
           surface.componentsModel.addComponent(comp);
-          // ponytail: bridge until Task 8 — the probe's schema is still Zod.
+          // ponytail: the probe's schema is zod 3 until Task 11.
+          const probeApi = {name: 'CheckProbe', schema: CommonSchemas.Checkable.describe('')};
           const binder = new GenericBinder(
             new ComponentContext(surface, probeId),
-            toSchemaDoc(CommonSchemas.Checkable.describe(''), '1.0'),
+            entrySchema(probeApi, 'component', {protocolVersion: '1.0'}).cursor,
           );
           const sub = binder.subscribe(() => {});
           comp.properties = {

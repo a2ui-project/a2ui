@@ -34,9 +34,10 @@ import {V08_CHILD_REF_OPTIONS} from '../v0_8/standard_defs.js';
 import {V09_CHILD_REF_OPTIONS} from '../v0_9/standard_defs.js';
 import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
 import type {SchemaDoc} from '../schema-engine/nav.js';
-import type {JsonSchema} from '../schema-engine/types.js';
 import V10CommonTypes from '../v1_0/schemas/common_types.json' with {type: 'json'};
 import {z} from 'zod';
+import {fromJsonSchema} from '../schema-engine/from-json-schema.js';
+import type {CompiledValidator, JsonSchema, JsonSchemaValidator} from '../schema-engine/types.js';
 
 const docOf = (root: JsonSchema): SchemaDoc => ({
   root,
@@ -50,6 +51,16 @@ const isChildList = (node: JsonSchema, options: ChildRefAnalysisOptions) =>
   isChildListSchema(node, docOf(node), options);
 const isEither = (node: JsonSchema, options: ChildRefAnalysisOptions) =>
   isChildOrChildListSchema(node, docOf(node), options);
+
+/**
+ * A plain JSON Schema as a component schema. These fixtures are read for
+ * discovery only, and some reference documents no validator could resolve.
+ */
+const acceptAll: JsonSchemaValidator = {
+  compile: <T>() =>
+    ((value: unknown) => ({success: true, data: value as T})) as CompiledValidator<T>,
+};
+const json = (schema: JsonSchema) => fromJsonSchema(schema, acceptAll);
 
 describe('reference-map schema introspection', () => {
   it('identifies JSON Schema $ref pointers to ChildList and ComponentId', () => {
@@ -156,7 +167,7 @@ describe('reference-map schema introspection', () => {
   it('builds dynamic ref map from plain JSON Schema component definitions', () => {
     const rawJsonSchemaApi = {
       name: 'PlainJsonComponent',
-      schema: {
+      schema: json({
         type: 'object',
         properties: {
           headerSlot: {
@@ -167,10 +178,10 @@ describe('reference-map schema introspection', () => {
           },
           label: {type: 'string'},
         },
-      },
+      }),
     };
 
-    const refMap = buildComponentRefMap([rawJsonSchemaApi as any], V10_CHILD_REF_OPTIONS);
+    const refMap = buildComponentRefMap([rawJsonSchemaApi], V10_CHILD_REF_OPTIONS);
     assert.ok(refMap.PlainJsonComponent);
     assert.deepStrictEqual(Array.from(refMap.PlainJsonComponent.singleRefs), ['headerSlot']);
     assert.deepStrictEqual(Array.from(refMap.PlainJsonComponent.listRefs), ['itemsSlot']);
@@ -379,7 +390,7 @@ describe('reference-map schema introspection', () => {
   it('extracts nested child references and child lists from raw JSON schemas with array items', () => {
     const rawComponent = {
       name: 'SectionList',
-      schema: {
+      schema: json({
         type: 'object',
         properties: {
           sections: {
@@ -394,10 +405,10 @@ describe('reference-map schema introspection', () => {
             },
           },
         },
-      },
+      }),
     };
 
-    const catalog = new Catalog('section-cat', '1.0', [rawComponent as any]);
+    const catalog = new Catalog('section-cat', '1.0', [rawComponent]);
     const refMap = catalog.componentRefMap;
     assert.ok(refMap.SectionList);
     assert.ok(refMap.SectionList.listRefs.has('sections'));
@@ -442,7 +453,7 @@ describe('reference-map schema introspection', () => {
     assert.ok(refMap.Tabs.nestedRefs?.tabItems.has('child'));
   });
 
-  it('includes z.object({}) containers in componentRefMap while keeping strict and raw empty schemas empty', () => {
+  it('includes open containers in componentRefMap while keeping strip, strict and raw empty schemas empty', () => {
     const emptyContainerApi: ComponentApi = {
       name: 'EmptyBox',
       schema: z.object({}),
@@ -451,14 +462,14 @@ describe('reference-map schema introspection', () => {
       name: 'StrictEmptyLeaf',
       schema: z.object({}).strict(),
     };
-    const rawEmptyLeafApi = {
+    const rawEmptyLeafApi: ComponentApi = {
       name: 'RawEmptyLeaf',
-      schema: {type: 'object'},
-    } as unknown as ComponentApi;
-    const rawOpenApi = {
+      schema: json({type: 'object'}),
+    };
+    const rawOpenApi: ComponentApi = {
       name: 'RawOpenBox',
-      schema: {type: 'object', additionalProperties: true},
-    } as unknown as ComponentApi;
+      schema: json({type: 'object', additionalProperties: true}),
+    };
     const openApi: ComponentApi = {
       name: 'OpenBox',
       schema: z.object({title: z.string().optional()}).passthrough(),
@@ -506,13 +517,13 @@ describe('reference-map schema introspection', () => {
     ]);
     const refMap = catalog.componentRefMap;
 
-    for (const leafName of ['StrictEmptyLeaf', 'RawEmptyLeaf']) {
+    // A strip `z.object({})` is closed (`additionalProperties: false`).
+    for (const leafName of ['EmptyBox', 'StrictEmptyLeaf', 'RawEmptyLeaf']) {
       assert.strictEqual(refMap[leafName].singleRefs.size, 0, `${leafName}.singleRefs`);
       assert.strictEqual(refMap[leafName].listRefs.size, 0, `${leafName}.listRefs`);
     }
 
     for (const openName of [
-      'EmptyBox',
       'RawOpenBox',
       'OpenBox',
       'CatchallBox',

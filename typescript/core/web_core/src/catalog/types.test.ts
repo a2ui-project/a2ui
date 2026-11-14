@@ -23,6 +23,8 @@ import {
   createFunctionImplementation,
 } from './types.js';
 import {A2uiExpressionError} from '../errors.js';
+import {fromJsonSchema} from '../schema-engine/from-json-schema.js';
+import {testValidator} from '../test/validator.js';
 import {z} from 'zod';
 
 describe('Catalog Types', () => {
@@ -298,5 +300,65 @@ describe('InferredComponentApiSchemaType', () => {
     assert.ok(mockApi);
     assert.strictEqual(inferredIsAny, false);
     assert.strictEqual(typesMatchExact, true);
+  });
+});
+
+describe('Catalog with CatalogSchema schemas', () => {
+  const themeSchema = fromJsonSchema(
+    {type: 'object', properties: {primaryColor: {type: 'string'}}},
+    testValidator,
+  );
+
+  it('takes a CatalogSchema theme schema in place of the options', () => {
+    const catalog = new Catalog('https://example.com/t', '0.9', [], [], themeSchema);
+    assert.strictEqual(catalog.themeSchema, themeSchema);
+    assert.strictEqual(catalog.instructions, undefined);
+  });
+
+  it('writes a CatalogSchema component as its JSON Schema in toJson', () => {
+    const catalog = new Catalog('https://example.com/t', '1.0', [
+      {
+        name: 'Label',
+        schema: fromJsonSchema(
+          {
+            type: 'object',
+            properties: {text: {type: 'string'}},
+            required: ['text'],
+            additionalProperties: false,
+          },
+          testValidator,
+        ),
+      },
+    ]);
+    const label = (catalog.toJson().components as Record<string, any>).Label;
+    assert.deepStrictEqual(label.properties.text, {type: 'string'});
+    assert.deepStrictEqual(label.required, ['component', 'text']);
+  });
+
+  it('runs a function with the arguments its schema validated, defaults included', () => {
+    const fn = createFunctionImplementation(
+      {
+        name: 'repeat',
+        returnType: 'string',
+        schema: fromJsonSchema<{text: string; times: number}>(
+          {
+            type: 'object',
+            properties: {text: {type: 'string'}, times: {type: 'number', default: 2}},
+            required: ['text'],
+            additionalProperties: false,
+          },
+          testValidator,
+        ),
+      },
+      args => args.text.repeat(args.times),
+    );
+    const catalog = new Catalog('https://example.com/t', '1.0', [], [fn]);
+    assert.strictEqual(catalog.invoker('repeat', {text: 'ab'}, undefined as never), 'abab');
+    assert.throws(
+      () => catalog.invoker('repeat', {text: 1}, undefined as never),
+      (err: unknown) =>
+        err instanceof A2uiExpressionError &&
+        err.message === "Validation failed for function 'repeat': text: must be string",
+    );
   });
 });

@@ -27,7 +27,7 @@ import {SurfaceModel} from '../state/surface-model.js';
 import {DynamicBooleanSchema, DynamicStringSchema} from '../v1_0/schema/common-types.js';
 import type {SchemaDoc} from '../schema-engine/nav.js';
 import type {JsonSchema} from '../schema-engine/types.js';
-import {toSchemaDoc} from '../schema-engine/zod-bridge.js';
+import {cursorOf} from '../test/schema.js';
 import V10CommonTypes from '../v1_0/schemas/common_types.json' with {type: 'json'};
 import {Catalog, ComponentApi, createFunctionImplementation} from './types.js';
 import {
@@ -90,10 +90,10 @@ describe('isDynamicBooleanSchema', () => {
     );
   });
 
-  // ponytail: bridge until Task 8 — function schemas are still Zod at the call sites.
+  // ponytail: zod 3 function schemas until Task 11.
   it('recognizes a bridged Zod DynamicBoolean, re-described or wrapped', () => {
     const bridged = (schema: z.ZodTypeAny) => {
-      const c = toSchemaDoc(schema, '1.0');
+      const c = cursorOf(schema, '1.0');
       return isDynamicBooleanSchema(c.node, c.doc);
     };
     assert.ok(bridged(DynamicBooleanSchema));
@@ -127,7 +127,7 @@ describe('isDynamicBooleanSchema', () => {
         },
       },
     });
-    const {node, doc} = toSchemaDoc(catalog.functions.get('flag')!.schema, '1.0');
+    const {node, doc} = cursorOf(catalog.functions.get('flag')!.schema, '1.0');
     assert.deepStrictEqual(coerceDynamicBooleans(node, doc, {on: 'TRUE'}), {on: true});
   });
 
@@ -328,7 +328,7 @@ describe('GenericBinder DynamicBoolean property coercion', () => {
     const compCtx = new ComponentContext(surface, 'c1', '/');
     const binder = new GenericBinder<{value?: boolean; label?: unknown}>(
       compCtx,
-      toSchemaDoc(CheckBoxApi.schema, '1.0'),
+      cursorOf(CheckBoxApi.schema, '1.0'),
     );
     const sub = binder.subscribe(() => {});
 

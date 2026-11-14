@@ -16,7 +16,7 @@
 
 import type {SchemaCursor, SchemaDoc} from '../schema-engine/nav.js';
 import type {JsonSchema} from '../schema-engine/types.js';
-import {toSchemaDoc} from '../schema-engine/zod-bridge.js';
+import {entrySchema} from './entry-schema.js';
 import {
   type ChildRefAnalysisOptions,
   canSchemaHoldListRef,
@@ -283,19 +283,6 @@ export function isChildOrChildListSchema(
 }
 
 /**
- * The JSON Schema of a component: a Zod schema through the bridge, or a JSON
- * Schema definition as its own document.
- */
-function componentSchemaDoc(schema: unknown, protocolVersion: string | undefined): SchemaCursor {
-  if (schema && typeof schema === 'object' && '_def' in schema) {
-    // ponytail: bridge until Task 8
-    return toSchemaDoc(schema as ComponentApi['schema'], protocolVersion);
-  }
-  const root = (schema ?? false) as JsonSchema;
-  return {node: root, doc: {root, defs: {}}};
-}
-
-/**
  * Builds a ComponentRefMap dynamically by inspecting component schemas.
  *
  * @param catalogOrComponents Catalog instance, array of ComponentApi objects, or Map of ComponentApis.
@@ -313,6 +300,7 @@ export function buildComponentRefMap<
   const maybeCatalog = catalogOrComponents as {
     components?: ReadonlyMap<string, T>;
     protocolVersion?: string;
+    defs?: Readonly<Record<string, unknown>>;
   };
   const componentApis: ReadonlyArray<ComponentApi> =
     typeof maybeCatalog?.components?.values === 'function'
@@ -325,7 +313,12 @@ export function buildComponentRefMap<
     const singleRefs = new Set<string>();
     const listRefs = new Set<string>();
     const nestedRefs: Record<string, Set<string>> = {};
-    const {node, doc} = componentSchemaDoc(compApi.schema, maybeCatalog?.protocolVersion);
+    const prepared = entrySchema(compApi, 'component', maybeCatalog);
+    if (!prepared) {
+      refMap[compApi.name] = {singleRefs, listRefs, nestedRefs};
+      continue;
+    }
+    const {node, doc} = prepared.cursor;
     for (const [key, refKind] of extractRefFields(node, doc, options)) {
       if (refKind.kind === 'single') {
         singleRefs.add(key);

@@ -101,15 +101,41 @@ export function formatIssue(issue: A2uiIssue): string {
   return `${issue.path.length ? issue.path.join('.') : 'root'}: ${messageForIssue(issue)}`;
 }
 
+/** The keyword and parameters an issue from a JSON-backed schema carries. */
+const ISSUE_DETAIL = Symbol('a2ui.issueDetail');
+
+type IssueDetail = Pick<A2uiIssue, 'keyword' | 'params'>;
+
+/**
+ * Converts an {@link A2uiIssue} into a Standard Schema issue. Its `keyword`
+ * and `params` ride along in a non-enumerable field that
+ * {@link toA2uiIssues} reads back, so web_core can still pick and word the
+ * issue after it passed through `~standard.validate`.
+ */
+export function toStandardIssue(issue: A2uiIssue): StandardSchemaV1.Issue {
+  const standard: StandardSchemaV1.Issue = {message: issue.message, path: [...issue.path]};
+  if (issue.keyword !== undefined || issue.params !== undefined) {
+    const detail: IssueDetail = {keyword: issue.keyword, params: issue.params};
+    Object.defineProperty(standard, ISSUE_DETAIL, {value: detail});
+  }
+  return standard;
+}
+
 /** Converts Standard Schema issues into {@link A2uiIssue}s. */
 export function toA2uiIssues(issues: readonly StandardSchemaV1.Issue[]): A2uiIssue[] {
-  return issues.map(issue => ({
-    path: (issue.path ?? []).map(seg => {
-      const key = typeof seg === 'object' ? seg.key : seg;
-      return typeof key === 'number' ? key : String(key);
-    }),
-    message: issue.message,
-  }));
+  return issues.map(issue => {
+    const a2uiIssue: A2uiIssue = {
+      path: (issue.path ?? []).map(seg => {
+        const key = typeof seg === 'object' ? seg.key : seg;
+        return typeof key === 'number' ? key : String(key);
+      }),
+      message: issue.message,
+    };
+    const detail = (issue as {[ISSUE_DETAIL]?: IssueDetail})[ISSUE_DETAIL];
+    if (detail?.keyword !== undefined) a2uiIssue.keyword = detail.keyword;
+    if (detail?.params !== undefined) a2uiIssue.params = detail.params;
+    return a2uiIssue;
+  });
 }
 
 /** Returns `r` or throws if it is a promise (async validators are unsupported). */

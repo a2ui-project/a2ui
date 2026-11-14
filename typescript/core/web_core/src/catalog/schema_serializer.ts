@@ -21,6 +21,7 @@ import {zodToJsonSchema} from 'zod-to-json-schema';
 import {isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
 import {isAgentFunction} from './agent_function_brand.js';
 import {exclusiveUnionOverride} from './exclusive_union.js';
+import {nonZodSchemaJson, type AuthoredSchema} from './entry-schema.js';
 import {loadedDefinition} from './json_entries.js';
 import {getSpecAnnotation, type JsonSchemaObject} from './spec_annotations.js';
 import {
@@ -49,7 +50,7 @@ export interface SerializableCatalog {
   readonly protocolVersion: string;
   readonly components: ReadonlyMap<string, ComponentApi>;
   readonly functions: ReadonlyMap<string, FunctionApi>;
-  readonly themeSchema?: z.ZodTypeAny;
+  readonly themeSchema?: AuthoredSchema;
   readonly instructions?: string;
   readonly schemaUri?: string;
   readonly schemaId?: string;
@@ -280,10 +281,15 @@ function rewriteRefMarkers(
  * Converts a Zod schema into an unbundled JSON Schema object.
  */
 function zodToUnbundledJson(
-  schema: z.ZodTypeAny | undefined,
+  schema: AuthoredSchema | undefined,
   localDefs: ReadonlySet<string>,
   commonTypesUri: string = DEFAULT_COMMON_TYPES_URI,
 ): JsonObject {
+  const custom = nonZodSchemaJson(schema) as JsonObject | undefined;
+  if (custom) {
+    rewriteRefMarkers(custom, localDefs, commonTypesUri);
+    return custom;
+  }
   if (!schema || typeof schema !== 'object' || !('safeParse' in schema)) {
     return {type: 'object', properties: {}};
   }
@@ -420,7 +426,7 @@ function serializeFunctionModel(
  * Serializes a theme Zod schema into a `$defs.theme` object schema.
  */
 function serializeThemeModel(
-  theme: z.ZodTypeAny,
+  theme: AuthoredSchema,
   localDefs: ReadonlySet<string>,
   commonTypesUri: string = DEFAULT_COMMON_TYPES_URI,
 ): JsonObject {
@@ -506,7 +512,7 @@ function buildDocumentModel(catalog: SerializableCatalog): CatalogDocumentModel 
     if (loadedDefinition(comp) || !isSpecComponentSchema(comp.schema)) continue;
     const {schema, catalogDefs} = shaper.componentSchema(
       name,
-      comp.schema,
+      comp.schema as z.ZodTypeAny,
       comp.allowedParents,
       comp.allowedChildren,
     );
@@ -530,7 +536,7 @@ function buildDocumentModel(catalog: SerializableCatalog): CatalogDocumentModel 
     if (!loadedDefinition(fn) && isSpecFunctionSchema(fn.schema)) {
       rawFunctions.set(name, fn);
       // Pre-scan function schema for any referenced catalog $defs models.
-      shaper.toJson(fn.schema, computedDefs);
+      shaper.toJson(fn.schema as z.ZodTypeAny, computedDefs);
     }
   }
 
@@ -547,7 +553,7 @@ function buildDocumentModel(catalog: SerializableCatalog): CatalogDocumentModel 
   }
   const extensionFields: JsonObject = {...catalog.extensionFields};
   if (catalog.themeLocation === 'styles' && catalog.themeSchema && !hasAuthoredTheme(catalog)) {
-    const theme = shaper.defSchema(catalog.themeSchema);
+    const theme = shaper.defSchema(catalog.themeSchema as z.ZodTypeAny);
     extensionFields['styles'] = isObject(theme['properties']) ? theme['properties'] : {};
   }
 
@@ -561,7 +567,14 @@ function buildDocumentModel(catalog: SerializableCatalog): CatalogDocumentModel 
       name,
       loaded ??
         (rawFunctions.has(name)
-          ? deepFreeze(shaper.functionSchema(name, fn, defs, computedDefs))
+          ? deepFreeze(
+              shaper.functionSchema(
+                name,
+                fn as FunctionApi & {readonly schema: z.ZodTypeAny},
+                defs,
+                computedDefs,
+              ),
+            )
           : undefined),
     );
   }
@@ -678,7 +691,7 @@ export function serializeCatalogDocument(catalog: SerializableCatalog): JsonObje
   if (themeLocation === 'defs' && catalog.themeSchema && !hasAuthoredTheme(model)) {
     defs.theme = getSpecAnnotation(catalog.themeSchema)
       ? new SpecShaper(catalog.protocolVersion, catalog.commonTypesUri).defSchema(
-          catalog.themeSchema,
+          catalog.themeSchema as z.ZodTypeAny,
         )
       : serializeThemeModel(catalog.themeSchema, localDefs, commonTypesUri);
   }

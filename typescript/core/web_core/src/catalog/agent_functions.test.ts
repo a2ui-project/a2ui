@@ -178,12 +178,12 @@ describe('AgentFunction', () => {
       handler,
     });
 
-    assert.deepStrictEqual(fn.schema.parse({id: 'c-42'}), {
+    assert.deepStrictEqual((fn.schema as z.ZodTypeAny).parse({id: 'c-42'}), {
       id: 'c-42',
       includeHistory: false,
     });
-    assert.throws(() => fn.schema.parse({}));
-    assert.throws(() => fn.schema.parse({id: 'c-42', extra: 1}));
+    assert.throws(() => (fn.schema as z.ZodTypeAny).parse({}));
+    assert.throws(() => (fn.schema as z.ZodTypeAny).parse({id: 'c-42', extra: 1}));
   });
 
   it('rejects a handler that is not callable', () => {

@@ -15,9 +15,21 @@
  */
 
 import type {StandardSchemaV1} from '@standard-schema/spec';
+import {applyDefaults} from './defaults.js';
+import {toStandardIssue} from './issues.js';
 import type {CatalogSchema, CompileOptions, JsonSchema, JsonSchemaValidator} from './types.js';
 
-/** Wraps a JSON Schema and a validator engine into a {@link CatalogSchema}. */
+/**
+ * Wraps a JSON Schema and a validator engine into a {@link CatalogSchema}.
+ *
+ * A value that passes is returned with the schema's `default`s filled in, on
+ * a copy (see `applyDefaults`), so a JSON-backed schema behaves like a
+ * library schema that applies its own defaults. A failure's issues keep the
+ * engine's `keyword` and `params`, which `toA2uiIssues` reads back.
+ *
+ * `jsonSchema.input` and `jsonSchema.output` return `schema` itself for any
+ * `target`: it is already draft 2020-12, the only target web_core asks for.
+ */
 export function fromJsonSchema<T = unknown>(
   schema: JsonSchema,
   validator: JsonSchemaValidator,
@@ -26,14 +38,15 @@ export function fromJsonSchema<T = unknown>(
   const validate = validator.compile<T>(schema, opts);
   const json: Record<string, unknown> =
     typeof schema === 'boolean' ? (schema ? {} : {not: {}}) : schema;
+  const doc = {root: json, defs: {...opts?.defs}};
   return {
     '~standard': {
       version: 1,
       vendor: 'a2ui',
       validate: (value: unknown): StandardSchemaV1.Result<T> => {
         const r = validate(value);
-        if (r.success) return {value: r.data};
-        return {issues: r.issues.map(i => ({message: i.message, path: [...i.path]}))};
+        if (r.success) return {value: applyDefaults(r.data, json, doc) as T};
+        return {issues: r.issues.map(toStandardIssue)};
       },
       jsonSchema: {input: () => json, output: () => json},
     },

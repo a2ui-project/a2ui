@@ -39,7 +39,8 @@ import {
   getSafeChildList,
   scrapeComponentBehavior,
 } from './generic-binder.js';
-import {toSchemaDoc} from '../schema-engine/zod-bridge.js';
+import {entrySchema} from '../catalog/entry-schema.js';
+import type {SchemaCursor} from '../schema-engine/nav.js';
 import {extractRefFields, RefFields} from './ref-fields.js';
 import {ResolvedBinding, sameBinding, WritableBinding} from './resolved-binding.js';
 
@@ -69,6 +70,9 @@ interface NodeRecord {
   /** Children this node currently references, keyed by edge. This parent owns their disposal. */
   childEdges: Map<string, MutableComponentNode>;
 }
+
+/** The schema of a component that declares none: any properties. */
+const EMPTY_SCHEMA: SchemaCursor = {node: {}, doc: {root: {}, defs: {}}};
 
 /**
  * Resolves a surface model's flat component dictionary into a reactive tree of `ComponentNode`s.
@@ -364,8 +368,7 @@ export class NodeResolver<
       : isAtLeastVersion(compCatalog.protocolVersion, '0.9')
         ? V09_CHILD_REF_OPTIONS
         : V08_CHILD_REF_OPTIONS;
-    // ponytail: bridge until Task 8
-    const schemaJson = toSchemaDoc(api.schema, compCatalog.protocolVersion);
+    const schemaJson = entrySchema(api, 'component', compCatalog)?.cursor ?? EMPTY_SCHEMA;
     const binder = new GenericBinder<NodeProps>(context, schemaJson, refOptions);
     const record = this.registerNode(
       new MutableComponentNode(

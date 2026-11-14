@@ -23,11 +23,12 @@ import {Catalog} from '../catalog/types.js';
 import {extractRefFields} from '../resolution/ref-fields.js';
 import {ChildListSchema, ComponentIdSchema} from '../v0_9/schema/common-types.js';
 import {ChildSchema as V1ChildSchema} from '../v1_0/schema/common-types.js';
-import {toSchemaDoc} from './zod-bridge.js';
+import {cursorOf} from '../test/schema.js';
+import {fromZod3, isZod3Schema, zod3Issues, zod3ToJsonSchema} from './zod3-adapter.js';
 
-describe('toSchemaDoc', () => {
+describe('fromZod3', () => {
   it('writes markChildRef-stamped schemas as $refs into the common types document', () => {
-    const {node, doc} = toSchemaDoc(
+    const {node, doc} = cursorOf(
       z.object({
         header: ComponentIdSchema.optional(),
         footer: V1ChildSchema.describe('Footer child.'),
@@ -49,12 +50,12 @@ describe('toSchemaDoc', () => {
     const markedList = z.union([z.array(z.string()), z.any()]);
     (markedList._def as {a2uiChildRef?: string}).a2uiChildRef = 'child-list';
 
-    assert.deepEqual(toSchemaDoc(markedChild).node, {$ref: 'common_types.json#/$defs/ComponentId'});
-    assert.deepEqual(toSchemaDoc(markedList).node, {$ref: 'common_types.json#/$defs/ChildList'});
+    assert.deepEqual(zod3ToJsonSchema(markedChild), {$ref: 'common_types.json#/$defs/ComponentId'});
+    assert.deepEqual(zod3ToJsonSchema(markedList), {$ref: 'common_types.json#/$defs/ChildList'});
   });
 
-  it('keeps REF: descriptions and writes strip, strict, and passthrough objects distinctly', () => {
-    const {node} = toSchemaDoc(
+  it('keeps REF: descriptions and closes strip and strict objects', () => {
+    const node = zod3ToJsonSchema(
       z.object({
         text: z.string().describe('REF:common_types.json#/$defs/DynamicString'),
         strip: z.object({}),
@@ -68,17 +69,19 @@ describe('toSchemaDoc', () => {
     );
     const props = (node as {properties: Record<string, Record<string, unknown>>}).properties;
     assert.equal(props.text.description, 'REF:common_types.json#/$defs/DynamicString');
-    assert.equal('additionalProperties' in props.strip, false);
+    assert.equal(props.strip.additionalProperties, false);
     assert.equal(props.strict.additionalProperties, false);
     assert.equal(props.open.additionalProperties, true);
     const both = props.both.allOf as Record<string, unknown>[];
     assert.equal(both[0].additionalProperties, false);
+    // A strip member of an intersection takes the other member's keys.
     assert.equal('additionalProperties' in both[1], false);
+    assert.equal(props.both.unevaluatedProperties, false);
   });
 
   it('keeps the REF: of a wrapped schema that a wrapper re-describes', () => {
     const flag = z.boolean().describe('REF:#/$defs/DynamicBoolean|A flag.');
-    const {node} = toSchemaDoc(
+    const node = zod3ToJsonSchema(
       z.object({
         defaulted: flag.default(true).describe('Grouping.'),
         optional: flag.optional().describe('Whether.'),
@@ -94,10 +97,28 @@ describe('toSchemaDoc', () => {
     assert.equal(props.nullable.description, 'REF:#/$defs/DynamicBoolean|Maybe.');
   });
 
-  it('caches one document per schema and version', () => {
+  it('wraps each schema once and converts it once', () => {
     const schema = z.object({child: z.string()});
-    assert.equal(toSchemaDoc(schema, '1.0'), toSchemaDoc(schema, '1.0'));
-    assert.notEqual(toSchemaDoc(schema, '1.0').doc, toSchemaDoc(schema, '0.9').doc);
+    assert.equal(fromZod3(schema), fromZod3(schema));
+    const json = fromZod3(schema)['~standard'].jsonSchema;
+    assert.equal(json.input({target: 'draft-2020-12'}), json.input({target: 'draft-2020-12'}));
+    assert.notEqual(cursorOf(schema, '1.0').doc.defs, cursorOf(schema, '0.9').doc.defs);
+  });
+
+  it("validates with zod's own Standard Schema validate", () => {
+    const schema = z.object({text: z.string().transform(t => t.toUpperCase())});
+    const wrapped = fromZod3(schema);
+    assert.deepEqual(wrapped['~standard'].validate({text: 'abc'}), {value: {text: 'ABC'}});
+    const failed = wrapped['~standard'].validate({text: 1}) as {issues: z.ZodIssue[]};
+    assert.equal(failed.issues[0].code, 'invalid_type');
+    assert.deepEqual(zod3Issues(failed.issues), failed.issues);
+    assert.equal(zod3Issues([{message: 'x'}]), undefined);
+  });
+
+  it('recognizes zod 3 schemas only', () => {
+    assert.ok(isZod3Schema(z.string()));
+    assert.equal(isZod3Schema(fromZod3(z.string())), false);
+    assert.equal(isZod3Schema({type: 'string'}), false);
   });
 
   it('preserves child discovery for zod schemas Catalog.fromJson derives', () => {
@@ -140,10 +161,7 @@ describe('toSchemaDoc', () => {
       },
     });
     const refsOf = (name: string) => {
-      const {node, doc} = toSchemaDoc(
-        catalog.components.get(name)!.schema,
-        catalog.protocolVersion,
-      );
+      const {node, doc} = cursorOf(catalog.components.get(name)!.schema, catalog.protocolVersion);
       return extractRefFields(node, doc);
     };
 
@@ -160,7 +178,7 @@ describe('toSchemaDoc', () => {
 
   it('preserves wrapper, recursion, and pipeline-as-allOf discovery for zod schemas', () => {
     const refsOf = (schema: z.ZodTypeAny) => {
-      const {node, doc} = toSchemaDoc(schema);
+      const {node, doc} = cursorOf(schema);
       return extractRefFields(node, doc);
     };
     const r = refsOf(
@@ -188,10 +206,12 @@ describe('toSchemaDoc', () => {
       z.object({label: z.string(), children: z.array(tree).optional()}),
     );
     assert.equal(refsOf(tree).size, 0);
-    assert.deepEqual([...refsOf(z.object({}))].sort(), [
+    // A strip object is closed, like a strict one.
+    assert.equal(refsOf(z.object({})).size, 0);
+    assert.equal(refsOf(z.object({}).strict()).size, 0);
+    assert.deepEqual([...refsOf(z.object({}).passthrough())].sort(), [
       ['child', {kind: 'single'}],
       ['children', {kind: 'list'}],
     ]);
-    assert.equal(refsOf(z.object({}).strict()).size, 0);
   });
 });

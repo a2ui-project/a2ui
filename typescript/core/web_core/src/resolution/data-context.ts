@@ -50,7 +50,7 @@ import {Catalog, CatalogInterface} from '../catalog/types.js';
 import {SpecVersion} from '../spec_versions.js';
 import {deref, type SchemaDoc} from '../schema-engine/nav.js';
 import type {JsonSchema} from '../schema-engine/types.js';
-import {toSchemaDoc} from '../schema-engine/zod-bridge.js';
+import {entrySchema} from '../catalog/entry-schema.js';
 import {resolveSurfaceCatalog} from '../state/resolve-surface-catalog.js';
 import {SurfaceModel} from '../state/surface-model.js';
 import {IndexApi, SYSTEM_FUNCTIONS} from '../v1_0/functions/system_functions.js';
@@ -95,7 +95,16 @@ function isNullishMember(n: unknown): boolean {
 /** Bounds `$ref`/combinator nesting walked by {@link getKnownSchemaKeys}. */
 const MAX_SCHEMA_KEYS_DEPTH = 32;
 
-function collectKnownKeys(node: JsonSchema, doc: SchemaDoc, depth: number): Set<string> | null {
+/**
+ * @param closed Whether an enclosing `unevaluatedProperties: false` closes
+ *   the object, so its own openness no longer allows other keys.
+ */
+function collectKnownKeys(
+  node: JsonSchema,
+  doc: SchemaDoc,
+  depth: number,
+  closed = false,
+): Set<string> | null {
   if (depth > MAX_SCHEMA_KEYS_DEPTH) return null;
   let target;
   try {
@@ -105,10 +114,10 @@ function collectKnownKeys(node: JsonSchema, doc: SchemaDoc, depth: number): Set<
   }
   const current = target.node;
   if (!isObj(current)) return null;
-  const unionKeys = (members: unknown[]): Set<string> | null => {
+  const unionKeys = (members: unknown[], membersClosed: boolean): Set<string> | null => {
     const keys = new Set<string>();
     for (const member of members) {
-      const k = collectKnownKeys(member as JsonSchema, target.doc, depth + 1);
+      const k = collectKnownKeys(member as JsonSchema, target.doc, depth + 1, membersClosed);
       if (!k) return null; // A member that allows arbitrary keys disables filtering.
       for (const key of k) keys.add(key);
     }
@@ -118,12 +127,15 @@ function collectKnownKeys(node: JsonSchema, doc: SchemaDoc, depth: number): Set<
     const {allOf, ...siblings} = current;
     // The node's own object keywords constrain the value alongside its members.
     const own = 'properties' in siblings || 'additionalProperties' in siblings ? [siblings] : [];
-    return unionKeys([...own, ...(allOf as unknown[])]);
+    return unionKeys(
+      [...own, ...(allOf as unknown[])],
+      closed || siblings['unevaluatedProperties'] === false,
+    );
   }
   const options = current['anyOf'] ?? current['oneOf'];
   if (Array.isArray(options)) {
     const members = options.filter(o => !isNullishMember(o));
-    return members.length === 0 ? null : unionKeys(members);
+    return members.length === 0 ? null : unionKeys(members, closed);
   }
   const type = current['type'];
   const isObjectType =
@@ -134,7 +146,10 @@ function collectKnownKeys(node: JsonSchema, doc: SchemaDoc, depth: number): Set<
     // Not an object, or a record-like object that declares no keys.
     return null;
   }
-  if (current['additionalProperties'] === true) {
+  // As JSON Schema reads it, an object without `additionalProperties` (or
+  // `unevaluatedProperties`) allows any other key.
+  const extra = current['additionalProperties'] ?? current['unevaluatedProperties'];
+  if (extra === true || (extra === undefined && !closed)) {
     return null;
   }
   return new Set(Object.keys(current['properties']));
@@ -145,9 +160,9 @@ function collectKnownKeys(node: JsonSchema, doc: SchemaDoc, depth: number): Set<
  *
  * Follows `$ref`s, nullable `anyOf`/`oneOf` members, `allOf` intersections, and
  * `anyOf`/`oneOf` unions, and returns the set of allowed key names. An object
- * with `additionalProperties: true` allows arbitrary keys; one that omits
- * `additionalProperties`, closes it, or types its extra keys returns its
- * declared keys.
+ * that omits `additionalProperties` (and `unevaluatedProperties`) or sets it
+ * to `true` allows arbitrary keys, as JSON Schema reads it; one that closes
+ * it or types its extra keys returns its declared keys.
  *
  * @param node JSON Schema node to inspect.
  * @param doc The document that owns `node`.
@@ -206,13 +221,12 @@ export function validateFunctionArgs(
     isAtLeastVersion(catalog.protocolVersion, SpecVersion.V1_0)
       ? IndexApi
       : undefined);
-  if (!fn?.schema) {
+  const prepared = fn ? entrySchema(fn, 'function', catalog) : undefined;
+  if (!prepared) {
     return;
   }
 
-  // ponytail: bridge until Task 8 — function schemas are still Zod.
-  const fnSchema = toSchemaDoc(fn.schema, catalog?.protocolVersion);
-  const knownKeys = getKnownSchemaKeys(fnSchema.node, fnSchema.doc);
+  const knownKeys = getKnownSchemaKeys(prepared.cursor.node, prepared.cursor.doc);
   if (!knownKeys) {
     // Schema allows arbitrary keys (e.g. passthrough)
     return;
