@@ -72,6 +72,19 @@ function inlineLocalPointers(node: unknown, root: Json, stack: string[] = []): u
 }
 
 /**
+ * The base a root schema without an `$id` is compiled under, so relative def keys
+ * (`common_types.json`, `catalog.json`) resolve to sibling URIs, as with the Ajv adapter.
+ */
+const SYNTHETIC_BASE = 'https://a2ui.invalid/schema.json';
+
+/** `schema` with an `$id`: its own, or {@link SYNTHETIC_BASE}. */
+function withBaseId(schema: JsonSchema): JsonSchema {
+  return typeof schema === 'object' && typeof schema.$id !== 'string'
+    ? {...schema, $id: SYNTHETIC_BASE}
+    : schema;
+}
+
+/**
  * cfworker resolves lookup keys against a fixed base URL, so a relative key such as
  * `common_types.json` would not match a `$ref` resolved against the root schema's `$id`.
  * Resolve relative keys against the root `$id` when there is one.
@@ -134,7 +147,10 @@ function paramsFor(keyword: string, error: string): Record<string, unknown> | un
 /** Creates a {@link JsonSchemaValidator} backed by `@cfworker/json-schema` (draft 2020-12). */
 export function createCfWorkerValidator(): JsonSchemaValidator {
   return {
-    compile<T = unknown>(schema: JsonSchema, opts?: CompileOptions): CompiledValidator<T> {
+    compile<T = unknown>(input: JsonSchema, opts?: CompileOptions): CompiledValidator<T> {
+      // cfworker caches each ref's absolute URI on the schema objects it is given, so it
+      // gets a copy: the caller's schema, reused under another base, would resolve wrongly.
+      const schema = structuredClone(withBaseId(input));
       const validator = new Validator(schema as object, '2020-12', false);
       const added = new Set<string>();
       for (const [key, def] of Object.entries(opts?.defs ?? {})) {

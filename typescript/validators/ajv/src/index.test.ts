@@ -132,3 +132,35 @@ describe('createAjvValidator', () => {
     });
   });
 });
+
+describe('createAjvValidator with a root schema without $id', () => {
+  // A component schema as `fromJsonSchema` gets it: relative refs into the common
+  // types, whose own refs (`catalog.json`) must find the def registered beside them.
+  const component = () => ({
+    type: 'object',
+    properties: {label: {$ref: 'common_types.json#/$defs/DynamicString'}},
+  });
+  const defs = {'common_types.json': common, 'catalog.json': catalog};
+
+  it('resolves relative def keys next to each other', () => {
+    const validate = createAjvValidator().compile(component(), {defs});
+    assert.ok(validate({label: 'hi'}).success);
+    assert.ok(validate({label: {'@path': '/x'}}).success);
+    const r = validate({label: {path: '/x'}});
+    assert.strictEqual(r.success, false);
+  });
+
+  it('compiles the same schema objects with and without an $id', () => {
+    const shared = component();
+    const without = createAjvValidator().compile(shared, {defs});
+    const withId = createAjvValidator().compile(
+      {...shared, $id: 'https://example.com/c.json'},
+      {defs},
+    );
+    for (const validate of [without, withId, createAjvValidator().compile(shared, {defs})]) {
+      assert.ok(validate({label: {'@path': '/x'}}).success);
+      assert.strictEqual(validate({label: 1}).success, false);
+    }
+    assert.ok(!('$id' in shared), 'the caller schema is not changed');
+  });
+});

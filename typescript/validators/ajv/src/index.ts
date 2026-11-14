@@ -50,6 +50,20 @@ function toPath(instancePath: string, error: ErrorObject): (string | number)[] {
 }
 
 /**
+ * The base a root schema without an `$id` is compiled under, so relative def keys
+ * (`common_types.json`, `catalog.json`) resolve to sibling URIs, and a def's own
+ * relative refs find the defs registered next to it.
+ */
+const SYNTHETIC_BASE = 'https://a2ui.invalid/schema.json';
+
+/** `schema` with an `$id`: its own, or {@link SYNTHETIC_BASE}. */
+function withBaseId(schema: JsonSchema): JsonSchema {
+  return typeof schema === 'object' && typeof schema.$id !== 'string'
+    ? {...schema, $id: SYNTHETIC_BASE}
+    : schema;
+}
+
+/**
  * Resolves a relative def key against the root schema's `$id`, so a def without its own
  * `$id` is found by the `$ref` (`catalog.json`) that points at it.
  */
@@ -69,7 +83,8 @@ function resolveKey(key: string, root: JsonSchema): string {
  */
 export function createAjvValidator(opts: {formats?: boolean} = {}): JsonSchemaValidator {
   return {
-    compile<T = unknown>(schema: JsonSchema, compileOpts?: CompileOptions): CompiledValidator<T> {
+    compile<T = unknown>(input: JsonSchema, compileOpts?: CompileOptions): CompiledValidator<T> {
+      const schema = withBaseId(input);
       const ajv = new Ajv2020({strict: false, allErrors: true});
       if (opts.formats !== false) addFormats(ajv);
       const added = new Set<string>();
