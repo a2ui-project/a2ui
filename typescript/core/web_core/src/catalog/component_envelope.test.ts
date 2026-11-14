@@ -17,126 +17,199 @@
 import * as assert from 'node:assert';
 import {describe, it} from 'node:test';
 
-import {z} from 'zod';
-
 import {A2uiValidationError} from '../errors.js';
-import {AccessibilityAttributesSchema} from '../v1_0/schema/common-types.js';
+import type {SchemaCursor} from '../schema-engine/nav.js';
+import type {JsonSchema} from '../schema-engine/types.js';
+import {componentSchemaDoc} from '../schema-engine/zod-bridge.js';
+import V09CommonTypes from '../v0_9/schemas/common_types.json' with {type: 'json'};
+import V10CommonTypes from '../v1_0/schemas/common_types.json' with {type: 'json'};
 import {
   componentMixinLayout,
   componentPayloadState,
   splitComponentEnvelope,
 } from './component_envelope.js';
-import {exclusiveUnion} from './exclusive_union.js';
 import {Catalog} from './types.js';
 
+const DEFS: Record<string, JsonSchema> = {'common_types.json': V10CommonTypes as JsonSchema};
+
+/** A JSON fixture that may reference the v1.0 common types. */
+const json = (node: JsonSchema, defs = DEFS): SchemaCursor => ({node, doc: {root: node, defs}});
+const commonRef = (name: string): JsonSchema => ({$ref: `common_types.json#/$defs/${name}`});
+const object = (properties: Record<string, JsonSchema>, extra: Record<string, unknown> = {}) => ({
+  type: 'object',
+  properties,
+  ...extra,
+});
+
 describe('componentMixinLayout', () => {
-  it('finds custom mixin names declared in a union option', () => {
-    const schema = z.union([
-      z.object({kind: z.literal('a'), metadata: z.string().optional()}),
-      z.object({kind: z.literal('b'), label: z.string()}),
-    ]);
-    const layout = componentMixinLayout(schema);
+  it('finds custom mixin names declared in an anyOf option', () => {
+    const layout = componentMixinLayout(
+      json({
+        anyOf: [
+          object({kind: {const: 'a'}, metadata: {type: 'string'}}),
+          object({kind: {const: 'b'}, label: {type: 'string'}}),
+        ],
+      }),
+    );
     assert.deepStrictEqual([...layout.customKeys], ['metadata']);
     assert.deepStrictEqual([...layout.schemaKeys], []);
   });
 
-  it('finds custom mixin names declared in a discriminated union option', () => {
-    const schema = z.discriminatedUnion('kind', [
-      z.object({kind: z.literal('a'), label: z.string()}),
-      z.object({kind: z.literal('b'), catalogId: z.number().optional()}),
-    ]);
+  it('finds custom mixin names declared in a oneOf option', () => {
+    const schema = json({
+      oneOf: [
+        object({kind: {const: 'a'}, label: {type: 'string'}}),
+        object({kind: {const: 'b'}, catalogId: {type: 'number'}}),
+      ],
+    });
     assert.deepStrictEqual([...componentMixinLayout(schema).customKeys], ['catalogId']);
   });
 
-  it('finds custom mixin names declared in a oneOf union', () => {
-    const schema = exclusiveUnion([
-      z.object({kind: z.literal('a'), metadata: z.string()}),
-      z.object({kind: z.literal('b')}),
-    ]);
-    assert.deepStrictEqual([...componentMixinLayout(schema).customKeys], ['metadata']);
-  });
-
-  it('finds @-prefixed mixin keys declared in a union option', () => {
-    const schema = z.union([
-      z.object({'kind': z.literal('a'), '@checks': z.array(z.unknown()).optional()}),
-      z.object({kind: z.literal('b')}),
-    ]);
-    const layout = componentMixinLayout(schema);
+  it('finds @-prefixed mixin keys declared in an option', () => {
+    const layout = componentMixinLayout(
+      json({
+        anyOf: [
+          object({'kind': {const: 'a'}, '@checks': {type: 'array', items: {}}}),
+          object({kind: {const: 'b'}}),
+        ],
+      }),
+    );
     assert.deepStrictEqual([...layout.customKeys], []);
     assert.strictEqual(layout.schemaKeys.get('checks'), '@checks');
   });
 
   it('treats a mixin name as standard only if every option declares the standard schema', () => {
-    const allStandard = z.union([
-      z.object({kind: z.literal('a'), accessibility: AccessibilityAttributesSchema.optional()}),
-      z.object({kind: z.literal('b'), accessibility: AccessibilityAttributesSchema.optional()}),
-    ]);
+    const allStandard = json({
+      anyOf: [
+        object({kind: {const: 'a'}, accessibility: commonRef('AccessibilityAttributes')}),
+        object({kind: {const: 'b'}, accessibility: commonRef('AccessibilityAttributes')}),
+      ],
+    });
     assert.deepStrictEqual([...componentMixinLayout(allStandard).customKeys], []);
     assert.strictEqual(
       componentMixinLayout(allStandard).schemaKeys.get('accessibility'),
       'accessibility',
     );
 
-    const mixed = z.union([
-      z.object({kind: z.literal('a'), accessibility: AccessibilityAttributesSchema.optional()}),
-      z.object({kind: z.literal('b'), accessibility: z.enum(['high', 'low']).optional()}),
-    ]);
+    const mixed = json({
+      anyOf: [
+        object({kind: {const: 'a'}, accessibility: commonRef('AccessibilityAttributes')}),
+        object({kind: {const: 'b'}, accessibility: {enum: ['high', 'low']}}),
+      ],
+    });
     assert.deepStrictEqual([...componentMixinLayout(mixed).customKeys], ['accessibility']);
     assert.strictEqual(componentMixinLayout(mixed).schemaKeys.has('accessibility'), false);
   });
 
-  it('keeps reading the properties of intersections', () => {
-    const schema = z.object({label: z.string()}).and(z.object({metadata: z.string().optional()}));
+  it('keeps reading the properties of allOf members', () => {
+    const schema = json({
+      allOf: [object({label: {type: 'string'}}), object({metadata: {type: 'string'}})],
+    });
     assert.deepStrictEqual([...componentMixinLayout(schema).customKeys], ['metadata']);
   });
 
-  describe('an inline catalogId or metadata', () => {
-    const extensionsOnly = z.object({extensions: z.record(z.unknown()).optional()});
+  it('takes the properties of a $ref to a spec mixin as the standard mixins', () => {
+    const v10 = componentMixinLayout(
+      json({
+        allOf: [commonRef('ComponentCommon'), commonRef('Checkable'), object({label: {}})],
+        unevaluatedProperties: false,
+      }),
+    );
+    assert.deepStrictEqual([...v10.customKeys], []);
+    // `@catalogId` is an envelope field, like `id`, not a property.
+    assert.deepStrictEqual(Object.fromEntries(v10.schemaKeys), {
+      metadata: '@metadata',
+      accessibility: '@accessibility',
+      checks: '@checks',
+    });
 
-    function layoutOf(shape: z.ZodRawShape) {
-      return componentMixinLayout(z.object(shape));
-    }
+    const uri = 'https://a2ui.org/specification/v0_9/common_types.json';
+    const v09 = componentMixinLayout(
+      json(
+        {
+          allOf: [
+            {$ref: `${uri}#/$defs/ComponentCommon`},
+            {$ref: `${uri}#/$defs/Checkable`},
+            object({label: {}}),
+          ],
+        },
+        {[uri]: V09CommonTypes as JsonSchema},
+      ),
+    );
+    assert.deepStrictEqual([...v09.customKeys], []);
+    assert.deepStrictEqual(Object.fromEntries(v09.schemaKeys), {
+      accessibility: 'accessibility',
+      checks: 'checks',
+    });
+  });
+
+  it('keeps a custom bare key beside the @-prefixed mixin', () => {
+    const layout = componentMixinLayout(
+      json({allOf: [commonRef('Checkable'), object({checks: {type: 'string'}})]}),
+    );
+    assert.deepStrictEqual([...layout.customKeys], ['checks']);
+    assert.strictEqual(layout.schemaKeys.get('checks'), '@checks');
+  });
+
+  it('takes bare checks of CheckRule items as the standard mixin', () => {
+    const layout = componentMixinLayout(
+      json(object({checks: {type: 'array', items: commonRef('CheckRule')}})),
+    );
+    assert.deepStrictEqual([...layout.customKeys], []);
+    assert.strictEqual(layout.schemaKeys.get('checks'), 'checks');
+  });
+
+  it('skips a reference it cannot resolve', () => {
+    const layout = componentMixinLayout(
+      json({allOf: [{$ref: 'other.json#/$defs/X'}, object({metadata: {type: 'string'}})]}),
+    );
+    assert.deepStrictEqual([...layout.customKeys], ['metadata']);
+  });
+
+  describe('an inline catalogId or metadata', () => {
+    const extensionsOnly = object({extensions: {type: 'object', additionalProperties: true}});
 
     it('is the standard mixin beside an inline id with the standard shape', () => {
-      const layout = layoutOf({
-        id: z.string(),
-        catalogId: z.string().optional(),
-        metadata: extensionsOnly.optional(),
-      });
+      const layout = componentMixinLayout(
+        json(object({id: {type: 'string'}, catalogId: {type: 'string'}, metadata: extensionsOnly})),
+      );
       assert.deepStrictEqual([...layout.customKeys], []);
       assert.strictEqual(layout.schemaKeys.get('catalogId'), 'catalogId');
       assert.strictEqual(layout.schemaKeys.get('metadata'), 'metadata');
     });
 
     it('is custom beside an inline id with another shape', () => {
-      const layout = layoutOf({
-        id: z.string(),
-        catalogId: z.number().optional(),
-        metadata: z.string().optional(),
-      });
+      const layout = componentMixinLayout(
+        json(
+          object({id: {type: 'string'}, catalogId: {type: 'number'}, metadata: {type: 'string'}}),
+        ),
+      );
       assert.deepStrictEqual([...layout.customKeys].sort(), ['catalogId', 'metadata']);
     });
 
     it('is custom without an inline id', () => {
-      const layout = layoutOf({
-        catalogId: z.string().optional(),
-        metadata: extensionsOnly.optional(),
-      });
+      const layout = componentMixinLayout(
+        json(object({catalogId: {type: 'string'}, metadata: extensionsOnly})),
+      );
       assert.deepStrictEqual([...layout.customKeys].sort(), ['catalogId', 'metadata']);
     });
 
-    it('is custom when id is declared by another object of an intersection', () => {
-      const schema = z.object({id: z.string()}).and(z.object({catalogId: z.string().optional()}));
+    it('is custom when id is declared by another allOf member', () => {
+      const schema = json({
+        allOf: [object({id: {type: 'string'}}), object({catalogId: {type: 'string'}})],
+      });
       assert.deepStrictEqual([...componentMixinLayout(schema).customKeys], ['catalogId']);
     });
 
+    // ponytail: bridge until Task 8 — callers reach a loaded component's JSON
+    // definition through componentSchemaDoc.
     function jsonLayoutOf(properties: Record<string, unknown>) {
       const catalog = Catalog.fromJson({
         catalogId: 'inline',
         protocolVersion: '1.0',
         components: {Widget: {type: 'object', properties}},
       });
-      return componentMixinLayout(catalog.components.get('Widget')!.schema);
+      return componentMixinLayout(componentSchemaDoc(catalog.components.get('Widget'), catalog));
     }
 
     const jsonExtensionsOnly = {
@@ -177,7 +250,7 @@ describe('splitComponentEnvelope', () => {
       () =>
         splitComponentEnvelope(
           {'id': 'root', 'component': 'Plain', '@metadata': {}, 'metadata': {}},
-          componentMixinLayout(z.object({})),
+          componentMixinLayout(json(object({}))),
         ),
       (err: unknown) => {
         assert.ok(err instanceof A2uiValidationError);
@@ -191,10 +264,12 @@ describe('splitComponentEnvelope', () => {
 
 describe('componentPayloadState', () => {
   it('keeps a bare metadata declared in a union option as a property beside @metadata', () => {
-    const schema = z.union([
-      z.object({kind: z.literal('a'), metadata: z.string().optional()}),
-      z.object({kind: z.literal('b')}),
-    ]);
+    const schema = json({
+      anyOf: [
+        object({kind: {const: 'a'}, metadata: {type: 'string'}}),
+        object({kind: {const: 'b'}}),
+      ],
+    });
     const state = componentPayloadState(
       {
         'id': 'root',

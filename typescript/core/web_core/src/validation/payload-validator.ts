@@ -21,7 +21,7 @@ import {isValidUax31Identifier} from '../common/uax31.js';
 import {A2uiErrorDetail, A2uiValidationError} from '../errors.js';
 import {formatZodIssue} from '../processing/format-zod-issue.js';
 import {getKnownSchemaKeys} from '../resolution/data-context.js';
-import {toSchemaDoc} from '../schema-engine/zod-bridge.js';
+import {componentSchemaDoc, toSchemaDoc} from '../schema-engine/zod-bridge.js';
 import {AccessibilityAttributesSchema, ComponentCommonSchema} from '../types/common-types.js';
 import {
   AT_COMPONENT_MIXIN_KEYS,
@@ -258,7 +258,11 @@ export class PayloadValidator {
     // the component's own properties. Below v1.0 every key but `id` and
     // `component` is a property.
     const split: SplitComponent = this.enforceIdentifiers
-      ? splitComponentEnvelope(comp, componentMixinLayout(componentApi?.schema))
+      ? splitComponentEnvelope(
+          comp,
+          // ponytail: bridge until Task 8 — component schemas are still Zod.
+          componentMixinLayout(componentSchemaDoc(componentApi, this.catalog)),
+        )
       : {properties: stripStructuralKeys(comp), mixins: {}};
     const properties = split.properties;
     // Decides which nested calls run in this catalog; see
@@ -297,7 +301,7 @@ export class PayloadValidator {
     if (this.enforceIdentifiers) {
       this.validateEnvelopeMixins(
         split.mixins,
-        componentMixinLayout(componentApi.schema),
+        componentMixinLayout(componentSchemaDoc(componentApi, this.catalog)),
         properties,
         componentType,
         id,

@@ -55,7 +55,9 @@ import {
   validateComponentGraph,
 } from '../state/validation-helpers.js';
 import {VersionAdapterFactory} from './adapters/factory.js';
+import type {SchemaCursor} from '../schema-engine/nav.js';
 import type {JsonSchemaValidator} from '../schema-engine/types.js';
+import {componentSchemaDoc} from '../schema-engine/zod-bridge.js';
 import {compareSemVer, isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
 import {
   InternalOperation,
@@ -1418,12 +1420,12 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     );
   }
 
-  /** Returns the schema of a component's type in `catalog`, if any. */
+  /** Returns the JSON Schema of a component's type in `catalog`, if any. */
   private componentSchema(
     comp: Record<string, unknown>,
     surface: SurfaceModel<T>,
     catalog: Catalog<T> | undefined,
-  ): ComponentApi['schema'] | undefined {
+  ): SchemaCursor | undefined {
     const {id, component} = comp;
     const type =
       typeof component === 'string' && component
@@ -1431,7 +1433,9 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
         : typeof id === 'string'
           ? surface.componentsModel.get(id)?.type
           : undefined;
-    return type ? catalog?.components.get(type)?.schema : undefined;
+    if (!type || !catalog) return undefined;
+    // ponytail: bridge until Task 8 — component schemas are still Zod.
+    return componentSchemaDoc(catalog.components.get(type), catalog);
   }
 
   /**

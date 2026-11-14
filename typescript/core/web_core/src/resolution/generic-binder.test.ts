@@ -55,16 +55,20 @@ function scrape(node: JsonSchema, options?: ChildRefAnalysisOptions) {
   return scrapeSchemaBehavior(node, {root: node, defs: COMMON_DEFS}, options);
 }
 
-// ponytail: bridge until Task 8 — these fixtures also build a GenericBinder,
-// which takes the component's Zod schema, so they are scraped through the bridge.
-function scrapeZod(schema: z.ZodTypeAny, options?: ChildRefAnalysisOptions) {
-  const c = toSchemaDoc(schema);
-  return scrapeSchemaBehavior(c.node, c.doc, options);
+/** Scrapes a component JSON Schema fixture that may reference the v1.0 common types. */
+function scrapeComponent(node: JsonSchema, options?: ChildRefAnalysisOptions) {
+  return scrapeComponentBehavior(node, {root: node, defs: COMMON_DEFS}, options);
 }
-function scrapeComponentZod(schema: z.ZodTypeAny, options?: ChildRefAnalysisOptions) {
-  const c = toSchemaDoc(schema);
-  return scrapeComponentBehavior(c.node, c.doc, options);
-}
+
+/** An open object whose every value has schema `values`. */
+const record = (values: JsonSchema = {}): JsonSchema => ({
+  type: 'object',
+  additionalProperties: values,
+});
+
+// ponytail: bridge until Task 8 — the binder tests below build their
+// components from Zod schemas, as code-defined catalogs do until Task 10.
+const bridged = (schema: z.ZodTypeAny) => toSchemaDoc(schema);
 
 describe('GenericBinder Checkable Trait', () => {
   function setupSurfaceAndMocks() {
@@ -120,7 +124,7 @@ describe('GenericBinder Checkable Trait', () => {
     surface.componentsModel.addComponent(compModel);
 
     const context = new ComponentContext(surface, 'c1');
-    const binder = new GenericBinder<any>(context, schema);
+    const binder = new GenericBinder<any>(context, bridged(schema));
     binder.subscribe(() => {});
 
     // Initial state: should be invalid
@@ -166,7 +170,7 @@ describe('GenericBinder Checkable Trait', () => {
     surface.componentsModel.addComponent(compModel);
 
     const context = new ComponentContext(surface, 'c2');
-    const binder = new GenericBinder<any>(context, schema);
+    const binder = new GenericBinder<any>(context, bridged(schema));
     binder.subscribe(() => {});
 
     // Both rules fail initially
@@ -214,7 +218,7 @@ describe('GenericBinder Checkable Trait', () => {
     surface.componentsModel.addComponent(compModel);
 
     const context = new ComponentContext(surface, 'c3');
-    const binder = new GenericBinder<Record<string, unknown>>(context, schema);
+    const binder = new GenericBinder<Record<string, unknown>>(context, bridged(schema));
 
     assert.strictEqual(binder.snapshot.isValid, false);
     assert.deepStrictEqual(binder.snapshot.validationErrors, ['Validation failed']);
@@ -235,7 +239,7 @@ describe('GenericBinder Checkable Trait', () => {
     surface.componentsModel.addComponent(compModel);
 
     const context = new ComponentContext(surface, 'c4');
-    const binder = new GenericBinder<Record<string, unknown>>(context, schema);
+    const binder = new GenericBinder<Record<string, unknown>>(context, bridged(schema));
 
     assert.strictEqual(binder.snapshot.isValid, true);
     assert.deepStrictEqual(binder.snapshot.validationErrors, []);
@@ -280,7 +284,7 @@ describe('GenericBinder Checkable Trait', () => {
     });
 
     const context = new ComponentContext(surface, 'c5');
-    const binder = new GenericBinder<{onTap?: () => void}>(context, actionSchema);
+    const binder = new GenericBinder<{onTap?: () => void}>(context, bridged(actionSchema));
 
     // Call the resolved ACTION closure
     assert.strictEqual(typeof binder.snapshot.onTap, 'function');
@@ -326,7 +330,7 @@ describe('GenericBinder Checkable Trait', () => {
     });
 
     const context = new ComponentContext(surface, 'c5');
-    const binder = new GenericBinder<{onTap?: () => Promise<void>}>(context, actionSchema);
+    const binder = new GenericBinder<{onTap?: () => Promise<void>}>(context, bridged(actionSchema));
 
     assert.strictEqual(typeof binder.snapshot.onTap, 'function');
     const dispatchPromise = binder.snapshot.onTap!();
@@ -364,7 +368,7 @@ describe('GenericBinder Checkable Trait', () => {
     });
 
     const context = new ComponentContext(surface, 'c5_user_msg');
-    const binder = new GenericBinder<{onTap?: () => void}>(context, actionSchema);
+    const binder = new GenericBinder<{onTap?: () => void}>(context, bridged(actionSchema));
 
     binder.snapshot.onTap?.();
 
@@ -419,7 +423,7 @@ describe('GenericBinder Checkable Trait', () => {
     });
 
     const context = new ComponentContext(surface, 'c5_fc');
-    const binder = new GenericBinder<{onTap?: () => void}>(context, actionSchema);
+    const binder = new GenericBinder<{onTap?: () => void}>(context, bridged(actionSchema));
 
     assert.strictEqual(typeof binder.snapshot.onTap, 'function');
     assert.strictEqual(orderSubmittedWith, null);
@@ -474,7 +478,7 @@ describe('GenericBinder Checkable Trait', () => {
     });
 
     const context = new ComponentContext(surface, 'c5_zero_arg');
-    const binder = new GenericBinder<{onTap?: () => void}>(context, actionSchema);
+    const binder = new GenericBinder<{onTap?: () => void}>(context, bridged(actionSchema));
 
     // Binding must create action closure, not execute functionCall prematurely
     assert.strictEqual(typeof binder.snapshot.onTap, 'function');
@@ -527,7 +531,7 @@ describe('GenericBinder Checkable Trait', () => {
     });
 
     const context = new ComponentContext(surface, 'c5_async_fc');
-    const binder = new GenericBinder<{onTap?: () => Promise<void>}>(context, actionSchema);
+    const binder = new GenericBinder<{onTap?: () => Promise<void>}>(context, bridged(actionSchema));
 
     assert.strictEqual(typeof binder.snapshot.onTap, 'function');
     const actionPromise = binder.snapshot.onTap!();
@@ -581,7 +585,7 @@ describe('GenericBinder Checkable Trait', () => {
     });
 
     const context = new ComponentContext(surface, 'c5_unwrapped_call');
-    const binder = new GenericBinder<{onTap?: () => void}>(context, actionSchema);
+    const binder = new GenericBinder<{onTap?: () => void}>(context, bridged(actionSchema));
 
     binder.snapshot.onTap?.();
 
@@ -614,7 +618,7 @@ describe('GenericBinder Checkable Trait', () => {
     surface.componentsModel.addComponent(compModel);
 
     const context = new ComponentContext(surface, 'c6');
-    const binder = new GenericBinder<{children?: unknown[]}>(context, structuralSchema);
+    const binder = new GenericBinder<{children?: unknown[]}>(context, bridged(structuralSchema));
     binder.subscribe(() => {});
 
     assert.deepStrictEqual(binder.snapshot.children, [
@@ -658,7 +662,7 @@ describe('GenericBinder Checkable Trait', () => {
     const context = new ComponentContext(surface, 'c_large');
     const binder = new GenericBinder<{children?: Array<{basePath: string}>}>(
       context,
-      structuralSchema,
+      bridged(structuralSchema),
     );
     binder.subscribe(() => {});
 
@@ -699,7 +703,7 @@ describe('GenericBinder Checkable Trait', () => {
     const context = new ComponentContext(surface, 'c7');
     const binder = new GenericBinder<{value?: string; setValue?: (val: string) => void}>(
       context,
-      dynamicSchema,
+      bridged(dynamicSchema),
     );
 
     assert.strictEqual(binder.snapshot.value, 'initial');
@@ -724,7 +728,7 @@ describe('GenericBinder Checkable Trait', () => {
     surface.componentsModel.addComponent(compModel);
 
     const context = new ComponentContext(surface, 'c8');
-    const binder = new GenericBinder<{value?: string}>(context, schema);
+    const binder = new GenericBinder<{value?: string}>(context, bridged(schema));
 
     let notificationCount = 0;
     const sub = binder.subscribe(() => {
@@ -759,7 +763,7 @@ describe('GenericBinder Checkable Trait', () => {
       catalog,
     );
     surface.componentsModel.addComponent(compModel);
-    const binder = new GenericBinder<any>(new ComponentContext(surface, 'c9'), schema);
+    const binder = new GenericBinder<any>(new ComponentContext(surface, 'c9'), bridged(schema));
     binder.subscribe(() => {});
 
     compModel.properties = {value: 'kept'};
@@ -775,7 +779,7 @@ describe('GenericBinder Checkable Trait', () => {
     ];
     const compModel = new ComponentModel('c10', 'Test', {value: {path: '/val'}, checks}, catalog);
     surface.componentsModel.addComponent(compModel);
-    const binder = new GenericBinder<any>(new ComponentContext(surface, 'c10'), schema);
+    const binder = new GenericBinder<any>(new ComponentContext(surface, 'c10'), bridged(schema));
     binder.subscribe(() => {});
 
     compModel.properties = {value: {path: '/val'}, checks};
@@ -798,7 +802,7 @@ describe('GenericBinder Checkable Trait', () => {
     };
     const compModel = new ComponentModel('c11', 'Test', {section}, catalog);
     surface.componentsModel.addComponent(compModel);
-    const binder = new GenericBinder<any>(new ComponentContext(surface, 'c11'), schema);
+    const binder = new GenericBinder<any>(new ComponentContext(surface, 'c11'), bridged(schema));
     assert.strictEqual(binder.snapshot.section.isValid, false);
     binder.subscribe(() => {});
 
@@ -928,7 +932,10 @@ describe('GenericBinder Checkable Trait', () => {
       surface.componentsModel.addComponent(compModel);
 
       const context = new ComponentContext(surface, 'c10');
-      const binder = new GenericBinder<Record<string, unknown>>(context, unannotatedSchema);
+      const binder = new GenericBinder<Record<string, unknown>>(
+        context,
+        bridged(unannotatedSchema),
+      );
 
       // Data is passed through as-is rather than being misinterpreted as reactive bindings
       assert.deepStrictEqual(binder.snapshot.customProp, {path: '/rawTitle'});
@@ -956,7 +963,7 @@ describe('GenericBinder Checkable Trait', () => {
       const contextV10 = new ComponentContext(surfaceV10, 'c1');
       const binderV10 = new GenericBinder<{details: unknown}>(
         contextV10,
-        z.object({details: z.unknown()}),
+        bridged(z.object({details: z.unknown()})),
       );
       assert.strictEqual('setDetails' in (binderV10.snapshot as Record<string, unknown>), false);
 
@@ -974,7 +981,7 @@ describe('GenericBinder Checkable Trait', () => {
       const contextV09 = new ComponentContext(surfaceV09, 'c2');
       const binderV09 = new GenericBinder<{details: unknown}>(
         contextV09,
-        z.object({details: z.unknown()}),
+        bridged(z.object({details: z.unknown()})),
       );
       assert.strictEqual('setDetails' in (binderV09.snapshot as Record<string, unknown>), false);
     });
@@ -1028,7 +1035,7 @@ describe('GenericBinder Checkable Trait', () => {
     surface.componentsModel.addComponent(compModel);
 
     const context = new ComponentContext(surface, 'c_val');
-    const binder = new GenericBinder<any>(context, schema);
+    const binder = new GenericBinder<any>(context, bridged(schema));
     binder.subscribe(() => {});
 
     assert.strictEqual(binder.snapshot.isValid, false);
@@ -1068,7 +1075,10 @@ describe('GenericBinder Checkable Trait', () => {
         catalog,
       ),
     );
-    const binder = new GenericBinder<any>(new ComponentContext(surface, 'c_remote'), schema);
+    const binder = new GenericBinder<any>(
+      new ComponentContext(surface, 'c_remote'),
+      bridged(schema),
+    );
     let notifications = 0;
     binder.subscribe(() => notifications++);
     const flush = () => new Promise(resolve => setTimeout(resolve, 0));
@@ -1146,7 +1156,7 @@ describe('GenericBinder Checkable Trait', () => {
     surface.componentsModel.addComponent(compModel);
 
     const context = new ComponentContext(surface, 'c_reset');
-    const binder = new GenericBinder<any>(context, schema);
+    const binder = new GenericBinder<any>(context, bridged(schema));
     binder.subscribe(() => {});
 
     // Initial evaluation with custom message
@@ -1213,7 +1223,7 @@ describe('GenericBinder Checkable Trait', () => {
     surface.componentsModel.addComponent(compModel);
 
     const context = new ComponentContext(surface, 'c_override');
-    const binder = new GenericBinder<any>(context, schema);
+    const binder = new GenericBinder<any>(context, bridged(schema));
     binder.subscribe(() => {});
 
     assert.strictEqual(binder.snapshot.isValid, false);
@@ -1246,7 +1256,10 @@ describe('GenericBinder Checkable Trait', () => {
     );
     surface.componentsModel.addComponent(compModel);
 
-    const binder = new GenericBinder<any>(new ComponentContext(surface, 'c_path_bound'), schema);
+    const binder = new GenericBinder<any>(
+      new ComponentContext(surface, 'c_path_bound'),
+      bridged(schema),
+    );
     binder.subscribe(() => {});
 
     assert.deepStrictEqual(binder.snapshot.validationErrors, ['Message from the data model']);
@@ -1287,7 +1300,7 @@ describe('GenericBinder Checkable Trait', () => {
     surface.componentsModel.addComponent(compModel);
 
     const context = new ComponentContext(surface, 'c_primitive');
-    const binder = new GenericBinder<any>(context, schemaWithPrimitiveDesc);
+    const binder = new GenericBinder<any>(context, bridged(schemaWithPrimitiveDesc));
 
     // Primitive fields and unannotated arrays should remain plain static fields and not inject validation props
     assert.strictEqual(binder.snapshot.status, 'pending');
@@ -1400,7 +1413,7 @@ describe('GenericBinder Checkable Trait', () => {
 
     const binder = new GenericBinder<Record<string, unknown>>(
       new ComponentContext(surface, 'c_select'),
-      schema,
+      bridged(schema),
     );
 
     assert.strictEqual(binder.snapshot.label, 'Pick');
@@ -1552,7 +1565,7 @@ describe('GenericBinder allowedCallers', () => {
     );
     const binder = new GenericBinder<{text?: string; isValid?: boolean; onTap: () => void}>(
       new ComponentContext(surface, 'c1'),
-      schema,
+      bridged(schema),
     );
     binder.subscribe(() => {});
     return {binder, calls, errors};
@@ -1625,7 +1638,7 @@ describe('getSafeChildList helper function', () => {
     );
     const binder = new GenericBinder<{val: string | boolean}>(
       new ComponentContext(surface, 'c1'),
-      polySchema,
+      bridged(polySchema),
     );
     assert.strictEqual(binder.snapshot.val, 'hello');
     binder.dispose();
@@ -1683,7 +1696,7 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
       setValue: (v: string) => void;
       onTap?: () => Promise<void>;
       keepAction?: () => Promise<void>;
-    }>(new ComponentContext(surface, 'c1'), schema);
+    }>(new ComponentContext(surface, 'c1'), bridged(schema));
 
     let notifications = 0;
     const sub = binder.subscribe(() => {
@@ -1806,7 +1819,7 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
 
     const binder = new GenericBinder<Record<string, unknown>>(
       new ComponentContext(surface, 'c1'),
-      schema,
+      bridged(schema),
     );
 
     // Synchronous initial snapshot includes top-level, nested, and array-element validation state
@@ -1888,7 +1901,7 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
 
     const binder = new GenericBinder<Record<string, unknown>>(
       new ComponentContext(surface, 'c1'),
-      z.record(z.unknown()),
+      bridged(z.record(z.unknown())),
     );
 
     assert.notStrictEqual(binder.snapshot, compModel.properties);
@@ -1956,19 +1969,22 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
 
   it('binds dynamic, action, and structural properties across ZodIntersection, ZodPipeline, ZodCatch, and object-variant unions', () => {
     const componentIdSchema = z.string().describe('REF:common_types.json#/$defs/ComponentId');
-    assert.deepStrictEqual(scrapeZod(CommonSchemas.ChildList.and(z.number())), {
+    assert.deepStrictEqual(scrape({allOf: [commonRef('ChildList'), {type: 'number'}]}), {
       type: 'STATIC',
     });
-    assert.deepStrictEqual(scrapeZod(CommonSchemas.ChildList.pipe(z.number())), {
+    assert.deepStrictEqual(scrape({allOf: [{type: 'number'}, commonRef('ChildList')]}), {
       type: 'STATIC',
     });
     assert.deepStrictEqual(
-      scrapeZod(z.union([componentIdSchema, CommonSchemas.ChildList]).and(z.string())),
+      scrape({
+        allOf: [{anyOf: [commonRef('ComponentId'), commonRef('ChildList')]}, {type: 'string'}],
+      }),
       {type: 'STATIC'},
     );
-    assert.deepStrictEqual(scrapeZod(CommonSchemas.ChildList.and(z.array(z.string()))), {
-      type: 'STRUCTURAL',
-    });
+    assert.deepStrictEqual(
+      scrape({allOf: [commonRef('ChildList'), {type: 'array', items: {type: 'string'}}]}),
+      {type: 'STRUCTURAL'},
+    );
 
     const variantUnionSchema = z.discriminatedUnion('mode', [
       z.object({
@@ -1983,17 +1999,38 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
       }),
     ]);
 
-    const scrapedVariant = scrapeZod(variantUnionSchema);
+    const scrapedVariant = scrape({
+      anyOf: [
+        {
+          type: 'object',
+          properties: {
+            mode: {const: 'card'},
+            title: commonRef('DynamicString'),
+            child: commonRef('ComponentId'),
+          },
+          required: ['mode', 'title', 'child'],
+        },
+        {
+          type: 'object',
+          properties: {
+            mode: {const: 'list'},
+            title: commonRef('DynamicString'),
+            children: commonRef('ChildList'),
+          },
+          required: ['mode', 'title', 'children'],
+        },
+      ],
+    });
     assert.strictEqual(scrapedVariant.type, 'OBJECT');
 
-    const scrapedOpenRecord = scrapeZod(z.record(z.unknown()));
+    const scrapedOpenRecord = scrape(record());
     assert.strictEqual(scrapedOpenRecord.type, 'OBJECT');
     if (scrapedOpenRecord.type === 'OBJECT') {
       assert.deepStrictEqual(scrapedOpenRecord.shape.children, {type: 'STRUCTURAL'});
       assert.strictEqual(scrapedOpenRecord.shape.accessibility?.type, 'OBJECT');
     }
 
-    const scrapedNumericRecord = scrapeZod(z.record(z.number()));
+    const scrapedNumericRecord = scrape(record({type: 'number'}));
     assert.strictEqual(scrapedNumericRecord.type, 'OBJECT');
     if (scrapedNumericRecord.type === 'OBJECT') {
       assert.strictEqual(Object.hasOwn(scrapedNumericRecord.shape, 'children'), false);
@@ -2039,7 +2076,7 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
 
     const binder = new GenericBinder<Record<string, unknown>>(
       new ComponentContext(surface, 'c1'),
-      compositeSchema,
+      bridged(compositeSchema),
     );
     const sub = binder.subscribe(() => {});
 
@@ -2079,17 +2116,21 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
       }),
     ]);
 
-    const recordInIntersection = z
-      .object({heading: CommonSchemas.DynamicString.optional()})
-      .and(z.record(z.unknown()));
-    const recordInPipeline = z.record(z.unknown()).pipe(z.record(z.unknown()));
     const recordInUnion = z.union([
       z.object({mode: z.literal('typed'), heading: CommonSchemas.DynamicString}),
       z.record(z.unknown()),
     ]);
 
-    for (const recSchema of [recordInIntersection, recordInPipeline, recordInUnion]) {
-      const scraped = scrapeZod(recSchema);
+    const headingObject = (extra: Record<string, JsonSchema> = {}): JsonSchema => ({
+      type: 'object',
+      properties: {...extra, heading: commonRef('DynamicString')},
+    });
+    for (const recSchema of [
+      {allOf: [headingObject(), record()]},
+      {allOf: [record(), record()]},
+      {anyOf: [headingObject({mode: {const: 'typed'}}), record()]},
+    ]) {
+      const scraped = scrape(recSchema);
       assert.strictEqual(scraped.type, 'OBJECT');
       if (scraped.type === 'OBJECT') {
         assert.deepStrictEqual(scraped.shape.children, {type: 'STRUCTURAL'});
@@ -2123,7 +2164,7 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
 
     const binder = new GenericBinder<Record<string, unknown>>(
       new ComponentContext(surface, 'c-mixed'),
-      mixedVariantSchema,
+      bridged(mixedVariantSchema),
     );
     const sub = binder.subscribe(() => {});
 
@@ -2160,7 +2201,7 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
     surface.componentsModel.addComponent(recCompModel);
     const recBinder = new GenericBinder<Record<string, unknown>>(
       new ComponentContext(surface, 'c-rec-union'),
-      recordInUnion,
+      bridged(recordInUnion),
     );
     assert.strictEqual(recBinder.snapshot.heading, 'Dynamic Label');
     assert.deepStrictEqual(recBinder.snapshot.children, [
@@ -2186,16 +2227,22 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
       .catchall(CommonSchemas.DynamicString);
 
     const recordActionSchema = z.record(CommonSchemas.Action);
-    const compositeCatchallSchema = z
-      .object({id: z.string()})
-      .passthrough()
-      .and(z.record(CommonSchemas.DynamicString));
-    const unionCatchallSchema = z.union([
-      z.record(CommonSchemas.DynamicString),
-      z.object({fixed: CommonSchemas.Action}),
-    ]);
 
-    const scrapedCatchall = scrapeZod(catchallDynamicSchema);
+    const scrapedCatchall = scrape({
+      type: 'object',
+      properties: {
+        staticKey: {type: 'string'},
+        chainedDynamic: {
+          anyOf: [
+            {type: 'object', properties: {path: {type: 'string'}}, required: ['path']},
+            {type: 'object', properties: {call: {type: 'string'}}, required: ['call']},
+            {type: 'string'},
+          ],
+        },
+      },
+      required: ['staticKey'],
+      additionalProperties: commonRef('DynamicString'),
+    });
     assert.strictEqual(scrapedCatchall.type, 'OBJECT');
     if (scrapedCatchall.type === 'OBJECT') {
       assert.deepStrictEqual(scrapedCatchall.shape.staticKey, {type: 'STATIC'});
@@ -2203,18 +2250,29 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
       assert.deepStrictEqual(scrapedCatchall.catchall, {type: 'DYNAMIC'});
     }
 
-    const scrapedComposite = scrapeZod(compositeCatchallSchema);
+    const passthroughId: JsonSchema = {
+      type: 'object',
+      properties: {id: {type: 'string'}},
+      required: ['id'],
+      additionalProperties: true,
+    };
+    const scrapedComposite = scrape({allOf: [passthroughId, record(commonRef('DynamicString'))]});
     assert.strictEqual(scrapedComposite.type, 'OBJECT');
     if (scrapedComposite.type === 'OBJECT') {
       assert.deepStrictEqual(scrapedComposite.shape.id, {type: 'DYNAMIC'});
       assert.deepStrictEqual(scrapedComposite.catchall, {type: 'DYNAMIC'});
     }
-    const scrapedCompositeReversed = scrapeZod(
-      z.record(CommonSchemas.DynamicString).and(z.object({id: z.string()}).passthrough()),
-    );
+    const scrapedCompositeReversed = scrape({
+      allOf: [record(commonRef('DynamicString')), passthroughId],
+    });
     assert.deepStrictEqual(scrapedCompositeReversed, scrapedComposite);
 
-    const scrapedUnion = scrapeZod(unionCatchallSchema);
+    const scrapedUnion = scrape({
+      anyOf: [
+        record(commonRef('DynamicString')),
+        {type: 'object', properties: {fixed: commonRef('Action')}, required: ['fixed']},
+      ],
+    });
     assert.strictEqual(scrapedUnion.type, 'OBJECT');
     if (scrapedUnion.type === 'OBJECT') {
       assert.deepStrictEqual(scrapedUnion.catchall, {type: 'DYNAMIC'});
@@ -2245,7 +2303,7 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
 
     const binder = new GenericBinder<Record<string, unknown>>(
       new ComponentContext(surface, 'c-catchall'),
-      catchallDynamicSchema,
+      bridged(catchallDynamicSchema),
     );
     const sub = binder.subscribe(() => {});
 
@@ -2275,7 +2333,7 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
     surface.componentsModel.addComponent(actionComp);
     const actionBinder = new GenericBinder<Record<string, unknown>>(
       new ComponentContext(surface, 'c-act-rec'),
-      recordActionSchema,
+      bridged(recordActionSchema),
     );
     const actionSub = actionBinder.subscribe(() => {});
     assert.strictEqual(typeof actionBinder.snapshot.onSave, 'function');
@@ -2301,8 +2359,12 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
       childListRefNames: new Set(['CustomChildList']),
     };
 
-    const defaultBehavior = scrapeZod(customListSchema);
-    const customBehavior = scrapeZod(customListSchema, customOptions);
+    const customListJson: JsonSchema = {
+      type: 'object',
+      properties: {customChildren: {description: 'REF:#/$defs/CustomChildList|Custom list ref'}},
+    };
+    const defaultBehavior = scrape(customListJson);
+    const customBehavior = scrape(customListJson, customOptions);
     assert.strictEqual(defaultBehavior.type, 'OBJECT');
     assert.strictEqual(customBehavior.type, 'OBJECT');
     if (defaultBehavior.type === 'OBJECT' && customBehavior.type === 'OBJECT') {
@@ -2310,8 +2372,8 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
       assert.deepStrictEqual(customBehavior.shape.customChildren, {type: 'STRUCTURAL'});
     }
 
-    const defaultCompBehavior = scrapeComponentZod(customListSchema);
-    const customCompBehavior = scrapeComponentZod(customListSchema, customOptions);
+    const defaultCompBehavior = scrapeComponent(customListJson);
+    const customCompBehavior = scrapeComponent(customListJson, customOptions);
     assert.notStrictEqual(defaultCompBehavior, customCompBehavior);
     if (defaultCompBehavior.type === 'OBJECT' && customCompBehavior.type === 'OBJECT') {
       assert.deepStrictEqual(defaultCompBehavior.shape.customChildren, {type: 'STATIC'});
@@ -2331,11 +2393,11 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
 
     const defaultBinder = new GenericBinder<Record<string, unknown>>(
       new ComponentContext(surface, 'c-opts'),
-      customListSchema,
+      bridged(customListSchema),
     );
     const customBinder = new GenericBinder<Record<string, unknown>>(
       new ComponentContext(surface, 'c-opts'),
-      customListSchema,
+      bridged(customListSchema),
       customOptions,
     );
     assert.deepStrictEqual(defaultBinder.snapshot.customChildren, {
@@ -2381,9 +2443,26 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
       sections: CommonSchemas.ChildList.or(structuredItems),
     });
 
+    const structuredItemsJson: JsonSchema = {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {title: commonRef('DynamicString'), child: commonRef('ComponentId')},
+        required: ['title', 'child'],
+      },
+    };
+    const sectionsOf = (sections: JsonSchema): JsonSchema => ({
+      type: 'object',
+      properties: {sections},
+      required: ['sections'],
+    });
     assert.deepStrictEqual(
-      scrapeComponentZod(objUnionListFirst),
-      scrapeComponentZod(objUnionNestedFirst),
+      scrapeComponent({
+        anyOf: [sectionsOf(commonRef('ChildList')), sectionsOf(structuredItemsJson)],
+      }),
+      scrapeComponent({
+        anyOf: [sectionsOf(structuredItemsJson), sectionsOf(commonRef('ChildList'))],
+      }),
     );
 
     const catalog = new Catalog('union-catchall-cat', '0.9', [], []);
@@ -2403,7 +2482,7 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
     );
     const compositeBinder = new GenericBinder<Record<string, unknown>>(
       new ComponentContext(surface, 'c-comp-catchall'),
-      compositeCatchallSchema,
+      bridged(compositeCatchallSchema),
     );
     const compositeSub = compositeBinder.subscribe(() => {});
     assert.strictEqual(compositeBinder.snapshot.id, 'resolved-id-42');
@@ -2429,7 +2508,7 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
       );
       const tplBinder = new GenericBinder<Record<string, unknown>>(
         new ComponentContext(surface, tplId),
-        schema,
+        bridged(schema),
       );
       assert.deepStrictEqual(tplBinder.snapshot.sections, [
         {id: 'row-tpl', basePath: '/rows/0'},
@@ -2448,7 +2527,7 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
       );
       const arrBinder = new GenericBinder<Record<string, unknown>>(
         new ComponentContext(surface, arrId),
-        schema,
+        bridged(schema),
       );
       const boundSections = arrBinder.snapshot.sections as Array<Record<string, unknown>>;
       assert.strictEqual(boundSections.length, 1);
@@ -2615,7 +2694,7 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
     );
     const listArrBinder = new GenericBinder<Record<string, unknown>>(
       new ComponentContext(surface, 'c-list-arr-objs'),
-      listOrActiveArraySchema,
+      bridged(listOrActiveArraySchema),
     );
     const listArrItems = listArrBinder.snapshot.content as Array<Record<string, unknown>>;
     assert.strictEqual(listArrItems.length, 1);
@@ -2633,7 +2712,7 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
     );
     const listTplBinder = new GenericBinder<Record<string, unknown>>(
       new ComponentContext(surface, 'c-list-arr-tpl'),
-      listOrActiveArraySchema,
+      bridged(listOrActiveArraySchema),
     );
     assert.deepStrictEqual(listTplBinder.snapshot.content, [
       {id: 'tpl-1', basePath: '/rows/0'},
@@ -2654,7 +2733,7 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
       );
       const slotArrBinder = new GenericBinder<Record<string, unknown>>(
         new ComponentContext(surface, arrCompId),
-        slotSchema,
+        bridged(slotSchema),
       );
       const slotArrItems = slotArrBinder.snapshot.slot as Array<Record<string, unknown>>;
       assert.strictEqual(slotArrItems.length, 1);
@@ -2669,7 +2748,7 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
       );
       const slotStrBinder = new GenericBinder<Record<string, unknown>>(
         new ComponentContext(surface, strCompId),
-        slotSchema,
+        bridged(slotSchema),
       );
       assert.strictEqual(slotStrBinder.snapshot.slot, 'kid-1');
       slotStrBinder.dispose();
@@ -2686,7 +2765,7 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
     );
     const pipeBinder = new GenericBinder<Record<string, unknown>>(
       new ComponentContext(surface, 'c-transform-pipe'),
-      transformedPipelineSchema,
+      bridged(transformedPipelineSchema),
     );
     const resolvedPayload = pipeBinder.snapshot.payload as Record<string, unknown>;
     assert.strictEqual(resolvedPayload.label, 'Resolved Section');
@@ -2694,13 +2773,25 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
     pipeBinder.dispose();
 
     // Verify (4): Explicit ACTION and ComponentId intersected or unioned with dynamic catchall (both orders)
+    const explicitJson: JsonSchema = {
+      type: 'object',
+      properties: {fixed: commonRef('Action'), child: commonRef('ComponentId')},
+      required: ['fixed'],
+    };
+    const dynamicRecord = record(commonRef('DynamicString'));
+    const catchallJson: JsonSchema[] = [
+      {allOf: [explicitJson, dynamicRecord]},
+      {allOf: [dynamicRecord, explicitJson]},
+      {anyOf: [dynamicRecord, explicitJson]},
+      {anyOf: [explicitJson, dynamicRecord]},
+    ];
     for (const [idx, catchallSchema] of [
       explicitAndCatchallLeft,
       explicitAndCatchallRight,
       explicitOrCatchallLeft,
       explicitOrCatchallRight,
     ].entries()) {
-      const scraped = scrapeComponentZod(catchallSchema);
+      const scraped = scrapeComponent(catchallJson[idx]);
       assert.strictEqual(scraped.type, 'OBJECT');
       if (scraped.type === 'OBJECT') {
         assert.deepStrictEqual(scraped.shape.fixed, {type: 'ACTION'});
@@ -2723,7 +2814,7 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
       );
       const andBinder = new GenericBinder<Record<string, unknown>>(
         new ComponentContext(surface, cid),
-        catchallSchema,
+        bridged(catchallSchema),
       );
       assert.strictEqual(typeof andBinder.snapshot.fixed, 'function');
       assert.strictEqual(andBinder.snapshot.child, 'child-id-1');
@@ -2747,7 +2838,7 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
       );
       const uBinder = new GenericBinder<Record<string, unknown>>(
         new ComponentContext(surface, cid),
-        unionSchema,
+        bridged(unionSchema),
       );
       assert.deepStrictEqual(uBinder.snapshot.meta, {path: '/secTitle'});
       assert.strictEqual(uBinder.snapshot.extra, 'Extra Dynamic');
@@ -2770,7 +2861,7 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
     );
     const oneOfBinder = new GenericBinder<Record<string, unknown>>(
       new ComponentContext(surface, 'c-oneof-comp'),
-      oneOfCompSchema,
+      bridged(oneOfCompSchema),
     );
     assert.strictEqual(oneOfBinder.snapshot.child, 'Resolved Section');
     assert.strictEqual(oneOfBinder.snapshot.disabled, false);
@@ -2796,7 +2887,7 @@ describe('GenericBinder @accessibility mirror', () => {
     const binder = new GenericBinder<{
       'accessibility'?: unknown;
       '@accessibility'?: {label?: string};
-    }>(new ComponentContext(surface, 'c1'), schema);
+    }>(new ComponentContext(surface, 'c1'), bridged(schema));
     const sub = binder.subscribe(() => {});
     return {surface, binder, sub};
   }

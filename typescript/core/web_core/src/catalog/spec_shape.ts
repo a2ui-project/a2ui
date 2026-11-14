@@ -32,6 +32,8 @@ import {z} from 'zod';
 import {zodToJsonSchema} from 'zod-to-json-schema';
 
 import {isAtLeastVersion, normalizeVersionString, toCanonicalVersion} from '../common/semver.js';
+import {objectProperties} from '../schema-engine/nav.js';
+import type {JsonSchema} from '../schema-engine/types.js';
 import {V08_STANDARD_DEFS} from '../v0_8/standard_defs.js';
 import {V09_STANDARD_DEFS} from '../v0_9/standard_defs.js';
 import {V10_STANDARD_DEFS} from '../v1_0/standard_defs.js';
@@ -510,22 +512,10 @@ export class SpecShaper {
         ? Object.keys((core as z.AnyZodObject).shape)
         : [];
     }
-    const names: string[] = [];
-    const collect = (def: unknown, seen: Set<unknown>): void => {
-      if (!isObject(def) || seen.has(def)) return;
-      seen.add(def);
-      if (isObject(def['properties'])) names.push(...Object.keys(def['properties']));
-      for (const sub of Array.isArray(def['allOf']) ? def['allOf'] : []) {
-        const ref = isObject(sub) ? sub['$ref'] : undefined;
-        const target =
-          typeof ref === 'string' && ref.startsWith('#/$defs/')
-            ? this.standardDefs[ref.substring('#/$defs/'.length)]
-            : sub;
-        collect(target, seen);
-      }
-    };
-    collect(this.standardDefs[mixin], new Set());
-    return names;
+    if (!Object.hasOwn(this.standardDefs, mixin)) return [];
+    const root = {$defs: this.standardDefs} as JsonSchema;
+    const shape = objectProperties({$ref: `#/$defs/${mixin}`}, {root, defs: {}});
+    return shape ? Object.keys(shape.properties) : [];
   }
 
   /**

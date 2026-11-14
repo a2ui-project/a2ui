@@ -48,6 +48,7 @@ import {DataContext} from '../../dist/src/resolution/data-context.js';
 import {GenericBinder} from '../../dist/src/resolution/generic-binder.js';
 import {NodeResolver} from '../../dist/src/resolution/node-resolver.js';
 import {ResolvedBinding} from '../../dist/src/resolution/resolved-binding.js';
+import {toSchemaDoc} from '../../dist/src/schema-engine/zod-bridge.js';
 import {ComponentModel} from '../../dist/src/state/component-model.js';
 import {DataModel} from '../../dist/src/state/data-model.js';
 import {SurfaceModel} from '../../dist/src/state/surface-model.js';
@@ -4478,9 +4479,10 @@ async function validateRouteAgentFunctionTestCase(testCase) {
           const probeId = `probe_${evaluations.length}`;
           const comp = new ComponentModel(probeId, 'Probe', {});
           surface.componentsModel.addComponent(comp);
+          // ponytail: bridge until Task 8 — the probe's schema is still Zod.
           const binder = new GenericBinder(
             new ComponentContext(surface, probeId),
-            CommonSchemas.Checkable.describe(''),
+            toSchemaDoc(CommonSchemas.Checkable.describe(''), '1.0'),
           );
           const sub = binder.subscribe(() => {});
           comp.properties = {

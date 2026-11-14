@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-import type {z} from 'zod';
-
 import {componentMixinLayout} from '../catalog/component_envelope.js';
 import {coerceDynamicBoolean} from '../catalog/validation_result_coercion.js';
 import {ActionDispatchOptions} from '../common/metadata.js';
@@ -24,7 +22,6 @@ import {findFailedArgument, isThenable, settleDeep} from '../common/settle_deep.
 import {effect, getValue, peekValue} from '../reactivity/signals.js';
 import type {SchemaCursor, SchemaDoc} from '../schema-engine/nav.js';
 import type {JsonSchema} from '../schema-engine/types.js';
-import {toSchemaDoc} from '../schema-engine/zod-bridge.js';
 import {Action, CheckRule, ChildList, DataBinding, FunctionCall} from '../types/common-types.js';
 import {V08_CHILD_REF_OPTIONS} from '../v0_8/standard_defs.js';
 import {V09_CHILD_REF_OPTIONS} from '../v0_9/standard_defs.js';
@@ -1058,19 +1055,17 @@ export class GenericBinder<T> {
    * Creates a new binder for the given component context and schema.
    *
    * @param context Component context providing state and event dispatching.
-   * @param schema Zod schema defining the component properties.
+   * @param schema JSON Schema of the component's properties and its document.
    * @param options Optional child-reference analysis options overriding protocol-version defaults.
    */
-  constructor(context: ComponentContext, schema: z.ZodTypeAny, options?: ChildRefAnalysisOptions) {
+  constructor(context: ComponentContext, schema: SchemaCursor, options?: ChildRefAnalysisOptions) {
     this.context = context;
     const protocolVersion =
       context.componentModel?.catalog?.protocolVersion ??
       context.dataContext?.surface?.protocolVersion ??
       context.dataContext?.surface?.defaultCatalog?.protocolVersion;
     const resolvedOptions = options ?? resolveChildRefOptions(protocolVersion);
-    // ponytail: bridge until Task 8 — catalog schemas are still Zod.
-    const {node, doc} = toSchemaDoc(schema, protocolVersion);
-    this.behaviorTree = scrapeComponentBehavior(node, doc, resolvedOptions);
+    this.behaviorTree = scrapeComponentBehavior(schema.node, schema.doc, resolvedOptions);
     this.mirrorsAccessibility = !componentMixinLayout(schema).customKeys.has('accessibility');
     this.resolveInitialProps();
   }

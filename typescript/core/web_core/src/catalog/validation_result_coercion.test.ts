@@ -25,6 +25,10 @@ import {ComponentModel} from '../state/component-model.js';
 import {DataModel} from '../state/data-model.js';
 import {SurfaceModel} from '../state/surface-model.js';
 import {DynamicBooleanSchema, DynamicStringSchema} from '../v1_0/schema/common-types.js';
+import type {SchemaDoc} from '../schema-engine/nav.js';
+import type {JsonSchema} from '../schema-engine/types.js';
+import {toSchemaDoc} from '../schema-engine/zod-bridge.js';
+import V10CommonTypes from '../v1_0/schemas/common_types.json' with {type: 'json'};
 import {Catalog, ComponentApi, createFunctionImplementation} from './types.js';
 import {
   coerceDynamicBoolean,
@@ -37,6 +41,9 @@ import {
 const INVALID = {valid: false, message: 'Required', code: 'required'};
 const VALID = {valid: true};
 const ctx = new DataContext(new DataModel({}), '/');
+
+const DOC: SchemaDoc = {root: {}, defs: {'common_types.json': V10CommonTypes as JsonSchema}};
+const commonRef = (name: string): JsonSchema => ({$ref: `common_types.json#/$defs/${name}`});
 
 describe('validityOf', () => {
   it('reads the valid member of a ValidationResult object', () => {
@@ -54,15 +61,51 @@ describe('validityOf', () => {
 });
 
 describe('isDynamicBooleanSchema', () => {
-  it('recognizes the common DynamicBoolean schema, re-described or wrapped', () => {
-    assert.ok(isDynamicBooleanSchema(DynamicBooleanSchema));
-    assert.ok(isDynamicBooleanSchema(DynamicBooleanSchema.describe('REF:#/$defs/DynamicBoolean')));
+  it('recognizes a $ref to the common DynamicBoolean, described or not', () => {
+    assert.ok(isDynamicBooleanSchema(commonRef('DynamicBoolean'), DOC));
     assert.ok(
       isDynamicBooleanSchema(
+        {$ref: 'common_types.json#/$defs/DynamicBoolean', description: 'Whether to group.'},
+        DOC,
+      ),
+    );
+    assert.ok(
+      isDynamicBooleanSchema(
+        {$ref: 'common_types.json#/$defs/DynamicBoolean', default: true, description: 'Grouping.'},
+        DOC,
+      ),
+    );
+  });
+
+  it('recognizes a nullable DynamicBoolean and a local alias of it', () => {
+    assert.ok(isDynamicBooleanSchema({anyOf: [commonRef('DynamicBoolean'), {type: 'null'}]}, DOC));
+    const root: JsonSchema = {$defs: {Flag: commonRef('DynamicBoolean')}};
+    assert.ok(isDynamicBooleanSchema({$ref: '#/$defs/Flag'}, {root, defs: DOC.defs}));
+  });
+
+  it('recognizes a legacy REF: description marker', () => {
+    assert.ok(isDynamicBooleanSchema({description: 'REF:#/$defs/DynamicBoolean|x'}, DOC));
+    assert.ok(
+      isDynamicBooleanSchema({description: 'REF:common_types.json#/$defs/DynamicBoolean'}, DOC),
+    );
+  });
+
+  // ponytail: bridge until Task 8 — function schemas are still Zod at the call sites.
+  it('recognizes a bridged Zod DynamicBoolean, re-described or wrapped', () => {
+    const bridged = (schema: z.ZodTypeAny) => {
+      const c = toSchemaDoc(schema, '1.0');
+      return isDynamicBooleanSchema(c.node, c.doc);
+    };
+    assert.ok(bridged(DynamicBooleanSchema));
+    assert.ok(bridged(DynamicBooleanSchema.describe('REF:#/$defs/DynamicBoolean')));
+    assert.ok(
+      bridged(
         DynamicBooleanSchema.describe('REF:#/$defs/DynamicBoolean|Whether to group.').optional(),
       ),
     );
-    assert.ok(isDynamicBooleanSchema(DynamicBooleanSchema.default(true).describe('Grouping.')));
+    assert.ok(bridged(DynamicBooleanSchema.default(true).describe('Grouping.')));
+    assert.ok(bridged(DynamicBooleanSchema.optional().describe('Whether to group.')));
+    assert.ok(!bridged(DynamicStringSchema.optional().describe('Label.')));
   });
 
   it('recognizes a DynamicBoolean loaded from a catalog document', () => {
@@ -83,14 +126,16 @@ describe('isDynamicBooleanSchema', () => {
         },
       },
     });
-    const schema = catalog.functions.get('flag')!.schema as z.ZodObject<z.ZodRawShape>;
-    assert.ok(isDynamicBooleanSchema(schema.shape['on']));
+    const {node, doc} = toSchemaDoc(catalog.functions.get('flag')!.schema, '1.0');
+    assert.deepStrictEqual(coerceDynamicBooleans(node, doc, {on: 'TRUE'}), {on: true});
   });
 
   it('does not match other common types or plain booleans', () => {
-    assert.ok(!isDynamicBooleanSchema(DynamicStringSchema));
-    assert.ok(!isDynamicBooleanSchema(z.boolean()));
-    assert.ok(!isDynamicBooleanSchema(z.object({valid: z.boolean()})));
+    assert.ok(!isDynamicBooleanSchema(commonRef('DynamicString'), DOC));
+    assert.ok(!isDynamicBooleanSchema({type: 'boolean'}, DOC));
+    assert.ok(
+      !isDynamicBooleanSchema({type: 'object', properties: {valid: {type: 'boolean'}}}, DOC),
+    );
   });
 });
 
@@ -139,17 +184,26 @@ describe('coerceDynamicBoolean', () => {
 });
 
 describe('coerceValidationResults and coerceDynamicBooleans', () => {
-  const schema = z.object({
-    value: DynamicBooleanSchema,
-    values: z.array(DynamicBooleanSchema).optional(),
-    grouping: DynamicBooleanSchema.optional(),
-    label: DynamicStringSchema.optional(),
-    payload: z.any().optional(),
+  const schema: JsonSchema = {
+    type: 'object',
+    properties: {
+      value: commonRef('DynamicBoolean'),
+      values: {type: 'array', items: commonRef('DynamicBoolean')},
+      grouping: {$ref: 'common_types.json#/$defs/DynamicBoolean', description: 'Grouping.'},
+      label: commonRef('DynamicString'),
+      payload: {},
+    },
+    required: ['value'],
+  };
+  const doc: SchemaDoc = {root: schema, defs: DOC.defs};
+
+  it('coerces a $ref DynamicBoolean string', () => {
+    assert.deepStrictEqual(coerceDynamicBooleans(schema, doc, {value: 'TRUE'}), {value: true});
   });
 
   it('coerces DynamicBoolean positions across all coercion table types', () => {
     assert.deepStrictEqual(
-      coerceDynamicBooleans(schema, {
+      coerceDynamicBooleans(schema, doc, {
         value: INVALID,
         values: [VALID, INVALID, true, 'True', 'false', 'hello', 1, 0, NaN, null, {other: 1}, []],
         grouping: 'TRUE',
@@ -162,22 +216,34 @@ describe('coerceValidationResults and coerceDynamicBooleans', () => {
     );
   });
 
+  it('follows allOf members and local references to the arguments object', () => {
+    const root: JsonSchema = {
+      $defs: {Args: {type: 'object', properties: {on: commonRef('DynamicBoolean')}}},
+      allOf: [{$ref: '#/$defs/Args'}, {type: 'object', properties: {label: {type: 'string'}}}],
+    };
+    assert.deepStrictEqual(
+      coerceDynamicBooleans(root, {root, defs: DOC.defs}, {on: 'true', label: 'x'}),
+      {on: true, label: 'x'},
+    );
+  });
+
   it('leaves already-boolean DynamicBoolean values and non-DynamicBoolean fields alone', () => {
     const args = {value: true, values: [false, true], label: 'x'};
-    assert.strictEqual(coerceValidationResults(schema, args), args);
+    assert.strictEqual(coerceValidationResults(schema, doc, args), args);
   });
 
   it('leaves a ValidationResult alone where the schema is not a DynamicBoolean', () => {
     const args = {value: true, payload: INVALID, label: INVALID};
-    assert.strictEqual(coerceValidationResults(schema, args), args);
+    assert.strictEqual(coerceValidationResults(schema, doc, args), args);
   });
 
   it('coerces a value when the whole schema is DynamicBoolean', () => {
-    assert.strictEqual(coerceValidationResults(DynamicBooleanSchema, INVALID), false);
-    assert.strictEqual(coerceValidationResults(DynamicBooleanSchema, 'True'), true);
-    assert.strictEqual(coerceValidationResults(DynamicBooleanSchema, 0), false);
-    assert.strictEqual(coerceValidationResults(DynamicBooleanSchema, null), false);
-    assert.strictEqual(coerceValidationResults(DynamicStringSchema, INVALID), INVALID);
+    const flag = commonRef('DynamicBoolean');
+    assert.strictEqual(coerceValidationResults(flag, DOC, INVALID), false);
+    assert.strictEqual(coerceValidationResults(flag, DOC, 'True'), true);
+    assert.strictEqual(coerceValidationResults(flag, DOC, 0), false);
+    assert.strictEqual(coerceValidationResults(flag, DOC, null), false);
+    assert.strictEqual(coerceValidationResults(commonRef('DynamicString'), DOC, INVALID), INVALID);
   });
 });
 
@@ -261,7 +327,7 @@ describe('GenericBinder DynamicBoolean property coercion', () => {
     const compCtx = new ComponentContext(surface, 'c1', '/');
     const binder = new GenericBinder<{value?: boolean; label?: unknown}>(
       compCtx,
-      CheckBoxApi.schema,
+      toSchemaDoc(CheckBoxApi.schema, '1.0'),
     );
     const sub = binder.subscribe(() => {});
 

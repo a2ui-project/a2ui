@@ -46,6 +46,7 @@ import {V09_CHILD_REF_OPTIONS} from '../v0_9/standard_defs.js';
 import {IndexImplementation} from '../v1_0/functions/system_functions.js';
 import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
 import {coerceDynamicBooleans} from './validation_result_coercion.js';
+import {toSchemaDoc} from '../schema-engine/zod-bridge.js';
 
 export type {ComponentChildRefs};
 export {AgentFunction, isAgentFunction};
@@ -1223,7 +1224,9 @@ function createCatalogInvoker<F extends FunctionApi>(
 
     return whenArgumentsSettle(rawArgs, abortSignal, resolvedArgs => {
       try {
-        const args = coerceDynamicBooleans(fn.schema, resolvedArgs);
+        // ponytail: bridge until Task 8 — function schemas are still Zod.
+        const argsSchema = toSchemaDoc(fn.schema, protocolVersion);
+        const args = coerceDynamicBooleans(argsSchema.node, argsSchema.doc, resolvedArgs);
         const safeArgs = fn.schema.parse(args);
         return execute.call(fn, safeArgs, callCtx, abortSignal);
       } catch (e: any) {
@@ -1296,7 +1299,12 @@ function routeToAgent(
   return whenArgumentsSettle(rawArgs, abortSignal, resolvedArgs => {
     let args = (resolvedArgs ?? {}) as Record<string, unknown>;
     if (fn) {
-      args = coerceDynamicBooleans(fn.schema, args) as Record<string, unknown>;
+      // ponytail: bridge until Task 8 — function schemas are still Zod.
+      const argsSchema = toSchemaDoc(fn.schema, surface.protocolVersion);
+      args = coerceDynamicBooleans(argsSchema.node, argsSchema.doc, args) as Record<
+        string,
+        unknown
+      >;
       const parsed = fn.schema.safeParse(args);
       if (!parsed.success) {
         throw new A2uiExpressionError(

@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-import {z} from 'zod';
-
-/**
- * Matches the `REF:` description a `DynamicBoolean` schema carries, whether
- * it was defined in code (`REF:#/$defs/DynamicBoolean|...`) or loaded from a
- * catalog document (`REF:common_types.json#/$defs/DynamicBoolean|...`).
- */
-const DYNAMIC_BOOLEAN_REF = /^REF:[^|#]*#\/\$defs\/DynamicBoolean(?:\||$)/;
+import {
+  arrayItems,
+  objectProperties,
+  refKind,
+  unwrapField,
+  type SchemaDoc,
+} from '../schema-engine/nav.js';
+import type {JsonSchema} from '../schema-engine/types.js';
 
 /**
  * The validity a v1.0 `ValidationResult` object carries, or `undefined` when
@@ -63,57 +63,31 @@ export function coerceDynamicBoolean(value: unknown): boolean {
   return false;
 }
 
-/** The schema inside a wrapper such as `optional()`, or `undefined`. */
-function innerSchema(schema: z.ZodTypeAny): z.ZodTypeAny | undefined {
-  const def = schema._def as {
-    typeName?: string;
-    innerType?: z.ZodTypeAny;
-    schema?: z.ZodTypeAny;
-    type?: z.ZodTypeAny;
-    getter?: () => z.ZodTypeAny;
-  };
-  switch (def.typeName) {
-    case 'ZodOptional':
-    case 'ZodNullable':
-    case 'ZodDefault':
-    case 'ZodCatch':
-    case 'ZodBranded':
-    case 'ZodReadonly':
-      return def.innerType;
-    case 'ZodEffects':
-      return def.schema;
-    case 'ZodLazy':
-      return def.getter?.();
-    default:
-      return undefined;
-  }
+/**
+ * The `$defs` name a schema names: the last `$defs` target its `$ref` chain
+ * follows, or else the legacy `REF:` description it or its target carries.
+ */
+function definitionName(node: JsonSchema, doc: SchemaDoc): string | undefined {
+  const field = unwrapField(node, doc, true);
+  if (field.refName !== undefined) return field.refName;
+  return (
+    refKind(node, doc) ??
+    (field.description === undefined
+      ? undefined
+      : refKind({description: field.description}, field.doc))
+  );
 }
 
 /**
- * Whether `schema` is the common `DynamicBoolean` type, possibly wrapped.
+ * Whether a schema is the common `DynamicBoolean` type: a `$ref` to its
+ * definition, possibly nullable or through a local alias, or a legacy
+ * `REF:` description naming it.
  *
- * The type is recognized by the `REF:` description every copy of it carries,
- * so a schema defined in code and one loaded from a catalog document are
- * treated alike.
+ * @param node The schema.
+ * @param doc The document that owns `node`.
  */
-export function isDynamicBooleanSchema(schema: z.ZodTypeAny): boolean {
-  let current: z.ZodTypeAny | undefined = schema;
-  while (current) {
-    if (typeof current.description === 'string' && DYNAMIC_BOOLEAN_REF.test(current.description)) {
-      return true;
-    }
-    current = innerSchema(current);
-  }
-  return false;
-}
-
-/** The schema under every wrapper, such as `optional()` or `default()`. */
-function unwrap(schema: z.ZodTypeAny): z.ZodTypeAny {
-  let current = schema;
-  for (let inner = innerSchema(current); inner; inner = innerSchema(current)) {
-    current = inner;
-  }
-  return current;
+export function isDynamicBooleanSchema(node: JsonSchema, doc: SchemaDoc): boolean {
+  return definitionName(node, doc) === 'DynamicBoolean';
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -121,57 +95,58 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Coerces every value in `value` that `schema` types as `DynamicBoolean`
- * to a boolean using {@link coerceDynamicBoolean}.
+ * Coerces every value in `value` that `node` types as `DynamicBoolean` to a
+ * boolean using {@link coerceDynamicBoolean}.
  *
- * Follows the schema through object properties, array items and wrappers
- * such as `optional()`. Returns `value` itself when nothing is coerced.
+ * Follows the schema through `$ref`s, nullable wrappers, object `properties`
+ * (merged across `allOf`) and array `items`. Returns `value` itself when
+ * nothing is coerced.
  *
- * @param schema The schema of `value`, such as a function's argument schema.
+ * @param node The schema of `value`, such as a function's argument schema.
+ * @param doc The document that owns `node`.
  * @param value The resolved value to coerce.
  * @returns `value`, with every `DynamicBoolean` position coerced to a boolean.
  */
-export function coerceDynamicBooleans(schema: z.ZodTypeAny, value: unknown): unknown {
-  if (isDynamicBooleanSchema(schema)) {
+export function coerceDynamicBooleans(node: JsonSchema, doc: SchemaDoc, value: unknown): unknown {
+  if (isDynamicBooleanSchema(node, doc)) {
     return coerceDynamicBoolean(value);
   }
   if (typeof value !== 'object' || value === null) {
     return value;
   }
-  const core = unwrap(schema);
-  const def = core._def as {typeName?: string; type?: z.ZodTypeAny};
-  if (def.typeName === 'ZodArray' && Array.isArray(value) && def.type) {
-    const itemSchema = def.type;
+  const core = unwrapField(node, doc, true);
+  if (Array.isArray(value)) {
+    const items = arrayItems(core.node, core.doc);
+    if (!items) return value;
     let changed = false;
-    const items = value.map(item => {
-      const coerced = coerceDynamicBooleans(itemSchema, item);
+    const coercedItems = value.map(item => {
+      const coerced = coerceDynamicBooleans(items.node, items.doc, item);
       changed ||= coerced !== item;
       return coerced;
     });
-    return changed ? items : value;
+    return changed ? coercedItems : value;
   }
-  if (def.typeName === 'ZodObject' && isPlainObject(value)) {
-    const shape = (core as z.ZodObject<z.ZodRawShape>).shape;
-    let changed = false;
-    const result: Record<string, unknown> = {};
-    for (const [key, item] of Object.entries(value)) {
-      const propertySchema = shape[key];
-      const coerced = propertySchema ? coerceDynamicBooleans(propertySchema, item) : item;
-      changed ||= coerced !== item;
-      result[key] = coerced;
-    }
-    return changed ? result : value;
+  const shape = isPlainObject(value) ? objectProperties(core.node, core.doc) : undefined;
+  if (!shape) return value;
+  let changed = false;
+  const result: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value)) {
+    const property = shape.properties[key];
+    const coerced = property ? coerceDynamicBooleans(property.node, property.doc, item) : item;
+    changed ||= coerced !== item;
+    result[key] = coerced;
   }
-  return value;
+  return changed ? result : value;
 }
 
 /**
- * Coerces every `DynamicBoolean` position in `value` according to `schema`.
+ * Coerces every `DynamicBoolean` position in `value` according to `node`.
  *
- * @param schema The schema of `value`, such as a function's argument schema.
+ * @param node The schema of `value`, such as a function's argument schema.
+ * @param doc The document that owns `node`.
  * @param value The resolved value to coerce.
  * @returns `value`, with every `DynamicBoolean` position coerced to a boolean.
  */
-export function coerceValidationResults(schema: z.ZodTypeAny, value: unknown): unknown {
-  return coerceDynamicBooleans(schema, value);
+export function coerceValidationResults(node: JsonSchema, doc: SchemaDoc, value: unknown): unknown {
+  return coerceDynamicBooleans(node, doc, value);
 }

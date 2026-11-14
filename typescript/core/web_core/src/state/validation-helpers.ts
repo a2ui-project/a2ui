@@ -17,6 +17,8 @@
 import {componentPayloadState} from '../catalog/component_envelope.js';
 import {Catalog, ComponentApi} from '../catalog/types.js';
 import {A2uiValidationError} from '../errors.js';
+import type {SchemaCursor} from '../schema-engine/nav.js';
+import {componentSchemaDoc} from '../schema-engine/zod-bridge.js';
 import {
   getComponentReferences,
   MAX_GLOBAL_DEPTH,
@@ -55,6 +57,16 @@ interface BatchGraph<T extends ComponentApi> {
 
 /** Whether each catalog declares `allowedParents` or `allowedChildren`. */
 const catalogRules = new WeakMap<Catalog<ComponentApi>, boolean>();
+
+/** The JSON Schema of a component type in a surface's default catalog, if any. */
+function defaultCatalogSchemaDoc<T extends ComponentApi>(
+  surface: SurfaceModel<T>,
+  type: string,
+): SchemaCursor | undefined {
+  const catalog = surface.defaultCatalog;
+  // ponytail: bridge until Task 8 — component schemas are still Zod.
+  return catalog ? componentSchemaDoc(catalog.components.get(type), catalog) : undefined;
+}
 
 /**
  * Checks the composition constraints and, under a `validationConfig`, the
@@ -191,8 +203,9 @@ function batchGraph<T extends ComponentApi>(
     const {properties} = componentPayloadState(
       comp,
       surface.protocolVersion,
-      catalog.components.get(type)?.schema,
-      {defaultCatalogSchema: surface.defaultCatalog?.components.get(type)?.schema},
+      // ponytail: bridge until Task 8 — component schemas are still Zod.
+      componentSchemaDoc(catalog.components.get(type), catalog),
+      {defaultCatalogSchema: defaultCatalogSchemaDoc(surface, type)},
     );
     const children = Array.from(
       getComponentReferences({...properties, id, component: type}, catalog.componentRefMap),
@@ -604,8 +617,9 @@ export function validateCandidateTopology<T extends ComponentApi>(
     const {properties} = componentPayloadState(
       comp,
       surface.protocolVersion,
-      targetCatalog.components.get(componentType)?.schema,
-      {defaultCatalogSchema: surface.defaultCatalog?.components.get(componentType)?.schema},
+      // ponytail: bridge until Task 8 — component schemas are still Zod.
+      componentSchemaDoc(targetCatalog.components.get(componentType), targetCatalog),
+      {defaultCatalogSchema: defaultCatalogSchemaDoc(surface, componentType)},
     );
 
     if (existing) {

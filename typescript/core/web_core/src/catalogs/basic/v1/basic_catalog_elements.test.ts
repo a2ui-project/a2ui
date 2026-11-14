@@ -37,6 +37,10 @@ import {
 import {html, nothing} from 'lit';
 import {SliderApi} from './index.js';
 import {testValidator} from '../../../test/validator.js';
+import {toSchemaDoc} from '../../../schema-engine/zod-bridge.js';
+
+// ponytail: bridge until Task 8 — the basic catalog's schemas are still Zod.
+const bridged = (schema: z.ZodTypeAny) => toSchemaDoc(schema, '1.0');
 
 describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
   let basicCatalog: Catalog<WebComponentImplementation>;
@@ -421,7 +425,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
     const cpCtx = new ComponentContext(surface, 'cp_check');
     const cpBinder = new GenericBinder<any>(
       cpCtx,
-      basicCatalog.components.get('ChoicePicker')!.schema,
+      bridged(basicCatalog.components.get('ChoicePicker')!.schema),
     );
     assert.strictEqual(cpBinder.snapshot.isValid, false);
     assert.deepStrictEqual(cpBinder.snapshot.validationErrors, ['This field is required.']);
@@ -533,7 +537,10 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
       return null;
     }) as any;
     try {
-      const binder = new GenericBinder<any>(btnCtx, basicCatalog.components.get('Button')!.schema);
+      const binder = new GenericBinder<any>(
+        btnCtx,
+        bridged(basicCatalog.components.get('Button')!.schema),
+      );
       binder.snapshot.action();
       assert.strictEqual(openedUrl, 'https://example.com/');
       binder.dispose();

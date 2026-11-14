@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+export {applyDefaults} from './defaults.js';
 export {fromJsonSchema} from './from-json-schema.js';
 export {assertSync, formatIssue, messageForIssue, pickIssue, toA2uiIssues} from './issues.js';
 export type {

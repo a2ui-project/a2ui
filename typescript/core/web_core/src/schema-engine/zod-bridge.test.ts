@@ -76,6 +76,22 @@ describe('toSchemaDoc', () => {
     assert.equal('additionalProperties' in both[1], false);
   });
 
+  it('keeps the REF: of a wrapped schema that a wrapper re-describes', () => {
+    const flag = z.boolean().describe('REF:#/$defs/DynamicBoolean|A flag.');
+    const {node} = toSchemaDoc(
+      z.object({
+        defaulted: flag.default(true).describe('Grouping.'),
+        optional: flag.optional().describe('Whether.'),
+        plain: z.string().optional().describe('Text.'),
+      }),
+    );
+    const props = (node as {properties: Record<string, Record<string, unknown>>}).properties;
+    assert.equal(props.defaulted.description, 'REF:#/$defs/DynamicBoolean|Grouping.');
+    assert.equal(props.defaulted.default, true);
+    assert.equal(props.optional.description, 'REF:#/$defs/DynamicBoolean|Whether.');
+    assert.equal(props.plain.description, 'Text.');
+  });
+
   it('caches one document per schema and version', () => {
     const schema = z.object({child: z.string()});
     assert.equal(toSchemaDoc(schema, '1.0'), toSchemaDoc(schema, '1.0'));

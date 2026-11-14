@@ -364,9 +364,9 @@ export class NodeResolver<
       : isAtLeastVersion(compCatalog.protocolVersion, '0.9')
         ? V09_CHILD_REF_OPTIONS
         : V08_CHILD_REF_OPTIONS;
-    const binder = new GenericBinder<NodeProps>(context, api.schema, refOptions);
     // ponytail: bridge until Task 8
     const schemaJson = toSchemaDoc(api.schema, compCatalog.protocolVersion);
+    const binder = new GenericBinder<NodeProps>(context, schemaJson, refOptions);
     const record = this.registerNode(
       new MutableComponentNode(
         instanceIdFor(componentId, dataPath, occurrence),
