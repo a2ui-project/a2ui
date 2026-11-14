@@ -2,7 +2,7 @@
 
 `a2ui-jupyter` displays A2UI v1.0 surfaces as notebook output and forwards
 renderer messages to Python. It uses `anywidget` and the A2UI React renderer.
-It requires Python 3.11 or newer and `ipykernel` 6.29 to 7.0, or 7.4 or newer
+It requires Python 3.11 or newer and `ipykernel` 6.9.2 to 7.0, or 7.4 or newer
 (see [Kernel compatibility](#kernel-compatibility)).
 
 ## Build the widget bundle
@@ -77,8 +77,13 @@ version in the environment that runs JupyterLab):
 | `ipykernel`  | Status        | Notes                                                                                                                                                                                                                                                                                         |
 | ------------ | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 7.4 or newer | Supported     | The kernel delivers widget messages natively. Cells started while a cell waits run concurrently.                                                                                                                                                                                              |
-| 6.29 to 7.0  | Supported     | `a2ui-jupyter` uses [`jupyter-ui-poll`](https://github.com/Kirill888/jupyter-ui-poll) to process widget messages while the cell waits. Cells started during the wait are queued and run after it finishes. The kernel status indicator can briefly show idle while the cell is still waiting. |
+| 6.9.2 to 7.0 | Supported     | `a2ui-jupyter` uses [`jupyter-ui-poll`](https://github.com/Kirill888/jupyter-ui-poll) to process widget messages while the cell waits. Cells started during the wait are queued and run after it finishes. The kernel status indicator can briefly show idle while the cell is still waiting. |
 | 7.1 to 7.3   | Not supported | These versions cannot deliver widget messages to a waiting cell without leaving the cell marked as running. The package excludes them, and awaiting raises `RuntimeError` if one is installed anyway. Upgrade to 7.4 or newer.                                                                |
+
+`ipykernel` 6.9.2 is installed only on Python 3.11. On Python 3.12 and newer the
+minimum is 6.29.0, because 6.9.2 imports `imp`, which Python 3.12 removed. The
+6.9.2 row was tested on Python 3.11 with jupyter-client 7.x. The browser UI was not
+tested with 6.9.2.
 
 Installing this package does not upgrade a kernel that is already running.
 Restart the kernel after changing `ipykernel`.

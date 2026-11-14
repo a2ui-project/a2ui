@@ -65,7 +65,7 @@ def _kernel_needs_comm_polling() -> bool:
         raise RuntimeError(
             f"ipykernel {major}.{minor} cannot deliver renderer messages while a"
             " cell is waiting. Install ipykernel 7.4 or newer, or a version from"
-            " 6.29 to 7.0, and restart the kernel."
+            " 6.9 to 7.0, and restart the kernel."
         )
     return True
 
