@@ -1,0 +1,46 @@
+{
+  "schema": "client_to_server_list.json",
+  "tests": [
+    {
+      "description": "Valid list of a v0.9.1 action message and a v0.9 error message",
+      "valid": true,
+      "data": [
+        {
+          "version": "v0.9.1",
+          "action": {
+            "name": "submit",
+            "surfaceId": "main",
+            "sourceComponentId": "btn_submit",
+            "timestamp": "2023-10-27T10:00:00Z",
+            "context": {
+              "foo": "bar"
+            }
+          }
+        },
+        {
+          "version": "v0.9",
+          "error": {
+            "code": "VALIDATION_FAILED",
+            "surfaceId": "main",
+            "path": "/components/0/text",
+            "message": "Invalid type"
+          }
+        }
+      ]
+    },
+    {
+      "description": "Invalid list holding an updateDataModel message",
+      "valid": false,
+      "data": [
+        {
+          "version": "v0.9.1",
+          "updateDataModel": {
+            "surfaceId": "main",
+            "path": "/user/name",
+            "value": "Alice"
+          }
+        }
+      ]
+    }
+  ]
+}

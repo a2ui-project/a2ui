@@ -1,6 +1,13 @@
 ## Unreleased
 
 - **BREAKING CHANGE**: (v1_0) Update `ComponentCommon` and `Checkable` schemas, `Catalog.validation_schema`, and `ComponentModel.component_tree` to emit `@catalogId`, `@metadata`, `@accessibility`, and `@checks` on v1.0 surfaces (`ComponentModel.component_tree` writes envelope metadata under `@metadata`), while `PayloadValidator` and `MessageProcessor` gate component `metadata` and `catalogId` envelope handling to v1.0+ surfaces (so pre-1.0 surfaces treat them as ordinary component properties), dual-read legacy bare `catalogId`, `metadata`, `accessibility`, and `checks` when undeclared as custom properties by the component schema, validate `@metadata.extensions` keys as UAX #31 identifiers, reject `null` `@catalogId` / legacy `catalogId`, and reject components specifying both `@`-prefixed and bare forms of the same mixin ([#1376](https://github.com/a2ui-project/a2ui/issues/1376), [#3466](https://github.com/a2ui-project/a2ui/issues/3466), [#3511](https://github.com/a2ui-project/a2ui/issues/3511), [#4012](https://github.com/a2ui-project/a2ui/issues/4012), [#4037](https://github.com/a2ui-project/a2ui/pull/4037), [#4044](https://github.com/a2ui-project/a2ui/pull/4044)).
+- (v0_9_1) `get_agent_to_renderer_schema_map` and
+  `get_agent_to_renderer_schema_json` give the v0.9.1 schema the `$id`
+  `https://a2ui.org/specification/v0_9_1/server_to_client.json`, which
+  `specification/v0_9_1/json/server_to_client.json` now declares. They gave it
+  v0.9's `$id`, which names v0.9's schema, a different document that accepts
+  only `"v0.9"` messages
+  ([#3974](https://github.com/a2ui-project/a2ui/issues/3974)).
 
 ## 0.6.0 (2026-11-10)
 

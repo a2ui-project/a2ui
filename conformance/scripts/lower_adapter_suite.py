@@ -135,6 +135,12 @@ def _build_validator() -> jsonschema.Draft202012Validator:
                 Resource.from_contents(resource_schema),
             )
 
+    # server_to_client.json resolves "catalog.json" under its own v0.9.1 $id,
+    # and common_types.json under the v0.9 $id it keeps.
+    registry = registry.with_resource(
+        "https://a2ui.org/specification/v0_9_1/catalog.json",
+        Resource.from_contents(catalog_schema),
+    )
     registry = registry.with_resource(
         "https://a2ui.org/specification/v0_9/catalog.json",
         Resource.from_contents(catalog_schema),

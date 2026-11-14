@@ -41,7 +41,7 @@ _AGENT_TO_RENDERER_SPECS: Final[dict[ProtocolVersion, tuple[str, str | None]]] =
     ),
     ProtocolVersion.V0_9_1: (
         "a2ui.core.schema.v0_9.server_to_client",
-        "https://a2ui.org/specification/v0_9/server_to_client.json",
+        "https://a2ui.org/specification/v0_9_1/server_to_client.json",
     ),
     ProtocolVersion.V1_0: (
         "a2ui.core.schema.v1_0.agent_to_renderer",
