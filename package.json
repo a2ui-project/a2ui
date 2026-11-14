@@ -8,6 +8,7 @@
     "typescript/agents/*",
     "typescript/catalogs/*",
     "typescript/core/*",
+    "typescript/validators/*",
     "typescript/renderers/*",
     "typescript/renderers/angular/*",
     "typescript/renderers/lit/*",

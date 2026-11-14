@@ -480,6 +480,39 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@a2ui/validator-ajv@workspace:typescript/validators/ajv":
+  version: 0.0.0-use.local
+  resolution: "@a2ui/validator-ajv@workspace:typescript/validators/ajv"
+  dependencies:
+    "@a2ui/web_core": "workspace:*"
+    "@types/node": "npm:^25.9.3"
+    ajv: "npm:^8.17.1"
+    ajv-formats: "npm:^3.0.1"
+    eslint: "npm:^10.4.1"
+    prettier: "npm:^3.8.4"
+    typescript: "npm:5.9.3"
+    wireit: "npm:^0.15.0-pre.2"
+  peerDependencies:
+    "@a2ui/web_core": "workspace:*"
+  languageName: unknown
+  linkType: soft
+
+"@a2ui/validator-cfworker@workspace:typescript/validators/cfworker":
+  version: 0.0.0-use.local
+  resolution: "@a2ui/validator-cfworker@workspace:typescript/validators/cfworker"
+  dependencies:
+    "@a2ui/web_core": "workspace:*"
+    "@cfworker/json-schema": "npm:^4.1.1"
+    "@types/node": "npm:^25.9.3"
+    eslint: "npm:^10.4.1"
+    prettier: "npm:^3.8.4"
+    typescript: "npm:5.9.3"
+    wireit: "npm:^0.15.0-pre.2"
+  peerDependencies:
+    "@a2ui/web_core": "workspace:*"
+  languageName: unknown
+  linkType: soft
+
 "@a2ui/vegachart-sample@workspace:samples/vegachart":
   version: 0.0.0-use.local
   resolution: "@a2ui/vegachart-sample@workspace:samples/vegachart"
@@ -2723,6 +2756,13 @@ __metadata:
   version: 4.1.1
   resolution: "@cfworker/json-schema@npm:4.1.1"
   checksum: 10c0/b5253486d346b7de6feec9c73954f612b11019dacb9023d710a5666df2f5fc145dd88b6b913c88726c6d97e2e258a515fa2cab177f58b18da6bac3738cbc4739
+  languageName: node
+  linkType: hard
+
+"@cfworker/json-schema@npm:^4.1.1":
+  version: 4.1.6
+  resolution: "@cfworker/json-schema@npm:4.1.6"
+  checksum: 10c0/24cb356b5dd4ca1d98951b5f6946072f20dca568c5661e29952d919d402597d39f02d7ee2e9e7d824e2804dcf0586d756e0ff2319167bfdfc0e5d47bc8e41256
   languageName: node
   linkType: hard
 
