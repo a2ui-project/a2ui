@@ -1,10 +1,10 @@
 # Community Projects
 
-> Community-maintained renderers, agent libraries, and tools built around the A2UI protocol.
+> Community-maintained renderers, catalogs, agent libraries, and tools built around the A2UI protocol.
 
 Canonical URL: https://a2ui.org/ecosystem/renderers/
 
-Community authors and organizations maintain client renderers, server libraries, and related generative UI tools built around the A2UI protocol.
+Community authors and organizations maintain client renderers, domain catalogs, server libraries, and related generative UI tools built around the A2UI protocol.
 
 > **Note**
   Third-party projects listed here are maintained by their respective authors and organizations, not
@@ -41,6 +41,7 @@ The following table lists client-side renderers implemented and maintained by th
 | **[ChaliceForAuri/a2ui-svelte](https://github.com/ChaliceForAuri/a2ui-svelte)**<br />(`svelte-a2ui`) · [Demo](https://chaliceforauri.github.io/a2ui-svelte/)                                                                         | Svelte 5 (Web)                                            | `v1.0`           | Active       | Svelte 5 runes renderer targeting the v1.0 spec, supporting HTTP JSONL/SSE and A2A transports.                    |
 | **[Language-Lit/material3-expressive-a2ui](https://github.com/Language-Lit/material3-expressive-a2ui)**<br />(`@language-lit/material3-expressive-a2ui`)<br />[Demo & Docs](https://m3e.language-lit.com/a2ui/)                      | React + Material 3 Expressive (Web)                       | `v0.9.x`         | Active       | Material 3 Expressive React renderer built on `@a2ui/web_core`.                                                   |
 | **[uny/a2ui-compose](https://github.com/uny/a2ui-compose)**<br />(`dev.ynagai.a2ui:a2ui-material3`)<br />[Docs](https://uny.github.io/a2ui-compose/) · [Maven](https://central.sonatype.com/namespace/dev.ynagai.a2ui)               | Compose Multiplatform (Android, iOS, desktop, macOS, Web) | `v1.0`           | Active       | Compose Multiplatform renderer for desktop, mobile, and web from a single codebase.                               |
+| **[lbb00/a2ui-miniprogram](https://github.com/lbb00/a2ui-miniprogram)**<br />(`a2ui-miniprogram`) · [npm](https://www.npmjs.com/package/a2ui-miniprogram)                                                                            | WeChat Mini Program                                       | `v0.9.x`, `v1.0` | Active       | WeChat Mini Program renderer covering all 18 Basic Catalog components, client RPC, and component generics.        |
 | **[xpert-ai/a2ui-react](https://www.npmjs.com/package/@xpert-ai/a2ui-react)**<br />(`@xpert-ai/a2ui-react`)                                                                                                                          | React (Web)                                               | —                | Early stage  | React renderer built with ShadCN UI components.                                                                   |
 | **[josh-english-2k18/a2ui-3d-renderer](https://github.com/josh-english-2k18/a2ui-3d-renderer)**                                                                                                                                      | WebGL / Three.js                                          | —                | Experimental | Three.js and WebGL 3D renderer for A2UI surfaces.                                                                 |
 | **[AINative-Studio/ai-kit-a2ui](https://github.com/AINative-Studio/ai-kit-a2ui)**                                                                                                                                                    | React (Web)                                               | —                | Early stage  | React and ShadCN renderer designed for the AIKit framework.                                                       |
@@ -54,6 +55,14 @@ The following server-side libraries assist in generating and validating A2UI pay
 | **[Max-Health-Inc/prefab](https://github.com/Max-Health-Inc/prefab)**<br />(`@maxhealth.tech/prefab`) · [Docs](https://max-health-inc.github.io/prefab/guide/a2ui) | TypeScript | Active | Server-side component library that generates A2UI payloads from a typed component tree, validates catalog compatibility, and serves A2UI over MCP as an `a2ui://` resource. |
 | **[satorunooshie/a2ui-go](https://github.com/satorunooshie/a2ui-go)**                                                                                              | Go         | Active | Transport-agnostic Go (`v0.9.1`) server primitives for schema validation, message decoding, and action routing.                                                             |
 | **[tmc/a2ui](https://github.com/tmc/a2ui)** · [pkg.go.dev](https://pkg.go.dev/github.com/tmc/a2ui)                                                                 | Go         | Active | Go (`v0.9.x`) protocol type definitions and streaming JSONL parser (`a2uistream`).                                                                                          |
+
+## Catalogs and component libraries
+
+The following projects publish domain-specific catalogs together with the renderers and agent code that use them:
+
+| Project                                                                                                                                                                                                                            | Platforms                                                          | Versions | Status       | Description                                                                                                                                                                  |
+| :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------- | :------- | :----------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **[googlemaps/a2ui](https://github.com/googlemaps/a2ui)**<br />(`@googlemaps/a2ui`, `maui-a2ui-python`) · [Docs](https://developers.google.com/maps/ai/agentic-ui-toolkit) · [Samples](https://github.com/googlemaps-samples/a2ui) | Web (Lit), Android (Views), iOS (SwiftUI), Python agent (ADK, A2A) | `v0.9.x` | Experimental | Google Maps Platform Agentic UI toolkit. Extends the basic catalog with `GoogleMap` and `PlaceDetailsCompact` components so agents can show maps, routes, and place details. |
 
 ## Related generative UI projects
 
