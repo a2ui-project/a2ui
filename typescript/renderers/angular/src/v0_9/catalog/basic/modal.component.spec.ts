@@ -153,6 +153,46 @@ describe('ModalComponent', () => {
     expect(fixture.nativeElement.querySelector('.a2ui-modal-overlay')).toBeFalsy();
   });
 
+  it('should show the overlay in a modal dialog (top layer)', () => {
+    setComponentProps(fixture, {
+      ...defaultProps,
+      trigger: createBoundProperty({id: 'trigger-btn', basePath: '/'}),
+      content: createBoundProperty({id: 'modal-content', basePath: '/'}),
+    });
+    fixture.detectChanges();
+
+    fixture.nativeElement.querySelector('.a2ui-modal-trigger').click();
+    fixture.detectChanges();
+
+    const dialog = fixture.nativeElement.querySelector('dialog.a2ui-modal-dialog');
+    expect(dialog).toBeTruthy();
+    expect(dialog.open).toBeTrue();
+    // Opened with showModal(), so it renders in the top layer and no ancestor
+    // stacking context can paint over it.
+    expect(dialog.matches(':modal')).toBeTrue();
+    expect(dialog.querySelector('.a2ui-modal-overlay')).toBeTruthy();
+  });
+
+  it('should close modal when the dialog closes (e.g. Escape)', () => {
+    setComponentProps(fixture, {
+      ...defaultProps,
+      trigger: createBoundProperty({id: 'trigger-btn', basePath: '/'}),
+      content: createBoundProperty({id: 'modal-content', basePath: '/'}),
+    });
+    fixture.detectChanges();
+
+    fixture.nativeElement.querySelector('.a2ui-modal-trigger').click();
+    fixture.detectChanges();
+    const dialog = fixture.nativeElement.querySelector('dialog.a2ui-modal-dialog');
+    expect(dialog).toBeTruthy();
+
+    // Escape cancels a modal dialog, which then fires `close`.
+    dialog.dispatchEvent(new Event('close'));
+    fixture.detectChanges();
+    expect(component.isOpen()).toBeFalse();
+    expect(fixture.nativeElement.querySelector('.a2ui-modal-overlay')).toBeFalsy();
+  });
+
   it('should handle missing trigger or content', () => {
     fixture.detectChanges();
     expect(component.trigger()).toBeUndefined();

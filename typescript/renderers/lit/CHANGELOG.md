@@ -1,6 +1,7 @@
 ## Unreleased
 
 - (v0_9) Import `Catalog` and `ComponentApi` from `@a2ui/web_core` instead of `@a2ui/web_core/v0_9` in the v0.9 basic catalog barrel. [#4182](https://github.com/a2ui-project/a2ui/pull/4182)
+- `Modal` (from `@a2ui/web_core`) shows its overlay in a native `<dialog>` opened with `showModal()`, so it renders in the browser's top layer and is no longer covered by host UI when an ancestor of the surface creates a stacking context. It also closes on Escape. [#3807](https://github.com/a2ui-project/a2ui/issues/3807)
 
 ## 0.15.0
 
