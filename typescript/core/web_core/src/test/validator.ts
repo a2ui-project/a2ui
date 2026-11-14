@@ -16,16 +16,23 @@
 
 import type {JsonSchemaValidator} from '../schema-engine/types.js';
 
-// `@a2ui/validator-ajv` is built after this package (it depends on web_core),
-// so it is loaded by a computed specifier: tsc never needs its types, and the
-// test scripts build it before running the tests.
+// The validator adapters are built after this package (they depend on
+// web_core), so they are loaded by computed specifiers: tsc never needs their
+// types, and the test scripts build them before running the tests.
 const AJV_ADAPTER: string = '@a2ui/validator-ajv';
+const CFWORKER_ADAPTER: string = '@a2ui/validator-cfworker';
 const ajv = (await import(AJV_ADAPTER)) as {
   createAjvValidator(opts?: {formats?: boolean}): JsonSchemaValidator;
+};
+const cfworker = (await import(CFWORKER_ADAPTER)) as {
+  createCfWorkerValidator(): JsonSchemaValidator;
 };
 
 /** Creates the reference (Ajv) {@link JsonSchemaValidator} used by tests. */
 export const createAjvValidator = ajv.createAjvValidator;
+
+/** Creates the `@cfworker/json-schema` {@link JsonSchemaValidator}, for cross-engine tests. */
+export const createCfWorkerValidator = cfworker.createCfWorkerValidator;
 
 /**
  * One shared reference validator, so the protocol schemas compiled for it are

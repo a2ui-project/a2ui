@@ -19,12 +19,21 @@ import {describe, it, beforeEach} from 'node:test';
 import {A2uiMessageProcessor} from './model-processor.js';
 import {TextNode, RowNode} from '../types/types.js';
 import {testValidator} from '../../test/validator.js';
+import {A2uiConfigurationError, NO_VALIDATOR_MESSAGE} from '../../errors.js';
 
 describe('A2uiMessageProcessor', () => {
   let processor: A2uiMessageProcessor;
 
   beforeEach(() => {
     processor = new A2uiMessageProcessor({validator: testValidator});
+  });
+
+  it('requires a validator', () => {
+    assert.throws(
+      () => new A2uiMessageProcessor({} as never),
+      (err: unknown) =>
+        err instanceof A2uiConfigurationError && err.message.startsWith(NO_VALIDATOR_MESSAGE),
+    );
   });
 
   it('handles beginRendering', () => {

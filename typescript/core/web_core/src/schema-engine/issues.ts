@@ -39,9 +39,66 @@ export function pickIssue(issues: A2uiIssue[]): A2uiIssue {
   return best;
 }
 
-/** Formats an issue as `<path>: <message>`, using `root` for an empty path. */
+function typeNames(type: unknown): string | undefined {
+  const names = Array.isArray(type)
+    ? type.map(String)
+    : typeof type === 'string'
+      ? type.split(',').map(t => t.trim())
+      : undefined;
+  return names && names.length > 0 ? names.join(' or ') : undefined;
+}
+
+const json = (v: unknown) => JSON.stringify(v);
+
+/**
+ * Describes an issue in web_core's own words, from its JSON Schema keyword
+ * and parameters, so the text is the same whichever engine reported it. An
+ * issue without a keyword (such as one from an integrity check) keeps its
+ * message.
+ */
+export function messageForIssue(issue: A2uiIssue): string {
+  const p = issue.params ?? {};
+  switch (issue.keyword) {
+    case undefined:
+      return issue.message;
+    case 'required':
+      return typeof p.missingProperty === 'string'
+        ? `missing required property '${p.missingProperty}'`
+        : 'missing a required property';
+    case 'type': {
+      const names = typeNames(p.type);
+      return names ? `must be ${names}` : 'has the wrong type';
+    }
+    case 'const':
+      return 'allowedValue' in p ? `must be ${json(p.allowedValue)}` : 'must be the constant value';
+    case 'enum':
+      return Array.isArray(p.allowedValues)
+        ? `must be one of ${p.allowedValues.map(json).join(', ')}`
+        : 'must be one of the allowed values';
+    case 'additionalProperties':
+    case 'unevaluatedProperties': {
+      const prop = p.additionalProperty ?? p.unevaluatedProperty;
+      return typeof prop === 'string'
+        ? `unexpected property '${prop}'`
+        : 'has an unexpected property';
+    }
+    case 'not':
+      return 'must not match the disallowed schema';
+    case 'oneOf':
+      return 'must match exactly one of the allowed schemas';
+    case 'anyOf':
+      return 'must match at least one of the allowed schemas';
+    default:
+      return `fails the '${issue.keyword}' constraint`;
+  }
+}
+
+/**
+ * Formats an issue as `<path>: <message>`, using `root` for an empty path and
+ * {@link messageForIssue} for the message.
+ */
 export function formatIssue(issue: A2uiIssue): string {
-  return `${issue.path.length ? issue.path.join('.') : 'root'}: ${issue.message}`;
+  return `${issue.path.length ? issue.path.join('.') : 'root'}: ${messageForIssue(issue)}`;
 }
 
 /** Converts Standard Schema issues into {@link A2uiIssue}s. */

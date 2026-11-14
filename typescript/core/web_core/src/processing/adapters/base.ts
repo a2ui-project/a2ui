@@ -15,7 +15,7 @@
  */
 
 import {InternalOperation} from '../operations.js';
-import {A2uiConfigurationError, A2uiValidationError} from '../../errors.js';
+import {A2uiValidationError, noValidatorError} from '../../errors.js';
 import {formatIssue, pickIssue} from '../../schema-engine/issues.js';
 import type {A2uiIssue, JsonSchemaValidator} from '../../schema-engine/types.js';
 import {extractEnvelopeErrorContext, mapErrorToRendererMessage} from '../message-error-mapper.js';
@@ -297,8 +297,8 @@ export abstract class BaseVersionAdapter implements VersionAdapter {
 
     const preparedPayload = this.preparePayloadForValidation(msgObj, options);
     if (!this.validator) {
-      throw new A2uiConfigurationError(
-        `The ${this.version} version adapter has no JsonSchemaValidator. Pass one in MessageProcessorOptions.validator, or to the adapter or VersionAdapterFactory constructor.`,
+      throw noValidatorError(
+        `The ${this.version} version adapter needs one: pass it in MessageProcessorOptions.validator, or to the adapter or VersionAdapterFactory constructor.`,
       );
     }
     const issues = validateProtocolMessage(this.validator, this.messageSpec, preparedPayload);

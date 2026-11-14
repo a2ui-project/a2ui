@@ -2544,7 +2544,7 @@ describe('MessageProcessor', () => {
         },
       ] as unknown as Parameters<typeof proc.processMessages>[0];
       const expectedMessage =
-        "Invalid 1.0 message: callRendererFunction.callFunction.catalogId: must have required property 'catalogId'";
+        "Invalid 1.0 message: callRendererFunction.callFunction.catalogId: missing required property 'catalogId'";
 
       assert.throws(
         () => proc.processMessages(missingCatalogPayload),

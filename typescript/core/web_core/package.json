@@ -252,6 +252,7 @@
       "dependencies": [
         "build",
         "../../validators/ajv:build",
+        "../../validators/cfworker:build",
         "test:conformance"
       ]
     },

@@ -15,7 +15,7 @@
  */
 
 export {fromJsonSchema} from './from-json-schema.js';
-export {assertSync, formatIssue, pickIssue, toA2uiIssues} from './issues.js';
+export {assertSync, formatIssue, messageForIssue, pickIssue, toA2uiIssues} from './issues.js';
 export type {
   A2uiIssue,
   CatalogSchema,

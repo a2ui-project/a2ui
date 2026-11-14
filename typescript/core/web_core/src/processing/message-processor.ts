@@ -37,11 +37,11 @@ import {batchWrite} from '../reactivity/signals.js';
 
 import {
   A2uiCatalogError,
-  A2uiConfigurationError,
   A2uiDataError,
   A2uiError,
   A2uiIntegrityError,
   A2uiValidationError,
+  noValidatorError,
 } from '../errors.js';
 import {
   ErrorEnvelopeContext,
@@ -268,8 +268,8 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     options: MessageProcessorOptions,
   ) {
     if (!options?.validator) {
-      throw new A2uiConfigurationError(
-        'MessageProcessorOptions.validator is required: pass a JsonSchemaValidator, for example createAjvValidator() from @a2ui/validator-ajv.',
+      throw noValidatorError(
+        'Pass one in MessageProcessorOptions.validator, for example createAjvValidator() from @a2ui/validator-ajv.',
       );
     }
     const maxEntries = options?.maxAgentCallCacheEntries;

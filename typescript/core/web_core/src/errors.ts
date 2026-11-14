@@ -313,3 +313,16 @@ export class A2uiConfigurationError extends A2uiError {
     super(message, code, context);
   }
 }
+
+/** The mandated prefix of the error raised when no JsonSchemaValidator is supplied. */
+export const NO_VALIDATOR_MESSAGE = 'A2UI: no JsonSchemaValidator was provided';
+
+/**
+ * Creates the error raised when no JsonSchemaValidator is supplied.
+ *
+ * @param hint Where to pass the validator.
+ * @returns An `A2uiConfigurationError` whose message starts with {@link NO_VALIDATOR_MESSAGE}.
+ */
+export function noValidatorError(hint: string): A2uiConfigurationError {
+  return new A2uiConfigurationError(`${NO_VALIDATOR_MESSAGE}. ${hint}`);
+}

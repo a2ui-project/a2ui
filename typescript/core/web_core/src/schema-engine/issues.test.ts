@@ -17,7 +17,7 @@
 import * as assert from 'node:assert';
 import {describe, it} from 'node:test';
 import {A2uiConfigurationError} from '../errors.js';
-import {assertSync, formatIssue, pickIssue, toA2uiIssues} from './issues.js';
+import {assertSync, formatIssue, messageForIssue, pickIssue, toA2uiIssues} from './issues.js';
 
 describe('pickIssue', () => {
   it('returns the deepest-path issue', () => {
@@ -54,6 +54,43 @@ describe('formatIssue', () => {
 
   it('uses root for an empty path', () => {
     assert.strictEqual(formatIssue({path: [], message: 'bad'}), 'root: bad');
+  });
+});
+
+describe('messageForIssue', () => {
+  const msg = (keyword: string | undefined, params?: Record<string, unknown>) =>
+    messageForIssue({path: ['a'], message: 'engine text', keyword, params});
+
+  it('words each keyword from its params, ignoring the engine text', () => {
+    assert.strictEqual(msg('required', {missingProperty: 'id'}), "missing required property 'id'");
+    assert.strictEqual(msg('type', {type: 'string'}), 'must be string');
+    assert.strictEqual(msg('type', {type: ['string', 'null']}), 'must be string or null');
+    assert.strictEqual(msg('type', {type: 'string,null'}), 'must be string or null');
+    assert.strictEqual(msg('const', {allowedValue: '1.0'}), 'must be "1.0"');
+    assert.strictEqual(msg('enum', {allowedValues: ['a', 1]}), 'must be one of "a", 1');
+    assert.strictEqual(
+      msg('additionalProperties', {additionalProperty: 'x'}),
+      "unexpected property 'x'",
+    );
+    assert.strictEqual(
+      msg('unevaluatedProperties', {unevaluatedProperty: 'y'}),
+      "unexpected property 'y'",
+    );
+    assert.strictEqual(msg('not'), 'must not match the disallowed schema');
+    assert.strictEqual(msg('oneOf'), 'must match exactly one of the allowed schemas');
+    assert.strictEqual(msg('anyOf'), 'must match at least one of the allowed schemas');
+    assert.strictEqual(msg('format'), "fails the 'format' constraint");
+  });
+
+  it('keeps the message of an issue without a keyword', () => {
+    assert.strictEqual(msg(undefined), 'engine text');
+  });
+
+  it('is used by formatIssue', () => {
+    assert.strictEqual(
+      formatIssue({path: ['x'], message: 'ignored', keyword: 'type', params: {type: 'number'}}),
+      'x: must be number',
+    );
   });
 });
 

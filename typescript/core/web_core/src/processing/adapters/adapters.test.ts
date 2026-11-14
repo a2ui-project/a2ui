@@ -21,7 +21,7 @@ import {describe, it} from 'node:test';
 import {z} from 'zod';
 
 import {Catalog} from '../../catalog/types.js';
-import {A2uiConfigurationError, A2uiValidationError} from '../../errors.js';
+import {A2uiConfigurationError, A2uiValidationError, NO_VALIDATOR_MESSAGE} from '../../errors.js';
 import type {A2uiIssue} from '../../schema-engine/types.js';
 import {testValidator} from '../../test/validator.js';
 import {MessageProcessor, type MessageProcessorOptions} from '../message-processor.js';
@@ -712,7 +712,7 @@ describe('MessageProcessor Dependency Injection', () => {
         assert.ok(err instanceof A2uiValidationError);
         assert.strictEqual(
           err.message,
-          "Invalid 1.0 message: callRendererFunction.callFunction.catalogId: must have required property 'catalogId'",
+          "Invalid 1.0 message: callRendererFunction.callFunction.catalogId: missing required property 'catalogId'",
         );
         assert.strictEqual(err.functionCallId, 'f1');
         return true;
@@ -732,7 +732,7 @@ describe('MessageProcessor Dependency Injection', () => {
         assert.ok(err instanceof A2uiValidationError);
         assert.strictEqual(
           err.message,
-          "Invalid 1.0 message: callRendererFunction.callFunction.catalogId: must have required property 'catalogId'",
+          "Invalid 1.0 message: callRendererFunction.callFunction.catalogId: missing required property 'catalogId'",
         );
         // The message names the deepest issue; the version mismatch is in the details.
         assert.ok(err.details.some((i: A2uiIssue) => i.path[0] === 'version'));
@@ -754,7 +754,7 @@ describe('MessageProcessor Dependency Injection', () => {
         assert.ok(err instanceof A2uiValidationError);
         assert.strictEqual(
           err.message,
-          'Invalid 1.0 message: extraField: must NOT have additional properties',
+          "Invalid 1.0 message: extraField: unexpected property 'extraField'",
         );
         return true;
       },
@@ -771,7 +771,7 @@ describe('MessageProcessor Dependency Injection', () => {
         assert.ok(err instanceof A2uiValidationError);
         assert.strictEqual(
           err.message,
-          "Invalid v0.9 message: createSurface.catalogId: must have required property 'catalogId'",
+          "Invalid v0.9 message: createSurface.catalogId: missing required property 'catalogId'",
         );
         return true;
       },
@@ -785,7 +785,8 @@ describe('protocol messages validated against the spec JSON', () => {
   it('requires a validator in MessageProcessorOptions', () => {
     assert.throws(
       () => new MessageProcessor([], undefined, {} as MessageProcessorOptions),
-      (err: unknown) => err instanceof A2uiConfigurationError && /validator/.test(err.message),
+      (err: unknown) =>
+        err instanceof A2uiConfigurationError && err.message.startsWith(NO_VALIDATOR_MESSAGE),
     );
   });
 

@@ -32,7 +32,7 @@ import {
   ValueMap,
 } from '../types/types.js';
 import {A2uiStateError, A2uiValidationError} from '../errors.js';
-import {A2uiConfigurationError} from '../../errors.js';
+import {noValidatorError} from '../../errors.js';
 import type {JsonSchemaValidator} from '../../schema-engine/types.js';
 import {formatIssue, pickIssue} from '../../schema-engine/issues.js';
 import {
@@ -93,8 +93,8 @@ export class A2uiMessageProcessor implements MessageProcessor {
     },
   ) {
     if (!opts?.validator) {
-      throw new A2uiConfigurationError(
-        'A2uiMessageProcessor requires opts.validator: pass a JsonSchemaValidator, for example createAjvValidator() from @a2ui/validator-ajv.',
+      throw noValidatorError(
+        'Pass one in the A2uiMessageProcessor opts.validator, for example createAjvValidator() from @a2ui/validator-ajv.',
       );
     }
     this.validator = opts.validator;
