@@ -68,8 +68,8 @@ export class A2UIClient {
             {
               kind: 'data',
               data: parsed as unknown as Record<string, unknown>,
-              mimeType: A2UI_MIME_TYPE,
-            } as Part,
+              metadata: {mimeType: A2UI_MIME_TYPE},
+            },
           ];
         } else {
           parts = [{kind: 'text', text: message}];
@@ -82,16 +82,16 @@ export class A2UIClient {
         {
           kind: 'data',
           data: message as unknown as Record<string, unknown>,
-          mimeType: A2UI_MIME_TYPE,
-        } as Part,
+          metadata: {mimeType: A2UI_MIME_TYPE},
+        },
       ];
     }
 
     parts.push({
       kind: 'data',
       data: {useStreaming: false},
-      mimeType: 'application/json',
-    } as Part);
+      metadata: {mimeType: 'application/json'},
+    });
 
     const response = await client.sendMessage({
       message: {

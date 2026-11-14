@@ -17,7 +17,7 @@
 import {IncomingMessage, ServerResponse} from 'http';
 import {Plugin, ViteDevServer} from 'vite';
 import {A2AClient} from '@a2a-js/sdk/client';
-import {MessageSendParams, Part, SendMessageSuccessResponse, Task} from '@a2a-js/sdk';
+import {MessageSendParams, SendMessageSuccessResponse, Task} from '@a2a-js/sdk';
 import * as crypto from 'crypto';
 
 const A2UI_MIME_TYPE = 'application/a2ui+json';
@@ -101,8 +101,8 @@ export const plugin = (): Plugin => {
                       {
                         kind: 'data',
                         data: clientEvent,
-                        mimeType: A2UI_MIME_TYPE,
-                      } as Part,
+                        metadata: {mimeType: A2UI_MIME_TYPE},
+                      },
                     ],
                     kind: 'message',
                   },
