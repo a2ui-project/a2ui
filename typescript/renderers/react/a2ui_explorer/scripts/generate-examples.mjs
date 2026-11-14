@@ -19,7 +19,7 @@ import path from 'path';
 
 const SPEC_EXAMPLES_DIR = path.resolve(
   import.meta.dirname,
-  '../../../../../specification/v0_9/catalogs/basic/examples',
+  '../../../../../catalogs/basic/v0_9/examples',
 );
 const V10_EXAMPLES_DIR = path.resolve(
   import.meta.dirname,
@@ -67,7 +67,7 @@ function generateExamplesBundle() {
   const v10Entries = [];
 
   v09Files.forEach((file, index) => {
-    const relativePath = `../../../../../../specification/v0_9/catalogs/basic/examples/${file}`;
+    const relativePath = `../../../../../../catalogs/basic/v0_9/examples/${file}`;
     const variableName = `example_v09_${index}`;
 
     imports.push(`import ${variableName} from '${relativePath}';`);

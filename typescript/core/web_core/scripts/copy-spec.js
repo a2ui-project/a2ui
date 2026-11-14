@@ -57,17 +57,10 @@ function copySchemas(version, catalogs) {
   }
 }
 
-const v0_9Catalogs = join(repoRoot, 'specification', 'v0_9', 'catalogs');
-
 copySchemas('v0_8');
-copySchemas(
-  'v0_9',
-  Object.fromEntries(
-    readdirSync(v0_9Catalogs, {withFileTypes: true})
-      .filter(entry => entry.isDirectory())
-      .map(entry => [entry.name, join(v0_9Catalogs, entry.name)]),
-  ),
-);
-// Catalogs are versioned independently of the protocol and live under the
-// top-level catalogs/ directory (see catalogs/README.md).
+// Catalogs live under the top-level catalogs/ directory (see catalogs/README.md).
+copySchemas('v0_9', {
+  basic: join(repoRoot, 'catalogs', 'basic', 'v0_9'),
+  minimal: join(repoRoot, 'catalogs', 'minimal', 'v0_9'),
+});
 copySchemas('v1_0', {basic: join(repoRoot, 'catalogs', 'basic', 'v1')});

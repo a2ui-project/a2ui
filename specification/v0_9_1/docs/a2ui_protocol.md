@@ -860,7 +860,7 @@ When `sendDataModel` is enabled for a surface, the client includes the `a2uiClie
 
 This message is used to report a client-side error to the server.
 
-[`catalogs/basic/catalog.json`]: ../catalogs/basic/catalog.json
+[`catalogs/basic/catalog.json`]: ../../../catalogs/basic/v0_9_1/catalog.json
 [`common_types.json`]: ../json/common_types.json
 [`server_to_client.json`]: ../json/server_to_client.json
 [`client_to_server.json`]: ../json/client_to_server.json

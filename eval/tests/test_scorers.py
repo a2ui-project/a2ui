@@ -32,10 +32,10 @@ from a2ui_eval.scorers import (
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 CATALOG_PATH = os.path.abspath(
-    os.path.join(CURRENT_DIR, "../../specification/v0_9/catalogs/basic/catalog.json")
+    os.path.join(CURRENT_DIR, "../../catalogs/basic/v0_9/catalog.json")
 )
 CATALOG_PATH_V091 = os.path.abspath(
-    os.path.join(CURRENT_DIR, "../../specification/v0_9_1/catalogs/basic/catalog.json")
+    os.path.join(CURRENT_DIR, "../../catalogs/basic/v0_9_1/catalog.json")
 )
 
 

@@ -79,7 +79,7 @@ _VERSION_FILES: dict[str, _VersionFiles] = {
     # never be loaded into the same registry.
     V0_9_1: _VersionFiles(
         json_dir=REPO_ROOT / "specification/v0_9_1/json",
-        catalog=REPO_ROOT / "specification/v0_9_1/catalogs/basic/catalog.json",
+        catalog=REPO_ROOT / "catalogs/basic/v0_9_1/catalog.json",
         base=f"{_SPEC_BASE}/v0_9",
         to_renderer="server_to_client.json",
         from_renderer="client_to_server.json",

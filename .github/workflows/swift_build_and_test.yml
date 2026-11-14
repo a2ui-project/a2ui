@@ -106,6 +106,7 @@ jobs:
               - 'swift/**'
               - 'Package.swift'
               - 'specification/v0_9_1/**'
+              - 'catalogs/basic/**'
               - '.github/workflows/swift_build_and_test.yml'
       # arm64 only: both simulator architectures compile the same source, and
       # adding x86_64 roughly doubles the build time.

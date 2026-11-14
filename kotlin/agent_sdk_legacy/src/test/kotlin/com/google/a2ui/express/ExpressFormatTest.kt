@@ -36,7 +36,7 @@ class ExpressFormatTest {
   private fun findSpecCatalogPath(): String {
     var dir: File? = File(".").canonicalFile
     while (dir != null) {
-      val specFile = File(dir, "specification/v0_9/catalogs/basic/catalog.json")
+      val specFile = File(dir, "catalogs/basic/v0_9/catalog.json")
       if (specFile.exists()) return specFile.absolutePath
       dir = dir.parentFile
     }

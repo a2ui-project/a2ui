@@ -220,7 +220,7 @@ def a2ui_v0_9_1_eval(
         return _list_models_task()
     return build_task(
         active_version="0.9.1",
-        default_catalog_path="specification/v0_9_1/catalogs/basic/catalog.json",
+        default_catalog_path="catalogs/basic/v0_9_1/catalog.json",
         grading_model=grading_model,
         strategy=strategy,
         dataset=dataset,

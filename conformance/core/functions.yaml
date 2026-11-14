@@ -1229,7 +1229,7 @@
   protocolVersion: "1.0"
   catalogPaths:
     - "catalogs/basic/v1/catalog.json"
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   surface:
     catalogId: "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json"
   function: formatString
@@ -1341,7 +1341,7 @@
   action: evaluate_function
   protocolVersion: "v0.9"
   catalogPaths:
-    - "specification/v0_9/catalogs/basic/catalog.json"
+    - "catalogs/basic/v0_9/catalog.json"
   surface:
     catalogId: "https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json"
   function: formatString

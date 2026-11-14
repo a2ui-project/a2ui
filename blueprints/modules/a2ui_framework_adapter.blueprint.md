@@ -428,7 +428,7 @@ The v1.0 basic catalog adds `TextField.placeholder`, `Video.posterUrl`, and `Sli
    - Register the Core SDK's basic catalog `FunctionImplementation`s for that protocol version alongside the components, since Core evaluates every function call in props and actions.
    - Export the v1.0 catalog from the primary catalog entrypoint (with `protocolVersion: 'v1.0'`) and the v0.9 catalog from the `./v0_9` subpath (with `protocolVersion: 'v0.9'`).
 
-Follow the Basic Catalog Implementation Guide for each catalog version: [v1.0](../../catalogs/basic/v1/basic_catalog_implementation_guide.md) and [v0.9.1](../../specification/v0_9_1/docs/basic_catalog_implementation_guide.md).
+Follow the Basic Catalog Implementation Guide for each catalog version: [v1.0](../../catalogs/basic/v1/basic_catalog_implementation_guide.md) and [v0.9.1](../../catalogs/basic/v0_9_1/basic_catalog_implementation_guide.md).
 
 ---
 
@@ -527,7 +527,7 @@ The Gallery App is a comprehensive development, demonstration, and debugging too
 
 The Gallery App implements a three-column layout:
 
-1. **Left Column (Sample Navigation)**: A list of available A2UI sample scenarios, grouped by protocol version, with a version selector. Each version loads its own example set: the v0.9 examples from `specification/v0_9/catalogs/basic/examples` and the v1.0 examples from `catalogs/basic/v1/examples`.
+1. **Left Column (Sample Navigation)**: A list of available A2UI sample scenarios, grouped by protocol version, with a version selector. Each version loads its own example set: the v0.9 examples from `catalogs/basic/v0_9/examples` and the v1.0 examples from `catalogs/basic/v1/examples`.
 2. **Center Column (Rendering & Messages)**:
    - **Surface Preview**: Renders the active A2UI `Surface`.
    - **JSON Message Stream**: Displays the sequence of A2UI messages.

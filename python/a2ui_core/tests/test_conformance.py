@@ -427,7 +427,8 @@ def _load_catalog_paths_spec(
         with open(full_p, "r", encoding="utf-8") as f:
             c_json = json.load(f)
         c_id = c_json.get("catalogId") or c_json.get("id") or "test-catalog"
-        if c_id in basic_ids or "basic/catalog.json" in p:
+        norm_p = p.replace("\\", "/")
+        if c_id in basic_ids or "basic/catalog.json" in norm_p or "basic/v" in norm_p:
             matching_basic = _basic_catalog_for_version(p_ver)
             specified_catalogs.append(matching_basic)
             catalogs_map[c_id] = matching_basic

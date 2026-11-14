@@ -33,9 +33,9 @@ PUBLISHED_CATALOGS = [
     "catalogs/mcp/catalog.json",
     "catalogs/vegachart/v0_9/catalog.json",
     "catalogs/vegachart/v1/catalog.json",
-    "specification/v0_9/catalogs/basic/catalog.json",
-    "specification/v0_9/catalogs/minimal/catalog.json",
-    "specification/v0_9_1/catalogs/basic/catalog.json",
+    "catalogs/basic/v0_9/catalog.json",
+    "catalogs/minimal/v0_9/catalog.json",
+    "catalogs/basic/v0_9_1/catalog.json",
 ]
 
 

@@ -69,7 +69,7 @@ Endpoints provided by the server:
 
 `src/index.ts` builds the Express app: CORS, the static images, and the A2A agent card and JSON-RPC routes from `@a2a-js/sdk`. `createApp()` builds everything without listening, which is what the tests use, and `main()` listens. Configuration is read in `src/config.ts`.
 
-`@a2ui/agent` bundles no catalog, so `createApp()` first loads the basic catalog of each served version from this repository (`src/catalogs.ts`): `specification/v0_9/catalogs/basic/catalog.json` for v0.9 and `catalogs/basic/v1/catalog.json` for v1.0.
+`@a2ui/agent` bundles no catalog, so `createApp()` first loads the basic catalog of each served version from this repository (`src/catalogs.ts`): `catalogs/basic/v0_9/catalog.json` for v0.9 and `catalogs/basic/v1/catalog.json` for v1.0.
 
 `RestaurantExecutor` in `src/agent.ts` is the entry point: the A2A SDK calls its `execute` method for each message, and its `run` method answers the turn in these steps:
 

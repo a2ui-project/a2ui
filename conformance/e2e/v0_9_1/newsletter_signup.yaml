@@ -18,7 +18,7 @@
   description: Newsletter form, typed email, Subscribe action, reply updates the form.
   protocolVersion: v0.9
   catalogPaths:
-    - specification/v0_9_1/catalogs/basic/catalog.json
+    - catalogs/basic/v0_9_1/catalog.json
   formats:
     - direct_json
     - express

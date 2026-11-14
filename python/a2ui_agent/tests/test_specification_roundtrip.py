@@ -40,10 +40,9 @@ def _find_specification_example_files():
     if not files:
         search_path_v09 = os.path.join(
             repo_root,
-            "specification",
-            "v0_9",
             "catalogs",
             "basic",
+            "v0_9",
             "examples",
             "*.json",
         )

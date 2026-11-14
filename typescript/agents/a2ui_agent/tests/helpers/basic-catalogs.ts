@@ -48,7 +48,7 @@ export function loadBasicCatalog(version: 'v0.9' | 'v0.9.1' | '1.0'): CatalogApi
   if (version === 'v0.9' || version === 'v0.9.1') {
     const dir = version === 'v0.9' ? 'v0_9' : 'v0_9_1';
     return new FileSystemCatalogProvider(
-      path.join(REPO_ROOT, `specification/${dir}/catalogs/basic/catalog.json`),
+      path.join(REPO_ROOT, `catalogs/basic/${dir}/catalog.json`),
       version,
       BASIC_CATALOG_IDS['v0.9'],
     ).load();

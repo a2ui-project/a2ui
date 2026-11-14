@@ -53,7 +53,8 @@
       "command": "node scripts/generate-examples.mjs",
       "files": [
         "../../../../specification/v0_8/json/catalogs/**/*.json",
-        "../../../../specification/v0_9/catalogs/**/*.json",
+        "../../../../catalogs/basic/v0_9/examples/*.json",
+        "../../../../catalogs/minimal/v0_9/examples/*.json",
         "../../../../catalogs/basic/v1/examples/*.json",
         "../../../../catalogs/mcp/v1/examples/*.json",
         "scripts/generate-examples.mjs"

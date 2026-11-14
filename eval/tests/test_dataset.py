@@ -115,7 +115,7 @@ def test_load_a2ui_dataset_multi_turn(tmp_path: Path) -> None:
 - name: multiTurnPrompt
   dataset: customer_data
   description: A multi turn prompt with tool calls.
-  catalog: "specification/v0_9_1/catalogs/basic/catalog.json"
+  catalog: "catalogs/basic/v0_9_1/catalog.json"
   system_prompt: "Domain prompt"
   messages:
     - role: user
@@ -423,3 +423,24 @@ def test_stage2_assertions_from_mapping() -> None:
     assert parsed.catalog_ids == ("basic",)
     assert parsed.required_bindings == ()
     assert not parsed.is_empty
+
+
+def test_resolve_moved_v09_catalog_paths() -> None:
+    from a2ui_eval.dataset import _interpolate_version
+
+    assert (
+        _interpolate_version(
+            "specification/{version}/catalogs/basic/catalog.json", "0.9"
+        )
+        == "catalogs/basic/v0_9/catalog.json"
+    )
+    assert (
+        _interpolate_version(
+            "specification/{version}/catalogs/basic/catalog.json", "0.9.1"
+        )
+        == "catalogs/basic/v0_9_1/catalog.json"
+    )
+    assert (
+        _interpolate_version("specification/v0_9/catalogs/minimal/catalog.json", None)
+        == "catalogs/minimal/v0_9/catalog.json"
+    )

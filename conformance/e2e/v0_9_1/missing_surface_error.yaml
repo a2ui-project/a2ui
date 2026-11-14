@@ -18,7 +18,7 @@
   description: Update for an uncreated surface triggers an INTEGRITY_ERROR outbound envelope, followed by a text-only apology.
   protocolVersion: v0.9
   catalogPaths:
-    - specification/v0_9_1/catalogs/basic/catalog.json
+    - catalogs/basic/v0_9_1/catalog.json
   formats:
     - direct_json
     - express
