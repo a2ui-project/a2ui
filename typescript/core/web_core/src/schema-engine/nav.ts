@@ -124,7 +124,7 @@ function stripNull(node: JsonSchema): {node: JsonSchema; nullable: boolean} {
     if (!Array.isArray(opts)) continue;
     const isNull = (o: unknown) => isObj(o) && o['type'] === 'null';
     if (opts.filter(isNull).length !== 1) continue;
-    const rest = opts.filter((o) => !isNull(o));
+    const rest = opts.filter(o => !isNull(o));
     const {[key]: _drop, ...siblings} = node;
     if (rest.length === 1 && isObj(rest[0])) {
       return {node: {...siblings, ...rest[0]}, nullable: true};
@@ -133,7 +133,7 @@ function stripNull(node: JsonSchema): {node: JsonSchema; nullable: boolean} {
   }
   const t = node['type'];
   if (Array.isArray(t) && t.includes('null')) {
-    const rest = t.filter((x) => x !== 'null');
+    const rest = t.filter(x => x !== 'null');
     return {node: {...node, type: rest.length === 1 ? rest[0] : rest}, nullable: true};
   }
   return {node, nullable: false};
@@ -172,9 +172,7 @@ export function unionOptions(node: JsonSchema, doc: SchemaDoc): SchemaCursor[] |
   const c = derefCursor({node, doc});
   if (!isObj(c.node)) return undefined;
   const opts = c.node['anyOf'] ?? c.node['oneOf'];
-  return Array.isArray(opts)
-    ? opts.map((o) => ({node: o as JsonSchema, doc: c.doc}))
-    : undefined;
+  return Array.isArray(opts) ? opts.map(o => ({node: o as JsonSchema, doc: c.doc})) : undefined;
 }
 
 /** The object shape of a node, merging `allOf` members; undefined if not object-like. */

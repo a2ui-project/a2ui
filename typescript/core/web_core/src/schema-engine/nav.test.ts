@@ -45,7 +45,10 @@ describe('refKind', () => {
     assert.strictEqual(refKind(catalog.components.Column.properties.children, doc), 'ChildList');
   });
   it('parses legacy REF: description markers', () => {
-    assert.strictEqual(refKind({description: 'REF:#/$defs/DynamicString|x'}, empty()), 'DynamicString');
+    assert.strictEqual(
+      refKind({description: 'REF:#/$defs/DynamicString|x'}, empty()),
+      'DynamicString',
+    );
     assert.strictEqual(
       refKind({description: 'REF:common_types.json#/$defs/ChildList'}, empty()),
       'ChildList',
@@ -101,7 +104,11 @@ describe('deref', () => {
 
 describe('unwrapField', () => {
   it('strips anyOf nullable and reads default', () => {
-    const r = unwrapField({anyOf: [{type: 'string'}, {type: 'null'}], default: 'a'}, empty(), false);
+    const r = unwrapField(
+      {anyOf: [{type: 'string'}, {type: 'null'}], default: 'a'},
+      empty(),
+      false,
+    );
     assert.deepStrictEqual(r, {
       node: {type: 'string', default: 'a'},
       doc: empty(),
@@ -111,7 +118,11 @@ describe('unwrapField', () => {
     });
   });
   it('strips oneOf nullable and type-array nullable', () => {
-    const a = unwrapField({oneOf: [{$ref: '#/$defs/S'}, {type: 'null'}]}, empty({$defs: {S: {type: 'string'}}}), true);
+    const a = unwrapField(
+      {oneOf: [{$ref: '#/$defs/S'}, {type: 'null'}]},
+      empty({$defs: {S: {type: 'string'}}}),
+      true,
+    );
     assert.strictEqual(a.nullable, true);
     assert.strictEqual(a.optional, false);
     assert.strictEqual(a.refName, 'S');
@@ -121,7 +132,11 @@ describe('unwrapField', () => {
     assert.strictEqual(b.description, 'd');
   });
   it('keeps the remaining union when several members survive', () => {
-    const r = unwrapField({anyOf: [{type: 'string'}, {type: 'number'}, {type: 'null'}]}, empty(), true);
+    const r = unwrapField(
+      {anyOf: [{type: 'string'}, {type: 'number'}, {type: 'null'}]},
+      empty(),
+      true,
+    );
     assert.deepStrictEqual(r.node, {anyOf: [{type: 'string'}, {type: 'number'}]});
     assert.strictEqual(r.nullable, true);
   });
@@ -135,9 +150,13 @@ describe('unwrapField', () => {
 
 describe('unionOptions / arrayItems', () => {
   it('returns anyOf or oneOf members', () => {
-    const nodes = (o: {node: JsonSchema}[] | undefined) => o?.map((c) => c.node);
-    assert.deepStrictEqual(nodes(unionOptions({anyOf: [{type: 'string'}]}, empty())), [{type: 'string'}]);
-    assert.deepStrictEqual(nodes(unionOptions({oneOf: [{type: 'number'}]}, empty())), [{type: 'number'}]);
+    const nodes = (o: {node: JsonSchema}[] | undefined) => o?.map(c => c.node);
+    assert.deepStrictEqual(nodes(unionOptions({anyOf: [{type: 'string'}]}, empty())), [
+      {type: 'string'},
+    ]);
+    assert.deepStrictEqual(nodes(unionOptions({oneOf: [{type: 'number'}]}, empty())), [
+      {type: 'number'},
+    ]);
     assert.strictEqual(unionOptions({type: 'string'}, empty()), undefined);
   });
   it('sees through refs', () => {
@@ -152,7 +171,12 @@ describe('unionOptions / arrayItems', () => {
 describe('objectProperties', () => {
   it('reads properties, required and additionalProperties', () => {
     const r = objectProperties(
-      {type: 'object', properties: {a: {type: 'string'}}, required: ['a'], additionalProperties: false},
+      {
+        type: 'object',
+        properties: {a: {type: 'string'}},
+        required: ['a'],
+        additionalProperties: false,
+      },
       empty(),
     );
     assert.deepStrictEqual(r?.properties['a']?.node, {type: 'string'});
