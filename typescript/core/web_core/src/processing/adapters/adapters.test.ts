@@ -15,13 +15,16 @@
  */
 
 import * as assert from 'node:assert';
+import {readFileSync} from 'node:fs';
 import {describe, it} from 'node:test';
 
 import {z} from 'zod';
 
 import {Catalog} from '../../catalog/types.js';
-import {A2uiValidationError} from '../../errors.js';
-import {MessageProcessor} from '../message-processor.js';
+import {A2uiConfigurationError, A2uiValidationError} from '../../errors.js';
+import type {A2uiIssue} from '../../schema-engine/types.js';
+import {testValidator} from '../../test/validator.js';
+import {MessageProcessor, type MessageProcessorOptions} from '../message-processor.js';
 import {
   InternalCreateSurfaceOp,
   InternalDeleteSurfaceOp,
@@ -39,6 +42,8 @@ import {V0Point8Adapter} from './v0_8.js';
 import {V0Point9Adapter} from './v0_9.js';
 import {V1Point0Adapter} from './v1_0.js';
 
+const validatingFactory = new VersionAdapterFactory(testValidator);
+
 describe('VersionAdapterFactory', () => {
   it('resolves v1.0 adapter and extracts operations with initial state and surface properties', () => {
     const payload = {
@@ -54,7 +59,7 @@ describe('VersionAdapterFactory', () => {
       },
     };
 
-    const adapter = VersionAdapterFactory.resolveFromPayload(payload);
+    const adapter = validatingFactory.resolveFromPayload(payload);
     assert.strictEqual(adapter.version, '1.0');
 
     const ops = adapter.extractOperations(payload);
@@ -69,7 +74,7 @@ describe('VersionAdapterFactory', () => {
   });
 
   it('drops theme on v1.0 createSurface in permissive mode and rejects it in strict mode', () => {
-    const adapter = new V1Point0Adapter();
+    const adapter = new V1Point0Adapter(testValidator);
     const payloadWithTheme = {
       version: '1.0',
       createSurface: {
@@ -103,7 +108,7 @@ describe('VersionAdapterFactory', () => {
   });
 
   it('rejects array v1.0 createSurface payloads cleanly without mutating array values', () => {
-    const adapter = new V1Point0Adapter();
+    const adapter = new V1Point0Adapter(testValidator);
     assert.throws(
       () =>
         adapter.extractOperations(
@@ -125,13 +130,16 @@ describe('VersionAdapterFactory', () => {
       },
     };
 
-    const permissiveProcessor = new MessageProcessor([catalog]);
+    const permissiveProcessor = new MessageProcessor([catalog], undefined, {
+      validator: testValidator,
+    });
     permissiveProcessor.processMessages(payloadWithTheme as never);
     const surface = permissiveProcessor.getSurface('s1');
     assert.ok(surface);
     assert.deepStrictEqual(surface.theme, {});
 
     const strictProcessor = new MessageProcessor([catalog], undefined, {
+      validator: testValidator,
       validationConfig: {allowUnknownElements: false},
     });
     assert.throws(
@@ -150,7 +158,7 @@ describe('VersionAdapterFactory', () => {
       },
     };
 
-    const adapter = VersionAdapterFactory.resolveFromPayload(payload);
+    const adapter = validatingFactory.resolveFromPayload(payload);
     assert.strictEqual(adapter.version, 'v0.9');
 
     const ops = adapter.extractOperations(payload);
@@ -170,7 +178,7 @@ describe('VersionAdapterFactory', () => {
       },
     };
 
-    const adapter = VersionAdapterFactory.resolveFromPayload(payload);
+    const adapter = validatingFactory.resolveFromPayload(payload);
     assert.strictEqual(adapter.version, 'v0.8');
 
     const ops = adapter.extractOperations(payload);
@@ -188,7 +196,7 @@ describe('VersionAdapterFactory', () => {
       },
     };
 
-    const adapter = VersionAdapterFactory.resolveFromPayload(payload);
+    const adapter = validatingFactory.resolveFromPayload(payload);
     assert.strictEqual(adapter.version, 'v0.8');
 
     const ops = adapter.extractOperations(payload);
@@ -198,7 +206,7 @@ describe('VersionAdapterFactory', () => {
   });
 
   it('extracts surfaceUpdate and dataModelUpdate operations in v0.8 adapter', () => {
-    const adapter = VersionAdapterFactory.getAdapter('v0.8');
+    const adapter = validatingFactory.getAdapter('v0.8');
 
     const surfaceOps = adapter.extractOperations({
       surfaceUpdate: {
@@ -223,8 +231,8 @@ describe('VersionAdapterFactory', () => {
   });
 
   it('throws A2uiValidationError in v0.8 and v0.9 adapters when payload contains no update action', () => {
-    const v08Adapter = VersionAdapterFactory.getAdapter('v0.8');
-    const v09Adapter = VersionAdapterFactory.getAdapter('v0.9');
+    const v08Adapter = validatingFactory.getAdapter('v0.8');
+    const v09Adapter = validatingFactory.getAdapter('v0.9');
 
     assert.throws(
       () => v08Adapter.extractOperations({}),
@@ -237,7 +245,7 @@ describe('VersionAdapterFactory', () => {
   });
 
   it('throws A2uiValidationError in adapters when payload version is invalid', () => {
-    const v09Adapter = VersionAdapterFactory.getAdapter('v0.9');
+    const v09Adapter = validatingFactory.getAdapter('v0.9');
     assert.throws(
       () =>
         v09Adapter.extractOperations({
@@ -247,7 +255,7 @@ describe('VersionAdapterFactory', () => {
       err => err instanceof A2uiValidationError && /Invalid v0.9 message/.test(err.message),
     );
 
-    const v10Adapter = VersionAdapterFactory.getAdapter('v1.0');
+    const v10Adapter = validatingFactory.getAdapter('v1.0');
     assert.throws(
       () =>
         v10Adapter.extractOperations({
@@ -294,12 +302,12 @@ describe('VersionAdapterFactory', () => {
         /Supported versions: .*v2\.0/.test(err.message),
     );
     assert.throws(
-      () => VersionAdapterFactory.resolveFromPayload({}),
+      () => validatingFactory.resolveFromPayload({}),
       err =>
         err instanceof A2uiValidationError && /missing a valid 'version' string/.test(err.message),
     );
     assert.throws(
-      () => VersionAdapterFactory.resolveFromPayload({version: 123}),
+      () => validatingFactory.resolveFromPayload({version: 123}),
       err =>
         err instanceof A2uiValidationError &&
         /'version' property must be a string, got number/.test(err.message),
@@ -307,10 +315,10 @@ describe('VersionAdapterFactory', () => {
   });
 
   it('resolves v0.9.1 version string to v0.9 adapter', () => {
-    const adapter = VersionAdapterFactory.getAdapter('v0.9.1');
+    const adapter = validatingFactory.getAdapter('v0.9.1');
     assert.strictEqual(adapter.version, 'v0.9');
 
-    const fromPayload = VersionAdapterFactory.resolveFromPayload({version: 'v0.9.1'});
+    const fromPayload = validatingFactory.resolveFromPayload({version: 'v0.9.1'});
     assert.strictEqual(fromPayload.version, 'v0.9');
   });
 
@@ -320,7 +328,7 @@ describe('VersionAdapterFactory', () => {
       {version: '1.0', deleteSurface: {surfaceId: 's1'}},
     ];
 
-    const adapter = VersionAdapterFactory.resolveFromPayload(payload);
+    const adapter = validatingFactory.resolveFromPayload(payload);
     assert.strictEqual(adapter.version, '1.0');
 
     const ops = adapter.extractOperations(payload);
@@ -343,7 +351,7 @@ describe('VersionAdapterFactory', () => {
       ],
     };
 
-    const adapter = VersionAdapterFactory.resolveFromPayload(payload);
+    const adapter = validatingFactory.resolveFromPayload(payload);
     assert.strictEqual(adapter.version, '1.0');
 
     const ops = adapter.extractOperations(payload);
@@ -353,7 +361,7 @@ describe('VersionAdapterFactory', () => {
   });
 
   it('extracts updateComponents, updateDataModel, and deleteSurface operations', () => {
-    const adapter = VersionAdapterFactory.getAdapter('v1.0');
+    const adapter = validatingFactory.getAdapter('v1.0');
 
     const ucOps = adapter.extractOperations({
       version: '1.0',
@@ -399,7 +407,7 @@ describe('VersionAdapterFactory', () => {
     const invalidPayloads = [null, undefined, 42, 'v1.0', [], {version: 123}, {version: null}];
     for (const invalid of invalidPayloads) {
       assert.throws(
-        () => VersionAdapterFactory.resolveFromPayload(invalid),
+        () => validatingFactory.resolveFromPayload(invalid),
         err =>
           err instanceof A2uiValidationError &&
           /missing a valid 'version' string/.test(err.message),
@@ -408,7 +416,7 @@ describe('VersionAdapterFactory', () => {
   });
 
   it('returns empty array when extractOperations is called with non-object/null values', () => {
-    const adapter = VersionAdapterFactory.getAdapter('v1.0');
+    const adapter = validatingFactory.getAdapter('v1.0');
     assert.deepStrictEqual(adapter.extractOperations(null), []);
     assert.deepStrictEqual(adapter.extractOperations(undefined), []);
     assert.deepStrictEqual(adapter.extractOperations('not-an-object'), []);
@@ -446,6 +454,7 @@ describe('MessageProcessor Dependency Injection', () => {
     };
 
     const processor = new MessageProcessor([new Catalog('basic', '0.9', [])], undefined, {
+      validator: testValidator,
       adapterRegistry: customRegistry,
     });
 
@@ -463,7 +472,7 @@ describe('MessageProcessor Dependency Injection', () => {
       }),
     };
     const catalog = new Catalog('basic', '1.0', [textApi]);
-    const processor = new MessageProcessor([catalog]);
+    const processor = new MessageProcessor([catalog], undefined, {validator: testValidator});
 
     processor.processMessages({
       version: '1.0',
@@ -575,13 +584,13 @@ describe('MessageProcessor Dependency Injection', () => {
   });
 
   it('evaluates compatibleCatalogVersions and isCatalogCompatible on adapter instances', () => {
-    const v08 = new V0Point8Adapter();
+    const v08 = new V0Point8Adapter(testValidator);
     assert.ok(v08.compatibleCatalogVersions.has('0.8'));
     assert.strictEqual(v08.isCatalogCompatible('v0.8'), true);
     assert.strictEqual(v08.isCatalogCompatible('0.8'), true);
     assert.strictEqual(v08.isCatalogCompatible('v0.9'), false);
 
-    const v09 = new V0Point9Adapter();
+    const v09 = new V0Point9Adapter(testValidator);
     assert.ok(v09.compatibleCatalogVersions.has('0.9'));
     assert.ok(v09.compatibleCatalogVersions.has('0.9.1'));
     assert.strictEqual(v09.isCatalogCompatible('v0.9'), true);
@@ -590,7 +599,7 @@ describe('MessageProcessor Dependency Injection', () => {
     assert.strictEqual(v09.isCatalogCompatible('0.9.1'), true);
     assert.strictEqual(v09.isCatalogCompatible('v1.0'), false);
 
-    const v10 = new V1Point0Adapter();
+    const v10 = new V1Point0Adapter(testValidator);
     assert.ok(v10.compatibleCatalogVersions.has('1.0'));
     assert.strictEqual(v10.isCatalogCompatible('v1.0'), true);
     assert.strictEqual(v10.isCatalogCompatible('1.0.0'), true);
@@ -640,7 +649,7 @@ describe('MessageProcessor Dependency Injection', () => {
   });
 
   it('rejects cross-version actions with A2uiValidationError', () => {
-    const v09 = VersionAdapterFactory.getAdapter('v0.9');
+    const v09 = validatingFactory.getAdapter('v0.9');
     assert.throws(
       () =>
         v09.extractOperations({
@@ -652,7 +661,7 @@ describe('MessageProcessor Dependency Injection', () => {
         /action 'beginRendering' is not supported in protocol version v0.9/.test(err.message),
     );
 
-    const v10 = VersionAdapterFactory.getAdapter('v1.0');
+    const v10 = validatingFactory.getAdapter('v1.0');
     assert.throws(
       () =>
         v10.extractOperations({
@@ -664,7 +673,7 @@ describe('MessageProcessor Dependency Injection', () => {
         /action 'beginRendering' is not supported in protocol version 1.0/.test(err.message),
     );
 
-    const v08 = VersionAdapterFactory.getAdapter('v0.8');
+    const v08 = validatingFactory.getAdapter('v0.8');
     assert.throws(
       () =>
         v08.extractOperations({
@@ -689,7 +698,7 @@ describe('MessageProcessor Dependency Injection', () => {
   });
 
   it('scopes union validation errors to the active action branch without dumping unrelated branches', () => {
-    const v10 = VersionAdapterFactory.getAdapter('v1.0');
+    const v10 = validatingFactory.getAdapter('v1.0');
     assert.throws(
       () =>
         v10.extractOperations({
@@ -703,7 +712,7 @@ describe('MessageProcessor Dependency Injection', () => {
         assert.ok(err instanceof A2uiValidationError);
         assert.strictEqual(
           err.message,
-          'Invalid 1.0 message: callRendererFunction.callFunction.catalogId: Expected string, received undefined',
+          "Invalid 1.0 message: callRendererFunction.callFunction.catalogId: must have required property 'catalogId'",
         );
         assert.strictEqual(err.functionCallId, 'f1');
         return true;
@@ -723,8 +732,10 @@ describe('MessageProcessor Dependency Injection', () => {
         assert.ok(err instanceof A2uiValidationError);
         assert.strictEqual(
           err.message,
-          'Invalid 1.0 message: version: Invalid literal value, expected "1.0"; callRendererFunction.callFunction.catalogId: Expected string, received undefined',
+          "Invalid 1.0 message: callRendererFunction.callFunction.catalogId: must have required property 'catalogId'",
         );
+        // The message names the deepest issue; the version mismatch is in the details.
+        assert.ok(err.details.some((i: A2uiIssue) => i.path[0] === 'version'));
         return true;
       },
     );
@@ -743,13 +754,13 @@ describe('MessageProcessor Dependency Injection', () => {
         assert.ok(err instanceof A2uiValidationError);
         assert.strictEqual(
           err.message,
-          "Invalid 1.0 message: root: Unrecognized key(s) in object: 'extraField'",
+          'Invalid 1.0 message: extraField: must NOT have additional properties',
         );
         return true;
       },
     );
 
-    const v09 = VersionAdapterFactory.getAdapter('v0.9');
+    const v09 = validatingFactory.getAdapter('v0.9');
     assert.throws(
       () =>
         v09.extractOperations({
@@ -760,10 +771,76 @@ describe('MessageProcessor Dependency Injection', () => {
         assert.ok(err instanceof A2uiValidationError);
         assert.strictEqual(
           err.message,
-          'Invalid v0.9 message: createSurface.catalogId: Expected string, received undefined',
+          "Invalid v0.9 message: createSurface.catalogId: must have required property 'catalogId'",
         );
         return true;
       },
     );
+  });
+});
+
+describe('protocol messages validated against the spec JSON', () => {
+  const factory = new VersionAdapterFactory(testValidator);
+
+  it('requires a validator in MessageProcessorOptions', () => {
+    assert.throws(
+      () => new MessageProcessor([], undefined, {} as MessageProcessorOptions),
+      (err: unknown) => err instanceof A2uiConfigurationError && /validator/.test(err.message),
+    );
+  });
+
+  it('rejects a v1.0 DataBinding without @path, naming the prop', () => {
+    const payload = {
+      version: '1.0',
+      updateComponents: {
+        surfaceId: 's1',
+        components: [
+          {id: 'root', component: 'Text', text: 'hi', '@accessibility': {label: {path: '/x'}}},
+        ],
+      },
+    };
+    assert.throws(
+      () => factory.getAdapter('1.0').extractOperations(payload),
+      (err: unknown) =>
+        err instanceof A2uiValidationError &&
+        /label/.test(err.message) &&
+        Array.isArray(err.details) &&
+        err.details.every((i: A2uiIssue) => Array.isArray(i.path)),
+    );
+  });
+
+  it('rejects a v0.8 surfaceUpdate with duplicate component ids in the integrity pass', () => {
+    const payload = {
+      surfaceUpdate: {
+        surfaceId: 's1',
+        components: [
+          {id: 'dup', component: {Text: {text: {literalString: 'a'}}}},
+          {id: 'dup', component: {Text: {text: {literalString: 'b'}}}},
+        ],
+      },
+    };
+    assert.throws(
+      () => factory.getAdapter('v0.8').extractOperations(payload),
+      (err: unknown) => err instanceof A2uiValidationError && /dup/.test(err.message),
+    );
+  });
+
+  it('accepts a valid v1.0 sample message stream from the specification', () => {
+    const sample = readFileSync(
+      new URL(
+        '../../../../../../../specification/v1_0/test/cases/contact_form_example.jsonl',
+        import.meta.url,
+      ),
+      'utf8',
+    );
+    const messages = sample
+      .split('\n')
+      .filter(l => l.trim())
+      .map(l => JSON.parse(l));
+    assert.ok(messages.length > 0);
+    const adapter = factory.getAdapter('1.0');
+    for (const m of messages) {
+      assert.ok(adapter.extractOperations(m).length > 0);
+    }
   });
 });

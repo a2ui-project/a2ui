@@ -36,6 +36,7 @@ import {
 } from '../../../universal/index.js';
 import {html, nothing} from 'lit';
 import {SliderApi} from './index.js';
+import {testValidator} from '../../../test/validator.js';
 
 describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
   let basicCatalog: Catalog<WebComponentImplementation>;
@@ -65,7 +66,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
   });
 
   it('uses v1.0 basicCatalog as the surface default catalog and preserves metadata', () => {
-    const processor = new MessageProcessor([basicCatalog]);
+    const processor = new MessageProcessor([basicCatalog], undefined, {validator: testValidator});
     processor.processMessages([
       {
         version: '1.0',
@@ -130,7 +131,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
   });
 
   it('applies accessibility attributes across BasicCatalogA2uiLitElement host and inner semantic element', async () => {
-    const processor = new MessageProcessor([basicCatalog]);
+    const processor = new MessageProcessor([basicCatalog], undefined, {validator: testValidator});
     processor.processMessages([
       {
         version: '1.0',
@@ -203,7 +204,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
   });
 
   it('makes a container inert while accessibility.hidden is true', async () => {
-    const processor = new MessageProcessor([basicCatalog]);
+    const processor = new MessageProcessor([basicCatalog], undefined, {validator: testValidator});
     processor.processMessages([
       {
         version: '1.0',
@@ -268,7 +269,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
   });
 
   it('renders TextField placeholder, Video posterUrl, and Slider steps in v1.0 basicCatalog', async () => {
-    const processor = new MessageProcessor([basicCatalog]);
+    const processor = new MessageProcessor([basicCatalog], undefined, {validator: testValidator});
     processor.processMessages([
       {
         version: '1.0',
@@ -337,7 +338,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
   });
 
   it('evaluates v1.0 Checkable validationResults (severity and code) on Slider, ChoicePicker, and DateTimeInput', async () => {
-    const processor = new MessageProcessor([basicCatalog]);
+    const processor = new MessageProcessor([basicCatalog], undefined, {validator: testValidator});
     processor.processMessages([
       {
         version: '1.0',
@@ -469,7 +470,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
   });
 
   it('enforces requiresUserActivation on openUrl: blocks passive property binding and allows action invocation', () => {
-    const processor = new MessageProcessor([basicCatalog]);
+    const processor = new MessageProcessor([basicCatalog], undefined, {validator: testValidator});
     processor.processMessages([
       {
         version: '1.0',
@@ -567,7 +568,9 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
         [...(Array.from(basicCatalog.functions.values()) as any[]), mutateDataApi as any],
       );
 
-      const processor = new MessageProcessor([testCatalog as any]);
+      const processor = new MessageProcessor([testCatalog as any], undefined, {
+        validator: testValidator,
+      });
       processor.processMessages([
         {
           version: '1.0',
@@ -630,7 +633,9 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
       [],
     );
 
-    const processor = new MessageProcessor([customV1Catalog]);
+    const processor = new MessageProcessor([customV1Catalog], undefined, {
+      validator: testValidator,
+    });
     processor.processMessages([
       {
         version: '1.0',
@@ -689,7 +694,9 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
       [],
     );
 
-    const processor = new MessageProcessor([basicCatalog, secondaryCatalog]);
+    const processor = new MessageProcessor([basicCatalog, secondaryCatalog], undefined, {
+      validator: testValidator,
+    });
     processor.processMessages([
       {
         version: '1.0',
@@ -742,7 +749,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
     });
     assert.strictEqual(result.success, true);
 
-    const processor = new MessageProcessor([basicCatalog]);
+    const processor = new MessageProcessor([basicCatalog], undefined, {validator: testValidator});
     processor.processMessages([
       {
         version: '1.0',

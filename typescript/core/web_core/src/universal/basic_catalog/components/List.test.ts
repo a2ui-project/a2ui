@@ -35,6 +35,7 @@ import {
 } from '../../index.js';
 import {ListApi} from '../../../v0_9/basic_catalog/components/basic_components.js';
 import {PayloadValidator} from '../../../validation/payload-validator.js';
+import {testValidator} from '../../../test/validator.js';
 
 describe('List Component', () => {
   let basicCatalog: Catalog<WebComponentImplementation>;
@@ -54,7 +55,7 @@ describe('List Component', () => {
   let resolver: NodeResolver | null = null;
 
   beforeEach(() => {
-    processor = new MessageProcessor([basicCatalog]);
+    processor = new MessageProcessor([basicCatalog], undefined, {validator: testValidator});
     processor.processMessages([
       {
         version: 'v0.9',
@@ -152,7 +153,9 @@ describe('List Component', () => {
   }
 
   it('emits no item for a child that has not resolved, then adds it on arrival (v0.9)', async () => {
-    const nodeProcessor = new MessageProcessor([basicCatalog]);
+    const nodeProcessor = new MessageProcessor([basicCatalog], undefined, {
+      validator: testValidator,
+    });
     nodeProcessor.processMessages([
       {
         version: 'v0.9',
@@ -188,7 +191,7 @@ describe('List Component', () => {
   it('emits no item for a child that has not resolved, then adds it on arrival (v1.0)', async () => {
     // v1.0 uses the same universal List as v0.9.
     const v1Catalog = (await import('../../../catalogs/basic/v1/index.js')).basicCatalog;
-    const nodeProcessor = new MessageProcessor([v1Catalog]);
+    const nodeProcessor = new MessageProcessor([v1Catalog], undefined, {validator: testValidator});
     nodeProcessor.processMessages([
       {
         version: '1.0',
@@ -352,7 +355,7 @@ describe('List Component', () => {
 
   it('applies list semantics and accessibility attributes across default, ordered, and unordered lists', async () => {
     const v1Catalog = (await import('../../../catalogs/basic/v1/index.js')).basicCatalog;
-    const v1Processor = new MessageProcessor([v1Catalog]);
+    const v1Processor = new MessageProcessor([v1Catalog], undefined, {validator: testValidator});
     v1Processor.processMessages([
       {
         version: '1.0',

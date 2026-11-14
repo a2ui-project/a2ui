@@ -16,6 +16,7 @@
 
 import {A2uiValidationError} from '../../errors.js';
 import {normalizeVersionString, toCanonicalVersion} from '../../common/semver.js';
+import type {JsonSchemaValidator} from '../../schema-engine/types.js';
 import {
   ProtocolVersion,
   VersionAdapter,
@@ -30,12 +31,21 @@ import {V1Point0Adapter} from './v1_0.js';
  * Resolves version adapters for protocol specification versions.
  */
 export class VersionAdapterFactory implements VersionAdapterResolver {
-  private readonly adapters = new Map<string, VersionAdapter>([
-    ['0.8', new V0Point8Adapter()],
-    ['0.9', new V0Point9Adapter()],
-    ['0.9.1', new V0Point9Adapter()],
-    ['1.0', new V1Point0Adapter()],
-  ]);
+  private readonly adapters: Map<string, VersionAdapter>;
+
+  /**
+   * @param validator The JSON Schema validator the built-in adapters check
+   *   messages with. Without one, the factory resolves adapters, but they
+   *   cannot extract operations.
+   */
+  constructor(validator?: JsonSchemaValidator) {
+    this.adapters = new Map<string, VersionAdapter>([
+      ['0.8', new V0Point8Adapter(validator)],
+      ['0.9', new V0Point9Adapter(validator)],
+      ['0.9.1', new V0Point9Adapter(validator)],
+      ['1.0', new V1Point0Adapter(validator)],
+    ]);
+  }
 
   /**
    * Returns the aggregated set of all action keys supported by all registered adapters.
@@ -167,6 +177,9 @@ export class VersionAdapterFactory implements VersionAdapterResolver {
   }
 }
 
-/** Default singleton version adapter factory instance. */
+/**
+ * Default singleton version adapter factory instance. It has no validator, so
+ * its adapters resolve versions but cannot extract operations.
+ */
 export const defaultVersionAdapterFactory = new VersionAdapterFactory();
 registerKnownActionsProvider(() => defaultVersionAdapterFactory.getAllKnownActions());

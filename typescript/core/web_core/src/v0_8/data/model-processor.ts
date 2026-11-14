@@ -31,8 +31,14 @@ import {
   MessageProcessor,
   ValueMap,
 } from '../types/types.js';
-import {A2uiMessageSchema} from '../schema/server-to-client.js';
 import {A2uiStateError, A2uiValidationError} from '../errors.js';
+import {A2uiConfigurationError} from '../../errors.js';
+import type {JsonSchemaValidator} from '../../schema-engine/types.js';
+import {formatIssue, pickIssue} from '../../schema-engine/issues.js';
+import {
+  V0_8_MESSAGE_SPEC,
+  validateProtocolMessage,
+} from '../../processing/adapters/message-specs.js';
 import {
   isComponentArrayReference,
   isObject,
@@ -69,20 +75,35 @@ export class A2uiMessageProcessor implements MessageProcessor {
   private objCtor: ObjectConstructor = Object;
   private surfaces: Map<SurfaceID, Surface>;
 
+  private readonly validator: JsonSchemaValidator;
+
+  /**
+   * @param opts The collection constructors to build the model with (the
+   *   built-in ones by default) and the JSON Schema validator messages are
+   *   checked with against the v0.8 spec (required).
+   * @throws {A2uiConfigurationError} If `opts.validator` is missing.
+   */
   constructor(
     readonly opts: {
-      mapCtor: MapConstructor;
-      arrayCtor: ArrayConstructor;
-      setCtor: SetConstructor;
-      objCtor: ObjectConstructor;
-    } = {mapCtor: Map, arrayCtor: Array, setCtor: Set, objCtor: Object},
+      mapCtor?: MapConstructor;
+      arrayCtor?: ArrayConstructor;
+      setCtor?: SetConstructor;
+      objCtor?: ObjectConstructor;
+      validator: JsonSchemaValidator;
+    },
   ) {
-    this.arrayCtor = opts.arrayCtor;
-    this.mapCtor = opts.mapCtor;
-    this.setCtor = opts.setCtor;
-    this.objCtor = opts.objCtor;
+    if (!opts?.validator) {
+      throw new A2uiConfigurationError(
+        'A2uiMessageProcessor requires opts.validator: pass a JsonSchemaValidator, for example createAjvValidator() from @a2ui/validator-ajv.',
+      );
+    }
+    this.validator = opts.validator;
+    this.arrayCtor = opts.arrayCtor ?? Array;
+    this.mapCtor = opts.mapCtor ?? Map;
+    this.setCtor = opts.setCtor ?? Set;
+    this.objCtor = opts.objCtor ?? Object;
 
-    this.surfaces = new opts.mapCtor();
+    this.surfaces = new this.mapCtor();
   }
 
   /**
@@ -119,7 +140,14 @@ export class A2uiMessageProcessor implements MessageProcessor {
    */
   processMessages(messages: ServerToClientMessage[]): void {
     for (const rawMessage of messages) {
-      const message = A2uiMessageSchema.parse(rawMessage);
+      const issues = validateProtocolMessage(this.validator, V0_8_MESSAGE_SPEC, rawMessage);
+      if (issues.length > 0) {
+        throw new A2uiValidationError(
+          `Invalid v0.8 message: ${formatIssue(pickIssue(issues))}`,
+          issues,
+        );
+      }
+      const message = rawMessage;
 
       if (message.beginRendering) {
         this.handleBeginRendering(message.beginRendering, message.beginRendering.surfaceId);

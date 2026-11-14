@@ -32,6 +32,7 @@ import {NodeResolver} from '../resolution/node-resolver.js';
 import {CheckableSchema} from '../v0_9/schema/common-types.js';
 import {A2uiLitElement} from './a2ui-lit-element.js';
 import {A2UI_ELEMENT_CONNECTED_EVENT} from './element_connected_event.js';
+import {testValidator} from '../test/validator.js';
 
 const MockTextApi = {
   name: 'Text',
@@ -84,7 +85,7 @@ describe('A2uiLitElement', () => {
   beforeEach(() => {
     controllerCreatedCount = 0;
     disposedCount = 0;
-    processor = new MessageProcessor([testCatalog]);
+    processor = new MessageProcessor([testCatalog], undefined, {validator: testValidator});
     processor.processMessages([
       {
         version: '1.0',
@@ -373,7 +374,9 @@ describe('A2uiLitElement', () => {
   });
 
   it('takes its context and its children from an assigned node', async () => {
-    const nodeProcessor = new MessageProcessor([basicCatalog]);
+    const nodeProcessor = new MessageProcessor([basicCatalog], undefined, {
+      validator: testValidator,
+    });
     nodeProcessor.processMessages([
       {
         version: '1.0',
@@ -510,7 +513,9 @@ describe('A2uiLitElement', () => {
 
     const apiUsedIn = async (api: ComponentApi, catalogId: string) => {
       const catalog = new Catalog<ComponentApi>(catalogId, '1.0', [api]);
-      const catalogProcessor = new MessageProcessor([catalog]);
+      const catalogProcessor = new MessageProcessor([catalog], undefined, {
+        validator: testValidator,
+      });
       catalogProcessor.processMessages([
         {version: '1.0', createSurface: {surfaceId: 's', catalogId}},
         {
@@ -566,7 +571,9 @@ describe('A2uiLitElement', () => {
   });
 
   it('does not accumulate component subscriptions when a parent re-renders', async () => {
-    const columnProcessor = new MessageProcessor([basicCatalog]);
+    const columnProcessor = new MessageProcessor([basicCatalog], undefined, {
+      validator: testValidator,
+    });
     columnProcessor.processMessages([
       {
         version: '1.0',
@@ -675,7 +682,7 @@ describe('A2uiLitElement', () => {
     }
 
     const catalog = new Catalog<ComponentApi>('target-input-catalog', '1.0', [TargetInputApi]);
-    const targetProcessor = new MessageProcessor([catalog]);
+    const targetProcessor = new MessageProcessor([catalog], undefined, {validator: testValidator});
     targetProcessor.processMessages([
       {
         version: '1.0',
@@ -810,7 +817,7 @@ describe('A2uiLitElement', () => {
     }
 
     const catalog = new Catalog<ComponentApi>('group-box-catalog', '1.0', [GroupBoxApi]);
-    const groupProcessor = new MessageProcessor([catalog]);
+    const groupProcessor = new MessageProcessor([catalog], undefined, {validator: testValidator});
     groupProcessor.processMessages([
       {
         version: '1.0',
@@ -932,7 +939,7 @@ describe('A2uiLitElement', () => {
     }
 
     const catalog = new Catalog<ComponentApi>('no-error-block-catalog', '1.0', [NoErrorBlockApi]);
-    const proc = new MessageProcessor([catalog]);
+    const proc = new MessageProcessor([catalog], undefined, {validator: testValidator});
     proc.processMessages([
       {
         version: '1.0',

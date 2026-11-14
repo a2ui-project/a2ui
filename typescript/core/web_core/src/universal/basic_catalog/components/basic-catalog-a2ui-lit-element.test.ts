@@ -30,6 +30,7 @@ import {
 import {CheckableSchema} from '../../../v0_9/schema/common-types.js';
 import {NodeResolver} from '../../../resolution/node-resolver.js';
 import type {ComponentNode} from '../../../resolution/component-node.js';
+import {testValidator} from '../../../test/validator.js';
 
 describe('BasicCatalogA2uiLitElement', () => {
   let customCatalog: Catalog<ComponentApi>;
@@ -97,7 +98,7 @@ describe('BasicCatalogA2uiLitElement', () => {
   let subscription: Subscription | null = null;
 
   beforeEach(() => {
-    processor = new MessageProcessor([customCatalog]);
+    processor = new MessageProcessor([customCatalog], undefined, {validator: testValidator});
     processor.processMessages([
       {
         version: 'v0.9',

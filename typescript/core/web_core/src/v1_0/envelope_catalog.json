@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "Envelope stand-in for the 'catalog.json' that agent_to_renderer.json and common_types.json reference. web_core validates protocol message envelopes against it, so they are checked independently of any particular catalog; component and function properties are validated against the surface's catalog afterwards (validation/payload-validator.ts).",
+  "title": "A2UI v1.0 envelope catalog",
+  "$defs": {
+    "anyComponent": {
+      "type": "object",
+      "properties": {
+        "component": {"type": "string"}
+      },
+      "required": ["component"],
+      "additionalProperties": true
+    },
+    "anyFunction": {
+      "type": "object",
+      "properties": {
+        "@call": {"not": {"const": "@index"}}
+      },
+      "additionalProperties": true
+    }
+  }
+}

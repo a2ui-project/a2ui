@@ -30,6 +30,7 @@ import {
   registerUniversalElement,
   type WebComponentImplementation,
 } from '../../index.js';
+import {testValidator} from '../../../test/validator.js';
 
 describe('Tabs Component', () => {
   let basicCatalog: Catalog<WebComponentImplementation>;
@@ -48,7 +49,7 @@ describe('Tabs Component', () => {
   let subscription: Subscription | null = null;
 
   beforeEach(() => {
-    processor = new MessageProcessor([basicCatalog]);
+    processor = new MessageProcessor([basicCatalog], undefined, {validator: testValidator});
     processor.processMessages([
       {
         version: 'v0.9',

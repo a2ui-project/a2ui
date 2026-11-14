@@ -21,7 +21,7 @@ import {
   INTERNAL_OPERATION_TYPES,
 } from '../operations.js';
 import {A2uiValidationError} from '../../errors.js';
-import {AgentToRendererMessageSchema} from '../../v1_0/schema/agent-to-renderer.js';
+import {V1_0_MESSAGE_SPEC} from './message-specs.js';
 
 function assertObjectArgs(
   cf: Record<string, unknown>,
@@ -68,7 +68,7 @@ function extractCallRendererFunctionOp(
  */
 export class V1Point0Adapter extends BaseVersionAdapter {
   readonly version: ProtocolVersion = '1.0';
-  protected readonly schema = AgentToRendererMessageSchema;
+  protected readonly messageSpec = V1_0_MESSAGE_SPEC;
 
   protected getNativeActionKeys(): string[] {
     return [...INTERNAL_OPERATION_TYPES];

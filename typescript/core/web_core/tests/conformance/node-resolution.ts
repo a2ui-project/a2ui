@@ -33,6 +33,7 @@ import {NodeResolver} from '../../src/resolution/node-resolver.js';
 import {isWritable, ResolvedBinding} from '../../src/resolution/resolved-binding.js';
 import {ComponentModel} from '../../src/state/component-model.js';
 import {A2uiErrorPayload, SurfaceModel} from '../../src/state/surface-model.js';
+import {testValidator} from '../../src/test/validator.js';
 
 type Component = Record<string, unknown> & {id: string; component: string};
 interface Fixture {
@@ -575,7 +576,7 @@ export async function runNodeResolutionCase(
       }),
     ),
   );
-  const processor = new MessageProcessor([catalog]);
+  const processor = new MessageProcessor([catalog], undefined, {validator: testValidator});
   const watches = new Map<ComponentNode, Watch>();
   const createdEmissions = new Map<ComponentNode, number>();
   const createdStops: Array<() => void> = [];

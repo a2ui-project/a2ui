@@ -23,6 +23,7 @@ import {MessageProcessor} from '../processing/message-processor.js';
 import {ValidationConfig} from '../validation/integrity-checker.js';
 import {ComponentGraphBound} from './component-graph-bound.js';
 import {ComponentModel} from './component-model.js';
+import {testValidator} from '../test/validator.js';
 
 /** The config an agent's renderer state uses: the graph checks are deferred. */
 const DEFERRED: ValidationConfig = {
@@ -78,6 +79,7 @@ function createProcessor(
   catalog: Catalog<any, any> = compositionCatalog(),
 ) {
   const processor = new MessageProcessor([catalog as Catalog<any>], undefined, {
+    validator: testValidator,
     validationConfig: config,
   });
   processor.processMessages([
@@ -442,6 +444,7 @@ class Pair {
   constructor(config: ValidationConfig, makeCatalogs: () => Array<Catalog<any, any>>) {
     const create = () => {
       const processor = new MessageProcessor(makeCatalogs() as Array<Catalog<any>>, undefined, {
+        validator: testValidator,
         validationConfig: config,
       });
       processor.processMessages([

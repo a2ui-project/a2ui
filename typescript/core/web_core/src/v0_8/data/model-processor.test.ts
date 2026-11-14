@@ -18,12 +18,13 @@ import * as assert from 'node:assert';
 import {describe, it, beforeEach} from 'node:test';
 import {A2uiMessageProcessor} from './model-processor.js';
 import {TextNode, RowNode} from '../types/types.js';
+import {testValidator} from '../../test/validator.js';
 
 describe('A2uiMessageProcessor', () => {
   let processor: A2uiMessageProcessor;
 
   beforeEach(() => {
-    processor = new A2uiMessageProcessor();
+    processor = new A2uiMessageProcessor({validator: testValidator});
   });
 
   it('handles beginRendering', () => {

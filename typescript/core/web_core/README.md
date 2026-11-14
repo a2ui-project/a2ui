@@ -14,6 +14,17 @@ The `@a2ui/web_core` package provides state management, protocol parsing, and sc
 
 Rendering is driven by a `SurfaceGroupModel` and its constituent `SurfaceModel` instances, with `DataModel` managing reactive state, `DataContext` providing expression evaluation, and `MessageProcessor` validating and applying incoming protocol messages.
 
+### Message Validation
+
+`MessageProcessor` validates protocol messages against the specification's own JSON Schemas with a `JsonSchemaValidator` the application supplies, such as `createAjvValidator()` from `@a2ui/validator-ajv`:
+
+```ts
+import {MessageProcessor} from '@a2ui/web_core';
+import {createAjvValidator} from '@a2ui/validator-ajv';
+
+const processor = new MessageProcessor(catalogs, undefined, {validator: createAjvValidator()});
+```
+
 ### Outbound Agent Messages
 
 Pass `outboundListener` with `unifiedOutbound: true` to route all renderer-to-agent wire messages (actions, processing errors, `callAgentFunction` requests, and `rendererFunctionResponse` replies) through a single callback:
@@ -22,6 +33,7 @@ Pass `outboundListener` with `unifiedOutbound: true` to route all renderer-to-ag
 import {MessageProcessor} from '@a2ui/web_core';
 
 const processor = new MessageProcessor(catalogs, undefined, {
+  validator,
   outboundListener: send,
   unifiedOutbound: true,
 });

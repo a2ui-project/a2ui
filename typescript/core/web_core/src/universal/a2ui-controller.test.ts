@@ -24,6 +24,7 @@ import type {A2uiLitElement as A2uiLitElementType} from './a2ui-lit-element.js';
 import type {A2uiController as A2uiControllerType} from './a2ui-controller.js';
 import {z} from 'zod';
 import type {ComponentApi} from '../catalog/types.js';
+import {testValidator} from '../test/validator.js';
 
 const MockTextApi = {
   name: 'Text',
@@ -125,7 +126,7 @@ describe('A2uiController', () => {
   let context: ComponentContext;
 
   beforeEach(() => {
-    processor = new MessageProcessorClass([basicCatalog]);
+    processor = new MessageProcessorClass([basicCatalog], undefined, {validator: testValidator});
     // Initialize the test surface and seed an initial text component
     processor.processMessages([
       {
@@ -369,7 +370,9 @@ describe('A2uiController', () => {
   it('binds directly to host.node.props without allocating a duplicate GenericBinder', async () => {
     const {NodeResolver, getValue} = await import('../index.js');
     const {basicCatalog: v1Basic} = await import('../catalogs/basic/v1/catalog.js');
-    const nodeProcessor = new MessageProcessorClass([v1Basic]);
+    const nodeProcessor = new MessageProcessorClass([v1Basic], undefined, {
+      validator: testValidator,
+    });
     nodeProcessor.processMessages([
       {
         version: '1.0',
@@ -437,7 +440,9 @@ describe('A2uiController', () => {
   it('subscribes to node.metadata lazily only when controller.metadata is read', async () => {
     const {NodeResolver, getValue} = await import('../index.js');
     const {basicCatalog: v1Basic} = await import('../catalogs/basic/v1/catalog.js');
-    const nodeProcessor = new MessageProcessorClass([v1Basic]);
+    const nodeProcessor = new MessageProcessorClass([v1Basic], undefined, {
+      validator: testValidator,
+    });
     nodeProcessor.processMessages([
       {
         version: '1.0',
@@ -507,7 +512,9 @@ describe('A2uiController', () => {
       _PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION,
     } = await import('../index.js');
     const {basicCatalog: v1Basic} = await import('../catalogs/basic/v1/catalog.js');
-    const nodeProcessor = new MessageProcessorClass([v1Basic]);
+    const nodeProcessor = new MessageProcessorClass([v1Basic], undefined, {
+      validator: testValidator,
+    });
     nodeProcessor.processMessages([
       {
         version: '1.0',

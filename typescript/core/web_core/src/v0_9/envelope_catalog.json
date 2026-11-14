@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "Envelope stand-in for the 'catalog.json' that server_to_client.json and common_types.json reference (v0.9 and v0.9.1). web_core validates protocol message envelopes against it, so they are checked independently of any particular catalog; component properties and themes are validated against the surface's catalog afterwards (validation/payload-validator.ts). Components are only required to be objects here: updateComponents may partially update a component the surface already holds, and the processor reports a missing or invalid 'id' itself.",
+  "title": "A2UI v0.9 envelope catalog",
+  "$defs": {
+    "anyComponent": {
+      "type": "object"
+    },
+    "anyFunction": {
+      "type": "object"
+    },
+    "theme": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  }
+}

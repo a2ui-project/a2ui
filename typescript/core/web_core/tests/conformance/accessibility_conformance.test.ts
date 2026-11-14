@@ -40,6 +40,7 @@ import {
   renderA2uiNode,
   type WebComponentImplementation,
 } from '../../src/universal/index.js';
+import {testValidator} from '../../src/test/validator.js';
 
 const CONFORMANCE_ROOT = path.resolve(import.meta.dirname, '../../../../../../conformance/core');
 
@@ -517,7 +518,11 @@ describe('Web Universal Custom Elements Accessibility Conformance', () => {
         }
         assertKnownAccessibilityCase(testCase);
 
-        const processor = new MessageProcessor<WebComponentImplementation>([basicCatalog]);
+        const processor = new MessageProcessor<WebComponentImplementation>(
+          [basicCatalog],
+          undefined,
+          {validator: testValidator},
+        );
 
         for (const step of steps) {
           processor.processMessages(step.messages);

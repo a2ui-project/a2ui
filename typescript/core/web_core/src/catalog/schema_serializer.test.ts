@@ -40,6 +40,7 @@ import {
   type ComponentApi,
   type FunctionApi,
 } from './types.js';
+import {testValidator} from '../test/validator.js';
 
 function readRepoJson(relativePath: string): Record<string, any> {
   return JSON.parse(readFileSync(resolve(process.cwd(), '../../..', relativePath), 'utf-8'));
@@ -1152,6 +1153,7 @@ describe('Catalog.fromJson', () => {
 
     // 3. Validate runtime processing via MessageProcessor with STRICT_VALIDATION.
     const processor = new MessageProcessor([roundTripped as Catalog<ComponentApi>], undefined, {
+      validator: testValidator,
       validationConfig: STRICT_VALIDATION,
     });
     processor.processMessages({

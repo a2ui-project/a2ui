@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-import {z} from 'zod';
 import {InternalOperation} from '../operations.js';
-import {A2uiValidationError} from '../../errors.js';
-import {formatZodIssue} from '../format-zod-issue.js';
+import {A2uiConfigurationError, A2uiValidationError} from '../../errors.js';
+import {formatIssue, pickIssue} from '../../schema-engine/issues.js';
+import type {A2uiIssue, JsonSchemaValidator} from '../../schema-engine/types.js';
 import {extractEnvelopeErrorContext, mapErrorToRendererMessage} from '../message-error-mapper.js';
+import {type ProtocolMessageSpec, validateProtocolMessage} from './message-specs.js';
 import {SemVer, normalizeVersionString, toSemVer, toCanonicalVersion} from '../../common/semver.js';
 
 /**
@@ -184,37 +185,31 @@ function validateActionSurfaceIds(
   }
 }
 
+const PROPERTY_KEYWORDS = new Set(['additionalProperties', 'unevaluatedProperties']);
+
 /**
- * Narrows a root-level `invalid_union` `ZodError` to the union branch matching `actionKey`
- * when the envelope defines a single native action key, avoiding unrelated union-branch noise.
+ * Drops the issues that only say the message is not one of the other actions'
+ * `oneOf` branches, leaving those about the action the message holds.
  */
-function selectActionUnionError(
-  error: z.ZodError,
-  actionKey: string,
-  nativeActionKeys: readonly string[],
-): z.ZodError {
-  if (error.issues.length !== 1) {
-    return error;
-  }
-  const rootIssue = error.issues[0];
-  if (rootIssue.code !== z.ZodIssueCode.invalid_union || rootIssue.path.length !== 0) {
-    return error;
-  }
-  const matchingBranches = rootIssue.unionErrors.filter(
-    branchErr =>
-      !branchErr.issues.some(
-        issue =>
-          (issue.code === z.ZodIssueCode.unrecognized_keys &&
-            issue.path.length === 0 &&
-            issue.keys.includes(actionKey)) ||
-          (issue.code === z.ZodIssueCode.invalid_type &&
-            issue.path.length === 1 &&
-            issue.path[0] !== actionKey &&
-            nativeActionKeys.includes(String(issue.path[0])) &&
-            issue.received === 'undefined'),
+function scopeIssuesToAction(issues: A2uiIssue[], actionKey: string): A2uiIssue[] {
+  const scoped = issues.filter(
+    i =>
+      !(
+        (i.path.length === 0 && (i.keyword === 'oneOf' || i.keyword === 'anyOf')) ||
+        (i.path.length === 1 && i.keyword === 'required' && i.path[0] !== actionKey) ||
+        (i.path.length === 1 &&
+          i.path[0] === actionKey &&
+          i.keyword !== undefined &&
+          PROPERTY_KEYWORDS.has(i.keyword))
       ),
   );
-  return matchingBranches.length === 1 ? matchingBranches[0] : error;
+  return scoped.length > 0 ? scoped : issues;
+}
+
+/** The RFC 6901 pointer to an issue, relative to the action's payload. */
+function issuePointer(path: (string | number)[], actionKey: string): string {
+  const segments = path[0] === actionKey ? path.slice(1) : path;
+  return '/' + segments.map(s => String(s).replace(/~/g, '~0').replace(/\//g, '~1')).join('/');
 }
 
 /**
@@ -223,7 +218,15 @@ function selectActionUnionError(
  */
 export abstract class BaseVersionAdapter implements VersionAdapter {
   abstract readonly version: ProtocolVersion;
-  protected abstract readonly schema: z.ZodTypeAny;
+  /** The spec documents this version's messages are validated against. */
+  protected abstract readonly messageSpec: ProtocolMessageSpec;
+
+  /**
+   * @param validator The JSON Schema validator messages are checked with.
+   *   Required to extract operations; without one, only version resolution
+   *   and the action key queries work.
+   */
+  constructor(protected readonly validator?: JsonSchemaValidator) {}
 
   /** Canonical catalog protocol versions compatible with this adapter. */
   get compatibleCatalogVersions(): ReadonlySet<string> {
@@ -293,25 +296,28 @@ export abstract class BaseVersionAdapter implements VersionAdapter {
     }
 
     const preparedPayload = this.preparePayloadForValidation(msgObj, options);
-    const parseResult = this.schema.safeParse(preparedPayload);
-    if (!parseResult.success) {
-      const scopedError = selectActionUnionError(
-        parseResult.error,
-        presentNativeKeys[0],
-        nativeActionKeys,
+    if (!this.validator) {
+      throw new A2uiConfigurationError(
+        `The ${this.version} version adapter has no JsonSchemaValidator. Pass one in MessageProcessorOptions.validator, or to the adapter or VersionAdapterFactory constructor.`,
       );
-      const formattedErrors = scopedError.errors.map(formatZodIssue).join('; ');
-      const envCtx = extractEnvelopeErrorContext(msgObj, this.version);
-      const preliminaryErr = new A2uiValidationError(
-        `Invalid ${this.version} message: ${formattedErrors}`,
-        scopedError,
+    }
+    const issues = validateProtocolMessage(this.validator, this.messageSpec, preparedPayload);
+    if (issues.length > 0) {
+      const actionKey = presentNativeKeys[0];
+      const issue = pickIssue(scopeIssuesToAction(issues, actionKey));
+      const err = new A2uiValidationError(
+        `Invalid ${this.version} message: ${formatIssue(issue)}`,
+        issues,
         'VALIDATION_ERROR',
+        {path: issuePointer(issue.path, actionKey)},
       );
-      const mapped = mapErrorToRendererMessage(preliminaryErr, envCtx);
-      preliminaryErr.path = mapped.error.path;
-      preliminaryErr.surfaceId = mapped.error.surfaceId || undefined;
-      preliminaryErr.functionCallId = mapped.error.functionCallId;
-      throw preliminaryErr;
+      const mapped = mapErrorToRendererMessage(
+        err,
+        extractEnvelopeErrorContext(msgObj, this.version),
+      );
+      err.surfaceId = mapped.error.surfaceId || undefined;
+      err.functionCallId = mapped.error.functionCallId;
+      throw err;
     }
 
     return this.extractOperationsFromObject(preparedPayload);

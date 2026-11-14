@@ -16,14 +16,14 @@
 
 import {BaseVersionAdapter, ProtocolVersion} from './base.js';
 import {InternalComponentPayload, InternalOperation} from '../operations.js';
-import {A2uiMessageSchema} from '../../v0_9/schema/server-to-client.js';
+import {V0_9_MESSAGE_SPEC} from './message-specs.js';
 
 /**
  * Protocol version adapter for specification v0.9 and v0.9.1.
  */
 export class V0Point9Adapter extends BaseVersionAdapter {
   readonly version: ProtocolVersion = 'v0.9';
-  protected readonly schema = A2uiMessageSchema;
+  protected readonly messageSpec = V0_9_MESSAGE_SPEC;
 
   override get compatibleCatalogVersions(): ReadonlySet<string> {
     return new Set(['0.9', '0.9.1']);

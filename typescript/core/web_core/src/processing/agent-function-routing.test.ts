@@ -24,6 +24,7 @@ import {FormatStringImplementation} from '../catalogs/basic/v1/index.js';
 import {A2uiRpcError, RpcErrorCode} from '../errors.js';
 import {DataContext} from '../resolution/data-context.js';
 import {MessageProcessor} from './message-processor.js';
+import {testValidator} from '../test/validator.js';
 
 /** Resolves on the next macrotask, after every pending microtask has run. */
 const flush = () => new Promise<void>(resolve => setTimeout(resolve, 0));
@@ -161,6 +162,7 @@ describe('Fallback routing of unimplemented functions to the agent (v1.0)', () =
       ],
     );
     proc = new MessageProcessor([catalog], undefined, {
+      validator: testValidator,
       outboundListener:
         options.outboundListener === false
           ? undefined
@@ -626,6 +628,7 @@ describe('Fallback routing of unimplemented functions to the agent (v1.0)', () =
     errors = [];
     const catalog = new Catalog<any, any>(FIN_CATALOG_ID, '0.9', [], [upper]);
     proc = new MessageProcessor([catalog], undefined, {
+      validator: testValidator,
       outboundListener: msg => {
         outbound.push(msg);
       },
@@ -655,7 +658,7 @@ describe('Fallback routing of unimplemented functions to the agent (v1.0)', () =
       args => (args.value as string | undefined) ?? 'fallback',
     );
     const catalog = new Catalog<any, any>(FIN_CATALOG_ID, '0.9', [], [failingAsync, orDefault]);
-    proc = new MessageProcessor([catalog]);
+    proc = new MessageProcessor([catalog], undefined, {validator: testValidator});
     proc.processMessages({
       version: 'v0.9',
       createSurface: {surfaceId: 's1', catalogId: FIN_CATALOG_ID},
@@ -1346,6 +1349,7 @@ describe('Fallback routing of unimplemented functions to the agent (v1.0)', () =
     const fn = docCatalog.functions.get('quoteDoc')!;
     const localArgs = fn.schema.parse({symbol: 'GOOG'});
     proc = new MessageProcessor([docCatalog as any], undefined, {
+      validator: testValidator,
       outboundListener: msg => {
         outbound.push(msg);
       },

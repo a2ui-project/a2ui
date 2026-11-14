@@ -40,6 +40,7 @@ import {SurfaceModel, type A2uiErrorPayload} from '../state/surface-model.js';
 import {validateCompositionConstraints} from '../state/validation-helpers.js';
 import {peekValue} from '../reactivity/signals.js';
 import {z} from 'zod';
+import {testValidator} from '../test/validator.js';
 
 /**
  * Turns validation on while relaxing every topology rule, so a test exercises
@@ -122,9 +123,13 @@ describe('MessageProcessor', () => {
   beforeEach(() => {
     actions = [];
     testCatalog = new Catalog('test-catalog', '0.9', []);
-    processor = new MessageProcessor<ComponentApi>([testCatalog], async a => {
-      actions.push(a);
-    });
+    processor = new MessageProcessor<ComponentApi>(
+      [testCatalog],
+      async a => {
+        actions.push(a);
+      },
+      {validator: testValidator},
+    );
   });
 
   describe('getRendererCapabilities', () => {
@@ -144,7 +149,11 @@ describe('MessageProcessor', () => {
         name: 'CustomButton',
         schema: z.object({label: z.string()}),
       };
-      const proc = new MessageProcessor([new Catalog('cat-custom', '1.0', [strictComp])]);
+      const proc = new MessageProcessor(
+        [new Catalog('cat-custom', '1.0', [strictComp])],
+        undefined,
+        {validator: testValidator},
+      );
       const caps = proc.getRendererCapabilities({
         versions: ['v0.9'],
         includeInlineCatalogs: true,
@@ -159,7 +168,7 @@ describe('MessageProcessor', () => {
 
     it('keeps $ref on basic catalog child references despite per-usage descriptions', () => {
       const cat = new Catalog('cat-basic', '1.0', [CardApi, RowApi, TabsApi]);
-      const proc = new MessageProcessor([cat]);
+      const proc = new MessageProcessor([cat], undefined, {validator: testValidator});
 
       const caps = proc.getRendererCapabilities({
         versions: ['v0.9'],
@@ -184,7 +193,7 @@ describe('MessageProcessor', () => {
       const cat = new Catalog('https://example.com/cat', '1.0', BASIC_COMPONENTS, BASIC_FUNCTIONS, {
         themeSchema: BasicCatalogThemeSchema,
       });
-      const proc = new MessageProcessor([cat]);
+      const proc = new MessageProcessor([cat], undefined, {validator: testValidator});
       const caps = proc.getRendererCapabilities({versions: ['1.0'], includeInlineCatalogs: true});
       const inlineCat = (caps['1.0'] as any).inlineCatalogs?.[0] as Record<string, any>;
 
@@ -241,7 +250,9 @@ describe('MessageProcessor', () => {
           },
         },
       };
-      const proc = new MessageProcessor([Catalog.fromJson(document) as Catalog<any>]);
+      const proc = new MessageProcessor([Catalog.fromJson(document) as Catalog<any>], undefined, {
+        validator: testValidator,
+      });
       const caps = proc.getRendererCapabilities({versions: ['1.0'], includeInlineCatalogs: true});
       const inlineCat = (caps['1.0'] as any).inlineCatalogs?.[0];
 
@@ -263,7 +274,7 @@ describe('MessageProcessor', () => {
     };
 
     function inlineV10Catalog(catalog: Catalog<any>): Record<string, any> {
-      const proc = new MessageProcessor([catalog]);
+      const proc = new MessageProcessor([catalog], undefined, {validator: testValidator});
       const caps = proc.getRendererCapabilities({versions: ['1.0'], includeInlineCatalogs: true});
       return (caps['1.0'] as any).inlineCatalogs[0];
     }
@@ -327,7 +338,9 @@ describe('MessageProcessor', () => {
       const v09 = new Catalog<ComponentApi>('cat-0-9', '0.9', []);
       const alsoV09 = new Catalog<ComponentApi>('cat-0-9-b', '0.9', []);
       const v10 = new Catalog<ComponentApi>('cat-1-0', '1.0', []);
-      const proc = new MessageProcessor<ComponentApi>([v09, alsoV09, v10]);
+      const proc = new MessageProcessor<ComponentApi>([v09, alsoV09, v10], undefined, {
+        validator: testValidator,
+      });
 
       proc.processMessages({
         version: 'v0.9',
@@ -413,7 +426,11 @@ describe('MessageProcessor', () => {
           })
           .strict(),
       };
-      const proc = new MessageProcessor([new Catalog('cat-m3', '0.9', [strictButtonApi])]);
+      const proc = new MessageProcessor(
+        [new Catalog('cat-m3', '0.9', [strictButtonApi])],
+        undefined,
+        {validator: testValidator},
+      );
       proc.processMessages([
         {
           version: 'v0.9',
@@ -456,6 +473,7 @@ describe('MessageProcessor', () => {
     it('validates surface theme against the basic catalog themeSchema', () => {
       const themedCatalog = new Catalog('themed-cat', '0.9', [], [], BasicCatalogThemeSchema);
       const proc = new MessageProcessor([themedCatalog], undefined, {
+        validator: testValidator,
         validationConfig: THEME_ONLY_VALIDATION,
       });
 
@@ -531,6 +549,7 @@ describe('MessageProcessor', () => {
         [new Catalog('transform-cat', '0.9', [], [], transformSchema)],
         undefined,
         {
+          validator: testValidator,
           validationConfig: THEME_ONLY_VALIDATION,
         },
       );
@@ -555,11 +574,14 @@ describe('MessageProcessor', () => {
       const create = {version: '1.0' as const, createSurface: {surfaceId: 's', catalogId: 'cat'}};
 
       it('applies to the surfaces the processor creates', () => {
-        const proc = new MessageProcessor([catalog], undefined, {maxAgentCallCacheEntries: 2});
+        const proc = new MessageProcessor([catalog], undefined, {
+          validator: testValidator,
+          maxAgentCallCacheEntries: 2,
+        });
         proc.processMessages(create);
         assert.strictEqual(proc.model.getSurface('s')!.maxAgentCallCacheEntries, 2);
 
-        const defaulted = new MessageProcessor([catalog]);
+        const defaulted = new MessageProcessor([catalog], undefined, {validator: testValidator});
         defaulted.processMessages(create);
         assert.strictEqual(defaulted.model.getSurface('s')!.maxAgentCallCacheEntries, 256);
       });
@@ -567,7 +589,11 @@ describe('MessageProcessor', () => {
       it('rejects a value that is not a positive integer', () => {
         for (const value of [0, -1, 1.5, Number.NaN]) {
           assert.throws(
-            () => new MessageProcessor([catalog], undefined, {maxAgentCallCacheEntries: value}),
+            () =>
+              new MessageProcessor([catalog], undefined, {
+                validator: testValidator,
+                maxAgentCallCacheEntries: value,
+              }),
             RangeError,
             String(value),
           );
@@ -592,6 +618,7 @@ describe('MessageProcessor', () => {
 
       it("replaces the processor's own config for the call", () => {
         const proc = new MessageProcessor([catalog], undefined, {
+          validator: testValidator,
           validationConfig: STRICT_VALIDATION,
         });
         proc.processMessages(create);
@@ -609,7 +636,7 @@ describe('MessageProcessor', () => {
       });
 
       it('validates a processor that has no config of its own', () => {
-        const proc = new MessageProcessor([catalog]);
+        const proc = new MessageProcessor([catalog], undefined, {validator: testValidator});
         proc.processMessages(create);
 
         assert.throws(
@@ -620,7 +647,7 @@ describe('MessageProcessor', () => {
       });
 
       it("restores the processor's own config after the call", () => {
-        const proc = new MessageProcessor([catalog]);
+        const proc = new MessageProcessor([catalog], undefined, {validator: testValidator});
         proc.processMessages(create);
         assert.throws(
           () => proc.processMessages(unknownComponent, {validationConfig: {}}),
@@ -636,7 +663,7 @@ describe('MessageProcessor', () => {
       });
 
       it('applies to each operation of an asynchronous call', async () => {
-        const proc = new MessageProcessor([catalog]);
+        const proc = new MessageProcessor([catalog], undefined, {validator: testValidator});
         proc.processMessages(create);
 
         await assert.rejects(
@@ -651,13 +678,13 @@ describe('MessageProcessor', () => {
     it('returns the catalogs the processor was created with, in order', () => {
       const first = new Catalog('first', '1.0', []);
       const second = new Catalog('second', '1.0', []);
-      const proc = new MessageProcessor([first, second]);
+      const proc = new MessageProcessor([first, second], undefined, {validator: testValidator});
 
       assert.deepStrictEqual(proc.catalogs, [first, second]);
     });
 
     it('returns a copy', () => {
-      const proc = new MessageProcessor([testCatalog]);
+      const proc = new MessageProcessor([testCatalog], undefined, {validator: testValidator});
 
       proc.catalogs.push(new Catalog('other', '0.9', []));
 
@@ -692,7 +719,9 @@ describe('MessageProcessor', () => {
           },
         ],
       );
-      const processor = new MessageProcessor([basicCat, fnCatalog]);
+      const processor = new MessageProcessor([basicCat, fnCatalog], undefined, {
+        validator: testValidator,
+      });
       processor.processMessages({
         version: '1.0',
         createSurface: {surfaceId: 'surface-1', catalogId: 'cat-basic'},
@@ -703,7 +732,7 @@ describe('MessageProcessor', () => {
         callRendererFunction: {
           functionCallId: 'rpc-1',
           callFunction: {
-            call: 'computeGreeting',
+            '@call': 'computeGreeting',
             catalogId: 'cat-fn',
             args: {user: 'Alice'},
           },
@@ -720,6 +749,7 @@ describe('MessageProcessor', () => {
 
     it('leaves componentsModel untouched when updateComponents fails topology validation', () => {
       const proc = new MessageProcessor([basicCatalog], undefined, {
+        validator: testValidator,
         validationConfig: STRICT_VALIDATION,
       });
 
@@ -773,7 +803,7 @@ describe('MessageProcessor', () => {
     });
 
     it('leaves componentsModel untouched when updateComponents contains a valid component followed by an untyped new component', () => {
-      const proc = new MessageProcessor([basicCatalog]);
+      const proc = new MessageProcessor([basicCatalog], undefined, {validator: testValidator});
 
       proc.processMessages({
         version: '1.0',
@@ -835,7 +865,9 @@ describe('MessageProcessor', () => {
       // 1. Rewriting a container to drop a child whose allowedParents does not
       // include 'Surface' succeeds when orphans are allowed (default), and
       // reports an orphan IntegrityError (not UNALLOWED_PARENT) in strict mode.
-      const relaxedProc = new MessageProcessor([compositionCatalog]);
+      const relaxedProc = new MessageProcessor([compositionCatalog], undefined, {
+        validator: testValidator,
+      });
       relaxedProc.processMessages([
         {
           version: '1.0',
@@ -863,6 +895,7 @@ describe('MessageProcessor', () => {
       assert.strictEqual(relaxedProc.getSurface('s1')?.componentsModel.get('h')?.type, 'Header');
 
       const strictProc = new MessageProcessor([compositionCatalog], undefined, {
+        validator: testValidator,
         validationConfig: STRICT_VALIDATION,
       });
       strictProc.processMessages({
@@ -892,7 +925,9 @@ describe('MessageProcessor', () => {
 
       // 2. Root component referenced by another component is still checked
       // against 'Surface' (for both default 'root' and a custom rootId).
-      const rootRefProc = new MessageProcessor([compositionCatalog]);
+      const rootRefProc = new MessageProcessor([compositionCatalog], undefined, {
+        validator: testValidator,
+      });
       assert.throws(
         () =>
           rootRefProc.processMessages({
@@ -915,6 +950,7 @@ describe('MessageProcessor', () => {
       );
 
       const customRootProc = new MessageProcessor([compositionCatalog], undefined, {
+        validator: testValidator,
         validationConfig: {rootId: 'main_root', allowOrphanComponents: true},
       });
       assert.throws(
@@ -954,7 +990,9 @@ describe('MessageProcessor', () => {
           {id: 'h', component: 'Header'},
         ],
       ]) {
-        const multiParentProc = new MessageProcessor([compositionCatalog]);
+        const multiParentProc = new MessageProcessor([compositionCatalog], undefined, {
+          validator: testValidator,
+        });
         assert.throws(
           () =>
             multiParentProc.processMessages({
@@ -1050,7 +1088,7 @@ describe('MessageProcessor', () => {
     const rpcCatalog = new Catalog('rpc-cat', '1.0', [], [rpcImpl, secureImpl]);
 
     it('processes callRendererFunction via processMessagesAsync and returns response', async () => {
-      const proc = new MessageProcessor([rpcCatalog]);
+      const proc = new MessageProcessor([rpcCatalog], undefined, {validator: testValidator});
       proc.processMessages({
         version: '1.0',
         createSurface: {surfaceId: 's1', catalogId: 'rpc-cat'},
@@ -1061,7 +1099,7 @@ describe('MessageProcessor', () => {
         callRendererFunction: {
           functionCallId: 'rpc-call-1',
           callFunction: {
-            call: 'echoFunction',
+            '@call': 'echoFunction',
             catalogId: 'rpc-cat',
             args: {text: 'World'},
           },
@@ -1075,7 +1113,7 @@ describe('MessageProcessor', () => {
     });
 
     it('hands the RpcHandler a callRendererFunction message that names the function with @call', async () => {
-      const proc = new MessageProcessor([rpcCatalog]);
+      const proc = new MessageProcessor([rpcCatalog], undefined, {validator: testValidator});
       const received: any[] = [];
       const original = proc.rpc.handleCallRendererFunction.bind(proc.rpc);
       proc.rpc.handleCallRendererFunction = (msg, ...rest) => {
@@ -1112,7 +1150,7 @@ describe('MessageProcessor', () => {
           args?.text ?? ctx?.surface?.dataModel?.get('/user/name') ?? 'empty',
       );
       const cat = new Catalog('rpc-model-cat', '1.0', [], [readModelImpl]);
-      const proc = new MessageProcessor([cat]);
+      const proc = new MessageProcessor([cat], undefined, {validator: testValidator});
 
       proc.processMessages([
         {
@@ -1140,7 +1178,7 @@ describe('MessageProcessor', () => {
           surfaceId: 's2',
           functionCallId: 'rpc-surf-1',
           callFunction: {
-            call: 'readUserName',
+            '@call': 'readUserName',
             catalogId: 'rpc-model-cat',
             args: {text: {'@path': '/user/name'}},
           },
@@ -1155,7 +1193,7 @@ describe('MessageProcessor', () => {
         callRendererFunction: {
           functionCallId: 'rpc-surf-2',
           callFunction: {
-            call: 'readUserName',
+            '@call': 'readUserName',
             catalogId: 'rpc-model-cat',
             args: {text: {'@path': '/user/name'}},
           },
@@ -1171,7 +1209,7 @@ describe('MessageProcessor', () => {
           surfaceId: 'non_existent_surface',
           functionCallId: 'rpc-surf-3',
           callFunction: {
-            call: 'readUserName',
+            '@call': 'readUserName',
             catalogId: 'rpc-model-cat',
             args: {},
           },
@@ -1193,7 +1231,7 @@ describe('MessageProcessor', () => {
         callRendererFunction: {
           functionCallId: 'rpc-surf-4',
           callFunction: {
-            call: 'readUserName',
+            '@call': 'readUserName',
             catalogId: 'rpc-model-cat',
             args: {text: {'@call': '@index'}},
           },
@@ -1212,7 +1250,7 @@ describe('MessageProcessor', () => {
           callRendererFunction: {
             functionCallId: 'rpc-surf-5',
             callFunction: {
-              call: 'readUserName',
+              '@call': 'readUserName',
               args: {},
             },
           },
@@ -1222,7 +1260,7 @@ describe('MessageProcessor', () => {
     });
 
     it('enforces requiresUserActivation in processMessagesAsync via context options', async () => {
-      const proc = new MessageProcessor([rpcCatalog]);
+      const proc = new MessageProcessor([rpcCatalog], undefined, {validator: testValidator});
       proc.processMessages({
         version: '1.0',
         createSurface: {surfaceId: 's1', catalogId: 'rpc-cat'},
@@ -1234,7 +1272,7 @@ describe('MessageProcessor', () => {
         callRendererFunction: {
           functionCallId: 'rpc-call-2',
           callFunction: {
-            call: 'secureAction',
+            '@call': 'secureAction',
             catalogId: 'rpc-cat',
             args: {},
           },
@@ -1254,7 +1292,7 @@ describe('MessageProcessor', () => {
           callRendererFunction: {
             functionCallId: 'rpc-call-3',
             callFunction: {
-              call: 'secureAction',
+              '@call': 'secureAction',
               catalogId: 'rpc-cat',
               args: {},
             },
@@ -1270,6 +1308,7 @@ describe('MessageProcessor', () => {
     it('initiates callAgentFunction and resolves via inbound agentFunctionResponse in processMessages', async () => {
       let emittedMessage: any;
       const proc = new MessageProcessor([rpcCatalog], undefined, {
+        validator: testValidator,
         outboundListener: msg => {
           emittedMessage = msg;
         },
@@ -1302,6 +1341,7 @@ describe('MessageProcessor', () => {
 
     it('rejects pending callAgentFunction on processor disposal', async () => {
       const proc = new MessageProcessor([rpcCatalog], undefined, {
+        validator: testValidator,
         outboundListener: () => {},
       });
 
@@ -1320,6 +1360,7 @@ describe('MessageProcessor', () => {
     it('executes callRendererFunction in synchronous processMessages and emits to outboundListener', async () => {
       let emittedResponse: any;
       const proc = new MessageProcessor([rpcCatalog], undefined, {
+        validator: testValidator,
         outboundListener: msg => {
           emittedResponse = msg;
         },
@@ -1335,7 +1376,7 @@ describe('MessageProcessor', () => {
         callRendererFunction: {
           functionCallId: 'rpc-sync-1',
           callFunction: {
-            call: 'echoFunction',
+            '@call': 'echoFunction',
             catalogId: 'rpc-cat',
             args: {text: 'SyncTest'},
           },
@@ -1357,7 +1398,7 @@ describe('MessageProcessor', () => {
       };
 
       try {
-        const proc = new MessageProcessor([rpcCatalog]);
+        const proc = new MessageProcessor([rpcCatalog], undefined, {validator: testValidator});
         (proc as any).rpc.handleCallRendererFunction = async () => {
           throw new Error('RPC exploded');
         };
@@ -1367,7 +1408,7 @@ describe('MessageProcessor', () => {
           callRendererFunction: {
             functionCallId: 'rpc-sync-2',
             callFunction: {
-              call: 'echoFunction',
+              '@call': 'echoFunction',
               catalogId: 'rpc-cat',
               args: {},
             },
@@ -1385,7 +1426,7 @@ describe('MessageProcessor', () => {
   describe('Backwards Compatibility Shims', () => {
     it('provides getClientCapabilities alias', () => {
       const cat = new Catalog('test-cat', '0.9', []);
-      const proc = new MessageProcessor([cat]);
+      const proc = new MessageProcessor([cat], undefined, {validator: testValidator});
       const caps = proc.getClientCapabilities({versions: ['v0.9']});
       assert.deepStrictEqual(caps, proc.getRendererCapabilities({versions: ['v0.9']}));
       assert.deepStrictEqual((caps['v0.9'] as any).supportedCatalogIds, ['test-cat']);
@@ -1393,7 +1434,7 @@ describe('MessageProcessor', () => {
 
     it('defaults getClientCapabilities to v0.9 and accepts the legacy version option', () => {
       const cat = new Catalog('test-cat', '0.9', []);
-      const proc = new MessageProcessor([cat]);
+      const proc = new MessageProcessor([cat], undefined, {validator: testValidator});
       const expected = proc.getRendererCapabilities({versions: ['v0.9']});
       assert.deepStrictEqual(proc.getClientCapabilities(), expected);
       assert.deepStrictEqual(proc.getClientCapabilities({}), expected);
@@ -1411,7 +1452,7 @@ describe('MessageProcessor', () => {
 
     it('treats an unversioned v0.9 envelope as v0.9 when every catalog is pre-1.0', () => {
       const cat = new Catalog('test-cat', '0.9', []);
-      const proc = new MessageProcessor([cat]);
+      const proc = new MessageProcessor([cat], undefined, {validator: testValidator});
       proc.processMessages([
         {createSurface: {surfaceId: 's1', catalogId: 'test-cat'}},
         {updateDataModel: {surfaceId: 's1', path: '/user/name', value: 'Alice'}},
@@ -1423,7 +1464,7 @@ describe('MessageProcessor', () => {
 
     it('unwraps messages wrapper in unversioned payload', () => {
       const cat = new Catalog('test-cat', '0.9', []);
-      const proc = new MessageProcessor([cat]);
+      const proc = new MessageProcessor([cat], undefined, {validator: testValidator});
       proc.processMessages({
         messages: [{createSurface: {surfaceId: 's1', catalogId: 'test-cat'}}],
       } as any);
@@ -1432,20 +1473,22 @@ describe('MessageProcessor', () => {
 
     it('treats an unversioned envelope as v0.9.1 when registered catalog is 0.9.1', () => {
       const cat = new Catalog('test-cat', '0.9.1', []);
-      const proc = new MessageProcessor([cat]);
+      const proc = new MessageProcessor([cat], undefined, {validator: testValidator});
       proc.processMessages({createSurface: {surfaceId: 's1', catalogId: 'test-cat'}} as any);
       assert.ok(proc.getSurface('s1'));
     });
 
     it('keeps rejecting unversioned envelopes with a v1.0 catalog or a validationConfig', () => {
       const unversioned = {createSurface: {surfaceId: 's1', catalogId: 'test-cat'}} as any;
-      const withV10 = new MessageProcessor([
-        new Catalog('test-cat', '0.9', []),
-        new Catalog('v10-cat', '1.0', []),
-      ]);
+      const withV10 = new MessageProcessor(
+        [new Catalog('test-cat', '0.9', []), new Catalog('v10-cat', '1.0', [])],
+        undefined,
+        {validator: testValidator},
+      );
       assert.throws(() => withV10.processMessages(unversioned), /missing a valid 'version'/);
 
       const validating = new MessageProcessor([new Catalog('test-cat', '0.9', [])], undefined, {
+        validator: testValidator,
         validationConfig: THEME_ONLY_VALIDATION,
       });
       assert.throws(() => validating.processMessages(unversioned), /missing a valid 'version'/);
@@ -1454,7 +1497,7 @@ describe('MessageProcessor', () => {
     it('leaves nested calls unchecked on a pre-1.0 surface without a validationConfig', () => {
       const textApi: ComponentApi = {name: 'Text', schema: z.object({text: z.any()})};
       const v09 = new Catalog<ComponentApi>('v09', '0.9', [textApi]);
-      const lenient = new MessageProcessor([v09]);
+      const lenient = new MessageProcessor([v09], undefined, {validator: testValidator});
       lenient.processMessages([
         {version: 'v0.9', createSurface: {surfaceId: 's', catalogId: 'v09'}},
         {
@@ -1471,6 +1514,7 @@ describe('MessageProcessor', () => {
         [new Catalog<ComponentApi>('v09', '0.9', [textApi])],
         undefined,
         {
+          validator: testValidator,
           validationConfig: {...THEME_ONLY_VALIDATION, allowUnknownElements: false},
         },
       );
@@ -1492,7 +1536,7 @@ describe('MessageProcessor', () => {
 
     it('provides getClientDataModel alias', () => {
       const cat = new Catalog('test-cat', '0.9', []);
-      const proc = new MessageProcessor([cat]);
+      const proc = new MessageProcessor([cat], undefined, {validator: testValidator});
       proc.processMessages({
         version: 'v0.9',
         createSurface: {
@@ -1522,6 +1566,7 @@ describe('MessageProcessor', () => {
       const v09Cat = new Catalog('cat-09', '0.9', [textApi]);
       const handledErrors: RendererErrorMessage[] = [];
       const proc = new MessageProcessor([v09Cat], undefined, {
+        validator: testValidator,
         errorHandler: err => handledErrors.push(err),
       });
 
@@ -1594,7 +1639,7 @@ describe('MessageProcessor', () => {
 
     it('provides resolvePath method on MessageProcessor', () => {
       const cat = new Catalog('test-cat', '0.9', []);
-      const proc = new MessageProcessor([cat]);
+      const proc = new MessageProcessor([cat], undefined, {validator: testValidator});
       assert.strictEqual(proc.resolvePath('/absolute/path'), '/absolute/path');
       assert.strictEqual(proc.resolvePath('relative', '/base'), '/base/relative');
       assert.strictEqual(proc.resolvePath('relative', '/base/'), '/base/relative');
@@ -1603,7 +1648,7 @@ describe('MessageProcessor', () => {
 
     it('rejects component with non-string or empty id', () => {
       const cat = new Catalog('test-cat', '0.9', []);
-      const proc = new MessageProcessor([cat]);
+      const proc = new MessageProcessor([cat], undefined, {validator: testValidator});
       proc.processMessages({
         version: 'v0.9',
         createSurface: {surfaceId: 's1', catalogId: 'test-cat'},
@@ -1628,7 +1673,11 @@ describe('MessageProcessor', () => {
 
   describe('surface and component metadata and default catalog resolution', () => {
     it('propagates surface metadata from createSurface op to surface.metadata', () => {
-      const proc = new MessageProcessor<ComponentApi>([new Catalog('default', '1.0', [])]);
+      const proc = new MessageProcessor<ComponentApi>(
+        [new Catalog('default', '1.0', [])],
+        undefined,
+        {validator: testValidator},
+      );
 
       proc.processMessages([
         {
@@ -1648,7 +1697,11 @@ describe('MessageProcessor', () => {
     });
 
     it('extracts and propagates component metadata on component creation and update', () => {
-      const proc = new MessageProcessor<ComponentApi>([new Catalog('default', '1.0', [])]);
+      const proc = new MessageProcessor<ComponentApi>(
+        [new Catalog('default', '1.0', [])],
+        undefined,
+        {validator: testValidator},
+      );
 
       proc.processMessages([
         {
@@ -1716,7 +1769,11 @@ describe('MessageProcessor', () => {
         name: 'Card',
         schema: z.object({metadata: z.record(z.string(), z.unknown())}).strict(),
       };
-      const proc = new MessageProcessor<ComponentApi>([new Catalog('v09', '0.9', [cardApi])]);
+      const proc = new MessageProcessor<ComponentApi>(
+        [new Catalog('v09', '0.9', [cardApi])],
+        undefined,
+        {validator: testValidator},
+      );
 
       proc.processMessages([
         {version: 'v0.9', createSurface: {surfaceId: 's', catalogId: 'v09'}},
@@ -1775,6 +1832,7 @@ describe('MessageProcessor', () => {
       const textInCustom = new Catalog<ComponentApi>('custom', '1.0', [textApi]);
       const base = new Catalog<ComponentApi>('base', '1.0', [textApi]);
       const proc = new MessageProcessor<ComponentApi>([base, textInCustom], undefined, {
+        validator: testValidator,
         validationConfig: {...STRICT_VALIDATION, allowOrphanComponents: true},
       });
       proc.processMessages([
@@ -1805,7 +1863,9 @@ describe('MessageProcessor', () => {
       };
       const v09Base = new Catalog<ComponentApi>('v09-base', '0.9', [textWithCatalogId]);
       const v09Custom = new Catalog<ComponentApi>('v09-custom', '0.9', [textWithCatalogId]);
-      const proc = new MessageProcessor<ComponentApi>([v09Base, v09Custom]);
+      const proc = new MessageProcessor<ComponentApi>([v09Base, v09Custom], undefined, {
+        validator: testValidator,
+      });
       proc.processMessages([
         {version: 'v0.9', createSurface: {surfaceId: 's', catalogId: 'v09-base'}},
         {
@@ -1822,9 +1882,11 @@ describe('MessageProcessor', () => {
       assert.deepStrictEqual(root?.properties, {catalogId: 'v09-custom', text: 'Hi'});
 
       // A component that doesn't declare it rejects the property.
-      const strictProc = new MessageProcessor<ComponentApi>([
-        new Catalog<ComponentApi>('v09-strict', '0.9', [textApi]),
-      ]);
+      const strictProc = new MessageProcessor<ComponentApi>(
+        [new Catalog<ComponentApi>('v09-strict', '0.9', [textApi])],
+        undefined,
+        {validator: testValidator},
+      );
       assert.throws(
         () =>
           strictProc.processMessages([
@@ -1843,7 +1905,7 @@ describe('MessageProcessor', () => {
 
     it('still falls back to a registered catalog for version-less and v0.8 surfaces', () => {
       const v08 = new Catalog<ComponentApi>('v08-cat', '0.8', []);
-      const proc = new MessageProcessor<ComponentApi>([v08]);
+      const proc = new MessageProcessor<ComponentApi>([v08], undefined, {validator: testValidator});
       proc.processMessages({type: 'createSurface', surfaceId: 'unversioned'});
       proc.processMessages({version: 'v0.8', beginRendering: {surfaceId: 'v08', root: 'root'}});
 
@@ -1854,7 +1916,9 @@ describe('MessageProcessor', () => {
 
     it('evaluates @index on a surface without a default catalog', () => {
       const base = new Catalog<ComponentApi>('base', '1.0', [textApi]);
-      const proc = new MessageProcessor<ComponentApi>([base]);
+      const proc = new MessageProcessor<ComponentApi>([base], undefined, {
+        validator: testValidator,
+      });
       proc.processMessages([
         {version: '1.0', createSurface: {surfaceId: 's'}},
         {
@@ -1887,7 +1951,9 @@ describe('MessageProcessor', () => {
 
     it('tolerates an unknown function in the surface default without a validationConfig', () => {
       const base = new Catalog<ComponentApi>('base', '1.0', [textApi]);
-      const proc = new MessageProcessor<ComponentApi>([base]);
+      const proc = new MessageProcessor<ComponentApi>([base], undefined, {
+        validator: testValidator,
+      });
       proc.processMessages([
         {version: '1.0', createSurface: {surfaceId: 's', catalogId: 'base'}},
         {
@@ -1918,7 +1984,9 @@ describe('MessageProcessor', () => {
 
     it('rejects a catalogId on an @index call even without a validationConfig', () => {
       const base = new Catalog<ComponentApi>('base', '1.0', [textApi]);
-      const proc = new MessageProcessor<ComponentApi>([base]);
+      const proc = new MessageProcessor<ComponentApi>([base], undefined, {
+        validator: testValidator,
+      });
 
       assert.throws(
         () => processV10Text(proc, {'@call': '@index', catalogId: 'base'}),
@@ -1933,7 +2001,9 @@ describe('MessageProcessor', () => {
 
     it('treats an empty catalogId on a call as a catalog name, not the surface default', () => {
       const base = new Catalog<ComponentApi>('base', '1.0', [textApi], [upperFn]);
-      const proc = new MessageProcessor<ComponentApi>([base]);
+      const proc = new MessageProcessor<ComponentApi>([base], undefined, {
+        validator: testValidator,
+      });
 
       assert.throws(
         () => processV10Text(proc, {'@call': 'upper', catalogId: '', args: {value: 'x'}}),
@@ -1943,7 +2013,9 @@ describe('MessageProcessor', () => {
 
     it('treats an empty catalogId on a v1.0 component as a catalog name', () => {
       const base = new Catalog<ComponentApi>('base', '1.0', [textApi]);
-      const proc = new MessageProcessor<ComponentApi>([base]);
+      const proc = new MessageProcessor<ComponentApi>([base], undefined, {
+        validator: testValidator,
+      });
 
       assert.throws(
         () =>
@@ -1965,6 +2037,7 @@ describe('MessageProcessor', () => {
       const base = new Catalog<ComponentApi>('base', '1.0', [textApi], [upperFn]);
       for (const key of ['id', 'component']) {
         const proc = new MessageProcessor<ComponentApi>([base], undefined, {
+          validator: testValidator,
           validationConfig: STRICT_FUNCTIONS_ONLY,
         });
         assert.throws(
@@ -1979,6 +2052,7 @@ describe('MessageProcessor', () => {
       const v09Base = new Catalog<ComponentApi>('v09-base', '0.9', [textApi], [upperFn]);
       const v09Other = new Catalog<ComponentApi>('v09-other', '0.9', [textApi], [upperFn]);
       const proc = new MessageProcessor<ComponentApi>([v09Base, v09Other], undefined, {
+        validator: testValidator,
         validationConfig: STRICT_FUNCTIONS_ONLY,
       });
 
@@ -2029,6 +2103,7 @@ describe('MessageProcessor', () => {
         const base = new Catalog<ComponentApi>('base', '1.0', [textApi], [upperFn]);
         const custom = new Catalog<ComponentApi>('custom', '1.0', [textApi], [lowerFn]);
         return new MessageProcessor<ComponentApi>([base, custom], undefined, {
+          validator: testValidator,
           validationConfig: STRICT_FUNCTIONS_ONLY,
         });
       }
@@ -2081,6 +2156,7 @@ describe('MessageProcessor', () => {
         const base = new Catalog<ComponentApi>('base', '1.0', [textApi], [countedFn]);
         const custom = new Catalog<ComponentApi>('custom', '1.0', [textApi], [lowerFn]);
         const proc = new MessageProcessor<ComponentApi>([base, custom], undefined, {
+          validator: testValidator,
           validationConfig: STRICT_FUNCTIONS_ONLY,
         });
         processRoot(proc, {
@@ -2153,6 +2229,7 @@ describe('MessageProcessor', () => {
           const base = new Catalog<ComponentApi>('base', '1.0', [textApi], [upperFn]);
           const custom = new Catalog<ComponentApi>('custom', '1.0', [], [lowerFn]);
           return new MessageProcessor<ComponentApi>([base, custom], undefined, {
+            validator: testValidator,
             validationConfig: {...THEME_ONLY_VALIDATION, allowUnknownElements: true},
           });
         };
@@ -2191,7 +2268,9 @@ describe('MessageProcessor', () => {
       it('rejects a non-string catalogId on a call', () => {
         const base = new Catalog<ComponentApi>('base', '1.0', [textApi], [upperFn]);
         for (const component of ['Text', 'Widget']) {
-          const proc = new MessageProcessor<ComponentApi>([base]);
+          const proc = new MessageProcessor<ComponentApi>([base], undefined, {
+            validator: testValidator,
+          });
           assert.throws(
             () =>
               processRoot(proc, {
@@ -2211,7 +2290,9 @@ describe('MessageProcessor', () => {
         const base = new Catalog<ComponentApi>('base', '1.0', [textApi], [upperFn]);
         // `Widget` is unknown to the catalog; its call is checked all the same.
         for (const component of ['Text', 'Widget']) {
-          const proc = new MessageProcessor<ComponentApi>([base]);
+          const proc = new MessageProcessor<ComponentApi>([base], undefined, {
+            validator: testValidator,
+          });
           assert.throws(
             () => processRoot(proc, {id: 'root', component, text: {'@call': ''}}),
             (err: unknown) =>
@@ -2226,6 +2307,7 @@ describe('MessageProcessor', () => {
         const tagApi = {name: 'Tag', schema: z.object({label: z.string()}).strict()};
         const closed = new Catalog<ComponentApi>('closed', '1.0', [tagApi]);
         const proc = new MessageProcessor<ComponentApi>([closed], undefined, {
+          validator: testValidator,
           validationConfig: STRICT_VALIDATION,
         });
         proc.processMessages([
@@ -2246,7 +2328,9 @@ describe('MessageProcessor', () => {
       it('rejects a non-string catalogId on a component', () => {
         const base = new Catalog<ComponentApi>('base', '1.0', [textApi], [upperFn]);
         for (const catalogId of [7, null, {}]) {
-          const proc = new MessageProcessor<ComponentApi>([base]);
+          const proc = new MessageProcessor<ComponentApi>([base], undefined, {
+            validator: testValidator,
+          });
           assert.throws(
             () => processRoot(proc, {id: 'root', component: 'Text', catalogId, text: 'x'}),
             A2uiValidationError,
@@ -2311,7 +2395,9 @@ describe('MessageProcessor', () => {
         ],
       ];
       for (const [component, message] of cases) {
-        const proc = new MessageProcessor<ComponentApi>([base, v09]);
+        const proc = new MessageProcessor<ComponentApi>([base, v09], undefined, {
+          validator: testValidator,
+        });
         assert.throws(
           () =>
             proc.processMessages([
@@ -2333,6 +2419,7 @@ describe('MessageProcessor', () => {
       const handledErrors: any[] = [];
       const groupErrors: any[] = [];
       const proc = new MessageProcessor<ComponentApi>([base], undefined, {
+        validator: testValidator,
         version: '1.0',
         errorHandler: msg => handledErrors.push(msg),
       });
@@ -2392,6 +2479,7 @@ describe('MessageProcessor', () => {
       const v10Cat = new Catalog<ComponentApi>('cat-v10', '1.0', [textApi]);
       const handledErrors: any[] = [];
       const proc = new MessageProcessor<ComponentApi>([v09Cat, v10Cat], undefined, {
+        validator: testValidator,
         errorHandler: msg => handledErrors.push(msg),
       });
 
@@ -2439,6 +2527,7 @@ describe('MessageProcessor', () => {
       const handledErrors: RendererErrorMessage[] = [];
       const outboundMessages: unknown[] = [];
       const proc = new MessageProcessor([v10Cat], undefined, {
+        validator: testValidator,
         errorHandler: msg => handledErrors.push(msg),
         outboundListener: msg => {
           outboundMessages.push(msg);
@@ -2455,7 +2544,7 @@ describe('MessageProcessor', () => {
         },
       ] as unknown as Parameters<typeof proc.processMessages>[0];
       const expectedMessage =
-        'Invalid 1.0 message: callRendererFunction.callFunction.catalogId: Expected string, received undefined';
+        "Invalid 1.0 message: callRendererFunction.callFunction.catalogId: must have required property 'catalogId'";
 
       assert.throws(
         () => proc.processMessages(missingCatalogPayload),
@@ -2503,6 +2592,7 @@ describe('MessageProcessor', () => {
       const reportOnlyErrors: RendererErrorMessage[] = [];
       const reportOnlyOutbound: unknown[] = [];
       const reportOnlyProc = new MessageProcessor([v10Cat], undefined, {
+        validator: testValidator,
         reportErrorsOnly: true,
         errorHandler: msg => reportOnlyErrors.push(msg),
         outboundListener: msg => {
@@ -2528,7 +2618,7 @@ describe('MessageProcessor', () => {
         }),
       };
       const cat = new Catalog<ComponentApi>('cat-v10', '1.0', [counterApi]);
-      const proc = new MessageProcessor<ComponentApi>([cat]);
+      const proc = new MessageProcessor<ComponentApi>([cat], undefined, {validator: testValidator});
 
       let rootNotifications = 0;
       const surfaceErrors: A2uiErrorPayload[] = [];
@@ -2582,7 +2672,11 @@ describe('MessageProcessor', () => {
 
     it('throws A2uiValidationError when unifiedOutbound is true without outboundListener', () => {
       assert.throws(
-        () => new MessageProcessor([v10Catalog], undefined, {unifiedOutbound: true}),
+        () =>
+          new MessageProcessor([v10Catalog], undefined, {
+            validator: testValidator,
+            unifiedOutbound: true,
+          }),
         (err: unknown) => {
           assert.ok(err instanceof A2uiValidationError);
           assert.match(err.message, /unifiedOutbound requires an outboundListener/);
@@ -2601,6 +2695,7 @@ describe('MessageProcessor', () => {
           actionLog.push(a);
         },
         {
+          validator: testValidator,
           errorHandler: err => {
             errorLog.push(err);
           },
@@ -2637,6 +2732,7 @@ describe('MessageProcessor', () => {
           actionLog.push(a);
         },
         {
+          validator: testValidator,
           outboundListener: msg => {
             outboundLog.push(msg);
           },
@@ -2715,6 +2811,7 @@ describe('MessageProcessor', () => {
     it('uses the fallback wire version when a surface has no protocolVersion', async () => {
       const v10Out: any[] = [];
       const v10Proc = new MessageProcessor([v10Catalog], undefined, {
+        validator: testValidator,
         outboundListener: msg => {
           v10Out.push(msg);
         },
@@ -2729,6 +2826,7 @@ describe('MessageProcessor', () => {
 
       const mixedOut: any[] = [];
       const mixedProc = new MessageProcessor([v10Catalog, v09Catalog], undefined, {
+        validator: testValidator,
         outboundListener: msg => {
           mixedOut.push(msg);
         },
@@ -2743,6 +2841,7 @@ describe('MessageProcessor', () => {
 
       const explicitDefaultOut: any[] = [];
       const explicitDefaultProc = new MessageProcessor([v10Catalog, v09Catalog], undefined, {
+        validator: testValidator,
         version: 'v0.9.1',
         outboundListener: msg => {
           explicitDefaultOut.push(msg);
@@ -2777,6 +2876,7 @@ describe('MessageProcessor', () => {
       const errorLog: RendererErrorMessage[] = [];
       const outboundLog: unknown[] = [];
       const proc = new MessageProcessor([v10Catalog], undefined, {
+        validator: testValidator,
         errorHandler: err => {
           errorLog.push(err);
         },
@@ -2813,6 +2913,7 @@ describe('MessageProcessor', () => {
           actionLog.push(a);
         },
         {
+          validator: testValidator,
           version: 'v0.8',
           errorHandler: err => {
             errorLog.push(err);
@@ -2845,6 +2946,7 @@ describe('MessageProcessor', () => {
       // and unversioned errors on a 1.0-only processor use fallbackWireVersion().
       const unversionedV08Outbound: unknown[] = [];
       const unversionedV08Proc = new MessageProcessor([v08Cat, v10Catalog], undefined, {
+        validator: testValidator,
         outboundListener: msg => {
           unversionedV08Outbound.push(msg);
         },
@@ -2858,6 +2960,7 @@ describe('MessageProcessor', () => {
 
       const v08OnlyOutbound: unknown[] = [];
       const v08OnlyProc = new MessageProcessor([v08Cat], undefined, {
+        validator: testValidator,
         outboundListener: msg => {
           v08OnlyOutbound.push(msg);
         },
@@ -2869,6 +2972,7 @@ describe('MessageProcessor', () => {
 
       const v10OnlyOutbound: RendererErrorMessage[] = [];
       const v10OnlyProc = new MessageProcessor([v10Catalog], undefined, {
+        validator: testValidator,
         outboundListener: msg => {
           v10OnlyOutbound.push(msg as RendererErrorMessage);
         },
@@ -2888,6 +2992,7 @@ describe('MessageProcessor', () => {
           proc.model.deleteSurface(action.surfaceId);
         },
         {
+          validator: testValidator,
           outboundListener: msg => {
             outboundLog.push(msg);
           },
@@ -2911,6 +3016,7 @@ describe('MessageProcessor', () => {
     it('stops forwarding actions and errors after dispose()', async () => {
       const outboundLog: unknown[] = [];
       const proc = new MessageProcessor([v10Catalog], undefined, {
+        validator: testValidator,
         outboundListener: msg => {
           outboundLog.push(msg);
         },
@@ -2944,6 +3050,7 @@ describe('MessageProcessor', () => {
           actionLog.push(a);
         },
         {
+          validator: testValidator,
           errorHandler: err => {
             errorLog.push(err);
           },
@@ -3017,6 +3124,7 @@ describe('MessageProcessor component envelope mixins', () => {
   describe('below v1.0', () => {
     it('keeps metadata and catalogId as properties across full and partial updates (#4012)', () => {
       const proc = new MessageProcessor<ComponentApi>([gcbpCatalog('gcbp', '0.9')], undefined, {
+        validator: testValidator,
         validationConfig: STRICT_VALIDATION,
       });
       proc.processMessages([
@@ -3062,7 +3170,9 @@ describe('MessageProcessor component envelope mixins', () => {
     });
 
     it('rejects @-prefixed envelope keys', () => {
-      const proc = new MessageProcessor<ComponentApi>([gcbpCatalog('gcbp', '0.9')]);
+      const proc = new MessageProcessor<ComponentApi>([gcbpCatalog('gcbp', '0.9')], undefined, {
+        validator: testValidator,
+      });
       assert.throws(
         () =>
           proc.processMessages([
@@ -3092,6 +3202,7 @@ describe('MessageProcessor component envelope mixins', () => {
 
     function v10Processor(...catalogs: Catalog<ComponentApi>[]): MessageProcessor<ComponentApi> {
       const proc = new MessageProcessor<ComponentApi>(catalogs, undefined, {
+        validator: testValidator,
         validationConfig: STRICT_VALIDATION,
       });
       proc.processMessages([
@@ -3276,7 +3387,7 @@ describe('MessageProcessor component envelope mixins', () => {
 
     it('evaluates @checks into validation props without exposing the rules', () => {
       const cat = gcbpCatalog('main', '1.0');
-      const proc = new MessageProcessor<ComponentApi>([cat]);
+      const proc = new MessageProcessor<ComponentApi>([cat], undefined, {validator: testValidator});
       let resolver: NodeResolver | undefined;
       proc.model.onSurfaceCreated.subscribe(surface => {
         resolver = new NodeResolver(surface, cat);

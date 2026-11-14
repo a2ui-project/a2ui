@@ -29,6 +29,7 @@ import {
   registerUniversalElement,
   type WebComponentImplementation,
 } from '../../index.js';
+import {testValidator} from '../../../test/validator.js';
 
 describe('Video Component', () => {
   let basicCatalog: Catalog<WebComponentImplementation>;
@@ -49,7 +50,7 @@ describe('Video Component', () => {
   let subscription: Subscription | null = null;
 
   beforeEach(() => {
-    processor = new MessageProcessor([basicCatalog]);
+    processor = new MessageProcessor([basicCatalog], undefined, {validator: testValidator});
     processor.processMessages([
       {
         version: 'v0.9',
@@ -183,7 +184,9 @@ describe('Video Component', () => {
   });
 
   it('should sanitize posterUrl on a v1.0 Video surface', async () => {
-    const v1Processor = new MessageProcessor([v1BasicCatalog]);
+    const v1Processor = new MessageProcessor([v1BasicCatalog], undefined, {
+      validator: testValidator,
+    });
     v1Processor.processMessages([
       {
         version: '1.0',

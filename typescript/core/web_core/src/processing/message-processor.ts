@@ -37,6 +37,7 @@ import {batchWrite} from '../reactivity/signals.js';
 
 import {
   A2uiCatalogError,
+  A2uiConfigurationError,
   A2uiDataError,
   A2uiError,
   A2uiIntegrityError,
@@ -53,7 +54,8 @@ import {
   recordComponentGraphBound,
   validateComponentGraph,
 } from '../state/validation-helpers.js';
-import {defaultVersionAdapterFactory} from './adapters/factory.js';
+import {VersionAdapterFactory} from './adapters/factory.js';
+import type {JsonSchemaValidator} from '../schema-engine/types.js';
 import {compareSemVer, isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
 import {
   InternalOperation,
@@ -176,9 +178,18 @@ export interface CapabilitiesOptions {
  * Options for configuring a MessageProcessor instance.
  */
 export interface MessageProcessorOptions {
+  /**
+   * The JSON Schema validator protocol messages are checked with against the
+   * specification's own JSON Schemas (for example `createAjvValidator()` from
+   * `@a2ui/validator-ajv`). Required.
+   */
+  validator: JsonSchemaValidator;
   /** Default protocol version to use for capability generation and data model reporting. Defaults to 'v0.9'. */
   version?: ProtocolVersion;
-  /** Custom version adapter resolver or registry. Defaults to VersionAdapterFactory. */
+  /**
+   * Custom version adapter resolver or registry. Defaults to a
+   * VersionAdapterFactory using `validator`.
+   */
   adapterRegistry?: VersionAdapterResolver;
   /** Validation configuration rules. */
   validationConfig?: ValidationConfig;
@@ -247,14 +258,20 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * @param catalogs List of available component catalogs.
    * @param actionHandler Global handler for actions dispatched from all surfaces.
    * @param options Configuration options for the processor.
+   * @throws {A2uiConfigurationError} If `options.validator` is missing.
    * @throws {RangeError} If `options.maxAgentCallCacheEntries` isn't a positive integer.
    * @throws {A2uiValidationError} If `options.unifiedOutbound` is true without `options.outboundListener`.
    */
   constructor(
     catalogs: Catalog<T, any>[],
-    private actionHandler?: ActionListener,
-    options?: MessageProcessorOptions,
+    private actionHandler: ActionListener | undefined,
+    options: MessageProcessorOptions,
   ) {
+    if (!options?.validator) {
+      throw new A2uiConfigurationError(
+        'MessageProcessorOptions.validator is required: pass a JsonSchemaValidator, for example createAjvValidator() from @a2ui/validator-ajv.',
+      );
+    }
     const maxEntries = options?.maxAgentCallCacheEntries;
     if (
       maxEntries !== undefined &&
@@ -270,7 +287,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     this.maxAgentCallCacheEntries = maxEntries;
     this.registeredCatalogs = catalogs;
     this.model = new SurfaceGroupModel<T>();
-    this.adapterRegistry = options?.adapterRegistry ?? defaultVersionAdapterFactory;
+    this.adapterRegistry = options.adapterRegistry ?? new VersionAdapterFactory(options.validator);
     this.defaultVersion = options?.version;
     this.errorHandler = options?.errorHandler;
     this.reportErrorsOnly = options?.reportErrorsOnly ?? false;

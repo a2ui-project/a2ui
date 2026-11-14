@@ -18,6 +18,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {isDeepStrictEqual} from 'node:util';
 
+import {createAjvValidator} from '@a2ui/validator-ajv';
 import yaml from 'js-yaml';
 import {z} from 'zod';
 
@@ -66,6 +67,9 @@ import {CommonSchemas as V0_9_COMMON_SCHEMAS} from '../../dist/src/v0_9/schema/c
 import {CommonSchemas as V1_0_COMMON_SCHEMAS} from '../../dist/src/v1_0/schema/common-types.js';
 import {PayloadValidator} from '../../dist/src/validation/index.js';
 import {runNodeResolutionCase} from '../../dist/tests/conformance/node-resolution.js';
+
+/** The reference JSON Schema validator every processor checks messages with. */
+const schemaValidator = createAjvValidator();
 
 // Dedicated basic catalog component definitions per specification version
 const v0_8Components = V0_8_BASIC_COMPONENTS;
@@ -924,6 +928,7 @@ async function validateRpcTestCase(testCase) {
   const errorMessages = [];
   const rpcCatalogs = cat.id === 'basic' ? [cat] : [cat, v1_0BasicCatalog];
   const processor = new MessageProcessor(rpcCatalogs, undefined, {
+    validator: schemaValidator,
     version: '1.0',
     outboundListener:
       args.outboundListener === false
@@ -972,6 +977,7 @@ async function validateRpcTestCase(testCase) {
     );
     const surfaceErrors = [];
     procRef.current = new MessageProcessor([storeCat, v1_0BasicCatalog], undefined, {
+      validator: schemaValidator,
       version: '1.0',
       validationConfig: {allowUnknownElements: true},
       outboundListener: msg => {
@@ -1085,6 +1091,7 @@ async function validateRpcTestCase(testCase) {
     );
     const surfaceErrors = [];
     procRef.current = new MessageProcessor([storeCat], undefined, {
+      validator: schemaValidator,
       version: '1.0',
       validationConfig: {allowUnknownElements: true},
       outboundListener: msg => {
@@ -1719,12 +1726,20 @@ function assertExpectedConformanceError(thrown, emittedErrorMsg, expErrObj) {
         : String(d.path ?? '');
       const isMissing =
         d.code === 'missing_field' ||
+        d.keyword === 'required' ||
         (d.code === 'invalid_type' && d.received === 'undefined') ||
         d.message === 'Required';
+      // Schema engine issues carry a JSON Schema keyword in place of a code.
+      const keywordCode =
+        d.keyword === 'type'
+          ? 'invalid_type'
+          : d.keyword === 'const' || d.keyword === 'enum'
+            ? 'invalid_value'
+            : d.keyword;
       return {
         ...d,
         path: rawPath,
-        code: isMissing ? 'missing_field' : d.code,
+        code: isMissing ? 'missing_field' : (d.code ?? keywordCode),
       };
     });
     if (actualDetails.length === 0 && thrown.message?.includes("missing a valid 'version'")) {
@@ -1885,6 +1900,7 @@ function validateValidateTestCase(testCase) {
       ? {allowMissingRoot: true, allowDanglingReferences: true, allowOrphanComponents: true}
       : STRICT_VALIDATION;
   const processor = new MessageProcessor(testCatalogs, undefined, {
+    validator: schemaValidator,
     version: testCase.protocolVersion || '1.0',
     validationConfig,
     errorHandler: msg => {
@@ -2003,6 +2019,7 @@ function validateGetRendererDataModelTestCase(testCase) {
   );
   const {messages, steps, args, expect} = testCase;
   const processor = new MessageProcessor(getCatalogsForTestCase(testCase), undefined, {
+    validator: schemaValidator,
     version: resolveProtocolVersion(testCase),
   });
   if (messages) {
@@ -2631,6 +2648,7 @@ function validateGetRendererCapabilitiesTestCase(testCase) {
   }
   const testCatalogs = getCatalogsForTestCase(testCase);
   const processor = new MessageProcessor(testCatalogs, undefined, {
+    validator: schemaValidator,
     version: resolveProtocolVersion(testCase),
   });
   const args = testCase.args || {};
@@ -3687,7 +3705,10 @@ function validateProcessMessagesTestCase(testCase) {
       lastErrorMsg = msg;
     },
   };
-  const processor = new MessageProcessor(testCatalogs, undefined, processorOptions);
+  const processor = new MessageProcessor(testCatalogs, undefined, {
+    validator: schemaValidator,
+    ...processorOptions,
+  });
 
   const normalizeMsgs = msgs => {
     let inputMessages = msgs;
@@ -4077,7 +4098,10 @@ async function validateDispatchActionTestCase(testCase) {
 function evaluateFunctionOnSurface(testCase) {
   const {surface: surfaceSpec, catalogId, function: funcName, args = {}, dataModel} = testCase;
   const version = resolveProtocolVersion(testCase);
-  const processor = new MessageProcessor(getCatalogsForTestCase(testCase), undefined, {version});
+  const processor = new MessageProcessor(getCatalogsForTestCase(testCase), undefined, {
+    validator: schemaValidator,
+    version,
+  });
   const createSurface = {surfaceId: 'main'};
   if (surfaceSpec.catalogId !== undefined) createSurface.catalogId = surfaceSpec.catalogId;
   processor.processMessages([{version, createSurface}]);
@@ -4412,6 +4436,7 @@ async function validateRouteAgentFunctionTestCase(testCase) {
   const surfaceSpec = testCase.surface ?? {};
   const outbound = [];
   const processor = new MessageProcessor(buildRoutingCatalogs(testCase, version), undefined, {
+    validator: schemaValidator,
     outboundListener:
       surfaceSpec.outboundListener === false ? undefined : message => outbound.push(message),
   });

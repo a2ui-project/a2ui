@@ -3,4 +3,5 @@ dist/
 .wireit/
 src/v0_8/schemas/
 src/v0_9/schemas/
+src/v0_9_1/schemas/
 src/v1_0/schemas/

@@ -24,6 +24,7 @@ import {A2uiValidationError} from '../errors.js';
 import {MessageProcessor} from '../processing/message-processor.js';
 import {STRICT_VALIDATION} from './integrity-checker.js';
 import {PayloadValidator} from './payload-validator.js';
+import {testValidator} from '../test/validator.js';
 
 const ARCANA_ID = 'https://example.com/arcana.json';
 const BASIC_ID = 'https://example.com/basic.json';
@@ -146,6 +147,7 @@ describe('agentOnly functions in components', () => {
 describe('agentOnly functions of another catalog in components', () => {
   function process(...components: Record<string, unknown>[]): void {
     const processor = new MessageProcessor<ComponentApi>([BASIC, ARCANA as never], undefined, {
+      validator: testValidator,
       validationConfig: STRICT_VALIDATION,
     });
     processor.processMessages([
@@ -238,6 +240,7 @@ describe('agentOnly functions in v0.9 components', () => {
       },
     });
     const processor = new MessageProcessor<ComponentApi>([catalog as never], undefined, {
+      validator: testValidator,
       validationConfig: STRICT_VALIDATION,
     });
     assert.doesNotThrow(() =>

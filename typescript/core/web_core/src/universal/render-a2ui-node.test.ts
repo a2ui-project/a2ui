@@ -29,6 +29,7 @@ import {Catalog} from '../catalog/types.js';
 import type {A2uiWebComponentElement} from './a2ui_web_component_element.js';
 import {A2UI_ELEMENT_CONNECTED_EVENT} from './element_connected_event.js';
 import type {WebComponentImplementation} from './web_component_implementation.js';
+import {testValidator} from '../test/validator.js';
 
 // The mock element below extends HTMLElement, so the DOM globals have to be in place before this
 // module's class declarations are evaluated.
@@ -63,7 +64,7 @@ describe('renderA2uiNode', () => {
       mockImplWithoutTag,
     ]);
 
-    processor = new MessageProcessor([testCatalog]);
+    processor = new MessageProcessor([testCatalog], undefined, {validator: testValidator});
     processor.processMessages([
       {
         version: 'v0.9',
@@ -201,7 +202,7 @@ describe('renderA2uiNode', () => {
   });
 
   it('canRenderA2uiNode is true exactly when renderA2uiNode renders an element', () => {
-    const p = new MessageProcessor([testCatalog]);
+    const p = new MessageProcessor([testCatalog], undefined, {validator: testValidator});
     p.processMessages([
       {version: 'v0.9', createSurface: {surfaceId: 's', catalogId: 'test-catalog'}},
       {
@@ -240,7 +241,9 @@ describe('renderA2uiNode', () => {
   });
 
   it('returns nothing for a node whose implementation has no tagName', () => {
-    const missingTagSurface = new MessageProcessor([testCatalog]);
+    const missingTagSurface = new MessageProcessor([testCatalog], undefined, {
+      validator: testValidator,
+    });
     missingTagSurface.processMessages([
       {version: 'v0.9', createSurface: {surfaceId: 's', catalogId: 'test-catalog'}},
       {

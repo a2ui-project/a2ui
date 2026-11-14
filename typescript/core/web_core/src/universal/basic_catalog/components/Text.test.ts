@@ -24,6 +24,7 @@ import {
   type WebComponentImplementation,
 } from '../../index.js';
 import {setMarkdownRenderer} from '../directives/markdown.js';
+import {testValidator} from '../../../test/validator.js';
 
 describe('Text Component', () => {
   let basicCatalog: Catalog<WebComponentImplementation>;
@@ -41,7 +42,7 @@ describe('Text Component', () => {
   let element: A2uiWebComponentElement | null = null;
 
   beforeEach(() => {
-    processor = new MessageProcessor([basicCatalog]);
+    processor = new MessageProcessor([basicCatalog], undefined, {validator: testValidator});
     processor.processMessages([
       {
         version: 'v0.9',

@@ -29,6 +29,7 @@ import {
   registerUniversalElement,
   type WebComponentImplementation,
 } from '../../index.js';
+import {testValidator} from '../../../test/validator.js';
 
 describe('AudioPlayer Component', () => {
   let basicCatalog: Catalog<WebComponentImplementation>;
@@ -47,7 +48,7 @@ describe('AudioPlayer Component', () => {
   let subscription: Subscription | null = null;
 
   beforeEach(() => {
-    processor = new MessageProcessor([basicCatalog]);
+    processor = new MessageProcessor([basicCatalog], undefined, {validator: testValidator});
     processor.processMessages([
       {
         version: 'v0.9',

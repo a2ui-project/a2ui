@@ -30,6 +30,7 @@ import {
   type WebComponentImplementation,
 } from '../../index.js';
 import {ImageApi} from '../../../v0_9/basic_catalog/components/basic_components.js';
+import {testValidator} from '../../../test/validator.js';
 
 describe('Image Component', () => {
   let basicCatalog: Catalog<WebComponentImplementation>;
@@ -48,7 +49,7 @@ describe('Image Component', () => {
   let subscription: Subscription | null = null;
 
   beforeEach(() => {
-    processor = new MessageProcessor([basicCatalog]);
+    processor = new MessageProcessor([basicCatalog], undefined, {validator: testValidator});
     processor.processMessages([
       {
         version: 'v0.9',

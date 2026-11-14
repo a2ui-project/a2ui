@@ -29,3 +29,11 @@ export {V0Point8Adapter} from './v0_8.js';
 export {V0Point9Adapter} from './v0_9.js';
 export {V1Point0Adapter} from './v1_0.js';
 export {VersionAdapterFactory, defaultVersionAdapterFactory} from './factory.js';
+export {
+  type ProtocolMessageSpec,
+  V0_8_MESSAGE_SPEC,
+  V0_9_MESSAGE_SPEC,
+  V1_0_MESSAGE_SPEC,
+  compileMessageSpec,
+  validateProtocolMessage,
+} from './message-specs.js';
