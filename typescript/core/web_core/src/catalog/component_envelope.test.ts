@@ -29,6 +29,7 @@ import {
   splitComponentEnvelope,
 } from './component_envelope.js';
 import {Catalog} from './types.js';
+import {testValidator} from '../test/validator.js';
 
 const DEFS: Record<string, JsonSchema> = {'common_types.json': V10CommonTypes as JsonSchema};
 
@@ -221,13 +222,18 @@ describe('componentMixinLayout', () => {
 
     // A loaded component is read through its JSON definition.
     function jsonLayoutOf(properties: Record<string, unknown>) {
-      const catalog = Catalog.fromJson({
-        catalogId: 'inline',
-        protocolVersion: '1.0',
-        components: {Widget: {type: 'object', properties}},
-      });
+      const catalog = Catalog.fromJson(
+        {
+          catalogId: 'inline',
+          protocolVersion: '1.0',
+          components: {Widget: {type: 'object', properties}},
+        },
+        undefined,
+        undefined,
+        {validator: testValidator},
+      );
       const api = catalog.components.get('Widget')!;
-      return componentMixinLayout(entrySchema(api, 'component', catalog)!.layoutCursor);
+      return componentMixinLayout(entrySchema(api, 'component', catalog)!.cursor);
     }
 
     const jsonExtensionsOnly = {

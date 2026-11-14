@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import type {StandardSchemaV1} from '@standard-schema/spec';
+
 import {entrySchema, type AuthoredSchema} from '../catalog/entry-schema.js';
 import type {SchemaCursor} from '../schema-engine/nav.js';
 
@@ -23,4 +25,25 @@ import type {SchemaCursor} from '../schema-engine/nav.js';
  */
 export function cursorOf(schema: AuthoredSchema, protocolVersion?: string): SchemaCursor {
   return entrySchema({name: 'Test', schema}, 'component', {protocolVersion})!.cursor;
+}
+
+/** Validates `value` with a schema's `~standard.validate`, which must be synchronous. */
+function standardResult(schema: unknown, value: unknown) {
+  const result = (schema as StandardSchemaV1)['~standard'].validate(value);
+  if (result instanceof Promise) throw new Error('Expected synchronous validation.');
+  return result;
+}
+
+/** Whether a schema (a Standard Schema, such as a catalog entry's) accepts `value`. */
+export function accepts(schema: unknown, value: unknown): boolean {
+  return !standardResult(schema, value).issues;
+}
+
+/** The value a schema validates `value` to; throws if it rejects it. */
+export function validated(schema: unknown, value: unknown): unknown {
+  const result = standardResult(schema, value);
+  if (result.issues) {
+    throw new Error(`Rejected: ${result.issues.map(issue => issue.message).join('; ')}`);
+  }
+  return result.value;
 }

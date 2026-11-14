@@ -20,13 +20,17 @@ import type {z} from 'zod';
 import {isAtLeastVersion} from '../common/semver.js';
 import {A2uiConfigurationError} from '../errors.js';
 import {assertSync} from '../schema-engine/issues.js';
+import {
+  isJsonBackedSchema,
+  jsonSchemaCursor,
+  jsonSchemaDocuments,
+} from '../schema-engine/from-json-schema.js';
 import type {SchemaCursor} from '../schema-engine/nav.js';
 import type {CatalogSchema, JsonSchema} from '../schema-engine/types.js';
 import {fromZod3, isZod3Schema} from '../schema-engine/zod3-adapter.js';
 import V09CommonTypes from '../v0_9/schemas/common_types.json' with {type: 'json'};
 import V091CommonTypes from '../v0_9_1/schemas/common_types.json' with {type: 'json'};
 import V10CommonTypes from '../v1_0/schemas/common_types.json' with {type: 'json'};
-import {loadedDefinition} from './json_entries.js';
 
 /**
  * The schema a catalog entry is written with: a {@link CatalogSchema}, or a
@@ -43,17 +47,10 @@ export interface EntrySchema {
   readonly jsonSchema: JsonSchema;
   /**
    * The JSON Schema discovery reads (bindings, child references, known
-   * keys, dynamic booleans), with its referenced documents.
+   * keys, dynamic booleans, the component envelope's mixin layout), with
+   * its referenced documents.
    */
   readonly cursor: SchemaCursor;
-  /**
-   * The JSON Schema the component envelope's mixin layout is read from: for
-   * a component `Catalog.fromJson` loaded, its definition as the document
-   * writes it, which declares the envelope keys the derived schema omits;
-   * otherwise {@link cursor}.
-   */
-  // ponytail: one cursor once Task 9 loads entries as JSON Schema.
-  readonly layoutCursor: SchemaCursor;
 }
 
 /** The catalog fields an entry's schema document depends on. */
@@ -125,21 +122,25 @@ export function prepareSchema(authored: AuthoredSchema, what: string): Converted
       `${what}: its schema could not be converted to JSON Schema: ${message(err)}`,
     );
   }
-  // An asynchronous validator returns a Promise for any value; probe one.
-  let probe: unknown;
-  try {
-    probe = standard.validate({});
-  } catch {
-    probe = undefined;
+  // An asynchronous validator returns a Promise for any value; probe one. A
+  // JSON-backed schema is synchronous by construction, and probing it would
+  // compile a schema that may never validate anything.
+  if (!isJsonBackedSchema(schema)) {
+    let probe: unknown;
+    try {
+      probe = standard.validate({});
+    } catch {
+      probe = undefined;
+    }
+    assertSync(probe, what);
   }
-  assertSync(probe, what);
   const result: Converted = {schema, jsonSchema};
   converted.set(authored, result);
   return result;
 }
 
 /** The document parts (before `#`) of every cross-document `$ref` in `value`. */
-function externalDocuments(value: unknown, found = new Set<string>()): Set<string> {
+export function externalDocuments(value: unknown, found = new Set<string>()): Set<string> {
   if (Array.isArray(value)) {
     for (const item of value) externalDocuments(item, found);
   } else if (typeof value === 'object' && value !== null) {
@@ -157,7 +158,7 @@ function externalDocuments(value: unknown, found = new Set<string>()): Set<strin
 }
 
 /** The last path segment of a document reference, e.g. `common_types.json`. */
-function basename(document: string): string {
+export function basename(document: string): string {
   return document.slice(document.lastIndexOf('/') + 1);
 }
 
@@ -218,10 +219,11 @@ function cachedEntrySchema(
  * cached result.
  *
  * Discovery reads the schema's JSON Schema, with its own root as the local
- * document; the mixin layout of a component `Catalog.fromJson` loaded is read
- * from its definition, with the catalog's `$defs` as the local document.
- * Either way the protocol version's common types stand in for every other
- * document referenced.
+ * document; an entry `Catalog.fromJson` loaded is read where it sits in the
+ * catalog document instead. A JSON-backed schema (`fromJsonSchema`) brings
+ * the documents it validates with; for any other document a schema
+ * references, the protocol version's common types and the catalog's
+ * `$defs` stand in.
  *
  * @param entry The component or function.
  * @param kind Which of the two `entry` is, for error messages.
@@ -237,34 +239,21 @@ export function entrySchema(
 ): EntrySchema | undefined {
   if (!entry.schema) return undefined;
   const commonTypes = commonTypesFor(context?.protocolVersion) as object;
-  const definition = kind === 'component' ? loadedDefinition(entry) : undefined;
-  // Both cursors read the catalog's `$defs` (as `catalog.json`, or the loaded
-  // definition's local document).
   const defs = context?.defs ?? NO_DEFS;
   return cachedEntrySchema(entry, commonTypes, defs, () => {
     const what = `${kind === 'component' ? 'Component' : 'Function'} '${entry.name}'`;
     const {schema, jsonSchema} = prepareSchema(entry.schema!, what);
-    const cursor: SchemaCursor = {
+    const cursor: SchemaCursor = jsonSchemaCursor(schema) ?? {
       node: jsonSchema,
       doc: {
         root: jsonSchema,
-        defs: referencedDocuments(jsonSchema, commonTypes as JsonSchema, context?.defs),
+        defs: {
+          ...referencedDocuments(jsonSchema, commonTypes as JsonSchema, context?.defs),
+          ...jsonSchemaDocuments(schema),
+        },
       },
     };
-    const layoutCursor: SchemaCursor = definition
-      ? {
-          node: definition as JsonSchema,
-          doc: {
-            root: {$defs: context?.defs ?? {}},
-            defs: referencedDocuments(
-              [definition, context?.defs],
-              commonTypes as JsonSchema,
-              context?.defs,
-            ),
-          },
-        }
-      : cursor;
-    return {schema, jsonSchema, cursor, layoutCursor};
+    return {schema, jsonSchema, cursor};
   });
 }
 
@@ -286,7 +275,8 @@ export function validateWith(
  * serializers, which convert zod 3 schemas themselves; `undefined` for zod 3
  * or a missing schema.
  */
-// ponytail: serializers read zod 3 directly until Task 9.
+// ponytail: removed with the zod basic catalogs in Task 10/11, when the
+// serializers no longer convert zod 3 schemas.
 export function nonZodSchemaJson(
   schema: AuthoredSchema | undefined,
 ): Record<string, unknown> | undefined {

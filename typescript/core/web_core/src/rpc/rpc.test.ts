@@ -28,6 +28,7 @@ import {DataContext} from '../resolution/data-context.js';
 import {SurfaceModel} from '../state/surface-model.js';
 import {IndexImplementation} from '../v1_0/functions/system_functions.js';
 import {A2uiRpcError, RpcErrorCode, RpcHandler} from './rpc-handler.js';
+import {testValidator} from '../test/validator.js';
 
 describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', () => {
   const customRpcApi = {
@@ -1002,6 +1003,8 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
         },
       },
       '1.0',
+      undefined,
+      {validator: testValidator},
     );
     const execRpcCat = new Catalog(
       sharedId,

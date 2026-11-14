@@ -15,6 +15,10 @@
  * limitations under the License.
  */
 
+// ponytail: removed with the zod mirrors in Task 11. A loaded catalog's `oneOf`
+// is validated by the JSON Schema engine; this is left for the zod 3 schemas
+// (the zod 3 adapter, the specification shaper and `json_schema_to_zod`).
+
 import {z} from 'zod';
 import {ignoreOverride, parseDef, type OverrideCallback} from 'zod-to-json-schema';
 

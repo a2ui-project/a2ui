@@ -56,9 +56,10 @@ import {
   validateComponentGraph,
 } from '../state/validation-helpers.js';
 import {VersionAdapterFactory} from './adapters/factory.js';
-import type {SchemaCursor} from '../schema-engine/nav.js';
+import {objectProperties, type SchemaCursor} from '../schema-engine/nav.js';
 import type {JsonSchemaValidator} from '../schema-engine/types.js';
 import {entrySchema, nonZodSchemaJson} from '../catalog/entry-schema.js';
+import {loadedDefinition} from '../catalog/json_entries.js';
 import {compareSemVer, isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
 import {
   InternalOperation,
@@ -441,7 +442,12 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     for (const [name, comp] of catalog.components.entries()) {
       let props: Record<string, unknown> = {};
       let reqList: string[] = [];
-      if (comp.schema && typeof comp.schema === 'object') {
+      const loaded = loadedComponentShape(comp, catalog);
+      if (loaded) {
+        cleanSchemaNode(loaded, undefined, {stripAdditionalProperties: true});
+        props = (loaded.properties as Record<string, unknown>) || {};
+        reqList = loaded.required as string[];
+      } else if (comp.schema && typeof comp.schema === 'object') {
         const rawZod = (nonZodSchemaJson(comp.schema) ??
           zodToJsonSchema(comp.schema as z.ZodTypeAny, {
             target: 'jsonSchema2019-09',
@@ -1447,7 +1453,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
           : undefined;
     if (!type || !catalog) return undefined;
     const api = catalog.components.get(type);
-    return api ? entrySchema(api, 'component', catalog)?.layoutCursor : undefined;
+    return api ? entrySchema(api, 'component', catalog)?.cursor : undefined;
   }
 
   /**
@@ -1890,4 +1896,29 @@ function withStrictDefaults(config: ValidationConfig): ValidationConfig {
     allowUnknownElements: false,
     ...config,
   };
+}
+
+/**
+ * The properties and required keys of a component `Catalog.fromJson` loaded,
+ * as its definition declares them across `allOf` (envelope fields left out),
+ * for a pre-1.0 inline catalog; `undefined` for a component defined in code.
+ * Properties a mixin of another document declares are left to the
+ * `ComponentCommon` reference the inline catalog writes.
+ */
+function loadedComponentShape(
+  comp: ComponentApi,
+  catalog: Catalog<ComponentApi>,
+): Record<string, unknown> | undefined {
+  if (!loadedDefinition(comp)) return undefined;
+  const {node, doc} = entrySchema(comp, 'component', catalog)!.cursor;
+  const shape = objectProperties(node, doc);
+  const commonTypes = doc.defs['common_types.json'];
+  const properties: Record<string, unknown> = {};
+  for (const [key, property] of Object.entries(shape?.properties ?? {})) {
+    if (property.doc.root !== commonTypes && key !== 'id') {
+      properties[key] = structuredClone(property.node);
+    }
+  }
+  const required = [...(shape?.required ?? [])].filter(key => key in properties);
+  return {type: 'object', properties, required};
 }

@@ -19,11 +19,8 @@ import {z} from 'zod';
 import {A2uiCatalogError} from '../errors.js';
 import {AGENT_FUNCTION_BRAND, isAgentFunction} from './agent_function_brand.js';
 import {copyLoadedDefinition} from './json_entries.js';
-import {
-  convertFunctionArgsJsonSchemaToZod,
-  functionParameterNames,
-  isZodSchema,
-} from './schema_loader.js';
+import {functionParameterNames} from './from-json.js';
+import {convertFunctionArgsJsonSchemaToZod, isZodSchema} from './json_schema_to_zod.js';
 import type {AuthoredSchema} from './entry-schema.js';
 import type {
   A2uiReturnType,

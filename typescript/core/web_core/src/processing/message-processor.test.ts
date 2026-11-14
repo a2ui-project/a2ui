@@ -250,9 +250,17 @@ describe('MessageProcessor', () => {
           },
         },
       };
-      const proc = new MessageProcessor([Catalog.fromJson(document) as Catalog<any>], undefined, {
-        validator: testValidator,
-      });
+      const proc = new MessageProcessor(
+        [
+          Catalog.fromJson(document, undefined, undefined, {
+            validator: testValidator,
+          }) as Catalog<any>,
+        ],
+        undefined,
+        {
+          validator: testValidator,
+        },
+      );
       const caps = proc.getRendererCapabilities({versions: ['1.0'], includeInlineCatalogs: true});
       const inlineCat = (caps['1.0'] as any).inlineCatalogs?.[0];
 
@@ -286,7 +294,11 @@ describe('MessageProcessor', () => {
         components: {Label: label},
         $defs: unionsOnly,
       };
-      const inlineCat = inlineV10Catalog(Catalog.fromJson(document) as Catalog<any>);
+      const inlineCat = inlineV10Catalog(
+        Catalog.fromJson(document, undefined, undefined, {
+          validator: testValidator,
+        }) as Catalog<any>,
+      );
       assert.strictEqual(inlineCat.catalogId, 'https://example.com/by-id.json');
       assert.strictEqual(inlineCat.protocolVersion, '1.0');
       assertConformsToV10CatalogDefinition(inlineCat);
@@ -297,7 +309,9 @@ describe('MessageProcessor', () => {
         {catalogId: 'https://example.com/original', components: {Label: label}, $defs: unionsOnly},
         {components: {Label: label}, $defs: unionsOnly},
       ]) {
-        const catalog = Catalog.fromJson(document, '1.0', 'https://example.com/override');
+        const catalog = Catalog.fromJson(document, '1.0', 'https://example.com/override', {
+          validator: testValidator,
+        });
         const inlineCat = inlineV10Catalog(catalog as Catalog<any>);
         assert.strictEqual(inlineCat.catalogId, 'https://example.com/override');
         assert.strictEqual(inlineCat.protocolVersion, '1.0');
@@ -838,29 +852,34 @@ describe('MessageProcessor', () => {
     });
 
     it('applies Surface allowedParents rule only to rootId and checks all parents of a component', () => {
-      const compositionCatalog = Catalog.fromJson({
-        catalogId: 'custom',
-        protocolVersion: '1.0',
-        components: {
-          Box: {
-            type: 'object',
-            properties: {
-              children: {$ref: '#/$defs/ChildList'},
+      const compositionCatalog = Catalog.fromJson(
+        {
+          catalogId: 'custom',
+          protocolVersion: '1.0',
+          components: {
+            Box: {
+              type: 'object',
+              properties: {
+                children: {$ref: '#/$defs/ChildList'},
+              },
             },
-          },
-          Card: {
-            type: 'object',
-            allowedParents: ['Box'],
-            properties: {
-              children: {$ref: '#/$defs/ChildList'},
+            Card: {
+              type: 'object',
+              allowedParents: ['Box'],
+              properties: {
+                children: {$ref: '#/$defs/ChildList'},
+              },
             },
-          },
-          Header: {
-            type: 'object',
-            allowedParents: ['Box'],
+            Header: {
+              type: 'object',
+              allowedParents: ['Box'],
+            },
           },
         },
-      }) as unknown as Catalog<ComponentApi>;
+        undefined,
+        undefined,
+        {validator: testValidator},
+      ) as unknown as Catalog<ComponentApi>;
 
       // 1. Rewriting a container to drop a child whose allowedParents does not
       // include 'Surface' succeeds when orphans are allowed (default), and
@@ -1014,14 +1033,19 @@ describe('MessageProcessor', () => {
     });
 
     it("checks the surface's own root id against Surface, as a v0.8 beginRendering root sets it", () => {
-      const catalog = Catalog.fromJson({
-        catalogId: 'custom',
-        protocolVersion: '1.0',
-        components: {
-          Box: {type: 'object', properties: {children: {$ref: '#/$defs/ChildList'}}},
-          Card: {type: 'object', allowedParents: ['Box']},
+      const catalog = Catalog.fromJson(
+        {
+          catalogId: 'custom',
+          protocolVersion: '1.0',
+          components: {
+            Box: {type: 'object', properties: {children: {$ref: '#/$defs/ChildList'}}},
+            Card: {type: 'object', allowedParents: ['Box']},
+          },
         },
-      }) as unknown as Catalog<ComponentApi>;
+        undefined,
+        undefined,
+        {validator: testValidator},
+      ) as unknown as Catalog<ComponentApi>;
       const surfaceWithRoot = (rootId: string) =>
         new SurfaceModel<ComponentApi>(
           's1',
@@ -3092,33 +3116,38 @@ describe('MessageProcessor', () => {
 describe('MessageProcessor component envelope mixins', () => {
   /** A catalog whose `GcbpTable` declares its own `metadata` and `catalogId`. */
   function gcbpCatalog(catalogId: string, protocolVersion: string): Catalog<ComponentApi> {
-    return Catalog.fromJson({
-      catalogId,
-      protocolVersion,
-      components: {
-        GcbpTable: {
-          type: 'object',
-          properties: {
-            metadata: {
-              type: 'object',
-              properties: {pageNumber: {type: 'number'}, pageSize: {type: 'number'}},
-              additionalProperties: false,
+    return Catalog.fromJson(
+      {
+        catalogId,
+        protocolVersion,
+        components: {
+          GcbpTable: {
+            type: 'object',
+            properties: {
+              metadata: {
+                type: 'object',
+                properties: {pageNumber: {type: 'number'}, pageSize: {type: 'number'}},
+                additionalProperties: false,
+              },
+              catalogId: {type: 'string'},
+              accessibility: {type: 'string'},
             },
-            catalogId: {type: 'string'},
-            accessibility: {type: 'string'},
+            additionalProperties: false,
           },
-          additionalProperties: false,
-        },
-        Field: {
-          type: 'object',
-          allOf: [
-            {$ref: 'common_types.json#/$defs/Checkable'},
-            {type: 'object', properties: {label: {type: 'string'}}},
-          ],
-          unevaluatedProperties: false,
+          Field: {
+            type: 'object',
+            allOf: [
+              {$ref: 'common_types.json#/$defs/Checkable'},
+              {type: 'object', properties: {label: {type: 'string'}}},
+            ],
+            unevaluatedProperties: false,
+          },
         },
       },
-    }) as Catalog<ComponentApi>;
+      undefined,
+      undefined,
+      {validator: testValidator},
+    ) as Catalog<ComponentApi>;
   }
 
   describe('below v1.0', () => {
@@ -3213,28 +3242,33 @@ describe('MessageProcessor component envelope mixins', () => {
 
     it('routes and validates a loaded component that declares @catalogId inline', () => {
       const loaded = (catalogId: string) =>
-        Catalog.fromJson({
-          catalogId,
-          protocolVersion: '1.0',
-          components: {
-            // A flattened ComponentCommon: `id` and `@catalogId` inline.
-            Label: {
-              type: 'object',
-              allOf: [
-                {
-                  type: 'object',
-                  properties: {'id': {type: 'string'}, '@catalogId': {type: 'string'}},
-                  required: ['id'],
-                },
-                {
-                  type: 'object',
-                  properties: {component: {const: 'Label'}, text: {type: 'string'}},
-                  required: ['component'],
-                },
-              ],
+        Catalog.fromJson(
+          {
+            catalogId,
+            protocolVersion: '1.0',
+            components: {
+              // A flattened ComponentCommon: `id` and `@catalogId` inline.
+              Label: {
+                type: 'object',
+                allOf: [
+                  {
+                    type: 'object',
+                    properties: {'id': {type: 'string'}, '@catalogId': {type: 'string'}},
+                    required: ['id'],
+                  },
+                  {
+                    type: 'object',
+                    properties: {component: {const: 'Label'}, text: {type: 'string'}},
+                    required: ['component'],
+                  },
+                ],
+              },
             },
           },
-        }) as Catalog<ComponentApi>;
+          undefined,
+          undefined,
+          {validator: testValidator},
+        ) as Catalog<ComponentApi>;
       const proc = v10Processor(loaded('main'), loaded('other'));
       process(proc, [{'id': 'root', 'component': 'Label', '@catalogId': 'other', 'text': 'Hi'}]);
       const root = proc.getSurface('s')!.componentsModel.get('root')!;
@@ -3253,7 +3287,7 @@ describe('MessageProcessor component envelope mixins', () => {
           '@catalogId': 'other',
           '@metadata': {extensions: {com_example_trace: 't1'}},
           '@accessibility': {label: 'Email address'},
-          '@checks': [{condition: true, message: 'Required'}],
+          '@checks': [{condition: {'@path': '/valid'}, message: 'Required'}],
         },
       ]);
       const root = proc.getSurface('s')!.componentsModel.get('root')!;
@@ -3262,7 +3296,7 @@ describe('MessageProcessor component envelope mixins', () => {
       assert.deepStrictEqual(root.properties, {
         'label': 'Email',
         '@accessibility': {label: 'Email address'},
-        '@checks': [{condition: true, message: 'Required'}],
+        '@checks': [{condition: {'@path': '/valid'}, message: 'Required'}],
       });
       proc.dispose();
     });
@@ -3277,7 +3311,7 @@ describe('MessageProcessor component envelope mixins', () => {
           catalogId: 'other',
           metadata: {extensions: {com_example_trace: 't1'}},
           accessibility: {label: 'Email address'},
-          checks: [{condition: true, message: 'Required'}],
+          checks: [{condition: {'@path': '/valid'}, message: 'Required'}],
         },
       ]);
       const root = proc.getSurface('s')!.componentsModel.get('root')!;
@@ -3286,7 +3320,7 @@ describe('MessageProcessor component envelope mixins', () => {
       assert.deepStrictEqual(root.properties, {
         'label': 'Email',
         '@accessibility': {label: 'Email address'},
-        '@checks': [{condition: true, message: 'Required'}],
+        '@checks': [{condition: {'@path': '/valid'}, message: 'Required'}],
       });
       proc.dispose();
     });
@@ -3435,11 +3469,12 @@ describe('MessageProcessor component envelope mixins', () => {
                 'id': 'root',
                 'component': 'Field',
                 '@accessibility': {label: 'Email address'},
-                '@checks': [{condition: false, message: 'Required'}],
+                '@checks': [{condition: {'@path': '/valid'}, message: 'Required'}],
               },
             ],
           },
         },
+        {version: '1.0', updateDataModel: {surfaceId: 's', path: '/valid', value: false}},
       ] as any);
       const props = peekValue(peekValue(resolver!.rootNode)!.props);
       assert.strictEqual(props['isValid'], false);

@@ -64,7 +64,7 @@ function componentCursor<T extends ComponentApi>(
   type: string,
 ): SchemaCursor | undefined {
   const api = catalog.components.get(type);
-  return api ? entrySchema(api, 'component', catalog)?.layoutCursor : undefined;
+  return api ? entrySchema(api, 'component', catalog)?.cursor : undefined;
 }
 
 /** The JSON Schema of a component type in a surface's default catalog, if any. */

@@ -25,6 +25,7 @@ import {V09_STANDARD_DEFS} from '../v0_9/standard_defs.js';
 import {V10_STANDARD_DEFS} from '../v1_0/standard_defs.js';
 import {cleanSchemaNode, generateValidationSchema} from './schema_generator.js';
 import {Catalog, ComponentApi, FunctionApi, FunctionImplementation} from './types.js';
+import {testValidator} from '../test/validator.js';
 
 /** A standard definition as validationSchema bundles it: its catalog union ref localized. */
 function bundled(definition: unknown): unknown {
@@ -208,7 +209,7 @@ describe('Catalog.validationSchema & schema_generator', () => {
       },
     };
 
-    const catalog = Catalog.fromJson(rawCatalog, '0.9');
+    const catalog = Catalog.fromJson(rawCatalog, '0.9', undefined, {validator: testValidator});
     const generated = catalog.validationSchema;
 
     assert.strictEqual(generated['catalogId'], 'https://example.com/ingested_catalog.json');
@@ -435,18 +436,23 @@ describe('Catalog.validationSchema & schema_generator', () => {
       false,
     );
 
-    const loaded = Catalog.fromJson({
-      catalogId: 'https://example.com/v10-loaded.json',
-      protocolVersion: '1.0',
-      components: {
-        Open: {type: 'object', properties: {component: {const: 'Open'}}},
-        Closed: {
-          type: 'object',
-          properties: {component: {const: 'Closed'}},
-          unevaluatedProperties: false,
+    const loaded = Catalog.fromJson(
+      {
+        catalogId: 'https://example.com/v10-loaded.json',
+        protocolVersion: '1.0',
+        components: {
+          Open: {type: 'object', properties: {component: {const: 'Open'}}},
+          Closed: {
+            type: 'object',
+            properties: {component: {const: 'Closed'}},
+            unevaluatedProperties: false,
+          },
         },
       },
-    });
+      undefined,
+      undefined,
+      {validator: testValidator},
+    );
     const components = loaded.validationSchema['components'] as Record<string, any>;
     assert.strictEqual('unevaluatedProperties' in components['Open'], false);
     assert.strictEqual(components['Closed'].unevaluatedProperties, false);
@@ -619,20 +625,30 @@ describe('Catalog.validationSchema & schema_generator', () => {
   });
 
   it('emits the declared protocolVersion as a bare semantic version and omits it otherwise', () => {
-    const declared = Catalog.fromJson({
-      catalogId: 'https://example.com/declared.json',
-      protocolVersion: 'v0.9.1',
-      components: {},
-    });
+    const declared = Catalog.fromJson(
+      {
+        catalogId: 'https://example.com/declared.json',
+        protocolVersion: 'v0.9.1',
+        components: {},
+      },
+      undefined,
+      undefined,
+      {validator: testValidator},
+    );
     assert.strictEqual(declared.validationSchema['protocolVersion'], '0.9.1');
     // The catalog document itself keeps the version as written.
     assert.strictEqual(declared.toJson()['protocolVersion'], 'v0.9.1');
 
-    const bare = Catalog.fromJson({
-      catalogId: 'https://example.com/bare.json',
-      protocolVersion: '1.0',
-      components: {},
-    });
+    const bare = Catalog.fromJson(
+      {
+        catalogId: 'https://example.com/bare.json',
+        protocolVersion: '1.0',
+        components: {},
+      },
+      undefined,
+      undefined,
+      {validator: testValidator},
+    );
     assert.strictEqual(bare.validationSchema['protocolVersion'], '1.0');
 
     const undeclared = new Catalog('https://example.com/undeclared.json', '0.9', []);
@@ -678,20 +694,25 @@ describe('Catalog.validationSchema & schema_generator', () => {
       assert.deepStrictEqual(defs['anyFunction'], {not: {}}, `empty union for ${version}`);
     }
 
-    const published = Catalog.fromJson({
-      catalogId: 'https://example.com/published.json',
-      protocolVersion: '1.0',
-      components: {
-        Label: {
-          type: 'object',
-          allOf: [{$ref: 'common_types.json#/$defs/Checkable'}],
-          properties: {
-            component: {const: 'Label'},
-            text: {$ref: 'common_types.json#/$defs/DynamicString'},
+    const published = Catalog.fromJson(
+      {
+        catalogId: 'https://example.com/published.json',
+        protocolVersion: '1.0',
+        components: {
+          Label: {
+            type: 'object',
+            allOf: [{$ref: 'common_types.json#/$defs/Checkable'}],
+            properties: {
+              component: {const: 'Label'},
+              text: {$ref: 'common_types.json#/$defs/DynamicString'},
+            },
           },
         },
       },
-    });
+      undefined,
+      undefined,
+      {validator: testValidator},
+    );
     assertRefsLocalAndResolvable(published.validationSchema);
   });
 
@@ -738,11 +759,16 @@ describe('Catalog.validationSchema & schema_generator', () => {
 
   it('keeps an authored open theme open and a closed one closed', () => {
     const load = (theme: Record<string, unknown>) =>
-      Catalog.fromJson({
-        catalogId: 'https://example.com/theme.json',
-        components: {},
-        theme,
-      }).validationSchema['$defs'] as Record<string, any>;
+      Catalog.fromJson(
+        {
+          catalogId: 'https://example.com/theme.json',
+          components: {},
+          theme,
+        },
+        undefined,
+        undefined,
+        {validator: testValidator},
+      ).validationSchema['$defs'] as Record<string, any>;
 
     const open = load({type: 'object', properties: {primaryColor: {type: 'string'}}});
     assert.notStrictEqual(open['theme'].additionalProperties, false);
@@ -756,18 +782,23 @@ describe('Catalog.validationSchema & schema_generator', () => {
   });
 
   it('excludes system functions and follows the source order of a loaded catalog', () => {
-    const loaded = Catalog.fromJson({
-      catalogId: 'https://example.com/order.json',
-      protocolVersion: '1.0',
-      components: {
-        Zeta: {type: 'object', properties: {component: {const: 'Zeta'}}},
-        Alpha: {type: 'object', properties: {component: {const: 'Alpha'}}},
+    const loaded = Catalog.fromJson(
+      {
+        catalogId: 'https://example.com/order.json',
+        protocolVersion: '1.0',
+        components: {
+          Zeta: {type: 'object', properties: {component: {const: 'Zeta'}}},
+          Alpha: {type: 'object', properties: {component: {const: 'Alpha'}}},
+        },
+        functions: {
+          zed: {type: 'object', returnType: 'string', properties: {'@call': {const: 'zed'}}},
+          abc: {type: 'object', returnType: 'string', properties: {'@call': {const: 'abc'}}},
+        },
       },
-      functions: {
-        zed: {type: 'object', returnType: 'string', properties: {'@call': {const: 'zed'}}},
-        abc: {type: 'object', returnType: 'string', properties: {'@call': {const: 'abc'}}},
-      },
-    });
+      undefined,
+      undefined,
+      {validator: testValidator},
+    );
     const schema = loaded.validationSchema;
     const defs = schema['$defs'] as Record<string, any>;
     assert.deepStrictEqual(Object.keys(schema['functions'] as object), ['zed', 'abc']);
@@ -795,29 +826,34 @@ describe('Catalog.validationSchema & schema_generator', () => {
   });
 
   it('keeps authored descriptions and annotations but not document metadata', () => {
-    const loaded = Catalog.fromJson({
-      $id: 'https://example.com/described/catalog.json',
-      title: 'Described',
-      description: 'Document description.',
-      catalogId: 'https://example.com/described',
-      protocolVersion: '1.0',
-      components: {
-        Profile: {
-          type: 'object',
-          description: 'Shows a person.',
-          properties: {
-            component: {const: 'Profile'},
-            email: {type: 'string', title: 'Email', format: 'email', pattern: '^.+@.+$'},
-            tags: {type: 'array', items: {type: 'string'}, uniqueItems: true},
+    const loaded = Catalog.fromJson(
+      {
+        $id: 'https://example.com/described/catalog.json',
+        title: 'Described',
+        description: 'Document description.',
+        catalogId: 'https://example.com/described',
+        protocolVersion: '1.0',
+        components: {
+          Profile: {
+            type: 'object',
+            description: 'Shows a person.',
+            properties: {
+              component: {const: 'Profile'},
+              email: {type: 'string', title: 'Email', format: 'email', pattern: '^.+@.+$'},
+              tags: {type: 'array', items: {type: 'string'}, uniqueItems: true},
+            },
           },
         },
+        theme: {
+          type: 'object',
+          description: 'Theme tokens.',
+          properties: {accent: {type: 'string', format: 'color'}},
+        },
       },
-      theme: {
-        type: 'object',
-        description: 'Theme tokens.',
-        properties: {accent: {type: 'string', format: 'color'}},
-      },
-    });
+      undefined,
+      undefined,
+      {validator: testValidator},
+    );
     const schema = loaded.validationSchema;
     for (const key of ['$id', 'title', 'description']) {
       assert.strictEqual(key in schema, false, `top-level ${key} is not emitted`);
@@ -859,58 +895,67 @@ describe('Catalog.validationSchema & schema_generator', () => {
   });
 
   it('builds loaded entries from their authored JSON, keeping nested keywords', () => {
-    const loaded = Catalog.fromJson({
-      catalogId: 'https://example.com/authored.json',
-      components: {
-        Picker: {
-          allOf: [
-            {$ref: 'common_types.json#/$defs/ComponentCommon'},
-            {$ref: 'common_types.json#/$defs/Checkable'},
-            {$ref: '#/$defs/Labelled'},
-            {
-              type: 'object',
-              description: 'Picks a date.',
-              properties: {
-                component: {const: 'Picker'},
-                value: {$ref: 'common_types.json#/$defs/DynamicString', default: 'x', minLength: 1},
-                min: {
-                  allOf: [
-                    {$ref: 'common_types.json#/$defs/DynamicString'},
-                    {if: {type: 'string'}, then: {format: 'date'}},
-                  ],
+    const loaded = Catalog.fromJson(
+      {
+        catalogId: 'https://example.com/authored.json',
+        components: {
+          Picker: {
+            allOf: [
+              {$ref: 'common_types.json#/$defs/ComponentCommon'},
+              {$ref: 'common_types.json#/$defs/Checkable'},
+              {$ref: '#/$defs/Labelled'},
+              {
+                type: 'object',
+                description: 'Picks a date.',
+                properties: {
+                  component: {const: 'Picker'},
+                  value: {
+                    $ref: 'common_types.json#/$defs/DynamicString',
+                    default: 'x',
+                    minLength: 1,
+                  },
+                  min: {
+                    allOf: [
+                      {$ref: 'common_types.json#/$defs/DynamicString'},
+                      {if: {type: 'string'}, then: {format: 'date'}},
+                    ],
+                  },
+                  style: {$ref: '#/$defs/Style'},
                 },
-                style: {$ref: '#/$defs/Style'},
+                required: ['value', 'component'],
               },
-              required: ['value', 'component'],
-            },
-          ],
-        },
-      },
-      functions: {
-        between: {
-          type: 'object',
-          description: 'Checks a range.',
-          properties: {
-            call: {const: 'between'},
-            args: {
-              type: 'object',
-              properties: {
-                value: {description: 'Any value.'},
-                min: {type: 'number'},
-                max: {type: 'number'},
-              },
-              required: ['value'],
-              anyOf: [{required: ['min']}, {required: ['max']}],
-            },
-            returnType: {const: 'boolean'},
+            ],
           },
         },
+        functions: {
+          between: {
+            type: 'object',
+            description: 'Checks a range.',
+            properties: {
+              call: {const: 'between'},
+              args: {
+                type: 'object',
+                properties: {
+                  value: {description: 'Any value.'},
+                  min: {type: 'number'},
+                  max: {type: 'number'},
+                },
+                required: ['value'],
+                anyOf: [{required: ['min']}, {required: ['max']}],
+              },
+              returnType: {const: 'boolean'},
+            },
+          },
+        },
+        $defs: {
+          Labelled: {properties: {label: {type: 'string'}}, required: ['label']},
+          Style: {type: 'string', enum: ['plain', 'bold']},
+        },
       },
-      $defs: {
-        Labelled: {properties: {label: {type: 'string'}}, required: ['label']},
-        Style: {type: 'string', enum: ['plain', 'bold']},
-      },
-    });
+      undefined,
+      undefined,
+      {validator: testValidator},
+    );
     const schema = loaded.validationSchema;
     assertRefsLocalAndResolvable(schema);
     const defs = schema['$defs'] as Record<string, any>;
@@ -958,82 +1003,87 @@ describe('Catalog.validationSchema & schema_generator', () => {
   });
 
   it('requires args when authored function argument schemas require arguments via combinators or $ref', () => {
-    const loaded = Catalog.fromJson({
-      catalogId: 'https://example.com/combinator-args.json',
-      protocolVersion: '1.0',
-      $defs: {
-        RequiredArgDef: {
-          type: 'object',
-          properties: {target: {type: 'string'}},
-          required: ['target'],
+    const loaded = Catalog.fromJson(
+      {
+        catalogId: 'https://example.com/combinator-args.json',
+        protocolVersion: '1.0',
+        $defs: {
+          RequiredArgDef: {
+            type: 'object',
+            properties: {target: {type: 'string'}},
+            required: ['target'],
+          },
+          OptionalArgDef: {
+            type: 'object',
+            properties: {target: {type: 'string'}},
+          },
         },
-        OptionalArgDef: {
-          type: 'object',
-          properties: {target: {type: 'string'}},
+        functions: {
+          oneOfRequired: {
+            returnType: 'string',
+            properties: {
+              '@call': {const: 'oneOfRequired'},
+              args: {
+                oneOf: [
+                  {
+                    type: 'object',
+                    properties: {kind: {const: 'a'}, value: {type: 'string'}},
+                    required: ['kind', 'value'],
+                  },
+                  {
+                    type: 'object',
+                    properties: {kind: {const: 'b'}, count: {type: 'number'}},
+                    required: ['kind', 'count'],
+                  },
+                ],
+              },
+            },
+          },
+          anyOfSubRequired: {
+            returnType: 'boolean',
+            properties: {
+              '@call': {const: 'anyOfSubRequired'},
+              args: {
+                type: 'object',
+                properties: {min: {type: 'number'}, max: {type: 'number'}},
+                anyOf: [{required: ['min']}, {required: ['max']}],
+              },
+            },
+          },
+          oneOfOptionalBranch: {
+            returnType: 'string',
+            properties: {
+              '@call': {const: 'oneOfOptionalBranch'},
+              args: {
+                oneOf: [{$ref: '#/$defs/RequiredArgDef'}, {$ref: '#/$defs/OptionalArgDef'}],
+              },
+            },
+          },
+          allOfRefRequired: {
+            returnType: 'string',
+            properties: {
+              '@call': {const: 'allOfRefRequired'},
+              args: {
+                allOf: [{$ref: '#/$defs/OptionalArgDef'}, {$ref: '#/$defs/RequiredArgDef'}],
+              },
+            },
+          },
+          minPropsRequired: {
+            returnType: 'string',
+            properties: {
+              '@call': {const: 'minPropsRequired'},
+              args: {
+                type: 'object',
+                minProperties: 1,
+              },
+            },
+          },
         },
       },
-      functions: {
-        oneOfRequired: {
-          returnType: 'string',
-          properties: {
-            '@call': {const: 'oneOfRequired'},
-            args: {
-              oneOf: [
-                {
-                  type: 'object',
-                  properties: {kind: {const: 'a'}, value: {type: 'string'}},
-                  required: ['kind', 'value'],
-                },
-                {
-                  type: 'object',
-                  properties: {kind: {const: 'b'}, count: {type: 'number'}},
-                  required: ['kind', 'count'],
-                },
-              ],
-            },
-          },
-        },
-        anyOfSubRequired: {
-          returnType: 'boolean',
-          properties: {
-            '@call': {const: 'anyOfSubRequired'},
-            args: {
-              type: 'object',
-              properties: {min: {type: 'number'}, max: {type: 'number'}},
-              anyOf: [{required: ['min']}, {required: ['max']}],
-            },
-          },
-        },
-        oneOfOptionalBranch: {
-          returnType: 'string',
-          properties: {
-            '@call': {const: 'oneOfOptionalBranch'},
-            args: {
-              oneOf: [{$ref: '#/$defs/RequiredArgDef'}, {$ref: '#/$defs/OptionalArgDef'}],
-            },
-          },
-        },
-        allOfRefRequired: {
-          returnType: 'string',
-          properties: {
-            '@call': {const: 'allOfRefRequired'},
-            args: {
-              allOf: [{$ref: '#/$defs/OptionalArgDef'}, {$ref: '#/$defs/RequiredArgDef'}],
-            },
-          },
-        },
-        minPropsRequired: {
-          returnType: 'string',
-          properties: {
-            '@call': {const: 'minPropsRequired'},
-            args: {
-              type: 'object',
-              minProperties: 1,
-            },
-          },
-        },
-      },
-    });
+      undefined,
+      undefined,
+      {validator: testValidator},
+    );
     const fns = loaded.validationSchema['functions'] as Record<string, any>;
     assert.deepStrictEqual(fns['oneOfRequired'].required, ['@call', 'args']);
     assert.strictEqual(fns['oneOfRequired'].properties.args.oneOf.length, 2);
@@ -1072,34 +1122,39 @@ describe('Catalog.validationSchema & schema_generator', () => {
       ['1.0', V10_STANDARD_DEFS, '@call'],
     ] as const) {
       it(`bundles a deep pointer in an authored v${version} catalog`, () => {
-        const loaded = Catalog.fromJson({
-          catalogId: `https://example.com/deep-${version}.json`,
-          protocolVersion: version,
-          components: {
-            Label: {
-              type: 'object',
-              properties: {
-                component: {const: 'Label'},
-                text: {$ref: DEEP_REF},
+        const loaded = Catalog.fromJson(
+          {
+            catalogId: `https://example.com/deep-${version}.json`,
+            protocolVersion: version,
+            components: {
+              Label: {
+                type: 'object',
+                properties: {
+                  component: {const: 'Label'},
+                  text: {$ref: DEEP_REF},
+                },
+                required: ['component', 'text'],
               },
-              required: ['component', 'text'],
             },
-          },
-          functions: {
-            echo: {
-              type: 'object',
-              returnType: 'string',
-              properties: {
-                [callKey]: {const: 'echo'},
-                args: {
-                  type: 'object',
-                  properties: {value: {$ref: DEEP_REF}},
-                  required: ['value'],
+            functions: {
+              echo: {
+                type: 'object',
+                returnType: 'string',
+                properties: {
+                  [callKey]: {const: 'echo'},
+                  args: {
+                    type: 'object',
+                    properties: {value: {$ref: DEEP_REF}},
+                    required: ['value'],
+                  },
                 },
               },
             },
           },
-        });
+          undefined,
+          undefined,
+          {validator: testValidator},
+        );
         const schema = loaded.validationSchema;
         const label = (schema['components'] as Record<string, any>)['Label'];
         const echo = (schema['functions'] as Record<string, any>)['echo'];

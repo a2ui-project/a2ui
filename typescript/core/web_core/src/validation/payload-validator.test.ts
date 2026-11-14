@@ -71,25 +71,31 @@ describe('PayloadValidator', () => {
   });
 
   it('validates function arguments when parameters schema uses $ref', () => {
-    const catalog = Catalog.fromJson({
-      catalogId: 'https://example.com/test-ref-validator.json',
-      protocolVersion: '1.0',
-      $defs: {
-        RefArgs: {
-          type: 'object',
-          properties: {
-            field: {type: 'string'},
+    const catalog = Catalog.fromJson(
+      {
+        catalogId: 'https://example.com/test-ref-validator.json',
+        protocolVersion: '1.0',
+        $defs: {
+          RefArgs: {
+            type: 'object',
+            properties: {
+              field: {type: 'string'},
+            },
+            required: ['field'],
+            additionalProperties: false,
           },
-          required: ['field'],
+        },
+        functions: {
+          testRef: {
+            parameters: {$ref: '#/$defs/RefArgs'},
+            returnType: 'string',
+          },
         },
       },
-      functions: {
-        testRef: {
-          parameters: {$ref: '#/$defs/RefArgs'},
-          returnType: 'string',
-        },
-      },
-    });
+      undefined,
+      undefined,
+      {validator: testValidator},
+    );
 
     const validator = new PayloadValidator(catalog, STRICT_VALIDATION);
 
@@ -104,7 +110,7 @@ describe('PayloadValidator', () => {
         err.message.includes("Validation failed for function 'testRef'"),
     );
 
-    // Unrecognized extra field throws in strict mode
+    // An extra field the closed schema does not declare throws
     assert.throws(
       () => validator.validateFunction('testRef', {field: 'hello', unexpected: 123}),
       (err: unknown) =>
@@ -434,44 +440,49 @@ describe('PayloadValidator', () => {
   describe('component envelope mixins', () => {
     /** A v0.9 or v1.0 catalog with a `GcbpTable` declaring its own `metadata` and `catalogId`. */
     function gcbpCatalog(protocolVersion: string) {
-      return Catalog.fromJson({
-        catalogId: 'https://example.com/gcbp.json',
-        protocolVersion,
-        components: {
-          GcbpTable: {
-            type: 'object',
-            properties: {
-              metadata: {
-                anyOf: [
-                  {
-                    type: 'object',
-                    properties: {pageNumber: {type: 'number'}, pageSize: {type: 'number'}},
-                    additionalProperties: false,
-                  },
-                  {$ref: 'common_types.json#/$defs/DataBinding'},
-                ],
+      return Catalog.fromJson(
+        {
+          catalogId: 'https://example.com/gcbp.json',
+          protocolVersion,
+          components: {
+            GcbpTable: {
+              type: 'object',
+              properties: {
+                metadata: {
+                  anyOf: [
+                    {
+                      type: 'object',
+                      properties: {pageNumber: {type: 'number'}, pageSize: {type: 'number'}},
+                      additionalProperties: false,
+                    },
+                    {$ref: 'common_types.json#/$defs/DataBinding'},
+                  ],
+                },
+                catalogId: {type: 'string'},
+                accessibility: {type: 'string'},
+                checks: {type: 'array', items: {type: 'string'}},
               },
-              catalogId: {type: 'string'},
-              accessibility: {type: 'string'},
-              checks: {type: 'array', items: {type: 'string'}},
+              additionalProperties: false,
             },
-            additionalProperties: false,
-          },
-          Plain: {
-            type: 'object',
-            properties: {label: {type: 'string'}},
-            additionalProperties: false,
-          },
-          Checked: {
-            type: 'object',
-            allOf: [
-              {$ref: 'common_types.json#/$defs/Checkable'},
-              {type: 'object', properties: {label: {type: 'string'}}},
-            ],
-            unevaluatedProperties: false,
+            Plain: {
+              type: 'object',
+              properties: {label: {type: 'string'}},
+              additionalProperties: false,
+            },
+            Checked: {
+              type: 'object',
+              allOf: [
+                {$ref: 'common_types.json#/$defs/Checkable'},
+                {type: 'object', properties: {label: {type: 'string'}}},
+              ],
+              unevaluatedProperties: false,
+            },
           },
         },
-      });
+        undefined,
+        undefined,
+        {validator: testValidator},
+      );
     }
 
     describe('below v1.0', () => {
@@ -537,7 +548,7 @@ describe('PayloadValidator', () => {
             'component': 'Checked',
             '@metadata': {extensions: {com_example_trace: 't1'}},
             '@accessibility': {label: 'Name'},
-            '@checks': [{condition: true, message: 'Required'}],
+            '@checks': [{condition: {'@path': '/valid'}, message: 'Required'}],
           }),
         );
         assert.doesNotThrow(() =>
@@ -546,7 +557,7 @@ describe('PayloadValidator', () => {
             component: 'Checked',
             metadata: {extensions: {com_example_trace: 't1'}},
             accessibility: {label: 'Name'},
-            checks: [{condition: true, message: 'Required'}],
+            checks: [{condition: {'@path': '/valid'}, message: 'Required'}],
           }),
         );
       });
@@ -655,16 +666,23 @@ describe('PayloadValidator', () => {
       });
 
       it('rejects @-prefixed mixin names nested inside a property', () => {
-        const catalog = Catalog.fromJson({
-          catalogId: 'https://example.com/nested.json',
-          protocolVersion: '1.0',
-          components: {
-            Card: {
-              type: 'object',
-              properties: {details: {$ref: 'common_types.json#/$defs/DynamicValue'}},
+        const catalog = Catalog.fromJson(
+          {
+            catalogId: 'https://example.com/nested.json',
+            protocolVersion: '1.0',
+            components: {
+              Card: {
+                type: 'object',
+                // An object the schema takes as it is, so the reserved key check
+                // is the one that answers. (A DynamicValue rejects such keys itself.)
+                properties: {details: {type: 'object'}},
+              },
             },
           },
-        });
+          undefined,
+          undefined,
+          {validator: testValidator},
+        );
         const nested = new PayloadValidator(catalog, STRICT_VALIDATION);
         assert.throws(
           () =>

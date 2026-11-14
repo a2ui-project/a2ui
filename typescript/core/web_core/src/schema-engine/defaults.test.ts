@@ -50,6 +50,22 @@ describe('applyDefaults', () => {
     assert.notStrictEqual(result, input);
   });
 
+  it('fills the defaults inside a default it fills', () => {
+    const schema: JsonSchema = {
+      type: 'object',
+      properties: {
+        options: {
+          type: 'object',
+          properties: {currency: {type: 'string', default: 'USD'}},
+          default: {},
+        },
+      },
+    };
+    assert.deepStrictEqual(applyDefaults({}, schema, docOf(schema)), {
+      options: {currency: 'USD'},
+    });
+  });
+
   it('does not overwrite a value that is present', () => {
     const input = deepFreeze({a: {b: 'given'}});
     assert.strictEqual(applyDefaults(input, nested, docOf(nested)), input);

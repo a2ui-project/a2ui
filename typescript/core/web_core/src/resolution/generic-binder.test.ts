@@ -45,6 +45,7 @@ import {cursorOf} from '../test/schema.js';
 import type {Action as V1Action, CheckRule as V1CheckRule} from '../v1_0/schema/common-types.js';
 import V10CommonTypes from '../v1_0/schemas/common_types.json' with {type: 'json'};
 import type {ChildRefAnalysisOptions} from './ref-fields.js';
+import {testValidator} from '../test/validator.js';
 
 const COMMON_DEFS: Record<string, JsonSchema> = {'common_types.json': V10CommonTypes as JsonSchema};
 
@@ -2614,67 +2615,72 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
     ]);
 
     // 6. Catalog.fromJson oneOf schemas preserve ACTION, DYNAMIC (including nested $defs oneOf), and STRUCTURAL
-    const oneOfCatalog = Catalog.fromJson({
-      catalogId: 'oneof-binder-cat',
-      $defs: {
-        ComponentId: {type: 'string'},
-        DataBinding: {
-          type: 'object',
-          properties: {path: {type: 'string'}},
-          required: ['path'],
+    const oneOfCatalog = Catalog.fromJson(
+      {
+        catalogId: 'oneof-binder-cat',
+        $defs: {
+          ComponentId: {type: 'string'},
+          DataBinding: {
+            type: 'object',
+            properties: {path: {type: 'string'}},
+            required: ['path'],
+          },
+          FunctionCall: {
+            type: 'object',
+            properties: {call: {type: 'string'}},
+            required: ['call'],
+          },
+          NestedBindingUnion: {
+            oneOf: [{$ref: '#/$defs/DataBinding'}, {$ref: '#/$defs/FunctionCall'}],
+          },
         },
-        FunctionCall: {
-          type: 'object',
-          properties: {call: {type: 'string'}},
-          required: ['call'],
-        },
-        NestedBindingUnion: {
-          oneOf: [{$ref: '#/$defs/DataBinding'}, {$ref: '#/$defs/FunctionCall'}],
-        },
-      },
-      components: {
-        OneOfComp: {
-          type: 'object',
-          properties: {
-            child: {
-              oneOf: [{type: 'string'}, {$ref: '#/$defs/NestedBindingUnion'}],
-            },
-            disabled: {
-              oneOf: [{type: 'boolean'}, {$ref: '#/$defs/NestedBindingUnion'}],
-            },
-            onPress: {
-              oneOf: [
-                {
-                  type: 'object',
-                  properties: {event: {type: 'object', properties: {name: {type: 'string'}}}},
-                  required: ['event'],
-                },
-                {
-                  type: 'object',
-                  properties: {
-                    functionCall: {type: 'object', properties: {call: {type: 'string'}}},
+        components: {
+          OneOfComp: {
+            type: 'object',
+            properties: {
+              child: {
+                oneOf: [{type: 'string'}, {$ref: '#/$defs/NestedBindingUnion'}],
+              },
+              disabled: {
+                oneOf: [{type: 'boolean'}, {$ref: '#/$defs/NestedBindingUnion'}],
+              },
+              onPress: {
+                oneOf: [
+                  {
+                    type: 'object',
+                    properties: {event: {type: 'object', properties: {name: {type: 'string'}}}},
+                    required: ['event'],
                   },
-                  required: ['functionCall'],
-                },
-              ],
-            },
-            items: {
-              oneOf: [
-                {type: 'array', items: {$ref: '#/$defs/ComponentId'}},
-                {
-                  type: 'object',
-                  properties: {
-                    componentId: {$ref: '#/$defs/ComponentId'},
-                    path: {type: 'string'},
+                  {
+                    type: 'object',
+                    properties: {
+                      functionCall: {type: 'object', properties: {call: {type: 'string'}}},
+                    },
+                    required: ['functionCall'],
                   },
-                  required: ['componentId', 'path'],
-                },
-              ],
+                ],
+              },
+              items: {
+                oneOf: [
+                  {type: 'array', items: {$ref: '#/$defs/ComponentId'}},
+                  {
+                    type: 'object',
+                    properties: {
+                      componentId: {$ref: '#/$defs/ComponentId'},
+                      path: {type: 'string'},
+                    },
+                    required: ['componentId', 'path'],
+                  },
+                ],
+              },
             },
           },
         },
       },
-    });
+      undefined,
+      undefined,
+      {validator: testValidator},
+    );
     const oneOfCompSchema = oneOfCatalog.components.get('OneOfComp')!.schema;
 
     const catalog = new Catalog('regression-binder-cat', '0.9', [], []);

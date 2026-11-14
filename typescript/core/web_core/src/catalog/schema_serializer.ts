@@ -15,6 +15,10 @@
  * limitations under the License.
  */
 
+// ponytail: the zod parts are removed with the zod basic catalogs in Task
+// 10/11. A loaded entry is written as its stored definition; zod 3 entries
+// defined in code (the basic catalogs) are still converted here.
+
 import type {z} from 'zod';
 import {zodToJsonSchema} from 'zod-to-json-schema';
 

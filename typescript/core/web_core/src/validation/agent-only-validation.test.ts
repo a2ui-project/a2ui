@@ -50,33 +50,38 @@ function fn(name: string, allowedCallers: string): Record<string, unknown> {
 }
 
 /** A catalog with a Label and Button, an agentOnly function and a rendererOrAgent one. */
-const ARCANA = Catalog.fromJson({
-  catalogId: ARCANA_ID,
-  protocolVersion: '1.0',
-  components: {
-    Label: {
-      type: 'object',
-      properties: {
-        component: {const: 'Label'},
-        text: {$ref: 'common_types.json#/$defs/DynamicString'},
+const ARCANA = Catalog.fromJson(
+  {
+    catalogId: ARCANA_ID,
+    protocolVersion: '1.0',
+    components: {
+      Label: {
+        type: 'object',
+        properties: {
+          component: {const: 'Label'},
+          text: {$ref: 'common_types.json#/$defs/DynamicString'},
+        },
+        required: ['component', 'text'],
       },
-      required: ['component', 'text'],
+      Button: {
+        type: 'object',
+        properties: {
+          component: {const: 'Button'},
+          action: {$ref: 'common_types.json#/$defs/Action'},
+          checks: {type: 'array', items: {$ref: 'common_types.json#/$defs/CheckRule'}},
+        },
+        required: ['component'],
+      },
     },
-    Button: {
-      type: 'object',
-      properties: {
-        component: {const: 'Button'},
-        action: {$ref: 'common_types.json#/$defs/Action'},
-        checks: {type: 'array', items: {$ref: 'common_types.json#/$defs/CheckRule'}},
-      },
-      required: ['component'],
+    functions: {
+      getMoonPhase: fn('getMoonPhase', 'agentOnly'),
+      getTide: fn('getTide', 'rendererOrAgent'),
     },
   },
-  functions: {
-    getMoonPhase: fn('getMoonPhase', 'agentOnly'),
-    getTide: fn('getTide', 'rendererOrAgent'),
-  },
-});
+  undefined,
+  undefined,
+  {validator: testValidator},
+);
 const BASIC = new Catalog<ComponentApi>(BASIC_ID, '1.0', BASIC_COMPONENTS, BASIC_FUNCTIONS);
 
 /** Asserts that `fn` throws the agentOnly error, at `path` when one is given. */
@@ -209,36 +214,41 @@ describe('agentOnly functions of another catalog in components', () => {
 
 describe('agentOnly functions in v0.9 components', () => {
   it('accepts one in a property binding, since allowedCallers is a v1.0 feature', () => {
-    const catalog = Catalog.fromJson({
-      catalogId: ARCANA_ID,
-      protocolVersion: '0.9',
-      components: {
-        Label: {
-          type: 'object',
-          properties: {
-            component: {const: 'Label'},
-            text: {$ref: 'common_types.json#/$defs/DynamicString'},
-          },
-          required: ['component', 'text'],
-        },
-      },
-      functions: {
-        getMoonPhase: {
-          type: 'object',
-          allowedCallers: 'agentOnly',
-          returnType: 'string',
-          properties: {
-            call: {const: 'getMoonPhase'},
-            args: {
-              type: 'object',
-              properties: {date: {type: 'string'}},
-              additionalProperties: false,
+    const catalog = Catalog.fromJson(
+      {
+        catalogId: ARCANA_ID,
+        protocolVersion: '0.9',
+        components: {
+          Label: {
+            type: 'object',
+            properties: {
+              component: {const: 'Label'},
+              text: {$ref: 'common_types.json#/$defs/DynamicString'},
             },
+            required: ['component', 'text'],
           },
-          required: ['call'],
+        },
+        functions: {
+          getMoonPhase: {
+            type: 'object',
+            allowedCallers: 'agentOnly',
+            returnType: 'string',
+            properties: {
+              call: {const: 'getMoonPhase'},
+              args: {
+                type: 'object',
+                properties: {date: {type: 'string'}},
+                additionalProperties: false,
+              },
+            },
+            required: ['call'],
+          },
         },
       },
-    });
+      undefined,
+      undefined,
+      {validator: testValidator},
+    );
     const processor = new MessageProcessor<ComponentApi>([catalog as never], undefined, {
       validator: testValidator,
       validationConfig: STRICT_VALIDATION,

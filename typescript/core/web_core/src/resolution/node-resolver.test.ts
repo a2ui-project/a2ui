@@ -48,6 +48,7 @@ import {NodeResolver} from './node-resolver.js';
 import {ResolvedBinding, WritableBinding, isWritable} from './resolved-binding.js';
 import * as v0_9 from '../v0_9/index.js';
 import {MAX_DYNAMIC_CHILD_LIST_SIZE} from './generic-binder.js';
+import {testValidator} from '../test/validator.js';
 
 const TextApi = {
   name: 'Text',
@@ -1853,28 +1854,33 @@ describe('NodeResolver dynamic and unannotated ref schemas (#3783)', () => {
     assert.strictEqual(caChildren[0].componentId, 'leaf-2');
     resolver.dispose();
 
-    const loadedJsonCatalog = Catalog.fromJson({
-      catalogId: 'https://example.com/json-open.json',
-      components: {
-        DynamicContainer: {
-          type: 'object',
-          properties: {heading: {type: 'string'}},
-          additionalProperties: true,
-        },
-        UnannotatedStack: {
-          type: 'object',
-          properties: {
-            child: {type: 'string'},
-            children: {type: 'array', items: {type: 'string'}},
+    const loadedJsonCatalog = Catalog.fromJson(
+      {
+        catalogId: 'https://example.com/json-open.json',
+        components: {
+          DynamicContainer: {
+            type: 'object',
+            properties: {heading: {type: 'string'}},
+            additionalProperties: true,
+          },
+          UnannotatedStack: {
+            type: 'object',
+            properties: {
+              child: {type: 'string'},
+              children: {type: 'array', items: {type: 'string'}},
+            },
+          },
+          Label: {
+            type: 'object',
+            properties: {text: {type: 'string'}},
+            additionalProperties: false,
           },
         },
-        Label: {
-          type: 'object',
-          properties: {text: {type: 'string'}},
-          additionalProperties: false,
-        },
       },
-    });
+      undefined,
+      undefined,
+      {validator: testValidator},
+    );
     const jsonCatalog = new Catalog(
       loadedJsonCatalog.id,
       loadedJsonCatalog.protocolVersion,
@@ -2372,34 +2378,39 @@ describe('NodeResolver dynamic and unannotated ref schemas (#3783)', () => {
         ),
       }),
     };
-    const oneOfJsonCatalog = Catalog.fromJson({
-      catalogId: 'oneof-dyn-child-cat',
-      $defs: {
-        DataBinding: {
-          type: 'object',
-          properties: {path: {type: 'string'}},
-          required: ['path'],
+    const oneOfJsonCatalog = Catalog.fromJson(
+      {
+        catalogId: 'oneof-dyn-child-cat',
+        $defs: {
+          DataBinding: {
+            type: 'object',
+            properties: {path: {type: 'string'}},
+            required: ['path'],
+          },
+          FunctionCall: {
+            type: 'object',
+            properties: {call: {type: 'string'}},
+            required: ['call'],
+          },
+          NestedBindingUnion: {
+            oneOf: [{$ref: '#/$defs/DataBinding'}, {$ref: '#/$defs/FunctionCall'}],
+          },
         },
-        FunctionCall: {
-          type: 'object',
-          properties: {call: {type: 'string'}},
-          required: ['call'],
-        },
-        NestedBindingUnion: {
-          oneOf: [{$ref: '#/$defs/DataBinding'}, {$ref: '#/$defs/FunctionCall'}],
-        },
-      },
-      components: {
-        DynamicChildProp: {
-          type: 'object',
-          properties: {
-            child: {
-              oneOf: [{type: 'string'}, {$ref: '#/$defs/NestedBindingUnion'}],
+        components: {
+          DynamicChildProp: {
+            type: 'object',
+            properties: {
+              child: {
+                oneOf: [{type: 'string'}, {$ref: '#/$defs/NestedBindingUnion'}],
+              },
             },
           },
         },
       },
-    });
+      undefined,
+      undefined,
+      {validator: testValidator},
+    );
     const DynamicChildPropApi = oneOfJsonCatalog.components.get('DynamicChildProp')!;
 
     const catalog = new Catalog<ComponentApi>('union-edge-cat', '0.9', [

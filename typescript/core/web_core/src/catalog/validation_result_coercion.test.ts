@@ -37,6 +37,7 @@ import {
   isDynamicBooleanSchema,
   validityOf,
 } from './validation_result_coercion.js';
+import {testValidator} from '../test/validator.js';
 
 const INVALID = {valid: false, message: 'Required', code: 'required'};
 const VALID = {valid: true};
@@ -110,23 +111,28 @@ describe('isDynamicBooleanSchema', () => {
   });
 
   it('recognizes a DynamicBoolean loaded from a catalog document', () => {
-    const catalog = Catalog.fromJson({
-      catalogId: 'test',
-      protocolVersion: '1.0',
-      components: {},
-      functions: {
-        flag: {
-          type: 'object',
-          properties: {
-            on: {
-              $ref: 'common_types.json#/$defs/DynamicBoolean',
-              description: 'The flag.',
+    const catalog = Catalog.fromJson(
+      {
+        catalogId: 'test',
+        protocolVersion: '1.0',
+        components: {},
+        functions: {
+          flag: {
+            type: 'object',
+            properties: {
+              on: {
+                $ref: 'common_types.json#/$defs/DynamicBoolean',
+                description: 'The flag.',
+              },
             },
+            required: ['on'],
           },
-          required: ['on'],
         },
       },
-    });
+      undefined,
+      undefined,
+      {validator: testValidator},
+    );
     const {node, doc} = cursorOf(catalog.functions.get('flag')!.schema, '1.0');
     assert.deepStrictEqual(coerceDynamicBooleans(node, doc, {on: 'TRUE'}), {on: true});
   });

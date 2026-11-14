@@ -269,7 +269,7 @@ export class PayloadValidator {
     // the component's own properties. Below v1.0 every key but `id` and
     // `component` is a property.
     const split: SplitComponent = this.enforceIdentifiers
-      ? splitComponentEnvelope(comp, componentMixinLayout(prepared?.layoutCursor))
+      ? splitComponentEnvelope(comp, componentMixinLayout(prepared?.cursor))
       : {properties: stripStructuralKeys(comp), mixins: {}};
     const properties = split.properties;
     // Decides which nested calls run in this catalog; see
@@ -313,7 +313,7 @@ export class PayloadValidator {
       ownKeys = new Set(Object.keys(properties));
       this.validateEnvelopeMixins(
         split.mixins,
-        componentMixinLayout(prepared?.layoutCursor),
+        componentMixinLayout(prepared?.cursor),
         properties,
         componentType,
         id,

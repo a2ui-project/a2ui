@@ -28,7 +28,8 @@ import {findFailedArgument, isThenable, settleDeep} from '../common/settle_deep.
 import {assertUax31Identifier} from '../common/uax31.js';
 import {SpecVersion} from '../spec_versions.js';
 import {AgentFunction, bindAgentFunctionDefs, isAgentFunction} from './agent_function.js';
-import {getDeclaredSchemaKeys, parseCatalogSchema} from './schema_loader.js';
+import {parseCatalogSchema, type FromJsonOptions} from './from-json.js';
+import {getDeclaredSchemaKeys} from './json_schema_to_zod.js';
 import type {JsonSchemaObject} from './spec_annotations.js';
 import {generateValidationSchema} from './schema_generator.js';
 import {
@@ -483,7 +484,7 @@ export declare interface CatalogInterface<
  *
  * A catalog is its catalog document in model form. An entry `fromJson`
  * loaded (`JsonComponentApi`, `JsonFunctionApi`) has its JSON Schema
- * definition as its model, from which its Zod schema is derived. An entry
+ * definition as its model, which its schema validates against. An entry
  * defined in code has its Zod schema as its model; when the schema is
  * annotated as a specification model (see `spec`), as the built-in basic
  * catalogs' generated models are, `toJson` computes its definition in the
@@ -1031,16 +1032,23 @@ export class Catalog<
    * Constructs a schema-only Catalog from an authored A2UI catalog document.
    *
    * Each entry is a `JsonComponentApi` or `JsonFunctionApi` whose model is
-   * its definition as written, from which its Zod schema is derived on first
-   * use, and the catalog keeps the document-level fields, so `toJson` returns
-   * the document unchanged.
+   * its definition as written. Its `schema` validates against that
+   * definition with `opts.validator`, compiled on first use: a component's
+   * properties (without the envelope fields `id`, `component` and
+   * `@catalogId`) against its definition, which from v1.0 is closed with
+   * `unevaluatedProperties: false` as the protocol's `Component` closes it
+   * unless the definition decides that itself, a function's arguments against
+   * the schema of its arguments, with the catalog document as `catalog.json`
+   * and the protocol version's common types as `common_types.json`. The
+   * catalog keeps the document-level fields, so `toJson` returns the document
+   * unchanged.
    *
    * @param json Raw catalog document or client capabilities inline catalog.
    * @param protocolVersion Protocol version of the catalog. When given, it
    *   takes precedence over the `protocolVersion` the document declares: it
    *   becomes the catalog's `protocolVersion` and selects the version's
    *   loading rules, while `toJson` still writes the version the document
-   *   declares. When omitted, the document's version applies, and for a
+   *   declares. When undefined, the document's version applies, and for a
    *   document that declares none, such as those published before v1.0,
    *   `DEFAULT_PROTOCOL_VERSION`.
    * @param catalogId Catalog ID to use instead of the one the document
@@ -1048,7 +1056,9 @@ export class Catalog<
    *   catalog. It becomes the catalog's `id`, and replaces the document's own
    *   `catalogId` in `toJson`; a document that declares none still has none
    *   in `toJson`.
+   * @param opts The JSON Schema validator the entries validate with.
    * @returns A new Catalog populated with component and function schemas.
+   * @throws {A2uiConfigurationError} If `opts.validator` is missing.
    * @throws {Error} If the catalog ID is missing or not a string.
    * @throws {A2uiCatalogError} If a v1.0 catalog has a `$ref` to a document
    *   other than itself or `common_types.json`, such as another catalog. Such
@@ -1056,8 +1066,9 @@ export class Catalog<
    */
   static fromJson(
     json: Record<string, any>,
-    protocolVersion?: string,
-    catalogId?: string,
+    protocolVersion: string | undefined,
+    catalogId: string | undefined,
+    opts: FromJsonOptions,
   ): CatalogApi {
     const {
       id,
@@ -1065,7 +1076,7 @@ export class Catalog<
       components,
       functions,
       ...options
-    } = parseCatalogSchema(json, protocolVersion, catalogId);
+    } = parseCatalogSchema(json, protocolVersion, catalogId, opts);
     return new Catalog(id, resolvedVersion, components, functions, options);
   }
 
@@ -1076,11 +1087,16 @@ export class Catalog<
    * @param catalogSchema Raw catalog schema or client capabilities payload object.
    * @param protocolVersion Protocol version of the catalog, which takes
    *   precedence over the one the schema declares, as in `fromJson`.
+   * @param opts The JSON Schema validator the entries validate with.
    * @returns A new Catalog populated with component and function schemas.
    * @throws {Error} If the catalog ID is missing or not a string.
    */
-  static fromSchema(catalogSchema: Record<string, any>, protocolVersion?: string): CatalogApi {
-    return Catalog.fromJson(catalogSchema, protocolVersion);
+  static fromSchema(
+    catalogSchema: Record<string, any>,
+    protocolVersion: string | undefined,
+    opts: FromJsonOptions,
+  ): CatalogApi {
+    return Catalog.fromJson(catalogSchema, protocolVersion, undefined, opts);
   }
 }
 

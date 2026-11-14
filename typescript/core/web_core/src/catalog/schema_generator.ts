@@ -15,6 +15,10 @@
  * limitations under the License.
  */
 
+// ponytail: the zod parts are removed with the zod basic catalogs in Task
+// 10/11. A loaded entry is bundled from its stored definition; zod 3 entries
+// defined in code (the basic catalogs) are still converted here.
+
 import type {z} from 'zod';
 import {zodToJsonSchema} from 'zod-to-json-schema';
 
@@ -28,7 +32,7 @@ import {
   type CatalogDocumentModel,
 } from './schema_serializer.js';
 import {nonZodSchemaJson} from './entry-schema.js';
-import {isShorthandParameterMap} from './schema_loader.js';
+import {isShorthandParameterMap} from './from-json.js';
 import {schemaRequiresArgs, standardDefsForVersion} from './spec_shape.js';
 import type {CatalogInterface, ComponentApi, FunctionApi} from './types.js';
 

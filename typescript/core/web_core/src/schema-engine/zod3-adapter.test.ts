@@ -25,6 +25,7 @@ import {ChildListSchema, ComponentIdSchema} from '../v0_9/schema/common-types.js
 import {ChildSchema as V1ChildSchema} from '../v1_0/schema/common-types.js';
 import {cursorOf} from '../test/schema.js';
 import {fromZod3, isZod3Schema, zod3Issues, zod3ToJsonSchema} from './zod3-adapter.js';
+import {testValidator} from '../test/validator.js';
 
 describe('fromZod3', () => {
   it('writes markChildRef-stamped schemas as $refs into the common types document', () => {
@@ -122,44 +123,49 @@ describe('fromZod3', () => {
   });
 
   it('preserves child discovery for zod schemas Catalog.fromJson derives', () => {
-    const catalog = Catalog.fromJson({
-      catalogId: 'https://example.com/dynamic-catalog.json',
-      components: {
-        EmptyLeaf: {type: 'object'},
-        EmptyOpenBox: {type: 'object', additionalProperties: true},
-        OpenBox: {
-          allOf: [
-            {$ref: 'common_types.json#/$defs/ComponentCommon'},
-            {type: 'object', properties: {title: {type: 'string'}}},
-          ],
-          unevaluatedProperties: true,
-        },
-        UnannotatedContainer: {
-          type: 'object',
-          properties: {
-            child: {type: 'string'},
-            children: {type: 'array', items: {type: 'string'}},
+    const catalog = Catalog.fromJson(
+      {
+        catalogId: 'https://example.com/dynamic-catalog.json',
+        components: {
+          EmptyLeaf: {type: 'object'},
+          EmptyOpenBox: {type: 'object', additionalProperties: true},
+          OpenBox: {
+            allOf: [
+              {$ref: 'common_types.json#/$defs/ComponentCommon'},
+              {type: 'object', properties: {title: {type: 'string'}}},
+            ],
+            unevaluatedProperties: true,
           },
-        },
-        OneOfSlotContainer: {
-          type: 'object',
-          properties: {
-            slot: {
-              oneOf: [
-                {$ref: 'common_types.json#/$defs/ComponentId'},
-                {$ref: 'common_types.json#/$defs/ChildList'},
-              ],
+          UnannotatedContainer: {
+            type: 'object',
+            properties: {
+              child: {type: 'string'},
+              children: {type: 'array', items: {type: 'string'}},
             },
-            count: {oneOf: [{type: 'number'}, {type: 'boolean'}]},
           },
-        },
-        ClosedLeaf: {
-          type: 'object',
-          properties: {label: {$ref: 'common_types.json#/$defs/DynamicString'}},
-          additionalProperties: false,
+          OneOfSlotContainer: {
+            type: 'object',
+            properties: {
+              slot: {
+                oneOf: [
+                  {$ref: 'common_types.json#/$defs/ComponentId'},
+                  {$ref: 'common_types.json#/$defs/ChildList'},
+                ],
+              },
+              count: {oneOf: [{type: 'number'}, {type: 'boolean'}]},
+            },
+          },
+          ClosedLeaf: {
+            type: 'object',
+            properties: {label: {$ref: 'common_types.json#/$defs/DynamicString'}},
+            additionalProperties: false,
+          },
         },
       },
-    });
+      undefined,
+      undefined,
+      {validator: testValidator},
+    );
     const refsOf = (name: string) => {
       const {node, doc} = cursorOf(catalog.components.get(name)!.schema, catalog.protocolVersion);
       return extractRefFields(node, doc);

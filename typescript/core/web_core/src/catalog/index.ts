@@ -45,5 +45,6 @@ export {
   type CatalogApi,
 } from './types.js';
 export type {FunctionInvoker} from './function_invoker.js';
+export type {FromJsonOptions} from './from-json.js';
 export {JsonComponentApi, JsonFunctionApi} from './json_entries.js';
 export {spec, specDef, type SpecAnnotation, type SpecMixin} from './spec_annotations.js';

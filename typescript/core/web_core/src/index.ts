@@ -53,6 +53,7 @@ export {
   type CatalogInterface,
   Catalog,
   type CatalogApi,
+  type FromJsonOptions,
   type FunctionInvoker,
 } from './catalog/index.js';
 export {

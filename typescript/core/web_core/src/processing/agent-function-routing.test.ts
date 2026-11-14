@@ -25,6 +25,7 @@ import {A2uiRpcError, RpcErrorCode} from '../errors.js';
 import {DataContext} from '../resolution/data-context.js';
 import {MessageProcessor} from './message-processor.js';
 import {testValidator} from '../test/validator.js';
+import {validated} from '../test/schema.js';
 
 /** Resolves on the next macrotask, after every pending microtask has run. */
 const flush = () => new Promise<void>(resolve => setTimeout(resolve, 0));
@@ -1345,9 +1346,11 @@ describe('Fallback routing of unimplemented functions to the agent (v1.0)', () =
         },
       },
       '1.0',
+      undefined,
+      {validator: testValidator},
     );
     const fn = docCatalog.functions.get('quoteDoc')!;
-    const localArgs = (fn.schema as z.ZodTypeAny).parse({symbol: 'GOOG'});
+    const localArgs = validated(fn.schema, {symbol: 'GOOG'});
     proc = new MessageProcessor([docCatalog as any], undefined, {
       validator: testValidator,
       outboundListener: msg => {

@@ -561,6 +561,9 @@ export async function runNodeResolutionCase(
   assertKnownKeys(fixture, KNOWN_KEYS.fixture, `${testCase.name}.fixture`);
   const parsed = Catalog.fromJson(
     JSON.parse(readFileSync(join(conformanceRoot, fixture.catalog), 'utf8')),
+    undefined,
+    undefined,
+    {validator: testValidator},
   );
   const functions: unknown[] = [];
   const events: unknown[] = [];

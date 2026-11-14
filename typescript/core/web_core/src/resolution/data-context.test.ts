@@ -53,6 +53,7 @@ import {
   A2uiRpcError,
   A2uiValidationError,
 } from '../errors.js';
+import {testValidator} from '../test/validator.js';
 
 const createTestDataContext = (
   model: DataModel,
@@ -2019,6 +2020,8 @@ describe('DataContext asynchronous function arguments', () => {
         },
       },
       '1.0',
+      undefined,
+      {validator: testValidator},
     );
     const schemaOnlySurface = new SurfaceModel(
       's-schema-only-invoker',

@@ -32,7 +32,7 @@ import {A2uiText as V09Text} from '../v0_9/basic_catalog/components/index.js';
 import {exclusiveUnion} from './exclusive_union.js';
 import {JsonComponentApi, JsonFunctionApi} from './json_entries.js';
 import {generateValidationSchema} from './schema_generator.js';
-import {DEFAULT_PROTOCOL_VERSION} from './schema_loader.js';
+import {DEFAULT_PROTOCOL_VERSION} from './from-json.js';
 import {spec, specDef} from './spec_annotations.js';
 import {
   Catalog,
@@ -41,6 +41,7 @@ import {
   type FunctionApi,
 } from './types.js';
 import {testValidator} from '../test/validator.js';
+import {accepts} from '../test/schema.js';
 
 function readRepoJson(relativePath: string): Record<string, any> {
   return JSON.parse(readFileSync(resolve(process.cwd(), '../../..', relativePath), 'utf-8'));
@@ -250,15 +251,20 @@ describe('Catalog.toJson', () => {
   for (const catalogPath of PUBLISHED_CATALOGS) {
     it(`returns ${catalogPath} unchanged after fromJson`, () => {
       const document = readRepoJson(catalogPath);
-      const out = Catalog.fromJson(document).toJson();
+      const out = Catalog.fromJson(document, undefined, undefined, {
+        validator: testValidator,
+      }).toJson();
       assert.deepStrictEqual(out, document);
-      assert.deepStrictEqual(Catalog.fromJson(out).toJson(), out);
+      assert.deepStrictEqual(
+        Catalog.fromJson(out, undefined, undefined, {validator: testValidator}).toJson(),
+        out,
+      );
     });
   }
 
   it('returns a fresh copy on every call', () => {
     const document = readRepoJson('catalogs/basic/v1/catalog.json');
-    const catalog = Catalog.fromJson(document);
+    const catalog = Catalog.fromJson(document, undefined, undefined, {validator: testValidator});
     const first = catalog.toJson();
     (first.components as Record<string, any>).Text.type = 'mutated';
     delete (first.$defs as Record<string, unknown>).anyComponent;
@@ -287,7 +293,7 @@ describe('Catalog.toJson', () => {
 
   it('keeps the document-level fields in a catalog derived with withEntries', () => {
     const document = readRepoJson('specification/v0_9/catalogs/basic/catalog.json');
-    const loaded = Catalog.fromJson(document);
+    const loaded = Catalog.fromJson(document, undefined, undefined, {validator: testValidator});
     const derived = loaded.withEntries([...loaded.components.values()], []);
     const out = derived.toJson();
     const {functions: _functions, $defs: outDefs, ...outFields} = out;
@@ -306,7 +312,7 @@ describe('Catalog.toJson', () => {
       functions: {f: {returnType: 'string'}},
       $defs: {anyComponent: {not: {}}, anyFunction: {oneOf: [{$ref: '#/functions/f'}]}},
     };
-    const catalog = Catalog.fromJson(document);
+    const catalog = Catalog.fromJson(document, undefined, undefined, {validator: testValidator});
     assert.strictEqual(catalog.declaresComponents, false);
     assert.deepStrictEqual(catalog.toJson(), document);
   });
@@ -316,17 +322,22 @@ describe('Catalog.toJson', () => {
     delete document.components;
     delete document.$defs.anyComponent;
     delete document.$defs.CatalogComponentCommon;
-    const catalog = Catalog.fromJson(document);
+    const catalog = Catalog.fromJson(document, undefined, undefined, {validator: testValidator});
     assert.strictEqual(catalog.declaresComponents, false);
     assert.deepStrictEqual(catalog.toJson(), document);
   });
 
   it('writes components when the document declares none but the catalog has some', () => {
-    const loaded = Catalog.fromJson({
-      catalogId: 'https://example.com/functions-only',
-      protocolVersion: '1.0',
-      functions: {f: {returnType: 'string'}},
-    });
+    const loaded = Catalog.fromJson(
+      {
+        catalogId: 'https://example.com/functions-only',
+        protocolVersion: '1.0',
+        functions: {f: {returnType: 'string'}},
+      },
+      undefined,
+      undefined,
+      {validator: testValidator},
+    );
     const label: ComponentApi = {name: 'Label', schema: z.object({text: z.string()})};
     const derived = loaded.withEntries([label], [...loaded.functions.values()]);
     assert.strictEqual(derived.declaresComponents, false);
@@ -354,7 +365,10 @@ describe('Catalog.toJson', () => {
         },
       },
     };
-    assert.deepStrictEqual(Catalog.fromJson(document, '1.0').toJson(), document);
+    assert.deepStrictEqual(
+      Catalog.fromJson(document, '1.0', undefined, {validator: testValidator}).toJson(),
+      document,
+    );
   });
 
   it('keeps the list form of functions', () => {
@@ -369,7 +383,10 @@ describe('Catalog.toJson', () => {
         },
       ],
     };
-    assert.deepStrictEqual(Catalog.fromJson(document).toJson(), document);
+    assert.deepStrictEqual(
+      Catalog.fromJson(document, undefined, undefined, {validator: testValidator}).toJson(),
+      document,
+    );
   });
 
   for (const [label, builtin, catalogPath] of [
@@ -386,12 +403,16 @@ describe('Catalog.toJson', () => {
     const document = {
       components: {Label: {type: 'object', properties: {component: {const: 'Label'}}}},
     };
-    const catalog = Catalog.fromJson(document, '1.0', 'https://example.com/injected');
+    const catalog = Catalog.fromJson(document, '1.0', 'https://example.com/injected', {
+      validator: testValidator,
+    });
     assert.strictEqual(catalog.id, 'https://example.com/injected');
     assert.deepStrictEqual(catalog.toJson(), document);
 
     const declared = {catalogId: 'https://example.com/declared', ...document};
-    const overridden = Catalog.fromJson(declared, '1.0', 'https://example.com/other');
+    const overridden = Catalog.fromJson(declared, '1.0', 'https://example.com/other', {
+      validator: testValidator,
+    });
     assert.strictEqual(overridden.id, 'https://example.com/other');
     assert.strictEqual(overridden.toJson().catalogId, 'https://example.com/other');
   });
@@ -546,7 +567,7 @@ describe('Catalog.toJson', () => {
 
   it('serializes an entry without a definition from its model in a loaded catalog', () => {
     const document = readRepoJson('catalogs/basic/v1/catalog.json');
-    const loaded = Catalog.fromJson(document);
+    const loaded = Catalog.fromJson(document, undefined, undefined, {validator: testValidator});
     const rewritten: ComponentApi = {
       name: 'Text',
       schema: z.object({text: z.string().describe('REF:common_types.json#/$defs/DynamicString')}),
@@ -570,7 +591,7 @@ describe('Catalog.toJson', () => {
 
   it('drops authored $defs that only removed entries referenced', () => {
     const document = readRepoJson('specification/v0_9/catalogs/basic/catalog.json');
-    const loaded = Catalog.fromJson(document);
+    const loaded = Catalog.fromJson(document, undefined, undefined, {validator: testValidator});
     const derived = loaded.withEntries([], []);
     const defs = derived.toJson().$defs as Record<string, unknown>;
     assert.ok(!('CatalogComponentCommon' in defs), 'orphaned mixin is dropped');
@@ -580,7 +601,12 @@ describe('Catalog.toJson', () => {
 
 describe('Catalog.validationSchema', () => {
   it('is the bundled schema that catalogSchema still returns', () => {
-    const catalog = Catalog.fromJson(readRepoJson('catalogs/basic/v1/catalog.json'));
+    const catalog = Catalog.fromJson(
+      readRepoJson('catalogs/basic/v1/catalog.json'),
+      undefined,
+      undefined,
+      {validator: testValidator},
+    );
     const schema = catalog.validationSchema;
     assert.deepStrictEqual(catalog.catalogSchema, schema);
     const defs = schema.$defs as Record<string, unknown>;
@@ -591,7 +617,12 @@ describe('Catalog.validationSchema', () => {
   });
 
   it('is unaffected by toJson', () => {
-    const catalog = Catalog.fromJson(readRepoJson('catalogs/basic/v1/catalog.json'));
+    const catalog = Catalog.fromJson(
+      readRepoJson('catalogs/basic/v1/catalog.json'),
+      undefined,
+      undefined,
+      {validator: testValidator},
+    );
     const before = JSON.stringify(catalog.validationSchema);
     catalog.toJson();
     assert.strictEqual(JSON.stringify(catalog.validationSchema), before);
@@ -606,7 +637,7 @@ describe('union export', () => {
     catalog: {readonly components: ReadonlyMap<string, ComponentApi>},
     radius: unknown,
   ): boolean {
-    return (catalog.components.get('Box')!.schema as z.ZodTypeAny).safeParse({radius}).success;
+    return accepts(catalog.components.get('Box')!.schema, {radius});
   }
 
   /** The `radius` property of the `Box` component in a catalog document. */
@@ -646,7 +677,7 @@ describe('union export', () => {
       const document = original.toJson();
       assert.deepStrictEqual(radiusSchema(document), {anyOf: OVERLAPPING_BRANCHES});
 
-      const reloaded = Catalog.fromJson(document);
+      const reloaded = Catalog.fromJson(document, undefined, undefined, {validator: testValidator});
       for (const catalog of [original, reloaded]) {
         assert.strictEqual(acceptsRadius(catalog, 'md'), true);
         assert.strictEqual(acceptsRadius(catalog, '12px'), true);
@@ -658,12 +689,17 @@ describe('union export', () => {
 
     it(`keeps an authored oneOf exclusive and writes it back as oneOf in ${version}`, () => {
       const document = boxDocument(version, {oneOf: OVERLAPPING_BRANCHES});
-      const loaded = Catalog.fromJson(document);
+      const loaded = Catalog.fromJson(document, undefined, undefined, {validator: testValidator});
       assert.strictEqual(acceptsRadius(loaded, 'md'), false, 'md matches both branches');
       assert.strictEqual(acceptsRadius(loaded, '12px'), true);
       assert.strictEqual(acceptsRadius(loaded, false), false);
       assert.deepStrictEqual(radiusSchema(loaded.toJson()), {oneOf: OVERLAPPING_BRANCHES});
-      assert.deepStrictEqual(Catalog.fromJson(loaded.toJson()).toJson(), loaded.toJson());
+      assert.deepStrictEqual(
+        Catalog.fromJson(loaded.toJson(), undefined, undefined, {
+          validator: testValidator,
+        }).toJson(),
+        loaded.toJson(),
+      );
 
       // A catalog defined in code from the loaded schema keeps it exclusive.
       const reused = new Catalog('https://example.org/reused.json', version, [
@@ -672,14 +708,16 @@ describe('union export', () => {
       assert.deepStrictEqual(radiusSchema(reused.toJson()), {oneOf: OVERLAPPING_BRANCHES});
       const validation = reused.validationSchema.components as Record<string, any>;
       assert.deepStrictEqual(validation.Box.properties.radius, {oneOf: OVERLAPPING_BRANCHES});
-      const reloaded = Catalog.fromJson(reused.toJson());
+      const reloaded = Catalog.fromJson(reused.toJson(), undefined, undefined, {
+        validator: testValidator,
+      });
       assert.strictEqual(acceptsRadius(reloaded, 'md'), false);
       assert.strictEqual(acceptsRadius(reloaded, '12px'), true);
     });
 
     it(`keeps an authored anyOf inclusive in ${version}`, () => {
       const document = boxDocument(version, {anyOf: OVERLAPPING_BRANCHES});
-      const loaded = Catalog.fromJson(document);
+      const loaded = Catalog.fromJson(document, undefined, undefined, {validator: testValidator});
       assert.strictEqual(acceptsRadius(loaded, 'md'), true);
       assert.deepStrictEqual(radiusSchema(loaded.toJson()), {anyOf: OVERLAPPING_BRANCHES});
     });
@@ -715,19 +753,12 @@ describe('union export', () => {
           },
         ],
       });
-      const reloaded = Catalog.fromJson(document).components.get('Box')!.schema;
-      assert.strictEqual(
-        (reloaded as z.ZodTypeAny).safeParse({radius: 'md', size: 1}).success,
-        true,
-      );
-      assert.strictEqual(
-        (reloaded as z.ZodTypeAny).safeParse({radius: 'md', size: {token: 'x'}}).success,
-        true,
-      );
-      assert.strictEqual(
-        (reloaded as z.ZodTypeAny).safeParse({radius: 'md', size: 'x'}).success,
-        false,
-      );
+      const reloaded = Catalog.fromJson(document, undefined, undefined, {
+        validator: testValidator,
+      }).components.get('Box')!.schema;
+      assert.strictEqual(accepts(reloaded, {radius: 'md', size: 1}), true);
+      assert.strictEqual(accepts(reloaded, {radius: 'md', size: {token: 'x'}}), true);
+      assert.strictEqual(accepts(reloaded, {radius: 'md', size: 'x'}), false);
     });
 
     it(`keeps a loaded oneOf with a description and default exclusive when reused in ${version}`, () => {
@@ -736,7 +767,9 @@ describe('union export', () => {
         description: 'The corner radius.',
         default: '12px',
       };
-      const loaded = Catalog.fromJson(boxDocument(version, radius));
+      const loaded = Catalog.fromJson(boxDocument(version, radius), undefined, undefined, {
+        validator: testValidator,
+      });
       assert.strictEqual(acceptsRadius(loaded, 'md'), false);
       assert.strictEqual(acceptsRadius(loaded, '12px'), true);
 
@@ -766,15 +799,11 @@ describe('union export', () => {
       assert.deepStrictEqual(args.properties.inclusive, {anyOf: OVERLAPPING_BRANCHES});
       assert.deepStrictEqual(args.properties.exclusive, {oneOf: OVERLAPPING_BRANCHES});
 
-      const reloaded = Catalog.fromJson(catalog.toJson()).functions.get('round')!.schema;
-      assert.strictEqual(
-        (reloaded as z.ZodTypeAny).safeParse({inclusive: 'md', exclusive: '12px'}).success,
-        true,
-      );
-      assert.strictEqual(
-        (reloaded as z.ZodTypeAny).safeParse({inclusive: 'md', exclusive: 'md'}).success,
-        false,
-      );
+      const reloaded = Catalog.fromJson(catalog.toJson(), undefined, undefined, {
+        validator: testValidator,
+      }).functions.get('round')!.schema;
+      assert.strictEqual(accepts(reloaded, {inclusive: 'md', exclusive: '12px'}), true);
+      assert.strictEqual(accepts(reloaded, {inclusive: 'md', exclusive: 'md'}), false);
     });
 
     describe(`specification-shaped union keyword in ${version}`, () => {
@@ -854,22 +883,29 @@ describe('Catalog.fromJson', () => {
       components: {},
       $defs: {anyComponent: {not: {}}, anyFunction: {not: {}}},
     };
-    const overridden = Catalog.fromJson(document, '0.9');
+    const overridden = Catalog.fromJson(document, '0.9', undefined, {validator: testValidator});
     assert.strictEqual(overridden.protocolVersion, '0.9');
     assert.strictEqual(overridden.declaredProtocolVersion, '1.0');
     assert.deepStrictEqual(overridden.toJson(), document);
 
-    const declared = Catalog.fromJson(document);
+    const declared = Catalog.fromJson(document, undefined, undefined, {validator: testValidator});
     assert.strictEqual(declared.protocolVersion, '1.0');
 
     const {protocolVersion: _version, ...undeclared} = document;
-    assert.strictEqual(Catalog.fromJson(undeclared, '0.9').protocolVersion, '0.9');
-    assert.strictEqual(Catalog.fromJson(undeclared).protocolVersion, DEFAULT_PROTOCOL_VERSION);
+    assert.strictEqual(
+      Catalog.fromJson(undeclared, '0.9', undefined, {validator: testValidator}).protocolVersion,
+      '0.9',
+    );
+    assert.strictEqual(
+      Catalog.fromJson(undeclared, undefined, undefined, {validator: testValidator})
+        .protocolVersion,
+      DEFAULT_PROTOCOL_VERSION,
+    );
   });
 
   it('captures document metadata and authored entries', () => {
     const document = readRepoJson('catalogs/basic/v1/catalog.json');
-    const catalog = Catalog.fromJson(document);
+    const catalog = Catalog.fromJson(document, undefined, undefined, {validator: testValidator});
     assert.strictEqual(catalog.schemaUri, document.$schema);
     assert.strictEqual(catalog.schemaId, document.$id);
     assert.strictEqual(catalog.title, document.title);
@@ -893,18 +929,23 @@ describe('Catalog.fromJson', () => {
   });
 
   it('derives the Zod schema of a loaded entry from its definition once, on first use', () => {
-    const catalog = Catalog.fromJson(readRepoJson('catalogs/basic/v1/catalog.json'));
+    const catalog = Catalog.fromJson(
+      readRepoJson('catalogs/basic/v1/catalog.json'),
+      undefined,
+      undefined,
+      {validator: testValidator},
+    );
     const text = catalog.components.get('Text')!;
     const schema = text.schema;
     assert.strictEqual(text.schema, schema, 'the derived schema is cached');
-    assert.ok((schema as z.ZodTypeAny).safeParse({text: 'hi'}).success);
-    assert.ok(!(schema as z.ZodTypeAny).safeParse({text: 'hi', unknown: 1}).success);
+    assert.ok(accepts(schema, {text: 'hi'}));
+    assert.ok(!accepts(schema, {text: 'hi', unknown: 1}));
     assert.ok(!Object.keys(text).includes('jsonSchema'), 'the definition is not an own property');
   });
 
   it('keeps the named $defs and other top-level keys as model fields', () => {
     const document = readRepoJson('specification/v0_9/catalogs/basic/catalog.json');
-    const catalog = Catalog.fromJson(document);
+    const catalog = Catalog.fromJson(document, undefined, undefined, {validator: testValidator});
     assert.deepStrictEqual(Object.keys(catalog.defs!), ['CatalogComponentCommon', 'theme']);
     assert.strictEqual(catalog.declaredProtocolVersion, null);
 
@@ -912,6 +953,7 @@ describe('Catalog.fromJson', () => {
       readRepoJson('specification/v0_8/json/standard_catalog_definition.json'),
       '0.8',
       'https://example.com/v08',
+      {validator: testValidator},
     );
     assert.strictEqual(v08.declaresCatalogId, false);
     assert.deepStrictEqual(Object.keys(v08.extensionFields!), ['styles']);
@@ -933,7 +975,7 @@ describe('Catalog.fromJson', () => {
         },
       },
     };
-    const catalog = Catalog.fromJson(document);
+    const catalog = Catalog.fromJson(document, undefined, undefined, {validator: testValidator});
     assert.deepStrictEqual(catalog.unions, {anyComponent: false, anyFunction: false});
     assert.deepStrictEqual(catalog.defs, document.$defs);
     assert.deepStrictEqual(catalog.extensionFields, {extensions: document.extensions});
@@ -943,41 +985,52 @@ describe('Catalog.fromJson', () => {
   it('sets declaredProtocolVersion to null when the document omits it', () => {
     const catalog = Catalog.fromJson(
       readRepoJson('specification/v0_9/catalogs/basic/catalog.json'),
+      undefined,
+      undefined,
+      {validator: testValidator},
     );
     assert.strictEqual(catalog.declaredProtocolVersion, null);
     assert.strictEqual(catalog.protocolVersion, '0.9');
   });
 
   it('rejects a document without a catalog ID', () => {
-    assert.throws(() => Catalog.fromJson({components: {}}), /Catalog ID/);
+    assert.throws(
+      () => Catalog.fromJson({components: {}}, undefined, undefined, {validator: testValidator}),
+      /Catalog ID/,
+    );
   });
 
   it('does not share objects with its input', () => {
     const document = readRepoJson('catalogs/basic/v1/catalog.json');
-    const catalog = Catalog.fromJson(document);
+    const catalog = Catalog.fromJson(document, undefined, undefined, {validator: testValidator});
     const json = JSON.stringify(catalog.toJson());
     const text = catalog.components.get('Text')!;
-    const textSchemaResult = (text.schema as z.ZodTypeAny).safeParse({
+    const textSchemaResult = accepts(text.schema, {
       text: 'hi',
       variant: 'h1',
-    }).success;
+    });
     document.components.Text.properties.variant.enum = ['mutated'];
     document.components.Text.description = 'mutated';
     document.functions.openUrl.description = 'mutated';
     document.$defs.anyComponent = {not: {}};
     document.catalogId = 'mutated';
-    const fresh = Catalog.fromJson(readRepoJson('catalogs/basic/v1/catalog.json'));
+    const fresh = Catalog.fromJson(
+      readRepoJson('catalogs/basic/v1/catalog.json'),
+      undefined,
+      undefined,
+      {validator: testValidator},
+    );
     assert.strictEqual(JSON.stringify(catalog.toJson()), json);
     assert.deepStrictEqual(catalog.validationSchema, fresh.validationSchema);
-    assert.strictEqual(
-      (text.schema as z.ZodTypeAny).safeParse({text: 'hi', variant: 'h1'}).success,
-      textSchemaResult,
-    );
+    assert.strictEqual(accepts(text.schema, {text: 'hi', variant: 'h1'}), textSchemaResult);
   });
 
   it('leaves the definitions unchanged when building validationSchema', () => {
     const catalog = Catalog.fromJson(
       readRepoJson('specification/v0_9/catalogs/basic/catalog.json'),
+      undefined,
+      undefined,
+      {validator: testValidator},
     );
     const sources = (): string =>
       JSON.stringify([
@@ -1003,7 +1056,9 @@ describe('Catalog.fromJson', () => {
       const call = (out.functions as Record<string, any>).now;
       assert.ok(!call.required.includes('args'), `args is optional in ${version}`);
       // The document declares the version the code-defined catalog only implies.
-      const {protocolVersion, ...reloaded} = Catalog.fromJson(out, version).validationSchema;
+      const {protocolVersion, ...reloaded} = Catalog.fromJson(out, version, undefined, {
+        validator: testValidator,
+      }).validationSchema;
       assert.strictEqual(protocolVersion, version);
       assert.deepStrictEqual(reloaded, codeCatalog.validationSchema);
     }
@@ -1047,7 +1102,9 @@ describe('Catalog.fromJson', () => {
       CatchallBanner,
     ]);
     const serializedDoc = originalCatalog.toJson();
-    const roundTripped = Catalog.fromJson(serializedDoc);
+    const roundTripped = Catalog.fromJson(serializedDoc, undefined, undefined, {
+      validator: testValidator,
+    });
 
     const {protocolVersion, ...reloadedValidation} = roundTripped.validationSchema;
     assert.strictEqual(protocolVersion, '1.0');
@@ -1234,7 +1291,10 @@ describe('Catalog.fromJson', () => {
 
   it('is what the deprecated fromSchema returns', () => {
     const document = readRepoJson('catalogs/mcp/catalog.json');
-    assert.deepStrictEqual(Catalog.fromSchema(document).toJson(), document);
+    assert.deepStrictEqual(
+      Catalog.fromSchema(document, undefined, {validator: testValidator}).toJson(),
+      document,
+    );
   });
 });
 
@@ -1288,14 +1348,12 @@ describe('composite catalogs', () => {
           (basic.validationSchema.components as Record<string, unknown>).Text,
         );
 
-        const reloaded = Catalog.fromJson(doc, version);
-        const shape = (reloaded.components.get('Text')!.schema as z.AnyZodObject).shape;
-        assert.ok('weight' in shape, 'fromJson(toJson()) keeps weight');
+        const reloaded = Catalog.fromJson(doc, version, undefined, {validator: testValidator});
         assert.ok(
-          (reloaded.components.get('Text')!.schema as z.ZodTypeAny).safeParse({
+          accepts(reloaded.components.get('Text')!.schema, {
             text: 'hi',
             weight: 1,
-          }).success,
+          }),
         );
       });
     }
@@ -1337,6 +1395,9 @@ describe('entry definitions', () => {
     };
     const loadedText = Catalog.fromJson(
       readRepoJson('catalogs/basic/v1/catalog.json'),
+      undefined,
+      undefined,
+      {validator: testValidator},
     ).components.get('Text')!;
     const changedLoaded = {
       ...loadedText,
@@ -1358,7 +1419,7 @@ describe('entry definitions', () => {
 
   it('writes a loaded entry as its definition, and a spread copy from its schema', () => {
     const document = readRepoJson('catalogs/basic/v1/catalog.json');
-    const loaded = Catalog.fromJson(document);
+    const loaded = Catalog.fromJson(document, undefined, undefined, {validator: testValidator});
     const loadedText = loaded.components.get('Text')!;
     const reused = new Catalog('https://example.com/reused', '1.0', [loadedText], [], {
       defs: loaded.defs,
@@ -1383,7 +1444,12 @@ describe('entry definitions', () => {
   });
 
   it('cannot be changed through the catalog', () => {
-    const catalog = Catalog.fromJson(readRepoJson('catalogs/basic/v1/catalog.json'));
+    const catalog = Catalog.fromJson(
+      readRepoJson('catalogs/basic/v1/catalog.json'),
+      undefined,
+      undefined,
+      {validator: testValidator},
+    );
     const before = catalog.toJson();
     const text = catalog.components.get('Text') as JsonComponentApi;
     const openUrl = catalog.functions.get('openUrl') as JsonFunctionApi;
@@ -1497,24 +1563,29 @@ describe('specification annotations', () => {
   it('does not change validation', () => {
     const annotated = spec(z.string(), {keywords: {format: 'uri'}});
     assert.ok(annotated.safeParse('not a uri').success);
-    assert.ok((Badge.schema as z.ZodTypeAny).safeParse({label: 'x', tone: 'info'}).success);
-    assert.ok(!(Badge.schema as z.ZodTypeAny).safeParse({label: 'x', tone: 'other'}).success);
+    assert.ok(accepts(Badge.schema, {label: 'x', tone: 'info'}));
+    assert.ok(!accepts(Badge.schema, {label: 'x', tone: 'other'}));
   });
 
   it('recomputes an out-of-order authored union when withEntries changes entries', () => {
-    const reordered = Catalog.fromJson({
-      catalogId: 'https://example.com/reordered',
-      components: {
-        Card: {type: 'object', properties: {component: {const: 'Card'}}},
-        Label: {type: 'object', properties: {component: {const: 'Label'}}},
-      },
-      $defs: {
-        anyComponent: {
-          oneOf: [{$ref: '#/components/Label'}, {$ref: '#/components/Card'}],
-          discriminator: {propertyName: 'component'},
+    const reordered = Catalog.fromJson(
+      {
+        catalogId: 'https://example.com/reordered',
+        components: {
+          Card: {type: 'object', properties: {component: {const: 'Card'}}},
+          Label: {type: 'object', properties: {component: {const: 'Label'}}},
+        },
+        $defs: {
+          anyComponent: {
+            oneOf: [{$ref: '#/components/Label'}, {$ref: '#/components/Card'}],
+            discriminator: {propertyName: 'component'},
+          },
         },
       },
-    });
+      undefined,
+      undefined,
+      {validator: testValidator},
+    );
     const prunedReordered = reordered
       .withEntries([reordered.components.get('Label')!], [])
       .toJson();
@@ -1807,7 +1878,12 @@ describe('built-in basic catalogs', () => {
 });
 
 describe('Catalog.derive', () => {
-  const basic = Catalog.fromJson(readRepoJson('catalogs/basic/v1/catalog.json'));
+  const basic = Catalog.fromJson(
+    readRepoJson('catalogs/basic/v1/catalog.json'),
+    undefined,
+    undefined,
+    {validator: testValidator},
+  );
   const label: ComponentApi = {name: 'Label', schema: z.object({text: z.string()})};
 
   it('keeps the named entries and adds new ones under the new ID', () => {
@@ -1882,7 +1958,12 @@ describe('Catalog.derive', () => {
   });
 
   it('drops authored $defs that only left-out entries referenced', () => {
-    const loaded = Catalog.fromJson(readRepoJson('specification/v0_9/catalogs/basic/catalog.json'));
+    const loaded = Catalog.fromJson(
+      readRepoJson('specification/v0_9/catalogs/basic/catalog.json'),
+      undefined,
+      undefined,
+      {validator: testValidator},
+    );
 
     const derived = loaded.derive({catalogId: 'https://example.com/chat', components: []});
 

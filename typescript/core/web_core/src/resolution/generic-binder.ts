@@ -445,7 +445,12 @@ interface UnionOption {
   field: Field;
 }
 
-/** Flattens nested unions that name no definition into one list of options. */
+/**
+ * Flattens nested unions that name no definition into one list of options. A
+ * definition of the schema's own document (such as a catalog's `$defs`)
+ * names no kind of value, unless it marks a child reference, so its unions
+ * are flattened too.
+ */
 function flattenUnionOptions(
   unionOptions: readonly SchemaCursor[],
   visited = new Set<object>(),
@@ -456,7 +461,7 @@ function flattenUnionOptions(
     if (alreadyVisited(field, visited)) {
       continue;
     }
-    if (!defNameOf(field) && field.refs.size === 0 && kindOf(field.node) === 'union') {
+    if (field.refDefNames.size === 0 && field.refs.size === 0 && kindOf(field.node) === 'union') {
       const nested = fieldUnionOptions(field);
       if (nested) {
         result.push(...flattenUnionOptions(nested, withTraversed(visited, field)));

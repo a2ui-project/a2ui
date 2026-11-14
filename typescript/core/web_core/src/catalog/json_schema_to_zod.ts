@@ -14,73 +14,17 @@
  * limitations under the License.
  */
 
+// ponytail: removed with the zod mirrors in Task 11. `Catalog.fromJson`
+// validates with the catalog's JSON Schema validator; this converter is left
+// for what has no validator to hand: the plain JSON Schema `schema` of an
+// `AgentFunction`, read into Zod (`convertFunctionArgsJsonSchemaToZod`), and
+// the declared keys of a Zod agent function schema (`getDeclaredSchemaKeys`).
+
 import {z} from 'zod';
 
-import {validateMetadata} from '../common/metadata.js';
-import {isAtLeastVersion} from '../common/semver.js';
-import {assertUax31Identifier} from '../common/uax31.js';
-import {A2uiCatalogError} from '../errors.js';
 import {CommonSchemas, ComponentCommonSchema} from '../types/common-types.js';
 import {exclusiveUnion} from './exclusive_union.js';
-import {JsonComponentApi, JsonFunctionApi} from './json_entries.js';
-import {
-  buildComponentUnion,
-  buildFunctionUnion,
-  deepCopyJson,
-  deepFreeze,
-} from './schema_serializer.js';
-import type {CatalogDocumentOptions, ComponentApi, FunctionApi} from './types.js';
-
-/**
- * The fields of a parsed catalog document: its ID, version and entries, and
- * the document-level fields a `Catalog` keeps so that `toJson` reproduces the
- * document.
- */
-export interface ParsedCatalogSchema extends CatalogDocumentOptions {
-  id: string;
-  protocolVersion: string;
-  components: ComponentApi[];
-  functions: FunctionApi[];
-  themeSchema?: z.ZodObject<z.ZodRawShape>;
-}
-
-/**
- * Protocol version assumed for a catalog schema that does not declare one.
- *
- * Catalog schemas only began carrying `protocolVersion` at v1.0, so a schema
- * that omits it predates that field.
- */
-export const DEFAULT_PROTOCOL_VERSION = '0.9';
-
-/**
- * Resolves a JSON Pointer within a root JSON document.
- *
- * Follows RFC 6901 pointer unescaping (~1 -> /, ~0 -> ~).
- *
- * @param rootDoc Root JSON document to resolve within.
- * @param pointer RFC 6901 JSON pointer string.
- * @returns The resolved document subtree, or undefined if not found.
- */
-function resolveJsonPointer(
-  rootDoc: Record<string, unknown>,
-  pointer: string,
-): Record<string, unknown> | undefined {
-  if (!pointer.startsWith('#/')) return undefined;
-  const segments = pointer
-    .slice(2)
-    .split('/')
-    .map(s => s.replace(/~1/g, '/').replace(/~0/g, '~'));
-
-  let curr: unknown = rootDoc;
-  for (const seg of segments) {
-    if (curr && typeof curr === 'object' && seg in curr) {
-      curr = (curr as Record<string, unknown>)[seg];
-    } else {
-      return undefined;
-    }
-  }
-  return typeof curr === 'object' && curr !== null ? (curr as Record<string, unknown>) : undefined;
-}
+import {canonicalJsonStringify, isShorthandParameterMap, resolveJsonPointer} from './from-json.js';
 
 /**
  * Resolves a standard protocol `$ref` to its corresponding common type schema.
@@ -118,29 +62,6 @@ function convertEnumToZod(values: unknown[]): z.ZodTypeAny {
       ...z.ZodTypeAny[],
     ],
   );
-}
-
-/**
- * Serializes a value to canonical JSON with deterministically sorted object keys.
- *
- * Produces identical strings for semantically equivalent values regardless of
- * object property insertion order.
- *
- * @param val Value to serialize.
- * @returns Deterministic JSON string representation.
- */
-function canonicalJsonStringify(val: unknown): string {
-  if (val === null || typeof val !== 'object') {
-    return JSON.stringify(val);
-  }
-  if (Array.isArray(val)) {
-    return `[${val.map(canonicalJsonStringify).join(',')}]`;
-  }
-  const keys = Object.keys(val as Record<string, unknown>).sort();
-  const entries = keys.map(
-    k => `${JSON.stringify(k)}:${canonicalJsonStringify((val as Record<string, unknown>)[k])}`,
-  );
-  return `{${entries.join(',')}}`;
 }
 
 /**
@@ -358,7 +279,6 @@ function convertAllOfPropertyToZod(
         const propShape = convertPropertiesToShape(
           (s.schema.properties as Record<string, unknown>) || {},
           requiredSet,
-          false,
           rootDoc,
           new Set(visitedPointers),
           defCache,
@@ -549,7 +469,6 @@ function convertPropertyToZod(
           convertPropertiesToShape(
             (props ?? {}) as Record<string, unknown>,
             required,
-            false,
             rootDoc,
             visitedPointers,
             defCache,
@@ -577,29 +496,12 @@ function convertPropertyToZod(
 }
 
 /**
- * Whether a property name is one of the component envelope fields (`id`,
- * `component`, `@catalogId`), which route a component rather than configure it.
- * The validation schema leaves them out of a component for the same reason, and
- * `PayloadValidator` strips them before parsing a component.
- *
- * @param propName Property name to check.
- * @returns True if the property belongs to the envelope rather than the component.
- */
-function isEnvelopeField(propName: string): boolean {
-  // A bare `catalogId` a component declares is its own property: below v1.0
-  // the protocol has no per-component catalog, and from v1.0 the envelope
-  // field is `@catalogId`.
-  return propName === 'id' || propName === 'component' || propName === '@catalogId';
-}
-
-/**
  * Converts a dictionary of property definitions into a Zod raw shape map.
  *
  * Marks fields as optional unless present in `requiredSet`.
  *
  * @param properties Property name to property schema mapping.
  * @param requiredSet Set of required property names.
- * @param omitEnvelopeFields Whether to omit component envelope fields (`id`, `component`, `@catalogId`).
  * @param rootDoc Optional root schema document for reference resolution.
  * @param visitedPointers Set of reference pointers currently on the resolution stack.
  * @param defCache Cache mapping reference strings to resolved Zod schemas.
@@ -608,16 +510,12 @@ function isEnvelopeField(propName: string): boolean {
 function convertPropertiesToShape(
   properties: Record<string, unknown>,
   requiredSet: Set<string>,
-  omitEnvelopeFields = false,
   rootDoc?: Record<string, unknown>,
   visitedPointers?: Set<string>,
   defCache = new Map<string, z.ZodTypeAny>(),
 ): Record<string, z.ZodTypeAny> {
   const shape: Record<string, z.ZodTypeAny> = {};
   for (const [propName, propSchema] of Object.entries(properties)) {
-    if (omitEnvelopeFields && isEnvelopeField(propName)) {
-      continue;
-    }
     const zodField = convertPropertyToZod(
       typeof propSchema === 'object' && propSchema !== null
         ? (propSchema as Record<string, unknown>)
@@ -845,92 +743,6 @@ function collectComponentSubSchemas(
 }
 
 /**
- * Converts a raw component JSON schema definition into a Zod object schema.
- *
- * Merges sub-schemas from `allOf` compositions, applies required fields, and
- * respects `additionalProperties` and `unevaluatedProperties` constraints.
- *
- * @param rawSchema Raw component schema definition.
- * @param rootDoc Root schema document for resolving references.
- * @param omitEnvelopeFields Whether to omit envelope fields (`id`, `component`, `@catalogId`). Defaults to true.
- * @param defCache Cache mapping reference strings to resolved Zod schemas.
- * @param isAtLeastV10 Whether the catalog targets protocol v1.0 or higher.
- * @returns Zod object schema validating component properties.
- */
-function convertComponentJsonSchemaToZod(
-  rawSchema: Record<string, unknown>,
-  rootDoc: Record<string, unknown>,
-  omitEnvelopeFields = true,
-  defCache = new Map<string, z.ZodTypeAny>(),
-  isAtLeastV10 = false,
-): z.ZodObject<z.ZodRawShape> {
-  const shape: Record<string, z.ZodTypeAny> = {};
-  const schemasToMerge = collectComponentSubSchemas(rawSchema, rootDoc, undefined, isAtLeastV10);
-
-  const requiredSet = new Set<string>();
-  for (const s of schemasToMerge) {
-    if (s.kind === 'json' && Array.isArray(s.schema.required)) {
-      s.schema.required.forEach((r: unknown) => {
-        if (typeof r === 'string') requiredSet.add(r);
-      });
-    }
-  }
-
-  for (const s of schemasToMerge) {
-    if (s.kind === 'zod') {
-      for (const [propName, propSchema] of Object.entries(s.properties)) {
-        if (omitEnvelopeFields && isEnvelopeField(propName)) {
-          continue;
-        }
-        shape[propName] = propSchema;
-      }
-      continue;
-    }
-    const propShape = convertPropertiesToShape(
-      (s.schema.properties as Record<string, unknown>) || {},
-      requiredSet,
-      omitEnvelopeFields,
-      rootDoc,
-      undefined,
-      defCache,
-    );
-    Object.assign(shape, propShape);
-  }
-
-  const obj = z.object(shape);
-  const allowExtra =
-    rawSchema.unevaluatedProperties === true ||
-    (typeof rawSchema.unevaluatedProperties === 'object' &&
-      rawSchema.unevaluatedProperties !== null) ||
-    rawSchema.additionalProperties === true ||
-    (typeof rawSchema.additionalProperties === 'object' && rawSchema.additionalProperties !== null);
-  return allowExtra ? obj.passthrough() : obj.strict();
-}
-
-/**
- * Checks whether an object schema represents a shorthand parameter map (a map
- * of parameter names to subschemas), rather than a full JSON Schema object or
- * reference combinator.
- */
-export function isShorthandParameterMap(schema: unknown): boolean {
-  if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
-    return false;
-  }
-  const s = schema as Record<string, unknown>;
-  return (
-    Object.keys(s).length > 0 &&
-    s.properties === undefined &&
-    typeof s.type !== 'string' &&
-    !('$ref' in s) &&
-    !('allOf' in s) &&
-    !('oneOf' in s) &&
-    !('anyOf' in s) &&
-    !('not' in s) &&
-    Object.values(s).every(v => v !== null && (typeof v === 'object' || typeof v === 'boolean'))
-  );
-}
-
-/**
  * Checks whether an object schema explicitly permits additional or unevaluated properties.
  */
 function isExplicitlyOpen(schema: Record<string, unknown>): boolean {
@@ -1058,7 +870,6 @@ export function convertFunctionArgsJsonSchemaToZod(
       const propShape = convertPropertiesToShape(
         s.properties as Record<string, unknown>,
         requiredSet,
-        false,
         rootDoc,
         undefined,
         defCache,
@@ -1149,564 +960,4 @@ export function getDeclaredSchemaKeys(schema: z.ZodTypeAny): Set<string> {
   };
   visit(schema);
   return keys;
-}
-
-/**
- * Extracts declared parameter names from a function's argument schema,
- * including those of `allOf`, `anyOf` and `oneOf` members and `$ref` targets.
- */
-export function functionParameterNames(
-  schema: unknown,
-  rootDoc?: Record<string, unknown>,
-): string[] {
-  if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
-    return [];
-  }
-  const s = schema as Record<string, unknown>;
-  const names: string[] = [];
-  const visited = new Set<string>();
-
-  const extractProperties = (node: unknown): void => {
-    if (!node || typeof node !== 'object' || Array.isArray(node)) return;
-    const n = node as Record<string, unknown>;
-    if (typeof n.$ref === 'string' && rootDoc && n.$ref.startsWith('#/')) {
-      if (!visited.has(n.$ref)) {
-        visited.add(n.$ref);
-        const target = resolveJsonPointer(rootDoc, n.$ref);
-        if (target) {
-          extractProperties(target);
-        }
-      }
-    }
-    if (
-      n.properties &&
-      typeof n.properties === 'object' &&
-      n.properties !== null &&
-      !Array.isArray(n.properties)
-    ) {
-      names.push(...Object.keys(n.properties as Record<string, unknown>));
-    }
-    for (const combinator of [n.allOf, n.anyOf, n.oneOf]) {
-      if (Array.isArray(combinator)) {
-        for (const member of combinator) {
-          extractProperties(member);
-        }
-      }
-    }
-  };
-
-  if (
-    (s.properties &&
-      typeof s.properties === 'object' &&
-      s.properties !== null &&
-      !Array.isArray(s.properties)) ||
-    Array.isArray(s.allOf) ||
-    Array.isArray(s.anyOf) ||
-    Array.isArray(s.oneOf) ||
-    typeof s.$ref === 'string'
-  ) {
-    extractProperties(s);
-    return names;
-  }
-
-  if (isShorthandParameterMap(s)) {
-    return Object.keys(s);
-  }
-
-  return [];
-}
-
-/**
- * Parses raw catalog function definitions into typed FunctionApi objects.
- *
- * Validates UAX #31 identifier requirements when targeting protocol v1.0 or higher,
- * filters against permitted function names, and converts parameter schemas to Zod validators.
- *
- * @param rawFunctions Raw function definitions from the catalog schema (array or dictionary).
- * @param rootDoc Optional root schema document for reference resolution.
- * @param permittedNames Optional set of allowed function names from `anyFunction.oneOf`.
- * @param atLeastV10 Whether the catalog targets protocol v1.0 or higher.
- * @returns Array of parsed FunctionApi objects.
- * @throws {A2uiCatalogError} If a function or argument identifier fails UAX #31 validation in v1.0+.
- */
-function parseFunctionDefinitions(
-  rawFunctions: unknown,
-  rootDoc?: Record<string, unknown>,
-  permittedNames?: Set<string>,
-  atLeastV10 = false,
-): FunctionApi[] {
-  const result: FunctionApi[] = [];
-  if (!rawFunctions) return result;
-  const defCache = new Map<string, z.ZodTypeAny>();
-
-  /** Validates a function's own name and its declared argument names. */
-  const assertFunctionIdentifiers = (name: string, paramNames: string[]): void => {
-    if (!atLeastV10) return;
-    assertUax31Identifier(name, `function identifier: '${name}'`);
-    for (const argName of paramNames) {
-      assertUax31Identifier(argName, `argument identifier: '${argName}' in function '${name}'`);
-    }
-  };
-
-  /**
-   * Rejects requiresUserActivation=true with callers other than rendererOnly.
-   * The rule exists only in the v1.0 catalog_definition.json.
-   */
-  const assertUserActivationCallers = (entry: FunctionApi): void => {
-    if (!atLeastV10) return;
-    if (
-      entry.requiresUserActivation === true &&
-      entry.allowedCallers !== undefined &&
-      entry.allowedCallers !== 'rendererOnly'
-    ) {
-      throw new A2uiCatalogError(
-        `Function '${entry.name}' declares requiresUserActivation=true with allowedCallers='${entry.allowedCallers}'; requiresUserActivation=true requires allowedCallers='rendererOnly'.`,
-      );
-    }
-  };
-
-  if (Array.isArray(rawFunctions)) {
-    for (const fn of rawFunctions) {
-      if (fn && typeof fn === 'object' && typeof fn.name === 'string') {
-        const paramNames = functionParameterNames(fn.parameters, rootDoc);
-        assertFunctionIdentifiers(fn.name, paramNames);
-        const entry = new JsonFunctionApi(fn.name, fn as Record<string, unknown>, definition =>
-          definition['parameters'] && typeof definition['parameters'] === 'object'
-            ? convertFunctionArgsJsonSchemaToZod(
-                definition['parameters'] as Record<string, unknown>,
-                rootDoc,
-                defCache,
-              )
-            : z.record(z.unknown()),
-        );
-        assertUserActivationCallers(entry);
-        if (permittedNames && !permittedNames.has(fn.name)) {
-          continue;
-        }
-        result.push(entry);
-      }
-    }
-    return result;
-  }
-
-  if (typeof rawFunctions === 'object' && rawFunctions !== null) {
-    for (const [name, defn] of Object.entries(rawFunctions)) {
-      const rawDefn = defn && typeof defn === 'object' ? (defn as Record<string, unknown>) : {};
-      const argsSchema = functionArgsSchema(rawDefn);
-      const paramNames = functionParameterNames(argsSchema, rootDoc);
-      assertFunctionIdentifiers(name, paramNames);
-      if (!defn || typeof defn !== 'object') continue;
-      const entry = new JsonFunctionApi(name, defn as Record<string, unknown>, definition => {
-        const argsSchema = functionArgsSchema(definition);
-        return argsSchema
-          ? convertFunctionArgsJsonSchemaToZod(argsSchema, rootDoc, defCache)
-          : z.record(z.unknown());
-      });
-      assertUserActivationCallers(entry);
-      if (permittedNames && !permittedNames.has(name)) {
-        continue;
-      }
-      result.push(entry);
-    }
-  }
-
-  return result;
-}
-
-/**
- * Returns the schema of the arguments of a function a `functions` map
- * defines: its call schema's `args`, a bare map of argument schemas with the
- * object keywords beside it, or, for a definition that is not a call schema,
- * the definition itself.
- *
- * @param d The function's definition.
- */
-function functionArgsSchema(
-  d: Readonly<Record<string, unknown>>,
-): Record<string, unknown> | undefined {
-  let props =
-    d.properties &&
-    typeof d.properties === 'object' &&
-    d.properties !== null &&
-    !Array.isArray(d.properties)
-      ? (d.properties as Record<string, unknown>)
-      : undefined;
-  if (!props?.args && Array.isArray(d.allOf)) {
-    for (const member of d.allOf) {
-      if (
-        member &&
-        typeof member === 'object' &&
-        !Array.isArray(member) &&
-        (member as Record<string, unknown>).properties &&
-        typeof (member as Record<string, unknown>).properties === 'object' &&
-        (member as Record<string, unknown>).properties !== null &&
-        !Array.isArray((member as Record<string, unknown>).properties)
-      ) {
-        props = {
-          ...props,
-          ...((member as Record<string, unknown>).properties as Record<string, unknown>),
-        };
-      }
-    }
-  }
-  let argsSchema = props?.args ?? d.args ?? d.parameters;
-  if (!argsSchema && props && !('call' in props) && !('@call' in props) && !('function' in props)) {
-    argsSchema = d;
-  } else if (isShorthandParameterMap(argsSchema)) {
-    argsSchema = {
-      type: 'object',
-      properties: argsSchema as Record<string, unknown>,
-      required: d.required,
-      additionalProperties: d.additionalProperties,
-    };
-  }
-  return argsSchema && typeof argsSchema === 'object' && !Array.isArray(argsSchema)
-    ? (argsSchema as Record<string, unknown>)
-    : undefined;
-}
-
-/**
- * Extracts permitted definition names matching a reference prefix from a `oneOf` array.
- *
- * @param oneOf Array of reference schema objects from `anyComponent` or `anyFunction`.
- * @param prefix Prefix to match and strip, such as `#/components/` or `#/functions/`.
- * @returns Set of unescaped allowed names, or undefined if `oneOf` is not an array.
- */
-function extractPermittedNames(oneOf: unknown, prefix: string): Set<string> | undefined {
-  if (!Array.isArray(oneOf)) return undefined;
-  const permitted = new Set<string>();
-  for (const item of oneOf) {
-    if (typeof item?.$ref === 'string' && item.$ref.startsWith(prefix)) {
-      const rawName = item.$ref.slice(prefix.length);
-      const unescapedName = rawName.replace(/~([01])/g, (_: string, p1: string) =>
-        p1 === '1' ? '/' : '~',
-      );
-      permitted.add(unescapedName);
-    }
-  }
-  return permitted;
-}
-
-/**
- * Parses raw catalog component schemas into typed ComponentApi definitions.
- *
- * Validates UAX #31 identifier requirements for v1.0+ specifications, filters
- * components if permitted names are specified, and transforms JSON schemas into
- * runtime Zod schemas.
- *
- * @param componentsMap Mapping of component name to raw component schema definition.
- * @param catalogSchema Enclosing raw catalog schema for resolving local references.
- * @param atLeastV10 Whether the catalog targets protocol v1.0 or higher.
- * @param permittedNames Optional set of allowed component names from anyComponent.oneOf.
- * @returns Array of parsed ComponentApi objects with validation schemas and hierarchy constraints.
- * @throws {A2uiCatalogError} If a component or property identifier fails UAX #31 validation in v1.0+.
- */
-function parseCatalogComponents(
-  componentsMap: Record<string, unknown>,
-  catalogSchema: Record<string, unknown>,
-  atLeastV10: boolean,
-  permittedNames?: Set<string>,
-): ComponentApi[] {
-  const components: ComponentApi[] = [];
-  const defCache = new Map<string, z.ZodTypeAny>();
-
-  for (const [name, rawCompSchema] of Object.entries(componentsMap)) {
-    const rawComp = (rawCompSchema as Record<string, unknown>) || {};
-    if (atLeastV10) {
-      assertUax31Identifier(name, `component identifier: '${name}'`);
-      const props = rawComp.properties;
-      if (props && typeof props === 'object') {
-        for (const propName of Object.keys(props as Record<string, unknown>)) {
-          assertUax31Identifier(
-            propName,
-            `property identifier: '${propName}' in component '${name}'`,
-          );
-        }
-      }
-      const rawMeta = rawComp.metadata;
-      if (rawMeta !== undefined) {
-        try {
-          validateMetadata(rawMeta);
-        } catch (err) {
-          throw new A2uiCatalogError(err instanceof Error ? err.message : String(err));
-        }
-      }
-    }
-    if (permittedNames && !permittedNames.has(name)) {
-      continue;
-    }
-    components.push(
-      new JsonComponentApi(name, rawComp, definition =>
-        convertComponentJsonSchemaToZod(
-          definition as Record<string, unknown>,
-          catalogSchema,
-          true,
-          defCache,
-          atLeastV10,
-        ),
-      ),
-    );
-  }
-  return components;
-}
-
-/**
- * Extracts and compiles the theme schema from a catalog definition if present.
- *
- * Checks top-level theme, themeSchema, styles, and $defs.theme definitions.
- *
- * @param catalogSchema Raw catalog schema or capabilities definition object.
- * @param defs Optional $defs mapping from the root schema.
- * @returns Compiled Zod object schema for theme tokens, or undefined if not declared.
- */
-function parseThemeSchema(
-  catalogSchema: Record<string, unknown>,
-  defs?: Record<string, unknown>,
-): z.ZodObject<z.ZodRawShape> | undefined {
-  const rawTheme =
-    catalogSchema.theme ??
-    catalogSchema.themeSchema ??
-    catalogSchema.styles ??
-    (defs?.theme as Record<string, unknown> | undefined);
-  if (rawTheme && typeof rawTheme === 'object') {
-    const rawThemeObj = rawTheme as Record<string, unknown>;
-    const normalizedThemeSchema =
-      'properties' in rawThemeObj || 'allOf' in rawThemeObj || rawThemeObj.type === 'object'
-        ? rawThemeObj
-        : {type: 'object', properties: rawThemeObj};
-    const themeZod = convertComponentJsonSchemaToZod(normalizedThemeSchema, catalogSchema, false);
-    // Unlike a component, a theme is open unless its author closes it, as JSON
-    // Schema itself defaults.
-    const closed =
-      normalizedThemeSchema.additionalProperties === false ||
-      normalizedThemeSchema.unevaluatedProperties === false;
-    return closed ? themeZod : themeZod.passthrough();
-  }
-  return undefined;
-}
-
-/**
- * Whether a v1.0 catalog may use `ref` as a `$ref` target.
- *
- * A v1.0 catalog may reference its own document, through a local reference
- * (`#/...`) or the `catalog.json` envelope placeholder, and `common_types.json`,
- * by a relative or absolute URI.
- *
- * @param ref The `$ref` value.
- * @returns Whether the reference is allowed.
- */
-function isSupportedV10Ref(ref: string): boolean {
-  if (ref.startsWith('#')) return true;
-  const hashIndex = ref.indexOf('#');
-  const documentPart = hashIndex === -1 ? ref : ref.slice(0, hashIndex);
-  if (documentPart === 'catalog.json') return true;
-  return documentPart.split('/').pop() === 'common_types.json';
-}
-
-/**
- * Escapes a key as an RFC 6901 JSON Pointer reference token.
- */
-function escapeJsonPointerToken(token: string): string {
-  return token.replace(/~/g, '~0').replace(/\//g, '~1');
-}
-
-/**
- * Checks that every `$ref` of a v1.0 catalog document targets the document
- * itself or `common_types.json`.
- *
- * Walks the whole document, including components, functions and `$defs`.
- * References are only inspected, never resolved or fetched.
- *
- * @param node The document, or a value nested in it.
- * @param pointer JSON Pointer of `node` within the document.
- * @throws {A2uiCatalogError} If a `$ref` targets any other document, such as
- *   another catalog.
- */
-function assertSupportedV10Refs(node: unknown, pointer: string): void {
-  if (Array.isArray(node)) {
-    node.forEach((item, index) => assertSupportedV10Refs(item, `${pointer}/${index}`));
-    return;
-  }
-  if (!isPlainObject(node)) return;
-  for (const [key, value] of Object.entries(node)) {
-    const childPointer = `${pointer}/${escapeJsonPointerToken(key)}`;
-    if (key === '$ref' && typeof value === 'string' && !isSupportedV10Ref(value)) {
-      throw new A2uiCatalogError(
-        `Unsupported external $ref '${value}' at ${childPointer}: a v1.0 catalog may only ` +
-          'reference its own components and functions (#/...) or common_types.json.',
-      );
-    }
-    assertSupportedV10Refs(value, childPointer);
-  }
-}
-
-/**
- * Parses a raw A2UI catalog schema into its typed component, function, and metadata fields.
- *
- * Parses component and function definitions, extracts hierarchy constraints (`allowedParents`,
- * `allowedChildren`), unescapes RFC 6901 JSON pointers, and builds runtime Zod validators.
- *
- * @param inputSchema Raw catalog schema or capabilities definition object. It
- *   is copied first and never referenced afterwards.
- * @param protocolVersion Protocol version of the catalog. When given, it takes
- *   precedence over the `protocolVersion` the schema declares and selects the
- *   version's loading rules; the declared version is still kept as written.
- *   Catalog schemas published before v1.0 omit `protocolVersion`; when
- *   neither the caller nor the schema supplies it, `DEFAULT_PROTOCOL_VERSION`
- *   applies.
- * @param catalogIdOverride Catalog ID to use instead of the one the schema
- *   declares. The schema itself is kept as written.
- * @returns Parsed catalog fields ready to construct a `Catalog` instance.
- * @throws {Error} If the catalog ID is missing or not a string.
- * @throws {A2uiCatalogError} If a v1.0+ catalog has a `$ref` to a document
- *   other than itself or `common_types.json`, such as another catalog.
- */
-export function parseCatalogSchema(
-  inputSchema: Record<string, unknown>,
-  protocolVersion?: string,
-  catalogIdOverride?: string,
-): ParsedCatalogSchema {
-  // Everything the catalog keeps, including what the Zod schemas close over,
-  // comes from this copy, so mutating the input afterwards cannot change it.
-  const catalogSchema = deepCopyJson(inputSchema);
-  const catalogId =
-    catalogIdOverride ?? catalogSchema.catalogId ?? catalogSchema.$id ?? catalogSchema.id;
-  if (!catalogId || typeof catalogId !== 'string') {
-    throw new Error("Catalog ID must be specified via catalog metadata ('catalogId' or '$id').");
-  }
-
-  // Filter permitted components via anyComponent.oneOf if declared
-  const defs = catalogSchema.$defs as Record<string, unknown> | undefined;
-  const anyComp = defs?.anyComponent as Record<string, unknown> | undefined;
-  const permittedNames = extractPermittedNames(anyComp?.oneOf, '#/components/');
-
-  const resolvedVersion =
-    protocolVersion ??
-    (catalogSchema.protocolVersion as string | undefined) ??
-    DEFAULT_PROTOCOL_VERSION;
-  const atLeastV10 = isAtLeastVersion(resolvedVersion, '1.0');
-  if (atLeastV10) {
-    // Before anything reads the entries, so no unsupported reference is ever
-    // followed.
-    assertSupportedV10Refs(catalogSchema, '');
-  }
-
-  const componentsMap = (catalogSchema.components as Record<string, unknown>) ?? {};
-  const components = parseCatalogComponents(
-    componentsMap,
-    catalogSchema,
-    atLeastV10,
-    permittedNames,
-  );
-
-  // Filter permitted functions via anyFunction.oneOf if declared
-  const anyFunc = defs?.anyFunction as Record<string, unknown> | undefined;
-  const permittedFunctionNames = extractPermittedNames(anyFunc?.oneOf, '#/functions/');
-
-  const functions = parseFunctionDefinitions(
-    catalogSchema.functions,
-    catalogSchema,
-    permittedFunctionNames,
-    atLeastV10,
-  );
-
-  const themeSchema = parseThemeSchema(catalogSchema, defs);
-
-  // The copy is frozen: the entries' definitions and the document fields
-  // refer into it.
-  deepFreeze(catalogSchema);
-
-  return {
-    id: catalogId,
-    protocolVersion: resolvedVersion,
-    components,
-    functions,
-    themeSchema,
-    ...readDocumentFields(catalogSchema, components, functions),
-  };
-}
-
-/** Top-level keys of a catalog document that `CatalogDocumentOptions` models. */
-const DOCUMENT_STRING_FIELDS = {
-  '$schema': 'schemaUri',
-  '$id': 'schemaId',
-  'title': 'title',
-  'description': 'description',
-  'instructions': 'instructions',
-} as const;
-
-/** Top-level keys of a catalog document that `Catalog` models besides the string fields. */
-const DOCUMENT_STRUCTURE_FIELDS = new Set(['protocolVersion', 'catalogId', 'components']);
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-/**
- * Whether `actual` is the union a catalog computes, ignoring object key order.
- */
-function isComputedUnion(actual: unknown, computed: Record<string, unknown>): boolean {
-  return canonicalJsonStringify(actual) === canonicalJsonStringify(computed);
-}
-
-/**
- * Reads the document-level fields of a catalog document into the model fields
- * `Catalog` keeps.
- *
- * The `anyComponent` and `anyFunction` unions become flags when they list
- * exactly the loaded entries, in order, as `toJson` computes them; a union of
- * any other form stays in `defs` as written. Keys the model has no field for
- * are kept in `extensionFields`.
- *
- * @param document The frozen catalog document.
- * @param components The components loaded from it.
- * @param functions The functions loaded from it.
- */
-function readDocumentFields(
-  document: Readonly<Record<string, unknown>>,
-  components: readonly ComponentApi[],
-  functions: readonly FunctionApi[],
-): CatalogDocumentOptions {
-  const fields: CatalogDocumentOptions = {};
-  const extensionFields: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(document)) {
-    if (key in DOCUMENT_STRING_FIELDS && typeof value === 'string') {
-      fields[DOCUMENT_STRING_FIELDS[key as keyof typeof DOCUMENT_STRING_FIELDS]] = value;
-    } else if (key === 'protocolVersion' && typeof value === 'string') {
-      fields.declaredProtocolVersion = value;
-    } else if (key === 'functions' && (Array.isArray(value) || isPlainObject(value))) {
-      fields.functionsLayout = Array.isArray(value) ? 'list' : 'map';
-    } else if (key === '$defs' && isPlainObject(value)) {
-      const anyComponent = isComputedUnion(
-        value['anyComponent'],
-        buildComponentUnion(components.map(c => c.name)),
-      );
-      const anyFunction = isComputedUnion(
-        value['anyFunction'],
-        buildFunctionUnion(functions.map(f => f.name)),
-      );
-      fields.unions = {anyComponent, anyFunction};
-      const defs: Record<string, unknown> = {};
-      for (const [name, def] of Object.entries(value)) {
-        if ((name === 'anyComponent' && anyComponent) || (name === 'anyFunction' && anyFunction)) {
-          continue;
-        }
-        defs[name] = def;
-      }
-      fields.defs = Object.freeze(defs);
-    } else if (
-      !DOCUMENT_STRUCTURE_FIELDS.has(key) ||
-      (key === 'components' && !isPlainObject(value))
-    ) {
-      extensionFields[key] = value;
-    }
-  }
-  fields.declaredProtocolVersion ??= null;
-  fields.declaresCatalogId = typeof document['catalogId'] === 'string';
-  fields.declaresComponents = isPlainObject(document['components']);
-  fields.unions ??= {anyComponent: false, anyFunction: false};
-  if (Object.keys(extensionFields).length > 0) {
-    fields.extensionFields = Object.freeze(extensionFields);
-  }
-  return fields;
 }

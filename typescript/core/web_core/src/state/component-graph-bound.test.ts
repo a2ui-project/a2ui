@@ -56,6 +56,8 @@ function compositionCatalog(): Catalog<any, any> {
       },
     },
     '1.0',
+    undefined,
+    {validator: testValidator},
   );
 }
 
@@ -71,6 +73,8 @@ function plainCatalog(): Catalog<any, any> {
       },
     },
     '1.0',
+    undefined,
+    {validator: testValidator},
   );
 }
 
@@ -380,6 +384,8 @@ function strictCatalog(id = 'custom'): Catalog<any, any> {
       },
     },
     '1.0',
+    undefined,
+    {validator: testValidator},
   );
 }
 
@@ -407,6 +413,8 @@ function otherCatalog(): Catalog<any, any> {
       },
     },
     '1.0',
+    undefined,
+    {validator: testValidator},
   );
 }
 

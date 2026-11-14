@@ -37,6 +37,7 @@ import {
 import * as rootApi from '../index.js';
 import * as resolutionApi from '../resolution/index.js';
 import * as v10Api from '../v1_0/index.js';
+import {testValidator} from '../test/validator.js';
 
 const FX_RATE_SCHEMA = z
   .object({
@@ -111,14 +112,16 @@ const ORACLE_DOC = {
 };
 
 function loadOracleCatalog(): Catalog<any, FunctionApi> {
-  return Catalog.fromJson(structuredClone(ORACLE_DOC));
+  return Catalog.fromJson(structuredClone(ORACLE_DOC), undefined, undefined, {
+    validator: testValidator,
+  });
 }
 
 function loadBasicCatalog(): Catalog<any, FunctionApi> {
   const doc = JSON.parse(
     readFileSync(resolve(process.cwd(), '../../../catalogs/basic/v1/catalog.json'), 'utf-8'),
   );
-  return Catalog.fromJson(doc);
+  return Catalog.fromJson(doc, undefined, undefined, {validator: testValidator});
 }
 
 describe('AgentFunction', () => {

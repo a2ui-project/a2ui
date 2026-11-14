@@ -120,7 +120,11 @@ function applyObject(value: Obj, node: JsonSchema, doc: SchemaDoc): Obj {
         if (next !== value[key]) set(key, next);
       } else if (!shape.required.has(key)) {
         const field = unwrapField(prop.node, prop.doc, false);
-        if (field.default !== undefined) set(key, copyDefault(field.default));
+        // A default is itself filled, as a library schema parses the default
+        // it applies.
+        if (field.default !== undefined) {
+          set(key, applyDefaults(copyDefault(field.default), prop.node, prop.doc));
+        }
       }
     }
   }
@@ -132,7 +136,7 @@ function applyObject(value: Obj, node: JsonSchema, doc: SchemaDoc): Obj {
 
 /**
  * Returns `value` with the JSON Schema `default`s of its missing optional
- * object properties filled in.
+ * object properties filled in, and the defaults inside those defaults.
  *
  * Recurses into `properties` (merged across `allOf`, through `$ref`s and
  * nullable wrappers), array `items`, and, for each `oneOf` of the schema or

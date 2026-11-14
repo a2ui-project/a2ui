@@ -2164,7 +2164,8 @@ function validateFromJsonTestCase(testCase) {
     testCase.protocolVersion ||
     (rawSchema && typeof rawSchema === 'object' ? rawSchema.protocolVersion : undefined) ||
     'v0.9';
-  const load = () => Catalog.fromJson(rawSchema, pVer, testCase.catalogId);
+  const load = () =>
+    Catalog.fromJson(rawSchema, pVer, testCase.catalogId, {validator: schemaValidator});
 
   if (testCase.expectError) {
     assert.throws(
@@ -2291,7 +2292,9 @@ function validateDeriveTestCase(testCase) {
   assertKnownKeys(testCase.args, DERIVE_KNOWN_KEYS.args, 'derive.args');
   assertKnownKeys(testCase.expect, DERIVE_KNOWN_KEYS.expect, 'derive.expect');
   assertKnownKeys(testCase.expectError, EXPECT_ERROR_KNOWN_KEYS.error, 'derive.expectError');
-  const source = Catalog.fromJson(readCaseCatalogDocument(testCase));
+  const source = Catalog.fromJson(readCaseCatalogDocument(testCase), undefined, undefined, {
+    validator: schemaValidator,
+  });
   const {catalogId, components, functions, instructions} = testCase.args;
   // A map with one key is a new entry, built by loading it into a catalog of
   // the source's version.
@@ -2299,11 +2302,16 @@ function validateDeriveTestCase(testCase) {
     list?.map(item => {
       if (typeof item === 'string') return item;
       const [name, definition] = Object.entries(item)[0];
-      const holder = Catalog.fromJson({
-        catalogId: 'conformance:derive-entries',
-        protocolVersion: source.protocolVersion,
-        [kind]: {[name]: definition},
-      });
+      const holder = Catalog.fromJson(
+        {
+          catalogId: 'conformance:derive-entries',
+          protocolVersion: source.protocolVersion,
+          [kind]: {[name]: definition},
+        },
+        undefined,
+        undefined,
+        {validator: schemaValidator},
+      );
       return holder[kind].get(name);
     });
   const derive = () =>
@@ -2687,7 +2695,7 @@ function sortKeysDeep(node) {
  * equivalence is covered by `matchesBuiltinCatalog`.
  */
 function loadValidationSchemaCatalog(testCase, rawSchema, pVer) {
-  return Catalog.fromJson(rawSchema, pVer, testCase.catalogId);
+  return Catalog.fromJson(rawSchema, pVer, testCase.catalogId, {validator: schemaValidator});
 }
 
 const VALIDATION_SCHEMA_KNOWN_KEYS = {
@@ -2811,9 +2819,13 @@ function validateRoundTripTestCase(testCase) {
   assertKnownKeys(testCase, ROUND_TRIP_KNOWN_KEYS.case, 'round_trip');
   const document = readCaseCatalogDocument(testCase);
   const pVer = testCase.protocolVersion;
-  const out = Catalog.fromJson(document, pVer, testCase.catalogId).toJson();
+  const out = Catalog.fromJson(document, pVer, testCase.catalogId, {
+    validator: schemaValidator,
+  }).toJson();
   assertJsonSetEqual(out, document, 'toJson() does not equal the loaded document.');
-  const again = Catalog.fromJson(out, pVer, testCase.catalogId).toJson();
+  const again = Catalog.fromJson(out, pVer, testCase.catalogId, {
+    validator: schemaValidator,
+  }).toJson();
   assertJsonSetEqual(again, out, 'toJson() is not idempotent.');
 }
 
@@ -2847,7 +2859,9 @@ function validateToJsonTestCase(testCase) {
     catalog = sdkBasicCatalog(testCase.protocolVersion);
   } else {
     const document = readCaseCatalogDocument(testCase);
-    catalog = Catalog.fromJson(document, testCase.protocolVersion, testCase.catalogId);
+    catalog = Catalog.fromJson(document, testCase.protocolVersion, testCase.catalogId, {
+      validator: schemaValidator,
+    });
   }
   const expected = JSON.parse(
     fs.readFileSync(path.resolve(CONFORMANCE_ROOT, '../', testCase.expectFile), 'utf8'),
@@ -3047,11 +3061,16 @@ function getCatalogsForTestCase(testCase) {
       const cId = catSchema.catalogId || catObj.catalogId || 'custom';
       const pVer = catObj.protocolVersion || catSchema.protocolVersion || version;
       if (catSchema.components || catSchema.theme || catSchema.functions) {
-        const loadedCat = Catalog.fromJson({
-          catalogId: cId,
-          protocolVersion: pVer,
-          ...catSchema,
-        });
+        const loadedCat = Catalog.fromJson(
+          {
+            catalogId: cId,
+            protocolVersion: pVer,
+            ...catSchema,
+          },
+          undefined,
+          undefined,
+          {validator: schemaValidator},
+        );
         catalogsMap.set(cId, loadedCat);
         specifiedCatalogs.push(loadedCat);
       } else {
@@ -3064,10 +3083,15 @@ function getCatalogsForTestCase(testCase) {
     for (const cat of testCase.catalogs) {
       if (cat.catalogId) {
         if (cat.components || cat.theme || cat.functions) {
-          const loadedCat = Catalog.fromJson({
-            protocolVersion: cat.protocolVersion || version,
-            ...cat,
-          });
+          const loadedCat = Catalog.fromJson(
+            {
+              protocolVersion: cat.protocolVersion || version,
+              ...cat,
+            },
+            undefined,
+            undefined,
+            {validator: schemaValidator},
+          );
           catalogsMap.set(cat.catalogId, loadedCat);
           specifiedCatalogs.push(loadedCat);
         } else if (testCase.action === 'get_renderer_capabilities') {
@@ -3133,11 +3157,16 @@ function getCatalogsForTestCase(testCase) {
         catalogsMap.set(cId, matchingBasic);
         specifiedCatalogs.push(matchingBasic);
       } else if (json.components) {
-        const loadedCat = Catalog.fromJson({
-          catalogId: cId,
-          protocolVersion: version,
-          ...json,
-        });
+        const loadedCat = Catalog.fromJson(
+          {
+            catalogId: cId,
+            protocolVersion: version,
+            ...json,
+          },
+          undefined,
+          undefined,
+          {validator: schemaValidator},
+        );
         catalogsMap.set(cId, loadedCat);
         specifiedCatalogs.push(loadedCat);
       } else {
@@ -4394,24 +4423,29 @@ function buildRoutingCatalogs(testCase, version) {
     });
     const agentFunctions = Object.entries(spec.agentFunctions ?? {});
     if (agentFunctions.length > 0) {
-      const document = Catalog.fromJson({
-        catalogId: spec.catalogId,
-        protocolVersion: version,
-        components: {},
-        functions: Object.fromEntries(
-          agentFunctions.map(([name, declaration]) => [
-            name,
-            {
-              type: 'object',
-              ...(declaration.returnType ? {returnType: declaration.returnType} : {}),
-              ...(declaration.requiresUserActivation ? {requiresUserActivation: true} : {}),
-              ...(declaration.allowedCallers ? {allowedCallers: declaration.allowedCallers} : {}),
-              properties: {'@call': {const: name}, args: declaration.args},
-              required: ['@call', 'args'],
-            },
-          ]),
-        ),
-      });
+      const document = Catalog.fromJson(
+        {
+          catalogId: spec.catalogId,
+          protocolVersion: version,
+          components: {},
+          functions: Object.fromEntries(
+            agentFunctions.map(([name, declaration]) => [
+              name,
+              {
+                type: 'object',
+                ...(declaration.returnType ? {returnType: declaration.returnType} : {}),
+                ...(declaration.requiresUserActivation ? {requiresUserActivation: true} : {}),
+                ...(declaration.allowedCallers ? {allowedCallers: declaration.allowedCallers} : {}),
+                properties: {'@call': {const: name}, args: declaration.args},
+                required: ['@call', 'args'],
+              },
+            ]),
+          ),
+        },
+        undefined,
+        undefined,
+        {validator: schemaValidator},
+      );
       functions.push(...document.functions.values());
     }
     return new Catalog(spec.catalogId, version, [], functions);

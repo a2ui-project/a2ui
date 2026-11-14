@@ -89,6 +89,14 @@ type Obj = {[k: string]: unknown};
 
 const isObj = (n: unknown): n is Obj => typeof n === 'object' && n !== null && !Array.isArray(n);
 
+/** Whether `root` is the document a cursor references as `common_types.json`. */
+function isCommonTypes(root: JsonSchema, cursor: SchemaCursor): boolean {
+  return Object.entries(cursor.doc.defs).some(
+    ([key, document]) =>
+      document === root && key.slice(key.lastIndexOf('/') + 1) === 'common_types.json',
+  );
+}
+
 /** A property a component schema declares, with the object that declares it. */
 interface PropertyDeclaration {
   /** The property's schema. */
@@ -130,13 +138,14 @@ function collectDeclaredProperties(
   const node = target.node;
   if (!isObj(node) || visited.has(node)) return declared;
   visited.add(node);
-  // Only a definition of a referenced document (the common types) is a spec
-  // mixin; a catalog's own `$defs/Checkable` is an ordinary definition.
+  // Only a definition of the common types is a spec mixin; a catalog's own
+  // `$defs/Checkable` is an ordinary definition, even when it is reached
+  // through the catalog document (`catalog.json`).
   const mixin =
     inMixin ??
     (target.refName !== undefined &&
     SPEC_MIXIN_DEFS.has(target.refName) &&
-    Object.values(cursor.doc.defs).includes(target.doc.root)
+    isCommonTypes(target.doc.root, cursor)
       ? target.refName
       : undefined);
   if (isObj(node['properties'])) {
