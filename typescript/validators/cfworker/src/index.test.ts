@@ -82,6 +82,27 @@ describe('createCfWorkerValidator', () => {
     assert.deepStrictEqual(i.path, ['a', 0, 'missingName']);
   });
 
+  it('fills Ajv-style params and points property issues at the property', () => {
+    const r = createCfWorkerValidator().compile({
+      type: 'object',
+      properties: {
+        t: {type: ['string', 'null']},
+        c: {const: '1.0'},
+        e: {enum: ['a', 1]},
+        ad: {type: 'object', additionalProperties: false},
+        u: {type: 'object', unevaluatedProperties: false},
+      },
+    })({t: 1, c: 'x', e: 'z', ad: {extra: 1}, u: {other: 2}});
+    assert.ok(!r.success);
+    const by = (k: string) => r.issues.find((x: A2uiIssue) => x.keyword === k)!;
+    assert.deepStrictEqual(by('type').params, {type: ['string', 'null']});
+    assert.deepStrictEqual(by('const').params, {allowedValue: '1.0'});
+    assert.deepStrictEqual(by('enum').params, {allowedValues: ['a', 1]});
+    assert.deepStrictEqual(by('additionalProperties').path, ['ad', 'extra']);
+    assert.deepStrictEqual(by('additionalProperties').params, {additionalProperty: 'extra'});
+    assert.deepStrictEqual(by('unevaluatedProperties').path, ['u', 'other']);
+  });
+
   describe('real basic catalog', () => {
     const real: JsonSchema = JSON.parse(
       readFileSync(repo('catalogs/basic/v1/catalog.json'), 'utf8'),

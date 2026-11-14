@@ -86,6 +86,51 @@ function resolveKey(key: string, root: JsonSchema): string {
   }
 }
 
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Recovers Ajv-style keyword parameters (`missingProperty`, `type`,
+ * `allowedValue`, `allowedValues`, `additionalProperty`, `unevaluatedProperty`)
+ * from cfworker's error text, so web_core words issues the same for both
+ * engines. Relies on @cfworker/json-schema 4.1.x message text.
+ */
+function paramsFor(keyword: string, error: string): Record<string, unknown> | undefined {
+  let m: RegExpExecArray | null;
+  switch (keyword) {
+    case 'required':
+      m = /required property "(.*)"\.?$/.exec(error);
+      return m ? {missingProperty: m[1]} : undefined;
+    case 'type':
+      m = /Expected (.*)\.$/.exec(error);
+      if (!m) return undefined;
+      return {type: m[1].split(', ').map(t => t.replace(/^"|"$/g, ''))};
+    case 'const': {
+      m = /^Instance does not match (.*)\.$/.exec(error);
+      const value = m ? parseJson(m[1]) : undefined;
+      return value === undefined ? undefined : {allowedValue: value};
+    }
+    case 'enum': {
+      m = /^Instance does not match any of (.*)\.$/.exec(error);
+      const values = m ? parseJson(m[1]) : undefined;
+      return Array.isArray(values) ? {allowedValues: values} : undefined;
+    }
+    case 'additionalProperties':
+      m = /^Property "(.*)" does not match additional properties schema\.$/.exec(error);
+      return m ? {additionalProperty: m[1]} : undefined;
+    case 'unevaluatedProperties':
+      m = /^Property "(.*)" does not match unevaluated properties schema\.$/.exec(error);
+      return m ? {unevaluatedProperty: m[1]} : undefined;
+    default:
+      return undefined;
+  }
+}
+
 /** Creates a {@link JsonSchemaValidator} backed by `@cfworker/json-schema` (draft 2020-12). */
 export function createCfWorkerValidator(): JsonSchemaValidator {
   return {
@@ -106,14 +151,13 @@ export function createCfWorkerValidator(): JsonSchemaValidator {
         const issues: A2uiIssue[] = result.errors.map(e => {
           const path = toPath(e.instanceLocation);
           const issue: A2uiIssue = {path, message: e.error, keyword: e.keyword};
-          if (e.keyword === 'required') {
-            // Relies on @cfworker/json-schema 4.1.x message text for `required`.
-            // cfworker reports the parent object; the property is only in the message.
-            const m = /required property "(.*)"\.?$/.exec(e.error);
-            if (m) {
-              path.push(m[1]);
-              issue.params = {missingProperty: m[1]};
-            }
+          const params = paramsFor(e.keyword, e.error);
+          if (params) {
+            issue.params = params;
+            // cfworker reports these at the parent object; point at the property.
+            const prop =
+              params.missingProperty ?? params.additionalProperty ?? params.unevaluatedProperty;
+            if (typeof prop === 'string') path.push(prop);
           }
           return issue;
         });
