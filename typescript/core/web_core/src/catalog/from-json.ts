@@ -18,7 +18,7 @@ import {validateMetadata} from '../common/metadata.js';
 import {isAtLeastVersion} from '../common/semver.js';
 import {assertUax31Identifier} from '../common/uax31.js';
 import {A2uiCatalogError, noValidatorError} from '../errors.js';
-import {lazyJsonSchema} from '../schema-engine/from-json-schema.js';
+import {namedJsonSchema} from '../schema-engine/from-json-schema.js';
 import type {CatalogSchema, JsonSchema, JsonSchemaValidator} from '../schema-engine/types.js';
 import V09EnvelopeCatalog from '../v0_9/envelope_catalog.json' with {type: 'json'};
 import V10EnvelopeCatalog from '../v1_0/envelope_catalog.json' with {type: 'json'};
@@ -571,8 +571,12 @@ function assertSupportedV10Refs(node: unknown, pointer: string): void {
  * component object may carry no key its definition does not evaluate. Unlike the
  * protocol's `Component`, it leaves `ComponentCommon` out: the component's
  * envelope fields and the mixins its definition does not declare are
- * validated on their own (see `PayloadValidator`). Before v1.0 a catalog
- * closes its components itself, and the definition is used as written.
+ * validated on their own (see `PayloadValidator`): an `@checks` on a component
+ * that is not Checkable is rejected there (`validateEnvelopeMixins`, the
+ * `'checks'` case in `validation/payload-validator.ts`), so leaving the mixins
+ * out of the closure accepts the same component objects the spec does.
+ * Before v1.0 a catalog closes its components itself, and the definition is
+ * used as written.
  */
 function closedComponent(definition: unknown): unknown {
   return isPlainObject(definition) && !('unevaluatedProperties' in definition)
@@ -723,7 +727,7 @@ function themeDefinition(catalogSchema: Record<string, unknown>): unknown {
  * definition (from v1.0 closed as {@link closedComponent} describes), a
  * function's arguments against the schema of its arguments, and the theme
  * against the theme's schema, each with the documents described in
- * {@link entryDocuments}. A schema is compiled the first time it validates;
+ * {@link entryDocuments}. Every schema is compiled while the catalog loads;
  * discovery reads it where it sits in the catalog document.
  *
  * @param inputSchema Raw catalog schema or capabilities definition object. It
@@ -738,7 +742,8 @@ function themeDefinition(catalogSchema: Record<string, unknown>): unknown {
  *   declares. The schema itself is kept as written.
  * @param opts The validator the entries validate with.
  * @returns Parsed catalog fields ready to construct a `Catalog` instance.
- * @throws {A2uiConfigurationError} If `opts.validator` is missing.
+ * @throws {A2uiConfigurationError} If `opts.validator` is missing, or it
+ *   can't compile an entry's schema (the error names the entry).
  * @throws {Error} If the catalog ID is missing or not a string.
  * @throws {A2uiCatalogError} If a v1.0+ catalog has a `$ref` to a document
  *   other than itself or `common_types.json`, such as another catalog, or an
@@ -796,7 +801,7 @@ export function parseCatalogSchema(
     (): CatalogSchema => {
       const documents = documentsFor();
       const at = node();
-      return lazyJsonSchema(
+      return namedJsonSchema(
         rebased(close ? close(at) : at) as JsonSchema,
         validator,
         {defs: documents},
@@ -835,6 +840,10 @@ export function parseCatalogSchema(
 
   const theme = themeDefinition(catalogSchema);
   const themeSchema = theme === undefined ? undefined : schemaOf('The theme', () => theme)();
+
+  // Every entry compiles now, so a catalog the engine can't use fails to
+  // load, naming the entry, rather than on the first message that uses it.
+  for (const entry of [...components, ...functions]) void entry.schema;
 
   return {
     id: catalogId,

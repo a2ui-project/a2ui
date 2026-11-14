@@ -123,8 +123,8 @@ export function prepareSchema(authored: AuthoredSchema, what: string): Converted
     );
   }
   // An asynchronous validator returns a Promise for any value; probe one. A
-  // JSON-backed schema is synchronous by construction, and probing it would
-  // compile a schema that may never validate anything.
+  // JSON-backed schema is synchronous by construction (a JsonSchemaValidator
+  // compiles to a synchronous function), so it is not probed.
   if (!isJsonBackedSchema(schema)) {
     let probe: unknown;
     try {

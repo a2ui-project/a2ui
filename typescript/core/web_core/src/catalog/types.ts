@@ -1033,7 +1033,7 @@ export class Catalog<
    *
    * Each entry is a `JsonComponentApi` or `JsonFunctionApi` whose model is
    * its definition as written. Its `schema` validates against that
-   * definition with `opts.validator`, compiled on first use: a component's
+   * definition with `opts.validator`, compiled as the catalog loads: a component's
    * properties (without the envelope fields `id`, `component` and
    * `@catalogId`) against its definition, which from v1.0 is closed with
    * `unevaluatedProperties: false` as the protocol's `Component` closes it
@@ -1058,7 +1058,8 @@ export class Catalog<
    *   in `toJson`.
    * @param opts The JSON Schema validator the entries validate with.
    * @returns A new Catalog populated with component and function schemas.
-   * @throws {A2uiConfigurationError} If `opts.validator` is missing.
+   * @throws {A2uiConfigurationError} If `opts.validator` is missing, or it
+   *   can't compile an entry's schema (the error names the entry).
    * @throws {Error} If the catalog ID is missing or not a string.
    * @throws {A2uiCatalogError} If a v1.0 catalog has a `$ref` to a document
    *   other than itself or `common_types.json`, such as another catalog. Such

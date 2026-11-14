@@ -17,7 +17,14 @@
 import * as assert from 'node:assert';
 import {describe, it} from 'node:test';
 import type {StandardSchemaV1} from '@standard-schema/spec';
-import {fromJsonSchema} from './from-json-schema.js';
+import {A2uiConfigurationError} from '../errors.js';
+import {
+  fromJsonSchema,
+  isJsonBackedSchema,
+  jsonSchemaCursor,
+  jsonSchemaDocuments,
+  namedJsonSchema,
+} from './from-json-schema.js';
 import {toA2uiIssues} from './issues.js';
 import type {CompiledValidator, JsonSchemaValidator} from './types.js';
 
@@ -93,5 +100,33 @@ describe('fromJsonSchema issues and defaults', () => {
     const r = fromJsonSchema(schema, accept)['~standard'].validate(input);
     assert.deepStrictEqual(r, {value: {size: 12}});
     assert.deepStrictEqual(input, {});
+  });
+});
+
+describe('namedJsonSchema', () => {
+  const failing: JsonSchemaValidator = {
+    compile: () => {
+      throw new Error("can't resolve reference x.json");
+    },
+  };
+
+  it('compiles up front and names the schema when the engine fails', () => {
+    assert.throws(
+      () => namedJsonSchema({$ref: 'x.json'}, failing, undefined, "Component 'W' of catalog 'c'"),
+      (err: unknown) =>
+        err instanceof A2uiConfigurationError &&
+        err.message ===
+          "Component 'W' of catalog 'c': its JSON Schema could not be compiled: can't resolve reference x.json",
+    );
+  });
+
+  it('records the documents and the cursor discovery reads', () => {
+    const defs = {'common_types.json': {$defs: {}}};
+    const cursor = {node: {type: 'string'}, doc: {root: {}, defs}};
+    const schema = namedJsonSchema({type: 'string'}, fakeValidator, {defs}, 'Theme', cursor);
+    assert.ok(isJsonBackedSchema(schema));
+    assert.deepStrictEqual(jsonSchemaDocuments(schema), defs);
+    assert.strictEqual(jsonSchemaCursor(schema), cursor);
+    assert.deepStrictEqual(schema['~standard'].validate('ok'), {value: 'ok'});
   });
 });

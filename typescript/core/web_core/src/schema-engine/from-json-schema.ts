@@ -45,7 +45,7 @@ export function jsonSchemaDocuments(
 }
 
 /**
- * Where discovery reads a schema made by {@link lazyJsonSchema} with a
+ * Where discovery reads a schema made by {@link namedJsonSchema} with a
  * cursor: the schema as it sits in its document, whose own definitions stay
  * local to it; `undefined` for any other schema, which discovery reads from
  * its JSON Schema.
@@ -56,7 +56,7 @@ export function jsonSchemaCursor(schema: unknown): SchemaCursor | undefined {
 
 /**
  * Whether `schema` was made by {@link fromJsonSchema} or
- * {@link lazyJsonSchema}, whose validation is synchronous by construction
+ * {@link namedJsonSchema}, whose validation is synchronous by construction
  * (a `JsonSchemaValidator` compiles to a synchronous function).
  */
 export function isJsonBackedSchema(schema: unknown): boolean {
@@ -109,39 +109,35 @@ export function fromJsonSchema<T = unknown>(
 }
 
 /**
- * {@link fromJsonSchema}, compiling the schema on its first validation
- * rather than up front, for catalogs that load many schemas and validate
- * few of them.
+ * {@link fromJsonSchema} for a schema that names where it comes from: a
+ * schema the engine can't compile fails with an error that names it, and
+ * discovery can be told where the schema sits in its document.
  *
  * @param what Names the schema in the error a failed compilation raises,
  *   such as `Component 'Text' of catalog 'x'`.
  * @param cursor Where discovery reads the schema (see
  *   {@link jsonSchemaCursor}), when `schema` is a copy of a node of one of
  *   `opts.defs`.
- * @throws {A2uiConfigurationError} From `validate`, if the engine can't
- *   compile the schema, such as for a `$ref` into a document it isn't given.
+ * @throws {A2uiConfigurationError} If the engine can't compile the schema,
+ *   such as for a `$ref` into a document it isn't given.
  * @internal
  */
-export function lazyJsonSchema<T = unknown>(
+export function namedJsonSchema<T = unknown>(
   schema: JsonSchema,
   validator: JsonSchemaValidator,
   opts: CompileOptions | undefined,
   what: string,
   cursor?: SchemaCursor,
 ): CatalogSchema<T> {
-  let validate: CompiledValidator<T> | undefined;
-  const result = wrap(schema, opts, () => {
-    if (!validate) {
-      try {
-        validate = validator.compile<T>(schema, opts);
-      } catch (err: unknown) {
-        throw new A2uiConfigurationError(
-          `${what}: its JSON Schema could not be compiled: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
-    }
-    return validate;
-  });
+  let validate: CompiledValidator<T>;
+  try {
+    validate = validator.compile<T>(schema, opts);
+  } catch (err: unknown) {
+    throw new A2uiConfigurationError(
+      `${what}: its JSON Schema could not be compiled: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  const result = wrap(schema, opts, () => validate);
   if (cursor) schemaCursors.set(result, cursor);
   return result;
 }

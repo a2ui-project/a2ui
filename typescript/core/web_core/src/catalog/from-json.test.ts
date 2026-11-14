@@ -92,22 +92,22 @@ describe('Catalog.fromJson', () => {
     }
   });
 
-  it('compiles an entry the first time it validates', () => {
+  it('compiles every entry once, as the catalog loads', () => {
     const validator = countingValidator();
     const catalog = Catalog.fromJson(
       readJson('catalogs/basic/v1/catalog.json'),
       undefined,
       undefined,
-      {
-        validator,
-      },
+      {validator},
     );
-    assert.strictEqual(validator.compiled, 0);
+    const entries =
+      catalog.components.size + catalog.functions.size + (catalog.themeSchema ? 1 : 0);
+    assert.strictEqual(validator.compiled, entries);
     const text = catalog.components.get('Text')!.schema;
     assert.ok(accepts(text, {text: 'Hello'}));
     assert.ok(accepts(text, {text: {'@path': '/user/name'}}));
     assert.ok(!accepts(text, {text: 42}));
-    assert.strictEqual(validator.compiled, 1);
+    assert.strictEqual(validator.compiled, entries, 'validating compiles nothing more');
   });
 
   describe('validates with the catalog document', () => {
@@ -442,23 +442,33 @@ describe('Catalog.fromJson', () => {
       assert.ok(!accepts(text, {text: {'@call': 'formatString', 'args': {}, 'bogus': 1}}));
     });
 
-    it('fails, naming the entry, when a schema references a document it is not given', () => {
-      const catalog = load({
-        catalogId: 'unknown_external_ref',
-        components: {
-          Widget: {
-            type: 'object',
-            allOf: [{$ref: 'other_document.json#/$defs/NotAProtocolType'}],
-          },
-        },
-      });
+    it('fails to load, naming the entry, when a schema references a document it is not given', () => {
       assert.throws(
-        () => validate(catalog.components.get('Widget')!.schema, {}),
+        () =>
+          load({
+            catalogId: 'unknown_external_ref',
+            components: {
+              Widget: {
+                type: 'object',
+                allOf: [{$ref: 'other_document.json#/$defs/NotAProtocolType'}],
+              },
+            },
+          }),
         (err: unknown) =>
           err instanceof A2uiConfigurationError &&
           err.message.startsWith(
             "Component 'Widget' of catalog 'unknown_external_ref': its JSON Schema could not be compiled",
           ),
+      );
+      assert.throws(
+        () =>
+          load({
+            catalogId: 'bad_args',
+            functions: {f: {parameters: {$ref: '#/$defs/MissingArgs'}}},
+          }),
+        (err: unknown) =>
+          err instanceof A2uiConfigurationError &&
+          err.message.startsWith("Function 'f' of catalog 'bad_args'"),
       );
     });
 
@@ -799,20 +809,26 @@ describe('Catalog.fromJson', () => {
         assert.ok(!accepts(wrapper, {text: 1}));
       });
 
-      it('does not apply to a v0.9 catalog', () => {
-        const catalog = load(
-          {
-            catalogId: 'test_v09_external_ref',
-            components: {
-              FancyText: {
-                type: 'object',
-                allOf: [{$ref: 'basic_catalog.json#/components/Text'}],
+      it('does not apply to a v0.9 catalog, which fails only because the document is not given', () => {
+        assert.throws(
+          () =>
+            load(
+              {
+                catalogId: 'test_v09_external_ref',
+                components: {
+                  FancyText: {
+                    type: 'object',
+                    allOf: [{$ref: 'basic_catalog.json#/components/Text'}],
+                  },
+                },
               },
-            },
-          },
-          '0.9',
+              '0.9',
+            ),
+          (err: unknown) =>
+            err instanceof A2uiConfigurationError &&
+            !(err instanceof A2uiCatalogError) &&
+            err.message.includes('could not be compiled'),
         );
-        assert.ok(catalog.components.get('FancyText'));
       });
     });
   });

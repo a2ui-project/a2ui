@@ -22,11 +22,16 @@
 import assert from 'node:assert/strict';
 import {describe, it} from 'node:test';
 
+import {createAjvValidator} from '@a2ui/validator-ajv';
+
 import {loadConformanceSuite, measureGrowth, readRepositoryJson} from './timing.mjs';
 
 import {Catalog, MessageProcessor, RELAXED_VALIDATION} from '../../dist/src/index.js';
 
 const SUITE = 'core/message_processor_scaling.yaml';
+
+/** One validator for every catalog and processor, so its compiled schemas are reused. */
+const validator = createAjvValidator();
 
 /** The validation configs a case's `args.validation_config` names. */
 const VALIDATION_CONFIGS = {
@@ -37,7 +42,9 @@ const VALIDATION_CONFIGS = {
 function runCase(testCase) {
   assert.equal(testCase.operation, 'process_messages');
   const catalogs = testCase.catalogPaths.map(catalogPath =>
-    Catalog.fromJson(readRepositoryJson(catalogPath), testCase.protocolVersion),
+    Catalog.fromJson(readRepositoryJson(catalogPath), testCase.protocolVersion, undefined, {
+      validator,
+    }),
   );
   const configName = testCase.args.validation_config;
   assert.ok(configName in VALIDATION_CONFIGS, `Unknown validation config ${configName}`);
@@ -46,7 +53,9 @@ function runCase(testCase) {
   const result = measureGrowth(testCase, payload => {
     const messages = JSON.parse(payload);
     return () =>
-      new MessageProcessor(catalogs, undefined, {validationConfig}).processMessages(messages);
+      new MessageProcessor(catalogs, undefined, {validator, validationConfig}).processMessages(
+        messages,
+      );
   });
   const [smaller, larger] = result.sizes;
   const [smallerMs, largerMs] = result.medianMs;
