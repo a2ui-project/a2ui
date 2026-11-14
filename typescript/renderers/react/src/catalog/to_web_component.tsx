@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type {ZodTypeAny} from 'zod';
+import type {ZodTypeAny} from 'zod/v4';
 import {
   isWebComponentImplementation,
   type WebComponentImplementation,

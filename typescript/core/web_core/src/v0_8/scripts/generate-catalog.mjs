@@ -102,7 +102,7 @@ const catalogJson = JSON.parse(readFileSync(catalogPath, 'utf8'));
 const ctx = {commonDefs: {}, usedImports: new Set(), commonTypesUri: ''};
 
 let out = HEADER;
-out += `import {z} from 'zod';
+out += `import * as z from 'zod/v4';
 
 import {spec} from '../../../catalog/spec_annotations.js';
 import {CatalogDocumentOptions, ComponentApi} from '../../../catalog/types.js';

@@ -17,7 +17,7 @@
 import * as assert from 'node:assert';
 import {describe, it} from 'node:test';
 
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 import {A2uiValidationError} from '../errors.js';
 import {AccessibilityAttributesSchema} from '../v1_0/schema/common-types.js';
@@ -26,7 +26,6 @@ import {
   componentPayloadState,
   splitComponentEnvelope,
 } from './component_envelope.js';
-import {exclusiveUnion} from './exclusive_union.js';
 import {Catalog} from './types.js';
 
 describe('componentMixinLayout', () => {
@@ -49,7 +48,7 @@ describe('componentMixinLayout', () => {
   });
 
   it('finds custom mixin names declared in a oneOf union', () => {
-    const schema = exclusiveUnion([
+    const schema = z.xor([
       z.object({kind: z.literal('a'), metadata: z.string()}),
       z.object({kind: z.literal('b')}),
     ]);
@@ -91,7 +90,7 @@ describe('componentMixinLayout', () => {
   });
 
   describe('an inline catalogId or metadata', () => {
-    const extensionsOnly = z.object({extensions: z.record(z.unknown()).optional()});
+    const extensionsOnly = z.object({extensions: z.record(z.string(), z.unknown()).optional()});
 
     function layoutOf(shape: z.ZodRawShape) {
       return componentMixinLayout(z.object(shape));

@@ -1,5 +1,6 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: Require zod 4 (`^4.6.7`), as `@a2ui/web_core` now does. Define catalog schemas with `import * as z from 'zod/v4'`. [#4229](https://github.com/a2ui-project/a2ui/pull/4229)
 - **BREAKING CHANGE**: `regexCapture` now validates patterns with `analyzeRegex` from `@a2ui/web_core` and compiles them in Unicode mode (`new RegExp(pattern, 'u')`), converging on the A2UI regex dialect and static safety guard (allowing lookahead assertions while rejecting lookbehind, backreferences, named groups, `\p{...}`, inline flags, and patterns that risk catastrophic backtracking) and removing the `redos-detector` dependency. Recommended migration: rewrite `regexCapture` patterns that use constructs outside the A2UI portable regex subset or exceed 256 code points. [#3854](https://github.com/a2ui-project/a2ui/pull/3854)
 
 ## 0.0.3

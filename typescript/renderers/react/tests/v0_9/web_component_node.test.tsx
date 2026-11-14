@@ -17,7 +17,7 @@
 import {describe, it, expect, afterEach} from 'vitest';
 import {render} from '@testing-library/react';
 import React from 'react';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 import {
   Catalog,
   ComponentModel,

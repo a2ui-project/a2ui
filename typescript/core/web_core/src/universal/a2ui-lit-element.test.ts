@@ -21,7 +21,7 @@ import {after, afterEach, before, beforeEach, describe, it} from 'node:test';
 // (`window`, `document`, `HTMLElement`, `customElements`) exist at module evaluation time.
 import {asyncUpdate, setupTestDom, teardownTestDom} from '../test/dom-setup.js';
 import {css, html, nothing, render} from 'lit';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 import {Catalog, ComponentApi} from '../catalog/index.js';
 import {basicCatalog} from '../catalogs/basic/v1/catalog.js';

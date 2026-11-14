@@ -98,7 +98,7 @@ echo "=== Smoke-testing packaged dist/ ESM and CJS entry points under React 17 (
     import ReactDOM from 'react-dom';
     import {Catalog, ComponentModel, SurfaceModel} from '@a2ui/web_core';
     import {CommonSchemas} from '@a2ui/web_core/v0_9';
-    import {z} from 'zod';
+    import * as z from 'zod/v4';
 
     const dom = new JSDOM('<!doctype html><html><body><div id=\"root\"></div></body></html>', {
       url: 'http://localhost',

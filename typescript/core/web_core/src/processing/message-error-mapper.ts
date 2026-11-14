@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {z} from 'zod';
+import * as z from 'zod/v4';
 import {isAtLeastVersion} from '../common/semver.js';
 import {
   A2uiCatalogError,
@@ -159,11 +159,16 @@ export function normalizeJsonPointer(rawPath: string | undefined): string | unde
   return segments.length > 0 ? `/${segments.join('/')}` : undefined;
 }
 
-function collectLeafZodIssues(issues: readonly z.ZodIssue[], actionType?: string): z.ZodIssue[] {
-  const leaves: z.ZodIssue[] = [];
+function collectLeafZodIssues(
+  issues: readonly z.core.$ZodIssue[],
+  actionType?: string,
+): z.core.$ZodIssue[] {
+  const leaves: z.core.$ZodIssue[] = [];
   for (const issue of issues) {
-    if (issue.code === z.ZodIssueCode.invalid_union && 'unionErrors' in issue) {
-      const unionIssues = issue.unionErrors.flatMap(u => u.issues);
+    if (issue.code === 'invalid_union') {
+      const unionIssues = issue.errors
+        .flat()
+        .map(branch => ({...branch, path: [...issue.path, ...branch.path]}));
       leaves.push(...collectLeafZodIssues(unionIssues, actionType));
     } else {
       leaves.push(issue);
@@ -175,7 +180,7 @@ function collectLeafZodIssues(issues: readonly z.ZodIssue[], actionType?: string
 }
 
 function extractPathFromZodDetails(details: unknown, actionType?: string): string | undefined {
-  let issues: readonly z.ZodIssue[] | undefined;
+  let issues: readonly z.core.$ZodIssue[] | undefined;
   if (details instanceof z.ZodError) {
     issues = details.issues;
   } else if (Array.isArray(details) && details.length > 0) {
@@ -184,7 +189,7 @@ function extractPathFromZodDetails(details: unknown, actionType?: string): strin
       return normalizeJsonPointer(first['path']);
     }
     if (Array.isArray(first?.['path'])) {
-      issues = details as z.ZodIssue[];
+      issues = details as z.core.$ZodIssue[];
     }
   }
   if (!issues || issues.length === 0) return undefined;
@@ -193,7 +198,7 @@ function extractPathFromZodDetails(details: unknown, actionType?: string): strin
   if (!selected) return undefined;
   const segments = selected.path.map(s => String(s).replace(/~/g, '~0').replace(/\//g, '~1'));
   if (
-    selected.code === z.ZodIssueCode.unrecognized_keys &&
+    selected.code === 'unrecognized_keys' &&
     'keys' in selected &&
     Array.isArray(selected.keys) &&
     selected.keys.length > 0

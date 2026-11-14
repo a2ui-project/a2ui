@@ -21,7 +21,7 @@
 import assert from 'node:assert/strict';
 import {describe, it} from 'node:test';
 
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 import {buildComponentRefMap, ComponentRefMap} from '../catalog/reference-map.js';
 import {Catalog} from '../catalog/types.js';

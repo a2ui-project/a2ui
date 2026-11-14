@@ -16,7 +16,7 @@
 
 import {describe, it} from 'node:test';
 import * as assert from 'node:assert';
-import {zodToJsonSchema} from 'zod-to-json-schema';
+import * as z from 'zod/v4';
 import {readFileSync, existsSync} from 'fs';
 import {resolve, join} from 'path';
 import {
@@ -134,6 +134,20 @@ function getObjectDiff(obj1: any, obj2: any, path = ''): Record<string, any> {
   return diff;
 }
 
+/** Converts `schema`, writing each schema in `defs` once under `$defs`. */
+function toJsonSchemaWithDefs(schema: z.ZodType, defs: Record<string, z.ZodType>) {
+  const metadata = z.registry<{id: string}>();
+  for (const [id, def] of Object.entries(defs)) metadata.add(def, {id});
+  // `output` writes `additionalProperties: false` for a plain object, as the specification does.
+  const {$defs, ...root} = z.toJSONSchema(schema, {
+    target: 'draft-2020-12',
+    io: 'output',
+    metadata,
+    unrepresentable: 'any',
+  });
+  return {$defs: {...$defs, A2uiMessage: root}};
+}
+
 function verifySchema(
   version: string,
   zodSchemaSpec: any,
@@ -143,11 +157,7 @@ function verifySchema(
   console.log(`\nVerifying Zod schema for ${version}...`);
   // Generate JSON Schema from Zod
   const jsonSchemaString = JSON.stringify(
-    zodToJsonSchema(zodSchemaSpec, {
-      target: 'jsonSchema2019-09', // Better matches draft 2020-12
-      definitions: definitionsMap || {},
-      name: 'A2uiMessage',
-    }),
+    toJsonSchemaWithDefs(zodSchemaSpec, definitionsMap || {}),
     null,
     2,
   );

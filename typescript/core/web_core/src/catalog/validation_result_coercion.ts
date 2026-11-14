@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 /**
  * Matches the `REF:` description a `DynamicBoolean` schema carries, whether
@@ -65,24 +65,28 @@ export function coerceDynamicBoolean(value: unknown): boolean {
 
 /** The schema inside a wrapper such as `optional()`, or `undefined`. */
 function innerSchema(schema: z.ZodTypeAny): z.ZodTypeAny | undefined {
-  const def = schema._def as {
-    typeName?: string;
+  const def = schema._zod.def as {
+    type: string;
     innerType?: z.ZodTypeAny;
-    schema?: z.ZodTypeAny;
-    type?: z.ZodTypeAny;
+    in?: z.ZodTypeAny;
+    out?: z.ZodTypeAny;
     getter?: () => z.ZodTypeAny;
   };
-  switch (def.typeName) {
-    case 'ZodOptional':
-    case 'ZodNullable':
-    case 'ZodDefault':
-    case 'ZodCatch':
-    case 'ZodBranded':
-    case 'ZodReadonly':
+  switch (def.type) {
+    case 'optional':
+    case 'nullable':
+    case 'default':
+    case 'prefault':
+    case 'catch':
+    case 'readonly':
       return def.innerType;
-    case 'ZodEffects':
-      return def.schema;
-    case 'ZodLazy':
+    case 'pipe':
+      // `.transform()` is `pipe(schema, transform)` and `z.preprocess()` is
+      // `pipe(transform, schema)`; any other pipe is not a wrapper.
+      if (def.out?._zod.def.type === 'transform') return def.in;
+      if (def.in?._zod.def.type === 'transform') return def.out;
+      return undefined;
+    case 'lazy':
       return def.getter?.();
     default:
       return undefined;
@@ -139,9 +143,9 @@ export function coerceDynamicBooleans(schema: z.ZodTypeAny, value: unknown): unk
     return value;
   }
   const core = unwrap(schema);
-  const def = core._def as {typeName?: string; type?: z.ZodTypeAny};
-  if (def.typeName === 'ZodArray' && Array.isArray(value) && def.type) {
-    const itemSchema = def.type;
+  const def = core._zod.def as {type: string; element?: z.ZodTypeAny};
+  if (def.type === 'array' && Array.isArray(value) && def.element) {
+    const itemSchema = def.element;
     let changed = false;
     const items = value.map(item => {
       const coerced = coerceDynamicBooleans(itemSchema, item);
@@ -150,8 +154,8 @@ export function coerceDynamicBooleans(schema: z.ZodTypeAny, value: unknown): unk
     });
     return changed ? items : value;
   }
-  if (def.typeName === 'ZodObject' && isPlainObject(value)) {
-    const shape = (core as z.ZodObject<z.ZodRawShape>).shape;
+  if (def.type === 'object' && isPlainObject(value)) {
+    const shape = (core as z.ZodObject).shape as Record<string, z.ZodTypeAny>;
     let changed = false;
     const result: Record<string, unknown> = {};
     for (const [key, item] of Object.entries(value)) {

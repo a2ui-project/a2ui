@@ -17,7 +17,7 @@
 import {Component, ChangeDetectionStrategy} from '@angular/core';
 import {CommonModule} from '@angular/common';
 import {CatalogComponent, createComponentImplementation} from '@a2ui/angular/v0_9';
-import z from 'zod';
+import * as z from 'zod/v4';
 import {ComponentApi} from '@a2ui/web_core';
 import {DynamicStringSchema, DynamicNumberSchema} from '@a2ui/web_core/v0_9';
 

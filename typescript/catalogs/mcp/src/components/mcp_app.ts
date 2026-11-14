@@ -21,7 +21,7 @@ import {
   type WebComponentImplementation,
 } from '@a2ui/web_core/v1_0';
 import type {CallToolResult} from '@modelcontextprotocol/sdk/types.js';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 import type {McpToolDataPayload} from '../functions/callMcpTool.js';
 import {getMcpCatalogConfig} from '../mcp_catalog_config.js';
 import {ComponentContextFrameHost} from '../shared/sandbox/component_context_frame_host.js';
@@ -72,7 +72,7 @@ export const McpAppCspSchema = z
   })
   .strict();
 
-const PermissionFlagSchema = z.union([z.boolean(), z.record(z.unknown())]);
+const PermissionFlagSchema = z.union([z.boolean(), z.record(z.string(), z.unknown())]);
 
 /** Browser capability permissions delegated to the inner sandboxed iframe from `_meta.ui.permissions`. */
 export const McpAppPermissionsSchema = z
@@ -117,7 +117,7 @@ export const McpAppApi = {
           'The names of the MCP tools the app is allowed to call. The host dispatches an authorized `tools/call` request as an A2UI action named after the tool, with the tool arguments as its context, and rejects any other tool call.',
         ),
       'allowedFunctions': z
-        .record(z.unknown())
+        .record(z.string(), z.unknown())
         .optional()
         .describe(
           'A map of authorized host client function names to JSON Schemas describing their expected arguments. The host rejects a `ui/requests/function-call` request whose function is not listed or whose arguments fail validation. The functions must exist in the surface catalog.',
@@ -125,7 +125,7 @@ export const McpAppApi = {
       'data': z
         .object({
           paths: z
-            .record(z.string())
+            .record(z.string(), z.string())
             .describe(
               'A dictionary mapping custom state keys to distinct JSON Pointer paths in the data model. The host pushes a `ui/notifications/data-model-update` notification whenever a bound value changes and writes authorized `ui/notifications/data-model-change` notifications back to the path.',
             ),
@@ -223,7 +223,9 @@ class McpAppElement extends SandboxedFrameElement<typeof McpAppApi> {
           // tool names, so anything else is dropped.
           allowedTools: allowedTools?.filter((tool): tool is string => typeof tool === 'string'),
           allowedFunctions,
-          dataPaths: data?.paths,
+          // The binder's resolved type treats a string-to-string record as a possible dynamic
+          // binding and widens it to `unknown`; the catalog declares plain JSON Pointer paths.
+          dataPaths: data?.paths as NonNullable<McpAppProps['data']>['paths'] | undefined,
         };
       },
       callTool: this.resolveCallTool(),

@@ -16,7 +16,7 @@
 
 import {MessageProcessor} from '@a2ui/web_core';
 import {describe, expect, test} from 'vitest';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 import {
   A2uiGenerator,

@@ -19,7 +19,7 @@ import {readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {describe, it} from 'node:test';
 
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 import {
   A2uiCatalogError,

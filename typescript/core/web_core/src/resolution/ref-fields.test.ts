@@ -17,7 +17,7 @@
 import assert from 'node:assert';
 import {describe, it} from 'node:test';
 
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 import {Catalog} from '../catalog/types.js';
 import {
@@ -66,8 +66,8 @@ describe('extractRefFields', () => {
           pipedSingle: ComponentIdSchema.pipe(z.string()),
           pipedFromAny: z.any().pipe(ComponentIdSchema),
           transformedSingle: ComponentIdSchema.transform(s => s.trim()).pipe(z.string()),
-          incompatiblePipeIn: z.number().pipe(ComponentIdSchema),
-          incompatiblePipeOut: ComponentIdSchema.pipe(z.number()),
+          incompatiblePipeIn: z.number().pipe(ComponentIdSchema as never),
+          incompatiblePipeOut: ComponentIdSchema.pipe(z.number() as never),
           incompatibleTransformPipe: z.number().transform(String).pipe(ComponentIdSchema),
         }),
       )
@@ -117,7 +117,7 @@ describe('extractRefFields', () => {
 
   it('extracts child and children fallbacks for z.record, z.any, and z.unknown schemas', () => {
     for (const schema of [
-      z.record(z.unknown()),
+      z.record(z.string(), z.unknown()),
       z.record(z.string(), z.any()),
       z.any(),
       z.unknown(),
@@ -128,11 +128,11 @@ describe('extractRefFields', () => {
       assert.strictEqual(refs.size, 2);
     }
 
-    const stringRecordRefs = extractRefFields(z.record(z.string()));
+    const stringRecordRefs = extractRefFields(z.record(z.string(), z.string()));
     assert.deepStrictEqual(stringRecordRefs.get('child'), {kind: 'single'});
     assert.strictEqual(stringRecordRefs.has('children'), false);
 
-    const numberRecordRefs = extractRefFields(z.record(z.number()));
+    const numberRecordRefs = extractRefFields(z.record(z.string(), z.number()));
     assert.strictEqual(numberRecordRefs.size, 0);
 
     // Non-transform pipelines must satisfy both input and output wire constraints.
@@ -394,10 +394,10 @@ describe('extractRefFields', () => {
       keys: new Set(['keep']),
     });
 
-    const recordInvalid = z.object({child: z.string()}).and(z.record(z.number()));
+    const recordInvalid = z.object({child: z.string()}).and(z.record(z.string(), z.number()));
     assert.strictEqual(extractRefFields(recordInvalid).size, 0);
 
-    const emptyAndStringRecord = z.object({}).and(z.record(z.string()));
+    const emptyAndStringRecord = z.object({}).and(z.record(z.string(), z.string()));
     const emptyRecordRefs = extractRefFields(emptyAndStringRecord);
     assert.deepStrictEqual(emptyRecordRefs.get('child'), {kind: 'single'});
     assert.strictEqual(emptyRecordRefs.has('children'), false);
@@ -416,7 +416,7 @@ describe('extractRefFields', () => {
 
     // Intersecting a non-strict non-empty object with an open schema retains open child/children,
     // unless unknown keys are constrained or `child`/`children` is declared with a non-ref type.
-    const objectAndRecord = z.object({title: z.string()}).and(z.record(z.unknown()));
+    const objectAndRecord = z.object({title: z.string()}).and(z.record(z.string(), z.unknown()));
     assert.deepStrictEqual(extractRefFields(objectAndRecord).get('child'), {kind: 'single'});
     assert.deepStrictEqual(extractRefFields(objectAndRecord).get('children'), {kind: 'list'});
 
@@ -424,10 +424,15 @@ describe('extractRefFields', () => {
     assert.deepStrictEqual(extractRefFields(objectAndPassthrough).get('child'), {kind: 'single'});
     assert.deepStrictEqual(extractRefFields(objectAndPassthrough).get('children'), {kind: 'list'});
 
-    const strictObjectAndRecord = z.object({title: z.string()}).strict().and(z.record(z.unknown()));
+    const strictObjectAndRecord = z
+      .object({title: z.string()})
+      .strict()
+      .and(z.record(z.string(), z.unknown()));
     assert.strictEqual(extractRefFields(strictObjectAndRecord).size, 0);
 
-    const nonRefChildAndRecord = z.object({child: z.number()}).and(z.record(z.unknown()));
+    const nonRefChildAndRecord = z
+      .object({child: z.number()})
+      .and(z.record(z.string(), z.unknown()));
     assert.strictEqual(extractRefFields(nonRefChildAndRecord).has('child'), false);
     assert.deepStrictEqual(extractRefFields(nonRefChildAndRecord).get('children'), {kind: 'list'});
 
@@ -445,7 +450,7 @@ describe('extractRefFields', () => {
 
     const unionOpenWithNonRefChildren = z.union([
       z.object({children: z.number()}),
-      z.record(z.unknown()),
+      z.record(z.string(), z.unknown()),
     ]);
     assert.deepStrictEqual(extractRefFields(unionOpenWithNonRefChildren).get('child'), {
       kind: 'single',
@@ -472,7 +477,7 @@ describe('extractRefFields', () => {
     const transformEmptyToClosed = z
       .object({})
       .transform(v => v)
-      .pipe(z.object({title: z.string()}));
+      .pipe(z.object({title: z.string()}) as never);
     assert.strictEqual(extractRefFields(transformEmptyToClosed).size, 0);
 
     const transformOpenToPassthrough = z
@@ -545,7 +550,7 @@ describe('extractRefFields', () => {
 
     const transformUnionToIncompatibleChild = unionWithOpenBranch
       .transform(v => v)
-      .pipe(z.object({child: z.number()}).passthrough());
+      .pipe(z.object({child: z.number()}).passthrough() as never);
     assert.strictEqual(extractRefFields(transformUnionToIncompatibleChild).has('child'), false);
     assert.deepStrictEqual(extractRefFields(transformUnionToIncompatibleChild).get('children'), {
       kind: 'list',
@@ -573,7 +578,7 @@ describe('extractRefFields', () => {
         child: ComponentIdSchema,
         header: ComponentIdSchema,
       })
-      .pipe(z.object({title: z.string()}));
+      .pipe(z.object({title: z.string()}) as never);
     assert.strictEqual(extractRefFields(explicitRefsPipedToClosed).size, 0);
 
     const explicitRefsPipedToPassthrough = z
@@ -582,7 +587,7 @@ describe('extractRefFields', () => {
         child: ComponentIdSchema,
         header: ComponentIdSchema,
       })
-      .pipe(z.object({title: z.string()}).passthrough());
+      .pipe(z.object({title: z.string()}).passthrough() as never);
     assert.deepStrictEqual(extractRefFields(explicitRefsPipedToPassthrough).get('child'), {
       kind: 'single',
     });
@@ -664,15 +669,17 @@ describe('extractRefFields', () => {
       child: ComponentIdSchema,
       header: ComponentIdSchema,
     });
-    const strippedAll = withExplicitRefs.transform(val => val).pipe(z.object({}));
+    const strippedAll = withExplicitRefs.transform(val => val).pipe(z.object({}) as never);
     assert.deepStrictEqual([...extractRefFields(strippedAll)], []);
 
-    const strippedChained = strippedAll.pipe(z.object({child: z.string(), header: z.string()}));
+    const strippedChained = strippedAll.pipe(
+      z.object({child: z.string(), header: z.string()}) as never,
+    );
     assert.deepStrictEqual([...extractRefFields(strippedChained)], []);
 
     const keptChildOnly = withExplicitRefs
       .transform(val => val)
-      .pipe(z.object({child: z.string()}));
+      .pipe(z.object({child: z.string()}) as never);
     assert.deepStrictEqual([...extractRefFields(keptChildOnly)], [['child', {kind: 'single'}]]);
   });
 
@@ -704,8 +711,8 @@ describe('extractRefFields', () => {
       z.object({items: keepOnlyStrictConstraint.and(twoSubKeyArray)}),
       z.object({items: twoSubKeyArray.and(keepOnlyIncompatibleDrop)}),
       z.object({items: keepOnlyIncompatibleDrop.and(twoSubKeyArray)}),
-      z.object({items: twoSubKeyArray.pipe(keepOnlyPipeStage)}),
-      z.object({items: twoSubKeyArray.transform(v => v).pipe(keepOnlyPipeStage)}),
+      z.object({items: twoSubKeyArray.pipe(keepOnlyPipeStage as never)}),
+      z.object({items: twoSubKeyArray.transform(v => v).pipe(keepOnlyPipeStage as never)}),
       z.object({items: z.union([twoSubKeyArray, z.null()]).and(keepOnlyStrictConstraint)}),
     ]) {
       assert.deepStrictEqual(extractRefFields(schema).get('items'), {
@@ -717,31 +724,31 @@ describe('extractRefFields', () => {
     for (const schema of [
       z.object({items: twoSubKeyArray.and(dropAllStrictConstraint)}),
       z.object({items: dropAllStrictConstraint.and(twoSubKeyArray)}),
-      z.object({items: twoSubKeyArray.pipe(dropAllPipeStage)}),
-      z.object({items: twoSubKeyArray.pipe(z.array(z.object({})))}),
-      z.object({items: twoSubKeyArray.transform(v => v).pipe(dropAllPipeStage)}),
+      z.object({items: twoSubKeyArray.pipe(dropAllPipeStage as never)}),
+      z.object({items: twoSubKeyArray.pipe(z.array(z.object({})) as never)}),
+      z.object({items: twoSubKeyArray.transform(v => v).pipe(dropAllPipeStage as never)}),
     ]) {
       assert.strictEqual(extractRefFields(schema).has('items'), false);
     }
 
-    // Explicit `ComponentIdSchema` intersected with `z.record(DynamicString)` keeps `child`
+    // Explicit `ComponentIdSchema` intersected with `z.record(z.string(), DynamicString)` keeps `child`
     // without inventing unannotated `child`/`children` fallbacks on standalone dynamic records.
     const dynamicStringSchema = z
       .union([z.string(), z.object({path: z.string()})])
       .describe('REF:common_types.json#/$defs/DynamicString');
-    assert.strictEqual(extractRefFields(z.record(dynamicStringSchema)).size, 0);
+    assert.strictEqual(extractRefFields(z.record(z.string(), dynamicStringSchema)).size, 0);
     assert.deepStrictEqual(
       [
         ...extractRefFields(
-          z.record(dynamicStringSchema).and(z.object({child: ComponentIdSchema})),
+          z.record(z.string(), dynamicStringSchema).and(z.object({child: ComponentIdSchema})),
         ),
       ],
       [['child', {kind: 'single'}]],
     );
     assert.strictEqual(
-      extractRefFields(z.record(z.unknown()).and(z.object({child: dynamicStringSchema}))).has(
-        'child',
-      ),
+      extractRefFields(
+        z.record(z.string(), z.unknown()).and(z.object({child: dynamicStringSchema})),
+      ).has('child'),
       false,
     );
   });

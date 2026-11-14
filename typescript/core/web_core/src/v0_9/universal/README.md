@@ -16,7 +16,7 @@ The universal component submodule provides primitives for creating A2UI componen
 ```typescript
 import {html, css, nothing} from 'lit';
 import {customElement} from 'lit/decorators.js';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 import {type ComponentApi, DynamicStringSchema} from '@a2ui/web_core/v0_9';
 import {A2uiLitElement, type WebComponentImplementation} from '@a2ui/web_core/v0_9/universal';
 

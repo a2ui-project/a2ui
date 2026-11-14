@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {z} from 'zod';
+import * as z from 'zod/v4';
 import {InternalOperation} from '../operations.js';
 import {A2uiValidationError} from '../../errors.js';
 import {formatZodIssue} from '../format-zod-issue.js';
@@ -197,21 +197,23 @@ function selectActionUnionError(
     return error;
   }
   const rootIssue = error.issues[0];
-  if (rootIssue.code !== z.ZodIssueCode.invalid_union || rootIssue.path.length !== 0) {
+  if (rootIssue.code !== 'invalid_union' || rootIssue.path.length !== 0) {
     return error;
   }
-  const matchingBranches = rootIssue.unionErrors.filter(
+  const branchErrors: z.ZodError[] = rootIssue.errors.map(issues => new z.ZodError(issues));
+  const matchingBranches = branchErrors.filter(
     branchErr =>
       !branchErr.issues.some(
         issue =>
-          (issue.code === z.ZodIssueCode.unrecognized_keys &&
+          (issue.code === 'unrecognized_keys' &&
             issue.path.length === 0 &&
             issue.keys.includes(actionKey)) ||
-          (issue.code === z.ZodIssueCode.invalid_type &&
+          (issue.code === 'invalid_type' &&
             issue.path.length === 1 &&
             issue.path[0] !== actionKey &&
             nativeActionKeys.includes(String(issue.path[0])) &&
-            issue.received === 'undefined'),
+            'input' in issue &&
+            issue.input === undefined),
       ),
   );
   return matchingBranches.length === 1 ? matchingBranches[0] : error;
@@ -293,14 +295,14 @@ export abstract class BaseVersionAdapter implements VersionAdapter {
     }
 
     const preparedPayload = this.preparePayloadForValidation(msgObj, options);
-    const parseResult = this.schema.safeParse(preparedPayload);
+    const parseResult = this.schema.safeParse(preparedPayload, {reportInput: true});
     if (!parseResult.success) {
       const scopedError = selectActionUnionError(
         parseResult.error,
         presentNativeKeys[0],
         nativeActionKeys,
       );
-      const formattedErrors = scopedError.errors.map(formatZodIssue).join('; ');
+      const formattedErrors = scopedError.issues.map(formatZodIssue).join('; ');
       const envCtx = extractEnvelopeErrorContext(msgObj, this.version);
       const preliminaryErr = new A2uiValidationError(
         `Invalid ${this.version} message: ${formattedErrors}`,

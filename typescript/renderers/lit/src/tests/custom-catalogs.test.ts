@@ -21,7 +21,7 @@ import {MessageProcessor, Catalog} from '@a2ui/web_core';
 import type {LitComponentApi} from '../index.js';
 import type {A2uiSurface} from '../surface/a2ui-surface.js';
 
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 // A mock custom component API. The element is never instantiated by these
 // tests; it only satisfies the WebComponentImplementation contract. It cannot

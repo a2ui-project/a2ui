@@ -15,7 +15,7 @@
  */
 
 import {createComponentImplementation} from '@a2ui/react';
-import z from 'zod';
+import * as z from 'zod/v4';
 import type {ComponentApi} from '@a2ui/web_core';
 import {DynamicStringSchema, ChildListSchema} from '@a2ui/web_core/v0_9';
 import './custom-grid.css';

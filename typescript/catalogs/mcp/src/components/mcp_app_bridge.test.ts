@@ -30,7 +30,7 @@ import {
   type Request,
   type Result,
 } from '@modelcontextprotocol/sdk/types.js';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 import {FakeFrameHost} from '../shared/sandbox/testing/fake_frame_host.js';
 import {
   DATA_MODEL_CHANGE_METHOD,

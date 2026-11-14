@@ -26,7 +26,7 @@ import {CatalogComponentInstance} from './catalog_component_instance';
 import {AngularCatalog, createComponentImplementation} from '../catalog/types';
 import {ComponentModel, SurfaceModel} from '@a2ui/web_core';
 import {DynamicStringSchema} from '@a2ui/web_core/v0_9';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 @Component({
   selector: 'test-text',

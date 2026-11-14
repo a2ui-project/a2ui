@@ -201,7 +201,7 @@
     "@modelcontextprotocol/sdk": "^1.29.0",
     "ajv": "^8.17.1",
     "jmespath": "^0.16.0",
-    "zod": "^3.25.76"
+    "zod": "^4.6.7"
   },
   "peerDependencies": {
     "@a2ui/web_core": "workspace:*",

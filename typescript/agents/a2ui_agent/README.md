@@ -141,7 +141,7 @@ From v1.0, a catalog can declare functions that run on the agent: a renderer tha
 
 ```ts
 import {AgentFunction} from '@a2ui/agent';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 const catalog = loaded.copyWith({
   agentFunctions: [

@@ -20,7 +20,7 @@ import {createComponentImplementation} from '../../src/adapter';
 import {A2uiSurface} from '../../src/A2uiSurface';
 import {Catalog, ComponentContext, ComponentModel, SurfaceModel} from '@a2ui/web_core';
 import {CommonSchemas} from '@a2ui/web_core/v0_9';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 const mockCatalog = new Catalog('test', '0.9', [], []);
 

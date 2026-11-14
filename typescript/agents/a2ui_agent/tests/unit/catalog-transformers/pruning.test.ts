@@ -20,7 +20,7 @@ import {
   FunctionPruningTransformer,
 } from '../../../src/catalog-transformers/pruning.js';
 import {Catalog, ComponentApi, FunctionImplementation} from '../../../src/internal/web-core.js';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 describe('Pruning Transformers', () => {
   const compA: ComponentApi = {name: 'CompA', schema: z.object({})};

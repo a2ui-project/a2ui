@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {z} from 'zod';
+import * as z from 'zod/v4';
 import {A2uiCatalogError} from '../errors.js';
 import {
   A2uiValidationError,
@@ -40,14 +40,14 @@ import {
 const MSG_TYPE_CALL_RENDERER_FUNCTION = 'callRendererFunction';
 const MSG_TYPE_AGENT_FUNCTION_RESPONSE = 'agentFunctionResponse';
 
-const V09_SCHEMAS: Record<string, z.ZodTypeAny> = {
+const V09_SCHEMAS: Record<string, z.ZodType> = {
   [MSG_TYPE_CREATE_SURFACE]: V09CreateSurfaceMessageSchema,
   [MSG_TYPE_UPDATE_COMPONENTS]: V09UpdateComponentsMessageSchema,
   [MSG_TYPE_UPDATE_DATA_MODEL]: V09UpdateDataModelMessageSchema,
   [MSG_TYPE_DELETE_SURFACE]: V09DeleteSurfaceMessageSchema,
 };
 
-const V10_SCHEMAS: Record<string, z.ZodTypeAny> = {
+const V10_SCHEMAS: Record<string, z.ZodType> = {
   [MSG_TYPE_CREATE_SURFACE]: V10CreateSurfaceMessageSchema,
   [MSG_TYPE_UPDATE_COMPONENTS]: V10UpdateComponentsMessageSchema,
   [MSG_TYPE_UPDATE_DATA_MODEL]: V10UpdateDataModelMessageSchema,
@@ -66,7 +66,7 @@ const V10_SCHEMAS: Record<string, z.ZodTypeAny> = {
  * @param protocolVersion Protocol version in any spelling a catalog uses.
  * @throws {A2uiCatalogError} If the SDK has no message schemas for the version.
  */
-export function envelopeSchemasFor(protocolVersion: string): Record<string, z.ZodTypeAny> {
+export function envelopeSchemasFor(protocolVersion: string): Record<string, z.ZodType> {
   const normalized = normalizeVersionString(protocolVersion);
   if (normalized === '0.9' || normalized.startsWith('0.9.')) {
     return V09_SCHEMAS;
@@ -86,7 +86,7 @@ export function envelopeSchemasFor(protocolVersion: string): Record<string, z.Zo
  */
 function formatZodValidationErrorMessage(error: z.ZodError): string {
   for (const issue of error.issues) {
-    if (issue.code === 'invalid_type' && issue.received === 'undefined') {
+    if (issue.code === 'invalid_type' && 'input' in issue && issue.input === undefined) {
       const key = issue.path[issue.path.length - 1];
       if (typeof key === 'string') {
         return `Validation failed: '${key}' is a required property (${issue.message})`;
@@ -122,7 +122,7 @@ export function validateEnvelope(obj: Record<string, unknown>, protocolVersion: 
   // Validate the envelope exactly as received. The schema requires `version`, and Python
   // does not fill one in before validating (streaming_v09.py, _handle_complete_object), so
   // supplying a default here would accept envelopes Python rejects.
-  const result = schemas[matchingKey].safeParse(obj);
+  const result = schemas[matchingKey].safeParse(obj, {reportInput: true});
   if (!result.success) {
     throw new A2uiValidationError(formatZodValidationErrorMessage(result.error));
   }

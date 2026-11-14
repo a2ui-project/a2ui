@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 import {validateMetadata} from '../common/metadata.js';
 import {isAtLeastVersion} from '../common/semver.js';
@@ -22,7 +22,6 @@ import {assertUax31Identifier} from '../common/uax31.js';
 import {A2uiCatalogError} from '../errors.js';
 import {CommonSchemas, ComponentCommonSchema} from '../types/common-types.js';
 import {markStandardMixinSchema} from './component_envelope.js';
-import {exclusiveUnion} from './exclusive_union.js';
 import {JsonComponentApi, JsonFunctionApi} from './json_entries.js';
 import {
   buildComponentUnion,
@@ -174,7 +173,7 @@ function finalizePropertyZod(
     result = z.preprocess((val, ctx) => {
       if (notSchema.safeParse(val).success) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: 'custom',
           message: 'Value matched prohibited "not" schema',
         });
       }
@@ -182,7 +181,7 @@ function finalizePropertyZod(
     }, result);
   }
   if (propSchema.default !== undefined) {
-    result = result.default(propSchema.default);
+    result = result.prefault(propSchema.default);
   }
   if (typeof propSchema.description === 'string') {
     result = result.describe(propSchema.description);
@@ -226,7 +225,7 @@ function convertRefToZod(
     if (!localTarget) {
       return z.unknown().superRefine((_val, ctx) => {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: 'custom',
           message: `Unresolvable schema reference: '${ref}'`,
         });
       });
@@ -297,11 +296,11 @@ function convertUnionToZod(
     unionZod = zodBranches[0];
   } else {
     const tuple = [zodBranches[0], zodBranches[1], ...zodBranches.slice(2)] as const;
-    unionZod = isOneOf ? exclusiveUnion(tuple) : z.union(tuple);
+    unionZod = isOneOf ? z.xor(tuple) : z.union(tuple);
   }
 
   if (propSchema.default !== undefined) {
-    unionZod = unionZod.default(propSchema.default);
+    unionZod = unionZod.prefault(propSchema.default);
   }
   const desc =
     (typeof propSchema.description === 'string' ? propSchema.description : undefined) ||
@@ -475,12 +474,12 @@ function convertPropertyToZod(
             defCache,
           )
         : z.unknown();
-    let arr: z.ZodTypeAny = z.array(itemSchema);
+    let arr: z.ZodArray = z.array(itemSchema);
     if (typeof propSchema.minItems === 'number') {
-      arr = (arr as z.ZodArray<any>).min(propSchema.minItems);
+      arr = arr.min(propSchema.minItems);
     }
     if (typeof propSchema.maxItems === 'number') {
-      arr = (arr as z.ZodArray<any>).max(propSchema.maxItems);
+      arr = arr.max(propSchema.maxItems);
     }
     if (propSchema.uniqueItems === true) {
       arr = arr.refine(
@@ -567,7 +566,7 @@ function convertPropertyToZod(
           defCache,
         );
       } else {
-        obj = z.record(z.unknown());
+        obj = z.record(z.string(), z.unknown());
       }
       return finalizePropertyZod(obj, propSchema, rootDoc, visitedPointers, defCache);
     }
@@ -663,7 +662,10 @@ function convertPropertiesToShape(
       // A property with a `default` already accepts a missing value, and
       // `optional()` would skip the default. Leaving it unwrapped applies the
       // default on parse, as a `.default()` in a catalog defined in code does.
-      shape[propName] = zodField instanceof z.ZodDefault ? zodField : zodField.optional();
+      shape[propName] =
+        zodField instanceof z.ZodDefault || zodField instanceof z.ZodPrefault
+          ? zodField
+          : zodField.optional();
       continue;
     }
     if (zodField.safeParse(undefined).success) {
@@ -672,7 +674,7 @@ function convertPropertiesToShape(
       // in for one, so a missing key is rejected before either applies.
       shape[propName] = z.preprocess((value, ctx) => {
         if (value === undefined) {
-          ctx.addIssue({code: z.ZodIssueCode.custom, message: 'Required'});
+          ctx.addIssue({code: 'custom', message: 'Required'});
         }
         return value;
       }, zodField);
@@ -709,7 +711,7 @@ function convertPropertiesToShape(
  * @returns The object schema, wrapped in a refinement when patterns apply.
  */
 function closeObjectSchema(
-  obj: z.AnyZodObject,
+  obj: z.ZodObject,
   pieces: ReadonlyArray<Record<string, unknown>>,
   forbidExtra: boolean,
   rootDoc?: Record<string, unknown>,
@@ -756,7 +758,7 @@ function closeObjectSchema(
         if (!result.success) {
           for (const issue of result.error.issues) {
             ctx.addIssue({
-              code: z.ZodIssueCode.custom,
+              code: 'custom',
               message: issue.message,
               path: [key, ...issue.path],
             });
@@ -766,7 +768,7 @@ function closeObjectSchema(
       if (!matched && forbidExtra) unrecognized.push(key);
     }
     if (unrecognized.length > 0) {
-      ctx.addIssue({code: z.ZodIssueCode.unrecognized_keys, keys: unrecognized});
+      ctx.addIssue({code: 'unrecognized_keys', keys: unrecognized});
     }
   });
 }
@@ -866,9 +868,9 @@ function collectComponentSubSchemas(
           const mirror = resolveProtocolRef(ref);
           if (mirror instanceof z.ZodObject) {
             const properties: Record<string, z.ZodTypeAny> = {};
-            for (const [key, prop] of Object.entries(mirror.shape as z.ZodRawShape)) {
+            for (const [key, prop] of Object.entries(mirror.shape)) {
               if (!isAtLeastV10 && key.startsWith('@')) continue;
-              properties[key] = markStandardMixinSchema(prop);
+              properties[key] = markStandardMixinSchema(prop as z.ZodTypeAny);
             }
             mixins.push({kind: 'zod', properties});
           }
@@ -1141,9 +1143,9 @@ export function isZodSchema(value: unknown): value is z.ZodTypeAny {
  *
  * Unlike `getKnownSchemaKeys`, which answers which keys an object may have, it
  * also collects the keys of an open (`.passthrough()`) object, and of every
- * branch of a union. It traverses `ZodEffects`, `ZodOptional`, `ZodNullable`,
- * `ZodDefault`, `ZodCatch`, `ZodIntersection`, `ZodUnion`,
- * `ZodDiscriminatedUnion`, `ZodPipeline`, `ZodReadonly` and `ZodBranded`.
+ * branch of a union. It traverses `ZodOptional`, `ZodNullable`, `ZodDefault`,
+ * `ZodPrefault`, `ZodCatch`, `ZodIntersection`, `ZodUnion`,
+ * `ZodDiscriminatedUnion`, `ZodPipe` and `ZodReadonly`.
  *
  * @param schema Zod schema to inspect.
  * @returns The declared property names; empty when the schema declares none.
@@ -1151,38 +1153,32 @@ export function isZodSchema(value: unknown): value is z.ZodTypeAny {
 export function getDeclaredSchemaKeys(schema: z.ZodTypeAny): Set<string> {
   const keys = new Set<string>();
   const visit = (node: any): void => {
-    const def = node?._def;
-    switch (def?.typeName) {
-      case 'ZodObject': {
-        const shape = typeof node.shape === 'function' ? node.shape() : node.shape;
+    const def = node?._zod?.def;
+    switch (def?.type) {
+      case 'object': {
+        const shape = node.shape;
         if (shape && typeof shape === 'object') {
           for (const key of Object.keys(shape)) keys.add(key);
         }
         return;
       }
-      case 'ZodEffects':
-        visit(def.schema);
-        return;
-      case 'ZodOptional':
-      case 'ZodNullable':
-      case 'ZodDefault':
-      case 'ZodCatch':
-      case 'ZodReadonly':
+      case 'optional':
+      case 'nullable':
+      case 'default':
+      case 'prefault':
+      case 'catch':
+      case 'readonly':
         visit(def.innerType);
         return;
-      case 'ZodBranded':
-        visit(def.type);
-        return;
-      case 'ZodPipeline':
+      case 'pipe':
         visit(def.in);
         visit(def.out);
         return;
-      case 'ZodIntersection':
+      case 'intersection':
         visit(def.left);
         visit(def.right);
         return;
-      case 'ZodUnion':
-      case 'ZodDiscriminatedUnion':
+      case 'union':
         for (const option of def.options) visit(option);
         return;
       default:
@@ -1319,7 +1315,7 @@ function parseFunctionDefinitions(
                 rootDoc,
                 defCache,
               )
-            : z.record(z.unknown()),
+            : z.record(z.string(), z.unknown()),
         );
         assertUserActivationCallers(entry);
         if (permittedNames && !permittedNames.has(fn.name)) {
@@ -1342,7 +1338,7 @@ function parseFunctionDefinitions(
         const argsSchema = functionArgsSchema(definition);
         return argsSchema
           ? convertFunctionArgsJsonSchemaToZod(argsSchema, rootDoc, defCache)
-          : z.record(z.unknown());
+          : z.record(z.string(), z.unknown());
       });
       assertUserActivationCallers(entry);
       if (permittedNames && !permittedNames.has(name)) {

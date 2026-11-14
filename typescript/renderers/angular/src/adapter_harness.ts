@@ -30,7 +30,7 @@ import {basicCatalog, createBasicCatalogFunctions} from '@a2ui/web_core/catalogs
 import type {A2uiWebComponentElement} from '@a2ui/web_core/universal';
 import {A2uiClientMessageSchema, CommonSchemas} from '@a2ui/web_core/v0_9';
 import {RendererToAgentMessageSchema} from '@a2ui/web_core/v1_0';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 import {BasicCatalogBase as V09BasicCatalogBase} from './v0_9';
 import {
   A2uiRendererService,

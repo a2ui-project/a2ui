@@ -39,7 +39,7 @@ import {ResolvedBinding} from '../resolution/resolved-binding.js';
 import {SurfaceModel, type A2uiErrorPayload} from '../state/surface-model.js';
 import {validateCompositionConstraints} from '../state/validation-helpers.js';
 import {peekValue} from '../reactivity/signals.js';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 /**
  * Turns validation on while relaxing every topology rule, so a test exercises
@@ -381,9 +381,9 @@ describe('MessageProcessor', () => {
 
     it('formats invalid enum values', () => {
       const issue: any = {
-        code: 'invalid_enum_value',
-        options: ['primary', 'secondary'],
-        received: 'invalid',
+        code: 'invalid_value',
+        values: ['primary', 'secondary'],
+        input: 'invalid',
         path: ['variant'],
         message: 'Invalid enum value',
       };
@@ -397,7 +397,7 @@ describe('MessageProcessor', () => {
       const issue: any = {
         code: 'invalid_type',
         expected: 'string',
-        received: 'number',
+        input: 42,
         path: ['label'],
         message: 'Expected undefined, received undefined',
       };

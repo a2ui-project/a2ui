@@ -16,7 +16,7 @@
 
 import * as assert from 'node:assert';
 import {describe, it} from 'node:test';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 import {
   mapErrorToRendererMessage,
   normalizeJsonPointer,
@@ -112,7 +112,7 @@ describe('message-error-mapper', () => {
     it('escapes RFC 6901 ~ and / tokens from Zod issue paths', () => {
       const zodError = new z.ZodError([
         {
-          code: z.ZodIssueCode.custom,
+          code: 'custom',
           path: ['components', 'prop/with/slash', 'key~with~tilde'],
           message: 'Invalid property value',
         },

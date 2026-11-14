@@ -20,7 +20,7 @@ import * as path from 'node:path';
 
 import {asyncUpdate} from './dom-setup.js';
 import {html} from 'lit';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 import {
   Catalog,

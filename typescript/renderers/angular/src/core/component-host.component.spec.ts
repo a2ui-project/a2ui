@@ -56,7 +56,7 @@ import {UniversalOnlyComponent} from '../catalog/universal_only.component';
 import {initializeAngularReactivity} from './reactivity';
 import {ComponentBinder} from './component-binder.service';
 import {SurfaceNodeResolver} from './surface-node-resolver.service';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 @Component({
   selector: 'test-child',

@@ -336,7 +336,10 @@ function generateArrayNode(schema, ctx) {
  */
 export function generateObjectNode(schema, ctx, indent = '      ') {
   if (!schema.properties) {
-    return {code: 'z.record(z.any())', prediction: {type: 'object', additionalProperties: {}}};
+    return {
+      code: 'z.record(z.string(), z.any())',
+      prediction: {type: 'object', additionalProperties: {}},
+    };
   }
   const objProps = [];
   const properties = {};
@@ -744,10 +747,11 @@ export function generateComponentsFile(version, catalogJson, commonDefs, options
     }
 
     bodyCode += `    })\n`;
-    if (reproduce && description) {
-      bodyCode += `    .describe('${escapeStr(description)}')\n`;
-    }
+    // \`.strict()\` rebuilds the object and drops its description, so it goes first.
     bodyCode += `    .strict()`;
+    if (reproduce && description) {
+      bodyCode += `\n    .describe('${escapeStr(description)}')`;
+    }
     if (reproduce) {
       const annotation = [`mixins: [${mixins.join(', ')}]`];
       const authoredRequired = (own.required || []).filter(
@@ -801,7 +805,7 @@ export function generateComponentsFile(version, catalogJson, commonDefs, options
   }
 
   let out = HEADER;
-  out += `import {z} from 'zod';
+  out += `import * as z from 'zod/v4';
 
 ${reproduce ? `import {${defsCode ? 'spec, specDef' : 'spec'}} from '${specImportPath}';\n` : ''}import {${reproduce ? 'CatalogDocumentOptions, ' : ''}ComponentApi} from '${typesImportPath}';
 import {
@@ -916,7 +920,7 @@ export function generateFunctionsFile(version, catalogJson, commonDefs, options 
   }
 
   let out = HEADER;
-  out += `import {z} from 'zod';\n`;
+  out += `import * as z from 'zod/v4';\n`;
   if (reproduce || usedImports.size > 0) {
     out += '\n';
   }

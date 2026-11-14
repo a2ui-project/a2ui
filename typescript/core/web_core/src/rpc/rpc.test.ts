@@ -16,7 +16,7 @@
 
 import {describe, it} from 'node:test';
 import * as assert from 'node:assert';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 import {Catalog, createFunctionImplementation} from '../catalog/types.js';
 import {
   FormatStringImplementation,
@@ -190,7 +190,10 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
 
     // Schema coercion parses string offsets and falls back safely on NaN
     const parsedArgs = IndexImplementation.schema?.parse({offset: '5'});
-    const indexValue3 = IndexImplementation.execute(parsedArgs, context2);
+    const indexValue3 = IndexImplementation.execute(
+      parsedArgs as Record<string, unknown>,
+      context2,
+    );
     assert.strictEqual(indexValue3, 7);
   });
 

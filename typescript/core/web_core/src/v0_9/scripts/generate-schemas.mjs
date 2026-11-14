@@ -46,7 +46,7 @@ function generateCommonTypes() {
 
   let commonTs =
     getHeader(VERSION_TAG, SCRIPT_SOURCE) +
-    "import {z} from 'zod';\n" +
+    "import * as z from 'zod/v4';\n" +
     "import {markChildRef} from '../../types/child-ref-helpers.js';\n\n";
 
   const defKeys = [
@@ -158,7 +158,7 @@ function generateIncomingMessageSchemas(commonDefNames) {
     .filter(schemaName => new RegExp('\\b' + schemaName + '\\b').test(bodyCode))
     .sort();
 
-  let outTs = getHeader(VERSION_TAG, SCRIPT_SOURCE) + "import {z} from 'zod';\n";
+  let outTs = getHeader(VERSION_TAG, SCRIPT_SOURCE) + "import * as z from 'zod/v4';\n";
   if (neededImports.length > 0) {
     outTs += `import {${neededImports.join(', ')}} from './common-types.js';\n\n`;
   } else {
@@ -176,7 +176,7 @@ function generateOutgoingMessageSchemas() {
   const c2sJson = JSON.parse(readFileSync(join(specDir, 'client_to_server.json'), 'utf8'));
   const cdmJson = JSON.parse(readFileSync(join(specDir, 'client_data_model.json'), 'utf8'));
 
-  let c2sTs = getHeader(VERSION_TAG, SCRIPT_SOURCE) + "import {z} from 'zod';\n\n";
+  let c2sTs = getHeader(VERSION_TAG, SCRIPT_SOURCE) + "import * as z from 'zod/v4';\n\n";
 
   let actionCode = compileDefToZod(c2sJson.properties.action, 'A2uiClientAction');
   actionCode = actionCode.replace(/\.passthrough\(\)/g, '.strict()');
@@ -217,7 +217,7 @@ function generateCapabilitiesSchemas() {
   const ccJson = JSON.parse(readFileSync(join(specDir, 'client_capabilities.json'), 'utf8'));
   let ccTs =
     getHeader(VERSION_TAG, SCRIPT_SOURCE) +
-    `import {z} from 'zod';\n\nexport type JsonSchema = Record<string, unknown>;\n\n`;
+    `import * as z from 'zod/v4';\n\nexport type JsonSchema = Record<string, unknown>;\n\n`;
 
   for (const [name, def] of Object.entries(ccJson.$defs || {})) {
     const typeName = name === 'Catalog' ? 'InlineCatalog' : name;

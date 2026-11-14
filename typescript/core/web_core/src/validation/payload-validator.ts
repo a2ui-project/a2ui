@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {z} from 'zod';
+import * as z from 'zod/v4';
 import {CatalogInterface} from '../catalog/types.js';
 import {isAtLeastVersion} from '../common/semver.js';
 import {isValidUax31Identifier} from '../common/uax31.js';
@@ -311,9 +311,9 @@ export class PayloadValidator {
       );
     }
 
-    const result = componentApi.schema.safeParse(properties);
+    const result = componentApi.schema.safeParse(properties, {reportInput: true});
     if (!result.success) {
-      const formattedErrors = result.error.errors.map(formatZodIssue).join(', ');
+      const formattedErrors = result.error.issues.map(formatZodIssue).join(', ');
       const details = zodIssuesToDetails(result.error.issues);
       const uniquePaths = new Set(details.map(d => d.path));
       const firstPath = uniquePaths.size === 1 ? details[0]?.path : undefined;
@@ -452,9 +452,9 @@ export class PayloadValidator {
     path: string,
     {componentType, id}: {componentType: string; id: string},
   ): void {
-    const result = schema.safeParse(value);
+    const result = schema.safeParse(value, {reportInput: true});
     if (result.success) return;
-    const formattedErrors = result.error.errors.map(formatZodIssue).join(', ');
+    const formattedErrors = result.error.issues.map(formatZodIssue).join(', ');
     const details = zodIssuesToDetails(result.error.issues, path);
     throw new A2uiValidationError(
       `Validation failed for component '${componentType}' (${id}): ${formattedErrors}`,
@@ -637,9 +637,9 @@ export class PayloadValidator {
       return (args ?? {}) as Record<string, unknown>;
     }
 
-    const result = fn.schema.safeParse(args ?? {});
+    const result = fn.schema.safeParse(args ?? {}, {reportInput: true});
     if (!result.success) {
-      const formattedErrors = result.error.errors.map(formatZodIssue).join(', ');
+      const formattedErrors = result.error.issues.map(formatZodIssue).join(', ');
       const details = zodIssuesToDetails(result.error.issues, '/args');
       throw new A2uiValidationError(
         `Validation failed for function '${name}': ${formattedErrors}`,
@@ -664,9 +664,9 @@ export class PayloadValidator {
     const themeSchema = this.catalog.themeSchema;
     if (!themeSchema) return theme;
 
-    const result = themeSchema.safeParse(theme);
+    const result = themeSchema.safeParse(theme, {reportInput: true});
     if (!result.success) {
-      const formattedErrors = result.error.errors.map(formatZodIssue).join(', ');
+      const formattedErrors = result.error.issues.map(formatZodIssue).join(', ');
       const details = zodIssuesToDetails(result.error.issues, '/theme');
       throw new A2uiValidationError(
         `Validation failed for theme: ${formattedErrors}`,
@@ -708,7 +708,7 @@ export class PayloadValidator {
 /**
  * Converts Zod validation issues into structured `A2uiErrorDetail` entries.
  */
-function zodIssuesToDetails(issues: readonly z.ZodIssue[], prefix = ''): A2uiErrorDetail[] {
+function zodIssuesToDetails(issues: readonly z.core.$ZodIssue[], prefix = ''): A2uiErrorDetail[] {
   return issues.map(issue => {
     const segments = issue.path.map(s => String(s).replace(/~/g, '~0').replace(/\//g, '~1'));
     if (
@@ -722,8 +722,7 @@ function zodIssuesToDetails(issues: readonly z.ZodIssue[], prefix = ''): A2uiErr
     const relPath = segments.length > 0 ? `/${segments.join('/')}` : '';
     const fullPath = `${prefix}${relPath}` || '/';
     const isMissing =
-      (issue.code === 'invalid_type' && 'received' in issue && issue.received === 'undefined') ||
-      issue.message === 'Required';
+      issue.code === 'invalid_type' && 'input' in issue && issue.input === undefined;
     return {
       path: fullPath,
       code: isMissing ? 'missing_field' : 'invalid_value',

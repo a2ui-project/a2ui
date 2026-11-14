@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 import {
   type ChildRefAnalysisOptions,
   canSchemaHoldListRef,
   canSchemaHoldSingleRef,
+  defOf,
   extractRefDefName,
   extractRefFields,
   getUnionOptions,
@@ -330,7 +331,7 @@ function analyzeSchemaNode(
   options: ChildRefAnalysisOptions,
   path: Set<unknown>,
 ): ChildRefAnalysis {
-  if (!('_def' in schema) || !(schema as z.ZodTypeAny)._def) {
+  if (!('_zod' in schema) || !(schema as z.ZodTypeAny)._zod) {
     return checkJsonSchemaRef(schema as Record<string, unknown>, options);
   }
 
@@ -348,7 +349,7 @@ function analyzeSchemaNode(
       : checkDescriptionChildRef(field.descriptions, options);
 
   const current = field.schema;
-  if (!current?._def) {
+  if (!current?._zod) {
     return explicitMatch ?? {isChild: false, isChildList: false};
   }
 
@@ -362,12 +363,10 @@ function analyzeSchemaNode(
   }
   nextPath.add(current);
 
-  const typeName = current._def.typeName as string;
+  const def = defOf(current);
 
-  // Zod's `.and()` copies the left operand's `description` onto the `ZodIntersection`,
-  // so verify compatibility against both sides before trusting an outer marker.
-  if (typeName === 'ZodIntersection') {
-    const def = current._def as {left: z.ZodTypeAny; right: z.ZodTypeAny};
+  // Verify compatibility against both sides before trusting an outer marker.
+  if (def.type === 'intersection') {
     return analyzeIntersectedSchemas(def.left, def.right, options, nextPath, explicitMatch);
   }
 
@@ -375,8 +374,7 @@ function analyzeSchemaNode(
     return explicitMatch;
   }
 
-  // Zod's `.or()` copies the first operand's `description` onto the `ZodUnion`,
-  // so inspect all union branches before settling on `isChild: true`.
+  // Inspect all union branches before settling on `isChild: true`.
   const unionOptions = getUnionOptions(current);
   if (unionOptions) {
     const unionRes = analyzeUnionOptions(unionOptions, options, nextPath);
@@ -393,14 +391,13 @@ function analyzeSchemaNode(
     return explicitMatch;
   }
 
-  if (typeName === 'ZodArray') {
-    return analyzeZodArray(current._def.type as z.ZodTypeAny, options, nextPath);
+  if (def.type === 'array') {
+    return analyzeZodArray(def.element, options, nextPath);
   }
 
-  if (typeName === 'ZodPipeline') {
-    const def = current._def as {in: z.ZodTypeAny; out: z.ZodTypeAny};
-    const pipeIn = def['in'];
-    const pipeOut = def['out'];
+  if (def.type === 'pipe') {
+    const pipeIn = def.in;
+    const pipeOut = def.out;
     const inField = unwrapZodField(pipeIn);
     if (inField.hasTransform) {
       const inRes = analyzeChildRefSchemaOnPath(pipeIn, options, nextPath);
@@ -592,7 +589,7 @@ function inspectComponentSchema(
 ): void {
   if (!schema || typeof schema !== 'object') return;
 
-  if ((schema as z.ZodTypeAny)._def) {
+  if ((schema as z.ZodTypeAny)._zod) {
     const refFields = extractRefFields(schema as z.ZodTypeAny, options);
     for (const [key, refKind] of refFields) {
       if (refKind.kind === 'single') {

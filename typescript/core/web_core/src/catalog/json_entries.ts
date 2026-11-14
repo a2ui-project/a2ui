@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type {z} from 'zod';
+import type * as z from 'zod/v4';
 
 import {A2uiMetadata} from '../common/metadata.js';
 import type {JsonSchemaObject} from './spec_annotations.js';

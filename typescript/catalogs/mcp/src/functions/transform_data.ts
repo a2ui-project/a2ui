@@ -22,7 +22,7 @@ import {
   type FunctionImplementation,
 } from '@a2ui/web_core/v1_0';
 import {compile, search} from 'jmespath';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 declare module 'jmespath' {
   /** Parses `expression` and throws when it is not valid JMESPath. Exported by the library, not declared by `@types/jmespath`. */

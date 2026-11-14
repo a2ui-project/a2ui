@@ -1,5 +1,6 @@
 ## Unreleased
 
+- **BREAKING CHANGE**: Require zod 4 (`^4.6.7`), as `@a2ui/web_core` now does. Define custom component schemas with `import * as z from 'zod/v4'`. [#4229](https://github.com/a2ui-project/a2ui/pull/4229)
 - (v0_9) Import `Catalog` and `ComponentApi` from `@a2ui/web_core` instead of `@a2ui/web_core/v0_9` in the v0.9 basic catalog barrel. [#4182](https://github.com/a2ui-project/a2ui/pull/4182)
 
 ## 0.15.0

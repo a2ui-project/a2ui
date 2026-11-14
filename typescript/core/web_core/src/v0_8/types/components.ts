@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type {z} from 'zod';
+import type * as z from 'zod/v4';
 import type {
   ActionSchema,
   AudioPlayerSchema,

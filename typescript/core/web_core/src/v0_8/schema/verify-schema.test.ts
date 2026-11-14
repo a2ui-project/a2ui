@@ -16,7 +16,7 @@
 
 import {describe, it} from 'node:test';
 import * as assert from 'node:assert';
-import {zodToJsonSchema} from 'zod-to-json-schema';
+import * as z from 'zod/v4';
 import {readFileSync} from 'fs';
 import {resolve, join, dirname} from 'path';
 import {fileURLToPath} from 'url';
@@ -130,6 +130,35 @@ function getObjectDiff(obj1: any, obj2: any, path = ''): Record<string, any> {
   return diff;
 }
 
+/** Converts `schema`, writing each schema in `defs` once under `$defs`. */
+function toJsonSchemaWithDefs(schema: z.ZodType, defs: Record<string, z.ZodType>) {
+  const metadata = z.registry<{id: string}>();
+  for (const [id, def] of Object.entries(defs)) metadata.add(def, {id});
+  // `output` writes `additionalProperties: false` for a plain object, as the specification does.
+  const {$defs, ...root} = z.toJSONSchema(schema, {
+    target: 'draft-2020-12',
+    io: 'output',
+    metadata,
+    unrepresentable: 'any',
+  });
+  // zod moves a recursive schema to a generated `__schemaN` definition, where
+  // the specification writes its first level inline.
+  const generated = new Set<string>();
+  const inline = (node: unknown): unknown => {
+    if (Array.isArray(node)) return node.map(inline);
+    if (typeof node !== 'object' || node === null) return node;
+    const ref = (node as {$ref?: unknown}).$ref;
+    if (typeof ref === 'string' && ref.startsWith('#/$defs/__schema') && !generated.has(ref)) {
+      generated.add(ref);
+      const target = inline($defs?.[ref.slice('#/$defs/'.length)]);
+      generated.delete(ref);
+      return target;
+    }
+    return Object.fromEntries(Object.entries(node).map(([k, v]) => [k, inline(v)]));
+  };
+  return {$defs: {...$defs, A2uiMessage: inline(root)}};
+}
+
 function verifySchema(
   version: string,
   zodSchemaSpec: any,
@@ -139,11 +168,7 @@ function verifySchema(
   console.log(`\nVerifying Zod schema for ${version}...`);
   // Generate JSON Schema from Zod
   const jsonSchemaString = JSON.stringify(
-    zodToJsonSchema(zodSchemaSpec, {
-      target: 'jsonSchema2019-09', // Better matches draft 2020-12
-      definitions: definitionsMap || {},
-      name: 'A2uiMessage',
-    }),
+    toJsonSchemaWithDefs(zodSchemaSpec, definitionsMap || {}),
     null,
     2,
   );

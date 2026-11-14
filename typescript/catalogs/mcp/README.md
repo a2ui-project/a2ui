@@ -87,7 +87,7 @@ import {
   basicCatalog,
 } from '@a2ui/web_core/v1_0';
 import {mcpCatalog} from '@a2ui/catalog-mcp';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 
 const ParseCsvImplementation = createFunctionImplementation(
   {

@@ -16,7 +16,7 @@
 
 import React from 'react';
 import {render} from '@testing-library/react';
-import {z} from 'zod';
+import * as z from 'zod/v4';
 import {SurfaceModel, ComponentModel, Catalog, extractRefFields} from '@a2ui/web_core';
 import {BASIC_FUNCTIONS} from '@a2ui/web_core/v0_9/basic_catalog';
 import {A2uiSurface} from '../src/A2uiSurface';
