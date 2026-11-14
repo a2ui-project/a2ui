@@ -67,7 +67,11 @@ export function createAjvValidator(opts: {formats?: boolean} = {}): JsonSchemaVa
       for (const [key, def] of Object.entries(compileOpts?.defs ?? {})) {
         if (added.has(key)) continue;
         added.add(key);
-        ajv.addSchema(def as object | boolean, resolveKey(key, schema));
+        const resolved = resolveKey(key, schema);
+        // Refs inside a def resolve against its own `$id`; align it with the registered key
+        // so relative refs (e.g. `common_types.json#/...`) land on registered URIs.
+        const toAdd = typeof def === 'object' && resolved !== key ? {...def, $id: resolved} : def;
+        ajv.addSchema(toAdd as object | boolean, resolved);
       }
       const validate = ajv.compile(schema);
       return (value: unknown) => {

@@ -81,4 +81,38 @@ describe('createAjvValidator', () => {
     assert.ok(i, JSON.stringify(r.issues));
     assert.deepStrictEqual(i.path, ['a', 0, 'missingName']);
   });
+
+  describe('real basic catalog', () => {
+    const real: JsonSchema = JSON.parse(
+      readFileSync(repo('catalogs/basic/v1/catalog.json'), 'utf8'),
+    );
+    const compileReal = () =>
+      createAjvValidator().compile(schema, {
+        defs: {'common_types.json': common, 'catalog.json': real},
+      });
+
+    it('accepts real messages', () => {
+      const validate = compileReal();
+      for (const m of messages) {
+        const r = validate(m);
+        assert.ok(r.success, JSON.stringify(r).slice(0, 500));
+      }
+    });
+
+    it('rejects an invalid component prop with a field path', () => {
+      const bad = structuredClone(messages[1]) as {
+        updateComponents: {components: Record<string, unknown>[]};
+      };
+      const text = bad.updateComponents.components.find(c => c.component === 'Text')!;
+      text.text = 42;
+      const r = compileReal()(bad);
+      assert.ok(!r.success);
+      assert.ok(
+        r.issues.some(
+          (i: A2uiIssue) => i.path[0] === 'updateComponents' && i.path.includes('text'),
+        ),
+        JSON.stringify(r.issues).slice(0, 800),
+      );
+    });
+  });
 });

@@ -32,6 +32,45 @@ function toPath(location: string): (string | number)[] {
     .map(s => (/^(0|[1-9]\d*)$/.test(s) ? Number(s) : s));
 }
 
+type Json = {[k: string]: unknown};
+
+function pointerTarget(root: Json, ref: string): unknown {
+  let cur: unknown = root;
+  for (const raw of ref.slice(2).split('/')) {
+    const seg = decodeURIComponent(raw).replace(/~1/g, '/').replace(/~0/g, '~');
+    if (typeof cur !== 'object' || cur === null || !(seg in cur)) return undefined;
+    cur = (cur as Json)[seg];
+  }
+  return cur;
+}
+
+/**
+ * cfworker only follows local `#/...` refs into `$defs`/`definitions` (and ids). Inline
+ * other local pointer refs (e.g. `#/functions/required`) as `allOf` members. A ref that is
+ * already being inlined (a cycle) is left untouched.
+ */
+function inlineLocalPointers(node: unknown, root: Json, stack: string[] = []): unknown {
+  if (Array.isArray(node)) return node.map(n => inlineLocalPointers(n, root, stack));
+  if (typeof node !== 'object' || node === null) return node;
+  const out: Json = {};
+  for (const [k, v] of Object.entries(node as Json)) out[k] = inlineLocalPointers(v, root, stack);
+  const ref = out.$ref;
+  if (
+    typeof ref === 'string' &&
+    ref.startsWith('#/') &&
+    !/^#\/(\$defs|definitions)\//.test(ref) &&
+    !stack.includes(ref)
+  ) {
+    const target = pointerTarget(root, ref);
+    if (target !== undefined) {
+      delete out.$ref;
+      const inlined = inlineLocalPointers(target, root, [...stack, ref]);
+      out.allOf = [...((out.allOf as unknown[]) ?? []), inlined];
+    }
+  }
+  return out;
+}
+
 /**
  * cfworker resolves lookup keys against a fixed base URL, so a relative key such as
  * `common_types.json` would not match a `$ref` resolved against the root schema's `$id`.
@@ -56,7 +95,10 @@ export function createCfWorkerValidator(): JsonSchemaValidator {
       for (const [key, def] of Object.entries(opts?.defs ?? {})) {
         if (added.has(key)) continue;
         added.add(key);
-        validator.addSchema(def as object, resolveKey(key, schema));
+        if (typeof def !== 'object') continue; // boolean defs cannot be referenced by cfworker
+        const resolved = resolveKey(key, schema);
+        const copy = inlineLocalPointers({...def, $id: resolved}, def) as object;
+        validator.addSchema(copy, resolved);
       }
       return (value: unknown) => {
         const result = validator.validate(value);
@@ -65,6 +107,7 @@ export function createCfWorkerValidator(): JsonSchemaValidator {
           const path = toPath(e.instanceLocation);
           const issue: A2uiIssue = {path, message: e.error, keyword: e.keyword};
           if (e.keyword === 'required') {
+            // Relies on @cfworker/json-schema 4.1.x message text for `required`.
             // cfworker reports the parent object; the property is only in the message.
             const m = /required property "(.*)"\.?$/.exec(e.error);
             if (m) {
