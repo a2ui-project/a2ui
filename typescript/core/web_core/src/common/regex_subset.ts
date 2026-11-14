@@ -695,16 +695,67 @@ function hasNestedQuantifier(node: RegexNode): boolean {
     case 'group':
     case 'lookahead':
       return hasNestedQuantifier(node.child);
-    case 'repeat':
-      if ((node.max === null || node.max > 1) && hasUnbounded(node.child)) {
-        return true;
-      }
+    case 'repeat': {
+      if (node.max !== null && node.max <= 1) return hasNestedQuantifier(node.child);
+      // The repeat runs its child more than once, so every way the child can match is multiplied.
+      if (hasUnbounded(node.child)) return true;
+      if (node.max !== null && boundedRunIsAmbiguous(unwrap(node.child))) return true;
       return hasNestedQuantifier(node.child);
+    }
     case 'concat':
       return node.items.some(hasNestedQuantifier);
     case 'alt':
       return node.branches.some(hasNestedQuantifier);
   }
+}
+
+/**
+ * True when one run of `node` can match the same text in more than one way, and reaches the empty
+ * string, so that N runs leave the matcher free to choose where each run starts and ends.
+ *
+ * The V8 backtracking engine gives up inside `MAX_REGEX_VALUE_CODE_POINTS` on a repeated nullable body
+ * with two ways to match it: `(a?){1000}a{1000}` and `(a?){500}a{500}` never return from 256
+ * characters, while `(a?){1000}` alone, with no counted repetition after it, stays fast. A body with a
+ * single way to match it, like the database pattern `(\d{1,3}){1,4}`, is linear in every case.
+ *
+ * `node` is a repeat child, already unwrapped of its outer groups.
+ */
+function boundedRunIsAmbiguous(node: RegexNode): boolean {
+  if (!nullable(node)) return false;
+  return hasMatchShorterThanItsLongest(node, new Set());
+}
+
+/**
+ * True when some string `node` matches has two derivations. Every node has a single maximal match
+ * length, so a second derivation exists exactly when a shorter match of the same string does. This
+ * walks the tree looking for the place where that shorter match can come from.
+ */
+function hasMatchShorterThanItsLongest(node: RegexNode, seen: ReadonlySet<RegexNode>): boolean {
+  if (seen.has(node)) return false;
+  const next = new Set(seen).add(node);
+  switch (node.kind) {
+    case 'empty':
+    case 'anchor':
+    case 'charSet':
+      return false;
+    case 'lookahead':
+    case 'group':
+      return hasMatchShorterThanItsLongest(node.child, next);
+    case 'repeat':
+      // `a?` adds one derivation, the empty string. A quantifier that admits a count above one adds
+      // more (`a{0,2}` matches `a` and the empty string), and a repeated group multiplies them.
+      if (node.max === null || node.max > 1) return true;
+      return node.min === 0 || hasMatchShorterThanItsLongest(node.child, next);
+    case 'concat':
+      return node.items.every(nullable) || hasShorterMatchInAny(node.items, next);
+    case 'alt':
+      return node.branches.some(nullable) || hasShorterMatchInAny(node.branches, next);
+  }
+}
+
+/** True when any `part` has a match shorter than its longest, which the enclosing choice must weigh. */
+function hasShorterMatchInAny(parts: readonly RegexNode[], seen: ReadonlySet<RegexNode>): boolean {
+  return parts.some(part => hasMatchShorterThanItsLongest(part, seen));
 }
 
 function branchesOverlap(branches: readonly RegexNode[]): boolean {
