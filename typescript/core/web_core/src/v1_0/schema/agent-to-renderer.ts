@@ -104,6 +104,7 @@ export const UpdateDataModelMessageSchema = z
           .optional(),
         'value': z
           .any()
+          .refine(value => value !== undefined, 'Required')
           .describe(
             "The data to be updated in the data model. To delete the key/value at 'path', set 'value' explicitly to null.",
           ),

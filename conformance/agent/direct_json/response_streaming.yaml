@@ -1135,6 +1135,44 @@
                       name: "Item 1"
   expect_matches_single_shot: true
 
+- name: test_chunk_data_model_cut_before_value_withholds
+  description: A data model update cut before its value holds the message back until the value arrives, rather than emitting the surface and path it has read so far.
+  action: parse_chunk
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+    progressive_keys: []
+  steps:
+    - input: '<a2ui-json>[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "conformance/simplified"}}]</a2ui-json>'
+      expect:
+        - a2ui:
+            - version: "1.0"
+              createSurface:
+                surfaceId: "s1"
+                catalogId: "conformance/simplified"
+    - input: '<a2ui-json>[{"version": "1.0", "updateDataModel": {"surfaceId": "s1", "value": {"items": ["a", "b"], "other": 1}}}]</a2ui-json>'
+      expect:
+        - a2ui:
+            - version: "1.0"
+              updateDataModel:
+                surfaceId: "s1"
+                value:
+                  items: ["a", "b"]
+                  other: 1
+    - input: '<a2ui-json>[{"version": "1.0", "updateDataModel": {"surfaceId": "s1"'
+      expect: []
+    - input: ', "path": "/items"'
+      expect: []
+    - input: ', "value": ["c", "d"]}}]</a2ui-json>'
+      expect:
+        - a2ui:
+            - version: "1.0"
+              updateDataModel:
+                surfaceId: "s1"
+                path: "/items"
+                value: ["c", "d"]
+  expect_matches_single_shot: true
+
 # --- Several surfaces in one stream ---
 
 - name: test_chunk_two_surfaces_interleaved
@@ -3956,6 +3994,44 @@
                 value:
                   name: John
                   incomplete: "done"
+  expect_matches_single_shot: true
+
+- name: test_stream_data_model_cut_before_value_withholds_v09
+  description: A data model update cut before its value holds the message back until the value arrives, since without a value it would remove the data at its path.
+  action: parse_chunk
+  args:
+    format: direct_json
+    catalog: "test_data/catalogs/streaming_catalog_v0_9.json"
+    progressive_keys: []
+  steps:
+    - input: '<a2ui-json>[{"version": "v0.9", "createSurface": {"surfaceId": "default", "catalogId": "test_catalog"}}]</a2ui-json>'
+      expect:
+        - a2ui:
+            - version: "v0.9"
+              createSurface:
+                surfaceId: "default"
+                catalogId: "test_catalog"
+    - input: '<a2ui-json>[{"version": "v0.9", "updateDataModel": {"surfaceId": "default", "value": {"items": ["a", "b"], "other": 1}}}]</a2ui-json>'
+      expect:
+        - a2ui:
+            - version: "v0.9"
+              updateDataModel:
+                surfaceId: "default"
+                value:
+                  items: ["a", "b"]
+                  other: 1
+    - input: '<a2ui-json>[{"version": "v0.9", "updateDataModel": {"surfaceId": "default"'
+      expect: []
+    - input: ', "path": "/items"'
+      expect: []
+    - input: ', "value": ["c", "d"]}}]</a2ui-json>'
+      expect:
+        - a2ui:
+            - version: "v0.9"
+              updateDataModel:
+                surfaceId: "default"
+                path: "/items"
+                value: ["c", "d"]
   expect_matches_single_shot: true
 
 - name: test_stream_data_model_cut_key_and_value_v08
