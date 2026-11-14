@@ -323,6 +323,8 @@ const activeVersions = readdirSync(specDir)
   .filter(
     d =>
       d !== 'v0_8' &&
+      // v0_9's defs cover v0.9 and v0.9.1; src/v0_9_1 holds only schemas.
+      d !== 'v0_9_1' &&
       existsSync(join(specDir, d, 'json', 'common_types.json')) &&
       existsSync(join(rootDir, 'src', d)),
   )
