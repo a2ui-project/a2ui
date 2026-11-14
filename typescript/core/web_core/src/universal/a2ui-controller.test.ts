@@ -369,7 +369,9 @@ describe('A2uiController', () => {
 
   it('binds directly to host.node.props without allocating a duplicate GenericBinder', async () => {
     const {NodeResolver, getValue} = await import('../index.js');
-    const {basicCatalog: v1Basic} = await import('../catalogs/basic/v1/catalog.js');
+    const v1Basic = (await import('../catalogs/basic/v1/catalog.js')).createBasicCatalog(
+      testValidator,
+    );
     const nodeProcessor = new MessageProcessorClass([v1Basic], undefined, {
       validator: testValidator,
     });
@@ -439,7 +441,9 @@ describe('A2uiController', () => {
 
   it('subscribes to node.metadata lazily only when controller.metadata is read', async () => {
     const {NodeResolver, getValue} = await import('../index.js');
-    const {basicCatalog: v1Basic} = await import('../catalogs/basic/v1/catalog.js');
+    const v1Basic = (await import('../catalogs/basic/v1/catalog.js')).createBasicCatalog(
+      testValidator,
+    );
     const nodeProcessor = new MessageProcessorClass([v1Basic], undefined, {
       validator: testValidator,
     });
@@ -511,7 +515,9 @@ describe('A2uiController', () => {
       setSignalImplementation,
       _PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION,
     } = await import('../index.js');
-    const {basicCatalog: v1Basic} = await import('../catalogs/basic/v1/catalog.js');
+    const v1Basic = (await import('../catalogs/basic/v1/catalog.js')).createBasicCatalog(
+      testValidator,
+    );
     const nodeProcessor = new MessageProcessorClass([v1Basic], undefined, {
       validator: testValidator,
     });

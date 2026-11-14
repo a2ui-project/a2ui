@@ -33,7 +33,12 @@ import {
   registerUniversalElement,
   type WebComponentImplementation,
 } from '../../index.js';
-import {ListApi} from '../../../v0_9/basic_catalog/components/basic_components.js';
+import {componentOf, v09BasicCatalog} from '../../../test/basic_catalogs.js';
+import {validated} from '../../../test/schema.js';
+
+const ListApi = componentOf(v09BasicCatalog, 'List');
+/** The props the component's schema validates \`value\` to; throws if it rejects it. */
+const parse = (value: unknown): any => validated(ListApi.schema, value);
 import {PayloadValidator} from '../../../validation/payload-validator.js';
 import {testValidator} from '../../../test/validator.js';
 
@@ -42,7 +47,9 @@ describe('List Component', () => {
 
   before(async () => {
     setupTestDom();
-    basicCatalog = (await import('../../../v0_9/basic_catalog/index.js')).basicCatalog;
+    basicCatalog = (await import('../../../v0_9/basic_catalog/index.js')).createBasicCatalog(
+      testValidator,
+    );
     basicCatalog.components.forEach(c => registerUniversalElement(c));
   });
 
@@ -190,7 +197,9 @@ describe('List Component', () => {
 
   it('emits no item for a child that has not resolved, then adds it on arrival (v1.0)', async () => {
     // v1.0 uses the same universal List as v0.9.
-    const v1Catalog = (await import('../../../catalogs/basic/v1/index.js')).basicCatalog;
+    const v1Catalog = (await import('../../../catalogs/basic/v1/index.js')).createBasicCatalog(
+      testValidator,
+    );
     const nodeProcessor = new MessageProcessor([v1Catalog], undefined, {validator: testValidator});
     nodeProcessor.processMessages([
       {
@@ -354,7 +363,9 @@ describe('List Component', () => {
   });
 
   it('applies list semantics and accessibility attributes across default, ordered, and unordered lists', async () => {
-    const v1Catalog = (await import('../../../catalogs/basic/v1/index.js')).basicCatalog;
+    const v1Catalog = (await import('../../../catalogs/basic/v1/index.js')).createBasicCatalog(
+      testValidator,
+    );
     const v1Processor = new MessageProcessor([v1Catalog], undefined, {validator: testValidator});
     v1Processor.processMessages([
       {
@@ -440,7 +451,7 @@ describe('List Component', () => {
 
   describe('ListApi schema validation', () => {
     it('should parse valid list with listStyle', () => {
-      const parsed = ListApi.schema.parse({
+      const parsed = parse({
         children: [],
         listStyle: 'none',
       });
@@ -448,20 +459,14 @@ describe('List Component', () => {
     });
 
     it('should parse valid listStyle variants', () => {
-      assert.strictEqual(
-        ListApi.schema.parse({children: [], listStyle: 'ordered'}).listStyle,
-        'ordered',
-      );
-      assert.strictEqual(
-        ListApi.schema.parse({children: [], listStyle: 'unordered'}).listStyle,
-        'unordered',
-      );
-      assert.strictEqual(ListApi.schema.parse({children: [], listStyle: 'none'}).listStyle, 'none');
+      assert.strictEqual(parse({children: [], listStyle: 'ordered'}).listStyle, 'ordered');
+      assert.strictEqual(parse({children: [], listStyle: 'unordered'}).listStyle, 'unordered');
+      assert.strictEqual(parse({children: [], listStyle: 'none'}).listStyle, 'none');
     });
 
     it('should reject invalid listStyle', () => {
       assert.throws(() =>
-        ListApi.schema.parse({
+        parse({
           children: [],
           listStyle: 'invalid',
         }),

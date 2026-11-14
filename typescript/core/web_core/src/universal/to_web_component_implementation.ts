@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import {copyLoadedDefinition} from '../catalog/loaded_definitions.js';
 import type {ComponentApi} from '../catalog/types.js';
 import type {WebComponentImplementation} from './web_component_implementation.js';
 
@@ -46,5 +47,9 @@ export function toWebComponentImplementation<Api extends ComponentApi>(
   element: TaggedCustomElementConstructor,
   api: Api,
 ): WebComponentImplementation<Api['schema']> {
-  return {...api, tagName: element.tagName, element};
+  const implementation = {...api, tagName: element.tagName, element};
+  // An implementation of a component `Catalog.fromJson` loaded keeps its
+  // definition, so `toJson` writes it as the catalog document does.
+  copyLoadedDefinition(api, implementation);
+  return implementation;
 }

@@ -17,11 +17,10 @@
 import * as assert from 'node:assert';
 import {describe, it} from 'node:test';
 
-import {BASIC_COMPONENTS as V10_BASIC_COMPONENTS} from '../catalogs/basic/v1/components/basic_components.js';
+import {v09BasicCatalog, v1BasicCatalog} from '../test/basic_catalogs.js';
 import {objectProperties, type SchemaCursor, type SchemaDoc} from '../schema-engine/nav.js';
 import type {JsonSchema} from '../schema-engine/types.js';
 import {cursorOf} from '../test/schema.js';
-import {BASIC_COMPONENTS as V09_BASIC_COMPONENTS} from '../v0_9/basic_catalog/components/basic_components.js';
 import V09BasicCatalog from '../v0_9/schemas/catalogs/basic/catalog.json' with {type: 'json'};
 import V09CommonTypes from '../v0_9/schemas/common_types.json' with {type: 'json'};
 import V10BasicCatalog from '../v1_0/schemas/catalogs/basic/catalog.json' with {type: 'json'};
@@ -36,7 +35,7 @@ interface SpecCatalogCase {
   doc: SchemaDoc;
   apis: ComponentApi[];
   /**
-   * Keys only the spec JSON declares, each with the reason. The Zod APIs
+   * Keys only the spec JSON declares, each with the reason. The catalog entries
    * describe a component's properties; the spec component schemas also
    * declare the envelope keys the binder never receives as properties.
    */
@@ -53,10 +52,10 @@ const CASES: SpecCatalogCase[] = [
         'https://a2ui.org/specification/v0_9/common_types.json': V09CommonTypes as JsonSchema,
       },
     },
-    apis: V09_BASIC_COMPONENTS,
+    apis: [...v09BasicCatalog.components.values()],
     specOnlyKeys: {
-      id: 'envelope key from ComponentCommon; the Zod API leaves it out',
-      component: 'envelope discriminator; the Zod API leaves it out',
+      id: 'envelope key from ComponentCommon; the catalog entry leaves it out',
+      component: 'envelope discriminator; the catalog entry leaves it out',
     },
   },
   {
@@ -66,9 +65,9 @@ const CASES: SpecCatalogCase[] = [
       root: V10BasicCatalog as JsonSchema,
       defs: {'common_types.json': V10CommonTypes as JsonSchema},
     },
-    apis: V10_BASIC_COMPONENTS,
+    apis: [...v1BasicCatalog.components.values()],
     specOnlyKeys: {
-      component: 'envelope discriminator; the Zod API leaves it out',
+      component: 'envelope discriminator; the catalog entry leaves it out',
     },
   },
 ];
@@ -93,7 +92,7 @@ describe('Spec basic catalog component envelopes', () => {
         return {node, doc: c.doc};
       };
 
-      it('lays out the mixins of every spec component like its bridged Zod API', () => {
+      it('lays out the mixins of every spec component like the catalog entry loaded from it', () => {
         assert.deepStrictEqual(
           new Set(c.apis.map(api => api.name)),
           new Set(Object.keys(c.catalog.components)),
@@ -107,7 +106,7 @@ describe('Spec basic catalog component envelopes', () => {
         }
       });
 
-      it('finds the DynamicBoolean properties of every spec component like its bridged Zod API', () => {
+      it('finds the DynamicBoolean properties of every spec component like the catalog entry loaded from it', () => {
         for (const api of c.apis) {
           const specProps = properties(spec(api.name));
           const zodProps = properties(cursorOf(api.schema, c.version));

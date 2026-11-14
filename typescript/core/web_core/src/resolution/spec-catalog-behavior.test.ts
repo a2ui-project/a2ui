@@ -18,11 +18,10 @@ import * as assert from 'node:assert';
 import {describe, it} from 'node:test';
 
 import type {ComponentApi} from '../catalog/types.js';
-import {BASIC_COMPONENTS as V10_BASIC_COMPONENTS} from '../catalogs/basic/v1/components/basic_components.js';
+import {v09BasicCatalog, v1BasicCatalog} from '../test/basic_catalogs.js';
 import type {SchemaDoc} from '../schema-engine/nav.js';
 import type {JsonSchema} from '../schema-engine/types.js';
 import {cursorOf} from '../test/schema.js';
-import {BASIC_COMPONENTS as V09_BASIC_COMPONENTS} from '../v0_9/basic_catalog/components/basic_components.js';
 import V09BasicCatalog from '../v0_9/schemas/catalogs/basic/catalog.json' with {type: 'json'};
 import V09CommonTypes from '../v0_9/schemas/common_types.json' with {type: 'json'};
 import {V09_CHILD_REF_OPTIONS} from '../v0_9/standard_defs.js';
@@ -39,9 +38,9 @@ interface SpecCatalogCase {
   apis: ComponentApi[];
   options: ChildRefAnalysisOptions;
   /**
-   * Keys only the spec JSON declares, each with the reason. The Zod APIs
-   * describe a component's properties; the spec component schemas also
-   * declare the envelope keys the binder never receives as properties.
+   * Envelope keys the spec component schemas declare, each with the reason:
+   * the catalog entries describe a component's properties, and the binder
+   * never receives these as properties.
    */
   specOnlyKeys: Record<string, string>;
 }
@@ -56,11 +55,11 @@ const CASES: SpecCatalogCase[] = [
         'https://a2ui.org/specification/v0_9/common_types.json': V09CommonTypes as JsonSchema,
       },
     },
-    apis: V09_BASIC_COMPONENTS,
+    apis: [...v09BasicCatalog.components.values()],
     options: V09_CHILD_REF_OPTIONS,
     specOnlyKeys: {
-      id: 'envelope key from ComponentCommon; the Zod API leaves it out',
-      component: 'envelope discriminator; the Zod API leaves it out',
+      id: 'envelope key from ComponentCommon; the catalog entry leaves it to the envelope',
+      component: 'envelope discriminator; the catalog entry leaves it out',
     },
   },
   {
@@ -70,10 +69,10 @@ const CASES: SpecCatalogCase[] = [
       root: V10BasicCatalog as JsonSchema,
       defs: {'common_types.json': V10CommonTypes as JsonSchema},
     },
-    apis: V10_BASIC_COMPONENTS,
+    apis: [...v1BasicCatalog.components.values()],
     options: V10_CHILD_REF_OPTIONS,
     specOnlyKeys: {
-      component: 'envelope discriminator; the Zod API leaves it out',
+      component: 'envelope discriminator; the catalog entry leaves it out',
     },
   },
 ];
@@ -96,14 +95,14 @@ describe('Spec basic catalog component behaviors', () => {
         return scrapeComponentBehavior(node, c.doc, c.options);
       };
 
-      it('scrapes every spec component like the bridged Zod API of the same component', () => {
+      it('scrapes every spec component like the catalog entry loaded from it', () => {
         assert.deepStrictEqual(
           new Set(c.apis.map(api => api.name)),
           new Set(Object.keys(c.catalog.components)),
         );
         for (const api of c.apis) {
           const spec = scrapeSpec(api.name);
-          const bridged = cursorOf(api.schema, c.version);
+          const bridged = cursorOf(api.schema, c.version); // the loaded entry's own cursor
           const zod = scrapeComponentBehavior(bridged.node, bridged.doc, c.options);
           assert.strictEqual(
             spec.type === 'OBJECT' && spec.catchall,
@@ -112,8 +111,13 @@ describe('Spec basic catalog component behaviors', () => {
           const specShape = shapeOf(spec);
           const zodShape = shapeOf(zod);
           for (const key of new Set([...Object.keys(specShape), ...Object.keys(zodShape)])) {
-            if (Object.hasOwn(c.specOnlyKeys, key) && !Object.hasOwn(zodShape, key)) {
-              assert.deepStrictEqual(specShape[key], {type: 'STATIC'}, `${api.name}.${key}`);
+            if (Object.hasOwn(c.specOnlyKeys, key)) {
+              // The catalog entry leaves the envelope keys to the envelope; it
+              // declares `id` only as `true`, so it is not a child reference.
+              if (Object.hasOwn(zodShape, key)) {
+                assert.deepStrictEqual(zodShape[key], {type: 'STATIC'}, `${api.name}.${key}`);
+                assert.ok(!isChildRefStatic(zodShape[key]), `${api.name}.${key} is no slot`);
+              }
               continue;
             }
             assert.deepStrictEqual(specShape[key], zodShape[key], `${api.name}.${key}`);

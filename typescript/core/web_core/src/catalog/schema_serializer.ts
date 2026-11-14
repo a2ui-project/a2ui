@@ -15,9 +15,10 @@
  * limitations under the License.
  */
 
-// ponytail: the zod parts are removed with the zod basic catalogs in Task
-// 10/11. A loaded entry is written as its stored definition; zod 3 entries
-// defined in code (the basic catalogs) are still converted here.
+// ponytail: the zod parts are removed with zod in Task 11. A loaded entry
+// (the basic catalogs included) is written as its stored definition; zod 3
+// entries defined in code (custom catalogs, test fixtures) are still
+// converted here.
 
 import type {z} from 'zod';
 import {zodToJsonSchema} from 'zod-to-json-schema';
@@ -26,7 +27,7 @@ import {isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
 import {isAgentFunction} from './agent_function_brand.js';
 import {exclusiveUnionOverride} from './exclusive_union.js';
 import {nonZodSchemaJson, type AuthoredSchema} from './entry-schema.js';
-import {loadedDefinition} from './json_entries.js';
+import {loadedDefinition, loadedDocumentDefs} from './json_entries.js';
 import {getSpecAnnotation, type JsonSchemaObject} from './spec_annotations.js';
 import {
   DEFAULT_COMMON_TYPES_URI,
@@ -545,6 +546,16 @@ function buildDocumentModel(catalog: SerializableCatalog): CatalogDocumentModel 
   }
 
   const defs: JsonObject = {...catalog.defs};
+  // A loaded entry reused in another catalog brings the definitions of its
+  // own document that its definition references and the catalog lacks.
+  for (const entry of [...catalog.components.values(), ...catalog.functions.values()]) {
+    const definition = loadedDefinition(entry);
+    const own = loadedDocumentDefs(entry);
+    if (!definition || !own) continue;
+    for (const name of reachableDefs([definition], own)) {
+      if (!(name in defs) && name in own && !UNION_DEF_NAMES.has(name)) defs[name] = own[name];
+    }
+  }
   const serializedDefs = new Set<string>();
   while (
     [...computedDefs.keys()].some(defName => !serializedDefs.has(defName) && !(defName in defs))

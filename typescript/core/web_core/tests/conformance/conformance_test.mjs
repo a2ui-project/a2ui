@@ -23,11 +23,7 @@ import yaml from 'js-yaml';
 import {z} from 'zod';
 
 import {Catalog, createFunctionImplementation} from '../../dist/src/catalog/types.js';
-import {basicCatalog as V1_0_SDK_BASIC_CATALOG} from '../../dist/src/catalogs/basic/v1/catalog.js';
-import {
-  BASIC_COMPONENTS as V1_0_BASIC_COMPONENTS,
-  BASIC_FUNCTIONS as V1_0_BASIC_FUNCTIONS,
-} from '../../dist/src/catalogs/basic/v1/index.js';
+import {createBasicCatalog as createV1_0BasicCatalog} from '../../dist/src/catalogs/basic/v1/catalog.js';
 import {isAtLeastVersion, toCanonicalVersion} from '../../dist/src/common/semver.js';
 import {
   A2uiCatalogError,
@@ -52,18 +48,9 @@ import {ResolvedBinding} from '../../dist/src/resolution/resolved-binding.js';
 import {ComponentModel} from '../../dist/src/state/component-model.js';
 import {DataModel} from '../../dist/src/state/data-model.js';
 import {SurfaceModel} from '../../dist/src/state/surface-model.js';
-import {CommonSchemas} from '../../dist/src/types/common-types.js';
-import {basicCatalog as V0_8_SDK_BASIC_CATALOG} from '../../dist/src/v0_8/basic_catalog/catalog.js';
-import {
-  BASIC_COMPONENTS as V0_8_BASIC_COMPONENTS,
-  ThemeSchema as V0_8_ThemeSchema,
-} from '../../dist/src/v0_8/basic_catalog/index.js';
-import {basicCatalog as V0_9_SDK_BASIC_CATALOG} from '../../dist/src/v0_9/basic_catalog/catalog.js';
-import {
-  BASIC_COMPONENTS as V0_9_BASIC_COMPONENTS,
-  BASIC_FUNCTIONS as V0_9_BASIC_FUNCTIONS,
-  ThemeSchema as V0_9_ThemeSchema,
-} from '../../dist/src/v0_9/basic_catalog/index.js';
+import {createBasicCatalog as createV0_8BasicCatalog} from '../../dist/src/v0_8/basic_catalog/catalog.js';
+import {createBasicCatalog as createV0_9BasicCatalog} from '../../dist/src/v0_9/basic_catalog/catalog.js';
+import {createBasicCatalogFunctions as createV0_9BasicCatalogFunctions} from '../../dist/src/v0_9/basic_catalog/functions/basic_functions.js';
 import {CommonSchemas as V0_9_COMMON_SCHEMAS} from '../../dist/src/v0_9/schema/common-types.js';
 import {CommonSchemas as V1_0_COMMON_SCHEMAS} from '../../dist/src/v1_0/schema/common-types.js';
 import {PayloadValidator} from '../../dist/src/validation/index.js';
@@ -72,59 +59,27 @@ import {runNodeResolutionCase} from '../../dist/tests/conformance/node-resolutio
 /** The reference JSON Schema validator every processor checks messages with. */
 const schemaValidator = createAjvValidator();
 
-// Dedicated basic catalog component definitions per specification version
-const v0_8Components = V0_8_BASIC_COMPONENTS;
-const v0_9Components = V0_9_BASIC_COMPONENTS;
-const v1_0Components = V1_0_BASIC_COMPONENTS;
+// web_core's basic catalogs per specification version, built from the
+// published catalog documents. The v0.9 conformance catalogs also carry the
+// legacy 0.9.x functions (`add`, `equals`, ...), as `BASIC_FUNCTIONS` did.
+const V0_8_SDK_BASIC_CATALOG = createV0_8BasicCatalog(schemaValidator);
+const V0_9_SDK_BASIC_CATALOG = createV0_9BasicCatalog(schemaValidator);
+const V1_0_SDK_BASIC_CATALOG = createV1_0BasicCatalog(schemaValidator);
+const V0_9_BASIC_FUNCTIONS = createV0_9BasicCatalogFunctions(schemaValidator);
+const V1_0_BASIC_FUNCTIONS = [...V1_0_SDK_BASIC_CATALOG.functions.values()];
 
-const v0_8Catalog = new Catalog(
-  'v0.8:basic',
-  'v0.8',
-  v0_8Components,
-  [],
-  V0_8_ThemeSchema,
-  undefined,
-);
-const v0_9Catalog = new Catalog(
-  'v0.9:basic',
-  'v0.9',
-  v0_9Components,
-  V0_9_BASIC_FUNCTIONS,
-  V0_9_ThemeSchema,
-  undefined,
-);
-const v1_0Catalog = new Catalog(
-  'v1.0:basic',
-  '1.0',
-  v1_0Components,
-  V1_0_BASIC_FUNCTIONS,
-  undefined,
-  undefined,
-);
-const v0_8BasicCatalog = new Catalog(
-  'basic',
-  'v0.8',
-  v0_8Components,
-  [],
-  V0_8_ThemeSchema,
-  undefined,
-);
-const v0_9BasicCatalog = new Catalog(
-  'basic',
-  'v0.9',
-  v0_9Components,
-  V0_9_BASIC_FUNCTIONS,
-  V0_9_ThemeSchema,
-  undefined,
-);
-const v1_0BasicCatalog = new Catalog(
-  'basic',
-  '1.0',
-  v1_0Components,
-  V1_0_BASIC_FUNCTIONS,
-  undefined,
-  undefined,
-);
+const v0_8Catalog = V0_8_SDK_BASIC_CATALOG.copyWith({catalogId: 'v0.8:basic'});
+const v0_9Catalog = V0_9_SDK_BASIC_CATALOG.copyWith({
+  catalogId: 'v0.9:basic',
+  functions: V0_9_BASIC_FUNCTIONS,
+});
+const v1_0Catalog = V1_0_SDK_BASIC_CATALOG.copyWith({catalogId: 'v1.0:basic'});
+const v0_8BasicCatalog = V0_8_SDK_BASIC_CATALOG.copyWith({catalogId: 'basic'});
+const v0_9BasicCatalog = V0_9_SDK_BASIC_CATALOG.copyWith({
+  catalogId: 'basic',
+  functions: V0_9_BASIC_FUNCTIONS,
+});
+const v1_0BasicCatalog = V1_0_SDK_BASIC_CATALOG.copyWith({catalogId: 'basic'});
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -971,7 +926,7 @@ async function validateRpcTestCase(testCase) {
     const storeCat = new Catalog(
       scenario.catalogId,
       '1.0',
-      v1_0Components,
+      [...V1_0_SDK_BASIC_CATALOG.components.values()],
       localFns,
       undefined,
       undefined,
@@ -1085,7 +1040,7 @@ async function validateRpcTestCase(testCase) {
     const storeCat = new Catalog(
       scenario.catalogId,
       '1.0',
-      v1_0Components,
+      [...V1_0_SDK_BASIC_CATALOG.components.values()],
       localFns,
       undefined,
       undefined,
@@ -4514,7 +4469,10 @@ async function validateRouteAgentFunctionTestCase(testCase) {
           const comp = new ComponentModel(probeId, 'Probe', {});
           surface.componentsModel.addComponent(comp);
           // ponytail: the probe's schema is zod 3 until Task 11.
-          const probeApi = {name: 'CheckProbe', schema: CommonSchemas.Checkable.describe('')};
+          const probeApi = {
+            name: 'CheckProbe',
+            schema: V0_9_COMMON_SCHEMAS.Checkable.describe(''),
+          };
           const binder = new GenericBinder(
             new ComponentContext(surface, probeId),
             entrySchema(probeApi, 'component', {protocolVersion: '1.0'}).cursor,

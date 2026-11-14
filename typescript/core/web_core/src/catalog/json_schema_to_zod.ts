@@ -22,7 +22,8 @@
 
 import {z} from 'zod';
 
-import {CommonSchemas, ComponentCommonSchema} from '../types/common-types.js';
+// ponytail: the v1.0 zod mirrors (agent functions are v1.0 only) until Task 11.
+import {CommonSchemas, ComponentCommonSchema} from '../v1_0/schema/common-types.js';
 import {exclusiveUnion} from './exclusive_union.js';
 import {canonicalJsonStringify, isShorthandParameterMap, resolveJsonPointer} from './from-json.js';
 

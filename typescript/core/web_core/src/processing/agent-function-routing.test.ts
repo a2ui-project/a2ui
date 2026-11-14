@@ -20,12 +20,14 @@ import {z} from 'zod';
 
 import {Catalog, createFunctionImplementation, FunctionApi} from '../catalog/types.js';
 import {getValue, peekValue, setValue, signal} from '../reactivity/signals.js';
-import {FormatStringImplementation} from '../catalogs/basic/v1/index.js';
+import {functionOf, v1BasicCatalog} from '../test/basic_catalogs.js';
 import {A2uiRpcError, RpcErrorCode} from '../errors.js';
 import {DataContext} from '../resolution/data-context.js';
 import {MessageProcessor} from './message-processor.js';
 import {testValidator} from '../test/validator.js';
 import {validated} from '../test/schema.js';
+
+const FormatStringImplementation = functionOf(v1BasicCatalog, 'formatString');
 
 /** Resolves on the next macrotask, after every pending microtask has run. */
 const flush = () => new Promise<void>(resolve => setTimeout(resolve, 0));

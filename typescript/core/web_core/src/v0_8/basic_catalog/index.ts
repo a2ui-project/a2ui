@@ -14,5 +14,26 @@
  * limitations under the License.
  */
 
-export * from './components/basic_components.js';
-export {BASIC_CATALOG_ID, basicCatalog} from './catalog.js';
+export type {
+  Theme,
+  TextProps,
+  ImageProps,
+  IconProps,
+  VideoProps,
+  AudioPlayerProps,
+  RowProps,
+  ColumnProps,
+  ListProps,
+  CardProps,
+  TabsProps,
+  DividerProps,
+  ModalProps,
+  ButtonProps,
+  CheckBoxProps,
+  TextFieldProps,
+  DateTimeInputProps,
+  MultipleChoiceProps,
+  SliderProps,
+  BasicCatalogProps,
+} from './generated-types.js';
+export {BASIC_CATALOG_ID, BASIC_CATALOG_DOCUMENT, createBasicCatalog} from './catalog.js';

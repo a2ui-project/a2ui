@@ -18,10 +18,7 @@ import {describe, it} from 'node:test';
 import * as assert from 'node:assert';
 import {z} from 'zod';
 import {Catalog, createFunctionImplementation} from '../catalog/types.js';
-import {
-  FormatStringImplementation,
-  PluralizeImplementation,
-} from '../catalogs/basic/v1/functions/basic_functions.js';
+import {functionOf, v1BasicCatalog} from '../test/basic_catalogs.js';
 import {A2uiError} from '../errors.js';
 import {isSignal, peekValue, signal} from '../reactivity/signals.js';
 import {DataContext} from '../resolution/data-context.js';
@@ -29,6 +26,9 @@ import {SurfaceModel} from '../state/surface-model.js';
 import {IndexImplementation} from '../v1_0/functions/system_functions.js';
 import {A2uiRpcError, RpcErrorCode, RpcHandler} from './rpc-handler.js';
 import {testValidator} from '../test/validator.js';
+
+const FormatStringImplementation = functionOf(v1BasicCatalog, 'formatString');
+const PluralizeImplementation = functionOf(v1BasicCatalog, 'pluralize');
 
 describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', () => {
   const customRpcApi = {

@@ -29,7 +29,12 @@ import {
   registerUniversalElement,
   type WebComponentImplementation,
 } from '../../index.js';
-import {SliderApi} from '../../../v0_9/basic_catalog/components/basic_components.js';
+import {componentOf, v09BasicCatalog} from '../../../test/basic_catalogs.js';
+import {accepts, validated} from '../../../test/schema.js';
+
+const SliderApi = componentOf(v09BasicCatalog, 'Slider');
+/** The props the component's schema validates \`value\` to; throws if it rejects it. */
+const parse = (value: unknown): any => validated(SliderApi.schema, value);
 import {testValidator} from '../../../test/validator.js';
 
 describe('Slider Component', () => {
@@ -37,7 +42,9 @@ describe('Slider Component', () => {
 
   before(async () => {
     setupTestDom();
-    basicCatalog = (await import('../../../v0_9/basic_catalog/index.js')).basicCatalog;
+    basicCatalog = (await import('../../../v0_9/basic_catalog/index.js')).createBasicCatalog(
+      testValidator,
+    );
     basicCatalog.components.forEach(c => registerUniversalElement(c));
   });
 
@@ -168,22 +175,9 @@ describe('Slider Component', () => {
         max: 100,
         value: 50,
       };
-      SliderApi.schema.parse(validSlider);
+      parse(validSlider);
 
-      const result = SliderApi.schema.safeParse({
-        ...validSlider,
-        step: 5,
-      });
-
-      assert.strictEqual(result.success, false);
-      if (!result.success) {
-        assert.strictEqual(
-          result.error.issues.some(
-            issue => issue.code === 'unrecognized_keys' && issue.keys.includes('step'),
-          ),
-          true,
-        );
-      }
+      assert.strictEqual(accepts(SliderApi.schema, {...validSlider, step: 5}), false);
     });
   });
 

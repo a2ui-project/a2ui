@@ -17,13 +17,14 @@
 import {describe, it} from 'node:test';
 import assert from 'node:assert';
 import {DataContext} from '../../resolution/data-context.js';
-import {
-  RequiredV1Point0Implementation,
-  RegexV1Point0Implementation,
-  LengthV1Point0Implementation,
-  NumericV1Point0Implementation,
-  EmailV1Point0Implementation,
-} from './validation_functions.js';
+import {functionOf, v1BasicCatalog} from '../../test/basic_catalogs.js';
+
+// The v1.0 validation functions, as the v1 basic catalog document declares them.
+const RequiredV1Point0Implementation = functionOf(v1BasicCatalog, 'required');
+const RegexV1Point0Implementation = functionOf(v1BasicCatalog, 'regex');
+const LengthV1Point0Implementation = functionOf(v1BasicCatalog, 'length');
+const NumericV1Point0Implementation = functionOf(v1BasicCatalog, 'numeric');
+const EmailV1Point0Implementation = functionOf(v1BasicCatalog, 'email');
 
 const dummyContext = null as unknown as DataContext;
 

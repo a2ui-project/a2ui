@@ -32,7 +32,8 @@ import {
   FunctionImplementation,
   createFunctionImplementation,
 } from '../catalog/types.js';
-import {CommonSchemas} from '../types/common-types.js';
+// ponytail: zod mirrors of the v0.9 common types (the fixtures' spelling) until Task 11.
+import {CommonSchemas} from '../v0_9/schema/common-types.js';
 import {ComponentModel} from '../state/component-model.js';
 import {SurfaceModel} from '../state/surface-model.js';
 import {A2uiClientAction} from '../v0_9/schema/client-to-server.js';

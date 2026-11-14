@@ -14,67 +14,43 @@
  * limitations under the License.
  */
 
-import {Catalog} from '../../catalog/types.js';
-import {BasicCatalogThemeSchema} from '../../universal/basic_catalog/theme.js';
-import type {WebComponentImplementation} from '../../universal/index.js';
-import {BASIC_CATALOG_DOCUMENT_OPTIONS} from './components/basic_components.js';
-import {
-  A2uiAudioPlayer,
-  A2uiButton,
-  A2uiCard,
-  A2uiCheckBox,
-  A2uiChoicePicker,
-  A2uiColumn,
-  A2uiDateTimeInput,
-  A2uiDivider,
-  A2uiIcon,
-  A2uiImage,
-  A2uiList,
-  A2uiModal,
-  A2uiRow,
-  A2uiSlider,
-  A2uiTabs,
-  A2uiText,
-  A2uiTextField,
-  A2uiVideo,
-} from './components/index.js';
-import {V09_SPEC_FUNCTIONS} from './functions/basic_functions.js';
+import {memoizeByValidator} from '../../catalog/basic_catalog_factory.js';
+import type {Catalog, FunctionImplementation} from '../../catalog/types.js';
+import {implementComponents} from '../../catalogs/basic/elements.js';
+import type {JsonSchemaValidator} from '../../schema-engine/types.js';
+import type {WebComponentImplementation} from '../../universal/web_component_implementation.js';
+import {BASIC_CATALOG_ID, loadBasicCatalogApi} from './document.js';
+import {createV09SpecFunctions} from './functions/basic_functions.js';
+
+export {BASIC_CATALOG_ID, BASIC_CATALOG_DOCUMENT, loadBasicCatalogApi} from './document.js';
+
+/** The v0.9 basic catalog with its Web Component elements and function implementations. */
+export type BasicCatalog = Catalog<WebComponentImplementation, FunctionImplementation>;
 
 /**
- * The single canonical basic catalog of A2UI components implemented via Web Components (Custom Elements).
+ * Returns the v0.9 basic catalog of A2UI components implemented via Web
+ * Components (Custom Elements).
  *
- * Its components and functions are the models generated from the published
- * catalog document (see scripts/generate-catalog-schemas.mjs), listed in the
- * document's order, and its document-level fields are those the generated
- * models carry, so `toJson` computes the published document from the models
- * and `validationSchema` is built from it.
+ * The catalog is the published v0.9 basic catalog document
+ * (`specification/v0_9/catalogs/basic/catalog.json`) loaded with
+ * `Catalog.fromJson`: its components and functions validate against the
+ * document with `validator`, and `toJson` returns the document. Each
+ * component is paired with its element and each function with its
+ * implementation.
+ *
+ * Nothing is built when the module is imported; the catalog is built the
+ * first time it is asked for with a validator, and later calls with the same
+ * validator return the same catalog.
+ *
+ * @param validator The JSON Schema validator, such as `createAjvValidator()`
+ *   from `@a2ui/validator-ajv`.
+ * @throws {A2uiConfigurationError} If `validator` is missing.
  */
-export const basicCatalog = new Catalog<WebComponentImplementation>(
-  'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
-  '0.9',
-  [
-    A2uiText,
-    A2uiImage,
-    A2uiIcon,
-    A2uiVideo,
-    A2uiAudioPlayer,
-    A2uiRow,
-    A2uiColumn,
-    A2uiList,
-    A2uiCard,
-    A2uiTabs,
-    A2uiModal,
-    A2uiDivider,
-    A2uiButton,
-    A2uiTextField,
-    A2uiCheckBox,
-    A2uiChoicePicker,
-    A2uiSlider,
-    A2uiDateTimeInput,
-  ],
-  V09_SPEC_FUNCTIONS,
-  {
-    themeSchema: BasicCatalogThemeSchema,
-    ...BASIC_CATALOG_DOCUMENT_OPTIONS,
-  },
-);
+export const createBasicCatalog: (validator: JsonSchemaValidator) => BasicCatalog =
+  memoizeByValidator(validator => {
+    const api = loadBasicCatalogApi(validator);
+    return api.withEntries(
+      implementComponents(api.components.values(), BASIC_CATALOG_ID),
+      createV09SpecFunctions(validator),
+    );
+  });

@@ -15,35 +15,39 @@
  */
 
 /**
- * Per-component unions of the API definitions that the universal basic catalog
- * elements support. Each element takes its union as a type parameter, so its
- * props are inferred from every supported protocol version's schema.
+ * Per-component unions of the component APIs that the universal basic catalog
+ * elements support: the API of the component in each protocol version's
+ * basic catalog document, typed with that document's generated props type.
+ * A surface picks the document of its own version through its catalog, and
+ * each element takes its union as a type parameter, so its props are typed
+ * as every supported version's document declares them.
  */
 
-import type * as v0_9 from '../../../v0_9/basic_catalog/components/basic_components.js';
-import type {AccessibilityAttributesSchema as AccessibilityAttributesSchema0_9} from '../../../v0_9/schema/common-types.js';
-import type * as v1 from '../../../catalogs/basic/v1/components/basic_components.js';
-import type {AccessibilityAttributesSchema as AccessibilityAttributesSchema1_0} from '../../../v1_0/schema/common-types.js';
+import type {ComponentApi} from '../../../catalog/types.js';
+import type {CatalogSchema} from '../../../schema-engine/types.js';
+import type * as v0_9 from '../../../v0_9/basic_catalog/generated-types.js';
+import type * as v1 from '../../../catalogs/basic/v1/generated-types.js';
 
-export type AccessibilityAttributesSupportedSchemas =
-  | typeof AccessibilityAttributesSchema0_9
-  | typeof AccessibilityAttributesSchema1_0;
+/** A component API whose props are `Props`. */
+type ApiOf<Props> = ComponentApi<CatalogSchema<Props>>;
 
-export type AudioPlayerSupportedApis = typeof v0_9.AudioPlayerApi | typeof v1.AudioPlayerApi;
-export type ButtonSupportedApis = typeof v0_9.ButtonApi | typeof v1.ButtonApi;
-export type CardSupportedApis = typeof v0_9.CardApi | typeof v1.CardApi;
-export type CheckBoxSupportedApis = typeof v0_9.CheckBoxApi | typeof v1.CheckBoxApi;
-export type ChoicePickerSupportedApis = typeof v0_9.ChoicePickerApi | typeof v1.ChoicePickerApi;
-export type ColumnSupportedApis = typeof v0_9.ColumnApi | typeof v1.ColumnApi;
-export type DateTimeInputSupportedApis = typeof v0_9.DateTimeInputApi | typeof v1.DateTimeInputApi;
-export type DividerSupportedApis = typeof v0_9.DividerApi | typeof v1.DividerApi;
-export type IconSupportedApis = typeof v0_9.IconApi | typeof v1.IconApi;
-export type ImageSupportedApis = typeof v0_9.ImageApi | typeof v1.ImageApi;
-export type ListSupportedApis = typeof v0_9.ListApi | typeof v1.ListApi;
-export type ModalSupportedApis = typeof v0_9.ModalApi | typeof v1.ModalApi;
-export type RowSupportedApis = typeof v0_9.RowApi | typeof v1.RowApi;
-export type SliderSupportedApis = typeof v0_9.SliderApi | typeof v1.SliderApi;
-export type TabsSupportedApis = typeof v0_9.TabsApi | typeof v1.TabsApi;
-export type TextSupportedApis = typeof v0_9.TextApi | typeof v1.TextApi;
-export type TextFieldSupportedApis = typeof v0_9.TextFieldApi | typeof v1.TextFieldApi;
-export type VideoSupportedApis = typeof v0_9.VideoApi | typeof v1.VideoApi;
+export type AudioPlayerSupportedApis = ApiOf<v0_9.AudioPlayerProps> | ApiOf<v1.AudioPlayerProps>;
+export type ButtonSupportedApis = ApiOf<v0_9.ButtonProps> | ApiOf<v1.ButtonProps>;
+export type CardSupportedApis = ApiOf<v0_9.CardProps> | ApiOf<v1.CardProps>;
+export type CheckBoxSupportedApis = ApiOf<v0_9.CheckBoxProps> | ApiOf<v1.CheckBoxProps>;
+export type ChoicePickerSupportedApis = ApiOf<v0_9.ChoicePickerProps> | ApiOf<v1.ChoicePickerProps>;
+export type ColumnSupportedApis = ApiOf<v0_9.ColumnProps> | ApiOf<v1.ColumnProps>;
+export type DateTimeInputSupportedApis =
+  | ApiOf<v0_9.DateTimeInputProps>
+  | ApiOf<v1.DateTimeInputProps>;
+export type DividerSupportedApis = ApiOf<v0_9.DividerProps> | ApiOf<v1.DividerProps>;
+export type IconSupportedApis = ApiOf<v0_9.IconProps> | ApiOf<v1.IconProps>;
+export type ImageSupportedApis = ApiOf<v0_9.ImageProps> | ApiOf<v1.ImageProps>;
+export type ListSupportedApis = ApiOf<v0_9.ListProps> | ApiOf<v1.ListProps>;
+export type ModalSupportedApis = ApiOf<v0_9.ModalProps> | ApiOf<v1.ModalProps>;
+export type RowSupportedApis = ApiOf<v0_9.RowProps> | ApiOf<v1.RowProps>;
+export type SliderSupportedApis = ApiOf<v0_9.SliderProps> | ApiOf<v1.SliderProps>;
+export type TabsSupportedApis = ApiOf<v0_9.TabsProps> | ApiOf<v1.TabsProps>;
+export type TextSupportedApis = ApiOf<v0_9.TextProps> | ApiOf<v1.TextProps>;
+export type TextFieldSupportedApis = ApiOf<v0_9.TextFieldProps> | ApiOf<v1.TextFieldProps>;
+export type VideoSupportedApis = ApiOf<v0_9.VideoProps> | ApiOf<v1.VideoProps>;

@@ -16,94 +16,105 @@
 
 /**
  * Function implementations for the v1.0 basic catalog.
+ *
+ * The functions' schemas are those of the published v1 basic catalog
+ * document, loaded with the app's validator; only their execution is defined
+ * here.
  */
 
-import {FunctionImplementation} from '../../../../catalog/types.js';
-import {V10_VALIDATION_FUNCTION_IMPLEMENTATIONS} from '../../../../v1_0/functions/validation_functions.js';
-import {IndexImplementation} from '../../../../v1_0/functions/system_functions.js';
 import {
-  AndApi,
-  OrApi,
-  NotApi,
-  FormatStringApi,
-  FormatNumberApi,
-  FormatCurrencyApi,
-  FormatDateApi,
-  PluralizeApi,
-  OpenUrlApi,
-} from './basic_functions_api.js';
+  implementFunctions,
+  type FunctionExecutorFactory,
+} from '../../../../catalog/basic_catalog_factory.js';
+import type {FunctionImplementation} from '../../../../catalog/types.js';
 import {
   createAndImplementation,
   createOrImplementation,
   createNotImplementation,
   createFormatStringImplementation,
-  createFormatNumberImplementation as createCommonFormatNumber,
-  createFormatCurrencyImplementation as createCommonFormatCurrency,
-  createFormatDateImplementation as createCommonFormatDate,
-  createPluralizeImplementation as createCommonPluralize,
+  createFormatNumberImplementation,
+  createFormatCurrencyImplementation,
+  createFormatDateImplementation,
+  createPluralizeImplementation,
   createOpenUrlImplementation,
   isTruthyOrValid,
 } from '../../../../common/basic_functions.js';
+import {fromJsonSchema, jsonSchemaDocuments} from '../../../../schema-engine/from-json-schema.js';
+import type {JsonSchemaValidator} from '../../../../schema-engine/types.js';
+import {IndexImplementation} from '../../../../v1_0/functions/system_functions.js';
+import {V10_VALIDATION_FUNCTION_EXECUTORS} from '../../../../v1_0/functions/validation_functions.js';
+import {loadBasicCatalogApi} from '../document.js';
 
-// Logical. The v1.0 validators return a ValidationResult, so the logical
-// functions read an operand's `valid` member rather than treating every
-// object as truthy.
-export const AndImplementation = createAndImplementation(AndApi, {truthy: isTruthyOrValid});
-export const OrImplementation = createOrImplementation(OrApi, {truthy: isTruthyOrValid});
-export const NotImplementation = createNotImplementation(NotApi, {truthy: isTruthyOrValid});
-
-// Formatting
-export const FormatStringImplementation = createFormatStringImplementation(FormatStringApi);
-
-export function createFormatNumberImplementation(locale?: string): FunctionImplementation {
-  return createCommonFormatNumber(FormatNumberApi, locale);
+/** Options for the function implementations of the v1 basic catalog. */
+export interface BasicFunctionOptions {
+  /** The BCP 47 locale the formatting functions format with. Defaults to `en-US`. */
+  locale?: string;
 }
-export const FormatNumberImplementation = createFormatNumberImplementation();
-
-export function createFormatCurrencyImplementation(locale?: string): FunctionImplementation {
-  return createCommonFormatCurrency(FormatCurrencyApi, locale);
-}
-export const FormatCurrencyImplementation = createFormatCurrencyImplementation();
-
-export function createFormatDateImplementation(locale?: string): FunctionImplementation {
-  return createCommonFormatDate(FormatDateApi, locale);
-}
-export const FormatDateImplementation = createFormatDateImplementation();
-
-export function createPluralizeImplementation(locale?: string): FunctionImplementation {
-  return createCommonPluralize(PluralizeApi, locale);
-}
-export const PluralizeImplementation = createPluralizeImplementation();
-
-// Actions
-export const OpenUrlImplementation = createOpenUrlImplementation(OpenUrlApi);
 
 /**
- * Creates the complete function set for a v1.0 basic catalog.
- *
- * The set matches the functions declared in
- * `specification/v1_0/catalogs/basic/catalog.json`, plus the `@index` system
- * function, which the `@` namespace makes available to every catalog.
- *
- * @param options Configuration options containing an optional locale.
- * @returns Array of function implementations.
+ * The implementation factory of each function of the v1 basic catalog
+ * document, by name. The v1.0 validators return a ValidationResult, so the
+ * logical functions read an operand's `valid` member rather than treating
+ * every object as truthy.
  */
-export function createBasicCatalogFunctions(options?: {locale?: string}): FunctionImplementation[] {
-  const locale = options?.locale;
-  return [
-    ...V10_VALIDATION_FUNCTION_IMPLEMENTATIONS,
-    FormatStringImplementation,
-    createFormatNumberImplementation(locale),
-    createFormatCurrencyImplementation(locale),
-    createFormatDateImplementation(locale),
-    createPluralizeImplementation(locale),
-    OpenUrlImplementation,
-    AndImplementation,
-    OrImplementation,
-    NotImplementation,
-    IndexImplementation,
-  ];
+function specExecutors(locale?: string): Record<string, FunctionExecutorFactory> {
+  return {
+    ...V10_VALIDATION_FUNCTION_EXECUTORS,
+    formatString: api => createFormatStringImplementation(api),
+    formatNumber: api => createFormatNumberImplementation(api, locale),
+    formatCurrency: api => createFormatCurrencyImplementation(api, locale),
+    formatDate: api => createFormatDateImplementation(api, locale),
+    pluralize: api => createPluralizeImplementation(api, locale),
+    openUrl: api => createOpenUrlImplementation(api),
+    and: api => createAndImplementation(api, {truthy: isTruthyOrValid}),
+    or: api => createOrImplementation(api, {truthy: isTruthyOrValid}),
+    not: api => createNotImplementation(api, {truthy: isTruthyOrValid}),
+  };
 }
 
-/** Standard function implementations for the v1.0 basic catalog. */
-export const BASIC_FUNCTIONS: FunctionImplementation[] = createBasicCatalogFunctions();
+/**
+ * The arguments of the `@index` system function, as the v1.0 common types'
+ * `IndexSystemFunction` declares them.
+ */
+const INDEX_ARGS = {
+  type: 'object',
+  properties: {
+    offset: {
+      $ref: 'common_types.json#/$defs/DynamicNumber',
+      description:
+        'Optional. An offset to add to the 0-based index (e.g., 1 for 1-based indexing). Defaults to 0.',
+      default: 0,
+    },
+  },
+  unevaluatedProperties: false,
+};
+
+/**
+ * Creates the complete function set for a v1.0 basic catalog: the functions
+ * declared in `catalogs/basic/v1/catalog.json`, with the document's schemas,
+ * plus the `@index` system function, which the `@` namespace makes
+ * available to every catalog (its arguments validate against the v1.0 common
+ * types' `IndexSystemFunction` arguments).
+ *
+ * @param validator The JSON Schema validator the functions' arguments validate with.
+ * @param options Options such as the locale of the formatting functions.
+ * @returns The implementations, in the document's order, then `@index`.
+ */
+export function createBasicCatalogFunctions(
+  validator: JsonSchemaValidator,
+  options?: BasicFunctionOptions,
+): FunctionImplementation[] {
+  const catalog = loadBasicCatalogApi(validator);
+  const functions = implementFunctions(
+    catalog.functions.values(),
+    specExecutors(options?.locale),
+    catalog.id,
+  );
+  // The documents the catalog's own function schemas validate with.
+  const documents = jsonSchemaDocuments(functions[0]?.schema);
+  const index: FunctionImplementation = {
+    ...IndexImplementation,
+    schema: fromJsonSchema(INDEX_ARGS, validator, {defs: {...documents}}),
+  };
+  return [...functions, index];
+}

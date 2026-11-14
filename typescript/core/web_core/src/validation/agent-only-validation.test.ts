@@ -18,8 +18,7 @@ import * as assert from 'node:assert';
 import {describe, it} from 'node:test';
 
 import {Catalog, ComponentApi} from '../catalog/types.js';
-import {BASIC_COMPONENTS} from '../catalogs/basic/v1/components/basic_components.js';
-import {BASIC_FUNCTIONS} from '../catalogs/basic/v1/functions/basic_functions.js';
+import {v1BasicCatalog} from '../test/basic_catalogs.js';
 import {A2uiValidationError} from '../errors.js';
 import {MessageProcessor} from '../processing/message-processor.js';
 import {STRICT_VALIDATION} from './integrity-checker.js';
@@ -82,7 +81,7 @@ const ARCANA = Catalog.fromJson(
   undefined,
   {validator: testValidator},
 );
-const BASIC = new Catalog<ComponentApi>(BASIC_ID, '1.0', BASIC_COMPONENTS, BASIC_FUNCTIONS);
+const BASIC = v1BasicCatalog.copyWith<ComponentApi>({catalogId: BASIC_ID});
 
 /** Asserts that `fn` throws the agentOnly error, at `path` when one is given. */
 function assertAgentOnly(fn: () => unknown, path?: string): void {

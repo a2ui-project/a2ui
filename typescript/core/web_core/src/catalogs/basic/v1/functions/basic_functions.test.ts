@@ -20,20 +20,31 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import {effect, Signal, getValue} from '../../../../reactivity/signals.js';
-import {
-  BASIC_FUNCTIONS,
-  FormatCurrencyImplementation,
-  FormatDateImplementation,
-  FormatNumberImplementation,
-  PluralizeImplementation,
-  createBasicCatalogFunctions,
-  createFormatCurrencyImplementation,
-} from './basic_functions.js';
-import {BASIC_FUNCTION_APIS} from './basic_functions_api.js';
+import {createBasicCatalogFunctions as createFunctions} from './basic_functions.js';
+import {loadBasicCatalogApi} from '../document.js';
+import {createAjvValidator} from '../../../../test/validator.js';
+
+// Formats are annotations, as JSON Schema 2020-12 and the Python SDK have
+// them, so `openUrl` receives the relative URLs its `uri` format would
+// otherwise reject, and its implementation resolves them.
+const testValidator = createAjvValidator({formats: false});
 import {DataModel} from '../../../../state/data-model.js';
 import {DataContext} from '../../../../resolution/data-context.js';
 import {A2uiExpressionError, A2uiValidationError} from '../../../../errors.js';
 import {Catalog, ComponentApi} from '../../../../catalog/types.js';
+
+const createBasicCatalogFunctions = (options?: {locale?: string}) =>
+  createFunctions(testValidator, options);
+const BASIC_FUNCTIONS = createBasicCatalogFunctions();
+const BASIC_FUNCTION_APIS = [...loadBasicCatalogApi(testValidator).functions.values()];
+const implementation = (name: string, locale?: string) =>
+  createBasicCatalogFunctions({locale}).find(f => f.name === name)!;
+const FormatCurrencyImplementation = implementation('formatCurrency');
+const FormatDateImplementation = implementation('formatDate');
+const FormatNumberImplementation = implementation('formatNumber');
+const PluralizeImplementation = implementation('pluralize');
+const createFormatCurrencyImplementation = (locale?: string) =>
+  implementation('formatCurrency', locale);
 
 const testCatalog = new Catalog<ComponentApi>('test', '1.0', [], BASIC_FUNCTIONS);
 

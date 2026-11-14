@@ -28,10 +28,8 @@ import {
   type RendererErrorMessage,
 } from './message-error-mapper.js';
 import {Catalog, ComponentApi, createFunctionImplementation} from '../catalog/types.js';
-import {CardApi, RowApi, TabsApi} from '../v0_9/basic_catalog/components/basic_components.js';
 import {BasicCatalogThemeSchema} from '../universal/basic_catalog/theme.js';
-import {BASIC_COMPONENTS} from '../catalogs/basic/v1/components/basic_components.js';
-import {BASIC_FUNCTIONS} from '../catalogs/basic/v1/functions/basic_functions.js';
+import {componentOf, v09BasicCatalog, v1BasicCatalog} from '../test/basic_catalogs.js';
 import {A2uiCatalogError, A2uiIntegrityError, A2uiValidationError} from '../errors.js';
 import {DataContext} from '../resolution/data-context.js';
 import {NodeResolver} from '../resolution/node-resolver.js';
@@ -167,7 +165,11 @@ describe('MessageProcessor', () => {
     });
 
     it('keeps $ref on basic catalog child references despite per-usage descriptions', () => {
-      const cat = new Catalog('cat-basic', '1.0', [CardApi, RowApi, TabsApi]);
+      const cat = new Catalog('cat-basic', '1.0', [
+        componentOf(v09BasicCatalog, 'Card'),
+        componentOf(v09BasicCatalog, 'Row'),
+        componentOf(v09BasicCatalog, 'Tabs'),
+      ]);
       const proc = new MessageProcessor([cat], undefined, {validator: testValidator});
 
       const caps = proc.getRendererCapabilities({
@@ -179,20 +181,19 @@ describe('MessageProcessor', () => {
       assert.ok(components);
 
       const cardChild = components.Card.allOf[1].properties.child;
-      assert.strictEqual(cardChild.$ref, '#/$defs/ComponentId');
+      // The reference as the published v0.9 document writes it.
+      assert.match(cardChild.$ref, /common_types\.json#\/\$defs\/ComponentId$/);
       assert.strictEqual(cardChild.type, undefined);
 
       const rowChildren = components.Row.allOf[1].properties.children;
-      assert.strictEqual(rowChildren.$ref, '#/$defs/ChildList');
+      assert.match(rowChildren.$ref, /common_types\.json#\/\$defs\/ChildList$/);
 
       const tabItems = components.Tabs.allOf[1].properties.tabs.items;
-      assert.strictEqual(tabItems.properties.child.$ref, '#/$defs/ComponentId');
+      assert.match(tabItems.properties.child.$ref, /common_types\.json#\/\$defs\/ComponentId$/);
     });
 
     it('sends each catalog toJson() document as a v1.0 inline catalog', () => {
-      const cat = new Catalog('https://example.com/cat', '1.0', BASIC_COMPONENTS, BASIC_FUNCTIONS, {
-        themeSchema: BasicCatalogThemeSchema,
-      });
+      const cat = v1BasicCatalog.copyWith({catalogId: 'https://example.com/cat'});
       const proc = new MessageProcessor([cat], undefined, {validator: testValidator});
       const caps = proc.getRendererCapabilities({versions: ['1.0'], includeInlineCatalogs: true});
       const inlineCat = (caps['1.0'] as any).inlineCatalogs?.[0] as Record<string, any>;
@@ -584,7 +585,7 @@ describe('MessageProcessor', () => {
     });
 
     describe('maxAgentCallCacheEntries', () => {
-      const catalog = new Catalog('cat', '1.0', BASIC_COMPONENTS);
+      const catalog = v1BasicCatalog.copyWith<ComponentApi>({catalogId: 'cat'});
       const create = {version: '1.0' as const, createSurface: {surfaceId: 's', catalogId: 'cat'}};
 
       it('applies to the surfaces the processor creates', () => {
@@ -616,7 +617,7 @@ describe('MessageProcessor', () => {
     });
 
     describe('per call', () => {
-      const catalog = new Catalog('cat', '1.0', BASIC_COMPONENTS);
+      const catalog = v1BasicCatalog.copyWith<ComponentApi>({catalogId: 'cat'});
       const create = {version: '1.0' as const, createSurface: {surfaceId: 's', catalogId: 'cat'}};
       const danglingChild = {
         version: '1.0' as const,
@@ -759,7 +760,9 @@ describe('MessageProcessor', () => {
   });
 
   describe('MessageProcessor Full Pipeline & Validation Integration', () => {
-    const basicCatalog = new Catalog('https://a2ui.org/catalog', '1.0', BASIC_COMPONENTS);
+    const basicCatalog = v1BasicCatalog.copyWith<ComponentApi>({
+      catalogId: 'https://a2ui.org/catalog',
+    });
 
     it('leaves componentsModel untouched when updateComponents fails topology validation', () => {
       const proc = new MessageProcessor([basicCatalog], undefined, {
@@ -2546,7 +2549,7 @@ describe('MessageProcessor', () => {
         'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json',
         '1.0',
         [],
-        BASIC_FUNCTIONS,
+        [...v1BasicCatalog.functions.values()],
       );
       const handledErrors: RendererErrorMessage[] = [];
       const outboundMessages: unknown[] = [];
@@ -2691,8 +2694,11 @@ describe('MessageProcessor', () => {
   });
 
   describe('unifiedOutbound', () => {
-    const v10Catalog = new Catalog('cat-v10', '1.0', BASIC_COMPONENTS);
-    const v09Catalog = new Catalog('cat-v09', '0.9', [CardApi, RowApi]);
+    const v10Catalog = v1BasicCatalog.copyWith<ComponentApi>({catalogId: 'cat-v10'});
+    const v09Catalog = new Catalog('cat-v09', '0.9', [
+      componentOf(v09BasicCatalog, 'Card'),
+      componentOf(v09BasicCatalog, 'Row'),
+    ]);
 
     it('throws A2uiValidationError when unifiedOutbound is true without outboundListener', () => {
       assert.throws(

@@ -30,7 +30,9 @@ describe('CheckBox Component', () => {
 
   before(async () => {
     setupTestDom();
-    basicCatalog = (await import('../../../v0_9/basic_catalog/index.js')).basicCatalog;
+    basicCatalog = (await import('../../../v0_9/basic_catalog/index.js')).createBasicCatalog(
+      testValidator,
+    );
     basicCatalog.components.forEach(c => registerUniversalElement(c));
     // Ensure component is registered
   });

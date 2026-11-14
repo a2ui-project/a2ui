@@ -22,15 +22,15 @@ import {isDeepStrictEqual} from 'node:util';
 
 import {z} from 'zod';
 
-import {basicCatalog as v10BasicCatalog} from '../catalogs/basic/v1/catalog.js';
-import {A2uiText as V10Text} from '../catalogs/basic/v1/components/index.js';
 import {A2uiCatalogError, A2uiValidationError} from '../errors.js';
 import {MessageProcessor, STRICT_VALIDATION} from '../processing/message-processor.js';
-import {basicCatalog as v08BasicCatalog} from '../v0_8/basic_catalog/catalog.js';
-import {basicCatalog as v09BasicCatalog} from '../v0_9/basic_catalog/catalog.js';
-import {A2uiText as V09Text} from '../v0_9/basic_catalog/components/index.js';
+import {
+  v08BasicCatalog,
+  v09BasicCatalog,
+  v1BasicCatalog as v10BasicCatalog,
+} from '../test/basic_catalogs.js';
 import {exclusiveUnion} from './exclusive_union.js';
-import {JsonComponentApi, JsonFunctionApi} from './json_entries.js';
+import {JsonComponentApi, JsonFunctionApi, loadedDefinition} from './json_entries.js';
 import {generateValidationSchema} from './schema_generator.js';
 import {DEFAULT_PROTOCOL_VERSION} from './from-json.js';
 import {spec, specDef} from './spec_annotations.js';
@@ -45,19 +45,6 @@ import {accepts} from '../test/schema.js';
 
 function readRepoJson(relativePath: string): Record<string, any> {
   return JSON.parse(readFileSync(resolve(process.cwd(), '../../..', relativePath), 'utf-8'));
-}
-
-/**
- * Returns a copy of an entry whose schema carries no specification
- * annotation, so that the catalog generates its definition from Zod.
- */
-function plain<E extends ComponentApi | FunctionApi>(entry: E): E {
-  return {
-    ...entry,
-    schema: (entry.schema as z.ZodTypeAny).describe(
-      (entry.schema as z.ZodTypeAny).description as string,
-    ),
-  };
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -417,7 +404,7 @@ describe('Catalog.toJson', () => {
     assert.strictEqual(overridden.toJson().catalogId, 'https://example.com/other');
   });
 
-  it('computes the definitions of the basic models in another code-defined catalog', () => {
+  it('writes the basic entries, with the definitions they reference, in another code-defined catalog', () => {
     const published = readRepoJson('catalogs/basic/v1/catalog.json');
     const out = new Catalog(
       'https://example.com/reused',
@@ -428,40 +415,6 @@ describe('Catalog.toJson', () => {
     assert.deepStrictEqual(out.components, published.components);
     assert.deepStrictEqual(out.functions, published.functions);
     assert.deepStrictEqual(out.$defs, published.$defs);
-  });
-
-  it('serializes a code-defined v1.0 catalog unbundled, with both unions', () => {
-    const codeDefined = new Catalog(
-      v10BasicCatalog.id,
-      '1.0',
-      [...v10BasicCatalog.components.values()].map(plain),
-      [...v10BasicCatalog.functions.values()].map(plain),
-    );
-    const out = codeDefined.toJson();
-    assert.strictEqual(out.catalogId, v10BasicCatalog.id);
-    assert.strictEqual(out.protocolVersion, '1.0');
-    assert.strictEqual(out.theme, undefined);
-    assert.deepStrictEqual(Object.keys(out.$defs as object).sort(), [
-      'anyComponent',
-      'anyFunction',
-    ]);
-    const functions = out.functions as Record<string, any>;
-    assert.ok(!('@index' in functions), 'system functions are not part of the document');
-    assert.deepStrictEqual(functions.formatNumber.properties['@call'], {const: 'formatNumber'});
-    assert.strictEqual(functions.formatNumber.returnType, 'string');
-    for (const ref of collectRefs(out)) {
-      assert.ok(
-        ref.startsWith('common_types.json#/$defs/') ||
-          ref.startsWith('#/components/') ||
-          ref.startsWith('#/functions/'),
-        `unexpected reference '${ref}'`,
-      );
-    }
-    const text = (out.components as Record<string, any>).Text;
-    assert.deepStrictEqual(text.properties.component, {const: 'Text'});
-    assert.ok(text.required.includes('component'));
-    assert.ok(!('id' in text.properties));
-    assert.strictEqual(Object.hasOwn(text, 'unevaluatedProperties'), false);
   });
 
   it('omits unevaluatedProperties: false and catchall subschemas on v1.0 code-defined components while keeping v0.9 closed and passthrough open', () => {
@@ -1323,17 +1276,12 @@ describe('composite catalogs', () => {
             .reduce<unknown>((node, key) => (node as Record<string, unknown>)?.[key], doc);
           assert.ok(target !== undefined, `reference '${ref}' resolves in toJson`);
         }
-        // The models compute their definitions, and the definitions of their
-        // mixins, in any catalog of their version; common types references
-        // are written against the catalog's common types URI.
+        // The entries are written as their document defines them, with the
+        // definitions of their document they reference, in any catalog.
         const published = basic.toJson();
         const text = (doc.components as Record<string, any>).Text;
         const publishedText = (published.components as Record<string, unknown>).Text;
-        if (withUri || version === '1.0') {
-          assert.deepStrictEqual(text, publishedText);
-        } else {
-          assert.strictEqual(text.allOf[0].$ref, 'common_types.json#/$defs/ComponentCommon');
-        }
+        assert.deepStrictEqual(text, publishedText);
         if (version === '0.9') {
           assert.deepStrictEqual(
             (doc.$defs as Record<string, unknown>).CatalogComponentCommon,
@@ -1375,16 +1323,16 @@ describe('composite catalogs', () => {
 });
 
 describe('entry definitions', () => {
-  it('keeps no JSON definition on the built-in entries, which are generated models', () => {
-    for (const [builtin, text] of [
-      [v09BasicCatalog, V09Text],
-      [v10BasicCatalog, V10Text],
+  it('keeps the definition its document declares on each built-in entry', () => {
+    for (const [builtin, catalogPath] of [
+      [v09BasicCatalog, 'specification/v0_9/catalogs/basic/catalog.json'],
+      [v10BasicCatalog, 'catalogs/basic/v1/catalog.json'],
     ] as const) {
       const entry = builtin.components.get('Text')!;
+      // A Web Component implementation of the loaded API, not the API itself.
       assert.ok(!(entry instanceof JsonComponentApi));
-      assert.ok(!('definition' in entry) && !('jsonSchema' in entry));
-      assert.strictEqual(entry.schema, text.schema);
-      assert.strictEqual(entry.tagName, text.tagName);
+      assert.strictEqual(entry.tagName, 'a2ui-basic-text');
+      assert.deepStrictEqual(loadedDefinition(entry), readRepoJson(catalogPath).components.Text);
     }
   });
 
@@ -1729,74 +1677,7 @@ describe('specification annotations', () => {
   });
 });
 
-describe('built-in basic catalogs', () => {
-  /**
-   * Differences between a built-in catalog's Zod schemas and its
-   * published document that are known and accepted, as `<label>:<entry>`.
-   */
-  const KNOWN_DIFFERENCES = new Set<string>([]);
-
-  type Summary = Record<string, unknown>;
-
-  /** The names, properties, required lists and function metadata of a validation schema. */
-  function summarize(schema: Record<string, unknown>): {
-    components: Record<string, Summary>;
-    functions: Record<string, Summary>;
-  } {
-    const components: Record<string, Summary> = {};
-    for (const [name, comp] of Object.entries((schema.components ?? {}) as Record<string, any>)) {
-      components[name] = {
-        properties: Object.keys(comp.properties ?? {}).sort(),
-        required: [...(comp.required ?? [])].sort(),
-      };
-    }
-    const functions: Record<string, Summary> = {};
-    for (const [name, fn] of Object.entries((schema.functions ?? {}) as Record<string, any>)) {
-      const args = fn.properties?.args ?? {};
-      functions[name] = {
-        returnType: fn.returnType ?? fn.properties?.returnType?.const,
-        allowedCallers: fn.allowedCallers,
-        requiresUserActivation: fn.requiresUserActivation,
-        args: Object.keys(args.properties ?? {}).sort(),
-        argsRequired: [...(args.required ?? [])].sort(),
-      };
-    }
-    return {components, functions};
-  }
-
-  for (const [label, builtin] of [
-    ['v0.8', v08BasicCatalog],
-    ['v0.9', v09BasicCatalog],
-    ['1.0', v10BasicCatalog],
-  ] as const) {
-    it(`keeps the ${label} Zod schemas in line with the published document`, () => {
-      // Copies of the entries without their annotations are generated from Zod.
-      const fromZod = new Catalog(
-        builtin.id,
-        builtin.protocolVersion,
-        [...builtin.components.values()].map(plain),
-        [...builtin.functions.values()].map(plain),
-        {themeSchema: builtin.themeSchema},
-      );
-      const published = summarize(builtin.validationSchema);
-      const zod = summarize(fromZod.validationSchema);
-      assert.deepStrictEqual(
-        Object.keys(zod.components).sort(),
-        Object.keys(published.components).sort(),
-      );
-      assert.deepStrictEqual(
-        Object.keys(zod.functions).sort(),
-        Object.keys(published.functions).sort(),
-      );
-      for (const section of ['components', 'functions'] as const) {
-        for (const [name, expected] of Object.entries(published[section])) {
-          if (KNOWN_DIFFERENCES.has(`${label}:${name}`)) continue;
-          assert.deepStrictEqual(zod[section][name], expected, `${label} ${section} ${name}`);
-        }
-      }
-    });
-  }
-
+describe('specification definition models', () => {
   it('preserves specDef references across .describe(), avoids leaking def metadata, and resolves union disjointness', () => {
     const ColorToken = specDef('ColorToken', z.enum(['primary', 'secondary']).default('primary'), {
       keywords: {title: 'ColorToken'},

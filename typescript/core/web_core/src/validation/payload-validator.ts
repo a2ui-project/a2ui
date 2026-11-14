@@ -26,7 +26,12 @@ import {getKnownSchemaKeys} from '../resolution/data-context.js';
 import {formatIssue, pickIssue, toA2uiIssues} from '../schema-engine/issues.js';
 import type {A2uiIssue} from '../schema-engine/types.js';
 import {zod3Issues} from '../schema-engine/zod3-adapter.js';
-import {AccessibilityAttributesSchema, ComponentCommonSchema} from '../types/common-types.js';
+// ponytail: zod mirrors of the common types until Task 11.
+import {AccessibilityAttributesSchema as V09AccessibilityAttributesSchema} from '../v0_9/schema/common-types.js';
+import {
+  AccessibilityAttributesSchema as V10AccessibilityAttributesSchema,
+  ComponentCommonSchema as V10ComponentCommonSchema,
+} from '../v1_0/schema/common-types.js';
 import {
   AT_COMPONENT_MIXIN_KEYS,
   ComponentMixinLayout,
@@ -333,8 +338,10 @@ export class PayloadValidator {
     if (prepared) {
       const result = validateWith(prepared.schema, properties, `Component '${componentType}'`);
       if (result.issues) {
-        const {message, details} = describeIssues(result.issues);
-        const uniquePaths = new Set(details.map(d => d.path));
+        const {message, details, paths} = describeIssues(result.issues);
+        // An error of a single value points at it; errors of several values
+        // point at the component.
+        const uniquePaths = new Set(paths);
         const firstPath = uniquePaths.size === 1 ? details[0]?.path : undefined;
         throw new A2uiValidationError(
           `Validation failed for component '${componentType}' (${id}): ${message}`,
@@ -372,7 +379,10 @@ export class PayloadValidator {
     if (!('accessibility' in properties) || knownKeys?.has('accessibility')) return;
     const accVal = properties['accessibility'];
     delete properties['accessibility'];
-    this.parseEnvelopeValue(AccessibilityAttributesSchema.optional(), accVal, '/accessibility', {
+    const accessibilitySchema = this.enforceIdentifiers
+      ? V10AccessibilityAttributesSchema
+      : V09AccessibilityAttributesSchema;
+    this.parseEnvelopeValue(accessibilitySchema.optional(), accVal, '/accessibility', {
       componentType,
       id,
     });
@@ -414,7 +424,7 @@ export class PayloadValidator {
       const path = `/${mixin.wireKey}`;
       if (key === 'metadata') {
         this.parseEnvelopeValue(
-          ComponentCommonSchema.shape['@metadata'],
+          V10ComponentCommonSchema.shape['@metadata'],
           mixin.value,
           path,
           subject,
@@ -440,7 +450,7 @@ export class PayloadValidator {
           break;
         case 'accessibility':
           this.parseEnvelopeValue(
-            AccessibilityAttributesSchema.optional(),
+            V10AccessibilityAttributesSchema.optional(),
             mixin.value,
             path,
             subject,
@@ -769,23 +779,32 @@ function ownValidatedProperties(
  *
  * @param issues The Standard Schema issues.
  * @param prefix JSON Pointer of the validated value.
- * @returns The message and the error details.
+ * @returns The message, the error details, and for each issue the path
+ *   of the top-level value it is about (for zod 3, its detail's path).
  */
 function describeIssues(
   issues: readonly StandardSchemaV1.Issue[],
   prefix = '',
-): {message: string; details: A2uiErrorDetail[]} {
+): {message: string; details: A2uiErrorDetail[]; paths: string[]} {
   // ponytail: zod wording for zod 3 schemas until Task 11.
   const zodIssues = zod3Issues(issues);
   if (zodIssues) {
+    const details = zodIssuesToDetails(zodIssues, prefix);
     return {
       message: zodIssues.map(formatZodIssue).join(', '),
-      details: zodIssuesToDetails(zodIssues, prefix),
+      details,
+      paths: details.map(d => d.path),
     };
   }
-  const issue = pickIssue(toA2uiIssues(issues));
+  const all = toA2uiIssues(issues);
+  const issue = pickIssue(all);
   const message = formatIssue(issue);
-  return {message, details: [issueDetail(issue, prefix, message)]};
+  return {
+    message,
+    details: [issueDetail(issue, prefix, message)],
+    // The value each issue is about: the top-level property it is under.
+    paths: all.map(each => issueDetail(each, prefix, '').path.split('/', 2).join('/')),
+  };
 }
 
 /** The error detail of an issue, pointing at the offending value. */

@@ -58,10 +58,10 @@ export const myBadgeComponent: WebComponentImplementation<typeof MyBadgeApi.sche
 
 ## Catalog Registration
 
-The exported `myBadgeComponent` can be registered directly:
+The exported `myBadgeComponent` can be registered directly, next to the basic catalog's components (`basic = createBasicCatalog(validator)` from `@a2ui/web_core/v0_9/basic_catalog`):
 
-- **In Lit**: `new Catalog('my-catalog', '0.9', [...basicCatalog.components.values(), myBadgeComponent], BASIC_FUNCTIONS)`
-- **In React**: `new Catalog('my-catalog', '0.9', [...basicCatalog.components.values(), myBadgeComponent], BASIC_FUNCTIONS)`
+- **In Lit**: `basic.derive({catalogId: 'my-catalog', components: [...basic.components.keys(), myBadgeComponent]})`
+- **In React**: `basic.derive({catalogId: 'my-catalog', components: [...basic.components.keys(), myBadgeComponent]})`
 - **In Angular**: `new AngularCatalog('my-catalog', '0.9', [...BASIC_COMPONENTS, myBadgeComponent], BASIC_FUNCTIONS)` with `useUniversalComponents: true` in `A2UI_RENDERER_CONFIG`
 
 For the full developer guide and advanced patterns (nested children, user actions, two-way data binding), see [Authoring Universal Components](../../../../../../docs/site/src/content/docs/guides/authoring-universal-components.mdx).

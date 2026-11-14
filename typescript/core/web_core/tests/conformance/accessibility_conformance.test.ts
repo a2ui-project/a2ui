@@ -24,7 +24,7 @@ import * as yaml from 'js-yaml';
 import {asyncUpdate, setupTestDom, teardownTestDom} from '../../src/test/dom-setup.js';
 import {render} from 'lit';
 
-import {basicCatalog} from '../../src/catalogs/basic/v1/index.js';
+import {v1BasicCatalog as basicCatalog} from '../../src/test/basic_catalogs.js';
 import {
   MessageProcessor,
   NodeResolver,

@@ -37,8 +37,12 @@ describe('Video Component', () => {
 
   before(async () => {
     setupTestDom();
-    basicCatalog = (await import('../../../v0_9/basic_catalog/index.js')).basicCatalog;
-    v1BasicCatalog = (await import('../../../catalogs/basic/v1/index.js')).basicCatalog;
+    basicCatalog = (await import('../../../v0_9/basic_catalog/index.js')).createBasicCatalog(
+      testValidator,
+    );
+    v1BasicCatalog = (await import('../../../catalogs/basic/v1/index.js')).createBasicCatalog(
+      testValidator,
+    );
     basicCatalog.components.forEach(c => registerUniversalElement(c));
   });
 

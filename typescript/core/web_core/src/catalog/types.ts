@@ -29,6 +29,7 @@ import {assertUax31Identifier} from '../common/uax31.js';
 import {SpecVersion} from '../spec_versions.js';
 import {AgentFunction, bindAgentFunctionDefs, isAgentFunction} from './agent_function.js';
 import {parseCatalogSchema, type FromJsonOptions} from './from-json.js';
+import {copyLoadedDefinition} from './loaded_definitions.js';
 import {getDeclaredSchemaKeys} from './json_schema_to_zod.js';
 import type {JsonSchemaObject} from './spec_annotations.js';
 import {generateValidationSchema} from './schema_generator.js';
@@ -179,7 +180,7 @@ export function createFunctionImplementation<
     abortSignal?: AbortSignal,
   ) => InferA2uiReturnType<TReturn> | Signal<InferA2uiReturnType<TReturn>>,
 ): FunctionImplementation {
-  return {
+  const implementation: FunctionImplementation = {
     name: api.name,
     returnType: api.returnType,
     schema: api.schema,
@@ -192,6 +193,10 @@ export function createFunctionImplementation<
       ab?: AbortSignal,
     ) => unknown,
   };
+  // An implementation of a function `Catalog.fromJson` loaded keeps its
+  // definition, so `toJson` writes it as the catalog document does.
+  copyLoadedDefinition(api, implementation);
+  return implementation;
 }
 
 import {FunctionInvoker} from './function_invoker.js';

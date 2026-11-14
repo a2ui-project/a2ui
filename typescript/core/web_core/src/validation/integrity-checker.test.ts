@@ -25,7 +25,7 @@ import {z} from 'zod';
 
 import {buildComponentRefMap, ComponentRefMap} from '../catalog/reference-map.js';
 import {Catalog} from '../catalog/types.js';
-import {BASIC_COMPONENTS} from '../catalogs/basic/v1/components/basic_components.js';
+import {v1BasicCatalog} from '../test/basic_catalogs.js';
 import {A2uiIntegrityError, A2uiRecursionError} from '../errors.js';
 import {ComponentModel} from '../state/component-model.js';
 import {SurfaceComponentsModel} from '../state/surface-components-model.js';
@@ -95,7 +95,7 @@ describe('Integrity Verification', () => {
     });
 
     it('treats only the declared sub-key of the shipped Tabs schema as a reference', () => {
-      const refMap = buildComponentRefMap(BASIC_COMPONENTS, V10_CHILD_REF_OPTIONS);
+      const refMap = buildComponentRefMap(v1BasicCatalog, V10_CHILD_REF_OPTIONS);
 
       assert.deepEqual(refMap['Tabs'].nestedRefs, {tabs: new Set(['child'])});
 

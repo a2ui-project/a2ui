@@ -24,7 +24,7 @@ import {css, html, nothing, render} from 'lit';
 import {z} from 'zod';
 
 import {Catalog, ComponentApi} from '../catalog/index.js';
-import {basicCatalog} from '../catalogs/basic/v1/catalog.js';
+import {createBasicCatalog} from '../catalogs/basic/v1/catalog.js';
 import {MessageProcessor} from '../processing/message-processor.js';
 import {getValue, peekValue} from '../reactivity/signals.js';
 import {ComponentContext} from '../resolution/component-context.js';
@@ -33,6 +33,8 @@ import {CheckableSchema} from '../v0_9/schema/common-types.js';
 import {A2uiLitElement} from './a2ui-lit-element.js';
 import {A2UI_ELEMENT_CONNECTED_EVENT} from './element_connected_event.js';
 import {testValidator} from '../test/validator.js';
+
+const basicCatalog = createBasicCatalog(testValidator);
 
 const MockTextApi = {
   name: 'Text',

@@ -16,47 +16,32 @@
 
 /**
  * Function implementations for the v0.9 basic catalog.
+ *
+ * The functions' schemas are those of the published v0.9 basic catalog
+ * document, loaded with the app's validator; only their execution is defined
+ * here.
  */
 
-import {createFunctionImplementation, FunctionImplementation} from '../../../catalog/types.js';
 import {
-  AndApi,
-  OrApi,
-  NotApi,
-  RequiredApi,
-  RegexApi,
-  LengthApi,
-  NumericApi,
-  EmailApi,
-  FormatStringApi,
-  FormatNumberApi,
-  FormatCurrencyApi,
-  FormatDateApi,
-  PluralizeApi,
-  OpenUrlApi,
-} from './basic_functions_api.js';
+  implementFunctions,
+  type FunctionExecutorFactory,
+} from '../../../catalog/basic_catalog_factory.js';
 import {
-  AddApi,
-  SubtractApi,
-  MultiplyApi,
-  DivideApi,
-  EqualsApi,
-  NotEqualsApi,
-  GreaterThanApi,
-  LessThanApi,
-  ContainsApi,
-  StartsWithApi,
-  EndsWithApi,
-} from './legacy_functions_api.js';
+  createFunctionImplementation,
+  type FunctionApi,
+  type FunctionImplementation,
+} from '../../../catalog/types.js';
+import {fromJsonSchema} from '../../../schema-engine/from-json-schema.js';
+import type {JsonSchema, JsonSchemaValidator} from '../../../schema-engine/types.js';
 import {
   createAndImplementation,
   createOrImplementation,
   createNotImplementation,
   createFormatStringImplementation,
-  createFormatNumberImplementation as createCommonFormatNumber,
-  createFormatCurrencyImplementation as createCommonFormatCurrency,
-  createFormatDateImplementation as createCommonFormatDate,
-  createPluralizeImplementation as createCommonPluralize,
+  createFormatNumberImplementation,
+  createFormatCurrencyImplementation,
+  createFormatDateImplementation,
+  createPluralizeImplementation,
   createOpenUrlImplementation,
   validateRequired,
   validateRegex,
@@ -64,270 +49,171 @@ import {
   validateNumeric,
   validateEmail,
 } from '../../../common/basic_functions.js';
+import {loadBasicCatalogApi} from '../document.js';
 
 export {isSafeRegex, type SafeRegexOptions} from './safe_regex.js';
-export {
-  AddApi,
-  SubtractApi,
-  MultiplyApi,
-  DivideApi,
-  EqualsApi,
-  NotEqualsApi,
-  GreaterThanApi,
-  LessThanApi,
-  ContainsApi,
-  StartsWithApi,
-  EndsWithApi,
-  LEGACY_V09_FUNCTION_APIS,
-} from './legacy_functions_api.js';
 
-// Legacy arithmetic, comparison, and string functions. See
-// `legacy_functions_api.ts` for why they are kept.
-/**
- * Implementation of the legacy `add` function.
- *
- * @deprecated Define `add` in your own catalog instead; the v0.9 basic
- *   catalog document does not include it.
- */
-export const AddImplementation = createFunctionImplementation(AddApi, args => args.a + args.b);
-/**
- * Implementation of the legacy `subtract` function.
- *
- * @deprecated Define `subtract` in your own catalog instead; the v0.9 basic
- *   catalog document does not include it.
- */
-export const SubtractImplementation = createFunctionImplementation(
-  SubtractApi,
-  args => args.a - args.b,
-);
-/**
- * Implementation of the legacy `multiply` function.
- *
- * @deprecated Define `multiply` in your own catalog instead; the v0.9 basic
- *   catalog document does not include it.
- */
-export const MultiplyImplementation = createFunctionImplementation(
-  MultiplyApi,
-  args => args.a * args.b,
-);
-/**
- * Implementation of the legacy `divide` function.
- *
- * @deprecated Define `divide` in your own catalog instead; the v0.9 basic
- *   catalog document does not include it.
- */
-export const DivideImplementation = createFunctionImplementation(DivideApi, args => {
-  const numA = Number(args.a);
-  const numB = Number(args.b);
-  if (Number.isNaN(numA) || Number.isNaN(numB)) {
-    return NaN;
-  }
-  if (numB === 0) {
-    return Infinity;
-  }
-  return numA / numB;
-});
+/** Options for the function implementations of the v0.9 basic catalog. */
+export interface BasicFunctionOptions {
+  /** The BCP 47 locale the formatting functions format with. Defaults to `en-US`. */
+  locale?: string;
+}
 
 /**
- * Implementation of the legacy `equals` function.
- *
- * @deprecated Define `equals` in your own catalog instead; the v0.9 basic
- *   catalog document does not include it.
+ * The implementation factory of each function of the v0.9 basic catalog
+ * document, by name.
  */
-export const EqualsImplementation = createFunctionImplementation(
-  EqualsApi,
-  args => args.a === args.b,
-);
-/**
- * Implementation of the legacy `not_equals` function.
- *
- * @deprecated Define `not_equals` in your own catalog instead; the v0.9 basic
- *   catalog document does not include it.
- */
-export const NotEqualsImplementation = createFunctionImplementation(
-  NotEqualsApi,
-  args => args.a !== args.b,
-);
-/**
- * Implementation of the legacy `greater_than` function.
- *
- * @deprecated Define `greater_than` in your own catalog instead; the v0.9 basic
- *   catalog document does not include it.
- */
-export const GreaterThanImplementation = createFunctionImplementation(
-  GreaterThanApi,
-  args => args.a > args.b,
-);
-/**
- * Implementation of the legacy `less_than` function.
- *
- * @deprecated Define `less_than` in your own catalog instead; the v0.9 basic
- *   catalog document does not include it.
- */
-export const LessThanImplementation = createFunctionImplementation(
-  LessThanApi,
-  args => args.a < args.b,
-);
+function specExecutors(locale?: string): Record<string, FunctionExecutorFactory> {
+  return {
+    required: api => createFunctionImplementation(api, args => validateRequired(args.value).valid),
+    regex: api =>
+      createFunctionImplementation(api, args => validateRegex(args.value, args.pattern).valid),
+    length: api =>
+      createFunctionImplementation(
+        api,
+        args => validateLength(args.value, args.min, args.max).valid,
+      ),
+    numeric: api =>
+      createFunctionImplementation(
+        api,
+        args => validateNumeric(args.value, args.min, args.max).valid,
+      ),
+    email: api => createFunctionImplementation(api, args => validateEmail(args.value).valid),
+    formatString: api => createFormatStringImplementation(api),
+    formatNumber: api => createFormatNumberImplementation(api, locale),
+    formatCurrency: api => createFormatCurrencyImplementation(api, locale),
+    formatDate: api => createFormatDateImplementation(api, locale),
+    pluralize: api => createPluralizeImplementation(api, locale),
+    openUrl: api => createOpenUrlImplementation(api),
+    and: api => createAndImplementation(api),
+    or: api => createOrImplementation(api),
+    not: api => createNotImplementation(api),
+  };
+}
 
 /**
- * Implementation of the legacy `contains` function.
+ * Creates the function implementations of the published v0.9 basic catalog
+ * document, with the document's schemas. This is what `createBasicCatalog`
+ * registers.
  *
- * @deprecated Define `contains` in your own catalog instead; the v0.9 basic
- *   catalog document does not include it.
+ * @param validator The JSON Schema validator the functions' arguments validate with.
+ * @param options Options such as the locale of the formatting functions.
+ * @returns The implementations, in the document's order.
  */
-export const ContainsImplementation = createFunctionImplementation(ContainsApi, args =>
-  args.string.includes(args.substring),
-);
-/**
- * Implementation of the legacy `starts_with` function.
- *
- * @deprecated Define `starts_with` in your own catalog instead; the v0.9 basic
- *   catalog document does not include it.
- */
-export const StartsWithImplementation = createFunctionImplementation(StartsWithApi, args =>
-  args.string.startsWith(args.prefix),
-);
-/**
- * Implementation of the legacy `ends_with` function.
- *
- * @deprecated Define `ends_with` in your own catalog instead; the v0.9 basic
- *   catalog document does not include it.
- */
-export const EndsWithImplementation = createFunctionImplementation(EndsWithApi, args =>
-  args.string.endsWith(args.suffix),
-);
+export function createV09SpecFunctions(
+  validator: JsonSchemaValidator,
+  options?: BasicFunctionOptions,
+): FunctionImplementation[] {
+  const catalog = loadBasicCatalogApi(validator);
+  return implementFunctions(catalog.functions.values(), specExecutors(options?.locale), catalog.id);
+}
 
-/**
- * The legacy function implementations, in the order `@a2ui/web_core` 0.9.x
- * listed them.
- *
- * @deprecated See `legacy_functions_api.ts`.
- */
-export const LEGACY_V09_FUNCTIONS: FunctionImplementation[] = [
-  AddImplementation,
-  SubtractImplementation,
-  MultiplyImplementation,
-  DivideImplementation,
-  EqualsImplementation,
-  NotEqualsImplementation,
-  GreaterThanImplementation,
-  LessThanImplementation,
-  ContainsImplementation,
-  StartsWithImplementation,
-  EndsWithImplementation,
+// The legacy functions of @a2ui/web_core 0.9.x, which the published v0.9
+// basic catalog document never defined. Their schemas are written here as
+// JSON Schema; they convert their arguments themselves.
+
+const scalar: JsonSchema = {type: ['number', 'string', 'boolean']};
+const present: JsonSchema = {not: {type: 'null'}};
+
+function legacyArgs(properties: Record<string, JsonSchema>): JsonSchema {
+  return {type: 'object', properties, required: Object.keys(properties)};
+}
+
+interface LegacyFunction {
+  readonly name: string;
+  readonly returnType: 'number' | 'boolean';
+  readonly args: JsonSchema;
+  readonly execute: (args: Record<string, unknown>) => unknown;
+}
+
+const numbers = legacyArgs({a: scalar, b: scalar});
+const values = legacyArgs({a: present, b: present});
+
+const LEGACY_FUNCTIONS: readonly LegacyFunction[] = [
+  {name: 'add', returnType: 'number', args: numbers, execute: a => Number(a.a) + Number(a.b)},
+  {name: 'subtract', returnType: 'number', args: numbers, execute: a => Number(a.a) - Number(a.b)},
+  {name: 'multiply', returnType: 'number', args: numbers, execute: a => Number(a.a) * Number(a.b)},
+  {
+    name: 'divide',
+    returnType: 'number',
+    args: numbers,
+    execute: a => {
+      const numA = Number(a.a);
+      const numB = Number(a.b);
+      if (Number.isNaN(numA) || Number.isNaN(numB)) return NaN;
+      if (numB === 0) return Infinity;
+      return numA / numB;
+    },
+  },
+  {name: 'equals', returnType: 'boolean', args: values, execute: a => a.a === a.b},
+  {name: 'not_equals', returnType: 'boolean', args: values, execute: a => a.a !== a.b},
+  {
+    name: 'greater_than',
+    returnType: 'boolean',
+    args: numbers,
+    execute: a => Number(a.a) > Number(a.b),
+  },
+  {
+    name: 'less_than',
+    returnType: 'boolean',
+    args: numbers,
+    execute: a => Number(a.a) < Number(a.b),
+  },
+  {
+    name: 'contains',
+    returnType: 'boolean',
+    args: legacyArgs({string: scalar, substring: scalar}),
+    execute: a => String(a.string).includes(String(a.substring)),
+  },
+  {
+    name: 'starts_with',
+    returnType: 'boolean',
+    args: legacyArgs({string: scalar, prefix: scalar}),
+    execute: a => String(a.string).startsWith(String(a.prefix)),
+  },
+  {
+    name: 'ends_with',
+    returnType: 'boolean',
+    args: legacyArgs({string: scalar, suffix: scalar}),
+    execute: a => String(a.string).endsWith(String(a.suffix)),
+  },
 ];
 
-// Logical
-export const AndImplementation = createAndImplementation(AndApi);
-export const OrImplementation = createOrImplementation(OrApi);
-export const NotImplementation = createNotImplementation(NotApi);
-
-// Validation
-export const RequiredImplementation = createFunctionImplementation(
-  RequiredApi,
-  args => validateRequired(args.value).valid,
-);
-
-export const RegexImplementation = createFunctionImplementation(
-  RegexApi,
-  args => validateRegex(args.value, args.pattern).valid,
-);
-
-export const LengthImplementation = createFunctionImplementation(
-  LengthApi,
-  args => validateLength(args.value, args.min, args.max).valid,
-);
-
-export const NumericImplementation = createFunctionImplementation(
-  NumericApi,
-  args => validateNumeric(args.value, args.min, args.max).valid,
-);
-
-export const EmailImplementation = createFunctionImplementation(
-  EmailApi,
-  args => validateEmail(args.value).valid,
-);
-
-// Formatting
-export const FormatStringImplementation = createFormatStringImplementation(FormatStringApi);
-
-export function createFormatNumberImplementation(locale?: string): FunctionImplementation {
-  return createCommonFormatNumber(FormatNumberApi, locale);
-}
-export const FormatNumberImplementation = createFormatNumberImplementation();
-
-export function createFormatCurrencyImplementation(locale?: string): FunctionImplementation {
-  return createCommonFormatCurrency(FormatCurrencyApi, locale);
-}
-export const FormatCurrencyImplementation = createFormatCurrencyImplementation();
-
-export function createFormatDateImplementation(locale?: string): FunctionImplementation {
-  return createCommonFormatDate(FormatDateApi, locale);
-}
-export const FormatDateImplementation = createFormatDateImplementation();
-
-export function createPluralizeImplementation(locale?: string): FunctionImplementation {
-  return createCommonPluralize(PluralizeApi, locale);
-}
-export const PluralizeImplementation = createPluralizeImplementation();
-
-// Actions
-export const OpenUrlImplementation = createOpenUrlImplementation(OpenUrlApi);
+/** The names of the legacy functions, in the order `@a2ui/web_core` 0.9.x listed them. */
+export const LEGACY_V09_FUNCTION_NAMES: readonly string[] = LEGACY_FUNCTIONS.map(f => f.name);
 
 /**
- * Creates the function implementations defined by the published v0.9 basic
- * catalog document.
+ * Creates the legacy function implementations of `@a2ui/web_core` 0.9.x
+ * (`add`, `equals`, `contains` and the rest), which the published v0.9
+ * basic catalog document does not define.
  *
- * @param options Configuration options containing optional locale.
- * @returns Array of function implementations.
+ * @deprecated Define these functions in your own catalog instead.
+ * @param validator The JSON Schema validator the functions' arguments validate with.
  */
-export function createV09SpecFunctions(options?: {locale?: string}): FunctionImplementation[] {
-  const locale = options?.locale;
-  return [
-    RequiredImplementation,
-    RegexImplementation,
-    LengthImplementation,
-    NumericImplementation,
-    EmailImplementation,
-    FormatStringImplementation,
-    createFormatNumberImplementation(locale),
-    createFormatCurrencyImplementation(locale),
-    createFormatDateImplementation(locale),
-    createPluralizeImplementation(locale),
-    OpenUrlImplementation,
-    AndImplementation,
-    OrImplementation,
-    NotImplementation,
-  ];
+export function createLegacyV09Functions(validator: JsonSchemaValidator): FunctionImplementation[] {
+  return LEGACY_FUNCTIONS.map(fn => {
+    const api: FunctionApi = {
+      name: fn.name,
+      returnType: fn.returnType,
+      schema: fromJsonSchema(fn.args, validator),
+    };
+    return createFunctionImplementation(api, args => fn.execute(args as Record<string, unknown>));
+  });
 }
 
 /**
- * Function implementations defined by the published v0.9 basic catalog
- * document. This is what `basicCatalog` registers.
- */
-export const V09_SPEC_FUNCTIONS: FunctionImplementation[] = createV09SpecFunctions();
-
-/**
- * Creates standard function implementations for the Basic Catalog.
- *
- * Includes the legacy functions of `@a2ui/web_core` 0.9.x ahead of the ones
+ * Creates the standard function implementations for the Basic Catalog: the
+ * deprecated legacy functions of `@a2ui/web_core` 0.9.x ahead of the ones
  * the v0.9 specification defines, so a catalog composed from this list
- * behaves as it did before 1.0. The legacy entries are deprecated; a catalog
- * that should match the published document uses {@link createV09SpecFunctions}.
+ * behaves as it did before 1.0. A catalog that should match the published
+ * document uses {@link createV09SpecFunctions}.
  *
- * @param options Configuration options containing optional locale.
- * @returns Array of function implementations.
+ * @param validator The JSON Schema validator the functions' arguments validate with.
+ * @param options Options such as the locale of the formatting functions.
  */
-export function createBasicCatalogFunctions(options?: {locale?: string}): FunctionImplementation[] {
-  return [...LEGACY_V09_FUNCTIONS, ...createV09SpecFunctions(options)];
+export function createBasicCatalogFunctions(
+  validator: JsonSchemaValidator,
+  options?: BasicFunctionOptions,
+): FunctionImplementation[] {
+  return [...createLegacyV09Functions(validator), ...createV09SpecFunctions(validator, options)];
 }
-
-/**
- * Standard function implementations for the Basic Catalog.
- *
- * Includes arithmetic, comparison, string, logical, validation, formatting,
- * and action functions. The arithmetic, comparison, and string entries are
- * the deprecated legacy functions of 0.9.x; {@link V09_SPEC_FUNCTIONS} holds
- * only the functions the v0.9 specification defines.
- */
-export const BASIC_FUNCTIONS: FunctionImplementation[] = createBasicCatalogFunctions();

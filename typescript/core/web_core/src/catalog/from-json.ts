@@ -637,6 +637,7 @@ function parseFunctionDefinitions(
           fn.name,
           fn as Record<string, unknown>,
           schemaOf(fn.name, parameters),
+          documentDefsOf(rootDoc),
         );
         assertUserActivationCallers(entry);
         if (permittedNames && !permittedNames.has(fn.name)) continue;
@@ -652,7 +653,12 @@ function parseFunctionDefinitions(
       const argsSchema = functionArgsSchema(rawDefn);
       assertFunctionIdentifiers(name, functionParameterNames(argsSchema, rootDoc));
       if (!defn || typeof defn !== 'object') continue;
-      const entry = new JsonFunctionApi(name, rawDefn, schemaOf(name, argsSchema));
+      const entry = new JsonFunctionApi(
+        name,
+        rawDefn,
+        schemaOf(name, argsSchema),
+        documentDefsOf(rootDoc),
+      );
       assertUserActivationCallers(entry);
       if (permittedNames && !permittedNames.has(name)) continue;
       result.push(entry);
@@ -671,7 +677,8 @@ function parseCatalogComponents(
   componentsMap: Record<string, unknown>,
   schemaOf: (name: string) => () => CatalogSchema,
   atLeastV10: boolean,
-  permittedNames?: Set<string>,
+  permittedNames: Set<string> | undefined,
+  defs: Readonly<Record<string, unknown>> | undefined,
 ): ComponentApi[] {
   const components: ComponentApi[] = [];
   for (const [name, rawCompSchema] of Object.entries(componentsMap)) {
@@ -697,7 +704,7 @@ function parseCatalogComponents(
       }
     }
     if (permittedNames && !permittedNames.has(name)) continue;
-    components.push(new JsonComponentApi(name, rawComp, schemaOf(name)));
+    components.push(new JsonComponentApi(name, rawComp, schemaOf(name), defs));
   }
   return components;
 }
@@ -825,6 +832,7 @@ export function parseCatalogSchema(
       ),
     atLeastV10,
     permittedNames,
+    documentDefsOf(catalogSchema),
   );
 
   const anyFunc = defs?.anyFunction as Record<string, unknown> | undefined;
@@ -866,6 +874,13 @@ const DOCUMENT_STRING_FIELDS = {
 
 /** Top-level keys of a catalog document that `Catalog` models besides the string fields. */
 const DOCUMENT_STRUCTURE_FIELDS = new Set(['protocolVersion', 'catalogId', 'components']);
+
+/** The named `$defs` of a (frozen) catalog document, if it has any. */
+function documentDefsOf(
+  document: Readonly<Record<string, unknown>>,
+): Readonly<Record<string, unknown>> | undefined {
+  return isPlainObject(document['$defs']) ? document['$defs'] : undefined;
+}
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);

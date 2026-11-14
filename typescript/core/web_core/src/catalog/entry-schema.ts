@@ -275,7 +275,7 @@ export function validateWith(
  * serializers, which convert zod 3 schemas themselves; `undefined` for zod 3
  * or a missing schema.
  */
-// ponytail: removed with the zod basic catalogs in Task 10/11, when the
+// ponytail: removed with zod in Task 11, when the
 // serializers no longer convert zod 3 schemas.
 export function nonZodSchemaJson(
   schema: AuthoredSchema | undefined,

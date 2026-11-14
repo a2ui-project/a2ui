@@ -29,7 +29,12 @@ import {
   registerUniversalElement,
   type WebComponentImplementation,
 } from '../../index.js';
-import {ImageApi} from '../../../v0_9/basic_catalog/components/basic_components.js';
+import {componentOf, v09BasicCatalog} from '../../../test/basic_catalogs.js';
+import {validated} from '../../../test/schema.js';
+
+const ImageApi = componentOf(v09BasicCatalog, 'Image');
+/** The props the component's schema validates \`value\` to; throws if it rejects it. */
+const parse = (value: unknown): any => validated(ImageApi.schema, value);
 import {testValidator} from '../../../test/validator.js';
 
 describe('Image Component', () => {
@@ -37,7 +42,9 @@ describe('Image Component', () => {
 
   before(async () => {
     setupTestDom();
-    basicCatalog = (await import('../../../v0_9/basic_catalog/index.js')).basicCatalog;
+    basicCatalog = (await import('../../../v0_9/basic_catalog/index.js')).createBasicCatalog(
+      testValidator,
+    );
     basicCatalog.components.forEach(c => registerUniversalElement(c));
   });
 
@@ -225,7 +232,7 @@ describe('Image Component', () => {
         url: 'https://example.com/image.png',
         description: 'An example image',
       };
-      const parsed = ImageApi.schema.parse(validImage);
+      const parsed = parse(validImage);
       assert.strictEqual(parsed.url, 'https://example.com/image.png');
       assert.strictEqual(parsed.description, 'An example image');
     });
@@ -234,7 +241,7 @@ describe('Image Component', () => {
       const validImage = {
         url: 'https://example.com/image.png',
       };
-      const parsed = ImageApi.schema.parse(validImage);
+      const parsed = parse(validImage);
       assert.strictEqual(parsed.url, 'https://example.com/image.png');
       assert.strictEqual(parsed.description, undefined);
     });
@@ -243,7 +250,7 @@ describe('Image Component', () => {
       const invalidImage = {
         url: 123, // Invalid type
       };
-      assert.throws(() => ImageApi.schema.parse(invalidImage));
+      assert.throws(() => parse(invalidImage));
     });
   });
 

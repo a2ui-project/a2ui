@@ -35,12 +35,13 @@ import {
   type WebComponentImplementation,
 } from '../../../universal/index.js';
 import {html, nothing} from 'lit';
-import {SliderApi} from './index.js';
+import {componentOf, v1BasicCatalog} from '../../../test/basic_catalogs.js';
+import {accepts} from '../../../test/schema.js';
 import {testValidator} from '../../../test/validator.js';
 import type {AuthoredSchema} from '../../../catalog/entry-schema.js';
 import {cursorOf} from '../../../test/schema.js';
 
-// ponytail: zod 3 component schemas until Task 10.
+// ponytail: zod 3 fixture schemas until Task 11 (the basic catalog entries are JSON).
 const bridged = (schema: AuthoredSchema) => cursorOf(schema, '1.0');
 
 describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
@@ -49,7 +50,7 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
 
   before(async () => {
     setupTestDom();
-    basicCatalog = (await import('./index.js')).basicCatalog;
+    basicCatalog = (await import('./index.js')).createBasicCatalog(testValidator);
     basicCatalog.components.forEach(c => registerUniversalElement(c));
   });
 
@@ -750,12 +751,8 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
   });
 
   it('SliderApi v1.0 schema accepts steps property and omits step attribute when max <= min', async () => {
-    const result = SliderApi.schema.safeParse({
-      max: 100,
-      steps: 10,
-      value: 50,
-    });
-    assert.strictEqual(result.success, true);
+    const SliderApi = componentOf(v1BasicCatalog, 'Slider');
+    assert.strictEqual(accepts(SliderApi.schema, {max: 100, steps: 10, value: 50}), true);
 
     const processor = new MessageProcessor([basicCatalog], undefined, {validator: testValidator});
     processor.processMessages([
@@ -792,45 +789,6 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
 
     const inputEl = sliderEl.querySelector('input[type="range"]') as HTMLInputElement;
     assert.strictEqual(inputEl.hasAttribute('step'), false);
-  });
-
-  it('extractFunctionDefinition preserves first argsSchema in allOf while scanning requiresUserActivation', async () => {
-    const modulePath = '../../../../../scripts/generate-catalog-schemas.mjs';
-    const {extractFunctionDefinition} = (await import(modulePath)) as {
-      extractFunctionDefinition: (
-        funcName: string,
-        funcDef: Record<string, unknown>,
-      ) => {
-        argsProps: Record<string, unknown>;
-        requiresUserActivation: boolean;
-      };
-    };
-
-    const extracted = extractFunctionDefinition('testFn', {
-      allOf: [
-        {
-          properties: {
-            args: {
-              type: 'object',
-              properties: {firstArg: {type: 'string'}},
-              required: ['firstArg'],
-            },
-          },
-        },
-        {
-          properties: {
-            args: {
-              type: 'object',
-              properties: {secondArg: {type: 'number'}},
-            },
-            requiresUserActivation: {const: true},
-          },
-        },
-      ],
-    });
-
-    assert.deepStrictEqual(Object.keys(extracted.argsProps), ['firstArg']);
-    assert.strictEqual(extracted.requiresUserActivation, true);
   });
 
   it('handles undefined navigator.userActivation without throwing TypeError', () => {

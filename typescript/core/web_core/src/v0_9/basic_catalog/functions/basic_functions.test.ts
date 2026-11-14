@@ -21,18 +21,30 @@ import {effect, Signal, getValue} from '../../../reactivity/signals.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  BASIC_FUNCTIONS,
-  LEGACY_V09_FUNCTIONS,
-  V09_SPEC_FUNCTIONS,
-  createBasicCatalogFunctions,
+  createBasicCatalogFunctions as createFunctions,
+  createLegacyV09Functions,
+  createV09SpecFunctions,
+  LEGACY_V09_FUNCTION_NAMES,
 } from './basic_functions.js';
-import {BASIC_FUNCTION_APIS} from './basic_functions_api.js';
-import {LEGACY_V09_FUNCTION_APIS} from './legacy_functions_api.js';
-import {basicCatalog} from '../catalog.js';
+import {createBasicCatalog, loadBasicCatalogApi} from '../catalog.js';
+import {createAjvValidator} from '../../../test/validator.js';
+
+// Formats are annotations, as JSON Schema 2020-12 and the Python SDK have
+// them, so `openUrl` receives the relative URLs its `uri` format would
+// otherwise reject, and its implementation resolves them.
+const testValidator = createAjvValidator({formats: false});
 import {DataModel} from '../../../state/data-model.js';
 import {DataContext} from '../../../resolution/data-context.js';
 import {A2uiExpressionError} from '../../../errors.js';
 import {Catalog, ComponentApi} from '../../../catalog/types.js';
+
+const createBasicCatalogFunctions = (options?: {locale?: string}) =>
+  createFunctions(testValidator, options);
+const BASIC_FUNCTIONS = createBasicCatalogFunctions();
+const LEGACY_V09_FUNCTIONS = createLegacyV09Functions(testValidator);
+const V09_SPEC_FUNCTIONS = createV09SpecFunctions(testValidator);
+const BASIC_FUNCTION_APIS = [...loadBasicCatalogApi(testValidator).functions.values()];
+const basicCatalog = createBasicCatalog(testValidator);
 
 const testCatalog = new Catalog<ComponentApi>('test', '0.9', [], BASIC_FUNCTIONS);
 
@@ -66,10 +78,7 @@ describe('BASIC_FUNCTION_APIS Spec Parity', () => {
       'starts_with',
       'ends_with',
     ];
-    assert.deepStrictEqual(
-      LEGACY_V09_FUNCTION_APIS.map(f => f.name),
-      legacyNames,
-    );
+    assert.deepStrictEqual(LEGACY_V09_FUNCTION_NAMES, legacyNames);
     assert.deepStrictEqual(
       LEGACY_V09_FUNCTIONS.map(f => f.name),
       legacyNames,

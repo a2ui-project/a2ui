@@ -104,7 +104,7 @@ The `Catalog` constructor takes a `CatalogOptions` object as its fifth argument,
 `catalog.derive(options)` returns a new catalog under its own id, built from entries of `catalog` and new ones. In `components` and `functions`, a name keeps the entry of that name and an object adds an entry. The new catalog does not keep the source's `$id`, title, description or instructions, since the instructions of the basic catalog, for example, name its id in their examples:
 
 ```ts
-const chatCatalog = basicCatalog.derive({
+const chatCatalog = createBasicCatalog(validator).derive({
   catalogId: 'https://example.com/catalogs/chat.json',
   components: ['Text', 'Image', 'Row', 'Column', 'Button', carousel],
   functions: ['openUrl'],
@@ -136,7 +136,19 @@ const Badge = {
 const document = new Catalog('https://example.com/badges', '0.9', [Badge]).toJson();
 ```
 
-The built-in basic catalogs are built this way. Their components and functions are Zod models generated from the published catalog documents by `scripts/generate-catalog-schemas.mjs` (v0.9 and v1) and `src/v0_8/scripts/generate-catalog.mjs` (v0.8), which run as part of `yarn generate-zod-schemas`. For every schema node, the generator predicts the JSON Schema that `toJson` derives from the Zod code it emits, and annotates the node with the difference from the published schema. `toJson` of each basic catalog computes its published document from the models; no copy of the document is kept in the package.
+### Built-in basic catalogs
+
+The built-in basic catalogs are their published catalog documents, loaded with `Catalog.fromJson` the first time they are asked for with a validator; nothing is built when a module is imported. Each version exports a memoised factory, `createBasicCatalog(validator)`, which returns the same catalog for the same validator:
+
+```ts
+import {createAjvValidator} from '@a2ui/validator-ajv';
+import {createBasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+
+const validator = createAjvValidator();
+const basicCatalog = createBasicCatalog(validator); // catalogs/basic/v1/catalog.json
+```
+
+`@a2ui/web_core/v0_9/basic_catalog` and `@a2ui/web_core/v0_8/basic_catalog` export the v0.9 and v0.8 factories. The v0.9 and v1 catalogs pair each component with its Web Component element and each function with its implementation; `toJson()` of each returns its published document. The props types of the components (`TextProps`, `ButtonProps`, ...) are generated from the same documents by `scripts/generate-basic-catalog-types.mjs` into `generated-types.ts`, which runs as part of `yarn generate-zod-schemas`.
 
 ## Development
 

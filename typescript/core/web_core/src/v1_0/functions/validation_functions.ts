@@ -14,68 +14,42 @@
  * limitations under the License.
  */
 
+/**
+ * The validation functions of v1.0 catalogs (`required`, `regex`,
+ * `length`, `numeric`, `email`), which return a validation result
+ * object. Their schemas come from the catalog document that declares them,
+ * such as the v1.0 basic catalog; only their execution is defined here.
+ */
+
+import type {FunctionExecutorFactory} from '../../catalog/basic_catalog_factory.js';
 import {createFunctionImplementation} from '../../catalog/types.js';
-import {
-  RequiredV1Point0Api,
-  RegexV1Point0Api,
-  LengthV1Point0Api,
-  NumericV1Point0Api,
-  EmailV1Point0Api,
-} from './validation_functions_api.js';
 import {
   validateRequired,
   validateRegex,
   validateLength,
   validateNumeric,
   validateEmail,
+  type ValidationResult,
 } from '../../common/basic_functions.js';
 
-/**
- * Validates that a value is present and non-empty for v1.0 catalogs.
- *
- * Returns a validation result object with an error message if invalid.
- */
-export const RequiredV1Point0Implementation = createFunctionImplementation(
-  RequiredV1Point0Api,
-  args => validateRequired(args.value),
-);
+declare module '../../catalog/types.js' {
+  interface A2uiReturnTypeMap {
+    validationResult: ValidationResult;
+  }
+}
 
 /**
- * Validates that a string matches a regular expression pattern for v1.0 catalogs.
- *
- * @throws {A2uiExpressionError} If the pattern is invalid.
+ * The implementation factory of each v1.0 validation function, by name: each
+ * returns a validation result object, with an error message when invalid.
  */
-export const RegexV1Point0Implementation = createFunctionImplementation(RegexV1Point0Api, args =>
-  validateRegex(args.value, args.pattern),
-);
-
-/**
- * Validates that string or array length falls within an optional range for v1.0 catalogs.
- */
-export const LengthV1Point0Implementation = createFunctionImplementation(LengthV1Point0Api, args =>
-  validateLength(args.value, args.min, args.max),
-);
-
-/**
- * Validates that a numeric value falls within an optional range for v1.0 catalogs.
- */
-export const NumericV1Point0Implementation = createFunctionImplementation(
-  NumericV1Point0Api,
-  args => validateNumeric(args.value, args.min, args.max),
-);
-
-/**
- * Validates that a string matches basic email address syntax for v1.0 catalogs.
- */
-export const EmailV1Point0Implementation = createFunctionImplementation(EmailV1Point0Api, args =>
-  validateEmail(args.value),
-);
-
-/** Standard validation function implementations for v1.0 catalogs. */
-export const V10_VALIDATION_FUNCTION_IMPLEMENTATIONS = [
-  RequiredV1Point0Implementation,
-  RegexV1Point0Implementation,
-  LengthV1Point0Implementation,
-  NumericV1Point0Implementation,
-  EmailV1Point0Implementation,
-];
+export const V10_VALIDATION_FUNCTION_EXECUTORS: Readonly<Record<string, FunctionExecutorFactory>> =
+  {
+    required: api => createFunctionImplementation(api, args => validateRequired(args.value)),
+    regex: api =>
+      createFunctionImplementation(api, args => validateRegex(args.value, args.pattern)),
+    length: api =>
+      createFunctionImplementation(api, args => validateLength(args.value, args.min, args.max)),
+    numeric: api =>
+      createFunctionImplementation(api, args => validateNumeric(args.value, args.min, args.max)),
+    email: api => createFunctionImplementation(api, args => validateEmail(args.value)),
+  };

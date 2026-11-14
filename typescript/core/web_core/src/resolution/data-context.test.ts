@@ -40,11 +40,7 @@ import {
 } from './data-context.js';
 import {withActiveCallCatalogId} from './data-context-internal.js';
 import {Catalog, createFunctionImplementation} from '../catalog/types.js';
-import {
-  FormatStringImplementation,
-  NotImplementation,
-  PluralizeImplementation,
-} from '../catalogs/basic/v1/functions/basic_functions.js';
+import {functionOf, v1BasicCatalog} from '../test/basic_catalogs.js';
 import type {JsonSchema} from '../schema-engine/types.js';
 import {MAX_FUNCTION_CALL_ARGS} from '../types/helpers.js';
 import {
@@ -54,6 +50,10 @@ import {
   A2uiValidationError,
 } from '../errors.js';
 import {testValidator} from '../test/validator.js';
+
+const FormatStringImplementation = functionOf(v1BasicCatalog, 'formatString');
+const NotImplementation = functionOf(v1BasicCatalog, 'not');
+const PluralizeImplementation = functionOf(v1BasicCatalog, 'pluralize');
 
 const createTestDataContext = (
   model: DataModel,

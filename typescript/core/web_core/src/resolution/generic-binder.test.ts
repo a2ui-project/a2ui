@@ -31,14 +31,9 @@ import {ComponentContext} from './component-context.js';
 import {SurfaceModel} from '../state/surface-model.js';
 import {Catalog, FunctionImplementation} from '../catalog/types.js';
 import {ComponentModel} from '../state/component-model.js';
-import {
-  CommonSchemas,
-  DataBindingSchema,
-  type ChildList,
-  type DataBinding,
-  type DynamicString,
-  type FunctionCall,
-} from '../types/common-types.js';
+import type {ChildList, DataBinding, DynamicString, FunctionCall} from '../types/common-types.js';
+// ponytail: zod mirrors of the v0.9 common types (the fixtures' spelling) until Task 11.
+import {CommonSchemas, DataBindingSchema} from '../v0_9/schema/common-types.js';
 import type {JsonSchema} from '../schema-engine/types.js';
 import type {AuthoredSchema} from '../catalog/entry-schema.js';
 import {cursorOf} from '../test/schema.js';
@@ -69,7 +64,7 @@ const record = (values: JsonSchema = {}): JsonSchema => ({
 });
 
 // ponytail: the binder tests below build their components from zod 3
-// schemas, as code-defined catalogs do until Task 10.
+// schemas, as code-defined catalogs may until Task 11.
 const bridged = (schema: AuthoredSchema) => cursorOf(schema);
 
 describe('GenericBinder Checkable Trait', () => {

@@ -15,15 +15,18 @@
  * limitations under the License.
  */
 
-// ponytail: the zod parts are removed with the zod basic catalogs in Task
-// 10/11. A loaded entry is bundled from its stored definition; zod 3 entries
-// defined in code (the basic catalogs) are still converted here.
+// ponytail: the zod parts are removed with zod in Task 11. A loaded entry
+// (the basic catalogs included) is bundled from its stored definition; zod 3
+// entries defined in code (custom catalogs, test fixtures) are still
+// converted here.
 
 import type {z} from 'zod';
 import {zodToJsonSchema} from 'zod-to-json-schema';
 
 import {isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
-import {CommonSchemas} from '../types/common-types.js';
+// ponytail: the zod mirrors of the common types until Task 11.
+import {CommonSchemas as V09CommonSchemas} from '../v0_9/schema/common-types.js';
+import {CommonSchemas as V10CommonSchemas} from '../v1_0/schema/common-types.js';
 import {exclusiveUnionOverride} from './exclusive_union.js';
 import {
   catalogDocumentModel,
@@ -894,16 +897,26 @@ function processFunctions(
   };
 }
 
+/** Groups `[name, description]` pairs by name. */
+function groupDescriptions(
+  pairs: ReadonlyArray<[string, string]>,
+): ReadonlyMap<string, ReadonlySet<string>> {
+  const grouped = new Map<string, Set<string>>();
+  for (const [name, description] of pairs) {
+    let set = grouped.get(name);
+    if (!set) grouped.set(name, (set = new Set()));
+    set.add(description);
+  }
+  return grouped;
+}
+
 /**
- * Descriptions the shared Zod mirrors of the common types carry on their
- * `REF:` markers, by definition name.
- *
- * The mirrors are shared by every protocol version, so their text is one
- * version's. A reference that carries exactly this text did not get it from
- * its author.
+ * Descriptions the Zod mirrors of the common types (v0.9 and v1.0) carry on
+ * their `REF:` markers, by definition name. A reference that carries exactly
+ * one of these texts did not get it from its author.
  */
-const MIRROR_REF_DESCRIPTIONS: ReadonlyMap<string, string> = new Map(
-  Object.values(CommonSchemas).flatMap(mirror => {
+const MIRROR_REF_DESCRIPTIONS: ReadonlyMap<string, ReadonlySet<string>> = groupDescriptions(
+  [...Object.values(V09CommonSchemas), ...Object.values(V10CommonSchemas)].flatMap(mirror => {
     const description = (mirror as {description?: unknown}).description;
     if (typeof description !== 'string' || !description.startsWith('REF:')) return [];
     const content = description.substring(4);
@@ -970,7 +983,8 @@ function describeStandardRefs(
       ? undefined
       : (standardDefs[name] as JsonObject | undefined);
     const inherited =
-      obj['description'] === undefined || obj['description'] === MIRROR_REF_DESCRIPTIONS.get(name);
+      obj['description'] === undefined ||
+      MIRROR_REF_DESCRIPTIONS.get(name)?.has(obj['description'] as string) === true;
     if (definition && inherited) {
       if (typeof definition['description'] === 'string') {
         obj['description'] = definition['description'];
