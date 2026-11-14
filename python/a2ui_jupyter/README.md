@@ -39,7 +39,7 @@ surface.send(
             "version": "1.0",
             "createSurface": {
                 "surfaceId": "example",
-                "catalogId": "https://a2ui.org/specification/v1_0/basic_catalog.json",
+                "catalogId": "https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json",
             },
         },
         {
@@ -76,6 +76,24 @@ sent through `surface.send`.
 
 The awaited methods require top-level `await` in an IPython kernel. Blocking
 waits are not supported.
+
+## Examples
+
+The [examples](./examples) folder contains notebooks that run in JupyterLab.
+[renderer_setup.py](./examples/renderer_setup.py) is a shared helper. It checks
+that the widget bundle is built and creates a surface that uses the basic
+catalog. Notebooks import it with `from renderer_setup import new_surface`, so
+open them from the `examples` folder or keep the working directory there.
+
+- `01_text_and_layout.ipynb`: text, rows, columns, cards, and dividers.
+- `02_button_action.ipynb`: a button that sends an action, waited on with `next_action`.
+- `03_login_form.ipynb`: text fields with `checks` validation and a login action.
+- `04_streaming_updates.ipynb`: appending to a data model and editing components in place.
+- `05_event_handlers.ipynb`: `on_action` and `on_message` handlers and unsubscribing.
+- `06_agent_function_call.ipynb`: a button that calls an agent function and replies with `agentFunctionResponse`.
+
+The notebooks that wait for a click (`02` and `03`) stop at `await
+surface.next_action()` until you click the surface in JupyterLab.
 
 ## Kernel compatibility
 
