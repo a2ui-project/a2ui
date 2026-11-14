@@ -237,3 +237,18 @@ export {
 } from './common/regex_subset.js';
 export {SpecVersion} from './spec_versions.js';
 export {isSafeRegex, type SafeRegexOptions} from './v0_9/basic_catalog/functions/safe_regex.js';
+export {
+  assertSync,
+  formatIssue,
+  fromJsonSchema,
+  pickIssue,
+  toA2uiIssues,
+  type A2uiIssue,
+  type CatalogSchema,
+  type CompileOptions,
+  type CompiledValidator,
+  type JsonSchema,
+  type JsonSchemaValidator,
+  type ValidationResult,
+} from './schema-engine/index.js';
+export {A2uiConfigurationError} from './errors.js';

@@ -1,0 +1,67 @@
+/*
+ * Copyright 2024 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import * as assert from 'node:assert';
+import {describe, it} from 'node:test';
+import {fromJsonSchema} from './from-json-schema.js';
+import type {CompiledValidator, JsonSchemaValidator} from './types.js';
+
+const fakeValidator: JsonSchemaValidator = {
+  compile: <T>(): CompiledValidator<T> =>
+    ((v: unknown) =>
+      typeof v === 'string'
+        ? {success: true, data: v}
+        : {
+            success: false,
+            issues: [{path: [], message: 'must be string', keyword: 'type'}],
+          }) as CompiledValidator<T>,
+};
+
+describe('fromJsonSchema', () => {
+  const schema = {type: 'string'};
+  const cs = fromJsonSchema(schema, fakeValidator);
+
+  it('reports the a2ui vendor', () => {
+    assert.strictEqual(cs['~standard'].vendor, 'a2ui');
+    assert.strictEqual(cs['~standard'].version, 1);
+  });
+
+  it('exposes the input schema as JSON Schema', () => {
+    assert.deepStrictEqual(cs['~standard'].jsonSchema.input({target: 'draft-2020-12'}), schema);
+    assert.deepStrictEqual(cs['~standard'].jsonSchema.output({target: 'draft-2020-12'}), schema);
+  });
+
+  it('validates successfully', () => {
+    assert.deepStrictEqual(cs['~standard'].validate('x'), {value: 'x'});
+  });
+
+  it('returns standard issues on failure', () => {
+    const r = cs['~standard'].validate(1) as {issues: {path: PropertyKey[]; message: string}[]};
+    assert.deepStrictEqual(r.issues, [{message: 'must be string', path: []}]);
+  });
+
+  it('passes defs through to compile', () => {
+    let seen: unknown;
+    const v: JsonSchemaValidator = {
+      compile: (_s, opts) => {
+        seen = opts;
+        return (() => ({success: true, data: null})) as never;
+      },
+    };
+    fromJsonSchema({}, v, {defs: {'a.json': true}});
+    assert.deepStrictEqual(seen, {defs: {'a.json': true}});
+  });
+});

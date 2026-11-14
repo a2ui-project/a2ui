@@ -295,3 +295,21 @@ export class A2uiRpcError extends A2uiError {
     this.rawMessage = message;
   }
 }
+
+/**
+ * Error thrown when the application's schema engine or catalog wiring is
+ * misconfigured (for example, an asynchronous validator where a synchronous
+ * one is required).
+ */
+export class A2uiConfigurationError extends A2uiError {
+  /**
+   * Initializes a new `A2uiConfigurationError` instance.
+   *
+   * @param message Human-readable error description.
+   * @param code Machine-readable error category code. Defaults to `'CONFIGURATION_ERROR'`.
+   * @param context Optional error context metadata.
+   */
+  constructor(message: string, code: string = 'CONFIGURATION_ERROR', context?: A2uiErrorContext) {
+    super(message, code, context);
+  }
+}

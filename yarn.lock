@@ -509,6 +509,7 @@ __metadata:
     "@angular/core": "npm:^21.2.5"
     "@lit/context": "npm:^1.1.6"
     "@preact/signals-core": "npm:^1.14.2"
+    "@standard-schema/spec": "npm:^1.1.0"
     "@types/js-yaml": "npm:^4.0.9"
     "@types/jsdom": "npm:^28.0.3"
     "@types/node": "npm:^25.9.3"
