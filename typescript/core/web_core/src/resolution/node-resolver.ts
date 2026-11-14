@@ -384,7 +384,7 @@ export class NodeResolver<
         parent,
         occurrence,
         refFields: extractRefFields(schemaJson.node, schemaJson.doc, refOptions),
-        behavior: scrapeComponentBehavior(api.schema, refOptions),
+        behavior: scrapeComponentBehavior(schemaJson.node, schemaJson.doc, refOptions),
         componentModel: model,
         binder,
       },

@@ -45,6 +45,7 @@ import {
   NotImplementation,
   PluralizeImplementation,
 } from '../catalogs/basic/v1/functions/basic_functions.js';
+import type {JsonSchema} from '../schema-engine/types.js';
 import {MAX_FUNCTION_CALL_ARGS} from '../types/helpers.js';
 import {
   A2uiCatalogError,
@@ -789,32 +790,69 @@ describe('DataContext', () => {
   });
 
   describe('Function Argument Stripping & Resource Consumption (Issue #2384)', () => {
-    it('getKnownSchemaKeys extracts keys from ZodObject and ZodEffects', () => {
-      const objSchema = z.object({a: z.string(), b: z.number()});
-      assert.deepStrictEqual(getKnownSchemaKeys(objSchema), new Set(['a', 'b']));
+    it('getKnownSchemaKeys extracts keys from objects, unions, intersections and refs', () => {
+      const doc = (root: JsonSchema, defs: Record<string, JsonSchema> = {}) => ({root, defs});
+      const keys = (node: JsonSchema, defs?: Record<string, JsonSchema>) =>
+        getKnownSchemaKeys(node, doc(node, defs));
 
-      const refinedSchema = z
-        .object({value: z.any(), min: z.number().optional()})
-        .refine(data => data.value !== undefined);
-      assert.deepStrictEqual(getKnownSchemaKeys(refinedSchema), new Set(['value', 'min']));
+      const objSchema = {
+        type: 'object',
+        properties: {a: {type: 'string'}, b: {type: 'number'}},
+      };
+      assert.deepStrictEqual(keys(objSchema), new Set(['a', 'b']));
 
-      const passthroughSchema = z.object({a: z.string()}).passthrough();
-      assert.strictEqual(getKnownSchemaKeys(passthroughSchema), null);
+      // A closed object, or one whose extra keys are typed, still declares its keys.
+      const closedSchema = {
+        type: 'object',
+        properties: {value: {}, min: {type: 'number'}},
+        additionalProperties: false,
+      };
+      assert.deepStrictEqual(keys(closedSchema), new Set(['value', 'min']));
 
-      const unionSchema = z.union([z.object({x: z.string()}), z.object({y: z.number()})]);
-      assert.deepStrictEqual(getKnownSchemaKeys(unionSchema), new Set(['x', 'y']));
+      const passthroughSchema = {
+        type: 'object',
+        properties: {a: {type: 'string'}},
+        additionalProperties: true,
+      };
+      assert.strictEqual(keys(passthroughSchema), null);
 
-      const intersectionSchema = z.intersection(
-        z.object({a: z.string()}),
-        z.object({b: z.number()}),
+      const unionSchema = {
+        anyOf: [
+          {type: 'object', properties: {x: {type: 'string'}}},
+          {type: 'object', properties: {y: {type: 'number'}}},
+        ],
+      };
+      assert.deepStrictEqual(keys(unionSchema), new Set(['x', 'y']));
+
+      const intersectionSchema = {
+        allOf: [
+          {type: 'object', properties: {a: {type: 'string'}}},
+          {type: 'object', properties: {b: {type: 'number'}}},
+        ],
+      };
+      assert.deepStrictEqual(keys(intersectionSchema), new Set(['a', 'b']));
+
+      const intersectionWithPassthrough = {
+        allOf: [
+          {type: 'object', properties: {a: {type: 'string'}}},
+          {type: 'object', properties: {b: {type: 'number'}}, additionalProperties: true},
+        ],
+      };
+      assert.strictEqual(keys(intersectionWithPassthrough), null);
+
+      // Nullable wrappers and `$ref`s into another document are followed.
+      const nullableRef = {
+        anyOf: [{$ref: 'common.json#/$defs/Args'}, {type: 'null'}],
+      };
+      assert.deepStrictEqual(
+        keys(nullableRef, {
+          'common.json': {$defs: {Args: {type: 'object', properties: {n: {}}}}},
+        }),
+        new Set(['n']),
       );
-      assert.deepStrictEqual(getKnownSchemaKeys(intersectionSchema), new Set(['a', 'b']));
 
-      const intersectionWithPassthrough = z.intersection(
-        z.object({a: z.string()}),
-        z.object({b: z.number()}).passthrough(),
-      );
-      assert.strictEqual(getKnownSchemaKeys(intersectionWithPassthrough), null);
+      // A record declares no keys.
+      assert.strictEqual(keys({type: 'object', additionalProperties: {type: 'string'}}), null);
     });
 
     it('validateFunctionArgs allows valid keys when schema is available', () => {

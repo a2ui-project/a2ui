@@ -39,7 +39,32 @@ import {
   type DynamicString,
   type FunctionCall,
 } from '../types/common-types.js';
+import type {JsonSchema} from '../schema-engine/types.js';
+import {toSchemaDoc} from '../schema-engine/zod-bridge.js';
 import type {Action as V1Action, CheckRule as V1CheckRule} from '../v1_0/schema/common-types.js';
+import V10CommonTypes from '../v1_0/schemas/common_types.json' with {type: 'json'};
+import type {ChildRefAnalysisOptions} from './ref-fields.js';
+
+const COMMON_DEFS: Record<string, JsonSchema> = {'common_types.json': V10CommonTypes as JsonSchema};
+
+/** A `$ref` to a v1.0 common types definition. */
+const commonRef = (name: string): JsonSchema => ({$ref: `common_types.json#/$defs/${name}`});
+
+/** Scrapes a JSON Schema fixture that may reference the v1.0 common types. */
+function scrape(node: JsonSchema, options?: ChildRefAnalysisOptions) {
+  return scrapeSchemaBehavior(node, {root: node, defs: COMMON_DEFS}, options);
+}
+
+// ponytail: bridge until Task 8 — these fixtures also build a GenericBinder,
+// which takes the component's Zod schema, so they are scraped through the bridge.
+function scrapeZod(schema: z.ZodTypeAny, options?: ChildRefAnalysisOptions) {
+  const c = toSchemaDoc(schema);
+  return scrapeSchemaBehavior(c.node, c.doc, options);
+}
+function scrapeComponentZod(schema: z.ZodTypeAny, options?: ChildRefAnalysisOptions) {
+  const c = toSchemaDoc(schema);
+  return scrapeComponentBehavior(c.node, c.doc, options);
+}
 
 describe('GenericBinder Checkable Trait', () => {
   function setupSurfaceAndMocks() {
@@ -784,70 +809,64 @@ describe('GenericBinder Checkable Trait', () => {
   });
 
   describe('scrapeSchemaBehavior schema inference', () => {
-    it('should infer behavior from schema descriptions', () => {
+    it('should infer behavior from schema descriptions and $refs', () => {
       // Description-based matching across formats (relative, URI, pipe-annotated)
+      assert.deepStrictEqual(scrape({description: 'REF:common_types.json#/$defs/Action'}), {
+        type: 'ACTION',
+      });
       assert.deepStrictEqual(
-        scrapeSchemaBehavior(z.unknown().describe('REF:common_types.json#/$defs/Action')),
+        scrape({description: 'REF:https://a2ui.org/v1_0/common_types.json#/$defs/Action|On click'}),
         {type: 'ACTION'},
       );
-      assert.deepStrictEqual(
-        scrapeSchemaBehavior(
-          z
-            .unknown()
-            .describe('REF:https://a2ui.org/v1_0/common_types.json#/$defs/Action|On click'),
-        ),
-        {type: 'ACTION'},
-      );
-      assert.deepStrictEqual(scrapeSchemaBehavior(z.unknown().describe('REF:#/$defs/ChildList')), {
+      assert.deepStrictEqual(scrape({description: 'REF:#/$defs/ChildList'}), {
         type: 'STRUCTURAL',
       });
       assert.deepStrictEqual(
-        scrapeSchemaBehavior(
-          z.unknown().describe('REF:common_types.json#/$defs/ChildList|Children array'),
-        ),
+        scrape({description: 'REF:common_types.json#/$defs/ChildList|Children array'}),
         {type: 'STRUCTURAL'},
       );
+      assert.deepStrictEqual(scrape({description: 'REF:#/$defs/DynamicString'}), {
+        type: 'DYNAMIC',
+      });
       assert.deepStrictEqual(
-        scrapeSchemaBehavior(z.unknown().describe('REF:#/$defs/DynamicString')),
-        {
-          type: 'DYNAMIC',
-        },
-      );
-      assert.deepStrictEqual(
-        scrapeSchemaBehavior(
-          z
-            .unknown()
-            .describe('REF:https://a2ui.org/v1_0/common_types.json#/$defs/DynamicNumber|Age'),
-        ),
+        scrape({
+          description: 'REF:https://a2ui.org/v1_0/common_types.json#/$defs/DynamicNumber|Age',
+        }),
         {type: 'DYNAMIC'},
       );
-      assert.deepStrictEqual(
-        scrapeSchemaBehavior(z.unknown().describe('REF:common_types.json#/$defs/DataBinding')),
-        {
-          type: 'DYNAMIC',
-        },
-      );
+      assert.deepStrictEqual(scrape({description: 'REF:common_types.json#/$defs/DataBinding'}), {
+        type: 'DYNAMIC',
+      });
+
+      // `$ref`s to the common types definitions
+      assert.deepStrictEqual(scrape(commonRef('Action')), {type: 'ACTION'});
+      assert.deepStrictEqual(scrape(commonRef('ChildList')), {type: 'STRUCTURAL'});
+      assert.deepStrictEqual(scrape(commonRef('DynamicString')), {type: 'DYNAMIC'});
+      assert.deepStrictEqual(scrape(commonRef('DynamicBoolean')), {
+        type: 'DYNAMIC',
+        isBoolean: true,
+      });
 
       // Descriptions without the REF: prefix must NOT be treated as reference schemas
-      assert.deepStrictEqual(scrapeSchemaBehavior(z.unknown().describe('#/$defs/ChildList')), {
-        type: 'STATIC',
-      });
-      assert.deepStrictEqual(scrapeSchemaBehavior(z.unknown().describe('Action')), {
-        type: 'STATIC',
-      });
-      assert.deepStrictEqual(scrapeSchemaBehavior(z.unknown().describe('CheckRule')), {
-        type: 'STATIC',
-      });
+      assert.deepStrictEqual(scrape({description: '#/$defs/ChildList'}), {type: 'STATIC'});
+      assert.deepStrictEqual(scrape({description: 'Action'}), {type: 'STATIC'});
+      assert.deepStrictEqual(scrape({description: 'CheckRule'}), {type: 'STATIC'});
 
       // Ref-annotated Checkable or array of CheckRule is CHECKABLE, while unannotated fields (even if named 'checks') are STATIC
-      const objSchema = z.object({
-        checkableField: CommonSchemas.Checkable.shape.checks,
-        rulesField: z.array(z.unknown().describe('REF:common_types.json#/$defs/CheckRule')),
-        checks: z.unknown(),
-        customProp: z.unknown(),
-      });
+      const objSchema = {
+        type: 'object',
+        properties: {
+          checkableField: {type: 'array', items: commonRef('CheckRule')},
+          rulesField: {
+            type: 'array',
+            items: {description: 'REF:common_types.json#/$defs/CheckRule'},
+          },
+          checks: {},
+          customProp: {},
+        },
+      };
 
-      const behavior = scrapeSchemaBehavior(objSchema);
+      const behavior = scrape(objSchema);
       assert.strictEqual(behavior.type, 'OBJECT');
       if (behavior.type === 'OBJECT') {
         assert.strictEqual(behavior.shape.checkableField.type, 'CHECKABLE');
@@ -856,14 +875,23 @@ describe('GenericBinder Checkable Trait', () => {
         assert.strictEqual(behavior.shape.customProp.type, 'STATIC');
       }
 
-      // Do not short-circuit to DYNAMIC if property is a nested ZodObject or ZodArray
-      const nestedSchema = z.object({
-        value: z.object({
-          nestedField: z.string().describe('REF:#/$defs/DynamicString'),
-        }),
-        text: z.array(z.string().describe('REF:#/$defs/DynamicString')),
-      });
-      const nestedBehavior = scrapeSchemaBehavior(nestedSchema);
+      // Do not short-circuit to DYNAMIC if property is a nested object or array
+      const nestedSchema = {
+        type: 'object',
+        properties: {
+          value: {
+            type: 'object',
+            properties: {
+              nestedField: {type: 'string', description: 'REF:#/$defs/DynamicString'},
+            },
+          },
+          text: {
+            type: 'array',
+            items: {type: 'string', description: 'REF:#/$defs/DynamicString'},
+          },
+        },
+      };
+      const nestedBehavior = scrape(nestedSchema);
       assert.strictEqual(nestedBehavior.type, 'OBJECT');
       if (nestedBehavior.type === 'OBJECT') {
         assert.strictEqual(nestedBehavior.shape.value.type, 'OBJECT');
@@ -1269,74 +1297,79 @@ describe('GenericBinder Checkable Trait', () => {
     assert.strictEqual(binder.snapshot.validationErrors, undefined);
   });
 
-  it('should unwrap ZodBranded and ZodLazy schemas and preserve outer wrapper descriptions', () => {
-    // Outer description on optional wrapper
-    const optionalAction = z.unknown().describe('REF:common_types.json#/$defs/Action').optional();
-    assert.deepStrictEqual(scrapeSchemaBehavior(optionalAction), {type: 'ACTION'});
+  it('should follow $refs and nullable wrappers and preserve outer descriptions', () => {
+    // Outer description on a nullable wrapper
+    const nullableAction = {
+      anyOf: [{}, {type: 'null'}],
+      description: 'REF:common_types.json#/$defs/Action',
+    };
+    assert.deepStrictEqual(scrape(nullableAction), {type: 'ACTION'});
 
-    // ZodBranded
-    const brandedDynamic = z.string().describe('REF:#/$defs/DynamicString').brand<'CustomBrand'>();
-    assert.deepStrictEqual(scrapeSchemaBehavior(brandedDynamic), {type: 'DYNAMIC'});
+    // Description on a node next to its type
+    const describedDynamic = {type: 'string', description: 'REF:#/$defs/DynamicString'};
+    assert.deepStrictEqual(scrape(describedDynamic), {type: 'DYNAMIC'});
 
-    // ZodLazy
-    const lazyAction = z.lazy(() => z.unknown().describe('REF:#/$defs/Action'));
-    assert.deepStrictEqual(scrapeSchemaBehavior(lazyAction), {type: 'ACTION'});
+    // A local `$ref` to a definition carrying the description
+    const localRefAction = {
+      $ref: '#/$defs/OnClick',
+      $defs: {OnClick: {description: 'REF:#/$defs/Action'}},
+    };
+    assert.deepStrictEqual(scrape(localRefAction), {type: 'ACTION'});
 
-    // Checkable wrapped in optional
-    const optionalCheckable = CommonSchemas.Checkable.shape.checks.optional();
-    assert.deepStrictEqual(scrapeSchemaBehavior(optionalCheckable), {type: 'CHECKABLE'});
+    // Checkable list wrapped as nullable
+    const nullableCheckable = {
+      anyOf: [{type: 'array', items: commonRef('CheckRule')}, {type: 'null'}],
+    };
+    assert.deepStrictEqual(scrape(nullableCheckable), {type: 'CHECKABLE'});
 
-    // Union option with wrapped object shape containing ComponentId
-    const componentIdSchema = z.string().describe('REF:common_types.json#/$defs/ComponentId');
-    const templateChildOption = z
-      .object({
-        target: componentIdSchema,
-        data: z.string().describe('REF:common_types.json#/$defs/DataBinding'),
-      })
-      .optional();
-    const unionWithChild = z.union([z.array(z.string()), templateChildOption]);
-    assert.deepStrictEqual(scrapeSchemaBehavior(unionWithChild), {type: 'STRUCTURAL'});
+    // Union option with nullable object shape containing ComponentId
+    const templateChildOption = {
+      anyOf: [
+        {
+          type: 'object',
+          properties: {
+            target: {type: 'string', description: 'REF:common_types.json#/$defs/ComponentId'},
+            data: {type: 'string', description: 'REF:common_types.json#/$defs/DataBinding'},
+          },
+        },
+        {type: 'null'},
+      ],
+    };
+    const unionWithChild = {
+      anyOf: [{type: 'array', items: {type: 'string'}}, templateChildOption],
+    };
+    assert.deepStrictEqual(scrape(unionWithChild), {type: 'STRUCTURAL'});
   });
 
   it('should identify dynamic union options only when shape has path property', () => {
     // Union with object containing path -> DYNAMIC
-    const unionWithDynamicPath = z.union([
-      z.string(),
-      z.object({
-        path: z.string(),
-      }),
-    ]);
-    assert.deepStrictEqual(scrapeSchemaBehavior(unionWithDynamicPath), {type: 'DYNAMIC'});
+    const unionWithDynamicPath = {
+      anyOf: [{type: 'string'}, {type: 'object', properties: {path: {type: 'string'}}}],
+    };
+    assert.deepStrictEqual(scrape(unionWithDynamicPath), {type: 'DYNAMIC'});
 
     // Union with plain object without path or ComponentId -> STATIC
-    const unionWithPlainObject = z.union([
-      z.string(),
-      z.object({
-        label: z.string(),
-        value: z.number(),
-      }),
-    ]);
-    assert.deepStrictEqual(scrapeSchemaBehavior(unionWithPlainObject), {type: 'STATIC'});
+    const unionWithPlainObject = {
+      anyOf: [
+        {type: 'string'},
+        {type: 'object', properties: {label: {type: 'string'}, value: {type: 'number'}}},
+      ],
+    };
+    assert.deepStrictEqual(scrape(unionWithPlainObject), {type: 'STATIC'});
   });
 
   it('treats a union option as an action only when its only key is event or functionCall', () => {
-    const eventOption = z.object({event: z.object({name: z.string()})});
-    const functionCallOption = z.object({functionCall: z.object({call: z.string()})});
-    assert.deepStrictEqual(scrapeSchemaBehavior(z.union([z.string(), eventOption])), {
-      type: 'ACTION',
-    });
-    assert.deepStrictEqual(scrapeSchemaBehavior(z.union([z.string(), functionCallOption])), {
-      type: 'ACTION',
-    });
+    const obj = (properties: Record<string, JsonSchema>) => ({type: 'object', properties});
+    const orString = (option: JsonSchema) => ({anyOf: [{type: 'string'}, option]});
+    const eventOption = obj({event: obj({name: {type: 'string'}})});
+    const functionCallOption = obj({functionCall: obj({call: {type: 'string'}})});
+    assert.deepStrictEqual(scrape(orString(eventOption)), {type: 'ACTION'});
+    assert.deepStrictEqual(scrape(orString(functionCallOption)), {type: 'ACTION'});
 
-    const labeledEvent = z.object({label: z.string(), event: z.string()});
-    const labeledFunctionCall = z.object({label: z.string(), functionCall: z.string()});
-    assert.deepStrictEqual(scrapeSchemaBehavior(z.union([z.string(), labeledEvent])), {
-      type: 'STATIC',
-    });
-    assert.deepStrictEqual(scrapeSchemaBehavior(z.union([z.string(), labeledFunctionCall])), {
-      type: 'STATIC',
-    });
+    const labeledEvent = obj({label: {type: 'string'}, event: {type: 'string'}});
+    const labeledFunctionCall = obj({label: {type: 'string'}, functionCall: {type: 'string'}});
+    assert.deepStrictEqual(scrape(orString(labeledEvent)), {type: 'STATIC'});
+    assert.deepStrictEqual(scrape(orString(labeledFunctionCall)), {type: 'STATIC'});
   });
 
   it('keeps event properties and list items with an event key as plain values', () => {
@@ -1378,8 +1411,8 @@ describe('GenericBinder Checkable Trait', () => {
   });
 
   it('scrapeSchemaBehavior returns the same tree for the same schema', () => {
-    const schema = z.object({label: z.string()});
-    assert.strictEqual(scrapeSchemaBehavior(schema), scrapeSchemaBehavior(schema));
+    const schema = {type: 'object', properties: {label: {type: 'string'}}};
+    assert.strictEqual(scrape(schema), scrape(schema));
   });
 
   describe('Resolved prop types', () => {
@@ -1872,52 +1905,68 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
     surface.dispose();
   });
 
-  it('terminates cleanly on recursive z.lazy schemas in scrapeSchemaBehavior', () => {
-    const RecArray: z.ZodTypeAny = z.lazy(() => z.array(RecArray));
-    assert.deepStrictEqual(scrapeSchemaBehavior(RecArray), {
+  it('terminates cleanly on recursive $ref schemas in scrapeSchemaBehavior', () => {
+    const recArray = {
+      $ref: '#/$defs/Rec',
+      $defs: {Rec: {type: 'array', items: {$ref: '#/$defs/Rec'}}},
+    };
+    assert.deepStrictEqual(scrape(recArray), {
       type: 'ARRAY',
       element: {type: 'STATIC'},
     });
 
-    const RecOptional: z.ZodTypeAny = z.lazy(() => RecOptional.optional());
-    assert.deepStrictEqual(scrapeSchemaBehavior(RecOptional), {type: 'STATIC'});
+    const recNullable = {
+      $ref: '#/$defs/Rec',
+      $defs: {Rec: {anyOf: [{$ref: '#/$defs/Rec'}, {type: 'null'}]}},
+    };
+    assert.deepStrictEqual(scrape(recNullable), {type: 'STATIC'});
 
-    const RecObject: z.ZodTypeAny = z.lazy(() =>
-      z.object({
-        label: CommonSchemas.DynamicString,
-        next: RecObject.optional(),
-      }),
-    );
-    const scrapedObj = scrapeSchemaBehavior(RecObject);
+    const recObject = {
+      $ref: '#/$defs/Rec',
+      $defs: {
+        Rec: {
+          type: 'object',
+          properties: {
+            label: commonRef('DynamicString'),
+            next: {$ref: '#/$defs/Rec'},
+          },
+        },
+      },
+    };
+    const scrapedObj = scrape(recObject);
     assert.strictEqual(scrapedObj.type, 'OBJECT');
     if (scrapedObj.type === 'OBJECT') {
       assert.deepStrictEqual(scrapedObj.shape.label, {type: 'DYNAMIC'});
       assert.deepStrictEqual(scrapedObj.shape.next, {type: 'STATIC'});
     }
 
-    const RecPipe: z.ZodTypeAny = z.lazy(() => RecPipe.pipe(z.boolean()));
-    const scrapedRecPipe = scrapeSchemaBehavior(
-      z.object({flag: z.union([CommonSchemas.DataBinding, RecPipe])}),
-    );
-    assert.strictEqual(scrapedRecPipe.type, 'OBJECT');
-    if (scrapedRecPipe.type === 'OBJECT') {
-      assert.deepStrictEqual(scrapedRecPipe.shape.flag, {type: 'DYNAMIC', isBoolean: true});
+    const recAllOf = {
+      type: 'object',
+      properties: {
+        flag: {anyOf: [commonRef('DataBinding'), {$ref: '#/$defs/Rec'}]},
+      },
+      $defs: {Rec: {allOf: [{$ref: '#/$defs/Rec'}, {type: 'boolean'}]}},
+    };
+    const scrapedRecAllOf = scrape(recAllOf);
+    assert.strictEqual(scrapedRecAllOf.type, 'OBJECT');
+    if (scrapedRecAllOf.type === 'OBJECT') {
+      assert.deepStrictEqual(scrapedRecAllOf.shape.flag, {type: 'DYNAMIC', isBoolean: true});
     }
   });
 
   it('binds dynamic, action, and structural properties across ZodIntersection, ZodPipeline, ZodCatch, and object-variant unions', () => {
     const componentIdSchema = z.string().describe('REF:common_types.json#/$defs/ComponentId');
-    assert.deepStrictEqual(scrapeSchemaBehavior(CommonSchemas.ChildList.and(z.number())), {
+    assert.deepStrictEqual(scrapeZod(CommonSchemas.ChildList.and(z.number())), {
       type: 'STATIC',
     });
-    assert.deepStrictEqual(scrapeSchemaBehavior(CommonSchemas.ChildList.pipe(z.number())), {
+    assert.deepStrictEqual(scrapeZod(CommonSchemas.ChildList.pipe(z.number())), {
       type: 'STATIC',
     });
     assert.deepStrictEqual(
-      scrapeSchemaBehavior(z.union([componentIdSchema, CommonSchemas.ChildList]).and(z.string())),
+      scrapeZod(z.union([componentIdSchema, CommonSchemas.ChildList]).and(z.string())),
       {type: 'STATIC'},
     );
-    assert.deepStrictEqual(scrapeSchemaBehavior(CommonSchemas.ChildList.and(z.array(z.string()))), {
+    assert.deepStrictEqual(scrapeZod(CommonSchemas.ChildList.and(z.array(z.string()))), {
       type: 'STRUCTURAL',
     });
 
@@ -1934,17 +1983,17 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
       }),
     ]);
 
-    const scrapedVariant = scrapeSchemaBehavior(variantUnionSchema);
+    const scrapedVariant = scrapeZod(variantUnionSchema);
     assert.strictEqual(scrapedVariant.type, 'OBJECT');
 
-    const scrapedOpenRecord = scrapeSchemaBehavior(z.record(z.unknown()));
+    const scrapedOpenRecord = scrapeZod(z.record(z.unknown()));
     assert.strictEqual(scrapedOpenRecord.type, 'OBJECT');
     if (scrapedOpenRecord.type === 'OBJECT') {
       assert.deepStrictEqual(scrapedOpenRecord.shape.children, {type: 'STRUCTURAL'});
       assert.strictEqual(scrapedOpenRecord.shape.accessibility?.type, 'OBJECT');
     }
 
-    const scrapedNumericRecord = scrapeSchemaBehavior(z.record(z.number()));
+    const scrapedNumericRecord = scrapeZod(z.record(z.number()));
     assert.strictEqual(scrapedNumericRecord.type, 'OBJECT');
     if (scrapedNumericRecord.type === 'OBJECT') {
       assert.strictEqual(Object.hasOwn(scrapedNumericRecord.shape, 'children'), false);
@@ -2040,7 +2089,7 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
     ]);
 
     for (const recSchema of [recordInIntersection, recordInPipeline, recordInUnion]) {
-      const scraped = scrapeSchemaBehavior(recSchema);
+      const scraped = scrapeZod(recSchema);
       assert.strictEqual(scraped.type, 'OBJECT');
       if (scraped.type === 'OBJECT') {
         assert.deepStrictEqual(scraped.shape.children, {type: 'STRUCTURAL'});
@@ -2146,7 +2195,7 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
       z.object({fixed: CommonSchemas.Action}),
     ]);
 
-    const scrapedCatchall = scrapeSchemaBehavior(catchallDynamicSchema);
+    const scrapedCatchall = scrapeZod(catchallDynamicSchema);
     assert.strictEqual(scrapedCatchall.type, 'OBJECT');
     if (scrapedCatchall.type === 'OBJECT') {
       assert.deepStrictEqual(scrapedCatchall.shape.staticKey, {type: 'STATIC'});
@@ -2154,18 +2203,18 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
       assert.deepStrictEqual(scrapedCatchall.catchall, {type: 'DYNAMIC'});
     }
 
-    const scrapedComposite = scrapeSchemaBehavior(compositeCatchallSchema);
+    const scrapedComposite = scrapeZod(compositeCatchallSchema);
     assert.strictEqual(scrapedComposite.type, 'OBJECT');
     if (scrapedComposite.type === 'OBJECT') {
       assert.deepStrictEqual(scrapedComposite.shape.id, {type: 'DYNAMIC'});
       assert.deepStrictEqual(scrapedComposite.catchall, {type: 'DYNAMIC'});
     }
-    const scrapedCompositeReversed = scrapeSchemaBehavior(
+    const scrapedCompositeReversed = scrapeZod(
       z.record(CommonSchemas.DynamicString).and(z.object({id: z.string()}).passthrough()),
     );
     assert.deepStrictEqual(scrapedCompositeReversed, scrapedComposite);
 
-    const scrapedUnion = scrapeSchemaBehavior(unionCatchallSchema);
+    const scrapedUnion = scrapeZod(unionCatchallSchema);
     assert.strictEqual(scrapedUnion.type, 'OBJECT');
     if (scrapedUnion.type === 'OBJECT') {
       assert.deepStrictEqual(scrapedUnion.catchall, {type: 'DYNAMIC'});
@@ -2252,8 +2301,8 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
       childListRefNames: new Set(['CustomChildList']),
     };
 
-    const defaultBehavior = scrapeSchemaBehavior(customListSchema);
-    const customBehavior = scrapeSchemaBehavior(customListSchema, customOptions);
+    const defaultBehavior = scrapeZod(customListSchema);
+    const customBehavior = scrapeZod(customListSchema, customOptions);
     assert.strictEqual(defaultBehavior.type, 'OBJECT');
     assert.strictEqual(customBehavior.type, 'OBJECT');
     if (defaultBehavior.type === 'OBJECT' && customBehavior.type === 'OBJECT') {
@@ -2261,8 +2310,8 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
       assert.deepStrictEqual(customBehavior.shape.customChildren, {type: 'STRUCTURAL'});
     }
 
-    const defaultCompBehavior = scrapeComponentBehavior(customListSchema);
-    const customCompBehavior = scrapeComponentBehavior(customListSchema, customOptions);
+    const defaultCompBehavior = scrapeComponentZod(customListSchema);
+    const customCompBehavior = scrapeComponentZod(customListSchema, customOptions);
     assert.notStrictEqual(defaultCompBehavior, customCompBehavior);
     if (defaultCompBehavior.type === 'OBJECT' && customCompBehavior.type === 'OBJECT') {
       assert.deepStrictEqual(defaultCompBehavior.shape.customChildren, {type: 'STATIC'});
@@ -2333,8 +2382,8 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
     });
 
     assert.deepStrictEqual(
-      scrapeComponentBehavior(objUnionListFirst),
-      scrapeComponentBehavior(objUnionNestedFirst),
+      scrapeComponentZod(objUnionListFirst),
+      scrapeComponentZod(objUnionNestedFirst),
     );
 
     const catalog = new Catalog('union-catchall-cat', '0.9', [], []);
@@ -2651,7 +2700,7 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
       explicitOrCatchallLeft,
       explicitOrCatchallRight,
     ].entries()) {
-      const scraped = scrapeComponentBehavior(catchallSchema);
+      const scraped = scrapeComponentZod(catchallSchema);
       assert.strictEqual(scraped.type, 'OBJECT');
       if (scraped.type === 'OBJECT') {
         assert.deepStrictEqual(scraped.shape.fixed, {type: 'ACTION'});

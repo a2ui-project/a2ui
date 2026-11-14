@@ -24,7 +24,6 @@ import {
   setValue,
   peekValue,
 } from '../reactivity/signals.js';
-import {z} from 'zod';
 import {DataModel, DataSubscription} from '../state/data-model.js';
 import {type FunctionCall, type Action} from '../types/common-types.js';
 import {MAX_FUNCTION_CALL_ARGS} from '../types/helpers.js';
@@ -49,12 +48,15 @@ import {
 import {FunctionInvoker} from '../catalog/function_invoker.js';
 import {Catalog, CatalogInterface} from '../catalog/types.js';
 import {SpecVersion} from '../spec_versions.js';
+import {deref, type SchemaDoc} from '../schema-engine/nav.js';
+import type {JsonSchema} from '../schema-engine/types.js';
+import {toSchemaDoc} from '../schema-engine/zod-bridge.js';
 import {resolveSurfaceCatalog} from '../state/resolve-surface-catalog.js';
 import {SurfaceModel} from '../state/surface-model.js';
 import {IndexApi, SYSTEM_FUNCTIONS} from '../v1_0/functions/system_functions.js';
 import {registerDataContextInternals, type DataContextFlags} from './data-context-internal.js';
 
-const schemaKeysCache = new WeakMap<z.ZodTypeAny, Set<string> | null>();
+const schemaKeysCache = new WeakMap<object, WeakMap<object, Set<string> | null>>();
 
 /** Identifier of the built-in catalog holding the v1.0 system functions. */
 const SYSTEM_FUNCTION_CATALOG_ID = 'a2ui:system-functions';
@@ -78,87 +80,90 @@ function getSystemFunctionCatalog(): Catalog<any> {
   return systemFunctionCatalog;
 }
 
+type Obj = {[k: string]: unknown};
+
+const isObj = (n: unknown): n is Obj => typeof n === 'object' && n !== null && !Array.isArray(n);
+
+/** Whether a union member only admits `null` or nothing (`{not: {}}`, `false`). */
+function isNullishMember(n: unknown): boolean {
+  return (
+    n === false ||
+    (isObj(n) && (n['type'] === 'null' || (isObj(n['not']) && Object.keys(n['not']).length === 0)))
+  );
+}
+
+/** Bounds `$ref`/combinator nesting walked by {@link getKnownSchemaKeys}. */
+const MAX_SCHEMA_KEYS_DEPTH = 32;
+
+function collectKnownKeys(node: JsonSchema, doc: SchemaDoc, depth: number): Set<string> | null {
+  if (depth > MAX_SCHEMA_KEYS_DEPTH) return null;
+  let target;
+  try {
+    target = deref(node, doc);
+  } catch {
+    return null;
+  }
+  const current = target.node;
+  if (!isObj(current)) return null;
+  const unionKeys = (members: unknown[]): Set<string> | null => {
+    const keys = new Set<string>();
+    for (const member of members) {
+      const k = collectKnownKeys(member as JsonSchema, target.doc, depth + 1);
+      if (!k) return null; // A member that allows arbitrary keys disables filtering.
+      for (const key of k) keys.add(key);
+    }
+    return keys;
+  };
+  if (Array.isArray(current['allOf'])) {
+    return unionKeys(current['allOf']);
+  }
+  const options = current['anyOf'] ?? current['oneOf'];
+  if (Array.isArray(options)) {
+    const members = options.filter(o => !isNullishMember(o));
+    return members.length === 0 ? null : unionKeys(members);
+  }
+  const type = current['type'];
+  const isObjectType =
+    type === 'object' ||
+    (Array.isArray(type) && type.includes('object')) ||
+    'properties' in current;
+  if (!isObjectType || !isObj(current['properties'])) {
+    // Not an object, or a record-like object that declares no keys.
+    return null;
+  }
+  if (current['additionalProperties'] === true) {
+    return null;
+  }
+  return new Set(Object.keys(current['properties']));
+}
+
 /**
- * Extracts declared property keys from a Zod schema representing an object with fixed keys.
+ * Extracts declared property keys from a JSON Schema representing an object with fixed keys.
  *
- * Traverses Zod wrappers (`ZodEffects`, `ZodOptional`, `ZodNullable`, `ZodDefault`,
- * `ZodCatch`, `ZodIntersection`, `ZodUnion`, `ZodDiscriminatedUnion`) and returns the set
- * of allowed key names.
+ * Follows `$ref`s, nullable `anyOf`/`oneOf` members, `allOf` intersections, and
+ * `anyOf`/`oneOf` unions, and returns the set of allowed key names. An object
+ * with `additionalProperties: true` allows arbitrary keys; one that omits
+ * `additionalProperties`, closes it, or types its extra keys returns its
+ * declared keys.
  *
- * @param schema Zod schema to inspect.
+ * @param node JSON Schema node to inspect.
+ * @param doc The document that owns `node`.
  * @returns Set of allowed property names, or `null` if arbitrary keys are permitted or undetermined.
  */
-export function getKnownSchemaKeys(schema: z.ZodTypeAny): Set<string> | null {
-  if (schemaKeysCache.has(schema)) {
-    return schemaKeysCache.get(schema) as Set<string> | null;
+export function getKnownSchemaKeys(node: JsonSchema, doc: SchemaDoc): Set<string> | null {
+  if (!isObj(node) || !isObj(doc.root)) {
+    return collectKnownKeys(node, doc, 0);
   }
-
-  const result = ((): Set<string> | null => {
-    let current: any = schema;
-    while (current) {
-      if (current instanceof z.ZodObject || current._def?.typeName === 'ZodObject') {
-        // If passthrough is enabled, arbitrary keys are allowed.
-        if (current._def?.unknownKeys === 'passthrough') {
-          return null;
-        }
-        const shape = typeof current.shape === 'function' ? current.shape() : current.shape;
-        if (shape && typeof shape === 'object') {
-          return new Set(Object.keys(shape));
-        }
-        return null;
-      }
-      if (current instanceof z.ZodEffects || current._def?.typeName === 'ZodEffects') {
-        current = current._def.schema;
-        continue;
-      }
-      if (
-        current instanceof z.ZodOptional ||
-        current instanceof z.ZodNullable ||
-        current._def?.typeName === 'ZodOptional' ||
-        current._def?.typeName === 'ZodNullable'
-      ) {
-        current = current._def.innerType;
-        continue;
-      }
-      if (current instanceof z.ZodDefault || current._def?.typeName === 'ZodDefault') {
-        current = current._def.innerType;
-        continue;
-      }
-      if (current instanceof z.ZodCatch || current._def?.typeName === 'ZodCatch') {
-        current = current._def.innerType;
-        continue;
-      }
-      if (current instanceof z.ZodIntersection || current._def?.typeName === 'ZodIntersection') {
-        const leftKeys = getKnownSchemaKeys(current._def.left);
-        const rightKeys = getKnownSchemaKeys(current._def.right);
-        if (!leftKeys || !rightKeys) {
-          return null;
-        }
-        return new Set([...leftKeys, ...rightKeys]);
-      }
-      if (
-        current instanceof z.ZodUnion ||
-        current instanceof z.ZodDiscriminatedUnion ||
-        current._def?.typeName === 'ZodUnion' ||
-        current._def?.typeName === 'ZodDiscriminatedUnion'
-      ) {
-        const options: Iterable<z.ZodTypeAny> = current._def.options;
-        const allKeys = new Set<string>();
-        for (const opt of options) {
-          const k = getKnownSchemaKeys(opt);
-          if (!k) return null; // If any union branch allows arbitrary keys, do not filter.
-          for (const key of k) {
-            allKeys.add(key);
-          }
-        }
-        return allKeys;
-      }
-      return null;
-    }
-    return null;
-  })();
-
-  schemaKeysCache.set(schema, result);
+  let byNode = schemaKeysCache.get(doc.root);
+  if (!byNode) {
+    byNode = new WeakMap();
+    schemaKeysCache.set(doc.root, byNode);
+  }
+  if (byNode.has(node)) {
+    return byNode.get(node) as Set<string> | null;
+  }
+  const result = collectKnownKeys(node, doc, 0);
+  byNode.set(node, result);
   return result;
 }
 
@@ -202,7 +207,9 @@ export function validateFunctionArgs(
     return;
   }
 
-  const knownKeys = getKnownSchemaKeys(fn.schema);
+  // ponytail: bridge until Task 8 — function schemas are still Zod.
+  const fnSchema = toSchemaDoc(fn.schema, catalog?.protocolVersion);
+  const knownKeys = getKnownSchemaKeys(fnSchema.node, fnSchema.doc);
   if (!knownKeys) {
     // Schema allows arbitrary keys (e.g. passthrough)
     return;
@@ -1682,15 +1689,14 @@ export class DataContext {
   private dispatchExpressionError(e: unknown, name: string): void {
     if (!this.surface || this.surface.disposed) return;
     if (isCancellation(e)) return;
-    if (
-      e instanceof z.ZodError ||
-      (typeof e === 'object' && e !== null && (e as {name?: string}).name === 'ZodError')
-    ) {
-      const zodErr = e as z.ZodError;
+    if (typeof e === 'object' && e !== null && (e as {name?: string}).name === 'ZodError') {
+      // A function's own Zod argument parsing failed (recognized by name, so
+      // no Zod import is needed here).
+      const zodErr = e as {message: string; errors?: unknown; issues?: unknown};
       const err = new A2uiExpressionError(
         `Validation failed for function '${name}': ${zodErr.message}`,
         name,
-        zodErr.errors ?? (zodErr as unknown as {issues?: unknown}).issues,
+        zodErr.errors ?? zodErr.issues,
       );
       this.surface.dispatchError({
         code: 'EXPRESSION_ERROR',

@@ -21,6 +21,7 @@ import {isValidUax31Identifier} from '../common/uax31.js';
 import {A2uiErrorDetail, A2uiValidationError} from '../errors.js';
 import {formatZodIssue} from '../processing/format-zod-issue.js';
 import {getKnownSchemaKeys} from '../resolution/data-context.js';
+import {toSchemaDoc} from '../schema-engine/zod-bridge.js';
 import {AccessibilityAttributesSchema, ComponentCommonSchema} from '../types/common-types.js';
 import {
   AT_COMPONENT_MIXIN_KEYS,
@@ -303,9 +304,11 @@ export class PayloadValidator {
         componentCatalogId,
       );
     } else {
+      // ponytail: bridge until Task 8 — component schemas are still Zod.
+      const schemaJson = toSchemaDoc(componentApi.schema, this.catalog.protocolVersion);
       this.validateLegacyAccessibility(
         properties,
-        getKnownSchemaKeys(componentApi.schema),
+        getKnownSchemaKeys(schemaJson.node, schemaJson.doc),
         componentType,
         id,
       );
