@@ -17,7 +17,7 @@
 import React from 'react';
 import {render} from '@testing-library/react';
 import {z} from 'zod';
-import {SurfaceModel, ComponentModel, Catalog, extractRefFields} from '@a2ui/web_core';
+import {SurfaceModel, ComponentModel, Catalog, type ComponentChildRefs} from '@a2ui/web_core';
 import {BASIC_FUNCTIONS} from '@a2ui/web_core/v0_9/basic_catalog';
 import {A2uiSurface} from '../src/A2uiSurface';
 import {createComponentImplementation} from '../src/adapter';
@@ -90,7 +90,7 @@ export function renderA2uiComponent(
     surface.componentsModel.addComponent(childModel);
   }
 
-  for (const id of referencedChildIds(impl.schema, initialProperties)) {
+  for (const id of referencedChildIds(catalog.componentRefMap[impl.name], initialProperties)) {
     if (!surface.componentsModel.get(id)) {
       surface.componentsModel.addComponent(new ComponentModel(id, STUB_TYPE, {}, catalog));
     }
@@ -112,12 +112,12 @@ export function renderA2uiComponent(
 }
 
 /**
- * The child component ids a payload references, found through the same schema
- * classification the resolver uses, so a stub is created for exactly the
- * properties the resolver will try to resolve.
+ * The child component ids a payload references, found through the catalog's
+ * component reference map (the same schema classification the resolver uses),
+ * so a stub is created for exactly the properties the resolver will try to resolve.
  */
 function referencedChildIds(
-  schema: z.ZodTypeAny,
+  refs: ComponentChildRefs | undefined,
   properties: Record<string, unknown>,
 ): Set<string> {
   const ids = new Set<string>();
@@ -126,38 +126,37 @@ function referencedChildIds(
       ids.add(value);
     }
   };
+  if (!refs) {
+    return ids;
+  }
 
-  for (const [key, ref] of extractRefFields(schema)) {
+  for (const key of refs.singleRefs) {
+    add(properties[key]);
+  }
+  for (const key of refs.listRefs) {
     const value = properties[key];
-    switch (ref.kind) {
-      case 'single':
-        add(value);
-        break;
-      case 'list':
-        if (Array.isArray(value)) {
-          for (const item of value) {
-            add(item);
-            if (item && typeof item === 'object') {
-              add((item as Record<string, unknown>).componentId);
-            }
+    const nestedKeys = refs.nestedRefs?.[key];
+    if (nestedKeys) {
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          if (!item || typeof item !== 'object') {
+            continue;
           }
-        } else if (value && typeof value === 'object') {
-          // A template child list: {componentId, path}.
-          add((value as Record<string, unknown>).componentId);
-        }
-        break;
-      case 'nested':
-        if (Array.isArray(value)) {
-          for (const item of value) {
-            if (!item || typeof item !== 'object') {
-              continue;
-            }
-            for (const subKey of ref.keys) {
-              add((item as Record<string, unknown>)[subKey]);
-            }
+          for (const subKey of nestedKeys) {
+            add((item as Record<string, unknown>)[subKey]);
           }
         }
-        break;
+      }
+    } else if (Array.isArray(value)) {
+      for (const item of value) {
+        add(item);
+        if (item && typeof item === 'object') {
+          add((item as Record<string, unknown>).componentId);
+        }
+      }
+    } else if (value && typeof value === 'object') {
+      // A template child list: {componentId, path}.
+      add((value as Record<string, unknown>).componentId);
     }
   }
   return ids;
