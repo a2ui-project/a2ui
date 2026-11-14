@@ -82,6 +82,22 @@ describe('createAjvValidator', () => {
     assert.deepStrictEqual(i.path, ['a', 0, 'missingName']);
   });
 
+  it('reports an additional or unevaluated property in path', () => {
+    const r = createAjvValidator().compile({
+      type: 'object',
+      properties: {
+        a: {type: 'object', additionalProperties: false},
+        b: {type: 'object', unevaluatedProperties: false},
+      },
+    })({a: {extra: 1}, b: {other: 2}});
+    assert.ok(!r.success);
+    const paths = r.issues.map((x: A2uiIssue) => x.path);
+    assert.deepStrictEqual(paths, [
+      ['a', 'extra'],
+      ['b', 'other'],
+    ]);
+  });
+
   describe('real basic catalog', () => {
     const real: JsonSchema = JSON.parse(
       readFileSync(repo('catalogs/basic/v1/catalog.json'), 'utf8'),

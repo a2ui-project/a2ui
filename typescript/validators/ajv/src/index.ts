@@ -34,8 +34,17 @@ function toPath(instancePath: string, error: ErrorObject): (string | number)[] {
     .slice(1)
     .map(s => s.replace(/~1/g, '/').replace(/~0/g, '~'))
     .map(s => (/^(0|[1-9]\d*)$/.test(s) ? Number(s) : s));
-  if (error.keyword === 'required' && typeof error.params?.missingProperty === 'string') {
-    path.push(error.params.missingProperty);
+  // Ajv reports these at the parent object; point at the offending property instead.
+  const prop =
+    error.keyword === 'required'
+      ? error.params?.missingProperty
+      : error.keyword === 'additionalProperties'
+        ? error.params?.additionalProperty
+        : error.keyword === 'unevaluatedProperties'
+          ? error.params?.unevaluatedProperty
+          : undefined;
+  if (typeof prop === 'string') {
+    path.push(prop);
   }
   return path;
 }
