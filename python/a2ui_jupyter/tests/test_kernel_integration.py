@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 import json
 from pathlib import Path
 from queue import Empty
@@ -53,8 +53,17 @@ def kernel() -> Iterator[tuple[KernelManager, BlockingKernelClient]]:
         manager.shutdown_kernel(now=True)
 
 
+def _is_idle(message: dict[str, Any]) -> bool:
+    return (
+        message["msg_type"] == "status"
+        and message["content"].get("execution_state") == "idle"
+    )
+
+
 def _collect_iopub(
-    client: BlockingKernelClient, parent_id: str
+    client: BlockingKernelClient,
+    parent_id: str,
+    is_last: Callable[[dict[str, Any]], bool] = _is_idle,
 ) -> list[dict[str, Any]]:
     deadline = time.monotonic() + 30
     messages: list[dict[str, Any]] = []
@@ -63,10 +72,7 @@ def _collect_iopub(
         if message["parent_header"].get("msg_id") != parent_id:
             continue
         messages.append(message)
-        if (
-            message["msg_type"] == "status"
-            and message["content"].get("execution_state") == "idle"
-        ):
+        if is_last(message):
             return messages
     raise TimeoutError(f"Kernel execution {parent_id} did not become idle.")
 
@@ -150,13 +156,13 @@ def test_smoke_notebook_waits_for_submit_and_updates_status(
             },
         },
     )
-    messages = _collect_iopub(client, execution_id)
-    assert _wait_for_reply(client, execution_id)["content"]["status"] == "ok"
-    assert any(
-        message["msg_type"] == "execute_result"
-        and "'name': 'Ada'" in message["content"]["data"]["text/plain"]
-        for message in messages
+    # Before ipykernel 7.4, the deferred later cell can publish an early idle
+    # status for the waiting cell, so collect until its result instead.
+    messages = _collect_iopub(
+        client, execution_id, lambda message: message["msg_type"] == "execute_result"
     )
+    assert _wait_for_reply(client, execution_id)["content"]["status"] == "ok"
+    assert "'name': 'Ada'" in messages[-1]["content"]["data"]["text/plain"]
     later_messages = _collect_iopub(client, later_execution_id)
     assert _wait_for_reply(client, later_execution_id)["content"]["status"] == "ok"
     assert "LATER_CELL_RAN" in _stream_text(later_messages)

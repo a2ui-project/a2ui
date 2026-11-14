@@ -161,6 +161,10 @@ follow_imports = "skip"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
+module = ["jupyter_ui_poll"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
 module = [
     "a2ui.builder.v1_0.catalogs.*",
 ]

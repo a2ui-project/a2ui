@@ -32,7 +32,16 @@ The proposal records a spike against a real kernel using `jupyter_client`, ipyke
 | C. Blocking input (control) | Does a blocking loop receive the same submit?                                                           | Reported failure, as expected. The loop saw `[]`. Do not use blocking waits.                                    |
 | D. Non-blocking input       | Are a custom message and a state update stored while the kernel is idle and readable from a later cell? | Reported pass. A later cell read `[{'type': 'submit', ...}]` and `{'name': 'Ada'}`.                             |
 
-The report attributes check B to a branch in ipykernel 7.4.0's `kernelbase.py` that dispatches `comm_msg` while an async cell is running. The spike did not test a supported-version matrix, so `ipykernel>=7.4` is a provisional runtime requirement, not a compatibility guarantee.
+The report attributes check B to a branch in ipykernel 7.4.0's `kernelbase.py` that dispatches `comm_msg` while an async cell is running.
+
+### Kernel compatibility
+
+The integration suite in [python/a2ui_jupyter/tests](../../python/a2ui_jupyter/tests) was run against ipykernel 6.29.5, 7.0.1, 7.3.0, and 7.4.0, and the form example was run in JupyterLab 4.6 with 7.0.1 and 7.4.0.
+
+1. ipykernel 7.4 and newer deliver `comm_msg` to a waiting async cell natively.
+2. ipykernel 6.29 to 7.0 do not. While the queue is empty, `a2ui-jupyter` calls [`jupyter-ui-poll`](https://github.com/Kirill888/jupyter-ui-poll), which runs `Kernel.do_one_iteration` to process pending comm messages. `execute_request` messages that arrive during the wait are deferred and run after the cell finishes. The kernel can publish an extra `idle` status while the cell is still waiting; the cell's own `execute_reply` and final `idle` still arrive afterwards.
+3. ipykernel 7.1 to 7.3 removed `do_one_iteration`, so polling cannot run. `jupyter-ui-poll` still lets messages through by replacing the kernel's main lock, but the concurrent dispatch overwrites the shell parent header and the waiting cell's final `idle` is published with the wrong parent. JupyterLab can then show the cell as still running. These versions are excluded from the dependency specifier (`ipykernel>=6.29.0,!=7.1.*,!=7.2.*,!=7.3.*`), and awaiting raises `RuntimeError` if one is installed.
+4. Polling is not used on 7.4, because `jupyter-ui-poll` replaces the main lock with an object that 7.4's `shell_main` cannot use.
 
 Test pitfall: ipywidgets opens an extra comm at import time. A test must read the widget's comm ID from the kernel (`probe.comm.comm_id`), not from the first `comm_open` it sees. Using the first one sends the submit to the wrong comm and makes B and D look broken.
 
@@ -83,7 +92,7 @@ flowchart LR
     - Browser to kernel: every renderer-to-agent message is forwarded as `{"type": "a2ui", "message": ...}`. The bridge validates the full v1 renderer-to-agent schema before exposing a message to Python code.
     - The Python API exposes every valid renderer-to-agent message. This includes `action`, `callAgentFunction`, `rendererFunctionResponse`, and `error`; agent code can answer `callAgentFunction` with an `agentFunctionResponse`.
     - Custom messages carry the message stream. Synced traits carry state only.
-4. **Replay log:** the widget keeps the ordered v1 messages in a synced trait. Whether widget state is saved in the notebook and whether the log needs a size limit are unverified; do not promise notebook reopen replay until both are tested. Live updates still use custom messages.
+4. **Replay log:** the widget keeps the ordered v1 messages in a synced trait so views displayed later can replay the surface. Live updates use one custom message per message. The trait is synced at most every 200 ms and whenever the surface is displayed, not on every `send`; the frontend orders entries by sequence number and ignores duplicates, so a late sync is safe. Reassigning the trait on every `send` made a burst quadratic: 1,000 updates took 2.6 s in the kernel and 2.9 s end to end, compared with 74 ms and 353 ms after coalescing (JupyterLab 4.6, ipykernel 7.4). The log is unbounded, and saved widget state includes it and the ~900 KB `_esm` bundle for every widget.
 5. **Data flow:** for an `action`, the renderer resolves the declared `context` bindings before sending the action. The v1 schema requires `context`; web_core's `resolveActionEventObject` ([data-context.ts](../../typescript/core/web_core/src/resolution/data-context.ts)) resolves context entries in declared order, then `userMessage`, and stops on the first failure. Its `SurfaceModel` awaits the resolved payload before emitting `onAction` ([surface-model.ts](../../typescript/core/web_core/src/state/surface-model.ts)). This contract applies to `action` only: `callAgentFunction.callFunction.args` is a separate renderer-to-agent data path and may contain resolved values. Do not synchronize the full data model as part of this design. Async context expressions can call an agent function, so the bridge must receive that call and return its matching `agentFunctionResponse` while the action is pending.
 6. **Interrupt and restart:** awaited waits are cancellable and volatile kernel state is lost on restart. The specific behavior recorded by the spike is not yet a tested API guarantee; see [Python API](#python-api-proposed) and [Open items](#open-items).
 7. **IOPub rate limit:** preserve message order and do not silently drop updates. The applicable `jupyter_server` version and rate-limit configuration vary by host and were not available in this checkout; test the transport strategy against supported JupyterLab deployments before choosing batching or throttling.
@@ -104,7 +113,8 @@ action = await surface.next_action()  # enriched input: the cell resumes with th
 
 - `on_action` and `next_action` both receive the same renderer-to-agent `action` message.
 - `on_message` and `next_message` expose all validated renderer-to-agent messages, including function calls and renderer responses. Agent code must return `agentFunctionResponse` messages through `send` to settle renderer-initiated function calls.
-- `next_action` and `next_message` require top-level `await`; blocking waits cannot receive frontend messages. The reported spike only tested ipykernel 7.4.0, so that version is a provisional minimum for this design. Installing a package dependency does not upgrade an already-running kernel; the package and kernel must use a compatible environment.
+- `next_action` and `next_message` require top-level `await`; blocking waits cannot receive frontend messages. See [Kernel compatibility](#kernel-compatibility) for supported ipykernel versions. Installing a package dependency does not upgrade an already-running kernel; the package and kernel must use a compatible environment.
+- The renderer never hides or disables a surface after an action. As in the other renderers and sample hosts, the agent owns the surface lifecycle: after an action it sends `updateComponents`, `updateDataModel`, or `deleteSurface`, or it disables the Button with an `@checks` rule bound to the data model. Clicks made before that update arrives are queued, so a later `next_action()` can return a stale action.
 - **Interrupt:** the spike report says an interrupt cancels the awaited future with `asyncio.CancelledError`, not `KeyboardInterrupt`, and describes delayed error display and shell replies running behind. These details have not been independently reproduced. The API must propagate cancellation and must not swallow `CancelledError`. Tests must correlate `execute_reply` by `parent_header.msg_id`, not arrival order.
 - **Restart:** a restart loses the pending cell, namespace, and widget connection. Re-running the cell that creates the widget is required; an existing frontend widget cannot connect to the new kernel. The report's exact no-reply behavior remains to be reproduced, and replay state persistence is a separate open question.
 - The default protocol is v1.0. `A2UISurface(version="0.9")` selects the web_core v0.9 adapter, as an optional later addition.
@@ -137,9 +147,9 @@ Not independently verified:
 2. **Interrupt/restart:** no reproducible test artifact is available. Keep the cancellation and reply behavior provisional until the Python integration suite covers it.
 3. **Bundle size:** 709,076 bytes minified and 198,002 bytes gzipped were reported for an esbuild production bundle with React inlined. The bundle entry, command, and generated artifact are not checked in, so the measurement cannot be repeated from this checkout.
 4. **IOPub limit:** the cited `jupyter_server` source and version are not available here. Verify the defaults and end-to-end delivery behavior against each supported host configuration.
-5. **Replay:** neither trait-size growth nor notebook save/reopen behavior has been measured.
+5. **Replay:** replaying 1,302 messages into a newly displayed view took 78 ms, but notebook save/reopen behavior and a log retention policy have not been tested.
 6. **Browser and action flow:** JupyterLab rendering, action dispatch, asynchronous context resolution, and the full agent-function round trip remain untested.
-7. **Compatibility:** the only recorded kernel version is ipykernel 7.4.0. Define and test the supported JupyterLab/ipykernel matrix before publishing a package requirement.
+7. **Compatibility:** the kernel versions in [Kernel compatibility](#kernel-compatibility) were tested locally. CI runs only the version resolved in `uv.lock`, and only JupyterLab 4.6 was tried in a browser.
 
 ## Relationship to xeus-x
 

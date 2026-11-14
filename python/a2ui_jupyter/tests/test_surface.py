@@ -124,6 +124,49 @@ def test_send_logs_and_sends_valid_messages_in_order(
     assert [content["message"] for content in sent] == messages
 
 
+def test_send_burst_syncs_the_log_once_and_display_flushes_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sent: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        anywidget.AnyWidget,
+        "send",
+        lambda _widget, content, buffers=None: sent.append(content),
+    )
+    surface = A2UISurface()
+    log_syncs: list[int] = []
+    surface.observe(lambda change: log_syncs.append(len(change["new"])), "message_log")
+
+    async def send_burst() -> None:
+        surface.send({
+            "version": "1.0",
+            "createSurface": {
+                "surfaceId": "surface-1",
+                "catalogId": "https://a2ui.org/specification/v1_0/basic_catalog.json",
+            },
+        })
+        for value in range(3):
+            surface.send({
+                "version": "1.0",
+                "updateDataModel": {
+                    "surfaceId": "surface-1",
+                    "path": "/value",
+                    "value": value,
+                },
+            })
+        assert [content["sequence"] for content in sent] == [0, 1, 2, 3]
+        assert log_syncs == []
+        surface._repr_mimebundle_()
+        assert log_syncs == [4]
+        surface.send({"version": "1.0", "deleteSurface": {"surfaceId": "surface-1"}})
+        await asyncio.sleep(0.3)
+
+    asyncio.run(send_burst())
+
+    assert log_syncs == [4, 5]
+    assert [entry["sequence"] for entry in surface.message_log] == list(range(5))
+
+
 @pytest.mark.parametrize("message", RENDERER_MESSAGES)
 def test_all_v1_renderer_messages_reach_the_message_queue(
     message: dict[str, Any],
