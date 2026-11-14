@@ -176,6 +176,68 @@ describe('applyDefaults', () => {
     });
   });
 
+  it('fills a nullable object property as its object schema', () => {
+    const schema: JsonSchema = {
+      type: 'object',
+      properties: {
+        a: {
+          anyOf: [
+            {type: 'object', properties: {b: {type: 'string', default: 'x'}}},
+            {type: 'null'},
+          ],
+        },
+      },
+    };
+    assert.deepStrictEqual(applyDefaults(deepFreeze({a: {}}), schema, docOf(schema)), {
+      a: {b: 'x'},
+    });
+    const input = {a: null};
+    assert.strictEqual(applyDefaults(input, schema, docOf(schema)), input);
+  });
+
+  it('chooses a oneOf branch written in an allOf member, as component definitions are', () => {
+    const common: JsonSchema = {
+      $defs: {Common: {type: 'object', properties: {id: {type: 'string'}}}},
+    };
+    const root: JsonSchema = {
+      $defs: {
+        Variants: {
+          oneOf: [
+            {
+              type: 'object',
+              properties: {kind: {const: 'a'}, size: {type: 'number', default: 1}},
+            },
+            {
+              type: 'object',
+              properties: {kind: {const: 'b'}, label: {type: 'string', default: 'B'}},
+            },
+          ],
+        },
+      },
+      allOf: [{$ref: 'common.json#/$defs/Common'}, {$ref: '#/$defs/Variants'}],
+    };
+    assert.deepStrictEqual(
+      applyDefaults({id: 'x', kind: 'b'}, root, docOf(root, {'common.json': common})),
+      {id: 'x', kind: 'b', label: 'B'},
+    );
+  });
+
+  it('matches an object const with its keys in any order', () => {
+    const schema: JsonSchema = {
+      oneOf: [
+        {
+          type: 'object',
+          properties: {tag: {const: {x: 1, y: 2}}, n: {type: 'number', default: 1}},
+        },
+        {type: 'object', properties: {tag: {const: {x: 9}}, n: {type: 'number', default: 9}}},
+      ],
+    };
+    assert.deepStrictEqual(applyDefaults({tag: {y: 2, x: 1}}, schema, docOf(schema)), {
+      tag: {y: 2, x: 1},
+      n: 1,
+    });
+  });
+
   it('leaves primitives and mismatched shapes alone', () => {
     assert.strictEqual(applyDefaults('s', nested, docOf(nested)), 's');
     assert.strictEqual(applyDefaults(null, nested, docOf(nested)), null);

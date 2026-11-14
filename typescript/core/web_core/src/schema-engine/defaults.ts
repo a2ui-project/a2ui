@@ -16,7 +16,6 @@
 
 import {
   arrayItems,
-  deref,
   objectProperties,
   unwrapField,
   type SchemaCursor,
@@ -32,29 +31,79 @@ const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !
 const copyDefault = (v: unknown): unknown =>
   typeof v === 'object' && v !== null ? structuredClone(v) : v;
 
-/**
- * The single `oneOf` branch whose `const` properties all equal the value's,
- * or `undefined` when none or several match. A branch without a `const`
- * property never matches: no validator runs here.
- */
-function matchingBranch(value: Obj, node: JsonSchema, doc: SchemaDoc): SchemaCursor | undefined {
-  const c = deref(node, doc);
-  if (!isObj(c.node) || !Array.isArray(c.node['oneOf'])) return undefined;
-  const matches: SchemaCursor[] = [];
-  for (const option of c.node['oneOf'] as JsonSchema[]) {
-    const shape = objectProperties(option, c.doc);
-    if (!shape) continue;
-    let discriminated = false;
-    let matched = true;
-    for (const [key, prop] of Object.entries(shape.properties)) {
-      const target = deref(prop.node, prop.doc).node;
-      if (!isObj(target) || !('const' in target)) continue;
-      discriminated = true;
-      if (JSON.stringify(value[key]) !== JSON.stringify(target['const'])) matched = false;
-    }
-    if (discriminated && matched) matches.push({node: option, doc: c.doc});
+/** Whether two JSON values are equal, with object keys in any order. */
+function jsonEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    return (
+      Array.isArray(a) &&
+      Array.isArray(b) &&
+      a.length === b.length &&
+      a.every((item, i) => jsonEqual(item, b[i]))
+    );
   }
-  return matches.length === 1 ? matches[0] : undefined;
+  if (!isObj(a) || !isObj(b)) return false;
+  const keys = Object.keys(a);
+  return (
+    keys.length === Object.keys(b).length &&
+    keys.every(key => Object.hasOwn(b, key) && jsonEqual(a[key], b[key]))
+  );
+}
+
+/**
+ * The `oneOf` lists of a schema and of its `allOf` members, each with the
+ * document that owns it, following `$ref`s and nullable wrappers.
+ */
+function oneOfLists(
+  node: JsonSchema,
+  doc: SchemaDoc,
+  found: SchemaCursor[][] = [],
+  depth = 0,
+): SchemaCursor[][] {
+  if (depth > 32) return found;
+  const c = unwrapField(node, doc, true);
+  if (!isObj(c.node)) return found;
+  if (Array.isArray(c.node['oneOf'])) {
+    found.push((c.node['oneOf'] as JsonSchema[]).map(option => ({node: option, doc: c.doc})));
+  }
+  if (Array.isArray(c.node['allOf'])) {
+    for (const member of c.node['allOf'] as JsonSchema[]) {
+      oneOfLists(member, c.doc, found, depth + 1);
+    }
+  }
+  return found;
+}
+
+/**
+ * Whether a `oneOf` branch is the one a value takes: it declares at least one
+ * `const` property, and the value's properties equal every one of them. No
+ * validator runs here.
+ */
+function discriminates(value: Obj, option: SchemaCursor): boolean {
+  const shape = objectProperties(option.node, option.doc);
+  if (!shape) return false;
+  let discriminated = false;
+  for (const [key, prop] of Object.entries(shape.properties)) {
+    const target = unwrapField(prop.node, prop.doc, true).node;
+    if (!isObj(target) || !('const' in target)) continue;
+    discriminated = true;
+    if (!jsonEqual(value[key], target['const'])) return false;
+  }
+  return discriminated;
+}
+
+/**
+ * The branches a value takes: for each `oneOf` of the schema and its `allOf`
+ * members, the single branch that {@link discriminates} it, if exactly one
+ * does.
+ */
+function matchingBranches(value: Obj, node: JsonSchema, doc: SchemaDoc): SchemaCursor[] {
+  const branches: SchemaCursor[] = [];
+  for (const options of oneOfLists(node, doc)) {
+    const matches = options.filter(option => discriminates(value, option));
+    if (matches.length === 1) branches.push(matches[0]);
+  }
+  return branches;
 }
 
 function applyObject(value: Obj, node: JsonSchema, doc: SchemaDoc): Obj {
@@ -75,16 +124,20 @@ function applyObject(value: Obj, node: JsonSchema, doc: SchemaDoc): Obj {
       }
     }
   }
-  const branch = matchingBranch(value, node, doc);
-  return branch ? applyObject(result, branch.node, branch.doc) : result;
+  for (const branch of matchingBranches(value, node, doc)) {
+    result = applyObject(result, branch.node, branch.doc);
+  }
+  return result;
 }
 
 /**
  * Returns `value` with the JSON Schema `default`s of its missing optional
  * object properties filled in.
  *
- * Recurses into `properties` (merged across `allOf`), array `items`, and
- * the one `oneOf` branch whose `const` properties match the value. The input
+ * Recurses into `properties` (merged across `allOf`, through `$ref`s and
+ * nullable wrappers), array `items`, and, for each `oneOf` of the schema or
+ * of its `allOf` members, the one branch whose `const` properties match the
+ * value. The input
  * is never mutated: changed objects and arrays are shallow copies, and
  * everything unchanged is shared with the input. A value with nothing to
  * fill is returned as is.
@@ -95,6 +148,9 @@ function applyObject(value: Obj, node: JsonSchema, doc: SchemaDoc): Obj {
  * @returns `value`, or a copy of it with the defaults filled in.
  */
 export function applyDefaults(value: unknown, node: JsonSchema, doc: SchemaDoc): unknown {
+  if (typeof value !== 'object' || value === null) return value;
+  // A nullable schema (`anyOf: [schema, {type: 'null'}]`) fills as its schema.
+  ({node, doc} = unwrapField(node, doc, true));
   if (Array.isArray(value)) {
     const items = arrayItems(node, doc);
     if (!items) return value;

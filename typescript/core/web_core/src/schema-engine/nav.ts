@@ -242,3 +242,19 @@ export function refKind(node: JsonSchema, doc: SchemaDoc): string | undefined {
   }
   return undefined;
 }
+
+/**
+ * The `$defs` name a schema names: the last `$defs` target its `$ref` chain
+ * follows (through nullable wrappers and local aliases), or else the legacy
+ * `REF:` description it or its target carries.
+ */
+export function definitionName(node: JsonSchema, doc: SchemaDoc): string | undefined {
+  const field = unwrapField(node, doc, true);
+  if (field.refName !== undefined) return field.refName;
+  return (
+    refKind(node, doc) ??
+    (field.description === undefined
+      ? undefined
+      : refKind({description: field.description}, field.doc))
+  );
+}

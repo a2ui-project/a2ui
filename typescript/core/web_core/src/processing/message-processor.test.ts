@@ -3211,6 +3211,38 @@ describe('MessageProcessor component envelope mixins', () => {
       return proc;
     }
 
+    it('routes and validates a loaded component that declares @catalogId inline', () => {
+      const loaded = (catalogId: string) =>
+        Catalog.fromJson({
+          catalogId,
+          protocolVersion: '1.0',
+          components: {
+            // A flattened ComponentCommon: `id` and `@catalogId` inline.
+            Label: {
+              type: 'object',
+              allOf: [
+                {
+                  type: 'object',
+                  properties: {'id': {type: 'string'}, '@catalogId': {type: 'string'}},
+                  required: ['id'],
+                },
+                {
+                  type: 'object',
+                  properties: {component: {const: 'Label'}, text: {type: 'string'}},
+                  required: ['component'],
+                },
+              ],
+            },
+          },
+        }) as Catalog<ComponentApi>;
+      const proc = v10Processor(loaded('main'), loaded('other'));
+      process(proc, [{'id': 'root', 'component': 'Label', '@catalogId': 'other', 'text': 'Hi'}]);
+      const root = proc.getSurface('s')!.componentsModel.get('root')!;
+      assert.strictEqual(root.catalog.id, 'other');
+      assert.deepStrictEqual(root.properties, {text: 'Hi'});
+      proc.dispose();
+    });
+
     it('stores @-prefixed mixins in the component model', () => {
       const proc = v10Processor(gcbpCatalog('main', '1.0'), gcbpCatalog('other', '1.0'));
       process(proc, [

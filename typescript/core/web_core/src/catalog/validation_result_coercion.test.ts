@@ -105,6 +105,7 @@ describe('isDynamicBooleanSchema', () => {
     );
     assert.ok(bridged(DynamicBooleanSchema.default(true).describe('Grouping.')));
     assert.ok(bridged(DynamicBooleanSchema.optional().describe('Whether to group.')));
+    assert.ok(bridged(DynamicBooleanSchema.nullable().describe('Maybe.')));
     assert.ok(!bridged(DynamicStringSchema.optional().describe('Label.')));
   });
 

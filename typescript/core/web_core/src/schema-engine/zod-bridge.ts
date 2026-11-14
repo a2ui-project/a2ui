@@ -63,6 +63,7 @@ const withDescription = (json: Record<string, unknown>, def: z.ZodTypeDef) =>
 /** Zod wrappers whose own description hides the wrapped schema's. */
 const WRAPPED_KEY: Readonly<Record<string, string>> = {
   ZodOptional: 'innerType',
+  ZodNullable: 'innerType',
   ZodDefault: 'innerType',
   ZodCatch: 'innerType',
   ZodReadonly: 'innerType',

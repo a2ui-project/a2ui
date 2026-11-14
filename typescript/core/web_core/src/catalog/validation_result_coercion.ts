@@ -16,8 +16,8 @@
 
 import {
   arrayItems,
+  definitionName,
   objectProperties,
-  refKind,
   unwrapField,
   type SchemaDoc,
 } from '../schema-engine/nav.js';
@@ -61,21 +61,6 @@ export function coerceDynamicBoolean(value: unknown): boolean {
     return value !== 0 && !Number.isNaN(value);
   }
   return false;
-}
-
-/**
- * The `$defs` name a schema names: the last `$defs` target its `$ref` chain
- * follows, or else the legacy `REF:` description it or its target carries.
- */
-function definitionName(node: JsonSchema, doc: SchemaDoc): string | undefined {
-  const field = unwrapField(node, doc, true);
-  if (field.refName !== undefined) return field.refName;
-  return (
-    refKind(node, doc) ??
-    (field.description === undefined
-      ? undefined
-      : refKind({description: field.description}, field.doc))
-  );
 }
 
 /**

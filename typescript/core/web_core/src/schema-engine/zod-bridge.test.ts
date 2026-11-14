@@ -83,6 +83,7 @@ describe('toSchemaDoc', () => {
         defaulted: flag.default(true).describe('Grouping.'),
         optional: flag.optional().describe('Whether.'),
         plain: z.string().optional().describe('Text.'),
+        nullable: flag.nullable().describe('Maybe.'),
       }),
     );
     const props = (node as {properties: Record<string, Record<string, unknown>>}).properties;
@@ -90,6 +91,7 @@ describe('toSchemaDoc', () => {
     assert.equal(props.defaulted.default, true);
     assert.equal(props.optional.description, 'REF:#/$defs/DynamicBoolean|Whether.');
     assert.equal(props.plain.description, 'Text.');
+    assert.equal(props.nullable.description, 'REF:#/$defs/DynamicBoolean|Maybe.');
   });
 
   it('caches one document per schema and version', () => {

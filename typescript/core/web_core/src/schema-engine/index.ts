@@ -26,5 +26,13 @@ export type {
   JsonSchemaValidator,
   ValidationResult,
 } from './types.js';
-export {arrayItems, deref, objectProperties, refKind, unionOptions, unwrapField} from './nav.js';
+export {
+  arrayItems,
+  definitionName,
+  deref,
+  objectProperties,
+  refKind,
+  unionOptions,
+  unwrapField,
+} from './nav.js';
 export type {SchemaCursor, SchemaDoc, UnwrappedField} from './nav.js';

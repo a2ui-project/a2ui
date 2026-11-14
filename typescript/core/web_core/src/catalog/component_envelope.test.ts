@@ -143,6 +143,24 @@ describe('componentMixinLayout', () => {
     });
   });
 
+  it('takes @catalogId as an envelope field however it is declared', () => {
+    const layout = componentMixinLayout(
+      json(object({'id': {type: 'string'}, '@catalogId': {type: 'string'}, 'text': {}})),
+    );
+    assert.deepStrictEqual([...layout.customKeys], []);
+    assert.strictEqual(layout.schemaKeys.has('catalogId'), false);
+  });
+
+  it("does not take a catalog's own Checkable definition as the spec mixin", () => {
+    const root: JsonSchema = {
+      $defs: {Checkable: object({checks: {type: 'string'}})},
+      allOf: [{$ref: '#/$defs/Checkable'}, object({label: {}})],
+    };
+    const layout = componentMixinLayout({node: root, doc: {root, defs: DEFS}});
+    assert.deepStrictEqual([...layout.customKeys], ['checks']);
+    assert.strictEqual(layout.schemaKeys.has('checks'), false);
+  });
+
   it('keeps a custom bare key beside the @-prefixed mixin', () => {
     const layout = componentMixinLayout(
       json({allOf: [commonRef('Checkable'), object({checks: {type: 'string'}})]}),

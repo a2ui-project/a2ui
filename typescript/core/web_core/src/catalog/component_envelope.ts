@@ -32,7 +32,7 @@
 
 import {A2uiValidationError} from '../errors.js';
 import {isAtLeastVersion} from '../common/semver.js';
-import {deref, refKind, unwrapField, type SchemaCursor} from '../schema-engine/nav.js';
+import {definitionName, deref, unwrapField, type SchemaCursor} from '../schema-engine/nav.js';
 import type {JsonSchema} from '../schema-engine/types.js';
 
 /** The bare names of the component envelope mixins. */
@@ -105,8 +105,8 @@ interface PropertyDeclaration {
  * Follows `$ref`s and walks `allOf`, `anyOf`, and `oneOf`, so a property
  * declared in any branch counts as declared. A name declared in several
  * branches keeps each of its declarations. A property reached through a
- * `$ref` to `ComponentCommon` or `Checkable` is a standard mixin property. A
- * `$ref` that does not resolve declares nothing.
+ * `$ref` to the common types' `ComponentCommon` or `Checkable` is a standard
+ * mixin property. A `$ref` that does not resolve declares nothing.
  *
  * @param cursor A component schema and its document.
  * @param declared The map to add the declarations to.
@@ -130,9 +130,13 @@ function collectDeclaredProperties(
   const node = target.node;
   if (!isObj(node) || visited.has(node)) return declared;
   visited.add(node);
+  // Only a definition of a referenced document (the common types) is a spec
+  // mixin; a catalog's own `$defs/Checkable` is an ordinary definition.
   const mixin =
     inMixin ??
-    (target.refName !== undefined && SPEC_MIXIN_DEFS.has(target.refName)
+    (target.refName !== undefined &&
+    SPEC_MIXIN_DEFS.has(target.refName) &&
+    Object.values(cursor.doc.defs).includes(target.doc.root)
       ? target.refName
       : undefined);
   if (isObj(node['properties'])) {
@@ -167,21 +171,6 @@ function collectDeclaredProperties(
 }
 
 /**
- * The `$defs` name a schema names: the last `$defs` target its `$ref` chain
- * follows, or else the legacy `REF:` description it or its target carries.
- */
-function definitionName({node, doc}: SchemaCursor): string | undefined {
-  const field = unwrapField(node, doc, true);
-  if (field.refName !== undefined) return field.refName;
-  return (
-    refKind(node, doc) ??
-    (field.description === undefined
-      ? undefined
-      : refKind({description: field.description}, field.doc))
-  );
-}
-
-/**
  * Whether a property schema a component declares under a mixin's bare name
  * is the standard mixin schema rather than a custom property.
  *
@@ -211,11 +200,11 @@ function isStandardMixinProperty(
       return (
         inner['type'] === 'array' &&
         isObj(items) &&
-        definitionName({node: items, doc: field.doc}) === 'CheckRule'
+        definitionName(items, field.doc) === 'CheckRule'
       );
     }
     case 'accessibility':
-      return definitionName(schema) === 'AccessibilityAttributes';
+      return definitionName(schema.node, schema.doc) === 'AccessibilityAttributes';
     case 'catalogId':
       return siblings.has('id') && inner['type'] === 'string';
     case 'metadata': {
@@ -251,13 +240,13 @@ export function componentMixinLayout(cursor: SchemaCursor | undefined): Componen
   const cached = byNode.get(cursor.node);
   if (cached) return cached;
   const declared = collectDeclaredProperties(cursor);
-  // The component's catalog is an envelope field, like its `id`: the
-  // `catalogId` of `ComponentCommon` is not one of its properties.
-  for (const key of ['catalogId', atMixinKey('catalogId')]) {
-    const own = declared.get(key)?.filter(({mixin}) => mixin !== 'ComponentCommon');
-    if (own?.length) declared.set(key, own);
-    else declared.delete(key);
-  }
+  // The component's catalog is an envelope field, like its `id`: `@catalogId`
+  // is never one of its properties, however it is declared, and neither is
+  // the bare `catalogId` of `ComponentCommon`.
+  declared.delete(atMixinKey('catalogId'));
+  const ownCatalogId = declared.get('catalogId')?.filter(({mixin}) => mixin !== 'ComponentCommon');
+  if (ownCatalogId?.length) declared.set('catalogId', ownCatalogId);
+  else declared.delete('catalogId');
   const customKeys = new Set<ComponentMixinKey>();
   const schemaKeys = new Map<ComponentMixinKey, string>();
   for (const key of COMPONENT_MIXIN_KEYS) {
