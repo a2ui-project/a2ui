@@ -549,4 +549,54 @@ describe('DirectJsonResponseStream', () => {
       expect(() => opened.feed('text')).toThrow('The response stream is closed.');
     });
   });
+
+  it.each([
+    ['list', ['c', 'd']],
+    ['object', {n: 1}],
+  ])(
+    'withholds an updateDataModel that writes a %s value before path until path arrives',
+    (_label, value) => {
+      const parser = new DirectJsonParser([basicV10]);
+      const state = new RendererState([basicV10]);
+      state.apply([
+        {
+          version: '1.0',
+          createSurface: {
+            surfaceId: 's',
+            catalogId: basicV10.id,
+            components: [{id: 'root', component: 'Text', text: 'hi'}],
+            dataModel: {items: ['a', 'b'], other: 1},
+          },
+        },
+      ]);
+      const opened = parser.openStream({state});
+
+      expect(
+        opened.feed(
+          `${OPEN}[{"version": "1.0", "updateDataModel": {"surfaceId": "s", "value": ${JSON.stringify(value)}, `,
+        ),
+      ).toEqual([]);
+      expect(state.getSurface('s')?.dataModel.get('/')).toEqual({
+        items: ['a', 'b'],
+        other: 1,
+      });
+
+      const parts = opened.feed(`"path": "/items"}}]${CLOSE}`);
+      opened.close();
+      expect(messagesOf(parts)).toEqual([
+        {
+          version: '1.0',
+          updateDataModel: {
+            surfaceId: 's',
+            path: '/items',
+            value,
+          },
+        },
+      ]);
+      expect(state.getSurface('s')?.dataModel.get('/')).toEqual({
+        items: value,
+        other: 1,
+      });
+    },
+  );
 });

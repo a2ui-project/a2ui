@@ -749,6 +749,67 @@ void main() {
         isA<A2uiPart>(),
       ]);
     });
+
+    for (final (String label, Object value) in [
+      ('list', ['c', 'd']),
+      ('object', {'n': 1}),
+    ]) {
+      test(
+        'withholds an updateDataModel that writes a $label value before path '
+        'until path arrives',
+        () {
+          final RendererState state = canvas()
+            ..apply(
+              parser().compile(
+                '[{"version": "v0.9", "updateDataModel": {"surfaceId": "s", '
+                '"value": {"items": ["a", "b"], "other": 1}}}]',
+              ),
+            );
+          final DirectJsonResponseStream reader = parser().openStream(
+            state: state,
+          );
+
+          expect(
+            reader.feed(
+              '<a2ui-json>[{"version": "v0.9", "updateDataModel": '
+              '{"surfaceId": "s", "value": ${jsonEncode(value)}, ',
+            ),
+            isEmpty,
+          );
+          expect(state.getSurface('s')!.dataModel.get('/'), {
+            'items': ['a', 'b'],
+            'other': 1,
+          });
+
+          final List<ResponsePart> parts = reader.feed(
+            '"path": "/items"}}]</a2ui-json>',
+          );
+          reader.close();
+          expect(parts, [
+            isA<A2uiPart>().having(
+              (p) => [
+                for (final AgentToRendererMessage m in p.a2ui) m.toJson(),
+              ],
+              'a2ui',
+              [
+                {
+                  'version': 'v0.9',
+                  'updateDataModel': {
+                    'surfaceId': 's',
+                    'path': '/items',
+                    'value': value,
+                  },
+                },
+              ],
+            ),
+          ]);
+          expect(state.getSurface('s')!.dataModel.get('/'), {
+            'items': value,
+            'other': 1,
+          });
+        },
+      );
+    }
   });
 
   group('promptSnippet', () {

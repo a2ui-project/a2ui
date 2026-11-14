@@ -329,9 +329,16 @@ class Reader {
   private object(parentKey?: string): Record<string, unknown> {
     this.i += 1;
     const obj: Record<string, unknown> = {};
+    const isDataUpdate = parentKey === 'updateDataModel' && !this.inDataModel;
+    const healed = (): Record<string, unknown> => {
+      // An `updateDataModel` whose `value` closed may still have a `path` after it, so it is
+      // not healed as a root update.
+      if (isDataUpdate && !this.cut && !('path' in obj)) this.end();
+      return this.healed(obj);
+    };
     for (;;) {
       this.skipSpace();
-      if (this.atEnd) return this.healed(obj);
+      if (this.atEnd) return healed();
       if (this.text[this.i] === '}') {
         this.i += 1;
         return obj;
@@ -376,7 +383,7 @@ class Reader {
         configurable: true,
       });
       this.skipSpace();
-      if (this.atEnd) return this.healed(obj);
+      if (this.atEnd) return healed();
       if (this.text[this.i] === ',') {
         this.i += 1;
       } else if (this.text[this.i] !== '}') {

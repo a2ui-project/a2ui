@@ -727,3 +727,59 @@ def test_stream_text_with_lone_backticks_kept(basic_catalog_v10):
     parts.extend(stream.close())
     texts = [p.text for p in parts if isinstance(p, TextPart)]
     assert "".join(texts) == "Use `Text` for labels."
+
+
+@pytest.mark.parametrize(
+    "value",
+    [["c", "d"], {"n": 1}],
+    ids=["list", "object"],
+)
+def test_update_data_model_with_value_before_path_waits_for_path(
+    basic_catalog_v10, value
+):
+    """An updateDataModel that writes value before path does not replace the root data model."""
+    parser = DirectJsonParser([basic_catalog_v10])
+    state = RendererState([basic_catalog_v10])
+    state.apply([
+        {
+            "version": "1.0",
+            "createSurface": {
+                "surfaceId": "s",
+                "catalogId": basic_catalog_v10.catalog_id,
+                "components": [{"id": "root", "component": "Text", "text": "hi"}],
+                "dataModel": {"items": ["a", "b"], "other": 1},
+            },
+        },
+    ])
+    stream = parser.open_stream(state=state)
+
+    first = stream.feed(
+        f'{A2UI_OPEN_TAG}[{{"version": "1.0", "updateDataModel":'
+        f' {{"surfaceId": "s", "value": {json.dumps(value)}, '
+    )
+    assert first == []
+    assert state.get_surface("s").data_model.get("/") == {
+        "items": ["a", "b"],
+        "other": 1,
+    }
+
+    second = stream.feed(f'"path": "/items"}}}}]{A2UI_CLOSE_TAG}')
+    stream.close()
+    emitted = [
+        m
+        for part in second
+        if isinstance(part, A2uiPart)
+        for m in to_message_dicts(part.a2ui)
+    ]
+    assert emitted == [{
+        "version": "1.0",
+        "updateDataModel": {
+            "surfaceId": "s",
+            "path": "/items",
+            "value": value,
+        },
+    }]
+    assert state.get_surface("s").data_model.get("/") == {
+        "items": value,
+        "other": 1,
+    }

@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+import copy
 import dataclasses
 import json
 import re
@@ -104,6 +105,8 @@ class _Growing:
     ids: set[str] = dataclasses.field(default_factory=set)
     last_id: str | None = None
     value: Any = None
+    surface_id: str | None = None
+    prior_root: Any = None
 
 
 class DirectJsonResponseStream(ResponseStream[PartT], Generic[PartT]):
@@ -493,7 +496,37 @@ class DirectJsonResponseStream(ResponseStream[PartT], Generic[PartT]):
                 if growing.field == "components":
                     return self._check_added(growing, envelope)
                 return self._check_grown(growing, envelope, closed=closed)
-        self._apply(envelope)
+        prior_surface_id: str | None = None
+        prior_root: Any = None
+        if growing is not None and growing.surface_id is not None:
+            surface = self._state.get_surface(growing.surface_id)
+            if surface is not None:
+                prior_surface_id = growing.surface_id
+                prior_root = growing.prior_root
+                surface.data_model.set("/", copy.deepcopy(prior_root))
+        elif (
+            not closed
+            and isinstance(envelope, dict)
+            and isinstance(envelope.get("updateDataModel"), dict)
+        ):
+            body = envelope["updateDataModel"]
+            if "path" not in body and isinstance(body.get("surfaceId"), str):
+                surface = self._state.get_surface(body["surfaceId"])
+                if surface is not None:
+                    prior_surface_id = body["surfaceId"]
+                    prior_root = copy.deepcopy(surface.data_model.get("/"))
+        try:
+            self._apply(envelope)
+        except Exception:
+            if (
+                growing is not None
+                and growing.surface_id is not None
+                and isinstance(growing.value, dict)
+            ):
+                surface = self._state.get_surface(growing.surface_id)
+                if surface is not None:
+                    surface.data_model.set("/", copy.deepcopy(growing.value))
+            raise
         model = to_message_models([envelope])[0]
         self._growing = None
         key = _growing_key(envelope)
@@ -514,6 +547,9 @@ class DirectJsonResponseStream(ResponseStream[PartT], Generic[PartT]):
                     }
                 else:
                     growing.value = body[field]
+                    if "path" not in body:
+                        growing.surface_id = prior_surface_id
+                        growing.prior_root = prior_root
                 self._growing = growing
         return model
 
@@ -610,7 +646,7 @@ def _may_grow(envelope: Mapping[str, Any]) -> bool:
 
     It must be one a renderer applies again as it grows, and hold the field
     it grows by, with at least one component for a message that grows by its
-    components.
+    components, or a non-empty map when an `updateDataModel` has no `path` yet.
     """
     key = _growing_key(envelope)
     if key is None:
@@ -619,6 +655,8 @@ def _may_grow(envelope: Mapping[str, Any]) -> bool:
     field = _GROWING_FIELDS[key]
     if not isinstance(body, Mapping) or field not in body:
         return False
+    if field == "value" and "path" not in body:
+        return isinstance(body[field], Mapping) and bool(body[field])
     return field != "components" or bool(body[field])
 
 
