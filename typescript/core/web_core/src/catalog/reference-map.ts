@@ -14,17 +14,16 @@
  * limitations under the License.
  */
 
-import {z} from 'zod';
-
+import type {SchemaCursor, SchemaDoc} from '../schema-engine/nav.js';
+import type {JsonSchema} from '../schema-engine/types.js';
+import {toSchemaDoc} from '../schema-engine/zod-bridge.js';
 import {
   type ChildRefAnalysisOptions,
   canSchemaHoldListRef,
   canSchemaHoldSingleRef,
   extractRefDefName,
   extractRefFields,
-  getUnionOptions,
-  isTemplateRefObject,
-  unwrapZodField,
+  schemaDiscovery,
 } from '../resolution/ref-fields.js';
 import type {Catalog, ComponentApi, FunctionApi} from './types.js';
 
@@ -64,580 +63,240 @@ export interface ChildRefAnalysis {
   isChildList: boolean;
 }
 
-function checkDirectJsonRef(
-  ref: string,
+const NONE: ChildRefAnalysis = {isChild: false, isChildList: false};
+const CHILD: ChildRefAnalysis = {isChild: true, isChildList: false};
+const CHILD_LIST: ChildRefAnalysis = {isChild: false, isChildList: true};
+
+function matchesName(desc: string, names: ReadonlySet<string>): boolean {
+  if (!desc) return false;
+  if (desc.startsWith('REF:') && names.has(extractRefDefName(desc.substring(4).split('|')[0]))) {
+    return true;
+  }
+  const refTarget = extractRefDefName(desc.split('|')[0]);
+  return (refTarget !== '' && names.has(refTarget)) || names.has(desc.trim());
+}
+
+/** A child-ref match from `$ref` definition names, then from descriptions. */
+function explicitMatch(
+  field: ReturnType<typeof schemaDiscovery.unwrap>,
   options: ChildRefAnalysisOptions,
 ): ChildRefAnalysis | null {
-  if (!ref) return null;
-  const defName = extractRefDefName(ref);
-  const childListNames = options.childListRefNames;
-  const childNames = options.childRefNames;
-
-  if (childListNames.has(defName)) {
-    return {isChild: false, isChildList: true};
+  if (field.refs.has('child-list')) return CHILD_LIST;
+  if (field.refs.has('component-id')) return CHILD;
+  for (const name of [...field.refDefNames, ...field.localDefNames]) {
+    if (options.childListRefNames.has(name)) return CHILD_LIST;
+    if (options.childRefNames.has(name)) return CHILD;
   }
-  if (childNames.has(defName)) {
-    return {isChild: true, isChildList: false};
+  for (const desc of field.descriptions) {
+    if (matchesName(desc, options.childListRefNames)) return CHILD_LIST;
+    if (matchesName(desc, options.childRefNames)) return CHILD;
   }
   return null;
-}
-
-function checkCombinerList(
-  list: unknown[],
-  options: ChildRefAnalysisOptions,
-): ChildRefAnalysis | null {
-  let hasChild = false;
-  for (const sub of list) {
-    if (typeof sub !== 'object' || sub === null) continue;
-    const subRes = checkJsonSchemaRef(sub as Record<string, unknown>, options);
-    if (subRes.isChildList) return {isChild: false, isChildList: true};
-    if (subRes.isChild) hasChild = true;
-  }
-  return hasChild ? {isChild: true, isChildList: false} : null;
-}
-
-function checkCombinerRefs(
-  schema: Record<string, unknown>,
-  options: ChildRefAnalysisOptions,
-): ChildRefAnalysis | null {
-  let hasChild = false;
-  for (const combiner of ['oneOf', 'anyOf', 'allOf'] as const) {
-    const list = schema[combiner];
-    if (!Array.isArray(list)) continue;
-    const res = checkCombinerList(list, options);
-    if (res?.isChildList) return res;
-    if (res?.isChild) hasChild = true;
-  }
-  return hasChild ? {isChild: true, isChildList: false} : null;
-}
-
-function checkJsonSchemaRef(
-  schema: Record<string, unknown>,
-  options: ChildRefAnalysisOptions,
-): ChildRefAnalysis {
-  const ref = typeof schema.$ref === 'string' ? schema.$ref : '';
-  const directMatch = checkDirectJsonRef(ref, options);
-  if (directMatch) return directMatch;
-
-  if (schema.type === 'array' && typeof schema.items === 'object' && schema.items !== null) {
-    const itemsRes = checkJsonSchemaRef(schema.items as Record<string, unknown>, options);
-    if (itemsRes.isChild || itemsRes.isChildList) {
-      return {isChild: false, isChildList: true};
-    }
-  }
-
-  const combinerMatch = checkCombinerRefs(schema, options);
-  if (combinerMatch) return combinerMatch;
-
-  const props =
-    typeof schema.properties === 'object' && schema.properties !== null
-      ? (schema.properties as Record<string, unknown>)
-      : undefined;
-  if (
-    schema.type === 'object' &&
-    props &&
-    ((Object.hasOwn(props, 'componentId') &&
-      (Object.hasOwn(props, 'path') ||
-        Object.hasOwn(props, '@path') ||
-        Object.hasOwn(props, 'dataBinding'))) ||
-      Object.hasOwn(props, 'explicitList') ||
-      Object.hasOwn(props, 'template'))
-  ) {
-    return {isChild: false, isChildList: true};
-  }
-
-  return {isChild: false, isChildList: false};
 }
 
 function analyzeUnionOptions(
-  options: z.ZodTypeAny[],
-  analysisOptions: ChildRefAnalysisOptions,
+  members: readonly SchemaCursor[],
+  options: ChildRefAnalysisOptions,
   path: Set<unknown>,
 ): ChildRefAnalysis {
   let hasChildRef = false;
-
-  for (const opt of options) {
-    const optRes = analyzeChildRefSchemaOnPath(opt, analysisOptions, path);
-    if (optRes.isChildList) {
-      return {isChild: false, isChildList: true};
-    }
-    if (optRes.isChild) {
-      hasChildRef = true;
-    }
+  for (const opt of members) {
+    const optRes = analyzeOnPath(opt, options, path);
+    if (optRes.isChildList) return CHILD_LIST;
+    if (optRes.isChild) hasChildRef = true;
   }
-
-  if (hasChildRef) {
-    return {isChild: true, isChildList: false};
-  }
-  return {isChild: false, isChildList: false};
-}
-
-function isChildListDescription(desc: string, childListNames: ReadonlySet<string>): boolean {
-  if (!desc) return false;
-  if (desc.startsWith('REF:')) {
-    const refTarget = extractRefDefName(desc.substring(4).split('|')[0]);
-    if (childListNames.has(refTarget)) return true;
-  }
-  const refTarget = extractRefDefName(desc.split('|')[0]);
-  if (refTarget && childListNames.has(refTarget)) {
-    return true;
-  }
-  const trimmed = desc.trim();
-  if (childListNames.has(trimmed)) {
-    return true;
-  }
-  return false;
-}
-
-function isChildDescription(desc: string, childNames: ReadonlySet<string>): boolean {
-  if (!desc) return false;
-  if (desc.startsWith('REF:')) {
-    const refTarget = extractRefDefName(desc.substring(4).split('|')[0]);
-    if (childNames.has(refTarget)) return true;
-  }
-  const refTarget = extractRefDefName(desc.split('|')[0]);
-  if (refTarget && childNames.has(refTarget)) {
-    return true;
-  }
-  const trimmed = desc.trim();
-  if (childNames.has(trimmed)) {
-    return true;
-  }
-  return false;
-}
-
-function checkDescriptionChildRef(
-  descriptions: string[],
-  options: ChildRefAnalysisOptions,
-): ChildRefAnalysis | null {
-  const childListNames = options.childListRefNames;
-  const childNames = options.childRefNames;
-
-  for (const desc of descriptions) {
-    if (isChildListDescription(desc, childListNames)) {
-      return {isChild: false, isChildList: true};
-    }
-    if (isChildDescription(desc, childNames)) {
-      return {isChild: true, isChildList: false};
-    }
-  }
-  return null;
-}
-
-function analyzeZodArray(
-  elem: z.ZodTypeAny,
-  options: ChildRefAnalysisOptions,
-  path: Set<unknown>,
-): ChildRefAnalysis {
-  const elemRes = analyzeChildRefSchemaOnPath(elem, options, path);
-  if (elemRes.isChild || elemRes.isChildList) {
-    return {isChild: false, isChildList: true};
-  }
-  return {isChild: false, isChildList: false};
+  return hasChildRef ? CHILD : NONE;
 }
 
 function analyzeIntersectedSchemas(
-  left: z.ZodTypeAny,
-  right: z.ZodTypeAny,
+  left: SchemaCursor,
+  right: SchemaCursor,
   options: ChildRefAnalysisOptions,
   path: Set<unknown>,
-  outerMatch?: ChildRefAnalysis | null,
+  outerMatch: ChildRefAnalysis | null,
 ): ChildRefAnalysis {
-  const leftRes = analyzeChildRefSchemaOnPath(left, options, path);
-  const rightRes = analyzeChildRefSchemaOnPath(right, options, path);
+  const leftRes = analyzeOnPath(left, options, path);
+  const rightRes = analyzeOnPath(right, options, path);
+  const holdsList = (c: SchemaCursor) => canSchemaHoldListRef(c.node, c.doc, options);
+  const holdsSingle = (c: SchemaCursor) => canSchemaHoldSingleRef(c.node, c.doc, options);
 
   const isList =
-    (Boolean(outerMatch?.isChildList) &&
-      canSchemaHoldListRef(left, options) &&
-      canSchemaHoldListRef(right, options)) ||
-    (leftRes.isChildList && canSchemaHoldListRef(right, options)) ||
-    (rightRes.isChildList && canSchemaHoldListRef(left, options));
-  if (isList) {
-    return {isChild: false, isChildList: true};
-  }
+    (Boolean(outerMatch?.isChildList) && holdsList(left) && holdsList(right)) ||
+    (leftRes.isChildList && holdsList(right)) ||
+    (rightRes.isChildList && holdsList(left));
+  if (isList) return CHILD_LIST;
 
   const isSingle =
-    (Boolean(outerMatch?.isChild) &&
-      canSchemaHoldSingleRef(left, options) &&
-      canSchemaHoldSingleRef(right, options)) ||
-    (leftRes.isChild && canSchemaHoldSingleRef(right, options)) ||
-    (rightRes.isChild && canSchemaHoldSingleRef(left, options)) ||
-    (leftRes.isChildList &&
-      canSchemaHoldSingleRef(left, options) &&
-      canSchemaHoldSingleRef(right, options)) ||
-    (rightRes.isChildList &&
-      canSchemaHoldSingleRef(right, options) &&
-      canSchemaHoldSingleRef(left, options));
-  if (isSingle) {
-    return {isChild: true, isChildList: false};
-  }
-
-  return {isChild: false, isChildList: false};
+    (Boolean(outerMatch?.isChild) && holdsSingle(left) && holdsSingle(right)) ||
+    (leftRes.isChild && holdsSingle(right)) ||
+    (rightRes.isChild && holdsSingle(left)) ||
+    (leftRes.isChildList && holdsSingle(left) && holdsSingle(right)) ||
+    (rightRes.isChildList && holdsSingle(right) && holdsSingle(left));
+  return isSingle ? CHILD : NONE;
 }
 
 /**
- * Analyzes a property schema (Zod schema or JSON Schema definition) to determine
- * if it represents a single component child reference (ComponentId) or child list (ChildList).
+ * Analyzes a property schema to determine if it represents a single component
+ * child reference (ComponentId) or child list (ChildList).
  *
- * Inspects explicit metadata stamps (`markChildRef`), $ref pointer targets (e.g.
- * `common_types.json#/$defs/ChildList`, `common_types.json#/$defs/ComponentId`,
- * `common_types.json#/$defs/Child`), schema descriptions with REF: prefixes,
- * structural unions (`{ componentId, path }` templates), and arrays of component IDs.
+ * Inspects `$ref` targets (e.g. `common_types.json#/$defs/ChildList`,
+ * `common_types.json#/$defs/ComponentId`, `common_types.json#/$defs/Child`), schema
+ * descriptions with `REF:` prefixes, structural unions (`{ componentId, path }`
+ * templates and v0.8 `explicitList`/`template`), intersections, and arrays of
+ * component IDs. A `$ref` that does not resolve is classified by its target name.
  *
- * @param schema Zod schema, JSON Schema object, or property schema definition.
+ * @param node The property schema.
+ * @param doc The document that owns `node`.
  * @param options Required configuration specifying recognized child definition names.
  * @returns ChildRefAnalysis containing `isChild` and `isChildList` booleans.
  */
 export function analyzeChildRefSchema(
-  schema: unknown,
+  node: JsonSchema,
+  doc: SchemaDoc,
   options: ChildRefAnalysisOptions,
 ): ChildRefAnalysis {
-  return analyzeChildRefSchemaOnPath(schema, options, new Set());
+  return analyzeOnPath({node, doc}, options, new Set());
 }
 
 /**
- * Implements {@link analyzeChildRefSchema} while tracking the schemas on the
+ * Implements {@link analyzeChildRefSchema} while tracking the schema nodes on the
  * current recursion path.
  *
- * A schema found in `path` means the traversal has looped back into one of its
- * own ancestors (for example through a recursive `z.lazy()` union), so the
- * branch is treated as a non-reference. Entries are removed when their branch
- * returns, so sibling properties and union options can reuse one schema
- * instance and still be analyzed.
+ * A node found in `path` means the traversal has looped back into one of its
+ * own ancestors (for example through a recursive `$ref`), so the branch is treated
+ * as a non-reference. Entries are removed when their branch returns, so sibling
+ * properties and union options can reuse one schema object and still be analyzed.
  */
-function analyzeChildRefSchemaOnPath(
-  schema: unknown,
+function analyzeOnPath(
+  c: SchemaCursor,
   options: ChildRefAnalysisOptions,
   path: Set<unknown>,
 ): ChildRefAnalysis {
-  if (!schema || typeof schema !== 'object') {
-    return {isChild: false, isChildList: false};
-  }
-  if (path.has(schema)) {
-    return {isChild: false, isChildList: false};
-  }
-
+  const schema = c.node;
+  if (!schema || typeof schema !== 'object') return NONE;
+  if (path.has(schema)) return NONE;
   path.add(schema);
   try {
-    return analyzeSchemaNode(schema, options, path);
+    return analyzeSchemaNode(c, options, path);
   } finally {
     path.delete(schema);
   }
 }
 
 function analyzeSchemaNode(
-  schema: object,
+  c: SchemaCursor,
   options: ChildRefAnalysisOptions,
   path: Set<unknown>,
 ): ChildRefAnalysis {
-  if (!('_def' in schema) || !(schema as z.ZodTypeAny)._def) {
-    return checkJsonSchemaRef(schema as Record<string, unknown>, options);
-  }
-
-  const field = unwrapZodField(schema as z.ZodTypeAny);
+  const field = schemaDiscovery.unwrap(c);
   for (const s of field.traversed) {
-    if (s !== schema && path.has(s)) {
-      return {isChild: false, isChildList: false};
-    }
+    if (s !== c.node && path.has(s)) return NONE;
   }
 
-  const explicitMatch: ChildRefAnalysis | null = field.refs.has('child-list')
-    ? {isChild: false, isChildList: true}
-    : field.refs.has('component-id')
-      ? {isChild: true, isChildList: false}
-      : checkDescriptionChildRef(field.descriptions, options);
-
-  const current = field.schema;
-  if (!current?._def) {
-    return explicitMatch ?? {isChild: false, isChildList: false};
-  }
-
-  if (current !== schema && path.has(current)) {
-    return {isChild: false, isChildList: false};
-  }
+  const match = explicitMatch(field, options);
+  const current = field.node;
+  if (current !== c.node && path.has(current)) return NONE;
 
   const nextPath = new Set(path);
-  for (const s of field.traversed) {
-    nextPath.add(s);
-  }
+  for (const s of field.traversed) nextPath.add(s);
   nextPath.add(current);
 
-  const typeName = current._def.typeName as string;
+  const kind = schemaDiscovery.kindOf(current);
 
-  // Zod's `.and()` copies the left operand's `description` onto the `ZodIntersection`,
-  // so verify compatibility against both sides before trusting an outer marker.
-  if (typeName === 'ZodIntersection') {
-    const def = current._def as {left: z.ZodTypeAny; right: z.ZodTypeAny};
-    return analyzeIntersectedSchemas(def.left, def.right, options, nextPath, explicitMatch);
+  // A combinator's description may be copied from one member, so verify
+  // compatibility against both sides before trusting an outer marker.
+  if (kind === 'intersection') {
+    const [left, right] = schemaDiscovery.intersectionSides(field);
+    return analyzeIntersectedSchemas(left, right, options, nextPath, match);
   }
 
-  if (explicitMatch?.isChildList) {
-    return explicitMatch;
+  if (match?.isChildList) return match;
+
+  // Inspect all union members before settling on `isChild: true`.
+  if (kind === 'union') {
+    const unionRes = analyzeUnionOptions(
+      schemaDiscovery.unionOptions(field) ?? [],
+      options,
+      nextPath,
+    );
+    if (unionRes.isChildList) return unionRes;
+    return unionRes.isChild || match?.isChild ? CHILD : NONE;
   }
 
-  // Zod's `.or()` copies the first operand's `description` onto the `ZodUnion`,
-  // so inspect all union branches before settling on `isChild: true`.
-  const unionOptions = getUnionOptions(current);
-  if (unionOptions) {
-    const unionRes = analyzeUnionOptions(unionOptions, options, nextPath);
-    if (unionRes.isChildList) {
-      return unionRes;
-    }
-    if (unionRes.isChild || explicitMatch?.isChild) {
-      return {isChild: true, isChildList: false};
-    }
-    return {isChild: false, isChildList: false};
+  if (match) return match;
+
+  if (kind === 'array') {
+    const elemRes = analyzeOnPath(schemaDiscovery.arrayElement(field), options, nextPath);
+    return elemRes.isChild || elemRes.isChildList ? CHILD_LIST : NONE;
   }
 
-  if (explicitMatch) {
-    return explicitMatch;
-  }
-
-  if (typeName === 'ZodArray') {
-    return analyzeZodArray(current._def.type as z.ZodTypeAny, options, nextPath);
-  }
-
-  if (typeName === 'ZodPipeline') {
-    const def = current._def as {in: z.ZodTypeAny; out: z.ZodTypeAny};
-    const pipeIn = def['in'];
-    const pipeOut = def['out'];
-    const inField = unwrapZodField(pipeIn);
-    if (inField.hasTransform) {
-      const inRes = analyzeChildRefSchemaOnPath(pipeIn, options, nextPath);
-      if (inRes.isChild || inRes.isChildList) {
-        return inRes;
-      }
-      const outRes = analyzeChildRefSchemaOnPath(pipeOut, options, nextPath);
-      if (outRes.isChildList && canSchemaHoldListRef(pipeIn, options)) {
-        return {isChild: false, isChildList: true};
-      }
-      if (outRes.isChild && canSchemaHoldSingleRef(pipeIn, options)) {
-        return {isChild: true, isChildList: false};
-      }
-      return {isChild: false, isChildList: false};
-    }
-    return analyzeIntersectedSchemas(pipeIn, pipeOut, options, nextPath);
-  }
-
-  if (isTemplateRefObject(current)) {
-    return {isChild: false, isChildList: true};
-  }
-
-  return {isChild: false, isChildList: false};
+  return schemaDiscovery.isTemplateRef(field) ? CHILD_LIST : NONE;
 }
 
 /**
  * Returns whether the schema represents a single child ComponentId reference.
  *
- * @param schema The schema to evaluate.
+ * @param node The schema to evaluate.
+ * @param doc The document that owns `node`.
  * @param options The child reference analysis options.
  * @returns Whether the schema is a single child reference.
  */
-export function isChildSchema(schema: unknown, options: ChildRefAnalysisOptions): boolean {
-  return analyzeChildRefSchema(schema, options).isChild;
+export function isChildSchema(
+  node: JsonSchema,
+  doc: SchemaDoc,
+  options: ChildRefAnalysisOptions,
+): boolean {
+  return analyzeChildRefSchema(node, doc, options).isChild;
 }
 
 /**
  * Returns whether the schema represents a child list or dynamic child template (ChildList).
  *
- * @param schema The schema to evaluate.
+ * @param node The schema to evaluate.
+ * @param doc The document that owns `node`.
  * @param options The child reference analysis options.
  * @returns Whether the schema is a child list reference.
  */
-export function isChildListSchema(schema: unknown, options: ChildRefAnalysisOptions): boolean {
-  return analyzeChildRefSchema(schema, options).isChildList;
+export function isChildListSchema(
+  node: JsonSchema,
+  doc: SchemaDoc,
+  options: ChildRefAnalysisOptions,
+): boolean {
+  return analyzeChildRefSchema(node, doc, options).isChildList;
 }
 
 /**
  * Returns whether the schema represents either a single child or a child list.
  *
- * @param schema The schema to evaluate.
+ * @param node The schema to evaluate.
+ * @param doc The document that owns `node`.
  * @param options The child reference analysis options.
  * @returns Whether the schema is any child or child list reference.
  */
 export function isChildOrChildListSchema(
-  schema: unknown,
+  node: JsonSchema,
+  doc: SchemaDoc,
   options: ChildRefAnalysisOptions,
 ): boolean {
-  const res = analyzeChildRefSchema(schema, options);
+  const res = analyzeChildRefSchema(node, doc, options);
   return res.isChild || res.isChildList;
 }
 
-/** Mutable collector threaded through schema inspection. */
-interface ChildRefAccumulator {
-  readonly singleRefs: Set<string>;
-  readonly listRefs: Set<string>;
-  readonly nestedRefs: Record<string, Set<string>>;
-}
-
-function addNestedRef(acc: ChildRefAccumulator, key: string, subKey: string): void {
-  const existing = acc.nestedRefs[key];
-  if (existing) {
-    existing.add(subKey);
-    return;
-  }
-  acc.nestedRefs[key] = new Set([subKey]);
-}
-
 /**
- * Collects the `properties` maps of any array-of-objects branches on `propSchema`,
- * including inside `oneOf`, `anyOf`, and `allOf` combiners.
+ * The JSON Schema of a component: a Zod schema through the bridge, or a JSON
+ * Schema definition as its own document.
  */
-function collectRawArrayItemProperties(propSchema: unknown): Array<Record<string, unknown>> {
-  if (typeof propSchema !== 'object' || propSchema === null) return [];
-
-  const result: Array<Record<string, unknown>> = [];
-  const schema = propSchema as Record<string, unknown>;
-  if (schema['type'] === 'array' || Object.hasOwn(schema, 'items')) {
-    const items = schema['items'];
-    if (typeof items === 'object' && items !== null) {
-      const itemProps = (items as Record<string, unknown>)['properties'];
-      if (typeof itemProps === 'object' && itemProps !== null) {
-        result.push(itemProps as Record<string, unknown>);
-      }
-    }
+function componentSchemaDoc(schema: unknown, protocolVersion: string | undefined): SchemaCursor {
+  if (schema && typeof schema === 'object' && '_def' in schema) {
+    // ponytail: bridge until Task 8
+    return toSchemaDoc(schema as ComponentApi['schema'], protocolVersion);
   }
-  for (const combiner of ['oneOf', 'anyOf', 'allOf'] as const) {
-    const list = schema[combiner];
-    if (!Array.isArray(list)) continue;
-    for (const sub of list) {
-      result.push(...collectRawArrayItemProperties(sub));
-    }
-  }
-  return result;
-}
-
-function canRawSchemaHoldString(raw: unknown): boolean {
-  if (raw === true) return true;
-  if (typeof raw !== 'object' || raw === null) return false;
-  const obj = raw as Record<string, unknown>;
-  return obj['type'] === undefined || obj['type'] === 'string';
-}
-
-function canRawSchemaHoldStringArray(raw: unknown): boolean {
-  if (raw === true) return true;
-  if (typeof raw !== 'object' || raw === null) return false;
-  const obj = raw as Record<string, unknown>;
-  if (obj['type'] === undefined) return true;
-  if (obj['type'] !== 'array') return false;
-  return obj['items'] === undefined || canRawSchemaHoldString(obj['items']);
-}
-
-function inspectRawProperties(
-  properties: Record<string, unknown>,
-  acc: ChildRefAccumulator,
-  options: ChildRefAnalysisOptions,
-): void {
-  for (const [key, propSchema] of Object.entries(properties)) {
-    const itemPropsList = collectRawArrayItemProperties(propSchema);
-    let foundNestedSubKey = false;
-    for (const itemProps of itemPropsList) {
-      for (const [subKey, subSchema] of Object.entries(itemProps)) {
-        const subRes = analyzeChildRefSchema(subSchema, options);
-        const isSingleSubKey =
-          subKey === 'child' || Boolean(options.childPropertyNames?.has(subKey));
-        if (
-          subRes.isChild ||
-          subRes.isChildList ||
-          (isSingleSubKey &&
-            typeof subSchema === 'object' &&
-            subSchema !== null &&
-            (subSchema as Record<string, unknown>)['type'] === 'string')
-        ) {
-          acc.listRefs.add(key);
-          addNestedRef(acc, key, subKey);
-          foundNestedSubKey = true;
-        }
-      }
-    }
-    if (foundNestedSubKey) {
-      continue;
-    }
-
-    const res = analyzeChildRefSchema(propSchema, options);
-    if (res.isChildList) {
-      acc.listRefs.add(key);
-      continue;
-    }
-    if (res.isChild) {
-      acc.singleRefs.add(key);
-      continue;
-    }
-    const isSingleChildKey = key === 'child' || Boolean(options.childPropertyNames?.has(key));
-    if (
-      isSingleChildKey &&
-      typeof propSchema === 'object' &&
-      propSchema !== null &&
-      (propSchema as Record<string, unknown>)['type'] === 'string'
-    ) {
-      acc.singleRefs.add(key);
-      continue;
-    }
-    if (
-      key === 'children' &&
-      typeof propSchema === 'object' &&
-      propSchema !== null &&
-      (propSchema as Record<string, unknown>)['type'] === 'array' &&
-      canRawSchemaHoldStringArray(propSchema)
-    ) {
-      acc.listRefs.add(key);
-    }
-  }
-}
-
-function inspectComponentSchema(
-  schema: unknown,
-  acc: ChildRefAccumulator,
-  options: ChildRefAnalysisOptions,
-): void {
-  if (!schema || typeof schema !== 'object') return;
-
-  if ((schema as z.ZodTypeAny)._def) {
-    const refFields = extractRefFields(schema as z.ZodTypeAny, options);
-    for (const [key, refKind] of refFields) {
-      if (refKind.kind === 'single') {
-        acc.singleRefs.add(key);
-      } else if (refKind.kind === 'list') {
-        acc.listRefs.add(key);
-      } else if (refKind.kind === 'nested') {
-        acc.listRefs.add(key);
-        for (const subKey of refKind.keys) {
-          addNestedRef(acc, key, subKey);
-        }
-      }
-    }
-    return;
-  }
-
-  const rawSchema = schema as Record<string, unknown>;
-  const rawProps =
-    typeof rawSchema['properties'] === 'object' && rawSchema['properties'] !== null
-      ? (rawSchema['properties'] as Record<string, unknown>)
-      : undefined;
-  if (rawProps) {
-    inspectRawProperties(rawProps, acc, options);
-  }
-  for (const combiner of ['allOf', 'oneOf', 'anyOf'] as const) {
-    const list = rawSchema[combiner];
-    if (!Array.isArray(list)) continue;
-    for (const sub of list) {
-      inspectComponentSchema(sub, acc, options);
-    }
-  }
-  const extraRule = rawSchema['additionalProperties'] ?? rawSchema['unevaluatedProperties'];
-  if (canRawSchemaHoldString(extraRule) && (!rawProps || !Object.hasOwn(rawProps, 'child'))) {
-    acc.singleRefs.add('child');
-  }
-  if (
-    canRawSchemaHoldStringArray(extraRule) &&
-    (!rawProps || !Object.hasOwn(rawProps, 'children'))
-  ) {
-    acc.listRefs.add('children');
-  }
+  const root = (schema ?? false) as JsonSchema;
+  return {node: root, doc: {root, defs: {}}};
 }
 
 /**
- * Builds a ComponentRefMap dynamically by inspecting component Zod schemas.
+ * Builds a ComponentRefMap dynamically by inspecting component schemas.
  *
  * @param catalogOrComponents Catalog instance, array of ComponentApi objects, or Map of ComponentApis.
  * @param options Required configuration specifying recognized child definition names.
@@ -651,7 +310,10 @@ export function buildComponentRefMap<
   options: ChildRefAnalysisOptions,
 ): ComponentRefMap {
   const refMap: ComponentRefMap = {};
-  const maybeCatalog = catalogOrComponents as {components?: ReadonlyMap<string, T>};
+  const maybeCatalog = catalogOrComponents as {
+    components?: ReadonlyMap<string, T>;
+    protocolVersion?: string;
+  };
   const componentApis: ReadonlyArray<ComponentApi> =
     typeof maybeCatalog?.components?.values === 'function'
       ? Array.from(maybeCatalog.components.values())
@@ -660,19 +322,19 @@ export function buildComponentRefMap<
         : Array.from((catalogOrComponents as ReadonlyMap<string, T>).values());
 
   for (const compApi of componentApis) {
-    const acc: ChildRefAccumulator = {
-      singleRefs: new Set<string>(),
-      listRefs: new Set<string>(),
-      nestedRefs: {},
-    };
-
-    inspectComponentSchema(compApi.schema, acc, options);
-
-    refMap[compApi.name] = {
-      singleRefs: acc.singleRefs,
-      listRefs: acc.listRefs,
-      nestedRefs: acc.nestedRefs,
-    };
+    const singleRefs = new Set<string>();
+    const listRefs = new Set<string>();
+    const nestedRefs: Record<string, Set<string>> = {};
+    const {node, doc} = componentSchemaDoc(compApi.schema, maybeCatalog?.protocolVersion);
+    for (const [key, refKind] of extractRefFields(node, doc, options)) {
+      if (refKind.kind === 'single') {
+        singleRefs.add(key);
+      } else {
+        listRefs.add(key);
+        if (refKind.kind === 'nested') nestedRefs[key] = new Set(refKind.keys);
+      }
+    }
+    refMap[compApi.name] = {singleRefs, listRefs, nestedRefs};
   }
 
   return refMap;

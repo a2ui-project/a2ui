@@ -25,6 +25,7 @@ import {ActionDispatchOptions} from '../common/metadata.js';
 import {isAtLeastVersion} from '../common/semver.js';
 import {findFailedArgument, isThenable, settleDeep} from '../common/settle_deep.js';
 import {effect, getValue, peekValue} from '../reactivity/signals.js';
+import {toSchemaDoc} from '../schema-engine/zod-bridge.js';
 import {type ChildRefKind} from '../types/child-ref-helpers.js';
 import {
   AccessibilityAttributesSchema,
@@ -43,15 +44,40 @@ import {MAX_DYNAMIC_VALUE_DEPTH} from './data-context.js';
 import {resolveSignalKeepingPending} from './data-context-internal.js';
 import {
   type ChildRefAnalysisOptions,
-  type UnwrappedZodField,
   canSchemaHoldListRef,
   canSchemaHoldObjectOrArray,
   extractRefFields,
-  getUnionOptions,
   isSingleChildPropertySchema,
-  isTemplateRefObject,
-  unwrapZodField,
 } from './ref-fields.js';
+import {
+  type UnwrappedZodField,
+  getUnionOptions,
+  isZodTemplateRefObject as isTemplateRefObject,
+  unwrapZodField,
+} from './zod-field.js';
+
+// ponytail: bridge until Task 8 — child-reference discovery reads JSON Schema,
+// while this binder still walks Zod (Task 6), so its schemas are converted here.
+function zodRefFields(schema: z.ZodTypeAny, options?: ChildRefAnalysisOptions) {
+  const {node, doc} = toSchemaDoc(schema);
+  return extractRefFields(node, doc, options);
+}
+function zodCanHoldListRef(schema: z.ZodTypeAny, options?: ChildRefAnalysisOptions): boolean {
+  const {node, doc} = toSchemaDoc(schema);
+  return canSchemaHoldListRef(node, doc, options);
+}
+function zodCanHoldObjectOrArray(schema: z.ZodTypeAny): boolean {
+  const {node, doc} = toSchemaDoc(schema);
+  return canSchemaHoldObjectOrArray(node, doc);
+}
+function zodIsSingleChildProperty(
+  key: string,
+  schema: z.ZodTypeAny,
+  options?: ChildRefAnalysisOptions,
+): boolean {
+  const {node, doc} = toSchemaDoc(schema);
+  return isSingleChildPropertySchema(key, node, doc, options);
+}
 
 /** The outcome of one check rule. */
 interface CheckRuleResult {
@@ -167,7 +193,7 @@ function augmentRootObjectShape(
   options?: ChildRefAnalysisOptions,
 ): Record<string, BehaviorNode> {
   const nextShape: Record<string, BehaviorNode> = {...baseShape};
-  for (const [key, refKind] of extractRefFields(schema, options)) {
+  for (const [key, refKind] of zodRefFields(schema, options)) {
     if (refKind.kind === 'single') {
       if (nextShape[key]?.type === 'DYNAMIC') {
         nextShape[key] = CHILD_REF_STATIC_NODE;
@@ -340,7 +366,7 @@ function somePipelineLeaf(
       return true;
     }
     const inField = unwrapZodField(def['in']);
-    if (!inField.hasTransform || canSchemaHoldObjectOrArray(def['in'])) {
+    if (!inField.hasTransform || zodCanHoldObjectOrArray(def['in'])) {
       return somePipelineLeaf(def['out'], predicate, nextVisited);
     }
     return false;
@@ -823,7 +849,7 @@ function pipeBehaviors(
   const inBehavior = getFieldBehavior(inSchema, visited, options);
   const outBehavior = getFieldBehavior(outSchema, visited, options);
   if (inField.hasTransform) {
-    if (!canSchemaHoldObjectOrArray(inSchema) && !hasActiveBehavior(inBehavior)) {
+    if (!zodCanHoldObjectOrArray(inSchema) && !hasActiveBehavior(inBehavior)) {
       return inBehavior;
     }
     const combined =
@@ -880,7 +906,7 @@ function scrapeObjectShape(
   for (const [key, value] of Object.entries(objShape)) {
     const behavior = getFieldBehavior(value, visited, options);
     shape[key] =
-      behavior.type === 'STATIC' && isSingleChildPropertySchema(key, value, options)
+      behavior.type === 'STATIC' && zodIsSingleChildProperty(key, value, options)
         ? CHILD_REF_STATIC_NODE
         : behavior;
   }
@@ -936,7 +962,7 @@ function getFieldBehavior(
       hasChildRefKind(type, 'child-list') ||
       defName === 'ChildList' ||
       Boolean(defName && options?.childListRefNames?.has(defName))) &&
-    canSchemaHoldListRef(type, options);
+    zodCanHoldListRef(type, options);
 
   if (!unionOptions && marksOuterChildList) {
     return {type: 'STRUCTURAL'};
@@ -953,7 +979,7 @@ function getFieldBehavior(
   if (typeName === 'ZodPipeline') {
     const def = current._def as {in: z.ZodTypeAny; out: z.ZodTypeAny};
     const merged = pipeBehaviors(def['in'], def['out'], nextVisited, options);
-    return merged.type === 'STRUCTURAL' && !canSchemaHoldListRef(current, options)
+    return merged.type === 'STRUCTURAL' && !zodCanHoldListRef(current, options)
       ? {type: 'STATIC'}
       : merged;
   }
@@ -964,7 +990,7 @@ function getFieldBehavior(
       getFieldBehavior(def.left, nextVisited, options, inArray),
       getFieldBehavior(def.right, nextVisited, options, inArray),
     );
-    return merged.type === 'STRUCTURAL' && !canSchemaHoldListRef(current, options)
+    return merged.type === 'STRUCTURAL' && !zodCanHoldListRef(current, options)
       ? {type: 'STATIC'}
       : merged;
   }

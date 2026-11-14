@@ -17,789 +17,582 @@
 import assert from 'node:assert';
 import {describe, it} from 'node:test';
 
-import {z} from 'zod';
-
-import {Catalog} from '../catalog/types.js';
-import {
-  ActionSchema,
-  ChildListSchema,
-  ComponentIdSchema,
-  DynamicStringSchema,
-} from '../v0_9/schema/common-types.js';
-import {ChildSchema as V1ChildSchema} from '../v1_0/schema/common-types.js';
+import type {SchemaDoc} from '../schema-engine/nav.js';
+import type {JsonSchema} from '../schema-engine/types.js';
+import V10CommonTypes from '../v1_0/schemas/common_types.json' with {type: 'json'};
+import {V08_CHILD_REF_OPTIONS} from '../v0_8/standard_defs.js';
 import {extractRefFields} from './ref-fields.js';
 
+const COMMON = 'common_types.json';
+const CID = {$ref: `${COMMON}#/$defs/ComponentId`};
+const CHILD = {$ref: `${COMMON}#/$defs/Child`};
+const LIST = {$ref: `${COMMON}#/$defs/ChildList`};
+const DYN_STRING = {$ref: `${COMMON}#/$defs/DynamicString`};
+const ACTION = {$ref: `${COMMON}#/$defs/Action`};
+const STRING = {type: 'string'};
+const NUMBER = {type: 'number'};
+
+const docOf = (root: JsonSchema): SchemaDoc => ({
+  root,
+  defs: {[COMMON]: V10CommonTypes as JsonSchema},
+});
+const refs = (root: JsonSchema) => extractRefFields(root, docOf(root));
+
+const obj = (properties: Record<string, JsonSchema>, extra: Record<string, unknown> = {}) => ({
+  type: 'object',
+  properties,
+  ...extra,
+});
+const arr = (items: JsonSchema) => ({type: 'array', items});
+const record = (value: JsonSchema) => ({type: 'object', additionalProperties: value});
+const allOf = (...parts: JsonSchema[]) => ({allOf: parts});
+const anyOf = (...parts: JsonSchema[]) => ({anyOf: parts});
+
 describe('extractRefFields', () => {
-  it('extracts explicit ComponentIdSchema, ChildSchema, ChildListSchema, and REF pointers on any field name', () => {
-    const schema = z.object({
-      header: ComponentIdSchema.optional(),
-      footer: V1ChildSchema.describe('Footer child.').nullable(),
-      items: ChildListSchema.describe('Items list.'),
-      cards: z.array(ComponentIdSchema).optional(),
-      handSingle: z.string().describe('REF:#/$defs/Child|Hand-authored child'),
-      handList: z.unknown().describe('REF:common_types.json#/$defs/ChildList|Hand-authored list'),
-      tabs: z.array(
-        z.object({
-          title: z.string(),
-          panel: ComponentIdSchema,
-        }),
-      ),
+  it('extracts explicit ComponentId, Child, ChildList, and REF pointers on any field name', () => {
+    const schema = obj({
+      header: CID,
+      footer: anyOf({...CHILD, description: 'Footer child.'}, {type: 'null'}),
+      items: {...LIST, description: 'Items list.'},
+      cards: arr(CID),
+      handSingle: {type: 'string', description: 'REF:#/$defs/Child|Hand-authored child'},
+      handList: {description: 'REF:common_types.json#/$defs/ChildList|Hand-authored list'},
+      tabs: arr(obj({title: STRING, panel: CID})),
     });
 
-    const refs = extractRefFields(schema);
-    assert.deepStrictEqual(refs.get('header'), {kind: 'single'});
-    assert.deepStrictEqual(refs.get('footer'), {kind: 'single'});
-    assert.deepStrictEqual(refs.get('items'), {kind: 'list'});
-    assert.deepStrictEqual(refs.get('cards'), {kind: 'list'});
-    assert.deepStrictEqual(refs.get('handSingle'), {kind: 'single'});
-    assert.deepStrictEqual(refs.get('handList'), {kind: 'list'});
-    assert.deepStrictEqual(refs.get('tabs'), {kind: 'nested', keys: new Set(['panel'])});
+    const r = refs(schema);
+    assert.deepStrictEqual(r.get('header'), {kind: 'single'});
+    assert.deepStrictEqual(r.get('footer'), {kind: 'single'});
+    assert.deepStrictEqual(r.get('items'), {kind: 'list'});
+    assert.deepStrictEqual(r.get('cards'), {kind: 'list'});
+    assert.deepStrictEqual(r.get('handSingle'), {kind: 'single'});
+    assert.deepStrictEqual(r.get('handList'), {kind: 'list'});
+    assert.deepStrictEqual(r.get('tabs'), {kind: 'nested', keys: new Set(['panel'])});
   });
 
-  it('unwraps readonly, branded, refined, default, catch, pipeline, and lazy wrappers safely', () => {
-    const schema = z
-      .lazy(() =>
-        z.object({
-          slot: ComponentIdSchema.brand<'SlotId'>().readonly().optional(),
-          list: ChildListSchema.refine(() => true).default([]),
-          caughtSingle: ComponentIdSchema.catch('fallback'),
-          pipedSingle: ComponentIdSchema.pipe(z.string()),
-          pipedFromAny: z.any().pipe(ComponentIdSchema),
-          transformedSingle: ComponentIdSchema.transform(s => s.trim()).pipe(z.string()),
-          incompatiblePipeIn: z.number().pipe(ComponentIdSchema),
-          incompatiblePipeOut: ComponentIdSchema.pipe(z.number()),
-          incompatibleTransformPipe: z.number().transform(String).pipe(ComponentIdSchema),
-        }),
-      )
-      .describe('Lazy wrapper');
-
-    const refs = extractRefFields(schema);
-    assert.deepStrictEqual(refs.get('slot'), {kind: 'single'});
-    assert.deepStrictEqual(refs.get('list'), {kind: 'list'});
-    assert.deepStrictEqual(refs.get('caughtSingle'), {kind: 'single'});
-    assert.deepStrictEqual(refs.get('pipedSingle'), {kind: 'single'});
-    assert.deepStrictEqual(refs.get('pipedFromAny'), {kind: 'single'});
-    assert.deepStrictEqual(refs.get('transformedSingle'), {kind: 'single'});
-    assert.strictEqual(refs.has('incompatiblePipeIn'), false);
-    assert.strictEqual(refs.has('incompatiblePipeOut'), false);
-    assert.strictEqual(refs.has('incompatibleTransformPipe'), false);
-  });
-
-  it('terminates cleanly on self-referential z.lazy schemas without misclassifying inline object trees', () => {
-    const TreeNodeSchema: z.ZodTypeAny = z.lazy(() =>
-      z.object({
-        label: z.string(),
-        children: z.array(TreeNodeSchema).optional(),
+  it('follows $ref chains, defaults, nullable wrappers, and allOf stages safely', () => {
+    const schema = {
+      $defs: {Slot: CID},
+      ...obj({
+        slot: anyOf({$ref: '#/$defs/Slot'}, {type: 'null'}),
+        list: {...LIST, default: []},
+        pipedSingle: allOf(CID, STRING),
+        pipedFromAny: allOf({}, CID),
+        incompatiblePipeIn: allOf(NUMBER, CID),
+        incompatiblePipeOut: allOf(CID, NUMBER),
       }),
-    );
+    };
 
-    const refs = extractRefFields(TreeNodeSchema);
-    assert.strictEqual(refs.size, 0);
-
-    const PathologicalLazy: z.ZodTypeAny = z.lazy(() => PathologicalLazy);
-    assert.strictEqual(extractRefFields(PathologicalLazy).size, 0);
-
-    const RecursiveArray: z.ZodTypeAny = z.lazy(() => z.array(RecursiveArray));
-    assert.strictEqual(extractRefFields(z.object({children: RecursiveArray})).size, 0);
-
-    const RecursiveIncompatibleUnion: z.ZodTypeAny = z.lazy(() =>
-      z.union([z.number(), RecursiveIncompatibleUnion]),
-    );
-    assert.strictEqual(extractRefFields(z.object({child: RecursiveIncompatibleUnion})).size, 0);
-
-    const RecursiveStringUnion: z.ZodTypeAny = z.lazy(() =>
-      z.union([RecursiveStringUnion, z.string()]),
-    );
-    assert.deepStrictEqual(extractRefFields(z.object({child: RecursiveStringUnion})).get('child'), {
-      kind: 'single',
-    });
+    const r = refs(schema);
+    assert.deepStrictEqual(r.get('slot'), {kind: 'single'});
+    assert.deepStrictEqual(r.get('list'), {kind: 'list'});
+    assert.deepStrictEqual(r.get('pipedSingle'), {kind: 'single'});
+    assert.deepStrictEqual(r.get('pipedFromAny'), {kind: 'single'});
+    assert.strictEqual(r.has('incompatiblePipeIn'), false);
+    assert.strictEqual(r.has('incompatiblePipeOut'), false);
   });
 
-  it('extracts child and children fallbacks for z.record, z.any, and z.unknown schemas', () => {
-    for (const schema of [
-      z.record(z.unknown()),
-      z.record(z.string(), z.any()),
-      z.any(),
-      z.unknown(),
-    ]) {
-      const refs = extractRefFields(schema);
-      assert.deepStrictEqual(refs.get('child'), {kind: 'single'});
-      assert.deepStrictEqual(refs.get('children'), {kind: 'list'});
-      assert.strictEqual(refs.size, 2);
+  it('terminates cleanly on self-referential $refs without misclassifying inline object trees', () => {
+    const tree = {
+      $defs: {Tree: obj({label: STRING, children: arr({$ref: '#/$defs/Tree'})})},
+      $ref: '#/$defs/Tree',
+    };
+    assert.strictEqual(refs(tree).size, 0);
+
+    const pathological = {$defs: {P: {$ref: '#/$defs/P'}}, $ref: '#/$defs/P'};
+    assert.strictEqual(refs(pathological).size, 0);
+
+    const recursiveArray = {
+      $defs: {R: arr({$ref: '#/$defs/R'})},
+      ...obj({children: {$ref: '#/$defs/R'}}),
+    };
+    assert.strictEqual(refs(recursiveArray).size, 0);
+
+    const recursiveIncompatibleUnion = {
+      $defs: {U: anyOf(NUMBER, {$ref: '#/$defs/U'})},
+      ...obj({child: {$ref: '#/$defs/U'}}),
+    };
+    assert.strictEqual(refs(recursiveIncompatibleUnion).size, 0);
+
+    const recursiveStringUnion = {
+      $defs: {U: anyOf({$ref: '#/$defs/U'}, STRING)},
+      ...obj({child: {$ref: '#/$defs/U'}}),
+    };
+    assert.deepStrictEqual(refs(recursiveStringUnion).get('child'), {kind: 'single'});
+  });
+
+  it('extracts child and children fallbacks for open records and unconstrained schemas', () => {
+    for (const schema of [record({}), record(true), {}, true]) {
+      const r = refs(schema);
+      assert.deepStrictEqual(r.get('child'), {kind: 'single'});
+      assert.deepStrictEqual(r.get('children'), {kind: 'list'});
+      assert.strictEqual(r.size, 2);
     }
 
-    const stringRecordRefs = extractRefFields(z.record(z.string()));
+    const stringRecordRefs = refs(record(STRING));
     assert.deepStrictEqual(stringRecordRefs.get('child'), {kind: 'single'});
     assert.strictEqual(stringRecordRefs.has('children'), false);
 
-    const numberRecordRefs = extractRefFields(z.record(z.number()));
-    assert.strictEqual(numberRecordRefs.size, 0);
+    assert.strictEqual(refs(record(NUMBER)).size, 0);
 
-    // Non-transform pipelines must satisfy both input and output wire constraints.
-    assert.strictEqual(extractRefFields(z.number().pipe(z.any())).size, 0);
-    assert.strictEqual(extractRefFields(z.any().pipe(z.number())).size, 0);
-    assert.strictEqual(extractRefFields(z.number().transform(String).pipe(z.any())).size, 0);
+    // An allOf must satisfy every stage's wire constraints.
+    assert.strictEqual(refs(allOf(NUMBER, {})).size, 0);
+    assert.strictEqual(refs(allOf({}, NUMBER)).size, 0);
   });
 
-  it('extracts child and children fallbacks for unannotated empty-shape and open ZodObject schemas while excluding strict or closed empty schemas', () => {
+  it('extracts child and children fallbacks for empty-property and open objects while excluding closed ones', () => {
     for (const schema of [
-      z.object({}),
-      z.object({title: z.string()}).passthrough(),
-      z.object({title: z.string()}).catchall(z.unknown()),
+      obj({}),
+      obj({title: STRING}, {additionalProperties: true}),
+      obj({title: STRING}, {additionalProperties: {}}),
     ]) {
-      const refs = extractRefFields(schema);
-      assert.deepStrictEqual(refs.get('child'), {kind: 'single'});
-      assert.deepStrictEqual(refs.get('children'), {kind: 'list'});
-      assert.strictEqual(refs.size, 2);
+      const r = refs(schema);
+      assert.deepStrictEqual(r.get('child'), {kind: 'single'});
+      assert.deepStrictEqual(r.get('children'), {kind: 'list'});
+      assert.strictEqual(r.size, 2);
     }
 
-    // Strict or incompatible catchall empty objects reject unknown `child`/`children` keys.
-    assert.strictEqual(extractRefFields(z.object({}).strict()).size, 0);
-    assert.strictEqual(extractRefFields(z.object({}).catchall(z.number())).size, 0);
+    // Closed or incompatible-extra empty objects reject unknown `child`/`children` keys,
+    // and an object that declares no property map is not an empty stub.
+    assert.strictEqual(refs(obj({}, {additionalProperties: false})).size, 0);
+    assert.strictEqual(refs(obj({}, {additionalProperties: NUMBER})).size, 0);
+    assert.strictEqual(refs({type: 'object'}).size, 0);
 
-    const stringCatchallRefs = extractRefFields(z.object({title: z.string()}).catchall(z.string()));
-    assert.deepStrictEqual(stringCatchallRefs.get('child'), {kind: 'single'});
-    assert.strictEqual(stringCatchallRefs.has('children'), false);
+    const stringExtraRefs = refs(obj({title: STRING}, {additionalProperties: STRING}));
+    assert.deepStrictEqual(stringExtraRefs.get('child'), {kind: 'single'});
+    assert.strictEqual(stringExtraRefs.has('children'), false);
 
-    const numberCatchallRefs = extractRefFields(z.object({title: z.string()}).catchall(z.number()));
-    assert.strictEqual(numberCatchallRefs.size, 0);
+    assert.strictEqual(refs(obj({title: STRING}, {additionalProperties: NUMBER})).size, 0);
   });
 
-  it('extracts unannotated child, children, discriminated union properties, and nested item child fields with compatible types', () => {
-    const schema = z.object({
-      title: z.string().optional(),
-      child: z.string().optional(),
-      children: z.array(z.string()).optional(),
-      discriminatedList: z.discriminatedUnion('mode', [
-        z.object({mode: z.literal('template'), componentId: z.string(), path: z.string()}),
-        z.object({mode: z.literal('none')}),
-      ]),
-      tabItems: z
-        .array(
-          z.object({
-            title: z.string(),
-            child: z.string(),
-          }),
-        )
-        .optional(),
-      unionItems: z.array(
-        z.discriminatedUnion('kind', [
-          z.object({kind: z.literal('a'), child: z.string()}),
-          z.object({kind: z.literal('b'), panel: ComponentIdSchema}),
-        ]),
+  it('extracts unannotated child, children, union properties, and nested item child fields with compatible types', () => {
+    const schema = obj({
+      title: STRING,
+      child: STRING,
+      children: arr(STRING),
+      discriminatedList: anyOf(
+        obj({mode: {type: 'string', const: 'template'}, componentId: STRING, path: STRING}),
+        obj({mode: {type: 'string', const: 'none'}}),
       ),
-      intersectionItems: z.array(
-        z.object({title: z.string()}).and(z.object({slot: ComponentIdSchema})),
+      tabItems: arr(obj({title: STRING, child: STRING})),
+      unionItems: arr(
+        anyOf(
+          obj({kind: {type: 'string', const: 'a'}, child: STRING}),
+          obj({kind: {type: 'string', const: 'b'}, panel: CID}),
+        ),
       ),
+      intersectionItems: arr(allOf(obj({title: STRING}), obj({slot: CID}))),
     });
 
-    const refs = extractRefFields(schema);
-    assert.deepStrictEqual(refs.get('child'), {kind: 'single'});
-    assert.deepStrictEqual(refs.get('children'), {kind: 'list'});
-    assert.deepStrictEqual(refs.get('discriminatedList'), {kind: 'list'});
-    assert.deepStrictEqual(refs.get('tabItems'), {kind: 'nested', keys: new Set(['child'])});
-    assert.deepStrictEqual(refs.get('unionItems'), {
+    const r = refs(schema);
+    assert.deepStrictEqual(r.get('child'), {kind: 'single'});
+    assert.deepStrictEqual(r.get('children'), {kind: 'list'});
+    assert.deepStrictEqual(r.get('discriminatedList'), {kind: 'list'});
+    assert.deepStrictEqual(r.get('tabItems'), {kind: 'nested', keys: new Set(['child'])});
+    assert.deepStrictEqual(r.get('unionItems'), {
       kind: 'nested',
       keys: new Set(['child', 'panel']),
     });
-    assert.deepStrictEqual(refs.get('intersectionItems'), {
-      kind: 'nested',
-      keys: new Set(['slot']),
-    });
-    assert.strictEqual(refs.has('title'), false);
+    assert.deepStrictEqual(r.get('intersectionItems'), {kind: 'nested', keys: new Set(['slot'])});
+    assert.strictEqual(r.has('title'), false);
   });
 
-  it('supports dynamic, oneOf, and unannotated component schemas loaded via Catalog.fromJson', () => {
-    const catalog = Catalog.fromJson({
+  it('supports oneOf, allOf, and unannotated component definitions inside a catalog document', () => {
+    const catalog = {
       catalogId: 'https://example.com/dynamic-catalog.json',
       components: {
         EmptyLeaf: {type: 'object'},
         EmptyOpenBox: {type: 'object', additionalProperties: true},
         OpenBox: {
-          allOf: [
-            {$ref: 'common_types.json#/$defs/ComponentCommon'},
-            {
-              type: 'object',
-              properties: {title: {type: 'string'}},
-            },
-          ],
+          allOf: [{$ref: `${COMMON}#/$defs/ComponentCommon`}, obj({title: STRING})],
           unevaluatedProperties: true,
         },
-        UnannotatedContainer: {
-          type: 'object',
-          properties: {
-            child: {type: 'string'},
-            children: {type: 'array', items: {type: 'string'}},
-          },
-        },
-        OneOfSlotContainer: {
-          type: 'object',
-          properties: {
-            slot: {
-              oneOf: [
-                {$ref: 'common_types.json#/$defs/ComponentId'},
-                {$ref: 'common_types.json#/$defs/ChildList'},
-              ],
-            },
-            count: {
-              oneOf: [{type: 'number'}, {type: 'boolean'}],
-            },
-          },
-        },
-        ClosedLeaf: {
-          type: 'object',
-          properties: {
-            label: {$ref: 'common_types.json#/$defs/DynamicString'},
-          },
-          additionalProperties: false,
-        },
+        UnannotatedContainer: obj({child: STRING, children: arr(STRING)}),
+        OneOfSlotContainer: obj({
+          slot: {oneOf: [CID, LIST]},
+          count: {oneOf: [NUMBER, {type: 'boolean'}]},
+        }),
+        ClosedLeaf: obj({label: DYN_STRING}, {additionalProperties: false}),
       },
-    });
+    };
+    const doc = docOf(catalog);
+    const component = (name: keyof typeof catalog.components) =>
+      extractRefFields(catalog.components[name], doc);
 
-    for (const compName of ['EmptyOpenBox', 'OpenBox', 'UnannotatedContainer']) {
-      const api = catalog.components.get(compName);
-      assert.ok(api, `expected component ${compName}`);
-      const refs = extractRefFields(api.schema);
-      assert.deepStrictEqual(refs.get('child'), {kind: 'single'}, `${compName}.child`);
-      assert.deepStrictEqual(refs.get('children'), {kind: 'list'}, `${compName}.children`);
+    for (const name of ['EmptyOpenBox', 'OpenBox', 'UnannotatedContainer'] as const) {
+      const r = component(name);
+      assert.deepStrictEqual(r.get('child'), {kind: 'single'}, `${name}.child`);
+      assert.deepStrictEqual(r.get('children'), {kind: 'list'}, `${name}.children`);
     }
 
-    const oneOfApi = catalog.components.get('OneOfSlotContainer');
-    assert.ok(oneOfApi);
-    const oneOfRefs = extractRefFields(oneOfApi.schema);
+    const oneOfRefs = component('OneOfSlotContainer');
     assert.deepStrictEqual(oneOfRefs.get('slot'), {kind: 'list'});
     assert.strictEqual(oneOfRefs.has('count'), false);
 
-    for (const leafName of ['EmptyLeaf', 'ClosedLeaf']) {
-      const leafApi = catalog.components.get(leafName);
-      assert.ok(leafApi, `expected leaf ${leafName}`);
-      assert.strictEqual(extractRefFields(leafApi.schema).size, 0, `${leafName} refs`);
+    for (const name of ['EmptyLeaf', 'ClosedLeaf'] as const) {
+      assert.strictEqual(component(name).size, 0, `${name} refs`);
     }
   });
 
   it('does not misclassify closed non-child schemas or incompatible scalar types on child/children', () => {
-    assert.strictEqual(
-      extractRefFields(z.object({text: DynamicStringSchema, variant: z.string().optional()})).size,
-      0,
-    );
+    assert.strictEqual(refs(obj({text: DYN_STRING, variant: STRING})).size, 0);
 
     // An empty mixin intersected with a closed leaf schema is not an empty or open schema.
-    assert.strictEqual(extractRefFields(z.object({}).and(z.object({text: z.string()}))).size, 0);
+    assert.strictEqual(refs(allOf(obj({}), obj({text: STRING}))).size, 0);
 
     // Incompatible scalar/array types on `child` or `children` must not be classified as refs.
+    assert.strictEqual(refs(obj({child: {type: 'boolean'}, children: NUMBER})).size, 0);
     assert.strictEqual(
-      extractRefFields(z.object({child: z.boolean(), children: z.number()})).size,
-      0,
-    );
-    assert.strictEqual(
-      extractRefFields(
-        z.object({
-          child: z.number(),
-          children: z.array(z.number()),
-          items: z.array(z.object({title: z.string(), child: z.number()})),
+      refs(
+        obj({
+          child: NUMBER,
+          children: arr(NUMBER),
+          items: arr(obj({title: STRING, child: NUMBER})),
         }),
       ).size,
       0,
     );
 
-    // Explicit non-child A2UI REF markers on `child` / `children` must be respected.
-    assert.strictEqual(
-      extractRefFields(z.object({child: DynamicStringSchema, children: ActionSchema})).size,
-      0,
-    );
+    // Explicit non-child A2UI refs on `child` / `children` must be respected.
+    assert.strictEqual(refs(obj({child: DYN_STRING, children: ACTION})).size, 0);
 
-    // On a passthrough object, an explicitly incompatible `children` stays unclassified
+    // On an open object, an explicitly incompatible `children` stays unclassified
     // while `child` still gets the open-schema fallback.
-    const partialOpen = extractRefFields(z.object({children: z.number()}).passthrough());
+    const partialOpen = refs(obj({children: NUMBER}, {additionalProperties: true}));
     assert.deepStrictEqual(partialOpen.get('child'), {kind: 'single'});
     assert.strictEqual(partialOpen.has('children'), false);
   });
 
   it('merges ref fields across unions and intersections and caches results per schema', () => {
-    const unionSchema = z.discriminatedUnion('mode', [
-      z.object({mode: z.literal('single'), child: z.string()}),
-      z.object({mode: z.literal('list'), children: z.array(z.string())}),
-    ]);
-    const unionRefs = extractRefFields(unionSchema);
+    const unionSchema = anyOf(
+      obj({mode: {type: 'string', const: 'single'}, child: STRING}),
+      obj({mode: {type: 'string', const: 'list'}, children: arr(STRING)}),
+    );
+    const doc = docOf(unionSchema);
+    const unionRefs = extractRefFields(unionSchema, doc);
     assert.deepStrictEqual(unionRefs.get('child'), {kind: 'single'});
     assert.deepStrictEqual(unionRefs.get('children'), {kind: 'list'});
-    assert.strictEqual(extractRefFields(unionSchema), unionRefs);
+    assert.strictEqual(extractRefFields(unionSchema, doc), unionRefs);
 
     // Union branch ordering: a property that is `single` in one branch and `list` in another
     // must resolve to `list` regardless of branch order.
-    const singleBranch = z.object({slot: ComponentIdSchema});
-    const listBranch = z.object({slot: ChildListSchema});
-    assert.deepStrictEqual(extractRefFields(z.union([singleBranch, listBranch])).get('slot'), {
-      kind: 'list',
-    });
-    assert.deepStrictEqual(extractRefFields(z.union([listBranch, singleBranch])).get('slot'), {
-      kind: 'list',
-    });
-    assert.deepStrictEqual(
-      extractRefFields(z.object({slot: ComponentIdSchema.or(ChildListSchema)})).get('slot'),
-      {kind: 'list'},
-    );
+    const singleBranch = obj({slot: CID});
+    const listBranch = obj({slot: LIST});
+    assert.deepStrictEqual(refs(anyOf(singleBranch, listBranch)).get('slot'), {kind: 'list'});
+    assert.deepStrictEqual(refs(anyOf(listBranch, singleBranch)).get('slot'), {kind: 'list'});
+    assert.deepStrictEqual(refs(obj({slot: anyOf(CID, LIST)})).get('slot'), {kind: 'list'});
 
-    // Intersection compatibility: narrowing an explicit ref field with `z.string()` keeps it,
-    // while narrowing with `z.number()`, mutually incompatible ref kinds, or an incompatible
-    // `ZodRecord` drops it.
-    const narrowedValid = z.object({header: ComponentIdSchema}).and(z.object({header: z.string()}));
-    assert.deepStrictEqual(extractRefFields(narrowedValid).get('header'), {kind: 'single'});
-
-    const narrowedInvalid = z
-      .object({header: ComponentIdSchema})
-      .and(z.object({header: z.number()}));
-    assert.strictEqual(extractRefFields(narrowedInvalid).has('header'), false);
-    assert.strictEqual(
-      extractRefFields(z.object({header: ComponentIdSchema.and(z.number())})).has('header'),
-      false,
-    );
+    // Intersection compatibility: narrowing an explicit ref field with a string keeps it,
+    // while narrowing with a number, mutually incompatible ref kinds, or an incompatible
+    // record drops it.
+    assert.deepStrictEqual(refs(allOf(obj({header: CID}), obj({header: STRING}))).get('header'), {
+      kind: 'single',
+    });
+    assert.strictEqual(refs(allOf(obj({header: CID}), obj({header: NUMBER}))).has('header'), false);
+    assert.strictEqual(refs(obj({header: allOf(CID, NUMBER)})).has('header'), false);
 
     // Mutually incompatible `single` & `list` intersection accepts neither strings nor arrays.
-    const conflictingRefKinds = z
-      .object({slot: ComponentIdSchema})
-      .and(z.object({slot: z.array(ComponentIdSchema)}));
-    assert.strictEqual(extractRefFields(conflictingRefKinds).size, 0);
+    assert.strictEqual(refs(allOf(obj({slot: CID}), obj({slot: arr(CID)}))).size, 0);
 
-    // Narrowing `single | list` with `z.string()` preserves `single`.
-    const narrowedUnionToSingle = z
-      .object({slot: z.union([ComponentIdSchema, ChildListSchema])})
-      .and(z.object({slot: z.string()}));
-    assert.deepStrictEqual(extractRefFields(narrowedUnionToSingle).get('slot'), {kind: 'single'});
-    const propLevelNarrowedToSingle = z.object({
-      slot: z.union([ComponentIdSchema, ChildListSchema]).and(z.string()),
-    });
-    assert.deepStrictEqual(extractRefFields(propLevelNarrowedToSingle).get('slot'), {
+    // Narrowing `single | list` with a string preserves `single`.
+    assert.deepStrictEqual(
+      refs(allOf(obj({slot: anyOf(CID, LIST)}), obj({slot: STRING}))).get('slot'),
+      {kind: 'single'},
+    );
+    assert.deepStrictEqual(refs(obj({slot: allOf(anyOf(CID, LIST), STRING)})).get('slot'), {
       kind: 'single',
     });
 
     // Nested array of objects intersected with array of numbers drops the nested ref,
     // and intersecting two object-array schemas filters incompatible item sub-keys.
-    const nestedVsNumberArray = z
-      .object({items: z.array(z.object({child: ComponentIdSchema}))})
-      .and(z.object({items: z.array(z.number())}));
-    assert.strictEqual(extractRefFields(nestedVsNumberArray).size, 0);
+    assert.strictEqual(
+      refs(allOf(obj({items: arr(obj({child: CID}))}), obj({items: arr(NUMBER)}))).size,
+      0,
+    );
+    assert.deepStrictEqual(
+      refs(
+        allOf(
+          obj({items: arr(obj({keep: CID, drop: CID}))}),
+          obj({items: arr(obj({keep: STRING, drop: NUMBER}))}),
+        ),
+      ).get('items'),
+      {kind: 'nested', keys: new Set(['keep'])},
+    );
 
-    const nestedFilteredSubKeys = z
-      .object({
-        items: z.array(z.object({keep: ComponentIdSchema, drop: ComponentIdSchema})),
-      })
-      .and(
-        z.object({
-          items: z.array(z.object({keep: z.string(), drop: z.number()})),
-        }),
-      );
-    assert.deepStrictEqual(extractRefFields(nestedFilteredSubKeys).get('items'), {
-      kind: 'nested',
-      keys: new Set(['keep']),
-    });
+    assert.strictEqual(refs(allOf(obj({child: STRING}), record(NUMBER))).size, 0);
 
-    const recordInvalid = z.object({child: z.string()}).and(z.record(z.number()));
-    assert.strictEqual(extractRefFields(recordInvalid).size, 0);
-
-    const emptyAndStringRecord = z.object({}).and(z.record(z.string()));
-    const emptyRecordRefs = extractRefFields(emptyAndStringRecord);
+    const emptyRecordRefs = refs(allOf(obj({}), record(STRING)));
     assert.deepStrictEqual(emptyRecordRefs.get('child'), {kind: 'single'});
     assert.strictEqual(emptyRecordRefs.has('children'), false);
 
     // Standalone template object on a non-`children` key is recognized as `list`,
-    // and array element classification respects pipelines and incompatible intersections.
-    const standaloneTemplateAndArrayElements = z.object({
-      itemsTemplate: z.object({componentId: z.string(), path: z.string()}),
-      pipedIds: z.array(ComponentIdSchema.pipe(z.string())),
-      invalidIntersectedIds: z.array(ComponentIdSchema.and(z.number())),
-    });
-    const elementParityRefs = extractRefFields(standaloneTemplateAndArrayElements);
+    // and array element classification respects allOf stages.
+    const elementParityRefs = refs(
+      obj({
+        itemsTemplate: obj({componentId: STRING, path: STRING}),
+        pipedIds: arr(allOf(CID, STRING)),
+        invalidIntersectedIds: arr(allOf(CID, NUMBER)),
+      }),
+    );
     assert.deepStrictEqual(elementParityRefs.get('itemsTemplate'), {kind: 'list'});
     assert.deepStrictEqual(elementParityRefs.get('pipedIds'), {kind: 'list'});
     assert.strictEqual(elementParityRefs.has('invalidIntersectedIds'), false);
 
-    // Intersecting a non-strict non-empty object with an open schema retains open child/children,
-    // unless unknown keys are constrained or `child`/`children` is declared with a non-ref type.
-    const objectAndRecord = z.object({title: z.string()}).and(z.record(z.unknown()));
-    assert.deepStrictEqual(extractRefFields(objectAndRecord).get('child'), {kind: 'single'});
-    assert.deepStrictEqual(extractRefFields(objectAndRecord).get('children'), {kind: 'list'});
+    // Intersecting an unconstrained non-empty object with an open schema retains open
+    // child/children, unless unknown keys are closed or `child`/`children` is declared
+    // with a non-ref type.
+    const objectAndRecord = refs(allOf(obj({title: STRING}), record({})));
+    assert.deepStrictEqual(objectAndRecord.get('child'), {kind: 'single'});
+    assert.deepStrictEqual(objectAndRecord.get('children'), {kind: 'list'});
 
-    const objectAndPassthrough = z.object({title: z.string()}).and(z.object({}).passthrough());
-    assert.deepStrictEqual(extractRefFields(objectAndPassthrough).get('child'), {kind: 'single'});
-    assert.deepStrictEqual(extractRefFields(objectAndPassthrough).get('children'), {kind: 'list'});
+    const objectAndOpen = refs(allOf(obj({title: STRING}), obj({}, {additionalProperties: true})));
+    assert.deepStrictEqual(objectAndOpen.get('child'), {kind: 'single'});
+    assert.deepStrictEqual(objectAndOpen.get('children'), {kind: 'list'});
 
-    const strictObjectAndRecord = z.object({title: z.string()}).strict().and(z.record(z.unknown()));
-    assert.strictEqual(extractRefFields(strictObjectAndRecord).size, 0);
+    assert.strictEqual(
+      refs(allOf(obj({title: STRING}, {additionalProperties: false}), record({}))).size,
+      0,
+    );
 
-    const nonRefChildAndRecord = z.object({child: z.number()}).and(z.record(z.unknown()));
-    assert.strictEqual(extractRefFields(nonRefChildAndRecord).has('child'), false);
-    assert.deepStrictEqual(extractRefFields(nonRefChildAndRecord).get('children'), {kind: 'list'});
+    const nonRefChildAndRecord = refs(allOf(obj({child: NUMBER}), record({})));
+    assert.strictEqual(nonRefChildAndRecord.has('child'), false);
+    assert.deepStrictEqual(nonRefChildAndRecord.get('children'), {kind: 'list'});
 
     // Union of a branch declaring non-ref `child`/`children` and an open branch keeps open refs.
-    const unionOpenWithNonRefChild = z.union([
-      z.object({child: z.number()}),
-      z.object({title: z.string()}).passthrough(),
-    ]);
-    assert.deepStrictEqual(extractRefFields(unionOpenWithNonRefChild).get('child'), {
-      kind: 'single',
-    });
-    assert.deepStrictEqual(extractRefFields(unionOpenWithNonRefChild).get('children'), {
-      kind: 'list',
-    });
+    const unionOpenWithNonRefChild = refs(
+      anyOf(obj({child: NUMBER}), obj({title: STRING}, {additionalProperties: true})),
+    );
+    assert.deepStrictEqual(unionOpenWithNonRefChild.get('child'), {kind: 'single'});
+    assert.deepStrictEqual(unionOpenWithNonRefChild.get('children'), {kind: 'list'});
 
-    const unionOpenWithNonRefChildren = z.union([
-      z.object({children: z.number()}),
-      z.record(z.unknown()),
-    ]);
-    assert.deepStrictEqual(extractRefFields(unionOpenWithNonRefChildren).get('child'), {
-      kind: 'single',
-    });
-    assert.deepStrictEqual(extractRefFields(unionOpenWithNonRefChildren).get('children'), {
-      kind: 'list',
-    });
+    const unionOpenWithNonRefChildren = refs(anyOf(obj({children: NUMBER}), record({})));
+    assert.deepStrictEqual(unionOpenWithNonRefChildren.get('child'), {kind: 'single'});
+    assert.deepStrictEqual(unionOpenWithNonRefChildren.get('children'), {kind: 'list'});
 
-    // Transform pipelines from open/empty inputs into strict or closed output schemas do not
-    // synthesize unintended `child` or `children` slots.
-    const transformOpenToStrict = z
-      .any()
-      .transform(v => v)
-      .pipe(z.object({title: z.string()}).strict());
-    assert.strictEqual(extractRefFields(transformOpenToStrict).size, 0);
-
-    const transformPassthroughToClosed = z
-      .object({})
-      .passthrough()
-      .transform(v => v)
-      .pipe(z.object({title: z.string()}));
-    assert.strictEqual(extractRefFields(transformPassthroughToClosed).size, 0);
-
-    const transformEmptyToClosed = z
-      .object({})
-      .transform(v => v)
-      .pipe(z.object({title: z.string()}));
-    assert.strictEqual(extractRefFields(transformEmptyToClosed).size, 0);
-
-    const transformOpenToPassthrough = z
-      .any()
-      .transform(v => v)
-      .pipe(z.object({title: z.string()}).passthrough());
-    assert.deepStrictEqual(extractRefFields(transformOpenToPassthrough).get('child'), {
-      kind: 'single',
-    });
-    assert.deepStrictEqual(extractRefFields(transformOpenToPassthrough).get('children'), {
-      kind: 'list',
-    });
+    // An unconstrained stage followed by a closed object does not synthesize
+    // unintended `child` or `children` slots; followed by an open one it does.
+    assert.strictEqual(
+      refs(allOf({}, obj({title: STRING}, {additionalProperties: false}))).size,
+      0,
+    );
+    assert.strictEqual(refs(allOf(obj({}), obj({title: STRING}))).size, 0);
+    const openToOpen = refs(allOf({}, obj({title: STRING}, {additionalProperties: true})));
+    assert.deepStrictEqual(openToOpen.get('child'), {kind: 'single'});
+    assert.deepStrictEqual(openToOpen.get('children'), {kind: 'list'});
 
     // Unmarked dynamic-binding/function-call unions on `child`/`children` are treated as dynamic
-    // data properties, not component references, including chained `.or()` nested unions and lazy cycles.
-    const unmarkedDynamicProps = z.object({
-      child: z.union([z.string(), z.object({'@path': z.string()})]),
-      children: z.union([z.array(z.string()), z.object({'@call': z.string()})]),
-    });
-    assert.strictEqual(extractRefFields(unmarkedDynamicProps).size, 0);
-
-    const chainedNestedDynamicProps = z.object({
-      child: z
-        .object({'@path': z.string()})
-        .or(z.object({'@call': z.string()}))
-        .or(z.string()),
-      children: z
-        .object({'@path': z.string()})
-        .or(z.object({'@call': z.string()}))
-        .or(z.array(z.string())),
-    });
-    assert.strictEqual(extractRefFields(chainedNestedDynamicProps).size, 0);
-
-    const cyclicNestedDynamic: z.ZodTypeAny = z.lazy(() =>
-      z.union([z.object({'@path': z.string()}).or(cyclicNestedDynamic), z.string()]),
+    // data properties, not component references, including nested unions and $ref cycles.
+    assert.strictEqual(
+      refs(
+        obj({
+          child: anyOf(STRING, obj({'@path': STRING})),
+          children: anyOf(arr(STRING), obj({'@call': STRING})),
+        }),
+      ).size,
+      0,
     );
-    assert.strictEqual(extractRefFields(z.object({child: cyclicNestedDynamic})).size, 0);
+    assert.strictEqual(
+      refs(
+        obj({
+          child: anyOf(anyOf(obj({'@path': STRING}), obj({'@call': STRING})), STRING),
+          children: anyOf(anyOf(obj({'@path': STRING}), obj({'@call': STRING})), arr(STRING)),
+        }),
+      ).size,
+      0,
+    );
+    const cyclicNestedDynamic = {
+      $defs: {D: anyOf(anyOf(obj({'@path': STRING}), {$ref: '#/$defs/D'}), STRING)},
+      ...obj({child: {$ref: '#/$defs/D'}}),
+    };
+    assert.strictEqual(refs(cyclicNestedDynamic).size, 0);
 
-    // Explicit child-ref markers inside nested unions still classify as component references.
-    const nestedExplicitChildRefs = z.object({
-      child: z.object({'@path': z.string()}).or(ComponentIdSchema).or(z.string()),
-      children: z.object({'@path': z.string()}).or(ChildListSchema).or(z.array(z.string())),
-    });
-    assert.deepStrictEqual(extractRefFields(nestedExplicitChildRefs).get('child'), {
-      kind: 'single',
-    });
-    assert.deepStrictEqual(extractRefFields(nestedExplicitChildRefs).get('children'), {
-      kind: 'list',
-    });
+    // Explicit child refs inside nested unions still classify as component references.
+    const nestedExplicitChildRefs = refs(
+      obj({
+        child: anyOf(anyOf(obj({'@path': STRING}), CID), STRING),
+        children: anyOf(anyOf(obj({'@path': STRING}), LIST), arr(STRING)),
+      }),
+    );
+    assert.deepStrictEqual(nestedExplicitChildRefs.get('child'), {kind: 'single'});
+    assert.deepStrictEqual(nestedExplicitChildRefs.get('children'), {kind: 'list'});
   });
 
-  it('constrains open-branch union fallbacks and strips undeclared explicit refs across closed pipelines', () => {
-    const unionWithOpenBranch = z.union([
-      z.object({title: z.string()}).passthrough(),
-      z.object({title: z.string(), subtitle: z.string().optional()}),
-    ]);
-    assert.deepStrictEqual(extractRefFields(unionWithOpenBranch).get('child'), {kind: 'single'});
-    assert.deepStrictEqual(extractRefFields(unionWithOpenBranch).get('children'), {kind: 'list'});
+  it('constrains open-branch union fallbacks through intersections', () => {
+    const unionWithOpenBranch = anyOf(
+      obj({title: STRING}, {additionalProperties: true}),
+      obj({title: STRING, subtitle: STRING}),
+    );
+    assert.deepStrictEqual(refs(unionWithOpenBranch).get('child'), {kind: 'single'});
+    assert.deepStrictEqual(refs(unionWithOpenBranch).get('children'), {kind: 'list'});
 
-    // Non-transform pipeline into a closed output object strips synthesized open-branch fallbacks.
-    const pipedUnionToClosed = unionWithOpenBranch.pipe(z.object({title: z.string()}));
-    assert.strictEqual(extractRefFields(pipedUnionToClosed).size, 0);
+    // Intersecting open-branch union with unconstrained vs closed vs incompatible `child` objects.
+    const unionAndPlain = refs(allOf(unionWithOpenBranch, obj({extra: STRING})));
+    assert.deepStrictEqual(unionAndPlain.get('child'), {kind: 'single'});
+    assert.deepStrictEqual(unionAndPlain.get('children'), {kind: 'list'});
 
-    // Transform pipeline from open-branch union into strict output drops synthesized fallbacks,
-    // while passthrough output declaring incompatible `child` drops only `child`.
-    const transformUnionToStrict = unionWithOpenBranch
-      .transform(v => v)
-      .pipe(z.object({title: z.string()}).strict());
-    assert.strictEqual(extractRefFields(transformUnionToStrict).size, 0);
+    const unionAndIncompatibleChild = refs(allOf(unionWithOpenBranch, obj({child: NUMBER})));
+    assert.strictEqual(unionAndIncompatibleChild.has('child'), false);
+    assert.deepStrictEqual(unionAndIncompatibleChild.get('children'), {kind: 'list'});
 
-    const transformUnionToIncompatibleChild = unionWithOpenBranch
-      .transform(v => v)
-      .pipe(z.object({child: z.number()}).passthrough());
-    assert.strictEqual(extractRefFields(transformUnionToIncompatibleChild).has('child'), false);
-    assert.deepStrictEqual(extractRefFields(transformUnionToIncompatibleChild).get('children'), {
-      kind: 'list',
-    });
-
-    // Intersecting open-branch union with non-strict vs strict vs incompatible `child` objects.
-    const unionAndPlain = unionWithOpenBranch.and(z.object({extra: z.string().optional()}));
-    assert.deepStrictEqual(extractRefFields(unionAndPlain).get('child'), {kind: 'single'});
-    assert.deepStrictEqual(extractRefFields(unionAndPlain).get('children'), {kind: 'list'});
-
-    const unionAndIncompatibleChild = unionWithOpenBranch.and(z.object({child: z.number()}));
-    assert.strictEqual(extractRefFields(unionAndIncompatibleChild).has('child'), false);
-    assert.deepStrictEqual(extractRefFields(unionAndIncompatibleChild).get('children'), {
-      kind: 'list',
-    });
-
-    const unionAndStrict = unionWithOpenBranch.and(z.object({title: z.string()}).strict());
-    assert.strictEqual(extractRefFields(unionAndStrict).size, 0);
-
-    // Non-transform pipeline strips explicit ref keys omitted by a closed output stage,
-    // while `.passthrough()` output preserves them.
-    const explicitRefsPipedToClosed = z
-      .object({
-        title: z.string(),
-        child: ComponentIdSchema,
-        header: ComponentIdSchema,
-      })
-      .pipe(z.object({title: z.string()}));
-    assert.strictEqual(extractRefFields(explicitRefsPipedToClosed).size, 0);
-
-    const explicitRefsPipedToPassthrough = z
-      .object({
-        title: z.string(),
-        child: ComponentIdSchema,
-        header: ComponentIdSchema,
-      })
-      .pipe(z.object({title: z.string()}).passthrough());
-    assert.deepStrictEqual(extractRefFields(explicitRefsPipedToPassthrough).get('child'), {
-      kind: 'single',
-    });
-    assert.deepStrictEqual(extractRefFields(explicitRefsPipedToPassthrough).get('header'), {
-      kind: 'single',
-    });
+    assert.strictEqual(
+      refs(allOf(unionWithOpenBranch, obj({title: STRING}, {additionalProperties: false}))).size,
+      0,
+    );
   });
 
   it('merges [list, nested] and [single, nested] unions order-independently and narrows via intersections', () => {
-    const structuredArray = z.array(
-      z.object({
-        title: z.string(),
-        child: ComponentIdSchema,
-      }),
-    );
+    const structuredArray = arr(obj({title: STRING, child: CID}));
 
-    const objListThenNested = z.union([
-      z.object({sections: ChildListSchema}),
-      z.object({sections: structuredArray}),
-    ]);
-    const objNestedThenList = z.union([
-      z.object({sections: structuredArray}),
-      z.object({sections: ChildListSchema}),
-    ]);
-    assert.deepStrictEqual(extractRefFields(objListThenNested).get('sections'), {
+    const objListThenNested = anyOf(obj({sections: LIST}), obj({sections: structuredArray}));
+    const objNestedThenList = anyOf(obj({sections: structuredArray}), obj({sections: LIST}));
+    assert.deepStrictEqual(refs(objListThenNested).get('sections'), {
       kind: 'nested',
       keys: new Set(['child']),
     });
     assert.deepStrictEqual(
-      extractRefFields(objListThenNested).get('sections'),
-      extractRefFields(objNestedThenList).get('sections'),
+      refs(objListThenNested).get('sections'),
+      refs(objNestedThenList).get('sections'),
     );
 
-    const propListThenNested = z.object({
-      sections: ChildListSchema.or(structuredArray),
-    });
-    const propNestedThenList = z.object({
-      sections: structuredArray.or(ChildListSchema),
-    });
-    assert.deepStrictEqual(extractRefFields(propListThenNested).get('sections'), {
+    const propListThenNested = obj({sections: anyOf(LIST, structuredArray)});
+    const propNestedThenList = obj({sections: anyOf(structuredArray, LIST)});
+    assert.deepStrictEqual(refs(propListThenNested).get('sections'), {
       kind: 'nested',
       keys: new Set(['child']),
     });
     assert.deepStrictEqual(
-      extractRefFields(propListThenNested).get('sections'),
-      extractRefFields(propNestedThenList).get('sections'),
+      refs(propListThenNested).get('sections'),
+      refs(propNestedThenList).get('sections'),
     );
 
-    const propSingleThenNested = z.object({
-      slot: ComponentIdSchema.or(structuredArray),
-    });
-    const propNestedThenSingle = z.object({
-      slot: structuredArray.or(ComponentIdSchema),
-    });
-    assert.deepStrictEqual(extractRefFields(propSingleThenNested).get('slot'), {
+    const propSingleThenNested = obj({slot: anyOf(CID, structuredArray)});
+    const propNestedThenSingle = obj({slot: anyOf(structuredArray, CID)});
+    assert.deepStrictEqual(refs(propSingleThenNested).get('slot'), {
       kind: 'nested',
       keys: new Set(['child']),
     });
     assert.deepStrictEqual(
-      extractRefFields(propSingleThenNested).get('slot'),
-      extractRefFields(propNestedThenSingle).get('slot'),
+      refs(propSingleThenNested).get('slot'),
+      refs(propNestedThenSingle).get('slot'),
     );
 
-    // Narrowing a [list, nested] union with z.array(z.string()) yields {kind: 'list'}.
-    const narrowedToList = propListThenNested.and(z.object({sections: z.array(z.string())}));
-    assert.deepStrictEqual(extractRefFields(narrowedToList).get('sections'), {
-      kind: 'list',
-    });
+    // Narrowing a [list, nested] union with an array of strings yields {kind: 'list'}.
+    assert.deepStrictEqual(
+      refs(allOf(propListThenNested, obj({sections: arr(STRING)}))).get('sections'),
+      {kind: 'list'},
+    );
 
-    // Narrowing a [single, nested] union with z.string() yields {kind: 'single'}.
-    const narrowedToSingle = propSingleThenNested.and(z.object({slot: z.string()}));
-    assert.deepStrictEqual(extractRefFields(narrowedToSingle).get('slot'), {
+    // Narrowing a [single, nested] union with a string yields {kind: 'single'}.
+    assert.deepStrictEqual(refs(allOf(propSingleThenNested, obj({slot: STRING}))).get('slot'), {
       kind: 'single',
     });
   });
 
-  it('drops explicit ref keys stripped by a transform-backed pipeline output stage', () => {
-    const withExplicitRefs = z.object({
-      child: ComponentIdSchema,
-      header: ComponentIdSchema,
+  it('filters stripped element sub-keys in property-level nested array intersections', () => {
+    const twoSubKeyArray = arr(obj({keep: CID, drop: CID}));
+    const keepOnly = arr(obj({keep: STRING}));
+    const keepOnlyClosed = arr(obj({keep: STRING}, {additionalProperties: false}));
+    const keepOnlyIncompatibleDrop = arr(obj({keep: STRING, drop: NUMBER}));
+    const dropAllClosed = arr(obj({label: STRING}, {additionalProperties: false}));
+
+    // An unconstrained item object keeps both sub-keys.
+    assert.deepStrictEqual(refs(obj({items: allOf(twoSubKeyArray, keepOnly)})).get('items'), {
+      kind: 'nested',
+      keys: new Set(['keep', 'drop']),
     });
-    const strippedAll = withExplicitRefs.transform(val => val).pipe(z.object({}));
-    assert.deepStrictEqual([...extractRefFields(strippedAll)], []);
 
-    const strippedChained = strippedAll.pipe(z.object({child: z.string(), header: z.string()}));
-    assert.deepStrictEqual([...extractRefFields(strippedChained)], []);
-
-    const keptChildOnly = withExplicitRefs
-      .transform(val => val)
-      .pipe(z.object({child: z.string()}));
-    assert.deepStrictEqual([...extractRefFields(keptChildOnly)], [['child', {kind: 'single'}]]);
-  });
-
-  it('filters stripped element sub-keys in property-level nested array intersections and pipelines', () => {
-    const twoSubKeyArray = z.array(
-      z.object({
-        keep: ComponentIdSchema,
-        drop: ComponentIdSchema,
-      }),
-    );
-    const keepOnlyPipeStage = z.array(z.object({keep: z.string()}));
-    const keepOnlyStrictConstraint = z.array(z.object({keep: z.string()}).strict());
-    const keepOnlyIncompatibleDrop = z.array(z.object({keep: z.string(), drop: z.number()}));
-    const dropAllPipeStage = z.array(z.object({label: z.string()}));
-    const dropAllStrictConstraint = z.array(z.object({label: z.string()}).strict());
-
-    // Non-strict `.and()` merges object shapes in Zod, keeping both sub-keys.
-    assert.deepStrictEqual(
-      extractRefFields(z.object({items: twoSubKeyArray.and(keepOnlyPipeStage)})).get('items'),
-      {
-        kind: 'nested',
-        keys: new Set(['keep', 'drop']),
-      },
-    );
-
-    // Strict/incompatible `.and()` constraints and strip-mode `.pipe()` stages filter `drop`.
+    // Closed or incompatible constraints filter `drop`.
     for (const schema of [
-      z.object({items: twoSubKeyArray.and(keepOnlyStrictConstraint)}),
-      z.object({items: keepOnlyStrictConstraint.and(twoSubKeyArray)}),
-      z.object({items: twoSubKeyArray.and(keepOnlyIncompatibleDrop)}),
-      z.object({items: keepOnlyIncompatibleDrop.and(twoSubKeyArray)}),
-      z.object({items: twoSubKeyArray.pipe(keepOnlyPipeStage)}),
-      z.object({items: twoSubKeyArray.transform(v => v).pipe(keepOnlyPipeStage)}),
-      z.object({items: z.union([twoSubKeyArray, z.null()]).and(keepOnlyStrictConstraint)}),
+      obj({items: allOf(twoSubKeyArray, keepOnlyClosed)}),
+      obj({items: allOf(keepOnlyClosed, twoSubKeyArray)}),
+      obj({items: allOf(twoSubKeyArray, keepOnlyIncompatibleDrop)}),
+      obj({items: allOf(keepOnlyIncompatibleDrop, twoSubKeyArray)}),
+      obj({items: allOf(anyOf(twoSubKeyArray, {type: 'null'}), keepOnlyClosed)}),
     ]) {
-      assert.deepStrictEqual(extractRefFields(schema).get('items'), {
-        kind: 'nested',
-        keys: new Set(['keep']),
-      });
+      assert.deepStrictEqual(refs(schema).get('items'), {kind: 'nested', keys: new Set(['keep'])});
     }
 
     for (const schema of [
-      z.object({items: twoSubKeyArray.and(dropAllStrictConstraint)}),
-      z.object({items: dropAllStrictConstraint.and(twoSubKeyArray)}),
-      z.object({items: twoSubKeyArray.pipe(dropAllPipeStage)}),
-      z.object({items: twoSubKeyArray.pipe(z.array(z.object({})))}),
-      z.object({items: twoSubKeyArray.transform(v => v).pipe(dropAllPipeStage)}),
+      obj({items: allOf(twoSubKeyArray, dropAllClosed)}),
+      obj({items: allOf(dropAllClosed, twoSubKeyArray)}),
     ]) {
-      assert.strictEqual(extractRefFields(schema).has('items'), false);
+      assert.strictEqual(refs(schema).has('items'), false);
     }
 
-    // Explicit `ComponentIdSchema` intersected with `z.record(DynamicString)` keeps `child`
+    // An explicit ComponentId intersected with a record of DynamicString keeps `child`
     // without inventing unannotated `child`/`children` fallbacks on standalone dynamic records.
-    const dynamicStringSchema = z
-      .union([z.string(), z.object({path: z.string()})])
-      .describe('REF:common_types.json#/$defs/DynamicString');
-    assert.strictEqual(extractRefFields(z.record(dynamicStringSchema)).size, 0);
+    const dynamicString = {
+      ...anyOf(STRING, obj({path: STRING})),
+      description: 'REF:common_types.json#/$defs/DynamicString',
+    };
+    assert.strictEqual(refs(record(dynamicString)).size, 0);
     assert.deepStrictEqual(
-      [
-        ...extractRefFields(
-          z.record(dynamicStringSchema).and(z.object({child: ComponentIdSchema})),
-        ),
-      ],
+      [...refs(allOf(record(dynamicString), obj({child: CID})))],
       [['child', {kind: 'single'}]],
     );
-    assert.strictEqual(
-      extractRefFields(z.record(z.unknown()).and(z.object({child: dynamicStringSchema}))).has(
-        'child',
-      ),
-      false,
-    );
+    assert.strictEqual(refs(allOf(record({}), obj({child: dynamicString}))).has('child'), false);
   });
 
-  it('distinguishes Catalog.fromJson oneOf dynamic bindings from child ref unions', () => {
-    const catalog = Catalog.fromJson({
+  it('distinguishes oneOf dynamic bindings from child ref unions through local $defs', () => {
+    const catalog = {
       catalogId: 'oneof-ref-test',
       $defs: {
-        ComponentId: {type: 'string'},
-        DataBinding: {
-          type: 'object',
-          properties: {path: {type: 'string'}},
-          required: ['path'],
-        },
-        FunctionCall: {
-          type: 'object',
-          properties: {call: {type: 'string'}},
-          required: ['call'],
-        },
+        ComponentId: STRING,
+        DataBinding: obj({path: STRING}, {required: ['path']}),
+        FunctionCall: obj({call: STRING}, {required: ['call']}),
         NestedBindingUnion: {
           oneOf: [{$ref: '#/$defs/DataBinding'}, {$ref: '#/$defs/FunctionCall'}],
         },
       },
       components: {
-        OneOfWidget: {
-          type: 'object',
-          properties: {
-            child: {
-              oneOf: [{type: 'string'}, {$ref: '#/$defs/NestedBindingUnion'}],
-            },
-            children: {
-              oneOf: [
-                {type: 'array', items: {type: 'string'}},
-                {$ref: '#/$defs/NestedBindingUnion'},
-              ],
-            },
-            items: {
-              oneOf: [
-                {type: 'array', items: {type: 'string'}},
-                {
-                  type: 'object',
-                  properties: {
-                    componentId: {$ref: '#/$defs/ComponentId'},
-                    path: {type: 'string'},
-                  },
-                  required: ['componentId', 'path'],
-                },
-              ],
-            },
+        OneOfWidget: obj({
+          child: {oneOf: [STRING, {$ref: '#/$defs/NestedBindingUnion'}]},
+          children: {oneOf: [arr(STRING), {$ref: '#/$defs/NestedBindingUnion'}]},
+          items: {
+            oneOf: [
+              arr(STRING),
+              obj(
+                {componentId: {$ref: '#/$defs/ComponentId'}, path: STRING},
+                {required: ['componentId', 'path']},
+              ),
+            ],
           },
-        },
+        }),
       },
-    });
+    };
 
-    const schema = catalog.components.get('OneOfWidget')!.schema;
-    const refs = extractRefFields(schema);
-    assert.strictEqual(refs.has('child'), false);
-    assert.strictEqual(refs.has('children'), false);
-    assert.deepStrictEqual(refs.get('items'), {kind: 'list'});
+    const r = extractRefFields(catalog.components.OneOfWidget, docOf(catalog));
+    assert.strictEqual(r.has('child'), false);
+    assert.strictEqual(r.has('children'), false);
+    assert.deepStrictEqual(r.get('items'), {kind: 'list'});
+  });
+
+  it('reads v0.8 child properties and explicitList/template children structurally', () => {
+    const v08 = (root: JsonSchema) => extractRefFields(root, docOf(root), V08_CHILD_REF_OPTIONS);
+    const template = obj(
+      {componentId: STRING, dataBinding: STRING},
+      {required: ['componentId', 'dataBinding'], additionalProperties: false},
+    );
+    const childrenItem = obj({explicitList: arr(STRING), template}, {additionalProperties: false});
+    const literal = obj({literalString: STRING, path: STRING}, {additionalProperties: false});
+
+    const column = v08(
+      obj({children: childrenItem, alignment: STRING}, {additionalProperties: false}),
+    );
+    assert.deepStrictEqual([...column], [['children', {kind: 'list'}]]);
+
+    const modal = v08(
+      obj({entryPointChild: STRING, contentChild: STRING}, {additionalProperties: false}),
+    );
+    assert.deepStrictEqual(modal.get('entryPointChild'), {kind: 'single'});
+    assert.deepStrictEqual(modal.get('contentChild'), {kind: 'single'});
+
+    const tabs = v08(
+      obj({tabItems: arr(obj({title: literal, child: STRING}))}, {additionalProperties: false}),
+    );
+    assert.deepStrictEqual(tabs.get('tabItems'), {kind: 'nested', keys: new Set(['child'])});
+
+    // A literal-or-path value is data, not a child reference.
+    assert.strictEqual(v08(obj({text: literal}, {additionalProperties: false})).size, 0);
   });
 });

@@ -22,6 +22,7 @@ import {z} from 'zod';
 import {A2uiCatalogError, A2uiValidationError} from '../errors.js';
 import {Catalog} from './types.js';
 import {analyzeChildRefSchema} from './reference-map.js';
+import {toSchemaDoc} from '../schema-engine/zod-bridge.js';
 import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
 import {STRICT_VALIDATION} from '../validation/integrity-checker.js';
 import {PayloadValidator} from '../validation/payload-validator.js';
@@ -185,7 +186,8 @@ describe('Catalog.fromJson & schema_loader', () => {
       const prop = shape[propName];
       assert.ok(prop, `${componentName}.${propName} is missing`);
 
-      const analysis = analyzeChildRefSchema(prop, V10_CHILD_REF_OPTIONS);
+      const {node, doc} = toSchemaDoc(prop, catalog.protocolVersion);
+      const analysis = analyzeChildRefSchema(node, doc, V10_CHILD_REF_OPTIONS);
       assert.equal(
         analysis.isChild,
         true,

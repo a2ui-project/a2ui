@@ -33,7 +33,23 @@ import {Catalog, ComponentApi} from './types.js';
 import {V08_CHILD_REF_OPTIONS} from '../v0_8/standard_defs.js';
 import {V09_CHILD_REF_OPTIONS} from '../v0_9/standard_defs.js';
 import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
+import type {SchemaDoc} from '../schema-engine/nav.js';
+import type {JsonSchema} from '../schema-engine/types.js';
+import V10CommonTypes from '../v1_0/schemas/common_types.json' with {type: 'json'};
 import {z} from 'zod';
+
+const docOf = (root: JsonSchema): SchemaDoc => ({
+  root,
+  defs: {'common_types.json': V10CommonTypes as JsonSchema},
+});
+const analyze = (node: JsonSchema, options: ChildRefAnalysisOptions) =>
+  analyzeChildRefSchema(node, docOf(node), options);
+const isChild = (node: JsonSchema, options: ChildRefAnalysisOptions) =>
+  isChildSchema(node, docOf(node), options);
+const isChildList = (node: JsonSchema, options: ChildRefAnalysisOptions) =>
+  isChildListSchema(node, docOf(node), options);
+const isEither = (node: JsonSchema, options: ChildRefAnalysisOptions) =>
+  isChildOrChildListSchema(node, docOf(node), options);
 
 describe('reference-map schema introspection', () => {
   it('identifies JSON Schema $ref pointers to ChildList and ComponentId', () => {
@@ -50,60 +66,60 @@ describe('reference-map schema introspection', () => {
     const v09ComponentIdRef = {$ref: 'common_types.json#/definitions/ComponentId'};
     const nonChildRef = {$ref: 'common_types.json#/definitions/DynamicString'};
 
-    const childListAnalysis = analyzeChildRefSchema(childListRef, V10_CHILD_REF_OPTIONS);
+    const childListAnalysis = analyze(childListRef, V10_CHILD_REF_OPTIONS);
     assert.strictEqual(childListAnalysis.isChildList, true);
     assert.strictEqual(childListAnalysis.isChild, false);
 
-    const componentIdAnalysis = analyzeChildRefSchema(componentIdRef, V10_CHILD_REF_OPTIONS);
+    const componentIdAnalysis = analyze(componentIdRef, V10_CHILD_REF_OPTIONS);
     assert.strictEqual(componentIdAnalysis.isChild, true);
     assert.strictEqual(componentIdAnalysis.isChildList, false);
 
-    assert.strictEqual(isChildListSchema(childListRef, V10_CHILD_REF_OPTIONS), true);
-    assert.strictEqual(isChildSchema(childListRef, V10_CHILD_REF_OPTIONS), false);
+    assert.strictEqual(isChildList(childListRef, V10_CHILD_REF_OPTIONS), true);
+    assert.strictEqual(isChild(childListRef, V10_CHILD_REF_OPTIONS), false);
 
-    assert.strictEqual(isChildSchema(componentIdRef, V10_CHILD_REF_OPTIONS), true);
-    assert.strictEqual(isChildListSchema(componentIdRef, V10_CHILD_REF_OPTIONS), false);
+    assert.strictEqual(isChild(componentIdRef, V10_CHILD_REF_OPTIONS), true);
+    assert.strictEqual(isChildList(componentIdRef, V10_CHILD_REF_OPTIONS), false);
 
-    assert.strictEqual(isChildSchema(childRef, V10_CHILD_REF_OPTIONS), true);
-    assert.strictEqual(isChildListSchema(childRef, V10_CHILD_REF_OPTIONS), false);
+    assert.strictEqual(isChild(childRef, V10_CHILD_REF_OPTIONS), true);
+    assert.strictEqual(isChildList(childRef, V10_CHILD_REF_OPTIONS), false);
 
-    assert.strictEqual(isChildListSchema(v09ChildListRef, V09_CHILD_REF_OPTIONS), true);
-    assert.strictEqual(isChildSchema(v09ComponentIdRef, V09_CHILD_REF_OPTIONS), true);
+    assert.strictEqual(isChildList(v09ChildListRef, V09_CHILD_REF_OPTIONS), true);
+    assert.strictEqual(isChild(v09ComponentIdRef, V09_CHILD_REF_OPTIONS), true);
 
-    assert.strictEqual(isChildOrChildListSchema(nonChildRef, V09_CHILD_REF_OPTIONS), false);
+    assert.strictEqual(isEither(nonChildRef, V09_CHILD_REF_OPTIONS), false);
   });
 
-  it('identifies Zod schemas for ComponentId and ChildList via REF pointers and structure', () => {
-    const singleChildApi = z
-      .string()
-      .describe('REF:#/$defs/ComponentId|Custom child reference slot.');
-    const childListUnion = z.union([
-      z.array(singleChildApi),
-      z.object({componentId: z.string(), path: z.string()}),
-    ]);
-    const normalString = z.string().describe('A normal text field');
+  it('identifies ComponentId and ChildList via REF pointers and structure', () => {
+    const singleChildApi = {
+      type: 'string',
+      description: 'REF:#/$defs/ComponentId|Custom child reference slot.',
+    };
+    const childListUnion = {
+      anyOf: [
+        {type: 'array', items: singleChildApi},
+        {type: 'object', properties: {componentId: {type: 'string'}, path: {type: 'string'}}},
+      ],
+    };
+    const normalString = {type: 'string', description: 'A normal text field'};
 
-    assert.strictEqual(isChildSchema(singleChildApi, V09_CHILD_REF_OPTIONS), true);
-    assert.strictEqual(isChildListSchema(singleChildApi, V09_CHILD_REF_OPTIONS), false);
+    assert.strictEqual(isChild(singleChildApi, V09_CHILD_REF_OPTIONS), true);
+    assert.strictEqual(isChildList(singleChildApi, V09_CHILD_REF_OPTIONS), false);
 
-    assert.strictEqual(isChildListSchema(childListUnion, V09_CHILD_REF_OPTIONS), true);
-    assert.strictEqual(isChildSchema(childListUnion, V09_CHILD_REF_OPTIONS), false);
+    assert.strictEqual(isChildList(childListUnion, V09_CHILD_REF_OPTIONS), true);
+    assert.strictEqual(isChild(childListUnion, V09_CHILD_REF_OPTIONS), false);
 
-    assert.strictEqual(isChildOrChildListSchema(normalString, V09_CHILD_REF_OPTIONS), false);
+    assert.strictEqual(isEither(normalString, V09_CHILD_REF_OPTIONS), false);
   });
 
-  it('identifies Zod schemas stamped with markChildRef metadata without description', () => {
-    const markedChild = z.string();
-    (markedChild._def as any).a2uiChildRef = 'component-id';
+  it('identifies $refs to the common Child and ChildList definitions without a description', () => {
+    const markedChild = {$ref: 'common_types.json#/$defs/ComponentId'};
+    const markedList = {$ref: 'common_types.json#/$defs/ChildList'};
 
-    const markedList = z.union([z.array(z.string()), z.any()]);
-    (markedList._def as any).a2uiChildRef = 'child-list';
+    assert.strictEqual(isChild(markedChild, V10_CHILD_REF_OPTIONS), true);
+    assert.strictEqual(isChildList(markedChild, V10_CHILD_REF_OPTIONS), false);
 
-    assert.strictEqual(isChildSchema(markedChild, V10_CHILD_REF_OPTIONS), true);
-    assert.strictEqual(isChildListSchema(markedChild, V10_CHILD_REF_OPTIONS), false);
-
-    assert.strictEqual(isChildListSchema(markedList, V10_CHILD_REF_OPTIONS), true);
-    assert.strictEqual(isChildSchema(markedList, V10_CHILD_REF_OPTIONS), false);
+    assert.strictEqual(isChildList(markedList, V10_CHILD_REF_OPTIONS), true);
+    assert.strictEqual(isChild(markedList, V10_CHILD_REF_OPTIONS), false);
   });
 
   it('builds dynamic ref map for custom components with non-standard property names', () => {
@@ -132,7 +148,7 @@ describe('reference-map schema introspection', () => {
         {$ref: 'https://a2ui.org/specification/v1_0/common_types.json#/$defs/ChildList'},
       ],
     };
-    const res = analyzeChildRefSchema(mixedUnionSchema, V10_CHILD_REF_OPTIONS);
+    const res = analyze(mixedUnionSchema, V10_CHILD_REF_OPTIONS);
     assert.strictEqual(res.isChildList, true);
     assert.strictEqual(res.isChild, false);
   });
@@ -187,14 +203,14 @@ describe('reference-map schema introspection', () => {
       $ref: '../catalog/definitions.json#/$defs/Child',
     };
 
-    assert.strictEqual(isChildListSchema(customChildListRef, V10_CHILD_REF_OPTIONS), true);
-    assert.strictEqual(isChildSchema(customChildListRef, V10_CHILD_REF_OPTIONS), false);
+    assert.strictEqual(isChildList(customChildListRef, V10_CHILD_REF_OPTIONS), true);
+    assert.strictEqual(isChild(customChildListRef, V10_CHILD_REF_OPTIONS), false);
 
-    assert.strictEqual(isChildSchema(customComponentIdRef, V10_CHILD_REF_OPTIONS), true);
-    assert.strictEqual(isChildListSchema(customComponentIdRef, V10_CHILD_REF_OPTIONS), false);
+    assert.strictEqual(isChild(customComponentIdRef, V10_CHILD_REF_OPTIONS), true);
+    assert.strictEqual(isChildList(customComponentIdRef, V10_CHILD_REF_OPTIONS), false);
 
-    assert.strictEqual(isChildSchema(customChildRef, V10_CHILD_REF_OPTIONS), true);
-    assert.strictEqual(isChildListSchema(customChildRef, V10_CHILD_REF_OPTIONS), false);
+    assert.strictEqual(isChild(customChildRef, V10_CHILD_REF_OPTIONS), true);
+    assert.strictEqual(isChildList(customChildRef, V10_CHILD_REF_OPTIONS), false);
   });
 
   it('supports custom ChildRefAnalysisOptions for extensible type names', () => {
@@ -202,8 +218,8 @@ describe('reference-map schema introspection', () => {
     const customListRef = {$ref: 'custom.json#/$defs/CustomSlotListTarget'};
 
     // Default v0.9 analysis does not match custom names
-    assert.strictEqual(isChildOrChildListSchema(customTargetRef, V09_CHILD_REF_OPTIONS), false);
-    assert.strictEqual(isChildOrChildListSchema(customListRef, V09_CHILD_REF_OPTIONS), false);
+    assert.strictEqual(isEither(customTargetRef, V09_CHILD_REF_OPTIONS), false);
+    assert.strictEqual(isEither(customListRef, V09_CHILD_REF_OPTIONS), false);
 
     // Custom options recognize them
     const customOptions: ChildRefAnalysisOptions = {
@@ -211,11 +227,11 @@ describe('reference-map schema introspection', () => {
       childListRefNames: new Set(['CustomSlotListTarget']),
     };
 
-    assert.strictEqual(isChildSchema(customTargetRef, customOptions), true);
-    assert.strictEqual(isChildListSchema(customTargetRef, customOptions), false);
+    assert.strictEqual(isChild(customTargetRef, customOptions), true);
+    assert.strictEqual(isChildList(customTargetRef, customOptions), false);
 
-    assert.strictEqual(isChildListSchema(customListRef, customOptions), true);
-    assert.strictEqual(isChildSchema(customListRef, customOptions), false);
+    assert.strictEqual(isChildList(customListRef, customOptions), true);
+    assert.strictEqual(isChild(customListRef, customOptions), false);
   });
 
   it('exposes version-specific reference token sets', () => {
@@ -337,8 +353,8 @@ describe('reference-map schema introspection', () => {
   });
 
   it('classifies a union reusing one child schema directly and in an array as a child list', () => {
-    const childId = z.string().describe('REF:common_types.json#/$defs/ComponentId');
-    const res = analyzeChildRefSchema(z.union([childId, z.array(childId)]), V10_CHILD_REF_OPTIONS);
+    const childId = {type: 'string', description: 'REF:common_types.json#/$defs/ComponentId'};
+    const res = analyze({anyOf: [childId, {type: 'array', items: childId}]}, V10_CHILD_REF_OPTIONS);
     assert.strictEqual(res.isChildList, true);
     assert.strictEqual(res.isChild, false);
   });
@@ -522,98 +538,93 @@ describe('reference-map schema introspection', () => {
     assert.deepStrictEqual(Array.from(refMap.UnmarkedAndWrapped.listRefs), ['children']);
   });
 
-  it('analyzes ZodPipeline, ZodIntersection, and ZodDiscriminatedUnion in analyzeChildRefSchema', () => {
-    const childSchema = z.string().describe('REF:#/$defs/Child');
-    const childListSchema = z.array(childSchema).describe('REF:#/$defs/ChildList');
+  it('analyzes allOf stages, intersections, and discriminated unions in analyzeChildRefSchema', () => {
+    const childSchema = {type: 'string', description: 'REF:#/$defs/Child'};
+    const childListSchema = {
+      type: 'array',
+      items: childSchema,
+      description: 'REF:#/$defs/ChildList',
+    };
+    const str = {type: 'string'};
+    const num = {type: 'number'};
 
+    assert.deepStrictEqual(analyze({allOf: [childSchema, str]}, V10_CHILD_REF_OPTIONS), {
+      isChild: true,
+      isChildList: false,
+    });
+    assert.deepStrictEqual(analyze({allOf: [{}, childSchema]}, V10_CHILD_REF_OPTIONS), {
+      isChild: true,
+      isChildList: false,
+    });
+    assert.deepStrictEqual(analyze({allOf: [childSchema, num]}, V10_CHILD_REF_OPTIONS), {
+      isChild: false,
+      isChildList: false,
+    });
+    assert.deepStrictEqual(analyze({allOf: [num, childSchema]}, V10_CHILD_REF_OPTIONS), {
+      isChild: false,
+      isChildList: false,
+    });
+
+    // Narrowing `Child | ChildList` with a string preserves `isChild: true`.
     assert.deepStrictEqual(
-      analyzeChildRefSchema(childSchema.pipe(z.string()), V10_CHILD_REF_OPTIONS),
+      analyze({allOf: [{anyOf: [childSchema, childListSchema]}, str]}, V10_CHILD_REF_OPTIONS),
       {isChild: true, isChildList: false},
     );
+    // Intersecting `Child` with an array of `Child` is unsatisfiable.
     assert.deepStrictEqual(
-      analyzeChildRefSchema(z.any().pipe(childSchema), V10_CHILD_REF_OPTIONS),
-      {
-        isChild: true,
-        isChildList: false,
-      },
-    );
-    assert.deepStrictEqual(
-      analyzeChildRefSchema(childSchema.pipe(z.number()), V10_CHILD_REF_OPTIONS),
-      {isChild: false, isChildList: false},
-    );
-    assert.deepStrictEqual(
-      analyzeChildRefSchema(z.number().pipe(childSchema), V10_CHILD_REF_OPTIONS),
+      analyze({allOf: [childSchema, {type: 'array', items: childSchema}]}, V10_CHILD_REF_OPTIONS),
       {isChild: false, isChildList: false},
     );
 
-    // Narrowing `Child | ChildList` with `z.string()` preserves `isChild: true`.
-    assert.deepStrictEqual(
-      analyzeChildRefSchema(
-        z.union([childSchema, childListSchema]).and(z.string()),
-        V10_CHILD_REF_OPTIONS,
-      ),
-      {isChild: true, isChildList: false},
-    );
-    // Intersecting `Child` with `z.array(Child)` is unsatisfiable.
-    assert.deepStrictEqual(
-      analyzeChildRefSchema(childSchema.and(z.array(childSchema)), V10_CHILD_REF_OPTIONS),
-      {isChild: false, isChildList: false},
-    );
-
-    const discriminatedRef = z.discriminatedUnion('kind', [
-      z.object({kind: z.literal('tpl'), componentId: z.string(), path: z.string()}),
-      z.object({kind: z.literal('empty')}),
-    ]);
-    assert.deepStrictEqual(analyzeChildRefSchema(discriminatedRef, V10_CHILD_REF_OPTIONS), {
+    const discriminatedRef = {
+      anyOf: [
+        {
+          type: 'object',
+          properties: {kind: {const: 'tpl'}, componentId: str, path: str},
+        },
+        {type: 'object', properties: {kind: {const: 'empty'}}},
+      ],
+    };
+    assert.deepStrictEqual(analyze(discriminatedRef, V10_CHILD_REF_OPTIONS), {
       isChild: false,
       isChildList: true,
     });
   });
 
-  it('terminates cleanly on wrapped recursive z.lazy arrays and unions in analyzeChildRefSchema', () => {
-    const childSchema = z.string().describe('REF:#/$defs/Child');
-    const childListSchema = z.array(childSchema).describe('REF:#/$defs/ChildList');
+  it('terminates cleanly on recursive $ref arrays and unions in analyzeChildRefSchema', () => {
+    const childSchema = {type: 'string', description: 'REF:#/$defs/Child'};
+    const childListSchema = {
+      type: 'array',
+      items: childSchema,
+      description: 'REF:#/$defs/ChildList',
+    };
+    const recursive = (def: JsonSchema) => ({$defs: {R: def}, $ref: '#/$defs/R'});
+    const self = {$ref: '#/$defs/R'};
+    const optional = (s: JsonSchema) => ({anyOf: [{not: {}}, s]});
+    const nullable = (s: JsonSchema) => ({anyOf: [s, {type: 'null'}]});
 
-    const RecursiveOptionalArray: z.ZodTypeAny = z.lazy(() =>
-      z.array(RecursiveOptionalArray.optional()),
+    assert.deepStrictEqual(
+      analyze(recursive({type: 'array', items: optional(self)}), V10_CHILD_REF_OPTIONS),
+      {isChild: false, isChildList: false},
     );
-    assert.deepStrictEqual(analyzeChildRefSchema(RecursiveOptionalArray, V10_CHILD_REF_OPTIONS), {
-      isChild: false,
-      isChildList: false,
-    });
+    assert.deepStrictEqual(
+      analyze(recursive({anyOf: [{type: 'string'}, nullable(self)]}), V10_CHILD_REF_OPTIONS),
+      {isChild: false, isChildList: false},
+    );
+    assert.deepStrictEqual(
+      analyze(recursive({anyOf: [optional(self), childSchema]}), V10_CHILD_REF_OPTIONS),
+      {isChild: true, isChildList: false},
+    );
+    assert.deepStrictEqual(
+      analyze(recursive({anyOf: [optional(self), childListSchema]}), V10_CHILD_REF_OPTIONS),
+      {isChild: false, isChildList: true},
+    );
 
-    const RecursiveNullableUnion: z.ZodTypeAny = z.lazy(() =>
-      z.union([z.string(), RecursiveNullableUnion.nullable()]),
-    );
-    assert.deepStrictEqual(analyzeChildRefSchema(RecursiveNullableUnion, V10_CHILD_REF_OPTIONS), {
-      isChild: false,
-      isChildList: false,
-    });
-
-    const RecursiveUnionWithChild: z.ZodTypeAny = z.lazy(() =>
-      z.union([RecursiveUnionWithChild.optional(), childSchema]),
-    );
-    assert.deepStrictEqual(analyzeChildRefSchema(RecursiveUnionWithChild, V10_CHILD_REF_OPTIONS), {
+    // Sibling union branches reusing the same schema object remain analyzed.
+    const sharedChild = optional(childSchema);
+    assert.deepStrictEqual(analyze({anyOf: [sharedChild, sharedChild]}, V10_CHILD_REF_OPTIONS), {
       isChild: true,
       isChildList: false,
     });
-
-    const RecursiveUnionWithChildList: z.ZodTypeAny = z.lazy(() =>
-      z.union([RecursiveUnionWithChildList.optional(), childListSchema]),
-    );
-    assert.deepStrictEqual(
-      analyzeChildRefSchema(RecursiveUnionWithChildList, V10_CHILD_REF_OPTIONS),
-      {
-        isChild: false,
-        isChildList: true,
-      },
-    );
-
-    // Sibling union branches reusing the same schema instance remain analyzed.
-    const sharedChild = childSchema.optional();
-    assert.deepStrictEqual(
-      analyzeChildRefSchema(z.union([sharedChild, sharedChild]), V10_CHILD_REF_OPTIONS),
-      {isChild: true, isChildList: false},
-    );
   });
 });

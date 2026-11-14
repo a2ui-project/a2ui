@@ -39,6 +39,7 @@ import {
   getSafeChildList,
   scrapeComponentBehavior,
 } from './generic-binder.js';
+import {toSchemaDoc} from '../schema-engine/zod-bridge.js';
 import {extractRefFields, RefFields} from './ref-fields.js';
 import {ResolvedBinding, sameBinding, WritableBinding} from './resolved-binding.js';
 
@@ -364,6 +365,8 @@ export class NodeResolver<
         ? V09_CHILD_REF_OPTIONS
         : V08_CHILD_REF_OPTIONS;
     const binder = new GenericBinder<NodeProps>(context, api.schema, refOptions);
+    // ponytail: bridge until Task 8
+    const schemaJson = toSchemaDoc(api.schema, compCatalog.protocolVersion);
     const record = this.registerNode(
       new MutableComponentNode(
         instanceIdFor(componentId, dataPath, occurrence),
@@ -380,7 +383,7 @@ export class NodeResolver<
         edgeKey,
         parent,
         occurrence,
-        refFields: extractRefFields(api.schema, refOptions),
+        refFields: extractRefFields(schemaJson.node, schemaJson.doc, refOptions),
         behavior: scrapeComponentBehavior(api.schema, refOptions),
         componentModel: model,
         binder,

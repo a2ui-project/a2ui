@@ -16,6 +16,9 @@
 
 import {z} from 'zod';
 
+import {refKind, type SchemaDoc} from '../schema-engine/nav.js';
+import type {JsonSchema} from '../schema-engine/types.js';
+
 /**
  * Classification kind for a schema marked as a child reference.
  */
@@ -33,12 +36,47 @@ export function markChildRef<T extends z.ZodTypeAny>(schema: T, ref: ChildRefKin
 }
 
 /**
- * Extracts the child reference kind associated with a Zod schema, if present.
+ * The child reference kind a common types definition name denotes: `Child` and
+ * `ComponentId` are single component ids, `ChildList` is a child list.
  *
- * @param schema Zod schema to inspect.
- * @returns The child reference kind or undefined if not marked.
+ * @param defName A `$defs` name, e.g. from {@link refKind}.
+ * @returns The child reference kind, or undefined for any other name.
  */
-export function childRefKindOf(schema: z.ZodTypeAny): ChildRefKind | undefined {
+export function childRefKindForDefName(defName: string | undefined): ChildRefKind | undefined {
+  if (defName === 'Child' || defName === 'ComponentId') return 'component-id';
+  if (defName === 'ChildList') return 'child-list';
+  return undefined;
+}
+
+/**
+ * Extracts the child reference kind of a JSON Schema node: the kind of the
+ * common types definition it references through `$ref`, or names in a legacy
+ * `REF:` description.
+ *
+ * @param node JSON Schema node to inspect.
+ * @param doc The document that owns `node`.
+ * @returns The child reference kind or undefined if the node is not a child reference.
+ */
+export function childRefKindOf(node: JsonSchema, doc: SchemaDoc): ChildRefKind | undefined {
+  try {
+    return childRefKindForDefName(refKind(node, doc));
+  } catch {
+    // An unresolved `$ref` still names its target.
+    const ref = typeof node === 'object' ? node['$ref'] : undefined;
+    return typeof ref === 'string'
+      ? childRefKindForDefName(/\/\$defs\/([^/]+)$/.exec(ref)?.[1])
+      : undefined;
+  }
+}
+
+/**
+ * Reads the child-reference kind {@link markChildRef} stamped on a Zod schema.
+ * Used by the Zod-to-JSON-Schema bridge and the Zod-walking binder until they
+ * are removed.
+ *
+ * @internal
+ */
+export function zodChildRefKindOf(schema: z.ZodTypeAny): ChildRefKind | undefined {
   return (schema?._def as {a2uiChildRef?: ChildRefKind} | undefined)?.a2uiChildRef;
 }
 
