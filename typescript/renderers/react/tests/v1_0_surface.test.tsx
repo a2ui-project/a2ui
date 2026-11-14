@@ -594,6 +594,8 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
         {
           code: 'UNKNOWN_COMPONENT_TYPE',
           message: "Component 'root' has type 'Text', which is not in catalog 'empty'.",
+          componentId: 'root',
+          componentType: 'Text',
           surfaceId: 'no-catalog',
         },
       ]),

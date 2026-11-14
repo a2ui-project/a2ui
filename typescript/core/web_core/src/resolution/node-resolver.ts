@@ -162,7 +162,12 @@ export class NodeResolver<
       return;
     }
     codes.add(code);
-    this.surface.dispatchError({code, message});
+    this.surface.dispatchError({
+      code,
+      message,
+      componentId,
+      componentType: this.surface.componentsModel.get(componentId)?.type,
+    });
   }
 
   private clearDispatched(componentId: string, dataPath: string): void {

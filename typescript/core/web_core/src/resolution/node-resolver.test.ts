@@ -785,6 +785,44 @@ describe('NodeResolver malformed and unusual payloads', () => {
     resolver.dispose();
   });
 
+  it('names the component and its type on UNKNOWN_COMPONENT_TYPE', () => {
+    const {surface, resolver} = setup();
+    const errors: Array<Record<string, unknown>> = [];
+    surface.onError.subscribe(e => {
+      errors.push(e as Record<string, unknown>);
+    });
+    add(surface, 'weird', 'Bogus', {});
+    add(surface, 'root', 'Column', {children: ['weird']});
+    assert.ok(getValue(resolver.rootNode));
+
+    assert.deepStrictEqual(
+      errors
+        .filter(e => e.code === 'UNKNOWN_COMPONENT_TYPE')
+        .map(({componentId, componentType}) => ({componentId, componentType})),
+      [{componentId: 'weird', componentType: 'Bogus'}],
+    );
+    resolver.dispose();
+  });
+
+  it('names the declared type of the repeated component on CYCLIC_REFERENCE', () => {
+    const {surface, resolver} = setup();
+    const errors: Array<Record<string, unknown>> = [];
+    surface.onError.subscribe(e => {
+      errors.push(e as Record<string, unknown>);
+    });
+    add(surface, 'a', 'Card', {child: 'root'});
+    add(surface, 'root', 'Card', {child: 'a'});
+    assert.ok(getValue(resolver.rootNode));
+
+    assert.deepStrictEqual(
+      errors
+        .filter(e => e.code === 'CYCLIC_REFERENCE')
+        .map(({componentId, componentType}) => ({componentId, componentType})),
+      [{componentId: 'root', componentType: 'Card'}],
+    );
+    resolver.dispose();
+  });
+
   // Both stale-root tests register async listeners ahead of the resolver, as
   // any subscriber registered before it does in production: each event then
   // delivers to the resolver only after an await, by which time the model
@@ -1300,6 +1338,8 @@ describe('NodeResolver constructor checks and disposal', () => {
       {
         code: 'UNKNOWN_COMPONENT_TYPE',
         message: "Component 'child1' has type 'Text', which is not in catalog 'empty'.",
+        componentId: 'child1',
+        componentType: 'Text',
         surfaceId: 'surf-1',
       },
     ]);
@@ -1367,6 +1407,8 @@ describe('NodeResolver on a surface without a default catalog', () => {
       {
         code: 'UNKNOWN_COMPONENT_TYPE',
         message: "Component 'orphan' has type 'Text', which is not in catalog 'other'.",
+        componentId: 'orphan',
+        componentType: 'Text',
         surfaceId: 'no-default',
       },
     ]);
