@@ -269,6 +269,23 @@ describe('GenericBinder Checkable Trait', () => {
     });
   });
 
+  it('exposes the unresolved action on the ACTION closure as rawAction', () => {
+    const {catalog, surface} = setupSurfaceAndMocks();
+    surface.dataModel.set('/user/name', 'Alice');
+    const action = {event: {name: 'submit', context: {user: {path: '/user/name'}}}};
+    surface.componentsModel.addComponent(
+      new ComponentModel('c5', 'Button', {onTap: action}, catalog),
+    );
+
+    const binder = new GenericBinder<{onTap?: () => void}>(
+      new ComponentContext(surface, 'c5'),
+      z.object({onTap: CommonSchemas.Action}),
+    );
+
+    const onTap = binder.snapshot.onTap as unknown as {rawAction: unknown};
+    assert.deepStrictEqual(onTap.rawAction, action);
+  });
+
   it('should return action dispatch promise settling after onAction listeners complete', async () => {
     const {catalog, surface} = setupSurfaceAndMocks();
     surface.dataModel.set('/user/name', 'Alice');

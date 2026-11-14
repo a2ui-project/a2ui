@@ -1404,6 +1404,9 @@ export class GenericBinder<T> {
       }
       await this.context.dispatchAction(resolved as Action, options?.metadata);
     };
+    // Lets hosts inspect the unresolved action (event or function call)
+    // before invoking it, for example to show a spinner only for server events.
+    Object.assign(closure, {rawAction: value});
     this.actionClosures.set(cacheKey, {raw: value, closure});
     return closure;
   }
