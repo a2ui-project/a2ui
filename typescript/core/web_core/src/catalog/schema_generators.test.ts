@@ -33,7 +33,7 @@ const {
 const basicTypesGen = await import(
   new URL('../../../scripts/generate-basic-catalog-types.mjs', import.meta.url).href
 );
-const {generateTypes} = basicTypesGen;
+const {generateTypes, generateCommonTypes, commonTypeNames} = basicTypesGen;
 
 describe('zod-generator-core.mjs', () => {
   it('generates standard header comment with version and script source', () => {
@@ -220,7 +220,8 @@ describe('generate-basic-catalog-types.mjs', () => {
   };
 
   it('emits one props interface per component, with bindings as the common types', () => {
-    const out: string = generateTypes(doc, 'test/catalog.json');
+    const names = new Set(['ComponentCommonProps', 'ComponentId', 'DynamicString']);
+    const out: string = generateTypes(doc, 'test/catalog.json', names);
     assert.match(out, /export interface LabelProps extends ComponentCommonProps, Common \{/);
     assert.match(out, /text: DynamicString;/);
     assert.match(out, /size\?: 's' \| 'm';/);
@@ -233,5 +234,50 @@ describe('generate-basic-catalog-types.mjs', () => {
       /import type \{ComponentCommonProps, ComponentId, DynamicString\} from '__COMMON_TYPES__';/,
     );
     assert.match(out, /export interface BasicCatalogProps \{\n {2}Label: LabelProps;\n\}/);
+  });
+
+  it('rejects a common types reference its version does not define', () => {
+    assert.throws(
+      () => generateTypes(doc, 'test/catalog.json', new Set(['ComponentCommonProps'])),
+      /unmapped common_types \$ref 'common_types.json#\/\$defs\/DynamicString'/,
+    );
+  });
+
+  it("emits each version's common types with its own spelling, closed and required", () => {
+    const common = {
+      $defs: {
+        DataBinding: {
+          type: 'object',
+          properties: {'@path': {type: 'string'}},
+          required: ['@path'],
+          additionalProperties: false,
+        },
+        DynamicString: {oneOf: [{type: 'string'}, {$ref: '#/$defs/DataBinding'}]},
+        ComponentCommon: {type: 'object', properties: {id: {type: 'string'}}, required: ['id']},
+        FunctionCall: {
+          type: 'object',
+          allOf: [{oneOf: [{$ref: 'catalog.json#/$defs/anyFunction'}]}],
+        },
+      },
+    };
+    const out: string = generateCommonTypes(common, 'test/common_types.json');
+    assert.match(out, /export type DataBinding = \{[^}]*'@path': string;\n\};/);
+    assert.match(out, /export type DynamicString = \(string\) \| \(DataBinding\);/);
+    assert.match(out, /export type CatalogFunctionCall = \{/);
+    assert.match(
+      out,
+      /export type ComponentCommonProps = Omit<ComponentCommon, 'id' \| '@catalogId'>;/,
+    );
+    assert.deepStrictEqual([...commonTypeNames(common)].sort(), [
+      'ComponentCommon',
+      'ComponentCommonProps',
+      'DataBinding',
+      'DynamicString',
+      'FunctionCall',
+    ]);
+    assert.throws(
+      () => generateCommonTypes({$defs: {X: {$ref: '#/$defs/Missing'}}}, 'test/common_types.json'),
+      /unmapped \$ref/,
+    );
   });
 });

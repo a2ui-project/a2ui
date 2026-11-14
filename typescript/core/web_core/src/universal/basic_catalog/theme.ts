@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+// ponytail: removed in Task 11 — BasicCatalogThemeSchema is an exported zod schema; the basic catalogs validate themes with their documents.
+
 import {z} from 'zod';
 import validateColor from 'validate-color';
 

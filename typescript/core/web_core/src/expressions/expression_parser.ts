@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {DynamicValue} from '../types/common-types.js';
+import {DynamicValue} from '../types/runtime-types.js';
 import {A2uiExpressionError} from '../errors.js';
 
 /**

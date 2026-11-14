@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+// ponytail: removed in Task 11 — markChildRef stamps child-ref kinds on the zod mirrors and zod 3 catalog schemas.
+
 import {z} from 'zod';
 
 import {refKind, type SchemaDoc} from '../schema-engine/nav.js';

@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+// ponytail: removed in Task 11 — IndexApi is a zod schema (the v1 basic catalog's @index uses JSON Schema).
+
 import {z} from 'zod';
 
 import {createFunctionImplementation, FunctionImplementation} from '../../catalog/types.js';

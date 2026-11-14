@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+// ponytail: removed in Task 11 — maps zod 3 issues of zod-backed schemas to renderer error details.
+
 import {z} from 'zod';
 import {isAtLeastVersion} from '../common/semver.js';
 import {

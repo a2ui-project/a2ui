@@ -29,7 +29,14 @@ import {
   registerUniversalElement,
   type WebComponentImplementation,
 } from '../../index.js';
-import {testValidator} from '../../../test/validator.js';
+import {createAjvValidator, testValidator} from '../../../test/validator.js';
+
+// The catalog's `min` and `max` accept a string through a `oneOf` of `format`s
+// (`date`, `time`, `date-time`). With formats as annotations (the default)
+// every string satisfies all three branches, so `oneOf` rejects it, as the
+// Python SDK does too; this catalog asserts formats so that the branches
+// tell the values apart.
+const formatValidator = createAjvValidator({formats: true});
 
 describe('DateTimeInput Component', () => {
   let basicCatalog: Catalog<WebComponentImplementation>;
@@ -37,7 +44,7 @@ describe('DateTimeInput Component', () => {
   before(async () => {
     setupTestDom();
     basicCatalog = (await import('../../../v0_9/basic_catalog/index.js')).createBasicCatalog(
-      testValidator,
+      formatValidator,
     );
     basicCatalog.components.forEach(c => registerUniversalElement(c));
   });

@@ -21,6 +21,7 @@ import {A2uiConfigurationError} from '../errors.js';
 import type {JsonSchemaValidator} from '../schema-engine/types.js';
 import {createAjvValidator} from '../test/validator.js';
 import {memoizeByValidator} from './basic_catalog_factory.js';
+import {Catalog} from './types.js';
 
 /** A validator that counts the schemas it compiles. */
 function countingValidator(): JsonSchemaValidator & {compiled: number} {
@@ -53,6 +54,9 @@ describe('basic catalog factories', () => {
     for (const [i, module] of imported.entries()) {
       // No catalog is exported as a constant, built at import.
       assert.ok(!('basicCatalog' in module), `${modules[i]} exports no basicCatalog constant`);
+      for (const [name, value] of Object.entries(module)) {
+        assert.ok(!(value instanceof Catalog), `${modules[i]} exports no catalog (${name})`);
+      }
     }
     // Nothing has compiled with the validator, which no module has seen yet.
     assert.strictEqual(validator.compiled, 0);
@@ -92,6 +96,30 @@ describe('basic catalog factories', () => {
       assert.throws(() => createBasicCatalog(undefined), A2uiConfigurationError);
     });
   }
+
+  it('builds the function implementations once per validator and locale', async () => {
+    const v09 = await import('../v0_9/basic_catalog/functions/basic_functions.js');
+    const v1 = await import('../catalogs/basic/v1/functions/basic_functions.js');
+    for (const create of [
+      v09.createBasicCatalogFunctions,
+      v09.createV09SpecFunctions,
+      v09.createLegacyV09Functions,
+      v1.createBasicCatalogFunctions,
+    ]) {
+      const validator = countingValidator();
+      const first = create(validator);
+      const compiled = validator.compiled;
+      assert.ok(compiled > 0);
+      const second = create(validator);
+      assert.notStrictEqual(second, first, 'each call returns its own array');
+      assert.deepStrictEqual(second, first, 'of the same implementations');
+      assert.strictEqual(validator.compiled, compiled, 'a second call compiles nothing');
+    }
+    const validator = createAjvValidator();
+    const de = v1.createBasicCatalogFunctions(validator, {locale: 'de-DE'});
+    assert.notStrictEqual(de[0], v1.createBasicCatalogFunctions(validator)[0]);
+    assert.strictEqual(v1.createBasicCatalogFunctions(validator, {locale: 'de-DE'})[0], de[0]);
+  });
 
   it('memoizes by validator and passes a missing one through', () => {
     let builds = 0;

@@ -71,3 +71,30 @@ export function implementFunctions(
     return factory(api);
   });
 }
+
+/**
+ * Wraps a factory of a list that depends on a validator and an optional
+ * locale so that it runs once per validator and locale. Each call returns a
+ * new array of the same entries, so a caller may change the array.
+ *
+ * @param build Builds the list for a validator and locale.
+ * @returns The memoised factory.
+ */
+export function memoizeByValidatorAndLocale<T>(
+  build: (validator: JsonSchemaValidator, locale: string | undefined) => T[],
+): (validator: JsonSchemaValidator, options?: {locale?: string}) => T[] {
+  const byLocale = memoizeByValidator(() => new Map<string | undefined, T[]>());
+  return (validator, options) => {
+    if ((typeof validator !== 'object' && typeof validator !== 'function') || validator === null) {
+      return build(validator, options?.locale);
+    }
+    const cache = byLocale(validator);
+    const locale = options?.locale;
+    let built = cache.get(locale);
+    if (!built) {
+      built = build(validator, locale);
+      cache.set(locale, built);
+    }
+    return [...built];
+  };
+}

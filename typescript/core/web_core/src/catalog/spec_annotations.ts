@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+// ponytail: removed in Task 11 — spec()/specDef() annotate zod 3 schemas of code-defined catalogs (public API).
+
 import {z} from 'zod';
 
 /**

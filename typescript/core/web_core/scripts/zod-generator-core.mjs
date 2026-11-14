@@ -44,6 +44,8 @@ export function getHeader(version, generatorSource = 'scripts/generate-zod-schem
 
 // AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
 // Generated from specification/${version}/json/ via ${generatorSource}
+// ponytail: removed in Task 11 — zod mirror of the spec JSON, which validation
+// uses; kept for the remaining zod users.
 `;
 }
 

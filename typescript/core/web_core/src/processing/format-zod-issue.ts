@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+// ponytail: removed in Task 11 — formatZodIssue words zod 3 issues (public API, becomes formatIssue).
+
 import {z} from 'zod';
 
 /**

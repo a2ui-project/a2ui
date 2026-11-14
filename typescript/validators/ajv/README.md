@@ -4,5 +4,5 @@ Ajv (2020-12) adapter implementing `JsonSchemaValidator` from `@a2ui/web_core/sc
 
 ```ts
 import {createAjvValidator} from '@a2ui/validator-ajv';
-const validator = createAjvValidator(); // ajv-formats enabled; pass {formats: false} to disable
+const validator = createAjvValidator(); // `format` is an annotation; pass {formats: true} to assert it with ajv-formats
 ```

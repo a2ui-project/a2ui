@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+// ponytail: removed in Task 11 — zod mirror of the v0.8 message schema (A2uiMessageSchema export).
+
 import {z} from 'zod';
 import {DataValueSchema} from './common-types.js';
 

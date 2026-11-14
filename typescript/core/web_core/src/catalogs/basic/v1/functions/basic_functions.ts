@@ -24,6 +24,7 @@
 
 import {
   implementFunctions,
+  memoizeByValidatorAndLocale,
   type FunctionExecutorFactory,
 } from '../../../../catalog/basic_catalog_factory.js';
 import type {FunctionImplementation} from '../../../../catalog/types.js';
@@ -98,16 +99,18 @@ const INDEX_ARGS = {
  *
  * @param validator The JSON Schema validator the functions' arguments validate with.
  * @param options Options such as the locale of the formatting functions.
+ * Built once per validator and locale.
+ *
  * @returns The implementations, in the document's order, then `@index`.
  */
-export function createBasicCatalogFunctions(
+export const createBasicCatalogFunctions: (
   validator: JsonSchemaValidator,
   options?: BasicFunctionOptions,
-): FunctionImplementation[] {
+) => FunctionImplementation[] = memoizeByValidatorAndLocale((validator, locale) => {
   const catalog = loadBasicCatalogApi(validator);
   const functions = implementFunctions(
     catalog.functions.values(),
-    specExecutors(options?.locale),
+    specExecutors(locale),
     catalog.id,
   );
   // The documents the catalog's own function schemas validate with.
@@ -117,4 +120,4 @@ export function createBasicCatalogFunctions(
     schema: fromJsonSchema(INDEX_ARGS, validator, {defs: {...documents}}),
   };
   return [...functions, index];
-}
+});

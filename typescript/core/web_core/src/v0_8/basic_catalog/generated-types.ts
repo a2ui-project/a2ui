@@ -17,6 +17,12 @@
 // AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
 // Generated from specification/v0_8/json/standard_catalog_definition.json via scripts/generate-basic-catalog-types.mjs
 
+/**
+ * These types describe values as a message writes them (the input shape of
+ * the schemas). The defaults the schemas declare are filled in at runtime,
+ * so a validated value may carry a property its type marks optional.
+ */
+
 /** The theme of the catalog (`styles`). */
 export interface Theme {
   /**

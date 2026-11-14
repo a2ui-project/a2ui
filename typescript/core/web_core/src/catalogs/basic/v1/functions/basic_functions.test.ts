@@ -22,12 +22,7 @@ import path from 'node:path';
 import {effect, Signal, getValue} from '../../../../reactivity/signals.js';
 import {createBasicCatalogFunctions as createFunctions} from './basic_functions.js';
 import {loadBasicCatalogApi} from '../document.js';
-import {createAjvValidator} from '../../../../test/validator.js';
-
-// Formats are annotations, as JSON Schema 2020-12 and the Python SDK have
-// them, so `openUrl` receives the relative URLs its `uri` format would
-// otherwise reject, and its implementation resolves them.
-const testValidator = createAjvValidator({formats: false});
+import {testValidator} from '../../../../test/validator.js';
 import {DataModel} from '../../../../state/data-model.js';
 import {DataContext} from '../../../../resolution/data-context.js';
 import {A2uiExpressionError, A2uiValidationError} from '../../../../errors.js';

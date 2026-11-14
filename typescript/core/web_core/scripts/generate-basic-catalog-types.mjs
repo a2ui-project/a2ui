@@ -15,9 +15,11 @@
  */
 
 /**
- * Emits the TypeScript props types of the basic catalogs from their published
- * JSON Schema documents: one exported `<Component>Props` interface per
- * component, with bindings typed as the common types of `src/types/common-types.ts`.
+ * Emits TypeScript types from the published JSON Schema documents: for each
+ * protocol version, its common types (`generated-common-types.ts`, from
+ * `common_types.json`), and for each basic catalog, one exported
+ * `<Component>Props` interface per component, with bindings typed as the
+ * common types of the catalog's own protocol version.
  *
  * The catalogs themselves are loaded from the same documents at runtime
  * (`createBasicCatalog`); these types only give renderers typed props.
@@ -47,7 +49,20 @@ const HEADER = `/*
  */
 `;
 
-/** The catalogs to emit types for: source document and destination file. */
+/**
+ * The common types to emit, one module per protocol version, from that
+ * version's `common_types.json`.
+ */
+export const COMMON_TYPES = [
+  {source: 'specification/v0_9/json/common_types.json', dest: 'src/v0_9/generated-common-types.ts'},
+  {source: 'specification/v1_0/json/common_types.json', dest: 'src/v1_0/generated-common-types.ts'},
+];
+
+/**
+ * The catalogs to emit props types for: source document, destination file,
+ * and the common types module of the catalog's protocol version (v0.8 has
+ * none: its catalog spells its bindings out).
+ */
 export const CATALOGS = [
   {
     source: 'specification/v0_8/json/standard_catalog_definition.json',
@@ -56,37 +71,30 @@ export const CATALOGS = [
   {
     source: 'specification/v0_9/catalogs/basic/catalog.json',
     dest: 'src/v0_9/basic_catalog/generated-types.ts',
+    commonTypes: 'src/v0_9/generated-common-types.ts',
   },
   {
     source: 'catalogs/basic/v1/catalog.json',
     dest: 'src/catalogs/basic/v1/generated-types.ts',
+    commonTypes: 'src/v1_0/generated-common-types.ts',
   },
 ];
 
-/** Common type names `src/types/common-types.ts` exports. */
-const COMMON_TYPES = new Set([
-  'ComponentId',
-  'Child',
-  'CallId',
-  'DataBinding',
-  'FunctionCall',
-  'FunctionCommon',
-  'DynamicString',
-  'DynamicNumber',
-  'DynamicBoolean',
-  'DynamicStringList',
-  'DynamicValue',
-  'AccessibilityAttributes',
-  'Extensions',
-  'ChildList',
-  'CheckRule',
-  'Checkable',
-  'Action',
-  'IndexSystemFunction',
-]);
-
-/** The local definitions that are not props types. */
+/** The local definitions of a catalog that are not props types. */
 const SKIPPED_DEFS = new Set(['anyComponent', 'anyFunction']);
+
+/**
+ * The type a common types document's references into the catalog
+ * (`catalog.json#/$defs/<name>`) stand for, which no catalog-independent
+ * type can spell out further.
+ */
+const CATALOG_REFS = {
+  anyFunction: 'CatalogFunctionCall',
+  anyComponent: 'CatalogComponent',
+};
+
+/** Names that props of the common types module use besides its definitions. */
+const COMPONENT_COMMON_PROPS = 'ComponentCommonProps';
 
 const IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 
@@ -104,28 +112,39 @@ function comment(text, indent) {
   return `${indent}/**\n${lines.map(line => `${indent} * ${line}`.trimEnd()).join('\n')}\n${indent} */\n`;
 }
 
-/** The name a `$ref` resolves to, recording common type imports. */
+/**
+ * The name a `$ref` resolves to, recording common type imports.
+ *
+ * @throws {Error} For a reference the generator has no type for, such as a
+ *   common type its version does not define.
+ */
 function refName(ref, ctx) {
   const hash = ref.indexOf('#');
   const document = hash === -1 ? ref : ref.slice(0, hash);
   const pointer = hash === -1 ? '' : ref.slice(hash);
   const match = /^#\/\$defs\/([^/]+)$/.exec(pointer);
-  if (!match) return 'unknown';
+  if (!match) throw new Error(`${ctx.source}: unsupported $ref '${ref}'.`);
   const name = match[1];
-  if (document === '' || document.endsWith('catalog.json')) {
-    if (ctx.localDefs.has(name)) return name;
-  }
-  if (document.endsWith('common_types.json') || (document === '' && !ctx.localDefs.has(name))) {
-    if (name === 'ComponentCommon') {
-      ctx.imports.add('ComponentCommonProps');
-      return 'ComponentCommonProps';
+  const local = document === '' || document.endsWith('catalog.json');
+  if (ctx.mode === 'common') {
+    if (document === '' && ctx.localDefs.has(name)) return name;
+    if (document.endsWith('catalog.json') && Object.hasOwn(CATALOG_REFS, name)) {
+      ctx.catalogRefs.add(name);
+      return CATALOG_REFS[name];
     }
-    if (COMMON_TYPES.has(name)) {
-      ctx.imports.add(name);
-      return name;
+    throw new Error(`${ctx.source}: unmapped $ref '${ref}'.`);
+  }
+  if (local && ctx.localDefs.has(name)) return name;
+  // A common type, by its own document's name or, as catalogs written against
+  // the common types' names do, by a local name the catalog does not define.
+  if (document.endsWith('common_types.json') || (local && !ctx.localDefs.has(name))) {
+    const typeName = name === 'ComponentCommon' ? COMPONENT_COMMON_PROPS : name;
+    if (ctx.commonNames.has(typeName)) {
+      ctx.imports.add(typeName);
+      return typeName;
     }
   }
-  return 'unknown';
+  throw new Error(`${ctx.source}: unmapped common_types $ref '${ref}'.`);
 }
 
 function objectBody(schema, ctx, indent, omit = new Set()) {
@@ -153,7 +172,11 @@ function typeOf(schema, ctx, indent = '') {
   if (Array.isArray(schema.enum)) return schema.enum.map(literal).join(' | ');
   for (const key of ['oneOf', 'anyOf']) {
     if (Array.isArray(schema[key])) {
-      return schema[key].map(member => `(${typeOf(member, ctx, indent)})`).join(' | ');
+      const union = schema[key].map(member => `(${typeOf(member, ctx, indent)})`).join(' | ');
+      // An object that declares properties beside the union has them on every branch.
+      if (!schema.properties) return union;
+      const own = typeOf({...schema, [key]: undefined}, ctx, indent);
+      return `(${own}) & (${union})`;
     }
   }
   if (Array.isArray(schema.allOf)) {
@@ -208,7 +231,6 @@ function interfaceOf(name, schema, ctx, omit) {
     }
     if (typeof member?.$ref === 'string' && Object.keys(member).length === 1) {
       const base = refName(member.$ref, ctx);
-      if (base === 'unknown') return undefined;
       bases.push(base);
     } else if (
       member &&
@@ -226,11 +248,83 @@ function interfaceOf(name, schema, ctx, omit) {
   return `export interface ${name}${extendsClause} {\n${body}}\n`;
 }
 
-/** The generated types module for one catalog document. */
-export function generateTypes(doc, sourcePath) {
+const GENERATED_NOTE = `// AUTO-GENERATED FILE - DO NOT EDIT MANUALLY`;
+
+/**
+ * The note on what the generated types describe: values as a message writes
+ * them. The runtime may fill in a schema's \`default\`s, so a resolved value
+ * can carry a property its input type marks optional.
+ */
+const INPUT_SHAPE_NOTE = `/**
+ * These types describe values as a message writes them (the input shape of
+ * the schemas). The defaults the schemas declare are filled in at runtime,
+ * so a validated value may carry a property its type marks optional.
+ */
+`;
+
+/** The generated common types module of one protocol version. */
+export function generateCommonTypes(doc, sourcePath) {
   const defs = doc.$defs ?? {};
   const ctx = {
+    mode: 'common',
+    source: sourcePath,
     imports: new Set(),
+    catalogRefs: new Set(),
+    localDefs: new Set(Object.keys(defs)),
+  };
+  let out = '';
+  for (const [name, schema] of Object.entries(defs)) {
+    out += comment(schema?.description, '');
+    out += `export type ${name} = ${typeOf(schema, ctx)};\n\n`;
+  }
+  let prelude = '';
+  if (ctx.catalogRefs.has('anyFunction')) {
+    prelude +=
+      '/** A call of a function of the catalog the call runs in (`catalog.json#/$defs/anyFunction`). */\n' +
+      'export type CatalogFunctionCall = {\n  args?: Record<string, unknown>;\n};\n\n';
+  }
+  if (ctx.catalogRefs.has('anyComponent')) {
+    prelude +=
+      '/** A component of the catalog (`catalog.json#/$defs/anyComponent`). */\n' +
+      'export type CatalogComponent = Record<string, unknown>;\n\n';
+  }
+  if (Object.hasOwn(defs, 'ComponentCommon')) {
+    out +=
+      "/**\n * The properties of `ComponentCommon` a component's props carry: all but the\n" +
+      ' * envelope fields (`id`, `@catalogId`), which route the component.\n */\n' +
+      `export type ${COMPONENT_COMMON_PROPS} = Omit<ComponentCommon, 'id' | '@catalogId'>;\n`;
+  }
+  return (
+    `${HEADER}\n${GENERATED_NOTE}\n` +
+    `// Generated from ${sourcePath} via scripts/generate-basic-catalog-types.mjs\n\n` +
+    INPUT_SHAPE_NOTE +
+    '\n' +
+    prelude +
+    out
+  );
+}
+
+/** The type names a generated common types module exports. */
+export function commonTypeNames(doc) {
+  const names = new Set(Object.keys(doc.$defs ?? {}));
+  if (names.has('ComponentCommon')) names.add(COMPONENT_COMMON_PROPS);
+  return names;
+}
+
+/**
+ * The generated props types module for one catalog document.
+ *
+ * @param doc The catalog document.
+ * @param sourcePath Its path, for the header and errors.
+ * @param commonNames The type names of its version's common types module.
+ */
+export function generateTypes(doc, sourcePath, commonNames = new Set()) {
+  const defs = doc.$defs ?? {};
+  const ctx = {
+    mode: 'catalog',
+    source: sourcePath,
+    imports: new Set(),
+    commonNames,
     localDefs: new Set(Object.keys(defs).filter(name => !SKIPPED_DEFS.has(name))),
   };
   let out = '';
@@ -264,20 +358,38 @@ export function generateTypes(doc, sourcePath) {
   const importLine =
     imports.length > 0 ? `import type {${imports.join(', ')}} from '__COMMON_TYPES__';\n\n` : '';
   return (
-    `${HEADER}\n// AUTO-GENERATED FILE - DO NOT EDIT MANUALLY\n` +
+    `${HEADER}\n${GENERATED_NOTE}\n` +
     `// Generated from ${sourcePath} via scripts/generate-basic-catalog-types.mjs\n\n` +
     importLine +
+    INPUT_SHAPE_NOTE +
+    '\n' +
     out
   );
 }
 
+/** A module specifier from `fromFile` to the `.js` of the `.ts` file `toFile`. */
+function specifier(fromFile, toFile) {
+  let path = relative(dirname(fromFile), toFile).replace(/\.ts$/, '.js');
+  if (!path.startsWith('.')) path = `./${path}`;
+  return path;
+}
+
 function main() {
-  for (const {source, dest} of CATALOGS) {
-    const doc = JSON.parse(readFileSync(join(repo, source), 'utf8'));
+  const readDoc = source => JSON.parse(readFileSync(join(repo, source), 'utf8'));
+  const commonNamesByDest = new Map();
+  for (const {source, dest} of COMMON_TYPES) {
+    const doc = readDoc(source);
+    writeFileSync(join(root, dest), generateCommonTypes(doc, source));
+    commonNamesByDest.set(dest, commonTypeNames(doc));
+    console.log(`Generated ${dest}`);
+  }
+  for (const {source, dest, commonTypes} of CATALOGS) {
     const destPath = join(root, dest);
-    let commonTypes = relative(dirname(destPath), join(root, 'src', 'types', 'common-types.js'));
-    if (!commonTypes.startsWith('.')) commonTypes = `./${commonTypes}`;
-    writeFileSync(destPath, generateTypes(doc, source).replace('__COMMON_TYPES__', commonTypes));
+    const names = commonTypes ? commonNamesByDest.get(commonTypes) : new Set();
+    let out = generateTypes(readDoc(source), source, names);
+    if (commonTypes)
+      out = out.replace('__COMMON_TYPES__', specifier(destPath, join(root, commonTypes)));
+    writeFileSync(destPath, out);
     console.log(`Generated ${dest}`);
   }
 }

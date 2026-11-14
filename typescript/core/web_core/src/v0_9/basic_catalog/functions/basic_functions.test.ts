@@ -27,12 +27,7 @@ import {
   LEGACY_V09_FUNCTION_NAMES,
 } from './basic_functions.js';
 import {createBasicCatalog, loadBasicCatalogApi} from '../catalog.js';
-import {createAjvValidator} from '../../../test/validator.js';
-
-// Formats are annotations, as JSON Schema 2020-12 and the Python SDK have
-// them, so `openUrl` receives the relative URLs its `uri` format would
-// otherwise reject, and its implementation resolves them.
-const testValidator = createAjvValidator({formats: false});
+import {testValidator} from '../../../test/validator.js';
 import {DataModel} from '../../../state/data-model.js';
 import {DataContext} from '../../../resolution/data-context.js';
 import {A2uiExpressionError} from '../../../errors.js';
@@ -129,6 +124,8 @@ describe('BASIC_FUNCTIONS', () => {
       assert.strictEqual(invoke('greater_than', {a: 2, b: 1}, context), true);
       assert.strictEqual(invoke('less_than', {a: 2, b: 1}, context), false);
       assert.throws(() => invoke('equals', {a: 1}, context), A2uiExpressionError);
+      assert.strictEqual(invoke('equals', {a: null, b: null}, context), true);
+      assert.strictEqual(invoke('not_equals', {a: null, b: 0}, context), true);
     });
     it('strings', () => {
       assert.strictEqual(invoke('contains', {string: 'hello', substring: 'ell'}, context), true);

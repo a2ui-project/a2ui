@@ -33,7 +33,7 @@ import {type ComponentNode, isComponentNode} from '../resolution/component-node.
 import type {ResolveA2uiProps} from '../resolution/generic-binder.js';
 import {nextNodeId} from '../resolution/node-id.js';
 import {ResolvedBinding} from '../resolution/resolved-binding.js';
-import {type ComponentId} from '../types/common-types.js';
+import {type ComponentId} from '../types/runtime-types.js';
 import {A2uiController} from './a2ui-controller.js';
 import {dispatchA2uiElementConnected} from './element_connected_event.js';
 import {

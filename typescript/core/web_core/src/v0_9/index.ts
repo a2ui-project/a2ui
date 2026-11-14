@@ -239,7 +239,7 @@ export {
   A2uiRecursionError,
 } from '../errors.js';
 export type {ResolvedChildRef} from '../resolution/index.js';
-export type {DataBindingType, FunctionCallType} from '../types/common-types.js';
+export type {DataBindingType, FunctionCallType} from '../types/runtime-types.js';
 export {MAX_FUNCTION_CALL_ARGS} from '../types/helpers.js';
 export {
   createBasicCatalog,

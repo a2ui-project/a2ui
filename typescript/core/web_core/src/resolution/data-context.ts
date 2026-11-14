@@ -25,7 +25,7 @@ import {
   peekValue,
 } from '../reactivity/signals.js';
 import {DataModel, DataSubscription} from '../state/data-model.js';
-import {type FunctionCall, type Action} from '../types/common-types.js';
+import {type FunctionCall, type Action} from '../types/runtime-types.js';
 import {MAX_FUNCTION_CALL_ARGS} from '../types/helpers.js';
 import {
   A2uiCatalogError,

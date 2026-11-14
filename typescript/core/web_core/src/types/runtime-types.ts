@@ -15,15 +15,17 @@
  */
 
 /**
- * @fileoverview TypeScript types of the A2UI common types
- * (`common_types.json#/$defs/*`), as the version-independent runtime reads
- * them (GenericBinder, DataContext, ExpressionParser) and as the generated
- * basic catalog props types (`generated-types.ts`) write them.
+ * @fileoverview Runtime union types of the A2UI common types: for the
+ * version-independent runtime only (GenericBinder, DataContext,
+ * ExpressionParser, ComponentContext), which serves every protocol version and
+ * so accepts both the v0.9 (`path`, `call`) and v1.0 (`@path`, `@call`)
+ * spellings.
  *
- * Types only: nothing here validates. Values are validated against each
- * protocol version's own JSON Schema documents, so a v0.9 surface accepts
- * `path`/`call` and a v1.0 surface `@path`/`@call`, as each spec says. The
- * types accept both spellings because the runtime serves every version.
+ * Types only: nothing here validates, and these are not the protocol's types.
+ * Each version's own types are generated from its `common_types.json`
+ * (`src/v0_9/generated-common-types.ts`, `src/v1_0/generated-common-types.ts`),
+ * and the basic catalogs' props types use those. Values are validated against
+ * each version's JSON Schema documents.
  */
 
 /** The unique identifier of a component (`ComponentId`). */
@@ -122,12 +124,6 @@ export interface ComponentCommon {
   '@accessibility'?: AccessibilityAttributes;
   '@metadata'?: ComponentMetadata;
 }
-
-/**
- * The properties of `ComponentCommon` a component's props carry: everything
- * but the envelope fields (`id`, `@catalogId`), which route the component.
- */
-export type ComponentCommonProps = Omit<ComponentCommon, 'id' | '@catalogId'>;
 
 /** A static list of child ids, or a template over a data model list (`ChildList`). */
 export type ChildList = ComponentId[] | {componentId: ComponentId; path: string};

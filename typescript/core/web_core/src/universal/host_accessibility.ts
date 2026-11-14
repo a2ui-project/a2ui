@@ -27,21 +27,17 @@
  * them.
  */
 
-import type {z} from 'zod';
-
 import {effect, getValue, signal, type Signal} from '../reactivity/signals.js';
 import type {ComponentNode, NodeProps} from '../resolution/component-node.js';
 import type {ResolveA2uiProp} from '../resolution/generic-binder.js';
 import {ResolvedBinding} from '../resolution/resolved-binding.js';
-import type {AccessibilityAttributesSchema as AccessibilityAttributesSchema0_9} from '../v0_9/schema/common-types.js';
-import type {AccessibilityAttributesSchema as AccessibilityAttributesSchema1_0} from '../v1_0/schema/common-types.js';
+import type {AccessibilityAttributes as AccessibilityAttributes0_9} from '../v0_9/generated-common-types.js';
+import type {AccessibilityAttributes as AccessibilityAttributes1_0} from '../v1_0/generated-common-types.js';
 
 type ResolvedUnionMember<T> = T extends unknown ? Partial<ResolveA2uiProp<T>> : never;
 type UnionKeys<T> = T extends unknown ? keyof T : never;
 
-type SupportedAccessibilityAttributes = z.infer<
-  typeof AccessibilityAttributesSchema0_9 | typeof AccessibilityAttributesSchema1_0
->;
+type SupportedAccessibilityAttributes = AccessibilityAttributes0_9 | AccessibilityAttributes1_0;
 type AccessibilityAttributeKey = UnionKeys<SupportedAccessibilityAttributes>;
 
 /** Resolved accessibility attributes inferred across supported protocol versions. */

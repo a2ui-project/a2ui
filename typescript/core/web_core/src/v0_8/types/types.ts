@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+// ponytail: removed in Task 11 — the v0.8 types are inferred from the v0.8 zod mirror.
+
 export {
   type ClientToServerMessage as A2UIClientEventMessage,
   type ClientCapabilitiesDynamic,

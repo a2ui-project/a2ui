@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+// ponytail: removed in Task 11 — agent functions accept zod 3 schemas and convert plain JSON Schema args to zod (json_schema_to_zod).
+
 import {z} from 'zod';
 
 import {A2uiCatalogError} from '../errors.js';

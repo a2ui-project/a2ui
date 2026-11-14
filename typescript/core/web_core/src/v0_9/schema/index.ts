@@ -16,6 +16,8 @@
 
 // AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
 // Generated from specification/v0.9/json/ via src/v0_9/scripts/generate-schemas.mjs
+// ponytail: removed in Task 11 — zod mirror of the spec JSON, which validation
+// uses; kept for the remaining zod users.
 export * from './client-capabilities.js';
 export * from './client-to-server.js';
 export * from './common-types.js';

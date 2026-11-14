@@ -193,7 +193,9 @@
         "src/v1_0/schema/index.ts",
         "src/v0_8/basic_catalog/generated-types.ts",
         "src/v0_9/basic_catalog/generated-types.ts",
-        "src/catalogs/basic/v1/generated-types.ts"
+        "src/catalogs/basic/v1/generated-types.ts",
+        "src/v0_9/generated-common-types.ts",
+        "src/v1_0/generated-common-types.ts"
       ]
     },
     "copy-spec": {

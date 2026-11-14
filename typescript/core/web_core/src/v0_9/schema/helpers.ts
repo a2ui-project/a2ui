@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+// ponytail: removed in Task 11 — zod helpers of the v0.9 zod mirrors.
+
 import {z} from 'zod';
 import {
   type ChildRefKind,

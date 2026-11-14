@@ -24,6 +24,7 @@
 
 import {
   implementFunctions,
+  memoizeByValidatorAndLocale,
   type FunctionExecutorFactory,
 } from '../../../catalog/basic_catalog_factory.js';
 import {
@@ -96,24 +97,27 @@ function specExecutors(locale?: string): Record<string, FunctionExecutorFactory>
  * document, with the document's schemas. This is what `createBasicCatalog`
  * registers.
  *
+ * Built once per validator and locale.
+ *
  * @param validator The JSON Schema validator the functions' arguments validate with.
  * @param options Options such as the locale of the formatting functions.
  * @returns The implementations, in the document's order.
  */
-export function createV09SpecFunctions(
+export const createV09SpecFunctions: (
   validator: JsonSchemaValidator,
   options?: BasicFunctionOptions,
-): FunctionImplementation[] {
+) => FunctionImplementation[] = memoizeByValidatorAndLocale((validator, locale) => {
   const catalog = loadBasicCatalogApi(validator);
-  return implementFunctions(catalog.functions.values(), specExecutors(options?.locale), catalog.id);
-}
+  return implementFunctions(catalog.functions.values(), specExecutors(locale), catalog.id);
+});
 
 // The legacy functions of @a2ui/web_core 0.9.x, which the published v0.9
 // basic catalog document never defined. Their schemas are written here as
 // JSON Schema; they convert their arguments themselves.
 
 const scalar: JsonSchema = {type: ['number', 'string', 'boolean']};
-const present: JsonSchema = {not: {type: 'null'}};
+// Any value, `null` included; `required` rejects a missing one.
+const present: JsonSchema = {};
 
 function legacyArgs(properties: Record<string, JsonSchema>): JsonSchema {
   return {type: 'object', properties, required: Object.keys(properties)};
@@ -190,16 +194,18 @@ export const LEGACY_V09_FUNCTION_NAMES: readonly string[] = LEGACY_FUNCTIONS.map
  * @deprecated Define these functions in your own catalog instead.
  * @param validator The JSON Schema validator the functions' arguments validate with.
  */
-export function createLegacyV09Functions(validator: JsonSchemaValidator): FunctionImplementation[] {
-  return LEGACY_FUNCTIONS.map(fn => {
+export const createLegacyV09Functions: (
+  validator: JsonSchemaValidator,
+) => FunctionImplementation[] = memoizeByValidatorAndLocale(validator =>
+  LEGACY_FUNCTIONS.map(fn => {
     const api: FunctionApi = {
       name: fn.name,
       returnType: fn.returnType,
       schema: fromJsonSchema(fn.args, validator),
     };
     return createFunctionImplementation(api, args => fn.execute(args as Record<string, unknown>));
-  });
-}
+  }),
+);
 
 /**
  * Creates the standard function implementations for the Basic Catalog: the
@@ -211,9 +217,10 @@ export function createLegacyV09Functions(validator: JsonSchemaValidator): Functi
  * @param validator The JSON Schema validator the functions' arguments validate with.
  * @param options Options such as the locale of the formatting functions.
  */
-export function createBasicCatalogFunctions(
+export const createBasicCatalogFunctions: (
   validator: JsonSchemaValidator,
   options?: BasicFunctionOptions,
-): FunctionImplementation[] {
-  return [...createLegacyV09Functions(validator), ...createV09SpecFunctions(validator, options)];
-}
+) => FunctionImplementation[] = memoizeByValidatorAndLocale((validator, locale) => [
+  ...createLegacyV09Functions(validator),
+  ...createV09SpecFunctions(validator, {locale}),
+]);

@@ -16,6 +16,8 @@
 
 // AUTO-GENERATED FILE - DO NOT EDIT MANUALLY
 // Generated from specification/v1.0/json/ via src/v1_0/scripts/generate-schemas.mjs
+// ponytail: removed in Task 11 — zod mirror of the spec JSON, which validation
+// uses; kept for the remaining zod users.
 import {z} from 'zod';
 import {isValidUax31Identifier} from '../../common/uax31.js';
 import {markChildRef} from '../../types/child-ref-helpers.js';

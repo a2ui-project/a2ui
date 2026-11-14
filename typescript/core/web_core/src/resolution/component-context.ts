@@ -20,7 +20,7 @@ import type {SurfaceModel} from '../state/surface-model.js';
 import type {SurfaceComponentsModel} from '../state/surface-components-model.js';
 import type {ComponentApi} from '../catalog/types.js';
 import type {A2uiMetadata} from '../common/metadata.js';
-import type {Action} from '../types/common-types.js';
+import type {Action} from '../types/runtime-types.js';
 import {A2uiStateError} from '../errors.js';
 
 /**

@@ -28,7 +28,13 @@ import type {
   DynamicNumber,
   DynamicString,
   DynamicStringList,
-} from '../../types/common-types.js';
+} from '../generated-common-types.js';
+
+/**
+ * These types describe values as a message writes them (the input shape of
+ * the schemas). The defaults the schemas declare are filled in at runtime,
+ * so a validated value may carry a property its type marks optional.
+ */
 
 export interface CatalogComponentCommon {
   /**

@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+// ponytail: removed in Task 11 — SpecShaper writes the catalog JSON of spec()-annotated zod 3 entries defined in code.
+
 /**
  * @fileoverview Specification-shaped catalog definitions of Zod models.
  *

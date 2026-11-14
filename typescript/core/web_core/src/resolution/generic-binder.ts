@@ -22,7 +22,7 @@ import {findFailedArgument, isThenable, settleDeep} from '../common/settle_deep.
 import {effect, getValue, peekValue} from '../reactivity/signals.js';
 import type {SchemaCursor, SchemaDoc} from '../schema-engine/nav.js';
 import type {JsonSchema} from '../schema-engine/types.js';
-import {Action, CheckRule, ChildList, DataBinding, FunctionCall} from '../types/common-types.js';
+import {Action, CheckRule, ChildList, DataBinding, FunctionCall} from '../types/runtime-types.js';
 import {V08_CHILD_REF_OPTIONS} from '../v0_8/standard_defs.js';
 import {V09_CHILD_REF_OPTIONS} from '../v0_9/standard_defs.js';
 import type {Action as V1Action, CheckRule as V1CheckRule} from '../v1_0/schema/common-types.js';

@@ -185,3 +185,22 @@ describe('createAjvValidator with a root schema without $id', () => {
     assert.ok(validator.compile(component(), {defs})({label: 'hi'}).success);
   });
 });
+
+describe('formats', () => {
+  const uri: JsonSchema = {type: 'string', format: 'uri'};
+
+  it('treats format as an annotation by default, as JSON Schema 2020-12 does', () => {
+    const validate = createAjvValidator().compile(uri);
+    assert.ok(validate('relative/path').success);
+    assert.ok(validate('https://example.com/').success);
+    assert.strictEqual(validate(42).success, false, 'other keywords still apply');
+  });
+
+  it('asserts formats when asked to', () => {
+    const validate = createAjvValidator({formats: true}).compile(uri);
+    assert.ok(validate('https://example.com/').success);
+    const result = validate('relative/path');
+    assert.strictEqual(result.success, false);
+    if (!result.success) assert.strictEqual(result.issues[0].keyword, 'format');
+  });
+});

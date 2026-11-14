@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+// ponytail: removed in Task 11 — inline v0.9 catalogs convert zod 3 component schemas with zodToJsonSchema; zod issue wording.
+
 import type {z} from 'zod';
 import {zodToJsonSchema} from 'zod-to-json-schema';
 import {SurfaceModel, ActionListener, type ActionPayload} from '../state/surface-model.js';

@@ -27,7 +27,13 @@ import type {
   DynamicNumber,
   DynamicString,
   DynamicStringList,
-} from '../../../types/common-types.js';
+} from '../../../v1_0/generated-common-types.js';
+
+/**
+ * These types describe values as a message writes them (the input shape of
+ * the schemas). The defaults the schemas declare are filled in at runtime,
+ * so a validated value may carry a property its type marks optional.
+ */
 
 /**
  * The relative weight of this component within a Row or Column. This is similar to the CSS 'flex-grow' property. Note: this may ONLY be set when the component is a direct descendant of a Row or Column.
