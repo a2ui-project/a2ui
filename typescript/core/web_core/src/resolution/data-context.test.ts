@@ -840,6 +840,18 @@ describe('DataContext', () => {
       };
       assert.strictEqual(keys(intersectionWithPassthrough), null);
 
+      // Properties next to `allOf` count with the members' keys.
+      const ownAndAllOf = {
+        type: 'object',
+        properties: {own: {type: 'string'}},
+        allOf: [{type: 'object', properties: {a: {type: 'string'}}}],
+      };
+      assert.deepStrictEqual(keys(ownAndAllOf), new Set(['own', 'a']));
+      assert.deepStrictEqual(
+        keys({type: 'object', allOf: [{type: 'object', properties: {a: {}}}]}),
+        new Set(['a']),
+      );
+
       // Nullable wrappers and `$ref`s into another document are followed.
       const nullableRef = {
         anyOf: [{$ref: 'common.json#/$defs/Args'}, {type: 'null'}],

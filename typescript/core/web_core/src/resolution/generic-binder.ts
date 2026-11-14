@@ -364,7 +364,9 @@ function isSingleChildField(prop: SchemaCursor, options?: ChildRefAnalysisOption
  */
 function isCheckableField(field: Field): boolean {
   const defName = defNameOf(field);
-  if (defName === 'Checkable' || defName === 'CheckRule') {
+  // An object named `Checkable` is the mixin a component composes with
+  // `allOf`: its `@checks` list is checkable, not the whole component.
+  if ((defName === 'Checkable' || defName === 'CheckRule') && kindOf(field.node) !== 'object') {
     return true;
   }
   return someLeaf(

@@ -326,6 +326,9 @@ function intersectionParts(field: UnwrappedField): SchemaCursor[] {
       ? 'anyOf'
       : 'oneOf';
   const {[key]: members, ...rest} = node;
+  // `unevaluatedProperties: false` closes only keys no member evaluates, so as
+  // a standalone part it would wrongly close the members' keys.
+  if (rest['unevaluatedProperties'] === false) delete rest['unevaluatedProperties'];
   const parts: SchemaCursor[] =
     key === 'allOf'
       ? (members as JsonSchema[]).map(m => ({node: m, doc: field.doc}))

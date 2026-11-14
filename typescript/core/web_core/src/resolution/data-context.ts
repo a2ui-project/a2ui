@@ -115,7 +115,10 @@ function collectKnownKeys(node: JsonSchema, doc: SchemaDoc, depth: number): Set<
     return keys;
   };
   if (Array.isArray(current['allOf'])) {
-    return unionKeys(current['allOf']);
+    const {allOf, ...siblings} = current;
+    // The node's own object keywords constrain the value alongside its members.
+    const own = 'properties' in siblings || 'additionalProperties' in siblings ? [siblings] : [];
+    return unionKeys([...own, ...(allOf as unknown[])]);
   }
   const options = current['anyOf'] ?? current['oneOf'];
   if (Array.isArray(options)) {
