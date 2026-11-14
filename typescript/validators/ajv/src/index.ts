@@ -77,25 +77,58 @@ function resolveKey(key: string, root: JsonSchema): string {
   }
 }
 
+/** Creates an Ajv instance with the referenced schemas registered relative to `base`. */
+function createAjv(
+  formats: boolean,
+  defs: Record<string, JsonSchema> | undefined,
+  base: JsonSchema,
+): Ajv2020 {
+  const ajv = new Ajv2020({strict: false, allErrors: true});
+  if (formats) addFormats(ajv);
+  const added = new Set<string>();
+  for (const [key, def] of Object.entries(defs ?? {})) {
+    if (added.has(key)) continue;
+    added.add(key);
+    const resolved = resolveKey(key, base);
+    // Refs inside a def resolve against its own `$id`; align it with the registered key
+    // so relative refs (e.g. `common_types.json#/...`) land on registered URIs.
+    const toAdd = typeof def === 'object' && resolved !== key ? {...def, $id: resolved} : def;
+    ajv.addSchema(toAdd as object | boolean, resolved);
+  }
+  return ajv;
+}
+
 /**
  * Creates a {@link JsonSchemaValidator} backed by Ajv (draft 2020-12).
  * `ajv-formats` is enabled unless `opts.formats` is `false`.
+ *
+ * Roots without an `$id` that are compiled with the same `defs` object share
+ * one Ajv instance, so the referenced schemas are added and compiled once
+ * (a catalog compiles each of its entries against the same documents). Each
+ * such root gets its own synthetic `$id` beside {@link SYNTHETIC_BASE}, so two
+ * roots never collide. A `defs` object is treated as unchanging once
+ * compiled with. A root with its own `$id` gets an instance of its own.
  */
 export function createAjvValidator(opts: {formats?: boolean} = {}): JsonSchemaValidator {
+  const formats = opts.formats !== false;
+  const shared = new WeakMap<object, Ajv2020>();
+  let roots = 0;
   return {
     compile<T = unknown>(input: JsonSchema, compileOpts?: CompileOptions): CompiledValidator<T> {
-      const schema = withBaseId(input);
-      const ajv = new Ajv2020({strict: false, allErrors: true});
-      if (opts.formats !== false) addFormats(ajv);
-      const added = new Set<string>();
-      for (const [key, def] of Object.entries(compileOpts?.defs ?? {})) {
-        if (added.has(key)) continue;
-        added.add(key);
-        const resolved = resolveKey(key, schema);
-        // Refs inside a def resolve against its own `$id`; align it with the registered key
-        // so relative refs (e.g. `common_types.json#/...`) land on registered URIs.
-        const toAdd = typeof def === 'object' && resolved !== key ? {...def, $id: resolved} : def;
-        ajv.addSchema(toAdd as object | boolean, resolved);
+      const defs = compileOpts?.defs;
+      let ajv: Ajv2020;
+      let schema: JsonSchema;
+      if (defs && typeof input === 'object' && typeof input.$id !== 'string') {
+        schema = {...input, $id: new URL(`schema-${++roots}.json`, SYNTHETIC_BASE).href};
+        let cached = shared.get(defs);
+        if (!cached) {
+          cached = createAjv(formats, defs, {$id: SYNTHETIC_BASE});
+          shared.set(defs, cached);
+        }
+        ajv = cached;
+      } else {
+        schema = withBaseId(input);
+        ajv = createAjv(formats, defs, schema);
       }
       const validate = ajv.compile(schema);
       return (value: unknown) => {

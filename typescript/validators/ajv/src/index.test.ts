@@ -163,4 +163,25 @@ describe('createAjvValidator with a root schema without $id', () => {
     }
     assert.ok(!('$id' in shared), 'the caller schema is not changed');
   });
+
+  it('keeps roots without an $id apart when they share one defs object', () => {
+    const validator = createAjvValidator();
+    const label = validator.compile(component(), {defs});
+    const count = validator.compile(
+      {type: 'object', properties: {count: {type: 'number'}}, required: ['count']},
+      {defs},
+    );
+    const again = validator.compile(component(), {defs});
+    assert.ok(label({label: 'hi'}).success);
+    assert.strictEqual(label({label: 1}).success, false);
+    assert.ok(count({count: 1}).success);
+    assert.strictEqual(count({label: 'hi'}).success, false);
+    assert.ok(again({label: {'@path': '/x'}}).success);
+  });
+
+  it('compiles a root whose $ref does not resolve without breaking the next root', () => {
+    const validator = createAjvValidator();
+    assert.throws(() => validator.compile({$ref: 'missing.json#/x'}, {defs}));
+    assert.ok(validator.compile(component(), {defs})({label: 'hi'}).success);
+  });
 });
