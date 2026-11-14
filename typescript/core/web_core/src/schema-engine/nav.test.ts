@@ -104,11 +104,10 @@ describe('unwrapField', () => {
     const r = unwrapField({anyOf: [{type: 'string'}, {type: 'null'}], default: 'a'}, empty(), false);
     assert.deepStrictEqual(r, {
       node: {type: 'string', default: 'a'},
+      doc: empty(),
       optional: true,
       nullable: true,
       default: 'a',
-      description: undefined,
-      refName: undefined,
     });
   });
   it('strips oneOf nullable and type-array nullable', () => {
@@ -136,15 +135,16 @@ describe('unwrapField', () => {
 
 describe('unionOptions / arrayItems', () => {
   it('returns anyOf or oneOf members', () => {
-    assert.deepStrictEqual(unionOptions({anyOf: [{type: 'string'}]}, empty()), [{type: 'string'}]);
-    assert.deepStrictEqual(unionOptions({oneOf: [{type: 'number'}]}, empty()), [{type: 'number'}]);
+    const nodes = (o: {node: JsonSchema}[] | undefined) => o?.map((c) => c.node);
+    assert.deepStrictEqual(nodes(unionOptions({anyOf: [{type: 'string'}]}, empty())), [{type: 'string'}]);
+    assert.deepStrictEqual(nodes(unionOptions({oneOf: [{type: 'number'}]}, empty())), [{type: 'number'}]);
     assert.strictEqual(unionOptions({type: 'string'}, empty()), undefined);
   });
   it('sees through refs', () => {
     const opts = unionOptions({$ref: 'common_types.json#/$defs/ChildList'}, doc);
     assert.ok(Array.isArray(opts) && opts.length > 0);
     const items = arrayItems({type: 'array', items: {type: 'string'}}, empty());
-    assert.deepStrictEqual(items, {type: 'string'});
+    assert.deepStrictEqual(items?.node, {type: 'string'});
     assert.strictEqual(arrayItems({type: 'string'}, empty()), undefined);
   });
 });
@@ -155,11 +155,9 @@ describe('objectProperties', () => {
       {type: 'object', properties: {a: {type: 'string'}}, required: ['a'], additionalProperties: false},
       empty(),
     );
-    assert.deepStrictEqual(r, {
-      properties: {a: {type: 'string'}},
-      required: new Set(['a']),
-      additional: false,
-    });
+    assert.deepStrictEqual(r?.properties['a']?.node, {type: 'string'});
+    assert.deepStrictEqual(r?.required, new Set(['a']));
+    assert.strictEqual(r?.additional?.node, false);
   });
   it('merges allOf parts and unions required', () => {
     const d = empty({$defs: {Base: {properties: {id: {type: 'string'}}, required: ['id']}}});
@@ -178,5 +176,56 @@ describe('objectProperties', () => {
     const r = objectProperties(catalog.components.Text, doc);
     assert.ok(r && 'text' in r.properties && r.required.has('text'));
     assert.strictEqual(objectProperties({type: 'string'}, empty()), undefined);
+  });
+});
+
+describe('document tracking', () => {
+  const mk = (): SchemaDoc => ({
+    root: {$defs: {X: {title: 'A'}}},
+    defs: {
+      'catalog.json': {
+        $defs: {X: {title: 'B'}, Obj: {type: 'object', properties: {p: {$ref: '#/$defs/X'}}}},
+      },
+      'other.json': {$defs: {X: {title: 'C'}}},
+    },
+  });
+  it('resolves child refs against the owning document', () => {
+    const d = mk();
+    const obj = deref({$ref: 'catalog.json#/$defs/Obj'}, d);
+    const props = objectProperties(obj.node, obj.doc)!;
+    const p = props.properties['p'];
+    const r = deref(p.node, p.doc);
+    assert.deepStrictEqual(r.node, {title: 'B'});
+    assert.strictEqual(r.refName, 'X');
+    assert.deepStrictEqual(unwrapField(p.node, p.doc, true).node, {title: 'B'});
+  });
+  it('propagates the owner through unions and array items', () => {
+    const d: SchemaDoc = {
+      root: {$defs: {X: {title: 'A'}}},
+      defs: {
+        'c.json': {
+          $defs: {
+            X: {title: 'B'},
+            U: {anyOf: [{$ref: '#/$defs/X'}]},
+            L: {type: 'array', items: {$ref: '#/$defs/X'}},
+          },
+        },
+      },
+    };
+    const u = unionOptions({$ref: 'c.json#/$defs/U'}, d)![0];
+    assert.deepStrictEqual(deref(u.node, u.doc).node, {title: 'B'});
+    const it = arrayItems({$ref: 'c.json#/$defs/L'}, d)!;
+    assert.deepStrictEqual(deref(it.node, it.doc).node, {title: 'B'});
+  });
+  it('throws on an unresolved local ref instead of searching other documents', () => {
+    const d: SchemaDoc = {root: {}, defs: {'o.json': {$defs: {X: {}}}}};
+    assert.throws(
+      () => deref({$ref: '#/$defs/X'}, d),
+      (e: Error) => e instanceof A2uiConfigurationError && e.message.includes('#/$defs/X'),
+    );
+  });
+  it('names the segment after the last $defs', () => {
+    const d = empty({$defs: {Foo: {properties: {x: {type: 'string'}}}}});
+    assert.strictEqual(deref({$ref: '#/$defs/Foo/properties/x'}, d).refName, 'Foo');
   });
 });

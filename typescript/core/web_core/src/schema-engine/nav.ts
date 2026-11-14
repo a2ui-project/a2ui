@@ -17,15 +17,26 @@
 import {A2uiConfigurationError} from '../errors.js';
 import type {JsonSchema} from './types.js';
 
-/** A root schema plus the referenced documents, keyed like `CompileOptions.defs`. */
+/**
+ * A root schema plus the referenced documents, keyed like `CompileOptions.defs`.
+ * Local `#/...` refs resolve only against `root`; cross-document refs use `defs`.
+ */
 export interface SchemaDoc {
   root: JsonSchema;
   defs: Record<string, JsonSchema>;
 }
 
+/** A schema node paired with the document that owns it (`doc.root`). */
+export interface SchemaCursor {
+  node: JsonSchema;
+  doc: SchemaDoc;
+}
+
 /** A field with nullability, default and description resolved. */
 export interface UnwrappedField {
   node: JsonSchema;
+  /** Owner document of `node`. */
+  doc: SchemaDoc;
   optional: boolean;
   nullable: boolean;
   default?: unknown;
@@ -47,81 +58,62 @@ function decodePointer(segment: string): string {
   return s.replace(/~1/g, '/').replace(/~0/g, '~');
 }
 
-/** Resolves one `$ref` string to its target node, the document it lives in and its `$defs` name. */
+const withRoot = (doc: SchemaDoc, root: JsonSchema): SchemaDoc =>
+  doc.root === root ? doc : {root, defs: doc.defs};
+
+/** Resolves one `$ref` string to its target node and owning document. */
 function resolveRef(
   ref: string,
   doc: SchemaDoc,
-  current: JsonSchema,
-): {node: JsonSchema; current: JsonSchema; refName?: string} {
+): {node: JsonSchema; doc: SchemaDoc; refName?: string} {
   const hash = ref.indexOf('#');
   const docPart = hash === -1 ? ref : ref.slice(0, hash);
   const pointer = hash === -1 ? '' : ref.slice(hash + 1);
-  const candidates: JsonSchema[] = [];
+  let base: JsonSchema = doc.root;
   if (docPart) {
     const d = doc.defs[docPart];
     if (d === undefined) throw new A2uiConfigurationError(`Unresolved $ref document: ${ref}`);
-    candidates.push(d);
-  } else {
-    // Local refs resolve in the current document, then fall back to the others.
-    candidates.push(current, doc.root, ...Object.values(doc.defs));
+    base = d;
   }
   const segments = pointer.split('/').slice(1).map(decodePointer);
-  for (const base of candidates) {
-    let node: unknown = base;
-    for (const seg of segments) {
-      node = isObj(node) ? node[seg] : Array.isArray(node) ? node[Number(seg)] : undefined;
-      if (node === undefined) break;
-    }
-    if (node === undefined) continue;
-    const i = segments.lastIndexOf('$defs');
-    const refName = i !== -1 && i < segments.length - 1 ? segments[segments.length - 1] : undefined;
-    return {node: node as JsonSchema, current: base, refName};
+  let node: unknown = base;
+  for (const seg of segments) {
+    node = isObj(node) ? node[seg] : Array.isArray(node) ? node[Number(seg)] : undefined;
+    if (node === undefined) throw new A2uiConfigurationError(`Unresolved $ref: ${ref}`);
   }
-  throw new A2uiConfigurationError(`Unresolved $ref: ${ref}`);
+  // refName is the segment right after the last `$defs`.
+  const i = segments.lastIndexOf('$defs');
+  const refName = i !== -1 && i < segments.length - 1 ? segments[i + 1] : undefined;
+  return {node: node as JsonSchema, doc: withRoot(doc, base), refName};
 }
 
-function derefIn(
-  node: JsonSchema,
-  doc: SchemaDoc,
-  current: JsonSchema,
-): {node: JsonSchema; refName?: string; current: JsonSchema} {
+function derefCursor(c: SchemaCursor): SchemaCursor & {refName?: string} {
   let refName: string | undefined;
-  const seen = new Set<string>();
-  let cur = current;
-  let n = node;
-  while (isObj(n) && typeof n['$ref'] === 'string') {
-    const ref = n['$ref'];
-    const r = resolveRef(ref, doc, cur);
-    const key = `${docKey(doc, r.current)}|${ref}`;
-    if (seen.has(key)) throw new A2uiConfigurationError(`Cyclic $ref: ${ref}`);
-    seen.add(key);
-    n = r.node;
-    cur = r.current;
+  const seen = new Map<JsonSchema, Set<string>>();
+  let {node, doc} = c;
+  while (isObj(node) && typeof node['$ref'] === 'string') {
+    const ref = node['$ref'];
+    const keys = seen.get(doc.root) ?? new Set<string>();
+    seen.set(doc.root, keys);
+    if (keys.has(ref)) throw new A2uiConfigurationError(`Cyclic $ref: ${ref}`);
+    keys.add(ref);
+    const r = resolveRef(ref, doc);
+    node = r.node;
+    doc = r.doc;
     refName = r.refName ?? refName;
   }
-  return {node: n, refName, current: cur};
-}
-
-function docKey(doc: SchemaDoc, current: JsonSchema): string {
-  if (current === doc.root) return '';
-  return Object.keys(doc.defs).find((k) => doc.defs[k] === current) ?? '?';
+  return refName === undefined ? {node, doc} : {node, doc, refName};
 }
 
 /**
- * Follows `$ref` chains. `refName` is the last `$defs` name followed; `doc` is the document
- * the result lives in (local refs inside it resolve there).
+ * Follows `$ref` chains. `refName` is the last `$defs` name followed. `doc` is the document
+ * that owns the returned node (the hop target): local refs inside `node` resolve against it.
  */
 export function deref(
   node: JsonSchema,
   doc: SchemaDoc,
 ): {node: JsonSchema; refName?: string; doc: SchemaDoc} {
-  const r = derefIn(node, doc, doc.root);
-  const out: {node: JsonSchema; refName?: string; doc: SchemaDoc} = {
-    node: r.node,
-    doc: r.current === doc.root ? doc : {root: r.current, defs: doc.defs},
-  };
-  if (r.refName !== undefined) out.refName = r.refName;
-  return out;
+  return derefCursor({node, doc});
 }
 
 /** Strips a single `null` member from `anyOf`/`oneOf`/`type`, reporting whether one was removed. */
@@ -150,12 +142,12 @@ function stripNull(node: JsonSchema): {node: JsonSchema; nullable: boolean} {
 /** Derefs a field, strips nullability, and reads its default and description. */
 export function unwrapField(node: JsonSchema, doc: SchemaDoc, required: boolean): UnwrappedField {
   const outer = isObj(node) ? node : {};
-  let r = derefIn(node, doc, doc.root);
+  let r = derefCursor({node, doc});
   let stripped = stripNull(r.node);
   let nullable = stripped.nullable;
-  // Stripping a nullable wrapper can expose another \$ref (e.g. anyOf[{\$ref}, null]).
+  // Stripping a nullable wrapper can expose another $ref (e.g. anyOf[{$ref}, null]).
   while (isObj(stripped.node) && typeof stripped.node['$ref'] === 'string') {
-    const next = derefIn(stripped.node, doc, r.current);
+    const next = derefCursor({node: stripped.node, doc: r.doc});
     r = {...next, refName: next.refName ?? r.refName};
     stripped = stripNull(r.node);
     nullable = nullable || stripped.nullable;
@@ -165,21 +157,24 @@ export function unwrapField(node: JsonSchema, doc: SchemaDoc, required: boolean)
   const desc = outer['description'] ?? inner['description'];
   const out: UnwrappedField = {
     node: stripped.node,
+    doc: r.doc,
     optional: !required,
     nullable,
-    description: typeof desc === 'string' ? desc : undefined,
-    refName: r.refName,
   };
   if (def !== undefined) out.default = def;
+  if (typeof desc === 'string') out.description = desc;
+  if (r.refName !== undefined) out.refName = r.refName;
   return out;
 }
 
-/** The `anyOf`/`oneOf` members of a node, if any. */
-export function unionOptions(node: JsonSchema, doc: SchemaDoc): JsonSchema[] | undefined {
-  const n = deref(node, doc).node;
-  if (!isObj(n)) return undefined;
-  const opts = n['anyOf'] ?? n['oneOf'];
-  return Array.isArray(opts) ? (opts as JsonSchema[]) : undefined;
+/** The `anyOf`/`oneOf` members of a node, if any, each paired with its owner document. */
+export function unionOptions(node: JsonSchema, doc: SchemaDoc): SchemaCursor[] | undefined {
+  const c = derefCursor({node, doc});
+  if (!isObj(c.node)) return undefined;
+  const opts = c.node['anyOf'] ?? c.node['oneOf'];
+  return Array.isArray(opts)
+    ? opts.map((o) => ({node: o as JsonSchema, doc: c.doc}))
+    : undefined;
 }
 
 /** The object shape of a node, merging `allOf` members; undefined if not object-like. */
@@ -188,44 +183,48 @@ export function objectProperties(
   doc: SchemaDoc,
 ):
   | {
-      properties: Record<string, JsonSchema>;
+      properties: Record<string, SchemaCursor>;
       required: Set<string>;
-      additional: JsonSchema | undefined;
+      additional: SchemaCursor | undefined;
     }
   | undefined {
-  const properties: Record<string, JsonSchema> = {};
+  const properties: Record<string, SchemaCursor> = {};
   const required = new Set<string>();
-  let additional: JsonSchema | undefined;
+  let additional: SchemaCursor | undefined;
   let found = false;
-  const visit = (n: JsonSchema, current: JsonSchema, depth: number) => {
+  const visit = (n: JsonSchema, d: SchemaDoc, depth: number) => {
     if (depth > 32) throw new A2uiConfigurationError('allOf nesting too deep');
-    const r = derefIn(n, doc, current);
+    const r = derefCursor({node: n, doc: d});
     if (!isObj(r.node)) return;
     const o = r.node;
     if (o['type'] === 'object') found = true;
     if (isObj(o['properties'])) {
       found = true;
-      Object.assign(properties, o['properties']);
+      for (const [k, v] of Object.entries(o['properties'])) {
+        properties[k] = {node: v as JsonSchema, doc: r.doc};
+      }
     }
     if (Array.isArray(o['required'])) {
       found = true;
       for (const k of o['required']) if (typeof k === 'string') required.add(k);
     }
-    if ('additionalProperties' in o) additional = o['additionalProperties'] as JsonSchema;
+    if ('additionalProperties' in o) {
+      additional = {node: o['additionalProperties'] as JsonSchema, doc: r.doc};
+    }
     if (Array.isArray(o['allOf'])) {
       found = true;
-      for (const part of o['allOf']) visit(part as JsonSchema, r.current, depth + 1);
+      for (const part of o['allOf']) visit(part as JsonSchema, r.doc, depth + 1);
     }
   };
-  visit(node, doc.root, 0);
+  visit(node, doc, 0);
   return found ? {properties, required, additional} : undefined;
 }
 
-/** The `items` schema of an array node. */
-export function arrayItems(node: JsonSchema, doc: SchemaDoc): JsonSchema | undefined {
-  const n = deref(node, doc).node;
-  return isObj(n) && n['items'] !== undefined && !Array.isArray(n['items'])
-    ? (n['items'] as JsonSchema)
+/** The `items` schema of an array node, paired with its owner document. */
+export function arrayItems(node: JsonSchema, doc: SchemaDoc): SchemaCursor | undefined {
+  const c = derefCursor({node, doc});
+  return isObj(c.node) && c.node['items'] !== undefined && !Array.isArray(c.node['items'])
+    ? {node: c.node['items'] as JsonSchema, doc: c.doc}
     : undefined;
 }
 
