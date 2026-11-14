@@ -24,7 +24,6 @@ from typing import Any, TypeAlias, TypeVar
 
 import anywidget
 from IPython import get_ipython
-from ipykernel.kernelbase import Kernel
 from jupyter_ui_poll import ui_events
 from pydantic import BaseModel, TypeAdapter
 from traitlets import Dict as TraitDict, List
@@ -55,8 +54,16 @@ RendererMessageHandler: TypeAlias = Callable[[RendererToAgentMessage], None]
 _T = TypeVar("_T")
 
 
+def _is_ipykernel_kernel(kernel: object) -> bool:
+    # Matched by module name, so the package never imports ipykernel.
+    return any(
+        cls.__module__.partition(".")[0] == "ipykernel" for cls in type(kernel).__mro__
+    )
+
+
 def _kernel_needs_comm_polling() -> bool:
-    if not isinstance(getattr(get_ipython(), "kernel", None), Kernel):
+    kernel = getattr(get_ipython(), "kernel", None)
+    if kernel is None or not _is_ipykernel_kernel(kernel):
         return False
     major, minor = (int(part) for part in version("ipykernel").split(".")[:2])
     if (major, minor) >= _NATIVE_COMM_DISPATCH_VERSION:

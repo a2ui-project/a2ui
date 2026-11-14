@@ -23,9 +23,6 @@ keywords = ["a2ui", "jupyter", "jupyterlab", "renderer"]
 dependencies = [
   "a2ui-core>=0.6.0,<0.7.0",
   "anywidget>=0.11.0",
-  # ipykernel 6.9.x imports the `imp` module, which Python 3.12 removed.
-  "ipykernel>=6.29.0,!=7.1.*,!=7.2.*,!=7.3.*; python_version >= '3.12'",
-  "ipykernel>=6.9.2,!=7.1.*,!=7.2.*,!=7.3.*; python_version < '3.12'",
   "jupyter-ui-poll>=1.0.0",
 ]
 
@@ -68,7 +65,6 @@ core-metadata-version = "2.4"
 
 [dependency-groups]
 dev = [
-  "jupyter-client>=8.6.0",
   "pytest>=9.1.1",
 ]
 

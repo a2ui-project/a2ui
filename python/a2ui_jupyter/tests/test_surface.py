@@ -15,6 +15,9 @@
 from __future__ import annotations
 
 import asyncio
+import subprocess
+import sys
+from types import SimpleNamespace
 from typing import Any
 
 import anywidget
@@ -22,6 +25,7 @@ import pytest
 from pydantic import ValidationError
 
 from a2ui_jupyter import A2UISurface
+from a2ui_jupyter import surface as surface_module
 
 ACTION = {
     "version": "1.0",
@@ -215,3 +219,64 @@ def test_invalid_or_unrelated_frontend_messages_are_rejected() -> None:
             {"type": "a2ui", "message": {"version": "0.9", "action": {}}},
             [],
         )
+
+
+def test_package_imports_without_ipykernel() -> None:
+    # JupyterLite (xeus) kernels have no IPython kernel; the package must still import.
+    script = """
+import sys
+sys.modules["ipykernel"] = None
+from a2ui_jupyter import surface as module
+assert module._kernel_needs_comm_polling() is False
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=120,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def _kernel_of(module_name: str) -> object:
+    return type("Kernel", (), {"__module__": module_name})()
+
+
+@pytest.mark.parametrize(
+    ("kernel_module", "ipykernel_version", "expected"),
+    [
+        ("ipykernel.ipkernel", "6.29.5", True),
+        ("ipykernel.ipkernel", "7.0.1", True),
+        ("ipykernel.ipkernel", "7.4.0", False),
+        # Non-ipykernel kernels never consult the ipykernel version.
+        ("xeus_python.kernel", "7.2.0", False),
+    ],
+)
+def test_comm_polling_depends_on_kernel_and_ipykernel_version(
+    monkeypatch: pytest.MonkeyPatch,
+    kernel_module: str,
+    ipykernel_version: str,
+    expected: bool,
+) -> None:
+    kernel = _kernel_of(kernel_module)
+    monkeypatch.setattr(
+        surface_module, "get_ipython", lambda: SimpleNamespace(kernel=kernel)
+    )
+    monkeypatch.setattr(surface_module, "version", lambda _name: ipykernel_version)
+
+    assert surface_module._kernel_needs_comm_polling() is expected
+
+
+@pytest.mark.parametrize("ipykernel_version", ["7.1.0", "7.3.1"])
+def test_comm_polling_rejects_ipykernel_without_polling_or_native_dispatch(
+    monkeypatch: pytest.MonkeyPatch, ipykernel_version: str
+) -> None:
+    kernel = _kernel_of("ipykernel.ipkernel")
+    monkeypatch.setattr(
+        surface_module, "get_ipython", lambda: SimpleNamespace(kernel=kernel)
+    )
+    monkeypatch.setattr(surface_module, "version", lambda _name: ipykernel_version)
+
+    with pytest.raises(RuntimeError, match="cannot deliver renderer messages"):
+        surface_module._kernel_needs_comm_polling()

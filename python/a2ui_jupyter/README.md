@@ -2,8 +2,18 @@
 
 `a2ui-jupyter` displays A2UI v1.0 surfaces as notebook output and forwards
 renderer messages to Python. It uses `anywidget` and the A2UI React renderer.
-It requires Python 3.11 or newer and `ipykernel` 6.9.2 to 7.0, or 7.4 or newer
-(see [Kernel compatibility](#kernel-compatibility)).
+It requires Python 3.11 or newer.
+
+## Install
+
+```bash
+pip install a2ui-jupyter
+```
+
+The package has no kernel dependency. Install it into the environment of the
+Jupyter kernel that runs your notebook. The awaited methods need a kernel of a
+suitable version (see [Kernel compatibility](#kernel-compatibility)). In
+JupyterLite, see [JupyterLite](#jupyterlite).
 
 ## Build the widget bundle
 
@@ -71,22 +81,60 @@ waits are not supported.
 
 A cell that awaits `next_action` or `next_message` can only finish if the kernel
 delivers frontend messages while that cell is still running. How this works
-depends on the `ipykernel` version of the kernel that runs the notebook (not the
+depends on the version of the IPython kernel that runs the notebook (not the
 version in the environment that runs JupyterLab):
 
-| `ipykernel`  | Status        | Notes                                                                                                                                                                                                                                                                                         |
-| ------------ | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 7.4 or newer | Supported     | The kernel delivers widget messages natively. Cells started while a cell waits run concurrently.                                                                                                                                                                                              |
-| 6.9.2 to 7.0 | Supported     | `a2ui-jupyter` uses [`jupyter-ui-poll`](https://github.com/Kirill888/jupyter-ui-poll) to process widget messages while the cell waits. Cells started during the wait are queued and run after it finishes. The kernel status indicator can briefly show idle while the cell is still waiting. |
-| 7.1 to 7.3   | Not supported | These versions cannot deliver widget messages to a waiting cell without leaving the cell marked as running. The package excludes them, and awaiting raises `RuntimeError` if one is installed anyway. Upgrade to 7.4 or newer.                                                                |
+| IPython kernel version | Status        | Notes                                                                                                                                                                                                                                                                                         |
+| ---------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 7.4 or newer           | Supported     | The kernel delivers widget messages natively. Cells started while a cell waits run concurrently.                                                                                                                                                                                              |
+| 6.9.2 to 7.0           | Supported     | `a2ui-jupyter` uses [`jupyter-ui-poll`](https://github.com/Kirill888/jupyter-ui-poll) to process widget messages while the cell waits. Cells started during the wait are queued and run after it finishes. The kernel status indicator can briefly show idle while the cell is still waiting. |
+| 7.1 to 7.3             | Not supported | These versions cannot deliver widget messages to a waiting cell without leaving the cell marked as running. The package excludes them, and awaiting raises `RuntimeError` if one is installed anyway. Upgrade to 7.4 or newer.                                                                |
 
-`ipykernel` 6.9.2 is installed only on Python 3.11. On Python 3.12 and newer the
+The 6.9.2 minimum applies on Python 3.11. On Python 3.12 and newer the
 minimum is 6.29.0, because 6.9.2 imports `imp`, which Python 3.12 removed. The
 6.9.2 row was tested on Python 3.11 with jupyter-client 7.x. The browser UI was not
 tested with 6.9.2.
 
+The table applies only to IPython kernels. Other kernels, such as JupyterLite's
+xeus-python kernel, are not covered by the table. There, `A2UISurface` imports and
+displays surfaces, but the awaited methods (`next_action`, `next_message`) were
+not tested.
+
 Installing this package does not upgrade a kernel that is already running.
-Restart the kernel after changing `ipykernel`.
+Restart the kernel after changing the kernel version.
+
+## JupyterLite
+
+[JupyterLite](https://jupyterlite.readthedocs.io/) runs the xeus-python kernel
+in the browser. Install `a2ui-jupyter` the same way as in other environments. Two
+dependencies have compiled parts, so they cannot be installed from PyPI in the
+browser. Install them from emscripten-forge first:
+
+```python
+%conda install regex
+%pip install --local rpds-py
+```
+
+Then install the packages from the JupyterLite site's bundled wheels:
+
+```python
+%pip install --local a2ui-core
+%pip install --local a2ui-jupyter
+```
+
+`--local` installs the wheels that the site bundles. Then run:
+
+```python
+from IPython.display import display
+
+from a2ui_jupyter import A2UISurface
+
+surface = A2UISurface()
+display(surface)
+```
+
+This sequence was verified in a JupyterLite build that bundles the `a2ui-core`
+and `a2ui-jupyter` wheels. The notebook imports and displays a surface there.
 
 ## After the user submits
 
@@ -131,13 +179,14 @@ same environment:
 corepack yarn workspace @a2ui/jupyter build
 uv sync --all-packages
 uv pip install jupyterlab
-uv run --package a2ui-jupyter python -m ipykernel install --user \
-  --name a2ui-jupyter --display-name "Python (A2UI)"
 uv run --package a2ui-jupyter python -m jupyterlab
 ```
 
+JupyterLab needs a Python kernel to run notebooks. Install one into the same
+environment. `a2ui-jupyter` does not depend on a specific kernel package.
+
 In JupyterLab, open [`examples/manual_smoke_test.ipynb`](./examples/manual_smoke_test.ipynb)
-and select the `Python (A2UI)` kernel. Run the form cell. While it waits, enter
+and select a Python kernel. Run the form cell. While it waits, enter
 a name and click **Submit**. The cell returns an `action` message containing
 the name and replaces the form with a confirmation. Interrupt the kernel to
 cancel the wait.
