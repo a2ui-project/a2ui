@@ -110,6 +110,29 @@ describe('CatalogSchema catalogs', () => {
     proc.dispose();
   });
 
+  it('gives a component the keys its schema renames, and not the old key', () => {
+    const Renamed = handRolled({type: 'object', properties: {label: {type: 'string'}}}, value => {
+      const {label, ...rest} = value as {label?: unknown};
+      return {value: {...rest, text: label}};
+    });
+    const proc = processorFor(new Catalog(CATALOG_ID, '1.0', [{name: 'Rn', schema: Renamed}]));
+    update(proc, [{id: 'root', component: 'Rn', label: 'hi'}]);
+    assert.deepEqual(propsOf(proc, 'root'), {text: 'hi'});
+    proc.dispose();
+  });
+
+  it('drops a key its schema strips, keeping the envelope mixins', () => {
+    const Stripping = handRolled({type: 'object', properties: {text: {type: 'string'}}}, value => ({
+      value: {text: (value as {text?: unknown}).text},
+    }));
+    const proc = processorFor(new Catalog(CATALOG_ID, '1.0', [{name: 'St', schema: Stripping}]));
+    update(proc, [
+      {id: 'root', component: 'St', text: 'a', extra: 1, '@accessibility': {label: 'L'}},
+    ]);
+    assert.deepEqual(propsOf(proc, 'root'), {text: 'a', '@accessibility': {label: 'L'}});
+    proc.dispose();
+  });
+
   it('gives a component the defaults its schema applies', () => {
     // Review focus 1: a library `.default()`, here hand-rolled.
     const Defaulted = handRolled(
@@ -168,8 +191,6 @@ describe('CatalogSchema catalogs', () => {
     // Review focus 3 on a component prop.
     const schema = fromJsonSchema(
       {
-        // The engine resolves `common_types.json` against the schema's `$id`.
-        $id: 'https://example.com/label.json',
         type: 'object',
         properties: {label: {$ref: 'common_types.json#/$defs/DynamicString'}},
       },
@@ -209,6 +230,32 @@ describe('CatalogSchema catalogs', () => {
     );
     createSurface('good', {primaryColor: '#fff'});
     assert.deepEqual(proc.model.getSurface('good')!.theme, {primaryColor: '#fff', font: 'serif'});
+    proc.dispose();
+  });
+
+  it('rejects a new v0.9 component without `component`, and one without `id`', () => {
+    // The v0.9 envelope types a component as any object; per-component
+    // validation enforces the spec's `component` and `id`.
+    const catalog = new Catalog(CATALOG_ID, '0.9', [
+      {name: 'Label', schema: fromJsonSchema(textJson, testValidator)},
+    ]);
+    const proc = new MessageProcessor([catalog], undefined, {validator: testValidator});
+    const send = (message: Record<string, unknown>) =>
+      proc.processMessages([{version: 'v0.9', ...message} as never]);
+    send({createSurface: {surfaceId: 's', catalogId: CATALOG_ID}});
+    const updateV09 = (components: unknown[]) =>
+      send({updateComponents: {surfaceId: 's', components}});
+    assert.throws(
+      () => updateV09([{id: 'new', text: 'x'}]),
+      (err: unknown) =>
+        err instanceof A2uiValidationError &&
+        /Cannot create component new without a type/.test(err.message),
+    );
+    assert.throws(
+      () => updateV09([{component: 'Label', text: 'x'}]),
+      (err: unknown) => err instanceof A2uiValidationError && /missing an 'id'/.test(err.message),
+    );
+    assert.equal(proc.model.getSurface('s')!.componentsModel.get('new'), undefined);
     proc.dispose();
   });
 
@@ -292,7 +339,6 @@ describe('CatalogSchema catalogs', () => {
         name: 'Referenced',
         schema: fromJsonSchema(
           {
-            $id: 'https://example.com/referenced.json',
             type: 'object',
             properties: {slot: {$ref: 'common_types.json#/$defs/ComponentId'}},
           },

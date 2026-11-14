@@ -63,6 +63,7 @@ export interface EntrySchemaContext {
 }
 
 const COMMON_TYPES = 'common_types.json';
+const CATALOG = 'catalog.json';
 
 /**
  * The common types document for a protocol version. v0.8 ships none; its
@@ -131,7 +132,6 @@ export function prepareSchema(authored: AuthoredSchema, what: string): Converted
   } catch {
     probe = undefined;
   }
-  if (probe instanceof Promise) probe.catch(() => {});
   assertSync(probe, what);
   const result: Converted = {schema, jsonSchema};
   converted.set(authored, result);
@@ -156,13 +156,30 @@ function externalDocuments(value: unknown, found = new Set<string>()): Set<strin
   return found;
 }
 
+/** The last path segment of a document reference, e.g. `common_types.json`. */
+function basename(document: string): string {
+  return document.slice(document.lastIndexOf('/') + 1);
+}
+
 /**
- * The referenced documents of a schema: the version's common types, standing
- * in for every document the schema references, as the loader reads them.
+ * The referenced documents of a schema: `common_types.json` and `catalog.json`,
+ * under any base (such as `https://a2ui.org/specification/v0_9/common_types.json`).
+ * The common types are the protocol version's; the catalog is the catalog's
+ * `$defs`. Any other document is left out, so a `$ref` into it fails loudly
+ * where discovery follows it, rather than reading the wrong document.
  */
-function referencedDocuments(value: unknown, commonTypes: JsonSchema): Record<string, JsonSchema> {
-  const defs: Record<string, JsonSchema> = {[COMMON_TYPES]: commonTypes};
-  for (const document of externalDocuments(value)) defs[document] = commonTypes;
+function referencedDocuments(
+  value: unknown,
+  commonTypes: JsonSchema,
+  catalogDefs: Readonly<Record<string, unknown>> | undefined,
+): Record<string, JsonSchema> {
+  const catalog: JsonSchema = {$defs: {...catalogDefs}};
+  const defs: Record<string, JsonSchema> = {[COMMON_TYPES]: commonTypes, [CATALOG]: catalog};
+  for (const document of externalDocuments(value)) {
+    const name = basename(document);
+    if (name === COMMON_TYPES) defs[document] = commonTypes;
+    else if (name === CATALOG) defs[document] = catalog;
+  }
   return defs;
 }
 
@@ -221,20 +238,29 @@ export function entrySchema(
   if (!entry.schema) return undefined;
   const commonTypes = commonTypesFor(context?.protocolVersion) as object;
   const definition = kind === 'component' ? loadedDefinition(entry) : undefined;
-  const defs = definition ? (context?.defs ?? NO_DEFS) : NO_DEFS;
+  // Both cursors read the catalog's `$defs` (as `catalog.json`, or the loaded
+  // definition's local document).
+  const defs = context?.defs ?? NO_DEFS;
   return cachedEntrySchema(entry, commonTypes, defs, () => {
     const what = `${kind === 'component' ? 'Component' : 'Function'} '${entry.name}'`;
     const {schema, jsonSchema} = prepareSchema(entry.schema!, what);
     const cursor: SchemaCursor = {
       node: jsonSchema,
-      doc: {root: jsonSchema, defs: referencedDocuments(jsonSchema, commonTypes as JsonSchema)},
+      doc: {
+        root: jsonSchema,
+        defs: referencedDocuments(jsonSchema, commonTypes as JsonSchema, context?.defs),
+      },
     };
     const layoutCursor: SchemaCursor = definition
       ? {
           node: definition as JsonSchema,
           doc: {
             root: {$defs: context?.defs ?? {}},
-            defs: referencedDocuments([definition, context?.defs], commonTypes as JsonSchema),
+            defs: referencedDocuments(
+              [definition, context?.defs],
+              commonTypes as JsonSchema,
+              context?.defs,
+            ),
           },
         }
       : cursor;

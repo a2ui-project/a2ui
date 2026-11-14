@@ -212,9 +212,9 @@ export class PayloadValidator {
    *   function calls in the properties unchecked, as pre-1.0 renderers did
    *   when validation was off.
    * @returns The component's own properties as its schema validated them,
-   *   with any defaults or transforms the schema applies (not the envelope
-   *   mixins, nor a key the schema dropped), or `undefined` when the catalog
-   *   does not define the component.
+   *   with any defaults or transforms the schema applies, and the wire keys
+   *   they replace; `undefined` when the catalog does not define the
+   *   component.
    * @throws {A2uiValidationError} If the identifier, the component type, any
    *   property, or any nested function call fails validation.
    */
@@ -222,7 +222,7 @@ export class PayloadValidator {
     comp: Record<string, unknown>,
     knownType?: string,
     options?: {skipNestedFunctions?: boolean},
-  ): Record<string, unknown> | undefined {
+  ): ValidatedComponent | undefined {
     const id = comp['id'];
     if (typeof id !== 'string' || !id) {
       const msg = `Component '${comp['component']}' is missing an 'id'; entries require a valid string 'id'.`;
@@ -305,10 +305,12 @@ export class PayloadValidator {
       return undefined;
     }
 
-    // The component's own keys, before any mixin its schema declares joins
-    // them for validation.
-    const ownKeys = new Set(Object.keys(properties));
+    // The component's own keys, which its schema validates: not a mixin its
+    // schema declares, which joins them for validation, nor a pre-1.0
+    // `accessibility` checked apart from the schema.
+    let ownKeys: ReadonlySet<string>;
     if (this.enforceIdentifiers) {
+      ownKeys = new Set(Object.keys(properties));
       this.validateEnvelopeMixins(
         split.mixins,
         componentMixinLayout(prepared?.layoutCursor),
@@ -324,9 +326,10 @@ export class PayloadValidator {
         componentType,
         id,
       );
+      ownKeys = new Set(Object.keys(properties));
     }
 
-    let validated: Record<string, unknown> | undefined;
+    let validated: ValidatedComponent | undefined;
     if (prepared) {
       const result = validateWith(prepared.schema, properties, `Component '${componentType}'`);
       if (result.issues) {
@@ -340,7 +343,10 @@ export class PayloadValidator {
           {path: firstPath && firstPath !== '/' ? firstPath : undefined},
         );
       }
-      validated = ownValidatedProperties(result.value, ownKeys, new Set(Object.keys(properties)));
+      validated = {
+        properties: ownValidatedProperties(result.value, ownKeys, new Set(Object.keys(properties))),
+        ownKeys,
+      };
     }
     if (!options?.skipNestedFunctions) {
       this.validateNestedFunctions(properties, componentCatalogId);
@@ -724,17 +730,32 @@ export class PayloadValidator {
   }
 }
 
+/** A component's properties as its schema validated them. */
+export interface ValidatedComponent {
+  /**
+   * The schema's output for the component's own properties: what the schema
+   * kept, renamed, transformed or added (such as defaults). The mixins
+   * validated with them are left out.
+   */
+  readonly properties: Record<string, unknown>;
+  /**
+   * The wire keys `properties` replaces. A key here that `properties` lacks
+   * was dropped by the schema.
+   */
+  readonly ownKeys: ReadonlySet<string>;
+}
+
 /**
- * The own properties of a validated component value: the keys it had as its
- * own, and any its schema added (such as defaults). Mixins validated with it
- * are left out.
+ * The own properties of a validated component value: every key of the
+ * schema's output except the mixins validated with it (keys that were not
+ * the component's own but were in the validated input).
  */
 function ownValidatedProperties(
   value: unknown,
   ownKeys: ReadonlySet<string>,
   inputKeys: ReadonlySet<string>,
-): Record<string, unknown> | undefined {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+): Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
   const own: Record<string, unknown> = {};
   for (const [key, item] of Object.entries(value)) {
     if (ownKeys.has(key) || !inputKeys.has(key)) own[key] = item;

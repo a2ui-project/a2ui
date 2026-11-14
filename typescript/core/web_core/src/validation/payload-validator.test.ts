@@ -702,10 +702,9 @@ describe('PayloadValidator with CatalogSchema schemas', () => {
   const validator = new PayloadValidator(cat, STRICT_VALIDATION);
 
   it('returns the own properties as the schema validated them, with defaults', () => {
-    assert.deepStrictEqual(validator.validateComponent({id: 'a', component: 'Label', text: 'x'}), {
-      text: 'x',
-      size: 12,
-    });
+    const validated = validator.validateComponent({id: 'a', component: 'Label', text: 'x'});
+    assert.deepStrictEqual(validated?.properties, {text: 'x', size: 12});
+    assert.deepStrictEqual([...validated!.ownKeys], ['text']);
   });
 
   it('returns the function arguments as the schema validated them', () => {

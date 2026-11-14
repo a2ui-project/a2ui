@@ -212,6 +212,12 @@ export interface ComponentApi<Schema extends AuthoredSchema = AuthoredSchema> {
    * defaults from that JSON; it validates properties with
    * `~standard.validate`, and the component receives the validated value.
    *
+   * Validation must be synchronous. To reject an asynchronous schema up
+   * front, registration calls `~standard.validate({})` once and throws an
+   * `A2uiConfigurationError` if it returns a Promise; the probe's result is
+   * otherwise ignored. A schema that is asynchronous only for some values
+   * fails with the same error when such a value is validated.
+   *
    * Must include catalog-specific common properties (e.g. 'weight', 'accessibility')
    * and must omit envelope fields like 'component' or 'id'.
    */

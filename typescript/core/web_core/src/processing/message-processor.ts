@@ -223,6 +223,7 @@ import {
   nestedCallRunsInCatalog,
   nonStringCatalogIdMessage,
   PayloadValidator,
+  type ValidatedComponent,
 } from '../validation/payload-validator.js';
 export {formatZodIssue};
 
@@ -1302,7 +1303,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   private validateComponentProperties(
     comp: Record<string, unknown>,
     surface: SurfaceModel<T>,
-  ): Record<string, unknown> | undefined {
+  ): ValidatedComponent | undefined {
     const {id, component} = comp;
 
     if (typeof id !== 'string' || !id) {
@@ -1660,13 +1661,13 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
    * Applies a validated component to the surface.
    *
    * @param validated The component's own properties as its schema validated
-   *   them; they replace the wire values, so the component receives any
-   *   defaults or transforms its schema applies.
+   *   them; they replace its own wire properties, so the component receives
+   *   what the schema kept, renamed, transformed or defaulted.
    */
   private applyComponentUpdate(
     comp: Record<string, unknown>,
     surface: SurfaceModel<T>,
-    validated?: Record<string, unknown>,
+    validated?: ValidatedComponent,
   ): void {
     const {id, component} = comp;
     if (typeof id !== 'string') return;
@@ -1677,7 +1678,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       this.componentSchema(comp, surface, targetCatalog),
       {defaultCatalogSchema: this.componentSchema(comp, surface, surface.defaultCatalog)},
     );
-    const properties = validated ? {...state.properties, ...validated} : state.properties;
+    const properties = validated ? withValidated(state.properties, validated) : state.properties;
     const metadata = extractComponentMetadata(state.metadata);
     const existing = surface.componentsModel.get(id);
 
@@ -1727,8 +1728,8 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
   private validateComponentsBatch(
     op: InternalUpdateComponentsOp,
     surface: SurfaceModel<T>,
-  ): Map<Record<string, unknown>, Record<string, unknown>> {
-    const validated = new Map<Record<string, unknown>, Record<string, unknown>>();
+  ): Map<Record<string, unknown>, ValidatedComponent> {
+    const validated = new Map<Record<string, unknown>, ValidatedComponent>();
     const seenBatchIds = new Set<string>();
     for (let i = 0; i < op.components.length; i++) {
       const comp = op.components[i];
@@ -1840,6 +1841,22 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       throw err;
     }
   }
+}
+
+/**
+ * A component's stored properties with its own wire properties replaced by
+ * the ones its schema validated: a key the schema dropped or renamed is gone,
+ * and the envelope mixins stored beside them (such as `@checks`) stay.
+ */
+function withValidated(
+  properties: Record<string, unknown>,
+  validated: ValidatedComponent,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(properties)) {
+    if (!validated.ownKeys.has(key)) result[key] = value;
+  }
+  return Object.assign(result, validated.properties);
 }
 
 function extractComponentMetadata(rawMetadata: unknown): A2uiMetadata | undefined {

@@ -141,6 +141,8 @@ export function toA2uiIssues(issues: readonly StandardSchemaV1.Issue[]): A2uiIss
 /** Returns `r` or throws if it is a promise (async validators are unsupported). */
 export function assertSync<T>(r: T | Promise<T>, what: string): T {
   if (r instanceof Promise) {
+    // The rejection, if any, is not ours to report: the error below is.
+    r.catch(() => {});
     throw new A2uiConfigurationError(
       `${what}: schema validation must be synchronous, but an asynchronous result was returned.`,
     );
