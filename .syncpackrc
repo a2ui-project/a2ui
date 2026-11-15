@@ -20,6 +20,19 @@
       "pinVersion": "5.9.3"
     },
     {
+      "label": "zod 4 in @a2ui/schema-zod4",
+      "packages": ["@a2ui/schema-zod4"],
+      "dependencies": ["zod"],
+      "pinVersion": "^4.3.6"
+    },
+    {
+      "label": "Wider zod 3 peer range of @a2ui/schema-zod3",
+      "dependencyTypes": ["peer"],
+      "packages": ["@a2ui/schema-zod3"],
+      "dependencies": ["zod"],
+      "isIgnored": true
+    },
+    {
       "label": "Unified Zod version",
       "packages": ["**"],
       "dependencies": ["zod"],

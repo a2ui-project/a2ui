@@ -419,6 +419,43 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@a2ui/schema-zod3@workspace:typescript/schema/zod3":
+  version: 0.0.0-use.local
+  resolution: "@a2ui/schema-zod3@workspace:typescript/schema/zod3"
+  dependencies:
+    "@a2ui/validator-ajv": "workspace:*"
+    "@a2ui/web_core": "workspace:*"
+    "@types/node": "npm:^25.9.3"
+    eslint: "npm:^10.4.1"
+    prettier: "npm:^3.8.4"
+    typescript: "npm:5.9.3"
+    wireit: "npm:^0.15.0-pre.2"
+    zod: "npm:^3.25.76"
+    zod-to-json-schema: "npm:~3.24.6"
+  peerDependencies:
+    "@a2ui/web_core": "workspace:*"
+    zod: ^3.24.1
+  languageName: unknown
+  linkType: soft
+
+"@a2ui/schema-zod4@workspace:typescript/schema/zod4":
+  version: 0.0.0-use.local
+  resolution: "@a2ui/schema-zod4@workspace:typescript/schema/zod4"
+  dependencies:
+    "@a2ui/validator-ajv": "workspace:*"
+    "@a2ui/web_core": "workspace:*"
+    "@types/node": "npm:^25.9.3"
+    eslint: "npm:^10.4.1"
+    prettier: "npm:^3.8.4"
+    typescript: "npm:5.9.3"
+    wireit: "npm:^0.15.0-pre.2"
+    zod: "npm:^4.3.6"
+  peerDependencies:
+    "@a2ui/web_core": "workspace:*"
+    zod: ^4.3.6
+  languageName: unknown
+  linkType: soft
+
 "@a2ui/shell@workspace:samples/client/lit/shell":
   version: 0.0.0-use.local
   resolution: "@a2ui/shell@workspace:samples/client/lit/shell"
@@ -480,7 +517,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@a2ui/validator-ajv@workspace:typescript/validators/ajv":
+"@a2ui/validator-ajv@workspace:*, @a2ui/validator-ajv@workspace:typescript/validators/ajv":
   version: 0.0.0-use.local
   resolution: "@a2ui/validator-ajv@workspace:typescript/validators/ajv"
   dependencies:
@@ -25487,6 +25524,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"zod-to-json-schema@npm:~3.24.6":
+  version: 3.24.6
+  resolution: "zod-to-json-schema@npm:3.24.6"
+  peerDependencies:
+    zod: ^3.24.1
+  checksum: 10c0/b907ab6d057100bd25a37e5545bf5f0efa5902cd84d3c3ec05c2e51541431a47bd9bf1e5e151a244273409b45f5986d55b26e5d207f98abc5200702f733eb368
+  languageName: node
+  linkType: hard
+
 "zod-validation-error@npm:^3.5.0 || ^4.0.0":
   version: 4.0.2
   resolution: "zod-validation-error@npm:4.0.2"
@@ -25500,6 +25546,13 @@ __metadata:
   version: 3.25.76
   resolution: "zod@npm:3.25.76"
   checksum: 10c0/5718ec35e3c40b600316c5b4c5e4976f7fee68151bc8f8d90ec18a469be9571f072e1bbaace10f1e85cf8892ea12d90821b200e980ab46916a6166a4260a983c
+  languageName: node
+  linkType: hard
+
+"zod@npm:^4.3.6":
+  version: 4.6.7
+  resolution: "zod@npm:4.6.7"
+  checksum: 10c0/4ce2eb14034317b7254e347ca37b5ad591cf8333147030cf05b9b5d31692d45073f7f2747aa50cf8c6b29012194d2b22978cecc89969cf34a0d18e89d0ee7d7b
   languageName: node
   linkType: hard
 

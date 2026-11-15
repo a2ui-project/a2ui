@@ -1,0 +1,118 @@
+{
+  "name": "@a2ui/schema-zod4",
+  "version": "0.1.0",
+  "description": "zod 4 helpers for writing @a2ui/web_core catalog schemas",
+  "homepage": "https://a2ui.org/",
+  "repository": {
+    "directory": "typescript/schema/zod4",
+    "type": "git",
+    "url": "git+https://github.com/a2ui-project/a2ui.git"
+  },
+  "bugs": {
+    "url": "https://github.com/a2ui-project/a2ui/issues"
+  },
+  "keywords": [
+    "a2ui",
+    "json-schema",
+    "zod",
+    "standard-schema"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./v0_9": {
+      "types": "./dist/v0_9.d.ts",
+      "default": "./dist/v0_9.js"
+    },
+    "./v1_0": {
+      "types": "./dist/v1_0.d.ts",
+      "default": "./dist/v1_0.js"
+    }
+  },
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "prepack": "yarn build",
+    "prepare": "yarn build",
+    "build": "wireit",
+    "build:tsc": "wireit",
+    "test": "wireit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "wireit",
+    "format:check": "wireit",
+    "clean": "wireit"
+  },
+  "wireit": {
+    "build": {
+      "dependencies": [
+        "build:tsc"
+      ]
+    },
+    "build:tsc": {
+      "command": "tsc -b --pretty",
+      "dependencies": [
+        "../../core/web_core:build",
+        "../../validators/ajv:build"
+      ],
+      "files": [
+        "src/**/*.ts",
+        "tsconfig.json"
+      ],
+      "output": [
+        "dist/",
+        "!dist/**/*.tsbuildinfo"
+      ],
+      "clean": "if-file-deleted"
+    },
+    "test": {
+      "command": "node --test \"dist/**/*.test.js\"",
+      "dependencies": [
+        "build"
+      ]
+    },
+    "clean": {
+      "command": "rm -rf dist tsconfig.tsbuildinfo .wireit"
+    },
+    "format": {
+      "command": "prettier --write .",
+      "files": [
+        "src/**/*.ts",
+        "package.json",
+        "tsconfig.json"
+      ]
+    },
+    "format:check": {
+      "command": "prettier --check .",
+      "files": [
+        "src/**/*.ts",
+        "package.json",
+        "tsconfig.json"
+      ]
+    }
+  },
+  "author": "Google",
+  "license": "Apache-2.0",
+  "peerDependencies": {
+    "@a2ui/web_core": "workspace:*",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@a2ui/validator-ajv": "workspace:*",
+    "@a2ui/web_core": "workspace:*",
+    "@types/node": "^25.9.3",
+    "eslint": "^10.4.1",
+    "prettier": "^3.8.4",
+    "typescript": "5.9.3",
+    "wireit": "^0.15.0-pre.2",
+    "zod": "^4.3.6"
+  }
+}
