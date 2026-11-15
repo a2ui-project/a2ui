@@ -92,7 +92,7 @@ dependencies {
 
 ## Step 2: Initialize MessageProcessor
 
-Create a [`MessageProcessor`](../../concepts/glossary/#messageprocessor) instance inside a session controller or service with the built-in [Basic catalog](../../specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json) and an action callback that forwards user events to the transport method you will add in [Step 4](#step-4-connect-transport-and-handle-actions).
+Create a [`MessageProcessor`](../../concepts/glossary/#messageprocessor) instance inside a session controller or service with the built-in [Basic catalog](../../specification/v1.0-basic-catalog-implementation-guide/#basic_catalog.json), a JSON Schema validator (on the web, `createAjvValidator()` from `@a2ui/validator-ajv`), and an action callback that forwards user events to the transport method you will add in [Step 4](#step-4-connect-transport-and-handle-actions).
 
 The scope of the rendering session determines which [surfaces](../../concepts/glossary/#surface) the agent can modify. In a chat app, you can use one `MessageProcessor` per conversation to allow the agent to update or delete any surface in the conversation at any time by its `surfaceId`, or use one `MessageProcessor` per chat turn so the agent only modifies surfaces in the active turn and does not need unique surface IDs across turns. To register custom components or local functions alongside the Basic catalog, see [How to Define a Catalog](../../guides/defining-a-catalog/).
 
@@ -137,10 +137,11 @@ class AgentSession {
 ```ts
 import {renderMarkdown} from '@a2ui/markdown-it';
 import type {ReactCatalogComponent} from '@a2ui/react';
+import {createAjvValidator} from '@a2ui/validator-ajv';
+import {createBasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
 import {
   type ActionPayload,
   MessageProcessor,
-  basicCatalog,
   injectBasicCatalogStyles,
   setMarkdownRenderer,
 } from '@a2ui/web_core/v1_0';
@@ -148,14 +149,17 @@ import {
 injectBasicCatalogStyles();
 setMarkdownRenderer(renderMarkdown);
 
+const validator = createAjvValidator();
+
 export class AgentSession {
   readonly processor = new MessageProcessor<ReactCatalogComponent>(
     [
-      basicCatalog,
+      createBasicCatalog(validator),
       // Add custom domain catalogs here (see /guides/defining-a-catalog/).
     ],
     // Optional (default: undefined)
     (action: ActionPayload) => void this.sendToAgent({version: '1.0', action}),
+    {validator},
   );
 }
 ```
@@ -166,10 +170,11 @@ export class AgentSession {
 ```ts
 import type {LitComponentApi} from '@a2ui/lit';
 import {renderMarkdown} from '@a2ui/markdown-it';
+import {createAjvValidator} from '@a2ui/validator-ajv';
+import {createBasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
 import {
   type ActionPayload,
   MessageProcessor,
-  basicCatalog,
   injectBasicCatalogStyles,
   setMarkdownRenderer,
 } from '@a2ui/web_core/v1_0';
@@ -177,14 +182,17 @@ import {
 injectBasicCatalogStyles();
 setMarkdownRenderer(renderMarkdown);
 
+const validator = createAjvValidator();
+
 export class AgentSession {
   readonly processor = new MessageProcessor<LitComponentApi>(
     [
-      basicCatalog,
+      createBasicCatalog(validator),
       // Add custom domain catalogs here (see /guides/defining-a-catalog/).
     ],
     // Optional (default: undefined)
     (action: ActionPayload) => void this.sendToAgent({version: '1.0', action}),
+    {validator},
   );
 }
 ```
@@ -194,8 +202,14 @@ export class AgentSession {
 
 ```ts
 import {ApplicationConfig, Injector, inject} from '@angular/core';
-import {BasicCatalog, provideA2UI, provideMarkdownRenderer} from '@a2ui/angular';
+import {
+  BasicCatalog,
+  provideA2UI,
+  provideA2uiValidator,
+  provideMarkdownRenderer,
+} from '@a2ui/angular';
 import {renderMarkdown} from '@a2ui/markdown-it';
+import {createAjvValidator} from '@a2ui/validator-ajv';
 import {type ActionPayload, injectBasicCatalogStyles} from '@a2ui/web_core/v1_0';
 
 import {AgentSessionService} from './agent-session.service';
@@ -204,6 +218,8 @@ injectBasicCatalogStyles();
 
 export const appConfig: ApplicationConfig = {
   providers: [
+    // `BasicCatalog` and the renderer validate with the injected validator.
+    provideA2uiValidator(createAjvValidator()),
     provideA2UI(() => {
       const injector = inject(Injector);
       return {

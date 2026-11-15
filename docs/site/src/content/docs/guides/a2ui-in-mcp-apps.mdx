@@ -590,10 +590,10 @@ async def handle_call_tool(
 
 ### Step 2: Embed the A2UI renderer and forward actions in the MCP App
 
-Inside the MCP App project, install `@a2ui/lit`, `@a2ui/markdown-it`, `@a2ui/web_core`, `lit`, and `@modelcontextprotocol/ext-apps`:
+Inside the MCP App project, install `@a2ui/lit`, `@a2ui/markdown-it`, `@a2ui/web_core`, `@a2ui/validator-cfworker`, `lit`, and `@modelcontextprotocol/ext-apps`:
 
 ```bash
-npm install @a2ui/lit @a2ui/markdown-it @a2ui/web_core lit @modelcontextprotocol/ext-apps
+npm install @a2ui/lit @a2ui/markdown-it @a2ui/web_core @a2ui/validator-cfworker lit @modelcontextprotocol/ext-apps
 ```
 
 Create an `index.html` entry point with a mount element for your surface:
@@ -613,7 +613,7 @@ Create an `index.html` entry point with a mount element for your surface:
 </html>
 ```
 
-In `src/main.ts`, register `renderMarkdown` via `setMarkdownRenderer`, initialize `MessageProcessor` with `basicCatalog` (or your custom catalog), mount `<a2ui-surface>` when a surface is created, and use `App` from `@modelcontextprotocol/ext-apps` to handle the `ui/initialize` handshake, incoming `ui/notifications/tool-result` payloads, automatic iframe resizing (`autoResize: true`), and outbound `tools/call` requests whenever a component dispatches an [action](../../concepts/actions-and-functions/):
+In `src/main.ts`, register `renderMarkdown` via `setMarkdownRenderer`, initialize `MessageProcessor` with the basic catalog (or your custom catalog) and a JSON Schema validator (`createCfWorkerValidator()` from `@a2ui/validator-cfworker` compiles no code at runtime, so it works under the host's sandbox Content Security Policy), mount `<a2ui-surface>` when a surface is created, and use `App` from `@modelcontextprotocol/ext-apps` to handle the `ui/initialize` handshake, incoming `ui/notifications/tool-result` payloads, automatic iframe resizing (`autoResize: true`), and outbound `tools/call` requests whenever a component dispatches an [action](../../concepts/actions-and-functions/):
 
 <Tabs syncKey="protocol-version">
   <TabItem label="v1.0">
@@ -622,8 +622,9 @@ In `src/main.ts`, register `renderMarkdown` via `setMarkdownRenderer`, initializ
 import {html, render} from 'lit';
 import '@a2ui/lit';
 import {renderMarkdown} from '@a2ui/markdown-it';
+import {createCfWorkerValidator} from '@a2ui/validator-cfworker';
+import {createBasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
 import {
-  basicCatalog,
   MessageProcessor,
   setMarkdownRenderer,
   type ProcessableMessagePayload,
@@ -633,6 +634,7 @@ import type {CallToolResult} from '@modelcontextprotocol/sdk/types.js';
 
 setMarkdownRenderer(renderMarkdown);
 
+const validator = createCfWorkerValidator();
 const A2UI_MIME_TYPE = 'application/a2ui+json';
 const rootEl = document.getElementById('surface-root')!;
 
@@ -656,13 +658,17 @@ function applyToolResult(result: CallToolResult): void {
   }
 }
 
-const processor = new MessageProcessor([basicCatalog], async action => {
-  const result = await app.callServerTool({
-    name: action.name,
-    arguments: action.context,
-  });
-  applyToolResult(result);
-});
+const processor = new MessageProcessor(
+  [createBasicCatalog(validator)],
+  async action => {
+    const result = await app.callServerTool({
+      name: action.name,
+      arguments: action.context,
+    });
+    applyToolResult(result);
+  },
+  {validator},
+);
 
 processor.onSurfaceCreated(surface => {
   render(html`<a2ui-surface .surface=${surface}></a2ui-surface>`, rootEl);
@@ -680,8 +686,9 @@ await app.connect();
 
 ```typescript
 import {html, render} from 'lit';
-import {basicCatalog} from '@a2ui/lit/v0_9';
+import {createBasicCatalog} from '@a2ui/lit/v0_9';
 import {renderMarkdown} from '@a2ui/markdown-it';
+import {createCfWorkerValidator} from '@a2ui/validator-cfworker';
 import {
   MessageProcessor,
   setMarkdownRenderer,
@@ -692,6 +699,7 @@ import type {CallToolResult} from '@modelcontextprotocol/sdk/types.js';
 
 setMarkdownRenderer(renderMarkdown);
 
+const validator = createCfWorkerValidator();
 const A2UI_MIME_TYPE = 'application/a2ui+json';
 const rootEl = document.getElementById('surface-root')!;
 
@@ -715,13 +723,17 @@ function applyToolResult(result: CallToolResult): void {
   }
 }
 
-const processor = new MessageProcessor([basicCatalog], async action => {
-  const result = await app.callServerTool({
-    name: action.name,
-    arguments: action.context,
-  });
-  applyToolResult(result);
-});
+const processor = new MessageProcessor(
+  [createBasicCatalog(validator)],
+  async action => {
+    const result = await app.callServerTool({
+      name: action.name,
+      arguments: action.context,
+    });
+    applyToolResult(result);
+  },
+  {validator},
+);
 
 processor.onSurfaceCreated(surface => {
   render(html`<a2ui-surface .surface=${surface}></a2ui-surface>`, rootEl);
@@ -836,10 +848,13 @@ Swift (`A2UISwiftCore` and `A2UISwiftUI`) and Kotlin (`androidx.a2ui` and `andro
 
 ```typescript
 import {validatePayload} from '@a2ui/agent';
-import {basicCatalog} from '@a2ui/web_core/v1_0';
+import {createAjvValidator} from '@a2ui/validator-ajv';
+import {createBasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
 
-// Throws A2uiValidationError if a v1.0 renderer holding basicCatalog would reject the messages.
-validatePayload([basicCatalog], a2uiPayload);
+const validator = createAjvValidator();
+
+// Throws A2uiValidationError if a v1.0 renderer holding the basic catalog would reject the messages.
+validatePayload([createBasicCatalog(validator)], validator, a2uiPayload);
 ```
 
   </TabItem>

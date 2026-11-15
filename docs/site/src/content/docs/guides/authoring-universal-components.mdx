@@ -7,30 +7,29 @@ import {Tabs, TabItem} from '@astrojs/starlight/components';
 
 Universal components let you write a custom A2UI Web Component once with `A2uiLitElement` and register it directly in Lit, React, and Angular catalogs without per-framework wrappers. You declare the component's property contract with a Zod schema, and `@a2ui/web_core` resolves data bindings, function calls, child references, and actions before passing values to your element.
 
-Install `@a2ui/web_core`, `lit`, and `zod` alongside the renderer package for your host framework (`@a2ui/lit`, `@a2ui/react`, or `@a2ui/angular`):
+Install `@a2ui/web_core`, a JSON Schema validator (`@a2ui/validator-ajv`), `lit`, and `zod` with `@a2ui/schema-zod4` alongside the renderer package for your host framework (`@a2ui/lit`, `@a2ui/react`, or `@a2ui/angular`):
 
 ```bash
-npm install @a2ui/web_core lit zod
+npm install @a2ui/web_core @a2ui/validator-ajv @a2ui/schema-zod4 lit zod
 ```
 
 ## Step 1: Define the component schema
 
-Create a `ComponentApi` object with the component `name` used in A2UI JSON payloads and a Zod `schema` describing its properties. Use `DynamicStringSchema` so each field accepts either a literal string or a data-model binding (see [Catalogs, Components, and Functions](../../concepts/catalogs/) and [How to Define a Catalog](../../guides/defining-a-catalog/)).
+Create a `ComponentApi` object with the component `name` used in A2UI JSON payloads and a `schema` describing its properties, here written with Zod through `@a2ui/schema-zod4` (see [Component schemas in TypeScript](../../guides/defining-a-catalog/#component-schemas-in-typescript) for plain JSON Schema). Use `DynamicString` so each field accepts either a literal string or a data-model binding (see [Catalogs, Components, and Functions](../../concepts/catalogs/) and [How to Define a Catalog](../../guides/defining-a-catalog/)).
 
 <Tabs syncKey="protocol-version">
   <TabItem label="v1.0">
 
 ```typescript
 // stat-card.api.ts
-import {z} from 'zod';
+import {component, DynamicString} from '@a2ui/schema-zod4';
 import {type ComponentApi} from '@a2ui/web_core';
-import {DynamicStringSchema} from '@a2ui/web_core/v1_0';
 
 export const StatCardApi = {
   name: 'StatCard',
-  schema: z.object({
-    label: DynamicStringSchema,
-    value: DynamicStringSchema,
+  schema: component({
+    label: DynamicString,
+    value: DynamicString,
   }),
 } satisfies ComponentApi;
 ```
@@ -40,14 +39,14 @@ export const StatCardApi = {
 
 ```typescript
 // stat-card.api.ts
-import {z} from 'zod';
-import {type ComponentApi, DynamicStringSchema} from '@a2ui/web_core/v0_9';
+import {component, DynamicString} from '@a2ui/schema-zod4/v0_9';
+import {type ComponentApi} from '@a2ui/web_core/v0_9';
 
 export const StatCardApi = {
   name: 'StatCard',
-  schema: z.object({
-    label: DynamicStringSchema,
-    value: DynamicStringSchema,
+  schema: component({
+    label: DynamicString,
+    value: DynamicString,
   }),
 } satisfies ComponentApi;
 ```
@@ -164,18 +163,23 @@ Add `statCardComponent` to a catalog alongside the optional Basic Catalog compon
 ```typescript
 import {html, render} from 'lit';
 import '@a2ui/lit';
+import {createAjvValidator} from '@a2ui/validator-ajv';
 import {Catalog, MessageProcessor} from '@a2ui/web_core';
-import {BASIC_FUNCTIONS, basicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+import {createBasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
 import {statCardComponent} from './stat-card.js';
+
+const validator = createAjvValidator();
+const basicCatalog = createBasicCatalog(validator);
 
 const analyticsCatalog = new Catalog(
   'https://example.com/catalogs/analytics/v1/catalog.json',
   '1.0',
   [...basicCatalog.components.values(), statCardComponent],
-  BASIC_FUNCTIONS,
+  [...basicCatalog.functions.values()],
 );
 
 export const processor = new MessageProcessor([analyticsCatalog], undefined, {
+  validator,
   outboundListener: message => {
     console.log('Outbound:', message);
   },
@@ -193,15 +197,19 @@ processor.onSurfaceCreated(surface => {
 ```tsx
 import {useEffect, useMemo, useState} from 'react';
 import {A2uiSurface, type ReactCatalogComponent} from '@a2ui/react';
+import {createAjvValidator} from '@a2ui/validator-ajv';
 import {Catalog, MessageProcessor, type SurfaceModel} from '@a2ui/web_core';
-import {BASIC_FUNCTIONS, basicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+import {createBasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
 import {statCardComponent} from './stat-card.js';
+
+const validator = createAjvValidator();
+const basicCatalog = createBasicCatalog(validator);
 
 const analyticsCatalog = new Catalog<ReactCatalogComponent>(
   'https://example.com/catalogs/analytics/v1/catalog.json',
   '1.0',
   [...basicCatalog.components.values(), statCardComponent],
-  BASIC_FUNCTIONS,
+  [...basicCatalog.functions.values()],
 );
 
 export function App() {
@@ -209,6 +217,7 @@ export function App() {
   const processor = useMemo(
     () =>
       new MessageProcessor([analyticsCatalog], undefined, {
+        validator,
         outboundListener: message => console.log('Outbound:', message),
         unifiedOutbound: true,
       }),
@@ -231,22 +240,27 @@ export function App() {
 import {ApplicationConfig, Component} from '@angular/core';
 import {
   AngularCatalog,
-  BASIC_COMPONENTS,
-  BASIC_FUNCTIONS,
   SurfaceComponent,
+  createBasicCatalogFunctions,
+  createBasicComponents,
   provideA2UI,
+  provideA2uiValidator,
 } from '@a2ui/angular';
+import {createAjvValidator} from '@a2ui/validator-ajv';
 import {statCardComponent} from './stat-card.js';
+
+const validator = createAjvValidator();
 
 const analyticsCatalog = new AngularCatalog(
   'https://example.com/catalogs/analytics/v1/catalog.json',
   '1.0',
-  [...BASIC_COMPONENTS, statCardComponent],
-  BASIC_FUNCTIONS,
+  [...createBasicComponents(validator), statCardComponent],
+  createBasicCatalogFunctions(validator),
 );
 
 export const appConfig: ApplicationConfig = {
   providers: [
+    provideA2uiValidator(validator),
     provideA2UI({
       catalogs: [analyticsCatalog],
       processorOptions: {
@@ -329,10 +343,10 @@ When your agent streams a `createSurface` and `updateComponents` message pair, t
 
 `@a2ui/lit` re-exports `A2uiLitElement` from `@a2ui/web_core/universal`, so universal components and [`@a2ui/lit` custom components](https://github.com/a2ui-project/a2ui/blob/main/typescript/renderers/lit/README.md) access resolved schema properties on `this.controller.props` in the same way:
 
-- **Actions** (`ActionSchema` / [`Action`](../../specification/v1.0/schemas/#common_types.json/$defs/Action)): resolves to an async `() => Promise<void>` callback (`props.action?.()`) that dispatches an agent `event` or executes a catalog `functionCall` (see [Actions and Functions](../../concepts/actions-and-functions/)).
-- **Child components** (`ChildSchema` / [`ComponentId`](../../specification/v1.0/schemas/#common_types.json/$defs/ComponentId) and `ChildListSchema` / [`ChildList`](../../specification/v1.0/schemas/#common_types.json/$defs/ChildList)): resolves to a child reference or array of references. Pass each entry to `this.renderNode(ref)` inside `render()` to mount Basic Catalog, universal, or native React and Angular children.
-- **Two-way data binding** (`DynamicStringSchema`, `DynamicNumberSchema`, `DynamicBooleanSchema`, `DynamicStringListSchema`, `DynamicValueSchema` / [`DynamicValue`](../../specification/v1.0/schemas/#common_types.json/$defs/DynamicValue)): generates a `props.set<CapitalizedProp>(nextValue)` setter (such as `props.setValue(e.target.value)`) that writes to the bound JSON Pointer (`@path` in v1.0, `path` in v0.9.1) in the surface `DataModel` (see [Data Model and Data Binding](../../concepts/data-binding/)).
-- **Validation checks** (`z.object({...}).merge(CheckableSchema)` / [`Checkable`](../../specification/v1.0/schemas/#common_types.json/$defs/Checkable)): evaluates `@checks` rules (`checks` in v0.9.1) reactively and populates `props.isValid` (`boolean`) and `props.validationErrors` (`string[]`). Bind `aria-invalid` and `aria-describedby` on the inner input control rather than `role="alert"` so initial validation checks do not trigger unsolicited screen-reader announcements on mount.
+- **Actions** (`Action` / [`Action`](../../specification/v1.0/schemas/#common_types.json/$defs/Action)): resolves to an async `() => Promise<void>` callback (`props.action?.()`) that dispatches an agent `event` or executes a catalog `functionCall` (see [Actions and Functions](../../concepts/actions-and-functions/)).
+- **Child components** (`Child` / [`ComponentId`](../../specification/v1.0/schemas/#common_types.json/$defs/ComponentId) and `ChildList` / [`ChildList`](../../specification/v1.0/schemas/#common_types.json/$defs/ChildList)): resolves to a child reference or array of references. Pass each entry to `this.renderNode(ref)` inside `render()` to mount Basic Catalog, universal, or native React and Angular children.
+- **Two-way data binding** (`DynamicString`, `DynamicNumber`, `DynamicBoolean`, `DynamicStringList`, `DynamicValue` from `@a2ui/schema-zod4`, or `$ref`s to them in JSON Schema / [`DynamicValue`](../../specification/v1.0/schemas/#common_types.json/$defs/DynamicValue)): generates a `props.set<CapitalizedProp>(nextValue)` setter (such as `props.setValue(e.target.value)`) that writes to the bound JSON Pointer (`@path` in v1.0, `path` in v0.9.1) in the surface `DataModel` (see [Data Model and Data Binding](../../concepts/data-binding/)).
+- **Validation checks** (`component({...Checkable.shape, ...})` / [`Checkable`](../../specification/v1.0/schemas/#common_types.json/$defs/Checkable)): evaluates `@checks` rules (`checks` in v0.9.1) reactively and populates `props.isValid` (`boolean`) and `props.validationErrors` (`string[]`). Bind `aria-invalid` and `aria-describedby` on the inner input control rather than `role="alert"` so initial validation checks do not trigger unsolicited screen-reader announcements on mount.
 
 ## Advanced topics
 
@@ -393,7 +407,7 @@ override createRenderRoot() {
 Lit simplifies templates, but the renderer contract has no Lit dependency. Any class extending `HTMLElement` and implementing `A2uiWebComponentElement` works across Lit, React, and Angular:
 
 1. Extend `HTMLElement` and implement `A2uiWebComponentElement` with a `context` setter accepting `ComponentContext` from the host renderer.
-2. Instantiate `new GenericBinder(context, schema)` when connected and subscribe to property updates to mutate the DOM.
+2. Instantiate `new GenericBinder(context, componentSchemaCursor(catalog, name)!)` when connected and subscribe to property updates to mutate the DOM.
 3. Unsubscribe and call `binder.dispose()` in `disconnectedCallback()` and before rebinding to a new context.
 4. Export a `WebComponentImplementation` with your API, `tagName`, and element constructor.
 
@@ -404,8 +418,13 @@ The example below implements a `StatBadgeElement` for a `StatBadgeApi` schema wi
 
 ```typescript
 // stat-badge.ts
-import {z} from 'zod';
-import {ComponentContext, GenericBinder, type ResolveA2uiProps} from '@a2ui/web_core';
+import {
+  ComponentContext,
+  GenericBinder,
+  type InferredComponentApiSchemaType,
+  type ResolveA2uiProps,
+  componentSchemaCursor,
+} from '@a2ui/web_core';
 import {
   type A2uiWebComponentElement,
   type ResolvedChildList,
@@ -415,7 +434,7 @@ import {
 } from '@a2ui/web_core/universal';
 import {StatBadgeApi} from './stat-badge.api.js';
 
-type StatBadgeProps = ResolveA2uiProps<z.infer<typeof StatBadgeApi.schema>>;
+type StatBadgeProps = ResolveA2uiProps<InferredComponentApiSchemaType<typeof StatBadgeApi>>;
 
 export class StatBadgeElement extends HTMLElement implements A2uiWebComponentElement {
   private binder?: GenericBinder<StatBadgeProps>;
@@ -444,7 +463,12 @@ export class StatBadgeElement extends HTMLElement implements A2uiWebComponentEle
   private bind() {
     this.unbind();
     if (!this.currentContext || !this.isConnected) return;
-    this.binder = new GenericBinder(this.currentContext, StatBadgeApi.schema);
+    // The binder reads the component's JSON Schema from the catalog it is registered in.
+    const {catalog} = this.currentContext.componentModel;
+    this.binder = new GenericBinder(
+      this.currentContext,
+      componentSchemaCursor(catalog, StatBadgeApi.name)!,
+    );
     this.subscription = this.binder.subscribe(props => this.render(props));
     this.render(this.binder.snapshot);
   }
@@ -500,7 +524,7 @@ export const statBadgeComponent: WebComponentImplementation<typeof StatBadgeApi.
 
 ```typescript
 // stat-badge.ts
-import {z} from 'zod';
+import {type InferredComponentApiSchemaType, componentSchemaCursor} from '@a2ui/web_core';
 import {ComponentContext, GenericBinder, type ResolveA2uiProps} from '@a2ui/web_core/v0_9';
 import {
   type A2uiWebComponentElement,
@@ -511,7 +535,7 @@ import {
 } from '@a2ui/web_core/v0_9/universal';
 import {StatBadgeApi} from './stat-badge.api.js';
 
-type StatBadgeProps = ResolveA2uiProps<z.infer<typeof StatBadgeApi.schema>>;
+type StatBadgeProps = ResolveA2uiProps<InferredComponentApiSchemaType<typeof StatBadgeApi>>;
 
 export class StatBadgeElement extends HTMLElement implements A2uiWebComponentElement {
   private binder?: GenericBinder<StatBadgeProps>;
@@ -540,7 +564,12 @@ export class StatBadgeElement extends HTMLElement implements A2uiWebComponentEle
   private bind() {
     this.unbind();
     if (!this.currentContext || !this.isConnected) return;
-    this.binder = new GenericBinder(this.currentContext, StatBadgeApi.schema);
+    // The binder reads the component's JSON Schema from the catalog it is registered in.
+    const {catalog} = this.currentContext.componentModel;
+    this.binder = new GenericBinder(
+      this.currentContext,
+      componentSchemaCursor(catalog, StatBadgeApi.name)!,
+    );
     this.subscription = this.binder.subscribe(props => this.render(props));
     this.render(this.binder.snapshot);
   }

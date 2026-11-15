@@ -220,6 +220,7 @@ import {
 // Uses ExpressFormatFactory by default; pass any InferenceFormatFactory to change it.
 const generator = new A2uiGenerator(
   [new CatalogConfig(catalog)],
+  validator, // For example, createAjvValidator() from @a2ui/validator-ajv.
   undefined,
   new ExpressFormatFactory(),
 );

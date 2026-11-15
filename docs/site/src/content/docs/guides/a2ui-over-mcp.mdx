@@ -507,20 +507,27 @@ async def handle_call_tool(
 
 ### Step 3: Connect the client and hydrate the surface
 
-On web clients, [`callMcpTool`](../mcp-catalog/#mcp_catalog.json/functions/callMcpTool) in `@a2ui/catalog-mcp` handles template discovery, URI caching, and message forwarding automatically once you pass your `MessageProcessor` to `configureMcpCatalog`. In `v1.0`, register `mcpCatalog` alongside `basicCatalog`; in `v0.9.1` (where each surface binds to a single catalog), compose `CallMcpToolImplementation` into a `'0.9'` `Catalog` and pass `defaultVersion: 'v0.9'`:
+On web clients, [`callMcpTool`](../mcp-catalog/#mcp_catalog.json/functions/callMcpTool) in `@a2ui/catalog-mcp` handles template discovery, URI caching, and message forwarding automatically once you pass your `MessageProcessor` to `configureMcpCatalog`. In `v1.0`, register `createMcpCatalog(validator)` alongside `createBasicCatalog(validator)`; in `v0.9.1` (where each surface binds to a single catalog), compose `createCallMcpToolImplementation(validator)` into a `'0.9'` `Catalog` and pass `defaultVersion: 'v0.9'`:
 
 <Tabs syncKey="protocol-version">
   <TabItem label="v1.0">
 
 ```typescript
-import {configureMcpCatalog, mcpCatalog} from '@a2ui/catalog-mcp';
-import {basicCatalog, MessageProcessor} from '@a2ui/web_core/v1_0';
+import {configureMcpCatalog, createMcpCatalog} from '@a2ui/catalog-mcp';
+import {createAjvValidator} from '@a2ui/validator-ajv';
+import {createBasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+import {MessageProcessor} from '@a2ui/web_core/v1_0';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 
 const mcpClient = new Client({name: 'recipe-web-client', version: '1.0.0'});
 // Connect mcpClient to your StreamableHTTPClientTransport or SSEClientTransport.
 
-const processor = new MessageProcessor([basicCatalog, mcpCatalog]);
+const validator = createAjvValidator();
+const processor = new MessageProcessor(
+  [createBasicCatalog(validator), createMcpCatalog(validator)],
+  undefined,
+  {validator},
+);
 configureMcpCatalog({
   getMcpClientForTool: () => mcpClient,
   processor,
@@ -531,20 +538,24 @@ configureMcpCatalog({
   <TabItem label="v0.9.1">
 
 ```typescript
-import {CallMcpToolImplementation, configureMcpCatalog} from '@a2ui/catalog-mcp';
-import {basicCatalog, Catalog, MessageProcessor} from '@a2ui/web_core/v0_9';
+import {configureMcpCatalog, createCallMcpToolImplementation} from '@a2ui/catalog-mcp';
+import {createAjvValidator} from '@a2ui/validator-ajv';
+import {Catalog, MessageProcessor} from '@a2ui/web_core/v0_9';
+import {createBasicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 
 const mcpClient = new Client({name: 'recipe-web-client', version: '1.0.0'});
 // Connect mcpClient to your StreamableHTTPClientTransport or SSEClientTransport.
 
+const validator = createAjvValidator();
+const basicCatalog = createBasicCatalog(validator);
 const v09Catalog = new Catalog(
   basicCatalog.id,
   '0.9',
   [...basicCatalog.components.values()],
-  [...basicCatalog.functions.values(), CallMcpToolImplementation],
+  [...basicCatalog.functions.values(), createCallMcpToolImplementation(validator)],
 );
-const processor = new MessageProcessor([v09Catalog]);
+const processor = new MessageProcessor([v09Catalog], undefined, {validator});
 configureMcpCatalog({
   getMcpClientForTool: () => mcpClient,
   processor,
@@ -626,10 +637,13 @@ Swift (`A2UISwiftCore` and `A2UISwiftUI`) and Kotlin (`androidx.a2ui` and `andro
 
 ```typescript
 import {validatePayload} from '@a2ui/agent';
-import {basicCatalog} from '@a2ui/web_core/v1_0';
+import {createAjvValidator} from '@a2ui/validator-ajv';
+import {createBasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
 
-// Throws A2uiValidationError if a v1.0 renderer holding basicCatalog would reject the payload.
-validatePayload([basicCatalog], a2uiPayload);
+const validator = createAjvValidator();
+
+// Throws A2uiValidationError if a v1.0 renderer holding the basic catalog would reject the payload.
+validatePayload([createBasicCatalog(validator)], validator, a2uiPayload);
 ```
 
   </TabItem>

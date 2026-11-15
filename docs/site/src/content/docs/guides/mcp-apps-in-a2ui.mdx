@@ -13,9 +13,9 @@ Standard A2UI components cover forms, cards, and lists, while MCP Apps let an MC
 
 <Aside type="tip" title="Setting up @a2ui/catalog-mcp?">
   See the [MCP Integration Overview](../mcp-overview/) to compare all four MCP patterns. Install
-  `@a2ui/catalog-mcp` and register `mcpCatalog` with `configureMcpCatalog` first in [Call MCP Tools
-  from A2UI](../mcp-catalog/#quick-setup). If your MCP server returns `a2ui://` JSON layouts rather
-  than HTML widgets, see [Serve A2UI Layouts from an MCP Server](../a2ui-over-mcp/).
+  `@a2ui/catalog-mcp` and register `createMcpCatalog(validator)` with `configureMcpCatalog` first in
+  [Call MCP Tools from A2UI](../mcp-catalog/#quick-setup). If your MCP server returns `a2ui://` JSON
+  layouts rather than HTML widgets, see [Serve A2UI Layouts from an MCP Server](../a2ui-over-mcp/).
 </Aside>
 
 <img
@@ -27,7 +27,7 @@ Standard A2UI components cover forms, cards, and lists, while MCP Apps let an MC
 
 ## Set up McpApp in your web app
 
-After registering `mcpCatalog` and `configureMcpCatalog` in your Lit, React, or Angular app (see [Call MCP Tools from A2UI](../mcp-catalog/#quick-setup)), serve the sandbox relay files and add [`McpApp`](../mcp-catalog/#mcp_catalog.json/components/McpApp) to your surface.
+After registering `createMcpCatalog(validator)` and `configureMcpCatalog` in your Lit, React, or Angular app (see [Call MCP Tools from A2UI](../mcp-catalog/#quick-setup)), serve the sandbox relay files and add [`McpApp`](../mcp-catalog/#mcp_catalog.json/components/McpApp) to your surface.
 
 ### Serve the sandbox files
 
@@ -145,7 +145,7 @@ a2ui-mcp-app {
 
 ## Quick start: run the Kanban showcase
 
-The fastest way to see an MCP App working inside an A2UI v1.0 surface is to run the Kanban board showcase ([`samples/community/mcp/a2ui-kanban/`](https://github.com/a2ui-project/a2ui/blob/main/samples/community/mcp/a2ui-kanban/README.md)). It connects three local processes: an MCP server that provides a drag-and-drop board widget (`ui://kanban/board`), a Python agent, and a Lit chat app built with `basicCatalog` and `mcpCatalog`.
+The fastest way to see an MCP App working inside an A2UI v1.0 surface is to run the Kanban board showcase ([`samples/community/mcp/a2ui-kanban/`](https://github.com/a2ui-project/a2ui/blob/main/samples/community/mcp/a2ui-kanban/README.md)). It connects three local processes: an MCP server that provides a drag-and-drop board widget (`ui://kanban/board`), a Python agent, and a Lit chat app built with the basic catalog and the MCP catalog.
 
 ### Prerequisites
 
@@ -392,7 +392,7 @@ Check that `node_modules/@a2ui/catalog-mcp/sandbox` is served at `/a2ui-sandbox/
 
 ### Tool or function calls from an embedded McpApp are rejected
 
-Check the browser console for warnings. Every MCP tool the widget calls must be listed in `allowedTools`, and every A2UI function must be listed in `allowedFunctions` and registered in `mcpCatalog` or the surface's catalog.
+Check the browser console for warnings. Every MCP tool the widget calls must be listed in `allowedTools`, and every A2UI function must be listed in `allowedFunctions` and registered in the MCP catalog or the surface's catalog.
 
 ---
 

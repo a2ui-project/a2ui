@@ -310,6 +310,7 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
     2. **Catalog Schema Anatomy (`v1.0` vs. `v0.9.1` Tabs)**: Envelope metadata (`$schema`, `$id`, `catalogId` URI, `title`, `description`, plus v1.0-only `protocolVersion`, `metadata`, and `instructions`), top-level `components` and `functions` maps (direct component properties + `allowedParents`/`allowedChildren` + `Checkable` `checks` support and function `returnType`/`allowedCallers`/`requiresUserActivation` in v1.0 vs. `allOf` `ComponentCommon` wrappers in v0.9.1), and `$defs` (`anyComponent`, `anyFunction`).
     3. **Ingesting on the Agent SDK**: Verified multi-SDK snippets loading `catalog.json` into `Catalog` / `CatalogConfig`.
     4. **Registering on the Client Renderer**: Implementing per-`Component` UI widgets and local `functions` and binding the `catalogId` in `MessageProcessor`.
+        - **Component schemas in TypeScript**: Passing a `JsonSchemaValidator` (`@a2ui/validator-ajv`, `@a2ui/validator-cfworker`, `provideA2uiValidator` in Angular) and writing schemas as plain JSON Schema (`fromJsonSchema`), zod 4 (`@a2ui/schema-zod4`), or zod 3 (`@a2ui/schema-zod3`).
     5. **Client-Server Schema Parity Testing**:
         - > **[VERIFICATION REQUIREMENT FOR IMPLEMENTING AGENT]**: Compare normalized `Catalog.fromJson` / `Catalog.from_json` objects rather than raw JSON strings (inspect `dart/a2ui_core/test/catalog_json_test.dart` to see how SDKs normalize `protocolVersion`, `$ref`s, and function schemas across Python, TypeScript, Dart, Swift, and Kotlin).
 
@@ -352,7 +353,7 @@ _(Where `<ver>` is `v1.0` or `v0.9.1`.)_
 
 - **Sources**: [`typescript/catalogs/mcp/README.md`](../../typescript/catalogs/mcp/README.md), [`catalogs/mcp/README.md`](../../catalogs/mcp/README.md), [`catalogs/mcp/v1/catalog.json`](../../catalogs/mcp/v1/catalog.json), [`catalogs/mcp/v1/examples/`](../../catalogs/mcp/v1/examples/), and `/specification/v1.0/schemas/#mcp_catalog.json`.
 - **Content Outline**:
-    1. **Overview & Quick Setup**: Installing `@a2ui/catalog-mcp`, connecting an MCP `Client` and registering `mcpCatalog` across Lit, React, and Angular (`configureMcpCatalog`), and sharing `catalog.json` with the agent.
+    1. **Overview & Quick Setup**: Installing `@a2ui/catalog-mcp`, connecting an MCP `Client` and registering `createMcpCatalog(validator)` across Lit, React, and Angular (`configureMcpCatalog`), and sharing `catalog.json` with the agent.
     2. **Calling MCP Tools from UI Surfaces**: Storing output directly via `targetDataPath` (with response-object details and rapid-input protection in an expandable section), filtering JSON with `transformData` and `updateDataModel`, and parsing plain-text output with `split` and `regexCapture`.
     3. **Embedding Sandboxed `McpApp` Widgets & Advanced Config**: Serving `/a2ui-sandbox/`, adding and styling `McpApp`, and expandable sections for `McpApp` property reference, multi-server routing, custom parsers, and troubleshooting.
 

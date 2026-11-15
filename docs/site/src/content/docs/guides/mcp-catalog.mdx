@@ -23,24 +23,26 @@ Setting up `@a2ui/catalog-mcp` takes three steps.
 
 ### Install the packages
 
-Install `@a2ui/catalog-mcp` alongside `@a2ui/web_core`, `lit`, and the MCP TypeScript SDK:
+Install `@a2ui/catalog-mcp` alongside `@a2ui/web_core`, a JSON Schema validator (`@a2ui/validator-ajv`), `lit`, and the MCP TypeScript SDK:
 
 ```bash
-npm install @a2ui/catalog-mcp @a2ui/web_core lit @modelcontextprotocol/sdk
+npm install @a2ui/catalog-mcp @a2ui/web_core @a2ui/validator-ajv lit @modelcontextprotocol/sdk
 ```
 
 `@a2ui/web_core` and `lit` are peer dependencies so your renderer and catalog share one copy of A2UI's core classes, and `@modelcontextprotocol/sdk` provides the MCP `Client` that connects to your server.
 
 ### Register the catalog in your app
 
-Connect an MCP `Client` to your server, pass `mcpCatalog` alongside `basicCatalog` (or your own component catalog) to `MessageProcessor`, and call `configureMcpCatalog`:
+Connect an MCP `Client` to your server, pass the MCP catalog (`createMcpCatalog(validator)`) alongside the basic catalog (`createBasicCatalog(validator)`, or your own component catalog) to `MessageProcessor`, and call `configureMcpCatalog`:
 
 <Tabs syncKey="web-framework">
   <TabItem label="Lit">
 
 ```ts
-import {configureMcpCatalog, mcpCatalog} from '@a2ui/catalog-mcp';
-import {basicCatalog, MessageProcessor} from '@a2ui/web_core/v1_0';
+import {configureMcpCatalog, createMcpCatalog} from '@a2ui/catalog-mcp';
+import {createAjvValidator} from '@a2ui/validator-ajv';
+import {createBasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+import {MessageProcessor} from '@a2ui/web_core/v1_0';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
@@ -48,10 +50,15 @@ import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/st
 const mcpClient = new Client({name: 'my-web-app', version: '1.0.0'});
 await mcpClient.connect(new StreamableHTTPClientTransport(new URL('http://localhost:8000/mcp')));
 
-// 2. Register mcpCatalog alongside basicCatalog.
-const processor = new MessageProcessor([basicCatalog, mcpCatalog], action => {
-  console.log('Action dispatched:', action);
-});
+// 2. Register the MCP catalog alongside the basic catalog.
+const validator = createAjvValidator();
+const processor = new MessageProcessor(
+  [createBasicCatalog(validator), createMcpCatalog(validator)],
+  action => {
+    console.log('Action dispatched:', action);
+  },
+  {validator},
+);
 
 // 3. Tell the catalog how to reach your MCP client and message processor.
 configureMcpCatalog({
@@ -64,9 +71,11 @@ configureMcpCatalog({
   <TabItem label="React">
 
 ```ts
-import {configureMcpCatalog, mcpCatalog} from '@a2ui/catalog-mcp';
+import {configureMcpCatalog, createMcpCatalog} from '@a2ui/catalog-mcp';
 import {type ReactCatalogComponent} from '@a2ui/react';
-import {basicCatalog, MessageProcessor} from '@a2ui/web_core/v1_0';
+import {createAjvValidator} from '@a2ui/validator-ajv';
+import {createBasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+import {MessageProcessor} from '@a2ui/web_core/v1_0';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
@@ -74,12 +83,14 @@ import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/st
 const mcpClient = new Client({name: 'my-web-app', version: '1.0.0'});
 await mcpClient.connect(new StreamableHTTPClientTransport(new URL('http://localhost:8000/mcp')));
 
-// 2. Register mcpCatalog alongside basicCatalog.
+// 2. Register the MCP catalog alongside the basic catalog.
+const validator = createAjvValidator();
 const processor = new MessageProcessor<ReactCatalogComponent>(
-  [basicCatalog, mcpCatalog],
+  [createBasicCatalog(validator), createMcpCatalog(validator)],
   action => {
     console.log('Action dispatched:', action);
   },
+  {validator},
 );
 
 // 3. Tell the catalog how to reach your MCP client and message processor.
@@ -94,14 +105,23 @@ configureMcpCatalog({
 
 ```ts
 import {ApplicationConfig, inject, provideEnvironmentInitializer} from '@angular/core';
-import {A2uiRendererService, AngularCatalog, BasicCatalog, provideA2UI} from '@a2ui/angular';
-import {configureMcpCatalog, mcpCatalog} from '@a2ui/catalog-mcp';
+import {
+  A2uiRendererService,
+  AngularCatalog,
+  BasicCatalog,
+  provideA2UI,
+  provideA2uiValidator,
+} from '@a2ui/angular';
+import {configureMcpCatalog, createMcpCatalog} from '@a2ui/catalog-mcp';
+import {createAjvValidator} from '@a2ui/validator-ajv';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
 const mcpClient = new Client({name: 'my-web-app', version: '1.0.0'});
 await mcpClient.connect(new StreamableHTTPClientTransport(new URL('http://localhost:8000/mcp')));
 
+const validator = createAjvValidator();
+const mcpCatalog = createMcpCatalog(validator);
 const mcpAngularCatalog = new AngularCatalog(
   mcpCatalog.id,
   mcpCatalog.protocolVersion,
@@ -111,6 +131,7 @@ const mcpAngularCatalog = new AngularCatalog(
 
 export const appConfig: ApplicationConfig = {
   providers: [
+    provideA2uiValidator(validator),
     provideA2UI(() => ({
       catalogs: [inject(BasicCatalog), mcpAngularCatalog],
     })),
@@ -134,7 +155,7 @@ export const appConfig: ApplicationConfig = {
 Include the [MCP catalog schema](#mcp_catalog.json) in your agent setup so it knows how to emit MCP tool calls and `McpApp` components:
 
 1. Load `@a2ui/catalog-mcp/catalog.json` (or [`catalogs/mcp/v1/catalog.json`](https://github.com/a2ui-project/a2ui/blob/main/catalogs/mcp/v1/catalog.json) on non-Node backends) alongside your component catalog when building your agent's prompt and schema validator.
-2. Advertise the MCP catalog ID (`https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json`, exported as `mcpCatalog.id` and `MCP_CATALOG_ID`) in `supportedCatalogIds`. Calling `processor.getRendererCapabilities({versions: ['1.0']})` includes every registered catalog automatically.
+2. Advertise the MCP catalog ID (`https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json`, exported as `MCP_CATALOG_ID`) in `supportedCatalogIds`. Calling `processor.getRendererCapabilities({versions: ['1.0']})` includes every registered catalog automatically.
 
 You are ready to call MCP tools from your UI. If you also embed `McpApp` HTML widgets, complete the extra sandbox file step in [Embed MCP Apps in A2UI Surfaces](../mcp-apps-in-a2ui/#serve-the-sandbox-files).
 
@@ -330,14 +351,17 @@ If `getMcpClientForTool` is not configured, `McpApp` dispatches allowed tool cal
 <details>
 <summary>Register only part of the catalog</summary>
 
-If you want to expose `McpApp` and `callMcpTool` without the four data functions (or pick specific functions), derive a restricted catalog with `mcpCatalog.withEntries` and the individual `*Implementation` exports (`CallMcpToolImplementation`, `TransformDataImplementation`, `UpdateDataModelImplementation`, `SplitImplementation`, and `RegexCaptureImplementation`):
+If you want to expose `McpApp` and `callMcpTool` without the four data functions (or pick specific functions), derive a restricted catalog with `withEntries` and the individual `create*Implementation(validator)` factories (`createCallMcpToolImplementation`, `createTransformDataImplementation`, `createUpdateDataModelImplementation`, `createSplitImplementation`, and `createRegexCaptureImplementation`):
 
 ```ts
-import {CallMcpToolImplementation, mcpCatalog} from '@a2ui/catalog-mcp';
+import {createCallMcpToolImplementation, createMcpCatalog} from '@a2ui/catalog-mcp';
+import {createAjvValidator} from '@a2ui/validator-ajv';
 
+const validator = createAjvValidator();
+const mcpCatalog = createMcpCatalog(validator);
 const mcpAppOnlyCatalog = mcpCatalog.withEntries(
   [...mcpCatalog.components.values()],
-  [CallMcpToolImplementation],
+  [createCallMcpToolImplementation(validator)],
 );
 ```
 
@@ -346,25 +370,30 @@ const mcpAppOnlyCatalog = mcpCatalog.withEntries(
 <details>
 <summary>Add your own data-parsing functions</summary>
 
-Every function in `@a2ui/catalog-mcp` must be implemented across every A2UI renderer, so the built-in function list stays small. If you need a specialized parser such as CSV, define it with `createFunctionImplementation` in [your own catalog](../defining-a-catalog/) and register that catalog alongside `mcpCatalog`:
+Every function in `@a2ui/catalog-mcp` must be implemented across every A2UI renderer, so the built-in function list stays small. If you need a specialized parser such as CSV, define it with `createFunctionImplementation` in [your own catalog](../defining-a-catalog/) and register that catalog alongside the MCP catalog:
 
 ```ts
-import {z} from 'zod';
+import {createMcpCatalog} from '@a2ui/catalog-mcp';
+import {createAjvValidator} from '@a2ui/validator-ajv';
+import {fromJsonSchema} from '@a2ui/web_core';
+import {createBasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+import {Catalog, createFunctionImplementation, MessageProcessor} from '@a2ui/web_core/v1_0';
 
-import {mcpCatalog} from '@a2ui/catalog-mcp';
-import {
-  basicCatalog,
-  Catalog,
-  createFunctionImplementation,
-  DynamicStringSchema,
-  MessageProcessor,
-} from '@a2ui/web_core/v1_0';
+const validator = createAjvValidator();
 
 const ParseCsvImplementation = createFunctionImplementation(
   {
     name: 'parseCsv',
     returnType: 'any',
-    schema: z.object({value: DynamicStringSchema}),
+    schema: fromJsonSchema<{value: unknown}>(
+      {
+        type: 'object',
+        properties: {value: {$ref: 'common_types.json#/$defs/DynamicString'}},
+        required: ['value'],
+      },
+      validator,
+      {version: '1.0'},
+    ),
     description: 'Splits CSV text into rows of cells.',
   },
   ({value}) =>
@@ -380,7 +409,11 @@ const parsersCatalog = new Catalog(
   [ParseCsvImplementation],
 );
 
-const processor = new MessageProcessor([basicCatalog, mcpCatalog, parsersCatalog], onAction);
+const processor = new MessageProcessor(
+  [createBasicCatalog(validator), createMcpCatalog(validator), parsersCatalog],
+  onAction,
+  {validator},
+);
 ```
 
 Payloads can then call `parseCsv` with `"catalogId": "https://example.com/catalogs/parsers.json"` and compose it with `callMcpTool` and `transformData`.

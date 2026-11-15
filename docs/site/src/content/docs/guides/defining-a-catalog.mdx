@@ -127,13 +127,21 @@ Load `status_catalog.json` with `Catalog.fromJson` (`Catalog.from_json` in Pytho
 import {readFileSync} from 'node:fs';
 
 import {A2uiGenerator, CatalogConfig, ExpressFormatFactory} from '@a2ui/agent';
+import {createAjvValidator} from '@a2ui/validator-ajv';
 import {Catalog} from '@a2ui/web_core';
-import {basicCatalog} from '@a2ui/web_core/v1_0';
+import {createBasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
 
-const statusCatalog = Catalog.fromJson(JSON.parse(readFileSync('./status_catalog.json', 'utf8')));
+const validator = createAjvValidator();
+const statusCatalog = Catalog.fromJson(
+  JSON.parse(readFileSync('./status_catalog.json', 'utf8')),
+  undefined,
+  undefined,
+  {validator},
+);
 
 export const generator = new A2uiGenerator(
-  [new CatalogConfig(basicCatalog), new CatalogConfig(statusCatalog)],
+  [new CatalogConfig(createBasicCatalog(validator)), new CatalogConfig(statusCatalog)],
+  validator,
   undefined,
   new ExpressFormatFactory(),
 );
@@ -240,13 +248,18 @@ final processor = MessageProcessor(catalogs: [basicCatalog(), statusCatalog]);
 import {z} from 'zod';
 
 import {createComponentImplementation, type ReactCatalogComponent} from '@a2ui/react';
-import {Catalog, DynamicStringSchema, MessageProcessor, basicCatalog} from '@a2ui/web_core/v1_0';
+import {component, DynamicString} from '@a2ui/schema-zod4';
+import {createAjvValidator} from '@a2ui/validator-ajv';
+import {createBasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+import {Catalog, MessageProcessor} from '@a2ui/web_core/v1_0';
+
+const validator = createAjvValidator();
 
 const StatusBadge = createComponentImplementation(
   {
     name: 'StatusBadge',
-    schema: z.object({
-      label: DynamicStringSchema,
+    schema: component({
+      label: DynamicString,
       status: z.enum(['info', 'success', 'warning']),
     }),
   },
@@ -259,7 +272,11 @@ export const statusCatalog = new Catalog(
   [StatusBadge],
 );
 
-export const processor = new MessageProcessor<ReactCatalogComponent>([basicCatalog, statusCatalog]);
+export const processor = new MessageProcessor<ReactCatalogComponent>(
+  [createBasicCatalog(validator), statusCatalog],
+  undefined,
+  {validator},
+);
 ```
 
   </TabItem>
@@ -271,12 +288,17 @@ import {customElement} from 'lit/decorators.js';
 import {z} from 'zod';
 
 import {A2uiLitElement, type LitComponentApi} from '@a2ui/lit';
-import {Catalog, DynamicStringSchema, MessageProcessor, basicCatalog} from '@a2ui/web_core/v1_0';
+import {component, DynamicString} from '@a2ui/schema-zod4';
+import {createAjvValidator} from '@a2ui/validator-ajv';
+import {createBasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+import {Catalog, MessageProcessor} from '@a2ui/web_core/v1_0';
+
+const validator = createAjvValidator();
 
 const StatusBadgeApi = {
   name: 'StatusBadge',
-  schema: z.object({
-    label: DynamicStringSchema,
+  schema: component({
+    label: DynamicString,
     status: z.enum(['info', 'success', 'warning']),
   }),
 };
@@ -304,7 +326,11 @@ export const statusCatalog = new Catalog(
   ],
 );
 
-export const processor = new MessageProcessor<LitComponentApi>([basicCatalog, statusCatalog]);
+export const processor = new MessageProcessor<LitComponentApi>(
+  [createBasicCatalog(validator), statusCatalog],
+  undefined,
+  {validator},
+);
 ```
 
   </TabItem>
@@ -321,14 +347,16 @@ import {
   CatalogComponent,
   createComponentImplementation,
   provideA2UI,
+  provideA2uiValidator,
 } from '@a2ui/angular';
+import {component, DynamicString} from '@a2ui/schema-zod4';
+import {createAjvValidator} from '@a2ui/validator-ajv';
 import {type ComponentApi} from '@a2ui/web_core';
-import {DynamicStringSchema} from '@a2ui/web_core/v1_0';
 
 const StatusBadgeApi = {
   name: 'StatusBadge',
-  schema: z.object({
-    label: DynamicStringSchema,
+  schema: component({
+    label: DynamicString,
     status: z.enum(['info', 'success', 'warning']),
   }),
 } satisfies ComponentApi;
@@ -353,7 +381,10 @@ export const statusCatalog = new AngularCatalog(
 );
 
 bootstrapApplication(AppComponent, {
-  providers: [provideA2UI({catalogs: [new BasicCatalog(), statusCatalog]})],
+  providers: [
+    provideA2uiValidator(createAjvValidator()),
+    provideA2UI({catalogs: [new BasicCatalog(), statusCatalog]}),
+  ],
 });
 ```
 
@@ -500,6 +531,85 @@ fun createProcessor(context: Context): A2uiMessageProcessor {
   To share a single web widget across Lit, React, and Angular without rewriting view code, see
   [Authoring Universal Web Components](../../guides/authoring-universal-components/).
 </Aside>
+
+### Component schemas in TypeScript
+
+`@a2ui/web_core` validates with a JSON Schema validator that your app passes in: `MessageProcessor`, `Catalog.fromJson`, and the basic catalog factories (`createBasicCatalog(validator)`) take one, and throw `A2uiConfigurationError` without it. Use `createAjvValidator()` from `@a2ui/validator-ajv`, or `createCfWorkerValidator()` from `@a2ui/validator-cfworker` where code generation is not allowed (for example, under a strict Content Security Policy or in Cloudflare Workers). In Angular, provide it with `provideA2uiValidator(validator)`.
+
+A component or function schema in code is a `CatalogSchema`. Write it as plain JSON Schema, or with Zod:
+
+<Tabs syncKey="schema-authoring">
+  <TabItem label="JSON Schema">
+
+```typescript
+import {createAjvValidator} from '@a2ui/validator-ajv';
+import {Catalog, fromJsonSchema, MessageProcessor} from '@a2ui/web_core';
+import {type DynamicString} from '@a2ui/web_core/v1_0';
+
+const validator = createAjvValidator();
+
+interface StatusBadgeProps {
+  label: DynamicString;
+  status?: 'info' | 'success' | 'warning';
+}
+
+// `version` adds the protocol's common types, so `$ref`s to `common_types.json` resolve.
+const statusBadgeSchema = fromJsonSchema<StatusBadgeProps>(
+  {
+    type: 'object',
+    properties: {
+      label: {$ref: 'common_types.json#/$defs/DynamicString'},
+      status: {enum: ['info', 'success', 'warning']},
+    },
+    required: ['label'],
+  },
+  validator,
+  {version: '1.0'},
+);
+
+const statusCatalog = new Catalog('https://example.com/catalogs/status/v1/catalog.json', '1.0', [
+  {name: 'StatusBadge', schema: statusBadgeSchema},
+]);
+const processor = new MessageProcessor([statusCatalog], undefined, {validator});
+```
+
+  </TabItem>
+  <TabItem label="Zod 4">
+
+```typescript
+import {z} from 'zod';
+
+import {component, DynamicString} from '@a2ui/schema-zod4';
+
+// `component(shape)` is `z.object(shape)` as a `CatalogSchema`. The common types
+// (`DynamicString`, `ChildList`, `Action`, ...) become `$ref`s to `common_types.json`.
+const statusBadgeSchema = component({
+  label: DynamicString,
+  status: z.enum(['info', 'success', 'warning']).optional(),
+});
+```
+
+  </TabItem>
+  <TabItem label="Zod 3">
+
+```typescript
+import {z} from 'zod';
+
+import {component, DynamicString, fromZod3} from '@a2ui/schema-zod3';
+
+const statusBadgeSchema = component({
+  label: DynamicString,
+  status: z.enum(['info', 'success', 'warning']).optional(),
+});
+
+// Wrap any other zod 3 schema with `fromZod3`; web_core rejects a bare zod 3 schema.
+const noteSchema = fromZod3(z.object({text: z.string()}));
+```
+
+  </TabItem>
+</Tabs>
+
+The validator still checks every message: a Zod schema validates its component with Zod, and the processor checks the envelope against the specification's JSON Schemas with your validator.
 
 Once registered on both sides, your agent can combine basic layout components and `StatusBadge` on the same v1.0 surface by tagging the custom component with its catalog ID in `@catalogId` (in v0.9.1, each surface binds to a single `catalogId`):
 
@@ -715,12 +825,8 @@ On the client, register matching function implementations (`FunctionImplementati
 ```typescript
 import {z} from 'zod';
 
-import {
-  Catalog,
-  DynamicNumberSchema,
-  DynamicStringSchema,
-  createFunctionImplementation,
-} from '@a2ui/web_core/v1_0';
+import {catalogSchema, DynamicNumber, DynamicString} from '@a2ui/schema-zod4';
+import {Catalog, createFunctionImplementation} from '@a2ui/web_core/v1_0';
 
 const shareProductFn = createFunctionImplementation(
   {
@@ -728,7 +834,7 @@ const shareProductFn = createFunctionImplementation(
     returnType: 'void',
     allowedCallers: 'rendererOnly',
     requiresUserActivation: true,
-    schema: z.object({title: DynamicStringSchema, url: DynamicStringSchema}),
+    schema: catalogSchema(z.object({title: DynamicString, url: DynamicString})),
   },
   ({title, url}) => {
     void navigator.share?.({title: String(title), url: String(url)});
@@ -740,7 +846,7 @@ const validDiscountFn = createFunctionImplementation(
     name: 'validDiscount',
     returnType: 'validationResult',
     allowedCallers: 'rendererOnly',
-    schema: z.object({percentOff: DynamicNumberSchema}),
+    schema: catalogSchema(z.object({percentOff: DynamicNumber})),
   },
   ({percentOff}) => {
     const pct = Number(percentOff);
@@ -1139,26 +1245,19 @@ final productCard = ComponentImplementation(
   <TabItem label="React">
 
 ```tsx
-import {z} from 'zod';
-
 import {createComponentImplementation} from '@a2ui/react';
-import {
-  ActionSchema,
-  ChildListSchema,
-  DynamicNumberSchema,
-  DynamicStringSchema,
-} from '@a2ui/web_core/v1_0';
+import {Action, ChildList, component, DynamicNumber, DynamicString} from '@a2ui/schema-zod4';
 
 export const ProductCard = createComponentImplementation(
   {
     name: 'ProductCard',
     allowedParents: ['Column', 'List'],
     allowedChildren: ['Button'],
-    schema: z.object({
-      name: DynamicStringSchema,
-      price: DynamicNumberSchema,
-      children: ChildListSchema.optional(),
-      onSelect: ActionSchema.optional(),
+    schema: component({
+      name: DynamicString,
+      price: DynamicNumber,
+      children: ChildList.optional(),
+      onSelect: Action.optional(),
     }),
   },
   ({props, buildChild}) => (
@@ -1182,25 +1281,19 @@ export const ProductCard = createComponentImplementation(
 ```typescript
 import {html} from 'lit';
 import {customElement} from 'lit/decorators.js';
-import {z} from 'zod';
 
 import {A2uiLitElement} from '@a2ui/lit';
-import {
-  ActionSchema,
-  ChildListSchema,
-  DynamicNumberSchema,
-  DynamicStringSchema,
-} from '@a2ui/web_core/v1_0';
+import {Action, ChildList, component, DynamicNumber, DynamicString} from '@a2ui/schema-zod4';
 
 const ProductCardApi = {
   name: 'ProductCard',
   allowedParents: ['Column', 'List'],
   allowedChildren: ['Button'],
-  schema: z.object({
-    name: DynamicStringSchema,
-    price: DynamicNumberSchema,
-    children: ChildListSchema.optional(),
-    onSelect: ActionSchema.optional(),
+  schema: component({
+    name: DynamicString,
+    price: DynamicNumber,
+    children: ChildList.optional(),
+    onSelect: Action.optional(),
   }),
 };
 
@@ -1226,7 +1319,6 @@ export class ProductCardElement extends A2uiLitElement<typeof ProductCardApi> {
 
 ```typescript
 import {ChangeDetectionStrategy, Component, computed} from '@angular/core';
-import {z} from 'zod';
 
 import {
   CatalogComponent,
@@ -1235,22 +1327,17 @@ import {
   createComponentImplementation,
 } from '@a2ui/angular';
 import {type ComponentApi} from '@a2ui/web_core';
-import {
-  ActionSchema,
-  ChildListSchema,
-  DynamicNumberSchema,
-  DynamicStringSchema,
-} from '@a2ui/web_core/v1_0';
+import {Action, ChildList, component, DynamicNumber, DynamicString} from '@a2ui/schema-zod4';
 
 const ProductCardApi = {
   name: 'ProductCard',
   allowedParents: ['Column', 'List'],
   allowedChildren: ['Button'],
-  schema: z.object({
-    name: DynamicStringSchema,
-    price: DynamicNumberSchema,
-    children: ChildListSchema.optional(),
-    onSelect: ActionSchema.optional(),
+  schema: component({
+    name: DynamicString,
+    price: DynamicNumber,
+    children: ChildList.optional(),
+    onSelect: Action.optional(),
   }),
 } satisfies ComponentApi;
 
@@ -1713,7 +1800,7 @@ In your native component implementation, map resolved `AccessibilityAttributes` 
 
 ### Schema parity tests in CI
 
-When your backend agent loads `status_catalog.json` and your client defines schemas in code (with Zod, `json_schema_builder`, `JSONSchema`, or `A2uiProperty` and `A2uiSchema`), avoid comparing serialized JSON files as raw strings. Code-built schemas and hand-authored JSON files often differ in key order, `$schema` or `instructions` fields, and localized `#/$defs/...` pointers inside `validationSchema`.
+When your backend agent loads `status_catalog.json` and your client defines schemas in code (with `fromJsonSchema` or Zod in TypeScript, `json_schema_builder`, `JSONSchema`, or `A2uiProperty` and `A2uiSchema`), avoid comparing serialized JSON files as raw strings. Code-built schemas and hand-authored JSON files often differ in key order, `$schema` or `instructions` fields, and localized `#/$defs/...` pointers inside `validationSchema`.
 
 Instead, parse `status_catalog.json` in a unit test with `Catalog.fromJson` (TypeScript and Dart), `Catalog.from_json` (Python), `JSONSerialization` (Swift), or `kotlinx.serialization.json.Json` (Kotlin), and compare the normalized catalog properties (`id`, `protocolVersion`, component names and `allowedParents`/`allowedChildren`, and function `returnType` and `allowedCallers`) against your client catalog.
 
@@ -1725,12 +1812,18 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {test} from 'node:test';
 
+import {createAjvValidator} from '@a2ui/validator-ajv';
 import {Catalog} from '@a2ui/web_core';
 
 import {statusCatalog} from './status_catalog.js';
 
 test('client statusCatalog matches status_catalog.json', () => {
-  const specCatalog = Catalog.fromJson(JSON.parse(readFileSync('./status_catalog.json', 'utf8')));
+  const specCatalog = Catalog.fromJson(
+    JSON.parse(readFileSync('./status_catalog.json', 'utf8')),
+    undefined,
+    undefined,
+    {validator: createAjvValidator()},
+  );
 
   assert.equal(statusCatalog.id, specCatalog.id);
   assert.equal(statusCatalog.protocolVersion, specCatalog.protocolVersion);

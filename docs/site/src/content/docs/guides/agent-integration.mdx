@@ -61,7 +61,8 @@ import {
   type RendererToAgentMessage,
   RendererToAgentMessageProcessor,
 } from '@a2ui/agent';
-import {basicCatalog} from '@a2ui/web_core/v1_0';
+import {createAjvValidator} from '@a2ui/validator-ajv';
+import {createBasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
 
 export type ModelStreamFn = (
   sessionId: string,
@@ -70,12 +71,15 @@ export type ModelStreamFn = (
 ) => AsyncIterable<string>;
 
 export class OrderAgentService {
+  // The JSON Schema validator the SDK checks catalogs and model output with.
+  readonly validator = createAjvValidator();
   readonly catalogs = [
-    basicCatalog,
+    createBasicCatalog(this.validator),
     // Add custom domain catalogs here (see /guides/defining-a-catalog/).
   ];
   readonly generator = new A2uiGenerator(
     this.catalogs.map(catalog => new CatalogConfig(catalog)),
+    this.validator,
     undefined, // Optional few-shot examples in A2UI JSON (decompiled into the active format).
     new ExpressFormatFactory(), // Default; swap to change inference format.
   );
@@ -182,7 +186,7 @@ async *runTurn(
 ): AsyncGenerator<AgentToRendererMessage> {
   let state = this.sessions.get(sessionId);
   if (!state) {
-    state = new RendererState(this.catalogs);
+    state = new RendererState(this.catalogs, this.validator);
     this.sessions.set(sessionId, state);
   }
 
@@ -416,6 +420,7 @@ async *handleRendererMessage(
   let modelTurn: AsyncIterable<AgentToRendererMessage> | undefined;
   const processor = new RendererToAgentMessageProcessor({
     catalogs: this.catalogs,
+    validator: this.validator,
     onAction: actionMessage => {
       modelTurn = this.runTurn(sessionId, JSON.stringify(actionMessage));
     },
@@ -992,7 +997,10 @@ Use `AgentFunction` for deterministic backend work (such as database updates, pr
 
 ```typescript
 import {AgentFunction, RendererToAgentMessageProcessor} from '@a2ui/agent';
-import {basicCatalog} from '@a2ui/web_core/v1_0';
+import {createAjvValidator} from '@a2ui/validator-ajv';
+import {createBasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+
+const validator = createAjvValidator();
 
 export const pickupEtaFn = new AgentFunction({
   name: 'lookupPickupEta',
@@ -1009,11 +1017,13 @@ export const pickupEtaFn = new AgentFunction({
   }),
 });
 
-export const agentCatalog = basicCatalog.copyWith({
+// The function's JSON Schema compiles with the catalog's validator.
+export const agentCatalog = createBasicCatalog(validator).copyWith({
   agentFunctions: [pickupEtaFn],
 });
 export const rendererMessages = new RendererToAgentMessageProcessor({
   catalogs: [agentCatalog],
+  validator,
 });
 ```
 
@@ -1159,9 +1169,11 @@ import {
   RendererToAgentMessageProcessor,
 } from '@a2ui/agent';
 
+// `customCatalog` declares the renderer functions; `validator` is the app's JSON Schema validator.
 const rendererCalls = new RendererFunctionCalls({catalogs: [customCatalog]});
 const rendererMessages = new RendererToAgentMessageProcessor({
   catalogs: [customCatalog],
+  validator,
   onRendererFunctionResponse: msg => rendererCalls.resolve(msg),
 });
 
@@ -1549,7 +1561,11 @@ import {
   DirectJsonFormatFactory,
   ExpressFormatFactory,
 } from '@a2ui/agent';
-import {basicCatalog} from '@a2ui/web_core/v1_0';
+import {createAjvValidator} from '@a2ui/validator-ajv';
+import {createBasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+
+const validator = createAjvValidator();
+const basicCatalog = createBasicCatalog(validator);
 
 const exampleTurn: AgentToRendererMessage[] = [
   {
@@ -1581,6 +1597,7 @@ export const prunedGenerator = new A2uiGenerator(
       new ComponentPruningTransformer(['Card', 'Column', 'Text', 'Button']),
     ]),
   ],
+  validator,
   {[basicCatalog.id]: exampleTurn},
   formatFactory,
 );
