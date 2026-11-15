@@ -22,6 +22,7 @@ import {ActionDispatcher} from './action-dispatcher.service';
 import {Subject} from 'rxjs';
 import {A2uiMessage} from '@a2ui/web_core/v0_9';
 import {A2UI_VERSION, Version} from './types';
+import {provideExplorerValidator} from './validator';
 
 describe('AgentStubService', () => {
   let service: AgentStubService;
@@ -45,6 +46,7 @@ describe('AgentStubService', () => {
 
     TestBed.configureTestingModule({
       providers: [
+        provideExplorerValidator(),
         {provide: AgentStubService, useClass: AgentStubV09Service},
         {provide: A2uiRendererService, useValue: mockRendererService},
         {provide: ActionDispatcher, useValue: mockActionDispatcher},

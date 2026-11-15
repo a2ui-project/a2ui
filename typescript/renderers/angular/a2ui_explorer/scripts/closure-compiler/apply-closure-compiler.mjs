@@ -260,6 +260,8 @@ const options = {
 const activeExterns = [
   path.resolve(__dirname, 'externs/globals.externs.js'),
   path.resolve(__dirname, 'externs/a2ui_web_core_v0_9.externs.js'),
+  path.resolve(__dirname, 'externs/json_documents.externs.js'),
+  path.resolve(__dirname, 'externs/ajv.externs.js'),
   path.resolve(__dirname, 'externs/angular_framework.externs.js'),
   path.resolve(__dirname, 'externs/a2ui_explorer.externs.js'),
 ];

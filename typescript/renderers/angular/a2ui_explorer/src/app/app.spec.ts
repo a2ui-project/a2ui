@@ -17,6 +17,7 @@
 import {TestBed} from '@angular/core/testing';
 import {App} from './app';
 import {provideMarkdownRenderer} from '@a2ui/angular';
+import {provideExplorerValidator} from './validator';
 
 describe('App', () => {
   beforeEach(async () => {
@@ -34,7 +35,7 @@ describe('App', () => {
     }
     await TestBed.configureTestingModule({
       imports: [App],
-      providers: [provideMarkdownRenderer()],
+      providers: [provideMarkdownRenderer(), provideExplorerValidator()],
     }).compileComponents();
   });
 
@@ -158,7 +159,11 @@ describe('App', () => {
     TestBed.resetTestingModule();
     await TestBed.configureTestingModule({
       imports: [App],
-      providers: [provideMarkdownRenderer(), {provide: A2UI_VERSION, useValue: Version.V1_0}],
+      providers: [
+        provideMarkdownRenderer(),
+        provideExplorerValidator(),
+        {provide: A2UI_VERSION, useValue: Version.V1_0},
+      ],
     }).compileComponents();
 
     const fixture = TestBed.createComponent(App);

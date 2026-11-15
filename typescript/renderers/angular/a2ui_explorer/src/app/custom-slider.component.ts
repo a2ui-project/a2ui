@@ -17,18 +17,32 @@
 import {Component, ChangeDetectionStrategy} from '@angular/core';
 import {CommonModule} from '@angular/common';
 import {CatalogComponent, createComponentImplementation} from '@a2ui/angular/v0_9';
-import z from 'zod';
-import {ComponentApi} from '@a2ui/web_core';
-import {DynamicStringSchema, DynamicNumberSchema} from '@a2ui/web_core/v0_9';
+import {ComponentApi, fromJsonSchema} from '@a2ui/web_core';
+import type {DynamicNumber, DynamicString} from '@a2ui/web_core/v0_9';
+import {validator} from './validator';
+
+interface CustomSliderProps {
+  label?: DynamicString;
+  value?: DynamicNumber;
+  min?: DynamicNumber;
+  max?: DynamicNumber;
+}
 
 const customSliderApi = {
   name: 'CustomSlider',
-  schema: z.object({
-    label: DynamicStringSchema.optional(),
-    value: DynamicNumberSchema.optional(),
-    min: DynamicNumberSchema.optional(),
-    max: DynamicNumberSchema.optional(),
-  }),
+  schema: fromJsonSchema<CustomSliderProps>(
+    {
+      type: 'object',
+      properties: {
+        label: {$ref: 'common_types.json#/$defs/DynamicString'},
+        value: {$ref: 'common_types.json#/$defs/DynamicNumber'},
+        min: {$ref: 'common_types.json#/$defs/DynamicNumber'},
+        max: {$ref: 'common_types.json#/$defs/DynamicNumber'},
+      },
+    },
+    validator,
+    {version: '0.9'},
+  ),
 } satisfies ComponentApi;
 
 /**

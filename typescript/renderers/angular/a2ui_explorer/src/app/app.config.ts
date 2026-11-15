@@ -16,7 +16,12 @@
 
 import {ApplicationConfig, provideBrowserGlobalErrorListeners} from '@angular/core';
 import {provideMarkdownRenderer} from '@a2ui/angular';
+import {provideExplorerValidator} from './validator';
 
 export const appConfig: ApplicationConfig = {
-  providers: [provideBrowserGlobalErrorListeners(), provideMarkdownRenderer()],
+  providers: [
+    provideBrowserGlobalErrorListeners(),
+    provideMarkdownRenderer(),
+    provideExplorerValidator(),
+  ],
 };

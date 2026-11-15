@@ -21,17 +21,30 @@ import {
   ComponentHostComponent,
   createComponentImplementation,
 } from '@a2ui/angular/v0_9';
-import z from 'zod';
-import {ComponentApi} from '@a2ui/web_core';
-import {DynamicStringSchema, ChildListSchema} from '@a2ui/web_core/v0_9';
+import {ComponentApi, fromJsonSchema} from '@a2ui/web_core';
+import type {ChildList, DynamicString} from '@a2ui/web_core/v0_9';
+import {validator} from './validator';
+
+interface CustomGridProps {
+  title?: DynamicString;
+  description?: DynamicString;
+  children?: ChildList;
+}
 
 const customGridApi = {
   name: 'CustomGrid',
-  schema: z.object({
-    title: DynamicStringSchema.optional(),
-    description: DynamicStringSchema.optional(),
-    children: ChildListSchema.optional(),
-  }),
+  schema: fromJsonSchema<CustomGridProps>(
+    {
+      type: 'object',
+      properties: {
+        title: {$ref: 'common_types.json#/$defs/DynamicString'},
+        description: {$ref: 'common_types.json#/$defs/DynamicString'},
+        children: {$ref: 'common_types.json#/$defs/ChildList'},
+      },
+    },
+    validator,
+    {version: '0.9'},
+  ),
 } satisfies ComponentApi;
 
 /**

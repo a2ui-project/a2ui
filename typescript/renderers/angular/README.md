@@ -12,8 +12,14 @@ The Angular implementation of the A2UI framework, providing seamless integration
 ## Installation
 
 ```bash
-yarn add @a2ui/angular @a2ui/web_core
+yarn add @a2ui/angular @a2ui/web_core @a2ui/validator-ajv
 ```
+
+A2UI validates messages, components and function arguments against JSON Schema with a validator your
+application provides: `provideA2uiValidator(validator)` (the `A2UI_JSON_SCHEMA_VALIDATOR` token), for
+example with `createAjvValidator()` from `@a2ui/validator-ajv`. There is no default;
+`A2uiRendererService`, the basic catalogs and the v0.8 `MessageProcessor` throw an
+`A2uiConfigurationError` without one.
 
 ## Protocol Versioning
 
@@ -34,14 +40,24 @@ Configure the renderer in your `app.config.ts` using the `A2UI_RENDERER_CONFIG` 
 
 ```typescript
 import {ApplicationConfig} from '@angular/core';
-import {A2UI_RENDERER_CONFIG, A2uiRendererService, BasicCatalog} from '@a2ui/angular';
+import {
+  A2UI_RENDERER_CONFIG,
+  A2uiRendererService,
+  BasicCatalog,
+  provideA2uiValidator,
+} from '@a2ui/angular';
+import {createAjvValidator} from '@a2ui/validator-ajv';
+
+const validator = createAjvValidator();
 
 export const appConfig: ApplicationConfig = {
   providers: [
+    provideA2uiValidator(validator),
     {
       provide: A2UI_RENDERER_CONFIG,
       useValue: {
-        catalogs: [new BasicCatalog()],
+        // Outside an injection context, a basic catalog takes the validator as an option.
+        catalogs: [new BasicCatalog({validator})],
         processorOptions: {
           outboundListener: message => {
             console.log('Outbound message:', message);

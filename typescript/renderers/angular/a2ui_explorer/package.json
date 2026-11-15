@@ -38,13 +38,14 @@
         "copy-sandbox",
         "generate-examples",
         "../../../core/web_core:build",
+        "../../../validators/ajv:build",
         "../../../catalogs/mcp:build",
         "../../markdown-it:build",
         "../:build"
       ]
     },
     "build:closure-compiler": {
-      "command": "rm -rf dist && ng build a2ui_explorer --configuration development && node scripts/closure-compiler/apply-closure-compiler.mjs",
+      "command": "node scripts/closure-compiler/generate-json-document-externs.mjs --check && rm -rf dist && ng build a2ui_explorer --configuration development && node scripts/closure-compiler/apply-closure-compiler.mjs",
       "dependencies": [
         "build:deps"
       ]
@@ -94,6 +95,7 @@
     "@a2ui/angular": "workspace:*",
     "@a2ui/catalog-mcp": "workspace:*",
     "@a2ui/markdown-it": "*",
+    "@a2ui/validator-ajv": "workspace:*",
     "@a2ui/web_core": "workspace:*",
     "@angular/common": "^21.2.5",
     "@angular/core": "^21.2.5",
