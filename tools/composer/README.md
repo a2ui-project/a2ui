@@ -43,6 +43,8 @@ yarn build
 cd ../../../tools/composer
 ```
 
+CopilotKit bundles its own A2UI renderer, `@copilotkit/a2ui-renderer`, which is built against `@a2ui/web_core` 0.9.0. The root `package.json` therefore resolves `@copilotkit/a2ui-renderer/@a2ui/web_core` to the published 0.9.0 package instead of the workspace `@a2ui/web_core` that every other package uses.
+
 Then, just install, build, and run!
 
 ```bash
