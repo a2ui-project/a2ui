@@ -17,91 +17,62 @@
 /**
  * A2UI VegaChart catalog for protocol v0.9.
  *
- * Matches `catalogs/vegachart/v0_9/catalog.json`.
+ * Loaded from `catalogs/vegachart/v0_9/catalog.json`.
  */
-
-import {z} from 'zod';
 
 import {
   Catalog,
   type ComponentApi,
-  DynamicNumberSchema,
-  DynamicValueSchema,
+  type DynamicNumber,
+  type DynamicValue,
+  type FunctionImplementation,
 } from '@a2ui/web_core/v0_9';
-import {spec} from '@a2ui/web_core/v1_0';
+import type {CatalogSchema, JsonSchemaValidator} from '@a2ui/web_core/schema-engine';
+import type {WebComponentImplementation} from '@a2ui/web_core/universal';
 
 import {A2uiVegaChartElement} from '../components/vegaChart.js';
+import {implementLoadedComponent, memoizeByValidator} from '../catalog_support.js';
+import VegaChartCatalogDocument from './catalog.json' with {type: 'json'};
 
 /** Catalog ID of the A2UI VegaChart catalog (protocol v0.9). */
 export const VEGACHART_CATALOG_ID =
   'https://a2ui.org/specification/v0_9/catalogs/vegachart/catalog.json';
 
-const V09_COMMON_TYPES = 'https://a2ui.org/specification/v0_9/common_types.json';
+/** The published v0.9 VegaChart catalog document (`catalogs/vegachart/v0_9/catalog.json`). */
+export const VEGACHART_CATALOG_DOCUMENT: Readonly<Record<string, unknown>> =
+  VegaChartCatalogDocument;
 
-/**
- * `spec` accepts either a v0.9 `DynamicValue` (a literal or a `{path}`
- * binding) or a plain object, because v0.9's `DynamicValue` has no object
- * branch. The explicit `anyOf` keeps the serialized schema identical to the
- * published `catalog.json`.
- */
-const SpecValueSchema = z.union([DynamicValueSchema, z.record(z.string(), z.unknown())]);
+/** Properties of `VegaChart` (protocol v0.9), as a message writes them. */
+export interface VegaChartProps {
+  /** The Vega-Lite spec: a v0.9 `DynamicValue` or a plain object. */
+  spec: DynamicValue | Record<string, unknown>;
+  /** Optional height of the chart in pixels. Defaults to 290. */
+  height?: DynamicNumber;
+}
 
-const SpecSchema = spec(
-  z.unknown().superRefine((val, ctx) => {
-    const parsed = SpecValueSchema.safeParse(val);
-    if (!parsed.success) {
-      for (const issue of parsed.error.issues) {
-        ctx.addIssue(issue);
-      }
-    }
-  }),
-  {
-    keywords: {
-      description: 'The Vega-Lite spec to render as a JSON object.',
-      anyOf: [{$ref: `${V09_COMMON_TYPES}#/$defs/DynamicValue`}, {type: 'object'}],
-    },
-  },
-);
-Object.defineProperty(SpecSchema, 'description', {value: 'REF:#/$defs/DynamicValue'});
-
-/** Component API for `VegaChart` (protocol v0.9). */
-export const VegaChartApi = {
-  name: 'VegaChart',
-  schema: spec(
-    z
-      .object({
-        spec: SpecSchema,
-        height: DynamicNumberSchema.describe(
-          'REF:#/$defs/DynamicNumber|Optional height of the chart in pixels. Defaults to 290.',
-        ).optional(),
-      })
-      .describe('Displays a Vega or Vega-Lite chart.')
-      .strict(),
-    {mixins: ['ComponentCommon'], required: ['spec']},
-  ),
-} satisfies ComponentApi;
+/** Component API of `VegaChart` (protocol v0.9). */
+export type VegaChartApi = ComponentApi<CatalogSchema<VegaChartProps>>;
 
 /** `VegaChart` web component implementation (protocol v0.9). */
-export const A2uiVegaChart = {
-  ...VegaChartApi,
-  tagName: A2uiVegaChartElement.tagName,
-  element: A2uiVegaChartElement,
-};
+export type A2uiVegaChart = WebComponentImplementation<CatalogSchema<VegaChartProps>>;
 
-/** A2UI v0.9 catalog containing the `VegaChart` component. */
-export const vegachartCatalog = new Catalog<typeof A2uiVegaChart>(
-  VEGACHART_CATALOG_ID,
-  '0.9',
-  [A2uiVegaChart],
-  [],
-  {
-    schemaUri: 'https://json-schema.org/draft/2020-12/schema',
-    schemaId: VEGACHART_CATALOG_ID,
-    declaredProtocolVersion: null,
-    title: 'A2UI VegaChart Catalog',
-    description:
-      'Catalog for rendering Vega and Vega-Lite charts in A2UI surfaces. Declares the VegaChart component for displaying interactive data visualizations from Vega-Lite JSON specifications.',
-    commonTypesUri: V09_COMMON_TYPES,
-    unions: {anyComponent: true, anyFunction: true},
-  },
-);
+/** The A2UI v0.9 catalog containing the `VegaChart` component. */
+export type VegaChartCatalog = Catalog<A2uiVegaChart>;
+
+/**
+ * Builds the A2UI v0.9 VegaChart catalog from its published document, with
+ * `validator` checking `VegaChart` properties. Memoised per validator.
+ *
+ * @param validator A JSON Schema validator, such as `createAjvValidator()`
+ *   from `@a2ui/validator-ajv`.
+ * @throws {A2uiConfigurationError} If `validator` is missing.
+ */
+export const createVegaChartCatalog: (validator: JsonSchemaValidator) => VegaChartCatalog =
+  memoizeByValidator(validator => {
+    const loaded = Catalog.fromJson(VegaChartCatalogDocument, '0.9', VEGACHART_CATALOG_ID, {
+      validator,
+    });
+    const api = loaded.components.get('VegaChart') as VegaChartApi;
+    const chart: A2uiVegaChart = implementLoadedComponent(api, A2uiVegaChartElement, loaded.defs);
+    return loaded.withEntries<A2uiVegaChart, FunctionImplementation>([chart], []);
+  });

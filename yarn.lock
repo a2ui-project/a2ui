@@ -200,6 +200,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@a2ui/catalog-vegachart@workspace:typescript/catalogs/vegachart"
   dependencies:
+    "@a2ui/validator-ajv": "workspace:*"
     "@a2ui/web_core": "workspace:*"
     "@types/jsdom": "npm:^28.0.3"
     "@types/node": "npm:^25.9.3"
@@ -212,7 +213,6 @@ __metadata:
     vega-embed: "npm:^6.26.0"
     vega-lite: "npm:^5.21.0"
     wireit: "npm:^0.15.0-pre.2"
-    zod: "npm:^3.25.76"
   languageName: unknown
   linkType: soft
 

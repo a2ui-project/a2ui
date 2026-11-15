@@ -32,10 +32,21 @@ export {
   type VegaEmbedOptions,
   type VegaEmbedResult,
 } from './components/vegaChart.js';
-export {A2uiVegaChart, VEGACHART_CATALOG_ID, VegaChartApi, vegachartCatalog} from './v0_9/index.js';
 export {
-  A2uiVegaChartV1,
+  type A2uiVegaChart,
+  createVegaChartCatalog,
+  VEGACHART_CATALOG_DOCUMENT,
+  VEGACHART_CATALOG_ID,
+  type VegaChartApi,
+  type VegaChartCatalog,
+  type VegaChartProps,
+} from './v0_9/index.js';
+export {
+  type A2uiVegaChartV1,
+  createVegaChartV1Catalog,
+  VEGACHART_V1_CATALOG_DOCUMENT,
   VEGACHART_V1_CATALOG_ID,
-  VegaChartV1Api,
-  vegachartV1Catalog,
+  type VegaChartV1Api,
+  type VegaChartV1Catalog,
+  type VegaChartV1Props,
 } from './v1/index.js';

@@ -20,29 +20,34 @@ import * as assert from 'node:assert';
 import {describe, it} from 'node:test';
 
 import {Catalog} from '@a2ui/web_core/v1_0';
+import {createAjvValidator} from '@a2ui/validator-ajv';
 
+import {A2uiVegaChartElement} from '../components/vegaChart.js';
 import catalogJson from './catalog.json' with {type: 'json'};
-import {
-  A2uiVegaChartV1,
-  VEGACHART_V1_CATALOG_ID,
-  VegaChartV1Api,
-  vegachartV1Catalog,
-} from './index.js';
+import {createVegaChartV1Catalog, VEGACHART_V1_CATALOG_ID} from './index.js';
+
+const validator = createAjvValidator();
+const catalog = createVegaChartV1Catalog(validator);
+const chart = catalog.components.get('VegaChart')!;
 
 describe('VegaChart v1.0 catalog', () => {
   it('serializes to the canonical catalogs/vegachart/v1/catalog.json', () => {
-    assert.deepStrictEqual(vegachartV1Catalog.toJson(), catalogJson);
+    assert.deepStrictEqual(catalog.toJson(), catalogJson);
   });
 
   it('round-trips the canonical schema through Catalog.fromJson', () => {
-    const loaded = Catalog.fromJson(catalogJson);
+    const loaded = Catalog.fromJson(catalogJson, undefined, undefined, {validator});
     assert.strictEqual(loaded.id, VEGACHART_V1_CATALOG_ID);
     assert.strictEqual(loaded.protocolVersion, '1.0');
     assert.deepStrictEqual(loaded.toJson(), catalogJson);
   });
 
   it('validates VegaChart properties', () => {
-    const parse = (props: unknown) => VegaChartV1Api.schema.safeParse(props).success;
+    const parse = (props: unknown) => {
+      const result = chart.schema['~standard'].validate(props);
+      if (result instanceof Promise) throw new Error('expected a synchronous schema');
+      return result.issues === undefined;
+    };
     assert.strictEqual(parse({spec: {mark: 'bar', data: {values: [{x: 'A', y: 10}]}}}), true);
     assert.strictEqual(parse({spec: {'@path': '/s'}, height: {'@path': '/h'}}), true);
     assert.strictEqual(parse({}), false);
@@ -50,8 +55,13 @@ describe('VegaChart v1.0 catalog', () => {
   });
 
   it('exposes the a2ui-vega-chart element', () => {
-    assert.strictEqual(A2uiVegaChartV1.name, 'VegaChart');
-    assert.strictEqual(A2uiVegaChartV1.tagName, 'a2ui-vega-chart');
-    assert.strictEqual(vegachartV1Catalog.components.get('VegaChart'), A2uiVegaChartV1);
+    assert.strictEqual(chart.name, 'VegaChart');
+    assert.strictEqual(chart.tagName, 'a2ui-vega-chart');
+    assert.strictEqual(chart.element, A2uiVegaChartElement);
+  });
+
+  it('is memoised per validator', () => {
+    assert.strictEqual(createVegaChartV1Catalog(validator), catalog);
+    assert.notStrictEqual(createVegaChartV1Catalog(createAjvValidator()), catalog);
   });
 });

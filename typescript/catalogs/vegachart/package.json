@@ -83,7 +83,8 @@
       "command": "tsc -b --pretty",
       "dependencies": [
         "copy-catalog",
-        "../../core/web_core:build"
+        "../../core/web_core:build",
+        "../../validators/ajv:build"
       ],
       "files": [
         "src/**/*.ts",
@@ -92,7 +93,8 @@
       ],
       "output": [
         "dist/",
-        "!dist/**/*.tsbuildinfo"
+        "!dist/**/*.tsbuildinfo",
+        "tsconfig.tsbuildinfo"
       ],
       "clean": "if-file-deleted"
     },
@@ -127,6 +129,7 @@
   "author": "Google",
   "license": "Apache-2.0",
   "devDependencies": {
+    "@a2ui/validator-ajv": "workspace:*",
     "@types/jsdom": "^28.0.3",
     "@types/node": "^25.9.3",
     "eslint": "^10.4.1",
@@ -140,7 +143,6 @@
     "lit": "^3.3.3",
     "vega": "^5.30.0",
     "vega-embed": "^6.26.0",
-    "vega-lite": "^5.21.0",
-    "zod": "^3.25.76"
+    "vega-lite": "^5.21.0"
   }
 }

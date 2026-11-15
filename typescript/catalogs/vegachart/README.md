@@ -10,24 +10,31 @@ and [Vega-Lite](https://vega.github.io/vega-lite/) specifications with
 
 ## Entry Points
 
-| Import path                                 | Protocol | Exports                                                                              |
-| ------------------------------------------- | -------- | ------------------------------------------------------------------------------------ |
-| `@a2ui/catalog-vegachart/v0_9`              | v0.9     | `vegachartCatalog`, `VegaChartApi`, `A2uiVegaChart`, `VEGACHART_CATALOG_ID`          |
-| `@a2ui/catalog-vegachart/v1`                | v1.0     | `vegachartV1Catalog`, `VegaChartV1Api`, `A2uiVegaChartV1`, `VEGACHART_V1_CATALOG_ID` |
-| `@a2ui/catalog-vegachart`                   | both     | Everything above plus `A2uiVegaChartElement` and `transformSpec`                     |
-| `@a2ui/catalog-vegachart/v0_9/catalog.json` | v0.9     | The canonical schema, copied from `catalogs/vegachart/v0_9/` at build time           |
-| `@a2ui/catalog-vegachart/v1/catalog.json`   | v1.0     | The canonical schema, copied from `catalogs/vegachart/v1/` at build time             |
+| Import path                                 | Protocol | Exports                                                                                                     |
+| ------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------- |
+| `@a2ui/catalog-vegachart/v0_9`              | v0.9     | `createVegaChartCatalog(validator)`, `VEGACHART_CATALOG_ID`, types `VegaChartApi`, `A2uiVegaChart`          |
+| `@a2ui/catalog-vegachart/v1`                | v1.0     | `createVegaChartV1Catalog(validator)`, `VEGACHART_V1_CATALOG_ID`, types `VegaChartV1Api`, `A2uiVegaChartV1` |
+| `@a2ui/catalog-vegachart`                   | both     | Everything above plus `A2uiVegaChartElement` and `transformSpec`                                            |
+| `@a2ui/catalog-vegachart/v0_9/catalog.json` | v0.9     | The canonical schema, copied from `catalogs/vegachart/v0_9/` at build time                                  |
+| `@a2ui/catalog-vegachart/v1/catalog.json`   | v1.0     | The canonical schema, copied from `catalogs/vegachart/v1/` at build time                                    |
 
 ## Usage
 
-Register the catalog alongside the basic catalog:
+Build the catalog with a JSON Schema validator and register it alongside the
+basic catalog:
 
 ```ts
-import {vegachartCatalog} from '@a2ui/catalog-vegachart/v0_9';
-import {basicCatalog} from '@a2ui/lit/v0_9';
+import {createVegaChartCatalog} from '@a2ui/catalog-vegachart/v0_9';
+import {createBasicCatalog} from '@a2ui/lit/v0_9';
+import {createAjvValidator} from '@a2ui/validator-ajv';
 import {MessageProcessor} from '@a2ui/web_core/v0_9';
 
-const processor = new MessageProcessor([basicCatalog, vegachartCatalog]);
+const validator = createAjvValidator();
+const processor = new MessageProcessor(
+  [createBasicCatalog(validator), createVegaChartCatalog(validator)],
+  undefined,
+  {validator},
+);
 ```
 
 Then reference the catalog from a surface:

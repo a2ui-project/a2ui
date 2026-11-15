@@ -26,7 +26,9 @@ import {
   SurfaceModel,
 } from '@a2ui/web_core/v1_0';
 
-import {A2uiVegaChart, vegachartCatalog} from '../v0_9/index.js';
+import {createAjvValidator} from '@a2ui/validator-ajv';
+
+import {createVegaChartCatalog} from '../v0_9/index.js';
 import {
   A2uiVegaChartElement,
   DEFAULT_HEIGHT,
@@ -35,7 +37,8 @@ import {
   type VegaEmbedFn,
 } from './vegaChart.js';
 
-registerUniversalElement(A2uiVegaChart);
+const vegachartCatalog = createVegaChartCatalog(createAjvValidator());
+registerUniversalElement(vegachartCatalog.components.get('VegaChart')!);
 
 type Spec = Record<string, unknown>;
 const axisOf = (result: Spec, channel: string) =>

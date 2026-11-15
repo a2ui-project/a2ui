@@ -417,9 +417,7 @@ export function transformSpec(
  * it reads `spec` and `height` from its controller. Outside a
  * surface it reads the `spec` and `height` properties directly.
  */
-export class A2uiVegaChartElement extends A2uiLitElement<
-  typeof VegaChartApi | typeof VegaChartV1Api
-> {
+export class A2uiVegaChartElement extends A2uiLitElement<VegaChartApi | VegaChartV1Api> {
   static readonly tagName = 'a2ui-vega-chart';
 
   /**
