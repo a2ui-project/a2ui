@@ -130,3 +130,34 @@ describe('namedJsonSchema', () => {
     assert.deepStrictEqual(schema['~standard'].validate('ok'), {value: 'ok'});
   });
 });
+
+describe('fromJsonSchema opts.version', async () => {
+  const {createAjvValidator} = await import('../test/validator.js');
+  const {commonTypesDocument} = await import('./common-types.js');
+  const schema = {$ref: 'common_types.json#/$defs/DynamicString'};
+
+  it('adds the version common types to defs', () => {
+    const s = fromJsonSchema(schema, createAjvValidator(), {version: 'v1.0'});
+    const good = s['~standard'].validate({'@path': '/x'});
+    assert.ok(!(good instanceof Promise) && !good.issues);
+    const bad = s['~standard'].validate({path: '/x'});
+    assert.ok(!(bad instanceof Promise) && bad.issues);
+    assert.ok(jsonSchemaDocuments(s)!['common_types.json']);
+  });
+
+  it('keeps a caller supplied common_types.json', () => {
+    const own = {$defs: {DynamicString: {type: 'string'}}};
+    const s = fromJsonSchema(schema, createAjvValidator(), {
+      version: 'v1.0',
+      defs: {'common_types.json': own},
+    });
+    assert.strictEqual(jsonSchemaDocuments(s)!['common_types.json'], own);
+  });
+
+  it('commonTypesDocument is undefined for v0.8 and defined for v0.9 and v1.0', () => {
+    assert.strictEqual(commonTypesDocument('v0.8'), undefined);
+    assert.ok(commonTypesDocument('v0.9'));
+    assert.ok(commonTypesDocument('v1.0'));
+    assert.notStrictEqual(commonTypesDocument('v0.9'), commonTypesDocument('v1.0'));
+  });
+});

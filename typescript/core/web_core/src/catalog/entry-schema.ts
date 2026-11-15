@@ -343,3 +343,31 @@ export function schemaJson(
   const {$schema: _schema, ...rest} = structuredClone(json);
   return rest;
 }
+
+/**
+ * The schema cursor web_core caches for a component registered in a catalog,
+ * for building a binder:
+ *
+ * ```ts
+ * const binder = new GenericBinder(context, componentSchemaCursor(catalog, 'Text')!);
+ * ```
+ *
+ * @param catalog The catalog the component is registered in.
+ * @param componentName The component's name, such as `'Text'`.
+ * @returns The cursor, or `undefined` if the catalog has no such component or
+ *   it has no schema.
+ */
+export function componentSchemaCursor(
+  catalog: {
+    readonly protocolVersion?: string;
+    readonly defs?: Readonly<Record<string, unknown>>;
+    readonly components: ReadonlyMap<
+      string,
+      {readonly name: string; readonly schema?: AuthoredSchema}
+    >;
+  },
+  componentName: string,
+): SchemaCursor | undefined {
+  const api = catalog.components.get(componentName);
+  return api ? entrySchema(api, 'component', catalog)?.cursor : undefined;
+}

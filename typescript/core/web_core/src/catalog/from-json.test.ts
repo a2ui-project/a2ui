@@ -833,3 +833,20 @@ describe('Catalog.fromJson', () => {
     });
   });
 });
+
+describe('componentSchemaCursor', () => {
+  it('returns the cached cursor of a registered component, undefined otherwise', async () => {
+    const {componentSchemaCursor} = await import('./entry-schema.js');
+    const catalog = load({
+      catalogId: 'c',
+      components: {Foo: {type: 'object', properties: {a: {type: 'string'}}}},
+    } as never);
+    const cursor = componentSchemaCursor(catalog, 'Foo');
+    assert.ok(cursor);
+    assert.strictEqual(
+      cursor,
+      entrySchema(catalog.components.get('Foo')!, 'component', catalog)!.cursor,
+    );
+    assert.strictEqual(componentSchemaCursor(catalog, 'Nope'), undefined);
+  });
+});

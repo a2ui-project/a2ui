@@ -16,6 +16,8 @@
 
 import type {StandardSchemaV1} from '@standard-schema/spec';
 import {A2uiConfigurationError} from '../errors.js';
+import type {ProtocolVersion} from '../processing/adapters/base.js';
+import {commonTypesDocument, envelopeCatalogDocument} from './common-types.js';
 import {applyDefaults} from './defaults.js';
 import {toStandardIssue} from './issues.js';
 import type {SchemaCursor} from './nav.js';
@@ -100,6 +102,30 @@ function wrap<T>(
   return result;
 }
 
+/** Options for {@link fromJsonSchema}. */
+export interface FromJsonSchemaOptions extends CompileOptions {
+  /**
+   * A protocol version whose `common_types.json` (see `commonTypesDocument`)
+   * is added to `defs`, with the version's envelope `catalog.json` that it
+   * references, unless `defs` already has those keys. v0.8 has none.
+   */
+  version?: ProtocolVersion;
+}
+
+function withCommonTypes(opts: FromJsonSchemaOptions | undefined): CompileOptions | undefined {
+  if (!opts?.version) return opts;
+  const {version, ...rest} = opts;
+  const commonTypes = commonTypesDocument(version);
+  if (!commonTypes) return rest;
+  // The common types `$ref` `catalog.json#/$defs/anyFunction`, so the version's
+  // envelope catalog comes with them, unless the caller supplies its own.
+  const defs: Record<string, JsonSchema> = {...rest.defs};
+  if (!('common_types.json' in defs)) defs['common_types.json'] = commonTypes;
+  const envelope = envelopeCatalogDocument(version);
+  if (envelope && !('catalog.json' in defs)) defs['catalog.json'] = envelope;
+  return {...rest, defs};
+}
+
 /**
  * Wraps a JSON Schema and a validator engine into a {@link CatalogSchema}.
  *
@@ -114,10 +140,11 @@ function wrap<T>(
 export function fromJsonSchema<T = unknown>(
   schema: JsonSchema,
   validator: JsonSchemaValidator,
-  opts?: CompileOptions,
+  opts?: FromJsonSchemaOptions,
 ): CatalogSchema<T> {
-  const validate = validator.compile<T>(schema, opts);
-  return wrap(schema, opts, validator, () => validate);
+  const resolved = withCommonTypes(opts);
+  const validate = validator.compile<T>(schema, resolved);
+  return wrap(schema, resolved, validator, () => validate);
 }
 
 /**

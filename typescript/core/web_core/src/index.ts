@@ -235,6 +235,7 @@ export {SpecVersion} from './spec_versions.js';
 export {isSafeRegex, type SafeRegexOptions} from './v0_9/basic_catalog/functions/safe_regex.js';
 export {
   assertSync,
+  commonTypesDocument,
   formatIssue,
   fromJsonSchema,
   pickIssue,
@@ -243,8 +244,10 @@ export {
   type CatalogSchema,
   type CompileOptions,
   type CompiledValidator,
+  type FromJsonSchemaOptions,
   type JsonSchema,
   type JsonSchemaValidator,
   type ValidationResult,
 } from './schema-engine/index.js';
+export {componentSchemaCursor} from './catalog/entry-schema.js';
 export {A2uiConfigurationError} from './errors.js';

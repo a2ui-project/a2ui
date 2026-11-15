@@ -15,7 +15,9 @@
  */
 
 export {applyDefaults} from './defaults.js';
+export {commonTypesDocument} from './common-types.js';
 export {fromJsonSchema} from './from-json-schema.js';
+export type {FromJsonSchemaOptions} from './from-json-schema.js';
 export {assertSync, formatIssue, messageForIssue, pickIssue, toA2uiIssues} from './issues.js';
 export type {
   A2uiIssue,
