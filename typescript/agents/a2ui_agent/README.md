@@ -128,7 +128,7 @@ answer.parts; // text, surfaces and errors, in order
 
 ## Loading catalogs
 
-The SDK bundles no catalogs. Load catalog JSON documents with `CatalogConfig.fromPath` or `FileSystemCatalogProvider`, or pass an existing object to `InMemoryCatalogProvider`.
+The SDK bundles no catalogs. Load catalog JSON documents with `CatalogConfig.fromPath` or `FileSystemCatalogProvider`, or pass an existing object to `InMemoryCatalogProvider`. A file provider also reads the documents a catalog `$ref`s by a relative name, such as its own `common_types.json`, from the catalog's folder; they replace the protocol's documents of those names for that catalog.
 
 The emitted protocol version is taken from the catalog. Because the v0.9 basic catalog JSON document omits both `protocolVersion` and `catalogId`, pass them explicitly when loading it:
 
