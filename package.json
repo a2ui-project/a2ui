@@ -51,6 +51,7 @@
     "zod": "^3.25.76",
     "hono": "^4.11.10",
     "react-resizable-panels": "^3.0.6",
+    "@copilotkit/a2ui-renderer/@a2ui/web_core": "https://registry.npmjs.org/@a2ui/web_core/-/web_core-0.9.0.tgz",
     "@a2ui/web_core": "workspace:*",
     "@a2ui/lit": "workspace:*",
     "@a2ui/angular": "workspace:*",

@@ -576,6 +576,18 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@a2ui/web_core@https://registry.npmjs.org/@a2ui/web_core/-/web_core-0.9.0.tgz":
+  version: 0.9.0
+  resolution: "@a2ui/web_core@https://registry.npmjs.org/@a2ui/web_core/-/web_core-0.9.0.tgz"
+  dependencies:
+    "@preact/signals-core": "npm:^1.13.0"
+    date-fns: "npm:^4.1.0"
+    zod: "npm:^3.25.76"
+    zod-to-json-schema: "npm:^3.25.1"
+  checksum: 10c0/0d69ff880d877148770a775425f86298e68cac82645b11c421384aca1a5882c966506172767757fae41911970506e408a8afe13d0dbbee8d0d45fd5f65049964
+  languageName: node
+  linkType: hard
+
 "@a2ui/web_core@workspace:*, @a2ui/web_core@workspace:typescript/core/web_core":
   version: 0.0.0-use.local
   resolution: "@a2ui/web_core@workspace:typescript/core/web_core"
@@ -5955,6 +5967,13 @@ __metadata:
   version: 1.2.3
   resolution: "@poppinss/exception@npm:1.2.3"
   checksum: 10c0/44e48400c9f2d33a4904bee99321b89239774bb9210049f1c55864725fd524ff55bc78a5a94a13d5edea93b84e13023c229c88ebba8c2dc717fb4b2205e42ac7
+  languageName: node
+  linkType: hard
+
+"@preact/signals-core@npm:^1.13.0":
+  version: 1.14.5
+  resolution: "@preact/signals-core@npm:1.14.5"
+  checksum: 10c0/44ec9338275092e4dfee5f534f1cef54132c024395e73a7ec33239dac87d91bd6920f9c53c53409331c8a55386e98dd68b2ec87e72dac35c1d5486dbe228a501
   languageName: node
   linkType: hard
 
@@ -12459,6 +12478,13 @@ __metadata:
     es-errors: "npm:^1.3.0"
     is-data-view: "npm:^1.0.1"
   checksum: 10c0/fa7aa40078025b7810dcffc16df02c480573b7b53ef1205aa6a61533011005c1890e5ba17018c692ce7c900212b547262d33279fde801ad9843edc0863bf78c4
+  languageName: node
+  linkType: hard
+
+"date-fns@npm:^4.1.0":
+  version: 4.4.0
+  resolution: "date-fns@npm:4.4.0"
+  checksum: 10c0/988f0a13db183f5dfc85c36bbb6847a9c135a9225888bbea4005876ec15539a8613c21a07370a4e7ea543918d5a1cafb423c528b42cdbbde5fdfddb178126b21
   languageName: node
   linkType: hard
 
@@ -25050,6 +25076,7 @@ __metadata:
   resolution: "widget-builder@workspace:tools/composer"
   dependencies:
     "@a2ui/react": "workspace:*"
+    "@a2ui/validator-ajv": "workspace:*"
     "@a2ui/web_core": "workspace:*"
     "@copilotkit/react-core": "npm:^1.59.5"
     "@copilotkit/react-ui": "npm:^1.59.5"

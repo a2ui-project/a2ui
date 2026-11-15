@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@a2ui/react": "workspace:*",
+    "@a2ui/validator-ajv": "workspace:*",
     "@a2ui/web_core": "workspace:*",
     "@copilotkit/react-core": "^1.59.5",
     "@copilotkit/react-ui": "^1.59.5",
@@ -81,7 +82,8 @@
       "command": "node scripts/sync-gallery.mjs && next build --webpack",
       "dependencies": [
         "../../typescript/core/web_core:build",
-        "../../typescript/renderers/react:build"
+        "../../typescript/renderers/react:build",
+        "../../typescript/validators/ajv:build"
       ],
       "files": [
         "src/**/*",

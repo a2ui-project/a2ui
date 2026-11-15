@@ -28,6 +28,7 @@
 
 import dynamic from 'next/dynamic';
 import {A2UIViewer as BaseA2UIViewer} from '@a2ui/react/v0_8';
+import {validator} from './validator';
 import {viewerTheme} from './viewerTheme';
 import type {A2UIComponent, SpecVersion} from '@/types/widget';
 
@@ -58,6 +59,7 @@ export function A2UIViewer({specVersion = '0.8', components, ...props}: A2UIView
 
   return (
     <BaseA2UIViewer
+      validator={validator}
       theme={viewerTheme}
       root={props.root}
       components={components as Array<{id: string; component: Record<string, unknown>}>}

@@ -27,8 +27,9 @@
 
 import {useMemo} from 'react';
 import {A2uiSurface, type ReactCatalogComponent} from '@a2ui/react/v0_9';
-import {basicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
+import {createBasicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
 import {MessageProcessor} from '@a2ui/web_core/v0_9';
+import {validator} from './validator';
 
 const CATALOG_ID = 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json';
 const SURFACE_ID = 'v09-preview';
@@ -49,8 +50,9 @@ export interface V09ViewerProps {
 export function V09Viewer({root, components, data = {}, onAction}: V09ViewerProps) {
   const surface = useMemo(() => {
     const processor = new MessageProcessor<ReactCatalogComponent>(
-      [basicCatalog],
+      [createBasicCatalog(validator)],
       onAction ? (action: unknown) => onAction(action) : undefined,
+      {validator},
     );
 
     // Build v0.9 messages from the widget data.
