@@ -142,7 +142,6 @@ describe('transformData', () => {
 
   const nonStringExpressions: ReadonlyArray<readonly [string, unknown]> = [
     ['null', null],
-    ['undefined', undefined],
     ['number', 42],
     ['array', ['entries']],
     ['object', {jmespath: 'entries'}],
@@ -161,6 +160,26 @@ describe('transformData', () => {
       );
     });
   }
+
+  it('rejects an unresolved expression rather than evaluating it as text', () => {
+    // A binding to data that is not there yet reaches the function as undefined.
+    assert.throws(
+      () => call({jmespath: undefined, data: {undefined: 'not this'}}),
+      (error: unknown) => {
+        assert.ok(error instanceof A2uiExpressionError);
+        assert.strictEqual(error.expression, 'transformData');
+        assert.strictEqual(
+          error.message,
+          'transformData expects a JMESPath expression string, got undefined.',
+        );
+        return true;
+      },
+    );
+  });
+
+  it('evaluates an expression against unresolved data as null', () => {
+    assert.strictEqual(call({jmespath: 'items', data: undefined}), null);
+  });
 
   it('reports an evaluation failure, such as a function given the wrong type', () => {
     assert.throws(

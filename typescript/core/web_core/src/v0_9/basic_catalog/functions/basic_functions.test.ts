@@ -192,6 +192,16 @@ describe('BASIC_FUNCTIONS', () => {
       assert.strictEqual(invoke('regex', {value: '123', pattern: '^[a-z]+$'}, context), false);
     });
 
+    it('fails each check on a value the data model does not hold', () => {
+      // A binding to an absent path settles to `undefined`: the check fails,
+      // and the call does not.
+      assert.strictEqual(invoke('required', {value: undefined}, context), false);
+      assert.strictEqual(invoke('length', {value: undefined, min: 1}, context), false);
+      assert.strictEqual(invoke('numeric', {value: undefined, min: 1}, context), false);
+      assert.strictEqual(invoke('email', {value: undefined}, context), false);
+      assert.strictEqual(invoke('regex', {value: undefined, pattern: '^[a-z]+$'}, context), false);
+    });
+
     it('regex handles invalid pattern', () => {
       assert.throws(
         () => invoke('regex', {value: 'abc', pattern: '['}, context),

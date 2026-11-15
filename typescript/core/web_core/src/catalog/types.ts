@@ -1224,7 +1224,7 @@ function createCatalogInvoker<F extends FunctionApi>(
     return whenArgumentsSettle(rawArgs, abortSignal, resolvedArgs => {
       try {
         const args = coerceDynamicBooleans(fn.schema, resolvedArgs);
-        const safeArgs = fn.schema.parse(args);
+        const safeArgs = parseSettledArguments(fn.schema, args);
         return execute.call(fn, safeArgs, callCtx, abortSignal);
       } catch (e: any) {
         if (e?.name === 'ZodError' || e instanceof z.ZodError) {
@@ -1267,6 +1267,44 @@ function whenArgumentsSettle(
     resolvedArgs =>
       findFailedArgument(resolvedArgs) ?? (abortSignal?.aborted ? undefined : run(resolvedArgs)),
   );
+}
+
+/**
+ * Parses the settled arguments of a call the renderer runs against the
+ * function's schema.
+ *
+ * An argument that settled to `undefined`, such as a binding to data the data
+ * model does not hold yet, is an unresolved value: it is left for the function
+ * to handle rather than checked against the schema, and is not required for
+ * this call, so a `required` check on a field the data model does not hold yet
+ * fails the check rather than the call. A payload cannot write `undefined`, so
+ * a call that leaves out a required argument is still refused. A schema that
+ * is not an object is parsed as it is.
+ *
+ * @param schema The function's argument schema.
+ * @param args The settled arguments.
+ * @returns The parsed arguments.
+ * @throws {z.ZodError} If an argument that resolved fails the schema.
+ */
+function parseSettledArguments(schema: z.ZodTypeAny, args: unknown): Record<string, unknown> {
+  if (
+    (schema._def as {typeName?: string}).typeName !== 'ZodObject' ||
+    typeof args !== 'object' ||
+    args === null ||
+    Array.isArray(args)
+  ) {
+    return schema.parse(args);
+  }
+  const objectSchema = schema as z.ZodObject<z.ZodRawShape>;
+  const record = args as Record<string, unknown>;
+  const unresolved = Object.keys(record).filter(
+    key => record[key] === undefined && Object.hasOwn(objectSchema.shape, key),
+  );
+  if (unresolved.length === 0) {
+    return objectSchema.parse(record);
+  }
+  const mask = Object.fromEntries(unresolved.map(key => [key, true as const]));
+  return objectSchema.partial(mask).parse(record);
 }
 
 /**

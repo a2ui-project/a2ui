@@ -110,6 +110,19 @@ describe('regexCapture', () => {
     }
   });
 
+  it('rejects an unresolved pattern rather than compiling its text', () => {
+    // A binding to data that is not there yet reaches the function as undefined.
+    assert.throws(
+      () => call('regexCapture', {value: 'undefined', pattern: undefined}),
+      (error: unknown) => {
+        assert.ok(error instanceof A2uiExpressionError);
+        assert.strictEqual(error.expression, 'regexCapture');
+        assert.strictEqual(error.message, 'regexCapture expects a pattern string, got undefined.');
+        return true;
+      },
+    );
+  });
+
   it('stays synchronous when no argument is pending', () => {
     const result = call('regexCapture', {value: 'notes.md', pattern: '^(\\w+)\\.(\\w+)$'});
     assert.strictEqual(typeof (result as {then?: unknown} | null)?.then, 'undefined');
