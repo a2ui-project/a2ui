@@ -24,6 +24,7 @@ import {
   type InferredComponentApiSchemaType,
   type ResolveA2uiProps,
 } from '@a2ui/web_core';
+import {copyLoadedDefinition} from '@a2ui/web_core/catalog';
 import {hostRefsOf} from './catalog/host_accessibility';
 import {useNodeView} from './node-view';
 import type {
@@ -64,6 +65,15 @@ type MemoizedRenderInternalProps<Props> = {
   hasReadMetadata: () => boolean;
   getMetadata: () => A2uiMetadata | undefined;
 };
+
+/**
+ * Gives `copy` the definition `Catalog.fromJson` loaded for `api`, if any, so a catalog holding
+ * the implementation writes the component as its catalog document does.
+ */
+function withDefinitionOf<T extends object>(api: ComponentApi, copy: T): T {
+  copyLoadedDefinition(api, copy);
+  return copy;
+}
 
 /**
  * Copies the `ComponentApi` fields of `api`. Spreading `api` instead would also copy fields of a
@@ -212,11 +222,11 @@ export function createComponentImplementation<Api extends ComponentApi>(
   };
   NodeView.displayName = `${api.name}.view`;
 
-  return {
+  return withDefinitionOf(api, {
     ...componentApiFields(api),
     render: ReactWrapper,
     view: NodeView,
-  };
+  });
 }
 
 /**
@@ -245,9 +255,9 @@ export function createBinderlessComponentImplementation(
   };
   NodeView.displayName = `${api.name}.view`;
 
-  return {
+  return withDefinitionOf(api, {
     ...componentApiFields(api),
     render: RenderComponent,
     view: NodeView,
-  };
+  });
 }

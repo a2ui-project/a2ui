@@ -29,6 +29,7 @@ import {
   type BasicCatalogTheme,
 } from '@a2ui/web_core/v0_9/basic_catalog';
 import type {CatalogSchema, JsonSchemaValidator} from '@a2ui/web_core';
+import {copyLoadedDefinition} from '@a2ui/web_core/catalog';
 import {FunctionImplementation} from '@a2ui/web_core/v0_9';
 
 import {TextComponent} from './text.component';
@@ -194,7 +195,9 @@ export class BasicCatalogBase extends AngularCatalog {
     const components: AngularComponentImplementation[] = [
       ...Object.entries(defaults).map(([key, defaultValue]) => {
         const impl = (overrides as any)[key] ?? defaultValue;
-        return {...impl, name: impl.name || key};
+        const entry = {...impl, name: impl.name || key};
+        copyLoadedDefinition(impl, entry);
+        return entry;
       }),
       ...(options.extraComponents ?? []),
     ];

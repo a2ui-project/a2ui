@@ -16,6 +16,7 @@
 
 import {Type} from '@angular/core';
 import {ComponentApi} from '@a2ui/web_core';
+import {copyLoadedDefinition} from '@a2ui/web_core/catalog';
 import {WebComponentImplementation} from '@a2ui/web_core/universal';
 import type {AngularComponentImplementation} from './types';
 import {AngularWcHost} from './angular_wc_host';
@@ -85,6 +86,7 @@ export function toWebComponent(
     element,
   };
 
+  copyLoadedDefinition(componentImpl, implementation);
   angularWcCache.set(componentClass, implementation);
   return implementation;
 }

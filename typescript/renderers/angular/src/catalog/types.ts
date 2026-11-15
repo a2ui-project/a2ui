@@ -23,6 +23,7 @@ import {
   ComponentContext,
   FunctionImplementation,
 } from '@a2ui/web_core';
+import {copyLoadedDefinition} from '@a2ui/web_core/catalog';
 import {WebComponentImplementation, isWebComponentImplementation} from '@a2ui/web_core/universal';
 import {CatalogComponentInstance} from '../core/catalog_component_instance';
 import {componentApiFields, toWebComponent} from './to_web_component';
@@ -151,7 +152,7 @@ function toAngularComponentImplementation(
     // Workaround, needed only while 1P apps migrate to `useUniversalComponents: true`: until
     // then every catalog entry must carry an Angular component, so Web Component-only entries
     // get a placeholder that reports the missing flag instead of rendering.
-    return {...entry, component: UniversalOnlyComponent};
+    return withDefinitionOf(entry, {...entry, component: UniversalOnlyComponent});
   }
   if (!isWebComponentImplementation(entry)) {
     // Attach a lazy Web Component wrapper to plain `{...api, component}` entries so universal
@@ -161,7 +162,9 @@ function toAngularComponentImplementation(
     // `catalog.components.get('X') === X_IMPL`); only non-extensible entries are copied.
     const webComponent = toWebComponent(entry);
     const fields = {tagName: webComponent.tagName, element: webComponent.element};
-    return Object.isExtensible(entry) ? Object.assign(entry, fields) : {...entry, ...fields};
+    return Object.isExtensible(entry)
+      ? Object.assign(entry, fields)
+      : withDefinitionOf(entry, {...entry, ...fields});
   }
   return entry;
 }
@@ -211,5 +214,15 @@ export function createComponentImplementation(
     element: webComponent.element,
     component,
   };
-  return implementation;
+  return withDefinitionOf(componentApi, implementation);
+}
+
+/**
+ * Gives `copy` the definition `Catalog.fromJson` loaded for `entry`, if any, so a catalog holding
+ * the copy writes the entry as its catalog document does. A copy made with object spread does
+ * not carry it, since web_core keeps it beside the entry.
+ */
+function withDefinitionOf<T extends object>(entry: object, copy: T): T {
+  copyLoadedDefinition(entry, copy);
+  return copy;
 }

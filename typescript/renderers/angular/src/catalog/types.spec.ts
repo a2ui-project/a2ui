@@ -258,4 +258,27 @@ describe('AngularCatalog & Catalog Types', () => {
     expect(catalog.components.get('CustomIdentity')).toBe(entry);
     expect(isWebComponentImplementation(entry)).toBeTrue();
   });
+
+  it('keeps the loaded definitions of the Web Component entries it gives a placeholder', () => {
+    const base = createBasicCatalog(validator);
+    const catalog = new AngularCatalog(base.id, '0.9', [...base.components.values()], []);
+
+    const components = catalog.toJson()['components'] as Record<string, Record<string, unknown>>;
+    const expected = base.toJson()['components'] as Record<string, Record<string, unknown>>;
+    expect(components['Text']).toEqual(expected['Text']);
+    expect(components['Text']['allOf']).toBeDefined();
+    expect(catalog.components.get('Text')?.component).toBe(UniversalOnlyComponent);
+  });
+});
+
+describe('createComponentImplementation with a loaded component', () => {
+  it('keeps its definition, so the catalog document is written as loaded', () => {
+    const base = createBasicCatalog(validator);
+    const impl = createComponentImplementation(base.components.get('Text')!, TestComponent);
+    const catalog = new AngularCatalog(base.id, '0.9', [impl], []);
+
+    const components = catalog.toJson()['components'] as Record<string, Record<string, unknown>>;
+    const expected = base.toJson()['components'] as Record<string, Record<string, unknown>>;
+    expect(components['Text']).toEqual(expected['Text']);
+  });
 });
