@@ -51,12 +51,7 @@ const SUPPORTED_PROTOCOL_VERSIONS = new Set(['v0.9', 'v0.9.1', '1.0']);
  * an aspirational case. The streaming gaps are listed with the suite that finds them, in
  * `direct-json-response-streaming.test.ts`.
  */
-export const KNOWN_FAILURES = new Map<string, string>([
-  [
-    'agent/legacy/inference_format.yaml::test_schema_manager_init_custom_catalog',
-    "web_core compiles each component's JSON Schema when the catalog loads, and this catalog's Text refers to common_types.json#/$defs/Common, which only the suite's simplified common types define; the SDK loads catalogs against the protocol's common types",
-  ],
-]);
+export const KNOWN_FAILURES = new Map<string, string>([]);
 
 /**
  * Cases this SDK does not support, keyed by `<suite>::<case>`.

@@ -15,9 +15,15 @@
  */
 
 import * as fs from 'fs';
+import * as path from 'path';
 
 import {A2uiCatalogError} from '../errors.js';
-import {Catalog, CatalogApi, type JsonSchemaValidator} from '../internal/web-core.js';
+import {
+  Catalog,
+  CatalogApi,
+  type JsonSchema,
+  type JsonSchemaValidator,
+} from '../internal/web-core.js';
 import {ProtocolVersion} from '../types.js';
 import {toReleaseLine, toWireProtocolVersion} from '../utils/protocol-version.js';
 import {requireValidator} from '../utils/validator.js';
@@ -44,6 +50,8 @@ import {requireValidator} from '../utils/validator.js';
  * @param validator The JSON Schema validator the catalog compiles its schemas with.
  * @param protocolVersion Version to use when the document states none.
  * @param catalogId Id to use when the document states none.
+ * @param documents Documents the catalog ships with itself, keyed by basename, such as its
+ *     own `common_types.json`; each replaces the protocol's document of that name.
  * @returns The catalog, with its protocol version in the `v`-prefixed wire form.
  * @throws {A2uiCatalogError} If a value conflicts with the document, if nothing states an
  *     id or a version, or if the document is not a valid catalog.
@@ -54,6 +62,7 @@ export function catalogFromDocument(
   validator: JsonSchemaValidator,
   protocolVersion?: ProtocolVersion,
   catalogId?: string,
+  documents?: Record<string, JsonSchema>,
 ): CatalogApi {
   requireValidator(validator, 'the catalog provider');
   const documentId = typeof document.catalogId === 'string' ? document.catalogId : undefined;
@@ -89,7 +98,10 @@ export function catalogFromDocument(
 
   let catalog: CatalogApi;
   try {
-    catalog = Catalog.fromJson(document, toWireProtocolVersion(version), id, {validator});
+    catalog = Catalog.fromJson(document, toWireProtocolVersion(version), id, {
+      validator,
+      ...(documents && Object.keys(documents).length > 0 ? {documents} : {}),
+    });
   } catch (e: unknown) {
     throw new A2uiCatalogError(
       `Failed to build catalog from schema in ${source}: ${(e as Error).message}`,
@@ -112,6 +124,10 @@ export interface CatalogProvider {
 
 /**
  * Loads a catalog from a JSON file on disk.
+ *
+ * A document the catalog `$ref`s by a relative name, such as its own `common_types.json`, is
+ * read from the catalog's folder when a file of that name is there, and replaces the
+ * protocol's document of that name for this catalog.
  */
 export class FileSystemCatalogProvider implements CatalogProvider {
   /**
@@ -164,8 +180,63 @@ export class FileSystemCatalogProvider implements CatalogProvider {
       this.validator,
       this.protocolVersion,
       this.catalogId,
+      siblingDocuments(parsed, path.dirname(this.path)),
     );
   }
+}
+
+/**
+ * The documents next to a catalog file that the catalog `$ref`s by a relative name, such as
+ * its own `common_types.json`, keyed by basename. A name with no file next to the catalog
+ * is left to the protocol's document of that name.
+ *
+ * @param document The parsed catalog document.
+ * @param dir The folder holding the catalog file.
+ * @throws {A2uiCatalogError} If a referenced sibling file is not a JSON object.
+ */
+function siblingDocuments(
+  document: Record<string, unknown>,
+  dir: string,
+): Record<string, JsonSchema> {
+  const names = new Set<string>();
+  const visit = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      node.forEach(visit);
+    } else if (node !== null && typeof node === 'object') {
+      for (const [key, value] of Object.entries(node)) {
+        if (key === '$ref' && typeof value === 'string') {
+          const name = value.split('#')[0];
+          if (name && !name.includes(':') && !path.isAbsolute(name)) names.add(name);
+        } else {
+          visit(value);
+        }
+      }
+    }
+  };
+  visit(document);
+
+  const documents: Record<string, JsonSchema> = {};
+  for (const name of names) {
+    const basename = path.posix.basename(name);
+    if (basename === 'catalog.json') continue;
+    const file = path.join(dir, name);
+    if (!fs.existsSync(file)) continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+    } catch (e: unknown) {
+      throw new A2uiCatalogError(
+        `Failed to read the document ${file} that the catalog refers to: ${(e as Error).message}`,
+      );
+    }
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new A2uiCatalogError(
+        `The document ${file} that the catalog refers to is not a JSON object.`,
+      );
+    }
+    documents[basename] = parsed as JsonSchema;
+  }
+  return documents;
 }
 
 /**

@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+
 import {describe, expect, it} from 'vitest';
 
 import {A2uiCatalogError} from '../../../src/errors.js';
@@ -97,6 +101,87 @@ describe('Catalog Providers', () => {
   });
 
   describe('FileSystemCatalogProvider', () => {
+    /** Writes `files` into a new temporary folder and returns its path. */
+    function folderWith(files: Record<string, unknown>): string {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'a2ui-catalog-'));
+      for (const [name, content] of Object.entries(files)) {
+        fs.writeFileSync(path.join(dir, name), JSON.stringify(content));
+      }
+      return dir;
+    }
+
+    it('loads the common_types.json next to the catalog that the catalog refers to', () => {
+      const provider = new FileSystemCatalogProvider(
+        conformancePath('test_data/schema_manager/catalog.json'),
+        validator,
+        'v0.9',
+      );
+      const catalog = provider.load();
+      expect([...catalog.components.keys()].sort()).toEqual(['Button', 'Text']);
+    });
+
+    it("uses a sibling common_types.json instead of the protocol's", () => {
+      const dir = folderWith({
+        'catalog.json': {
+          catalogId: 'own',
+          protocolVersion: '1.0',
+          components: {
+            Label: {
+              type: 'object',
+              properties: {text: {$ref: 'common_types.json#/$defs/DynamicString'}},
+              required: ['text'],
+            },
+          },
+        },
+        'common_types.json': {$defs: {DynamicString: {type: 'string'}}},
+      });
+      const catalog = new FileSystemCatalogProvider(
+        path.join(dir, 'catalog.json'),
+        validator,
+      ).load();
+      const schema = catalog.components.get('Label')!.schema;
+      expect(schema['~standard'].validate({text: 'hi'})).not.toHaveProperty('issues');
+      expect(schema['~standard'].validate({text: {'@path': '/x'}})).toHaveProperty('issues');
+    });
+
+    it("keeps the protocol's common types when no sibling file is there", () => {
+      const dir = folderWith({
+        'catalog.json': {
+          catalogId: 'plain',
+          protocolVersion: '1.0',
+          components: {
+            Label: {
+              type: 'object',
+              properties: {text: {$ref: 'common_types.json#/$defs/DynamicString'}},
+              required: ['text'],
+            },
+          },
+        },
+      });
+      const catalog = new FileSystemCatalogProvider(
+        path.join(dir, 'catalog.json'),
+        validator,
+      ).load();
+      const schema = catalog.components.get('Label')!.schema;
+      expect(schema['~standard'].validate({text: {'@path': '/x'}})).not.toHaveProperty('issues');
+    });
+
+    it('throws A2uiCatalogError if a sibling document it refers to is not a JSON object', () => {
+      const dir = folderWith({
+        'catalog.json': {
+          catalogId: 'broken',
+          components: {Text: {$ref: 'common_types.json#/$defs/Common'}},
+        },
+        'common_types.json': [1, 2],
+      });
+      const provider = new FileSystemCatalogProvider(
+        path.join(dir, 'catalog.json'),
+        validator,
+        'v0.9',
+      );
+      expect(() => provider.load()).toThrow(A2uiCatalogError);
+    });
+
     it('loads successfully from file', () => {
       const provider = new FileSystemCatalogProvider(
         conformancePath('test_data/catalogs/simplified_catalog_v1_0.json'),
