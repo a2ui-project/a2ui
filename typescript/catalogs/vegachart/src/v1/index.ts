@@ -27,11 +27,14 @@ import {
   type DynamicValue,
   type FunctionImplementation,
 } from '@a2ui/web_core/v1_0';
+import {memoizeByValidator} from '@a2ui/web_core/catalog';
 import type {CatalogSchema, JsonSchemaValidator} from '@a2ui/web_core/schema-engine';
-import type {WebComponentImplementation} from '@a2ui/web_core/universal';
+import {
+  toWebComponentImplementation,
+  type WebComponentImplementation,
+} from '@a2ui/web_core/universal';
 
 import {A2uiVegaChartElement} from '../components/vegaChart.js';
-import {implementLoadedComponent, memoizeByValidator} from '../catalog_support.js';
 import VegaChartV1CatalogDocument from './catalog.json' with {type: 'json'};
 
 /** Catalog ID of the A2UI VegaChart catalog (protocol v1.0). */
@@ -73,6 +76,6 @@ export const createVegaChartV1Catalog: (validator: JsonSchemaValidator) => VegaC
       validator,
     });
     const api = loaded.components.get('VegaChart') as VegaChartV1Api;
-    const chart: A2uiVegaChartV1 = implementLoadedComponent(api, A2uiVegaChartElement);
+    const chart: A2uiVegaChartV1 = toWebComponentImplementation(A2uiVegaChartElement, api);
     return loaded.withEntries<A2uiVegaChartV1, FunctionImplementation>([chart], []);
   });

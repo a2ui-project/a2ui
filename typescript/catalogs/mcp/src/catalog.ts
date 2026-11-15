@@ -14,10 +14,13 @@
  * limitations under the License.
  */
 
-import type {Catalog, FunctionImplementation} from '@a2ui/web_core/catalog';
+import {
+  type Catalog,
+  type FunctionImplementation,
+  memoizeByValidator,
+} from '@a2ui/web_core/catalog';
 import type {JsonSchemaValidator} from '@a2ui/web_core/schema-engine';
 
-import {memoizeByValidator} from './catalog_support.js';
 import {type A2uiMcpApp, createMcpAppImplementation} from './components/mcp_app.js';
 import {loadMcpCatalogApi} from './document.js';
 import {createCallMcpToolImplementation} from './functions/callMcpTool.js';

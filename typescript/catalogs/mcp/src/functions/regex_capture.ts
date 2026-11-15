@@ -15,9 +15,9 @@
  */
 
 import {createFunctionImplementation, type FunctionImplementation} from '@a2ui/web_core/v1_0';
+import {memoizeByValidator} from '@a2ui/web_core/catalog';
 import type {JsonSchemaValidator} from '@a2ui/web_core/schema-engine';
 
-import {memoizeByValidator} from '../catalog_support.js';
 import {mcpFunctionApi} from '../document.js';
 import {compileSafeRegex, mapTextValue} from './regex_support.js';
 

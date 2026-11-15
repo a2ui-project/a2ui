@@ -127,6 +127,7 @@
 // The argument schema is the `callMcpTool` definition of the MCP catalog document. The message
 // types stay the v0.9 ones, which describe every payload a tool result may carry.
 import type {A2uiMessage, CreateSurfaceMessage, FunctionCall} from '@a2ui/web_core/v0_9';
+import {memoizeByValidator} from '@a2ui/web_core/catalog';
 import {
   A2uiExpressionError,
   createFunctionImplementation,
@@ -139,7 +140,6 @@ import {CallToolResultSchema} from '@modelcontextprotocol/sdk/types.js';
 import type {CallToolResult, ReadResourceResult} from '@modelcontextprotocol/sdk/types.js';
 import type {JsonSchemaValidator} from '@a2ui/web_core/schema-engine';
 
-import {memoizeByValidator} from '../catalog_support.js';
 import {isFunctionCall, isRecord, resolveDynamicRecord} from '../dynamic-values.js';
 import {mcpFunctionApi} from '../document.js';
 import {DEFAULT_MESSAGE_VERSION, getMcpCatalogConfig} from '../mcp_catalog_config.js';

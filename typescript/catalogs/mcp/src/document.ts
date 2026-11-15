@@ -14,10 +14,9 @@
  * limitations under the License.
  */
 
-import {Catalog, type CatalogApi} from '@a2ui/web_core/catalog';
+import {Catalog, type CatalogApi, memoizeByValidator} from '@a2ui/web_core/catalog';
 import type {JsonSchemaValidator} from '@a2ui/web_core/schema-engine';
 
-import {memoizeByValidator} from './catalog_support.js';
 import McpCatalogDocument from './catalog.json' with {type: 'json'};
 
 /** The ID of the MCP catalog, as its published document declares it. */

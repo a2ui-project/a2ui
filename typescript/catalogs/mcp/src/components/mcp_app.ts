@@ -15,6 +15,8 @@
  */
 
 import type {CatalogSchema, JsonSchemaValidator} from '@a2ui/web_core/schema-engine';
+import {memoizeByValidator} from '@a2ui/web_core/catalog';
+import {toWebComponentImplementation} from '@a2ui/web_core/universal';
 import type {
   AccessibilityAttributes,
   ComponentApi,
@@ -22,7 +24,6 @@ import type {
   WebComponentImplementation,
 } from '@a2ui/web_core/v1_0';
 import type {CallToolResult} from '@modelcontextprotocol/sdk/types.js';
-import {implementLoadedComponent, memoizeByValidator} from '../catalog_support.js';
 import {loadMcpCatalogApi} from '../document.js';
 import type {McpToolDataPayload} from '../functions/callMcpTool.js';
 import {getMcpCatalogConfig} from '../mcp_catalog_config.js';
@@ -229,5 +230,5 @@ export const createMcpAppImplementation: (validator: JsonSchemaValidator) => A2u
     if (!api) {
       throw new Error("The MCP catalog document has no component 'McpApp'.");
     }
-    return implementLoadedComponent(api, A2uiMcpAppElement);
+    return toWebComponentImplementation(A2uiMcpAppElement, api);
   });
