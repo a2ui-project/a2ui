@@ -21,7 +21,7 @@
  * ## Setup
  *
  * ```ts
- * const processor = new MessageProcessor([mcpCatalog]);
+ * const processor = new MessageProcessor([createMcpCatalog(validator)], undefined, {validator});
  * configureMcpCatalog({getMcpClientForTool, processor});
  * ```
  *
