@@ -59,6 +59,14 @@ export interface FromJsonOptions {
    * `createAjvValidator()` from `@a2ui/validator-ajv`.
    */
   readonly validator: JsonSchemaValidator;
+  /**
+   * Documents the catalog `$ref`s, keyed by basename, that it ships with
+   * itself, such as its own `common_types.json`. Each one replaces the
+   * protocol's document of that name for this catalog's entries; a basename
+   * the protocol does not define (pre-1.0, where a catalog may refer to other
+   * documents) is added. `catalog.json` is always the catalog document itself.
+   */
+  readonly documents?: Readonly<Record<string, JsonSchema>>;
 }
 
 const CATALOG_DOCUMENT = 'catalog.json';
@@ -220,19 +228,26 @@ const V09_ANY_FUNCTION = {
 function entryDocuments(
   catalog: Readonly<Record<string, unknown>>,
   protocolVersion: string,
+  supplied: Readonly<Record<string, JsonSchema>> = {},
 ): Record<string, JsonSchema> {
   const atLeastV10 = isAtLeastVersion(protocolVersion, '1.0');
   const envelope = envelopeCatalogDocument(atLeastV10 ? '1.0' : '0.9') as {
     $defs: Record<string, unknown>;
   };
-  const specCommonTypes = commonTypesFor(protocolVersion) as Record<string, unknown>;
-  const specDefs = specCommonTypes['$defs'] as Record<string, unknown>;
+  const specCommonTypes = (supplied[COMMON_TYPES_DOCUMENT] ??
+    commonTypesFor(protocolVersion)) as Record<string, unknown>;
+  const specDefs = (
+    isPlainObject(specCommonTypes['$defs']) ? specCommonTypes['$defs'] : {}
+  ) as Record<string, unknown>;
   const commonTypes: Record<string, unknown> = {
     ...specCommonTypes,
-    $defs: {
-      ...specDefs,
-      ComponentCommon: withoutEnvelopeFields(specDefs['ComponentCommon'], new Set()),
-    },
+    $defs:
+      'ComponentCommon' in specDefs
+        ? {
+            ...specDefs,
+            ComponentCommon: withoutEnvelopeFields(specDefs['ComponentCommon'], new Set()),
+          }
+        : specDefs,
   };
 
   const referenced = new Set<string>();
@@ -265,7 +280,12 @@ function entryDocuments(
     [CATALOG_DOCUMENT]: document,
     [COMMON_TYPES_DOCUMENT]: commonTypes,
   };
-  for (const name of externalDocuments([catalog, specCommonTypes])) {
+  for (const [name, own] of Object.entries(supplied)) {
+    if (name === CATALOG_DOCUMENT || name === COMMON_TYPES_DOCUMENT) continue;
+    documents[name] = own;
+    byName[name] = own;
+  }
+  for (const name of externalDocuments([catalog, specCommonTypes, ...Object.values(supplied)])) {
     const own = byName[basename(name)];
     if (own === undefined) continue;
     documents[name] = own;
@@ -795,7 +815,13 @@ export function parseCatalogSchema(
   // refer into it.
   deepFreeze(catalogSchema);
   let entryDocs: Record<string, JsonSchema> | undefined;
-  const documentsFor = () => (entryDocs ??= entryDocuments(catalogSchema, resolvedVersion));
+  const supplied = opts.documents ? deepCopyJson(opts.documents as Record<string, unknown>) : {};
+  const documentsFor = () =>
+    (entryDocs ??= entryDocuments(
+      catalogSchema,
+      resolvedVersion,
+      supplied as Record<string, JsonSchema>,
+    ));
   /**
    * The schema of an entry whose JSON Schema is `node` of the catalog
    * document (or an object made of its nodes), as `entryDocuments` has it:

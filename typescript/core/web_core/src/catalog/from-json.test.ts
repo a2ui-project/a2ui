@@ -850,3 +850,82 @@ describe('componentSchemaCursor', () => {
     assert.strictEqual(componentSchemaCursor(catalog, 'Nope'), undefined);
   });
 });
+
+describe('Catalog.fromJson with documents the catalog ships', () => {
+  const validate = (catalog: CatalogApi, name: string, value: unknown) =>
+    catalog.components.get(name)!.schema['~standard'].validate(value) as {issues?: unknown};
+
+  it('resolves refs to its own common_types.json, which the protocol has no definition for', () => {
+    const document = {
+      catalogId: 'own-common-types',
+      components: {Text: {$ref: 'common_types.json#/$defs/Common'}},
+    };
+    assert.throws(() => Catalog.fromJson(document, 'v0.9', undefined, {validator: testValidator}));
+    const catalog = Catalog.fromJson(document, 'v0.9', undefined, {
+      validator: testValidator,
+      documents: {
+        'common_types.json': {
+          $defs: {Common: {type: 'object', properties: {text: {type: 'string'}}}},
+        },
+      },
+    });
+    assert.deepStrictEqual([...catalog.components.keys()], ['Text']);
+    assert.strictEqual(validate(catalog, 'Text', {text: 'hi'}).issues, undefined);
+    assert.ok(validate(catalog, 'Text', {text: 3}).issues);
+  });
+
+  it("replaces the protocol's common_types.json for that catalog only", () => {
+    const document = {
+      catalogId: 'strict-strings',
+      protocolVersion: '1.0',
+      components: {
+        Label: {
+          type: 'object',
+          properties: {text: {$ref: 'common_types.json#/$defs/DynamicString'}},
+          required: ['text'],
+        },
+      },
+    };
+    const plain = Catalog.fromJson(document, undefined, undefined, {validator: testValidator});
+    const own = Catalog.fromJson(document, undefined, undefined, {
+      validator: testValidator,
+      documents: {'common_types.json': {$defs: {DynamicString: {type: 'string'}}}},
+    });
+    const binding = {text: {'@path': '/name'}};
+    assert.strictEqual(validate(plain, 'Label', binding).issues, undefined);
+    assert.ok(validate(own, 'Label', binding).issues);
+    assert.strictEqual(validate(own, 'Label', {text: 'hi'}).issues, undefined);
+  });
+
+  it('adds a sibling document of another name before v1.0', () => {
+    const catalog = Catalog.fromJson(
+      {catalogId: 'shared-defs', components: {Badge: {$ref: 'shared.json#/$defs/Badge'}}},
+      'v0.9',
+      undefined,
+      {
+        validator: testValidator,
+        documents: {
+          'shared.json': {
+            $defs: {
+              Badge: {type: 'object', properties: {n: {type: 'number'}}, required: ['n']},
+            },
+          },
+        },
+      },
+    );
+    assert.strictEqual(validate(catalog, 'Badge', {n: 1}).issues, undefined);
+    assert.ok(validate(catalog, 'Badge', {}).issues);
+  });
+
+  it('copies the documents, so changing them afterwards does not change the catalog', () => {
+    const common = {$defs: {Common: {type: 'object', properties: {text: {type: 'string'}}}}};
+    const catalog = Catalog.fromJson(
+      {catalogId: 'copied', components: {Text: {$ref: 'common_types.json#/$defs/Common'}}},
+      'v0.9',
+      undefined,
+      {validator: testValidator, documents: {'common_types.json': common}},
+    );
+    (common.$defs.Common.properties.text as {type: string}).type = 'number';
+    assert.strictEqual(validate(catalog, 'Text', {text: 'hi'}).issues, undefined);
+  });
+});
