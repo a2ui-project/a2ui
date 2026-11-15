@@ -14,8 +14,18 @@
  * limitations under the License.
  */
 
-export * from './base.js';
-export * from './v0_8.js';
-export * from './v0_9.js';
-export * from './v1_0.js';
-export * from './factory.js';
+export {
+  isCatalogVersionCompatible,
+  registerKnownActionsProvider,
+  type ProtocolVersion,
+  SUPPORTED_PROTOCOL_VERSIONS,
+  DEFAULT_CATALOG_COMPATIBILITY,
+  type VersionAdapterResolver,
+  type VersionAdapter,
+  type KnownActionsProvider,
+  BaseVersionAdapter,
+} from './base.js';
+export {V0Point8Adapter} from './v0_8.js';
+export {V0Point9Adapter} from './v0_9.js';
+export {V1Point0Adapter} from './v1_0.js';
+export {VersionAdapterFactory, defaultVersionAdapterFactory} from './factory.js';

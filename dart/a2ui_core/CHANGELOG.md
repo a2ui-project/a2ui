@@ -11,6 +11,7 @@
   `MessageProcessor.catalogs` lists the added catalog too, and still cannot
   be modified ([#3303](https://github.com/a2ui-project/a2ui/issues/3303),
   [#3304](https://github.com/a2ui-project/a2ui/pull/3304)).
+- Add explicit type annotations to internal local and pattern variables to satisfy the `specify_nonobvious_local_variable_types` analyzer lint on Dart 3.15+ ([#4233](https://github.com/a2ui-project/a2ui/pull/4233)).
 
 ## 0.7.0
 

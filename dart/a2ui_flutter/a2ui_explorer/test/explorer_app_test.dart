@@ -83,14 +83,14 @@ void main() {
   });
 
   testWidgets('Simple Text renders its text', (tester) async {
-    await _open(tester, '00_simple-text.json');
+    await _open(tester, 'scaffold-simple-text.json');
 
     expect(_inSurface(find.text('Hello, Minimal Catalog!')), findsOneWidget);
     expect(_noAction, findsOneWidget);
   });
 
   testWidgets('Row Layout lays its children out left to right', (tester) async {
-    await _open(tester, '00_row-layout.json');
+    await _open(tester, 'scaffold-row-layout.json');
 
     final Rect left = tester.getRect(_inSurface(find.text('Left Content')));
     final Rect right = tester.getRect(_inSurface(find.text('Right Content')));
@@ -101,7 +101,7 @@ void main() {
   testWidgets('Complex Layout lays its column out top to bottom', (
     tester,
   ) async {
-    await _open(tester, '00_complex-layout.json');
+    await _open(tester, 'scaffold-complex-layout.json');
 
     final Rect header = tester.getRect(
       _inSurface(find.text('User Profile Form')),
@@ -124,7 +124,7 @@ void main() {
   testWidgets('typing in a TextField updates it and the data model', (
     tester,
   ) async {
-    await _open(tester, '00_formatted-text.json');
+    await _open(tester, 'scaffold-formatted-text.json');
 
     await tester.enterText(_inSurface(find.byType(TextField)), 'hello');
     await tester.pump();
@@ -139,7 +139,7 @@ void main() {
   testWidgets('toggling a CheckBox updates it and the data model', (
     tester,
   ) async {
-    await _open(tester, '07_task-card.json');
+    await _open(tester, 'task-card.json');
     final Finder checkbox = _inSurface(find.byType(Checkbox));
     expect(
       _inPane('data-model', find.textContaining('"completed": false')),
@@ -159,7 +159,7 @@ void main() {
   testWidgets('a Text bound to a TextField path follows the typing', (
     tester,
   ) async {
-    await _open(tester, '00_formatted-text.json');
+    await _open(tester, 'scaffold-formatted-text.json');
 
     await tester.enterText(_inSurface(find.byType(TextField)), 'hello');
     await tester.pump();
@@ -170,7 +170,7 @@ void main() {
   testWidgets('an action in a template item resolves its item context', (
     tester,
   ) async {
-    await _open(tester, '00_incremental.json');
+    await _open(tester, 'scaffold-incremental.json');
     final Finder buttons = _inSurface(find.text('Book now'));
     expect(buttons, findsNWidgets(4));
 
@@ -192,7 +192,7 @@ void main() {
   testWidgets('Advance, Run all and Reset step through the messages', (
     tester,
   ) async {
-    await _open(tester, '00_incremental.json');
+    await _open(tester, 'scaffold-incremental.json');
     expect(find.text('6 of 6 messages processed'), findsOneWidget);
 
     await _press(tester, 'Reset');
@@ -245,7 +245,7 @@ void main() {
         .position
         .pixels;
 
-    await _open(tester, '18_track-list.json');
+    await _open(tester, 'track-list.json');
     for (final pane in ['messages', 'data-model']) {
       await tester.drag(find.byKey(Key(pane)), const Offset(0, -3000));
     }
@@ -253,14 +253,14 @@ void main() {
     expect(offset('messages'), greaterThan(0));
     expect(offset('data-model'), greaterThan(0));
 
-    await _open(tester, '24_recipe-card.json');
+    await _open(tester, 'recipe-card.json');
 
     expect(offset('messages'), 0);
     expect(offset('data-model'), 0);
   });
 
   testWidgets('Markdown Text renders its markdown', (tester) async {
-    await _open(tester, '35_markdown-text.json');
+    await _open(tester, 'markdown-text.json');
 
     expect(_inSurface(find.byType(MarkdownBody)), findsWidgets);
     expect(
@@ -275,7 +275,7 @@ void main() {
 
   testWidgets('Native Grid lays out its custom components in two columns '
       'and writes back a slider', (tester) async {
-    await _open(tester, '37_native-grid.json');
+    await _open(tester, 'native-grid.json');
     expect(_inSurface(find.byType(Slider)), findsNWidgets(3));
     final Rect volume = tester.getRect(
       _inSurface(find.text('Master Volume (Native): 65')),
@@ -307,7 +307,7 @@ void main() {
   testWidgets('selecting v1.0 opens the v1.0 example of the same file', (
     tester,
   ) async {
-    await _open(tester, '00_formatted-text.json');
+    await _open(tester, 'scaffold-formatted-text.json');
 
     await _selectVersion(tester, 'v1.0');
 
@@ -328,20 +328,20 @@ void main() {
   testWidgets('a version without the open example opens its first example', (
     tester,
   ) async {
-    await _open(tester, '37_native-grid.json');
+    await _open(tester, 'native-grid.json');
 
     await _selectVersion(tester, 'v1.0');
 
-    expect(find.byKey(const ValueKey('37_native-grid.json')), findsNothing);
+    expect(find.byKey(const ValueKey('native-grid.json')), findsNothing);
     expect(
       tester
           .widget<ListTile>(
-            find.byKey(const ValueKey('00_complex-layout.json')),
+            find.byKey(const ValueKey('scaffold-simple-text.json')),
           )
           .selected,
       isTrue,
     );
-    expect(_inSurface(find.text('User Profile Form')), findsOneWidget);
+    expect(_inSurface(find.text('Hello, Minimal Catalog!')), findsOneWidget);
 
     await _selectVersion(tester, 'v0.9');
 

@@ -53,7 +53,7 @@ import {
   A2uiSlider,
   A2uiDateTimeInput,
 } from '@a2ui/web_core/catalogs/basic/v1';
-import {FunctionImplementation} from '@a2ui/web_core/v1_0';
+import {FunctionImplementation} from '@a2ui/web_core';
 import {z} from 'zod';
 
 /**
