@@ -14,14 +14,12 @@
  * limitations under the License.
  */
 
-// ponytail: removed in Task 11 — maps zod 3 issues of zod-backed schemas to renderer error details.
-
-import {z} from 'zod';
 import {isAtLeastVersion} from '../common/semver.js';
 import {
   A2uiCatalogError,
   A2uiDataError,
   A2uiError,
+  type A2uiErrorDetail,
   A2uiExpressionError,
   A2uiIntegrityError,
   A2uiRecursionError,
@@ -161,49 +159,12 @@ export function normalizeJsonPointer(rawPath: string | undefined): string | unde
   return segments.length > 0 ? `/${segments.join('/')}` : undefined;
 }
 
-function collectLeafZodIssues(issues: readonly z.ZodIssue[], actionType?: string): z.ZodIssue[] {
-  const leaves: z.ZodIssue[] = [];
-  for (const issue of issues) {
-    if (issue.code === z.ZodIssueCode.invalid_union && 'unionErrors' in issue) {
-      const unionIssues = issue.unionErrors.flatMap(u => u.issues);
-      leaves.push(...collectLeafZodIssues(unionIssues, actionType));
-    } else {
-      leaves.push(issue);
-    }
-  }
-  if (!actionType) return leaves;
-  const matching = leaves.filter(i => i.path[0] === actionType && i.path.length > 1);
-  return matching.length > 0 ? matching : leaves;
-}
-
-function extractPathFromZodDetails(details: unknown, actionType?: string): string | undefined {
-  let issues: readonly z.ZodIssue[] | undefined;
-  if (details instanceof z.ZodError) {
-    issues = details.issues;
-  } else if (Array.isArray(details) && details.length > 0) {
-    const first = details[0] as Record<string, unknown>;
-    if (typeof first?.['path'] === 'string') {
-      return normalizeJsonPointer(first['path']);
-    }
-    if (Array.isArray(first?.['path'])) {
-      issues = details as z.ZodIssue[];
-    }
-  }
-  if (!issues || issues.length === 0) return undefined;
-
-  const selected = collectLeafZodIssues(issues, actionType)[0];
-  if (!selected) return undefined;
-  const segments = selected.path.map(s => String(s).replace(/~/g, '~0').replace(/\//g, '~1'));
-  if (
-    selected.code === z.ZodIssueCode.unrecognized_keys &&
-    'keys' in selected &&
-    Array.isArray(selected.keys) &&
-    selected.keys.length > 0
-  ) {
-    segments.push(String(selected.keys[0]).replace(/~/g, '~0').replace(/\//g, '~1'));
-  }
-  const stripped = stripActionPrefix(segments);
-  return stripped.length > 0 ? `/${stripped.join('/')}` : undefined;
+/** The JSON Pointer of a validation error's first detail, if it has one. */
+function extractPathFromDetails(
+  details: readonly A2uiErrorDetail[] | undefined,
+): string | undefined {
+  const path = details?.[0]?.path;
+  return typeof path === 'string' ? normalizeJsonPointer(path) : undefined;
 }
 
 function normalizeOutputVersion(version: string | undefined): 'v0.8' | 'v0.9' | 'v0.9.1' | '1.0' {
@@ -283,9 +244,7 @@ export function mapErrorToRendererMessage(
   const surfaceId = a2uiErr?.surfaceId ?? context.surfaceId ?? '';
   const rawPath =
     a2uiErr?.path ??
-    (err instanceof A2uiValidationError
-      ? extractPathFromZodDetails(err.details, context.actionType)
-      : undefined);
+    (err instanceof A2uiValidationError ? extractPathFromDetails(err.details) : undefined);
   let path = normalizeJsonPointer(rawPath);
   if (
     path === undefined &&

@@ -14,14 +14,29 @@
  * limitations under the License.
  */
 
-// ponytail: removed in Task 11 — IndexApi is a zod schema (the v1 basic catalog's @index uses JSON Schema).
+import type {StandardSchemaV1} from '@standard-schema/spec';
 
-import {z} from 'zod';
-
+import {unboundJsonSchema} from '../../catalog/catalog-validator.js';
 import {createFunctionImplementation, FunctionImplementation} from '../../catalog/types.js';
 import {A2uiValidationError} from '../../errors.js';
 import {resolveContextIndex} from '../../resolution/data-context.js';
-import {DataBindingSchema, FunctionCallSchema} from '../schema/common-types.js';
+
+/**
+ * The arguments of the `@index` system function, as the v1.0 common types'
+ * `IndexSystemFunction` declares them.
+ */
+export const INDEX_ARGS: Record<string, unknown> = {
+  type: 'object',
+  properties: {
+    offset: {
+      $ref: 'common_types.json#/$defs/DynamicNumber',
+      description:
+        'Optional. An offset to add to the 0-based index (e.g., 1 for 1-based indexing). Defaults to 0.',
+      default: 0,
+    },
+  },
+  unevaluatedProperties: false,
+};
 
 /**
  * System function definition for computing iteration indices in array contexts.
@@ -36,15 +51,41 @@ export const IndexApi = {
   /** Scope of callers permitted to invoke this function. */
   allowedCallers: 'rendererOnly' as const,
   /**
-   * Zod schema validating function arguments.
-   *
-   * `offset` is a DynamicNumber, so a payload may bind it to a path or a
-   * nested call. Once resolved, the value is coerced to a number.
+   * The arguments' schema: {@link INDEX_ARGS}, compiled with the validator of
+   * the catalog the call runs in. `offset` is a DynamicNumber, so a payload
+   * may bind it to a path or a nested call.
    */
-  schema: z.object({
-    'offset': z.union([DataBindingSchema, FunctionCallSchema, z.coerce.number()]).optional(),
-  }),
+  schema: unboundJsonSchema<{offset?: number}>(
+    INDEX_ARGS,
+    "System function '@index'",
+    checkIndexArgs,
+  ),
 };
+
+/**
+ * Checks `@index` arguments as {@link INDEX_ARGS} declares them, for a call
+ * with no validator to hand (a surface without a catalog): an object whose
+ * only key is `offset`, a number (0 when omitted), or before resolution a
+ * data binding or function call.
+ */
+function checkIndexArgs(value: unknown): StandardSchemaV1.Result<{offset?: number}> {
+  const fail = (message: string, path: PropertyKey[] = []) => ({issues: [{message, path}]});
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return fail('must be object');
+  }
+  const args = value as Record<string, unknown>;
+  const extra = Object.keys(args).find(key => key !== 'offset');
+  if (extra !== undefined) return fail(`unexpected property '${extra}'`, [extra]);
+  const offset = args['offset'];
+  if (offset === undefined) return {value: {...args, offset: 0}};
+  const isCallOrBinding =
+    typeof offset === 'object' &&
+    offset !== null &&
+    (typeof (offset as Record<string, unknown>)['@path'] === 'string' ||
+      typeof (offset as Record<string, unknown>)['@call'] === 'string');
+  if (typeof offset === 'number' || isCallOrBinding) return {value: args as {offset?: number}};
+  return fail('must be number', ['offset']);
+}
 
 /**
  * Implementation of the `@index` system function.

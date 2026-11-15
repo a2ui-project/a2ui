@@ -24,10 +24,6 @@
 export {
   JsonComponentApi,
   JsonFunctionApi,
-  spec,
-  specDef,
-  type SpecAnnotation,
-  type SpecMixin,
   createFunctionImplementation,
   type ComponentChildRefs,
   AgentFunction,
@@ -96,7 +92,6 @@ export {
   type ExecutionContext,
   type CapabilitiesOptions,
   type MessageProcessorOptions,
-  formatZodIssue,
   MessageProcessor,
   VersionAdapterFactory,
   defaultVersionAdapterFactory,

@@ -16,7 +16,6 @@
 
 import * as assert from 'node:assert';
 import {describe, it, before, after, afterEach} from 'node:test';
-import {z} from 'zod';
 import {setupTestDom, teardownTestDom, asyncUpdate} from '../../../test/dom-setup.js';
 import {
   ComponentContext,
@@ -36,12 +35,11 @@ import {
 } from '../../../universal/index.js';
 import {html, nothing} from 'lit';
 import {componentOf, v1BasicCatalog} from '../../../test/basic_catalogs.js';
-import {accepts} from '../../../test/schema.js';
+import {accepts, jsonFixture} from '../../../test/schema.js';
 import {testValidator} from '../../../test/validator.js';
 import type {AuthoredSchema} from '../../../catalog/entry-schema.js';
 import {cursorOf} from '../../../test/schema.js';
 
-// ponytail: zod 3 fixture schemas until Task 11 (the basic catalog entries are JSON).
 const bridged = (schema: AuthoredSchema) => cursorOf(schema, '1.0');
 
 describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
@@ -563,7 +561,12 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
       const mutateDataApi = {
         name: 'mutateData',
         returnType: 'boolean' as const,
-        schema: z.object({url: z.string()}),
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {'url': {'type': 'string'}},
+          'required': ['url'],
+          'additionalProperties': false,
+        }),
         execute: (args: Record<string, unknown>, ctx: any) => {
           ctx.dataModel.set('/targetUrl', args.url);
           return true;
@@ -636,7 +639,12 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
       [
         {
           name: 'CustomItem',
-          schema: z.object({indexNum: z.number()}).strict(),
+          schema: jsonFixture({
+            'type': 'object',
+            'properties': {'indexNum': {'type': 'number'}},
+            'required': ['indexNum'],
+            'additionalProperties': false,
+          }),
         },
       ],
       [],
@@ -680,7 +688,12 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
     class CustomBadgeElement extends A2uiLitElement<any> {
       protected override readonly api = {
         name: 'Badge',
-        schema: z.object({title: z.string()}).strict(),
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {'title': {'type': 'string'}},
+          'required': ['title'],
+          'additionalProperties': false,
+        }),
       };
       override render() {
         const props = this.controller?.props;
@@ -690,7 +703,12 @@ describe('v1.0 Basic Catalog & Universal Custom Elements', () => {
     }
     const CustomBadgeImpl: WebComponentImplementation = {
       name: 'Badge',
-      schema: z.object({title: z.string()}).strict(),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'title': {'type': 'string'}},
+        'required': ['title'],
+        'additionalProperties': false,
+      }),
       tagName: 'a2ui-test-custom-badge',
       element: CustomBadgeElement,
     };

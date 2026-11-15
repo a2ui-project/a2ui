@@ -25,7 +25,7 @@ import type {JsonSchema} from '../schema-engine/types.js';
 import {Action, CheckRule, ChildList, DataBinding, FunctionCall} from '../types/runtime-types.js';
 import {V08_CHILD_REF_OPTIONS} from '../v0_8/standard_defs.js';
 import {V09_CHILD_REF_OPTIONS} from '../v0_9/standard_defs.js';
-import type {Action as V1Action, CheckRule as V1CheckRule} from '../v1_0/schema/common-types.js';
+import type {Action as V1Action, CheckRule as V1CheckRule} from '../v1_0/generated-common-types.js';
 import V10CommonTypes from '../v1_0/schemas/common_types.json' with {type: 'json'};
 import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
 import {ComponentContext} from './component-context.js';
@@ -892,7 +892,7 @@ export interface ResolvedChildRef {
 }
 
 /**
- * Maps raw Zod inferred types to their resolved runtime equivalents.
+ * Maps a component's prop types to their resolved runtime equivalents.
  *
  * For example, an `Action` object becomes a callable `() => Promise<void>` function. The
  * binder walks lists and objects, so an action, binding or child list inside them resolves

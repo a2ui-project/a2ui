@@ -17,7 +17,7 @@
 import {describe, it} from 'node:test';
 import * as assert from 'node:assert';
 import {isWebComponentImplementation} from './is_web_component_implementation.js';
-import {z} from 'zod';
+import {jsonFixture} from '../test/schema.js';
 
 describe('isWebComponentImplementation', () => {
   class MockElement {}
@@ -26,7 +26,7 @@ describe('isWebComponentImplementation', () => {
     assert.strictEqual(
       isWebComponentImplementation({
         name: 'test',
-        schema: z.object({}),
+        schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': false}),
         tagName: 'a2ui-test',
         element: MockElement,
       }),
@@ -38,7 +38,7 @@ describe('isWebComponentImplementation', () => {
     assert.strictEqual(
       isWebComponentImplementation({
         name: 'test',
-        schema: z.object({}),
+        schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': false}),
         element: MockElement,
       }),
       false,
@@ -49,7 +49,7 @@ describe('isWebComponentImplementation', () => {
     assert.strictEqual(
       isWebComponentImplementation({
         name: 'test',
-        schema: z.object({}),
+        schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': false}),
         tagName: 'a2ui-test',
       }),
       false,

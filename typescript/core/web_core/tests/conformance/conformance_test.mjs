@@ -20,7 +20,6 @@ import {isDeepStrictEqual} from 'node:util';
 
 import {createAjvValidator} from '@a2ui/validator-ajv';
 import yaml from 'js-yaml';
-import {z} from 'zod';
 
 import {Catalog, createFunctionImplementation} from '../../dist/src/catalog/types.js';
 import {createBasicCatalog as createV1_0BasicCatalog} from '../../dist/src/catalogs/basic/v1/catalog.js';
@@ -41,7 +40,7 @@ import {MessageProcessor, STRICT_VALIDATION} from '../../dist/src/processing/mes
 import {effect, getValue, isSignal, peekValue} from '../../dist/src/reactivity/signals.js';
 import {ComponentContext} from '../../dist/src/resolution/component-context.js';
 import {DataContext} from '../../dist/src/resolution/data-context.js';
-import {entrySchema} from '../../dist/src/catalog/entry-schema.js';
+import {commonTypesFor, entrySchema} from '../../dist/src/catalog/entry-schema.js';
 import {GenericBinder} from '../../dist/src/resolution/generic-binder.js';
 import {NodeResolver} from '../../dist/src/resolution/node-resolver.js';
 import {ResolvedBinding} from '../../dist/src/resolution/resolved-binding.js';
@@ -51,13 +50,51 @@ import {SurfaceModel} from '../../dist/src/state/surface-model.js';
 import {createBasicCatalog as createV0_8BasicCatalog} from '../../dist/src/v0_8/basic_catalog/catalog.js';
 import {createBasicCatalog as createV0_9BasicCatalog} from '../../dist/src/v0_9/basic_catalog/catalog.js';
 import {createBasicCatalogFunctions as createV0_9BasicCatalogFunctions} from '../../dist/src/v0_9/basic_catalog/functions/basic_functions.js';
-import {CommonSchemas as V0_9_COMMON_SCHEMAS} from '../../dist/src/v0_9/schema/common-types.js';
-import {CommonSchemas as V1_0_COMMON_SCHEMAS} from '../../dist/src/v1_0/schema/common-types.js';
+import {fromJsonSchema} from '../../dist/src/schema-engine/from-json-schema.js';
 import {PayloadValidator} from '../../dist/src/validation/index.js';
 import {runNodeResolutionCase} from '../../dist/tests/conformance/node-resolution.js';
 
 /** The reference JSON Schema validator every processor checks messages with. */
 const schemaValidator = createAjvValidator();
+
+const SRC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../src');
+const readSrcJson = relative => JSON.parse(fs.readFileSync(path.join(SRC_DIR, relative), 'utf-8'));
+const ENVELOPE_CATALOGS = {
+  '0.9': readSrcJson('v0_9/envelope_catalog.json'),
+  '1.0': readSrcJson('v1_0/envelope_catalog.json'),
+};
+
+/**
+ * The documents a test schema of a protocol version references: the
+ * version's common types and its envelope catalog.
+ */
+function specDocuments(version) {
+  const atLeastV10 = isAtLeastVersion(version, '1.0');
+  return {
+    'common_types.json': commonTypesFor(version),
+    'catalog.json': ENVELOPE_CATALOGS[atLeastV10 ? '1.0' : '0.9'],
+  };
+}
+
+/** A JSON Schema of a protocol version (v1.0 when omitted) as a catalog schema. */
+function testSchema(json, version = '1.0') {
+  return fromJsonSchema(json, schemaValidator, {defs: specDocuments(version)});
+}
+
+/** Function arguments that may be omitted and are otherwise any object. */
+const ANY_ARGS = {
+  '~standard': {
+    version: 1,
+    vendor: 'conformance',
+    validate: value =>
+      value === undefined
+        ? {value: {}}
+        : typeof value === 'object' && value !== null && !Array.isArray(value)
+          ? {value}
+          : {issues: [{message: 'Expected object', path: []}]},
+    jsonSchema: {input: () => ({type: 'object'}), output: () => ({type: 'object'})},
+  },
+};
 
 // web_core's basic catalogs per specification version, built from the
 // published catalog documents. The v0.9 conformance catalogs also carry the
@@ -100,6 +137,12 @@ const SKIP_TEST_NAMES = new Set();
  * then case name, with the behaviour that differs. They are reported as
  * skipped with that reason. An entry that matches no case fails the run.
  */
+/** Why the common types cases that call an unknown function are skipped. */
+const ENVELOPE_ANY_FUNCTION =
+  'web_core checks common types against its envelope catalog, which stands in for ' +
+  "catalog.json and whose anyFunction accepts any keys, so a FunctionCall's unknown keys " +
+  'and a value that is both a FunctionCall and a DataBinding validate';
+
 const KNOWN_DIVERGENCES = new Map([
   [
     'core/agent_function_routing.yaml',
@@ -115,43 +158,12 @@ const KNOWN_DIVERGENCES = new Map([
   [
     'core/common_types.yaml',
     new Map([
-      [
-        'test_v10_index_system_function_requires_call',
-        'IndexSystemFunctionSchema.args in web_core is not strict and allows extra argument keys',
-      ],
-      [
-        'test_v10_dynamic_value_object_branches_are_exclusive',
-        'v1.0 DataBindingSchema and DynamicValueSchema literal object branch in web_core are not strict on extra/reserved keys',
-      ],
-      [
-        'test_v10_function_call_rejects_unknown_keys',
-        'v1.0 FunctionCallSchema in web_core allows extra keys on function call objects',
-      ],
-      [
-        'test_v09_function_call_rejects_unknown_keys',
-        "v0.9 FunctionCallSchema in web_core is not strict (allows extra keys) and defaults returnType to 'boolean' when omitted",
-      ],
-      [
-        'test_v09_dynamic_value_branches_are_exclusive',
-        "v0.9 FunctionCallSchema in web_core is not strict (an object with both call and path matches FunctionCallSchema) and defaults returnType to 'boolean' when omitted",
-      ],
-      [
-        'test_v091_function_call_rejects_unknown_keys',
-        "v0.9 FunctionCallSchema in web_core is not strict (allows extra keys) and defaults returnType to 'boolean' when omitted",
-      ],
-      [
-        'test_v091_dynamic_value_branches_are_exclusive',
-        "v0.9 FunctionCallSchema in web_core is not strict (an object with both call and path matches FunctionCallSchema) and defaults returnType to 'boolean' when omitted",
-      ],
-    ]),
-  ],
-  [
-    'core/message_processor_v1_0.yaml',
-    new Map([
-      [
-        'test_v10_custom_envelope_properties_declared_in_combiner_branches',
-        "TS Catalog.fromJson does not load oneOf/anyOf nested in a component's allOf",
-      ],
+      ['test_v10_dynamic_value_object_branches_are_exclusive', ENVELOPE_ANY_FUNCTION],
+      ['test_v10_function_call_rejects_unknown_keys', ENVELOPE_ANY_FUNCTION],
+      ['test_v09_function_call_rejects_unknown_keys', ENVELOPE_ANY_FUNCTION],
+      ['test_v09_dynamic_value_branches_are_exclusive', ENVELOPE_ANY_FUNCTION],
+      ['test_v091_function_call_rejects_unknown_keys', ENVELOPE_ANY_FUNCTION],
+      ['test_v091_dynamic_value_branches_are_exclusive', ENVELOPE_ANY_FUNCTION],
     ]),
   ],
 ]);
@@ -770,7 +782,7 @@ function buildScenarioLocalFunctions(localFunctions, getSurface) {
         {
           name: fnName,
           returnType: spec.returnType || 'any',
-          schema: z.record(z.string(), z.any()).optional().default({}),
+          schema: ANY_ARGS,
         },
         () => {
           const setData = spec.effect?.setData;
@@ -839,10 +851,10 @@ async function validateRpcTestCase(testCase) {
     };
 
     const fnSchema = meta.schema
-      ? jsonSchemaToZod(meta.schema)
+      ? testSchema(meta.schema)
       : meta.parameters
-        ? jsonSchemaToZod(meta.parameters)
-        : z.record(z.string(), z.any()).optional().default({});
+        ? testSchema(meta.parameters)
+        : ANY_ARGS;
 
     funcs.push(
       createFunctionImplementation(
@@ -1656,13 +1668,13 @@ function assertExpectedConformanceError(thrown, emittedErrorMsg, expErrObj) {
     }
   }
   if (Array.isArray(expErrObj.details)) {
-    const flattenZodIssues = issues => {
+    const flattenUnionIssues = issues => {
       const out = [];
       for (const issue of issues) {
         if (issue.code === 'invalid_union' && Array.isArray(issue.unionErrors)) {
           for (const ue of issue.unionErrors) {
             if (Array.isArray(ue.issues)) {
-              out.push(...flattenZodIssues(ue.issues));
+              out.push(...flattenUnionIssues(ue.issues));
             }
           }
         } else {
@@ -1674,7 +1686,7 @@ function assertExpectedConformanceError(thrown, emittedErrorMsg, expErrObj) {
     const rawDetails = Array.isArray(thrown.details)
       ? thrown.details
       : Array.isArray(thrown.details?.issues)
-        ? flattenZodIssues(thrown.details.issues)
+        ? flattenUnionIssues(thrown.details.issues)
         : [];
     const actualDetails = rawDetails.map(d => {
       const rawPath = Array.isArray(d.path)
@@ -2829,10 +2841,10 @@ function validateToJsonTestCase(testCase) {
 }
 
 /**
- * Fallback component definitions with permissive schemas (`z.object({}).passthrough()`).
+ * Fallback component definitions with permissive schemas (`{type: 'object'}`).
  *
  * Built-in specification catalogs (`basic`, `v0.8:basic`, `v0.9:basic`, `v1.0:basic`) enforce
- * strict Zod schemas via `v09Components`. However, ad-hoc or dynamic test catalogs (e.g.
+ * their published component schemas. However, ad-hoc or dynamic test catalogs (e.g.
  * `custom-catalog` or unrecognized catalog IDs without explicit inline component schemas)
  * require permissive validation so test vectors can evaluate message processor semantics,
  * surface lifecycles, and state handling without failing on strict component prop validation.
@@ -2856,59 +2868,8 @@ const flexibleComponents = [
   'PieChart',
 ].map(name => ({
   name,
-  schema: z.object({}).passthrough(),
+  schema: testSchema({type: 'object'}),
 }));
-
-function jsonSchemaToZod(schemaDef) {
-  if (!schemaDef || typeof schemaDef !== 'object') return z.object({}).passthrough();
-
-  if (schemaDef.type === 'object' || schemaDef.properties) {
-    const shape = {};
-    const properties = schemaDef.properties || {};
-    const required = new Set(schemaDef.required || []);
-
-    for (const [propName, propDef] of Object.entries(properties)) {
-      let fieldSchema = jsonSchemaToZod(propDef);
-      if (!required.has(propName)) {
-        fieldSchema = fieldSchema.optional();
-      }
-      shape[propName] = fieldSchema;
-    }
-
-    let objSchema = z.object(shape);
-    if (schemaDef.additionalProperties === false) {
-      objSchema = objSchema.strict();
-    } else {
-      objSchema = objSchema.passthrough();
-    }
-    return objSchema;
-  }
-
-  if (schemaDef.type === 'string' || schemaDef.$ref) {
-    let strSchema = z.string();
-    if (schemaDef.$ref) {
-      strSchema = strSchema.describe(`REF:${schemaDef.$ref}`);
-    } else if (schemaDef.description) {
-      strSchema = strSchema.describe(schemaDef.description);
-    }
-    if (schemaDef.pattern) {
-      try {
-        strSchema = strSchema.regex(new RegExp(schemaDef.pattern, 'u'));
-      } catch {
-        // ignore regex compilation errors if any
-      }
-    }
-    return strSchema;
-  }
-  if (schemaDef.type === 'number' || schemaDef.type === 'integer') return z.number();
-  if (schemaDef.type === 'boolean') return z.boolean();
-  if (schemaDef.type === 'array') {
-    const itemSchema = schemaDef.items ? jsonSchemaToZod(schemaDef.items) : z.any();
-    return z.array(itemSchema);
-  }
-
-  return z.any();
-}
 
 /**
  * Resolves the protocol version a test case is written against.
@@ -3934,9 +3895,9 @@ async function validateDispatchActionTestCase(testCase) {
       {
         name: 'incrementCounter',
         returnType: 'void',
-        schema: z.object({
-          path: z.string().optional(),
-          step: z.number().optional(),
+        schema: testSchema({
+          type: 'object',
+          properties: {path: {type: 'string'}, step: {type: 'number'}},
         }),
       },
       (args, context) => {
@@ -3950,7 +3911,7 @@ async function validateDispatchActionTestCase(testCase) {
       {
         name: 'failingAction',
         returnType: 'void',
-        schema: z.object({}),
+        schema: testSchema({type: 'object'}),
       },
       () => {
         throw new Error('Action function failed');
@@ -4284,16 +4245,7 @@ const VALIDATE_COMMON_TYPE_KNOWN_KEYS = {
  * not already skipped as a whole in `KNOWN_DIVERGENCES`. An entry whose step
  * round-trips cleanly fails the test so stale entries are caught.
  */
-const VALIDATE_COMMON_TYPE_ROUND_TRIP_DIVERGENCES = new Map([
-  [
-    'test_v09_action_is_event_or_function_call#1',
-    "v0.9 FunctionCallSchema in web_core defaults returnType to 'boolean' when omitted",
-  ],
-  [
-    'test_v091_action_is_event_or_function_call#1',
-    "v0.9 FunctionCallSchema in web_core defaults returnType to 'boolean' when omitted",
-  ],
-]);
+const VALIDATE_COMMON_TYPE_ROUND_TRIP_DIVERGENCES = new Map();
 
 function validateCommonTypeTestCase(testCase) {
   assertKnownKeys(testCase, VALIDATE_COMMON_TYPE_KNOWN_KEYS.case, 'validate_common_type');
@@ -4304,11 +4256,14 @@ function validateCommonTypeTestCase(testCase) {
   );
   const rawVersion = testCase.protocolVersion || 'v0.9';
   const version = toCanonicalVersion(rawVersion);
-  const schemas = version === '1.0' ? V1_0_COMMON_SCHEMAS : V0_9_COMMON_SCHEMAS;
-  const schema = schemas[testCase.definition];
+  const commonTypes = commonTypesFor(version);
   assert.ok(
-    schema,
+    commonTypes.$defs?.[testCase.definition],
     `No common type schema found for '${testCase.definition}' in protocol version '${rawVersion}'`,
+  );
+  const validate = schemaValidator.compile(
+    {$ref: `common_types.json#/$defs/${testCase.definition}`},
+    {defs: specDocuments(version)},
   );
 
   for (let i = 0; i < testCase.steps.length; i++) {
@@ -4320,7 +4275,10 @@ function validateCommonTypeTestCase(testCase) {
         `validate_common_type.steps[${i}].expectError`,
       );
     }
-    const result = schema.safeParse(step.value);
+    const checked = validate(step.value);
+    const result = checked.success
+      ? {success: true, data: checked.data}
+      : {success: false, error: {message: JSON.stringify(checked.issues)}};
     if (step.expectError) {
       assert.strictEqual(
         result.success,
@@ -4468,10 +4426,17 @@ async function validateRouteAgentFunctionTestCase(testCase) {
           const probeId = `probe_${evaluations.length}`;
           const comp = new ComponentModel(probeId, 'Probe', {});
           surface.componentsModel.addComponent(comp);
-          // ponytail: the probe's schema is zod 3 until Task 11.
           const probeApi = {
             name: 'CheckProbe',
-            schema: V0_9_COMMON_SCHEMAS.Checkable.describe(''),
+            schema: testSchema(
+              {
+                type: 'object',
+                properties: {
+                  checks: {type: 'array', items: {$ref: 'common_types.json#/$defs/CheckRule'}},
+                },
+              },
+              '0.9',
+            ),
           };
           const binder = new GenericBinder(
             new ComponentContext(surface, probeId),

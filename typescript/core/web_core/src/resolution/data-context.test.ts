@@ -26,7 +26,6 @@ import {
   setSignalImplementation,
   _PRIVATE_DEFAULT_SIGNAL_IMPLEMENTATION,
 } from '../reactivity/signals.js';
-import {z} from 'zod';
 import {DataModel} from '../state/data-model.js';
 import {SurfaceModel} from '../state/surface-model.js';
 import {
@@ -50,6 +49,7 @@ import {
   A2uiValidationError,
 } from '../errors.js';
 import {testValidator} from '../test/validator.js';
+import {jsonFixture} from '../test/schema.js';
 
 const FormatStringImplementation = functionOf(v1BasicCatalog, 'formatString');
 const NotImplementation = functionOf(v1BasicCatalog, 'not');
@@ -439,11 +439,9 @@ describe('DataContext', () => {
       const fnInvoker = (name: string, args: Record<string, unknown>) => {
         // Mirrors `areComponentsValid(...)`: takes arguments and returns a Signal.
         if (name === 'isAlice') return computed(() => args.name === 'Alice');
-        // Mirrors `not(...)`: rejects an undefined argument with a ZodError.
+        // Mirrors `not(...)`: rejects an undefined argument.
         if (name === 'not') {
-          z.any()
-            .refine(v => v !== undefined, 'Required')
-            .parse(args.value);
+          if (args.value === undefined) throw new Error('Required');
           return !args.value;
         }
         return null;
@@ -522,35 +520,6 @@ describe('DataContext', () => {
   });
 
   describe('Error Handling', () => {
-    it('translates ZodError into A2uiExpressionError and dispatches error', () => {
-      const invokerWithZodError = () => {
-        throw new z.ZodError([
-          {
-            code: 'invalid_type',
-            expected: 'string',
-            received: 'number',
-            path: ['foo'],
-            message: 'Expected string, received number',
-          },
-        ]);
-      };
-      let dispatchedError: any = null;
-      const ctx = createTestDataContext(model, '/', invokerWithZodError, err => {
-        dispatchedError = err;
-      });
-
-      const result = ctx.resolveDynamicValue({
-        call: 'fail',
-        args: {},
-        returnType: 'any',
-      });
-
-      assert.strictEqual(result, undefined);
-      assert.ok(dispatchedError);
-      assert.strictEqual(dispatchedError.code, 'EXPRESSION_ERROR');
-      assert.strictEqual(dispatchedError.expression, 'fail');
-    });
-
     it('dispatches generic Error as EXPRESSION_ERROR to surface', () => {
       const invokerWithRegularError = () => {
         const err = new Error('Generic failure');
@@ -901,7 +870,12 @@ describe('DataContext', () => {
           {
             name: 'testFunc',
             returnType: 'string',
-            schema: z.object({name: z.string(), age: z.number().optional()}),
+            schema: jsonFixture({
+              'type': 'object',
+              'properties': {'name': {'type': 'string'}, 'age': {'type': 'number'}},
+              'required': ['name'],
+              'additionalProperties': false,
+            }),
             execute: (args: any) => `Hello ${args.name}`,
           },
         ],
@@ -926,7 +900,12 @@ describe('DataContext', () => {
           {
             name: 'testFunc',
             returnType: 'string',
-            schema: z.object({name: z.string(), age: z.number().optional()}),
+            schema: jsonFixture({
+              'type': 'object',
+              'properties': {'name': {'type': 'string'}, 'age': {'type': 'number'}},
+              'required': ['name'],
+              'additionalProperties': false,
+            }),
             execute: (args: any) => `Hello ${args.name}`,
           },
         ],
@@ -956,7 +935,12 @@ describe('DataContext', () => {
           {
             name: 'testFunc',
             returnType: 'string',
-            schema: z.object({name: z.string()}),
+            schema: jsonFixture({
+              'type': 'object',
+              'properties': {'name': {'type': 'string'}},
+              'required': ['name'],
+              'additionalProperties': false,
+            }),
             execute: (args: any) => `Hello ${args.name}`,
           },
         ],
@@ -997,7 +981,12 @@ describe('DataContext', () => {
           {
             name: 'greet',
             returnType: 'string',
-            schema: z.object({name: z.string()}),
+            schema: jsonFixture({
+              'type': 'object',
+              'properties': {'name': {'type': 'string'}},
+              'required': ['name'],
+              'additionalProperties': false,
+            }),
             execute: (args: any) => `Hello ${args.name}`,
           },
         ],
@@ -1038,7 +1027,12 @@ describe('DataContext', () => {
           {
             name: 'greet',
             returnType: 'string',
-            schema: z.object({name: z.string()}),
+            schema: jsonFixture({
+              'type': 'object',
+              'properties': {'name': {'type': 'string'}},
+              'required': ['name'],
+              'additionalProperties': false,
+            }),
             execute: (args: any) => `Hello ${args.name}`,
           },
         ],
@@ -1081,7 +1075,11 @@ describe('DataContext', () => {
           {
             name: 'greet',
             returnType: 'string',
-            schema: z.object({}),
+            schema: jsonFixture({
+              'type': 'object',
+              'properties': {},
+              'additionalProperties': false,
+            }),
             execute: () => result,
           },
         ],
@@ -1293,7 +1291,11 @@ describe('DataContext', () => {
           {
             name: 'greet',
             returnType: 'string',
-            schema: z.object({}),
+            schema: jsonFixture({
+              'type': 'object',
+              'properties': {},
+              'additionalProperties': false,
+            }),
             execute: () => {
               throw new A2uiCatalogError('thrown from inside the function');
             },
@@ -1553,7 +1555,12 @@ describe('DataContext asynchronous function arguments', () => {
     {
       name: 'upper',
       returnType: 'string',
-      schema: z.object({'value': z.string()}),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'value': {'type': 'string'}},
+        'required': ['value'],
+        'additionalProperties': false,
+      }),
     },
     args => args.value.toUpperCase(),
   );
@@ -1561,7 +1568,12 @@ describe('DataContext asynchronous function arguments', () => {
     {
       name: 'fetchText',
       returnType: 'any',
-      schema: z.object({'text': z.string()}),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'text': {'type': 'string'}},
+        'required': ['text'],
+        'additionalProperties': false,
+      }),
     },
     async args => {
       await Promise.resolve();
@@ -1569,7 +1581,11 @@ describe('DataContext asynchronous function arguments', () => {
     },
   );
   const fail = createFunctionImplementation(
-    {name: 'fail', returnType: 'any', schema: z.object({})},
+    {
+      name: 'fail',
+      returnType: 'any',
+      schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': false}),
+    },
     async () => {
       await Promise.resolve();
       throw new A2uiExpressionError('inner failure', 'fail');
@@ -1579,7 +1595,20 @@ describe('DataContext asynchronous function arguments', () => {
     {
       name: 'wrap',
       returnType: 'any',
-      schema: z.object({'items': z.array(z.string()), 'meta': z.object({'label': z.string()})}),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {
+          'items': {'type': 'array', 'items': {'type': 'string'}},
+          'meta': {
+            'type': 'object',
+            'properties': {'label': {'type': 'string'}},
+            'required': ['label'],
+            'additionalProperties': false,
+          },
+        },
+        'required': ['items', 'meta'],
+        'additionalProperties': false,
+      }),
     },
     args => ({items: args.items, label: args.meta.label}),
   );
@@ -1587,7 +1616,12 @@ describe('DataContext asynchronous function arguments', () => {
     {
       name: 'guarded',
       returnType: 'string',
-      schema: z.object({'value': z.string()}),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'value': {'type': 'string'}},
+        'required': ['value'],
+        'additionalProperties': false,
+      }),
       requiresUserActivation: true,
     },
     args => `guarded:${args.value}`,
@@ -1700,7 +1734,16 @@ describe('DataContext asynchronous function arguments', () => {
   it('ignores a stale completion that arrives after the subscription ended', async () => {
     let release!: (value: string) => void;
     const slow = createFunctionImplementation(
-      {name: 'slow', returnType: 'any', schema: z.object({'value': z.string()})},
+      {
+        name: 'slow',
+        returnType: 'any',
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {'value': {'type': 'string'}},
+          'required': ['value'],
+          'additionalProperties': false,
+        }),
+      },
       () => new Promise<string>(resolve => (release = resolve)),
     );
     const catalog = new Catalog('cat', '1.0', [], [slow]);
@@ -1722,7 +1765,16 @@ describe('DataContext asynchronous function arguments', () => {
   it('ignores a stale completion when the arguments changed before it arrived', async () => {
     const pending: Array<(value: string) => void> = [];
     const slow = createFunctionImplementation(
-      {name: 'slow', returnType: 'any', schema: z.object({'value': z.string()})},
+      {
+        name: 'slow',
+        returnType: 'any',
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {'value': {'type': 'string'}},
+          'required': ['value'],
+          'additionalProperties': false,
+        }),
+      },
       () => new Promise<string>(resolve => pending.push(resolve)),
     );
     const catalog = new Catalog('cat', '1.0', [], [slow]);
@@ -1770,14 +1822,27 @@ describe('DataContext asynchronous function arguments', () => {
 
   it('halts an action pipeline on an agent failure while keeping earlier effects', async () => {
     const markStarted = createFunctionImplementation(
-      {name: 'markStarted', returnType: 'boolean', schema: z.object({})},
+      {
+        name: 'markStarted',
+        returnType: 'boolean',
+        schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': false}),
+      },
       (_args, c) => {
         c.set('/started', true);
         return true;
       },
     );
     const finish = createFunctionImplementation(
-      {name: 'finish', returnType: 'boolean', schema: z.object({'steps': z.array(z.any())})},
+      {
+        name: 'finish',
+        returnType: 'boolean',
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {'steps': {'type': 'array'}},
+          'required': ['steps'],
+          'additionalProperties': false,
+        }),
+      },
       (_args, c) => {
         c.set('/finished', true);
         return true;
@@ -1904,7 +1969,7 @@ describe('DataContext asynchronous function arguments', () => {
       {
         name: 'extOnly',
         returnType: 'string' as const,
-        schema: z.object({}),
+        schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': false}),
       },
       () => 'from-ext',
     );

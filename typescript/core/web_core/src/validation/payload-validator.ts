@@ -15,23 +15,21 @@
  */
 
 import type {StandardSchemaV1} from '@standard-schema/spec';
-import {z} from 'zod';
+import {catalogValidator} from '../catalog/catalog-validator.js';
 import {entrySchema, prepareSchema, validateWith} from '../catalog/entry-schema.js';
 import {CatalogInterface} from '../catalog/types.js';
 import {isAtLeastVersion} from '../common/semver.js';
 import {isValidUax31Identifier} from '../common/uax31.js';
-import {A2uiErrorDetail, A2uiValidationError} from '../errors.js';
-import {formatZodIssue} from '../processing/format-zod-issue.js';
+import {A2uiErrorDetail, A2uiValidationError, noValidatorError} from '../errors.js';
+import {
+  V0_9_MESSAGE_SPEC,
+  V1_0_MESSAGE_SPEC,
+  validateProtocolMessage,
+  type ProtocolMessageSpec,
+} from '../processing/adapters/message-specs.js';
 import {getKnownSchemaKeys} from '../resolution/data-context.js';
 import {formatIssue, pickIssue, toA2uiIssues} from '../schema-engine/issues.js';
 import type {A2uiIssue} from '../schema-engine/types.js';
-import {zod3Issues} from '../schema-engine/zod3-adapter.js';
-// ponytail: zod mirrors of the common types until Task 11.
-import {AccessibilityAttributesSchema as V09AccessibilityAttributesSchema} from '../v0_9/schema/common-types.js';
-import {
-  AccessibilityAttributesSchema as V10AccessibilityAttributesSchema,
-  ComponentCommonSchema as V10ComponentCommonSchema,
-} from '../v1_0/schema/common-types.js';
 import {
   AT_COMPONENT_MIXIN_KEYS,
   ComponentMixinLayout,
@@ -59,6 +57,18 @@ import {validateReservedDirectives} from '../resolution/data-context.js';
 function getSystemFunctionApi(name: string): typeof IndexApi | undefined {
   return name === IndexApi.name ? IndexApi : undefined;
 }
+
+/** A definition of a protocol version's common types, as a message spec. */
+function commonTypeSpec(base: ProtocolMessageSpec, pointer: string): ProtocolMessageSpec {
+  return {schema: {$ref: `common_types.json#/$defs/${pointer}`}, defs: base.defs};
+}
+
+/** The common types definitions the component envelope's mixins validate against. */
+const ENVELOPE_SPECS = {
+  v09Accessibility: commonTypeSpec(V0_9_MESSAGE_SPEC, 'AccessibilityAttributes'),
+  v10Accessibility: commonTypeSpec(V1_0_MESSAGE_SPEC, 'AccessibilityAttributes'),
+  v10Metadata: commonTypeSpec(V1_0_MESSAGE_SPEC, 'ComponentCommon/properties/@metadata'),
+};
 
 /**
  * Rejects a call to a reserved `@` system function that names a catalog.
@@ -379,10 +389,10 @@ export class PayloadValidator {
     if (!('accessibility' in properties) || knownKeys?.has('accessibility')) return;
     const accVal = properties['accessibility'];
     delete properties['accessibility'];
-    const accessibilitySchema = this.enforceIdentifiers
-      ? V10AccessibilityAttributesSchema
-      : V09AccessibilityAttributesSchema;
-    this.parseEnvelopeValue(accessibilitySchema.optional(), accVal, '/accessibility', {
+    const accessibilitySpec = this.enforceIdentifiers
+      ? ENVELOPE_SPECS.v10Accessibility
+      : ENVELOPE_SPECS.v09Accessibility;
+    this.parseEnvelopeValue(accessibilitySpec, accVal, '/accessibility', {
       componentType,
       id,
     });
@@ -423,12 +433,7 @@ export class PayloadValidator {
     >) {
       const path = `/${mixin.wireKey}`;
       if (key === 'metadata') {
-        this.parseEnvelopeValue(
-          V10ComponentCommonSchema.shape['@metadata'],
-          mixin.value,
-          path,
-          subject,
-        );
+        this.parseEnvelopeValue(ENVELOPE_SPECS.v10Metadata, mixin.value, path, subject);
         rethrowAt(path, () => validateMetadata(mixin.value));
       }
       const schemaKey = layout?.schemaKeys.get(key);
@@ -449,12 +454,7 @@ export class PayloadValidator {
           }
           break;
         case 'accessibility':
-          this.parseEnvelopeValue(
-            V10AccessibilityAttributesSchema.optional(),
-            mixin.value,
-            path,
-            subject,
-          );
+          this.parseEnvelopeValue(ENVELOPE_SPECS.v10Accessibility, mixin.value, path, subject);
           this.validateNestedFunctions(mixin.value, componentCatalogId, path);
           break;
         case 'checks':
@@ -476,23 +476,31 @@ export class PayloadValidator {
   }
 
   /**
-   * Parses an envelope value against its schema.
+   * Checks an envelope value against its common types definition, with the
+   * catalog's validator. An absent value is valid.
    *
    * @throws {A2uiValidationError} If the value does not satisfy the schema,
    *   with paths under `path`.
+   * @throws {A2uiConfigurationError} If the catalog has no validator.
    */
   private parseEnvelopeValue(
-    schema: z.ZodTypeAny,
+    spec: ProtocolMessageSpec,
     value: unknown,
     path: string,
     {componentType, id}: {componentType: string; id: string},
   ): void {
-    const result = schema.safeParse(value);
-    if (result.success) return;
-    const formattedErrors = result.error.errors.map(formatZodIssue).join(', ');
-    const details = zodIssuesToDetails(result.error.issues, path);
+    if (value === undefined) return;
+    const validator = catalogValidator(this.catalog);
+    if (!validator) {
+      throw noValidatorError(
+        `Component '${componentType}' (${id}) has '${path.slice(1)}', which validates against the common types with its catalog's validator: register catalog '${this.catalog.id}' with a MessageProcessor, or pass one in CatalogOptions.validator.`,
+      );
+    }
+    const issues = validateProtocolMessage(validator, spec, value);
+    if (issues.length === 0) return;
+    const {message, details} = describeA2uiIssues(issues, path);
     throw new A2uiValidationError(
-      `Validation failed for component '${componentType}' (${id}): ${formattedErrors}`,
+      `Validation failed for component '${componentType}' (${id}): ${message}`,
       details,
       'VALIDATION_ERROR',
       {path: details[0]?.path},
@@ -774,29 +782,25 @@ function ownValidatedProperties(
 }
 
 /**
- * Words a schema's validation issues: zod 3's issues as before, and any
- * other schema's as web_core words them, by their most informative issue.
+ * Words a schema's validation issues by their most informative issue.
  *
  * @param issues The Standard Schema issues.
  * @param prefix JSON Pointer of the validated value.
  * @returns The message, the error details, and for each issue the path
- *   of the top-level value it is about (for zod 3, its detail's path).
+ *   of the top-level value it is about.
  */
 function describeIssues(
   issues: readonly StandardSchemaV1.Issue[],
   prefix = '',
 ): {message: string; details: A2uiErrorDetail[]; paths: string[]} {
-  // ponytail: zod wording for zod 3 schemas until Task 11.
-  const zodIssues = zod3Issues(issues);
-  if (zodIssues) {
-    const details = zodIssuesToDetails(zodIssues, prefix);
-    return {
-      message: zodIssues.map(formatZodIssue).join(', '),
-      details,
-      paths: details.map(d => d.path),
-    };
-  }
-  const all = toA2uiIssues(issues);
+  return describeA2uiIssues(toA2uiIssues(issues), prefix);
+}
+
+/** {@link describeIssues} for issues a validator reported. */
+function describeA2uiIssues(
+  all: A2uiIssue[],
+  prefix = '',
+): {message: string; details: A2uiErrorDetail[]; paths: string[]} {
   const issue = pickIssue(all);
   const message = formatIssue(issue);
   return {
@@ -824,33 +828,6 @@ function issueDetail(issue: A2uiIssue, prefix: string, message: string): A2uiErr
     code: missing ? 'missing_field' : 'invalid_value',
     message,
   };
-}
-
-/**
- * Converts Zod validation issues into structured `A2uiErrorDetail` entries.
- */
-function zodIssuesToDetails(issues: readonly z.ZodIssue[], prefix = ''): A2uiErrorDetail[] {
-  return issues.map(issue => {
-    const segments = issue.path.map(s => String(s).replace(/~/g, '~0').replace(/\//g, '~1'));
-    if (
-      issue.code === 'unrecognized_keys' &&
-      'keys' in issue &&
-      Array.isArray(issue.keys) &&
-      issue.keys.length > 0
-    ) {
-      segments.push(String(issue.keys[0]).replace(/~/g, '~0').replace(/\//g, '~1'));
-    }
-    const relPath = segments.length > 0 ? `/${segments.join('/')}` : '';
-    const fullPath = `${prefix}${relPath}` || '/';
-    const isMissing =
-      (issue.code === 'invalid_type' && 'received' in issue && issue.received === 'undefined') ||
-      issue.message === 'Required';
-    return {
-      path: fullPath,
-      code: isMissing ? 'missing_field' : 'invalid_value',
-      message: issue.message,
-    };
-  });
 }
 
 /**

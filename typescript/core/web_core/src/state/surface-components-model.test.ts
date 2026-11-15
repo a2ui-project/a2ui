@@ -16,10 +16,10 @@
 
 import * as assert from 'node:assert';
 import {describe, it, beforeEach} from 'node:test';
-import {z} from 'zod';
 import {Catalog} from '../catalog/types.js';
 import {SurfaceComponentsModel} from './surface-components-model.js';
 import {ComponentModel} from './component-model.js';
+import {jsonFixture} from '../test/schema.js';
 
 describe('SurfaceComponentsModel', () => {
   let model: SurfaceComponentsModel;
@@ -146,23 +146,48 @@ describe('SurfaceComponentsModel', () => {
     beforeEach(() => {
       const boxApi = {
         name: 'Box',
-        schema: z.object({
-          child: z.string().describe('ChildComponentId').optional(),
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {'child': {'type': 'string', 'description': 'ChildComponentId'}},
+          'additionalProperties': false,
         }),
       };
       const containerApi = {
         name: 'Container',
-        schema: z.object({
-          singleChild: z.string().describe('ChildComponentId'),
-          childrenList: z.array(z.string()).describe('ChildList'),
-          dynamicChild: z
-            .union([z.array(z.string()), z.object({componentId: z.string(), path: z.string()})])
-            .describe('ChildList'),
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {
+            'singleChild': {'type': 'string', 'description': 'ChildComponentId'},
+            'childrenList': {
+              'type': 'array',
+              'items': {'type': 'string'},
+              'description': 'ChildList',
+            },
+            'dynamicChild': {
+              'anyOf': [
+                {'type': 'array', 'items': {'type': 'string'}},
+                {
+                  'type': 'object',
+                  'properties': {'componentId': {'type': 'string'}, 'path': {'type': 'string'}},
+                  'required': ['componentId', 'path'],
+                  'additionalProperties': false,
+                },
+              ],
+              'description': 'ChildList',
+            },
+          },
+          'required': ['singleChild', 'childrenList', 'dynamicChild'],
+          'additionalProperties': false,
         }),
       };
       const textApi = {
         name: 'Text',
-        schema: z.object({text: z.string()}),
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {'text': {'type': 'string'}},
+          'required': ['text'],
+          'additionalProperties': false,
+        }),
       };
       testCatalog = new Catalog('test-cat', '1.0', [boxApi, containerApi, textApi]);
       model.setCatalog(testCatalog);
@@ -291,14 +316,24 @@ describe('SurfaceComponentsModel', () => {
       const customCatalog = new Catalog('custom-cat', '1.0', [
         {
           name: 'CustomCard',
-          schema: z.object({
-            bodySlot: z.string().describe('ChildComponentId'),
-            footerSlot: z.string().describe('ChildComponentId').optional(),
+          schema: jsonFixture({
+            'type': 'object',
+            'properties': {
+              'bodySlot': {'type': 'string', 'description': 'ChildComponentId'},
+              'footerSlot': {'type': 'string', 'description': 'ChildComponentId'},
+            },
+            'required': ['bodySlot'],
+            'additionalProperties': false,
           }),
         },
         {
           name: 'CustomChart',
-          schema: z.object({title: z.string()}),
+          schema: jsonFixture({
+            'type': 'object',
+            'properties': {'title': {'type': 'string'}},
+            'required': ['title'],
+            'additionalProperties': false,
+          }),
         },
       ]);
 
@@ -336,8 +371,11 @@ describe('SurfaceComponentsModel', () => {
       const customCatalog = new Catalog('custom-cat', '1.0', [
         {
           name: 'CustomContainer',
-          schema: z.object({
-            contentId: z.string().describe('ChildComponentId'),
+          schema: jsonFixture({
+            'type': 'object',
+            'properties': {'contentId': {'type': 'string', 'description': 'ChildComponentId'}},
+            'required': ['contentId'],
+            'additionalProperties': false,
           }),
         },
       ]);

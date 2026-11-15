@@ -16,9 +16,9 @@
 
 import * as assert from 'node:assert';
 import {describe, it} from 'node:test';
-import {z} from 'zod';
 
 import {toWebComponentImplementation} from './to_web_component_implementation.js';
+import {jsonFixture} from '../test/schema.js';
 
 describe('toWebComponentImplementation', () => {
   class MockElement {
@@ -27,7 +27,15 @@ describe('toWebComponentImplementation', () => {
   const element = MockElement as unknown as CustomElementConstructor & {readonly tagName: string};
 
   it('combines the api with the element and its static tag name', () => {
-    const api = {name: 'Mock', schema: z.object({text: z.string()})};
+    const api = {
+      name: 'Mock',
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'text': {'type': 'string'}},
+        'required': ['text'],
+        'additionalProperties': false,
+      }),
+    };
 
     const impl = toWebComponentImplementation(element, api);
 
@@ -38,8 +46,24 @@ describe('toWebComponentImplementation', () => {
   });
 
   it('shares one element across apis of different versions', () => {
-    const oldApi = {name: 'Mock', schema: z.object({text: z.string()})};
-    const newApi = {name: 'Mock', schema: z.object({text: z.string(), note: z.string()})};
+    const oldApi = {
+      name: 'Mock',
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'text': {'type': 'string'}},
+        'required': ['text'],
+        'additionalProperties': false,
+      }),
+    };
+    const newApi = {
+      name: 'Mock',
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'text': {'type': 'string'}, 'note': {'type': 'string'}},
+        'required': ['text', 'note'],
+        'additionalProperties': false,
+      }),
+    };
 
     const oldImpl = toWebComponentImplementation(element, oldApi);
     const newImpl = toWebComponentImplementation(element, newApi);

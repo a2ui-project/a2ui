@@ -18,14 +18,12 @@
 import assert from 'node:assert';
 import {describe, it} from 'node:test';
 
-import {z} from 'zod';
-
-import {CheckRuleSchema} from '../v1_0/schema/common-types.js';
 import {V09_STANDARD_DEFS} from '../v0_9/standard_defs.js';
 import {V10_STANDARD_DEFS} from '../v1_0/standard_defs.js';
 import {cleanSchemaNode, generateValidationSchema} from './schema_generator.js';
 import {Catalog, ComponentApi, FunctionApi, FunctionImplementation} from './types.js';
 import {testValidator} from '../test/validator.js';
+import {jsonFixture, jsonOnlyFixture} from '../test/schema.js';
 
 /** A standard definition as validationSchema bundles it: its catalog union ref localized. */
 function bundled(definition: unknown): unknown {
@@ -65,14 +63,19 @@ function assertRefsLocalAndResolvable(schema: Record<string, unknown>): void {
 }
 
 describe('Catalog.validationSchema & schema_generator', () => {
-  it('generates standard JSON Schema from a Catalog with native Zod components and functions', () => {
+  it('generates standard JSON Schema from a Catalog with components and functions defined in code', () => {
     const textComp: ComponentApi = {
       name: 'Text',
       allowedParents: ['Column', 'Row'],
       allowedChildren: undefined,
-      schema: z.object({
-        text: z.string().describe('Text content to display'),
-        variant: z.enum(['body', 'h1']).optional(),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {
+          'text': {'type': 'string', 'description': 'Text content to display'},
+          'variant': {'type': 'string', 'enum': ['body', 'h1']},
+        },
+        'required': ['text'],
+        'additionalProperties': false,
       }),
     };
 
@@ -80,10 +83,16 @@ describe('Catalog.validationSchema & schema_generator', () => {
       name: 'Container',
       allowedParents: undefined,
       allowedChildren: ['Text', 'Container'],
-      schema: z.object({
-        children: z
-          .array(z.string())
-          .describe('REF:common_types.json#/$defs/ChildList|List of children'),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {
+          'children': {
+            '$ref': 'common_types.json#/$defs/ChildList',
+            'description': 'List of children',
+          },
+        },
+        'required': ['children'],
+        'additionalProperties': false,
       }),
     };
 
@@ -93,14 +102,20 @@ describe('Catalog.validationSchema & schema_generator', () => {
       returnType: 'string',
       allowedCallers: 'rendererOnly',
       requiresUserActivation: true,
-      schema: z.object({
-        name: z.string(),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'name': {'type': 'string'}},
+        'required': ['name'],
+        'additionalProperties': false,
       }),
       execute: async args => `Hello, ${args.name}!`,
     };
 
-    const themeSchema = z.object({
-      primaryColor: z.string(),
+    const themeSchema = jsonFixture({
+      'type': 'object',
+      'properties': {'primaryColor': {'type': 'string'}},
+      'required': ['primaryColor'],
+      'additionalProperties': false,
     });
 
     const catalog = new Catalog(
@@ -255,7 +270,12 @@ describe('Catalog.validationSchema & schema_generator', () => {
   it('supports componentEnvelopeRef wrapping in generateValidationSchema', () => {
     const textComp: ComponentApi = {
       name: 'CustomText',
-      schema: z.object({text: z.string()}),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'text': {'type': 'string'}},
+        'required': ['text'],
+        'additionalProperties': false,
+      }),
     };
     const catalog = new Catalog('https://example.com/envelope.json', '1.0', [textComp]);
     const schema = generateValidationSchema(catalog, {
@@ -273,9 +293,14 @@ describe('Catalog.validationSchema & schema_generator', () => {
   it('protects component discriminator from schema property overwrite', () => {
     const compWithComponentProp: ComponentApi = {
       name: 'SpecialWidget',
-      schema: z.object({
-        component: z.string().describe('Custom component type string'),
-        value: z.number(),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {
+          'component': {'type': 'string', 'description': 'Custom component type string'},
+          'value': {'type': 'number'},
+        },
+        'required': ['component', 'value'],
+        'additionalProperties': false,
       }),
     };
     const catalog = new Catalog('https://example.com/discrim.json', '1.0', [compWithComponentProp]);
@@ -321,12 +346,18 @@ describe('Catalog.validationSchema & schema_generator', () => {
   });
 
   it('lifts theme sub-definitions to root $defs and removes them from theme object', () => {
-    const ColorPalette = z.object({
-      primary: z.string(),
-      secondary: z.string(),
-    });
-    const ThemeWithSubDefs = z.object({
-      palette: ColorPalette,
+    const ThemeWithSubDefs = jsonFixture({
+      'type': 'object',
+      'properties': {
+        'palette': {
+          'type': 'object',
+          'properties': {'primary': {'type': 'string'}, 'secondary': {'type': 'string'}},
+          'required': ['primary', 'secondary'],
+          'additionalProperties': false,
+        },
+      },
+      'required': ['palette'],
+      'additionalProperties': false,
     });
 
     const catalog = new Catalog(
@@ -345,16 +376,22 @@ describe('Catalog.validationSchema & schema_generator', () => {
   });
 
   it('lifts function sub-definitions to root $defs and removes them from args object', () => {
-    const Address = z.object({
-      city: z.string(),
-      country: z.string(),
-    });
     const updateAddressFunc: FunctionImplementation = {
       name: 'updateAddress',
       description: 'Updates user address',
       returnType: 'void',
-      schema: z.object({
-        address: Address,
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {
+          'address': {
+            'type': 'object',
+            'properties': {'city': {'type': 'string'}, 'country': {'type': 'string'}},
+            'required': ['city', 'country'],
+            'additionalProperties': false,
+          },
+        },
+        'required': ['address'],
+        'additionalProperties': false,
       }),
       execute: async () => {},
     };
@@ -370,15 +407,19 @@ describe('Catalog.validationSchema & schema_generator', () => {
   it('emits unevaluatedProperties: false on flat components and preserves theme additionalProperties', () => {
     const SimpleWidget: ComponentApi = {
       name: 'SimpleWidget',
-      schema: z.object({
-        title: z.string(),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'title': {'type': 'string'}},
+        'required': ['title'],
+        'additionalProperties': false,
       }),
     };
-    const SimpleTheme = z
-      .object({
-        primaryColor: z.string(),
-      })
-      .passthrough();
+    const SimpleTheme = jsonFixture({
+      'type': 'object',
+      'properties': {'primaryColor': {'type': 'string'}},
+      'required': ['primaryColor'],
+      'additionalProperties': true,
+    });
 
     const catalog = new Catalog(
       'https://example.com/unevaluated.json',
@@ -398,19 +439,39 @@ describe('Catalog.validationSchema & schema_generator', () => {
   it('leaves v1.0 components open unless their author closed them', () => {
     const SimpleWidget: ComponentApi = {
       name: 'SimpleWidget',
-      schema: z.object({title: z.string()}),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'title': {'type': 'string'}},
+        'required': ['title'],
+        'additionalProperties': false,
+      }),
     };
     const StrictWidget: ComponentApi = {
       name: 'StrictWidget',
-      schema: z.object({title: z.string()}).strict(),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'title': {'type': 'string'}},
+        'required': ['title'],
+        'additionalProperties': false,
+      }),
     };
     const OpenWidget: ComponentApi = {
       name: 'OpenWidget',
-      schema: z.object({title: z.string()}).passthrough(),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'title': {'type': 'string'}},
+        'required': ['title'],
+        'additionalProperties': true,
+      }),
     };
     const CatchallWidget: ComponentApi = {
       name: 'CatchallWidget',
-      schema: z.object({title: z.string()}).catchall(z.number()),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'title': {'type': 'string'}},
+        'required': ['title'],
+        'additionalProperties': {'type': 'number'},
+      }),
     };
     const coded = new Catalog('https://example.com/v10.json', '1.0', [
       SimpleWidget,
@@ -461,8 +522,11 @@ describe('Catalog.validationSchema & schema_generator', () => {
   it('emits unevaluatedProperties: false at the root of allOf when componentEnvelopeRef is used', () => {
     const CustomWidget: ComponentApi = {
       name: 'CustomWidget',
-      schema: z.object({
-        label: z.string(),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'label': {'type': 'string'}},
+        'required': ['label'],
+        'additionalProperties': false,
       }),
     };
 
@@ -482,8 +546,11 @@ describe('Catalog.validationSchema & schema_generator', () => {
   it('respects explicit protocolVersion in GenerateValidationSchemaOptions for non-standard catalog IDs', () => {
     const CustomWidget: ComponentApi = {
       name: 'CustomWidget',
-      schema: z.object({
-        content: z.string().describe('REF:#/$defs/DynamicString'),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'content': {'$ref': 'common_types.json#/$defs/DynamicString'}},
+        'required': ['content'],
+        'additionalProperties': false,
       }),
     };
 
@@ -518,9 +585,14 @@ describe('Catalog.validationSchema & schema_generator', () => {
   it("uses the catalog's own protocolVersion when no explicit one is given", () => {
     const CustomWidget: ComponentApi = {
       name: 'CustomWidget',
-      schema: z.object({
-        content: z.string().describe('REF:#/$defs/DynamicString'),
-        child: z.string().describe('REF:#/$defs/Child'),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {
+          'content': {'$ref': 'common_types.json#/$defs/DynamicString'},
+          'child': {'$ref': 'common_types.json#/$defs/Child'},
+        },
+        'required': ['content', 'child'],
+        'additionalProperties': false,
       }),
     };
 
@@ -546,8 +618,11 @@ describe('Catalog.validationSchema & schema_generator', () => {
   it('uses the v1.0 definitions for later versions with no entry of their own', () => {
     const CustomWidget: ComponentApi = {
       name: 'CustomWidget',
-      schema: z.object({
-        child: z.string().describe('REF:#/$defs/Child'),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'child': {'$ref': 'common_types.json#/$defs/Child'}},
+        'required': ['child'],
+        'additionalProperties': false,
       }),
     };
 
@@ -558,7 +633,15 @@ describe('Catalog.validationSchema & schema_generator', () => {
     }
 
     const v092Defs = new Catalog('https://example.com/v092.json', '0.9.2', [
-      {name: 'Label', schema: z.object({text: z.string().describe('REF:#/$defs/DynamicString')})},
+      {
+        name: 'Label',
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {'text': {'$ref': 'common_types.json#/$defs/DynamicString'}},
+          'required': ['text'],
+          'additionalProperties': false,
+        }),
+      },
     ]).validationSchema['$defs'] as Record<string, unknown>;
     assert.deepStrictEqual(v092Defs['DynamicString'], V09_STANDARD_DEFS['DynamicString']);
   });
@@ -566,8 +649,11 @@ describe('Catalog.validationSchema & schema_generator', () => {
   it('respects explicit standardDefs in GenerateValidationSchemaOptions', () => {
     const CustomWidget: ComponentApi = {
       name: 'CustomWidget',
-      schema: z.object({
-        content: z.string().describe('REF:#/$defs/CustomType'),
+      schema: jsonOnlyFixture({
+        'type': 'object',
+        'properties': {'content': {'$ref': 'common_types.json#/$defs/CustomType'}},
+        'required': ['content'],
+        'additionalProperties': false,
       }),
     };
 
@@ -588,18 +674,22 @@ describe('Catalog.validationSchema & schema_generator', () => {
     const strictFunction: FunctionApi = {
       name: 'strictFn',
       returnType: 'string',
-      schema: z.object({
-        query: z.string(),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'query': {'type': 'string'}},
+        'required': ['query'],
+        'additionalProperties': false,
       }),
     };
     const openFunction: FunctionApi = {
       name: 'openFn',
       returnType: 'string',
-      schema: z
-        .object({
-          tag: z.string(),
-        })
-        .passthrough(),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'tag': {'type': 'string'}},
+        'required': ['tag'],
+        'additionalProperties': true,
+      }),
     };
 
     const catalog = new Catalog(
@@ -659,7 +749,11 @@ describe('Catalog.validationSchema & schema_generator', () => {
     const noArgsFunction: FunctionApi = {
       name: 'now',
       returnType: 'string',
-      schema: z.object({format: z.string().optional()}),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'format': {'type': 'string'}},
+        'additionalProperties': false,
+      }),
     };
     const v09 = new Catalog('https://example.com/v09.json', '0.9', [], [noArgsFunction as any]);
     const fn = (v09.validationSchema['functions'] as Record<string, any>)['now'];
@@ -670,12 +764,22 @@ describe('Catalog.validationSchema & schema_generator', () => {
   it('emits only local references that resolve, with or without functions', () => {
     const Label: ComponentApi = {
       name: 'Label',
-      schema: z.object({text: z.string().describe('REF:common_types.json#/$defs/DynamicString')}),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'text': {'$ref': 'common_types.json#/$defs/DynamicString'}},
+        'required': ['text'],
+        'additionalProperties': false,
+      }),
     };
     const shout: FunctionApi = {
       name: 'shout',
       returnType: 'string',
-      schema: z.object({value: z.string().describe('REF:common_types.json#/$defs/DynamicString')}),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'value': {'$ref': 'common_types.json#/$defs/DynamicString'}},
+        'required': ['value'],
+        'additionalProperties': false,
+      }),
     };
     for (const version of ['0.9', '1.0']) {
       const withFunctions = new Catalog(
@@ -721,7 +825,12 @@ describe('Catalog.validationSchema & schema_generator', () => {
       name: 'shout',
       description: 'Upper-cases a string.',
       returnType: 'string',
-      schema: z.object({value: z.string().describe('REF:common_types.json#/$defs/DynamicString')}),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'value': {'$ref': 'common_types.json#/$defs/DynamicString'}},
+        'required': ['value'],
+        'additionalProperties': false,
+      }),
     };
     const schema = new Catalog('https://example.com/v10.json', '1.0', [], [shout as any])
       .validationSchema;
@@ -811,8 +920,16 @@ describe('Catalog.validationSchema & schema_generator', () => {
       {$ref: '#/components/Alpha'},
     ]);
 
-    const index: FunctionApi = {name: '@index', returnType: 'number', schema: z.object({})};
-    const shout: FunctionApi = {name: 'shout', returnType: 'string', schema: z.object({})};
+    const index: FunctionApi = {
+      name: '@index',
+      returnType: 'number',
+      schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': false}),
+    };
+    const shout: FunctionApi = {
+      name: 'shout',
+      returnType: 'string',
+      schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': false}),
+    };
     const coded = new Catalog(
       'https://example.com/system.json',
       '1.0',
@@ -875,7 +992,13 @@ describe('Catalog.validationSchema & schema_generator', () => {
   it("describes standard references from the catalog's own protocol version", () => {
     const Field: ComponentApi = {
       name: 'Field',
-      schema: z.object({checks: z.array(CheckRuleSchema).optional()}),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {
+          'checks': {'type': 'array', 'items': {'$ref': 'common_types.json#/$defs/CheckRule'}},
+        },
+        'additionalProperties': false,
+      }),
     };
     const describedRule = (version: string) =>
       (
@@ -1166,15 +1289,21 @@ describe('Catalog.validationSchema & schema_generator', () => {
         );
       });
 
-      it(`bundles a deep pointer in a REF marker of a v${version} code catalog`, () => {
+      it(`bundles a deep pointer in a schema of a v${version} code catalog`, () => {
         const Label: ComponentApi = {
           name: 'Label',
-          schema: z.object({text: z.string().describe(`REF:${DEEP_REF}`)}),
+          schema: jsonFixture(
+            {type: 'object', properties: {text: {$ref: DEEP_REF}}, required: ['text']},
+            version,
+          ),
         };
         const echo: FunctionApi = {
           name: 'echo',
           returnType: 'string',
-          schema: z.object({value: z.string().describe(`REF:${DEEP_REF}`)}),
+          schema: jsonFixture(
+            {type: 'object', properties: {value: {$ref: DEEP_REF}}, required: ['value']},
+            version,
+          ),
         };
         const catalog = new Catalog(
           `https://example.com/deep-code-${version}.json`,

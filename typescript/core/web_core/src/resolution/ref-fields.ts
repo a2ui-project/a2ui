@@ -203,8 +203,9 @@ function ownOrTargetDescription(node: unknown, doc: SchemaDoc): unknown {
 }
 
 /**
- * Whether `desc` on a combinator was copied from its first member, as Zod's
- * `.or()`/`.and()` do and `zod-to-json-schema` writes through.
+ * Whether `desc` on a combinator was copied from its first member, as some
+ * schema libraries' unions and intersections do and their JSON Schema
+ * converters write through.
  */
 function isCombinatorInheritedDescription(node: Obj, doc: SchemaDoc, desc: string): boolean {
   const members = node['anyOf'] ?? node['oneOf'] ?? node['allOf'];

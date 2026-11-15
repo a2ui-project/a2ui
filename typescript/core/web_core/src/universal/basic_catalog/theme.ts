@@ -14,9 +14,6 @@
  * limitations under the License.
  */
 
-// ponytail: removed in Task 11 — BasicCatalogThemeSchema is an exported zod schema; the basic catalogs validate themes with their documents.
-
-import {z} from 'zod';
 import validateColor from 'validate-color';
 
 export const HEX_COLOR_REGEX = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
@@ -46,34 +43,20 @@ export function isValidCssColor(color: unknown): boolean {
 }
 
 /**
- * Zod schema defining the theme configuration for the basic catalog.
- * Conforms to `specification/v0_9/catalogs/basic/catalog.json#/$defs/theme`.
+ * The theme of the basic catalog, as `catalog.json#/$defs/theme` of the v0.9
+ * basic catalog describes it. Themes are open, so other keys are kept. The
+ * catalogs validate themes against their documents.
  */
-export const BasicCatalogThemeSchema = z
-  .object({
-    primaryColor: z
-      .string()
-      .refine(
-        val => isValidCssColor(val),
-        "primaryColor must be a valid CSS color (e.g. '#00BFFF', '#17e', 'red', 'rgb(255, 0, 0)')",
-      )
-      .optional()
-      .describe(
-        "The primary brand color used for highlights (e.g., primary buttons, active borders). Renderers may generate variants of this color for different contexts. Format: Hexadecimal code, named color, or functional notation (e.g., '#00BFFF', 'red', 'rgb(255, 0, 0)').",
-      ),
-    iconUrl: z
-      .string()
-      .optional()
-      .describe(
-        'A URL for an image that identifies the agent or tool associated with the surface.',
-      ),
-    agentDisplayName: z
-      .string()
-      .optional()
-      .describe(
-        'Text to be displayed next to the surface to identify the agent or tool that created it.',
-      ),
-  })
-  .passthrough();
-
-export type BasicCatalogTheme = z.infer<typeof BasicCatalogThemeSchema>;
+export interface BasicCatalogTheme {
+  /**
+   * The primary brand color used for highlights (e.g., primary buttons,
+   * active borders). Renderers may generate variants of this color for
+   * different contexts.
+   */
+  primaryColor?: string;
+  /** A URL for an image that identifies the agent or tool associated with the surface. */
+  iconUrl?: string;
+  /** Text to be displayed next to the surface to identify the agent or tool that created it. */
+  agentDisplayName?: string;
+  [key: string]: unknown;
+}

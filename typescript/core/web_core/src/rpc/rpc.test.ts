@@ -16,16 +16,17 @@
 
 import {describe, it} from 'node:test';
 import * as assert from 'node:assert';
-import {z} from 'zod';
 import {Catalog, createFunctionImplementation} from '../catalog/types.js';
 import {functionOf, v1BasicCatalog} from '../test/basic_catalogs.js';
 import {A2uiError} from '../errors.js';
 import {isSignal, peekValue, signal} from '../reactivity/signals.js';
 import {DataContext} from '../resolution/data-context.js';
 import {SurfaceModel} from '../state/surface-model.js';
-import {IndexImplementation} from '../v1_0/functions/system_functions.js';
+import {entrySchema} from '../catalog/entry-schema.js';
+import {IndexApi, IndexImplementation} from '../v1_0/functions/system_functions.js';
 import {A2uiRpcError, RpcErrorCode, RpcHandler} from './rpc-handler.js';
 import {testValidator} from '../test/validator.js';
+import {accepts, jsonFixture, validated} from '../test/schema.js';
 
 const FormatStringImplementation = functionOf(v1BasicCatalog, 'formatString');
 const PluralizeImplementation = functionOf(v1BasicCatalog, 'pluralize');
@@ -34,7 +35,12 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
   const customRpcApi = {
     name: 'customRpc',
     returnType: 'string' as const,
-    schema: z.object({text: z.string()}),
+    schema: jsonFixture({
+      'type': 'object',
+      'properties': {'text': {'type': 'string'}},
+      'required': ['text'],
+      'additionalProperties': false,
+    }),
     allowedCallers: 'rendererOrAgent' as const,
   };
   const customRpcImpl = createFunctionImplementation(
@@ -45,7 +51,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
   const rendererOnlyApi = {
     name: 'internalRenderer',
     returnType: 'void' as const,
-    schema: z.object({}),
+    schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': false}),
     allowedCallers: 'rendererOnly' as const,
   };
   const rendererOnlyImpl = createFunctionImplementation(rendererOnlyApi, () => {});
@@ -53,7 +59,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
   const restrictedApi = {
     name: 'userActionOnly',
     returnType: 'boolean' as const,
-    schema: z.object({}),
+    schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': false}),
     allowedCallers: 'rendererOrAgent' as const,
     requiresUserActivation: true,
   };
@@ -62,7 +68,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
   const signalApi = {
     name: 'signalFunc',
     returnType: 'number' as const,
-    schema: z.object({}),
+    schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': false}),
     allowedCallers: 'rendererOrAgent' as const,
   };
   const signalImpl = createFunctionImplementation(signalApi, () => signal(42) as any);
@@ -70,7 +76,12 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
   const agentOnlyApi = {
     name: 'agentOnlyFunc',
     returnType: 'string' as const,
-    schema: z.object({text: z.string()}),
+    schema: jsonFixture({
+      'type': 'object',
+      'properties': {'text': {'type': 'string'}},
+      'required': ['text'],
+      'additionalProperties': false,
+    }),
     allowedCallers: 'agentOnly' as const,
   };
   const agentOnlyImpl = createFunctionImplementation(agentOnlyApi, args => `Agent: ${args.text}`);
@@ -113,7 +124,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
       callRendererFunction: {
         functionCallId: 'rpc-listener-1',
         callFunction: {
-          call: 'customRpc',
+          '@call': 'customRpc',
           catalogId: 'basic',
           args: {text: 'Streaming test'},
         },
@@ -146,7 +157,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     const callPromise = handler.callAgentFunction(
       'surface-1',
       {
-        call: 'fetchRemoteData',
+        '@call': 'fetchRemoteData',
         catalogId: 'basic',
         args: {query: 'test'},
       },
@@ -189,8 +200,16 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     const indexValue2 = IndexImplementation.execute({offset: 0}, context2);
     assert.strictEqual(indexValue2, 2);
 
-    // Schema coercion parses string offsets and falls back safely on NaN
-    const parsedArgs = (IndexImplementation.schema as z.ZodTypeAny).parse({offset: '5'});
+    // The arguments validate against the v1.0 `IndexSystemFunction` arguments
+    // with the catalog's validator: `offset` defaults to 0 and is a DynamicNumber,
+    // so a numeric string is rejected.
+    const {schema} = entrySchema(IndexApi, 'function', {
+      protocolVersion: '1.0',
+      validator: testValidator,
+    })!;
+    assert.deepStrictEqual(validated(schema, {}), {offset: 0});
+    assert.ok(!accepts(schema, {offset: '5'}));
+    const parsedArgs = validated(schema, {offset: 5}) as {offset: number};
     const indexValue3 = IndexImplementation.execute(parsedArgs, context2);
     assert.strictEqual(indexValue3, 7);
   });
@@ -211,7 +230,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
         },
       });
 
-      const callPromise = handler.callAgentFunction('s1', {call: 'testFunc'});
+      const callPromise = handler.callAgentFunction('s1', {'@call': 'testFunc'});
       assert.ok(emittedMsg.callAgentFunction.functionCallId.startsWith('call-'));
       handler.dispose();
       await assert.rejects(callPromise, /CANCELLED/);
@@ -229,7 +248,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     });
     const promise = handler.callAgentFunction(
       'surface-1',
-      {call: 'slowFunc'},
+      {'@call': 'slowFunc'},
       {functionCallId: 'pending-1'},
     );
     handler.dispose();
@@ -252,7 +271,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     });
     const promise = handler.callAgentFunction(
       'surface-1',
-      {call: 'slowFunc'},
+      {'@call': 'slowFunc'},
       {functionCallId: 'pending-reason'},
     );
     assert.strictEqual(sent.length, 1);
@@ -270,7 +289,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
       (handler as unknown as {outboundListener?: unknown}).outboundListener,
       undefined,
     );
-    await assert.rejects(handler.callAgentFunction('surface-1', {call: 'test'}), (err: any) => {
+    await assert.rejects(handler.callAgentFunction('surface-1', {'@call': 'test'}), (err: any) => {
       assert.strictEqual(err.code, RpcErrorCode.DISPOSED);
       return true;
     });
@@ -281,7 +300,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     const handler = new RpcHandler({catalogs: [mockCatalog], outboundListener: () => {}});
     const promise = handler.callAgentFunction(
       'surface-1',
-      {call: 'slowFunc'},
+      {'@call': 'slowFunc'},
       {functionCallId: 'p'},
     );
     handler.dispose('');
@@ -306,7 +325,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
         version: '1.0',
         callRendererFunction: {
           functionCallId: 'call-post-dispose',
-          callFunction: {call: 'customRpc', catalogId: 'basic', args: {text: 'hi'}},
+          callFunction: {'@call': 'customRpc', catalogId: 'basic', args: {text: 'hi'}},
         },
       },
       context,
@@ -315,7 +334,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
 
     assert.strictEqual(response.rendererFunctionResponse.error?.code, RpcErrorCode.DISPOSED);
 
-    await assert.rejects(handler.callAgentFunction('surface-1', {call: 'test'}), (err: any) => {
+    await assert.rejects(handler.callAgentFunction('surface-1', {'@call': 'test'}), (err: any) => {
       assert.ok(err instanceof A2uiRpcError);
       assert.strictEqual(err.code, RpcErrorCode.DISPOSED);
       return true;
@@ -324,7 +343,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
 
   it('fails fast when calling callAgentFunction without outboundListener', async () => {
     const handler = new RpcHandler({catalogs: [mockCatalog]});
-    await assert.rejects(handler.callAgentFunction('surface-1', {call: 'test'}), (err: any) => {
+    await assert.rejects(handler.callAgentFunction('surface-1', {'@call': 'test'}), (err: any) => {
       assert.ok(err instanceof A2uiRpcError);
       assert.strictEqual(err.code, RpcErrorCode.NO_LISTENER);
       return true;
@@ -338,7 +357,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     });
     const promise = handler.callAgentFunction(
       'surface-1',
-      {call: 'timeoutFunc'},
+      {'@call': 'timeoutFunc'},
       {functionCallId: 'pending-timeout', timeoutMs: 10},
     );
     await assert.rejects(promise, (err: any) => {
@@ -354,7 +373,11 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     });
 
     await assert.rejects(
-      handler.callAgentFunction('surface-1', {call: 'testFunc'}, {functionCallId: 'fail-outbound'}),
+      handler.callAgentFunction(
+        'surface-1',
+        {'@call': 'testFunc'},
+        {functionCallId: 'fail-outbound'},
+      ),
       /Connection failed/,
     );
   });
@@ -395,7 +418,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     const handler = new RpcHandler({catalogs: [mockCatalog], outboundListener: () => {}});
     const promise = handler.callAgentFunction(
       's1',
-      {call: 'remoteFunc'},
+      {'@call': 'remoteFunc'},
       {functionCallId: 'err-call-1'},
     );
     handler.handleAgentFunctionResponse({
@@ -417,7 +440,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     const handler = new RpcHandler({catalogs: [mockCatalog], outboundListener: () => {}});
     const promise = handler.callAgentFunction(
       's1',
-      {call: 'remoteFunc'},
+      {'@call': 'remoteFunc'},
       {functionCallId: 'err-call-partial'},
     );
     handler.handleAgentFunctionResponse({
@@ -437,9 +460,9 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
 
   it('rejects duplicate pending functionCallId with DUPLICATE error code', async () => {
     const handler = new RpcHandler({catalogs: [mockCatalog], outboundListener: () => {}});
-    const promise1 = handler.callAgentFunction('s1', {call: 'func1'}, {functionCallId: 'dup-1'});
+    const promise1 = handler.callAgentFunction('s1', {'@call': 'func1'}, {functionCallId: 'dup-1'});
     await assert.rejects(
-      handler.callAgentFunction('s1', {call: 'func2'}, {functionCallId: 'dup-1'}),
+      handler.callAgentFunction('s1', {'@call': 'func2'}, {functionCallId: 'dup-1'}),
       (err: A2uiRpcError) => err instanceof A2uiRpcError && err.code === RpcErrorCode.DUPLICATE,
     );
     handler.dispose();
@@ -460,7 +483,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
 
     const promise = handler.callAgentFunction<{data: string}>(
       's1',
-      {call: 'fetchData', catalogId: 'basic'},
+      {'@call': 'fetchData', catalogId: 'basic'},
       {functionCallId: 'custom-id-99', timeoutMs: 10000},
     );
 
@@ -488,7 +511,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
         callRendererFunction: {
           functionCallId: 'call-signal-1',
           callFunction: {
-            call: 'signalFunc',
+            '@call': 'signalFunc',
             catalogId: 'basic',
           },
         },
@@ -511,7 +534,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
         callRendererFunction: {
           functionCallId: 'call-agent-only-1',
           callFunction: {
-            call: 'agentOnlyFunc',
+            '@call': 'agentOnlyFunc',
             catalogId: 'basic',
             args: {text: 'hi'},
           },
@@ -535,7 +558,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
         callRendererFunction: {
           functionCallId: 'call-no-surface-default',
           callFunction: {
-            call: 'customRpc',
+            '@call': 'customRpc',
             args: {text: 'hi'},
           } as any,
         },
@@ -561,7 +584,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
           surfaceId: 's1',
           functionCallId: 'call-with-surface-no-catalog',
           callFunction: {
-            call: 'customRpc',
+            '@call': 'customRpc',
             args: {text: 'hi'},
           } as any,
         },
@@ -587,7 +610,12 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
       {
         name: 'asyncEcho',
         returnType: 'any' as const,
-        schema: z.object({value: z.string()}),
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {'value': {'type': 'string'}},
+          'required': ['value'],
+          'additionalProperties': false,
+        }),
         allowedCallers: 'rendererOrAgent' as const,
       },
       async args => {
@@ -624,7 +652,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
       {
         name: 'asyncFail',
         returnType: 'any' as const,
-        schema: z.object({}),
+        schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': false}),
         allowedCallers: 'rendererOrAgent' as const,
       },
       async () => {
@@ -687,7 +715,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
 
     const promise = handler.callAgentFunction(
       'surface-1',
-      {call: 'defaultTimeoutFunc'},
+      {'@call': 'defaultTimeoutFunc'},
       {functionCallId: 'default-timeout-1'},
     );
     assert.strictEqual(pendingMap.size, 1);
@@ -730,7 +758,7 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
 
     const promise = handler.callAgentFunction(
       'surface-1',
-      {call: 'abortableFunc'},
+      {'@call': 'abortableFunc'},
       {functionCallId: 'abort-call-1'},
     );
     assert.strictEqual(pendingMap.size, 1);
@@ -761,15 +789,27 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     const standaloneId = 'https://example.com/standalone/catalog.json';
 
     const labelA = createFunctionImplementation(
-      {name: 'label', returnType: 'string' as const, schema: z.object({})},
+      {
+        name: 'label',
+        returnType: 'string' as const,
+        schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': false}),
+      },
       () => 'from-A',
     );
     const labelB = createFunctionImplementation(
-      {name: 'label', returnType: 'string' as const, schema: z.object({})},
+      {
+        name: 'label',
+        returnType: 'string' as const,
+        schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': false}),
+      },
       () => 'from-B',
     );
     const labelStandalone = createFunctionImplementation(
-      {name: 'label', returnType: 'string' as const, schema: z.object({})},
+      {
+        name: 'label',
+        returnType: 'string' as const,
+        schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': false}),
+      },
       () => 'from-standalone',
     );
 
@@ -781,7 +821,12 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
       {
         name: 'asyncFormat',
         returnType: 'any' as const,
-        schema: z.object({value: z.string()}),
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {'value': {'type': 'string'}},
+          'required': ['value'],
+          'additionalProperties': false,
+        }),
         allowedCallers: 'rendererOrAgent' as const,
       },
       async (args, ctx) => {
@@ -794,7 +839,12 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
       {
         name: 'asyncFormat',
         returnType: 'any' as const,
-        schema: z.object({value: z.string()}),
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {'value': {'type': 'string'}},
+          'required': ['value'],
+          'additionalProperties': false,
+        }),
         allowedCallers: 'rendererOrAgent' as const,
       },
       async (args, ctx) => {
@@ -912,14 +962,23 @@ describe('Stage 3 (Sauce-TS) Bidirectional RPC & @index Function Verification', 
     // while targeting an unnegotiated catalog fails with `EXECUTION_ERROR`.
     const makeLabelHelper = (text: string) =>
       createFunctionImplementation(
-        {name: 'label', returnType: 'string' as const, schema: z.object({})},
+        {
+          name: 'label',
+          returnType: 'string' as const,
+          schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': false}),
+        },
         () => text,
       );
     const echoLabelImpl = createFunctionImplementation(
       {
         name: 'echoLabel',
         returnType: 'string' as const,
-        schema: z.object({label: z.string()}),
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {'label': {'type': 'string'}},
+          'required': ['label'],
+          'additionalProperties': false,
+        }),
         allowedCallers: 'agentOnly' as const,
       },
       args => args.label,

@@ -23,7 +23,6 @@
 
 import assert from 'node:assert';
 import {describe, it} from 'node:test';
-import {z} from 'zod';
 import {
   Catalog,
   CatalogApi,
@@ -32,17 +31,8 @@ import {
   FunctionImplementation,
   createFunctionImplementation,
 } from '../catalog/types.js';
-// ponytail: zod mirrors of the v0.9 common types (the fixtures' spelling) until Task 11.
-import {CommonSchemas} from '../v0_9/schema/common-types.js';
 import {ComponentModel} from '../state/component-model.js';
 import {SurfaceModel} from '../state/surface-model.js';
-import {A2uiClientAction} from '../v0_9/schema/client-to-server.js';
-import {
-  ActionSchema,
-  ChildListSchema,
-  ComponentIdSchema,
-  DynamicStringSchema,
-} from '../v0_9/schema/common-types.js';
 import {effect, getValue, peekValue, setValue, Signal} from '../reactivity/signals.js';
 import {ComponentNode, NodeProps, PLACEHOLDER_TYPE, isComponentNode} from './component-node.js';
 import {NodeResolver} from './node-resolver.js';
@@ -50,34 +40,90 @@ import {ResolvedBinding, WritableBinding, isWritable} from './resolved-binding.j
 import * as v0_9 from '../v0_9/index.js';
 import {MAX_DYNAMIC_CHILD_LIST_SIZE} from './generic-binder.js';
 import {testValidator} from '../test/validator.js';
+import type {AuthoredSchema} from '../catalog/entry-schema.js';
+import {jsonFixture} from '../test/schema.js';
+import type {A2uiClientAction} from '../v0_9/message-types.js';
 
 const TextApi = {
   name: 'Text',
-  schema: z.object({text: DynamicStringSchema.optional()}),
+  schema: jsonFixture(
+    {
+      'type': 'object',
+      'properties': {'text': {'$ref': 'common_types.json#/$defs/DynamicString'}},
+      'additionalProperties': false,
+    },
+    '0.9',
+  ),
 };
 const ButtonApi = {
   name: 'Button',
-  schema: z.object({label: DynamicStringSchema.optional(), action: ActionSchema.optional()}),
+  schema: jsonFixture(
+    {
+      'type': 'object',
+      'properties': {
+        'label': {'$ref': 'common_types.json#/$defs/DynamicString'},
+        'action': {'$ref': 'common_types.json#/$defs/Action'},
+      },
+      'additionalProperties': false,
+    },
+    '0.9',
+  ),
 };
 const CardApi = {
   name: 'Card',
-  schema: z.object({child: ComponentIdSchema.optional()}),
+  schema: jsonFixture(
+    {
+      'type': 'object',
+      'properties': {'child': {'$ref': 'common_types.json#/$defs/ComponentId'}},
+      'additionalProperties': false,
+    },
+    '0.9',
+  ),
 };
 const ColumnApi = {
   name: 'Column',
-  schema: z.object({children: ChildListSchema.optional()}),
+  schema: jsonFixture(
+    {
+      'type': 'object',
+      'properties': {'children': {'$ref': 'common_types.json#/$defs/ChildList'}},
+      'additionalProperties': false,
+    },
+    '0.9',
+  ),
 };
 const TabsApi = {
   name: 'Tabs',
-  schema: z.object({
-    items: z.array(z.object({title: z.string(), child: ComponentIdSchema})).optional(),
-  }),
+  schema: jsonFixture(
+    {
+      'type': 'object',
+      'properties': {
+        'items': {
+          'type': 'array',
+          'items': {
+            'type': 'object',
+            'properties': {
+              'title': {'type': 'string'},
+              'child': {'$ref': 'common_types.json#/$defs/ComponentId'},
+            },
+            'required': ['title', 'child'],
+            'additionalProperties': false,
+          },
+        },
+      },
+      'additionalProperties': false,
+    },
+    '0.9',
+  ),
 };
 
 const ShoutApi = {
   name: 'shout',
   returnType: 'string',
-  schema: z.object({value: z.coerce.string()}),
+  schema: jsonFixture({
+    'type': 'object',
+    'properties': {'value': {'type': 'string'}},
+    'additionalProperties': false,
+  }),
 } as const;
 
 function makeCatalog() {
@@ -313,7 +359,19 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
     // of the ChildList union. The marker sits on the elements.
     const PlainListApi = {
       name: 'PlainList',
-      schema: z.object({children: z.array(ComponentIdSchema).optional()}),
+      schema: jsonFixture(
+        {
+          'type': 'object',
+          'properties': {
+            'children': {
+              'type': 'array',
+              'items': {'$ref': 'common_types.json#/$defs/ComponentId'},
+            },
+          },
+          'additionalProperties': false,
+        },
+        '0.9',
+      ),
     };
     const catalog = new Catalog<ComponentApi>('plain-list-catalog', '0.9', [TextApi, PlainListApi]);
     const surface = new SurfaceModel('surf-1', catalog);
@@ -336,10 +394,17 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
   it('keeps instance ids distinct when a component id mimics a suffixed or scoped form', () => {
     const PaneApi = {
       name: 'Pane',
-      schema: z.object({
-        main: ComponentIdSchema.optional(),
-        items: ChildListSchema.optional(),
-      }),
+      schema: jsonFixture(
+        {
+          'type': 'object',
+          'properties': {
+            'main': {'$ref': 'common_types.json#/$defs/ComponentId'},
+            'items': {'$ref': 'common_types.json#/$defs/ChildList'},
+          },
+          'additionalProperties': false,
+        },
+        '0.9',
+      ),
     };
     const catalog = new Catalog<ComponentApi>('mimic-catalog', '0.9', [
       TextApi,
@@ -419,10 +484,17 @@ describe('NodeResolver conformance (port of test_node_graph.py)', () => {
     // first node the moment the second resolves.
     const TrickyApi = {
       name: 'Tricky',
-      schema: z.object({
-        'a': ComponentIdSchema.optional(),
-        'a>b': ComponentIdSchema.optional(),
-      }),
+      schema: jsonFixture(
+        {
+          'type': 'object',
+          'properties': {
+            'a': {'$ref': 'common_types.json#/$defs/ComponentId'},
+            'a>b': {'$ref': 'common_types.json#/$defs/ComponentId'},
+          },
+          'additionalProperties': false,
+        },
+        '0.9',
+      ),
     };
     const catalog = new Catalog<ComponentApi>('tricky-catalog', '0.9', [TextApi, TrickyApi]);
     const surface = new SurfaceModel('surf-1', catalog);
@@ -794,7 +866,14 @@ describe('NodeResolver malformed and unusual payloads', () => {
   function setupWithDelayedDelivery() {
     const TextApi = {
       name: 'Text',
-      schema: z.object({text: DynamicStringSchema.optional()}),
+      schema: jsonFixture(
+        {
+          'type': 'object',
+          'properties': {'text': {'$ref': 'common_types.json#/$defs/DynamicString'}},
+          'additionalProperties': false,
+        },
+        '0.9',
+      ),
     };
     const catalog = new Catalog<ComponentApi>('stale-root-catalog', '0.9', [TextApi]);
     const surface = new SurfaceModel('surf-1', catalog);
@@ -941,15 +1020,24 @@ describe('NodeResolver absent dynamic properties', () => {
   it('represents omitted dynamic properties as read-only bindings at every level', () => {
     const GroupApi = {
       name: 'Group',
-      schema: z.object({
-        title: DynamicStringSchema.optional(),
-        group: z
-          .object({
-            value: DynamicStringSchema.optional(),
-            label: z.string().optional(),
-          })
-          .optional(),
-      }),
+      schema: jsonFixture(
+        {
+          'type': 'object',
+          'properties': {
+            'title': {'$ref': 'common_types.json#/$defs/DynamicString'},
+            'group': {
+              'type': 'object',
+              'properties': {
+                'value': {'$ref': 'common_types.json#/$defs/DynamicString'},
+                'label': {'type': 'string'},
+              },
+              'additionalProperties': false,
+            },
+          },
+          'additionalProperties': false,
+        },
+        '0.9',
+      ),
     };
     const catalog = new Catalog<ComponentApi>('group-catalog', '0.9', [GroupApi]);
     const surface = new SurfaceModel('surf-1', catalog);
@@ -975,9 +1063,31 @@ describe('NodeResolver child markers survive schema description', () => {
   it('resolves a child whose componentId schema was described', () => {
     const Api = {
       name: 'DescribedCard',
-      schema: z.object({child: ComponentIdSchema.describe('The child to show.').optional()}),
+      schema: jsonFixture(
+        {
+          'type': 'object',
+          'properties': {
+            'child': {
+              '$ref': 'common_types.json#/$defs/ComponentId',
+              'description': 'The child to show.',
+            },
+          },
+          'additionalProperties': false,
+        },
+        '0.9',
+      ),
     };
-    const TextApi = {name: 'Text', schema: z.object({text: DynamicStringSchema.optional()})};
+    const TextApi = {
+      name: 'Text',
+      schema: jsonFixture(
+        {
+          'type': 'object',
+          'properties': {'text': {'$ref': 'common_types.json#/$defs/DynamicString'}},
+          'additionalProperties': false,
+        },
+        '0.9',
+      ),
+    };
     const catalog = new Catalog<ComponentApi>('described-catalog', '0.9', [Api, TextApi]);
     const surface = new SurfaceModel('surf-1', catalog);
     const resolver = new NodeResolver(surface, catalog);
@@ -995,9 +1105,31 @@ describe('NodeResolver child markers survive schema description', () => {
   it('resolves a child list whose schema was described', () => {
     const Api = {
       name: 'DescribedColumn',
-      schema: z.object({children: ChildListSchema.describe('The children.').optional()}),
+      schema: jsonFixture(
+        {
+          'type': 'object',
+          'properties': {
+            'children': {
+              '$ref': 'common_types.json#/$defs/ChildList',
+              'description': 'The children.',
+            },
+          },
+          'additionalProperties': false,
+        },
+        '0.9',
+      ),
     };
-    const TextApi = {name: 'Text', schema: z.object({text: DynamicStringSchema.optional()})};
+    const TextApi = {
+      name: 'Text',
+      schema: jsonFixture(
+        {
+          'type': 'object',
+          'properties': {'text': {'$ref': 'common_types.json#/$defs/DynamicString'}},
+          'additionalProperties': false,
+        },
+        '0.9',
+      ),
+    };
     const catalog = new Catalog<ComponentApi>('described-catalog', '0.9', [Api, TextApi]);
     const surface = new SurfaceModel('surf-1', catalog);
     const resolver = new NodeResolver(surface, catalog);
@@ -1016,14 +1148,23 @@ describe('NodeResolver child markers survive schema description', () => {
   it('still recognizes a hand-authored REF description', () => {
     const Api = {
       name: 'HandAuthored',
-      schema: z.object({
-        child: z
-          .string()
-          .describe('REF:common_types.json#/$defs/ComponentId|Authored by hand.')
-          .optional(),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'child': {'$ref': 'common_types.json#/$defs/ComponentId'}},
+        'additionalProperties': false,
       }),
     };
-    const TextApi = {name: 'Text', schema: z.object({text: DynamicStringSchema.optional()})};
+    const TextApi = {
+      name: 'Text',
+      schema: jsonFixture(
+        {
+          'type': 'object',
+          'properties': {'text': {'$ref': 'common_types.json#/$defs/DynamicString'}},
+          'additionalProperties': false,
+        },
+        '0.9',
+      ),
+    };
     const catalog = new Catalog<ComponentApi>('hand-catalog', '0.9', [Api, TextApi]);
     const surface = new SurfaceModel('surf-1', catalog);
     const resolver = new NodeResolver(surface, catalog);
@@ -1426,20 +1567,29 @@ describe('NodeResolver omitted property pruning on update (#3779)', () => {
   it('prunes omitted scalar, nested object, array, dynamic-bound, action, and ref properties on update (#3779)', async () => {
     const RichWidgetApi = {
       name: 'RichWidget',
-      schema: z.object({
-        variant: z.string().optional(),
-        tags: z.array(z.string()).optional(),
-        accessibility: z
-          .object({
-            label: DynamicStringSchema.optional(),
-            description: z.string().optional(),
-          })
-          .optional(),
-        value: DynamicStringSchema.optional(),
-        action: ActionSchema.optional(),
-        child: ComponentIdSchema.optional(),
-        children: ChildListSchema.optional(),
-      }),
+      schema: jsonFixture(
+        {
+          'type': 'object',
+          'properties': {
+            'variant': {'type': 'string'},
+            'tags': {'type': 'array', 'items': {'type': 'string'}},
+            'accessibility': {
+              'type': 'object',
+              'properties': {
+                'label': {'$ref': 'common_types.json#/$defs/DynamicString'},
+                'description': {'type': 'string'},
+              },
+              'additionalProperties': false,
+            },
+            'value': {'$ref': 'common_types.json#/$defs/DynamicString'},
+            'action': {'$ref': 'common_types.json#/$defs/Action'},
+            'child': {'$ref': 'common_types.json#/$defs/ComponentId'},
+            'children': {'$ref': 'common_types.json#/$defs/ChildList'},
+          },
+          'additionalProperties': false,
+        },
+        '0.9',
+      ),
     };
     const catalog = new Catalog<ComponentApi>(
       'prune-test-catalog',
@@ -1534,16 +1684,32 @@ describe('NodeResolver omitted property pruning on update (#3779)', () => {
     const required: FunctionImplementation = {
       name: 'required',
       returnType: 'boolean',
-      schema: z.object({value: z.unknown()}),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'value': {}},
+        'additionalProperties': false,
+      }),
       execute: (args: Record<string, unknown>) => Boolean(args.value),
     };
     const ValidatedInputApi = {
       name: 'ValidatedInput',
-      schema: z.object({
-        value: CommonSchemas.DynamicString.optional(),
-        placeholder: z.string().optional(),
-        checks: CommonSchemas.Checkable.shape.checks,
-      }),
+      schema: jsonFixture(
+        {
+          'type': 'object',
+          'properties': {
+            'value': {'$ref': 'common_types.json#/$defs/DynamicString'},
+            'placeholder': {'type': 'string'},
+            'checks': {
+              'type': 'array',
+              'items': {'$ref': 'common_types.json#/$defs/CheckRule'},
+              'description':
+                'A list of checks to perform. These are function calls that must return a boolean indicating validity.',
+            },
+          },
+          'additionalProperties': false,
+        },
+        '0.9',
+      ),
     };
     const catalog = new Catalog<ComponentApi>(
       'check-prune-catalog',
@@ -1612,22 +1778,31 @@ describe('NodeResolver omitted property pruning on update (#3779)', () => {
   it('prunes omitted non-ref properties during materialize even before a delayed binder onUpdated runs (#3779)', async () => {
     const WidgetWithChildApi = {
       name: 'WidgetWithChild',
-      schema: z.object({
-        variant: z.string().nullable().optional(),
-        extraMap: z.record(z.string()).optional(),
-        grid: z
-          .array(
-            z.array(
-              z.object({
-                title: z.string(),
-                badge: z.string().optional(),
-              }),
-            ),
-          )
-          .optional(),
-        child: ComponentIdSchema.optional(),
-        children: ChildListSchema.optional(),
-      }),
+      schema: jsonFixture(
+        {
+          'type': 'object',
+          'properties': {
+            'variant': {'type': ['string', 'null']},
+            'extraMap': {'type': 'object', 'additionalProperties': {'type': 'string'}},
+            'grid': {
+              'type': 'array',
+              'items': {
+                'type': 'array',
+                'items': {
+                  'type': 'object',
+                  'properties': {'title': {'type': 'string'}, 'badge': {'type': 'string'}},
+                  'required': ['title'],
+                  'additionalProperties': false,
+                },
+              },
+            },
+            'child': {'$ref': 'common_types.json#/$defs/ComponentId'},
+            'children': {'$ref': 'common_types.json#/$defs/ChildList'},
+          },
+          'additionalProperties': false,
+        },
+        '0.9',
+      ),
     };
     const catalog = new Catalog<ComponentApi>(
       'delayed-binder-catalog',
@@ -1714,7 +1889,7 @@ describe('NodeResolver omitted property pruning on update (#3779)', () => {
 });
 
 describe('NodeResolver @accessibility mirror', () => {
-  function setupV10(schema: z.ZodTypeAny) {
+  function setupV10(schema: AuthoredSchema) {
     const catalog = new Catalog<ComponentApi>('a11y-catalog', '1.0', [{name: 'Widget', schema}]);
     const surface = new SurfaceModel('surf-1', catalog);
     const resolver = new NodeResolver(surface, catalog);
@@ -1728,7 +1903,13 @@ describe('NodeResolver @accessibility mirror', () => {
   }
 
   it('exposes @accessibility as accessibility in node props', async () => {
-    const {surface, resolver} = setupV10(z.object({text: z.string().optional()}));
+    const {surface, resolver} = setupV10(
+      jsonFixture({
+        'type': 'object',
+        'properties': {'text': {'type': 'string'}},
+        'additionalProperties': false,
+      }),
+    );
     surface.dataModel.set('/label', 'Save');
     add(surface, 'root', 'Widget', {'@accessibility': {label: {'@path': '/label'}}});
     const root = getValue(resolver.rootNode);
@@ -1749,7 +1930,11 @@ describe('NodeResolver @accessibility mirror', () => {
 
   it('leaves a custom accessibility the payload omits unset', () => {
     const {surface, resolver} = setupV10(
-      z.object({accessibility: z.enum(['high', 'low']).optional()}),
+      jsonFixture({
+        'type': 'object',
+        'properties': {'accessibility': {'type': 'string', 'enum': ['high', 'low']}},
+        'additionalProperties': false,
+      }),
     );
     add(surface, 'root', 'Widget', {'@accessibility': {label: 'Save'}});
     const root = getValue(resolver.rootNode);
@@ -1764,9 +1949,9 @@ describe('NodeResolver @accessibility mirror', () => {
 describe('NodeResolver dynamic and unannotated ref schemas (#3783)', () => {
   it('resolves child and children for z.record, z.any, and z.unknown schemas and disposes removed children', () => {
     for (const [label, dynamicSchema] of [
-      ['z.record', z.record(z.unknown())],
-      ['z.any', z.any()],
-      ['z.unknown', z.unknown()],
+      ['z.record', jsonFixture({'type': 'object', 'additionalProperties': {}})],
+      ['z.any', jsonFixture({})],
+      ['z.unknown', jsonFixture({})],
     ] as const) {
       const DynamicApi: ComponentApi = {name: 'DynamicWidget', schema: dynamicSchema};
       const catalog = new Catalog<ComponentApi>(`dyn-${label}`, '0.9', [DynamicApi, TextApi]);
@@ -1818,14 +2003,25 @@ describe('NodeResolver dynamic and unannotated ref schemas (#3783)', () => {
   it('resolves child and children for empty passthrough, passthrough, catchall, and Catalog.fromJson schemas', () => {
     // A strip `z.object({})` is closed (`additionalProperties: false`), so an
     // empty container must let other keys through.
-    const EmptyApi: ComponentApi = {name: 'EmptyBox', schema: z.object({}).passthrough()};
+    const EmptyApi: ComponentApi = {
+      name: 'EmptyBox',
+      schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': true}),
+    };
     const PassthroughApi: ComponentApi = {
       name: 'PassthroughBox',
-      schema: z.object({variant: z.string().optional()}).passthrough(),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'variant': {'type': 'string'}},
+        'additionalProperties': true,
+      }),
     };
     const CatchallApi: ComponentApi = {
       name: 'CatchallBox',
-      schema: z.object({variant: z.string().optional()}).catchall(z.unknown()),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'variant': {'type': 'string'}},
+        'additionalProperties': {},
+      }),
     };
     const catalog = new Catalog<ComponentApi>('open-obj-catalog', '0.9', [
       EmptyApi,
@@ -1927,17 +2123,25 @@ describe('NodeResolver dynamic and unannotated ref schemas (#3783)', () => {
   it('resolves unannotated z.object({child, children}) alongside explicit custom ref fields without misclassifying incompatible types', () => {
     const UnannotatedApi: ComponentApi = {
       name: 'UnannotatedLayout',
-      schema: z.object({
-        header: ComponentIdSchema.optional(),
-        child: z.string().optional(),
-        children: z.array(z.string()).optional(),
-      }),
+      schema: jsonFixture(
+        {
+          'type': 'object',
+          'properties': {
+            'header': {'$ref': 'common_types.json#/$defs/ComponentId'},
+            'child': {'type': 'string'},
+            'children': {'type': 'array', 'items': {'type': 'string'}},
+          },
+          'additionalProperties': false,
+        },
+        '0.9',
+      ),
     };
     const IncompatibleApi: ComponentApi = {
       name: 'IncompatibleFields',
-      schema: z.object({
-        child: z.boolean().optional(),
-        children: z.number().optional(),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'child': {'type': 'boolean'}, 'children': {'type': 'number'}},
+        'additionalProperties': false,
       }),
     };
     const catalog = new Catalog<ComponentApi>('mixed-catalog', '0.9', [
@@ -1975,25 +2179,44 @@ describe('NodeResolver dynamic and unannotated ref schemas (#3783)', () => {
   it('expands { componentId, path } templates into ComponentNode[] on unmarked, open, empty, and wrapped schemas', () => {
     const UnmarkedUnionListApi: ComponentApi = {
       name: 'UnmarkedUnionList',
-      schema: z.object({
-        children: z
-          .union([z.array(z.string()), z.object({componentId: z.string(), path: z.string()})])
-          .optional(),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {
+          'children': {
+            'anyOf': [
+              {'type': 'array', 'items': {'type': 'string'}},
+              {
+                'type': 'object',
+                'properties': {'componentId': {'type': 'string'}, 'path': {'type': 'string'}},
+                'required': ['componentId', 'path'],
+                'additionalProperties': false,
+              },
+            ],
+          },
+        },
+        'additionalProperties': false,
       }),
     };
     const WrappedListApi: ComponentApi = {
       name: 'WrappedList',
-      schema: z.object({
-        children: ChildListSchema.catch([]).pipe(z.any()).optional(),
-      }),
+      schema: jsonFixture(
+        {
+          'type': 'object',
+          'properties': {
+            'children': {'allOf': [{'$ref': 'common_types.json#/$defs/ChildList'}, {}]},
+          },
+          'additionalProperties': false,
+        },
+        '0.9',
+      ),
     };
     const EmptyListApi: ComponentApi = {
       name: 'EmptyList',
-      schema: z.object({}).passthrough(),
+      schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': true}),
     };
     const RecordListApi: ComponentApi = {
       name: 'RecordList',
-      schema: z.record(z.unknown()),
+      schema: jsonFixture({'type': 'object', 'additionalProperties': {}}),
     };
 
     const catalog = new Catalog<ComponentApi>('template-catalog', '0.9', [
@@ -2046,28 +2269,52 @@ describe('NodeResolver dynamic and unannotated ref schemas (#3783)', () => {
     resolver.dispose();
   });
 
-  it('resolves dynamic bindings, actions, accessibility, and child references on ZodIntersection, variant union, and ZodPipeline schemas', () => {
+  it('resolves dynamic bindings, actions, accessibility, and child references on allOf intersections, variant unions, and wrapped properties schemas', () => {
     const VariantAndIntersectedApi: ComponentApi = {
       name: 'VariantContainer',
-      schema: z
-        .object({
-          subtitle: DynamicStringSchema.optional(),
-          onTap: ActionSchema.optional(),
-        })
-        .and(
-          z.union([
-            z.object({
-              mode: z.literal('single'),
-              title: DynamicStringSchema,
-              child: ComponentIdSchema.pipe(z.string()),
-            }),
-            z.object({
-              mode: z.literal('list'),
-              title: DynamicStringSchema,
-              children: ChildListSchema,
-            }),
-          ]),
-        ),
+      schema: jsonFixture(
+        {
+          'allOf': [
+            {
+              'type': 'object',
+              'properties': {
+                'subtitle': {'$ref': 'common_types.json#/$defs/DynamicString'},
+                'onTap': {'$ref': 'common_types.json#/$defs/Action'},
+              },
+            },
+            {
+              'anyOf': [
+                {
+                  'type': 'object',
+                  'properties': {
+                    'mode': {'type': 'string', 'const': 'single'},
+                    'title': {'$ref': 'common_types.json#/$defs/DynamicString'},
+                    'child': {
+                      'allOf': [
+                        {'$ref': 'common_types.json#/$defs/ComponentId'},
+                        {'type': 'string'},
+                      ],
+                    },
+                  },
+                  'required': ['mode', 'title', 'child'],
+                  'additionalProperties': false,
+                },
+                {
+                  'type': 'object',
+                  'properties': {
+                    'mode': {'type': 'string', 'const': 'list'},
+                    'title': {'$ref': 'common_types.json#/$defs/DynamicString'},
+                    'children': {'$ref': 'common_types.json#/$defs/ChildList'},
+                  },
+                  'required': ['mode', 'title', 'children'],
+                  'additionalProperties': false,
+                },
+              ],
+            },
+          ],
+        },
+        '0.9',
+      ),
     };
 
     const catalog = new Catalog<ComponentApi>('composite-catalog', '0.9', [
@@ -2131,15 +2378,20 @@ describe('NodeResolver dynamic and unannotated ref schemas (#3783)', () => {
   it('resolves unannotated v0.8 entryPointChild and contentChild properties into ComponentNode instances', () => {
     const V08ModalApi: ComponentApi = {
       name: 'Modal',
-      schema: z.object({
-        entryPointChild: z.string(),
-        contentChild: z.string(),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'entryPointChild': {'type': 'string'}, 'contentChild': {'type': 'string'}},
+        'required': ['entryPointChild', 'contentChild'],
+        'additionalProperties': false,
       }),
     };
     const V08TextApi: ComponentApi = {
       name: 'Text',
-      schema: z.object({
-        text: z.string(),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'text': {'type': 'string'}},
+        'required': ['text'],
+        'additionalProperties': false,
       }),
     };
 
@@ -2164,19 +2416,27 @@ describe('NodeResolver dynamic and unannotated ref schemas (#3783)', () => {
     resolver.dispose();
   });
 
-  it('wraps dynamic bindings and actions on ZodRecord and .catchall() schemas into WritableBinding and prunes omitted entries', () => {
+  it('wraps dynamic bindings and actions on records and additionalProperties schemas into WritableBinding and prunes omitted entries', () => {
     const DynamicRecordApi: ComponentApi = {
       name: 'DynamicRecordBox',
-      schema: z
-        .object({
-          staticTag: z.string().optional(),
-          child: ComponentIdSchema.optional(),
-        })
-        .catchall(DynamicStringSchema),
+      schema: jsonFixture(
+        {
+          'type': 'object',
+          'properties': {
+            'staticTag': {'type': 'string'},
+            'child': {'$ref': 'common_types.json#/$defs/ComponentId'},
+          },
+          'additionalProperties': {'$ref': 'common_types.json#/$defs/DynamicString'},
+        },
+        '0.9',
+      ),
     };
     const ActionRecordApi: ComponentApi = {
       name: 'ActionRecordBox',
-      schema: z.record(ActionSchema),
+      schema: jsonFixture(
+        {'type': 'object', 'additionalProperties': {'$ref': 'common_types.json#/$defs/Action'}},
+        '0.9',
+      ),
     };
 
     const catalog = new Catalog<ComponentApi>('catchall-catalog', '0.9', [
@@ -2246,26 +2506,87 @@ describe('NodeResolver dynamic and unannotated ref schemas (#3783)', () => {
   });
 
   it('resolves structured items, templates, string arrays, and single IDs on [list, nested] and [single, nested] unions in either branch order', () => {
-    const StructuredSection = z.array(
-      z.object({
-        title: DynamicStringSchema,
-        child: ComponentIdSchema,
-      }),
-    );
-
     const ListFirstApi: ComponentApi = {
       name: 'ListFirstSections',
-      schema: z.union([
-        z.object({sections: ChildListSchema}),
-        z.object({sections: StructuredSection}),
-      ]),
+      schema: jsonFixture(
+        {
+          'anyOf': [
+            {
+              'type': 'object',
+              'properties': {'sections': {'$ref': 'common_types.json#/$defs/ChildList'}},
+              'required': ['sections'],
+              'additionalProperties': false,
+            },
+            {
+              'type': 'object',
+              'properties': {
+                'sections': {
+                  'type': 'array',
+                  'items': {
+                    'type': 'object',
+                    'properties': {
+                      'title': {'$ref': 'common_types.json#/$defs/DynamicString'},
+                      'child': {'$ref': 'common_types.json#/$defs/ComponentId'},
+                    },
+                    'required': ['title', 'child'],
+                    'additionalProperties': false,
+                  },
+                },
+              },
+              'required': ['sections'],
+              'additionalProperties': false,
+            },
+          ],
+        },
+        '0.9',
+      ),
     };
     const NestedFirstApi: ComponentApi = {
       name: 'NestedFirstSections',
-      schema: z.object({
-        sections: StructuredSection.or(ChildListSchema),
-        slot: ComponentIdSchema.or(StructuredSection).optional(),
-      }),
+      schema: jsonFixture(
+        {
+          'type': 'object',
+          'properties': {
+            'sections': {
+              'anyOf': [
+                {
+                  'type': 'array',
+                  'items': {
+                    'type': 'object',
+                    'properties': {
+                      'title': {'$ref': 'common_types.json#/$defs/DynamicString'},
+                      'child': {'$ref': 'common_types.json#/$defs/ComponentId'},
+                    },
+                    'required': ['title', 'child'],
+                    'additionalProperties': false,
+                  },
+                },
+                {'$ref': 'common_types.json#/$defs/ChildList'},
+              ],
+            },
+            'slot': {
+              'anyOf': [
+                {'$ref': 'common_types.json#/$defs/ComponentId'},
+                {
+                  'type': 'array',
+                  'items': {
+                    'type': 'object',
+                    'properties': {
+                      'title': {'$ref': 'common_types.json#/$defs/DynamicString'},
+                      'child': {'$ref': 'common_types.json#/$defs/ComponentId'},
+                    },
+                    'required': ['title', 'child'],
+                    'additionalProperties': false,
+                  },
+                },
+              ],
+            },
+          },
+          'required': ['sections'],
+          'additionalProperties': false,
+        },
+        '0.9',
+      ),
     };
 
     const catalog = new Catalog<ComponentApi>('union-nested-list-cat', '0.9', [
@@ -2335,49 +2656,151 @@ describe('NodeResolver dynamic and unannotated ref schemas (#3783)', () => {
   });
 
   it('resolves structured array branch of [single, nested] unions, narrowed [list, nested] templates, catchall child slots, and Catalog.fromJson oneOf dynamic child props', () => {
-    const StructuredSection = z.array(
-      z.object({
-        title: CommonSchemas.DynamicString,
-        child: ComponentIdSchema,
-      }),
-    );
-
     const SingleOrNestedFirstApi: ComponentApi = {
       name: 'SingleOrNestedFirst',
-      schema: z.object({
-        slot: ComponentIdSchema.or(StructuredSection).optional(),
-      }),
+      schema: jsonFixture(
+        {
+          'type': 'object',
+          'properties': {
+            'slot': {
+              'anyOf': [
+                {'$ref': 'common_types.json#/$defs/ComponentId'},
+                {
+                  'type': 'array',
+                  'items': {
+                    'type': 'object',
+                    'properties': {
+                      'title': {'$ref': 'common_types.json#/$defs/DynamicString'},
+                      'child': {'$ref': 'common_types.json#/$defs/ComponentId'},
+                    },
+                    'required': ['title', 'child'],
+                    'additionalProperties': false,
+                  },
+                },
+              ],
+            },
+          },
+          'additionalProperties': false,
+        },
+        '0.9',
+      ),
     };
     const SingleOrNestedSecondApi: ComponentApi = {
       name: 'SingleOrNestedSecond',
-      schema: z.object({
-        slot: StructuredSection.or(ComponentIdSchema).optional(),
-      }),
+      schema: jsonFixture(
+        {
+          'type': 'object',
+          'properties': {
+            'slot': {
+              'anyOf': [
+                {
+                  'type': 'array',
+                  'items': {
+                    'type': 'object',
+                    'properties': {
+                      'title': {'$ref': 'common_types.json#/$defs/DynamicString'},
+                      'child': {'$ref': 'common_types.json#/$defs/ComponentId'},
+                    },
+                    'required': ['title', 'child'],
+                    'additionalProperties': false,
+                  },
+                },
+                {'$ref': 'common_types.json#/$defs/ComponentId'},
+              ],
+            },
+          },
+          'additionalProperties': false,
+        },
+        '0.9',
+      ),
     };
     const NarrowedListApi: ComponentApi = {
       name: 'NarrowedList',
-      schema: z
-        .object({sections: ChildListSchema.or(StructuredSection)})
-        .and(z.object({sections: ChildListSchema})),
+      schema: jsonFixture(
+        {
+          'allOf': [
+            {
+              'type': 'object',
+              'properties': {
+                'sections': {
+                  'anyOf': [
+                    {'$ref': 'common_types.json#/$defs/ChildList'},
+                    {
+                      'type': 'array',
+                      'items': {
+                        'type': 'object',
+                        'properties': {
+                          'title': {'$ref': 'common_types.json#/$defs/DynamicString'},
+                          'child': {'$ref': 'common_types.json#/$defs/ComponentId'},
+                        },
+                        'required': ['title', 'child'],
+                        'additionalProperties': false,
+                      },
+                    },
+                  ],
+                },
+              },
+              'required': ['sections'],
+            },
+            {
+              'type': 'object',
+              'properties': {'sections': {'$ref': 'common_types.json#/$defs/ChildList'}},
+              'required': ['sections'],
+            },
+          ],
+          'unevaluatedProperties': false,
+        },
+        '0.9',
+      ),
     };
     const CatchallWithChildApi: ComponentApi = {
       name: 'CatchallWithChild',
-      schema: z.union([
-        z.record(CommonSchemas.DynamicString),
-        z.object({fixed: CommonSchemas.Action, child: ComponentIdSchema.optional()}),
-      ]),
+      schema: jsonFixture(
+        {
+          'anyOf': [
+            {
+              'type': 'object',
+              'additionalProperties': {'$ref': 'common_types.json#/$defs/DynamicString'},
+            },
+            {
+              'type': 'object',
+              'properties': {
+                'fixed': {'$ref': 'common_types.json#/$defs/Action'},
+                'child': {'$ref': 'common_types.json#/$defs/ComponentId'},
+              },
+              'required': ['fixed'],
+              'additionalProperties': false,
+            },
+          ],
+        },
+        '0.9',
+      ),
     };
     const ActionRowsApi: ComponentApi = {
       name: 'ActionRows',
-      schema: z.object({
-        rows: z.array(
-          z.object({
-            componentId: z.string(),
-            path: z.string(),
-            iconChild: ComponentIdSchema.optional(),
-          }),
-        ),
-      }),
+      schema: jsonFixture(
+        {
+          'type': 'object',
+          'properties': {
+            'rows': {
+              'type': 'array',
+              'items': {
+                'type': 'object',
+                'properties': {
+                  'componentId': {'type': 'string'},
+                  'path': {'type': 'string'},
+                  'iconChild': {'$ref': 'common_types.json#/$defs/ComponentId'},
+                },
+                'required': ['componentId', 'path'],
+                'additionalProperties': false,
+              },
+            },
+          },
+          'required': ['rows'],
+          'additionalProperties': false,
+        },
+        '0.9',
+      ),
     };
     const oneOfJsonCatalog = Catalog.fromJson(
       {

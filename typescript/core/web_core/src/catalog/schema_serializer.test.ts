@@ -20,8 +20,6 @@ import {resolve} from 'node:path';
 import {describe, it} from 'node:test';
 import {isDeepStrictEqual} from 'node:util';
 
-import {z} from 'zod';
-
 import {A2uiCatalogError, A2uiValidationError} from '../errors.js';
 import {MessageProcessor, STRICT_VALIDATION} from '../processing/message-processor.js';
 import {
@@ -29,11 +27,9 @@ import {
   v09BasicCatalog,
   v1BasicCatalog as v10BasicCatalog,
 } from '../test/basic_catalogs.js';
-import {exclusiveUnion} from './exclusive_union.js';
 import {JsonComponentApi, JsonFunctionApi, loadedDefinition} from './json_entries.js';
 import {generateValidationSchema} from './schema_generator.js';
 import {DEFAULT_PROTOCOL_VERSION} from './from-json.js';
-import {spec, specDef} from './spec_annotations.js';
 import {
   Catalog,
   createFunctionImplementation,
@@ -41,7 +37,7 @@ import {
   type FunctionApi,
 } from './types.js';
 import {testValidator} from '../test/validator.js';
-import {accepts} from '../test/schema.js';
+import {accepts, jsonFixture} from '../test/schema.js';
 
 function readRepoJson(relativePath: string): Record<string, any> {
   return JSON.parse(readFileSync(resolve(process.cwd(), '../../..', relativePath), 'utf-8'));
@@ -260,7 +256,11 @@ describe('Catalog.toJson', () => {
 
   it('assembles the document once per catalog', () => {
     let reads = 0;
-    const labelSchema = z.object({});
+    const labelSchema = jsonFixture({
+      'type': 'object',
+      'properties': {},
+      'additionalProperties': false,
+    });
     const counted: ComponentApi = {
       name: 'Label',
       get schema() {
@@ -325,7 +325,15 @@ describe('Catalog.toJson', () => {
       undefined,
       {validator: testValidator},
     );
-    const label: ComponentApi = {name: 'Label', schema: z.object({text: z.string()})};
+    const label: ComponentApi = {
+      name: 'Label',
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'text': {'type': 'string'}},
+        'required': ['text'],
+        'additionalProperties': false,
+      }),
+    };
     const derived = loaded.withEntries([label], [...loaded.functions.values()]);
     assert.strictEqual(derived.declaresComponents, false);
     assert.deepStrictEqual(Object.keys(derived.toJson().components as object), ['Label']);
@@ -420,19 +428,39 @@ describe('Catalog.toJson', () => {
   it('omits unevaluatedProperties: false and catchall subschemas on v1.0 code-defined components while keeping v0.9 closed and passthrough open', () => {
     const DefaultComp: ComponentApi = {
       name: 'DefaultComp',
-      schema: z.object({label: z.string(), weight: z.number().optional()}),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'label': {'type': 'string'}, 'weight': {'type': 'number'}},
+        'required': ['label'],
+        'additionalProperties': false,
+      }),
     };
     const StrictComp: ComponentApi = {
       name: 'StrictComp',
-      schema: z.object({label: z.string()}).strict(),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'label': {'type': 'string'}},
+        'required': ['label'],
+        'additionalProperties': false,
+      }),
     };
     const OpenComp: ComponentApi = {
       name: 'OpenComp',
-      schema: z.object({label: z.string()}).passthrough(),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'label': {'type': 'string'}},
+        'required': ['label'],
+        'additionalProperties': true,
+      }),
     };
     const CatchallComp: ComponentApi = {
       name: 'CatchallComp',
-      schema: z.object({label: z.string()}).catchall(z.number()),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'label': {'type': 'string'}},
+        'required': ['label'],
+        'additionalProperties': {'type': 'number'},
+      }),
     };
 
     const v10Doc = new Catalog('https://example.com/v10-closure', '1.0', [
@@ -465,7 +493,12 @@ describe('Catalog.toJson', () => {
       {
         name: 'launch',
         returnType: 'void',
-        schema: z.object({url: z.string()}),
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {'url': {'type': 'string'}},
+          'required': ['url'],
+          'additionalProperties': false,
+        }),
         allowedCallers: 'rendererOnly',
         requiresUserActivation: true,
         description: 'Launches a URL.',
@@ -523,7 +556,12 @@ describe('Catalog.toJson', () => {
     const loaded = Catalog.fromJson(document, undefined, undefined, {validator: testValidator});
     const rewritten: ComponentApi = {
       name: 'Text',
-      schema: z.object({text: z.string().describe('REF:common_types.json#/$defs/DynamicString')}),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'text': {'$ref': 'common_types.json#/$defs/DynamicString'}},
+        'required': ['text'],
+        'additionalProperties': false,
+      }),
     };
     const derived = loaded.withEntries([rewritten, loaded.components.get('Image')!], []);
     const out = derived.toJson();
@@ -623,7 +661,14 @@ describe('union export', () => {
 
   for (const version of ['v0.9', '1.0']) {
     it(`exports z.union as anyOf and keeps its accepted values on reload in ${version}`, () => {
-      const schema = z.object({radius: z.union([z.enum(['md', 'lg']), z.string()])});
+      const schema = jsonFixture({
+        'type': 'object',
+        'properties': {
+          'radius': {'anyOf': [{'type': 'string', 'enum': ['md', 'lg']}, {'type': 'string'}]},
+        },
+        'required': ['radius'],
+        'additionalProperties': false,
+      });
       const original = new Catalog('https://example.org/catalog.json', version, [
         {name: 'Box', schema},
       ]);
@@ -675,45 +720,6 @@ describe('union export', () => {
       assert.deepStrictEqual(radiusSchema(loaded.toJson()), {anyOf: OVERLAPPING_BRANCHES});
     });
 
-    it(`writes a specification-shaped union as oneOf only when its branches are disjoint in ${version}`, () => {
-      const boxSchema = spec(
-        z
-          .object({
-            radius: z.union([z.enum(['md', 'lg']), z.string()]),
-            size: z.union([z.number(), z.object({token: z.string()}).strict()]),
-          })
-          .strict(),
-        {mixins: []},
-      );
-      const catalog = new Catalog('https://example.org/shaped.json', version, [
-        {name: 'Box', schema: boxSchema},
-      ]);
-      const document = catalog.toJson();
-      const box = (document.components as Record<string, any>).Box;
-      // A v1.0 definition without mixins lists its properties itself; a v0.9
-      // one lists them in its `allOf`.
-      const properties = (box.properties ??
-        box.allOf.find((m: any) => m.properties).properties) as Record<string, unknown>;
-      assert.deepStrictEqual(properties.radius, {anyOf: OVERLAPPING_BRANCHES});
-      assert.deepStrictEqual(properties.size, {
-        oneOf: [
-          {type: 'number'},
-          {
-            type: 'object',
-            properties: {token: {type: 'string'}},
-            required: ['token'],
-            additionalProperties: false,
-          },
-        ],
-      });
-      const reloaded = Catalog.fromJson(document, undefined, undefined, {
-        validator: testValidator,
-      }).components.get('Box')!.schema;
-      assert.strictEqual(accepts(reloaded, {radius: 'md', size: 1}), true);
-      assert.strictEqual(accepts(reloaded, {radius: 'md', size: {token: 'x'}}), true);
-      assert.strictEqual(accepts(reloaded, {radius: 'md', size: 'x'}), false);
-    });
-
     it(`keeps a loaded oneOf with a description and default exclusive when reused in ${version}`, () => {
       const radius = {
         oneOf: OVERLAPPING_BRANCHES,
@@ -732,98 +738,6 @@ describe('union export', () => {
       assert.deepStrictEqual(radiusSchema(reused.toJson()), radius);
       const validation = reused.validationSchema.components as Record<string, any>;
       assert.deepStrictEqual(validation.Box.properties.radius, radius);
-    });
-
-    it(`writes function arguments as anyOf, or as oneOf when exclusive, in ${version}`, () => {
-      const branches = [z.enum(['md', 'lg']), z.string()] as const;
-      const fn = createFunctionImplementation(
-        {
-          name: 'round',
-          returnType: 'string',
-          schema: z.object({
-            inclusive: z.union(branches),
-            exclusive: exclusiveUnion(branches),
-          }),
-        },
-        () => '',
-      );
-      const catalog = new Catalog('https://example.org/functions.json', version, [], [fn]);
-      const args = (catalog.toJson().functions as Record<string, any>).round.properties.args;
-      assert.deepStrictEqual(args.properties.inclusive, {anyOf: OVERLAPPING_BRANCHES});
-      assert.deepStrictEqual(args.properties.exclusive, {oneOf: OVERLAPPING_BRANCHES});
-
-      const reloaded = Catalog.fromJson(catalog.toJson(), undefined, undefined, {
-        validator: testValidator,
-      }).functions.get('round')!.schema;
-      assert.strictEqual(accepts(reloaded, {inclusive: 'md', exclusive: '12px'}), true);
-      assert.strictEqual(accepts(reloaded, {inclusive: 'md', exclusive: 'md'}), false);
-    });
-
-    describe(`specification-shaped union keyword in ${version}`, () => {
-      /** A branch whose definition is exactly `json`. */
-      const raw = (json: Record<string, unknown>) => spec(z.any(), {keywords: json});
-      /** A branch that references a definition of the common types. */
-      const commonRef = (name: string) => z.any().describe(`REF:#/$defs/${name}`);
-
-      /** The keyword the document writes for a shaped component's `value` union. */
-      function unionKeyword(union: z.ZodTypeAny): string {
-        const schema = spec(z.object({value: union}).strict(), {mixins: []});
-        const catalog = new Catalog('https://example.org/shaped.json', version, [
-          {name: 'Box', schema},
-        ]);
-        const box = (catalog.toJson().components as Record<string, any>).Box;
-        const properties = box.properties ?? box.allOf.find((m: any) => m.properties).properties;
-        const keywords = Object.keys(properties.value).filter(k => k === 'oneOf' || k === 'anyOf');
-        assert.strictEqual(keywords.length, 1, JSON.stringify(properties.value));
-        return keywords[0];
-      }
-
-      const overlapping: Record<string, z.ZodTypeAny> = {
-        'integer and number': z.union([z.number().int(), z.number()]),
-        'open objects requiring different keys': z.union([
-          z.object({a: z.string()}),
-          z.object({b: z.string()}),
-        ]),
-        "a closed object that allows the other's required key": z.union([
-          z.object({a: z.string(), b: z.string().optional()}).strict(),
-          z.object({a: z.string()}),
-        ]),
-        'an enum and a const that share a value': z.union([z.enum(['a', 'b']), z.literal('b')]),
-        'a reference to an unknown common type': z.union([commonRef('NoSuchDef'), z.number()]),
-        "a catalog's own definition named like a common type": z.union([
-          raw({$ref: '#/$defs/DataBinding'}),
-          z.number(),
-        ]),
-        'object values that differ only in key order': z.union([
-          raw({enum: [{a: 1, b: 2}]}),
-          raw({const: {b: 2, a: 1}}),
-        ]),
-        'three branches of which two overlap': z.union([z.number(), z.string(), z.enum(['a'])]),
-      };
-      for (const [name, union] of Object.entries(overlapping)) {
-        it(`writes anyOf for ${name}`, () => assert.strictEqual(unionKeyword(union), 'anyOf'));
-      }
-
-      const disjoint: Record<string, z.ZodTypeAny> = {
-        'consts with no shared value': z.union([z.literal('a'), z.literal('b')]),
-        'enums with no shared value': z.union([z.enum(['a', 'b']), z.enum(['c'])]),
-        'a closed object and a branch requiring a key it does not allow': z.union([
-          z.object({a: z.string()}).strict(),
-          z.object({b: z.string()}),
-        ]),
-        'open objects whose required discriminators differ': z.union([
-          z.object({kind: z.literal('a'), x: z.string()}),
-          z.object({kind: z.literal('b'), y: z.string()}),
-        ]),
-        'a discriminated union': z.discriminatedUnion('kind', [
-          z.object({kind: z.literal('a')}),
-          z.object({kind: z.literal('b')}),
-        ]),
-        'a common type reference and a number': z.union([commonRef('DataBinding'), z.number()]),
-      };
-      for (const [name, union] of Object.entries(disjoint)) {
-        it(`writes oneOf for ${name}`, () => assert.strictEqual(unionKeyword(union), 'oneOf'));
-      }
     });
   }
 });
@@ -881,7 +795,7 @@ describe('Catalog.fromJson', () => {
     assert.strictEqual(openUrl.description, document.functions.openUrl.description);
   });
 
-  it('derives the Zod schema of a loaded entry from its definition once, on first use', () => {
+  it('compiles the schema of a loaded entry from its definition once', () => {
     const catalog = Catalog.fromJson(
       readRepoJson('catalogs/basic/v1/catalog.json'),
       undefined,
@@ -1000,7 +914,15 @@ describe('Catalog.fromJson', () => {
 
   it('round-trips a code-defined function without required args through toJson', () => {
     const fn = createFunctionImplementation(
-      {name: 'now', returnType: 'string', schema: z.object({format: z.string().optional()})},
+      {
+        name: 'now',
+        returnType: 'string',
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {'format': {'type': 'string'}},
+          'additionalProperties': false,
+        }),
+      },
       () => '',
     );
     for (const version of ['0.9', '1.0']) {
@@ -1020,32 +942,48 @@ describe('Catalog.fromJson', () => {
   it('round-trips v1.0 code-defined components through toJson without rejecting ComponentCommon fields', () => {
     const Banner: ComponentApi = {
       name: 'Banner',
-      schema: z.object({
-        text: z.string().describe('REF:common_types.json#/$defs/DynamicString'),
-        weight: z.number().optional(),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {
+          'text': {'$ref': 'common_types.json#/$defs/DynamicString'},
+          'weight': {'type': 'number'},
+        },
+        'required': ['text'],
+        'additionalProperties': false,
       }),
     };
     const StrictBanner: ComponentApi = {
       name: 'StrictBanner',
-      schema: z
-        .object({
-          text: z.string().describe('REF:common_types.json#/$defs/DynamicString'),
-          weight: z.number().optional(),
-        })
-        .strict(),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {
+          'text': {'$ref': 'common_types.json#/$defs/DynamicString'},
+          'weight': {'type': 'number'},
+        },
+        'required': ['text'],
+        'additionalProperties': false,
+      }),
     };
     const OpenBanner: ComponentApi = {
       name: 'OpenBanner',
-      schema: z.object({text: z.string()}).passthrough(),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'text': {'type': 'string'}},
+        'required': ['text'],
+        'additionalProperties': true,
+      }),
     };
     const CatchallBanner: ComponentApi = {
       name: 'CatchallBanner',
-      schema: z
-        .object({
-          text: z.string().describe('REF:common_types.json#/$defs/DynamicString'),
-          weight: z.number().optional(),
-        })
-        .catchall(z.number()),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {
+          'text': {'$ref': 'common_types.json#/$defs/DynamicString'},
+          'weight': {'type': 'number'},
+        },
+        'required': ['text'],
+        'additionalProperties': {'type': 'number'},
+      }),
     };
 
     const originalCatalog = new Catalog('https://example.com/v10-roundtrip.json', '1.0', [
@@ -1252,7 +1190,15 @@ describe('Catalog.fromJson', () => {
 });
 
 describe('composite catalogs', () => {
-  const Custom: ComponentApi = {name: 'Custom', schema: z.object({label: z.string()}).strict()};
+  const Custom: ComponentApi = {
+    name: 'Custom',
+    schema: jsonFixture({
+      'type': 'object',
+      'properties': {'label': {'type': 'string'}},
+      'required': ['label'],
+      'additionalProperties': false,
+    }),
+  };
 
   for (const [version, basic] of [
     ['0.9', v09BasicCatalog],
@@ -1339,7 +1285,12 @@ describe('entry definitions', () => {
   it('serializes an entry copied with a new schema from that schema', () => {
     const changed = {
       ...v10BasicCatalog.components.get('Text')!,
-      schema: z.object({text: z.string(), extra: z.number()}),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'text': {'type': 'string'}, 'extra': {'type': 'number'}},
+        'required': ['text', 'extra'],
+        'additionalProperties': false,
+      }),
     };
     const loadedText = Catalog.fromJson(
       readRepoJson('catalogs/basic/v1/catalog.json'),
@@ -1349,7 +1300,12 @@ describe('entry definitions', () => {
     ).components.get('Text')!;
     const changedLoaded = {
       ...loadedText,
-      schema: z.object({text: z.string(), extra: z.number()}),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'text': {'type': 'string'}, 'extra': {'type': 'number'}},
+        'required': ['text', 'extra'],
+        'additionalProperties': false,
+      }),
     };
     for (const entry of [changed, changedLoaded]) {
       const catalog = new Catalog('https://example.com/changed', '1.0', [entry]);
@@ -1408,7 +1364,11 @@ describe('entry definitions', () => {
       (openUrl.jsonSchema as Record<string, unknown>).description = 'changed';
     }, TypeError);
     assert.throws(() => {
-      (text as unknown as Record<string, unknown>).schema = z.object({});
+      (text as unknown as Record<string, unknown>).schema = jsonFixture({
+        'type': 'object',
+        'properties': {},
+        'additionalProperties': false,
+      });
     }, TypeError);
     assert.throws(() => {
       (catalog.defs as Record<string, unknown>).extra = {};
@@ -1431,333 +1391,6 @@ describe('entry definitions', () => {
   });
 });
 
-describe('specification annotations', () => {
-  const Common = specDef(
-    'Common',
-    z.object({weight: z.number().describe('The weight.').optional()}),
-  );
-  const Badge: ComponentApi = {
-    name: 'Badge',
-    schema: spec(
-      z
-        .object({
-          ...Common.shape,
-          label: z.string().describe('REF:#/$defs/DynamicString|The label.'),
-          tone: spec(z.enum(['info', 'warn']).describe('The tone.'), {
-            keywords: {deprecated: true},
-          }),
-          size: z.number().int().optional(),
-        })
-        .describe('A badge.')
-        .strict(),
-      {mixins: ['ComponentCommon', Common], required: ['tone', 'label']},
-    ),
-  };
-
-  it('computes a v0.9 definition with allOf mixins and the catalog definitions they name', () => {
-    const out = new Catalog('https://example.com/badges', '0.9', [Badge], [], {
-      commonTypesUri: 'https://example.com/common_types.json',
-    }).toJson();
-    assert.deepStrictEqual((out.components as Record<string, unknown>).Badge, {
-      type: 'object',
-      allOf: [
-        {$ref: 'https://example.com/common_types.json#/$defs/ComponentCommon'},
-        {$ref: '#/$defs/Common'},
-        {
-          type: 'object',
-          description: 'A badge.',
-          properties: {
-            component: {const: 'Badge'},
-            label: {
-              $ref: 'https://example.com/common_types.json#/$defs/DynamicString',
-              description: 'The label.',
-            },
-            tone: {
-              type: 'string',
-              enum: ['info', 'warn'],
-              description: 'The tone.',
-              deprecated: true,
-            },
-            size: {type: 'integer'},
-          },
-          required: ['component', 'tone', 'label'],
-        },
-      ],
-      unevaluatedProperties: false,
-    });
-    assert.deepStrictEqual((out.$defs as Record<string, unknown>).Common, {
-      type: 'object',
-      properties: {weight: {type: 'number', description: 'The weight.'}},
-    });
-  });
-
-  it('computes a v1.0 definition without mixins as a flat object', () => {
-    const out = new Catalog('https://example.com/badges', '1.0', [
-      {...Badge, schema: spec(Badge.schema as z.ZodTypeAny, {mixins: []})},
-    ]).toJson();
-    const badge = (out.components as Record<string, any>).Badge;
-    assert.strictEqual(badge.description, 'A badge.');
-    assert.strictEqual(badge.allOf, undefined);
-    assert.deepStrictEqual(Object.keys(badge.properties), [
-      'component',
-      'weight',
-      'label',
-      'tone',
-      'size',
-    ]);
-    assert.ok(!('Common' in (out.$defs as object)), 'no mixin, no definition');
-  });
-
-  it('does not change validation', () => {
-    const annotated = spec(z.string(), {keywords: {format: 'uri'}});
-    assert.ok(annotated.safeParse('not a uri').success);
-    assert.ok(accepts(Badge.schema, {label: 'x', tone: 'info'}));
-    assert.ok(!accepts(Badge.schema, {label: 'x', tone: 'other'}));
-  });
-
-  it('recomputes an out-of-order authored union when withEntries changes entries', () => {
-    const reordered = Catalog.fromJson(
-      {
-        catalogId: 'https://example.com/reordered',
-        components: {
-          Card: {type: 'object', properties: {component: {const: 'Card'}}},
-          Label: {type: 'object', properties: {component: {const: 'Label'}}},
-        },
-        $defs: {
-          anyComponent: {
-            oneOf: [{$ref: '#/components/Label'}, {$ref: '#/components/Card'}],
-            discriminator: {propertyName: 'component'},
-          },
-        },
-      },
-      undefined,
-      undefined,
-      {validator: testValidator},
-    );
-    const prunedReordered = reordered
-      .withEntries([reordered.components.get('Label')!], [])
-      .toJson();
-    assert.deepStrictEqual((prunedReordered.$defs as Record<string, unknown>).anyComponent, {
-      oneOf: [{$ref: '#/components/Label'}],
-      discriminator: {propertyName: 'component'},
-    });
-  });
-
-  it('uses commonTypesUri when serializing unannotated Zod REF markers', () => {
-    const uri = 'https://a2ui.org/specification/v0_9/common_types.json';
-    const comp: ComponentApi = {
-      name: 'Label',
-      schema: z.object({text: z.string().describe('REF:#/$defs/DynamicString')}),
-    };
-    const out = new Catalog('https://example.com/custom-uri', '0.9', [comp], [], {
-      commonTypesUri: uri,
-    }).toJson();
-    assert.strictEqual(
-      ((out.components as Record<string, any>).Label.properties.text as Record<string, unknown>)
-        .$ref,
-      `${uri}#/$defs/DynamicString`,
-    );
-  });
-
-  it('preserves required keys omitted from a spec() required ordering hint', () => {
-    const comp: ComponentApi = {
-      name: 'Form',
-      schema: spec(z.object({a: z.string(), b: z.string(), c: z.string()}).strict(), {
-        mixins: [],
-        required: ['b', 'a'],
-      }),
-    };
-    const out = new Catalog('https://example.com/form', '1.0', [comp]).toJson();
-    assert.deepStrictEqual((out.components as Record<string, any>).Form.required, [
-      'component',
-      'b',
-      'a',
-      'c',
-    ]);
-  });
-
-  it('omits args from required on a spec()-annotated function without required arguments', () => {
-    const fn = createFunctionImplementation(
-      {
-        name: 'now',
-        returnType: 'string',
-        schema: spec(z.object({format: z.string().optional()}).strict(), {
-          closure: 'unevaluatedProperties',
-        }),
-      },
-      () => '',
-    );
-    for (const version of ['0.9', '1.0']) {
-      const cat = new Catalog(`https://example.com/spec-now/${version}`, version, [], [fn]);
-      const docFn = (cat.toJson().functions as Record<string, any>).now;
-      const valFn = (cat.validationSchema.functions as Record<string, any>).now;
-      assert.ok(!docFn.required.includes('args'), `toJson omits args in ${version}`);
-      assert.deepStrictEqual(docFn.required, valFn.required);
-    }
-  });
-
-  it('requires args when every branch of a union function argument schema requires arguments', () => {
-    const unionSchema = z.union([
-      z.object({kind: z.literal('a'), value: z.string()}),
-      z.object({kind: z.literal('b'), count: z.number()}),
-    ]);
-    const choose = createFunctionImplementation(
-      {
-        name: 'choose',
-        returnType: 'string',
-        schema: unionSchema,
-      },
-      () => 'result',
-    );
-    const chooseSpec = createFunctionImplementation(
-      {
-        name: 'chooseSpec',
-        returnType: 'string',
-        schema: spec(unionSchema, {}),
-      },
-      () => 'result',
-    );
-    for (const [version, callKey] of [
-      ['0.9', 'call'],
-      ['1.0', '@call'],
-    ] as const) {
-      const cat = new Catalog(
-        `https://example.com/union-required/${version}`,
-        version,
-        [],
-        [choose, chooseSpec],
-      );
-      const docFns = cat.toJson().functions as Record<string, any>;
-      const valFns = cat.validationSchema.functions as Record<string, any>;
-      assert.deepStrictEqual(docFns.choose.required, [callKey, 'args']);
-      assert.deepStrictEqual(valFns.choose.required, [callKey, 'args']);
-      assert.deepStrictEqual(docFns.chooseSpec.required, [callKey, 'args']);
-      assert.deepStrictEqual(valFns.chooseSpec.required, [callKey, 'args']);
-    }
-  });
-
-  it('omits args from required when at least one branch of a union function schema has no required arguments', () => {
-    const optionalBranchUnion = z.union([
-      z.object({kind: z.literal('a'), value: z.string()}),
-      z.object({format: z.string().optional()}),
-    ]);
-    const chooseOptional = createFunctionImplementation(
-      {
-        name: 'chooseOptional',
-        returnType: 'string',
-        schema: optionalBranchUnion,
-      },
-      () => 'result',
-    );
-    const chooseOptionalSpec = createFunctionImplementation(
-      {
-        name: 'chooseOptionalSpec',
-        returnType: 'string',
-        schema: spec(optionalBranchUnion, {}),
-      },
-      () => 'result',
-    );
-    for (const [version, callKey] of [
-      ['0.9', 'call'],
-      ['1.0', '@call'],
-    ] as const) {
-      const cat = new Catalog(
-        `https://example.com/union-optional/${version}`,
-        version,
-        [],
-        [chooseOptional, chooseOptionalSpec],
-      );
-      const docFns = cat.toJson().functions as Record<string, any>;
-      const valFns = cat.validationSchema.functions as Record<string, any>;
-      assert.deepStrictEqual(docFns.chooseOptional.required, [callKey]);
-      assert.deepStrictEqual(valFns.chooseOptional.required, [callKey]);
-      assert.deepStrictEqual(docFns.chooseOptionalSpec.required, [callKey]);
-      assert.deepStrictEqual(valFns.chooseOptionalSpec.required, [callKey]);
-    }
-  });
-});
-
-describe('specification definition models', () => {
-  it('preserves specDef references across .describe(), avoids leaking def metadata, and resolves union disjointness', () => {
-    const ColorToken = specDef('ColorToken', z.enum(['primary', 'secondary']).default('primary'), {
-      keywords: {title: 'ColorToken'},
-    });
-    const ColorValue = specDef('ColorValue', z.union([ColorToken, z.number()]));
-    const BoxComponent: ComponentApi = {
-      name: 'Box',
-      schema: spec(
-        z
-          .object({
-            id: z.string(),
-            component: z.literal('Box'),
-            color: ColorValue.describe('Override color description').optional(),
-            token: ColorToken.optional(),
-          })
-          .strict(),
-        {mixins: []},
-      ),
-    };
-    const cat = new Catalog('https://example.com/cat', '1.0', [BoxComponent], []);
-    const doc = cat.toJson();
-    const defs = doc.$defs as Record<string, any>;
-    assert.deepStrictEqual(defs.ColorToken, {
-      type: 'string',
-      enum: ['primary', 'secondary'],
-      title: 'ColorToken',
-      default: 'primary',
-    });
-    assert.deepStrictEqual(defs.ColorValue, {
-      oneOf: [{$ref: '#/$defs/ColorToken'}, {type: 'number'}],
-    });
-    const boxProps = (doc.components as Record<string, any>).Box.properties;
-    assert.deepStrictEqual(boxProps.color, {
-      $ref: '#/$defs/ColorValue',
-      description: 'Override color description',
-    });
-    assert.deepStrictEqual(boxProps.token, {
-      $ref: '#/$defs/ColorToken',
-    });
-  });
-
-  it('validates LeafDefinitionSchema and ComponentDefinitionSchema against catalog_schema_relaxation.json', async () => {
-    const {LeafDefinitionSchema, ComponentDefinitionSchema} =
-      await import('../v1_0/schema/catalog-definition.js');
-    const suite = readRepoJson('specification/v1_0/test/cases/catalog_schema_relaxation.json');
-    const validCatalog = suite.tests[0].data;
-    for (const [defName, defSchema] of Object.entries(validCatalog.$defs)) {
-      if (defName === 'anyComponent' || defName === 'anyFunction') continue;
-      assert.strictEqual(
-        LeafDefinitionSchema.safeParse(defSchema).success,
-        true,
-        `Expected valid leaf def ${defName} to pass LeafDefinitionSchema`,
-      );
-    }
-    for (const [compName, compSchema] of Object.entries(validCatalog.components)) {
-      assert.strictEqual(
-        ComponentDefinitionSchema.safeParse(compSchema).success,
-        true,
-        `Expected valid component ${compName} to pass ComponentDefinitionSchema`,
-      );
-    }
-    assert.strictEqual(
-      LeafDefinitionSchema.safeParse(suite.tests[1].data.$defs.BadComponentDef).success,
-      false,
-    );
-    assert.strictEqual(
-      LeafDefinitionSchema.safeParse(suite.tests[2].data.$defs.BadWrappedComponentDef).success,
-      false,
-    );
-    assert.strictEqual(
-      ComponentDefinitionSchema.safeParse(suite.tests[3].data.components.Card).success,
-      false,
-    );
-    assert.strictEqual(
-      ComponentDefinitionSchema.safeParse(suite.tests[4].data.components.Card).success,
-      false,
-    );
-  });
-});
-
 describe('Catalog.derive', () => {
   const basic = Catalog.fromJson(
     readRepoJson('catalogs/basic/v1/catalog.json'),
@@ -1765,7 +1398,15 @@ describe('Catalog.derive', () => {
     undefined,
     {validator: testValidator},
   );
-  const label: ComponentApi = {name: 'Label', schema: z.object({text: z.string()})};
+  const label: ComponentApi = {
+    name: 'Label',
+    schema: jsonFixture({
+      'type': 'object',
+      'properties': {'text': {'type': 'string'}},
+      'required': ['text'],
+      'additionalProperties': false,
+    }),
+  };
 
   it('keeps the named entries and adds new ones under the new ID', () => {
     const derived = basic.derive({
@@ -1814,7 +1455,15 @@ describe('Catalog.derive', () => {
   });
 
   it("replaces the source's entry with a new entry of the same name", () => {
-    const text: ComponentApi = {name: 'Text', schema: z.object({text: z.string()})};
+    const text: ComponentApi = {
+      name: 'Text',
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'text': {'type': 'string'}},
+        'required': ['text'],
+        'additionalProperties': false,
+      }),
+    };
 
     const derived = basic.derive({
       catalogId: 'https://example.com/chat',

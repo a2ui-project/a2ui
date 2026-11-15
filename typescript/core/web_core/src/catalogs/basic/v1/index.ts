@@ -48,12 +48,7 @@ export {
   createBasicCatalogFunctions,
   type BasicFunctionOptions,
 } from './functions/basic_functions.js';
-export {
-  BasicCatalogThemeSchema,
-  BasicCatalogThemeSchema as ThemeSchema,
-  type BasicCatalogTheme,
-  isValidCssColor,
-} from '../../../universal/basic_catalog/theme.js';
+export {type BasicCatalogTheme, isValidCssColor} from '../../../universal/basic_catalog/theme.js';
 export {
   injectBasicCatalogStyles,
   computeColorVariant,

@@ -16,7 +16,6 @@
 
 import * as assert from 'node:assert';
 import {describe, it} from 'node:test';
-import {z} from 'zod';
 
 import {ComponentContext} from '../resolution/component-context.js';
 import {DataContext} from '../resolution/data-context.js';
@@ -24,10 +23,10 @@ import {GenericBinder} from '../resolution/generic-binder.js';
 import {ComponentModel} from '../state/component-model.js';
 import {DataModel} from '../state/data-model.js';
 import {SurfaceModel} from '../state/surface-model.js';
-import {DynamicBooleanSchema, DynamicStringSchema} from '../v1_0/schema/common-types.js';
 import type {SchemaDoc} from '../schema-engine/nav.js';
 import type {JsonSchema} from '../schema-engine/types.js';
-import {cursorOf} from '../test/schema.js';
+import type {AuthoredSchema} from './entry-schema.js';
+import {cursorOf, jsonFixture} from '../test/schema.js';
 import V10CommonTypes from '../v1_0/schemas/common_types.json' with {type: 'json'};
 import {Catalog, ComponentApi, createFunctionImplementation} from './types.js';
 import {
@@ -91,23 +90,19 @@ describe('isDynamicBooleanSchema', () => {
     );
   });
 
-  // ponytail: zod 3 function schemas until Task 11.
-  it('recognizes a bridged Zod DynamicBoolean, re-described or wrapped', () => {
-    const bridged = (schema: z.ZodTypeAny) => {
+  it('recognizes a DynamicBoolean reference in a schema defined in code', () => {
+    const bridged = (schema: AuthoredSchema) => {
       const c = cursorOf(schema, '1.0');
       return isDynamicBooleanSchema(c.node, c.doc);
     };
-    assert.ok(bridged(DynamicBooleanSchema));
-    assert.ok(bridged(DynamicBooleanSchema.describe('REF:#/$defs/DynamicBoolean')));
+    assert.ok(bridged(jsonFixture({'$ref': 'common_types.json#/$defs/DynamicBoolean'})));
+    assert.ok(bridged(jsonFixture({'$ref': 'common_types.json#/$defs/DynamicBoolean'})));
     assert.ok(
-      bridged(
-        DynamicBooleanSchema.describe('REF:#/$defs/DynamicBoolean|Whether to group.').optional(),
-      ),
+      bridged(jsonFixture({'$ref': 'common_types.json#/$defs/DynamicBoolean', 'default': true})),
     );
-    assert.ok(bridged(DynamicBooleanSchema.default(true).describe('Grouping.')));
-    assert.ok(bridged(DynamicBooleanSchema.optional().describe('Whether to group.')));
-    assert.ok(bridged(DynamicBooleanSchema.nullable().describe('Maybe.')));
-    assert.ok(!bridged(DynamicStringSchema.optional().describe('Label.')));
+    assert.ok(bridged(jsonFixture({'$ref': 'common_types.json#/$defs/DynamicBoolean'})));
+    assert.ok(bridged(jsonFixture({'$ref': 'common_types.json#/$defs/DynamicBoolean'})));
+    assert.ok(!bridged(jsonFixture({'$ref': 'common_types.json#/$defs/DynamicString'})));
   });
 
   it('recognizes a DynamicBoolean loaded from a catalog document', () => {
@@ -261,9 +256,14 @@ describe('Catalog invoker DynamicBoolean coercion', () => {
       {
         name: 'flag',
         returnType: 'boolean',
-        schema: z.object({
-          on: DynamicBooleanSchema.describe('REF:#/$defs/DynamicBoolean|The flag.'),
-          all: z.array(DynamicBooleanSchema).optional(),
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {
+            'on': {'$ref': 'common_types.json#/$defs/DynamicBoolean'},
+            'all': {'type': 'array', 'items': {'$ref': 'common_types.json#/$defs/DynamicBoolean'}},
+          },
+          'required': ['on'],
+          'additionalProperties': false,
         }),
       },
       args => {
@@ -317,9 +317,14 @@ describe('Catalog invoker DynamicBoolean coercion', () => {
 describe('GenericBinder DynamicBoolean property coercion', () => {
   const CheckBoxApi: ComponentApi = {
     name: 'CheckBox',
-    schema: z.object({
-      value: DynamicBooleanSchema,
-      label: DynamicStringSchema.optional(),
+    schema: jsonFixture({
+      'type': 'object',
+      'properties': {
+        'value': {'$ref': 'common_types.json#/$defs/DynamicBoolean'},
+        'label': {'$ref': 'common_types.json#/$defs/DynamicString'},
+      },
+      'required': ['value'],
+      'additionalProperties': false,
     }),
   };
 

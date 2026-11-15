@@ -18,7 +18,6 @@ import assert from 'node:assert/strict';
 import {describe, it} from 'node:test';
 
 import type {StandardSchemaV1} from '@standard-schema/spec';
-import {z} from 'zod';
 
 import {A2uiCatalogError, A2uiConfigurationError, A2uiValidationError} from '../errors.js';
 import {MessageProcessor} from '../processing/message-processor.js';
@@ -145,12 +144,29 @@ describe('CatalogSchema catalogs', () => {
     proc.dispose();
   });
 
-  it('gives a component the value of a zod 3 transform through the adapter', () => {
-    const schema = z.object({text: z.string().transform(t => t.trim())});
-    const proc = processorFor(new Catalog(CATALOG_ID, '1.0', [{name: 'Trim', schema}]));
-    update(proc, [{id: 'root', component: 'Trim', text: '  hi  '}]);
-    assert.equal(propsOf(proc, 'root').text, 'hi');
-    proc.dispose();
+  it('rejects a zod 3 schema, pointing to @a2ui/schema-zod3', () => {
+    // The shape of a zod 3 schema: `_def`, `safeParse` and a Standard Schema
+    // without Standard JSON Schema.
+    const zod3Like = {
+      _def: {typeName: 'ZodObject'},
+      safeParse: () => ({success: true}),
+      '~standard': {version: 1, vendor: 'zod', validate: (value: unknown) => ({value})},
+    } as unknown as CatalogSchema;
+    for (const build of [
+      () => new Catalog(CATALOG_ID, '1.0', [{name: 'Old', schema: zod3Like}]),
+      () =>
+        new Catalog(CATALOG_ID, '1.0', [], [{name: 'old', returnType: 'any', schema: zod3Like}]),
+      () => new Catalog(CATALOG_ID, '1.0', [], [], zod3Like),
+    ]) {
+      assert.throws(
+        build,
+        (err: unknown) =>
+          err instanceof A2uiConfigurationError &&
+          /zod 3 schema/.test(err.message) &&
+          err.message.includes('@a2ui/schema-zod3') &&
+          err.message.includes('Standard JSON Schema'),
+      );
+    }
   });
 
   it('fills the JSON defaults of a fromJsonSchema component, on a copy', () => {

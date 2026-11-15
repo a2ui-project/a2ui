@@ -35,9 +35,9 @@ import {V09_CHILD_REF_OPTIONS} from '../v0_9/standard_defs.js';
 import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
 import type {SchemaDoc} from '../schema-engine/nav.js';
 import V10CommonTypes from '../v1_0/schemas/common_types.json' with {type: 'json'};
-import {z} from 'zod';
 import {fromJsonSchema} from '../schema-engine/from-json-schema.js';
 import type {CompiledValidator, JsonSchema, JsonSchemaValidator} from '../schema-engine/types.js';
+import {jsonFixture} from '../test/schema.js';
 
 const docOf = (root: JsonSchema): SchemaDoc => ({
   root,
@@ -136,10 +136,18 @@ describe('reference-map schema introspection', () => {
   it('builds dynamic ref map for custom components with non-standard property names', () => {
     const customSplitPaneApi = {
       name: 'CustomSplitPane',
-      schema: z.object({
-        topSlot: z.string().describe('REF:#/$defs/ComponentId'),
-        bottomSlot: z.string().describe('REF:#/$defs/ComponentId'),
-        sidePanels: z.array(z.string().describe('REF:#/$defs/ComponentId')),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {
+          'topSlot': {'$ref': 'common_types.json#/$defs/ComponentId'},
+          'bottomSlot': {'$ref': 'common_types.json#/$defs/ComponentId'},
+          'sidePanels': {
+            'type': 'array',
+            'items': {'$ref': 'common_types.json#/$defs/ComponentId'},
+          },
+        },
+        'required': ['topSlot', 'bottomSlot', 'sidePanels'],
+        'additionalProperties': false,
       }),
     };
 
@@ -261,8 +269,11 @@ describe('reference-map schema introspection', () => {
   it('lazily computes and caches componentRefMap on Catalog instance', () => {
     const drawerApi = {
       name: 'Drawer',
-      schema: z.object({
-        slot: z.string().describe('ComponentId'),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'slot': {'type': 'string', 'description': 'ComponentId'}},
+        'required': ['slot'],
+        'additionalProperties': false,
       }),
     };
     const catalog = new Catalog('drawer-cat', '1.0', [drawerApi]);
@@ -276,8 +287,11 @@ describe('reference-map schema introspection', () => {
   it('safely defaults componentRefMap to standard options when refOptions is omitted', () => {
     const drawerApi = {
       name: 'Drawer',
-      schema: z.object({
-        slot: z.string().describe('ComponentId'),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'slot': {'type': 'string', 'description': 'ComponentId'}},
+        'required': ['slot'],
+        'additionalProperties': false,
       }),
     };
     const catalogWithoutOptions = new Catalog('drawer-cat', '1.0', [drawerApi]);
@@ -286,23 +300,24 @@ describe('reference-map schema introspection', () => {
     assert.deepStrictEqual(Array.from(refMap.Drawer.singleRefs), ['slot']);
   });
 
-  it('handles recursive z.lazy() component schemas without cycle overflow', () => {
-    interface TreeNodeSchema {
-      label: string;
-      childSlot?: string;
-      nestedNode?: TreeNodeSchema;
-    }
-    const treeNodeSchema: z.ZodType<TreeNodeSchema> = z.lazy(() =>
-      z.object({
-        label: z.string(),
-        childSlot: z.string().describe('REF:common_types.json#/$defs/ComponentId').optional(),
-        nestedNode: treeNodeSchema.optional(),
-      }),
-    );
-
+  it('handles recursive component schemas without cycle overflow', () => {
     const treeApi: ComponentApi = {
       name: 'TreeNode',
-      schema: treeNodeSchema,
+      schema: jsonFixture({
+        $ref: '#/$defs/TreeNode',
+        $defs: {
+          TreeNode: {
+            type: 'object',
+            properties: {
+              label: {type: 'string'},
+              childSlot: {$ref: 'common_types.json#/$defs/ComponentId'},
+              nestedNode: {$ref: '#/$defs/TreeNode'},
+            },
+            required: ['label'],
+            additionalProperties: false,
+          },
+        },
+      }),
     };
 
     const catalog = new Catalog('tree-cat', '1.0', [treeApi]);
@@ -311,24 +326,29 @@ describe('reference-map schema introspection', () => {
     assert.deepStrictEqual(Array.from(refMap.TreeNode.singleRefs), ['childSlot']);
   });
 
-  it('handles recursive z.lazy() union schemas with arrays without cycle overflow', () => {
-    type JsonValue = string | number | boolean | null | JsonValue[] | {[key: string]: JsonValue};
-    const jsonSchema: z.ZodType<JsonValue> = z.lazy(() =>
-      z.union([
-        z.string(),
-        z.number(),
-        z.boolean(),
-        z.null(),
-        z.array(jsonSchema),
-        z.record(jsonSchema),
-      ]),
-    );
-
+  it('handles recursive union schemas with arrays without cycle overflow', () => {
     const customApi: ComponentApi = {
       name: 'JsonViewer',
-      schema: z.object({
-        data: jsonSchema,
-        childSlot: z.string().describe('REF:common_types.json#/$defs/ComponentId').optional(),
+      schema: jsonFixture({
+        type: 'object',
+        properties: {
+          data: {$ref: '#/$defs/JsonValue'},
+          childSlot: {$ref: 'common_types.json#/$defs/ComponentId'},
+        },
+        required: ['data'],
+        additionalProperties: false,
+        $defs: {
+          JsonValue: {
+            anyOf: [
+              {type: 'string'},
+              {type: 'number'},
+              {type: 'boolean'},
+              {type: 'null'},
+              {type: 'array', items: {$ref: '#/$defs/JsonValue'}},
+              {type: 'object', additionalProperties: {$ref: '#/$defs/JsonValue'}},
+            ],
+          },
+        },
       }),
     };
 
@@ -340,16 +360,26 @@ describe('reference-map schema introspection', () => {
   });
 
   it('correctly identifies multiple sibling references sharing the same schema reference', () => {
-    const childId = z.string().describe('REF:common_types.json#/$defs/ComponentId');
     const customApi: ComponentApi = {
       name: 'DualSlotContainer',
-      schema: z.object({
-        items: z.array(
-          z.object({
-            left: childId,
-            right: childId,
-          }),
-        ),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {
+          'items': {
+            'type': 'array',
+            'items': {
+              'type': 'object',
+              'properties': {
+                'left': {'$ref': 'common_types.json#/$defs/ComponentId'},
+                'right': {'$ref': 'common_types.json#/$defs/ComponentId'},
+              },
+              'required': ['left', 'right'],
+              'additionalProperties': false,
+            },
+          },
+        },
+        'required': ['items'],
+        'additionalProperties': false,
       }),
     };
 
@@ -373,10 +403,18 @@ describe('reference-map schema introspection', () => {
   it('does not falsely classify non-ID properties whose descriptions mention child components', () => {
     const customApi: ComponentApi = {
       name: 'CardCounter',
-      schema: z.object({
-        childCount: z.number().describe('The total count of child components in this view'),
-        hasChildren: z.boolean().describe('Whether child component is rendered'),
-        mainSlot: z.string().describe('REF:common_types.json#/$defs/ComponentId'),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {
+          'childCount': {
+            'type': 'number',
+            'description': 'The total count of child components in this view',
+          },
+          'hasChildren': {'type': 'boolean', 'description': 'Whether child component is rendered'},
+          'mainSlot': {'$ref': 'common_types.json#/$defs/ComponentId'},
+        },
+        'required': ['childCount', 'hasChildren', 'mainSlot'],
+        'additionalProperties': false,
       }),
     };
 
@@ -419,26 +457,39 @@ describe('reference-map schema introspection', () => {
   it('recognizes v0.8 inline string child properties (child, entryPointChild, contentChild)', () => {
     const cardApi: ComponentApi = {
       name: 'Card',
-      schema: z.object({
-        child: z.string(),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'child': {'type': 'string'}},
+        'required': ['child'],
+        'additionalProperties': false,
       }),
     };
     const modalApi: ComponentApi = {
       name: 'Modal',
-      schema: z.object({
-        entryPointChild: z.string(),
-        contentChild: z.string(),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'entryPointChild': {'type': 'string'}, 'contentChild': {'type': 'string'}},
+        'required': ['entryPointChild', 'contentChild'],
+        'additionalProperties': false,
       }),
     };
     const tabsApi: ComponentApi = {
       name: 'Tabs',
-      schema: z.object({
-        tabItems: z.array(
-          z.object({
-            title: z.string(),
-            child: z.string(),
-          }),
-        ),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {
+          'tabItems': {
+            'type': 'array',
+            'items': {
+              'type': 'object',
+              'properties': {'title': {'type': 'string'}, 'child': {'type': 'string'}},
+              'required': ['title', 'child'],
+              'additionalProperties': false,
+            },
+          },
+        },
+        'required': ['tabItems'],
+        'additionalProperties': false,
       }),
     };
 
@@ -456,11 +507,11 @@ describe('reference-map schema introspection', () => {
   it('includes open containers in componentRefMap while keeping strip, strict and raw empty schemas empty', () => {
     const emptyContainerApi: ComponentApi = {
       name: 'EmptyBox',
-      schema: z.object({}),
+      schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': false}),
     };
     const strictEmptyApi: ComponentApi = {
       name: 'StrictEmptyLeaf',
-      schema: z.object({}).strict(),
+      schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': false}),
     };
     const rawEmptyLeafApi: ComponentApi = {
       name: 'RawEmptyLeaf',
@@ -472,36 +523,73 @@ describe('reference-map schema introspection', () => {
     };
     const openApi: ComponentApi = {
       name: 'OpenBox',
-      schema: z.object({title: z.string().optional()}).passthrough(),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'title': {'type': 'string'}},
+        'additionalProperties': true,
+      }),
     };
     const catchallApi: ComponentApi = {
       name: 'CatchallBox',
-      schema: z.object({}).catchall(z.unknown()),
+      schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': {}}),
     };
     const recordApi: ComponentApi = {
       name: 'RecordBox',
-      schema: z.record(z.unknown()),
+      schema: jsonFixture({'type': 'object', 'additionalProperties': {}}),
     };
     const intersectedOpenApi: ComponentApi = {
       name: 'IntersectedOpenBox',
-      schema: z.object({title: z.string().optional()}).and(z.record(z.unknown())),
+      schema: jsonFixture({
+        'allOf': [
+          {'type': 'object', 'properties': {'title': {'type': 'string'}}},
+          {'type': 'object', 'additionalProperties': {}},
+        ],
+      }),
     };
     const unmarkedAndWrappedApi: ComponentApi = {
       name: 'UnmarkedAndWrapped',
-      schema: z
-        .object({
-          child: z.string().optional(),
-          children: z
-            .union([z.array(z.string()), z.object({componentId: z.string(), path: z.string()})])
-            .catch([])
-            .pipe(z.any()),
-          incompatiblePipedSlot: z.string().describe('REF:#/$defs/Child').pipe(z.number()),
-        })
-        .and(
-          z.object({
-            extraSlot: z.string().describe('REF:#/$defs/Child').catch('fallback').pipe(z.string()),
-          }),
-        ),
+      schema: jsonFixture({
+        'allOf': [
+          {
+            'type': 'object',
+            'properties': {
+              'child': {'type': 'string'},
+              'children': {
+                'allOf': [
+                  {
+                    'anyOf': [
+                      {'type': 'array', 'items': {'type': 'string'}},
+                      {
+                        'type': 'object',
+                        'properties': {
+                          'componentId': {'type': 'string'},
+                          'path': {'type': 'string'},
+                        },
+                        'required': ['componentId', 'path'],
+                        'additionalProperties': false,
+                      },
+                    ],
+                  },
+                  {},
+                ],
+              },
+              'incompatiblePipedSlot': {
+                'allOf': [{'$ref': 'common_types.json#/$defs/Child'}, {'type': 'number'}],
+              },
+            },
+            'required': ['incompatiblePipedSlot'],
+          },
+          {
+            'type': 'object',
+            'properties': {
+              'extraSlot': {
+                'allOf': [{'$ref': 'common_types.json#/$defs/Child'}, {'type': 'string'}],
+              },
+            },
+          },
+        ],
+        'unevaluatedProperties': false,
+      }),
     };
 
     const catalog = new Catalog('aligned-cat', '1.0', [

@@ -109,13 +109,13 @@ describe('Spec basic catalog component envelopes', () => {
       it('finds the DynamicBoolean properties of every spec component like the catalog entry loaded from it', () => {
         for (const api of c.apis) {
           const specProps = properties(spec(api.name));
-          const zodProps = properties(cursorOf(api.schema, c.version));
-          for (const key of new Set([...Object.keys(specProps), ...Object.keys(zodProps)])) {
-            if (Object.hasOwn(c.specOnlyKeys, key) && !Object.hasOwn(zodProps, key)) continue;
-            assert.ok(specProps[key] && zodProps[key], `${api.name}.${key} declared by both`);
+          const codeProps = properties(cursorOf(api.schema, c.version));
+          for (const key of new Set([...Object.keys(specProps), ...Object.keys(codeProps)])) {
+            if (Object.hasOwn(c.specOnlyKeys, key) && !Object.hasOwn(codeProps, key)) continue;
+            assert.ok(specProps[key] && codeProps[key], `${api.name}.${key} declared by both`);
             assert.strictEqual(
               isDynamicBooleanSchema(specProps[key].node, specProps[key].doc),
-              isDynamicBooleanSchema(zodProps[key].node, zodProps[key].doc),
+              isDynamicBooleanSchema(codeProps[key].node, codeProps[key].doc),
               `${api.name}.${key}`,
             );
           }

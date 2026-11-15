@@ -14,13 +14,9 @@
  * limitations under the License.
  */
 
-// ponytail: removed in Task 11 — inline v0.9 catalogs convert zod 3 component schemas with zodToJsonSchema; zod issue wording.
-
-import type {z} from 'zod';
-import {zodToJsonSchema} from 'zod-to-json-schema';
 import {SurfaceModel, ActionListener, type ActionPayload} from '../state/surface-model.js';
 import {Catalog, ComponentApi} from '../catalog/types.js';
-import {exclusiveUnionOverride} from '../catalog/exclusive_union.js';
+import {bindCatalogValidator} from '../catalog/catalog-validator.js';
 import {cleanSchemaNode} from '../catalog/schema_generator.js';
 import {SurfaceGroupModel} from '../state/surface-group-model.js';
 import {ComponentModel} from '../state/component-model.js';
@@ -60,7 +56,7 @@ import {
 import {VersionAdapterFactory} from './adapters/factory.js';
 import {objectProperties, type SchemaCursor} from '../schema-engine/nav.js';
 import type {JsonSchemaValidator} from '../schema-engine/types.js';
-import {entrySchema, nonZodSchemaJson} from '../catalog/entry-schema.js';
+import {entrySchema, schemaJson} from '../catalog/entry-schema.js';
 import {loadedDefinition} from '../catalog/json_entries.js';
 import {compareSemVer, isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
 import {
@@ -78,18 +74,18 @@ import {
   VersionAdapter,
   VersionAdapterResolver,
 } from './adapters/base.js';
-import {RendererCapabilities} from '../v1_0/schema/index.js';
+import type {RendererCapabilities} from '../v1_0/message-types.js';
 import type {ServerToClientMessage as V08ServerToClientMessage} from '../v0_8/types/types.js';
 import type {
   A2uiMessage as V09A2uiMessage,
   A2uiMessageListWrapper as V09A2uiMessageListWrapper,
-} from '../v0_9/schema/server-to-client.js';
+} from '../v0_9/message-types.js';
 import type {
   AgentToRendererMessage as V10AgentToRendererMessage,
   CallRendererFunctionMessage,
-} from '../v1_0/schema/agent-to-renderer.js';
-import type {RendererFunctionResponseMessage} from '../v1_0/schema/renderer-to-agent.js';
-import type {FunctionCall} from '../v1_0/schema/common-types.js';
+} from '../v1_0/message-types.js';
+import type {RendererFunctionResponseMessage} from '../v1_0/message-types.js';
+import type {FunctionCall} from '../v1_0/generated-common-types.js';
 import {
   A2uiRpcError,
   CallOptions,
@@ -220,7 +216,7 @@ export interface MessageProcessorOptions {
   unifiedOutbound?: boolean;
 }
 
-import {formatZodIssue} from './format-zod-issue.js';
+import {formatIssue} from '../schema-engine/issues.js';
 import {
   assertRendererMayCall,
   nestedCallRunsInCatalog,
@@ -228,7 +224,7 @@ import {
   PayloadValidator,
   type ValidatedComponent,
 } from '../validation/payload-validator.js';
-export {formatZodIssue};
+export {formatIssue};
 
 /**
  * Central processor for A2UI protocol messages and surface state management.
@@ -293,6 +289,9 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     }
     this.maxAgentCallCacheEntries = maxEntries;
     this.registeredCatalogs = catalogs;
+    // A catalog's plain JSON Schemas (agent function arguments, `@index`)
+    // compile with this processor's validator unless the catalog has one.
+    for (const catalog of catalogs) bindCatalogValidator(catalog, options.validator);
     this.model = new SurfaceGroupModel<T>();
     this.adapterRegistry = options.adapterRegistry ?? new VersionAdapterFactory(options.validator);
     this.defaultVersion = options?.version;
@@ -450,16 +449,11 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
         props = (loaded.properties as Record<string, unknown>) || {};
         reqList = loaded.required as string[];
       } else if (comp.schema && typeof comp.schema === 'object') {
-        const rawZod = (nonZodSchemaJson(comp.schema) ??
-          zodToJsonSchema(comp.schema as z.ZodTypeAny, {
-            target: 'jsonSchema2019-09',
-            $refStrategy: 'none',
-            override: exclusiveUnionOverride,
-          })) as Record<string, unknown>;
-        cleanSchemaNode(rawZod, undefined, {stripAdditionalProperties: true});
-        props = (rawZod.properties as Record<string, unknown>) || {};
-        reqList = Array.isArray(rawZod.required)
-          ? (rawZod.required as string[]).filter(r => r !== 'component' && r !== 'id')
+        const raw = schemaJson(comp.schema)!;
+        cleanSchemaNode(raw, undefined, {stripAdditionalProperties: true});
+        props = (raw.properties as Record<string, unknown>) || {};
+        reqList = Array.isArray(raw.required)
+          ? (raw.required as string[]).filter(r => r !== 'component' && r !== 'id')
           : [];
       }
       const {component: _ignoredComp, id: _ignoredId, ...sanitizedProps} = props;
@@ -481,14 +475,9 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     for (const fn of catalog.functions.values()) {
       let paramSchema: Record<string, unknown> = {type: 'object', properties: {}};
       if (fn.schema && typeof fn.schema === 'object') {
-        const rawZod = (nonZodSchemaJson(fn.schema) ??
-          zodToJsonSchema(fn.schema as z.ZodTypeAny, {
-            target: 'jsonSchema2019-09',
-            $refStrategy: 'none',
-            override: exclusiveUnionOverride,
-          })) as Record<string, unknown>;
-        cleanSchemaNode(rawZod, undefined, {stripAdditionalProperties: true});
-        paramSchema = rawZod;
+        const raw = schemaJson(fn.schema)!;
+        cleanSchemaNode(raw, undefined, {stripAdditionalProperties: true});
+        paramSchema = raw;
       }
       functions.push({
         name: fn.name,
@@ -500,12 +489,7 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
 
     let theme: Record<string, unknown> | undefined;
     if (catalog.themeSchema) {
-      const rawTheme = (nonZodSchemaJson(catalog.themeSchema) ??
-        zodToJsonSchema(catalog.themeSchema as z.ZodTypeAny, {
-          target: 'jsonSchema2019-09',
-          $refStrategy: 'none',
-          override: exclusiveUnionOverride,
-        })) as Record<string, unknown>;
+      const rawTheme = schemaJson(catalog.themeSchema)!;
       cleanSchemaNode(rawTheme, undefined, {stripAdditionalProperties: true});
       theme = (rawTheme.properties as Record<string, unknown>) || undefined;
     }
@@ -1097,7 +1081,8 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
           functionCallId: op.functionCallId,
           callFunction: {
             '@call': op.call,
-            catalogId: op.catalogId,
+            // The adapter reads the catalog ID the message's schema requires.
+            catalogId: op.catalogId as string,
             args: op.args,
           },
         },
@@ -1125,7 +1110,8 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
           functionCallId: op.functionCallId,
           callFunction: {
             '@call': op.call,
-            catalogId: op.catalogId,
+            // The adapter reads the catalog ID the message's schema requires.
+            catalogId: op.catalogId as string,
             args: op.args,
           },
         },
@@ -1743,9 +1729,10 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
       const comp = op.components[i];
       if (comp && typeof comp === 'object' && typeof comp.id === 'string') {
         if (seenBatchIds.has(comp.id)) {
+          const msg = `Duplicate component ID: '${comp.id}'`;
           throw new A2uiIntegrityError(
-            `Duplicate component ID: '${comp.id}'`,
-            [comp.id],
+            msg,
+            [{path: `/components/${i}/id`, code: 'invalid_value', message: msg}],
             'INTEGRITY_ERROR',
             {surfaceId: op.surfaceId, path: `/components/${i}/id`},
           );

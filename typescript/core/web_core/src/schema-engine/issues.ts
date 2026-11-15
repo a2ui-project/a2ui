@@ -15,7 +15,7 @@
  */
 
 import type {StandardSchemaV1} from '@standard-schema/spec';
-import {A2uiConfigurationError} from '../errors.js';
+import {A2uiConfigurationError, type A2uiErrorDetail} from '../errors.js';
 import type {A2uiIssue} from './types.js';
 
 const KEYWORD_ORDER = ['required', 'const', 'enum', 'type', 'additionalProperties'];
@@ -99,6 +99,30 @@ export function messageForIssue(issue: A2uiIssue): string {
  */
 export function formatIssue(issue: A2uiIssue): string {
   return `${issue.path.length ? issue.path.join('.') : 'root'}: ${messageForIssue(issue)}`;
+}
+
+/**
+ * The error detail of an issue: its path as a JSON Pointer under `prefix`, a
+ * code from its keyword (`missing_field` for `required`, `invalid_type` for
+ * `type`, `invalid_value` for `const`, `enum` or no keyword, otherwise the
+ * keyword itself) and its message.
+ *
+ * @param issue The issue.
+ * @param prefix JSON Pointer of the validated value.
+ */
+export function issueToDetail(issue: A2uiIssue, prefix = ''): A2uiErrorDetail {
+  const pointer = issue.path
+    .map(s => `/${String(s).replace(/~/g, '~0').replace(/\//g, '~1')}`)
+    .join('');
+  const code =
+    issue.keyword === 'required'
+      ? 'missing_field'
+      : issue.keyword === 'type'
+        ? 'invalid_type'
+        : issue.keyword === undefined || issue.keyword === 'const' || issue.keyword === 'enum'
+          ? 'invalid_value'
+          : issue.keyword;
+  return {path: `${prefix}${pointer}` || '/', code, message: issue.message};
 }
 
 /** The keyword and parameters an issue from a JSON-backed schema carries. */

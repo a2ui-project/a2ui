@@ -16,158 +16,16 @@
 
 import {describe, it} from 'node:test';
 import assert from 'node:assert';
-import {ExtensionsSchema as V10ExtensionsSchema} from '../v1_0/schema/common-types.js';
-const zodCore = await import(
-  new URL('../../../scripts/zod-generator-core.mjs', import.meta.url).href
-);
-const {
-  getHeader,
-  transformZodSyntax,
-  getDependencies,
-  analyzeDependencies,
-  resolveRefTarget,
-  prepareRef,
-  compileDefToZod,
-} = zodCore;
 
+import {specSchema} from '../test/schema.js';
 const basicTypesGen = await import(
   new URL('../../../scripts/generate-basic-catalog-types.mjs', import.meta.url).href
 );
 const {generateTypes, generateCommonTypes, commonTypeNames} = basicTypesGen;
 
-describe('zod-generator-core.mjs', () => {
-  it('generates standard header comment with version and script source', () => {
-    const header = getHeader('v1.0', 'scripts/test-source.mjs');
-    assert.ok(header.includes('Copyright 2024 Google LLC'));
-    assert.ok(header.includes('AUTO-GENERATED FILE - DO NOT EDIT MANUALLY'));
-    assert.ok(header.includes('specification/v1.0/json/ via scripts/test-source.mjs'));
-  });
-
-  it('transforms raw json-schema-to-zod syntax cleanly', () => {
-    const raw = `export const DynamicNumberSchema: z.ZodType<unknown> = z.union([z.number(), z.literal("__REF__DataBindingSchema__")]);
-const x = z.core.$ZodIssue;
-ctx.addIssue(issue);
-if (a == i) {}`;
-
-    const cleaned = transformZodSyntax(raw);
-    assert.ok(!cleaned.includes(': z.ZodType<unknown>'));
-    assert.ok(cleaned.includes('export const DynamicNumberSchema ='));
-    assert.ok(cleaned.includes('DataBindingSchema'));
-    assert.ok(!cleaned.includes('__REF__'));
-    assert.ok(cleaned.includes('z.ZodIssue'));
-    assert.ok(cleaned.includes('ctx.addIssue(issue as any);'));
-    assert.ok(cleaned.includes('=== i)'));
-  });
-
-  it('extracts definition dependencies from JSON schema nodes', () => {
-    const schemaNode = {
-      type: 'object',
-      properties: {
-        id: {$ref: '#/$defs/ComponentId'},
-        action: {$ref: '#/$defs/Action'},
-      },
-    };
-    const deps = getDependencies(schemaNode);
-    assert.ok(deps.has('ComponentId'));
-    assert.ok(deps.has('Action'));
-  });
-
-  it('ignores FunctionCall.oneOf during dependency analysis to avoid false cycles', () => {
-    const functionCallNode = {
-      type: 'object',
-      properties: {
-        call: {type: 'string'},
-        args: {$ref: '#/$defs/DynamicValue'},
-      },
-      oneOf: [{$ref: '#/$defs/IndexSystemFunction'}],
-    };
-    const deps = getDependencies(functionCallNode, new Set(), 'FunctionCall');
-    assert.ok(deps.has('DynamicValue'));
-    assert.ok(!deps.has('IndexSystemFunction'));
-  });
-
-  it('analyzes dependency graph and performs topological sorting and cycle detection', () => {
-    const defs = {
-      A: {$ref: '#/$defs/B'},
-      B: {$ref: '#/$defs/C'},
-      C: {type: 'string'},
-      Cyclic1: {$ref: '#/$defs/Cyclic2'},
-      Cyclic2: {$ref: '#/$defs/Cyclic1'},
-    };
-    const {topologicalOrder, lazyEdges} = analyzeDependencies(defs);
-    assert.ok(topologicalOrder.indexOf('C') < topologicalOrder.indexOf('B'));
-    assert.ok(topologicalOrder.indexOf('B') < topologicalOrder.indexOf('A'));
-    assert.ok(lazyEdges.has('Cyclic1->Cyclic2') || lazyEdges.has('Cyclic2->Cyclic1'));
-  });
-
-  it('resolves $ref targets with appropriate wrappers and lazy evaluation', () => {
-    const lazyEdges = new Set(['Parent->Child']);
-    const topo = ['Child', 'Parent'];
-
-    const lazyRef = resolveRefTarget('#/$defs/Child', 'Parent', lazyEdges, topo);
-    assert.deepStrictEqual(lazyRef, {enum: ['__REF__z.lazy(() => ChildSchema)__']});
-
-    const normalRef = resolveRefTarget('#/$defs/Child', 'Parent', new Set(), topo);
-    assert.deepStrictEqual(normalRef, {enum: ['__REF__ChildSchema__']});
-
-    const remoteRef = resolveRefTarget('https://example.com/schema.json', 'Parent');
-    assert.deepStrictEqual(remoteRef, {type: 'object', additionalProperties: true});
-
-    const themeRef = resolveRefTarget('catalog.json#/$defs/theme', 'Parent');
-    assert.deepStrictEqual(themeRef, {});
-  });
-
-  it('prepares ref nodes for json-schema-to-zod syntax replacement', () => {
-    const res = prepareRef({$ref: '#/$defs/DynamicNumber'}, 'Parent');
-    assert.deepStrictEqual(res, {enum: ['__REF__DynamicNumberSchema__']});
-  });
-
-  it('rewrites key-presence oneOf branches into object schemas', () => {
-    const node = {
-      type: 'object',
-      properties: {a: {type: 'string', description: 'A.'}, b: {type: 'number'}},
-      oneOf: [
-        {required: ['a'], not: {required: ['b']}},
-        {required: ['b'], not: {required: ['a']}},
-      ],
-    };
-    const res = prepareRef(node, 'Parent');
-    assert.deepStrictEqual(res.anyOf, [
-      {type: 'object', properties: {a: {type: 'string'}, b: false}, required: ['a']},
-      {type: 'object', properties: {b: {type: 'number'}, a: false}, required: ['b']},
-    ]);
-  });
-
-  it('leaves oneOf branches it cannot express as key presence unchanged', () => {
-    const multiKeyNot = {not: {required: ['a', 'b']}};
-    const unknownKey = {required: ['c']};
-    const node = {
-      type: 'object',
-      properties: {a: {type: 'string'}, b: {type: 'number'}},
-      oneOf: [multiKeyNot, unknownKey],
-    };
-    const res = prepareRef(node, 'Parent');
-    assert.deepStrictEqual(res.anyOf, [multiKeyNot, unknownKey]);
-  });
-
-  it('compiles a JSON Schema definition into Zod code', () => {
-    const def = {
-      type: 'object',
-      properties: {
-        title: {type: 'string'},
-        count: {type: 'number'},
-      },
-      required: ['title'],
-    };
-    const code = compileDefToZod(def, 'TestWidget');
-    assert.ok(code.includes('export const TestWidgetSchema ='));
-    assert.ok(code.includes('export type TestWidget = z.infer<typeof TestWidgetSchema>'));
-  });
-});
-
 describe('ExtensionsSchema', () => {
   it('validates ExtensionsSchema enforcing UAX #31 Unicode identifier keys', () => {
-    for (const schema of [V10ExtensionsSchema]) {
+    for (const schema of [specSchema({$ref: 'common_types.json#/$defs/Extensions'})]) {
       // Valid Unicode identifier keys (including non-ASCII XID identifiers)
       const valid = {
         a2ui_custom: 'test',

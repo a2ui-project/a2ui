@@ -19,10 +19,11 @@ import {readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {describe, it} from 'node:test';
 
-import {z} from 'zod';
-
+import type {AuthoredSchema} from './entry-schema.js';
+import {NO_VALIDATOR_MESSAGE} from '../errors.js';
 import {
   A2uiCatalogError,
+  A2uiConfigurationError,
   A2uiValidationError,
   AgentFunction,
   Catalog,
@@ -38,13 +39,14 @@ import * as rootApi from '../index.js';
 import * as resolutionApi from '../resolution/index.js';
 import * as v10Api from '../v1_0/index.js';
 import {testValidator} from '../test/validator.js';
+import {jsonFixture} from '../test/schema.js';
 
-const FX_RATE_SCHEMA = z
-  .object({
-    base: z.string(),
-    target: z.string().default('USD'),
-  })
-  .strict();
+const FX_RATE_SCHEMA = jsonFixture({
+  'type': 'object',
+  'properties': {'base': {'type': 'string'}, 'target': {'type': 'string', 'default': 'USD'}},
+  'required': ['base'],
+  'additionalProperties': false,
+});
 
 function handler(args: Record<string, unknown>, _context: AgentFunctionContext): number {
   return args['base'] === args['target'] ? 1.0 : 1.08;
@@ -141,7 +143,12 @@ describe('AgentFunction', () => {
     const increment = new AgentFunction({
       name: 'increment',
       returnType: 'number',
-      schema: z.object({x: z.number()}),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'x': {'type': 'number'}},
+        'required': ['x'],
+        'additionalProperties': false,
+      }),
       handler: ({x}) => x + 1,
     });
     const erased: AgentFunction = increment;
@@ -153,19 +160,29 @@ describe('AgentFunction', () => {
     new AgentFunction({
       name: 'wrongReturn',
       returnType: 'number',
-      schema: z.object({x: z.number()}),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'x': {'type': 'number'}},
+        'required': ['x'],
+        'additionalProperties': false,
+      }),
       // @ts-expect-error A handler for a 'number' function can't return a string.
       handler: ({x}) => `${x}`,
     });
     new AgentFunction({
       name: 'wrongArgs',
-      schema: z.object({x: z.number()}),
+      schema: jsonFixture<{x: number}>({
+        'type': 'object',
+        'properties': {'x': {'type': 'number'}},
+        'required': ['x'],
+        'additionalProperties': false,
+      }),
       // @ts-expect-error The schema has no `y`.
       handler: ({y}) => y,
     });
   });
 
-  it('converts a JSON Schema object into a Zod schema', () => {
+  it("compiles a JSON Schema object with its catalog's validator", () => {
     const fn = new AgentFunction({
       name: 'lookupCustomer',
       returnType: 'number',
@@ -181,12 +198,38 @@ describe('AgentFunction', () => {
       handler,
     });
 
-    assert.deepStrictEqual((fn.schema as z.ZodTypeAny).parse({id: 'c-42'}), {
+    const validator = new PayloadValidator(
+      new Catalog('c', '1.0', [], [], {validator: testValidator}).copyWith({agentFunctions: [fn]}),
+      STRICT_VALIDATION,
+    );
+    assert.deepStrictEqual(validator.validateFunction('lookupCustomer', {id: 'c-42'}), {
       id: 'c-42',
       includeHistory: false,
     });
-    assert.throws(() => (fn.schema as z.ZodTypeAny).parse({}));
-    assert.throws(() => (fn.schema as z.ZodTypeAny).parse({id: 'c-42', extra: 1}));
+    assert.throws(() => validator.validateFunction('lookupCustomer', {}), A2uiValidationError);
+    assert.throws(
+      () => validator.validateFunction('lookupCustomer', {id: 'c-42', extra: 1}),
+      A2uiValidationError,
+    );
+  });
+
+  it('asks for a validator when its JSON Schema is used in a catalog without one', () => {
+    const fn = new AgentFunction({
+      name: 'lookupCustomer',
+      schema: {type: 'object', properties: {id: {type: 'string'}}},
+      handler,
+    });
+    const validator = new PayloadValidator(
+      new Catalog('c', '1.0', [], []).copyWith({agentFunctions: [fn]}),
+      STRICT_VALIDATION,
+    );
+    assert.throws(
+      () => validator.validateFunction('lookupCustomer', {id: 'c-42'}),
+      (err: unknown) =>
+        err instanceof A2uiConfigurationError &&
+        err.message.startsWith(NO_VALIDATOR_MESSAGE) &&
+        err.message.includes("Agent function 'lookupCustomer'"),
+    );
   });
 
   it('rejects a handler that is not callable', () => {
@@ -508,36 +551,123 @@ describe('Catalog.agentFunctions', () => {
       err instanceof A2uiCatalogError &&
       err.message.includes('Invalid UAX #31') &&
       err.message.includes(`'${name}'`);
-    const withSchema = (schema: z.ZodTypeAny | Record<string, unknown>) =>
+    const withSchema = (schema: AuthoredSchema | Record<string, unknown>) =>
       new AgentFunction({name: 'fetchRate', schema, handler: () => 1});
-    const cases: Array<[string, z.ZodTypeAny | Record<string, unknown>]> = [
-      ['target-currency', z.object({'target-currency': z.string()})],
-      ['@target', z.object({'@target': z.string()})],
+    const cases: Array<[string, AuthoredSchema | Record<string, unknown>]> = [
       [
         'target-currency',
-        z.object({'target-currency': z.string()}).refine(args => args['target-currency'] !== ''),
-      ],
-      ['target-currency', z.object({'target-currency': z.string()}).passthrough()],
-      [
-        'target-currency',
-        z.object({base: z.string()}).merge(z.object({'target-currency': z.string()})),
+        jsonFixture({
+          'type': 'object',
+          'properties': {'target-currency': {'type': 'string'}},
+          'required': ['target-currency'],
+          'additionalProperties': false,
+        }),
       ],
       [
-        'target-currency',
-        z.union([z.object({base: z.string()}), z.object({'target-currency': z.string()})]),
-      ],
-      [
-        'target-currency',
-        z.discriminatedUnion('kind', [
-          z.object({kind: z.literal('a')}),
-          z.object({kind: z.literal('b'), 'target-currency': z.string()}),
-        ]),
+        '@target',
+        jsonFixture({
+          'type': 'object',
+          'properties': {'@target': {'type': 'string'}},
+          'required': ['@target'],
+          'additionalProperties': false,
+        }),
       ],
       [
         'target-currency',
-        z.intersection(z.object({base: z.string()}), z.object({'target-currency': z.string()})),
+        jsonFixture({
+          'type': 'object',
+          'properties': {'target-currency': {'type': 'string'}},
+          'required': ['target-currency'],
+          'additionalProperties': false,
+        }),
       ],
-      ['target-currency', z.object({'target-currency': z.string()}).optional()],
+      [
+        'target-currency',
+        jsonFixture({
+          'type': 'object',
+          'properties': {'target-currency': {'type': 'string'}},
+          'required': ['target-currency'],
+          'additionalProperties': true,
+        }),
+      ],
+      [
+        'target-currency',
+        jsonFixture({
+          'type': 'object',
+          'properties': {'base': {'type': 'string'}, 'target-currency': {'type': 'string'}},
+          'required': ['base', 'target-currency'],
+          'additionalProperties': false,
+        }),
+      ],
+      [
+        'target-currency',
+        jsonFixture({
+          'anyOf': [
+            {
+              'type': 'object',
+              'properties': {'base': {'type': 'string'}},
+              'required': ['base'],
+              'additionalProperties': false,
+            },
+            {
+              'type': 'object',
+              'properties': {'target-currency': {'type': 'string'}},
+              'required': ['target-currency'],
+              'additionalProperties': false,
+            },
+          ],
+        }),
+      ],
+      [
+        'target-currency',
+        jsonFixture({
+          'anyOf': [
+            {
+              'type': 'object',
+              'properties': {'kind': {'type': 'string', 'const': 'a'}},
+              'required': ['kind'],
+              'additionalProperties': false,
+            },
+            {
+              'type': 'object',
+              'properties': {
+                'kind': {'type': 'string', 'const': 'b'},
+                'target-currency': {'type': 'string'},
+              },
+              'required': ['kind', 'target-currency'],
+              'additionalProperties': false,
+            },
+          ],
+        }),
+      ],
+      [
+        'target-currency',
+        jsonFixture({
+          'allOf': [
+            {'type': 'object', 'properties': {'base': {'type': 'string'}}, 'required': ['base']},
+            {
+              'type': 'object',
+              'properties': {'target-currency': {'type': 'string'}},
+              'required': ['target-currency'],
+            },
+          ],
+          'unevaluatedProperties': false,
+        }),
+      ],
+      [
+        'target-currency',
+        jsonFixture({
+          'anyOf': [
+            {'not': {}},
+            {
+              'type': 'object',
+              'properties': {'target-currency': {'type': 'string'}},
+              'required': ['target-currency'],
+              'additionalProperties': false,
+            },
+          ],
+        }),
+      ],
       ['target-currency', {type: 'object', properties: {'target-currency': {type: 'string'}}}],
       ['@target', {type: 'object', properties: {'@target': {type: 'string'}}}],
       [
@@ -557,7 +687,7 @@ describe('Catalog.agentFunctions', () => {
     ];
 
     for (const [name, schema] of cases) {
-      // Building the agent function doesn't check, for JSON Schema or Zod alike.
+      // Building the agent function doesn't check, for a JSON Schema or a CatalogSchema alike.
       const fn = withSchema(schema);
       assert.throws(() => empty.copyWith({agentFunctions: [fn]}), isUaxError(name), name);
       assert.throws(() => new Catalog('c', '1.0', [], [fn]), isUaxError(name), name);
@@ -961,10 +1091,11 @@ describe('PayloadValidator with AgentFunction', () => {
         {
           name: 'noop',
           returnType: 'void',
-          schema: z.object({}).strict(),
+          schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': false}),
         },
       ],
       {
+        validator: testValidator,
         defs: {
           MoneyArgs: {
             type: 'object',
@@ -1001,7 +1132,7 @@ describe('PayloadValidator with AgentFunction', () => {
   /** Validates `args` against an agent function with the JSON Schema `schema`. */
   const validateWith = (schema: Record<string, unknown>, args: Record<string, unknown>) =>
     new PayloadValidator(
-      new Catalog('c', '1.0', [], []).copyWith({
+      new Catalog('c', '1.0', [], [], {validator: testValidator}).copyWith({
         agentFunctions: [new AgentFunction({name: 'f', schema, handler: () => 1})],
       }),
       STRICT_VALIDATION,

@@ -19,7 +19,10 @@
  * loaded.
  */
 
-import type {JsonSchemaObject} from './spec_annotations.js';
+/**
+ * A JSON Schema object, as written in a catalog document.
+ */
+export type JsonSchemaObject = Readonly<Record<string, unknown>>;
 
 /**
  * The JSON Schema definitions of the entries `Catalog.fromJson` loaded, by

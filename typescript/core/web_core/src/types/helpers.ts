@@ -14,14 +14,9 @@
  * limitations under the License.
  */
 
-import {
-  type ChildRefKind,
-  type RefSchemaOptions,
-  markChildRef,
-  childRefKindOf,
-} from './child-ref-helpers.js';
+import {type ChildRefKind, childRefKindOf} from './child-ref-helpers.js';
 
-export {type ChildRefKind, type RefSchemaOptions, markChildRef, childRefKindOf};
+export {type ChildRefKind, childRefKindOf};
 
 /**
  * The maximum number of arguments accepted in a single function call.

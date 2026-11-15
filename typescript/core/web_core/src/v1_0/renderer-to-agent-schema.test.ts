@@ -17,7 +17,12 @@
 import {describe, it} from 'node:test';
 import * as assert from 'node:assert';
 
-import {ErrorMessageSchema, RendererToAgentMessageSchema} from './schema/renderer-to-agent.js';
+import type {JsonSchema} from '../schema-engine/types.js';
+import {specSchema} from '../test/schema.js';
+import V10RendererToAgent from './schemas/renderer_to_agent.json' with {type: 'json'};
+
+const RendererToAgentMessageSchema = specSchema(V10RendererToAgent as JsonSchema);
+const ErrorMessageSchema = RendererToAgentMessageSchema;
 
 /** Wraps an error payload in a v1.0 renderer-to-agent envelope. */
 function errorMessage(error: Record<string, unknown>) {

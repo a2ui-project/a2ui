@@ -16,7 +16,14 @@
 
 import {describe, it} from 'node:test';
 import * as assert from 'node:assert';
-import {A2uiClientMessageSchema, A2uiClientDataModelSchema} from '../schema/client-to-server.js';
+import type {JsonSchema} from '../../schema-engine/types.js';
+import {specSchema} from '../../test/schema.js';
+import V091ClientDataModel from '../../v0_9_1/schemas/client_data_model.json' with {type: 'json'};
+import V091ClientToServer from '../../v0_9_1/schemas/client_to_server.json' with {type: 'json'};
+
+// The v0.9.1 documents accept both version strings.
+const A2uiClientMessageSchema = specSchema(V091ClientToServer as JsonSchema, '0.9.1');
+const A2uiClientDataModelSchema = specSchema(V091ClientDataModel as JsonSchema, '0.9.1');
 
 describe('Client-to-Server Schema Verification', () => {
   const versions = ['v0.9', 'v0.9.1'];
@@ -35,7 +42,7 @@ describe('Client-to-Server Schema Verification', () => {
           },
         };
         const result = A2uiClientMessageSchema.safeParse(validAction);
-        assert.ok(result.success, result.success ? '' : result.error.message);
+        assert.ok(result.success, result.success ? '' : result.error?.message);
       });
 
       it('validates a valid error message (validation failed)', () => {
@@ -49,7 +56,7 @@ describe('Client-to-Server Schema Verification', () => {
           },
         };
         const result = A2uiClientMessageSchema.safeParse(validError);
-        assert.ok(result.success, result.success ? '' : result.error.message);
+        assert.ok(result.success, result.success ? '' : result.error?.message);
       });
 
       it('validates a valid error message (generic)', () => {
@@ -62,7 +69,7 @@ describe('Client-to-Server Schema Verification', () => {
           },
         };
         const result = A2uiClientMessageSchema.safeParse(validError);
-        assert.ok(result.success, result.success ? '' : result.error.message);
+        assert.ok(result.success, result.success ? '' : result.error?.message);
       });
 
       it('validates a valid data model message', () => {
@@ -74,7 +81,7 @@ describe('Client-to-Server Schema Verification', () => {
           },
         };
         const result = A2uiClientDataModelSchema.safeParse(validDataModel);
-        assert.ok(result.success, result.success ? '' : result.error.message);
+        assert.ok(result.success, result.success ? '' : result.error?.message);
       });
     });
   });

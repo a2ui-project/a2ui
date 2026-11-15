@@ -21,8 +21,6 @@
 import assert from 'node:assert/strict';
 import {describe, it} from 'node:test';
 
-import {z} from 'zod';
-
 import {buildComponentRefMap, ComponentRefMap} from '../catalog/reference-map.js';
 import {Catalog} from '../catalog/types.js';
 import {v1BasicCatalog} from '../test/basic_catalogs.js';
@@ -31,6 +29,7 @@ import {ComponentModel} from '../state/component-model.js';
 import {SurfaceComponentsModel} from '../state/surface-components-model.js';
 import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
 import {getComponentReferences} from './integrity-checker.js';
+import {jsonFixture} from '../test/schema.js';
 
 describe('Integrity Verification', () => {
   describe('getComponentReferences', () => {
@@ -228,7 +227,10 @@ describe('Integrity Verification', () => {
       // When an open container's `child` holds a data-binding or function-call object without
       // `componentId`, no string inside the binding expression is treated as a child component ID.
       const openCatalog = new Catalog('open-binding-cat', '1.0', [
-        {name: 'OpenBox', schema: z.object({}).passthrough()},
+        {
+          name: 'OpenBox',
+          schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': true}),
+        },
       ]);
       for (const boundChild of [
         {'@path': '/someData'},
@@ -261,18 +263,33 @@ describe('Integrity Verification', () => {
       const catalog = new Catalog('v10-tmpl-cat', '1.0', [
         {
           name: 'Repeater',
-          schema: z.object({
-            children: z.object({componentId: z.string(), '@path': z.string()}),
+          schema: jsonFixture({
+            'type': 'object',
+            'properties': {
+              'children': {
+                'type': 'object',
+                'properties': {'componentId': {'type': 'string'}, '@path': {'type': 'string'}},
+                'required': ['componentId', '@path'],
+                'additionalProperties': false,
+              },
+            },
+            'required': ['children'],
+            'additionalProperties': false,
           }),
         },
         {
           // A strip `z.object({})` is closed; an empty container lets keys through.
           name: 'EmptyWrapper',
-          schema: z.object({}).passthrough(),
+          schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': true}),
         },
         {
           name: 'LeafText',
-          schema: z.object({text: z.string()}).strict(),
+          schema: jsonFixture({
+            'type': 'object',
+            'properties': {'text': {'type': 'string'}},
+            'required': ['text'],
+            'additionalProperties': false,
+          }),
         },
       ]);
 
@@ -310,30 +327,79 @@ describe('Integrity Verification', () => {
     });
 
     it('extracts template componentId when a property has nestedRefs from a [list, nested] union regardless of branch order', () => {
-      const ComponentIdRef = z.string().describe('REF:common_types.json#/$defs/ComponentId');
-      const TemplateBranch = z.object({
-        componentId: ComponentIdRef,
-        path: z.string(),
-      });
-      const StructuredBranch = z.array(
-        z.object({
-          title: z.string(),
-          child: ComponentIdRef,
-        }),
-      );
-
       for (const sectionsSchema of [
-        z.union([TemplateBranch, StructuredBranch]),
-        z.union([StructuredBranch, TemplateBranch]),
+        {
+          'anyOf': [
+            {
+              'type': 'object',
+              'properties': {
+                'componentId': {'$ref': 'common_types.json#/$defs/ComponentId'},
+                'path': {'type': 'string'},
+              },
+              'required': ['componentId', 'path'],
+              'additionalProperties': false,
+            },
+            {
+              'type': 'array',
+              'items': {
+                'type': 'object',
+                'properties': {
+                  'title': {'type': 'string'},
+                  'child': {'$ref': 'common_types.json#/$defs/ComponentId'},
+                },
+                'required': ['title', 'child'],
+                'additionalProperties': false,
+              },
+            },
+          ],
+        },
+        {
+          'anyOf': [
+            {
+              'type': 'array',
+              'items': {
+                'type': 'object',
+                'properties': {
+                  'title': {'type': 'string'},
+                  'child': {'$ref': 'common_types.json#/$defs/ComponentId'},
+                },
+                'required': ['title', 'child'],
+                'additionalProperties': false,
+              },
+            },
+            {
+              'type': 'object',
+              'properties': {
+                'componentId': {'$ref': 'common_types.json#/$defs/ComponentId'},
+                'path': {'type': 'string'},
+              },
+              'required': ['componentId', 'path'],
+              'additionalProperties': false,
+            },
+          ],
+        },
       ]) {
         const catalog = new Catalog('union-nested-tmpl-cat', '0.9', [
           {
             name: 'FlexibleSections',
-            schema: z.object({sections: sectionsSchema}),
+            schema: jsonFixture(
+              {
+                type: 'object',
+                properties: {sections: sectionsSchema},
+                required: ['sections'],
+                additionalProperties: false,
+              },
+              '0.9',
+            ),
           },
           {
             name: 'LeafText',
-            schema: z.object({text: z.string()}).strict(),
+            schema: jsonFixture({
+              'type': 'object',
+              'properties': {'text': {'type': 'string'}},
+              'required': ['text'],
+              'additionalProperties': false,
+            }),
           },
         ]);
 
@@ -386,26 +452,63 @@ describe('Integrity Verification', () => {
     });
 
     it('extracts both single string IDs and structured nested IDs from a [single, nested] union regardless of branch order', () => {
-      const ComponentIdRef = z.string().describe('REF:common_types.json#/$defs/ComponentId');
-      const StructuredBranch = z.array(
-        z.object({
-          title: z.string(),
-          child: ComponentIdRef,
-        }),
-      );
-
       for (const slotSchema of [
-        z.union([ComponentIdRef, StructuredBranch]),
-        z.union([StructuredBranch, ComponentIdRef]),
+        {
+          'anyOf': [
+            {'$ref': 'common_types.json#/$defs/ComponentId'},
+            {
+              'type': 'array',
+              'items': {
+                'type': 'object',
+                'properties': {
+                  'title': {'type': 'string'},
+                  'child': {'$ref': 'common_types.json#/$defs/ComponentId'},
+                },
+                'required': ['title', 'child'],
+                'additionalProperties': false,
+              },
+            },
+          ],
+        },
+        {
+          'anyOf': [
+            {
+              'type': 'array',
+              'items': {
+                'type': 'object',
+                'properties': {
+                  'title': {'type': 'string'},
+                  'child': {'$ref': 'common_types.json#/$defs/ComponentId'},
+                },
+                'required': ['title', 'child'],
+                'additionalProperties': false,
+              },
+            },
+            {'$ref': 'common_types.json#/$defs/ComponentId'},
+          ],
+        },
       ]) {
         const catalog = new Catalog('union-single-nested-cat', '0.9', [
           {
             name: 'FlexibleSlot',
-            schema: z.object({slot: slotSchema}),
+            schema: jsonFixture(
+              {
+                type: 'object',
+                properties: {slot: slotSchema},
+                required: ['slot'],
+                additionalProperties: false,
+              },
+              '0.9',
+            ),
           },
           {
             name: 'LeafText',
-            schema: z.object({text: z.string()}).strict(),
+            schema: jsonFixture({
+              'type': 'object',
+              'properties': {'text': {'type': 'string'}},
+              'required': ['text'],
+              'additionalProperties': false,
+            }),
           },
         ]);
 

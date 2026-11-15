@@ -14,15 +14,23 @@
  * limitations under the License.
  */
 
-// ponytail: removed in Task 11 — the v0.8 types are inferred from the v0.8 zod mirror.
+/** A v0.8 string value: a data binding or a literal. Define exactly one key. */
+export declare interface StringValue {
+  path?: string;
+  literalString?: string;
+  literal?: string;
+}
 
-import type {z} from 'zod';
-import type {
-  StringValueSchema,
-  NumberValueSchema,
-  BooleanValueSchema,
-} from '../schema/common-types.js';
+/** A v0.8 number value: a data binding or a literal. Define exactly one key. */
+export declare interface NumberValue {
+  path?: string;
+  literalNumber?: number;
+  literal?: number;
+}
 
-export declare interface StringValue extends z.infer<typeof StringValueSchema> {}
-export declare interface NumberValue extends z.infer<typeof NumberValueSchema> {}
-export declare interface BooleanValue extends z.infer<typeof BooleanValueSchema> {}
+/** A v0.8 boolean value: a data binding or a literal. Define exactly one key. */
+export declare interface BooleanValue {
+  path?: string;
+  literalBoolean?: boolean;
+  literal?: boolean;
+}

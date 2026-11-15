@@ -28,7 +28,7 @@ import {
 } from '../common/metadata.js';
 import {isAtLeastVersion, toCanonicalVersion} from '../common/semver.js';
 import {findFailedArgument, isThenable, settleDeep} from '../common/settle_deep.js';
-import {A2uiExpressionError, A2uiRpcError, RpcErrorCode} from '../errors.js';
+import {type A2uiErrorDetail, A2uiExpressionError, A2uiRpcError, RpcErrorCode} from '../errors.js';
 import {computed, getValue, peekValue, setValue, signal, Signal} from '../reactivity/signals.js';
 import {resolveSurfaceCatalog} from './resolve-surface-catalog.js';
 
@@ -85,8 +85,8 @@ export interface A2uiErrorPayload {
   functionCallId?: string;
   /** Expression string or function name that caused the error, if applicable. */
   expression?: string;
-  /** Additional diagnostic details or validation issues. */
-  details?: Record<string, unknown>;
+  /** Additional diagnostic details, such as the fields a validation error found. */
+  details?: A2uiErrorDetail[] | Record<string, unknown>;
   [key: string]: unknown;
 }
 

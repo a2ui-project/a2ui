@@ -62,7 +62,6 @@ export {
 export {
   isValidCssColor,
   HEX_COLOR_REGEX,
-  BasicCatalogThemeSchema,
   type BasicCatalogTheme,
 } from '../../universal/basic_catalog/theme.js';
 export {
@@ -84,11 +83,3 @@ export {
   setMarkdownRenderer,
   getMarkdownRenderer,
 } from '../../universal/basic_catalog/directives/directives.js';
-
-/**
- * The theme schema for the basic catalog.
- *
- * Alias of {@link BasicCatalogThemeSchema}, kept for callers that refer to the
- * schema by the version-neutral `ThemeSchema` name.
- */
-export {BasicCatalogThemeSchema as ThemeSchema} from '../../universal/basic_catalog/theme.js';

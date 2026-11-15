@@ -16,7 +16,7 @@
 
 import {A2uiMetadata} from '../common/metadata.js';
 import type {CatalogSchema} from '../schema-engine/types.js';
-import type {JsonSchemaObject} from './spec_annotations.js';
+import type {JsonSchemaObject} from './loaded_definitions.js';
 
 import {definitions, documentDefs} from './loaded_definitions.js';
 

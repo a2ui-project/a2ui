@@ -14,10 +14,6 @@
  * limitations under the License.
  */
 
-// ponytail: removed in Task 11 — markChildRef stamps child-ref kinds on the zod mirrors and zod 3 catalog schemas.
-
-import {z} from 'zod';
-
 import {refKind, type SchemaDoc} from '../schema-engine/nav.js';
 import type {JsonSchema} from '../schema-engine/types.js';
 
@@ -25,17 +21,6 @@ import type {JsonSchema} from '../schema-engine/types.js';
  * Classification kind for a schema marked as a child reference.
  */
 export type ChildRefKind = 'component-id' | 'child-list';
-
-/**
- * Stamps the child-reference kind into the schema's zod metadata. Methods
- * like `.describe()` and `.optional()` rebuild schemas from `_def`, so the
- * flag survives them; the `REF:` description remains the wire-facing pointer
- * the capabilities generator resolves into a `$ref`.
- */
-export function markChildRef<T extends z.ZodTypeAny>(schema: T, ref: ChildRefKind): T {
-  (schema._def as {a2uiChildRef?: ChildRefKind}).a2uiChildRef = ref;
-  return schema;
-}
 
 /**
  * The child reference kind a common types definition name denotes: `Child` and
@@ -69,23 +54,4 @@ export function childRefKindOf(node: JsonSchema, doc: SchemaDoc): ChildRefKind |
       ? childRefKindForDefName(/\/\$defs\/([^/]+)$/.exec(ref)?.[1])
       : undefined;
   }
-}
-
-/**
- * Reads the child-reference kind {@link markChildRef} stamped on a Zod schema.
- * Used by the Zod-to-JSON-Schema bridge and the Zod-walking binder until they
- * are removed.
- *
- * @internal
- */
-export function zodChildRefKindOf(schema: z.ZodTypeAny): ChildRefKind | undefined {
-  return (schema?._def as {a2uiChildRef?: ChildRefKind} | undefined)?.a2uiChildRef;
-}
-
-/**
- * Options for generating child reference schemas with custom descriptions.
- */
-export interface RefSchemaOptions {
-  /** Prose appended after the `REF:` pointer; shown in generated capabilities. */
-  readonly description?: string;
 }

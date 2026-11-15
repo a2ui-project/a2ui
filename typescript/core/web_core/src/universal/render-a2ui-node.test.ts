@@ -18,7 +18,6 @@ import * as assert from 'node:assert';
 import {describe, it, beforeEach, after} from 'node:test';
 import {setupTestDom, teardownTestDom} from '../test/dom-setup.js';
 import {html, nothing, render} from 'lit';
-import {z} from 'zod';
 
 import {ComponentContext} from '../resolution/component-context.js';
 import {NodeResolver} from '../resolution/node-resolver.js';
@@ -30,6 +29,7 @@ import type {A2uiWebComponentElement} from './a2ui_web_component_element.js';
 import {A2UI_ELEMENT_CONNECTED_EVENT} from './element_connected_event.js';
 import type {WebComponentImplementation} from './web_component_implementation.js';
 import {testValidator} from '../test/validator.js';
+import {jsonFixture} from '../test/schema.js';
 
 // The mock element below extends HTMLElement, so the DOM globals have to be in place before this
 // module's class declarations are evaluated.
@@ -46,14 +46,18 @@ describe('renderA2uiNode', () => {
 
   const mockButtonImpl: WebComponentImplementation = {
     name: 'Button',
-    schema: z.object({text: z.string().optional()}),
+    schema: jsonFixture({
+      'type': 'object',
+      'properties': {'text': {'type': 'string'}},
+      'additionalProperties': false,
+    }),
     tagName: 'a2ui-mock-button',
     element: MockButtonElement,
   };
 
   const mockImplWithoutTag: WebComponentImplementation = {
     name: 'MissingTag',
-    schema: z.object({}),
+    schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': false}),
     tagName: '' as any,
     element: MockButtonElement,
   };

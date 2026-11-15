@@ -16,14 +16,18 @@
 
 import * as assert from 'node:assert';
 import {describe, it} from 'node:test';
-import {z} from 'zod';
 import {
   mapErrorToRendererMessage,
   normalizeJsonPointer,
   extractEnvelopeErrorContext,
 } from './message-error-mapper.js';
 import {A2uiIntegrityError, A2uiRpcError, A2uiValidationError} from '../errors.js';
-import {ErrorMessageSchema} from '../v1_0/schema/renderer-to-agent.js';
+import {issueToDetail} from '../schema-engine/issues.js';
+import type {JsonSchema} from '../schema-engine/types.js';
+import {specSchema} from '../test/schema.js';
+import V10RendererToAgent from '../v1_0/schemas/renderer_to_agent.json' with {type: 'json'};
+
+const ErrorMessageSchema = specSchema(V10RendererToAgent as JsonSchema);
 
 describe('message-error-mapper', () => {
   describe('normalizeJsonPointer', () => {
@@ -109,15 +113,14 @@ describe('message-error-mapper', () => {
       assert.ok(parsed.success, JSON.stringify(parsed.error?.issues));
     });
 
-    it('escapes RFC 6901 ~ and / tokens from Zod issue paths', () => {
-      const zodError = new z.ZodError([
+    it('escapes RFC 6901 ~ and / tokens from issue paths', () => {
+      const details = [
         {
-          code: z.ZodIssueCode.custom,
           path: ['components', 'prop/with/slash', 'key~with~tilde'],
           message: 'Invalid property value',
         },
-      ]);
-      const valErr = new A2uiValidationError('Schema failure', zodError);
+      ].map(issue => issueToDetail(issue));
+      const valErr = new A2uiValidationError('Schema failure', details);
       const mapped = mapErrorToRendererMessage(valErr, {
         version: '1.0',
         surfaceId: 'surf-1',

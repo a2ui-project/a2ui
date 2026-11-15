@@ -15,7 +15,6 @@
  */
 
 import type {StandardSchemaV1} from '@standard-schema/spec';
-import type {z} from 'zod';
 
 import {isAtLeastVersion} from '../common/semver.js';
 import {A2uiConfigurationError} from '../errors.js';
@@ -26,18 +25,19 @@ import {
   jsonSchemaDocuments,
 } from '../schema-engine/from-json-schema.js';
 import type {SchemaCursor} from '../schema-engine/nav.js';
-import type {CatalogSchema, JsonSchema} from '../schema-engine/types.js';
-import {fromZod3, isZod3Schema} from '../schema-engine/zod3-adapter.js';
+import type {CatalogSchema, JsonSchema, JsonSchemaValidator} from '../schema-engine/types.js';
 import V09CommonTypes from '../v0_9/schemas/common_types.json' with {type: 'json'};
 import V091CommonTypes from '../v0_9_1/schemas/common_types.json' with {type: 'json'};
+import V09EnvelopeCatalog from '../v0_9/envelope_catalog.json' with {type: 'json'};
 import V10CommonTypes from '../v1_0/schemas/common_types.json' with {type: 'json'};
+import V10EnvelopeCatalog from '../v1_0/envelope_catalog.json' with {type: 'json'};
+import {bindUnboundSchema, catalogValidator} from './catalog-validator.js';
 
 /**
- * The schema a catalog entry is written with: a {@link CatalogSchema}, or a
- * zod 3 schema, which registration wraps with the internal zod 3 adapter.
+ * The schema a catalog entry is written with: a {@link CatalogSchema}, that
+ * is, a synchronous Standard Schema that implements Standard JSON Schema.
  */
-// ponytail: `| z.ZodTypeAny` removed with the zod mirrors in Task 11.
-export type AuthoredSchema = CatalogSchema<any> | z.ZodTypeAny;
+export type AuthoredSchema = CatalogSchema<any>;
 
 /** A catalog entry's schema as registration prepared it. */
 export interface EntrySchema {
@@ -57,6 +57,12 @@ export interface EntrySchema {
 export interface EntrySchemaContext {
   readonly protocolVersion?: string;
   readonly defs?: Readonly<Record<string, unknown>>;
+  /**
+   * The validator a plain JSON Schema (an agent function's, `@index`'s)
+   * compiles with. When absent, the one bound to the context, if it is a
+   * catalog (see `catalogValidator`).
+   */
+  readonly validator?: JsonSchemaValidator;
 }
 
 const COMMON_TYPES = 'common_types.json';
@@ -86,23 +92,37 @@ function message(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+/** Whether `value` looks like a zod 3 schema, which web_core no longer reads. */
+function isZod3Like(value: unknown): boolean {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    '_def' in value &&
+    typeof (value as {safeParse?: unknown}).safeParse === 'function' &&
+    typeof (value as {'~standard'?: {jsonSchema?: unknown}})['~standard']?.jsonSchema !== 'object'
+  );
+}
+
 /**
- * Prepares an authored schema for use: wraps a zod 3 schema, checks that the
- * schema is a synchronous Standard Schema that implements Standard JSON
- * Schema, and converts it to JSON Schema once. Cached per schema object.
+ * Prepares an authored schema for use: checks that the schema is a
+ * synchronous Standard Schema that implements Standard JSON Schema, and
+ * converts it to JSON Schema once. Cached per schema object.
  *
  * @param authored The schema as the entry was written.
  * @param what The entry, for error messages (e.g. `Component 'Button'`).
- * @throws {A2uiConfigurationError} If the schema is not a Standard Schema
- *   with JSON Schema, its conversion throws, or its validation is
- *   asynchronous.
+ * @throws {A2uiConfigurationError} If the schema is a zod 3 schema, is not a
+ *   Standard Schema with JSON Schema, its conversion throws, or its
+ *   validation is asynchronous.
  */
 export function prepareSchema(authored: AuthoredSchema, what: string): Converted {
   const cached = converted.get(authored);
   if (cached) return cached;
-  const schema: CatalogSchema = isZod3Schema(authored)
-    ? fromZod3(authored)
-    : (authored as CatalogSchema);
+  if (isZod3Like(authored)) {
+    throw new A2uiConfigurationError(
+      `${what}: its schema is a zod 3 schema, which web_core does not read. Wrap it with fromZod3() from @a2ui/schema-zod3, or pass a Standard JSON Schema such as fromJsonSchema(schema, validator).`,
+    );
+  }
+  const schema: CatalogSchema = authored;
   const standard = (schema as Partial<CatalogSchema> | undefined)?.['~standard'];
   if (typeof standard?.validate !== 'function') {
     throw new A2uiConfigurationError(
@@ -240,7 +260,7 @@ export function entrySchema(
   if (!entry.schema) return undefined;
   const commonTypes = commonTypesFor(context?.protocolVersion) as object;
   const defs = context?.defs ?? NO_DEFS;
-  return cachedEntrySchema(entry, commonTypes, defs, () => {
+  const prepared = cachedEntrySchema(entry, commonTypes, defs, () => {
     const what = `${kind === 'component' ? 'Component' : 'Function'} '${entry.name}'`;
     const {schema, jsonSchema} = prepareSchema(entry.schema!, what);
     const cursor: SchemaCursor = jsonSchemaCursor(schema) ?? {
@@ -255,6 +275,39 @@ export function entrySchema(
     };
     return {schema, jsonSchema, cursor};
   });
+  const validator = context?.validator ?? catalogValidator(context);
+  if (!validator) return prepared;
+  const schema = bindUnboundSchema(prepared.schema, validator, compileDocuments(prepared, context));
+  return schema === prepared.schema ? prepared : {...prepared, schema};
+}
+
+const compileDocs = new WeakMap<EntrySchema, Record<string, JsonSchema>>();
+
+/**
+ * The documents a plain JSON Schema entry compiles with: its referenced
+ * documents, with the catalog document carrying the protocol version's
+ * envelope unions (`anyFunction`, `anyComponent`) that the common types
+ * reference, besides the catalog's own `$defs`.
+ */
+function compileDocuments(
+  prepared: EntrySchema,
+  context: EntrySchemaContext | undefined,
+): Record<string, JsonSchema> {
+  let docs = compileDocs.get(prepared);
+  if (!docs) {
+    const envelope = (
+      !context?.protocolVersion || isAtLeastVersion(context.protocolVersion, '1.0')
+        ? V10EnvelopeCatalog
+        : V09EnvelopeCatalog
+    ) as {$defs: Record<string, unknown>};
+    const catalog: JsonSchema = {$defs: {...envelope.$defs, ...context?.defs}};
+    docs = {};
+    for (const [name, doc] of Object.entries(prepared.cursor.doc.defs)) {
+      docs[name] = basename(name) === CATALOG ? catalog : doc;
+    }
+    compileDocs.set(prepared, docs);
+  }
+  return docs;
 }
 
 /**
@@ -271,16 +324,16 @@ export function validateWith(
 }
 
 /**
- * A copy of the JSON Schema of a schema that is not zod 3, for the catalog
- * serializers, which convert zod 3 schemas themselves; `undefined` for zod 3
- * or a missing schema.
+ * A copy of the JSON Schema of an authored schema, without `$schema`, for the
+ * catalog serializers; `undefined` for a missing schema.
+ *
+ * @throws {A2uiConfigurationError} If the schema can't be used (see
+ *   {@link prepareSchema}).
  */
-// ponytail: removed with zod in Task 11, when the
-// serializers no longer convert zod 3 schemas.
-export function nonZodSchemaJson(
+export function schemaJson(
   schema: AuthoredSchema | undefined,
 ): Record<string, unknown> | undefined {
-  if (!schema || isZod3Schema(schema)) return undefined;
+  if (!schema) return undefined;
   const {jsonSchema} = prepareSchema(schema, 'Catalog entry');
   const json = typeof jsonSchema === 'boolean' ? (jsonSchema ? {} : {not: {}}) : jsonSchema;
   const {$schema: _schema, ...rest} = structuredClone(json);

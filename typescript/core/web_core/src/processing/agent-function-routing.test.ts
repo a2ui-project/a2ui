@@ -16,7 +16,6 @@
 
 import * as assert from 'node:assert';
 import {afterEach, beforeEach, describe, it} from 'node:test';
-import {z} from 'zod';
 
 import {Catalog, createFunctionImplementation, FunctionApi} from '../catalog/types.js';
 import {getValue, peekValue, setValue, signal} from '../reactivity/signals.js';
@@ -25,7 +24,7 @@ import {A2uiRpcError, RpcErrorCode} from '../errors.js';
 import {DataContext} from '../resolution/data-context.js';
 import {MessageProcessor} from './message-processor.js';
 import {testValidator} from '../test/validator.js';
-import {validated} from '../test/schema.js';
+import {validated, jsonFixture} from '../test/schema.js';
 
 const FormatStringImplementation = functionOf(v1BasicCatalog, 'formatString');
 
@@ -38,7 +37,12 @@ const upper = createFunctionImplementation(
   {
     name: 'upper',
     returnType: 'string',
-    schema: z.object({'value': z.string()}),
+    schema: jsonFixture({
+      'type': 'object',
+      'properties': {'value': {'type': 'string'}},
+      'required': ['value'],
+      'additionalProperties': false,
+    }),
     allowedCallers: 'rendererOrAgent',
   },
   args => args.value.toUpperCase(),
@@ -48,7 +52,12 @@ const concat = createFunctionImplementation(
   {
     name: 'concat',
     returnType: 'string',
-    schema: z.object({'a': z.string(), 'b': z.string()}),
+    schema: jsonFixture({
+      'type': 'object',
+      'properties': {'a': {'type': 'string'}, 'b': {'type': 'string'}},
+      'required': ['a', 'b'],
+      'additionalProperties': false,
+    }),
   },
   args => `${args.a}:${args.b}`,
 );
@@ -57,20 +66,34 @@ const concat = createFunctionImplementation(
 const quote: FunctionApi = {
   name: 'quote',
   returnType: 'number',
-  schema: z.object({'symbol': z.string(), 'currency': z.string().default('USD')}).strict(),
+  schema: jsonFixture({
+    'type': 'object',
+    'properties': {'symbol': {'type': 'string'}, 'currency': {'type': 'string', 'default': 'USD'}},
+    'required': ['symbol'],
+    'additionalProperties': false,
+  }),
 };
 
 /** Schema-only function restricted to agent callers. */
 const agentOnlySchemaFn: FunctionApi = {
   name: 'agentOnlySchemaFn',
   returnType: 'string',
-  schema: z.object({}),
+  schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': false}),
   allowedCallers: 'agentOnly',
 };
 
 /** Throws a plain `Error`, which an action reports as an `EXECUTION_ERROR`. */
 const explode = createFunctionImplementation(
-  {name: 'explode', returnType: 'string', schema: z.object({'value': z.string()})},
+  {
+    name: 'explode',
+    returnType: 'string',
+    schema: jsonFixture({
+      'type': 'object',
+      'properties': {'value': {'type': 'string'}},
+      'required': ['value'],
+      'additionalProperties': false,
+    }),
+  },
   () => {
     throw new Error('boom');
   },
@@ -79,7 +102,16 @@ const explode = createFunctionImplementation(
 /** Records the evaluation flags its context carries when it runs. */
 const probeCalls: Array<{isActionExecution: boolean; isUserActivated: boolean}> = [];
 const probe = createFunctionImplementation(
-  {name: 'probe', returnType: 'string', schema: z.object({'value': z.string()})},
+  {
+    name: 'probe',
+    returnType: 'string',
+    schema: jsonFixture({
+      'type': 'object',
+      'properties': {'value': {'type': 'string'}},
+      'required': ['value'],
+      'additionalProperties': false,
+    }),
+  },
   (args, ctx) => {
     probeCalls.push({
       isActionExecution: ctx.isActionExecution,
@@ -93,14 +125,23 @@ const probe = createFunctionImplementation(
 const confirmPayment: FunctionApi = {
   name: 'confirmPayment',
   returnType: 'boolean',
-  schema: z.object({}),
+  schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': false}),
   requiresUserActivation: true,
 };
 
 /** Returns a signal that the test drives, to check that a binding follows it. */
 const liveSignals: Array<ReturnType<typeof signal<string>>> = [];
 const liveValue = createFunctionImplementation(
-  {name: 'liveValue', returnType: 'string', schema: z.object({'seed': z.string()})},
+  {
+    name: 'liveValue',
+    returnType: 'string',
+    schema: jsonFixture({
+      'type': 'object',
+      'properties': {'seed': {'type': 'string'}},
+      'required': ['seed'],
+      'additionalProperties': false,
+    }),
+  },
   args => {
     const sig = signal(args.seed);
     liveSignals.push(sig);
@@ -110,7 +151,11 @@ const liveValue = createFunctionImplementation(
 
 /** Resolves after a macrotask, so a call that awaits it is suspended meanwhile. */
 const slowToken = createFunctionImplementation(
-  {name: 'slowToken', returnType: 'string', schema: z.object({})},
+  {
+    name: 'slowToken',
+    returnType: 'string',
+    schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': false}),
+  },
   () => new Promise<string>(resolve => setTimeout(() => resolve('tok'), 5)) as unknown as string,
 );
 
@@ -119,7 +164,12 @@ const strictEcho = createFunctionImplementation(
   {
     name: 'strictEcho',
     returnType: 'number',
-    schema: z.object({'b': z.number()}).strict(),
+    schema: jsonFixture({
+      'type': 'object',
+      'properties': {'b': {'type': 'number'}},
+      'required': ['b'],
+      'additionalProperties': false,
+    }),
     allowedCallers: 'rendererOrAgent',
   },
   args => args.b,
@@ -653,11 +703,23 @@ describe('Fallback routing of unimplemented functions to the agent (v1.0)', () =
 
   it('keeps the pre-1.0 behavior for a failed nested call: the enclosing call runs with undefined', async () => {
     const failingAsync = createFunctionImplementation(
-      {name: 'failingAsync', returnType: 'string', schema: z.object({})},
+      {
+        name: 'failingAsync',
+        returnType: 'string',
+        schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': false}),
+      },
       () => Promise.reject(new Error('async failure')) as unknown as string,
     );
     const orDefault = createFunctionImplementation(
-      {name: 'orDefault', returnType: 'string', schema: z.object({'value': z.any().optional()})},
+      {
+        name: 'orDefault',
+        returnType: 'string',
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {'value': {}},
+          'additionalProperties': false,
+        }),
+      },
       args => (args.value as string | undefined) ?? 'fallback',
     );
     const catalog = new Catalog<any, any>(FIN_CATALOG_ID, '0.9', [], [failingAsync, orDefault]);

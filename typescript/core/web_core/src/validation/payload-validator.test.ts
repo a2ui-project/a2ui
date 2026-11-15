@@ -16,13 +16,13 @@
 
 import {describe, it} from 'node:test';
 import * as assert from 'node:assert';
-import {z} from 'zod';
 import {Catalog} from '../catalog/types.js';
 import {nestedCallRunsInCatalog, PayloadValidator} from './payload-validator.js';
 import {STRICT_VALIDATION} from './integrity-checker.js';
 import {A2uiValidationError} from '../errors.js';
 import {fromJsonSchema} from '../schema-engine/from-json-schema.js';
 import {testValidator} from '../test/validator.js';
+import {jsonFixture} from '../test/schema.js';
 
 describe('nestedCallRunsInCatalog', () => {
   const CATALOG = 'https://example.com/a';
@@ -51,7 +51,13 @@ describe('PayloadValidator', () => {
       'https://example.com/v10',
       '1.0',
       [],
-      [{name: 'upper', returnType: 'string', schema: z.object({}).passthrough()}],
+      [
+        {
+          name: 'upper',
+          returnType: 'string',
+          schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': true}),
+        },
+      ],
     );
     const validator = new PayloadValidator(cat, STRICT_VALIDATION);
     const exactLimitArgs = Object.fromEntries(
@@ -125,12 +131,33 @@ describe('PayloadValidator', () => {
     const cat = new Catalog(
       CATALOG_ID,
       '1.0',
-      [{name: 'Text', schema: z.object({text: z.any()})}],
+      [
+        {
+          name: 'Text',
+          schema: jsonFixture({
+            'type': 'object',
+            'properties': {'text': {}},
+            'additionalProperties': false,
+          }),
+        },
+      ],
       [
         {
           name: 'upper',
           returnType: 'string',
-          schema: z.object({value: z.union([z.string(), z.object({}).passthrough()])}).strict(),
+          schema: jsonFixture({
+            'type': 'object',
+            'properties': {
+              'value': {
+                'anyOf': [
+                  {'type': 'string'},
+                  {'type': 'object', 'properties': {}, 'additionalProperties': true},
+                ],
+              },
+            },
+            'required': ['value'],
+            'additionalProperties': false,
+          }),
         },
       ],
     );
@@ -285,7 +312,14 @@ describe('PayloadValidator', () => {
 
     it('skips a call with an empty name below v1.0', () => {
       const v09 = new Catalog('https://example.com/v09', '0.9', [
-        {name: 'Text', schema: z.object({text: z.any()})},
+        {
+          name: 'Text',
+          schema: jsonFixture({
+            'type': 'object',
+            'properties': {'text': {}},
+            'additionalProperties': false,
+          }),
+        },
       ]);
       const validator = new PayloadValidator(v09, STRICT_VALIDATION);
       assert.doesNotThrow(() => validator.validateComponent(textWith({call: '', args: {}})));
@@ -293,7 +327,15 @@ describe('PayloadValidator', () => {
 
     it('leaves catalogId and metadata out of a closed component schema', () => {
       const closed = new Catalog(CATALOG_ID, '1.0', [
-        {name: 'Tag', schema: z.object({label: z.string()}).strict()},
+        {
+          name: 'Tag',
+          schema: jsonFixture({
+            'type': 'object',
+            'properties': {'label': {'type': 'string'}},
+            'required': ['label'],
+            'additionalProperties': false,
+          }),
+        },
       ]);
       const validator = new PayloadValidator(closed, STRICT_VALIDATION);
       for (const prefix of ['', '@']) {
@@ -396,8 +438,27 @@ describe('PayloadValidator', () => {
     const cat = new Catalog(
       'https://example.com/v09',
       '0.9',
-      [{name: 'Text', schema: z.object({text: z.any()})}],
-      [{name: 'upper', returnType: 'string', schema: z.object({value: z.string()}).strict()}],
+      [
+        {
+          name: 'Text',
+          schema: jsonFixture({
+            'type': 'object',
+            'properties': {'text': {}},
+          }),
+        },
+      ],
+      [
+        {
+          name: 'upper',
+          returnType: 'string',
+          schema: jsonFixture({
+            'type': 'object',
+            'properties': {'value': {'type': 'string'}},
+            'required': ['value'],
+            'additionalProperties': false,
+          }),
+        },
+      ],
     );
 
     it('validates every call against this catalog, whatever catalogId the component names', () => {
@@ -592,7 +653,7 @@ describe('PayloadValidator', () => {
               err.message,
               /cannot specify both '@accessibility' and legacy 'accessibility'/,
             );
-            assert.match(err.details[0].path, /\/@accessibility$/);
+            assert.match(err.details?.[0]?.path ?? '', /\/@accessibility$/);
             return true;
           },
         );
@@ -607,7 +668,7 @@ describe('PayloadValidator', () => {
           (err: unknown) => {
             assert.ok(err instanceof A2uiValidationError);
             assert.match(err.message, /cannot specify both '@metadata' and legacy 'metadata'/);
-            assert.match(err.details[0].path, /\/@metadata$/);
+            assert.match(err.details?.[0]?.path ?? '', /\/@metadata$/);
             return true;
           },
         );

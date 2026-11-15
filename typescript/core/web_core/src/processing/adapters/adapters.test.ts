@@ -18,11 +18,8 @@ import * as assert from 'node:assert';
 import {readFileSync} from 'node:fs';
 import {describe, it} from 'node:test';
 
-import {z} from 'zod';
-
 import {Catalog} from '../../catalog/types.js';
 import {A2uiConfigurationError, A2uiValidationError, NO_VALIDATOR_MESSAGE} from '../../errors.js';
-import type {A2uiIssue} from '../../schema-engine/types.js';
 import {testValidator} from '../../test/validator.js';
 import {MessageProcessor, type MessageProcessorOptions} from '../message-processor.js';
 import {
@@ -41,6 +38,7 @@ import {VersionAdapterFactory} from './factory.js';
 import {V0Point8Adapter} from './v0_8.js';
 import {V0Point9Adapter} from './v0_9.js';
 import {V1Point0Adapter} from './v1_0.js';
+import {jsonFixture} from '../../test/schema.js';
 
 const validatingFactory = new VersionAdapterFactory(testValidator);
 
@@ -466,9 +464,11 @@ describe('MessageProcessor Dependency Injection', () => {
   it('merges existing properties on partial updateComponents operations', () => {
     const textApi = {
       name: 'Text',
-      schema: z.object({
-        text: z.string(),
-        color: z.string().optional(),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'text': {'type': 'string'}, 'color': {'type': 'string'}},
+        'required': ['text'],
+        'additionalProperties': false,
       }),
     };
     const catalog = new Catalog('basic', '1.0', [textApi]);
@@ -735,7 +735,7 @@ describe('MessageProcessor Dependency Injection', () => {
           "Invalid 1.0 message: callRendererFunction.callFunction.catalogId: missing required property 'catalogId'",
         );
         // The message names the deepest issue; the version mismatch is in the details.
-        assert.ok(err.details.some((i: A2uiIssue) => i.path[0] === 'version'));
+        assert.ok(err.details?.some(d => d.path.startsWith('/version')));
         return true;
       },
     );
@@ -806,7 +806,7 @@ describe('protocol messages validated against the spec JSON', () => {
         err instanceof A2uiValidationError &&
         /label/.test(err.message) &&
         Array.isArray(err.details) &&
-        err.details.every((i: A2uiIssue) => Array.isArray(i.path)),
+        err.details.every(d => typeof d.path === 'string' && typeof d.code === 'string'),
     );
   });
 

@@ -30,7 +30,7 @@ export {
   type ExecutionContext,
   type CapabilitiesOptions,
   type MessageProcessorOptions,
-  formatZodIssue,
+  formatIssue,
   MessageProcessor,
 } from './message-processor.js';
 export {

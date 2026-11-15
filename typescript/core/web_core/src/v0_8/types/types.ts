@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-// ponytail: removed in Task 11 — the v0.8 types are inferred from the v0.8 zod mirror.
-
 export {
   type ClientToServerMessage as A2UIClientEventMessage,
   type ClientCapabilitiesDynamic,
@@ -44,21 +42,6 @@ import {
   Video,
 } from './components';
 
-import type {z} from 'zod';
-import type {
-  A2uiMessageSchema,
-  BeginRenderingMessageSchema,
-  ComponentInstanceSchema,
-  ComponentPropertiesSchema,
-  DataModelUpdateMessageSchema,
-  DeleteSurfaceMessageSchema,
-  SurfaceUpdateMessageSchema,
-  ValueMapSchema,
-} from '../schema/server-to-client.js';
-import type {
-  ComponentArrayReferenceSchema,
-  ComponentArrayTemplateSchema,
-} from '../schema/common-types.js';
 import {StringValue, NumberValue, BooleanValue} from './primitives';
 export type {StringValue, NumberValue, BooleanValue};
 
@@ -249,23 +232,20 @@ export declare type DataMap = Map<string, DataValue>;
 export declare type DataArray = DataValue[];
 
 /** A template for creating components from a list in the data model. */
-export declare interface ComponentArrayTemplate extends z.infer<
-  typeof ComponentArrayTemplateSchema
-> {
+export declare interface ComponentArrayTemplate {
   componentId: string;
   dataBinding: string;
 }
 
 /** Defines a list of child components, either explicitly or via a template. */
-export declare interface ComponentArrayReference extends z.infer<
-  typeof ComponentArrayReferenceSchema
-> {
+export declare interface ComponentArrayReference {
   explicitList?: string[];
   template?: ComponentArrayTemplate;
 }
 
 /** Represents the general shape of a component's properties. */
-export declare interface ComponentProperties extends z.infer<typeof ComponentPropertiesSchema> {
+export declare interface ComponentProperties {
+  [key: string]: any;
   Text?: Text;
   Image?: Image;
   Icon?: Icon;
@@ -287,14 +267,15 @@ export declare interface ComponentProperties extends z.infer<typeof ComponentPro
 }
 
 /** A raw component instance from a SurfaceUpdate message. */
-export declare interface ComponentInstance extends z.infer<typeof ComponentInstanceSchema> {
+export declare interface ComponentInstance {
   id: string;
   weight?: number;
   component: ComponentProperties;
 }
 
-export declare interface BeginRenderingMessage extends z.infer<typeof BeginRenderingMessageSchema> {
+export declare interface BeginRenderingMessage {
   surfaceId: string;
+  catalogId?: string;
   root: string;
   styles?: {
     font?: string;
@@ -302,19 +283,19 @@ export declare interface BeginRenderingMessage extends z.infer<typeof BeginRende
   };
 }
 
-export declare interface SurfaceUpdateMessage extends z.infer<typeof SurfaceUpdateMessageSchema> {
+export declare interface SurfaceUpdateMessage {
   surfaceId: string;
   components: ComponentInstance[];
 }
 
-export declare interface DataModelUpdate extends z.infer<typeof DataModelUpdateMessageSchema> {
+export declare interface DataModelUpdate {
   surfaceId: string;
   path?: string;
   contents: ValueMap[];
 }
 
 // ValueMap is a type of DataObject for passing to the data model.
-export declare interface ValueMap extends z.infer<typeof ValueMapSchema> {
+export declare interface ValueMap {
   key: string;
   valueString?: string;
   valueNumber?: number;
@@ -322,16 +303,19 @@ export declare interface ValueMap extends z.infer<typeof ValueMapSchema> {
   valueMap?: ValueMap[];
 }
 
-export declare interface DeleteSurfaceMessage extends z.infer<typeof DeleteSurfaceMessageSchema> {
+export declare interface DeleteSurfaceMessage {
   surfaceId: string;
 }
 
-export declare interface ServerToClientMessage extends z.infer<typeof A2uiMessageSchema> {
+export declare interface ServerToClientMessage {
   beginRendering?: BeginRenderingMessage;
   surfaceUpdate?: SurfaceUpdateMessage;
   dataModelUpdate?: DataModelUpdate;
   deleteSurface?: DeleteSurfaceMessage;
 }
+
+/** A v0.8 server-to-client message. */
+export type A2uiMessage = ServerToClientMessage;
 
 /**
  * A recursive type for any value that can appear within a resolved component

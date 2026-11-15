@@ -1706,22 +1706,7 @@ export class DataContext {
   private dispatchExpressionError(e: unknown, name: string): void {
     if (!this.surface || this.surface.disposed) return;
     if (isCancellation(e)) return;
-    if (typeof e === 'object' && e !== null && (e as {name?: string}).name === 'ZodError') {
-      // A function's own Zod argument parsing failed (recognized by name, so
-      // no Zod import is needed here).
-      const zodErr = e as {message: string; errors?: unknown; issues?: unknown};
-      const err = new A2uiExpressionError(
-        `Validation failed for function '${name}': ${zodErr.message}`,
-        name,
-        zodErr.errors ?? zodErr.issues,
-      );
-      this.surface.dispatchError({
-        code: 'EXPRESSION_ERROR',
-        message: err.message,
-        expression: name,
-        details: err.details,
-      });
-    } else if (e instanceof A2uiExpressionError) {
+    if (e instanceof A2uiExpressionError) {
       this.surface.dispatchError({
         code: 'EXPRESSION_ERROR',
         message: e.message,

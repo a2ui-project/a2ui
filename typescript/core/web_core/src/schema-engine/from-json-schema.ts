@@ -33,6 +33,16 @@ const schemaDocuments = new WeakMap<object, Readonly<Record<string, JsonSchema>>
 /** Where discovery reads a schema that sits in a document of its own, by schema. */
 const schemaCursors = new WeakMap<object, SchemaCursor>();
 
+const schemaValidators = new WeakMap<object, JsonSchemaValidator>();
+
+/**
+ * The validator a JSON-backed schema (from {@link fromJsonSchema}) was
+ * compiled with, or `undefined` for any other schema.
+ */
+export function jsonSchemaValidator(schema: unknown): JsonSchemaValidator | undefined {
+  return typeof schema === 'object' && schema !== null ? schemaValidators.get(schema) : undefined;
+}
+
 /**
  * The referenced documents (`CompileOptions.defs`) a schema made by
  * {@link fromJsonSchema} validates with, so discovery can follow its `$ref`s
@@ -66,6 +76,7 @@ export function isJsonBackedSchema(schema: unknown): boolean {
 function wrap<T>(
   schema: JsonSchema,
   opts: CompileOptions | undefined,
+  validator: JsonSchemaValidator,
   compiled: () => CompiledValidator<T>,
 ): CatalogSchema<T> {
   const json: Record<string, unknown> =
@@ -85,6 +96,7 @@ function wrap<T>(
     },
   };
   schemaDocuments.set(result, defs);
+  schemaValidators.set(result, validator);
   return result;
 }
 
@@ -105,7 +117,7 @@ export function fromJsonSchema<T = unknown>(
   opts?: CompileOptions,
 ): CatalogSchema<T> {
   const validate = validator.compile<T>(schema, opts);
-  return wrap(schema, opts, () => validate);
+  return wrap(schema, opts, validator, () => validate);
 }
 
 /**
@@ -137,7 +149,7 @@ export function namedJsonSchema<T = unknown>(
       `${what}: its JSON Schema could not be compiled: ${err instanceof Error ? err.message : String(err)}`,
     );
   }
-  const result = wrap(schema, opts, () => validate);
+  const result = wrap(schema, opts, validator, () => validate);
   if (cursor) schemaCursors.set(result, cursor);
   return result;
 }

@@ -16,7 +16,6 @@
 
 import * as assert from 'node:assert';
 import {describe, it} from 'node:test';
-import {z} from 'zod';
 import {
   GenericBinder,
   getSafeChildList,
@@ -32,12 +31,10 @@ import {SurfaceModel} from '../state/surface-model.js';
 import {Catalog, FunctionImplementation} from '../catalog/types.js';
 import {ComponentModel} from '../state/component-model.js';
 import type {ChildList, DataBinding, DynamicString, FunctionCall} from '../types/runtime-types.js';
-// ponytail: zod mirrors of the v0.9 common types (the fixtures' spelling) until Task 11.
-import {CommonSchemas, DataBindingSchema} from '../v0_9/schema/common-types.js';
 import type {JsonSchema} from '../schema-engine/types.js';
 import type {AuthoredSchema} from '../catalog/entry-schema.js';
-import {cursorOf} from '../test/schema.js';
-import type {Action as V1Action, CheckRule as V1CheckRule} from '../v1_0/schema/common-types.js';
+import {cursorOf, jsonFixture, jsonOnlyFixture} from '../test/schema.js';
+import type {Action as V1Action, CheckRule as V1CheckRule} from '../v1_0/generated-common-types.js';
 import V10CommonTypes from '../v1_0/schemas/common_types.json' with {type: 'json'};
 import type {ChildRefAnalysisOptions} from './ref-fields.js';
 import {testValidator} from '../test/validator.js';
@@ -63,8 +60,7 @@ const record = (values: JsonSchema = {}): JsonSchema => ({
   additionalProperties: values,
 });
 
-// ponytail: the binder tests below build their components from zod 3
-// schemas, as code-defined catalogs may until Task 11.
+// The binder tests below build their components from JSON Schema fixtures.
 const bridged = (schema: AuthoredSchema) => cursorOf(schema);
 
 describe('GenericBinder Checkable Trait', () => {
@@ -73,13 +69,22 @@ describe('GenericBinder Checkable Trait', () => {
       {
         name: 'required',
         returnType: 'boolean',
-        schema: z.object({value: z.unknown()}),
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {'value': {}},
+          'additionalProperties': false,
+        }),
         execute: (args: Record<string, unknown>) => !!args.value,
       },
       {
         name: 'min_length',
         returnType: 'boolean',
-        schema: z.object({value: z.unknown(), min: z.number()}),
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {'value': {}, 'min': {'type': 'number'}},
+          'required': ['min'],
+          'additionalProperties': false,
+        }),
         execute: (args: Record<string, unknown>) =>
           typeof args.value === 'string' &&
           typeof args.min === 'number' &&
@@ -89,10 +94,23 @@ describe('GenericBinder Checkable Trait', () => {
     const mockCatalog = new Catalog('test', '0.9', [], mockFunctions);
     const surface = new SurfaceModel('s1', mockCatalog);
 
-    const schema = z.object({
-      value: CommonSchemas.DynamicString,
-      checks: CommonSchemas.Checkable.shape.checks,
-    });
+    const schema = jsonFixture(
+      {
+        'type': 'object',
+        'properties': {
+          'value': {'$ref': 'common_types.json#/$defs/DynamicString'},
+          'checks': {
+            'type': 'array',
+            'items': {'$ref': 'common_types.json#/$defs/CheckRule'},
+            'description':
+              'A list of checks to perform. These are function calls that must return a boolean indicating validity.',
+          },
+        },
+        'required': ['value'],
+        'additionalProperties': false,
+      },
+      '0.9',
+    );
 
     return {catalog: mockCatalog, surface, schema};
   }
@@ -246,9 +264,15 @@ describe('GenericBinder Checkable Trait', () => {
     const {catalog, surface} = setupSurfaceAndMocks();
     surface.dataModel.set('/user/name', 'Alice');
 
-    const actionSchema = z.object({
-      onTap: CommonSchemas.Action,
-    });
+    const actionSchema = jsonFixture(
+      {
+        'type': 'object',
+        'properties': {'onTap': {'$ref': 'common_types.json#/$defs/Action'}},
+        'required': ['onTap'],
+        'additionalProperties': false,
+      },
+      '0.9',
+    );
 
     const compModel = new ComponentModel(
       'c5',
@@ -299,9 +323,15 @@ describe('GenericBinder Checkable Trait', () => {
     const {catalog, surface} = setupSurfaceAndMocks();
     surface.dataModel.set('/user/name', 'Alice');
 
-    const actionSchema = z.object({
-      onTap: CommonSchemas.Action,
-    });
+    const actionSchema = jsonFixture(
+      {
+        'type': 'object',
+        'properties': {'onTap': {'$ref': 'common_types.json#/$defs/Action'}},
+        'required': ['onTap'],
+        'additionalProperties': false,
+      },
+      '0.9',
+    );
 
     const compModel = new ComponentModel(
       'c5',
@@ -342,9 +372,15 @@ describe('GenericBinder Checkable Trait', () => {
     const {catalog, surface} = setupSurfaceAndMocks();
     surface.dataModel.set('/feedback', 'Great service!');
 
-    const actionSchema = z.object({
-      onTap: CommonSchemas.Action,
-    });
+    const actionSchema = jsonFixture(
+      {
+        'type': 'object',
+        'properties': {'onTap': {'$ref': 'common_types.json#/$defs/Action'}},
+        'required': ['onTap'],
+        'additionalProperties': false,
+      },
+      '0.9',
+    );
 
     const compModel = new ComponentModel(
       'c5_user_msg',
@@ -380,7 +416,12 @@ describe('GenericBinder Checkable Trait', () => {
       {
         name: 'submitOrder',
         returnType: 'string',
-        schema: z.object({orderId: z.string(), total: z.number()}),
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {'orderId': {'type': 'string'}, 'total': {'type': 'number'}},
+          'required': ['orderId', 'total'],
+          'additionalProperties': false,
+        }),
         execute: (args: Record<string, unknown>) => {
           orderSubmittedWith = args;
           return 'ok';
@@ -392,9 +433,15 @@ describe('GenericBinder Checkable Trait', () => {
     surface.dataModel.set('/order/id', 'ORD-987');
     surface.dataModel.set('/order/total', 49.99);
 
-    const actionSchema = z.object({
-      onTap: CommonSchemas.Action,
-    });
+    const actionSchema = jsonFixture(
+      {
+        'type': 'object',
+        'properties': {'onTap': {'$ref': 'common_types.json#/$defs/Action'}},
+        'required': ['onTap'],
+        'additionalProperties': false,
+      },
+      '0.9',
+    );
 
     const compModel = new ComponentModel(
       'c5_fc',
@@ -441,7 +488,7 @@ describe('GenericBinder Checkable Trait', () => {
       {
         name: 'refreshData',
         returnType: 'string',
-        schema: z.object({}).passthrough(),
+        schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': true}),
         execute: () => {
           refreshCallCount++;
           return 'ok';
@@ -451,9 +498,15 @@ describe('GenericBinder Checkable Trait', () => {
     const mockCatalog = new Catalog('test', '0.9', [], mockFunctions);
     const surface = new SurfaceModel('s1', mockCatalog);
 
-    const actionSchema = z.object({
-      onTap: CommonSchemas.Action,
-    });
+    const actionSchema = jsonFixture(
+      {
+        'type': 'object',
+        'properties': {'onTap': {'$ref': 'common_types.json#/$defs/Action'}},
+        'required': ['onTap'],
+        'additionalProperties': false,
+      },
+      '0.9',
+    );
 
     const compModel = new ComponentModel(
       'c5_zero_arg',
@@ -493,7 +546,7 @@ describe('GenericBinder Checkable Trait', () => {
       {
         name: 'saveDraft',
         returnType: 'string',
-        schema: z.object({}).passthrough(),
+        schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': true}),
         execute: async () => {
           await new Promise(resolve => setTimeout(resolve, 10));
           executionCompleted = true;
@@ -504,9 +557,15 @@ describe('GenericBinder Checkable Trait', () => {
     const mockCatalog = new Catalog('test', '1.0', [], mockFunctions);
     const surface = new SurfaceModel('s1', mockCatalog);
 
-    const actionSchema = z.object({
-      onTap: CommonSchemas.Action,
-    });
+    const actionSchema = jsonFixture(
+      {
+        'type': 'object',
+        'properties': {'onTap': {'$ref': 'common_types.json#/$defs/Action'}},
+        'required': ['onTap'],
+        'additionalProperties': false,
+      },
+      '0.9',
+    );
 
     const compModel = new ComponentModel(
       'c5_async_fc',
@@ -546,7 +605,12 @@ describe('GenericBinder Checkable Trait', () => {
       {
         name: 'setValue',
         returnType: 'boolean',
-        schema: z.object({path: z.string(), value: z.boolean()}),
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {'path': {'type': 'string'}, 'value': {'type': 'boolean'}},
+          'required': ['path', 'value'],
+          'additionalProperties': false,
+        }),
         execute: (args: Record<string, unknown>) => {
           executedArgs = args;
           return true;
@@ -556,9 +620,15 @@ describe('GenericBinder Checkable Trait', () => {
     const mockCatalog = new Catalog('test', '0.9', [], mockFunctions);
     const surface = new SurfaceModel('s1', mockCatalog);
 
-    const actionSchema = z.object({
-      onTap: CommonSchemas.Action,
-    });
+    const actionSchema = jsonFixture(
+      {
+        'type': 'object',
+        'properties': {'onTap': {'$ref': 'common_types.json#/$defs/Action'}},
+        'required': ['onTap'],
+        'additionalProperties': false,
+      },
+      '0.9',
+    );
 
     const compModel = new ComponentModel(
       'c5_unwrapped_call',
@@ -597,9 +667,15 @@ describe('GenericBinder Checkable Trait', () => {
     const {catalog, surface} = setupSurfaceAndMocks();
     surface.dataModel.set('/items', [{title: 'Item 1'}, {title: 'Item 2'}]);
 
-    const structuralSchema = z.object({
-      children: CommonSchemas.ChildList,
-    });
+    const structuralSchema = jsonFixture(
+      {
+        'type': 'object',
+        'properties': {'children': {'$ref': 'common_types.json#/$defs/ChildList'}},
+        'required': ['children'],
+        'additionalProperties': false,
+      },
+      '0.9',
+    );
 
     const compModel = new ComponentModel(
       'c6',
@@ -639,9 +715,15 @@ describe('GenericBinder Checkable Trait', () => {
     const largeList = Array.from({length: 12_000}, (_, i) => ({title: `Item ${i}`}));
     surface.dataModel.set('/largeItems', largeList);
 
-    const structuralSchema = z.object({
-      children: CommonSchemas.ChildList,
-    });
+    const structuralSchema = jsonFixture(
+      {
+        'type': 'object',
+        'properties': {'children': {'$ref': 'common_types.json#/$defs/ChildList'}},
+        'required': ['children'],
+        'additionalProperties': false,
+      },
+      '0.9',
+    );
 
     const compModel = new ComponentModel(
       'c_large',
@@ -683,9 +765,15 @@ describe('GenericBinder Checkable Trait', () => {
     const {catalog, surface} = setupSurfaceAndMocks();
     surface.dataModel.set('/fieldVal', 'initial');
 
-    const dynamicSchema = z.object({
-      value: CommonSchemas.DynamicString,
-    });
+    const dynamicSchema = jsonFixture(
+      {
+        'type': 'object',
+        'properties': {'value': {'$ref': 'common_types.json#/$defs/DynamicString'}},
+        'required': ['value'],
+        'additionalProperties': false,
+      },
+      '0.9',
+    );
 
     const compModel = new ComponentModel(
       'c7',
@@ -787,12 +875,30 @@ describe('GenericBinder Checkable Trait', () => {
 
   it('keeps the validation state of checks in a nested object across a component update', () => {
     const {catalog, surface} = setupSurfaceAndMocks();
-    const schema = z.object({
-      section: z.object({
-        value: CommonSchemas.DynamicString,
-        checks: CommonSchemas.Checkable.shape.checks,
-      }),
-    });
+    const schema = jsonFixture(
+      {
+        'type': 'object',
+        'properties': {
+          'section': {
+            'type': 'object',
+            'properties': {
+              'value': {'$ref': 'common_types.json#/$defs/DynamicString'},
+              'checks': {
+                'type': 'array',
+                'items': {'$ref': 'common_types.json#/$defs/CheckRule'},
+                'description':
+                  'A list of checks to perform. These are function calls that must return a boolean indicating validity.',
+              },
+            },
+            'required': ['value'],
+            'additionalProperties': false,
+          },
+        },
+        'required': ['section'],
+        'additionalProperties': false,
+      },
+      '0.9',
+    );
     const section = {
       value: {path: '/val'},
       checks: [{condition: {call: 'required', args: {value: {path: '/val'}}}, message: 'Required'}],
@@ -905,10 +1011,10 @@ describe('GenericBinder Checkable Trait', () => {
     it('should pass unannotated properties through as static values without guessing bindings', () => {
       const {catalog, surface} = setupSurfaceAndMocks();
 
-      const unannotatedSchema = z.object({
-        customProp: z.unknown(),
-        items: z.unknown(),
-        handleClick: z.unknown(),
+      const unannotatedSchema = jsonFixture({
+        'type': 'object',
+        'properties': {'customProp': {}, 'items': {}, 'handleClick': {}},
+        'additionalProperties': false,
       });
 
       const compModel = new ComponentModel(
@@ -960,7 +1066,13 @@ describe('GenericBinder Checkable Trait', () => {
       const contextV10 = new ComponentContext(surfaceV10, 'c1');
       const binderV10 = new GenericBinder<{details: unknown}>(
         contextV10,
-        bridged(z.object({details: z.unknown()})),
+        bridged(
+          jsonFixture({
+            'type': 'object',
+            'properties': {'details': {}},
+            'additionalProperties': false,
+          }),
+        ),
       );
       assert.strictEqual('setDetails' in (binderV10.snapshot as Record<string, unknown>), false);
 
@@ -978,7 +1090,13 @@ describe('GenericBinder Checkable Trait', () => {
       const contextV09 = new ComponentContext(surfaceV09, 'c2');
       const binderV09 = new GenericBinder<{details: unknown}>(
         contextV09,
-        bridged(z.object({details: z.unknown()})),
+        bridged(
+          jsonFixture({
+            'type': 'object',
+            'properties': {'details': {}},
+            'additionalProperties': false,
+          }),
+        ),
       );
       assert.strictEqual('setDetails' in (binderV09.snapshot as Record<string, unknown>), false);
     });
@@ -998,7 +1116,11 @@ describe('GenericBinder Checkable Trait', () => {
               message: ok ? undefined : 'Must contain @ symbol',
             };
           },
-          schema: z.object({val: z.any()}),
+          schema: jsonFixture({
+            'type': 'object',
+            'properties': {'val': {}},
+            'additionalProperties': false,
+          }),
         },
       ],
     ]);
@@ -1007,10 +1129,21 @@ describe('GenericBinder Checkable Trait', () => {
       return fn.execute(args);
     };
 
-    const schema = z.object({
-      email: CommonSchemas.DynamicString,
-      validationRules: z.array(CommonSchemas.CheckRule),
-    });
+    const schema = jsonFixture(
+      {
+        'type': 'object',
+        'properties': {
+          'email': {'$ref': 'common_types.json#/$defs/DynamicString'},
+          'validationRules': {
+            'type': 'array',
+            'items': {'$ref': 'common_types.json#/$defs/CheckRule'},
+          },
+        },
+        'required': ['email', 'validationRules'],
+        'additionalProperties': false,
+      },
+      '0.9',
+    );
 
     surface.dataModel.set('/email', 'invalid');
     const compModel = new ComponentModel(
@@ -1052,10 +1185,23 @@ describe('GenericBinder Checkable Trait', () => {
     surface.agentFunctionCaller = () =>
       new Promise((resolve, reject) => answers.push({resolve, reject}));
     surface.dataModel.set('/val', 'a');
-    const schema = z.object({
-      field: CommonSchemas.DynamicString,
-      checks: CommonSchemas.Checkable.shape.checks,
-    });
+    const schema = jsonFixture(
+      {
+        'type': 'object',
+        'properties': {
+          'field': {'$ref': 'common_types.json#/$defs/DynamicString'},
+          'checks': {
+            'type': 'array',
+            'items': {'$ref': 'common_types.json#/$defs/CheckRule'},
+            'description':
+              'A list of checks to perform. These are function calls that must return a boolean indicating validity.',
+          },
+        },
+        'required': ['field'],
+        'additionalProperties': false,
+      },
+      '0.9',
+    );
     surface.componentsModel.addComponent(
       new ComponentModel(
         'c_remote',
@@ -1119,7 +1265,11 @@ describe('GenericBinder Checkable Trait', () => {
             }
             return true;
           },
-          schema: z.object({mode: z.any()}),
+          schema: jsonFixture({
+            'type': 'object',
+            'properties': {'mode': {}},
+            'additionalProperties': false,
+          }),
         },
       ],
     ]);
@@ -1128,10 +1278,23 @@ describe('GenericBinder Checkable Trait', () => {
       return fn.execute(args);
     };
 
-    const schema = z.object({
-      field: CommonSchemas.DynamicString,
-      checks: CommonSchemas.Checkable.shape.checks,
-    });
+    const schema = jsonFixture(
+      {
+        'type': 'object',
+        'properties': {
+          'field': {'$ref': 'common_types.json#/$defs/DynamicString'},
+          'checks': {
+            'type': 'array',
+            'items': {'$ref': 'common_types.json#/$defs/CheckRule'},
+            'description':
+              'A list of checks to perform. These are function calls that must return a boolean indicating validity.',
+          },
+        },
+        'required': ['field'],
+        'additionalProperties': false,
+      },
+      '0.9',
+    );
 
     surface.dataModel.set('/mode', 'custom_error');
     const compModel = new ComponentModel(
@@ -1187,7 +1350,7 @@ describe('GenericBinder Checkable Trait', () => {
         'dynamic_validator',
         {
           execute: () => ({valid: false, message: 'Custom dynamic error'}),
-          schema: z.object({}).passthrough(),
+          schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': true}),
         },
       ],
     ]);
@@ -1196,10 +1359,23 @@ describe('GenericBinder Checkable Trait', () => {
       return fn.execute(args);
     };
 
-    const schema = z.object({
-      field: CommonSchemas.DynamicString,
-      checks: CommonSchemas.Checkable.shape.checks,
-    });
+    const schema = jsonFixture(
+      {
+        'type': 'object',
+        'properties': {
+          'field': {'$ref': 'common_types.json#/$defs/DynamicString'},
+          'checks': {
+            'type': 'array',
+            'items': {'$ref': 'common_types.json#/$defs/CheckRule'},
+            'description':
+              'A list of checks to perform. These are function calls that must return a boolean indicating validity.',
+          },
+        },
+        'required': ['field'],
+        'additionalProperties': false,
+      },
+      '0.9',
+    );
 
     const compModel = new ComponentModel(
       'c_override',
@@ -1238,10 +1414,23 @@ describe('GenericBinder Checkable Trait', () => {
       message: 'Message from the data model',
     });
 
-    const schema = z.object({
-      field: CommonSchemas.DynamicString,
-      checks: CommonSchemas.Checkable.shape.checks,
-    });
+    const schema = jsonFixture(
+      {
+        'type': 'object',
+        'properties': {
+          'field': {'$ref': 'common_types.json#/$defs/DynamicString'},
+          'checks': {
+            'type': 'array',
+            'items': {'$ref': 'common_types.json#/$defs/CheckRule'},
+            'description':
+              'A list of checks to perform. These are function calls that must return a boolean indicating validity.',
+          },
+        },
+        'required': ['field'],
+        'additionalProperties': false,
+      },
+      '0.9',
+    );
     const compModel = new ComponentModel(
       'c_path_bound',
       'Input',
@@ -1274,14 +1463,23 @@ describe('GenericBinder Checkable Trait', () => {
   it('should not treat primitive fields or unannotated condition arrays as CHECKABLE', () => {
     const {catalog, surface} = setupSurfaceAndMocks();
 
-    const schemaWithPrimitiveDesc = z.object({
-      status: z.string().describe('The validation status of the transaction'),
-      label: z.string().describe('Checkbox label to display'),
-      unannotatedChecks: z.array(
-        z.object({
-          condition: z.string(),
-        }),
-      ),
+    const schemaWithPrimitiveDesc = jsonFixture({
+      'type': 'object',
+      'properties': {
+        'status': {'type': 'string', 'description': 'The validation status of the transaction'},
+        'label': {'type': 'string', 'description': 'Checkbox label to display'},
+        'unannotatedChecks': {
+          'type': 'array',
+          'items': {
+            'type': 'object',
+            'properties': {'condition': {'type': 'string'}},
+            'required': ['condition'],
+            'additionalProperties': false,
+          },
+        },
+      },
+      'required': ['status', 'label', 'unannotatedChecks'],
+      'additionalProperties': false,
     });
 
     const compModel = new ComponentModel(
@@ -1384,15 +1582,59 @@ describe('GenericBinder Checkable Trait', () => {
 
   it('keeps event properties and list items with an event key as plain values', () => {
     const {catalog, surface} = setupSurfaceAndMocks();
-    const schema = z.object({
-      label: z.string(),
-      event: z.string(),
-      functionCall: z.string(),
-      options: z.array(z.union([z.string(), z.object({label: z.string(), event: z.string()})])),
-      onPick: z.union([
-        z.object({event: z.object({name: z.string()})}),
-        z.object({functionCall: z.object({call: z.string()})}),
-      ]),
+    const schema = jsonFixture({
+      'type': 'object',
+      'properties': {
+        'label': {'type': 'string'},
+        'event': {'type': 'string'},
+        'functionCall': {'type': 'string'},
+        'options': {
+          'type': 'array',
+          'items': {
+            'anyOf': [
+              {'type': 'string'},
+              {
+                'type': 'object',
+                'properties': {'label': {'type': 'string'}, 'event': {'type': 'string'}},
+                'required': ['label', 'event'],
+                'additionalProperties': false,
+              },
+            ],
+          },
+        },
+        'onPick': {
+          'anyOf': [
+            {
+              'type': 'object',
+              'properties': {
+                'event': {
+                  'type': 'object',
+                  'properties': {'name': {'type': 'string'}},
+                  'required': ['name'],
+                  'additionalProperties': false,
+                },
+              },
+              'required': ['event'],
+              'additionalProperties': false,
+            },
+            {
+              'type': 'object',
+              'properties': {
+                'functionCall': {
+                  'type': 'object',
+                  'properties': {'call': {'type': 'string'}},
+                  'required': ['call'],
+                  'additionalProperties': false,
+                },
+              },
+              'required': ['functionCall'],
+              'additionalProperties': false,
+            },
+          ],
+        },
+      },
+      'required': ['label', 'event', 'functionCall', 'options', 'onPick'],
+      'additionalProperties': false,
     });
     const compModel = new ComponentModel(
       'c_select',
@@ -1462,11 +1704,11 @@ describe('GenericBinder Checkable Trait', () => {
 
     it('leaves check rules and data objects as they are', () => {
       const checks: V1CheckRule[] | undefined = props.checks;
-      const rule: Props['rule'] = {condition: {path: '/valid'}};
+      const rule: NonNullable<Props['rule']> = {condition: {'@path': '/valid'}};
       const data: Record<string, unknown> | undefined = props.data;
       assert.deepStrictEqual(
         [checks, rule.condition, data],
-        [undefined, {path: '/valid'}, undefined],
+        [undefined, {'@path': '/valid'}, undefined],
       );
     });
 
@@ -1519,7 +1761,7 @@ describe('GenericBinder allowedCallers', () => {
     const lookup: FunctionImplementation = {
       name: 'lookup',
       returnType: 'string',
-      schema: z.object({}),
+      schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': false}),
       allowedCallers,
       execute: () => {
         calls.push('lookup');
@@ -1529,7 +1771,7 @@ describe('GenericBinder allowedCallers', () => {
     const isValid: FunctionImplementation = {
       name: 'isValid',
       returnType: 'boolean',
-      schema: z.object({}),
+      schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': false}),
       allowedCallers,
       execute: () => {
         calls.push('isValid');
@@ -1543,11 +1785,24 @@ describe('GenericBinder allowedCallers', () => {
       errors.push(err);
     });
 
-    const schema = z.object({
-      text: CommonSchemas.DynamicString,
-      checks: CommonSchemas.Checkable.shape.checks,
-      onTap: CommonSchemas.Action,
-    });
+    const schema = jsonFixture(
+      {
+        'type': 'object',
+        'properties': {
+          'text': {'$ref': 'common_types.json#/$defs/DynamicString'},
+          'checks': {
+            'type': 'array',
+            'items': {'$ref': 'common_types.json#/$defs/CheckRule'},
+            'description':
+              'A list of checks to perform. These are function calls that must return a boolean indicating validity.',
+          },
+          'onTap': {'$ref': 'common_types.json#/$defs/Action'},
+        },
+        'required': ['text', 'onTap'],
+        'additionalProperties': false,
+      },
+      '0.9',
+    );
     surface.componentsModel.addComponent(
       new ComponentModel(
         'c1',
@@ -1621,12 +1876,26 @@ describe('getSafeChildList helper function', () => {
     assert.strictEqual(safe[MAX_DYNAMIC_CHILD_LIST_SIZE - 1], MAX_DYNAMIC_CHILD_LIST_SIZE - 1);
   });
 
-  it('does not coerce non-boolean values on polymorphic dynamic unions containing ZodBoolean', () => {
-    const polySchema = z.object({
-      id: z.string(),
-      component: z.literal('Poly'),
-      val: z.union([z.string(), z.boolean(), DataBindingSchema]),
-    });
+  it('does not coerce non-boolean values on polymorphic dynamic unions containing a boolean', () => {
+    const polySchema = jsonFixture(
+      {
+        'type': 'object',
+        'properties': {
+          'id': {'type': 'string'},
+          'component': {'type': 'string', 'const': 'Poly'},
+          'val': {
+            'anyOf': [
+              {'type': 'string'},
+              {'type': 'boolean'},
+              {'$ref': 'common_types.json#/$defs/DataBinding'},
+            ],
+          },
+        },
+        'required': ['id', 'component', 'val'],
+        'additionalProperties': false,
+      },
+      '0.9',
+    );
     const catalog = new Catalog('poly', [{name: 'Poly', schema: polySchema}], []);
     const surface = new SurfaceModel('s1', catalog, {});
     surface.dataModel.set('/v', 'hello');
@@ -1649,19 +1918,28 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
     surface.dataModel.set('/val', 'initial-val');
     surface.dataModel.set('/a11yLabel', 'Save');
 
-    const schema = z.object({
-      variant: z.string().optional(),
-      tags: z.array(z.string()).optional(),
-      accessibility: z
-        .object({
-          label: CommonSchemas.DynamicString.optional(),
-          description: z.string().optional(),
-        })
-        .optional(),
-      value: CommonSchemas.DynamicString.optional(),
-      onTap: CommonSchemas.Action.optional(),
-      keepAction: CommonSchemas.Action.optional(),
-    });
+    const schema = jsonFixture(
+      {
+        'type': 'object',
+        'properties': {
+          'variant': {'type': 'string'},
+          'tags': {'type': 'array', 'items': {'type': 'string'}},
+          'accessibility': {
+            'type': 'object',
+            'properties': {
+              'label': {'$ref': 'common_types.json#/$defs/DynamicString'},
+              'description': {'type': 'string'},
+            },
+            'additionalProperties': false,
+          },
+          'value': {'$ref': 'common_types.json#/$defs/DynamicString'},
+          'onTap': {'$ref': 'common_types.json#/$defs/Action'},
+          'keepAction': {'$ref': 'common_types.json#/$defs/Action'},
+        },
+        'additionalProperties': false,
+      },
+      '0.9',
+    );
 
     const compModel = new ComponentModel(
       'c1',
@@ -1766,30 +2044,61 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
     const required: FunctionImplementation = {
       name: 'required',
       returnType: 'boolean',
-      schema: z.object({value: z.unknown()}),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'value': {}},
+        'additionalProperties': false,
+      }),
       execute: (args: Record<string, unknown>) => Boolean(args.value),
     };
     const catalog = new Catalog('test-v1', '1.0', [], [required]);
     const surface = new SurfaceModel('s1', catalog);
     surface.dataModel.set('/v', '');
 
-    const schema = z.object({
-      value: CommonSchemas.DynamicString.optional(),
-      extra: z.string().optional(),
-      checks: CommonSchemas.Checkable.shape.checks,
-      nested: z
-        .object({
-          checks: CommonSchemas.Checkable.shape.checks,
-        })
-        .optional(),
-      items: z
-        .array(
-          z.object({
-            checks: CommonSchemas.Checkable.shape.checks,
-          }),
-        )
-        .optional(),
-    });
+    const schema = jsonFixture(
+      {
+        'type': 'object',
+        'properties': {
+          'value': {'$ref': 'common_types.json#/$defs/DynamicString'},
+          'extra': {'type': 'string'},
+          'checks': {
+            'type': 'array',
+            'items': {'$ref': 'common_types.json#/$defs/CheckRule'},
+            'description':
+              'A list of checks to perform. These are function calls that must return a boolean indicating validity.',
+          },
+          'nested': {
+            'type': 'object',
+            'properties': {
+              'checks': {
+                'type': 'array',
+                'items': {'$ref': 'common_types.json#/$defs/CheckRule'},
+                'description':
+                  'A list of checks to perform. These are function calls that must return a boolean indicating validity.',
+              },
+            },
+            'additionalProperties': false,
+          },
+          'items': {
+            'type': 'array',
+            'items': {
+              'type': 'object',
+              'properties': {
+                'checks': {
+                  'type': 'array',
+                  'items': {'$ref': 'common_types.json#/$defs/CheckRule'},
+                  'description':
+                    'A list of checks to perform. These are function calls that must return a boolean indicating validity.',
+                },
+              },
+              'additionalProperties': false,
+            },
+          },
+        },
+        'additionalProperties': false,
+      },
+      '0.9',
+    );
 
     const checkRule = (message: string) => [
       {
@@ -1898,7 +2207,7 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
 
     const binder = new GenericBinder<Record<string, unknown>>(
       new ComponentContext(surface, 'c1'),
-      bridged(z.record(z.unknown())),
+      bridged(jsonFixture({'type': 'object', 'additionalProperties': {}})),
     );
 
     assert.notStrictEqual(binder.snapshot, compModel.properties);
@@ -1964,8 +2273,7 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
     }
   });
 
-  it('binds dynamic, action, and structural properties across ZodIntersection, ZodPipeline, ZodCatch, and object-variant unions', () => {
-    const componentIdSchema = z.string().describe('REF:common_types.json#/$defs/ComponentId');
+  it('binds dynamic, action, and structural properties across allOf intersections, wrapped properties, and object-variant unions', () => {
     assert.deepStrictEqual(scrape({allOf: [commonRef('ChildList'), {type: 'number'}]}), {
       type: 'STATIC',
     });
@@ -1982,19 +2290,6 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
       scrape({allOf: [commonRef('ChildList'), {type: 'array', items: {type: 'string'}}]}),
       {type: 'STRUCTURAL'},
     );
-
-    const variantUnionSchema = z.discriminatedUnion('mode', [
-      z.object({
-        mode: z.literal('card'),
-        title: CommonSchemas.DynamicString.catch('fallback').pipe(z.any()),
-        child: componentIdSchema,
-      }),
-      z.object({
-        mode: z.literal('list'),
-        title: CommonSchemas.DynamicString,
-        children: CommonSchemas.ChildList,
-      }),
-    ]);
 
     const scrapedVariant = scrape({
       anyOf: [
@@ -2034,16 +2329,49 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
       assert.strictEqual(scrapedNumericRecord.shape.accessibility?.type, 'OBJECT');
     }
 
-    const compositeSchema = z
-      .object({
-        subtitle: CommonSchemas.DynamicString.optional(),
-      })
-      .and(variantUnionSchema)
-      .and(
-        z.object({
-          onPress: CommonSchemas.Action.optional(),
-        }),
-      );
+    const compositeSchema = jsonFixture(
+      {
+        'allOf': [
+          {
+            'allOf': [
+              {
+                'type': 'object',
+                'properties': {'subtitle': {'$ref': 'common_types.json#/$defs/DynamicString'}},
+              },
+              {
+                'anyOf': [
+                  {
+                    'type': 'object',
+                    'properties': {
+                      'mode': {'type': 'string', 'const': 'card'},
+                      'title': {'allOf': [{'$ref': 'common_types.json#/$defs/DynamicString'}, {}]},
+                      'child': {'$ref': 'common_types.json#/$defs/ComponentId'},
+                    },
+                    'required': ['mode', 'child'],
+                    'additionalProperties': false,
+                  },
+                  {
+                    'type': 'object',
+                    'properties': {
+                      'mode': {'type': 'string', 'const': 'list'},
+                      'title': {'$ref': 'common_types.json#/$defs/DynamicString'},
+                      'children': {'$ref': 'common_types.json#/$defs/ChildList'},
+                    },
+                    'required': ['mode', 'title', 'children'],
+                    'additionalProperties': false,
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            'type': 'object',
+            'properties': {'onPress': {'$ref': 'common_types.json#/$defs/Action'}},
+          },
+        ],
+      },
+      '0.9',
+    );
 
     const catalog = new Catalog('test-composite', '0.9', [], []);
     const surface = new SurfaceModel('s1', catalog);
@@ -2097,26 +2425,59 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
     surface.dispose();
   });
 
-  it('preserves DYNAMIC, ACTION, and CHECKABLE behaviors in object-variant unions paired with static variants and handles composite ZodRecord schemas', () => {
-    const mixedVariantSchema = z.discriminatedUnion('kind', [
-      z.object({
-        kind: z.literal('interactive'),
-        label: CommonSchemas.DynamicString,
-        onSelect: CommonSchemas.Action,
-        checks: CommonSchemas.Checkable.shape.checks,
-      }),
-      z.object({
-        kind: z.literal('plain'),
-        label: z.string(),
-        onSelect: z.string().optional(),
-        checks: z.string().optional(),
-      }),
-    ]);
+  it('preserves DYNAMIC, ACTION, and CHECKABLE behaviors in object-variant unions paired with static variants and handles composite record schemas', () => {
+    const mixedVariantSchema = jsonFixture(
+      {
+        'anyOf': [
+          {
+            'type': 'object',
+            'properties': {
+              'kind': {'type': 'string', 'const': 'interactive'},
+              'label': {'$ref': 'common_types.json#/$defs/DynamicString'},
+              'onSelect': {'$ref': 'common_types.json#/$defs/Action'},
+              'checks': {
+                'type': 'array',
+                'items': {'$ref': 'common_types.json#/$defs/CheckRule'},
+                'description':
+                  'A list of checks to perform. These are function calls that must return a boolean indicating validity.',
+              },
+            },
+            'required': ['kind', 'label', 'onSelect'],
+            'additionalProperties': false,
+          },
+          {
+            'type': 'object',
+            'properties': {
+              'kind': {'type': 'string', 'const': 'plain'},
+              'label': {'type': 'string'},
+              'onSelect': {'type': 'string'},
+              'checks': {'type': 'string'},
+            },
+            'required': ['kind', 'label'],
+            'additionalProperties': false,
+          },
+        ],
+      },
+      '0.9',
+    );
 
-    const recordInUnion = z.union([
-      z.object({mode: z.literal('typed'), heading: CommonSchemas.DynamicString}),
-      z.record(z.unknown()),
-    ]);
+    const recordInUnion = jsonFixture(
+      {
+        'anyOf': [
+          {
+            'type': 'object',
+            'properties': {
+              'mode': {'type': 'string', 'const': 'typed'},
+              'heading': {'$ref': 'common_types.json#/$defs/DynamicString'},
+            },
+            'required': ['mode', 'heading'],
+            'additionalProperties': false,
+          },
+          {'type': 'object', 'additionalProperties': {}},
+        ],
+      },
+      '0.9',
+    );
 
     const headingObject = (extra: Record<string, JsonSchema> = {}): JsonSchema => ({
       type: 'object',
@@ -2184,7 +2545,7 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
     assert.strictEqual(binder.snapshot.checks, 'skip');
     assert.strictEqual(Object.hasOwn(binder.snapshot, 'isValid'), false);
 
-    // Verify composite ZodRecord union binds both dynamic variant properties and open template children.
+    // Verify composite record union binds both dynamic variant properties and open template children.
     const recCompModel = new ComponentModel(
       'c-rec-union',
       'RecUnion',
@@ -2211,19 +2572,44 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
     surface.dispose();
   });
 
-  it('binds dynamic and action schemas on ZodRecord, .catchall(), composite intersections/unions, and chained .or() unions', () => {
-    const catchallDynamicSchema = z
-      .object({
-        staticKey: z.string(),
-        chainedDynamic: z
-          .object({path: z.string()})
-          .or(z.object({call: z.string()}))
-          .or(z.string())
-          .optional(),
-      })
-      .catchall(CommonSchemas.DynamicString);
+  it('binds dynamic and action schemas on records, additionalProperties, composite intersections/unions, and chained anyOf unions', () => {
+    const catchallDynamicSchema = jsonFixture(
+      {
+        'type': 'object',
+        'properties': {
+          'staticKey': {'type': 'string'},
+          'chainedDynamic': {
+            'anyOf': [
+              {
+                'anyOf': [
+                  {
+                    'type': 'object',
+                    'properties': {'path': {'type': 'string'}},
+                    'required': ['path'],
+                    'additionalProperties': false,
+                  },
+                  {
+                    'type': 'object',
+                    'properties': {'call': {'type': 'string'}},
+                    'required': ['call'],
+                    'additionalProperties': false,
+                  },
+                ],
+              },
+              {'type': 'string'},
+            ],
+          },
+        },
+        'required': ['staticKey'],
+        'additionalProperties': {'$ref': 'common_types.json#/$defs/DynamicString'},
+      },
+      '0.9',
+    );
 
-    const recordActionSchema = z.record(CommonSchemas.Action);
+    const recordActionSchema = jsonFixture(
+      {'type': 'object', 'additionalProperties': {'$ref': 'common_types.json#/$defs/Action'}},
+      '0.9',
+    );
 
     const scrapedCatchall = scrape({
       type: 'object',
@@ -2345,11 +2731,10 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
   });
 
   it('forwards ChildRefAnalysisOptions in scrapeSchemaBehavior, scrapeComponentBehavior, and GenericBinder with isolated caches', () => {
-    const customListSchema = z.object({
-      customChildren: z
-        .unknown()
-        .describe('REF:#/$defs/CustomChildList|Custom list ref')
-        .optional(),
+    const customListSchema = jsonOnlyFixture({
+      'type': 'object',
+      'properties': {'customChildren': {'$ref': 'common_types.json#/$defs/CustomChildList'}},
+      'additionalProperties': false,
     });
     const customOptions = {
       childRefNames: new Set(['ComponentId']),
@@ -2417,28 +2802,115 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
     assert.strictEqual(resolutionBarrel.scrapeComponentBehavior, scrapeComponentBehavior);
     assert.strictEqual(rootBarrel.scrapeComponentBehavior, scrapeComponentBehavior);
 
-    const compositeCatchallSchema = z
-      .object({id: z.string()})
-      .passthrough()
-      .and(z.record(CommonSchemas.DynamicString));
-
-    const structuredItems = z.array(
-      z.object({
-        title: CommonSchemas.DynamicString,
-        child: CommonSchemas.ComponentId,
-      }),
+    const compositeCatchallSchema = jsonFixture(
+      {
+        'allOf': [
+          {
+            'type': 'object',
+            'properties': {'id': {'type': 'string'}},
+            'required': ['id'],
+            'additionalProperties': true,
+          },
+          {
+            'type': 'object',
+            'additionalProperties': {'$ref': 'common_types.json#/$defs/DynamicString'},
+          },
+        ],
+      },
+      '0.9',
     );
-    const objUnionListFirst = z.union([
-      z.object({sections: CommonSchemas.ChildList}),
-      z.object({sections: structuredItems}),
-    ]);
-    const objUnionNestedFirst = z.union([
-      z.object({sections: structuredItems}),
-      z.object({sections: CommonSchemas.ChildList}),
-    ]);
-    const propUnionSchema = z.object({
-      sections: CommonSchemas.ChildList.or(structuredItems),
-    });
+
+    const objUnionListFirst = jsonFixture(
+      {
+        'anyOf': [
+          {
+            'type': 'object',
+            'properties': {'sections': {'$ref': 'common_types.json#/$defs/ChildList'}},
+            'required': ['sections'],
+            'additionalProperties': false,
+          },
+          {
+            'type': 'object',
+            'properties': {
+              'sections': {
+                'type': 'array',
+                'items': {
+                  'type': 'object',
+                  'properties': {
+                    'title': {'$ref': 'common_types.json#/$defs/DynamicString'},
+                    'child': {'$ref': 'common_types.json#/$defs/ComponentId'},
+                  },
+                  'required': ['title', 'child'],
+                  'additionalProperties': false,
+                },
+              },
+            },
+            'required': ['sections'],
+            'additionalProperties': false,
+          },
+        ],
+      },
+      '0.9',
+    );
+    const objUnionNestedFirst = jsonFixture(
+      {
+        'anyOf': [
+          {
+            'type': 'object',
+            'properties': {
+              'sections': {
+                'type': 'array',
+                'items': {
+                  'type': 'object',
+                  'properties': {
+                    'title': {'$ref': 'common_types.json#/$defs/DynamicString'},
+                    'child': {'$ref': 'common_types.json#/$defs/ComponentId'},
+                  },
+                  'required': ['title', 'child'],
+                  'additionalProperties': false,
+                },
+              },
+            },
+            'required': ['sections'],
+            'additionalProperties': false,
+          },
+          {
+            'type': 'object',
+            'properties': {'sections': {'$ref': 'common_types.json#/$defs/ChildList'}},
+            'required': ['sections'],
+            'additionalProperties': false,
+          },
+        ],
+      },
+      '0.9',
+    );
+    const propUnionSchema = jsonFixture(
+      {
+        'type': 'object',
+        'properties': {
+          'sections': {
+            'anyOf': [
+              {'$ref': 'common_types.json#/$defs/ChildList'},
+              {
+                'type': 'array',
+                'items': {
+                  'type': 'object',
+                  'properties': {
+                    'title': {'$ref': 'common_types.json#/$defs/DynamicString'},
+                    'child': {'$ref': 'common_types.json#/$defs/ComponentId'},
+                  },
+                  'required': ['title', 'child'],
+                  'additionalProperties': false,
+                },
+              },
+            ],
+          },
+        },
+        'required': ['sections'],
+        'additionalProperties': false,
+      },
+      '0.9',
+    );
 
     const structuredItemsJson: JsonSchema = {
       type: 'array',
@@ -2539,75 +3011,239 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
   });
 
   it('preserves active element bindings in [list, array] and [single, nested] unions, transform pipelines, Catalog.fromJson oneOf, and composite catchalls', () => {
-    const ComponentIdRef = z.string().describe('REF:common_types.json#/$defs/ComponentId');
-    const ChildListUnion = z
-      .union([
-        z.array(ComponentIdRef),
-        z.object({
-          componentId: ComponentIdRef,
-          path: z.string(),
-        }),
-      ])
-      .describe('REF:common_types.json#/$defs/ChildList');
-    const DynamicTitleObj = z.object({
-      title: CommonSchemas.DynamicString,
-    });
-    const NestedRowObj = z.object({
-      title: CommonSchemas.DynamicString,
-      child: ComponentIdRef,
-    });
-
     // 1. [list, array-of-objects-without-child-refs] keeps ARRAY + templateFallback
-    const listOrActiveArraySchema = z.object({
-      content: ChildListUnion.or(z.array(DynamicTitleObj)),
-    });
+    const listOrActiveArraySchema = jsonFixture(
+      {
+        'type': 'object',
+        'properties': {
+          'content': {
+            'anyOf': [
+              {'$ref': 'common_types.json#/$defs/ChildList'},
+              {
+                'type': 'array',
+                'items': {
+                  'type': 'object',
+                  'properties': {'title': {'$ref': 'common_types.json#/$defs/DynamicString'}},
+                  'required': ['title'],
+                  'additionalProperties': false,
+                },
+              },
+            ],
+          },
+        },
+        'required': ['content'],
+        'additionalProperties': false,
+      },
+      '0.9',
+    );
 
     // 2. [single, nested] union keeps ARRAY element bindings in both branch orders
-    const singleOrNestedFirst = z.object({
-      slot: ComponentIdRef.or(z.array(NestedRowObj)),
-    });
-    const singleOrNestedSecond = z.object({
-      slot: z.array(NestedRowObj).or(ComponentIdRef),
-    });
+    const singleOrNestedFirst = jsonFixture(
+      {
+        'type': 'object',
+        'properties': {
+          'slot': {
+            'anyOf': [
+              {'$ref': 'common_types.json#/$defs/ComponentId'},
+              {
+                'type': 'array',
+                'items': {
+                  'type': 'object',
+                  'properties': {
+                    'title': {'$ref': 'common_types.json#/$defs/DynamicString'},
+                    'child': {'$ref': 'common_types.json#/$defs/ComponentId'},
+                  },
+                  'required': ['title', 'child'],
+                  'additionalProperties': false,
+                },
+              },
+            ],
+          },
+        },
+        'required': ['slot'],
+        'additionalProperties': false,
+      },
+      '0.9',
+    );
+    const singleOrNestedSecond = jsonFixture(
+      {
+        'type': 'object',
+        'properties': {
+          'slot': {
+            'anyOf': [
+              {
+                'type': 'array',
+                'items': {
+                  'type': 'object',
+                  'properties': {
+                    'title': {'$ref': 'common_types.json#/$defs/DynamicString'},
+                    'child': {'$ref': 'common_types.json#/$defs/ComponentId'},
+                  },
+                  'required': ['title', 'child'],
+                  'additionalProperties': false,
+                },
+              },
+              {'$ref': 'common_types.json#/$defs/ComponentId'},
+            ],
+          },
+        },
+        'required': ['slot'],
+        'additionalProperties': false,
+      },
+      '0.9',
+    );
 
     // 3. Transform-backed pipeline into typed output schema preserves output behaviors
-    const transformedPipelineSchema = z.object({
-      payload: z
-        .unknown()
-        .transform(v => v)
-        .pipe(
-          z.object({
-            label: CommonSchemas.DynamicString,
-            onTap: CommonSchemas.Action,
-          }),
-        ),
-    });
+    const transformedPipelineSchema = jsonFixture(
+      {
+        'type': 'object',
+        'properties': {
+          'payload': {
+            'allOf': [
+              {},
+              {
+                'type': 'object',
+                'properties': {
+                  'label': {'$ref': 'common_types.json#/$defs/DynamicString'},
+                  'onTap': {'$ref': 'common_types.json#/$defs/Action'},
+                },
+                'required': ['label', 'onTap'],
+                'additionalProperties': false,
+              },
+            ],
+          },
+        },
+        'required': ['payload'],
+        'additionalProperties': false,
+      },
+      '0.9',
+    );
 
     // 4. Intersecting or unioning explicit ACTION and ComponentId properties with dynamic catchall (both orders)
-    const explicitAndCatchallLeft = z
-      .object({fixed: CommonSchemas.Action, child: ComponentIdRef.optional()})
-      .and(z.record(CommonSchemas.DynamicString));
-    const explicitAndCatchallRight = z
-      .record(CommonSchemas.DynamicString)
-      .and(z.object({fixed: CommonSchemas.Action, child: ComponentIdRef.optional()}));
-    const explicitOrCatchallLeft = z.union([
-      z.record(CommonSchemas.DynamicString),
-      z.object({fixed: CommonSchemas.Action, child: ComponentIdRef.optional()}),
-    ]);
-    const explicitOrCatchallRight = z.union([
-      z.object({fixed: CommonSchemas.Action, child: ComponentIdRef.optional()}),
-      z.record(CommonSchemas.DynamicString),
-    ]);
+    const explicitAndCatchallLeft = jsonFixture(
+      {
+        'allOf': [
+          {
+            'type': 'object',
+            'properties': {
+              'fixed': {'$ref': 'common_types.json#/$defs/Action'},
+              'child': {'$ref': 'common_types.json#/$defs/ComponentId'},
+            },
+            'required': ['fixed'],
+          },
+          {
+            'type': 'object',
+            'additionalProperties': {'$ref': 'common_types.json#/$defs/DynamicString'},
+          },
+        ],
+      },
+      '0.9',
+    );
+    const explicitAndCatchallRight = jsonFixture(
+      {
+        'allOf': [
+          {
+            'type': 'object',
+            'additionalProperties': {'$ref': 'common_types.json#/$defs/DynamicString'},
+          },
+          {
+            'type': 'object',
+            'properties': {
+              'fixed': {'$ref': 'common_types.json#/$defs/Action'},
+              'child': {'$ref': 'common_types.json#/$defs/ComponentId'},
+            },
+            'required': ['fixed'],
+          },
+        ],
+      },
+      '0.9',
+    );
+    const explicitOrCatchallLeft = jsonFixture(
+      {
+        'anyOf': [
+          {
+            'type': 'object',
+            'additionalProperties': {'$ref': 'common_types.json#/$defs/DynamicString'},
+          },
+          {
+            'type': 'object',
+            'properties': {
+              'fixed': {'$ref': 'common_types.json#/$defs/Action'},
+              'child': {'$ref': 'common_types.json#/$defs/ComponentId'},
+            },
+            'required': ['fixed'],
+            'additionalProperties': false,
+          },
+        ],
+      },
+      '0.9',
+    );
+    const explicitOrCatchallRight = jsonFixture(
+      {
+        'anyOf': [
+          {
+            'type': 'object',
+            'properties': {
+              'fixed': {'$ref': 'common_types.json#/$defs/Action'},
+              'child': {'$ref': 'common_types.json#/$defs/ComponentId'},
+            },
+            'required': ['fixed'],
+            'additionalProperties': false,
+          },
+          {
+            'type': 'object',
+            'additionalProperties': {'$ref': 'common_types.json#/$defs/DynamicString'},
+          },
+        ],
+      },
+      '0.9',
+    );
 
     // 5. Object union where only one branch has a dynamic catchall does not infect closed sibling props
-    const unionPartialCatchallLeft = z.union([
-      z.object({kind: z.literal('open')}).catchall(CommonSchemas.DynamicString),
-      z.object({kind: z.literal('closed'), meta: z.record(z.unknown())}),
-    ]);
-    const unionPartialCatchallRight = z.union([
-      z.object({kind: z.literal('closed'), meta: z.record(z.unknown())}),
-      z.object({kind: z.literal('open')}).catchall(CommonSchemas.DynamicString),
-    ]);
+    const unionPartialCatchallLeft = jsonFixture(
+      {
+        'anyOf': [
+          {
+            'type': 'object',
+            'properties': {'kind': {'type': 'string', 'const': 'open'}},
+            'required': ['kind'],
+            'additionalProperties': {'$ref': 'common_types.json#/$defs/DynamicString'},
+          },
+          {
+            'type': 'object',
+            'properties': {
+              'kind': {'type': 'string', 'const': 'closed'},
+              'meta': {'type': 'object', 'additionalProperties': {}},
+            },
+            'required': ['kind', 'meta'],
+            'additionalProperties': false,
+          },
+        ],
+      },
+      '0.9',
+    );
+    const unionPartialCatchallRight = jsonFixture(
+      {
+        'anyOf': [
+          {
+            'type': 'object',
+            'properties': {
+              'kind': {'type': 'string', 'const': 'closed'},
+              'meta': {'type': 'object', 'additionalProperties': {}},
+            },
+            'required': ['kind', 'meta'],
+            'additionalProperties': false,
+          },
+          {
+            'type': 'object',
+            'properties': {'kind': {'type': 'string', 'const': 'open'}},
+            'required': ['kind'],
+            'additionalProperties': {'$ref': 'common_types.json#/$defs/DynamicString'},
+          },
+        ],
+      },
+      '0.9',
+    );
 
     // 6. Catalog.fromJson oneOf schemas preserve ACTION, DYNAMIC (including nested $defs oneOf), and STRUCTURAL
     const oneOfCatalog = Catalog.fromJson(
@@ -2879,7 +3515,7 @@ describe('GenericBinder omitted property pruning on update (#3779)', () => {
 });
 
 describe('GenericBinder @accessibility mirror', () => {
-  function setup(schema: z.ZodTypeAny) {
+  function setup(schema: AuthoredSchema) {
     const catalog = new Catalog('test', '1.0', [], []);
     const surface = new SurfaceModel('s1', catalog);
     surface.dataModel.set('/label', 'Save');
@@ -2896,7 +3532,11 @@ describe('GenericBinder @accessibility mirror', () => {
 
   it('does not mirror @accessibility onto a custom accessibility the payload omits', async () => {
     const {surface, binder, sub} = setup(
-      z.object({accessibility: z.enum(['high', 'low']).optional()}),
+      jsonFixture({
+        'type': 'object',
+        'properties': {'accessibility': {'type': 'string', 'enum': ['high', 'low']}},
+        'additionalProperties': false,
+      }),
     );
     assert.strictEqual(binder.snapshot['@accessibility']?.label, 'Save');
     assert.strictEqual(binder.snapshot.accessibility, undefined);
@@ -2911,7 +3551,13 @@ describe('GenericBinder @accessibility mirror', () => {
   });
 
   it('mirrors @accessibility onto accessibility when the schema declares no custom one', async () => {
-    const {surface, binder, sub} = setup(z.object({text: z.string().optional()}));
+    const {surface, binder, sub} = setup(
+      jsonFixture({
+        'type': 'object',
+        'properties': {'text': {'type': 'string'}},
+        'additionalProperties': false,
+      }),
+    );
     assert.deepStrictEqual(binder.snapshot.accessibility, binder.snapshot['@accessibility']);
     assert.strictEqual(
       (binder.snapshot.accessibility as {label?: string} | undefined)?.label,

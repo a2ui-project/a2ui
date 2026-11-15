@@ -15,7 +15,6 @@
  */
 
 import type {StandardSchemaV1} from '@standard-schema/spec';
-import {z} from 'zod';
 import type {ProtocolVersion} from '../processing/adapters/base.js';
 import {DataContext} from '../resolution/data-context.js';
 import {allowsAgentRouting, withActiveCallCatalogId} from '../resolution/data-context-internal.js';
@@ -30,8 +29,7 @@ import {SpecVersion} from '../spec_versions.js';
 import {AgentFunction, bindAgentFunctionDefs, isAgentFunction} from './agent_function.js';
 import {parseCatalogSchema, type FromJsonOptions} from './from-json.js';
 import {copyLoadedDefinition} from './loaded_definitions.js';
-import {getDeclaredSchemaKeys} from './json_schema_to_zod.js';
-import type {JsonSchemaObject} from './spec_annotations.js';
+import type {JsonSchemaObject} from './loaded_definitions.js';
 import {generateValidationSchema} from './schema_generator.js';
 import {
   deepCopyJson,
@@ -58,7 +56,9 @@ import {
 } from './entry-schema.js';
 import {formatIssue, pickIssue, toA2uiIssues} from '../schema-engine/issues.js';
 import {objectProperties, unionOptions, type SchemaCursor} from '../schema-engine/nav.js';
-import {isZod3Schema, zod3Issues} from '../schema-engine/zod3-adapter.js';
+import type {JsonSchemaValidator} from '../schema-engine/types.js';
+import {bindCatalogValidator, catalogValidator} from './catalog-validator.js';
+import {jsonSchemaValidator} from '../schema-engine/from-json-schema.js';
 
 export type {ComponentChildRefs};
 export {AgentFunction, isAgentFunction};
@@ -317,8 +317,6 @@ export interface CatalogDocumentOptions {
    * and `anyFunction` unions that `toJson` computes. Local `#/$defs/<name>`
    * references in the catalog's entry definitions resolve against them.
    * Includes the theme (`$defs.theme`) when the document declares it there.
-   * A catalog defined in code declares its definitions as models instead
-   * (`defModels` and the mixins of its components).
    */
   defs?: Readonly<Record<string, unknown>>;
   /**
@@ -338,13 +336,6 @@ export interface CatalogDocumentOptions {
    */
   themeLocation?: 'defs' | 'styles';
   /**
-   * Models of named definitions that the document declares under `$defs`
-   * besides those its components' mixins name, each named with `specDef`,
-   * such as the theme of the v0.9 basic catalog's document. `toJson`
-   * computes the definitions from them.
-   */
-  defModels?: readonly z.ZodTypeAny[];
-  /**
    * Top-level document keys the fields above do not cover, as written: for
    * example `extensions`, or the theme of a v0.8 catalog (`styles`).
    */
@@ -357,6 +348,15 @@ export interface CatalogDocumentOptions {
 export interface CatalogOptions extends CatalogDocumentOptions {
   /** Schema for this catalog's theme parameters. */
   themeSchema?: AuthoredSchema;
+  /**
+   * The JSON Schema validator the catalog's plain JSON Schemas compile with:
+   * the arguments of an `AgentFunction` built from a JSON Schema object, and
+   * of the `@index` system function. Catalogs derived from this one keep it.
+   * When omitted, the validator the catalog's `fromJsonSchema` entries were
+   * compiled with, or else that of a `MessageProcessor` the catalog is
+   * registered with.
+   */
+  validator?: JsonSchemaValidator;
 }
 
 /** Options for {@link Catalog.copyWith}. */
@@ -460,8 +460,6 @@ export declare interface CatalogInterface<
   readonly commonTypesUri?: string;
   /** See {@link CatalogDocumentOptions.themeLocation}. */
   readonly themeLocation?: 'defs' | 'styles';
-  /** See {@link CatalogDocumentOptions.defModels}. */
-  readonly defModels?: readonly z.ZodTypeAny[];
   /** Self-contained, bundled JSON Schema used to validate payloads against this catalog. */
   readonly validationSchema: Record<string, unknown>;
   /**
@@ -490,11 +488,10 @@ export declare interface CatalogInterface<
  * A catalog is its catalog document in model form. An entry `fromJson`
  * loaded (`JsonComponentApi`, `JsonFunctionApi`) has its JSON Schema
  * definition as its model, which its schema validates against. An entry
- * defined in code has its Zod schema as its model; when the schema is
- * annotated as a specification model (see `spec`), as the built-in basic
- * catalogs' generated models are, `toJson` computes its definition in the
- * layout of the catalog's protocol version, and otherwise generates one. The
- * catalog keeps the document-level fields (`CatalogDocumentOptions`).
+ * defined in code has its schema's JSON Schema (`~standard.jsonSchema`) as
+ * its model, from which `toJson` generates its definition in the layout of
+ * the catalog's protocol version. The catalog keeps the document-level
+ * fields (`CatalogDocumentOptions`).
  * `toJson` assembles the document from all of these and `validationSchema`
  * bundles it, so `Catalog.fromJson(doc).toJson()` equals `doc`, and `toJson`
  * of a built-in basic catalog equals its published document.
@@ -592,9 +589,6 @@ export class Catalog<
   /** See {@link CatalogDocumentOptions.themeLocation}. */
   readonly themeLocation?: 'defs' | 'styles';
 
-  /** See {@link CatalogDocumentOptions.defModels}. */
-  readonly defModels?: readonly z.ZodTypeAny[];
-
   private cachedValidationSchema?: Record<string, unknown>;
 
   private cachedDocument?: Record<string, unknown>;
@@ -603,8 +597,8 @@ export class Catalog<
    * Self-contained JSON Schema for validating payloads against this catalog.
    *
    * Built from the catalog's model and memoized: from the definition of each
-   * entry `toJson` writes, or, for an entry defined in code without
-   * specification annotations, from its Zod schema. Common
+   * entry `toJson` writes, or, for an entry defined in code, from its
+   * schema's JSON Schema. Common
    * types references are localized and the referenced standard definitions
    * for the catalog's protocol version, and any of the catalog's `defs` an
    * entry references, are bundled into `$defs`, together with the component
@@ -637,10 +631,9 @@ export class Catalog<
    * The document-level fields come from the catalog (`CatalogDocumentOptions`).
    * An entry `fromJson` loaded is written as its definition, with references
    * kept as written, unless it references a local definition the catalog
-   * lacks. An entry defined in code whose schema is a specification model is
-   * computed from its model in the layout of the catalog's protocol version,
-   * with its mixins and the `defModels` written to `$defs`; any other entry
-   * is generated from its Zod schema. Common types references are written
+   * lacks. An entry defined in code is generated from its schema's JSON
+   * Schema in the layout of the catalog's protocol version. Common types
+   * references are written
    * against `commonTypesUri`. The `anyComponent` and `anyFunction` unions are
    * computed from the entries. So for a catalog loaded with `fromJson`, the
    * result equals the loaded document (minus any entries that the document's
@@ -842,7 +835,7 @@ export class Catalog<
         extensionFields: this.extensionFields,
         commonTypesUri: this.commonTypesUri,
         themeLocation: this.themeLocation,
-        defModels: this.defModels,
+        validator: catalogValidator(this),
       },
     );
   }
@@ -988,13 +981,13 @@ export class Catalog<
       assertAgentFunctionDefsAgree(defs, agentFuncMap.values());
       for (const [name, agentFn] of agentFuncMap) {
         assertUax31Identifier(name, `function identifier: '${name}'`);
-        // The keys the schema declares, on every branch and through
-        // wrappers, with the names a JSON Schema `schema` was written with
-        // (including references resolved against local and catalog `$defs`).
+        // The keys the schema declares, on every branch, with the names a
+        // JSON Schema `schema` was written with (including references
+        // resolved against local and catalog `$defs`).
         const argNames = new Set([
-          ...(isZod3Schema(agentFn.schema)
-            ? getDeclaredSchemaKeys(agentFn.schema)
-            : declaredJsonKeys(entrySchema(agentFn, 'function', this)!.cursor)),
+          ...declaredJsonKeys(
+            entrySchema(agentFn, 'function', {protocolVersion: this.protocolVersion, defs})!.cursor,
+          ),
           ...(agentFn.declaredParameterNames ?? []),
         ]);
         for (const argName of argNames) {
@@ -1021,7 +1014,15 @@ export class Catalog<
     this.extensionFields = frozenJson(options.extensionFields);
     this.commonTypesUri = options.commonTypesUri;
     this.themeLocation = options.themeLocation;
-    this.defModels = options.defModels ? Object.freeze([...options.defModels]) : undefined;
+    // Without one of its own, the catalog's plain JSON Schemas compile with
+    // the validator its JSON-backed entries were compiled with.
+    bindCatalogValidator(
+      this,
+      options.validator ??
+        [...this.components.values(), ...this.functions.values()]
+          .map(entry => jsonSchemaValidator(entry.schema))
+          .find(validator => validator !== undefined),
+    );
 
     // Registration: every schema is prepared (and converted to JSON Schema)
     // now, so one that can't be used fails here, naming its entry.
@@ -1083,7 +1084,10 @@ export class Catalog<
       functions,
       ...options
     } = parseCatalogSchema(json, protocolVersion, catalogId, opts);
-    return new Catalog(id, resolvedVersion, components, functions, options);
+    return new Catalog(id, resolvedVersion, components, functions, {
+      ...options,
+      validator: opts.validator,
+    });
   }
 
   /**
@@ -1259,7 +1263,7 @@ function createCatalogInvoker<F extends FunctionApi>(
           ? ctx.surface
           : undefined;
       if (surface?.agentFunctionCaller) {
-        return routeToAgent(surface, catalogId, name, fn, rawArgs, ctx, abortSignal);
+        return routeToAgent(surface, catalogId, name, fn, rawArgs, ctx, abortSignal, catalog);
       }
     }
 
@@ -1281,19 +1285,8 @@ function createCatalogInvoker<F extends FunctionApi>(
         : ctx;
 
     return whenArgumentsSettle(rawArgs, abortSignal, resolvedArgs => {
-      try {
-        const safeArgs = validateFunctionCallArgs(name, fn, resolvedArgs, protocolVersion);
-        return execute.call(fn, safeArgs as Record<string, unknown>, callCtx, abortSignal);
-      } catch (e: any) {
-        if (e?.name === 'ZodError' || e instanceof z.ZodError) {
-          throw new A2uiExpressionError(
-            `Validation failed for function '${name}': ${e.message}`,
-            name,
-            e.errors ?? e.issues,
-          );
-        }
-        throw e;
-      }
+      const safeArgs = validateFunctionCallArgs(name, fn, resolvedArgs, protocolVersion, catalog);
+      return execute.call(fn, safeArgs as Record<string, unknown>, callCtx, abortSignal);
     });
   };
 }
@@ -1311,22 +1304,17 @@ function validateFunctionCallArgs(
   fn: FunctionApi,
   args: unknown,
   protocolVersion: string | undefined,
+  catalog: CatalogInterface<any, any> | undefined,
 ): unknown {
-  const prepared = entrySchema(fn, 'function', {protocolVersion});
+  const prepared = entrySchema(fn, 'function', {
+    protocolVersion,
+    defs: catalog?.defs,
+    validator: catalogValidator(catalog),
+  });
   if (!prepared) return args;
   const coerced = coerceDynamicBooleans(prepared.cursor.node, prepared.cursor.doc, args);
   const result = validateWith(prepared.schema, coerced, `Function '${name}'`);
   if (!result.issues) return result.value;
-  // ponytail: zod wording for zod 3 schemas until Task 11.
-  const zodIssues = zod3Issues(result.issues);
-  if (zodIssues) {
-    const error = new z.ZodError(zodIssues);
-    throw new A2uiExpressionError(
-      `Validation failed for function '${name}': ${error.message}`,
-      name,
-      error.errors,
-    );
-  }
   const issues = toA2uiIssues(result.issues);
   throw new A2uiExpressionError(
     `Validation failed for function '${name}': ${formatIssue(pickIssue(issues))}`,
@@ -1337,9 +1325,7 @@ function validateFunctionCallArgs(
 
 /** Whether a `Catalog` constructor argument is a schema rather than options. */
 function isSchema(value: unknown): value is AuthoredSchema {
-  return (
-    isZod3Schema(value) || (typeof value === 'object' && value !== null && '~standard' in value)
-  );
+  return typeof value === 'object' && value !== null && '~standard' in value;
 }
 
 /**
@@ -1356,7 +1342,13 @@ function declaredJsonKeys({node, doc}: SchemaCursor, depth = 0): Set<string> {
     shape = undefined;
   }
   for (const key of Object.keys(shape?.properties ?? {})) keys.add(key);
-  for (const option of unionOptions(node, doc) ?? []) {
+  let options;
+  try {
+    options = unionOptions(node, doc);
+  } catch {
+    options = undefined;
+  }
+  for (const option of options ?? []) {
     for (const key of declaredJsonKeys(option, depth + 1)) keys.add(key);
   }
   return keys;
@@ -1409,6 +1401,7 @@ function routeToAgent(
   rawArgs: unknown,
   ctx: DataContext,
   abortSignal: AbortSignal | undefined,
+  catalog: CatalogInterface<any, any> | undefined,
 ): unknown {
   if (fn) {
     assertRendererCaller(fn);
@@ -1418,7 +1411,7 @@ function routeToAgent(
   return whenArgumentsSettle(rawArgs, abortSignal, resolvedArgs => {
     let args = (resolvedArgs ?? {}) as Record<string, unknown>;
     if (fn) {
-      args = validateFunctionCallArgs(name, fn, args, surface.protocolVersion) as Record<
+      args = validateFunctionCallArgs(name, fn, args, surface.protocolVersion, catalog) as Record<
         string,
         unknown
       >;

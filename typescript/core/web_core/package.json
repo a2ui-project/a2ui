@@ -148,7 +148,7 @@
     "test:conformance": "wireit",
     "test:timing": "wireit",
     "test:coverage": "c8 node --test \"dist/**/*.test.js\"",
-    "generate-zod-schemas": "wireit",
+    "generate": "wireit",
     "compile": "tsc",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -158,8 +158,8 @@
     "clean": "wireit"
   },
   "wireit": {
-    "generate-zod-schemas": {
-      "command": "node scripts/generate-standard-defs.mjs && node scripts/generate-zod-schemas.mjs && node scripts/generate-basic-catalog-types.mjs && prettier --write \"src/**/*.ts\"",
+    "generate": {
+      "command": "node scripts/generate-standard-defs.mjs && node scripts/generate-basic-catalog-types.mjs && prettier --write \"src/**/*.ts\"",
       "files": [
         "../../../specification/v0_8/json/*.json",
         "../../../specification/v0_9/catalogs/**/*.json",
@@ -167,30 +167,12 @@
         "../../../specification/v1_0/json/*.json",
         "../../../catalogs/basic/v1/**/*.json",
         "scripts/generate-standard-defs.mjs",
-        "scripts/generate-zod-schemas.mjs",
-        "scripts/zod-generator-core.mjs",
-        "scripts/generate-basic-catalog-types.mjs",
-        "src/types/child-ref-helpers.ts",
-        "src/v0_9/schema/helpers.ts",
-        "src/v1_0/schema/helpers.ts",
-        "src/v0_9/scripts/generate-schemas.mjs",
-        "src/v1_0/scripts/generate-schemas.mjs"
+        "scripts/generate-basic-catalog-types.mjs"
       ],
       "output": [
         "src/v0_8/standard_defs.ts",
         "src/v0_9/standard_defs.ts",
         "src/v1_0/standard_defs.ts",
-        "src/v0_9/schema/common-types.ts",
-        "src/v0_9/schema/server-to-client.ts",
-        "src/v0_9/schema/client-to-server.ts",
-        "src/v0_9/schema/client-capabilities.ts",
-        "src/v0_9/schema/index.ts",
-        "src/v1_0/schema/common-types.ts",
-        "src/v1_0/schema/agent-to-renderer.ts",
-        "src/v1_0/schema/renderer-to-agent.ts",
-        "src/v1_0/schema/renderer-capabilities.ts",
-        "src/v1_0/schema/catalog-definition.ts",
-        "src/v1_0/schema/index.ts",
         "src/v0_8/basic_catalog/generated-types.ts",
         "src/v0_9/basic_catalog/generated-types.ts",
         "src/catalogs/basic/v1/generated-types.ts",
@@ -227,7 +209,7 @@
       "command": "tsc -b --pretty",
       "dependencies": [
         "copy-spec",
-        "generate-zod-schemas"
+        "generate"
       ],
       "files": [
         "src/**/*.ts",
@@ -302,7 +284,6 @@
     "gts": "^7.0.0",
     "js-yaml": "^4.3.0",
     "jsdom": "^29.1.1",
-    "json-schema-to-zod": "^2.8.1",
     "rxjs": "^7.8.2",
     "typescript": "5.9.3",
     "wireit": "^0.15.0-pre.2",
@@ -313,8 +294,6 @@
     "@preact/signals-core": "^1.14.2",
     "@standard-schema/spec": "^1.1.0",
     "lit": "^3.3.3",
-    "validate-color": "^2.2.4",
-    "zod": "^3.25.76",
-    "zod-to-json-schema": "^3.25.2"
+    "validate-color": "^2.2.4"
   }
 }

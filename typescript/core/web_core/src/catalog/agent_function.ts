@@ -14,15 +14,14 @@
  * limitations under the License.
  */
 
-// ponytail: removed in Task 11 — agent functions accept zod 3 schemas and convert plain JSON Schema args to zod (json_schema_to_zod).
-
-import {z} from 'zod';
+import type {StandardSchemaV1} from '@standard-schema/spec';
 
 import {A2uiCatalogError} from '../errors.js';
+import type {CatalogSchema} from '../schema-engine/types.js';
 import {AGENT_FUNCTION_BRAND, isAgentFunction} from './agent_function_brand.js';
+import {unboundJsonSchema} from './catalog-validator.js';
 import {copyLoadedDefinition} from './json_entries.js';
 import {functionParameterNames} from './from-json.js';
-import {convertFunctionArgsJsonSchemaToZod, isZodSchema} from './json_schema_to_zod.js';
 import type {AuthoredSchema} from './entry-schema.js';
 import type {
   A2uiReturnType,
@@ -84,7 +83,9 @@ export interface AgentFunctionInit<
   readonly returnType?: TReturn;
   /**
    * Schema validating the function's input arguments: a `CatalogSchema`, or
-   * a plain JSON Schema object.
+   * a plain JSON Schema object, which compiles with the validator of the
+   * catalog the function is used in (see `CatalogOptions.validator`; a
+   * `MessageProcessor` supplies its own).
    */
   readonly schema?: Schema;
   /** Whether the function requires explicit user interaction before execution. Defaults to `false`. */
@@ -153,7 +154,8 @@ export class AgentFunction<
   readonly returnType: A2uiReturnType;
   /**
    * Schema validating the function's input arguments. A plain JSON Schema
-   * `schema` is read into one on construction.
+   * `schema` becomes one that compiles with the validator of the catalog the
+   * function is used in.
    */
   readonly schema: AuthoredSchema;
   /** Agent-side handler callback. Use `withHandler` to bind another one. */
@@ -175,7 +177,7 @@ export class AgentFunction<
   readonly explicitRequiresUserActivation?: boolean;
   /**
    * @internal The parameter names of a JSON Schema `schema`, as written,
-   * which a v1.0 catalog checks against UAX #31 with those of the Zod schema.
+   * which a v1.0 catalog checks against UAX #31 with those its schema declares.
    */
   readonly declaredParameterNames?: ReadonlyArray<string>;
   /**
@@ -203,7 +205,13 @@ export class AgentFunction<
     const bound = (init as Partial<BoundDefsInit>)[BOUND_DEFS];
     this.name = init.name;
     this.returnType = init.returnType ?? 'any';
-    this.schema = bound ? bound.resolvedSchema : resolveAgentFunctionSchema(init.schema);
+    this.schema = bound
+      ? bound.resolvedSchema
+      : resolveAgentFunctionSchema(
+          init.name,
+          init.schema,
+          init.schema as Record<string, unknown> | undefined,
+        );
     if (init.schema !== undefined && !isAuthoredSchema(init.schema)) {
       this.jsonSchema = init.schema;
       // `init.schema` is also the document its local `#/$defs/...` resolve in.
@@ -303,28 +311,46 @@ export class AgentFunction<
 
 /** Whether `schema` is a schema object rather than a plain JSON Schema. */
 function isAuthoredSchema(schema: unknown): schema is AuthoredSchema {
-  return (
-    isZodSchema(schema) || (typeof schema === 'object' && schema !== null && '~standard' in schema)
-  );
+  return typeof schema === 'object' && schema !== null && '~standard' in schema;
 }
 
+/** The arguments of an agent function without a schema: any object. */
+const ANY_ARGS: CatalogSchema<Record<string, unknown>> = {
+  '~standard': {
+    version: 1,
+    vendor: 'a2ui',
+    validate: (value: unknown): StandardSchemaV1.Result<Record<string, unknown>> =>
+      typeof value === 'object' && value !== null && !Array.isArray(value)
+        ? {value: value as Record<string, unknown>}
+        : {issues: [{message: 'Expected object', path: []}]},
+    jsonSchema: {input: () => ({type: 'object'}), output: () => ({type: 'object'})},
+  },
+};
+
+/**
+ * The schema of an agent function: a `CatalogSchema` as it is, and a plain
+ * JSON Schema as one that compiles with its catalog's validator.
+ *
+ * @param name The function's name, for error messages.
+ * @param schema The schema as the function was written with.
+ * @param rootDoc The plain JSON Schema with the catalog `$defs` it
+ *   references merged into its own.
+ */
 function resolveAgentFunctionSchema(
+  name: string,
   schema: AuthoredSchema | Record<string, unknown> | undefined,
+  rootDoc: Record<string, unknown> | undefined,
 ): AuthoredSchema {
-  if (schema === undefined) {
-    return z.record(z.unknown());
+  if (isAuthoredSchema(schema)) return schema;
+  if (
+    typeof schema === 'object' &&
+    schema !== null &&
+    !Array.isArray(schema) &&
+    Object.keys(schema).length > 0
+  ) {
+    return unboundJsonSchema(rootDoc ?? schema, `Agent function '${name}'`);
   }
-  if (isAuthoredSchema(schema)) {
-    return schema;
-  }
-  if (typeof schema === 'object' && schema !== null && !Array.isArray(schema)) {
-    if (Object.keys(schema).length === 0) {
-      return z.record(z.unknown());
-    }
-    // A v1.0 catalog checks the parameter names when the function is added.
-    return convertFunctionArgsJsonSchemaToZod(schema, schema);
-  }
-  return z.record(z.unknown());
+  return ANY_ARGS;
 }
 
 function isPlainDefsMap(value: unknown): value is Readonly<Record<string, unknown>> {
@@ -365,8 +391,8 @@ function referencesCatalogDefs(
 /**
  * @internal Resolves a JSON Schema `AgentFunction` against a catalog's `$defs`
  * without mutating the caller's instance. Returns `fn` unchanged when `fn` was
- * built from a Zod schema, already binds `catalogDefs`, or does not reference
- * any definition in `catalogDefs`.
+ * built from a `CatalogSchema`, already binds `catalogDefs`, or does not
+ * reference any definition in `catalogDefs`.
  */
 export function bindAgentFunctionDefs(
   fn: AgentFunction,
@@ -390,10 +416,7 @@ export function bindAgentFunctionDefs(
         $defs: {...catalogDefs, ...localDefs},
       }
     : {...jsonSchema};
-  const resolvedSchema =
-    Object.keys(jsonSchema).length === 0
-      ? z.record(z.unknown())
-      : convertFunctionArgsJsonSchemaToZod(jsonSchema, rootDoc);
+  const resolvedSchema = resolveAgentFunctionSchema(fn.name, jsonSchema, rootDoc);
   const declaredParameterNames = functionParameterNames(jsonSchema, rootDoc);
   const init: BoundDefsInit = {
     name: fn.name,

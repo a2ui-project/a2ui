@@ -697,7 +697,7 @@ describe('A2uiMessageProcessor', () => {
     processor.processMessages([{beginRendering: {surfaceId, root: 'root'}}]);
     const surface = processor.getSurfaces().get(surfaceId)!;
 
-    // Direct call to bypass Zod validation in processMessages
+    // Direct call to bypass message validation in processMessages
     (processor as any).handleDataModelUpdate(
       {
         surfaceId,

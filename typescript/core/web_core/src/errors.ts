@@ -99,13 +99,14 @@ export class A2uiValidationError extends A2uiError {
    * Initializes a new `A2uiValidationError` instance.
    *
    * @param message Error description detailing the validation failure.
-   * @param details Additional error context or Zod validation issues.
+   * @param details The fields that failed, as JSON Pointer paths with a code
+   *   and message each.
    * @param code Optional error category code.
    * @param context Optional error context metadata.
    */
   constructor(
     message: string,
-    public readonly details?: any,
+    public readonly details?: A2uiErrorDetail[],
     code: string = 'VALIDATION_ERROR',
     context?: A2uiErrorContext,
   ) {
@@ -199,7 +200,7 @@ export class A2uiIntegrityError extends A2uiValidationError {
    */
   constructor(
     message: string,
-    details?: any,
+    details?: A2uiErrorDetail[],
     code: string = 'INTEGRITY_ERROR',
     context?: A2uiErrorContext,
   ) {
@@ -222,7 +223,7 @@ export class A2uiRecursionError extends A2uiValidationError {
    */
   constructor(
     message: string,
-    details?: any,
+    details?: A2uiErrorDetail[],
     code: string = 'RECURSION_ERROR',
     context?: A2uiErrorContext,
   ) {

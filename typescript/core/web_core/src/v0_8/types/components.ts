@@ -14,47 +14,185 @@
  * limitations under the License.
  */
 
-// ponytail: removed in Task 11 — the v0.8 types are inferred from the v0.8 zod mirror.
+/**
+ * The v0.8 component property types, as `server_to_client_with_standard_catalog.json`
+ * and the v0.8 renderers read them. `literal` is the shorthand some v0.8
+ * agents write for `literalString`, `literalNumber` and `literalBoolean`.
+ */
 
-import type {z} from 'zod';
-import type {
-  ActionSchema,
-  AudioPlayerSchema,
-  ButtonSchema,
-  CardSchema,
-  CheckboxSchema,
-  ColumnSchema,
-  DateTimeInputSchema,
-  DividerSchema,
-  IconSchema,
-  ImageSchema,
-  ListSchema,
-  ModalSchema,
-  MultipleChoiceSchema,
-  RowSchema,
-  SliderSchema,
-  TabsSchema,
-  TextFieldSchema,
-  TextSchema,
-  VideoSchema,
-} from '../schema/common-types.js';
+import type {StringValue} from './primitives.js';
 
-export declare interface Action extends z.infer<typeof ActionSchema> {}
-export declare interface Text extends z.infer<typeof TextSchema> {}
-export declare interface Image extends z.infer<typeof ImageSchema> {}
-export declare interface Icon extends z.infer<typeof IconSchema> {}
-export declare interface Video extends z.infer<typeof VideoSchema> {}
-export declare interface AudioPlayer extends z.infer<typeof AudioPlayerSchema> {}
-export declare interface Tabs extends z.infer<typeof TabsSchema> {}
-export declare interface Row extends z.infer<typeof RowSchema> {}
-export declare interface Column extends z.infer<typeof ColumnSchema> {}
-export declare interface List extends z.infer<typeof ListSchema> {}
-export declare interface Button extends z.infer<typeof ButtonSchema> {}
-export declare interface Modal extends z.infer<typeof ModalSchema> {}
-export declare interface Card extends z.infer<typeof CardSchema> {}
-export declare interface Divider extends z.infer<typeof DividerSchema> {}
-export declare interface TextField extends z.infer<typeof TextFieldSchema> {}
-export declare interface Checkbox extends z.infer<typeof CheckboxSchema> {}
-export declare interface DateTimeInput extends z.infer<typeof DateTimeInputSchema> {}
-export declare interface MultipleChoice extends z.infer<typeof MultipleChoiceSchema> {}
-export declare interface Slider extends z.infer<typeof SliderSchema> {}
+export declare interface Action {
+  /** A unique name identifying the action (e.g., 'submitForm'). */
+  name: string;
+  /** A key-value map of data bindings to be resolved when the action is triggered. */
+  context?: Array<{
+    key: string;
+    /** The dynamic value. Define EXACTLY ONE of the nested properties. */
+    value: {
+      /** A data binding reference to a location in the data model (e.g., '/user/name'). */
+      path?: string;
+      /** A fixed, hardcoded string value. */
+      literalString?: string;
+      literalNumber?: number;
+      literalBoolean?: boolean;
+    };
+  }>;
+}
+
+export declare interface Text {
+  text: StringValue;
+  usageHint?: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'caption' | 'body';
+}
+
+export declare interface Image {
+  url: StringValue;
+  usageHint?: 'icon' | 'avatar' | 'smallFeature' | 'mediumFeature' | 'largeFeature' | 'header';
+  fit?: 'contain' | 'cover' | 'fill' | 'none' | 'scale-down';
+  altText?: StringValue;
+}
+
+export declare interface Icon {
+  name: StringValue;
+}
+
+export declare interface Video {
+  url: StringValue;
+}
+
+export declare interface AudioPlayer {
+  url: StringValue;
+  /** A label, title, or placeholder text. */
+  description?: StringValue;
+}
+
+export declare interface Tabs {
+  /** A list of tabs, each with a title and a child component ID. */
+  tabItems: Array<{
+    title: {
+      /** A data binding reference to a location in the data model (e.g., '/user/name'). */
+      path?: string;
+      /** A fixed, hardcoded string value. */
+      literalString?: string;
+    };
+    /** A reference to a component instance by its unique ID. */
+    child: string;
+  }>;
+}
+
+/** A template for generating a dynamic list of children from a data model list. */
+interface ChildTemplate {
+  componentId: string;
+  dataBinding: string;
+}
+
+/** A list of child components, either explicitly or via a template. */
+interface Children {
+  explicitList?: string[];
+  template?: ChildTemplate;
+}
+
+export declare interface Row {
+  children: Children;
+  distribution?: 'start' | 'center' | 'end' | 'spaceBetween' | 'spaceAround' | 'spaceEvenly';
+  alignment?: 'start' | 'center' | 'end' | 'stretch';
+}
+
+export declare interface Column {
+  children: Children;
+  distribution?: 'start' | 'center' | 'end' | 'spaceBetween' | 'spaceAround' | 'spaceEvenly';
+  alignment?: 'start' | 'center' | 'end' | 'stretch';
+}
+
+export declare interface List {
+  children: Children;
+  direction?: 'vertical' | 'horizontal';
+  alignment?: 'start' | 'center' | 'end' | 'stretch';
+}
+
+export declare interface Button {
+  /** The ID of the component to display as the button's content. */
+  child: string;
+  /** Represents a user-initiated action. */
+  action: Action;
+  /** Indicates if this button should be styled as the primary action. */
+  primary?: boolean;
+}
+
+export declare interface Modal {
+  /** The ID of the component (e.g., a button) that triggers the modal. */
+  entryPointChild: string;
+  /** The ID of the component to display as the modal's content. */
+  contentChild: string;
+}
+
+export declare interface Card {
+  /** The ID of the component to be rendered inside the card. */
+  child: string;
+}
+
+export declare interface Divider {
+  /** The orientation. */
+  axis?: 'horizontal' | 'vertical';
+  /** The color of the divider (e.g., hex code or semantic name). */
+  color?: string;
+  /** The thickness of the divider. */
+  thickness?: number;
+}
+
+export declare interface TextField {
+  text?: StringValue;
+  /** A label, title, or placeholder text. */
+  label: StringValue;
+  textFieldType?: 'shortText' | 'number' | 'date' | 'longText' | 'obscured';
+  /** A regex string to validate the input. */
+  validationRegexp?: string;
+}
+
+export declare interface Checkbox {
+  label: StringValue;
+  value: {
+    /** A data binding reference to a location in the data model (e.g., '/user/name'). */
+    path?: string;
+    literalBoolean?: boolean;
+  };
+}
+
+export declare interface DateTimeInput {
+  value: StringValue;
+  enableDate?: boolean;
+  enableTime?: boolean;
+  /** The string format for the output (e.g., 'YYYY-MM-DD'). */
+  outputFormat?: string;
+}
+
+export declare interface MultipleChoice {
+  selections: {
+    /** A data binding reference to a location in the data model (e.g., '/user/name'). */
+    path?: string;
+    literalArray?: string[];
+  };
+  options?: Array<{
+    label: {
+      /** A data binding reference to a location in the data model (e.g., '/user/name'). */
+      path?: string;
+      /** A fixed, hardcoded string value. */
+      literalString?: string;
+    };
+    value: string;
+  }>;
+  maxAllowedSelections?: number;
+  type?: 'checkbox' | 'chips';
+  filterable?: boolean;
+}
+
+export declare interface Slider {
+  value: {
+    /** A data binding reference to a location in the data model (e.g., '/user/name'). */
+    path?: string;
+    literalNumber?: number;
+  };
+  minValue?: number;
+  maxValue?: number;
+  label?: StringValue;
+}

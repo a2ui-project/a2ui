@@ -16,15 +16,27 @@ The universal component submodule provides primitives for creating A2UI componen
 ```typescript
 import {html, css, nothing} from 'lit';
 import {customElement} from 'lit/decorators.js';
-import {z} from 'zod';
-import {type ComponentApi, DynamicStringSchema} from '@a2ui/web_core/v0_9';
+import {createAjvValidator} from '@a2ui/validator-ajv';
+import {fromJsonSchema} from '@a2ui/web_core';
+import {type ComponentApi, type DynamicString} from '@a2ui/web_core/v0_9';
 import {A2uiLitElement, type WebComponentImplementation} from '@a2ui/web_core/v0_9/universal';
+
+const validator = createAjvValidator();
 
 export const MyBadgeApi = {
   name: 'MyBadge',
-  schema: z.object({
-    text: DynamicStringSchema,
-  }),
+  // A JSON Schema that references the v0.9 common types. The schema's
+  // documents are passed with it; `commonTypes` and `envelopeCatalog` are the
+  // v0.9 `common_types.json` and a `catalog.json` that declares `anyFunction`.
+  schema: fromJsonSchema<{text: DynamicString}>(
+    {
+      type: 'object',
+      properties: {text: {$ref: 'common_types.json#/$defs/DynamicString'}},
+      required: ['text'],
+    },
+    validator,
+    {defs: {'common_types.json': commonTypes, 'catalog.json': envelopeCatalog}},
+  ),
 } satisfies ComponentApi;
 
 @customElement('my-badge')

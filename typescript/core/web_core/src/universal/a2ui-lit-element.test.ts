@@ -21,7 +21,6 @@ import {after, afterEach, before, beforeEach, describe, it} from 'node:test';
 // (`window`, `document`, `HTMLElement`, `customElements`) exist at module evaluation time.
 import {asyncUpdate, setupTestDom, teardownTestDom} from '../test/dom-setup.js';
 import {css, html, nothing, render} from 'lit';
-import {z} from 'zod';
 
 import {Catalog, ComponentApi} from '../catalog/index.js';
 import {createBasicCatalog} from '../catalogs/basic/v1/catalog.js';
@@ -29,17 +28,19 @@ import {MessageProcessor} from '../processing/message-processor.js';
 import {getValue, peekValue} from '../reactivity/signals.js';
 import {ComponentContext} from '../resolution/component-context.js';
 import {NodeResolver} from '../resolution/node-resolver.js';
-import {CheckableSchema} from '../v0_9/schema/common-types.js';
 import {A2uiLitElement} from './a2ui-lit-element.js';
 import {A2UI_ELEMENT_CONNECTED_EVENT} from './element_connected_event.js';
 import {testValidator} from '../test/validator.js';
+import {jsonFixture} from '../test/schema.js';
 
 const basicCatalog = createBasicCatalog(testValidator);
 
 const MockTextApi = {
   name: 'Text',
-  schema: z.object({
-    text: z.string().default(''),
+  schema: jsonFixture({
+    'type': 'object',
+    'properties': {'text': {'type': 'string', 'default': ''}},
+    'additionalProperties': false,
   }),
 };
 const testCatalog = new Catalog<ComponentApi>('test-catalog', '1.0', [MockTextApi]);
@@ -539,10 +540,23 @@ describe('A2uiLitElement', () => {
       return usedApi;
     };
 
-    const oldApi = {name: 'Label', schema: z.object({text: z.string()})};
+    const oldApi = {
+      name: 'Label',
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'text': {'type': 'string'}},
+        'required': ['text'],
+        'additionalProperties': false,
+      }),
+    };
     const newApi = {
       name: 'Label',
-      schema: z.object({text: z.string(), note: z.string().optional()}),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'text': {'type': 'string'}, 'note': {'type': 'string'}},
+        'required': ['text'],
+        'additionalProperties': false,
+      }),
     };
 
     assert.strictEqual(await apiUsedIn(oldApi, 'old-catalog'), oldApi);
@@ -648,18 +662,32 @@ describe('A2uiLitElement', () => {
   it('forwards accessibility and validation attributes to accessibilityTarget() and renders validation errors', async () => {
     const TargetInputApi = {
       name: 'TargetInput',
-      schema: z.object({
-        value: z.string().default(''),
-        checks: CheckableSchema.shape.checks,
-        accessibility: z
-          .object({
-            label: z.string().optional(),
-            description: z.string().optional(),
-            live: z.enum(['off', 'polite', 'assertive']).optional(),
-            hidden: z.boolean().optional(),
-          })
-          .optional(),
-      }),
+      schema: jsonFixture(
+        {
+          'type': 'object',
+          'properties': {
+            'value': {'type': 'string', 'default': ''},
+            'checks': {
+              'type': 'array',
+              'items': {'$ref': 'common_types.json#/$defs/CheckRule'},
+              'description':
+                'A list of checks to perform. These are function calls that must return a boolean indicating validity.',
+            },
+            'accessibility': {
+              'type': 'object',
+              'properties': {
+                'label': {'type': 'string'},
+                'description': {'type': 'string'},
+                'live': {'type': 'string', 'enum': ['off', 'polite', 'assertive']},
+                'hidden': {'type': 'boolean'},
+              },
+              'additionalProperties': false,
+            },
+          },
+          'additionalProperties': false,
+        },
+        '0.9',
+      ),
     };
 
     class TestTargetInputElement extends A2uiLitElement<typeof TargetInputApi> {
@@ -793,16 +821,22 @@ describe('A2uiLitElement', () => {
   it('falls back to role="group" and aria-label on the host when accessibilityTarget() is null, preserving any explicit host role', async () => {
     const GroupBoxApi = {
       name: 'GroupBox',
-      schema: z.object({
-        title: z.string().default(''),
-        accessibility: z
-          .object({
-            label: z.string().optional(),
-            description: z.string().optional(),
-            live: z.enum(['off', 'polite', 'assertive']).optional(),
-            hidden: z.boolean().optional(),
-          })
-          .optional(),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {
+          'title': {'type': 'string', 'default': ''},
+          'accessibility': {
+            'type': 'object',
+            'properties': {
+              'label': {'type': 'string'},
+              'description': {'type': 'string'},
+              'live': {'type': 'string', 'enum': ['off', 'polite', 'assertive']},
+              'hidden': {'type': 'boolean'},
+            },
+            'additionalProperties': false,
+          },
+        },
+        'additionalProperties': false,
       }),
     };
 
@@ -906,16 +940,27 @@ describe('A2uiLitElement', () => {
   it('preserves component-authored ARIA attributes on accessibilityTarget() and omits aria-describedby when renderValidationErrors() is not rendered', async () => {
     const NoErrorBlockApi = {
       name: 'NoErrorBlock',
-      schema: z.object({
-        value: z.string().default(''),
-        checks: CheckableSchema.shape.checks,
-        accessibility: z
-          .object({
-            label: z.string().optional(),
-            description: z.string().optional(),
-          })
-          .optional(),
-      }),
+      schema: jsonFixture(
+        {
+          'type': 'object',
+          'properties': {
+            'value': {'type': 'string', 'default': ''},
+            'checks': {
+              'type': 'array',
+              'items': {'$ref': 'common_types.json#/$defs/CheckRule'},
+              'description':
+                'A list of checks to perform. These are function calls that must return a boolean indicating validity.',
+            },
+            'accessibility': {
+              'type': 'object',
+              'properties': {'label': {'type': 'string'}, 'description': {'type': 'string'}},
+              'additionalProperties': false,
+            },
+          },
+          'additionalProperties': false,
+        },
+        '0.9',
+      ),
     };
 
     class TestNoErrorBlockElement extends A2uiLitElement<typeof NoErrorBlockApi> {

@@ -16,10 +16,10 @@
 
 import {describe, it, after, beforeEach, afterEach} from 'node:test';
 import * as assert from 'node:assert';
-import {z} from 'zod';
 import {setupTestDom, teardownTestDom} from '../test/dom-setup.js';
 import {registerUniversalElement} from './register_universal_element.js';
 import type {WebComponentImplementation} from './web_component_implementation.js';
+import {jsonFixture} from '../test/schema.js';
 
 // The mock classes below extend HTMLElement, so the DOM globals have to be in place before this
 // module's class declarations are evaluated.
@@ -56,7 +56,7 @@ describe('registerUniversalElement', () => {
   it('registers a custom element when not yet defined', () => {
     const comp: WebComponentImplementation = {
       name: 'Test',
-      schema: z.object({}),
+      schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': false}),
       tagName: 'a2ui-test',
       element: MockElementA,
     };
@@ -68,7 +68,7 @@ describe('registerUniversalElement', () => {
   it('no-ops safely when already registered with the same constructor', () => {
     const comp: WebComponentImplementation = {
       name: 'Test',
-      schema: z.object({}),
+      schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': false}),
       tagName: 'a2ui-test',
       element: MockElementA,
     };
@@ -83,13 +83,13 @@ describe('registerUniversalElement', () => {
   it('throws an error when registered with a conflicting constructor', () => {
     const compA: WebComponentImplementation = {
       name: 'TestA',
-      schema: z.object({}),
+      schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': false}),
       tagName: 'a2ui-test',
       element: MockElementA,
     };
     const compB: WebComponentImplementation = {
       name: 'TestB',
-      schema: z.object({}),
+      schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': false}),
       tagName: 'a2ui-test',
       element: MockElementB,
     };
@@ -104,13 +104,13 @@ describe('registerUniversalElement', () => {
     delete (globalThis as any).customElements;
     const compA: WebComponentImplementation = {
       name: 'TestA',
-      schema: z.object({}),
+      schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': false}),
       tagName: 'a2ui-test-a',
       element: MockElementA,
     };
     const compB: WebComponentImplementation = {
       name: 'TestB',
-      schema: z.object({}),
+      schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': false}),
       tagName: 'a2ui-test-b',
       element: MockElementB,
     };

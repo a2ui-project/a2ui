@@ -18,7 +18,7 @@ import * as assert from 'node:assert';
 import {describe, it, beforeEach} from 'node:test';
 import {
   MessageProcessor,
-  formatZodIssue,
+  formatIssue,
   STRICT_VALIDATION,
   RpcErrorCode,
 } from './message-processor.js';
@@ -28,7 +28,8 @@ import {
   type RendererErrorMessage,
 } from './message-error-mapper.js';
 import {Catalog, ComponentApi, createFunctionImplementation} from '../catalog/types.js';
-import {BasicCatalogThemeSchema} from '../universal/basic_catalog/theme.js';
+import {isValidCssColor} from '../universal/basic_catalog/theme.js';
+import type {CatalogSchema} from '../schema-engine/types.js';
 import {componentOf, v09BasicCatalog, v1BasicCatalog} from '../test/basic_catalogs.js';
 import {A2uiCatalogError, A2uiIntegrityError, A2uiValidationError} from '../errors.js';
 import {DataContext} from '../resolution/data-context.js';
@@ -37,8 +38,8 @@ import {ResolvedBinding} from '../resolution/resolved-binding.js';
 import {SurfaceModel, type A2uiErrorPayload} from '../state/surface-model.js';
 import {validateCompositionConstraints} from '../state/validation-helpers.js';
 import {peekValue} from '../reactivity/signals.js';
-import {z} from 'zod';
 import {testValidator} from '../test/validator.js';
+import {jsonFixture} from '../test/schema.js';
 
 /**
  * Turns validation on while relaxing every topology rule, so a test exercises
@@ -145,7 +146,12 @@ describe('MessageProcessor', () => {
     it('supports custom componentEnvelopeRef for inline catalogs', () => {
       const strictComp: ComponentApi = {
         name: 'CustomButton',
-        schema: z.object({label: z.string()}),
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {'label': {'type': 'string'}},
+          'required': ['label'],
+          'additionalProperties': false,
+        }),
       };
       const proc = new MessageProcessor(
         [new Catalog('cat-custom', '1.0', [strictComp])],
@@ -383,63 +389,64 @@ describe('MessageProcessor', () => {
     });
   });
 
-  describe('formatZodIssue and error formatting', () => {
-    it('formats unrecognized keys with exact property names', () => {
-      const issue: any = {
-        code: 'unrecognized_keys',
-        keys: ['color', 'gap'],
-        path: ['header'],
-        message: 'Unrecognized key(s) in object: color, gap',
-      };
+  describe('formatIssue and error formatting', () => {
+    it('formats an unexpected property with its name', () => {
       assert.strictEqual(
-        formatZodIssue(issue),
-        "header: Unrecognized key(s) in object: 'color', 'gap'",
+        formatIssue({
+          path: ['header'],
+          message: 'must NOT have additional properties',
+          keyword: 'additionalProperties',
+          params: {additionalProperty: 'color'},
+        }),
+        "header: unexpected property 'color'",
       );
     });
 
-    it('formats unrecognized keys at root level', () => {
-      const issue: any = {
-        code: 'unrecognized_keys',
-        keys: ['color'],
-        path: [],
-        message: 'Expected undefined, received undefined',
-      };
-      assert.strictEqual(formatZodIssue(issue), "root: Unrecognized key(s) in object: 'color'");
-    });
-
-    it('formats invalid enum values', () => {
-      const issue: any = {
-        code: 'invalid_enum_value',
-        options: ['primary', 'secondary'],
-        received: 'invalid',
-        path: ['variant'],
-        message: 'Invalid enum value',
-      };
+    it('formats an issue at the root', () => {
       assert.strictEqual(
-        formatZodIssue(issue),
-        "variant: Invalid enum value. Expected primary | secondary, received 'invalid'",
+        formatIssue({
+          path: [],
+          message: 'must NOT have unevaluated properties',
+          keyword: 'unevaluatedProperties',
+          params: {unevaluatedProperty: 'color'},
+        }),
+        "root: unexpected property 'color'",
       );
     });
 
-    it('falls back to expected/received when message is corrupted with undefined', () => {
-      const issue: any = {
-        code: 'invalid_type',
-        expected: 'string',
-        received: 'number',
-        path: ['label'],
-        message: 'Expected undefined, received undefined',
-      };
-      assert.strictEqual(formatZodIssue(issue), 'label: Expected string, received number');
+    it('formats an enum issue with its allowed values', () => {
+      assert.strictEqual(
+        formatIssue({
+          path: ['variant'],
+          message: 'must be equal to one of the allowed values',
+          keyword: 'enum',
+          params: {allowedValues: ['primary', 'secondary']},
+        }),
+        'variant: must be one of "primary", "secondary"',
+      );
+    });
+
+    it('formats a type issue from its parameters, not the engine message', () => {
+      assert.strictEqual(
+        formatIssue({
+          path: ['label'],
+          message: 'whatever',
+          keyword: 'type',
+          params: {type: 'string'},
+        }),
+        'label: must be string',
+      );
     });
 
     it('surfaces unrecognized property validation error when processing component updates', () => {
       const strictButtonApi: ComponentApi = {
         name: 'MaterialButton',
-        schema: z
-          .object({
-            label: z.string(),
-          })
-          .strict(),
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {'label': {'type': 'string'}},
+          'required': ['label'],
+          'additionalProperties': false,
+        }),
       };
       const proc = new MessageProcessor(
         [new Catalog('cat-m3', '0.9', [strictButtonApi])],
@@ -476,7 +483,7 @@ describe('MessageProcessor', () => {
           assert.ok(err instanceof A2uiValidationError);
           assert.strictEqual(
             err.message,
-            "Validation failed for component 'MaterialButton' (btn1): root: Unrecognized key(s) in object: 'color'",
+            "Validation failed for component 'MaterialButton' (btn1): color: unexpected property 'color'",
           );
           return true;
         },
@@ -486,7 +493,26 @@ describe('MessageProcessor', () => {
 
   describe('ValidationConfig', () => {
     it('validates surface theme against the basic catalog themeSchema', () => {
-      const themedCatalog = new Catalog('themed-cat', '0.9', [], [], BasicCatalogThemeSchema);
+      // A theme schema that checks `primaryColor` is a CSS color.
+      const json = {type: 'object', properties: {primaryColor: {type: 'string'}}};
+      const cssColorTheme: CatalogSchema = {
+        '~standard': {
+          version: 1,
+          vendor: 'test',
+          validate: (value: unknown) => {
+            const color = (value as {primaryColor?: unknown} | null)?.primaryColor;
+            return color === undefined || isValidCssColor(color)
+              ? {value}
+              : {
+                  issues: [
+                    {message: 'primaryColor must be a valid CSS color', path: ['primaryColor']},
+                  ],
+                };
+          },
+          jsonSchema: {input: () => json, output: () => json},
+        },
+      };
+      const themedCatalog = new Catalog('themed-cat', '0.9', [], [], cssColorTheme);
       const proc = new MessageProcessor([themedCatalog], undefined, {
         validator: testValidator,
         validationConfig: THEME_ONLY_VALIDATION,
@@ -556,10 +582,31 @@ describe('MessageProcessor', () => {
     });
 
     it('applies themeSchema transforms and defaults to the stored theme', () => {
-      const transformSchema = z.object({
-        primaryColor: z.string().transform(c => c.toUpperCase()),
-        defaultedField: z.string().default('default-val'),
-      });
+      // A hand-rolled schema that transforms `primaryColor` and fills a default.
+      const themeJson = {
+        type: 'object',
+        properties: {primaryColor: {type: 'string'}, defaultedField: {type: 'string'}},
+        required: ['primaryColor'],
+      };
+      const transformSchema: CatalogSchema = {
+        '~standard': {
+          version: 1,
+          vendor: 'test',
+          validate: (value: unknown) => {
+            const theme = value as {primaryColor?: unknown; defaultedField?: unknown};
+            return typeof theme?.primaryColor === 'string'
+              ? {
+                  value: {
+                    ...theme,
+                    primaryColor: theme.primaryColor.toUpperCase(),
+                    defaultedField: theme.defaultedField ?? 'default-val',
+                  },
+                }
+              : {issues: [{message: 'primaryColor is required', path: ['primaryColor']}]};
+          },
+          jsonSchema: {input: () => themeJson, output: () => themeJson},
+        },
+      };
       const proc = new MessageProcessor(
         [new Catalog('transform-cat', '0.9', [], [], transformSchema)],
         undefined,
@@ -711,11 +758,20 @@ describe('MessageProcessor', () => {
     const basicCat: Catalog<ComponentApi> = new Catalog('cat-basic', '1.0', [
       {
         name: 'Box',
-        schema: z.object({child: z.string().describe('ChildComponentId').optional()}),
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {'child': {'type': 'string', 'description': 'ChildComponentId'}},
+          'additionalProperties': false,
+        }),
       },
       {
         name: 'Text',
-        schema: z.object({text: z.string()}),
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {'text': {'type': 'string'}},
+          'required': ['text'],
+          'additionalProperties': false,
+        }),
       },
     ]);
 
@@ -729,7 +785,12 @@ describe('MessageProcessor', () => {
             name: 'computeGreeting',
             returnType: 'string',
             allowedCallers: 'rendererOrAgent',
-            schema: z.object({user: z.string()}),
+            schema: jsonFixture({
+              'type': 'object',
+              'properties': {'user': {'type': 'string'}},
+              'required': ['user'],
+              'additionalProperties': false,
+            }),
             execute: args => `Hi ${args.user}`,
           },
         ],
@@ -1098,7 +1159,12 @@ describe('MessageProcessor', () => {
     const rpcApi = {
       name: 'echoFunction',
       returnType: 'string' as const,
-      schema: z.object({text: z.string()}),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'text': {'type': 'string'}},
+        'required': ['text'],
+        'additionalProperties': false,
+      }),
       allowedCallers: 'rendererOrAgent' as const,
     };
     const rpcImpl = createFunctionImplementation(rpcApi, (args: any) => `Echo: ${args.text}`);
@@ -1106,7 +1172,7 @@ describe('MessageProcessor', () => {
     const secureApi = {
       name: 'secureAction',
       returnType: 'boolean' as const,
-      schema: z.object({}),
+      schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': false}),
       allowedCallers: 'rendererOrAgent' as const,
       requiresUserActivation: true,
     };
@@ -1168,7 +1234,11 @@ describe('MessageProcessor', () => {
       const readModelApi = {
         name: 'readUserName',
         returnType: 'string' as const,
-        schema: z.object({text: z.string().optional()}),
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {'text': {'type': 'string'}},
+          'additionalProperties': false,
+        }),
         allowedCallers: 'rendererOrAgent' as const,
       };
       const readModelImpl = createFunctionImplementation(
@@ -1345,7 +1415,7 @@ describe('MessageProcessor', () => {
         call: 'fetchAgentData',
         catalogId: 'rpc-cat',
         args: {id: '42'},
-      });
+      } as never);
 
       assert.ok(emittedMessage);
       assert.strictEqual(emittedMessage.callAgentFunction.surfaceId, 's1');
@@ -1374,7 +1444,7 @@ describe('MessageProcessor', () => {
 
       const callPromise = proc.callAgentFunction('s1', {
         call: 'fetchData',
-      });
+      } as never);
 
       proc.dispose();
 
@@ -1522,7 +1592,14 @@ describe('MessageProcessor', () => {
     });
 
     it('leaves nested calls unchecked on a pre-1.0 surface without a validationConfig', () => {
-      const textApi: ComponentApi = {name: 'Text', schema: z.object({text: z.any()})};
+      const textApi: ComponentApi = {
+        name: 'Text',
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {'text': {}},
+          'additionalProperties': false,
+        }),
+      };
       const v09 = new Catalog<ComponentApi>('v09', '0.9', [textApi]);
       const lenient = new MessageProcessor([v09], undefined, {validator: testValidator});
       lenient.processMessages([
@@ -1588,7 +1665,12 @@ describe('MessageProcessor', () => {
     it('records the createSurface message protocol version on the surface and falls back to catalog version', () => {
       const textApi: ComponentApi = {
         name: 'Text',
-        schema: z.object({text: z.string()}).strict(),
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {'text': {'type': 'string'}},
+          'required': ['text'],
+          'additionalProperties': false,
+        }),
       };
       const v09Cat = new Catalog('cat-09', '0.9', [textApi]);
       const handledErrors: RendererErrorMessage[] = [];
@@ -1794,7 +1876,12 @@ describe('MessageProcessor', () => {
     it('keeps metadata as an ordinary property below v1.0', () => {
       const cardApi: ComponentApi = {
         name: 'Card',
-        schema: z.object({metadata: z.record(z.string(), z.unknown())}).strict(),
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {'metadata': {'type': 'object', 'additionalProperties': {}}},
+          'required': ['metadata'],
+          'additionalProperties': false,
+        }),
       };
       const proc = new MessageProcessor<ComponentApi>(
         [new Catalog('v09', '0.9', [cardApi])],
@@ -1842,13 +1929,22 @@ describe('MessageProcessor', () => {
   describe('v1.0 catalog resolution', () => {
     const textApi: ComponentApi = {
       name: 'Text',
-      schema: z.object({text: z.any()}).strict(),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'text': {}},
+        'additionalProperties': false,
+      }),
     };
     const upperFn = createFunctionImplementation(
       {
         name: 'upper',
         returnType: 'string' as const,
-        schema: z.object({value: z.string()}).strict(),
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {'value': {'type': 'string'}},
+          'required': ['value'],
+          'additionalProperties': false,
+        }),
       },
       args => args.value.toUpperCase(),
     );
@@ -1886,7 +1982,11 @@ describe('MessageProcessor', () => {
     it('treats catalogId as an ordinary component property below v1.0 (#4012)', () => {
       const textWithCatalogId: ComponentApi = {
         name: 'Text',
-        schema: z.object({text: z.any(), catalogId: z.string().optional()}).strict(),
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {'text': {}, 'catalogId': {'type': 'string'}},
+          'additionalProperties': false,
+        }),
       };
       const v09Base = new Catalog<ComponentApi>('v09-base', '0.9', [textWithCatalogId]);
       const v09Custom = new Catalog<ComponentApi>('v09-custom', '0.9', [textWithCatalogId]);
@@ -2110,7 +2210,12 @@ describe('MessageProcessor', () => {
         {
           name: 'lower',
           returnType: 'string' as const,
-          schema: z.object({value: z.string()}).strict(),
+          schema: jsonFixture({
+            'type': 'object',
+            'properties': {'value': {'type': 'string'}},
+            'required': ['value'],
+            'additionalProperties': false,
+          }),
         },
         args => args.value.toLowerCase(),
       );
@@ -2165,18 +2270,28 @@ describe('MessageProcessor', () => {
 
       it('checks a catalogless call in a component naming the surface default once', () => {
         let checks = 0;
+        const args = jsonFixture<{value: string}>({
+          'type': 'object',
+          'properties': {'value': {'type': 'string'}},
+          'required': ['value'],
+          'additionalProperties': false,
+        });
+        // Counts how often a call's `value` is validated (registration also
+        // probes the schema once with `{}`).
+        const counted: CatalogSchema<{value: string}> = {
+          '~standard': {
+            ...args['~standard'],
+            validate: value => {
+              if ((value as {value?: unknown})?.value !== undefined) checks++;
+              return args['~standard'].validate(value);
+            },
+          },
+        };
         const countedFn = createFunctionImplementation(
           {
             name: 'counted',
             returnType: 'string' as const,
-            schema: z
-              .object({
-                value: z.string().refine(() => {
-                  checks++;
-                  return true;
-                }),
-              })
-              .strict(),
+            schema: counted,
           },
           args => args.value,
         );
@@ -2331,7 +2446,15 @@ describe('MessageProcessor', () => {
       });
 
       it('accepts a closed component schema in a named catalog', () => {
-        const tagApi = {name: 'Tag', schema: z.object({label: z.string()}).strict()};
+        const tagApi = {
+          name: 'Tag',
+          schema: jsonFixture({
+            'type': 'object',
+            'properties': {'label': {'type': 'string'}},
+            'required': ['label'],
+            'additionalProperties': false,
+          }),
+        };
         const closed = new Catalog<ComponentApi>('closed', '1.0', [tagApi]);
         const proc = new MessageProcessor<ComponentApi>([closed], undefined, {
           validator: testValidator,
@@ -2440,7 +2563,12 @@ describe('MessageProcessor', () => {
     it('maps errors to ErrorMessage and emits via errorHandler, onError, and processMessagesWithErrors', () => {
       const strictTextApi: ComponentApi = {
         name: 'Text',
-        schema: z.object({text: z.string()}).strict(),
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {'text': {'type': 'string'}},
+          'required': ['text'],
+          'additionalProperties': false,
+        }),
       };
       const base = new Catalog<ComponentApi>('base', '1.0', [strictTextApi]);
       const handledErrors: any[] = [];
@@ -2501,7 +2629,15 @@ describe('MessageProcessor', () => {
     });
 
     it('attributes prepareOperations parse errors to the failing item in multi-message arrays', async () => {
-      const textApi: ComponentApi = {name: 'Text', schema: z.object({text: z.string()})};
+      const textApi: ComponentApi = {
+        name: 'Text',
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {'text': {'type': 'string'}},
+          'required': ['text'],
+          'additionalProperties': false,
+        }),
+      };
       const v09Cat = new Catalog<ComponentApi>('cat-v09', '0.9', [textApi]);
       const v10Cat = new Catalog<ComponentApi>('cat-v10', '1.0', [textApi]);
       const handledErrors: any[] = [];
@@ -2640,8 +2776,23 @@ describe('MessageProcessor', () => {
     it('writes createSurface dataModel per top-level key with RFC 6901 escaping before resolving components', () => {
       const counterApi: ComponentApi = {
         name: 'Counter',
-        schema: z.object({
-          count: z.union([z.number(), z.object({'@path': z.string()})]),
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {
+            'count': {
+              'anyOf': [
+                {'type': 'number'},
+                {
+                  'type': 'object',
+                  'properties': {'@path': {'type': 'string'}},
+                  'required': ['@path'],
+                  'additionalProperties': false,
+                },
+              ],
+            },
+          },
+          'required': ['count'],
+          'additionalProperties': false,
         }),
       };
       const cat = new Catalog<ComponentApi>('cat-v10', '1.0', [counterApi]);
@@ -3360,10 +3511,21 @@ describe('MessageProcessor component envelope mixins', () => {
       // `Text` declares no `catalogId` in the surface default, so a bare
       // `catalogId` routes the component, even though the target catalog's
       // `Text` declares a `catalogId` property of its own.
-      const plainText: ComponentApi = {name: 'Text', schema: z.object({text: z.any()}).strict()};
+      const plainText: ComponentApi = {
+        name: 'Text',
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {'text': {}},
+          'additionalProperties': false,
+        }),
+      };
       const textWithCatalogId: ComponentApi = {
         name: 'Text',
-        schema: z.object({text: z.any(), catalogId: z.string().optional()}).strict(),
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {'text': {}, 'catalogId': {'type': 'string'}},
+          'additionalProperties': false,
+        }),
       };
       const proc = v10Processor(
         new Catalog<ComponentApi>('main', '1.0', [plainText]),
@@ -3379,7 +3541,12 @@ describe('MessageProcessor component envelope mixins', () => {
     it('serializes @metadata when an optional custom metadata is omitted', () => {
       const chart: ComponentApi = {
         name: 'Chart',
-        schema: z.object({title: z.string(), metadata: z.string().optional()}).strict(),
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {'title': {'type': 'string'}, 'metadata': {'type': 'string'}},
+          'required': ['title'],
+          'additionalProperties': false,
+        }),
       };
       const proc = v10Processor(new Catalog<ComponentApi>('main', '1.0', [chart]));
       process(proc, [
@@ -3404,10 +3571,25 @@ describe('MessageProcessor component envelope mixins', () => {
     it('keeps a bare metadata declared in a union option as a property', () => {
       const widget: ComponentApi = {
         name: 'Widget',
-        schema: z.union([
-          z.object({kind: z.literal('a'), metadata: z.string().optional()}).strict(),
-          z.object({kind: z.literal('b'), label: z.string().optional()}).strict(),
-        ]),
+        schema: jsonFixture({
+          'anyOf': [
+            {
+              'type': 'object',
+              'properties': {
+                'kind': {'type': 'string', 'const': 'a'},
+                'metadata': {'type': 'string'},
+              },
+              'required': ['kind'],
+              'additionalProperties': false,
+            },
+            {
+              'type': 'object',
+              'properties': {'kind': {'type': 'string', 'const': 'b'}, 'label': {'type': 'string'}},
+              'required': ['kind'],
+              'additionalProperties': false,
+            },
+          ],
+        }),
       };
       const proc = v10Processor(new Catalog<ComponentApi>('main', '1.0', [widget]));
       process(proc, [
@@ -3450,7 +3632,7 @@ describe('MessageProcessor component envelope mixins', () => {
             err.message,
             /cannot specify both '@accessibility' and legacy 'accessibility'/,
           );
-          assert.match(err.details[0].path, /\/@accessibility$/);
+          assert.match(err.details?.[0]?.path ?? '', /\/@accessibility$/);
           return true;
         },
       );

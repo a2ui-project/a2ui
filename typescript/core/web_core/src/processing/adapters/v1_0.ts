@@ -53,7 +53,7 @@ function extractCallRendererFunctionOp(
     type: 'callRendererFunction',
     surfaceId: typeof crf?.surfaceId === 'string' ? crf.surfaceId : undefined,
     functionCallId,
-    call: String(cf?.['@call'] || cf?.call || ''),
+    call: String(cf['@call'] ?? ''),
     version,
     catalogId: typeof cf?.catalogId === 'string' ? cf?.catalogId : undefined,
     args:

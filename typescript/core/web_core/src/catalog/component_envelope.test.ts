@@ -278,7 +278,7 @@ describe('splitComponentEnvelope', () => {
         ),
       (err: unknown) => {
         assert.ok(err instanceof A2uiValidationError);
-        assert.strictEqual(err.details[0].path, '/@metadata');
+        assert.strictEqual(err.details?.[0]?.path, '/@metadata');
         assert.strictEqual(err.path, '/@metadata');
         return true;
       },

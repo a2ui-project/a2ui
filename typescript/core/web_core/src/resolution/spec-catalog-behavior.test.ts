@@ -103,27 +103,27 @@ describe('Spec basic catalog component behaviors', () => {
         for (const api of c.apis) {
           const spec = scrapeSpec(api.name);
           const bridged = cursorOf(api.schema, c.version); // the loaded entry's own cursor
-          const zod = scrapeComponentBehavior(bridged.node, bridged.doc, c.options);
+          const code = scrapeComponentBehavior(bridged.node, bridged.doc, c.options);
           assert.strictEqual(
             spec.type === 'OBJECT' && spec.catchall,
-            zod.type === 'OBJECT' && zod.catchall,
+            code.type === 'OBJECT' && code.catchall,
           );
           const specShape = shapeOf(spec);
-          const zodShape = shapeOf(zod);
-          for (const key of new Set([...Object.keys(specShape), ...Object.keys(zodShape)])) {
+          const codeShape = shapeOf(code);
+          for (const key of new Set([...Object.keys(specShape), ...Object.keys(codeShape)])) {
             if (Object.hasOwn(c.specOnlyKeys, key)) {
               // The catalog entry leaves the envelope keys to the envelope; it
               // declares `id` only as `true`, so it is not a child reference.
-              if (Object.hasOwn(zodShape, key)) {
-                assert.deepStrictEqual(zodShape[key], {type: 'STATIC'}, `${api.name}.${key}`);
-                assert.ok(!isChildRefStatic(zodShape[key]), `${api.name}.${key} is no slot`);
+              if (Object.hasOwn(codeShape, key)) {
+                assert.deepStrictEqual(codeShape[key], {type: 'STATIC'}, `${api.name}.${key}`);
+                assert.ok(!isChildRefStatic(codeShape[key]), `${api.name}.${key} is no slot`);
               }
               continue;
             }
-            assert.deepStrictEqual(specShape[key], zodShape[key], `${api.name}.${key}`);
+            assert.deepStrictEqual(specShape[key], codeShape[key], `${api.name}.${key}`);
             assert.strictEqual(
               isChildRefStatic(specShape[key]),
-              isChildRefStatic(zodShape[key]),
+              isChildRefStatic(codeShape[key]),
               `${api.name}.${key} child-ref slot`,
             );
           }

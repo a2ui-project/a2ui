@@ -25,20 +25,20 @@ import {
 import {A2uiExpressionError} from '../errors.js';
 import {fromJsonSchema} from '../schema-engine/from-json-schema.js';
 import {testValidator} from '../test/validator.js';
-import {z} from 'zod';
+import {jsonFixture} from '../test/schema.js';
 
 describe('Catalog Types', () => {
   it('creates a catalog with functions', () => {
     const mockComponent = {
       name: 'MockComp',
-      schema: z.object({}),
+      schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': false}),
     } satisfies ComponentApi;
 
     const mockFunc = createFunctionImplementation(
       {
         name: 'mockFunc',
         returnType: 'string',
-        schema: z.object({}),
+        schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': false}),
       },
       () => 'result',
     );
@@ -55,12 +55,24 @@ describe('Catalog Types', () => {
   });
 
   it('defaults to v0.9 when constructed with the pre-1.0 argument order', () => {
-    const mockComponent = {name: 'MockComp', schema: z.object({})} satisfies ComponentApi;
+    const mockComponent = {
+      name: 'MockComp',
+      schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': false}),
+    } satisfies ComponentApi;
     const mockFunc = createFunctionImplementation(
-      {name: 'mockFunc', returnType: 'string', schema: z.object({})},
+      {
+        name: 'mockFunc',
+        returnType: 'string',
+        schema: jsonFixture({'type': 'object', 'properties': {}, 'additionalProperties': false}),
+      },
       () => 'result',
     );
-    const themeSchema = z.object({primaryColor: z.string()});
+    const themeSchema = jsonFixture({
+      'type': 'object',
+      'properties': {'primaryColor': {'type': 'string'}},
+      'required': ['primaryColor'],
+      'additionalProperties': false,
+    });
 
     const v09 = new Catalog('v09-cat', [mockComponent], [mockFunc], themeSchema, 'Use it');
 
@@ -88,7 +100,12 @@ describe('Catalog Types', () => {
   });
 
   it('keeps the 1.0 argument order when a protocol version is given', () => {
-    const themeSchema = z.object({primaryColor: z.string()});
+    const themeSchema = jsonFixture({
+      'type': 'object',
+      'properties': {'primaryColor': {'type': 'string'}},
+      'required': ['primaryColor'],
+      'additionalProperties': false,
+    });
     const withOptions = new Catalog('cat', '1.0', [], [], {themeSchema, instructions: 'A'});
     assert.strictEqual(withOptions.protocolVersion, '1.0');
     assert.strictEqual(withOptions.themeSchema, themeSchema);
@@ -122,13 +139,16 @@ describe('Catalog Types', () => {
     );
   });
 
-  it('throws A2uiExpressionError when zod validation fails', () => {
+  it('throws A2uiExpressionError when argument validation fails', () => {
     const mockFunc = createFunctionImplementation(
       {
         name: 'test',
         returnType: 'string',
-        schema: z.object({
-          requiredField: z.string(),
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {'requiredField': {'type': 'string'}},
+          'required': ['requiredField'],
+          'additionalProperties': false,
         }),
       },
       () => 'result',
@@ -152,8 +172,11 @@ describe('Catalog Types', () => {
   it('safely computes componentRefMap with default fallback when refOptions is omitted', () => {
     const mockComponent = {
       name: 'Container',
-      schema: z.object({
-        child: z.string().describe('ComponentId'),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'child': {'type': 'string', 'description': 'ComponentId'}},
+        'required': ['child'],
+        'additionalProperties': false,
       }),
     } satisfies ComponentApi;
 
@@ -169,8 +192,11 @@ describe('Catalog Types', () => {
   it('serializes catalog to JSON schema via validationSchema', () => {
     const mockComponent = {
       name: 'CustomButton',
-      schema: z.object({
-        label: z.string().describe('REF:#/$defs/DynamicString'),
+      schema: jsonFixture({
+        'type': 'object',
+        'properties': {'label': {'$ref': 'common_types.json#/$defs/DynamicString'}},
+        'required': ['label'],
+        'additionalProperties': false,
       }),
     } satisfies ComponentApi;
 
@@ -184,7 +210,16 @@ describe('Catalog Types', () => {
 
   describe('invoker with pending arguments', () => {
     const upper = createFunctionImplementation(
-      {name: 'upper', returnType: 'string', schema: z.object({'value': z.string()})},
+      {
+        name: 'upper',
+        returnType: 'string',
+        schema: jsonFixture({
+          'type': 'object',
+          'properties': {'value': {'type': 'string'}},
+          'required': ['value'],
+          'additionalProperties': false,
+        }),
+      },
       args => args.value.toUpperCase(),
     );
     const catalog = new Catalog('test-cat', '1.0', [], [upper]);
@@ -221,7 +256,16 @@ describe('Catalog Types', () => {
       const abortController = new AbortController();
       let executed = false;
       const spy = createFunctionImplementation(
-        {name: 'spy', returnType: 'string', schema: z.object({'value': z.string()})},
+        {
+          name: 'spy',
+          returnType: 'string',
+          schema: jsonFixture({
+            'type': 'object',
+            'properties': {'value': {'type': 'string'}},
+            'required': ['value'],
+            'additionalProperties': false,
+          }),
+        },
         () => {
           executed = true;
           return 'ran';
@@ -244,7 +288,12 @@ describe('Catalog Types', () => {
         {
           name: 'guarded',
           returnType: 'string',
-          schema: z.object({'value': z.string()}),
+          schema: jsonFixture({
+            'type': 'object',
+            'properties': {'value': {'type': 'string'}},
+            'required': ['value'],
+            'additionalProperties': false,
+          }),
           requiresUserActivation: true,
         },
         () => 'ran',
@@ -264,9 +313,12 @@ describe('Catalog Types', () => {
 
 describe('InferredComponentApiSchemaType', () => {
   it('infers the correct schema type from a ComponentApi', () => {
-    const mockSchema = z.object({
-      field1: z.string(),
-      field2: z.number().optional(),
+    type ExpectedType = {field1: string; field2?: number};
+    const mockSchema = jsonFixture<ExpectedType>({
+      'type': 'object',
+      'properties': {'field1': {'type': 'string'}, 'field2': {'type': 'number'}},
+      'required': ['field1'],
+      'additionalProperties': false,
     });
 
     const mockApi = {
@@ -274,8 +326,7 @@ describe('InferredComponentApiSchemaType', () => {
       schema: mockSchema,
     } satisfies ComponentApi;
 
-    // Type-level equivalence assertion using z.infer
-    type ExpectedType = z.infer<typeof mockSchema>;
+    // Type-level equivalence assertion against the schema's output type.
     type InferredType = InferredComponentApiSchemaType<typeof mockApi>;
 
     // Assert `InferredType` is not exactly `any`

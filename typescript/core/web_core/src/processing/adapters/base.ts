@@ -16,7 +16,7 @@
 
 import {InternalOperation} from '../operations.js';
 import {A2uiValidationError, noValidatorError} from '../../errors.js';
-import {formatIssue, pickIssue} from '../../schema-engine/issues.js';
+import {formatIssue, issueToDetail, pickIssue} from '../../schema-engine/issues.js';
 import type {A2uiIssue, JsonSchemaValidator} from '../../schema-engine/types.js';
 import {extractEnvelopeErrorContext, mapErrorToRendererMessage} from '../message-error-mapper.js';
 import {type ProtocolMessageSpec, validateProtocolMessage} from './message-specs.js';
@@ -307,7 +307,7 @@ export abstract class BaseVersionAdapter implements VersionAdapter {
       const issue = pickIssue(scopeIssuesToAction(issues, actionKey));
       const err = new A2uiValidationError(
         `Invalid ${this.version} message: ${formatIssue(issue)}`,
-        issues,
+        issues.map(each => issueToDetail(each)),
         'VALIDATION_ERROR',
         {path: issuePointer(issue.path, actionKey)},
       );

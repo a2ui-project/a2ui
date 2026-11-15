@@ -17,7 +17,6 @@
 import * as assert from 'node:assert';
 import {describe, it, before, beforeEach, after, afterEach} from 'node:test';
 import {setupTestDom, teardownTestDom, asyncUpdate} from '../../../test/dom-setup.js';
-import {z} from 'zod';
 import {
   ComponentContext,
   MessageProcessor,
@@ -27,10 +26,10 @@ import {
   Subscription,
   peekValue,
 } from '../../../v0_9/index.js';
-import {CheckableSchema} from '../../../v0_9/schema/common-types.js';
 import {NodeResolver} from '../../../resolution/node-resolver.js';
 import type {ComponentNode} from '../../../resolution/component-node.js';
 import {testValidator} from '../../../test/validator.js';
+import {jsonFixture} from '../../../test/schema.js';
 
 describe('BasicCatalogA2uiLitElement', () => {
   let customCatalog: Catalog<ComponentApi>;
@@ -43,19 +42,33 @@ describe('BasicCatalogA2uiLitElement', () => {
 
     const {css, html} = await import('lit');
 
-    const TestComponentSchema = z.object({
-      text: z.string().optional(),
-      weight: z.number().optional(),
-      checks: CheckableSchema.shape.checks,
-      accessibility: z
-        .object({
-          label: z.string().optional(),
-          description: z.string().optional(),
-          live: z.enum(['off', 'polite', 'assertive']).optional(),
-          hidden: z.boolean().optional(),
-        })
-        .optional(),
-    });
+    const TestComponentSchema = jsonFixture(
+      {
+        'type': 'object',
+        'properties': {
+          'text': {'type': 'string'},
+          'weight': {'type': 'number'},
+          'checks': {
+            'type': 'array',
+            'items': {'$ref': 'common_types.json#/$defs/CheckRule'},
+            'description':
+              'A list of checks to perform. These are function calls that must return a boolean indicating validity.',
+          },
+          'accessibility': {
+            'type': 'object',
+            'properties': {
+              'label': {'type': 'string'},
+              'description': {'type': 'string'},
+              'live': {'type': 'string', 'enum': ['off', 'polite', 'assertive']},
+              'hidden': {'type': 'boolean'},
+            },
+            'additionalProperties': false,
+          },
+        },
+        'additionalProperties': false,
+      },
+      '0.9',
+    );
 
     const TestComponentApi: ComponentApi<typeof TestComponentSchema> = {
       name: 'TestComponent',

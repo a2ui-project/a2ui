@@ -42,7 +42,7 @@ import {
 } from '../../../../common/basic_functions.js';
 import {fromJsonSchema, jsonSchemaDocuments} from '../../../../schema-engine/from-json-schema.js';
 import type {JsonSchemaValidator} from '../../../../schema-engine/types.js';
-import {IndexImplementation} from '../../../../v1_0/functions/system_functions.js';
+import {INDEX_ARGS, IndexImplementation} from '../../../../v1_0/functions/system_functions.js';
 import {V10_VALIDATION_FUNCTION_EXECUTORS} from '../../../../v1_0/functions/validation_functions.js';
 import {loadBasicCatalogApi} from '../document.js';
 
@@ -72,23 +72,6 @@ function specExecutors(locale?: string): Record<string, FunctionExecutorFactory>
     not: api => createNotImplementation(api, {truthy: isTruthyOrValid}),
   };
 }
-
-/**
- * The arguments of the `@index` system function, as the v1.0 common types'
- * `IndexSystemFunction` declares them.
- */
-const INDEX_ARGS = {
-  type: 'object',
-  properties: {
-    offset: {
-      $ref: 'common_types.json#/$defs/DynamicNumber',
-      description:
-        'Optional. An offset to add to the 0-based index (e.g., 1 for 1-based indexing). Defaults to 0.',
-      default: 0,
-    },
-  },
-  unevaluatedProperties: false,
-};
 
 /**
  * Creates the complete function set for a v1.0 basic catalog: the functions

@@ -18,12 +18,15 @@ import * as assert from 'node:assert';
 import {describe, it} from 'node:test';
 
 import type {ActionPayload} from '../state/surface-model.js';
-import {A2uiClientMessageSchema} from '../v0_9/schema/client-to-server.js';
-import {
-  ActionMessageSchema,
-  RendererToAgentMessageSchema,
-} from '../v1_0/schema/renderer-to-agent.js';
+import type {JsonSchema} from '../schema-engine/types.js';
+import {specSchema} from '../test/schema.js';
+import V091ClientToServer from '../v0_9_1/schemas/client_to_server.json' with {type: 'json'};
+import V10RendererToAgent from '../v1_0/schemas/renderer_to_agent.json' with {type: 'json'};
 import {toOutboundActionMessage} from './outbound-envelope.js';
+
+const A2uiClientMessageSchema = specSchema(V091ClientToServer as JsonSchema, '0.9.1');
+const RendererToAgentMessageSchema = specSchema(V10RendererToAgent as JsonSchema);
+const ActionMessageSchema = RendererToAgentMessageSchema;
 
 describe('toOutboundActionMessage', () => {
   const baseAction: ActionPayload = {

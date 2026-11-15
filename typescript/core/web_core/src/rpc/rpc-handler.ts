@@ -22,17 +22,15 @@ import {
 } from '../resolution/data-context-internal.js';
 import {isSignal, getValue} from '../reactivity/signals.js';
 import {SurfaceModel} from '../state/surface-model.js';
-import {FunctionCall} from '../v1_0/schema/common-types.js';
-import {
-  CallRendererFunctionMessage,
+import type {FunctionCall} from '../v1_0/generated-common-types.js';
+import type {
+  ActionMessage,
   AgentFunctionResponseMessage,
-} from '../v1_0/schema/agent-to-renderer.js';
-import {
-  type ActionMessage,
   CallAgentFunctionMessage,
+  CallRendererFunctionMessage,
   RendererFunctionResponseMessage,
-} from '../v1_0/schema/renderer-to-agent.js';
-import type {A2uiClientAction} from '../v0_9/schema/client-to-server.js';
+} from '../v1_0/message-types.js';
+import type {A2uiClientAction} from '../v0_9/message-types.js';
 import type {RendererErrorMessage} from '../processing/message-error-mapper.js';
 import {isCatalogVersionCompatible} from '../processing/adapters/base.js';
 import {findFailedArgument, settleDeep} from '../common/settle_deep.js';
