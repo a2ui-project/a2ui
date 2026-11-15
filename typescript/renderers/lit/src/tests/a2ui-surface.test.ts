@@ -19,6 +19,7 @@ import assert from 'node:assert';
 import {describe, it, beforeEach, after, before} from 'node:test';
 import type {A2uiSurface} from '../surface/a2ui-surface.js';
 import {ComponentModel, MessageProcessor, isComponentNode} from '@a2ui/web_core';
+import {validator} from './validator.js';
 
 /**
  * These tests verify that the surface element:
@@ -36,7 +37,7 @@ describe('A2uiSurface', () => {
     // Dynamically import component files *after* setting up JSDOM globals
     // to prevent LitElement from evaluating in an empty Node context and crashing.
     await import('../surface/a2ui-surface.js');
-    basicCatalog = (await import('../v0_9/catalogs/basic/index.js')).basicCatalog;
+    basicCatalog = (await import('../v0_9/catalogs/basic/index.js')).createBasicCatalog(validator);
   });
   after(teardownTestDom);
 
@@ -44,7 +45,7 @@ describe('A2uiSurface', () => {
   let surfaceModel: any;
 
   beforeEach(() => {
-    processor = new MessageProcessor([basicCatalog]);
+    processor = new MessageProcessor([basicCatalog], undefined, {validator});
     // Initialize the test surface
     processor.processMessages([
       {

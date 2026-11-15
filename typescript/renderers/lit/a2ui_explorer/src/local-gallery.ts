@@ -21,9 +21,10 @@ import {MessageProcessor} from '@a2ui/web_core/v1_0';
 import type {A2uiClientAction} from '@a2ui/web_core/v0_9';
 import {Context} from '@a2ui/lit';
 import {mcpCatalog} from '@a2ui/catalog-mcp';
-import {basicCatalog as basicCatalogV10} from '@a2ui/web_core/catalogs/basic/v1';
+import {createBasicCatalog as createBasicCatalogV10} from '@a2ui/web_core/catalogs/basic/v1';
 import {renderMarkdown} from '@a2ui/markdown-it';
 import {demoCatalog} from './demo-catalog.js';
+import {validator} from './validator.js';
 import {getDemoItems, DemoItem, ExplorerMessage, SpecVersion} from './examples';
 import {appStyles} from './local-gallery.css';
 import {handleMcpToolAction, observeMcpApps} from './mcp/index.js';
@@ -69,7 +70,7 @@ export class LocalGallery extends LitElement {
   private markdownRenderer = renderMarkdown;
 
   private processor = new MessageProcessor(
-    [demoCatalog, basicCatalogV10, mcpCatalog],
+    [demoCatalog, createBasicCatalogV10(validator), mcpCatalog],
     (action: A2uiClientAction) => {
       this.log(`Action dispatched: ${action.surfaceId}`, action, action.name || 'Action');
       this.actionLog.push(action);
@@ -77,6 +78,7 @@ export class LocalGallery extends LitElement {
         this.log(`MCP tool action failed: ${(err as Error).message ?? String(err)}`, err, 'Error');
       });
     },
+    {validator},
   );
 
   private dataModelSubscription?: {unsubscribe: () => void};

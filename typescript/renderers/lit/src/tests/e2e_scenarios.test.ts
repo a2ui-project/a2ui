@@ -24,12 +24,11 @@ import {setupTestDom, teardownTestDom} from './dom-setup.js';
 import * as yaml from 'js-yaml';
 
 import {A2uiError, Catalog, getValue, ResolvedBinding, type ComponentNode} from '@a2ui/web_core';
-import {basicCatalog as v09BasicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
-import {A2uiClientMessageSchema} from '@a2ui/web_core/v0_9';
-import {RendererToAgentMessageSchema} from '@a2ui/web_core/v1_0';
+import {createBasicCatalog as createV09BasicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
 
 import type {A2uiSurface} from '../surface/a2ui-surface.js';
 import type {LitComponentApi} from '../types.js';
+import {outboundIssues, validator} from './validator.js';
 import {
   assertKnownKeys,
   assertViewTree,
@@ -301,16 +300,11 @@ export function assertOutbound(
   expected: Array<Record<string, unknown>>,
   protocolVersion: string,
 ): void {
-  const isV09 = protocolVersion.startsWith('v0.9') || protocolVersion.startsWith('0.9');
   for (let i = 0; i < actual.length; i++) {
-    const parsed = isV09
-      ? A2uiClientMessageSchema.safeParse(actual[i])
-      : RendererToAgentMessageSchema.safeParse(actual[i]);
+    const issues = outboundIssues(actual[i], protocolVersion);
     assert.ok(
-      parsed.success,
-      `outbound[${i}] failed protocol schema validation: ${
-        parsed.success ? '' : JSON.stringify(parsed.error.issues)
-      }`,
+      issues.length === 0,
+      `outbound[${i}] failed protocol schema validation: ${JSON.stringify(issues)}`,
     );
   }
   assert.equal(actual.length, expected.length, 'expectOutbound length');
@@ -346,14 +340,10 @@ function loadExtraCatalogs(catalogPaths: string[]): SecondaryCatalogSpec[] {
 }
 
 function registerV09BasicCatalog(session: AdapterSession): void {
-  const base = v09BasicCatalog as unknown as Catalog<LitComponentApi>;
-  const v09Cat = new Catalog<LitComponentApi>(
-    base.id,
-    base.protocolVersion ?? 'v0.9',
+  const base = createV09BasicCatalog(validator) as unknown as Catalog<LitComponentApi>;
+  const v09Cat = base.withEntries(
     Array.from(base.components.values()),
     Array.from(base.functions?.values() ?? []),
-    base.themeSchema,
-    base.instructions,
   );
   const internal = session.processor as unknown as {
     registeredCatalogs: Array<Catalog<LitComponentApi>>;

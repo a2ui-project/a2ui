@@ -17,11 +17,10 @@
 import {setupTestDom, teardownTestDom, asyncUpdate} from './dom-setup.js';
 import assert from 'node:assert';
 import {describe, it, before, after} from 'node:test';
-import {MessageProcessor, Catalog} from '@a2ui/web_core';
+import {MessageProcessor, Catalog, fromJsonSchema} from '@a2ui/web_core';
 import type {LitComponentApi} from '../index.js';
 import type {A2uiSurface} from '../surface/a2ui-surface.js';
-
-import {z} from 'zod';
+import {validator} from './validator.js';
 
 // A mock custom component API. The element is never instantiated by these
 // tests; it only satisfies the WebComponentImplementation contract. It cannot
@@ -32,9 +31,10 @@ const CustomWidgetApi = {
   name: 'CustomWidget',
   tagName: 'a2ui-customwidget',
   element: CustomWidgetElement,
-  schema: z.object({
-    label: z.string().optional(),
-  }),
+  schema: fromJsonSchema<{label?: string}>(
+    {type: 'object', properties: {label: {type: 'string'}}},
+    validator,
+  ),
 }; // satisfies LitComponentApi
 
 // A custom catalog wrapping the component
@@ -55,14 +55,16 @@ describe('Custom Catalogs Integration', () => {
     // Dynamically import component files *after* setting up JSDOM globals
     // to prevent LitElement from evaluating in an empty Node context.
     await import('../surface/a2ui-surface.js');
-    basicCatalog = (await import('../v0_9/catalogs/basic/index.js')).basicCatalog;
+    basicCatalog = (await import('../v0_9/catalogs/basic/index.js')).createBasicCatalog(validator);
   });
 
   after(teardownTestDom);
 
   it('should allow users to define and use their own custom catalogs', async () => {
     // MessageProcessor instantiated exclusively with the custom catalog
-    const processor = new MessageProcessor<LitComponentApi>([customCatalog]);
+    const processor = new MessageProcessor<LitComponentApi>([customCatalog], undefined, {
+      validator,
+    });
 
     // Initialize a surface mapped to the custom catalog and populate it with a CustomWidget
     processor.processMessages([
@@ -97,7 +99,13 @@ describe('Custom Catalogs Integration', () => {
 
   it('should handle multiple catalogs concurrently across different surfaces', async () => {
     // MessageProcessor instantiated with MULTIPLE catalogs
-    const processor = new MessageProcessor<LitComponentApi>([basicCatalog, customCatalog]);
+    const processor = new MessageProcessor<LitComponentApi>(
+      [basicCatalog, customCatalog],
+      undefined,
+      {
+        validator,
+      },
+    );
 
     // Create two independent surfaces concurrently, mapping them to their respective
     // catalogs, and populate each with a component type unique to that catalog.

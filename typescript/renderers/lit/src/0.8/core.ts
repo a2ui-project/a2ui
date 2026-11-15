@@ -22,6 +22,7 @@ import * as Styles from '@a2ui/web_core/styles/index';
 import {A2uiMessageProcessor} from '@a2ui/web_core/data/model-processor';
 import * as Primitives from '@a2ui/web_core/types/primitives';
 import {create as createSignalA2uiMessageProcessor} from './data/signal-model-processor.js';
+export type {SignalA2uiMessageProcessorOptions} from './data/signal-model-processor.js';
 export {Types, Guards, Schemas, Styles, A2uiMessageProcessor, Primitives, WebEvents};
 
 export const Data = {

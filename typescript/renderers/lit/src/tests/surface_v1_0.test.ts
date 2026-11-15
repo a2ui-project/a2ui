@@ -17,13 +17,13 @@
 import {setupTestDom, teardownTestDom, asyncUpdate} from './dom-setup.js';
 import assert from 'node:assert';
 import {describe, it, before, after, afterEach} from 'node:test';
-import {z} from 'zod';
 import {html, nothing} from 'lit';
-import {Catalog, MessageProcessor} from '@a2ui/web_core';
+import {Catalog, MessageProcessor, fromJsonSchema} from '@a2ui/web_core';
 import {A2uiLitElement, registerUniversalElement} from '@a2ui/web_core/universal';
-import {basicCatalog as v1BasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+import {createBasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
 import type {A2uiSurface} from '../index.js';
 import type {LitComponentApi} from '../types.js';
+import {validator} from './validator.js';
 
 async function settleTree(node: Node): Promise<void> {
   const el = node as {updateComplete?: Promise<boolean>; shadowRoot?: ShadowRoot | null};
@@ -45,7 +45,7 @@ describe('Lit v1.0 Surface & Catalog Integration', () => {
   before(async () => {
     setupTestDom();
     await import('../surface/a2ui-surface.js');
-    basicCatalog = v1BasicCatalog as unknown as Catalog<LitComponentApi>;
+    basicCatalog = createBasicCatalog(validator) as unknown as Catalog<LitComponentApi>;
   });
 
   afterEach(() => {
@@ -68,7 +68,7 @@ describe('Lit v1.0 Surface & Catalog Integration', () => {
   }
 
   it('renders a v1.0 createSurface payload with inline components and dataModel', async () => {
-    const processor = new MessageProcessor<LitComponentApi>([basicCatalog]);
+    const processor = new MessageProcessor<LitComponentApi>([basicCatalog], undefined, {validator});
     processor.processMessages([
       {
         version: '1.0',
@@ -108,7 +108,7 @@ describe('Lit v1.0 Surface & Catalog Integration', () => {
   });
 
   it('renders TextField.placeholder, Video.posterUrl, and Slider.steps + validation error', async () => {
-    const processor = new MessageProcessor<LitComponentApi>([basicCatalog]);
+    const processor = new MessageProcessor<LitComponentApi>([basicCatalog], undefined, {validator});
     processor.processMessages([
       {
         version: '1.0',
@@ -179,7 +179,7 @@ describe('Lit v1.0 Surface & Catalog Integration', () => {
   });
 
   it('renders accessibility ARIA attributes on components', async () => {
-    const processor = new MessageProcessor<LitComponentApi>([basicCatalog]);
+    const processor = new MessageProcessor<LitComponentApi>([basicCatalog], undefined, {validator});
     processor.processMessages([
       {
         version: '1.0',
@@ -225,7 +225,7 @@ describe('Lit v1.0 Surface & Catalog Integration', () => {
   });
 
   it('evaluates @index inside a List template', async () => {
-    const processor = new MessageProcessor<LitComponentApi>([basicCatalog]);
+    const processor = new MessageProcessor<LitComponentApi>([basicCatalog], undefined, {validator});
     processor.processMessages([
       {
         version: '1.0',
@@ -287,9 +287,13 @@ describe('Lit v1.0 Surface & Catalog Integration', () => {
 
   it('handles local openUrl functionCall action vs. event action dispatch', async () => {
     const dispatchedActions: Array<{name: string; context?: Record<string, unknown>}> = [];
-    const processor = new MessageProcessor<LitComponentApi>([basicCatalog], action => {
-      dispatchedActions.push(action);
-    });
+    const processor = new MessageProcessor<LitComponentApi>(
+      [basicCatalog],
+      action => {
+        dispatchedActions.push(action);
+      },
+      {validator},
+    );
 
     processor.processMessages([
       {
@@ -378,12 +382,15 @@ describe('Lit v1.0 Surface & Catalog Integration', () => {
   it('renders multi-catalog surfaces when child or root component uses a secondary catalogId', async () => {
     const CustomPanelApi = {
       name: 'CustomPanel',
-      schema: z
-        .object({
-          heading: z.string(),
-          child: z.string().optional(),
-        })
-        .strict(),
+      schema: fromJsonSchema<{heading: string; child?: string}>(
+        {
+          type: 'object',
+          properties: {heading: {type: 'string'}, child: {type: 'string'}},
+          required: ['heading'],
+          additionalProperties: false,
+        },
+        validator,
+      ),
     };
 
     class CustomPanelElement extends A2uiLitElement<typeof CustomPanelApi> {
@@ -414,7 +421,13 @@ describe('Lit v1.0 Surface & Catalog Integration', () => {
       [],
     );
 
-    const processor = new MessageProcessor<LitComponentApi>([basicCatalog, secondaryCatalog]);
+    const processor = new MessageProcessor<LitComponentApi>(
+      [basicCatalog, secondaryCatalog],
+      undefined,
+      {
+        validator,
+      },
+    );
 
     // Case A: Surface default catalog is basicCatalog, child uses secondaryCatalog
     processor.processMessages([
@@ -485,7 +498,7 @@ describe('Lit v1.0 Surface & Catalog Integration', () => {
   });
 
   it('renders a surface with no default catalog whose root names its catalog', async () => {
-    const processor = new MessageProcessor<LitComponentApi>([basicCatalog]);
+    const processor = new MessageProcessor<LitComponentApi>([basicCatalog], undefined, {validator});
     processor.processMessages([
       {version: '1.0', createSurface: {surfaceId: 'no-default-surface'}},
       {

@@ -222,6 +222,7 @@ __metadata:
     "@a2ui/catalog-mcp": "workspace:*"
     "@a2ui/lit": "workspace:*"
     "@a2ui/markdown-it": "workspace:*"
+    "@a2ui/validator-ajv": "workspace:*"
     "@a2ui/web_core": "workspace:*"
     "@lit-labs/signals": "npm:^0.3.0"
     "@lit/context": "npm:^1.1.6"
@@ -265,6 +266,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@a2ui/lit@workspace:typescript/renderers/lit"
   dependencies:
+    "@a2ui/validator-ajv": "workspace:*"
     "@a2ui/web_core": "workspace:*"
     "@lit-labs/signals": "npm:^0.3.0"
     "@lit/context": "npm:^1.1.6"
@@ -279,7 +281,6 @@ __metadata:
     signal-utils: "npm:^0.21.1"
     typescript: "npm:5.9.3"
     wireit: "npm:^0.15.0-pre.2"
-    zod: "npm:^3.25.76"
   peerDependencies:
     "@a2ui/markdown-it": "workspace:*"
   peerDependenciesMeta:

@@ -19,6 +19,7 @@ import assert from 'node:assert';
 import {describe, it, after, before, afterEach} from 'node:test';
 import type {AnyComponentNode, Theme} from '@a2ui/web_core/types/types';
 import * as v0_8 from './core.js';
+import {validator} from '../tests/validator.js';
 import type {Image} from './ui/image.js';
 import type {Video} from './ui/video.js';
 import type {Audio} from './ui/audio.js';
@@ -149,7 +150,7 @@ describe('0.8 Media Components URL Scheme Validation', () => {
   });
 
   it('renders bound URLs, altText, and object-fit styles across Image, Video, and Audio', async () => {
-    const processor = new v0_8.Data.A2uiMessageProcessor();
+    const processor = new v0_8.Data.A2uiMessageProcessor({validator});
     processor.processMessages([
       {
         beginRendering: {

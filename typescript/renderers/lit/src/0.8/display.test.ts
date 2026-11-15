@@ -20,6 +20,7 @@ import assert from 'node:assert';
 import {describe, it, after, before, afterEach} from 'node:test';
 import type {AnyComponentNode, Theme} from '@a2ui/web_core/types/types';
 import * as v0_8 from './core.js';
+import {validator} from '../tests/validator.js';
 
 const mockTheme = {
   components: {
@@ -91,7 +92,7 @@ describe('0.8 Display Components (Text and Icon)', () => {
   });
 
   it('Text resolves data-bound path from A2uiMessageProcessor', async () => {
-    const processor = new v0_8.Data.A2uiMessageProcessor();
+    const processor = new v0_8.Data.A2uiMessageProcessor({validator});
     processor.processMessages([
       {
         beginRendering: {
@@ -131,7 +132,7 @@ describe('0.8 Display Components (Text and Icon)', () => {
   });
 
   it('Icon renders snake_case material icon glyph from literal and bound names', async () => {
-    const processor = new v0_8.Data.A2uiMessageProcessor();
+    const processor = new v0_8.Data.A2uiMessageProcessor({validator});
     processor.processMessages([
       {
         beginRendering: {

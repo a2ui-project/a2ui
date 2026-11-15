@@ -14,60 +14,46 @@
  * limitations under the License.
  */
 
-import {Catalog} from '@a2ui/web_core';
+import type {Catalog, FunctionImplementation, JsonSchemaValidator} from '@a2ui/web_core';
 import {
-  BASIC_FUNCTIONS,
-  A2uiAudioPlayer,
-  A2uiButton,
-  A2uiCard,
-  A2uiCheckBox,
-  A2uiChoicePicker,
-  A2uiColumn,
-  A2uiDateTimeInput,
-  A2uiDivider,
-  A2uiIcon,
-  A2uiImage,
-  A2uiList,
-  A2uiModal,
-  A2uiRow,
-  A2uiSlider,
-  A2uiTabs,
-  A2uiText,
-  A2uiTextField,
-  A2uiVideo,
+  createBasicCatalog as createWebCoreBasicCatalog,
+  createBasicCatalogFunctions,
 } from '@a2ui/web_core/v0_9/basic_catalog';
 import type {LitComponentApi} from '../../../types.js';
 
+/** The v0.9 basic catalog for Lit. */
+export type LitBasicCatalog = Catalog<LitComponentApi, FunctionImplementation>;
+
+const built = new WeakMap<JsonSchemaValidator, LitBasicCatalog>();
+
 /**
- * The basic catalog for A2UI components in Lit.
+ * Returns the basic catalog for A2UI components in Lit.
  *
  * This catalog includes a wide range of components such as text, button,
  * text field, row, column, list, image, icon, video, audio player, card,
  * divider, checkbox, slider, date-time input, choice picker, tabs, and modal.
- * It also includes the basic functions.
+ * It also includes the basic functions: the ones the v0.9 specification
+ * defines, after the legacy functions of `@a2ui/web_core` 0.9.x (`add`,
+ * `equals`, `contains` and the rest).
+ *
+ * The components and functions validate with `validator`. The catalog is
+ * built the first time it is asked for with a validator, and later calls
+ * with the same validator return the same catalog.
+ *
+ * @param validator The JSON Schema validator, such as `createAjvValidator()`
+ *   from `@a2ui/validator-ajv`.
+ * @throws {A2uiConfigurationError} If `validator` is missing.
  */
-export const basicCatalog = new Catalog<LitComponentApi>(
-  'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
-  '0.9',
-  [
-    A2uiAudioPlayer,
-    A2uiButton,
-    A2uiCard,
-    A2uiCheckBox,
-    A2uiChoicePicker,
-    A2uiColumn,
-    A2uiDateTimeInput,
-    A2uiDivider,
-    A2uiIcon,
-    A2uiImage,
-    A2uiList,
-    A2uiModal,
-    A2uiRow,
-    A2uiSlider,
-    A2uiTabs,
-    A2uiText,
-    A2uiTextField,
-    A2uiVideo,
-  ],
-  BASIC_FUNCTIONS,
-);
+export function createBasicCatalog(validator: JsonSchemaValidator): LitBasicCatalog {
+  // web_core reports a missing validator.
+  const base = createWebCoreBasicCatalog(validator);
+  let catalog = built.get(validator);
+  if (!catalog) {
+    catalog = base.withEntries<LitComponentApi, FunctionImplementation>(
+      [...base.components.values()],
+      createBasicCatalogFunctions(validator),
+    );
+    built.set(validator, catalog);
+  }
+  return catalog;
+}

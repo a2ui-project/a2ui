@@ -19,6 +19,7 @@
 import assert from 'node:assert';
 import {describe, it, beforeEach} from 'node:test';
 import * as v0_8 from './core.js';
+import {validator} from '../tests/validator.js';
 import * as Types from '@a2ui/web_core/types/types';
 import {A2uiStateError} from '@a2ui/web_core/v0_8';
 
@@ -44,10 +45,10 @@ const toPlainObject = (value: unknown): ReturnType<typeof JSON.parse> => {
 };
 
 describe('A2uiMessageProcessor', () => {
-  let processor = new v0_8.Data.A2uiMessageProcessor();
+  let processor = new v0_8.Data.A2uiMessageProcessor({validator});
 
   beforeEach(() => {
-    processor = new v0_8.Data.A2uiMessageProcessor();
+    processor = new v0_8.Data.A2uiMessageProcessor({validator});
   });
 
   describe('Basic Initialization and State', () => {
@@ -190,7 +191,7 @@ describe('A2uiMessageProcessor', () => {
     });
 
     it('should not resolve Object.prototype inherited properties on signal objects', () => {
-      const signalProcessor = v0_8.Data.createSignalA2uiMessageProcessor();
+      const signalProcessor = v0_8.Data.createSignalA2uiMessageProcessor({validator});
       signalProcessor.processMessages([
         {
           dataModelUpdate: {

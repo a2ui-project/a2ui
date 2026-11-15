@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import {basicCatalog as basicCatalogV09} from '@a2ui/lit/v0_9';
-import {basicCatalog as basicCatalogV10} from '@a2ui/web_core/catalogs/basic/v1';
+import {BASIC_CATALOG_ID as BASIC_CATALOG_ID_V09} from '@a2ui/web_core/v0_9/basic_catalog';
+import {BASIC_CATALOG_ID as BASIC_CATALOG_ID_V10} from '@a2ui/web_core/catalogs/basic/v1';
 import {
   ExampleData,
   ExampleModule,
@@ -171,7 +171,7 @@ function ensureCreateSurfaceMessage(
       version: '1.0',
       createSurface: {
         surfaceId,
-        catalogId: basicCatalogV10.id,
+        catalogId: BASIC_CATALOG_ID_V10,
       },
     });
   } else {
@@ -179,7 +179,7 @@ function ensureCreateSurfaceMessage(
       version: 'v0.9',
       createSurface: {
         surfaceId,
-        catalogId: basicCatalogV09.id,
+        catalogId: BASIC_CATALOG_ID_V09,
       },
     });
   }

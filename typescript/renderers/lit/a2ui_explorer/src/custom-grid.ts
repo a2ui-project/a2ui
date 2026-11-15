@@ -16,20 +16,11 @@
 
 import {html, css, nothing} from 'lit';
 import {customElement} from 'lit/decorators.js';
-import {z} from 'zod';
 import {A2uiLitElement} from '@a2ui/lit';
-import {ComponentApi} from '@a2ui/web_core';
 import {WebComponentImplementation} from '@a2ui/web_core/universal';
-import {DynamicStringSchema, ChildListSchema} from '@a2ui/web_core/v0_9';
+import {customGridApi} from './demo-components.js';
 
-export const customGridApi = {
-  name: 'CustomGrid',
-  schema: z.object({
-    title: DynamicStringSchema.optional(),
-    description: DynamicStringSchema.optional(),
-    children: ChildListSchema.optional(),
-  }),
-} satisfies ComponentApi;
+export {customGridApi};
 
 /**
  * A custom container component written in Lit.

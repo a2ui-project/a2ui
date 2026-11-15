@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import type {JsonSchemaValidator} from '@a2ui/web_core';
 import {A2uiMessageProcessor} from '@a2ui/web_core/data/model-processor';
 
 import {SignalArray} from 'signal-utils/array';
@@ -21,8 +22,25 @@ import {SignalMap} from 'signal-utils/map';
 import {SignalObject} from 'signal-utils/object';
 import {SignalSet} from 'signal-utils/set';
 
-export function create() {
+/** Options for {@link create}. */
+export interface SignalA2uiMessageProcessorOptions {
+  /**
+   * The JSON Schema validator messages are checked with against the v0.8
+   * spec, such as `createAjvValidator()` from `@a2ui/validator-ajv`.
+   */
+  validator: JsonSchemaValidator;
+}
+
+/**
+ * Creates a v0.8 message processor whose model is built from signal-backed
+ * collections, so Lit elements re-render when it changes.
+ *
+ * @param options The processor options; `validator` is required.
+ * @throws {A2uiConfigurationError} If `options.validator` is missing.
+ */
+export function create(options: SignalA2uiMessageProcessorOptions) {
   return new A2uiMessageProcessor({
+    validator: options?.validator,
     arrayCtor: SignalArray as unknown as ArrayConstructor,
     mapCtor: SignalMap as unknown as MapConstructor,
     objCtor: SignalObject as unknown as ObjectConstructor,

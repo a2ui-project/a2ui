@@ -20,11 +20,11 @@ import * as path from 'node:path';
 
 import {asyncUpdate} from './dom-setup.js';
 import {html} from 'lit';
-import {z} from 'zod';
 
 import {
   Catalog,
   MessageProcessor,
+  fromJsonSchema,
   ResolvedBinding,
   getValue,
   isComponentNode,
@@ -33,14 +33,13 @@ import {
   type ProcessableMessage,
   type SurfaceModel,
 } from '@a2ui/web_core';
-import {basicCatalog as v1BasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
-import {basicCatalog as v09BasicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
+import {createBasicCatalog as createV1BasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+import {createBasicCatalog as createV09BasicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
 import {A2uiLitElement} from '@a2ui/web_core/universal';
-import {A2uiClientMessageSchema} from '@a2ui/web_core/v0_9';
-import {RendererToAgentMessageSchema} from '@a2ui/web_core/v1_0';
 
 import type {A2uiSurface} from '../index.js';
 import type {LitComponentApi} from '../types.js';
+import {outboundIssues, validator} from './validator.js';
 
 export interface ExpectedAccessibilityNode {
   label?: string;
@@ -531,12 +530,13 @@ function createIncrementCounterFn(): FunctionImplementation {
   return {
     name: 'incrementCounter',
     returnType: 'void',
-    schema: z.object({
-      path: z.string().optional(),
-      targetPath: z.string().optional(),
-      step: z.any().optional(),
-      amount: z.any().optional(),
-    }),
+    schema: fromJsonSchema(
+      {
+        type: 'object',
+        properties: {path: {type: 'string'}, targetPath: {type: 'string'}, step: {}, amount: {}},
+      },
+      validator,
+    ),
     execute: (
       args: {path?: string; targetPath?: string; step?: number; amount?: number},
       context,
@@ -551,25 +551,19 @@ function createIncrementCounterFn(): FunctionImplementation {
 
 export function createAugmentedBasicCatalog(version: string = '1.0'): Catalog<LitComponentApi> {
   const base = (version === 'v0.9'
-    ? v09BasicCatalog
-    : v1BasicCatalog) as unknown as Catalog<LitComponentApi>;
+    ? createV09BasicCatalog(validator)
+    : createV1BasicCatalog(validator)) as unknown as Catalog<LitComponentApi>;
   const components = Array.from(base.components.values());
   const functions = [...Array.from(base.functions?.values() ?? []), createIncrementCounterFn()];
-  return new Catalog<LitComponentApi>(
-    base.id,
-    base.protocolVersion ?? version,
-    components,
-    functions,
-    base.themeSchema,
-    base.instructions,
-  );
+  return base.withEntries(components, functions);
 }
 
 export function buildSecondaryCatalog(spec: SecondaryCatalogSpec): Catalog<LitComponentApi> {
   const components: LitComponentApi[] = [];
-  const badgeSchema = z.object({
-    badgeText: z.string().optional(),
-  });
+  const badgeSchema = fromJsonSchema(
+    {type: 'object', properties: {badgeText: {type: 'string'}}},
+    validator,
+  );
   for (const compName of Object.keys(spec.components ?? {})) {
     const tagName = `a2ui-conformance-${compName.toLowerCase()}`;
     let element = customElements.get(tagName) as CustomElementConstructor | undefined;
@@ -598,7 +592,7 @@ export function buildSecondaryCatalog(spec: SecondaryCatalogSpec): Catalog<LitCo
         return {
           name,
           returnType: (record['returnType'] as any) ?? 'any',
-          schema: z.object({}).passthrough(),
+          schema: fromJsonSchema({type: 'object'}, validator),
           allowedCallers: record['allowedCallers'] as
             | 'rendererOnly'
             | 'agentOnly'
@@ -1088,17 +1082,11 @@ function validateOutboundEnvelopes(
   envelopes: Array<Record<string, unknown>>,
   protocolVersion: string,
 ): void {
-  const isV09 = protocolVersion.startsWith('v0.9') || protocolVersion.startsWith('0.9');
   for (let i = 0; i < envelopes.length; i++) {
-    const env = envelopes[i];
-    const parsed = isV09
-      ? A2uiClientMessageSchema.safeParse(env)
-      : RendererToAgentMessageSchema.safeParse(env);
+    const issues = outboundIssues(envelopes[i], protocolVersion);
     assert.ok(
-      parsed.success,
-      `recordedOutbound[${i}] failed protocol schema validation: ${
-        parsed.success ? '' : JSON.stringify(parsed.error.issues)
-      }`,
+      issues.length === 0,
+      `recordedOutbound[${i}] failed protocol schema validation: ${JSON.stringify(issues)}`,
     );
   }
 }
@@ -1422,6 +1410,7 @@ export function mountSurface(
         : undefined;
   let lastCapturedCallId = '';
   const processor = new MessageProcessor<LitComponentApi>(catalogs, undefined, {
+    validator,
     validationConfig,
     outboundListener: msg => {
       recordedOutbound.push(structuredClone(msg) as unknown as Record<string, unknown>);

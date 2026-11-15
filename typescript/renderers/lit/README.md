@@ -5,15 +5,21 @@ AI agents to generate rich, interactive user interfaces through declarative JSON
 
 A basic catalog implementation is included to help you get started right away.
 
-Additional custom components can be defined with type-safe properties inferred
-from [Zod](https://zod.dev) schemas, and can be added to your own custom catalogs
-for total control over the generated code.
+Additional custom components are defined with JSON Schema (or any Standard
+Schema that implements Standard JSON Schema, such as the zod 4 helpers of
+`@a2ui/schema-zod4`), and can be added to your own custom catalogs for total
+control over the generated code.
 
 ## Installation
 
 ```bash
-yarn add @a2ui/lit @a2ui/web_core
+yarn add @a2ui/lit @a2ui/web_core @a2ui/validator-ajv
 ```
+
+`@a2ui/web_core` validates messages and component properties against the
+specification's JSON Schemas with a `JsonSchemaValidator` that the application
+passes in, such as `createAjvValidator()` from `@a2ui/validator-ajv`. `@a2ui/lit`
+has no default validator.
 
 ## Protocol Versioning
 
@@ -27,12 +33,15 @@ import {A2uiSurface} from '@a2ui/lit';
 import {MessageProcessor} from '@a2ui/web_core';
 
 // Basic catalog for v1.0:
-import {basicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+import {createBasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
 // ...or for v0.9 and v0.9.1:
-// import {basicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
+// import {createBasicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
 ```
 
-The `@a2ui/lit/v0_9` entry point remains available for backward compatibility.
+The `@a2ui/lit/v0_9` entry point remains available for backward compatibility. Its
+`createBasicCatalog(validator)` adds the legacy 0.9.x functions (`add`, `equals`, ...)
+to web_core's v0.9 basic catalog. The v0.8 `Data.createSignalA2uiMessageProcessor({validator})`
+takes the validator too.
 
 ## Quick Start
 
@@ -42,12 +51,16 @@ The Lit renderer works alongside the `MessageProcessor` from `@a2ui/web_core`.
 import {LitElement, html} from 'lit';
 import {customElement, state} from 'lit/decorators.js';
 import {MessageProcessor} from '@a2ui/web_core';
-import {basicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+import {createBasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+import {createAjvValidator} from '@a2ui/validator-ajv';
 import {A2uiSurface} from '@a2ui/lit';
+
+const validator = createAjvValidator();
+const basicCatalog = createBasicCatalog(validator);
 
 @customElement('my-app')
 export class MyApp extends LitElement {
-  private processor = new MessageProcessor([basicCatalog]);
+  private processor = new MessageProcessor([basicCatalog], undefined, {validator});
 
   @state()
   private surface: any;
@@ -92,21 +105,28 @@ A2UI separates a component's API (Schema) from its implementation.
 
 ### 1. Define the Component API
 
-Use Zod to define the properties.
+The schema is a `CatalogSchema`. The zod 4 helpers of `@a2ui/schema-zod4` write
+the common types (`DynamicString`, `Action`, `ChildList`, ...) as `$ref`s into the
+protocol's `common_types.json`, which is how web_core finds bindings and child
+references:
 
 ```typescript
-import {z} from 'zod';
-import {CommonSchemas} from '@a2ui/web_core/v1_0';
+import {component, DynamicString, Action} from '@a2ui/schema-zod4';
 
 export const MyProfileApi = {
   name: 'Profile',
-  schema: z.object({
-    username: CommonSchemas.DynamicString,
-    bio: CommonSchemas.DynamicString,
-    onEdit: CommonSchemas.Action,
+  schema: component({
+    username: DynamicString,
+    bio: DynamicString,
+    onEdit: Action,
   }),
 };
 ```
+
+A schema without common types can be plain JSON Schema compiled with
+`fromJsonSchema(json, validator)` from `@a2ui/web_core`. Components defined in a
+catalog document are loaded with `Catalog.fromJson(document, version, catalogId, {validator})`
+(see the explorer's `a2ui_explorer/src/demo-components.ts`).
 
 ### 2. Create the Lit Implementation
 
@@ -164,16 +184,20 @@ in your app setup (as seen in the Quick Start).
 
 ```typescript
 import {MessageProcessor} from '@a2ui/web_core';
-import {basicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+import {createBasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+import {createAjvValidator} from '@a2ui/validator-ajv';
 import {myCatalog} from './my-catalog';
 
 // Initialize the MessageProcessor with both catalogs
-const processor = new MessageProcessor([basicCatalog, myCatalog]);
+const validator = createAjvValidator();
+const processor = new MessageProcessor([createBasicCatalog(validator), myCatalog], undefined, {
+  validator,
+});
 ```
 
 ## Basic Catalog Components
 
-`@a2ui/web_core/catalogs/basic/v1` (v1.0) and `@a2ui/web_core/v0_9/basic_catalog` (v0.9 and v0.9.1) each provide a `basicCatalog` with standard components.
+`@a2ui/web_core/catalogs/basic/v1` (v1.0) and `@a2ui/web_core/v0_9/basic_catalog` (v0.9 and v0.9.1) each provide a `createBasicCatalog(validator)` factory for the catalog of standard components.
 You can find the full specification of the basic catalog in the [GitHub repository](../../../catalogs/basic/v1/catalog.json).
 
 - **Layout**: `Row`, `Column`, `List`, `Card`, `Tabs`, `Modal`, `Divider`

@@ -16,9 +16,15 @@
 
 import assert from 'node:assert';
 import {describe, it} from 'node:test';
-import {MessageProcessor, GenericBinder, ComponentContext} from '@a2ui/web_core';
-import {basicCatalog} from '../v0_9/catalogs/basic/index.js';
-import {TextApi} from '@a2ui/web_core/v0_9/basic_catalog';
+import {
+  MessageProcessor,
+  NodeResolver,
+  ResolvedBinding,
+  isComponentNode,
+  peekValue,
+} from '@a2ui/web_core';
+import {createBasicCatalog} from '../v0_9/catalogs/basic/index.js';
+import {validator} from './validator.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -27,6 +33,8 @@ import path from 'path';
  * - The basic catalog is correctly defined and can be used to process
  *   the examples from web_core.
  */
+const basicCatalog = createBasicCatalog(validator);
+
 describe('v0.9 Basic Catalog Examples', () => {
   const examplesDir = path.resolve(
     process.cwd(),
@@ -55,7 +63,7 @@ describe('v0.9 Basic Catalog Examples', () => {
         });
       }
 
-      const processor = new MessageProcessor([basicCatalog]);
+      const processor = new MessageProcessor([basicCatalog], undefined, {validator});
 
       processor.processMessages(messages);
 
@@ -69,22 +77,31 @@ describe('v0.9 Basic Catalog Examples', () => {
         const textNode = surface.componentsModel.get('result_text');
         assert.ok(textNode);
 
-        const context = new ComponentContext(surface, 'result_text');
-        const binder = new GenericBinder<any>(context, TextApi.schema);
-        const sub = binder.subscribe(() => {}); // Force connection
+        const resolver = new NodeResolver(surface);
+        const root = peekValue(resolver.rootNode);
+        assert.ok(root, 'The resolver should resolve the root component');
+        const children = peekValue(root.props)['children'];
+        assert.ok(Array.isArray(children));
+        const textResult = children.find(
+          child => isComponentNode(child) && child.componentId === 'result_text',
+        );
+        assert.ok(isComponentNode(textResult));
 
         // Wait a microtask to let initial resolution finish
         await new Promise(r => setTimeout(r, 0));
-        assert.strictEqual(binder.snapshot.text, 'You typed: ');
+        const text = () => {
+          const value = peekValue(textResult.props)['text'];
+          return value instanceof ResolvedBinding ? value.value : value;
+        };
+        assert.strictEqual(text(), 'You typed: ');
 
         // Set value in data model
         surface.dataModel.set('/inputValue', 'hello world');
 
         await new Promise(r => setTimeout(r, 0));
-        assert.strictEqual(binder.snapshot.text, 'You typed: hello world');
+        assert.strictEqual(text(), 'You typed: hello world');
 
-        sub.unsubscribe();
-        binder.dispose();
+        resolver.dispose();
       }
     });
   }
@@ -95,7 +112,7 @@ describe('v0.9 Basic Catalog Examples', () => {
 // "version" field ("0.9" instead of "0.9.1").
 describe('v0.9.1 Basic Catalog Example Processing', () => {
   it('should successfully process v0.9.1 messages using basic catalog', () => {
-    const processor = new MessageProcessor([basicCatalog]);
+    const processor = new MessageProcessor([basicCatalog], undefined, {validator});
     const messages = [
       {
         version: 'v0.9.1' as const,

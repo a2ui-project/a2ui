@@ -14,19 +14,17 @@
  * limitations under the License.
  */
 
-import {Catalog} from '@a2ui/web_core';
-import {BASIC_FUNCTIONS} from '@a2ui/web_core/v0_9/basic_catalog';
-import {basicCatalog} from '@a2ui/lit/v0_9';
+import {createBasicCatalog} from '@a2ui/lit/v0_9';
 import {customSliderComponent} from './custom-slider.js';
 import {customGridComponent} from './custom-grid.js';
+import {validator} from './validator.js';
+
+const basicCatalog = createBasicCatalog(validator);
 
 /**
  * A catalog specific to the demo, extending the basic catalog with custom components.
  */
-export const demoCatalog = new Catalog(
-  basicCatalog.id,
-  '0.9',
+export const demoCatalog = basicCatalog.withEntries(
   [...basicCatalog.components.values(), customSliderComponent, customGridComponent],
-  BASIC_FUNCTIONS,
-  basicCatalog.themeSchema,
+  [...basicCatalog.functions.values()],
 );

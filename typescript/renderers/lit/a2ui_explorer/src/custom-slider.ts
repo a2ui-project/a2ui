@@ -16,21 +16,11 @@
 
 import {html, css, nothing} from 'lit';
 import {customElement} from 'lit/decorators.js';
-import {z} from 'zod';
 import {A2uiLitElement} from '@a2ui/lit';
-import {ComponentApi} from '@a2ui/web_core';
 import {WebComponentImplementation} from '@a2ui/web_core/universal';
-import {DynamicStringSchema, DynamicNumberSchema} from '@a2ui/web_core/v0_9';
+import {customSliderApi} from './demo-components.js';
 
-export const customSliderApi = {
-  name: 'CustomSlider',
-  schema: z.object({
-    label: DynamicStringSchema.optional(),
-    value: DynamicNumberSchema.optional(),
-    min: DynamicNumberSchema.optional(),
-    max: DynamicNumberSchema.optional(),
-  }),
-} satisfies ComponentApi;
+export {customSliderApi};
 
 /**
  * A custom component demonstrating external component registration in Lit.

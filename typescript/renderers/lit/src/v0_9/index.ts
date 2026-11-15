@@ -16,4 +16,4 @@
 
 export {A2uiController, A2uiLitElement, A2uiSurface, Context, renderA2uiNode} from '../index.js';
 export type {LitComponentApi, LitComponentApi as A2uiLitComponent} from '../types.js';
-export {basicCatalog} from './catalogs/basic/index.js';
+export {createBasicCatalog, type LitBasicCatalog} from './catalogs/basic/index.js';
