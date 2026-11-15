@@ -144,13 +144,41 @@ function paramsFor(keyword: string, error: string): Record<string, unknown> | un
   }
 }
 
-/** Creates a {@link JsonSchemaValidator} backed by `@cfworker/json-schema` (draft 2020-12). */
-export function createCfWorkerValidator(): JsonSchemaValidator {
+/** Keywords whose values are instance data, not subschemas. */
+const DATA_KEYWORDS = new Set(['const', 'enum', 'default', 'examples']);
+
+/**
+ * Removes `format` keywords from a schema copy in place, so cfworker, which always
+ * asserts formats, treats them as annotations. A `format` keyword is told from a
+ * property named `format` by its string value; instance data (`const`, `enum`, ...)
+ * is left untouched.
+ */
+function stripFormats(node: unknown): void {
+  if (Array.isArray(node)) {
+    for (const n of node) stripFormats(n);
+    return;
+  }
+  if (typeof node !== 'object' || node === null) return;
+  const obj = node as Json;
+  if (typeof obj.format === 'string') delete obj.format;
+  for (const [k, v] of Object.entries(obj)) if (!DATA_KEYWORDS.has(k)) stripFormats(v);
+}
+
+/**
+ * Creates a {@link JsonSchemaValidator} backed by `@cfworker/json-schema` (draft 2020-12).
+ *
+ * By default `format` is an annotation and is not asserted, as in JSON Schema
+ * 2020-12's default vocabulary and the Ajv adapter, so a `uri` property accepts a
+ * relative URL. Pass `{formats: true}` to assert formats with cfworker's checks.
+ */
+export function createCfWorkerValidator(options: {formats?: boolean} = {}): JsonSchemaValidator {
+  const formats = options.formats === true;
   return {
     compile<T = unknown>(input: JsonSchema, opts?: CompileOptions): CompiledValidator<T> {
       // cfworker caches each ref's absolute URI on the schema objects it is given, so it
       // gets a copy: the caller's schema, reused under another base, would resolve wrongly.
       const schema = structuredClone(withBaseId(input));
+      if (!formats) stripFormats(schema);
       const validator = new Validator(schema as object, '2020-12', false);
       const added = new Set<string>();
       for (const [key, def] of Object.entries(opts?.defs ?? {})) {
@@ -159,6 +187,7 @@ export function createCfWorkerValidator(): JsonSchemaValidator {
         if (typeof def !== 'object') continue; // boolean defs cannot be referenced by cfworker
         const resolved = resolveKey(key, schema);
         const copy = inlineLocalPointers({...def, $id: resolved}, def) as object;
+        if (!formats) stripFormats(copy);
         validator.addSchema(copy, resolved);
       }
       return (value: unknown) => {

@@ -169,3 +169,42 @@ describe('createCfWorkerValidator with a root schema without $id', () => {
     assert.ok(!('$id' in shared), 'the caller schema is not changed');
   });
 });
+
+describe('formats', () => {
+  const uri: JsonSchema = {type: 'string', format: 'uri'};
+
+  it('treats format as an annotation by default, as JSON Schema 2020-12 does', () => {
+    const validate = createCfWorkerValidator().compile(uri);
+    assert.ok(validate('relative/path').success);
+    assert.ok(validate('https://example.com/').success);
+    assert.strictEqual(validate(42).success, false, 'other keywords still apply');
+  });
+
+  it('treats format in referenced defs as an annotation by default', () => {
+    const validate = createCfWorkerValidator().compile(
+      {$ref: 'defs.json#/$defs/Url'},
+      {defs: {'defs.json': {$defs: {Url: uri}}}},
+    );
+    assert.ok(validate('relative/path').success);
+  });
+
+  it('keeps properties and values named format', () => {
+    const validate = createCfWorkerValidator().compile({
+      type: 'object',
+      required: ['format'],
+      properties: {format: {type: 'string'}, kind: {const: {format: 'uri'}}},
+    });
+    assert.ok(validate({format: 'x', kind: {format: 'uri'}}).success);
+    assert.strictEqual(validate({}).success, false);
+    assert.strictEqual(validate({format: 1}).success, false);
+    assert.strictEqual(validate({format: 'x', kind: {}}).success, false);
+  });
+
+  it('asserts formats when asked to', () => {
+    const validate = createCfWorkerValidator({formats: true}).compile(uri);
+    assert.ok(validate('https://example.com/').success);
+    const result = validate('relative/path');
+    assert.strictEqual(result.success, false);
+    if (!result.success) assert.strictEqual(result.issues[0].keyword, 'format');
+  });
+});

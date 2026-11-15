@@ -4,5 +4,5 @@
 
 ```ts
 import {createCfWorkerValidator} from '@a2ui/validator-cfworker';
-const validator = createCfWorkerValidator();
+const validator = createCfWorkerValidator(); // `format` is an annotation; pass {formats: true} to assert it
 ```
