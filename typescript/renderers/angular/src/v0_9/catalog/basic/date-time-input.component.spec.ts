@@ -20,6 +20,7 @@ import {DateTimeInputComponent} from './date-time-input.component';
 import {A2uiRendererService} from '@a2ui/angular';
 import {ComponentBinder} from '@a2ui/angular';
 import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
+import {provideTestValidator} from '../../../test_validator';
 
 describe('DateTimeInputComponent', () => {
   let component: DateTimeInputComponent;
@@ -43,6 +44,7 @@ describe('DateTimeInputComponent', () => {
     await TestBed.configureTestingModule({
       imports: [DateTimeInputComponent],
       providers: [
+        provideTestValidator(),
         {provide: A2uiRendererService, useValue: mockRendererService},
         {provide: ComponentBinder, useValue: mockBinder},
       ],

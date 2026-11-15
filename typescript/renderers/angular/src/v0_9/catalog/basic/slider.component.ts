@@ -15,8 +15,8 @@
  */
 
 import {Component, computed, ChangeDetectionStrategy} from '@angular/core';
-import {BasicCatalogComponent} from './basic-catalog-component';
-import {SliderApi} from '@a2ui/web_core/v0_9/basic_catalog';
+import {BasicCatalogComponent, type BasicComponentApi} from './basic-catalog-component';
+import type {SliderProps} from '@a2ui/web_core/v0_9/basic_catalog';
 import {
   AccessibilityTargetDirective,
   ValidationErrorsDirective,
@@ -98,7 +98,7 @@ import {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class SliderComponent extends BasicCatalogComponent<typeof SliderApi> {
+export class SliderComponent extends BasicCatalogComponent<BasicComponentApi<SliderProps>> {
   readonly label = computed(() => this.props()['label']?.value());
   readonly value = computed(() => this.props()['value']?.value());
   readonly min = computed(() => this.props()['min']?.value() ?? 0);

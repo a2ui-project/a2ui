@@ -21,6 +21,7 @@ import {Theme} from '../rendering/theming';
 import {Catalog} from '../rendering/catalog';
 import type {CardNode} from '../types';
 import {Directive, Input} from '@angular/core';
+import {provideTestValidator} from '../../test_validator';
 
 @Directive({
   selector: '[a2ui-renderer]',
@@ -58,6 +59,7 @@ describe('Card Component', () => {
     await TestBed.configureTestingModule({
       imports: [Card],
       providers: [
+        provideTestValidator(),
         {provide: MessageProcessor, useValue: {}},
         {provide: Theme, useValue: mockTheme},
         {provide: Catalog, useValue: {}},

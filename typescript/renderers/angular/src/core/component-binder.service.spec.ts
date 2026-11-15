@@ -24,7 +24,10 @@ import {
   SurfaceModel,
   getValue,
 } from '@a2ui/web_core';
-import {basicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
+import {createBasicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
+import {validator} from '../test_validator';
+
+const basicCatalog = createBasicCatalog(validator);
 
 /**
  * Helper to construct instances of SurfaceModel, ComponentModel, and ComponentContext.

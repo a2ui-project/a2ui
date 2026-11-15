@@ -42,6 +42,7 @@ import {
 import {setMarkdownRenderer} from '@a2ui/web_core/universal';
 import {MarkdownRenderer} from './markdown';
 import {initializeAngularReactivity} from './reactivity';
+import {injectA2uiValidator} from './validator';
 
 /**
  * Configuration for the A2UI renderer.
@@ -72,8 +73,11 @@ export interface RendererConfiguration {
   /**
    * Optional configuration options for the underlying MessageProcessor,
    * including `outboundListener` and `unifiedOutbound`.
+   *
+   * The processor's `validator` is the one provided with `provideA2uiValidator`
+   * (`A2UI_JSON_SCHEMA_VALIDATOR`).
    */
-  processorOptions?: MessageProcessorOptions;
+  processorOptions?: Omit<MessageProcessorOptions, 'validator'>;
 }
 
 /**
@@ -110,7 +114,9 @@ export function provideA2Ui(
  *
  * This service is the central entry point for the A2UI renderer. It maintains a
  * {@link MessageProcessor} that turns A2UI protocol messages into a reactive
- * {@link SurfaceGroupModel}.
+ * {@link SurfaceGroupModel}. The processor validates messages with the validator provided
+ * with `provideA2uiValidator`; constructing the service without one throws an
+ * `A2uiConfigurationError`.
  */
 @Injectable({providedIn: 'root'})
 export class A2uiRendererService implements OnDestroy {
@@ -119,6 +125,7 @@ export class A2uiRendererService implements OnDestroy {
   private readonly _injector = inject(Injector);
   private readonly _config = inject(A2UI_RENDERER_CONFIG, {optional: true});
   private readonly _useUniversalComponents = this._config?.useUniversalComponents ?? false;
+  private readonly _validator = injectA2uiValidator();
 
   constructor() {
     initializeAngularReactivity(this._injector.get(EnvironmentInjector));
@@ -137,7 +144,7 @@ export class A2uiRendererService implements OnDestroy {
     this._messageProcessor = new MessageProcessor<AngularComponentImplementation>(
       this._catalogs,
       this._config?.actionHandler,
-      this._config?.processorOptions,
+      {...this._config?.processorOptions, validator: this._validator},
     );
     registerSurfaceGroupInjector(this._messageProcessor.model, this._injector);
   }

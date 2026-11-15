@@ -17,13 +17,14 @@
 import {Component} from '@angular/core';
 import {ComponentApi, MessageProcessor} from '@a2ui/web_core';
 import {isWebComponentImplementation} from '@a2ui/web_core/universal';
-import {A2uiText} from '@a2ui/web_core/v0_9/basic_catalog';
-import {CommonSchemas} from '@a2ui/web_core/v1_0';
+import {createBasicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
 import {AngularCatalog, createComponentImplementation} from './types';
 import {UniversalOnlyComponent} from './universal_only.component';
-import {BASIC_COMPONENTS} from '../v0_9/catalog/basic/basic-catalog';
+import {createBasicComponents} from '../v0_9/catalog/basic/basic-catalog';
 import {CatalogComponent} from '../core/catalog_component';
-import {z} from 'zod';
+import {commonType, objectSchema, validator} from '../test_validator';
+
+const A2uiText = createBasicCatalog(validator).components.get('Text')!;
 
 @Component({
   selector: 'test-comp',
@@ -43,7 +44,7 @@ describe('createComponentImplementation', () => {
   it('should map ComponentApi and Angular Component Type correctly', () => {
     const api: ComponentApi = {
       name: 'TestComp',
-      schema: z.object({}),
+      schema: objectSchema(),
     };
 
     const impl = createComponentImplementation(api, TestComponent);
@@ -55,7 +56,7 @@ describe('createComponentImplementation', () => {
 
   it('wraps a plain ComponentApi into a Web Component so universal containers can render it', () => {
     const impl = createComponentImplementation(
-      {name: 'WrappedComp', schema: z.object({})},
+      {name: 'WrappedComp', schema: objectSchema()},
       WrappedComponent,
     );
 
@@ -79,13 +80,13 @@ describe('createComponentImplementation', () => {
     const box = createComponentImplementation(
       {
         name: 'Box',
-        schema: z.object({children: CommonSchemas.ChildList}),
+        schema: objectSchema({children: commonType('ChildList')}, {version: '1.0'}),
         allowedChildren: ['Rune'],
       },
       BoxComponent,
     );
     const rune = createComponentImplementation(
-      {name: 'Rune', schema: z.object({}), allowedParents: ['Box']},
+      {name: 'Rune', schema: objectSchema(), allowedParents: ['Box']},
       RuneComponent,
     );
     expect(box.allowedChildren).toEqual(['Rune']);
@@ -93,7 +94,9 @@ describe('createComponentImplementation', () => {
 
     const catalogId = 'https://example.com/composition.json';
     const createSurface = (components: Array<Record<string, unknown>>) =>
-      new MessageProcessor([new AngularCatalog(catalogId, '1.0', [box, rune])]).processMessages([
+      new MessageProcessor([new AngularCatalog(catalogId, '1.0', [box, rune])], undefined, {
+        validator,
+      }).processMessages([
         {version: '1.0', createSurface: {surfaceId: 's1', catalogId, components}},
       ]);
 
@@ -118,7 +121,7 @@ describe('createComponentImplementation', () => {
     class MockCustomWcElement extends HTMLElement {}
     const wcApi = {
       name: 'CustomWcItem',
-      schema: z.object({}),
+      schema: objectSchema(),
       tagName: 'a2ui-custom-wc-item',
       element: MockCustomWcElement,
     };
@@ -152,10 +155,13 @@ describe('AngularCatalog & Catalog Types', () => {
   });
 
   it('defaults to v0.9 when constructed with the pre-1.0 argument order', () => {
-    const themeSchema = z.object({primaryColor: z.string()});
+    const themeSchema = objectSchema(
+      {primaryColor: {type: 'string'}},
+      {required: ['primaryColor']},
+    );
     const catalog = new AngularCatalog(
       'v09-catalog',
-      [{name: 'CustomTest', schema: z.object({}), component: TestCustomComponent}],
+      [{name: 'CustomTest', schema: objectSchema(), component: TestCustomComponent}],
       [],
       themeSchema,
       'Use it',
@@ -182,7 +188,7 @@ describe('AngularCatalog & Catalog Types', () => {
     const catalog = new AngularCatalog('test-catalog', '0.9', [
       {
         name: 'CustomTest',
-        schema: z.object({}),
+        schema: objectSchema(),
         component: TestCustomComponent,
       },
     ]);
@@ -206,15 +212,17 @@ describe('AngularCatalog & Catalog Types', () => {
     expect(catalog.components.get('Text')).toBe(impl);
   });
 
-  it('exports BASIC_COMPONENTS with 18 native components by default', () => {
-    expect(BASIC_COMPONENTS.length).toBe(18);
-    const textComp = BASIC_COMPONENTS.find(c => c.name === 'Text');
+  it('creates the 18 native basic components with a validator', () => {
+    const components = createBasicComponents(validator);
+    expect(components.length).toBe(18);
+    expect(createBasicComponents(validator)).toEqual(components);
+    const textComp = components.find(c => c.name === 'Text');
     expect(textComp).toBeDefined();
     expect(textComp?.component).toBeDefined();
   });
 
   it('creates an AngularComponentImplementation via createComponentImplementation', () => {
-    const schema = z.object({value: z.string()});
+    const schema = objectSchema({value: {type: 'string'}}, {required: ['value']});
     const impl = createComponentImplementation({name: 'CustomItem', schema}, TestCustomComponent);
     expect(impl.name).toBe('CustomItem');
     expect(impl.schema).toBe(schema);
@@ -225,7 +233,7 @@ describe('AngularCatalog & Catalog Types', () => {
     const catalog = new AngularCatalog('test-catalog', '0.9', [
       {
         name: 'CustomNative',
-        schema: z.object({}),
+        schema: objectSchema(),
         component: TestCustomComponent,
       },
     ]);
@@ -241,7 +249,11 @@ describe('AngularCatalog & Catalog Types', () => {
   });
 
   it('keeps the identity of plain entries it attaches a Web Component wrapper to', () => {
-    const entry = {name: 'CustomIdentity', schema: z.object({}), component: TestCustomComponent};
+    const entry = {
+      name: 'CustomIdentity',
+      schema: objectSchema(),
+      component: TestCustomComponent,
+    };
     const catalog = new AngularCatalog('test-catalog', '0.9', [entry]);
     expect(catalog.components.get('CustomIdentity')).toBe(entry);
     expect(isWebComponentImplementation(entry)).toBeTrue();

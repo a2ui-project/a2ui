@@ -21,6 +21,7 @@ import {DynamicString} from '@a2ui/web_core/v0_9';
 import {A2uiRendererService} from '@a2ui/angular';
 import {ComponentBinder} from '@a2ui/angular';
 import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
+import {provideTestValidator} from '../../../test_validator';
 
 describe('ChoicePickerComponent', () => {
   let component: ChoicePickerComponent;
@@ -44,6 +45,7 @@ describe('ChoicePickerComponent', () => {
     await TestBed.configureTestingModule({
       imports: [ChoicePickerComponent],
       providers: [
+        provideTestValidator(),
         {provide: A2uiRendererService, useValue: mockRendererService},
         {provide: ComponentBinder, useValue: mockBinder},
       ],

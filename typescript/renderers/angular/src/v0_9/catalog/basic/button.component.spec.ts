@@ -22,6 +22,7 @@ import {A2uiRendererService} from '@a2ui/angular';
 import {ComponentBinder, Child} from '@a2ui/angular';
 import {By} from '@angular/platform-browser';
 import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
+import {provideTestValidator} from '../../../test_validator';
 
 describe('ButtonComponent', () => {
   let component: ButtonComponent;
@@ -83,6 +84,7 @@ describe('ButtonComponent', () => {
     await TestBed.configureTestingModule({
       imports: [ButtonComponent],
       providers: [
+        provideTestValidator(),
         {provide: A2uiRendererService, useValue: mockRendererService},
         {provide: ComponentBinder, useValue: mockBinder},
       ],

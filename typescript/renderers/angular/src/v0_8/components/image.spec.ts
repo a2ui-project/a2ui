@@ -20,6 +20,7 @@ import {MessageProcessor} from '../data/processor';
 import {Theme} from '../rendering/theming';
 import {Catalog} from '../rendering/catalog';
 import {By} from '@angular/platform-browser';
+import {provideTestValidator} from '../../test_validator';
 
 describe('Image Component', () => {
   let component: Image;
@@ -38,6 +39,7 @@ describe('Image Component', () => {
     await TestBed.configureTestingModule({
       imports: [Image],
       providers: [
+        provideTestValidator(),
         {provide: MessageProcessor, useValue: {resolvePrimitive: (p: any) => p?.value || p}},
         {provide: Theme, useValue: mockTheme},
         {provide: Catalog, useValue: {}},

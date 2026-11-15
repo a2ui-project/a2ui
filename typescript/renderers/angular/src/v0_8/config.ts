@@ -15,11 +15,28 @@
  */
 
 import {EnvironmentProviders, makeEnvironmentProviders} from '@angular/core';
+import {A2UI_JSON_SCHEMA_VALIDATOR} from '@a2ui/angular';
+import type {JsonSchemaValidator} from '@a2ui/web_core';
 import {Catalog, Theme} from './rendering';
 import type {Theme as ThemeType} from './types';
 
-export function provideA2UI(config: {catalog: Catalog; theme: ThemeType}): EnvironmentProviders {
+/**
+ * Provides the v0.8 renderer's catalog, theme and JSON Schema validator.
+ *
+ * @param config.validator The validator `MessageProcessor` validates messages with, such as
+ *   `createAjvValidator()` from `@a2ui/validator-ajv`. It is provided as
+ *   `A2UI_JSON_SCHEMA_VALIDATOR`, so it can be left out when `provideA2uiValidator` from
+ *   `@a2ui/angular` provides one.
+ */
+export function provideA2UI(config: {
+  catalog: Catalog;
+  theme: ThemeType;
+  validator?: JsonSchemaValidator;
+}): EnvironmentProviders {
   return makeEnvironmentProviders([
+    ...(config.validator
+      ? [{provide: A2UI_JSON_SCHEMA_VALIDATOR, useValue: config.validator}]
+      : []),
     {provide: Catalog, useValue: config.catalog},
     {
       provide: Theme,

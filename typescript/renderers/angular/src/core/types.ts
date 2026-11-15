@@ -15,8 +15,7 @@
  */
 
 import {Signal} from '@angular/core';
-import {z} from 'zod';
-import {ComponentApi} from '@a2ui/web_core';
+import {ComponentApi, InferredComponentApiSchemaType} from '@a2ui/web_core';
 import {Child} from './component-binder.service';
 
 /** Data structure that represents a template used to render a collection of children. */
@@ -63,14 +62,9 @@ export interface BoundProperty<T = unknown> {
   readonly onUpdate: (newValue: T) => void;
 }
 
-// `@a2ui/web_core` (the version-agnostic barrel) does not yet export `DataBindingSchema`,
-// `FunctionCallSchema`, or its internal `DynamicTypes` union from `generic-binder.ts`: v0.9
-// schemas only match `{path}` / `{call}` while v1.0 schemas match `{'@path'}` / `{'@call'}`
-// (and `v1_0.FunctionCallSchema` infers as `any`, which would collapse `Exclude<Input, ...>`
-// to `never`). Matching both protocol forms explicitly strips dynamic AST branches across v0.9
-// and v1.0 component schemas without importing versioned Zod schemas.
-// TODO: Export unversioned `DataBindingType` / `FunctionCallType` (or `DynamicTypes`) from
-// `@a2ui/web_core` and reuse them here and in other adapters.
+// v0.9 bindings and calls are `{path}` / `{call}`, while v1.0 ones are `{'@path'}` /
+// `{'@call'}`. Matching both protocol forms strips the dynamic branches of the generated v0.9
+// and v1.0 props types (`DynamicString`, ...), leaving the resolved value types.
 type DataBindingType = {path: string} | {'@path': string};
 type FunctionCallType = {call: string} | {'@call': string};
 type DynamicSchemaValueToRaw<Input> = Exclude<Input, DataBindingType | FunctionCallType>;
@@ -103,28 +97,31 @@ interface CheckProps {
  * A component with check rules, `checks` below v1.0 or `@checks` from v1.0, gets the
  * validation props.
  */
-export type ExtendedProps<ComponentProps extends {[key: string]: unknown}> =
-  'checks' extends keyof ComponentProps
+export type ExtendedProps<ComponentProps> = 'checks' extends keyof ComponentProps
+  ? ComponentProps & CheckProps
+  : '@checks' extends keyof ComponentProps
     ? ComponentProps & CheckProps
-    : '@checks' extends keyof ComponentProps
-      ? ComponentProps & CheckProps
-      : ComponentProps;
+    : ComponentProps;
 
 /**
  * Utility to convert a component Api Type to the props Type, where the
  * values are wrapped in BoundProperty. This is used to correctly type the props()
- * in a UI component
+ * in a UI component.
+ *
+ * The props are the output type of the component's schema (a `CatalogSchema`), such as one of
+ * the generated basic catalog props types (`TextProps`, ...) from `@a2ui/web_core/v0_9` or
+ * `@a2ui/web_core/v1_0`.
  *
  * @example
- * export const TextComponentApi = {
+ * export const TextComponentApi: ComponentApi<CatalogSchema<{text: string}>> = {
  *   name: 'Text',
- *   schema: z.object({
- *     text: z.string(),
- *   })
- *   .strict(),
- * } satisfies ComponentApi;
+ *   schema: fromJsonSchema<{text: string}>(
+ *     {type: 'object', properties: {text: {type: 'string'}}, required: ['text']},
+ *     validator,
+ *   ),
+ * };
  * export type TextComponentProps = ComponentApiToProps<typeof TextComponentApi>; // outputs { text: BoundProperty<string>; }
  */
 export type ComponentApiToProps<Api extends ComponentApi> = InferredInterfaceToProps<
-  ExtendedProps<z.infer<Api['schema']>>
+  ExtendedProps<InferredComponentApiSchemaType<Api>>
 >;

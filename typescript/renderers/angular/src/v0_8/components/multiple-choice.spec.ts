@@ -20,6 +20,7 @@ import {MessageProcessor} from '../data/processor';
 import {Theme} from '../rendering/theming';
 import {Catalog} from '../rendering/catalog';
 import {By} from '@angular/platform-browser';
+import {provideTestValidator} from '../../test_validator';
 
 describe('MultipleChoice Component', () => {
   let component: MultipleChoice;
@@ -52,6 +53,7 @@ describe('MultipleChoice Component', () => {
     await TestBed.configureTestingModule({
       imports: [MultipleChoice],
       providers: [
+        provideTestValidator(),
         {provide: MessageProcessor, useValue: mockProcessor},
         {provide: Theme, useValue: mockTheme},
         {provide: Catalog, useValue: {}},

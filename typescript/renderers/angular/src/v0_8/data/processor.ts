@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
-import {Injectable, signal} from '@angular/core';
+import {Injectable, inject, signal} from '@angular/core';
+import {A2UI_JSON_SCHEMA_VALIDATOR} from '@a2ui/angular';
+import {noValidatorError} from '@a2ui/web_core';
 import {Subject, Observable} from 'rxjs';
 import * as WebCore from '@a2ui/web_core/v0_8';
 
@@ -27,6 +29,12 @@ export interface A2UIClientEvent {
 
 export type DispatchedEvent = A2UIClientEvent;
 
+/**
+ * Processes v0.8 messages with the `@a2ui/web_core` v0.8 `A2uiMessageProcessor`, which validates
+ * them with the JSON Schema validator provided with `provideA2UI({validator})` or
+ * `provideA2uiValidator` (`A2UI_JSON_SCHEMA_VALIDATOR` from `@a2ui/angular`). Constructing it
+ * without one throws an `A2uiConfigurationError`.
+ */
 @Injectable({
   providedIn: 'root',
 })
@@ -42,7 +50,15 @@ export class MessageProcessor {
   readonly version = this.versionSignal.asReadonly();
 
   constructor() {
-    this.baseProcessor = new WebCore.A2uiMessageProcessor();
+    const validator = inject(A2UI_JSON_SCHEMA_VALIDATOR, {optional: true});
+    if (!validator) {
+      throw noValidatorError(
+        'Provide one with provideA2UI({catalog, theme, validator}) from @a2ui/angular/v0_8, or ' +
+          'with provideA2uiValidator(validator) from @a2ui/angular, for example ' +
+          'createAjvValidator() from @a2ui/validator-ajv.',
+      );
+    }
+    this.baseProcessor = new WebCore.A2uiMessageProcessor({validator});
   }
 
   /**

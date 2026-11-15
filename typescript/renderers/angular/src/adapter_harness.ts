@@ -26,11 +26,10 @@ import {
   ResolvedBinding,
   type SurfaceModel,
 } from '@a2ui/web_core';
-import {basicCatalog, createBasicCatalogFunctions} from '@a2ui/web_core/catalogs/basic/v1';
+import {createBasicCatalogFunctions} from '@a2ui/web_core/catalogs/basic/v1';
 import type {A2uiWebComponentElement} from '@a2ui/web_core/universal';
-import {A2uiClientMessageSchema, CommonSchemas} from '@a2ui/web_core/v0_9';
-import {RendererToAgentMessageSchema} from '@a2ui/web_core/v1_0';
-import {z} from 'zod';
+import {createBasicCatalogFunctions as createV09BasicCatalogFunctions} from '@a2ui/web_core/v0_9/basic_catalog';
+import type {JsonSchema} from '@a2ui/web_core';
 import {BasicCatalogBase as V09BasicCatalogBase} from './v0_9';
 import {
   A2uiRendererService,
@@ -43,6 +42,13 @@ import {
   createComponentImplementation,
   provideA2UI,
 } from './public-api';
+import {
+  commonType,
+  objectSchema,
+  outboundIssues,
+  provideTestValidator,
+  validator,
+} from './test_validator';
 
 export interface ExpectedAccessibilityNode {
   label?: string;
@@ -575,10 +581,10 @@ export function createDefaultAdapterCatalog(protocolVersion: string = '1.0'): An
     {
       name: 'incrementCounter',
       returnType: 'void',
-      schema: z.object({
-        path: z.string().optional(),
-        step: z.any().optional(),
-        amount: z.any().optional(),
+      schema: objectSchema<{path?: string; step?: unknown; amount?: unknown}>({
+        path: {type: 'string'},
+        step: {},
+        amount: {},
       }),
     },
     (args, context) => {
@@ -590,28 +596,31 @@ export function createDefaultAdapterCatalog(protocolVersion: string = '1.0'): An
   );
   if (protocolVersion === 'v0.9' || protocolVersion === '0.9') {
     return new V09BasicCatalogBase({
-      functions: [...createBasicCatalogFunctions(), incrementCounter],
+      validator,
+      functions: [...createV09BasicCatalogFunctions(validator), incrementCounter],
     });
   }
   return new BasicCatalogBase({
-    functions: [...Array.from(basicCatalog.functions.values()), incrementCounter],
+    validator,
+    functions: [...createBasicCatalogFunctions(validator), incrementCounter],
   });
 }
 
 export function buildExtraCatalog(entry: ExtraCatalogEntry): AngularCatalog {
+  const protocolVersion = entry.protocolVersion ?? '1.0';
+  const version = protocolVersion.replace(/^v/, '').startsWith('0.9') ? '0.9' : '1.0';
   const implementations = Object.entries(entry.components ?? {}).map(([name, def]) => {
-    const shape: Record<string, z.ZodTypeAny> = {};
+    const properties: Record<string, JsonSchema> = {};
     for (const [propKey, propSchema] of Object.entries(def.properties ?? {})) {
       if (propKey === 'component') {
         continue;
       }
-      shape[propKey] =
-        propSchema.type === 'number'
-          ? CommonSchemas.DynamicNumber.optional()
-          : CommonSchemas.DynamicString.optional();
+      properties[propKey] = commonType(
+        propSchema.type === 'number' ? 'DynamicNumber' : 'DynamicString',
+      );
     }
     return createComponentImplementation(
-      {name, schema: z.object(shape)},
+      {name, schema: objectSchema(properties, {version})},
       ConformanceCustomWidgetComponent,
     );
   });
@@ -621,7 +630,7 @@ export function buildExtraCatalog(entry: ExtraCatalogEntry): AngularCatalog {
         return {
           name,
           returnType: (record['returnType'] as string) ?? 'any',
-          schema: z.object({}).passthrough(),
+          schema: objectSchema({}, {version}),
           allowedCallers: record['allowedCallers'] as
             | 'rendererOnly'
             | 'agentOnly'
@@ -633,7 +642,7 @@ export function buildExtraCatalog(entry: ExtraCatalogEntry): AngularCatalog {
     : [];
   return new AngularCatalog(
     entry.catalogId,
-    entry.protocolVersion ?? '1.0',
+    protocolVersion,
     implementations,
     functionImplementations,
   );
@@ -1336,19 +1345,12 @@ function validateOutboundEnvelopes(
   envelopes: Array<Record<string, unknown>>,
   protocolVersion: string,
 ): void {
-  const isV09 = protocolVersion.startsWith('v0.9') || protocolVersion.startsWith('0.9');
   for (let i = 0; i < envelopes.length; i++) {
     const env = envelopes[i];
-    const parsed = isV09
-      ? A2uiClientMessageSchema.safeParse(env)
-      : RendererToAgentMessageSchema.safeParse(env);
-    expect(parsed.success)
-      .withContext(
-        `outbound[${i}] failed protocol schema validation: ${
-          parsed.success ? '' : JSON.stringify(parsed.error.issues)
-        }`,
-      )
-      .toBe(true);
+    const issues = outboundIssues(env, protocolVersion);
+    expect(issues.length)
+      .withContext(`outbound[${i}] failed protocol schema validation: ${JSON.stringify(issues)}`)
+      .toBe(0);
   }
 }
 
@@ -1392,6 +1394,7 @@ export function mountSurface(caseSpec?: Partial<AdapterTestCase>): HarnessState 
   TestBed.configureTestingModule({
     imports: [SurfaceComponent],
     providers: [
+      provideTestValidator(),
       provideA2UI({
         catalogs,
         processorOptions: {

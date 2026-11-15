@@ -21,6 +21,7 @@ import {Theme} from '../rendering/theming';
 import {Catalog} from '../rendering/catalog';
 import {MarkdownRenderer} from '../data/markdown';
 import {By} from '@angular/platform-browser';
+import {provideTestValidator} from '../../test_validator';
 
 describe('Text Component', () => {
   let component: Text;
@@ -48,6 +49,7 @@ describe('Text Component', () => {
     await TestBed.configureTestingModule({
       imports: [Text],
       providers: [
+        provideTestValidator(),
         {provide: MessageProcessor, useValue: {}},
         {provide: Theme, useValue: mockTheme},
         {provide: Catalog, useValue: {}},

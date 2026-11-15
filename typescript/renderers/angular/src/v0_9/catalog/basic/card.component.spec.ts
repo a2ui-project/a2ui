@@ -22,6 +22,7 @@ import {ComponentModel, SurfaceComponentsModel} from '@a2ui/web_core/v0_9';
 import {A2uiRendererService} from '@a2ui/angular';
 import {ComponentBinder} from '@a2ui/angular';
 import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
+import {provideTestValidator} from '../../../test_validator';
 
 @Component({
   selector: 'dummy-text-for-card',
@@ -66,6 +67,7 @@ describe('CardComponent', () => {
     await TestBed.configureTestingModule({
       imports: [CardComponent],
       providers: [
+        provideTestValidator(),
         {provide: A2uiRendererService, useValue: mockRendererService},
         {provide: ComponentBinder, useValue: mockBinder},
       ],

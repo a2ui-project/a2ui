@@ -18,17 +18,17 @@ import {Component} from '@angular/core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {BasicCatalogComponent} from './basic-catalog-component';
 import {A2uiRendererService, A2UI_RENDERER_CONFIG} from '@a2ui/angular';
-import {BasicCatalog} from './basic-catalog';
+import {BASIC_CATALOG_OPTIONS, BasicCatalog, BasicCatalogBase} from './basic-catalog';
+import {A2uiValidationError, MessageProcessor} from '@a2ui/web_core';
 import {ComponentApi} from '@a2ui/web_core/v0_9';
-import z from 'zod';
+import {objectSchema, provideTestValidator, validator} from '../../../test_validator';
 
 export const TestComponentApi = {
   name: 'TestComponent',
-  schema: z
-    .object({
-      foo: z.string(),
-    })
-    .strict(),
+  schema: objectSchema<{foo: string}>(
+    {foo: {type: 'string'}},
+    {required: ['foo'], additionalProperties: false},
+  ),
 } satisfies ComponentApi;
 
 @Component({
@@ -46,6 +46,13 @@ describe('BasicCatalogComponent', () => {
     await TestBed.configureTestingModule({
       imports: [TestBasicComp],
       providers: [
+        provideTestValidator(),
+        // The v0.9 basic catalog theme only accepts a `#RRGGBB` primaryColor. A theme schema that
+        // accepts any string lets these tests cover the other CSS colors the host binding accepts.
+        {
+          provide: BASIC_CATALOG_OPTIONS,
+          useValue: {themeSchema: objectSchema({primaryColor: {type: 'string'}})},
+        },
         A2uiRendererService,
         BasicCatalog,
         {
@@ -88,6 +95,23 @@ describe('BasicCatalogComponent', () => {
 
     const element = fixture.nativeElement;
     expect(element.style.getPropertyValue('--a2ui-color-primary')).toBe('#00FF00');
+  });
+
+  it('rejects a primaryColor that is not #RRGGBB with the default v0.9 basic catalog theme', () => {
+    const catalog = new BasicCatalogBase({validator});
+    for (const primaryColor of ['#17e', '#00FF0080', 'red', 'rgb(255, 0, 0)']) {
+      const processor = new MessageProcessor([catalog], undefined, {validator});
+      expect(() =>
+        processor.processMessages([
+          {
+            version: 'v0.9',
+            createSurface: {surfaceId: 's', catalogId: catalog.id, theme: {primaryColor}},
+          },
+        ]),
+      )
+        .withContext(primaryColor)
+        .toThrowError(A2uiValidationError);
+    }
   });
 
   it('should set --a2ui-color-primary style on host for 3-character hex color', () => {

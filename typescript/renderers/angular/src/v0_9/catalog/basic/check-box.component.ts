@@ -16,8 +16,8 @@
 
 import {AccessibilityTargetDirective} from '@a2ui/angular';
 import {Component, computed, ChangeDetectionStrategy} from '@angular/core';
-import {BasicCatalogComponent} from './basic-catalog-component';
-import {CheckBoxApi} from '@a2ui/web_core/v0_9/basic_catalog';
+import {BasicCatalogComponent, type BasicComponentApi} from './basic-catalog-component';
+import type {CheckBoxProps} from '@a2ui/web_core/v0_9/basic_catalog';
 
 /**
  * Angular implementation of the A2UI CheckBox component (v0.9).
@@ -83,7 +83,7 @@ import {CheckBoxApi} from '@a2ui/web_core/v0_9/basic_catalog';
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class CheckBoxComponent extends BasicCatalogComponent<typeof CheckBoxApi> {
+export class CheckBoxComponent extends BasicCatalogComponent<BasicComponentApi<CheckBoxProps>> {
   readonly value = computed(() => this.props()['value']?.value() === true);
   readonly label = computed(() => this.props()['label']?.value());
 

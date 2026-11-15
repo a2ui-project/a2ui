@@ -18,6 +18,7 @@ import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {Renderer} from './renderer';
 import {Catalog} from './catalog';
 import {Component, Input} from '@angular/core';
+import {provideTestValidator} from '../../test_validator';
 
 @Component({
   selector: 'test-comp',
@@ -56,7 +57,7 @@ describe('v0.8 Renderer', () => {
 
     await TestBed.configureTestingModule({
       imports: [TestHost],
-      providers: [{provide: Catalog, useValue: mockCatalog}],
+      providers: [provideTestValidator(), {provide: Catalog, useValue: mockCatalog}],
     }).compileComponents();
 
     fixture = TestBed.createComponent(TestHost);
@@ -163,7 +164,7 @@ describe('v0.8 Renderer Regression Tests', () => {
 
     await TestBed.configureTestingModule({
       imports: [TestHost],
-      providers: [{provide: Catalog, useValue: mockCatalog}],
+      providers: [provideTestValidator(), {provide: Catalog, useValue: mockCatalog}],
     }).compileComponents();
 
     fixture = TestBed.createComponent(TestHost);

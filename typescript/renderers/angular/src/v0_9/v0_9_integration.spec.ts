@@ -24,6 +24,7 @@ import {MarkdownRenderer} from '../core/markdown';
 
 import * as restaurantCardMock from './test_data/mocks/restaurant-card.json';
 import * as contactCardMock from './test_data/mocks/contact-card.json';
+import {provideTestValidator} from '../test_validator';
 
 @Component({
   template: `
@@ -50,6 +51,7 @@ describe('v0.9 Angular Renderer Integration', () => {
     await TestBed.configureTestingModule({
       imports: [TestHost],
       providers: [
+        provideTestValidator(),
         A2uiRendererService,
         BasicCatalog,
         {
@@ -301,6 +303,7 @@ describe('v0.9.1 Angular Renderer Integration', () => {
     await TestBed.configureTestingModule({
       imports: [TestHost],
       providers: [
+        provideTestValidator(),
         A2uiRendererService,
         BasicCatalog,
         {

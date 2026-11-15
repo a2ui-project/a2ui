@@ -16,8 +16,8 @@
 
 import {Component, computed, ChangeDetectionStrategy, signal} from '@angular/core';
 import {ComponentHostComponent} from '@a2ui/angular';
-import {BasicCatalogComponent} from './basic-catalog-component';
-import {ModalApi} from '@a2ui/web_core/v0_9/basic_catalog';
+import {BasicCatalogComponent, type BasicComponentApi} from './basic-catalog-component';
+import type {ModalProps} from '@a2ui/web_core/v0_9/basic_catalog';
 
 /**
  * Angular implementation of the A2UI Modal component (v0.9).
@@ -117,7 +117,7 @@ import {ModalApi} from '@a2ui/web_core/v0_9/basic_catalog';
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ModalComponent extends BasicCatalogComponent<typeof ModalApi> {
+export class ModalComponent extends BasicCatalogComponent<BasicComponentApi<ModalProps>> {
   isOpen = signal(false);
 
   readonly trigger = computed(() => this.props()['trigger']?.value());

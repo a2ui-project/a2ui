@@ -16,10 +16,8 @@
 
 import {Component, EnvironmentInjector, Injector, Type} from '@angular/core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
-import {z} from 'zod';
 import {ComponentApi, ComponentModel, NodeResolver, SurfaceModel, getValue} from '@a2ui/web_core';
 import {isWebComponentImplementation, registerUniversalElement} from '@a2ui/web_core/universal';
-import {CommonSchemas} from '@a2ui/web_core/v0_9';
 import {AccessibilityTargetDirective, ValidationErrorsDirective} from './accessibility';
 import {A2uiRendererService} from './a2ui-renderer.service';
 import {CatalogComponent} from './catalog_component';
@@ -33,11 +31,12 @@ import {
   type AngularComponentImplementation,
   createComponentImplementation,
 } from '../catalog/types';
+import {commonType, objectSchema} from '../test_validator';
 
-const CardApi = {name: 'Card', schema: z.object({})} satisfies ComponentApi;
+const CardApi = {name: 'Card', schema: objectSchema()} satisfies ComponentApi;
 const FieldApi = {
   name: 'Field',
-  schema: z.object({checks: CommonSchemas.Checkable.shape.checks}),
+  schema: objectSchema({checks: {type: 'array', items: commonType('CheckRule')}}),
 } satisfies ComponentApi;
 
 /** Marks no element, so its host is labelled. */

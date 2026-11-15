@@ -20,6 +20,7 @@ import type {AudioPlayerNode} from '../types';
 import {Theme} from '../rendering/theming';
 import {MessageProcessor} from '../data/processor';
 import {Catalog} from '../rendering/catalog';
+import {provideTestValidator} from '../../test_validator';
 
 describe('AudioPlayer Component', () => {
   let component: AudioPlayer;
@@ -48,6 +49,7 @@ describe('AudioPlayer Component', () => {
     await TestBed.configureTestingModule({
       imports: [AudioPlayer],
       providers: [
+        provideTestValidator(),
         {provide: MessageProcessor, useValue: mockProcessor},
         {provide: Theme, useValue: mockTheme},
         {provide: Catalog, useValue: {}},

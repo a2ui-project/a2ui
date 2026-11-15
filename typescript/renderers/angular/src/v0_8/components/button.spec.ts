@@ -22,6 +22,7 @@ import {Catalog} from '../rendering/catalog';
 import {Renderer} from '../rendering/renderer';
 import type {Action, ButtonNode, A2UIClientEventMessage} from '../types';
 import {Directive, Input} from '@angular/core';
+import {provideTestValidator} from '../../test_validator';
 
 // Mock Renderer directive to avoid full tree rendering issues for isolated unit tests
 @Directive({
@@ -71,6 +72,7 @@ describe('Button Component', () => {
     await TestBed.configureTestingModule({
       imports: [Button],
       providers: [
+        provideTestValidator(),
         {provide: MessageProcessor, useValue: mockProcessor},
         {provide: Theme, useValue: mockTheme},
         {provide: Catalog, useValue: mockCatalog},

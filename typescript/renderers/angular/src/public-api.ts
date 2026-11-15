@@ -35,6 +35,11 @@ export {
   type ExtendedProps,
 } from './core/types';
 export {getNormalizedPath} from './core/utils';
+export {
+  A2UI_JSON_SCHEMA_VALIDATOR,
+  injectA2uiValidator,
+  provideA2uiValidator,
+} from './core/validator';
 export {DefaultMarkdownRenderer, MarkdownRenderer, provideMarkdownRenderer} from './core/markdown';
 
 // Catalog Types and Web Component utilities
@@ -50,10 +55,10 @@ export {UniversalOnlyComponent} from './catalog/universal_only.component';
 // Providers and v1.0 BasicCatalog
 export {
   BASIC_CATALOG_OPTIONS,
-  BASIC_COMPONENTS,
-  BASIC_FUNCTIONS,
   BasicCatalog,
   BasicCatalogBase,
   type BasicCatalogOptions,
+  createBasicCatalogFunctions,
+  createBasicComponents,
   provideA2UI,
 } from './basic-catalog';

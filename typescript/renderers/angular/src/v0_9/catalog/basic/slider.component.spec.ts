@@ -20,6 +20,7 @@ import {SliderComponent} from './slider.component';
 import {A2uiRendererService} from '@a2ui/angular';
 import {ComponentBinder} from '@a2ui/angular';
 import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
+import {provideTestValidator} from '../../../test_validator';
 
 describe('SliderComponent', () => {
   let component: SliderComponent;
@@ -43,6 +44,7 @@ describe('SliderComponent', () => {
     await TestBed.configureTestingModule({
       imports: [SliderComponent],
       providers: [
+        provideTestValidator(),
         {provide: A2uiRendererService, useValue: mockRendererService},
         {provide: ComponentBinder, useValue: mockBinder},
       ],

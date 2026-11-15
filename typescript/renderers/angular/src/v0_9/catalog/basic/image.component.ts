@@ -16,8 +16,8 @@
 
 import {AccessibilityTargetDirective} from '@a2ui/angular';
 import {Component, computed, ChangeDetectionStrategy} from '@angular/core';
-import {BasicCatalogComponent} from './basic-catalog-component';
-import {ImageApi} from '@a2ui/web_core/v0_9/basic_catalog';
+import {BasicCatalogComponent, type BasicComponentApi} from './basic-catalog-component';
+import type {ImageProps} from '@a2ui/web_core/v0_9/basic_catalog';
 
 /**
  * Angular implementation of the A2UI Image component (v0.9).
@@ -75,7 +75,7 @@ import {ImageApi} from '@a2ui/web_core/v0_9/basic_catalog';
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ImageComponent extends BasicCatalogComponent<typeof ImageApi> {
+export class ImageComponent extends BasicCatalogComponent<BasicComponentApi<ImageProps>> {
   readonly url = computed(() => this.props()['url']?.value());
   readonly description = computed(() => this.props()['description']?.value() || '');
   readonly fit = computed(() => {

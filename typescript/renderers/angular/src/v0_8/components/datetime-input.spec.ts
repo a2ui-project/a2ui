@@ -20,6 +20,7 @@ import type {A2UIClientEventMessage, DateTimeInputNode} from '../types';
 import {Theme} from '../rendering/theming';
 import {MessageProcessor} from '../data/processor';
 import {Catalog} from '../rendering/catalog';
+import {provideTestValidator} from '../../test_validator';
 
 describe('DateTimeInput Component', () => {
   let component: DateTimeInput;
@@ -52,6 +53,7 @@ describe('DateTimeInput Component', () => {
     await TestBed.configureTestingModule({
       imports: [DateTimeInput],
       providers: [
+        provideTestValidator(),
         {provide: MessageProcessor, useValue: mockProcessor},
         {provide: Theme, useValue: mockTheme},
         {provide: Catalog, useValue: {}},

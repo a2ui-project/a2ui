@@ -24,6 +24,7 @@ import {MarkdownRenderer} from './data/markdown';
 import {Component} from '@angular/core';
 import * as restaurantCardMock from './test_data/mocks/restaurant-card.json';
 import * as contactCardMock from './test_data/mocks/contact-card.json';
+import {provideTestValidator} from '../test_validator';
 
 /**
  * Resolves child node lists from v0.8 format.
@@ -118,6 +119,7 @@ describe('v0.8 Angular Renderer Integration', () => {
     await TestBed.configureTestingModule({
       imports: [TestHost],
       providers: [
+        provideTestValidator(),
         {provide: MessageProcessor, useValue: processor},
         {provide: Catalog, useValue: DEFAULT_CATALOG},
         {

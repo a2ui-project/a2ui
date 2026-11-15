@@ -19,26 +19,27 @@ import {
   A2uiRendererService,
   BasicCatalog,
   BasicCatalogBase,
-  BASIC_COMPONENTS,
-  BASIC_FUNCTIONS,
+  createBasicCatalogFunctions,
+  createBasicComponents,
   provideA2UI,
   SurfaceComponent,
 } from './public-api';
 import {isWebComponentImplementation} from '@a2ui/web_core/v1_0';
+import {provideTestValidator, validator} from './test_validator';
 
 describe('@a2ui/angular v1.0 & BasicCatalog', () => {
   describe('BasicCatalog', () => {
     it('should have v1.0 catalog ID and protocolVersion', () => {
-      const catalog = new BasicCatalog();
+      const catalog = new BasicCatalog({validator});
       expect(catalog.id).toBe('https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json');
       expect(catalog.protocolVersion).toBe('1.0');
     });
 
     it('should register all 18 v1.0 basic catalog components with WebComponentImplementations', () => {
-      const catalog = new BasicCatalog();
+      const catalog = new BasicCatalog({validator});
       expect(catalog.components.size).toBe(18);
-      expect(BASIC_COMPONENTS.length).toBe(18);
-      expect(BASIC_FUNCTIONS.length).toBeGreaterThan(0);
+      expect(createBasicComponents(validator).length).toBe(18);
+      expect(createBasicCatalogFunctions(validator).length).toBeGreaterThan(0);
 
       const expectedNames = [
         'Text',
@@ -71,6 +72,7 @@ describe('@a2ui/angular v1.0 & BasicCatalog', () => {
       const custom = new BasicCatalogBase({
         id: 'https://example.com/custom-v1.json',
         locale: 'fr-FR',
+        validator,
       });
       expect(custom.id).toBe('https://example.com/custom-v1.json');
       expect(custom.protocolVersion).toBe('1.0');
@@ -81,7 +83,10 @@ describe('@a2ui/angular v1.0 & BasicCatalog', () => {
     beforeEach(() => {
       TestBed.configureTestingModule({
         imports: [SurfaceComponent],
-        providers: [provideA2UI({catalogs: [new BasicCatalog()]})],
+        providers: [
+          provideTestValidator(),
+          provideA2UI({catalogs: [new BasicCatalog({validator})]}),
+        ],
       });
     });
 
@@ -139,10 +144,10 @@ describe('@a2ui/angular v1.0 & BasicCatalog', () => {
                   component: 'TextField',
                   label: 'Full Name',
                   placeholder: 'Jane Doe',
-                  value: {path: '/user/name'},
+                  value: {'@path': '/user/name'},
                   checks: [
                     {
-                      condition: {path: '/user/nameCheck'},
+                      condition: {'@path': '/user/nameCheck'},
                       message: 'Fallback name error',
                     },
                   ],

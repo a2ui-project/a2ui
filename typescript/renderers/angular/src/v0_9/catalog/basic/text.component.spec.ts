@@ -20,6 +20,7 @@ import {By} from '@angular/platform-browser';
 import {MarkdownRenderer} from '@a2ui/angular';
 import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
 import {A2uiRendererService, A2UI_RENDERER_CONFIG} from '@a2ui/angular';
+import {provideTestValidator} from '../../../test_validator';
 
 describe('TextComponent', () => {
   let component: TextComponent;
@@ -34,6 +35,7 @@ describe('TextComponent', () => {
     await TestBed.configureTestingModule({
       imports: [TextComponent],
       providers: [
+        provideTestValidator(),
         {provide: MarkdownRenderer, useValue: mockMarkdownRenderer},
         A2uiRendererService,
         {provide: A2UI_RENDERER_CONFIG, useValue: {catalogs: []}},

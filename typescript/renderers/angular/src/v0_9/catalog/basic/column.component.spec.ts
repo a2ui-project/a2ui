@@ -22,6 +22,7 @@ import {A2uiRendererService} from '@a2ui/angular';
 import {ComponentBinder} from '@a2ui/angular';
 import {By} from '@angular/platform-browser';
 import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
+import {provideTestValidator} from '../../../test_validator';
 
 @Component({
   standalone: true,
@@ -75,6 +76,7 @@ describe('ColumnComponent', () => {
     await TestBed.configureTestingModule({
       imports: [ColumnComponent],
       providers: [
+        provideTestValidator(),
         {provide: A2uiRendererService, useValue: mockRendererService},
         {provide: ComponentBinder, useValue: mockBinder},
       ],

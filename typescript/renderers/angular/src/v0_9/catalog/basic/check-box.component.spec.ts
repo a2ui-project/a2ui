@@ -20,6 +20,7 @@ import {CheckBoxComponent} from './check-box.component';
 import {A2uiRendererService} from '@a2ui/angular';
 import {ComponentBinder} from '@a2ui/angular';
 import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
+import {provideTestValidator} from '../../../test_validator';
 
 describe('CheckBoxComponent', () => {
   let component: CheckBoxComponent;
@@ -44,6 +45,7 @@ describe('CheckBoxComponent', () => {
     await TestBed.configureTestingModule({
       imports: [CheckBoxComponent],
       providers: [
+        provideTestValidator(),
         {provide: A2uiRendererService, useValue: mockRendererService},
         {provide: ComponentBinder, useValue: mockBinder},
       ],

@@ -16,11 +16,12 @@
 
 import {TestBed} from '@angular/core/testing';
 import {BasicCatalog, BASIC_CATALOG_OPTIONS} from './basic-catalog';
+import {provideTestValidator} from '../../../test_validator';
 
 describe('BasicCatalog', () => {
   it('should be created with default options when no token is provided', () => {
     TestBed.configureTestingModule({
-      providers: [BasicCatalog],
+      providers: [provideTestValidator(), BasicCatalog],
     });
 
     const catalog = TestBed.inject(BasicCatalog);
@@ -31,6 +32,7 @@ describe('BasicCatalog', () => {
   it('should be created with custom options when token is provided', () => {
     TestBed.configureTestingModule({
       providers: [
+        provideTestValidator(),
         BasicCatalog,
         {
           provide: BASIC_CATALOG_OPTIONS,

@@ -29,59 +29,70 @@ import {
   createComponentImplementation,
 } from './catalog/types';
 import {UniversalOnlyComponent} from './catalog/universal_only.component';
+import {injectA2uiValidator} from './core/validator';
 import {
-  BASIC_FUNCTIONS,
+  createBasicCatalog,
   createBasicCatalogFunctions,
-  BasicCatalogThemeSchema,
+  type BasicCatalog as WebCoreBasicCatalog,
   type BasicCatalogTheme,
-  A2uiText,
-  A2uiRow,
-  A2uiColumn,
-  A2uiButton,
-  A2uiTextField,
-  A2uiImage,
-  A2uiIcon,
-  A2uiVideo,
-  A2uiAudioPlayer,
-  A2uiList,
-  A2uiCard,
-  A2uiTabs,
-  A2uiModal,
-  A2uiDivider,
-  A2uiCheckBox,
-  A2uiChoicePicker,
-  A2uiSlider,
-  A2uiDateTimeInput,
 } from '@a2ui/web_core/catalogs/basic/v1';
-import {FunctionImplementation} from '@a2ui/web_core';
-import {z} from 'zod';
+import type {CatalogSchema, FunctionImplementation, JsonSchemaValidator} from '@a2ui/web_core';
 
 /**
- * The set of default Angular universal implementations for each component in the v1.0 basic catalog.
- * Using string literals as keys, to survive property renaming, as these names need to match the JSON payload.
+ * The name of each component in the v1.0 basic catalog, which the renderer implements as universal
+ * Web Components. Using string literals as keys, to survive property renaming, as these names need
+ * to match the JSON payload.
  */
 // Ignore Prettier to preserve quoted keys, needed to survive property renaming.
 // prettier-ignore
-const DEFAULT_COMPONENT_IMPLEMENTATIONS: Record<string, AngularComponentImplementation> = {
-  'text': createComponentImplementation(A2uiText, UniversalOnlyComponent),
-  'row': createComponentImplementation(A2uiRow, UniversalOnlyComponent),
-  'column': createComponentImplementation(A2uiColumn, UniversalOnlyComponent),
-  'button': createComponentImplementation(A2uiButton, UniversalOnlyComponent),
-  'textField': createComponentImplementation(A2uiTextField, UniversalOnlyComponent),
-  'image': createComponentImplementation(A2uiImage, UniversalOnlyComponent),
-  'icon': createComponentImplementation(A2uiIcon, UniversalOnlyComponent),
-  'video': createComponentImplementation(A2uiVideo, UniversalOnlyComponent),
-  'audioPlayer': createComponentImplementation(A2uiAudioPlayer, UniversalOnlyComponent),
-  'list': createComponentImplementation(A2uiList, UniversalOnlyComponent),
-  'card': createComponentImplementation(A2uiCard, UniversalOnlyComponent),
-  'tabs': createComponentImplementation(A2uiTabs, UniversalOnlyComponent),
-  'modal': createComponentImplementation(A2uiModal, UniversalOnlyComponent),
-  'divider': createComponentImplementation(A2uiDivider, UniversalOnlyComponent),
-  'checkBox': createComponentImplementation(A2uiCheckBox, UniversalOnlyComponent),
-  'choicePicker': createComponentImplementation(A2uiChoicePicker, UniversalOnlyComponent),
-  'slider': createComponentImplementation(A2uiSlider, UniversalOnlyComponent),
-  'dateTimeInput': createComponentImplementation(A2uiDateTimeInput, UniversalOnlyComponent),
+const DEFAULT_COMPONENT_NAMES: Record<string, string> = {
+  'text': 'Text',
+  'row': 'Row',
+  'column': 'Column',
+  'button': 'Button',
+  'textField': 'TextField',
+  'image': 'Image',
+  'icon': 'Icon',
+  'video': 'Video',
+  'audioPlayer': 'AudioPlayer',
+  'list': 'List',
+  'card': 'Card',
+  'tabs': 'Tabs',
+  'modal': 'Modal',
+  'divider': 'Divider',
+  'checkBox': 'CheckBox',
+  'choicePicker': 'ChoicePicker',
+  'slider': 'Slider',
+  'dateTimeInput': 'DateTimeInput',
 } as const;
+
+const defaultImplementations = new WeakMap<
+  JsonSchemaValidator,
+  Record<string, AngularComponentImplementation>
+>();
+
+/**
+ * The default Angular universal implementation of each v1.0 basic catalog component, keyed like
+ * {@link DEFAULT_COMPONENT_NAMES}: the components of web_core's v1 basic catalog for `validator`.
+ * Built once per validator.
+ */
+function defaultComponentImplementations(
+  validator: JsonSchemaValidator,
+): Record<string, AngularComponentImplementation> {
+  const base = createBasicCatalog(validator);
+  let implementations = defaultImplementations.get(validator);
+  if (!implementations) {
+    implementations = {};
+    for (const [key, name] of Object.entries(DEFAULT_COMPONENT_NAMES)) {
+      implementations[key] = createComponentImplementation(
+        base.components.get(name)!,
+        UniversalOnlyComponent,
+      );
+    }
+    defaultImplementations.set(validator, implementations);
+  }
+  return implementations;
+}
 
 /**
  * Interface for specifying overrides and configuration for the v1.0 basic catalog.
@@ -101,7 +112,7 @@ export interface BasicCatalogOptions {
    * Optional overrides for individual components in the catalog.
    */
   components?: Partial<{
-    [K in keyof typeof DEFAULT_COMPONENT_IMPLEMENTATIONS]: AngularComponentImplementation;
+    [K in keyof typeof DEFAULT_COMPONENT_NAMES]: AngularComponentImplementation;
   }>;
 
   /**
@@ -116,34 +127,57 @@ export interface BasicCatalogOptions {
   functions?: FunctionImplementation[];
 
   /**
-   * Optional theme schema to override default basic catalog theme schema.
+   * Optional theme schema. The v1.0 basic catalog declares none.
    */
-  themeSchema?: z.ZodType<BasicCatalogTheme>;
+  themeSchema?: CatalogSchema<BasicCatalogTheme>;
+
+  /**
+   * The JSON Schema validator the catalog's components and functions validate with, such as
+   * `createAjvValidator()` from `@a2ui/validator-ajv`. Required for `BasicCatalogBase`;
+   * `BasicCatalog` defaults it to the one provided with `provideA2uiValidator`.
+   */
+  validator?: JsonSchemaValidator;
 }
 
 /**
- * The set of UI components provided by the v1.0 basic catalog.
+ * Returns the UI components of the v1.0 basic catalog, built with `validator`.
+ *
+ * Each call returns a new array of the same entries.
+ *
+ * @param validator The JSON Schema validator, such as `createAjvValidator()` from
+ *   `@a2ui/validator-ajv`.
+ * @throws {A2uiConfigurationError} If `validator` is missing.
  */
-export const BASIC_COMPONENTS: AngularComponentImplementation[] = Object.values(
-  DEFAULT_COMPONENT_IMPLEMENTATIONS,
-);
+export function createBasicComponents(
+  validator: JsonSchemaValidator,
+): AngularComponentImplementation[] {
+  return Object.values(defaultComponentImplementations(validator));
+}
 
 /**
- * The set of client-side functions provided by the v1.0 basic catalog.
+ * Returns the client-side functions of the v1.0 basic catalog.
  */
-export {BASIC_FUNCTIONS};
+export {createBasicCatalogFunctions};
 
 /**
  * A base class for v1.0 basic catalogs, providing extensibility for non-DI use cases.
+ *
+ * The catalog keeps the document fields of the published v1 basic catalog, such as its `$defs`.
+ *
+ * @throws {A2uiConfigurationError} If `options.validator` is missing.
  */
 export class BasicCatalogBase extends AngularCatalog {
   constructor(options: BasicCatalogOptions = {}) {
-    const id = options.id ?? 'https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json';
-    const functions = options.functions ?? createBasicCatalogFunctions({locale: options.locale});
+    const validator = options.validator as JsonSchemaValidator;
+    const base: WebCoreBasicCatalog = createBasicCatalog(validator);
+    const id = options.id ?? base.id;
+    const functions =
+      options.functions ?? createBasicCatalogFunctions(validator, {locale: options.locale});
 
+    const defaults = defaultComponentImplementations(validator);
     const overrides = options.components ?? {};
     const components: AngularComponentImplementation[] = [
-      ...Object.entries(DEFAULT_COMPONENT_IMPLEMENTATIONS).map(([key, defaultValue]) => {
+      ...Object.entries(defaults).map(([key, defaultValue]) => {
         const impl = (overrides as any)[key] ?? defaultValue;
         const result: Record<string, any> = {name: impl.name || defaultValue.name || key};
         for (const prop of Object.keys(impl)) {
@@ -156,7 +190,25 @@ export class BasicCatalogBase extends AngularCatalog {
       ...(options.extraComponents ?? []),
     ];
 
-    super(id, '1.0', components, functions, options.themeSchema ?? BasicCatalogThemeSchema);
+    super(id, '1.0', components, functions, {
+      themeSchema: options.themeSchema ?? base.themeSchema,
+      validator,
+      schemaUri: base.schemaUri,
+      declaredProtocolVersion: base.declaredProtocolVersion,
+      declaresCatalogId: base.declaresCatalogId,
+      declaresComponents: base.declaresComponents,
+      functionsLayout: base.functionsLayout,
+      unions: base.unions,
+      defs: base.defs,
+      extensionFields: base.extensionFields,
+      commonTypesUri: base.commonTypesUri,
+      themeLocation: base.themeLocation,
+      // The `$id`, title and description describe the published catalog, so they are kept only
+      // under its ID.
+      ...(id === base.id
+        ? {schemaId: base.schemaId, title: base.title, description: base.description}
+        : {}),
+    });
   }
 }
 
@@ -166,13 +218,16 @@ export const BASIC_CATALOG_OPTIONS = new InjectionToken<BasicCatalogOptions>(
 
 /**
  * The v1.0 basic catalog of components and functions for Angular.
+ *
+ * It validates with the validator provided with `provideA2uiValidator`, unless
+ * `BASIC_CATALOG_OPTIONS` sets one.
  */
 @Injectable({
   providedIn: 'root',
 })
 export class BasicCatalog extends BasicCatalogBase {
   constructor(@Optional() @Inject(BASIC_CATALOG_OPTIONS) options?: BasicCatalogOptions) {
-    super(options ?? {});
+    super({...options, validator: options?.validator ?? injectA2uiValidator()});
   }
 }
 

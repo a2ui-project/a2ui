@@ -19,6 +19,7 @@ import {AudioPlayerComponent} from './audio-player.component';
 import {A2uiRendererService} from '@a2ui/angular';
 import {ComponentBinder} from '@a2ui/angular';
 import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
+import {provideTestValidator} from '../../../test_validator';
 
 describe('AudioPlayerComponent', () => {
   let component: AudioPlayerComponent;
@@ -42,6 +43,7 @@ describe('AudioPlayerComponent', () => {
     await TestBed.configureTestingModule({
       imports: [AudioPlayerComponent],
       providers: [
+        provideTestValidator(),
         {provide: A2uiRendererService, useValue: mockRendererService},
         {provide: ComponentBinder, useValue: mockBinder},
       ],

@@ -15,9 +15,15 @@
  */
 
 import {Injector, Type} from '@angular/core';
-import {Catalog, ComponentApi, ComponentContext, FunctionImplementation} from '@a2ui/web_core';
+import {
+  Catalog,
+  CatalogOptions,
+  CatalogSchema,
+  ComponentApi,
+  ComponentContext,
+  FunctionImplementation,
+} from '@a2ui/web_core';
 import {WebComponentImplementation, isWebComponentImplementation} from '@a2ui/web_core/universal';
-import {z} from 'zod';
 import {CatalogComponentInstance} from '../core/catalog_component_instance';
 import {componentApiFields, toWebComponent} from './to_web_component';
 import {UniversalOnlyComponent} from './universal_only.component';
@@ -30,6 +36,9 @@ import {UniversalOnlyComponent} from './universal_only.component';
  * @see https://github.com/a2ui-project/a2ui/issues/1303
  */
 export type AnyDuringSchemaAlignment = any;
+
+/** The theme schema of a catalog, or its `CatalogOptions`. */
+type ThemeSchemaOrOptions = CatalogSchema<unknown> | CatalogOptions;
 
 /**
  * Extends the generic {@link ComponentApi} to include Angular-specific component metadata.
@@ -80,7 +89,7 @@ export class AngularCatalog extends Catalog<AngularComponentImplementation> {
     protocolVersion: string,
     components?: ReadonlyArray<AngularComponentImplementation | WebComponentImplementation>,
     functions?: FunctionImplementation[],
-    themeSchema?: z.ZodTypeAny,
+    themeSchemaOrOptions?: ThemeSchemaOrOptions,
     instructions?: string,
   );
   /**
@@ -94,7 +103,7 @@ export class AngularCatalog extends Catalog<AngularComponentImplementation> {
     id: string,
     components?: ReadonlyArray<AngularComponentImplementation | WebComponentImplementation>,
     functions?: FunctionImplementation[],
-    themeSchema?: z.ZodTypeAny,
+    themeSchemaOrOptions?: ThemeSchemaOrOptions,
     instructions?: string,
   );
   constructor(
@@ -105,8 +114,8 @@ export class AngularCatalog extends Catalog<AngularComponentImplementation> {
     componentsOrFunctions?:
       | ReadonlyArray<AngularComponentImplementation | WebComponentImplementation>
       | FunctionImplementation[],
-    functionsOrThemeSchema?: FunctionImplementation[] | z.ZodTypeAny,
-    themeSchemaOrInstructions?: z.ZodTypeAny | string,
+    functionsOrThemeSchema?: FunctionImplementation[] | ThemeSchemaOrOptions,
+    themeSchemaOrInstructions?: ThemeSchemaOrOptions | string,
     instructions?: string,
   ) {
     if (typeof protocolVersionOrComponents !== 'string') {
@@ -116,7 +125,7 @@ export class AngularCatalog extends Catalog<AngularComponentImplementation> {
         '0.9',
         (protocolVersionOrComponents ?? []).map(toAngularComponentImplementation),
         componentsOrFunctions as FunctionImplementation[] | undefined,
-        functionsOrThemeSchema as z.ZodTypeAny | undefined,
+        functionsOrThemeSchema as ThemeSchemaOrOptions | undefined,
         themeSchemaOrInstructions as string | undefined,
       );
     } else {
@@ -128,7 +137,7 @@ export class AngularCatalog extends Catalog<AngularComponentImplementation> {
         protocolVersionOrComponents,
         components.map(toAngularComponentImplementation),
         functionsOrThemeSchema as FunctionImplementation[] | undefined,
-        themeSchemaOrInstructions as z.ZodTypeAny | undefined,
+        themeSchemaOrInstructions as ThemeSchemaOrOptions | undefined,
         instructions,
       );
     }

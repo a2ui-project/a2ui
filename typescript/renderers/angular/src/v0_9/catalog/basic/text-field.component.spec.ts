@@ -19,6 +19,7 @@ import {TextFieldComponent} from './text-field.component';
 import {A2uiRendererService, A2UI_RENDERER_CONFIG} from '@a2ui/angular';
 import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
 import {By} from '@angular/platform-browser';
+import {provideTestValidator} from '../../../test_validator';
 
 describe('TextFieldComponent', () => {
   let component: TextFieldComponent;
@@ -28,7 +29,11 @@ describe('TextFieldComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [TextFieldComponent],
-      providers: [A2uiRendererService, {provide: A2UI_RENDERER_CONFIG, useValue: {catalogs: []}}],
+      providers: [
+        provideTestValidator(),
+        A2uiRendererService,
+        {provide: A2UI_RENDERER_CONFIG, useValue: {catalogs: []}},
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(TextFieldComponent);

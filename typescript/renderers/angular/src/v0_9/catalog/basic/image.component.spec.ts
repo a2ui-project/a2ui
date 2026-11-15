@@ -19,6 +19,7 @@ import {ImageComponent} from './image.component';
 import {A2uiRendererService} from '@a2ui/angular';
 import {ComponentBinder} from '@a2ui/angular';
 import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
+import {provideTestValidator} from '../../../test_validator';
 
 describe('ImageComponent', () => {
   let component: ImageComponent;
@@ -42,6 +43,7 @@ describe('ImageComponent', () => {
     await TestBed.configureTestingModule({
       imports: [ImageComponent],
       providers: [
+        provideTestValidator(),
         {provide: A2uiRendererService, useValue: mockRendererService},
         {provide: ComponentBinder, useValue: mockBinder},
       ],

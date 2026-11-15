@@ -19,6 +19,7 @@ import {Divider} from './divider';
 import {Theme} from '../rendering/theming';
 import {MessageProcessor} from '../data/processor';
 import type {DividerNode} from '../types';
+import {provideTestValidator} from '../../test_validator';
 
 describe('Divider Component', () => {
   let component: Divider;
@@ -39,6 +40,7 @@ describe('Divider Component', () => {
     await TestBed.configureTestingModule({
       imports: [Divider],
       providers: [
+        provideTestValidator(),
         {provide: Theme, useValue: mockTheme},
         {provide: MessageProcessor, useValue: {}},
       ],

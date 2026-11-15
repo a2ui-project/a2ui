@@ -20,6 +20,7 @@ import type {VideoNode} from '../types';
 import {Theme} from '../rendering/theming';
 import {MessageProcessor} from '../data/processor';
 import {Catalog} from '../rendering/catalog';
+import {provideTestValidator} from '../../test_validator';
 
 describe('Video Component', () => {
   let component: Video;
@@ -49,6 +50,7 @@ describe('Video Component', () => {
     await TestBed.configureTestingModule({
       imports: [Video],
       providers: [
+        provideTestValidator(),
         {provide: MessageProcessor, useValue: mockProcessor},
         {provide: Theme, useValue: mockTheme},
         {provide: Catalog, useValue: {}},

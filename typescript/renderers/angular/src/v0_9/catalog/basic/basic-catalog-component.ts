@@ -17,9 +17,15 @@
 import {Directive, computed, HostBinding, inject} from '@angular/core';
 import {injectBasicCatalogStyles, isValidCssColor} from '@a2ui/web_core/v0_9/basic_catalog';
 import {A2uiRendererService} from '@a2ui/angular';
-import {ComponentApi} from '@a2ui/web_core/v0_9';
+import type {CatalogSchema, ComponentApi} from '@a2ui/web_core';
 import {CatalogComponent} from '@a2ui/angular';
 import {BoundProperty} from '@a2ui/angular';
+
+/**
+ * The API of a basic catalog component whose properties are `Props`, such as the generated
+ * `TextProps` of `@a2ui/web_core/v0_9/basic_catalog`.
+ */
+export type BasicComponentApi<Props> = ComponentApi<CatalogSchema<Props>>;
 
 /**
  * Base class for A2UI basic catalog components in Angular.

@@ -50,13 +50,16 @@ export {
   toWebComponent,
   UniversalOnlyComponent,
   provideA2Ui,
+  A2UI_JSON_SCHEMA_VALIDATOR,
+  provideA2uiValidator,
+  injectA2uiValidator,
 } from '@a2ui/angular';
 
 // Catalog Types and Implementations
 export {
   type BasicCatalogOptions,
-  BASIC_COMPONENTS,
-  BASIC_FUNCTIONS,
+  createBasicComponents,
+  createBasicCatalogFunctions,
   BasicCatalogBase,
   BASIC_CATALOG_OPTIONS,
   BasicCatalog,

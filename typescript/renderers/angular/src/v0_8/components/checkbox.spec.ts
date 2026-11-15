@@ -19,6 +19,7 @@ import {Checkbox} from './checkbox';
 import {MessageProcessor} from '../data/processor';
 import {Theme} from '../rendering/theming';
 import type {A2UIClientEventMessage, CheckboxNode} from '../types';
+import {provideTestValidator} from '../../test_validator';
 
 describe('Checkbox Component', () => {
   let component: Checkbox;
@@ -46,6 +47,7 @@ describe('Checkbox Component', () => {
     await TestBed.configureTestingModule({
       imports: [Checkbox],
       providers: [
+        provideTestValidator(),
         {provide: MessageProcessor, useValue: mockProcessor},
         {provide: Theme, useValue: new Theme()},
       ],

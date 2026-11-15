@@ -19,6 +19,7 @@ import {MessageProcessor, A2UIClientEvent} from './processor';
 import {Catalog} from '../rendering/catalog';
 import type {A2UIClientEventMessage, AnyComponentNode, ServerToClientMessage} from '../types';
 import * as WebCore from '@a2ui/web_core/v0_8';
+import {provideTestValidator} from '../../test_validator';
 
 describe('MessageProcessor', () => {
   let service: MessageProcessor;
@@ -28,7 +29,11 @@ describe('MessageProcessor', () => {
     mockCatalog = {};
 
     TestBed.configureTestingModule({
-      providers: [MessageProcessor, {provide: Catalog, useValue: mockCatalog}],
+      providers: [
+        provideTestValidator(),
+        MessageProcessor,
+        {provide: Catalog, useValue: mockCatalog},
+      ],
     });
     service = TestBed.inject(MessageProcessor);
   });

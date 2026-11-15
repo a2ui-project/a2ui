@@ -19,6 +19,7 @@ import {Surface} from './surface';
 import {MessageProcessor} from '../data/processor';
 import type {AnyComponentNode, Surface as SurfaceType} from '../types';
 import {Directive, Input} from '@angular/core';
+import {provideTestValidator} from '../../test_validator';
 
 @Directive({
   selector: '[a2ui-renderer]',
@@ -57,7 +58,7 @@ describe('Surface Component', () => {
 
     await TestBed.configureTestingModule({
       imports: [Surface],
-      providers: [{provide: MessageProcessor, useValue: mockProcessor}],
+      providers: [provideTestValidator(), {provide: MessageProcessor, useValue: mockProcessor}],
     })
       .overrideComponent(Surface, {
         set: {

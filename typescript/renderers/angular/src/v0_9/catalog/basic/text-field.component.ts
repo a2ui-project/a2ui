@@ -15,8 +15,8 @@
  */
 
 import {Component, computed, ChangeDetectionStrategy} from '@angular/core';
-import {BasicCatalogComponent} from './basic-catalog-component';
-import {TextFieldApi} from '@a2ui/web_core/v0_9/basic_catalog';
+import {BasicCatalogComponent, type BasicComponentApi} from './basic-catalog-component';
+import type {TextFieldProps} from '@a2ui/web_core/v0_9/basic_catalog';
 import {
   AccessibilityTargetDirective,
   ValidationErrorsDirective,
@@ -104,7 +104,7 @@ import {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class TextFieldComponent extends BasicCatalogComponent<typeof TextFieldApi> {
+export class TextFieldComponent extends BasicCatalogComponent<BasicComponentApi<TextFieldProps>> {
   readonly label = computed(() => this.props()['label']?.value());
   readonly value = computed(() => this.props()['value']?.value() || '');
   readonly variant = computed(() => this.props()['variant']?.value());

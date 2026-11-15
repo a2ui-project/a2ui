@@ -24,6 +24,7 @@ import {
   setMarkdownRenderer,
 } from '@a2ui/web_core/universal';
 import {MarkdownRenderer} from './markdown';
+import {provideTestValidator, validator} from '../test_validator';
 
 describe('A2uiRendererService', () => {
   let service: A2uiRendererService;
@@ -45,6 +46,7 @@ describe('A2uiRendererService', () => {
 
     TestBed.configureTestingModule({
       providers: [
+        provideTestValidator(),
         A2uiRendererService,
         {
           provide: A2UI_RENDERER_CONFIG,
@@ -81,6 +83,7 @@ describe('A2uiRendererService', () => {
       TestBed.resetTestingModule();
       TestBed.configureTestingModule({
         providers: [
+          provideTestValidator(),
           A2uiRendererService,
           {
             provide: A2UI_RENDERER_CONFIG,
@@ -113,6 +116,7 @@ describe('A2uiRendererService', () => {
       TestBed.resetTestingModule();
       TestBed.configureTestingModule({
         providers: [
+          provideTestValidator(),
           A2uiRendererService,
           {
             provide: A2UI_RENDERER_CONFIG,
@@ -132,6 +136,7 @@ describe('A2uiRendererService', () => {
       TestBed.resetTestingModule();
       TestBed.configureTestingModule({
         providers: [
+          provideTestValidator(),
           A2uiRendererService,
           {provide: A2UI_RENDERER_CONFIG, useValue: {catalogs: [mockCatalog]}},
           {provide: MarkdownRenderer, useValue: {render: async () => '<p>rendered</p>'}},
@@ -185,7 +190,7 @@ describe('provideA2Ui', () => {
       functions: new Map(),
     };
     TestBed.configureTestingModule({
-      providers: [provideA2Ui({catalogs: [mockCatalog as any]})],
+      providers: [provideTestValidator(), provideA2Ui({catalogs: [mockCatalog as any]})],
     });
     const config = TestBed.inject(A2UI_RENDERER_CONFIG);
     expect(config).toEqual({catalogs: [mockCatalog as any]});
@@ -200,7 +205,7 @@ describe('provideA2Ui', () => {
       functions: new Map(),
     };
     TestBed.configureTestingModule({
-      providers: [provideA2Ui(() => ({catalogs: [mockCatalog as any]}))],
+      providers: [provideTestValidator(), provideA2Ui(() => ({catalogs: [mockCatalog as any]}))],
     });
     const config = TestBed.inject(A2UI_RENDERER_CONFIG);
     expect(config).toEqual({catalogs: [mockCatalog as any]});
@@ -210,9 +215,9 @@ describe('provideA2Ui', () => {
   });
 
   it('should provide BasicCatalog in configuration', () => {
-    const basicCat = new BasicCatalog();
+    const basicCat = new BasicCatalog({validator});
     TestBed.configureTestingModule({
-      providers: [provideA2Ui({catalogs: [basicCat]})],
+      providers: [provideTestValidator(), provideA2Ui({catalogs: [basicCat]})],
     });
     const config = TestBed.inject(A2UI_RENDERER_CONFIG);
     expect(config.catalogs).toBeDefined();
@@ -225,9 +230,12 @@ describe('provideA2Ui', () => {
   });
 
   it('should support useUniversalComponents option in configuration', () => {
-    const basicCat = new BasicCatalog();
+    const basicCat = new BasicCatalog({validator});
     TestBed.configureTestingModule({
-      providers: [provideA2Ui({catalogs: [basicCat], useUniversalComponents: true})],
+      providers: [
+        provideTestValidator(),
+        provideA2Ui({catalogs: [basicCat], useUniversalComponents: true}),
+      ],
     });
     const config = TestBed.inject(A2UI_RENDERER_CONFIG);
     expect(config.useUniversalComponents).toBeTrue();
@@ -235,9 +243,12 @@ describe('provideA2Ui', () => {
   });
 
   it('should keep basic catalog entries renderable both natively and as Web Components regardless of the flag', () => {
-    const basicCat = new BasicCatalog();
+    const basicCat = new BasicCatalog({validator});
     TestBed.configureTestingModule({
-      providers: [provideA2Ui({catalogs: [basicCat], useUniversalComponents: false})],
+      providers: [
+        provideTestValidator(),
+        provideA2Ui({catalogs: [basicCat], useUniversalComponents: false}),
+      ],
     });
     TestBed.inject(A2uiRendererService);
     expect(basicCat.components.size).toBeGreaterThan(1);
@@ -253,7 +264,8 @@ describe('provideA2Ui', () => {
 
     TestBed.configureTestingModule({
       providers: [
-        provideA2Ui({catalogs: [new CustomCatalog()], useUniversalComponents: true}),
+        provideTestValidator(),
+        provideA2Ui({catalogs: [new CustomCatalog({validator})], useUniversalComponents: true}),
         {provide: CustomCatalog, useClass: CustomCatalog},
       ],
     });
@@ -266,11 +278,12 @@ describe('provideA2Ui', () => {
   });
 
   it('should forward processorOptions with unifiedOutbound and route surface actions to outboundListener', async () => {
-    const basicCat = new BasicCatalog();
+    const basicCat = new BasicCatalog({validator});
     const outboundMessages: unknown[] = [];
     const actionHandler = jasmine.createSpy('actionHandler');
     TestBed.configureTestingModule({
       providers: [
+        provideTestValidator(),
         provideA2Ui({
           catalogs: [basicCat],
           actionHandler,

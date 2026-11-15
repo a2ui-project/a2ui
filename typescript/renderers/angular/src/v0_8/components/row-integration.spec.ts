@@ -22,6 +22,7 @@ import {Theme} from '../rendering/theming';
 import {MessageProcessor} from '../data/processor';
 import {MarkdownRenderer} from '../data/markdown';
 import {Component} from '@angular/core';
+import {provideTestValidator} from '../../test_validator';
 
 @Component({
   template: `<ng-container
@@ -52,6 +53,7 @@ describe('Row Component Integration (Real Renderer)', () => {
     await TestBed.configureTestingModule({
       imports: [TestHost],
       providers: [
+        provideTestValidator(),
         {provide: MessageProcessor, useValue: processor},
         {provide: Catalog, useValue: DEFAULT_CATALOG},
         {

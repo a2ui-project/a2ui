@@ -78,6 +78,7 @@ __metadata:
     "@a2ui/angular": "workspace:*"
     "@a2ui/catalog-mcp": "workspace:*"
     "@a2ui/markdown-it": "npm:*"
+    "@a2ui/validator-ajv": "workspace:*"
     "@a2ui/web_core": "workspace:*"
     "@angular/build": "npm:^21.2.5"
     "@angular/cli": "npm:^21.2.5"
@@ -118,6 +119,7 @@ __metadata:
   resolution: "@a2ui/angular@workspace:typescript/renderers/angular"
   dependencies:
     "@a2ui/markdown-it": "workspace:*"
+    "@a2ui/validator-ajv": "workspace:*"
     "@a2ui/web_core": "workspace:*"
     "@angular/build": "npm:^21.2.5"
     "@angular/cli": "npm:^21.2.5"
@@ -151,7 +153,6 @@ __metadata:
     vitest: "npm:^4.1.8"
     wireit: "npm:^0.15.0-pre.2"
     yaml: "npm:^2.8.1"
-    zod: "npm:^3.25.76"
   peerDependencies:
     "@a2ui/markdown-it": "workspace:*"
     "@angular/common": ^21.2.5

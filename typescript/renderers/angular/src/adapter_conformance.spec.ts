@@ -32,6 +32,7 @@ import {
   type ManifestRecord,
 } from './adapter_harness';
 import {A2uiRendererService, SurfaceComponent, provideA2UI} from './public-api';
+import {provideTestValidator} from './test_validator';
 
 const specMetadataByFullName = new Map<string, {suite: string; caseName: string}>();
 let reporterInstalled = false;
@@ -120,7 +121,10 @@ describe('@a2ui/angular Accessibility Conformance (conformance/core/accessibilit
 
       TestBed.configureTestingModule({
         imports: [SurfaceComponent],
-        providers: [provideA2UI({catalogs: [createDefaultAdapterCatalog()]})],
+        providers: [
+          provideTestValidator(),
+          provideA2UI({catalogs: [createDefaultAdapterCatalog()]}),
+        ],
       });
       const rendererService = TestBed.inject(A2uiRendererService);
       let fixture: ComponentFixture<SurfaceComponent> | undefined;

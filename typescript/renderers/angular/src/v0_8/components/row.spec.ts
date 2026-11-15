@@ -21,6 +21,7 @@ import {Theme} from '../rendering/theming';
 import {Catalog} from '../rendering/catalog';
 import type {RowNode} from '../types';
 import {Directive, Input} from '@angular/core';
+import {provideTestValidator} from '../../test_validator';
 
 @Directive({
   selector: '[a2ui-renderer]',
@@ -57,6 +58,7 @@ describe('Row Component', () => {
     await TestBed.configureTestingModule({
       imports: [Row],
       providers: [
+        provideTestValidator(),
         {provide: MessageProcessor, useValue: {}},
         {provide: Theme, useValue: mockTheme},
         {provide: Catalog, useValue: {}},

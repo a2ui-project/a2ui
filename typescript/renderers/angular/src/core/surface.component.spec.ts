@@ -25,8 +25,7 @@ import {initializeAngularReactivity} from './reactivity';
 import {CatalogComponentInstance} from './catalog_component_instance';
 import {AngularCatalog, createComponentImplementation} from '../catalog/types';
 import {ComponentModel, SurfaceModel} from '@a2ui/web_core';
-import {DynamicStringSchema} from '@a2ui/web_core/v0_9';
-import {z} from 'zod';
+import {commonType, objectSchema} from '../test_validator';
 
 @Component({
   selector: 'test-text',
@@ -56,7 +55,10 @@ describe('SurfaceComponent', () => {
 
     const catalog = new AngularCatalog('test-catalog', '0.9', [
       createComponentImplementation(
-        {name: 'Text', schema: z.object({text: DynamicStringSchema})},
+        {
+          name: 'Text',
+          schema: objectSchema({text: commonType('DynamicString')}, {required: ['text']}),
+        },
         TestTextComponent as unknown as Type<CatalogComponentInstance>,
       ),
     ]);

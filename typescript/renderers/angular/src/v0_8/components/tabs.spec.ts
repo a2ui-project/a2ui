@@ -21,6 +21,7 @@ import {Theme} from '../rendering/theming';
 import {Catalog} from '../rendering/catalog';
 import {Directive, Input} from '@angular/core';
 import {By} from '@angular/platform-browser';
+import {provideTestValidator} from '../../test_validator';
 
 @Directive({
   selector: '[a2ui-renderer]',
@@ -67,6 +68,7 @@ describe('Tabs Component', () => {
     await TestBed.configureTestingModule({
       imports: [Tabs],
       providers: [
+        provideTestValidator(),
         {
           provide: MessageProcessor,
           useValue: {resolvePrimitive: (p: any) => p?.literalString || p},

@@ -15,8 +15,8 @@
  */
 
 import {Component, computed, ChangeDetectionStrategy} from '@angular/core';
-import {BasicCatalogComponent} from './basic-catalog-component';
-import {VideoApi} from '@a2ui/web_core/v0_9/basic_catalog';
+import {BasicCatalogComponent, type BasicComponentApi} from './basic-catalog-component';
+import type {VideoProps} from '@a2ui/web_core/v0_9/basic_catalog';
 import {AccessibilityTargetDirective, BoundProperty} from '@a2ui/angular';
 
 /**
@@ -60,7 +60,7 @@ import {AccessibilityTargetDirective, BoundProperty} from '@a2ui/angular';
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class VideoComponent extends BasicCatalogComponent<typeof VideoApi> {
+export class VideoComponent extends BasicCatalogComponent<BasicComponentApi<VideoProps>> {
   readonly url = computed(() => this.props()['url']?.value());
   readonly posterUrl = computed(() => {
     const p = this.props() as unknown as Record<string, BoundProperty<string | undefined>>;

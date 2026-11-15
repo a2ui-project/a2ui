@@ -19,6 +19,7 @@ import {IconComponent} from './icon.component';
 import {A2uiRendererService} from '@a2ui/angular';
 import {ComponentBinder} from '@a2ui/angular';
 import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
+import {provideTestValidator} from '../../../test_validator';
 
 describe('IconComponent', () => {
   let component: IconComponent;
@@ -42,6 +43,7 @@ describe('IconComponent', () => {
     await TestBed.configureTestingModule({
       imports: [IconComponent],
       providers: [
+        provideTestValidator(),
         {provide: A2uiRendererService, useValue: mockRendererService},
         {provide: ComponentBinder, useValue: mockBinder},
       ],

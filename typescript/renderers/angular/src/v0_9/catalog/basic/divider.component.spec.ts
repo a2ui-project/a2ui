@@ -19,6 +19,7 @@ import {DividerComponent} from './divider.component';
 import {A2uiRendererService} from '@a2ui/angular';
 import {ComponentBinder} from '@a2ui/angular';
 import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
+import {provideTestValidator} from '../../../test_validator';
 
 describe('DividerComponent', () => {
   let component: DividerComponent;
@@ -42,6 +43,7 @@ describe('DividerComponent', () => {
     await TestBed.configureTestingModule({
       imports: [DividerComponent],
       providers: [
+        provideTestValidator(),
         {provide: A2uiRendererService, useValue: mockRendererService},
         {provide: ComponentBinder, useValue: mockBinder},
       ],

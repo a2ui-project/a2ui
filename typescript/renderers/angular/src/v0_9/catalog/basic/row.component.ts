@@ -17,9 +17,9 @@
 import {Component, computed, ChangeDetectionStrategy} from '@angular/core';
 import {ComponentHostComponent} from '@a2ui/angular';
 import {Child} from '@a2ui/angular';
-import {BasicCatalogComponent} from './basic-catalog-component';
+import {BasicCatalogComponent, type BasicComponentApi} from './basic-catalog-component';
 import {JUSTIFY_MAP, ALIGN_MAP} from './utils';
-import {RowApi} from '@a2ui/web_core/v0_9/basic_catalog';
+import type {RowProps} from '@a2ui/web_core/v0_9/basic_catalog';
 
 /**
  * Angular implementation of the A2UI Row component (v0.9).
@@ -49,7 +49,7 @@ import {RowApi} from '@a2ui/web_core/v0_9/basic_catalog';
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class RowComponent extends BasicCatalogComponent<typeof RowApi> {
+export class RowComponent extends BasicCatalogComponent<BasicComponentApi<RowProps>> {
   protected readonly justify = computed(() => {
     const val = this.props()['justify']?.value();
     return val ? JUSTIFY_MAP[val] || val : undefined;

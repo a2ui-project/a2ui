@@ -28,8 +28,7 @@ import {
   getValue,
 } from '@a2ui/web_core';
 import {A2UI_ELEMENT_CONNECTED_EVENT, WebComponentImplementation} from '@a2ui/web_core/universal';
-import {ComponentIdSchema, DynamicStringSchema} from '@a2ui/web_core/v0_9';
-import {A2uiColumn, A2uiText} from '@a2ui/web_core/v0_9/basic_catalog';
+import {createBasicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
 import {
   Component,
   EnvironmentInjector,
@@ -56,7 +55,11 @@ import {UniversalOnlyComponent} from '../catalog/universal_only.component';
 import {initializeAngularReactivity} from './reactivity';
 import {ComponentBinder} from './component-binder.service';
 import {SurfaceNodeResolver} from './surface-node-resolver.service';
-import {z} from 'zod';
+import {commonType, objectSchema, provideTestValidator, validator} from '../test_validator';
+
+const basicCatalog = createBasicCatalog(validator);
+const A2uiText = basicCatalog.components.get('Text')!;
+const A2uiColumn = basicCatalog.components.get('Column')!;
 
 @Component({
   selector: 'test-child',
@@ -84,11 +87,11 @@ class TestOtherChildComponent {
 
 const TestTypeApi = {
   name: 'TestType',
-  schema: z.object({text: DynamicStringSchema.optional(), other: DynamicStringSchema.optional()}),
+  schema: objectSchema({text: commonType('DynamicString'), other: commonType('DynamicString')}),
 } satisfies ComponentApi;
 const OtherTypeApi = {
   name: 'OtherType',
-  schema: z.object({text: DynamicStringSchema.optional()}),
+  schema: objectSchema({text: commonType('DynamicString')}),
 };
 
 /** Flushes root effects (the resolver updates node props in effects) and the fixture view. */
@@ -407,7 +410,10 @@ describe('ComponentHostComponent', () => {
       }
       const lateCatalog = new AngularCatalog('late-catalog', '0.9', [
         createComponentImplementation(
-          {name: 'Parent', schema: z.object({child: ComponentIdSchema})},
+          {
+            name: 'Parent',
+            schema: objectSchema({child: commonType('ComponentId')}, {required: ['child']}),
+          },
           TestParentComponent as unknown as Type<CatalogComponentInstance>,
         ),
         createComponentImplementation(
@@ -444,7 +450,10 @@ describe('ComponentHostComponent', () => {
     it('should render a child reference that carries its node without searching the tree', () => {
       const childCatalog = new AngularCatalog('child-catalog', '0.9', [
         createComponentImplementation(
-          {name: 'Parent', schema: z.object({child: ComponentIdSchema})},
+          {
+            name: 'Parent',
+            schema: objectSchema({child: commonType('ComponentId')}, {required: ['child']}),
+          },
           TestOtherChildComponent as unknown as Type<CatalogComponentInstance>,
         ),
         createComponentImplementation(
@@ -524,7 +533,7 @@ describe('ComponentHostComponent', () => {
     }
     const mockWcImpl: WebComponentImplementation = {
       name: 'WcType',
-      schema: z.object({label: z.string().optional()}),
+      schema: objectSchema({label: {type: 'string'}}),
       tagName: 'mock-host-wc',
       element: MockWcElement,
     };
@@ -671,6 +680,7 @@ describe('ComponentHostComponent', () => {
       TestBed.resetTestingModule();
       TestBed.configureTestingModule({
         imports: [TestBubbleHostAComponent, TestBubbleHostBComponent],
+        providers: [provideTestValidator()],
       });
 
       const fixtureA = TestBed.createComponent(TestBubbleHostAComponent);
@@ -788,7 +798,10 @@ describe('ComponentHostComponent', () => {
       }
 
       TestBed.resetTestingModule();
-      TestBed.configureTestingModule({imports: [TestHookHostComponent]});
+      TestBed.configureTestingModule({
+        imports: [TestHookHostComponent],
+        providers: [provideTestValidator()],
+      });
       const hookFixture = TestBed.createComponent(TestHookHostComponent);
       document.body.appendChild(hookFixture.nativeElement);
 
@@ -838,7 +851,10 @@ describe('ComponentHostComponent', () => {
       };
       const nestedCatalog = new AngularCatalog('nested-hook-catalog', '0.9', [
         createComponentImplementation(
-          {name: 'Wrapper', schema: z.object({child: ComponentIdSchema})},
+          {
+            name: 'Wrapper',
+            schema: objectSchema({child: commonType('ComponentId')}, {required: ['child']}),
+          },
           TestHookWrapperComponent as unknown as Type<CatalogComponentInstance>,
         ),
         text,
@@ -861,7 +877,10 @@ describe('ComponentHostComponent', () => {
       }
 
       TestBed.resetTestingModule();
-      TestBed.configureTestingModule({imports: [TestNestedHookHostComponent]});
+      TestBed.configureTestingModule({
+        imports: [TestNestedHookHostComponent],
+        providers: [provideTestValidator()],
+      });
       const nestedFixture = TestBed.createComponent(TestNestedHookHostComponent);
       document.body.appendChild(nestedFixture.nativeElement);
 
@@ -903,7 +922,7 @@ describe('ComponentHostComponent', () => {
       const plain: WebComponentImplementation &
         Pick<AngularComponentImplementation, 'onElementConnected'> = {
         name: 'Plain',
-        schema: z.object({}),
+        schema: objectSchema(),
         tagName: 'test-hook-plain-element',
         element: PlainElement,
         onElementConnected,
@@ -928,7 +947,10 @@ describe('ComponentHostComponent', () => {
       }
 
       TestBed.resetTestingModule();
-      TestBed.configureTestingModule({imports: [TestPlainHookHostComponent]});
+      TestBed.configureTestingModule({
+        imports: [TestPlainHookHostComponent],
+        providers: [provideTestValidator()],
+      });
       const plainFixture = TestBed.createComponent(TestPlainHookHostComponent);
       document.body.appendChild(plainFixture.nativeElement);
 

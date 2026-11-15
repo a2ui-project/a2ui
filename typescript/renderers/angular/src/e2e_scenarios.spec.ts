@@ -16,8 +16,6 @@
 
 import {TestBed} from '@angular/core/testing';
 import {A2uiError} from '@a2ui/web_core';
-import {A2uiClientMessageSchema} from '@a2ui/web_core/v0_9';
-import {RendererToAgentMessageSchema} from '@a2ui/web_core/v1_0';
 
 import {
   assertKnownKeys,
@@ -38,6 +36,7 @@ import {
 } from './adapter_harness';
 import {type AngularCatalog, SurfaceComponent} from './public-api';
 import {BasicCatalogBase as V09BasicCatalogBase} from './v0_9';
+import {outboundIssues, validator} from './test_validator';
 
 const E2E_SCENARIO_KNOWN_KEYS = new Set([
   'name',
@@ -225,18 +224,11 @@ export function assertOutbound(
   expected: Array<Record<string, unknown>>,
   protocolVersion: string,
 ): void {
-  const isV09 = protocolVersion.startsWith('v0.9') || protocolVersion.startsWith('0.9');
   for (let i = 0; i < actual.length; i++) {
-    const parsed = isV09
-      ? A2uiClientMessageSchema.safeParse(actual[i])
-      : RendererToAgentMessageSchema.safeParse(actual[i]);
-    expect(parsed.success)
-      .withContext(
-        `outbound[${i}] failed protocol schema validation: ${
-          parsed.success ? '' : JSON.stringify(parsed.error.issues)
-        }`,
-      )
-      .toBe(true);
+    const issues = outboundIssues(actual[i], protocolVersion);
+    expect(issues.length)
+      .withContext(`outbound[${i}] failed protocol schema validation: ${JSON.stringify(issues)}`)
+      .toBe(0);
   }
   expect(actual.length).withContext('expectOutbound length').toBe(expected.length);
   for (let i = 0; i < expected.length; i++) {
@@ -245,7 +237,7 @@ export function assertOutbound(
 }
 
 function registerV09BasicCatalog(state: HarnessState): void {
-  const v09Cat = new V09BasicCatalogBase();
+  const v09Cat = new V09BasicCatalogBase({validator});
   const internal = state.rendererService as unknown as {
     _catalogs: AngularCatalog[];
   };

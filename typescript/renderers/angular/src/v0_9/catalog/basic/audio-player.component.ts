@@ -16,8 +16,8 @@
 
 import {AccessibilityTargetDirective} from '@a2ui/angular';
 import {Component, computed, ChangeDetectionStrategy} from '@angular/core';
-import {BasicCatalogComponent} from './basic-catalog-component';
-import {AudioPlayerApi} from '@a2ui/web_core/v0_9/basic_catalog';
+import {BasicCatalogComponent, type BasicComponentApi} from './basic-catalog-component';
+import type {AudioPlayerProps} from '@a2ui/web_core/v0_9/basic_catalog';
 
 /**
  * Angular implementation of the A2UI AudioPlayer component (v0.9).
@@ -67,7 +67,9 @@ import {AudioPlayerApi} from '@a2ui/web_core/v0_9/basic_catalog';
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class AudioPlayerComponent extends BasicCatalogComponent<typeof AudioPlayerApi> {
+export class AudioPlayerComponent extends BasicCatalogComponent<
+  BasicComponentApi<AudioPlayerProps>
+> {
   readonly description = computed(() => this.props()['description']?.value());
   readonly url = computed(() => this.props()['url']?.value());
 }

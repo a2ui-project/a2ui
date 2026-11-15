@@ -15,8 +15,8 @@
  */
 
 import {Component, computed, ChangeDetectionStrategy} from '@angular/core';
-import {BasicCatalogComponent} from './basic-catalog-component';
-import {DateTimeInputApi} from '@a2ui/web_core/v0_9/basic_catalog';
+import {BasicCatalogComponent, type BasicComponentApi} from './basic-catalog-component';
+import type {DateTimeInputProps} from '@a2ui/web_core/v0_9/basic_catalog';
 
 /**
  * Angular implementation of the A2UI DateTimeInput component (v0.9).
@@ -106,7 +106,9 @@ import {DateTimeInputApi} from '@a2ui/web_core/v0_9/basic_catalog';
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class DateTimeInputComponent extends BasicCatalogComponent<typeof DateTimeInputApi> {
+export class DateTimeInputComponent extends BasicCatalogComponent<
+  BasicComponentApi<DateTimeInputProps>
+> {
   readonly label = computed(() => this.props()['label']?.value());
   readonly enableTime = computed(() => this.props()['enableTime']?.value() ?? false);
   readonly enableDate = computed(() => this.props()['enableDate']?.value() ?? !this.enableTime());

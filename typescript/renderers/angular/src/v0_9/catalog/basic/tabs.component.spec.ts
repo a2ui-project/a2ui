@@ -22,6 +22,7 @@ import {ComponentModel, DynamicString, SurfaceComponentsModel} from '@a2ui/web_c
 import {A2uiRendererService} from '@a2ui/angular';
 import {ComponentBinder} from '@a2ui/angular';
 import {setComponentProps, createBoundProperty, ComponentToProps} from '@a2ui/angular/testing';
+import {provideTestValidator} from '../../../test_validator';
 
 @Component({
   selector: 'dummy-text-for-tabs',
@@ -69,6 +70,7 @@ describe('TabsComponent', () => {
     await TestBed.configureTestingModule({
       imports: [TabsComponent],
       providers: [
+        provideTestValidator(),
         {provide: A2uiRendererService, useValue: mockRendererService},
         {provide: ComponentBinder, useValue: mockBinder},
       ],

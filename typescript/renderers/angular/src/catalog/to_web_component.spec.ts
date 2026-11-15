@@ -17,9 +17,9 @@
 import {Component, InjectionToken, Injector, inject} from '@angular/core';
 
 import {TestBed} from '@angular/core/testing';
-import {z} from 'zod';
 import {
   Catalog,
+  CatalogSchema,
   ComponentApi,
   ComponentContext,
   ComponentModel,
@@ -33,7 +33,6 @@ import {
   registerUniversalElement,
   WebComponentImplementation,
 } from '@a2ui/web_core/universal';
-import {DynamicStringSchema} from '@a2ui/web_core/v0_9';
 import {toWebComponent} from './to_web_component';
 import {
   AngularWcHost,
@@ -49,10 +48,11 @@ import {
   AngularComponentImplementation,
   createComponentImplementation,
 } from './types';
+import {commonType, objectSchema} from '../test_validator';
 
 // Typed api for the test components that read `props().text`, so that the
 // template type checker sees a concrete property rather than an index signature.
-type TextTestApi = ComponentApi<z.ZodObject<{text: z.ZodString}>>;
+type TextTestApi = ComponentApi<CatalogSchema<{text: string}>>;
 
 // `createComponentImplementation` returns an `AngularComponentImplementation`;
 // these tests exercise the Custom Element it also carries, so narrow once here.
@@ -141,7 +141,7 @@ describe('toWebComponent', () => {
   it('converts an AngularComponentImplementation to a WebComponentImplementation', () => {
     const impl = toWebComponent({
       name: 'SimpleTest',
-      schema: z.object({text: z.string()}),
+      schema: objectSchema({text: {type: 'string'}}, {required: ['text']}),
       component: TestSimpleWcComponent,
     });
 
@@ -160,7 +160,7 @@ describe('toWebComponent', () => {
 
     const impl = toWebComponent({
       name: 'ConstrainedTest',
-      schema: z.object({}),
+      schema: objectSchema(),
       allowedParents: ['Card'],
       allowedChildren: ['Text'],
       component: TestConstrainedComponent,
@@ -180,7 +180,7 @@ describe('toWebComponent', () => {
 
     const impl = toWebComponent({
       name: 'LazyDefineTest',
-      schema: z.object({}),
+      schema: objectSchema(),
       component: TestLazyDefineComponent,
     });
 
@@ -192,13 +192,13 @@ describe('toWebComponent', () => {
   it('returns cached WebComponentImplementation on subsequent calls with the same component class', () => {
     const impl1 = toWebComponent({
       name: 'CachedTest',
-      schema: z.object({}),
+      schema: objectSchema(),
       component: TestCachedWcComponent,
     });
 
     const impl2 = toWebComponent({
       name: 'CachedTest',
-      schema: z.object({}),
+      schema: objectSchema(),
       component: TestCachedWcComponent,
     });
 
@@ -207,7 +207,7 @@ describe('toWebComponent', () => {
 
   it('instantiates custom element and sets up display: contents', () => {
     const impl = createUniversalImplementation(
-      {name: 'DisplayContentsTest', schema: z.object({})},
+      {name: 'DisplayContentsTest', schema: objectSchema()},
       TestDisplayContentsComponent,
     );
 
@@ -228,7 +228,10 @@ describe('toWebComponent', () => {
 
   it('binds component context, props, and metadata to the underlying Angular component', () => {
     const impl = createUniversalImplementation(
-      {name: 'BindContextTest', schema: z.object({text: z.string()})},
+      {
+        name: 'BindContextTest',
+        schema: objectSchema({text: {type: 'string'}}, {required: ['text']}),
+      },
       TestBindContextComponent,
     );
 
@@ -261,7 +264,10 @@ describe('toWebComponent', () => {
 
   it('updates bound props reactively when componentModel emits onUpdated', () => {
     const impl = createUniversalImplementation(
-      {name: 'ReactiveUpdateTest', schema: z.object({text: z.string()})},
+      {
+        name: 'ReactiveUpdateTest',
+        schema: objectSchema({text: {type: 'string'}}, {required: ['text']}),
+      },
       TestReactiveUpdateComponent,
     );
 
@@ -297,7 +303,7 @@ describe('toWebComponent', () => {
 
   it('safely handles components without standard inputs', () => {
     const impl = createUniversalImplementation(
-      {name: 'NoInputsTest', schema: z.object({})},
+      {name: 'NoInputsTest', schema: objectSchema()},
       TestNoInputsComponent,
     );
 
@@ -323,7 +329,10 @@ describe('toWebComponent', () => {
 
   it('cleans up views and subscriptions on disconnectedCallback and supports reattachment', () => {
     const impl = createUniversalImplementation(
-      {name: 'LifecycleTest', schema: z.object({text: z.string()})},
+      {
+        name: 'LifecycleTest',
+        schema: objectSchema({text: {type: 'string'}}, {required: ['text']}),
+      },
       TestLifecycleComponent,
     );
 
@@ -365,13 +374,13 @@ describe('toWebComponent', () => {
 
     const impl1 = toWebComponent({
       name: 'DuplicateName',
-      schema: z.object({}),
+      schema: objectSchema(),
       component: CompClassA,
     });
 
     const impl2 = toWebComponent({
       name: 'DuplicateName',
-      schema: z.object({}),
+      schema: objectSchema(),
       component: CompClassB,
     });
 
@@ -389,7 +398,10 @@ describe('toWebComponent', () => {
     class TestDefaultInjectorComponent extends CatalogComponent<TextTestApi> {}
 
     const impl = createUniversalImplementation(
-      {name: 'DefaultInjectorTest', schema: z.object({text: z.string()})},
+      {
+        name: 'DefaultInjectorTest',
+        schema: objectSchema({text: {type: 'string'}}, {required: ['text']}),
+      },
       TestDefaultInjectorComponent,
     );
 
@@ -426,7 +438,7 @@ describe('toWebComponent', () => {
 
     const impl = toWebComponent({
       name: 'NoInjectorTest',
-      schema: z.object({}),
+      schema: objectSchema(),
       component: TestNoInjectorComponent,
     });
 
@@ -447,7 +459,7 @@ describe('toWebComponent', () => {
 
     const impl = toWebComponent({
       name: 'NoContextTest',
-      schema: z.object({}),
+      schema: objectSchema(),
       component: TestNoContextComponent,
     });
 
@@ -460,14 +472,14 @@ describe('toWebComponent', () => {
   it('throws on connect when the catalog entry has no Angular component', () => {
     const impl = toWebComponent({
       name: 'OwningEntryTest',
-      schema: z.object({}),
+      schema: objectSchema(),
       component: TestNoInputsComponent,
     });
     // `AngularCatalog` would give this entry a placeholder component; use the base class to keep
     // exercising the runtime guard.
     const wcOnlyEntry: WebComponentImplementation = {
       name: 'OwningEntryTest',
-      schema: z.object({}),
+      schema: objectSchema(),
       tagName: impl.tagName,
       element: impl.element,
     };
@@ -491,7 +503,10 @@ describe('toWebComponent', () => {
     // creates any signals.
     const binder = TestBed.inject(ComponentBinder);
     const impl = createUniversalImplementation(
-      {name: 'NodeHostTest', schema: z.object({text: DynamicStringSchema})},
+      {
+        name: 'NodeHostTest',
+        schema: objectSchema({text: commonType('DynamicString')}, {required: ['text']}),
+      },
       TestBindContextComponent,
     );
     const catalog = new AngularCatalog('test-catalog', '0.9', [impl]);
@@ -544,7 +559,7 @@ describe('toWebComponent', () => {
     }
 
     const impl = createUniversalImplementation(
-      {name: 'StackedInjectorTest', schema: z.object({})},
+      {name: 'StackedInjectorTest', schema: objectSchema()},
       TestStackedInjectorComponent,
     );
     const catalog = new AngularCatalog('test-catalog', '0.9', [impl]);
@@ -588,7 +603,7 @@ describe('toWebComponent', () => {
     }
 
     const impl = createUniversalImplementation(
-      {name: 'ScopedInjectorTest', schema: z.object({})},
+      {name: 'ScopedInjectorTest', schema: objectSchema()},
       TestScopedInjectorComponent,
     );
     const catalog = new AngularCatalog('test-catalog', '0.9', [impl]);

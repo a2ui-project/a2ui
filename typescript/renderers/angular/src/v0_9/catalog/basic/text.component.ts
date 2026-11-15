@@ -16,8 +16,8 @@
 
 import {Component, computed, ChangeDetectionStrategy, inject, signal, effect} from '@angular/core';
 import {MarkdownRenderer} from '@a2ui/angular';
-import {BasicCatalogComponent} from './basic-catalog-component';
-import {TextApi} from '@a2ui/web_core/v0_9/basic_catalog';
+import {BasicCatalogComponent, type BasicComponentApi} from './basic-catalog-component';
+import type {TextProps} from '@a2ui/web_core/v0_9/basic_catalog';
 
 /**
  * Angular implementation of the A2UI Text component (v0.9).
@@ -132,7 +132,7 @@ import {TextApi} from '@a2ui/web_core/v0_9/basic_catalog';
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class TextComponent extends BasicCatalogComponent<typeof TextApi> {
+export class TextComponent extends BasicCatalogComponent<BasicComponentApi<TextProps>> {
   private markdownRenderer = inject(MarkdownRenderer);
 
   private static readonly NON_MARKDOWN_VARIANTS = new Set<string>([

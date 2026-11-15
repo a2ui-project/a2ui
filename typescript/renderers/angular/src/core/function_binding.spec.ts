@@ -17,9 +17,9 @@
 import {DataContext, SurfaceModel} from '@a2ui/web_core';
 import {TestBed} from '@angular/core/testing';
 import {DestroyRef, EnvironmentInjector} from '@angular/core';
-import {BASIC_FUNCTIONS, BasicCatalogBase} from '../v0_9/catalog/basic/basic-catalog';
+import {BasicCatalogBase, createBasicCatalogFunctions} from '../v0_9/catalog/basic/basic-catalog';
 import {assertAngularSignal, initializeAngularReactivity} from './reactivity';
-import {z} from 'zod';
+import {objectSchema, validator} from '../test_validator';
 
 describe('Function Bindings', () => {
   let mockDestroyRef: jasmine.SpyObj<DestroyRef>;
@@ -35,11 +35,12 @@ describe('Function Bindings', () => {
       const addFunction = {
         name: 'add',
         returnType: 'number' as const,
-        schema: z.object({a: z.number(), b: z.number()}),
+        schema: objectSchema({a: {type: 'number'}, b: {type: 'number'}}, {required: ['a', 'b']}),
         execute: (args: Record<string, any>) => (args['a'] as number) + (args['b'] as number),
       };
       const catalog = new BasicCatalogBase({
-        functions: [...BASIC_FUNCTIONS, addFunction as any],
+        validator,
+        functions: [...createBasicCatalogFunctions(validator), addFunction as any],
       });
 
       // Create Surface Model and DataContext
@@ -82,7 +83,7 @@ describe('Function Bindings', () => {
 
   describe('formatString', () => {
     it('should correctly format string with dynamic path and dollar sign', async () => {
-      const catalog = new BasicCatalogBase();
+      const catalog = new BasicCatalogBase({validator});
 
       // Create Surface Model and DataContext
       const surface = new SurfaceModel('surface_1', catalog);
@@ -117,7 +118,7 @@ describe('Function Bindings', () => {
     });
 
     it('should handle multiple path interpolations correctly', async () => {
-      const catalog = new BasicCatalogBase();
+      const catalog = new BasicCatalogBase({validator});
       const surface = new SurfaceModel('surface_1', catalog);
       const dataModel = surface.dataModel;
       const context = new DataContext(surface, '/');

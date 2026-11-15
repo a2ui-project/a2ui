@@ -22,6 +22,7 @@ import {Catalog} from '../rendering/catalog';
 import type {ListNode} from '../types';
 import {Directive, Input} from '@angular/core';
 import {By} from '@angular/platform-browser';
+import {provideTestValidator} from '../../test_validator';
 
 @Directive({
   selector: '[a2ui-renderer]',
@@ -58,6 +59,7 @@ describe('List Component', () => {
     await TestBed.configureTestingModule({
       imports: [List],
       providers: [
+        provideTestValidator(),
         {provide: MessageProcessor, useValue: {}},
         {provide: Theme, useValue: mockTheme},
         {provide: Catalog, useValue: {}},

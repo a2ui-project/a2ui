@@ -16,10 +16,10 @@
 
 import {Component, computed, ChangeDetectionStrategy} from '@angular/core';
 import {ComponentHostComponent} from '@a2ui/angular';
-import {BasicCatalogComponent} from './basic-catalog-component';
+import {BasicCatalogComponent, type BasicComponentApi} from './basic-catalog-component';
 import {Child} from '@a2ui/angular';
 import {ALIGN_MAP} from './utils';
-import {ListApi} from '@a2ui/web_core/v0_9/basic_catalog';
+import type {ListProps} from '@a2ui/web_core/v0_9/basic_catalog';
 
 /**
  * Angular implementation of the A2UI List component (v0.9).
@@ -113,7 +113,7 @@ import {ListApi} from '@a2ui/web_core/v0_9/basic_catalog';
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ListComponent extends BasicCatalogComponent<typeof ListApi> {
+export class ListComponent extends BasicCatalogComponent<BasicComponentApi<ListProps>> {
   readonly listStyle = computed(() => (this.props() as any)['listStyle']?.value());
   readonly direction = computed(() => this.props()['direction']?.value() || 'vertical');
   readonly align = computed(() => {

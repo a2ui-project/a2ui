@@ -20,6 +20,7 @@ import {MessageProcessor} from '../data/processor';
 import {Theme} from '../rendering/theming';
 import {Catalog} from '../rendering/catalog';
 import {By} from '@angular/platform-browser';
+import {provideTestValidator} from '../../test_validator';
 
 describe('Icon Component', () => {
   let component: Icon;
@@ -35,6 +36,7 @@ describe('Icon Component', () => {
     await TestBed.configureTestingModule({
       imports: [Icon],
       providers: [
+        provideTestValidator(),
         {
           provide: MessageProcessor,
           useValue: {
