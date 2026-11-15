@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-import type {StandardSchemaV1} from '@standard-schema/spec';
-
 import {unboundJsonSchema} from '../../catalog/catalog-validator.js';
 import {createFunctionImplementation, FunctionImplementation} from '../../catalog/types.js';
 import {A2uiValidationError} from '../../errors.js';
@@ -52,40 +50,12 @@ export const IndexApi = {
   allowedCallers: 'rendererOnly' as const,
   /**
    * The arguments' schema: {@link INDEX_ARGS}, compiled with the validator of
-   * the catalog the call runs in. `offset` is a DynamicNumber, so a payload
-   * may bind it to a path or a nested call.
+   * the catalog a payload is validated against. `offset` is a DynamicNumber,
+   * so a payload may bind it to a path or a nested call. An evaluation does
+   * not validate it again (see `Catalog.invoker`).
    */
-  schema: unboundJsonSchema<{offset?: number}>(
-    INDEX_ARGS,
-    "System function '@index'",
-    checkIndexArgs,
-  ),
+  schema: unboundJsonSchema<{offset?: number}>(INDEX_ARGS, "System function '@index'"),
 };
-
-/**
- * Checks `@index` arguments as {@link INDEX_ARGS} declares them, for a call
- * with no validator to hand (a surface without a catalog): an object whose
- * only key is `offset`, a number (0 when omitted), or before resolution a
- * data binding or function call.
- */
-function checkIndexArgs(value: unknown): StandardSchemaV1.Result<{offset?: number}> {
-  const fail = (message: string, path: PropertyKey[] = []) => ({issues: [{message, path}]});
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    return fail('must be object');
-  }
-  const args = value as Record<string, unknown>;
-  const extra = Object.keys(args).find(key => key !== 'offset');
-  if (extra !== undefined) return fail(`unexpected property '${extra}'`, [extra]);
-  const offset = args['offset'];
-  if (offset === undefined) return {value: {...args, offset: 0}};
-  const isCallOrBinding =
-    typeof offset === 'object' &&
-    offset !== null &&
-    (typeof (offset as Record<string, unknown>)['@path'] === 'string' ||
-      typeof (offset as Record<string, unknown>)['@call'] === 'string');
-  if (typeof offset === 'number' || isCallOrBinding) return {value: args as {offset?: number}};
-  return fail('must be number', ['offset']);
-}
 
 /**
  * Implementation of the `@index` system function.

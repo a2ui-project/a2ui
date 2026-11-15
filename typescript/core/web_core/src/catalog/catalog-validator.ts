@@ -23,9 +23,9 @@
  * without one: the arguments of an `AgentFunction` built from a JSON Schema
  * object, and the `@index` system function's arguments. Those compile with the
  * validator of the catalog they are used in: the one given to
- * `Catalog.fromJson` or in `CatalogOptions.validator`, else the one the
- * catalog's `fromJsonSchema` entries were compiled with, else the one of the
- * `MessageProcessor` the catalog is registered with.
+ * `Catalog.fromJson` or in `CatalogOptions.validator`, else the one of the
+ * `MessageProcessor` the catalog is registered with, else the one the
+ * catalog's `fromJsonSchema` entries were compiled with.
  */
 
 import type {StandardSchemaV1} from '@standard-schema/spec';
@@ -39,27 +39,55 @@ import type {
   JsonSchemaValidator,
 } from '../schema-engine/types.js';
 
-const catalogValidators = new WeakMap<object, JsonSchemaValidator>();
+interface CatalogValidatorBinding {
+  readonly validator: JsonSchemaValidator;
+  /**
+   * Whether the validator was given for the catalog (`CatalogOptions`,
+   * `Catalog.fromJson`, a `MessageProcessor`) rather than borrowed from the
+   * catalog's `fromJsonSchema` entries.
+   */
+  readonly explicit: boolean;
+}
+
+const catalogValidators = new WeakMap<object, CatalogValidatorBinding>();
 
 /**
- * Sets the validator a catalog compiles its plain JSON Schemas with, unless it
- * already has one.
+ * Sets the validator a catalog compiles its plain JSON Schemas with. A
+ * validator given for the catalog (`explicit`) replaces one borrowed from its
+ * entries; otherwise the first validator bound stays.
  *
  * @param catalog The catalog.
  * @param validator The validator, or `undefined` to leave the catalog as it is.
+ * @param explicit Whether the validator was given for the catalog, rather
+ *   than borrowed from its `fromJsonSchema` entries.
  */
 export function bindCatalogValidator(
   catalog: object,
   validator: JsonSchemaValidator | undefined,
+  explicit: boolean,
 ): void {
-  if (validator && !catalogValidators.has(catalog)) catalogValidators.set(catalog, validator);
+  if (!validator) return;
+  const bound = catalogValidators.get(catalog);
+  if (!bound || (explicit && !bound.explicit)) {
+    catalogValidators.set(catalog, {validator, explicit});
+  }
 }
 
 /** The validator a catalog compiles its plain JSON Schemas with, if it has one. */
 export function catalogValidator(catalog: unknown): JsonSchemaValidator | undefined {
   return typeof catalog === 'object' && catalog !== null
-    ? catalogValidators.get(catalog)
+    ? catalogValidators.get(catalog)?.validator
     : undefined;
+}
+
+/**
+ * The validator given for a catalog (not one borrowed from its entries), if
+ * any, for the catalogs derived from it.
+ */
+export function explicitCatalogValidator(catalog: unknown): JsonSchemaValidator | undefined {
+  if (typeof catalog !== 'object' || catalog === null) return undefined;
+  const bound = catalogValidators.get(catalog);
+  return bound?.explicit ? bound.validator : undefined;
 }
 
 /** The JSON Schema of each schema made by {@link unboundJsonSchema}, and what it is. */
@@ -69,24 +97,20 @@ const unbound = new WeakMap<object, {readonly json: JsonSchema; readonly what: s
  * A `CatalogSchema` for a plain JSON Schema that has no validator yet. Its
  * `jsonSchema` is the schema, so discovery reads it as usual; it validates
  * once {@link bindUnboundSchema} has compiled it with a catalog's validator.
- * Validating it directly runs `fallback`, or throws when there is none.
+ * Validating it directly throws a `noValidatorError`.
  *
  * @param json The JSON Schema.
  * @param what What the schema is, for error messages (e.g. `Agent function 'pay'`).
- * @param fallback What validates where no validator is to hand, for a schema
- *   simple enough to check by hand.
  */
 export function unboundJsonSchema<T = unknown>(
   json: Record<string, unknown>,
   what: string,
-  fallback?: (value: unknown) => StandardSchemaV1.Result<T>,
 ): CatalogSchema<T> {
   const schema: CatalogSchema<T> = {
     '~standard': {
       version: 1,
       vendor: 'a2ui',
-      validate: (value: unknown): StandardSchemaV1.Result<T> => {
-        if (fallback) return fallback(value);
+      validate: (): StandardSchemaV1.Result<T> => {
         throw missingValidator(what);
       },
       jsonSchema: {input: () => json, output: () => json},

@@ -92,8 +92,11 @@ function message(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-/** Whether `value` looks like a zod 3 schema, which web_core no longer reads. */
-function isZod3Like(value: unknown): boolean {
+/**
+ * Whether `value` looks like a zod schema without Standard JSON Schema (such
+ * as any zod 3 schema), which web_core cannot read.
+ */
+function isZodWithoutJsonSchema(value: unknown): boolean {
   return (
     typeof value === 'object' &&
     value !== null &&
@@ -110,16 +113,17 @@ function isZod3Like(value: unknown): boolean {
  *
  * @param authored The schema as the entry was written.
  * @param what The entry, for error messages (e.g. `Component 'Button'`).
- * @throws {A2uiConfigurationError} If the schema is a zod 3 schema, is not a
+ * @throws {A2uiConfigurationError} If the schema is a zod schema without
+ *   Standard JSON Schema, is not a
  *   Standard Schema with JSON Schema, its conversion throws, or its
  *   validation is asynchronous.
  */
 export function prepareSchema(authored: AuthoredSchema, what: string): Converted {
   const cached = converted.get(authored);
   if (cached) return cached;
-  if (isZod3Like(authored)) {
+  if (isZodWithoutJsonSchema(authored)) {
     throw new A2uiConfigurationError(
-      `${what}: its schema is a zod 3 schema, which web_core does not read. Wrap it with fromZod3() from @a2ui/schema-zod3, or pass a Standard JSON Schema such as fromJsonSchema(schema, validator).`,
+      `${what}: its schema is a zod schema without Standard JSON Schema (\`~standard.jsonSchema\`), which web_core cannot read. Wrap a zod 3 schema with fromZod3() from @a2ui/schema-zod3, or pass a Standard JSON Schema such as fromJsonSchema(schema, validator).`,
     );
   }
   const schema: CatalogSchema = authored;

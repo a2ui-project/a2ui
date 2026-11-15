@@ -290,8 +290,9 @@ export class MessageProcessor<T extends ComponentApi = ComponentApi> {
     this.maxAgentCallCacheEntries = maxEntries;
     this.registeredCatalogs = catalogs;
     // A catalog's plain JSON Schemas (agent function arguments, `@index`)
-    // compile with this processor's validator unless the catalog has one.
-    for (const catalog of catalogs) bindCatalogValidator(catalog, options.validator);
+    // compile with this processor's validator unless the catalog was given
+    // one; it wins over one borrowed from the catalog's entries.
+    for (const catalog of catalogs) bindCatalogValidator(catalog, options.validator, true);
     this.model = new SurfaceGroupModel<T>();
     this.adapterRegistry = options.adapterRegistry ?? new VersionAdapterFactory(options.validator);
     this.defaultVersion = options?.version;

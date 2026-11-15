@@ -162,7 +162,9 @@ describe('CatalogSchema catalogs', () => {
         build,
         (err: unknown) =>
           err instanceof A2uiConfigurationError &&
-          /zod 3 schema/.test(err.message) &&
+          err.message.includes(
+            'a zod schema without Standard JSON Schema (`~standard.jsonSchema`)',
+          ) &&
           err.message.includes('@a2ui/schema-zod3') &&
           err.message.includes('Standard JSON Schema'),
       );

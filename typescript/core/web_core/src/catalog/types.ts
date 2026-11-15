@@ -57,7 +57,11 @@ import {
 import {formatIssue, pickIssue, toA2uiIssues} from '../schema-engine/issues.js';
 import {objectProperties, unionOptions, type SchemaCursor} from '../schema-engine/nav.js';
 import type {JsonSchemaValidator} from '../schema-engine/types.js';
-import {bindCatalogValidator, catalogValidator} from './catalog-validator.js';
+import {
+  bindCatalogValidator,
+  catalogValidator,
+  explicitCatalogValidator,
+} from './catalog-validator.js';
 import {jsonSchemaValidator} from '../schema-engine/from-json-schema.js';
 
 export type {ComponentChildRefs};
@@ -352,9 +356,9 @@ export interface CatalogOptions extends CatalogDocumentOptions {
    * The JSON Schema validator the catalog's plain JSON Schemas compile with:
    * the arguments of an `AgentFunction` built from a JSON Schema object, and
    * of the `@index` system function. Catalogs derived from this one keep it.
-   * When omitted, the validator the catalog's `fromJsonSchema` entries were
-   * compiled with, or else that of a `MessageProcessor` the catalog is
-   * registered with.
+   * Precedence: this validator, else that of the first `MessageProcessor` the
+   * catalog is registered with, else the validator the catalog's
+   * `fromJsonSchema` entries were compiled with.
    */
   validator?: JsonSchemaValidator;
 }
@@ -835,7 +839,7 @@ export class Catalog<
         extensionFields: this.extensionFields,
         commonTypesUri: this.commonTypesUri,
         themeLocation: this.themeLocation,
-        validator: catalogValidator(this),
+        validator: explicitCatalogValidator(this),
       },
     );
   }
@@ -1014,14 +1018,16 @@ export class Catalog<
     this.extensionFields = frozenJson(options.extensionFields);
     this.commonTypesUri = options.commonTypesUri;
     this.themeLocation = options.themeLocation;
-    // Without one of its own, the catalog's plain JSON Schemas compile with
-    // the validator its JSON-backed entries were compiled with.
+    // The catalog's plain JSON Schemas compile with the validator given for
+    // it; until one is (here or by a MessageProcessor), with the validator
+    // its JSON-backed entries were compiled with.
+    bindCatalogValidator(this, options.validator, true);
     bindCatalogValidator(
       this,
-      options.validator ??
-        [...this.components.values(), ...this.functions.values()]
-          .map(entry => jsonSchemaValidator(entry.schema))
-          .find(validator => validator !== undefined),
+      [...this.components.values(), ...this.functions.values()]
+        .map(entry => jsonSchemaValidator(entry.schema))
+        .find(validator => validator !== undefined),
+      false,
     );
 
     // Registration: every schema is prepared (and converted to JSON Schema)
@@ -1306,6 +1312,13 @@ function validateFunctionCallArgs(
   protocolVersion: string | undefined,
   catalog: CatalogInterface<any, any> | undefined,
 ): unknown {
+  // A reserved `@` system function's arguments were validated against the
+  // protocol's schema (`INDEX_ARGS`) when the payload was ingested, with the
+  // application's validator; its implementation does not depend on them
+  // being validated again.
+  if (name.startsWith('@') && isAtLeastVersion(protocolVersion ?? '', SpecVersion.V1_0)) {
+    return args;
+  }
   const prepared = entrySchema(fn, 'function', {
     protocolVersion,
     defs: catalog?.defs,
