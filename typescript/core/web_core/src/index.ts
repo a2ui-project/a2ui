@@ -250,4 +250,4 @@ export {
   type ValidationResult,
 } from './schema-engine/index.js';
 export {componentSchemaCursor} from './catalog/entry-schema.js';
-export {A2uiConfigurationError} from './errors.js';
+export {A2uiConfigurationError, NO_VALIDATOR_MESSAGE, noValidatorError} from './errors.js';
