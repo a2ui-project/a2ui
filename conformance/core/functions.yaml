@@ -189,53 +189,124 @@
 - name: test_evaluate_function_required_string_valid
   features: [F-CORE-22]
   description: Verifies required returns true for non-empty string.
+  protocolVersion: "v0.9"
   action: evaluate_function
   function: required
   args:
     value: "hello"
   expect: true
 
+- name: test_evaluate_function_required_string_valid_v10
+  features: [F-CORE-22]
+  description: Verifies required returns true for non-empty string.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: required
+  args:
+    value: "hello"
+  expect:
+    valid: true
+
 - name: test_evaluate_function_required_string_empty
   features: [F-CORE-22]
   description: Verifies required returns false for empty string.
+  protocolVersion: "v0.9"
   action: evaluate_function
   function: required
   args:
     value: ""
   expect: false
 
+- name: test_evaluate_function_required_string_empty_v10
+  features: [F-CORE-22]
+  description: Verifies required returns false for empty string.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: required
+  args:
+    value: ""
+  expect:
+    valid: false
+
 - name: test_evaluate_function_required_null
   features: [F-CORE-22]
   description: Verifies required returns false for null.
+  protocolVersion: "v0.9"
   action: evaluate_function
   function: required
   args:
     value: null
   expect: false
 
+- name: test_evaluate_function_required_null_v10
+  features: [F-CORE-22]
+  description: Verifies required returns false for null.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: required
+  args:
+    value: null
+  expect:
+    valid: false
+
 - name: test_evaluate_function_required_array_valid
   description: Verifies required returns true for non-empty array.
+  protocolVersion: "v0.9"
   action: evaluate_function
   function: required
   args:
     value: [1, 2]
   expect: true
 
+- name: test_evaluate_function_required_array_valid_v10
+  description: Verifies required returns true for non-empty array.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: required
+  args:
+    value: [1, 2]
+  expect:
+    valid: true
+
 - name: test_evaluate_function_required_array_empty
   description: Verifies required returns false for empty array.
+  protocolVersion: "v0.9"
   action: evaluate_function
   function: required
   args:
     value: []
   expect: false
 
+- name: test_evaluate_function_required_array_empty_v10
+  description: Verifies required returns false for empty array.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: required
+  args:
+    value: []
+  expect:
+    valid: false
+
 - name: test_evaluate_function_required_object_empty
   description: Verifies required returns true for empty object (D20).
+  protocolVersion: "v0.9"
   action: evaluate_function
   function: required
   args:
     value: {}
   expect: true
+
+# --- RegexFunction (D21) ---
+
+- name: test_evaluate_function_required_object_empty_v10
+  description: Verifies required returns true for empty object (D20).
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: required
+  args:
+    value: {}
+  expect:
+    valid: true
 
 # --- RegexFunction (D21) ---
 - name: test_evaluate_function_regex_match
@@ -627,22 +698,46 @@
 - name: test_evaluate_function_email_valid
   features: [F-CORE-22]
   description: Verifies email returns true on standard email address.
+  protocolVersion: "v0.9"
   action: evaluate_function
   function: email
   args:
     value: "user@example.com"
   expect: true
 
+- name: test_evaluate_function_email_valid_v10
+  features: [F-CORE-22]
+  description: Verifies email returns true on standard email address.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: email
+  args:
+    value: "user@example.com"
+  expect:
+    valid: true
+
 - name: test_evaluate_function_email_invalid_no_domain
   description: Verifies email returns false on missing domain.
+  protocolVersion: "v0.9"
   action: evaluate_function
   function: email
   args:
     value: "invalid-email"
   expect: false
 
+- name: test_evaluate_function_email_invalid_no_domain_v10
+  description: Verifies email returns false on missing domain.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: email
+  args:
+    value: "invalid-email"
+  expect:
+    valid: false
+
 - name: test_evaluate_function_email_invalid_single_char_tld
   description: Verifies email returns false on single-character TLD (D22).
+  protocolVersion: "v0.9"
   action: evaluate_function
   function: email
   args:
@@ -650,9 +745,22 @@
   expect: false
 
 # --- LengthFunction (D24) ---
+
+- name: test_evaluate_function_email_invalid_single_char_tld_v10
+  description: Verifies email returns false on single-character TLD (D22).
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: email
+  args:
+    value: "test@test.c"
+  expect:
+    valid: false
+
+# --- LengthFunction (D24) ---
 - name: test_evaluate_function_length_string_valid
   features: [F-CORE-22]
   description: Verifies length returns true when string is within bounds.
+  protocolVersion: "v0.9"
   action: evaluate_function
   function: length
   args:
@@ -661,8 +769,22 @@
     max: 10
   expect: true
 
+- name: test_evaluate_function_length_string_valid_v10
+  features: [F-CORE-22]
+  description: Verifies length returns true when string is within bounds.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: length
+  args:
+    value: "hello"
+    min: 3
+    max: 10
+  expect:
+    valid: true
+
 - name: test_evaluate_function_length_string_too_short
   description: Verifies length returns false when string is shorter than min.
+  protocolVersion: "v0.9"
   action: evaluate_function
   function: length
   args:
@@ -670,8 +792,20 @@
     min: 3
   expect: false
 
+- name: test_evaluate_function_length_string_too_short_v10
+  description: Verifies length returns false when string is shorter than min.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: length
+  args:
+    value: "hi"
+    min: 3
+  expect:
+    valid: false
+
 - name: test_evaluate_function_length_string_too_long
   description: Verifies length returns false when string is longer than max.
+  protocolVersion: "v0.9"
   action: evaluate_function
   function: length
   args:
@@ -679,8 +813,20 @@
     max: 5
   expect: false
 
+- name: test_evaluate_function_length_string_too_long_v10
+  description: Verifies length returns false when string is longer than max.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: length
+  args:
+    value: "hello world"
+    max: 5
+  expect:
+    valid: false
+
 - name: test_evaluate_function_length_array_count_valid
   description: Verifies length counts array elements, not character length (D24).
+  protocolVersion: "v0.9"
   action: evaluate_function
   function: length
   args:
@@ -689,14 +835,38 @@
     max: 4
   expect: true
 
+- name: test_evaluate_function_length_array_count_valid_v10
+  description: Verifies length counts array elements, not character length (D24).
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: length
+  args:
+    value: ["a", "b", "c"]
+    min: 2
+    max: 4
+  expect:
+    valid: true
+
 - name: test_evaluate_function_length_array_count_too_short
   description: Verifies length returns false when array has fewer elements than min (D24).
+  protocolVersion: "v0.9"
   action: evaluate_function
   function: length
   args:
     value: ["a"]
     min: 2
   expect: false
+
+- name: test_evaluate_function_length_array_count_too_short_v10
+  description: Verifies length returns false when array has fewer elements than min (D24).
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: length
+  args:
+    value: ["a"]
+    min: 2
+  expect:
+    valid: false
 
 - name: test_evaluate_function_length_null_value
   description: Verifies length counts a null value, such as an unset field, as length 0.
@@ -722,6 +892,7 @@
 - name: test_evaluate_function_numeric_valid_float
   features: [F-CORE-22]
   description: Verifies numeric returns true for float within bounds.
+  protocolVersion: "v0.9"
   action: evaluate_function
   function: numeric
   args:
@@ -730,8 +901,22 @@
     max: 100
   expect: true
 
+- name: test_evaluate_function_numeric_valid_float_v10
+  features: [F-CORE-22]
+  description: Verifies numeric returns true for float within bounds.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: numeric
+  args:
+    value: 42.5
+    min: 0
+    max: 100
+  expect:
+    valid: true
+
 - name: test_evaluate_function_numeric_valid_string
   description: Verifies numeric returns true for valid numeric string.
+  protocolVersion: "v0.9"
   action: evaluate_function
   function: numeric
   args:
@@ -740,8 +925,21 @@
     max: 100
   expect: true
 
+- name: test_evaluate_function_numeric_valid_string_v10
+  description: Verifies numeric returns true for valid numeric string.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: numeric
+  args:
+    value: "42.5"
+    min: 0
+    max: 100
+  expect:
+    valid: true
+
 - name: test_evaluate_function_numeric_too_small
   description: Verifies numeric returns false when value is below min.
+  protocolVersion: "v0.9"
   action: evaluate_function
   function: numeric
   args:
@@ -749,8 +947,20 @@
     min: 0
   expect: false
 
+- name: test_evaluate_function_numeric_too_small_v10
+  description: Verifies numeric returns false when value is below min.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: numeric
+  args:
+    value: -5
+    min: 0
+  expect:
+    valid: false
+
 - name: test_evaluate_function_numeric_too_large
   description: Verifies numeric returns false when value is above max.
+  protocolVersion: "v0.9"
   action: evaluate_function
   function: numeric
   args:
@@ -758,13 +968,37 @@
     max: 100
   expect: false
 
+- name: test_evaluate_function_numeric_too_large_v10
+  description: Verifies numeric returns false when value is above max.
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: numeric
+  args:
+    value: 150
+    max: 100
+  expect:
+    valid: false
+
 - name: test_evaluate_function_numeric_unparseable_string
   description: Verifies numeric returns false for unparseable string without raising (D23).
+  protocolVersion: "v0.9"
   action: evaluate_function
   function: numeric
   args:
     value: "not_a_number"
   expect: false
+
+# --- AndFunction (D25, D26) ---
+
+- name: test_evaluate_function_numeric_unparseable_string_v10
+  description: Verifies numeric returns false for unparseable string without raising (D23).
+  protocolVersion: "1.0"
+  action: evaluate_function
+  function: numeric
+  args:
+    value: "not_a_number"
+  expect:
+    valid: false
 
 # --- AndFunction (D25, D26) ---
 - name: test_evaluate_function_and_all_true
