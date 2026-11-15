@@ -59,6 +59,7 @@ import {
   registerAfterEachManifestRecorder,
   setActiveCase,
 } from './manifest.js';
+import {validator} from '../helpers/validator.js';
 
 export {KNOWN_FAILURES, SUPERSEDED, UNSUPPORTED};
 
@@ -241,7 +242,7 @@ export function loadCatalogEntry(entry: unknown, lower = false): CatalogConfig {
       ...rawDoc,
     };
     const doc = lower ? lowerCatalogDocument(baseDoc, 'inline') : baseDoc;
-    const catalog = new InMemoryCatalogProvider(doc).load();
+    const catalog = new InMemoryCatalogProvider(doc, validator).load();
     return new CatalogConfig(catalog, transformers);
   }
 
@@ -250,7 +251,7 @@ export function loadCatalogEntry(entry: unknown, lower = false): CatalogConfig {
   }
   const catalog = lower
     ? loadCatalogFromRelativePath(ref, true)
-    : new FileSystemCatalogProvider(conformancePath(ref)).load();
+    : new FileSystemCatalogProvider(conformancePath(ref), validator).load();
   return new CatalogConfig(catalog, transformers);
 }
 
@@ -273,14 +274,17 @@ export function compileChecked(parser: Parser, content: string): AgentToRenderer
       rawContent: content,
     });
   }
-  validatePayload(parser.catalogs, messages);
+  validatePayload(parser.catalogs, validator, messages);
   return messages;
 }
 
 /** Loads the registrations a case lists into catalog configs, with their transformers. */
 export function loadRegistrations(registrations: CatalogRegistration[]): CatalogConfig[] {
   return registrations.map(registration => {
-    const catalog = new FileSystemCatalogProvider(conformancePath(registration.catalog)).load();
+    const catalog = new FileSystemCatalogProvider(
+      conformancePath(registration.catalog),
+      validator,
+    ).load();
     const transformers: CatalogTransformer[] = [];
     for (const transformer of registration.transformers ?? []) {
       if (transformer.component_pruning) {

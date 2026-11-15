@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
+import {fromJsonSchema} from '@a2ui/web_core/schema-engine';
 import {describe, expect, it} from 'vitest';
-import {z} from 'zod';
 
 import {
   A2uiValidationError,
@@ -25,6 +25,7 @@ import {
   ResponsePart,
 } from '../../../../src/index.js';
 import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
+import {validator} from '../../../helpers/validator.js';
 
 type Message = Record<string, unknown>;
 
@@ -42,7 +43,10 @@ const basicV10WithScrollTo = basicV10.withEntries(
       name: 'scrollTo',
       returnType: 'void',
       allowedCallers: 'rendererOrAgent',
-      schema: z.object({id: z.string()}),
+      schema: fromJsonSchema(
+        {type: 'object', properties: {id: {type: 'string'}}, required: ['id']},
+        validator,
+      ),
       execute: () => undefined,
     },
   ],
@@ -72,11 +76,12 @@ const customV10 = new InMemoryCatalogProvider(
       },
     },
   },
+  validator,
   '1.0',
 ).load();
 
 function messagesOf(parts: ResponsePart[]): Message[] {
-  return parts.flatMap(part => (part.type === 'a2ui' ? (part.a2ui as Message[]) : []));
+  return parts.flatMap(part => (part.type === 'a2ui' ? (part.a2ui as unknown as Message[]) : []));
 }
 
 /** Returns the A2UI messages the chunks yield, in order. */
@@ -114,7 +119,7 @@ function v09Block(surfaceId: string, root: Message): string {
 
 describe('DirectJsonResponseStream', () => {
   it('emits a createSurface streamed in pieces once, whole', () => {
-    const parser = new DirectJsonParser([basicV09], {progressiveKeys: ['primaryColor']});
+    const parser = new DirectJsonParser([basicV09], validator, {progressiveKeys: ['primaryColor']});
     const response =
       OPEN +
       `[{"version": "v0.9", "createSurface": {"surfaceId": "s1", "catalogId": "${basicV09.id}", "theme": {"primaryColor": "#FF0000"}}}]` +
@@ -129,7 +134,7 @@ describe('DirectJsonResponseStream', () => {
   });
 
   it('strips a Markdown fence that arrives one character at a time', () => {
-    const parser = new DirectJsonParser([basicV09]);
+    const parser = new DirectJsonParser([basicV09], validator);
     const create = {version: 'v0.9', createSurface: {surfaceId: 's1', catalogId: basicV09.id}};
     const response = `${OPEN}\`\`\`json\n[${JSON.stringify(create)}]\n\`\`\`${CLOSE}`;
 
@@ -137,8 +142,8 @@ describe('DirectJsonResponseStream', () => {
   });
 
   it('keeps a block that a chunk finished before it failed, and returns it with the error', () => {
-    const parser = new DirectJsonParser([basicV09]);
-    const state = new RendererState([basicV09]);
+    const parser = new DirectJsonParser([basicV09], validator);
+    const state = new RendererState([basicV09], validator);
     const opened = parser.openStream({state});
 
     let error: unknown;
@@ -163,7 +168,7 @@ describe('DirectJsonResponseStream', () => {
   });
 
   it('returns the messages a failing chunk emitted from the block it fails in', () => {
-    const opened = new DirectJsonParser([basicV10]).openStream();
+    const opened = new DirectJsonParser([basicV10], validator).openStream();
     const create = `{"version": "1.0", "createSurface": {"surfaceId": "main", "catalogId": "${basicV10.id}"}}`;
 
     let error: unknown;
@@ -181,7 +186,7 @@ describe('DirectJsonResponseStream', () => {
   });
 
   it('sets partialResults on the error close throws', () => {
-    const opened = new DirectJsonParser([basicV09]).openStream();
+    const opened = new DirectJsonParser([basicV09], validator).openStream();
     opened.feed(`${OPEN}[`);
 
     let error: unknown;
@@ -195,7 +200,7 @@ describe('DirectJsonResponseStream', () => {
   });
 
   it('checks each v1.0 surface against the catalog it was created with', () => {
-    const parser = new DirectJsonParser([basicV10, customV10]);
+    const parser = new DirectJsonParser([basicV10, customV10], validator);
 
     const messages = stream(parser, [
       OPEN + '[',
@@ -218,7 +223,7 @@ describe('DirectJsonResponseStream', () => {
   it('throws on the chunk that closes an invalid v1.0 component', () => {
     // A closed component can't become valid later, so the stream doesn't hold back the
     // components after it until the block ends.
-    const opened = new DirectJsonParser([basicV10]).openStream();
+    const opened = new DirectJsonParser([basicV10], validator).openStream();
 
     opened.feed(
       OPEN +
@@ -235,7 +240,7 @@ describe('DirectJsonResponseStream', () => {
   });
 
   it('waits for the surfaceId of a v1.0 update whose components arrive first', () => {
-    const opened = new DirectJsonParser([basicV10]).openStream();
+    const opened = new DirectJsonParser([basicV10], validator).openStream();
 
     opened.feed(
       OPEN +
@@ -254,7 +259,7 @@ describe('DirectJsonResponseStream', () => {
   });
 
   it('passes every v1.0 message type through', () => {
-    const parser = new DirectJsonParser([basicV10WithScrollTo]);
+    const parser = new DirectJsonParser([basicV10WithScrollTo], validator);
     const id = basicV10WithScrollTo.id;
 
     const messages = stream(parser, [
@@ -284,7 +289,7 @@ describe('DirectJsonResponseStream', () => {
     '{"version": "v0.9", "callRendererFunction": {"surfaceId": "s1", "callId": "c1", "function": "alert"}}',
     '{"version": "v0.9", "agentFunctionResponse": {"callId": "c1", "result": 123}}',
   ])('rejects a v1.0 function message on v0.9 catalogs: %s', message => {
-    const parser = new DirectJsonParser([basicV09]);
+    const parser = new DirectJsonParser([basicV09], validator);
 
     expect(() => stream(parser, [OPEN + '[' + message + ']' + CLOSE])).toThrow(A2uiValidationError);
   });
@@ -295,8 +300,8 @@ describe('DirectJsonResponseStream', () => {
     ['http://exa', false],
     ['data:image/png;base64,iVB', false],
   ])('heals the cut value %s under a progressive key unless it is a URL', (value, healed) => {
-    const parser = new DirectJsonParser([basicV10], {progressiveKeys: ['greeting']});
-    const state = new RendererState([basicV10]);
+    const parser = new DirectJsonParser([basicV10], validator, {progressiveKeys: ['greeting']});
+    const state = new RendererState([basicV10], validator);
     state.apply({version: '1.0', createSurface: {surfaceId: 's1', catalogId: basicV10.id}});
 
     const messages = stream(
@@ -316,7 +321,7 @@ describe('DirectJsonResponseStream', () => {
   });
 
   it('reads JSON a model commonly gets slightly wrong', () => {
-    const parser = new DirectJsonParser([basicV10]);
+    const parser = new DirectJsonParser([basicV10], validator);
     const body =
       `[{"version": "1.0", "createSurface": {"surfaceId": "s1", "catalogId": "${basicV10.id}",},},` +
       '{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "line\nbreak"}]}},]';
@@ -331,12 +336,12 @@ describe('DirectJsonResponseStream', () => {
   });
 
   it('holds a callRendererFunction until its object closes, and the messages after it', () => {
-    const parser = new DirectJsonParser([basicV10WithScrollTo]);
+    const parser = new DirectJsonParser([basicV10WithScrollTo], validator);
     const id = basicV10WithScrollTo.id;
     const call = `{"version": "1.0", "callRendererFunction": {"functionCallId": "c1", "callFunction": {"@call": "scrollTo", "catalogId": "${id}", "args": {"id": "root"}}}}`;
     const update =
       '{"version": "1.0", "updateComponents": {"surfaceId": "s1", "components": [{"id": "root", "component": "Text", "text": "Hi"}]}}';
-    const state = new RendererState([basicV10WithScrollTo]);
+    const state = new RendererState([basicV10WithScrollTo], validator);
     state.apply({version: '1.0', createSurface: {surfaceId: 's1', catalogId: id}});
     const opened = parser.openStream({state});
     const cut = call.length - 2;
@@ -351,7 +356,7 @@ describe('DirectJsonResponseStream', () => {
   });
 
   it('emits a growing updateComponents whole each time it gains components', () => {
-    const parser = new DirectJsonParser([basicV10]);
+    const parser = new DirectJsonParser([basicV10], validator);
     const id = basicV10.id;
     const items = Array.from({length: 6}, (_, i) => ({
       id: `t${i}`,
@@ -374,7 +379,7 @@ describe('DirectJsonResponseStream', () => {
         },
       ]) +
       CLOSE;
-    const state = new RendererState([basicV10]);
+    const state = new RendererState([basicV10], validator);
 
     const messages = stream(parser, chunked(response, 9), state);
 
@@ -391,9 +396,9 @@ describe('DirectJsonResponseStream', () => {
   });
 
   it('rejects a component id repeated across the chunks of one updateComponents', () => {
-    const parser = new DirectJsonParser([basicV10]);
+    const parser = new DirectJsonParser([basicV10], validator);
     const id = basicV10.id;
-    const state = new RendererState([basicV10]);
+    const state = new RendererState([basicV10], validator);
     state.apply({version: '1.0', createSurface: {surfaceId: 's1', catalogId: id}});
     const opened = parser.openStream({state});
 
@@ -407,9 +412,9 @@ describe('DirectJsonResponseStream', () => {
   });
 
   it('applies a growing updateDataModel again once it closes', () => {
-    const parser = new DirectJsonParser([basicV10], {progressiveKeys: ['name']});
+    const parser = new DirectJsonParser([basicV10], validator, {progressiveKeys: ['name']});
     const id = basicV10.id;
-    const state = new RendererState([basicV10]);
+    const state = new RendererState([basicV10], validator);
     state.apply({version: '1.0', createSurface: {surfaceId: 's1', catalogId: id}});
     const value = {items: Array.from({length: 5}, (_, i) => ({name: `Item ${i}`}))};
     const response =
@@ -428,7 +433,7 @@ describe('DirectJsonResponseStream', () => {
   });
 
   it('emits nothing after a closed message the state rejects, and throws when the block closes', () => {
-    const parser = new DirectJsonParser([basicV10]);
+    const parser = new DirectJsonParser([basicV10], validator);
     const id = basicV10.id;
     const opened = parser.openStream();
     const missing =
@@ -443,7 +448,7 @@ describe('DirectJsonResponseStream', () => {
 
   describe('isInBlock', () => {
     it('is true from the end of an opening tag to the start of its closing tag', () => {
-      const opened = new DirectJsonParser([basicV09]).openStream();
+      const opened = new DirectJsonParser([basicV09], validator).openStream();
 
       opened.feed('Hello <a2ui');
       expect(opened.isInBlock).toBe(false);
@@ -458,7 +463,7 @@ describe('DirectJsonResponseStream', () => {
     });
 
     it('is true for an unwrapped stream until it ends', () => {
-      const opened = new DirectJsonParser([basicV09]).openStream({wrapped: false});
+      const opened = new DirectJsonParser([basicV09], validator).openStream({wrapped: false});
 
       expect(opened.isInBlock).toBe(true);
       opened.feed(
@@ -470,7 +475,7 @@ describe('DirectJsonResponseStream', () => {
     });
 
     it('is false once the stream has ended inside a block', () => {
-      const opened = new DirectJsonParser([basicV09]).openStream();
+      const opened = new DirectJsonParser([basicV09], validator).openStream();
       opened.feed(`${OPEN}[`);
 
       expect(() => opened.close()).toThrow();
@@ -482,7 +487,7 @@ describe('DirectJsonResponseStream', () => {
     const options = {afterRejectedBlock: 'continue'} as const;
 
     it('returns an error part in place of a rejected block, and reads on', () => {
-      const opened = new DirectJsonParser([basicV09]).openStream(options);
+      const opened = new DirectJsonParser([basicV09], validator).openStream(options);
 
       const parts = opened.feed(
         'Before ' +
@@ -500,7 +505,7 @@ describe('DirectJsonResponseStream', () => {
     });
 
     it('keeps what a rejected block emitted and skips the rest of it', () => {
-      const opened = new DirectJsonParser([basicV10]).openStream(options);
+      const opened = new DirectJsonParser([basicV10], validator).openStream(options);
       const create = `{"version": "1.0", "createSurface": {"surfaceId": "main", "catalogId": "${basicV10.id}"}}`;
       const bogus =
         '{"version": "1.0", "updateComponents": {"surfaceId": "main", "components": [{"id": "root", "component": "Bogus"}]}}';
@@ -519,7 +524,7 @@ describe('DirectJsonResponseStream', () => {
     });
 
     it('reports a block that cannot be read', () => {
-      const opened = new DirectJsonParser([basicV09]).openStream(options);
+      const opened = new DirectJsonParser([basicV09], validator).openStream(options);
 
       const parts = opened.feed(`${OPEN}not json${CLOSE} after`);
 
@@ -527,7 +532,7 @@ describe('DirectJsonResponseStream', () => {
     });
 
     it('returns an error part for a block still open when the response ends', () => {
-      const opened = new DirectJsonParser([basicV09]).openStream(options);
+      const opened = new DirectJsonParser([basicV09], validator).openStream(options);
       opened.feed(`Text ${OPEN}[`);
 
       const parts = opened.close();
@@ -536,14 +541,17 @@ describe('DirectJsonResponseStream', () => {
     });
 
     it('returns an error part for a rejected unwrapped response, and nothing after it', () => {
-      const opened = new DirectJsonParser([basicV09]).openStream({...options, wrapped: false});
+      const opened = new DirectJsonParser([basicV09], validator).openStream({
+        ...options,
+        wrapped: false,
+      });
 
       expect(opened.feed('not json')).toEqual([]);
       expect(opened.close().map(part => part.type)).toEqual(['error']);
     });
 
     it('still ends the stream on an error that does not reject a block', () => {
-      const opened = new DirectJsonParser([basicV09]).openStream(options);
+      const opened = new DirectJsonParser([basicV09], validator).openStream(options);
       opened.close();
 
       expect(() => opened.feed('text')).toThrow('The response stream is closed.');

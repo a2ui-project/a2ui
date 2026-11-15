@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
+import {fromJsonSchema} from '@a2ui/web_core/schema-engine';
 import {type FunctionApi} from '@a2ui/web_core';
 import {afterEach, describe, expect, test, vi} from 'vitest';
-import {z} from 'zod';
 
 import {
   A2uiCatalogError,
@@ -29,6 +29,7 @@ import {
   RendererToAgentMessageProcessor,
   RpcErrorCode,
 } from '../../src/index.js';
+import {validator} from '../helpers/validator.js';
 
 describe('RendererFunctionCalls', () => {
   afterEach(() => {
@@ -385,6 +386,7 @@ describe('RendererFunctionCalls', () => {
   test('plugs into RendererToAgentMessageProcessor as onRendererFunctionResponse', async () => {
     const calls = new RendererFunctionCalls();
     const processor = new RendererToAgentMessageProcessor({
+      validator,
       catalogs: [new Catalog('cat', '1.0', [], [])],
       onRendererFunctionResponse: calls.resolve,
     });
@@ -458,7 +460,7 @@ describe('RendererFunctionCalls', () => {
     const fn = (name: string, extra: Partial<FunctionApi> = {}): FunctionApi => ({
       name,
       returnType: 'string',
-      schema: z.object({}),
+      schema: fromJsonSchema({type: 'object'}, validator),
       ...extra,
     });
     const device: CatalogApi = new Catalog<never, FunctionApi>(
@@ -803,7 +805,13 @@ describe('RendererFunctionCalls', () => {
         'cat',
         '1.0',
         [],
-        [{name: 'formatLocal', returnType: 'string', schema: z.object({})}],
+        [
+          {
+            name: 'formatLocal',
+            returnType: 'string',
+            schema: fromJsonSchema({type: 'object'}, validator),
+          },
+        ],
       );
       const calls = new RendererFunctionCalls({catalogs: [catalog]});
 

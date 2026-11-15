@@ -29,6 +29,6 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "src/schemas/**/*.json"],
   "exclude": ["node_modules", "dist", "tests"]
 }

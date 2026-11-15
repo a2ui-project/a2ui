@@ -19,8 +19,13 @@
  */
 
 import {InferenceFormat, InferenceFormatFactory} from '../../inference-format.js';
-import {AgentToRendererMessage, CatalogApi} from '../../internal/web-core.js';
+import {
+  AgentToRendererMessage,
+  CatalogApi,
+  type JsonSchemaValidator,
+} from '../../internal/web-core.js';
 import {Parser} from '../../parser/parser.js';
+import {requireValidator} from '../../utils/validator.js';
 import {resolveExpressVersion, toCatalogList} from './catalogs.js';
 import {ExpressParser} from './parser.js';
 import {ExpressPromptGenerator} from './prompt-generator.js';
@@ -50,8 +55,21 @@ export class ExpressFormat implements InferenceFormat {
   private readonly catalogs: CatalogApi[];
   private readonly surfaceId: string;
   private readonly version: string;
+  private readonly validator: JsonSchemaValidator;
 
-  constructor(catalogs: CatalogApi[], options: ExpressFormatOptions = {}) {
+  /**
+   * @param catalogs The component catalogs.
+   * @param validator The JSON Schema validator the format's parsers check messages with.
+   * @param options The surface, version, examples and streaming options.
+   * @throws {A2uiConfigurationError} If no validator is given.
+   */
+  constructor(
+    catalogs: CatalogApi[],
+    validator: JsonSchemaValidator,
+    options: ExpressFormatOptions = {},
+  ) {
+    requireValidator(validator, 'ExpressFormat');
+    this.validator = validator;
     this.catalogs = toCatalogList(catalogs);
     this.surfaceId = options.surfaceId ?? 'main';
     this.version = resolveExpressVersion(this.catalogs, options.version);
@@ -69,7 +87,7 @@ export class ExpressFormat implements InferenceFormat {
   }
 
   createParser(): Parser {
-    return new ExpressParser(this.catalogs, this.surfaceId, this.version, {
+    return new ExpressParser(this.catalogs, this.validator, this.surfaceId, this.version, {
       progressiveKeys: this.progressiveKeys,
     });
   }
@@ -90,9 +108,10 @@ export class ExpressFormatFactory implements InferenceFormatFactory {
 
   createFormat(
     catalogs: CatalogApi[],
+    validator: JsonSchemaValidator,
     examples?: Record<string, AgentToRendererMessage[] | AgentToRendererMessage[][] | string>,
   ): InferenceFormat {
-    return new ExpressFormat(catalogs, {
+    return new ExpressFormat(catalogs, validator, {
       ...this.options,
       examples,
       progressiveKeys: this.progressiveKeys,

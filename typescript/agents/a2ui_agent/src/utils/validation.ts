@@ -18,7 +18,7 @@
  * Stateless validation of the payloads that an agent sends.
  */
 
-import {CatalogApi} from '../internal/web-core.js';
+import {CatalogApi, type JsonSchemaValidator} from '../internal/web-core.js';
 import {RendererState} from './renderer-state.js';
 
 /**
@@ -67,14 +67,21 @@ class PayloadState extends RendererState {
  *
  * @param catalogs The active catalogs, which must target compatible protocol versions. Each
  *     surface is checked against the catalog its `catalogId` names.
+ * @param validator The JSON Schema validator messages are checked with, such as
+ *     `createAjvValidator()` from `@a2ui/validator-ajv`.
  * @param payload One message, or an iterable of messages, as parsed JSON objects.
  * @throws {A2uiValidationError} If a renderer holding the catalogs would reject the payload.
  *     The error, or a subclass such as `A2uiIntegrityError`, describes the first problem
  *     found.
  * @throws {A2uiCatalogError} If no catalogs are given, or if their messages state different
  *     versions, for example v0.9 and v1.0 catalogs.
+ * @throws {A2uiConfigurationError} If no validator is given.
  */
-export function validatePayload(catalogs: CatalogApi[], payload: unknown): void {
-  const state = new PayloadState(catalogs);
+export function validatePayload(
+  catalogs: CatalogApi[],
+  validator: JsonSchemaValidator,
+  payload: unknown,
+): void {
+  const state = new PayloadState(catalogs, validator);
   state.checkTopology(state.apply(payload));
 }

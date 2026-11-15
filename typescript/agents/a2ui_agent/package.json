@@ -61,10 +61,12 @@
     "build:tsc": {
       "command": "tsc -b --pretty",
       "dependencies": [
+        "copy-spec",
         "../../core/web_core:build"
       ],
       "files": [
         "src/**/*.ts",
+        "src/schemas/**/*.json",
         "tsconfig.json"
       ],
       "output": [
@@ -73,20 +75,32 @@
       ],
       "clean": "if-file-deleted"
     },
+    "copy-spec": {
+      "command": "node scripts/copy-spec.mjs",
+      "files": [
+        "scripts/copy-spec.mjs",
+        "../../../specification/v1_0/json/renderer_to_agent.json"
+      ],
+      "output": [
+        "src/schemas/"
+      ]
+    },
     "test": {
       "command": "vitest run",
       "dependencies": [
-        "build"
+        "build",
+        "../../validators/ajv:build"
       ]
     },
     "test:timing": {
       "command": "node --expose-gc --test --test-concurrency=1 \"tests/timing/**/*_test.mjs\"",
       "dependencies": [
-        "build"
+        "build",
+        "../../validators/ajv:build"
       ]
     },
     "clean": {
-      "command": "rm -rf dist .tsbuildinfo .wireit"
+      "command": "rm -rf dist .tsbuildinfo .wireit src/schemas"
     },
     "format": {
       "command": "prettier --write .",
@@ -118,6 +132,7 @@
   "author": "Google",
   "license": "Apache-2.0",
   "devDependencies": {
+    "@a2ui/validator-ajv": "workspace:*",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^25.9.3",
     "antlr-ng": "1.0.10",

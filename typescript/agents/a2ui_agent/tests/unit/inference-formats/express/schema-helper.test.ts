@@ -29,6 +29,7 @@ import {
 import {Catalog} from '../../../../src/internal/web-core.js';
 import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
 import {loadConformanceCatalog} from '../../../helpers/conformance-catalogs.js';
+import {validator} from '../../../helpers/validator.js';
 
 const basicCatalogV10 = loadBasicCatalog('1.0');
 const basicCatalogV09 = loadBasicCatalog('v0.9');
@@ -393,7 +394,7 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
         },
       };
 
-      const customCat = Catalog.fromJson(mockDoc);
+      const customCat = Catalog.fromJson(mockDoc, undefined, undefined, {validator});
       const helper = new CatalogSchemaHelper(customCat, '1.0');
 
       const actionSlotSchema = helper.getPropertySchema('CustomComp', 'actionSlot');
@@ -476,7 +477,10 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
         },
       },
     };
-    const helper = new CatalogSchemaHelper(Catalog.fromJson(doc), '1.0');
+    const helper = new CatalogSchemaHelper(
+      Catalog.fromJson(doc, undefined, undefined, {validator}),
+      '1.0',
+    );
 
     it("uses the component's own definition over an allOf entry and a local mixin", () => {
       expect(helper.getPropertyEnum('Badge', 'tone')).toEqual(['own-calm', 'own-loud']);
@@ -558,7 +562,10 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
         },
       },
     };
-    const helper = new CatalogSchemaHelper(Catalog.fromJson(doc), 'v0.9');
+    const helper = new CatalogSchemaHelper(
+      Catalog.fromJson(doc, undefined, undefined, {validator}),
+      'v0.9',
+    );
 
     it('lists the properties of the nested allOf after the component’s own', () => {
       expect(helper.getComponentProperties('MaterialText')).toEqual([
@@ -728,27 +735,32 @@ describe('CatalogSchemaHelper and Express schema utilities', () => {
     });
 
     it('preserves a custom checks property on a v1.0 Checkable component', () => {
-      const cat = Catalog.fromJson({
-        catalogId: 'test_checkable_custom_checks',
-        protocolVersion: '1.0',
-        components: {
-          ScoreInput: {
-            type: 'object',
-            allOf: [
-              {$ref: 'common_types.json#/$defs/Checkable'},
-              {
-                type: 'object',
-                properties: {
-                  component: {const: 'ScoreInput'},
-                  checks: {type: 'integer'},
-                  label: {type: 'string'},
+      const cat = Catalog.fromJson(
+        {
+          catalogId: 'test_checkable_custom_checks',
+          protocolVersion: '1.0',
+          components: {
+            ScoreInput: {
+              type: 'object',
+              allOf: [
+                {$ref: 'common_types.json#/$defs/Checkable'},
+                {
+                  type: 'object',
+                  properties: {
+                    component: {const: 'ScoreInput'},
+                    checks: {type: 'integer'},
+                    label: {type: 'string'},
+                  },
+                  required: ['component', 'checks'],
                 },
-                required: ['component', 'checks'],
-              },
-            ],
+              ],
+            },
           },
         },
-      });
+        undefined,
+        undefined,
+        {validator},
+      );
       const helper = new CatalogSchemaHelper(cat, '1.0');
       expect(helper.isCheckable('ScoreInput')).toBe(true);
       expect(helper.getCustomEnvelopeProperties('ScoreInput').has('checks')).toBe(true);

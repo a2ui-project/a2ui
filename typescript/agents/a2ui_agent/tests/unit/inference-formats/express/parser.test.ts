@@ -31,12 +31,13 @@ import {
   ExpressValidationError,
 } from '../../../../src/inference-formats/express/errors.js';
 import {RawResponsePart} from '../../../../src/parser/response-part.js';
+import {validator} from '../../../helpers/validator.js';
 
 const basicCatalogV10 = loadBasicCatalog('1.0');
 
 describe('ExpressParser', () => {
   const catalog = basicCatalogV10;
-  const parser = new ExpressParser(catalog, 'main', '1.0');
+  const parser = new ExpressParser(catalog, validator, 'main', '1.0');
 
   describe('unwrap', () => {
     it('unwraps empty content to empty array', () => {

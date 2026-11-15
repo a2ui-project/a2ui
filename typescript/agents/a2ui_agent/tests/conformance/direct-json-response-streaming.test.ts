@@ -38,6 +38,7 @@ import {
   forEachSuiteVersion,
   KNOWN_FAILURES,
 } from './suite-helpers.js';
+import {validator} from '../helpers/validator.js';
 
 /** Protocol versions this SDK does not implement, with the reason for skipping. */
 const UNSUPPORTED_VERSIONS = new Map<string, string>([['0.8', 'this SDK does not implement v0.8']]);
@@ -100,7 +101,9 @@ function declaredVersion(args: StreamingArgs): string | undefined {
   const file = path.split('/').pop()!;
   const [match] = file.match(/v\d+_\d+(_\d+)?/) ?? [];
   if (match) return match.slice(1).replace(/_/g, '.');
-  const document = new FileSystemCatalogProvider(conformancePath(path)).load().toSchema() as {
+  const document = new FileSystemCatalogProvider(conformancePath(path), validator)
+    .load()
+    .toSchema() as {
     protocolVersion?: string;
   };
   return document.protocolVersion?.replace(/^v/, '');
@@ -115,7 +118,7 @@ function makeParser(
     throw new Error(`Unexpected format '${args.format}'`);
   }
   const catalogs = catalogPaths(args).map(file => loadCatalogFromRelativePath(file, lower));
-  return new DirectJsonParser(catalogs, {
+  return new DirectJsonParser(catalogs, validator, {
     progressiveKeys: args.progressive_keys ?? [],
     bufferIncompleteComponents,
   });

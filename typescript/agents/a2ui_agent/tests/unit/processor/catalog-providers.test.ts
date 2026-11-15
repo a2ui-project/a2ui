@@ -22,6 +22,7 @@ import {
   InMemoryCatalogProvider,
 } from '../../../src/processor/catalog-providers.js';
 import {conformancePath} from '../../conformance/suite-helpers.js';
+import {validator} from '../../helpers/validator.js';
 
 describe('Catalog Providers', () => {
   describe('InMemoryCatalogProvider', () => {
@@ -33,7 +34,7 @@ describe('Catalog Providers', () => {
     };
 
     it('loads successfully when metadata matches exactly', () => {
-      const provider = new InMemoryCatalogProvider(validSchema, '1.0', 'test_catalog');
+      const provider = new InMemoryCatalogProvider(validSchema, validator, '1.0', 'test_catalog');
       const catalog = provider.load();
       expect(catalog.id).toBe('test_catalog');
       // The catalog reports the version in the wire form, whatever the document spells.
@@ -41,7 +42,7 @@ describe('Catalog Providers', () => {
     });
 
     it('fills in the id and version a document leaves out', () => {
-      const provider = new InMemoryCatalogProvider({components: {}}, 'v0.9', 'provided');
+      const provider = new InMemoryCatalogProvider({components: {}}, validator, 'v0.9', 'provided');
       const catalog = provider.load();
       expect(catalog.id).toBe('provided');
       expect(catalog.protocolVersion).toBe('v0.9');
@@ -50,33 +51,47 @@ describe('Catalog Providers', () => {
     it('does not treat $id as the catalog id', () => {
       const provider = new InMemoryCatalogProvider(
         {$id: 'https://example.com/catalog.json', components: {}},
+        validator,
         '1.0',
       );
       expect(() => provider.load()).toThrow(A2uiCatalogError);
     });
 
     it('throws A2uiCatalogError when nothing states a protocol version', () => {
-      const provider = new InMemoryCatalogProvider({catalogId: 'no_version', components: {}});
+      const provider = new InMemoryCatalogProvider(
+        {catalogId: 'no_version', components: {}},
+        validator,
+      );
       expect(() => provider.load()).toThrow(A2uiCatalogError);
     });
 
     it('loads successfully when protocolVersion is passed as 1.0 without v', () => {
       // Testing explicit string coercion behavior
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const provider = new InMemoryCatalogProvider(validSchema, '1.0' as any, 'test_catalog');
+      const provider = new InMemoryCatalogProvider(
+        validSchema,
+        validator,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        '1.0' as any,
+        'test_catalog',
+      );
       const catalog = provider.load();
       expect(catalog.id).toBe('test_catalog');
     });
 
     it('throws A2uiCatalogError on catalog ID mismatch', () => {
-      const provider = new InMemoryCatalogProvider(validSchema, '1.0', 'wrong_id');
+      const provider = new InMemoryCatalogProvider(validSchema, validator, '1.0', 'wrong_id');
       expect(() => provider.load()).toThrow(A2uiCatalogError);
     });
 
     it('throws A2uiCatalogError on protocol version mismatch', () => {
       // Testing explicit string coercion behavior
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const provider = new InMemoryCatalogProvider(validSchema, 'v0.9' as any, 'test_catalog');
+      const provider = new InMemoryCatalogProvider(
+        validSchema,
+        validator,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        'v0.9' as any,
+        'test_catalog',
+      );
       expect(() => provider.load()).toThrow(A2uiCatalogError);
     });
   });
@@ -85,6 +100,7 @@ describe('Catalog Providers', () => {
     it('loads successfully from file', () => {
       const provider = new FileSystemCatalogProvider(
         conformancePath('test_data/catalogs/simplified_catalog_v1_0.json'),
+        validator,
         '1.0',
         'conformance/simplified',
       );
@@ -95,6 +111,7 @@ describe('Catalog Providers', () => {
     it('throws A2uiCatalogError if file read fails', () => {
       const provider = new FileSystemCatalogProvider(
         conformancePath('test_data/catalogs/catalog_not_here.json'),
+        validator,
       );
       expect(() => provider.load()).toThrow(A2uiCatalogError);
     });
@@ -102,6 +119,7 @@ describe('Catalog Providers', () => {
     it('throws A2uiCatalogError if JSON parsing fails', () => {
       const provider = new FileSystemCatalogProvider(
         conformancePath('test_data/catalogs/catalog_malformed.json'),
+        validator,
       );
       expect(() => provider.load()).toThrow(A2uiCatalogError);
     });

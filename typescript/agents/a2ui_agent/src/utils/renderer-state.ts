@@ -21,11 +21,13 @@
 import {
   A2uiCatalogError,
   A2uiError,
+  type A2uiErrorDetail,
   A2uiIntegrityError,
   A2uiValidationError,
   CatalogApi,
   ComponentApi,
   ComponentModel,
+  type JsonSchemaValidator,
   MessageProcessor,
   PayloadValidator,
   STRICT_VALIDATION,
@@ -35,6 +37,7 @@ import {
   validateReservedDirectives,
 } from '../internal/web-core.js';
 import {checkParserCatalogs} from './catalog-checks.js';
+import {requireValidator} from './validator.js';
 import {validateEnvelope} from './envelope-validation.js';
 import {toReleaseLine} from './protocol-version.js';
 
@@ -124,6 +127,7 @@ export class RendererState {
   private readonly _catalogs: CatalogApi[];
   private readonly releaseLine: string;
   private readonly processor: MessageProcessor;
+  private readonly validator: JsonSchemaValidator;
   private readonly assumed = new Set<string>();
   /** The components each surface added or replaced since its tree was last checked. */
   private readonly changed = new Map<string, Set<string>>();
@@ -163,11 +167,15 @@ export class RendererState {
    *
    * @param catalogs The active catalogs, which must target compatible protocol versions.
    *     Each surface is checked against the catalog its `catalogId` names.
+   * @param validator The JSON Schema validator messages are checked with, such as
+   *     `createAjvValidator()` from `@a2ui/validator-ajv`.
+   * @throws {A2uiConfigurationError} If no validator is given.
    * @throws {A2uiCatalogError} If no catalogs are given, if two share an id, if their
    *     messages state different versions, for example v0.9 and v1.0 catalogs, or if they
    *     target a protocol version the state does not support, such as v0.8.
    */
-  constructor(catalogs: CatalogApi[]) {
+  constructor(catalogs: CatalogApi[], validator: JsonSchemaValidator) {
+    requireValidator(validator, 'RendererState');
     if (!catalogs || catalogs.length === 0) {
       throw new A2uiCatalogError('A renderer state requires at least one catalog.');
     }
@@ -184,7 +192,9 @@ export class RendererState {
     }
     this._catalogs = [...catalogs];
     this.runsCalls = sharedProcessor !== undefined;
-    this.processor = sharedProcessor ?? new MessageProcessor(this._catalogs as never);
+    this.validator = validator;
+    this.processor =
+      sharedProcessor ?? new MessageProcessor(this._catalogs as never, undefined, {validator});
   }
 
   /**
@@ -202,13 +212,19 @@ export class RendererState {
    * checked by nothing, and a transaction that fails after it cannot undo it.
    *
    * @param processor The renderer's processor. Its catalogs are the state's catalogs.
+   * @param validator The JSON Schema validator the state checks messages with before it
+   *     applies them to `processor`, typically the one the processor was created with.
+   * @throws {A2uiConfigurationError} If no validator is given.
    * @throws {A2uiCatalogError} If the processor's catalogs could not make a state, as for the
    *     constructor.
    */
-  static of<T extends ComponentApi>(processor: MessageProcessor<T>): RendererState {
+  static of<T extends ComponentApi>(
+    processor: MessageProcessor<T>,
+    validator: JsonSchemaValidator,
+  ): RendererState {
     sharedProcessor = processor as unknown as MessageProcessor;
     try {
-      return new RendererState(processor.catalogs as unknown as CatalogApi[]);
+      return new RendererState(processor.catalogs as unknown as CatalogApi[], validator);
     } finally {
       sharedProcessor = undefined;
     }
@@ -1056,7 +1072,7 @@ export class RendererState {
     const accepted = MESSAGE_VERSIONS[this.releaseLine];
     const stated = message.version;
     if (typeof stated === 'string' && accepted.includes(stated)) {
-      validateEnvelope(message, this.releaseLine);
+      validateEnvelope(message, this.releaseLine, this.validator);
       return;
     }
     if (stated === undefined || stated === null) {
@@ -1093,7 +1109,7 @@ function asValidationError<T>(fn: () => T): T {
     return fn();
   } catch (e) {
     if (e instanceof A2uiValidationError || !(e instanceof A2uiError)) throw e;
-    throw new A2uiValidationError(e.message, (e as {details?: unknown}).details);
+    throw new A2uiValidationError(e.message, (e as {details?: A2uiErrorDetail[]}).details);
   }
 }
 

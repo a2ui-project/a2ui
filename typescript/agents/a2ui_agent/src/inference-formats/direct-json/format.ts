@@ -15,8 +15,9 @@
  */
 
 import {InferenceFormat, InferenceFormatFactory} from '../../inference-format.js';
-import {CatalogApi} from '../../internal/web-core.js';
+import {CatalogApi, type JsonSchemaValidator} from '../../internal/web-core.js';
 import {checkParserCatalogs} from '../../utils/catalog-checks.js';
+import {requireValidator} from '../../utils/validator.js';
 import {DirectJsonParser} from './parser.js';
 import {DirectJsonExamples, DirectJsonPromptGenerator} from './prompt-generator.js';
 
@@ -48,11 +49,20 @@ export class DirectJsonFormat implements InferenceFormat {
   private readonly progressiveKeys: readonly string[];
   private readonly bufferIncompleteComponents: boolean;
 
+  /**
+   * @param catalogs The active catalogs, which must target compatible protocol versions.
+   * @param validator The JSON Schema validator the format's parsers check messages with.
+   * @param examples Optional few-shot examples for prompt generation.
+   * @param options How streams read values that are still arriving.
+   * @throws {A2uiConfigurationError} If no validator is given.
+   */
   constructor(
     private readonly catalogs: CatalogApi[],
+    private readonly validator: JsonSchemaValidator,
     examples?: DirectJsonExamples,
     options: DirectJsonFormatOptions = {},
   ) {
+    requireValidator(validator, 'DirectJsonFormat');
     checkParserCatalogs(catalogs);
     this.progressiveKeys = [...(options.progressiveKeys ?? DEFAULT_PROGRESSIVE_KEYS)];
     this.bufferIncompleteComponents = options.bufferIncompleteComponents ?? false;
@@ -60,7 +70,7 @@ export class DirectJsonFormat implements InferenceFormat {
   }
 
   createParser(): DirectJsonParser {
-    return new DirectJsonParser(this.catalogs, {
+    return new DirectJsonParser(this.catalogs, this.validator, {
       progressiveKeys: this.progressiveKeys,
       bufferIncompleteComponents: this.bufferIncompleteComponents,
     });
@@ -73,7 +83,11 @@ export class DirectJsonFormat implements InferenceFormat {
 export class DirectJsonFormatFactory implements InferenceFormatFactory {
   constructor(private readonly options: DirectJsonFormatOptions = {}) {}
 
-  createFormat(catalogs: CatalogApi[], examples?: DirectJsonExamples): InferenceFormat {
-    return new DirectJsonFormat(catalogs, examples, this.options);
+  createFormat(
+    catalogs: CatalogApi[],
+    validator: JsonSchemaValidator,
+    examples?: DirectJsonExamples,
+  ): InferenceFormat {
+    return new DirectJsonFormat(catalogs, validator, examples, this.options);
   }
 }

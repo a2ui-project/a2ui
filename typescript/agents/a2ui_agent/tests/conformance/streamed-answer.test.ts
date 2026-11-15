@@ -34,6 +34,7 @@ import {
   EXPECT_ERROR_KEYS,
   KNOWN_FAILURES,
 } from './suite-helpers.js';
+import {validator} from '../helpers/validator.js';
 
 const STREAM_ANSWER_CASE_KEYS = new Set([
   ...CASE_METADATA_KEYS,
@@ -58,7 +59,7 @@ interface Step {
 }
 
 function load(file: string) {
-  return new FileSystemCatalogProvider(conformancePath(file)).load();
+  return new FileSystemCatalogProvider(conformancePath(file), validator).load();
 }
 
 /** A part in the suite's shape: text, a surface by its id, or an error by its category. */
@@ -85,11 +86,14 @@ describeSuite(
     }
     const processor = new A2uiRequestProcessor(
       [load(args.catalog)],
+      validator,
       undefined,
       new DirectJsonFormatFactory(),
     );
     const renderer = new MessageProcessor(
       (args.renderer_catalogs ?? [args.catalog]).map(load) as never,
+      undefined,
+      {validator},
     );
     const open = () => new StreamedAnswer(processor, {renderer});
 

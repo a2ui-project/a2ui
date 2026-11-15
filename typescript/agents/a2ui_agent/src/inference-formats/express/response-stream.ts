@@ -25,7 +25,12 @@ import {
   ParseError,
   withPartialResults,
 } from '../../errors.js';
-import {A2uiError, AgentToRendererMessage, CatalogApi} from '../../internal/web-core.js';
+import {
+  A2uiError,
+  AgentToRendererMessage,
+  CatalogApi,
+  type JsonSchemaValidator,
+} from '../../internal/web-core.js';
 import {A2UI_INFERENCE_CLOSE_TAG, A2UI_INFERENCE_OPEN_TAG} from '../../parser/constants.js';
 import {ResponsePart, StreamPart} from '../../parser/response-part.js';
 import {ResponseStream} from '../../parser/response-stream.js';
@@ -87,6 +92,8 @@ const DATA_ASSIGN_RE = /^\s*\$([a-zA-Z0-9_/]*)\s*=(?!=)/;
 /** Parser interface required by `ExpressResponseStream`. */
 export interface ExpressStreamSource {
   readonly catalogs: CatalogApi[];
+  /** The JSON Schema validator of the state a stream opened without one makes. */
+  readonly validator: JsonSchemaValidator;
   readonly surfaceId: string;
   readonly version: string;
   readonly progressiveKeys: ReadonlySet<string>;
@@ -758,7 +765,7 @@ export class ExpressResponseStream<
     {wrapped = true, state, afterRejectedBlock = 'end', progressiveKeys}: ExpressStreamOptions = {},
   ) {
     this.wrapped = wrapped;
-    this.state = state ?? new RendererState(parser.catalogs);
+    this.state = state ?? new RendererState(parser.catalogs, parser.validator);
     this.continues = afterRejectedBlock === 'continue';
     this.compiler = new ExpressCompiler(parser.catalogs, parser.version);
     this.progressiveKeys =

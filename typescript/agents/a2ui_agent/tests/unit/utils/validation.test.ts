@@ -25,6 +25,7 @@ import {
   validatePayload,
 } from '../../../src/index.js';
 import {BASIC_CATALOG_IDS, loadBasicCatalog} from '../../helpers/basic-catalogs.js';
+import {validator} from '../../helpers/validator.js';
 
 type Message = Record<string, unknown>;
 type Component = Record<string, unknown>;
@@ -57,6 +58,7 @@ function catalog(catalogId: string, ...components: string[]) {
         ]),
       ),
     },
+    validator,
     'v0.9',
   ).load();
 }
@@ -78,6 +80,7 @@ function sizedTextCatalog(catalogId: string, sizeType: string) {
         },
       },
     },
+    validator,
     'v0.9',
   ).load();
 }
@@ -86,68 +89,72 @@ describe('validatePayload', () => {
   const basicId = BASIC_CATALOG_IDS['v0.9'];
 
   it('accepts a created surface with a complete tree', () => {
-    validatePayload([BASIC], [create(basicId), update(COLUMN, TEXT)]);
+    validatePayload([BASIC], validator, [create(basicId), update(COLUMN, TEXT)]);
   });
 
   it('rejects a dangling reference on a created surface', () => {
-    expect(() => validatePayload([BASIC], [create(basicId), update(COLUMN)])).toThrow(
+    expect(() => validatePayload([BASIC], validator, [create(basicId), update(COLUMN)])).toThrow(
       A2uiIntegrityError,
     );
   });
 
   it('requires a root on a created surface', () => {
-    expect(() => validatePayload([BASIC], [create(basicId), update(TEXT)])).toThrow(
+    expect(() => validatePayload([BASIC], validator, [create(basicId), update(TEXT)])).toThrow(
       /Missing root component/,
     );
   });
 
   it('lets a later message add the children a component names', () => {
-    validatePayload([BASIC], [create(basicId), update(COLUMN), update(TEXT)]);
+    validatePayload([BASIC], validator, [create(basicId), update(COLUMN), update(TEXT)]);
   });
 
   it('rejects an orphan that a later message adds', () => {
     const orphan = {id: 'orphan', component: 'Text', text: 'Lost'};
 
     expect(() =>
-      validatePayload([BASIC], [create(basicId), update(COLUMN, TEXT), update(orphan)]),
+      validatePayload([BASIC], validator, [create(basicId), update(COLUMN, TEXT), update(orphan)]),
     ).toThrow(/not reachable/);
   });
 
   it('accepts references to earlier components on an updated surface', () => {
-    validatePayload([BASIC], [update(COLUMN)]);
+    validatePayload([BASIC], validator, [update(COLUMN)]);
   });
 
   it('rejects an unknown component on an updated surface', () => {
-    expect(() => validatePayload([BASIC], [update({id: 'x', component: 'Unknown'})])).toThrow(
-      A2uiValidationError,
-    );
+    expect(() =>
+      validatePayload([BASIC], validator, [update({id: 'x', component: 'Unknown'})]),
+    ).toThrow(A2uiValidationError);
   });
 
   it('rejects an invalid component on an updated surface', () => {
-    expect(() => validatePayload([BASIC], [update({id: 't', component: 'Text'})])).toThrow(
-      A2uiValidationError,
-    );
+    expect(() =>
+      validatePayload([BASIC], validator, [update({id: 't', component: 'Text'})]),
+    ).toThrow(A2uiValidationError);
   });
 
   it('accepts an empty payload', () => {
-    validatePayload([BASIC], []);
+    validatePayload([BASIC], validator, []);
   });
 
   it('accepts one message on its own', () => {
-    validatePayload([BASIC], update(COLUMN));
-    expect(() => validatePayload([BASIC], update({id: 'x', component: 'Unknown'}))).toThrow(
-      A2uiValidationError,
+    validatePayload([BASIC], validator, update(COLUMN));
+    expect(() =>
+      validatePayload([BASIC], validator, update({id: 'x', component: 'Unknown'})),
+    ).toThrow(A2uiValidationError);
+    expect(() => validatePayload([BASIC], validator, {})).toThrow('Message 0 states no version');
+    expect(() => validatePayload([BASIC], validator, 'nope')).toThrow(
+      'Message 0 is not a JSON object.',
     );
-    expect(() => validatePayload([BASIC], {})).toThrow('Message 0 states no version');
-    expect(() => validatePayload([BASIC], 'nope')).toThrow('Message 0 is not a JSON object.');
   });
 
   it('rejects a message that is not an object', () => {
-    expect(() => validatePayload([BASIC], ['nope'])).toThrow('Message 0 is not a JSON object.');
+    expect(() => validatePayload([BASIC], validator, ['nope'])).toThrow(
+      'Message 0 is not a JSON object.',
+    );
   });
 
   it('rejects a message with another version', () => {
-    expect(() => validatePayload([BASIC], [{...update(TEXT), version: '1.0'}])).toThrow(
+    expect(() => validatePayload([BASIC], validator, [{...update(TEXT), version: '1.0'}])).toThrow(
       A2uiValidationError,
     );
   });
@@ -155,15 +162,15 @@ describe('validatePayload', () => {
   it('checks an updated surface on a catalog that defines its components', () => {
     const catalogs = [catalog('a', 'Text'), catalog('b', 'Text', 'Card')];
 
-    validatePayload(catalogs, [update({id: 'c', component: 'Card', text: 'Hi'})]);
+    validatePayload(catalogs, validator, [update({id: 'c', component: 'Card', text: 'Hi'})]);
   });
 
   it('checks an updated surface against the first catalog when none defines it', () => {
     const catalogs = [catalog('a', 'Text'), catalog('b', 'Card')];
 
-    expect(() => validatePayload(catalogs, [update({id: 'x', component: 'Unknown'})])).toThrow(
-      A2uiValidationError,
-    );
+    expect(() =>
+      validatePayload(catalogs, validator, [update({id: 'x', component: 'Unknown'})]),
+    ).toThrow(A2uiValidationError);
   });
 
   it('checks an update against the catalog its surface was created with in a state', () => {
@@ -172,8 +179,8 @@ describe('validatePayload', () => {
     const catalogs = [catalog('a', 'Text'), catalog('b', 'Text', 'Card')];
     const cardUpdate = update({id: 'c', component: 'Card', text: 'Hi'});
 
-    validatePayload(catalogs, [cardUpdate]);
-    const state = new RendererState(catalogs);
+    validatePayload(catalogs, validator, [cardUpdate]);
+    const state = new RendererState(catalogs, validator);
     state.apply(create('a'));
     expect(() => state.apply(cardUpdate)).toThrow(A2uiValidationError);
   });
@@ -182,7 +189,7 @@ describe('validatePayload', () => {
     // Both catalogs accept the first update, and only "b" accepts the second.
     const catalogs = [sizedTextCatalog('a', 'string'), sizedTextCatalog('b', 'number')];
 
-    validatePayload(catalogs, [
+    validatePayload(catalogs, validator, [
       update({id: 't', component: 'Text', text: 'Hi'}),
       update({id: 't', component: 'Text', text: 'Hi', size: 12}),
     ]);
@@ -192,7 +199,7 @@ describe('validatePayload', () => {
     const catalogs = [sizedTextCatalog('a', 'string'), sizedTextCatalog('b', 'number')];
 
     expect(() =>
-      validatePayload(catalogs, [
+      validatePayload(catalogs, validator, [
         update({id: 't', component: 'Text', text: 'Hi', size: 12}),
         update({id: 't', component: 'Text', text: 'Hi', size: 'big'}),
       ]),
@@ -201,35 +208,30 @@ describe('validatePayload', () => {
 
   it('does not assume a surface that an earlier message deleted', () => {
     expect(() =>
-      validatePayload(
-        [BASIC],
-        [
-          create(basicId),
-          update(COLUMN, TEXT),
-          {version: 'v0.9', deleteSurface: {surfaceId: 's'}},
-          update(TEXT),
-        ],
-      ),
+      validatePayload([BASIC], validator, [
+        create(basicId),
+        update(COLUMN, TEXT),
+        {version: 'v0.9', deleteSurface: {surfaceId: 's'}},
+        update(TEXT),
+      ]),
     ).toThrow(A2uiValidationError);
   });
 
   it('does not assume a surface that a later message creates', () => {
-    const check = () => validatePayload([BASIC], [update(COLUMN, TEXT), create(basicId)]);
+    const check = () =>
+      validatePayload([BASIC], validator, [update(COLUMN, TEXT), create(basicId)]);
 
     expect(check).toThrow(A2uiValidationError);
     expect(check).toThrow(/Surface not found/);
   });
 
   it('accepts a surface recreated after a delete', () => {
-    validatePayload(
-      [BASIC],
-      [
-        update(TEXT),
-        {version: 'v0.9', deleteSurface: {surfaceId: 's'}},
-        create(basicId),
-        update(COLUMN, TEXT),
-      ],
-    );
+    validatePayload([BASIC], validator, [
+      update(TEXT),
+      {version: 'v0.9', deleteSurface: {surfaceId: 's'}},
+      create(basicId),
+      update(COLUMN, TEXT),
+    ]);
   });
 
   it('skips the tree of a surface that a later message of the payload deletes', () => {
@@ -237,32 +239,35 @@ describe('validatePayload', () => {
     // by then. Each component was still checked against the catalog.
     const deleted: Message = {version: 'v0.9', deleteSurface: {surfaceId: 's'}};
     for (const components of [[COLUMN], [{...COLUMN, children: []}, TEXT], [TEXT]]) {
-      validatePayload([BASIC], [create(basicId), update(...components), deleted]);
+      validatePayload([BASIC], validator, [create(basicId), update(...components), deleted]);
     }
     expect(() =>
-      validatePayload(
-        [BASIC],
-        [create(basicId), update({id: 'root', component: 'Unknown'}), deleted],
-      ),
+      validatePayload([BASIC], validator, [
+        create(basicId),
+        update({id: 'root', component: 'Unknown'}),
+        deleted,
+      ]),
     ).toThrow(A2uiValidationError);
   });
 
   it('rejects a surface on a catalog it does not hold', () => {
-    expect(() => validatePayload([BASIC], [create('missing')])).toThrow(A2uiValidationError);
+    expect(() => validatePayload([BASIC], validator, [create('missing')])).toThrow(
+      A2uiValidationError,
+    );
   });
 
   it('rejects no catalogs and catalogs of incompatible versions', () => {
-    expect(() => validatePayload([], [update(TEXT)])).toThrow(A2uiCatalogError);
-    expect(() => validatePayload([BASIC, loadBasicCatalog('1.0')], [update(TEXT)])).toThrow(
-      A2uiCatalogError,
-    );
+    expect(() => validatePayload([], validator, [update(TEXT)])).toThrow(A2uiCatalogError);
+    expect(() =>
+      validatePayload([BASIC, loadBasicCatalog('1.0')], validator, [update(TEXT)]),
+    ).toThrow(A2uiCatalogError);
   });
 
   it('does not change the payload it checks', () => {
     const payload = [create(basicId), update(COLUMN, TEXT)];
     const copy = structuredClone(payload);
 
-    validatePayload([BASIC], payload);
+    validatePayload([BASIC], validator, payload);
 
     expect(payload).toEqual(copy);
   });
@@ -273,6 +278,6 @@ describe('validatePayload', () => {
       yield update(COLUMN, TEXT);
     }
 
-    validatePayload([BASIC], messages());
+    validatePayload([BASIC], validator, messages());
   });
 });

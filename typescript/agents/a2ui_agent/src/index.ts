@@ -35,6 +35,11 @@ export type {
 // `A2uiGenerator.createProcessor` and `resolveCatalogs` take it.
 export type {RendererCapabilities} from './internal/web-core.js';
 
+// The JSON Schema validator the SDK checks messages and catalogs with. Re-exported because
+// the parsers, formats, `RendererState`, `validatePayload` and the catalog providers take one;
+// an application passes one such as `createAjvValidator()` from `@a2ui/validator-ajv`.
+export type {JsonSchemaValidator} from './internal/web-core.js';
+
 export {
   AgentFunction,
   type AgentFunctionContext,

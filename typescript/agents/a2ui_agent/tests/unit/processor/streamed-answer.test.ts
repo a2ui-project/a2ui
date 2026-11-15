@@ -25,14 +25,22 @@ import {
 } from '../../../src/index.js';
 import {MessageProcessor} from '../../../src/internal/web-core.js';
 import {loadBasicCatalog} from '../../helpers/basic-catalogs.js';
+import {validator} from '../../helpers/validator.js';
 
 const OPEN = '<a2ui-json>';
 const CLOSE = '</a2ui-json>';
 const BASIC = loadBasicCatalog('1.0');
 
 function newAnswer(): StreamedAnswer {
-  const processor = new A2uiRequestProcessor([BASIC], undefined, new DirectJsonFormatFactory());
-  return new StreamedAnswer(processor, {renderer: new MessageProcessor([BASIC as never])});
+  const processor = new A2uiRequestProcessor(
+    [BASIC],
+    validator,
+    undefined,
+    new DirectJsonFormatFactory(),
+  );
+  return new StreamedAnswer(processor, {
+    renderer: new MessageProcessor([BASIC as never], undefined, {validator}),
+  });
 }
 
 function create(surfaceId: string): string {
@@ -79,8 +87,13 @@ describe('StreamedAnswer', () => {
   });
 
   it("puts each surface in the renderer's model", () => {
-    const renderer = new MessageProcessor([BASIC as never]);
-    const processor = new A2uiRequestProcessor([BASIC], undefined, new DirectJsonFormatFactory());
+    const renderer = new MessageProcessor([BASIC as never], undefined, {validator});
+    const processor = new A2uiRequestProcessor(
+      [BASIC],
+      validator,
+      undefined,
+      new DirectJsonFormatFactory(),
+    );
     const answer = new StreamedAnswer(processor, {renderer});
 
     answer.feed(surfaceBlock('a'));
@@ -162,8 +175,15 @@ describe('StreamedAnswer', () => {
   });
 
   it("rejects a renderer whose catalogs are not the processor's", () => {
-    const processor = new A2uiRequestProcessor([BASIC], undefined, new DirectJsonFormatFactory());
-    const renderer = new MessageProcessor([loadBasicCatalog('v0.9') as never]);
+    const processor = new A2uiRequestProcessor(
+      [BASIC],
+      validator,
+      undefined,
+      new DirectJsonFormatFactory(),
+    );
+    const renderer = new MessageProcessor([loadBasicCatalog('v0.9') as never], undefined, {
+      validator,
+    });
 
     expect(() => new StreamedAnswer(processor, {renderer})).toThrow(A2uiCatalogError);
   });

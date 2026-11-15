@@ -15,7 +15,11 @@
  */
 
 import {A2uiCatalogError} from '../errors.js';
-import {RendererCapabilities, toCanonicalVersion} from '../internal/web-core.js';
+import {
+  type JsonSchemaValidator,
+  RendererCapabilities,
+  toCanonicalVersion,
+} from '../internal/web-core.js';
 import {catalogFromDocument} from '../processor/catalog-providers.js';
 import {ProtocolVersion} from '../types.js';
 
@@ -70,6 +74,7 @@ function validateInlineCatalogs(
   entryKey: string,
   metadataKey: string,
   wireVersion: ProtocolVersion,
+  validator: JsonSchemaValidator,
 ): Record<string, unknown>[] {
   if (!Array.isArray(rawInline)) {
     throw new A2uiCatalogError(
@@ -91,7 +96,7 @@ function validateInlineCatalogs(
         `Each inline catalog in '${entryKey}' renderer capabilities under '${metadataKey}' must declare a valid string 'protocolVersion'.`,
       );
     }
-    catalogFromDocument(cat, 'inlineCatalogs', wireVersion);
+    catalogFromDocument(cat, 'inlineCatalogs', validator, wireVersion);
     inlineCatalogs.push({...cat});
   }
   return inlineCatalogs;
@@ -102,6 +107,7 @@ function validateCapabilitiesEntry(
   entryKey: string,
   metadataKey: string,
   wireVersion: ProtocolVersion,
+  validator: JsonSchemaValidator,
 ): RendererCapabilities {
   for (const key of Object.keys(entry)) {
     if (!ALLOWED_ENTRY_KEYS.has(key)) {
@@ -122,7 +128,7 @@ function validateCapabilitiesEntry(
 
   const inlineCatalogs =
     Object.hasOwn(entry, 'inlineCatalogs') && entry.inlineCatalogs !== undefined
-      ? validateInlineCatalogs(entry.inlineCatalogs, entryKey, metadataKey, wireVersion)
+      ? validateInlineCatalogs(entry.inlineCatalogs, entryKey, metadataKey, wireVersion, validator)
       : undefined;
 
   return {
@@ -140,12 +146,15 @@ function validateCapabilitiesEntry(
  * `version` is unsupported or the metadata key or version entry is malformed.
  *
  * @param metadata The transport message metadata object, or `null`/`undefined`.
+ * @param validator The JSON Schema validator inline catalogs are checked with, such as
+ *     `createAjvValidator()` from `@a2ui/validator-ajv`.
  * @param version The A2UI protocol version to read capabilities for.
  * @returns A version-keyed capabilities object accepted unchanged by `resolveCatalogs`,
  *     or `undefined` when absent.
  */
 export function readRendererCapabilities(
   metadata: unknown,
+  validator: JsonSchemaValidator,
   version: ProtocolVersion | string = '1.0',
 ): Record<string, RendererCapabilities> | undefined {
   const {wireVersion, metadataKey, entryKey} = resolveCapabilitiesTarget(version);
@@ -175,6 +184,12 @@ export function readRendererCapabilities(
     );
   }
 
-  const validatedEntry = validateCapabilitiesEntry(entry, entryKey, metadataKey, wireVersion);
+  const validatedEntry = validateCapabilitiesEntry(
+    entry,
+    entryKey,
+    metadataKey,
+    wireVersion,
+    validator,
+  );
   return {[entryKey]: validatedEntry};
 }

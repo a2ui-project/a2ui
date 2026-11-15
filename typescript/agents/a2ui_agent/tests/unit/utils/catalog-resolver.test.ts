@@ -19,6 +19,7 @@ import {resolveCatalogs} from '../../../src/utils/catalog-resolver.js';
 import {CatalogConfig} from '../../../src/processor/catalog-config.js';
 import {Catalog, V10RendererCapabilities} from '../../../src/internal/web-core.js';
 import {A2uiCatalogError, A2uiValidationError} from '../../../src/errors.js';
+import {validator} from '../../helpers/validator.js';
 
 describe('resolveCatalogs', () => {
   const catBasic = new Catalog('id_basic', '1.0', [], []);
@@ -37,7 +38,7 @@ describe('resolveCatalogs', () => {
     const caps: V10RendererCapabilities = {
       supportedCatalogIds: ['id_custom2', 'id_basic'],
     };
-    const resolved = resolveCatalogs(supportedConfigs, caps);
+    const resolved = resolveCatalogs(supportedConfigs, validator, caps);
     expect(resolved.map(c => c.id)).toEqual(['id_custom2', 'id_basic']);
   });
 
@@ -45,18 +46,18 @@ describe('resolveCatalogs', () => {
     const caps: V10RendererCapabilities = {
       supportedCatalogIds: ['id_not_exists', 'id_custom1'],
     };
-    const resolved = resolveCatalogs(supportedConfigs, caps);
+    const resolved = resolveCatalogs(supportedConfigs, validator, caps);
     expect(resolved.map(c => c.id)).toEqual(['id_custom1']);
   });
 
   it('throws when the renderer names nothing the agent holds', () => {
     const caps: V10RendererCapabilities = {supportedCatalogIds: ['id_not_exists']};
-    expect(() => resolveCatalogs(supportedConfigs, caps)).toThrowError(A2uiCatalogError);
+    expect(() => resolveCatalogs(supportedConfigs, validator, caps)).toThrowError(A2uiCatalogError);
   });
 
   it('throws when supportedCatalogIds is empty and nothing is declared inline', () => {
     const caps: V10RendererCapabilities = {supportedCatalogIds: []};
-    expect(() => resolveCatalogs(supportedConfigs, caps)).toThrowError(A2uiCatalogError);
+    expect(() => resolveCatalogs(supportedConfigs, validator, caps)).toThrowError(A2uiCatalogError);
   });
 
   it('adds each accepted inline catalog as an active catalog of its own', () => {
@@ -64,7 +65,7 @@ describe('resolveCatalogs', () => {
       supportedCatalogIds: ['id_basic'],
       inlineCatalogs: [inline('id_inline1'), inline('id_inline2')],
     };
-    const resolved = resolveCatalogs([configBasic], caps, true);
+    const resolved = resolveCatalogs([configBasic], validator, caps, true);
     expect(resolved.map(c => c.id)).toEqual(['id_basic', 'id_inline1', 'id_inline2']);
   });
 
@@ -73,7 +74,7 @@ describe('resolveCatalogs', () => {
       supportedCatalogIds: [],
       inlineCatalogs: [inline('id_inline')],
     };
-    const resolved = resolveCatalogs([configBasic], caps, true);
+    const resolved = resolveCatalogs([configBasic], validator, caps, true);
     expect(resolved.map(c => c.id)).toEqual(['id_inline']);
   });
 
@@ -82,7 +83,7 @@ describe('resolveCatalogs', () => {
       supportedCatalogIds: ['id_basic'],
       inlineCatalogs: [inline('id_inline')],
     };
-    const resolved = resolveCatalogs([configBasic], caps, false);
+    const resolved = resolveCatalogs([configBasic], validator, caps, false);
     expect(resolved.map(c => c.id)).toEqual(['id_basic']);
   });
 
@@ -91,11 +92,13 @@ describe('resolveCatalogs', () => {
       supportedCatalogIds: [],
       inlineCatalogs: [{catalogId: 'id_inline', components: {}}],
     };
-    expect(() => resolveCatalogs([configBasic], caps, true)).toThrowError(A2uiCatalogError);
+    expect(() => resolveCatalogs([configBasic], validator, caps, true)).toThrowError(
+      A2uiCatalogError,
+    );
   });
 
   it('activates every registered catalog when capabilities are absent', () => {
-    const resolved = resolveCatalogs(supportedConfigs, undefined);
+    const resolved = resolveCatalogs(supportedConfigs, validator, undefined);
     expect(resolved.map(c => c.id)).toEqual(['id_basic', 'id_custom1', 'id_custom2']);
   });
 
@@ -105,7 +108,7 @@ describe('resolveCatalogs', () => {
         supportedCatalogIds: ['id_custom1', 'id_basic'],
       },
     };
-    const resolved = resolveCatalogs(supportedConfigs, caps);
+    const resolved = resolveCatalogs(supportedConfigs, validator, caps);
     expect(resolved.map(c => c.id)).toEqual(['id_custom1', 'id_basic']);
   });
 
@@ -115,14 +118,16 @@ describe('resolveCatalogs', () => {
         supportedCatalogIds: ['id_basic'],
       },
     };
-    expect(() => resolveCatalogs(supportedConfigs, caps)).toThrowError(A2uiValidationError);
+    expect(() => resolveCatalogs(supportedConfigs, validator, caps)).toThrowError(
+      A2uiValidationError,
+    );
   });
 
   it('throws A2uiCatalogError when registered catalogs read different capabilities keys', () => {
     const catV09 = new Catalog('id_v09', 'v0.9', [], []);
     const mixedConfigs = [configBasic, new CatalogConfig(catV09)];
     expect(() =>
-      resolveCatalogs(mixedConfigs, {'1.0': {supportedCatalogIds: ['id_basic']}}),
+      resolveCatalogs(mixedConfigs, validator, {'1.0': {supportedCatalogIds: ['id_basic']}}),
     ).toThrowError(A2uiCatalogError);
   });
 });

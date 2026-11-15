@@ -40,6 +40,7 @@ import {
   describeSuite,
   EXPECT_ERROR_KEYS,
 } from './suite-helpers.js';
+import {validator} from '../helpers/validator.js';
 
 const LEGACY_CASE_KEYS: Record<string, ReadonlySet<string>> = {
   parse_full: new Set([
@@ -151,7 +152,10 @@ function runParseFullCase(testCase: LoadedCase): void {
       | string
       | undefined;
     const version = declared ? toWireProtocolVersion(declared) : '1.0';
-    const parser = new ExpressParser(version === 'v0.9' ? basicCatalogV09 : basicCatalogV10);
+    const parser = new ExpressParser(
+      version === 'v0.9' ? basicCatalogV09 : basicCatalogV10,
+      validator,
+    );
 
     if (expectError) {
       assertThrows(() => {
@@ -167,7 +171,7 @@ function runParseFullCase(testCase: LoadedCase): void {
   const catalog = testCase.catalog
     ? createCatalogConfig(testCase.catalog as Record<string, unknown>).catalog
     : basicCatalogV10;
-  const parser = new DirectJsonParser([catalog]);
+  const parser = new DirectJsonParser([catalog], validator);
 
   const parseUnwrappedParts = (): ResponsePart[] => {
     const unwrapped = parser.unwrap(input);
@@ -197,7 +201,9 @@ function runHasPartsCase(testCase: LoadedCase): void {
   const expected = testCase.expect;
   const catalog = basicCatalogV10;
   const parser =
-    testCase.format === 'express' ? new ExpressParser(catalog) : new DirectJsonParser([catalog]);
+    testCase.format === 'express'
+      ? new ExpressParser(catalog, validator)
+      : new DirectJsonParser([catalog], validator);
   expect(parser.hasFormatContent(input, {complete: true})).toBe(expected);
 }
 
@@ -223,10 +229,11 @@ function runLoadCatalogCase(testCase: LoadedCase): void {
       if (comp && comp.schema) {
         // A payload with a known required field and an unknown field
         const testPayload = {text: 'test', unknownProp: 123};
+        const result = comp.schema['~standard'].validate(testPayload) as {issues?: unknown};
         if ((v as Record<string, unknown>).additionalProperties === false) {
-          expect(() => comp.schema!.parse(testPayload)).toThrow();
+          expect(result.issues).toBeDefined();
         } else {
-          expect(() => comp.schema!.parse(testPayload)).not.toThrow();
+          expect(result.issues).toBeUndefined();
         }
       }
     }
@@ -249,11 +256,14 @@ function runSelectCatalogCase(testCase: LoadedCase): void {
   const expectError = testCase.expectError as Record<string, unknown> | string | undefined;
 
   if (expectError) {
-    assertThrows(() => resolveCatalogs(configs, capabilities, acceptsInline), expectError);
+    assertThrows(
+      () => resolveCatalogs(configs, validator, capabilities, acceptsInline),
+      expectError,
+    );
     return;
   }
 
-  const activeCatalogs = resolveCatalogs(configs, capabilities, acceptsInline);
+  const activeCatalogs = resolveCatalogs(configs, validator, capabilities, acceptsInline);
   const base = activeCatalogs[0];
 
   if (testCase.expectSelected) {

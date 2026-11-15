@@ -36,6 +36,7 @@ import {ResponsePart} from '../../../../src/parser/response-part.js';
 import {RendererState} from '../../../../src/utils/renderer-state.js';
 import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
 import {loadConformanceCatalog} from '../../../helpers/conformance-catalogs.js';
+import {validator} from '../../../helpers/validator.js';
 
 const v10Catalog = loadConformanceCatalog('simplified_catalog_v1_0.json');
 const v09Catalog = loadBasicCatalog('v0.9');
@@ -131,7 +132,7 @@ describe('ExpressResponseStream unit tests', () => {
   });
 
   it('streams unwrapped Express payload when wrapped is false', () => {
-    const parser = new ExpressParser([v10Catalog]);
+    const parser = new ExpressParser([v10Catalog], validator);
     const stream = parser.openStream({wrapped: false});
     const p1 = stream.feed('surface("main")\nroot = Text("Hello")\n');
     expect(p1).toHaveLength(1);
@@ -152,8 +153,8 @@ describe('ExpressResponseStream unit tests', () => {
   });
 
   it('rolls back state transaction on unemitted failing chunk and marks emitted surface checked', () => {
-    const parser = new ExpressParser([v09Catalog]);
-    const state = new RendererState([v09Catalog]);
+    const parser = new ExpressParser([v09Catalog], validator);
+    const state = new RendererState([v09Catalog], validator);
     const stream = parser.openStream({state});
 
     const p1 = stream.feed('<a2ui>\nsurface("main")\nroot = Text("ok")\norphan = Text("unused")\n');
@@ -168,7 +169,7 @@ describe('ExpressResponseStream unit tests', () => {
   });
 
   it('closes stream after mid-block parse error', () => {
-    const parser = new ExpressParser([v10Catalog]);
+    const parser = new ExpressParser([v10Catalog], validator);
     const stream = parser.openStream();
     expect(stream.feed('<a2ui>\nsurface("main")\n')).toEqual([]);
     expect(() => stream.feed('root = Text(\n</a2ui>')).toThrow(A2uiCompilationParseError);
@@ -176,7 +177,7 @@ describe('ExpressResponseStream unit tests', () => {
   });
 
   it('coalesces complete and healed component updates for the same surface', () => {
-    const parser = new ExpressParser([v10Catalog]);
+    const parser = new ExpressParser([v10Catalog], validator);
     const stream = parser.openStream();
     stream.feed('<a2ui>\nsurface("main")\nroot = Column([t1, t2])\n');
     const parts = stream.feed('t1 = Text("First")\nt2 = Text("Sec');
@@ -202,7 +203,7 @@ describe('ExpressResponseStream unit tests', () => {
   });
 
   it('discards speculative healed update rejected by RendererState without aborting stream', () => {
-    const parser = new ExpressParser([v09Catalog], 'main', undefined, {
+    const parser = new ExpressParser([v09Catalog], validator, 'main', undefined, {
       progressiveKeys: ['variant'],
     });
     const stream = parser.openStream();
@@ -230,14 +231,14 @@ describe('ExpressResponseStream unit tests', () => {
   });
 
   it('throws ParseError on close when a wrapped block is still open', () => {
-    const parser = new ExpressParser([v10Catalog]);
+    const parser = new ExpressParser([v10Catalog], validator);
     const stream = parser.openStream();
     expect(stream.feed('<a2ui>\nsurface("main")\nroot = Text("Ready")\n')).toHaveLength(1);
     expect(() => stream.close()).toThrow(ParseError);
   });
 
   it('carries the parts read before a failure in partialResults', () => {
-    const parser = new ExpressParser([v10Catalog]);
+    const parser = new ExpressParser([v10Catalog], validator);
     const stream = parser.openStream();
     let thrown: unknown;
     try {
@@ -253,7 +254,7 @@ describe('ExpressResponseStream unit tests', () => {
   });
 
   it('reads past a rejected block as an ErrorPart when asked to continue', () => {
-    const parser = new ExpressParser([v10Catalog]);
+    const parser = new ExpressParser([v10Catalog], validator);
     const stream = parser.openStream({afterRejectedBlock: 'continue'});
     const p1 = stream.feed('<a2ui>\nsurface("main")\nroot = Text("Kept")\n');
     expect(p1).toHaveLength(1);
@@ -269,7 +270,7 @@ describe('ExpressResponseStream unit tests', () => {
   });
 
   it('returns an ErrorPart on close for an open block when asked to continue', () => {
-    const parser = new ExpressParser([v10Catalog]);
+    const parser = new ExpressParser([v10Catalog], validator);
     const stream = parser.openStream({afterRejectedBlock: 'continue'});
     stream.feed('<a2ui>\nsurface("main")\nroot = Text("Open")\n');
     const closed = stream.close();
@@ -279,7 +280,9 @@ describe('ExpressResponseStream unit tests', () => {
   });
 
   it('matches parseResponse for outer fences and inline backticks regardless of chunk size', () => {
-    const parser = new ExpressParser([v10Catalog], 'main', undefined, {progressiveKeys: []});
+    const parser = new ExpressParser([v10Catalog], validator, 'main', undefined, {
+      progressiveKeys: [],
+    });
     const response =
       'Intro with `inline` code:\n' +
       '```a2ui\n<a2ui>\nsurface("s1")\nroot = Text("One")\n</a2ui>\n```\n' +
@@ -293,7 +296,9 @@ describe('ExpressResponseStream unit tests', () => {
   });
 
   it('drops a markdown fence line before <a2ui> and after </a2ui>', () => {
-    const parser = new ExpressParser([v10Catalog], 'main', undefined, {progressiveKeys: []});
+    const parser = new ExpressParser([v10Catalog], validator, 'main', undefined, {
+      progressiveKeys: [],
+    });
     const stream = parser.openStream();
     expect(stream.feed('Intro\n```')).toEqual([{type: 'text', text: 'Intro'}]);
     expect(stream.feed('a2ui\n<a2')).toEqual([]);
@@ -305,14 +310,18 @@ describe('ExpressResponseStream unit tests', () => {
   });
 
   it('keeps a prose code block before an <a2ui> block', () => {
-    const parser = new ExpressParser([v10Catalog], 'main', undefined, {progressiveKeys: []});
+    const parser = new ExpressParser([v10Catalog], validator, 'main', undefined, {
+      progressiveKeys: [],
+    });
     const response =
       'Run:\n```sh\nls\n```\nAnd UI:\n<a2ui>\nsurface("s1")\nroot = Text("Hi")\n</a2ui>';
     expect(coalesceText(streamBySize(parser, response, 2))).toEqual(parser.parseResponse(response));
   });
 
   it('holds a partial <a2ui ...> open tag whose attribute contains <', () => {
-    const parser = new ExpressParser([v10Catalog], 'main', undefined, {progressiveKeys: []});
+    const parser = new ExpressParser([v10Catalog], validator, 'main', undefined, {
+      progressiveKeys: [],
+    });
     const stream = parser.openStream();
     expect(stream.feed('Before <a2ui x="1 < 2"')).toEqual([{type: 'text', text: 'Before'}]);
     expect(stream.feed('>\nsurface("s1")\nroot = Text("Hi")\n</a2ui>')).toHaveLength(1);
@@ -320,7 +329,9 @@ describe('ExpressResponseStream unit tests', () => {
   });
 
   it('checks topology as each block closes rather than across blocks', () => {
-    const parser = new ExpressParser([v10Catalog], 'main', undefined, {progressiveKeys: []});
+    const parser = new ExpressParser([v10Catalog], validator, 'main', undefined, {
+      progressiveKeys: [],
+    });
     const twoBlocks =
       '<a2ui>\nsurface("s1")\nroot = Card(c1)\n</a2ui>\n' +
       '<a2ui>\nsurface("s1", update=true)\nc1 = Text("Later")\n</a2ui>';
@@ -337,7 +348,9 @@ describe('ExpressResponseStream unit tests', () => {
         throw new TypeError('unexpected');
       }
     }
-    const broken = new BrokenParser([v10Catalog], 'main', undefined, {progressiveKeys: []});
+    const broken = new BrokenParser([v10Catalog], validator, 'main', undefined, {
+      progressiveKeys: [],
+    });
     const stream = broken.openStream({afterRejectedBlock: 'continue'});
     const parts = stream.feed('<a2ui>surface("s1")</a2ui> tail');
     expect(parts).toHaveLength(2);
@@ -349,7 +362,9 @@ describe('ExpressResponseStream unit tests', () => {
   });
 
   it('returns an error part on close for a rejected unwrapped response when afterRejectedBlock is continue', () => {
-    const parser = new ExpressParser([v10Catalog], 'main', undefined, {progressiveKeys: []});
+    const parser = new ExpressParser([v10Catalog], validator, 'main', undefined, {
+      progressiveKeys: [],
+    });
     const stream = parser.openStream({wrapped: false, afterRejectedBlock: 'continue'});
     const feedParts = stream.feed('surface("s1")\nroot = Card(missing)\n');
     expect(feedParts).toHaveLength(1);
@@ -358,8 +373,8 @@ describe('ExpressResponseStream unit tests', () => {
   });
 
   it('re-emits an earlier scope component when a later scope in the same block supersedes its ID', () => {
-    const parser = new ExpressParser([v10Catalog]);
-    const state = new RendererState([v10Catalog]);
+    const parser = new ExpressParser([v10Catalog], validator);
+    const state = new RendererState([v10Catalog], validator);
     const stream = parser.openStream({state});
 
     const p1 = stream.feed(
@@ -388,8 +403,8 @@ describe('ExpressResponseStream unit tests', () => {
   });
 
   it('rolls back completePrefix statements when a later statement in the same chunk fails', () => {
-    const parser = new ExpressParser([v10Catalog]);
-    const state = new RendererState([v10Catalog]);
+    const parser = new ExpressParser([v10Catalog], validator);
+    const state = new RendererState([v10Catalog], validator);
     const stream = parser.openStream({state, afterRejectedBlock: 'continue'});
 
     expect(stream.feed('<a2ui>\nsurface("s1")\nroot = Column([t1])\n')).toHaveLength(1);
@@ -399,7 +414,7 @@ describe('ExpressResponseStream unit tests', () => {
   });
 
   it('heals empty triple-quoted strings and skips raw triple-quoted strings ending in a quote', () => {
-    const parser = new ExpressParser([v10Catalog]);
+    const parser = new ExpressParser([v10Catalog], validator);
     const stream = parser.openStream();
     const p1 = stream.feed('<a2ui>\nsurface("s1")\nroot = Text("""');
     expect(p1).toEqual([
@@ -422,7 +437,9 @@ describe('ExpressResponseStream unit tests', () => {
   });
 
   it('handles chunk boundaries across raw strings, //, --, and /* comments', () => {
-    const parser = new ExpressParser([v10Catalog], 'main', undefined, {progressiveKeys: []});
+    const parser = new ExpressParser([v10Catalog], validator, 'main', undefined, {
+      progressiveKeys: [],
+    });
     const response =
       '<a2ui>\nsurface("s1")\n' +
       '// comment with " quote\n' +
@@ -437,7 +454,7 @@ describe('ExpressResponseStream unit tests', () => {
   });
 
   it('defers createSurface until a forward-referenced surface(extensions=...) variable arrives', () => {
-    const parser = new ExpressParser([v10Catalog]);
+    const parser = new ExpressParser([v10Catalog], validator);
     const stream = parser.openStream();
     expect(stream.feed('<a2ui>\nsurface("s1", extensions=ext)\nroot = Text("Hello")\n')).toEqual(
       [],
@@ -462,8 +479,8 @@ describe('ExpressResponseStream unit tests', () => {
   });
 
   it('rejects surface(extensions=...) on a non-creating scope when streaming an existing surface', () => {
-    const parser = new ExpressParser([v10Catalog]);
-    const state = new RendererState([v10Catalog]);
+    const parser = new ExpressParser([v10Catalog], validator);
+    const state = new RendererState([v10Catalog], validator);
     const seedStream = parser.openStream({state});
     seedStream.feed('<a2ui>\nsurface("s1")\nroot = Text("Initial")\n</a2ui>');
     expect(seedStream.close()).toEqual([]);
@@ -501,8 +518,8 @@ describe('ExpressResponseStream unit tests', () => {
       },
     ]);
 
-    const parser = new ExpressParser([v10Catalog], 's1');
-    const state = new RendererState([v10Catalog]);
+    const parser = new ExpressParser([v10Catalog], validator, 's1');
+    const state = new RendererState([v10Catalog], validator);
     const seed = parser.openStream({state});
     seed.feed('<a2ui>\nsurface("s1")\nroot = Column([c1])\nc1 = Text("Old")\n</a2ui>');
     expect(seed.close()).toEqual([]);

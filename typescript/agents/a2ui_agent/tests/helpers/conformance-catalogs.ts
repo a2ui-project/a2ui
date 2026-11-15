@@ -24,6 +24,7 @@ import * as path from 'path';
 import {fileURLToPath} from 'url';
 
 import {Catalog, CatalogApi} from '../../src/internal/web-core.js';
+import {validator} from './validator.js';
 
 /** A catalog document, with the two maps tests most often reach into. */
 export interface CatalogDocument extends Record<string, unknown> {
@@ -52,7 +53,7 @@ export function readConformanceCatalog(fileName: string): CatalogDocument {
  * @param doc The catalog document.
  */
 export function catalogFromTestDocument(doc: Record<string, unknown>): CatalogApi {
-  return Catalog.fromJson(doc);
+  return Catalog.fromJson(doc, undefined, undefined, {validator});
 }
 
 /**

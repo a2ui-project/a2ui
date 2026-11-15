@@ -47,6 +47,7 @@ import {
   KNOWN_FAILURES,
   UNSUPPORTED,
 } from './suite-helpers.js';
+import {validator} from '../helpers/validator.js';
 
 const DIRECT_JSON_CASE_KEYS: Record<string, ReadonlySet<string>> = {
   compile: new Set([
@@ -201,7 +202,7 @@ forEachSuiteVersion(
       catalogPaths.push('test_data/catalogs/simplified_catalog_v1_0.json');
     }
     const catalogs = catalogPaths.map(p => loadCatalogFromRelativePath(p, isLowered));
-    const parser = new DirectJsonParser(catalogs);
+    const parser = new DirectJsonParser(catalogs, validator);
     const injId = isLowered ? injectedCatalogId(testCase) : undefined;
 
     if (action === 'compile') {

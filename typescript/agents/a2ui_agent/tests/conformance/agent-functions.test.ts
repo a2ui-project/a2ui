@@ -34,6 +34,7 @@ import {
 } from '../../src/index.js';
 import {classify, loadCases, type LoadedCase} from './loader.js';
 import {conformancePath, describeSuite, errorClassFor} from './suite-helpers.js';
+import {validator} from '../helpers/validator.js';
 
 const KNOWN_FAILURES = new Map<string, string>();
 
@@ -123,8 +124,11 @@ function buildCatalogWithAgentFunctions(
             string,
             unknown
           >,
+          undefined,
+          undefined,
+          {validator},
         )
-      : Catalog.fromJson(spec.catalog);
+      : Catalog.fromJson(spec.catalog, undefined, undefined, {validator});
 
   const agentFunctions: AgentFunction[] = [];
   for (const [key, fnSpec] of Object.entries(spec.agent_functions ?? {})) {
@@ -252,6 +256,7 @@ async function runHandleAgentFunction(testCase: LoadedCase): Promise<void> {
   const calls: HandlerCalls = {count: 0};
   const build = () =>
     new RendererToAgentMessageProcessor({
+      validator,
       catalogs: args.catalogs.map(spec => buildCatalogWithAgentFunctions(spec, calls)),
     });
 
@@ -300,11 +305,11 @@ function runValidatePayload(testCase: LoadedCase): void {
   const calls: HandlerCalls = {count: 0};
   const build = () => args.catalogs.map(spec => buildCatalogWithAgentFunctions(spec, calls));
   if (testCase.expect_error) {
-    expectThrowsCaseError(() => validatePayload(build(), args.messages), testCase);
+    expectThrowsCaseError(() => validatePayload(build(), validator, args.messages), testCase);
     expect(calls.count).toBe(0);
     return;
   }
-  validatePayload(build(), args.messages);
+  validatePayload(build(), validator, args.messages);
 }
 
 /** Error codes of replies to calls that the agent rejects before running the handler. */
@@ -373,6 +378,7 @@ async function runProcessRendererMessage(testCase: LoadedCase): Promise<void> {
   const calls: HandlerCalls = {count: 0};
   const build = () => {
     const options: RendererToAgentMessageProcessorOptions = {
+      validator,
       catalogs: catalogSpecs.map(spec => buildCatalogWithAgentFunctions(spec, calls)),
       onAction: callbacks.get('action'),
       onError: callbacks.get('error'),

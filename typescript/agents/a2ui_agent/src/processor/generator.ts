@@ -17,9 +17,14 @@
 import {A2uiCatalogError, A2uiValidationError} from '../errors.js';
 import {InferenceFormatFactory} from '../inference-format.js';
 import {ExpressFormatFactory} from '../inference-formats/express/format.js';
-import {AgentToRendererMessage, RendererCapabilities} from '../internal/web-core.js';
+import {
+  AgentToRendererMessage,
+  type JsonSchemaValidator,
+  RendererCapabilities,
+} from '../internal/web-core.js';
 import {resolveCatalogs} from '../utils/catalog-resolver.js';
 import {validatePayload} from '../utils/validation.js';
+import {requireValidator} from '../utils/validator.js';
 import {CatalogConfig} from './catalog-config.js';
 import {A2uiRequestProcessor, A2uiRequestProcessorOptions} from './processor.js';
 
@@ -32,11 +37,21 @@ import {A2uiRequestProcessor, A2uiRequestProcessorOptions} from './processor.js'
 export class A2uiGenerator {
   private readonly factory: InferenceFormatFactory;
 
+  /**
+   * @param catalogs Every catalog the agent supports.
+   * @param validator The JSON Schema validator examples and responses are checked with, such
+   *     as `createAjvValidator()` from `@a2ui/validator-ajv`.
+   * @param examples Prompt examples, keyed by name.
+   * @param inferenceFormatFactory The inference format. Express by default.
+   * @throws {A2uiConfigurationError} If no validator is given.
+   */
   constructor(
     private readonly catalogs: CatalogConfig[],
+    private readonly validator: JsonSchemaValidator,
     private readonly examples?: Record<string, AgentToRendererMessage[] | string>,
     inferenceFormatFactory?: InferenceFormatFactory,
   ) {
+    requireValidator(validator, 'A2uiGenerator');
     this.factory = inferenceFormatFactory || new ExpressFormatFactory();
   }
 
@@ -68,7 +83,7 @@ export class A2uiGenerator {
         'createProcessor requires renderer capabilities to negotiate against',
       );
     }
-    const activeCatalogs = resolveCatalogs(this.catalogs, rendererCapabilities);
+    const activeCatalogs = resolveCatalogs(this.catalogs, this.validator, rendererCapabilities);
 
     if (this.examples) {
       for (const [exampleName, msgs] of Object.entries(this.examples)) {
@@ -82,7 +97,7 @@ export class A2uiGenerator {
           }
         }
         try {
-          validatePayload(activeCatalogs, msgs);
+          validatePayload(activeCatalogs, this.validator, msgs);
         } catch (e) {
           if (!(e instanceof A2uiValidationError)) throw e;
           throw new A2uiValidationError(
@@ -94,6 +109,12 @@ export class A2uiGenerator {
     }
 
     const formatFactory = inferenceFormatFactory || this.factory;
-    return new A2uiRequestProcessor(activeCatalogs, this.examples, formatFactory, options);
+    return new A2uiRequestProcessor(
+      activeCatalogs,
+      this.validator,
+      this.examples,
+      formatFactory,
+      options,
+    );
   }
 }

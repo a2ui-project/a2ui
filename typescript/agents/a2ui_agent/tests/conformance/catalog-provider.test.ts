@@ -25,6 +25,7 @@ import {
   expectCatalogContents,
   KNOWN_FAILURES,
 } from './suite-helpers.js';
+import {validator} from '../helpers/validator.js';
 
 const PROVIDE_CATALOG_CASE_KEYS = new Set([
   ...CASE_METADATA_KEYS,
@@ -61,6 +62,7 @@ describeSuite(
     }
     const provider = new FileSystemCatalogProvider(
       conformancePath(args.path),
+      validator,
       args.protocol_version,
       args.catalog_id,
     );

@@ -23,9 +23,9 @@ describe('Foundations', () => {
     // Assert all symbols expected from web_core are defined at runtime.
     // Note: Types won't be in the runtime object, but runtime values must be present.
     expect(webCore.Catalog).toBeDefined();
-    expect(webCore.AgentToRendererMessageSchema).toBeDefined();
-    expect(webCore.RendererToAgentMessageSchema).toBeDefined();
-    expect(webCore.V10RendererCapabilitiesSchema).toBeDefined();
+    expect(webCore.V0_9_MESSAGE_SPEC).toBeDefined();
+    expect(webCore.V1_0_MESSAGE_SPEC).toBeDefined();
+    expect(webCore.validateProtocolMessage).toBeDefined();
     expect(webCore.validateRecursionAndPaths).toBeDefined();
     expect(webCore.STRICT_VALIDATION).toBeDefined();
     expect(webCore.getComponentReferences).toBeDefined();

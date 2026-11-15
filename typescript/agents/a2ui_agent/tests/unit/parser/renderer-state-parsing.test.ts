@@ -35,6 +35,7 @@ import {
   validatePayload,
 } from '../../../src/index.js';
 import {BASIC_CATALOG_IDS, loadBasicCatalog} from '../../helpers/basic-catalogs.js';
+import {validator} from '../../helpers/validator.js';
 
 type Message = Record<string, unknown>;
 type Component = Record<string, unknown>;
@@ -84,7 +85,11 @@ function textOf(parts: ResponsePart[]): string {
 }
 
 function otherCatalog() {
-  return new InMemoryCatalogProvider({catalogId: 'other', components: {}}, 'v0.9').load();
+  return new InMemoryCatalogProvider(
+    {catalogId: 'other', components: {}},
+    validator,
+    'v0.9',
+  ).load();
 }
 
 function caught(fn: () => unknown): unknown {
@@ -101,16 +106,16 @@ describe('parsing against a renderer state', () => {
     // Without a state, an update to a surface the turn never created is rejected.
     // `validatePayload`, which checks one payload with no record of earlier ones, assumes
     // such a surface exists.
-    const parser = new DirectJsonParser([BASIC]);
+    const parser = new DirectJsonParser([BASIC], validator);
     const earlier = update(column('earlier'));
 
     expect(() => parser.parseResponse(block(earlier))).toThrow(/Surface not found/);
-    validatePayload([BASIC], [earlier]);
+    validatePayload([BASIC], validator, [earlier]);
   });
 
   it('checks a canvas turn against earlier turns', () => {
-    const parser = new DirectJsonParser([BASIC]);
-    const state = new RendererState([BASIC]);
+    const parser = new DirectJsonParser([BASIC], validator);
+    const state = new RendererState([BASIC], validator);
     parser.parseResponse(block(CREATE, update(column('a'), text('a'))), {state});
 
     parser.parseResponse(block(update(column('a', 'b'), text('b'))), {state});
@@ -122,8 +127,8 @@ describe('parsing against a renderer state', () => {
   });
 
   it('leaves the state unchanged after a failed canvas turn', () => {
-    const parser = new DirectJsonParser([BASIC]);
-    const state = new RendererState([BASIC]);
+    const parser = new DirectJsonParser([BASIC], validator);
+    const state = new RendererState([BASIC], validator);
     parser.parseResponse(block(CREATE, update(column('a'), text('a'))), {state});
     const before = components(state);
 
@@ -142,7 +147,7 @@ describe('parsing against a renderer state', () => {
   });
 
   it('lets a response reference a component that a later block adds', () => {
-    const parser = new DirectJsonParser([BASIC]);
+    const parser = new DirectJsonParser([BASIC], validator);
     const first = block(CREATE, update(column('a')));
     const second = block(update(text('a')));
 
@@ -154,7 +159,7 @@ describe('parsing against a renderer state', () => {
   });
 
   it('rejects an unclosed direct JSON block', () => {
-    const parser = new DirectJsonParser([BASIC]);
+    const parser = new DirectJsonParser([BASIC], validator);
 
     expect(() => parser.parseResponse('<a2ui-json>' + JSON.stringify([CREATE]))).toThrow(
       ParseError,
@@ -162,7 +167,7 @@ describe('parsing against a renderer state', () => {
   });
 
   it('checks closed surfaces even when a later block on another surface is truncated', () => {
-    const parser = new ExpressParser([BASIC]);
+    const parser = new ExpressParser([BASIC], validator);
     const closedDangling = '<a2ui>\nsurface("s1")\nroot = Column([missing])\n</a2ui>';
     const truncatedOther = '<a2ui>\nsurface("s2")\nroot = Column([a])\na = Text("hi"';
 
@@ -178,7 +183,7 @@ describe('parsing against a renderer state', () => {
       }
     }
 
-    expect(() => new BrokenParser([BASIC]).parseResponse(block(CREATE))).toThrow(
+    expect(() => new BrokenParser([BASIC], validator).parseResponse(block(CREATE))).toThrow(
       'Failed to compile A2UI block: boom',
     );
   });
@@ -186,8 +191,8 @@ describe('parsing against a renderer state', () => {
 
 describe('ResponseStream', () => {
   it('reuses one state while data arrives', () => {
-    const parser = new DirectJsonParser([BASIC]);
-    const state = new RendererState([BASIC]);
+    const parser = new DirectJsonParser([BASIC], validator);
+    const state = new RendererState([BASIC], validator);
     const stream = parser.openStream({state});
     const response = 'Here. ' + block(CREATE, update(column('a'), text('a'))) + ' Done.';
 
@@ -200,15 +205,15 @@ describe('ResponseStream', () => {
     expect(stream.state).toBe(state);
     expect(textOf(parts)).toBe('Here.Done.');
     // Replaying what was emitted rebuilds the state.
-    const replayed = new RendererState([BASIC]);
+    const replayed = new RendererState([BASIC], validator);
     replayed.apply(emitted(parts));
     expect(componentIds(replayed)).toEqual(componentIds(state));
     expect(componentIds(state)).toEqual(['a', 'root']);
   });
 
   it('updates the state of an earlier canvas turn', () => {
-    const parser = new DirectJsonParser([BASIC]);
-    const state = new RendererState([BASIC]);
+    const parser = new DirectJsonParser([BASIC], validator);
+    const state = new RendererState([BASIC], validator);
     parser.parseResponse(block(CREATE, update(column('a'), text('a'))), {state});
 
     const stream = parser.openStream({state});
@@ -221,8 +226,8 @@ describe('ResponseStream', () => {
 
   it('keeps what it emitted when it fails', () => {
     // The renderer received the emitted messages, so the state keeps them.
-    const parser = new DirectJsonParser([BASIC]);
-    const state = new RendererState([BASIC]);
+    const parser = new DirectJsonParser([BASIC], validator);
+    const state = new RendererState([BASIC], validator);
     const stream = parser.openStream({state});
 
     const parts = stream.feed('<a2ui-json>' + JSON.stringify([CREATE, update(column('a'))]));
@@ -233,7 +238,7 @@ describe('ResponseStream', () => {
   });
 
   it('emits text held as a possible tag when it closes', () => {
-    const stream = new DirectJsonParser([BASIC]).openStream();
+    const stream = new DirectJsonParser([BASIC], validator).openStream();
 
     const parts = stream.feed('Compare a <a2ui');
     parts.push(...stream.close());
@@ -242,29 +247,29 @@ describe('ResponseStream', () => {
   });
 
   it('rejects an unclosed block when it closes', () => {
-    const stream = new DirectJsonParser([BASIC]).openStream();
+    const stream = new DirectJsonParser([BASIC], validator).openStream();
     stream.feed('<a2ui-json>' + JSON.stringify([CREATE]));
 
     expect(() => stream.close()).toThrow(ParseError);
   });
 
   it('checks the tree of an unwrapped stream when it closes', () => {
-    const stream = new DirectJsonParser([BASIC]).openStream({wrapped: false});
+    const stream = new DirectJsonParser([BASIC], validator).openStream({wrapped: false});
     stream.feed(JSON.stringify([CREATE, update(column('a'))]));
 
     expect(() => stream.close()).toThrow(A2uiIntegrityError);
   });
 
   it('rejects a chunk fed after it closes', () => {
-    const stream = new DirectJsonParser([BASIC]).openStream();
+    const stream = new DirectJsonParser([BASIC], validator).openStream();
     stream.close();
 
     expect(() => stream.feed('more')).toThrow(/closed/);
   });
 
   it('rebuilds its state from every version it emitted', () => {
-    const parser = new DirectJsonParser([BASIC], {progressiveKeys: ['text']});
-    const state = new RendererState([BASIC]);
+    const parser = new DirectJsonParser([BASIC], validator, {progressiveKeys: ['text']});
+    const state = new RendererState([BASIC], validator);
     const stream = parser.openStream({state});
     const longText = {id: 'a', component: 'Text', text: 'a'.repeat(40)};
     const body = JSON.stringify([CREATE, update(column('a'), longText)]);
@@ -279,15 +284,15 @@ describe('ResponseStream', () => {
     const all = emitted(parts);
     // The update was emitted again as its text grew.
     expect(all.length).toBeGreaterThan(2);
-    const rebuilt = new RendererState([BASIC]);
+    const rebuilt = new RendererState([BASIC], validator);
     rebuilt.apply(all);
     expect(components(rebuilt)).toEqual(components(state));
     expect((components(state).a as {text: string}).text).toBe('a'.repeat(40));
   });
 
   it('holds a delete until its object closes', () => {
-    const parser = new DirectJsonParser([BASIC]);
-    const state = new RendererState([BASIC]);
+    const parser = new DirectJsonParser([BASIC], validator);
+    const state = new RendererState([BASIC], validator);
     parser.parseResponse(block(CREATE, update(text('root'))), {state});
     const stream = parser.openStream({state});
 
@@ -301,7 +306,7 @@ describe('ResponseStream', () => {
   });
 
   it('ends when it throws', () => {
-    const stream = new DirectJsonParser([BASIC]).openStream();
+    const stream = new DirectJsonParser([BASIC], validator).openStream();
     stream.feed('<a2ui-json>' + JSON.stringify([CREATE, update(column('a'))]));
 
     expect(() => stream.feed('</a2ui-json> More text.')).toThrow(/Dangling reference/);
@@ -310,7 +315,7 @@ describe('ResponseStream', () => {
   });
 
   it('returns nothing when it closes a second time', () => {
-    const stream = new DirectJsonParser([BASIC]).openStream();
+    const stream = new DirectJsonParser([BASIC], validator).openStream();
     stream.feed('Held <a2ui');
 
     expect(textOf(stream.close())).toBe(' <a2ui');
@@ -323,13 +328,13 @@ describe('ResponseStream', () => {
     ['a duplicate id', update(text('root'), text('root'))],
   ])('checks a block that arrives whole when it closes: %s', (_name, message) => {
     // Messages that never streamed in parts are checked as the block closes.
-    const stream = new DirectJsonParser([BASIC]).openStream();
+    const stream = new DirectJsonParser([BASIC], validator).openStream();
 
     expect(() => stream.feed(block(CREATE, message))).toThrow(A2uiValidationError);
   });
 
   it('checks the last message of a block when it closes', () => {
-    const stream = new DirectJsonParser([BASIC]).openStream();
+    const stream = new DirectJsonParser([BASIC], validator).openStream();
     const body = JSON.stringify([CREATE, update({id: 'root', component: 'Unknown'})]);
 
     stream.feed('<a2ui-json>' + body.slice(0, -2));
@@ -337,8 +342,8 @@ describe('ResponseStream', () => {
   });
 
   it('does not heal a URL under a progressive key', () => {
-    const parser = new DirectJsonParser([BASIC], {progressiveKeys: ['url', 'text']});
-    const state = new RendererState([BASIC]);
+    const parser = new DirectJsonParser([BASIC], validator, {progressiveKeys: ['url', 'text']});
+    const state = new RendererState([BASIC], validator);
     // The renderer holds a root that names the image the stream sends.
     state.apply([CREATE, update(column('i'))]);
     const stream = parser.openStream({state});
@@ -353,7 +358,7 @@ describe('ResponseStream', () => {
 
 /** A canvas state holding surface `s` with `root -> a`. */
 function canvas(parser: DirectJsonParser): RendererState {
-  const state = new RendererState([BASIC]);
+  const state = new RendererState([BASIC], validator);
   parser.parseResponse(block(CREATE, update(column('a'), text('a'))), {state});
   return state;
 }
@@ -362,7 +367,7 @@ const CHANGE_A = update({id: 'a', component: 'Text', text: 'Changed'});
 
 describe('what a failed or cut-off response holds against later turns', () => {
   it('does not hold what a failed stream emitted against later turns', () => {
-    const parser = new DirectJsonParser([BASIC]);
+    const parser = new DirectJsonParser([BASIC], validator);
     const state = canvas(parser);
     const stream = parser.openStream({state});
 
@@ -377,7 +382,7 @@ describe('what a failed or cut-off response holds against later turns', () => {
   });
 
   it('does not hold what a stream cut off inside a block emitted', () => {
-    const parser = new DirectJsonParser([BASIC]);
+    const parser = new DirectJsonParser([BASIC], validator);
     const state = canvas(parser);
     const stream = parser.openStream({state});
 
@@ -390,7 +395,7 @@ describe('what a failed or cut-off response holds against later turns', () => {
   });
 
   it('does not hold what it emitted when a chunk finishes a block and fails in the next', () => {
-    const parser = new DirectJsonParser([BASIC]);
+    const parser = new DirectJsonParser([BASIC], validator);
     const state = canvas(parser);
     const stream = parser.openStream({state});
 
@@ -413,8 +418,8 @@ describe('what a failed or cut-off response holds against later turns', () => {
   });
 
   it('keeps only the text in partialResults when the tree check fails', () => {
-    const parser = new DirectJsonParser([BASIC]);
-    const state = new RendererState([BASIC]);
+    const parser = new DirectJsonParser([BASIC], validator);
+    const state = new RendererState([BASIC], validator);
 
     const error = caught(() =>
       parser.parseResponse('Here.\n' + block(CREATE, update(column('missing'))), {state}),
@@ -435,7 +440,7 @@ describe('what a failed or cut-off response holds against later turns', () => {
         return super.compile(formatContent);
       }
     }
-    const parser = new TruncationTolerantParser([BASIC]);
+    const parser = new TruncationTolerantParser([BASIC], validator);
     const state = canvas(parser);
 
     parser.parseResponse('<a2ui-json>' + JSON.stringify([update(text('orphan'))]), {state});
@@ -448,7 +453,12 @@ describe('what a failed or cut-off response holds against later turns', () => {
 
 describe('A2uiRequestProcessor with a renderer state', () => {
   it('parses canvas turns against the state it is given', () => {
-    const processor = new A2uiRequestProcessor([BASIC], undefined, new DirectJsonFormatFactory());
+    const processor = new A2uiRequestProcessor(
+      [BASIC],
+      validator,
+      undefined,
+      new DirectJsonFormatFactory(),
+    );
     const state = processor.createState();
     processor.parseResponse(block(CREATE, update(column('a'), text('a'))), {state});
 
@@ -463,7 +473,12 @@ describe('A2uiRequestProcessor with a renderer state', () => {
   });
 
   it('checks each call against a new state when it has none', () => {
-    const processor = new A2uiRequestProcessor([BASIC], undefined, new DirectJsonFormatFactory());
+    const processor = new A2uiRequestProcessor(
+      [BASIC],
+      validator,
+      undefined,
+      new DirectJsonFormatFactory(),
+    );
 
     processor.parseResponse(block(CREATE, update(text('root'))));
     // The same surface can be created again: nothing was kept from the first call.
@@ -472,18 +487,29 @@ describe('A2uiRequestProcessor with a renderer state', () => {
   });
 
   it('rejects a state for other catalogs', () => {
-    const processor = new A2uiRequestProcessor([BASIC], undefined, new DirectJsonFormatFactory());
-    const other = new RendererState([otherCatalog()]);
+    const processor = new A2uiRequestProcessor(
+      [BASIC],
+      validator,
+      undefined,
+      new DirectJsonFormatFactory(),
+    );
+    const other = new RendererState([otherCatalog()], validator);
 
     expect(() => processor.parseResponse(block(CREATE), {state: other})).toThrow(A2uiCatalogError);
     expect(() => processor.openStream({state: other})).toThrow(/active catalogs/);
   });
 
   it('uses a bound state when a call passes none', () => {
-    const state = new RendererState([BASIC]);
-    const processor = new A2uiRequestProcessor([BASIC], undefined, new DirectJsonFormatFactory(), {
-      state,
-    });
+    const state = new RendererState([BASIC], validator);
+    const processor = new A2uiRequestProcessor(
+      [BASIC],
+      validator,
+      undefined,
+      new DirectJsonFormatFactory(),
+      {
+        state,
+      },
+    );
 
     processor.parseResponse(block(CREATE, update(column('a'), text('a'))));
     const stream = processor.openStream();
@@ -495,22 +521,29 @@ describe('A2uiRequestProcessor with a renderer state', () => {
   });
 
   it('rejects a bound state for other catalogs', () => {
-    const other = new RendererState([otherCatalog()]);
+    const other = new RendererState([otherCatalog()], validator);
 
-    expect(() => new A2uiRequestProcessor([BASIC], undefined, undefined, {state: other})).toThrow(
-      /active catalogs/,
-    );
+    expect(
+      () => new A2uiRequestProcessor([BASIC], validator, undefined, undefined, {state: other}),
+    ).toThrow(/active catalogs/);
   });
 
   it('normalizes protocolVersion spelling when checking a bound state', () => {
-    const raw = new InMemoryCatalogProvider({catalogId: 'other', components: {}}, '0.9').load();
+    const raw = new InMemoryCatalogProvider(
+      {catalogId: 'other', components: {}},
+      validator,
+      '0.9',
+    ).load();
     const prefixed = new InMemoryCatalogProvider(
       {catalogId: 'other', components: {}},
+      validator,
       'v0.9',
     ).load();
-    const state = new RendererState([raw]);
+    const state = new RendererState([raw], validator);
 
-    const processor = new A2uiRequestProcessor([prefixed], undefined, undefined, {state});
+    const processor = new A2uiRequestProcessor([prefixed], validator, undefined, undefined, {
+      state,
+    });
 
     expect(processor.state).toBe(state);
   });
@@ -519,32 +552,37 @@ describe('A2uiRequestProcessor with a renderer state', () => {
     const other = otherCatalog();
     const processor = new A2uiRequestProcessor(
       [BASIC, other],
+      validator,
       undefined,
       new DirectJsonFormatFactory(),
     );
 
     expect(processor.acceptsState(processor.createState())).toBe(true);
-    expect(processor.acceptsState(new RendererState([BASIC, other]))).toBe(true);
+    expect(processor.acceptsState(new RendererState([BASIC, other], validator))).toBe(true);
     // The order decides which catalog a surface resolves to.
-    expect(processor.acceptsState(new RendererState([other, BASIC]))).toBe(false);
-    expect(processor.acceptsState(new RendererState([BASIC]))).toBe(false);
+    expect(processor.acceptsState(new RendererState([other, BASIC], validator))).toBe(false);
+    expect(processor.acceptsState(new RendererState([BASIC], validator))).toBe(false);
   });
 
   it('accepts a state for the v0.9.1 spelling of the same catalogs', () => {
     const v091 = loadBasicCatalog('v0.9.1');
-    const processor = new A2uiRequestProcessor([BASIC]);
+    const processor = new A2uiRequestProcessor([BASIC], validator);
 
     expect(v091.id).toBe(BASIC.id);
-    expect(processor.acceptsState(new RendererState([v091]))).toBe(true);
-    expect(new A2uiRequestProcessor([v091]).acceptsState(processor.createState())).toBe(true);
+    expect(processor.acceptsState(new RendererState([v091], validator))).toBe(true);
+    expect(new A2uiRequestProcessor([v091], validator).acceptsState(processor.createState())).toBe(
+      true,
+    );
     expect(
       () =>
-        new A2uiRequestProcessor([BASIC], undefined, undefined, {state: new RendererState([v091])}),
+        new A2uiRequestProcessor([BASIC], validator, undefined, undefined, {
+          state: new RendererState([v091], validator),
+        }),
     ).not.toThrow();
   });
 
   it('reuses one parser', () => {
-    const processor = new A2uiRequestProcessor([BASIC]);
+    const processor = new A2uiRequestProcessor([BASIC], validator);
 
     expect(processor.parser).toBe(processor.parser);
   });

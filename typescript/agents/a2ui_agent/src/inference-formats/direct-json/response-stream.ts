@@ -529,11 +529,13 @@ export class DirectJsonResponseStream<
     const earlier = (id: unknown) =>
       kept > 0 && growing.ids.has(id) && !(rereadLast && id === growing.lastId);
     const seen = new Set<unknown>();
-    for (const component of added) {
+    for (const [offset, component] of added.entries()) {
       const id = isObject(component) ? component.id : undefined;
       if (typeof id !== 'string') continue;
       if (earlier(id) || seen.has(id)) {
-        throw new A2uiIntegrityError(`Duplicate component ID: '${id}'`, [id]);
+        const message = `Duplicate component ID: '${id}'`;
+        const path = `/updateComponents/components/${kept + offset}/id`;
+        throw new A2uiIntegrityError(message, [{path, code: 'invalid_value', message}]);
       }
       seen.add(id);
     }

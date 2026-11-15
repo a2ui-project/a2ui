@@ -34,6 +34,7 @@ import {
 } from '../../../src/index.js';
 import {CatalogApi} from '../../../src/internal/web-core.js';
 import {REPO_ROOT} from '../../helpers/basic-catalogs.js';
+import {validator} from '../../helpers/validator.js';
 
 const SPEC_DIR = path.join(REPO_ROOT, 'specification', 'v1_0');
 const CATALOG_PATH = path.join(REPO_ROOT, 'catalogs', 'basic', 'v1', 'catalog.json');
@@ -46,9 +47,9 @@ describe('SkillGenerator', () => {
 
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'a2ui-skill-test-'));
-    const catalogConfig = CatalogConfig.fromPath(CATALOG_PATH);
+    const catalogConfig = CatalogConfig.fromPath(CATALOG_PATH, validator);
     catalog = catalogConfig.transformedCatalog;
-    expressFmt = new ExpressFormat([catalog]);
+    expressFmt = new ExpressFormat([catalog], validator);
     generator = new SkillGenerator(expressFmt);
   });
 
@@ -271,7 +272,12 @@ describe('SkillGenerator', () => {
 
   it('accepts explicit catalog arguments overriding format defaults', () => {
     const testingCatalogPath = path.join(SPEC_DIR, 'test', 'testing_catalog.json');
-    const testingCatalog = CatalogConfig.fromPath(testingCatalogPath, [], '1.0').transformedCatalog;
+    const testingCatalog = CatalogConfig.fromPath(
+      testingCatalogPath,
+      validator,
+      [],
+      '1.0',
+    ).transformedCatalog;
 
     // 1. generateCatalogSkill with explicit catalog generates for that catalog
     const catSkill = generator.generateCatalogSkill({catalog: testingCatalog});
@@ -324,6 +330,7 @@ describe('SkillGenerator', () => {
         components: {},
         functions: {},
       },
+      validator,
       '1.0',
       'https://a2ui.org/other',
     ).load();
@@ -356,8 +363,9 @@ describe('SkillGenerator', () => {
   it("doesn't repeat the Direct JSON protocol schemas per catalog", () => {
     const vegachart = CatalogConfig.fromPath(
       path.join(REPO_ROOT, 'catalogs', 'vegachart', 'v1', 'catalog.json'),
+      validator,
     ).transformedCatalog;
-    const gen = new SkillGenerator(new DirectJsonFormat([catalog, vegachart]));
+    const gen = new SkillGenerator(new DirectJsonFormat([catalog, vegachart], validator));
     const count = (text: string, section: string) => text.split(section).length - 1;
     const a2r = '### Agent to Renderer Schema:';
     const catalogSection = '### Catalog Schema:';

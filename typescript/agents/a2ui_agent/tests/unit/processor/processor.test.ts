@@ -24,13 +24,14 @@ import {
 } from '../../../src/index.js';
 import {loadBasicCatalog} from '../../helpers/basic-catalogs.js';
 import {loadConformanceCatalog} from '../../helpers/conformance-catalogs.js';
+import {validator} from '../../helpers/validator.js';
 
 const basicCatalogV10 = loadBasicCatalog('1.0');
 
 describe('A2uiRequestProcessor', () => {
   test('defaults to ExpressFormatFactory and parses Express responses', () => {
     const catalog = basicCatalogV10;
-    const processor = new A2uiRequestProcessor([catalog]);
+    const processor = new A2uiRequestProcessor([catalog], validator);
 
     expect(processor.catalogs).toEqual([catalog]);
     expect(processor.promptSnippet).toContain('<a2ui>');
@@ -43,7 +44,7 @@ describe('A2uiRequestProcessor', () => {
 
   test('defensively copies catalogs on construction and in the catalogs getter', () => {
     const input = [basicCatalogV10];
-    const processor = new A2uiRequestProcessor(input);
+    const processor = new A2uiRequestProcessor(input, validator);
 
     input.pop();
     expect(processor.catalogs).toEqual([basicCatalogV10]);
@@ -55,7 +56,12 @@ describe('A2uiRequestProcessor', () => {
 
   test('throws on invalid payload (validation error)', () => {
     const catalog = basicCatalogV10;
-    const processor = new A2uiRequestProcessor([catalog], undefined, new DirectJsonFormatFactory());
+    const processor = new A2uiRequestProcessor(
+      [catalog],
+      validator,
+      undefined,
+      new DirectJsonFormatFactory(),
+    );
 
     const v1Payload = `
 <a2ui-json>
@@ -82,7 +88,12 @@ describe('A2uiRequestProcessor', () => {
 
   test('keeps state across calls only in a renderer state', () => {
     const catalog = basicCatalogV10;
-    const processor = new A2uiRequestProcessor([catalog], undefined, new DirectJsonFormatFactory());
+    const processor = new A2uiRequestProcessor(
+      [catalog],
+      validator,
+      undefined,
+      new DirectJsonFormatFactory(),
+    );
     const state = processor.createState();
 
     const payload = `
@@ -118,6 +129,7 @@ describe('A2uiRequestProcessor', () => {
     const catalog = basicCatalogV10;
     const processor = new A2uiRequestProcessor(
       [catalog],
+      validator,
       {
         [catalog.id]: '---BEGIN greeting---\nexample text\n---END greeting---',
       },
@@ -159,6 +171,7 @@ describe('A2uiRequestProcessor', () => {
     test('rejects a call to a function no catalog declares', () => {
       const processor = new A2uiRequestProcessor(
         [basicCatalogV10],
+        validator,
         undefined,
         new DirectJsonFormatFactory(),
       );
@@ -176,6 +189,7 @@ describe('A2uiRequestProcessor', () => {
     test('rejects a call to an undefined @ system function', () => {
       const processor = new A2uiRequestProcessor(
         [basicCatalogV10],
+        validator,
         undefined,
         new DirectJsonFormatFactory(),
       );
@@ -193,6 +207,7 @@ describe('A2uiRequestProcessor', () => {
     test('rejects a component type no catalog declares', () => {
       const processor = new A2uiRequestProcessor(
         [basicCatalogV10],
+        validator,
         undefined,
         new DirectJsonFormatFactory(),
       );
@@ -208,6 +223,7 @@ describe('A2uiRequestProcessor', () => {
       const custom = loadConformanceCatalog('custom_catalog_v1_0.json');
       const processor = new A2uiRequestProcessor(
         [basicCatalogV10, custom],
+        validator,
         undefined,
         new DirectJsonFormatFactory(),
       );
@@ -223,6 +239,7 @@ describe('A2uiRequestProcessor', () => {
       const custom = loadConformanceCatalog('custom_catalog_v1_0.json');
       const processor = new A2uiRequestProcessor(
         [basicCatalogV10, custom],
+        validator,
         undefined,
         new DirectJsonFormatFactory(),
       );
@@ -240,6 +257,7 @@ describe('A2uiRequestProcessor', () => {
     test('accepts a response that updates part of a surface in its state', () => {
       const processor = new A2uiRequestProcessor(
         [basicCatalogV10],
+        validator,
         undefined,
         new DirectJsonFormatFactory(),
       );

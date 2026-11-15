@@ -14,29 +14,30 @@
  * limitations under the License.
  */
 
+import {fromJsonSchema} from '@a2ui/web_core/schema-engine';
 import {describe, it, expect} from 'vitest';
 import {
   ComponentPruningTransformer,
   FunctionPruningTransformer,
 } from '../../../src/catalog-transformers/pruning.js';
 import {Catalog, ComponentApi, FunctionImplementation} from '../../../src/internal/web-core.js';
-import {z} from 'zod';
+import {validator} from '../../helpers/validator.js';
 
 describe('Pruning Transformers', () => {
-  const compA: ComponentApi = {name: 'CompA', schema: z.object({})};
-  const compB: ComponentApi = {name: 'CompB', schema: z.object({})};
+  const compA: ComponentApi = {name: 'CompA', schema: fromJsonSchema({type: 'object'}, validator)};
+  const compB: ComponentApi = {name: 'CompB', schema: fromJsonSchema({type: 'object'}, validator)};
 
   const funcX: FunctionImplementation = {
     name: 'FuncX',
     returnType: 'string',
-    schema: z.object({}),
+    schema: fromJsonSchema({type: 'object'}, validator),
     execute: () => 'x',
   };
 
   const funcY: FunctionImplementation = {
     name: 'FuncY',
     returnType: 'string',
-    schema: z.object({}),
+    schema: fromJsonSchema({type: 'object'}, validator),
     execute: () => 'y',
   };
 
@@ -181,7 +182,7 @@ describe('Pruning Transformers', () => {
 
     it('keeps metadata and kept entries as authored, and rebuilds the union', () => {
       const pruned = new ComponentPruningTransformer(['Label']).transform(
-        Catalog.fromJson(document),
+        Catalog.fromJson(document, undefined, undefined, {validator}),
       );
       const out = pruned.toJson();
 
@@ -199,7 +200,9 @@ describe('Pruning Transformers', () => {
     });
 
     it('keeps an authored definition a kept entry still references', () => {
-      const pruned = new FunctionPruningTransformer([]).transform(Catalog.fromJson(document));
+      const pruned = new FunctionPruningTransformer([]).transform(
+        Catalog.fromJson(document, undefined, undefined, {validator}),
+      );
       const out = pruned.toJson();
 
       expect(out.components).toEqual(document.components);
@@ -213,7 +216,7 @@ describe('Pruning Transformers', () => {
 
     it('returns the source document when nothing is pruned', () => {
       const pruned = new ComponentPruningTransformer(['Card', 'Label']).transform(
-        Catalog.fromJson(document),
+        Catalog.fromJson(document, undefined, undefined, {validator}),
       );
       expect(pruned.toJson()).toEqual(document);
     });

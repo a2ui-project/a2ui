@@ -15,11 +15,16 @@
  */
 
 import {ParseError} from '../../errors.js';
-import {AgentToRendererMessage, CatalogApi} from '../../internal/web-core.js';
+import {
+  AgentToRendererMessage,
+  CatalogApi,
+  type JsonSchemaValidator,
+} from '../../internal/web-core.js';
 import {BlockLexer, JSON_PAYLOAD_START_RE} from '../../parser/lexer.js';
 import {ContinuingStreamOptions, Parser, StreamOptions} from '../../parser/parser.js';
 import {RawResponsePart, StreamPart} from '../../parser/response-part.js';
 import {checkParserCatalogs} from '../../utils/catalog-checks.js';
+import {requireValidator} from '../../utils/validator.js';
 import {CLOSE_TAG, OPEN_TAG, cleanRaw} from './blocks.js';
 import {DirectJsonDecompiler} from './decompiler.js';
 import {readJson} from './json-reader.js';
@@ -45,6 +50,8 @@ export interface DirectJsonParserOptions {
 export class DirectJsonParser extends Parser {
   /** The active catalogs. */
   readonly catalogs: CatalogApi[];
+  /** The JSON Schema validator compiled messages are checked with. */
+  readonly validator: JsonSchemaValidator;
   /** The keys whose string values a stream heals while they arrive. */
   readonly progressiveKeys: ReadonlySet<string>;
   /** Whether pre-v1.0 streams hold components until their JSON object closes. */
@@ -61,11 +68,20 @@ export class DirectJsonParser extends Parser {
 
   /**
    * @param catalogs The active catalogs, which must target compatible protocol versions.
+   * @param validator The JSON Schema validator compiled messages are checked with, such as
+   *     `createAjvValidator()` from `@a2ui/validator-ajv`.
    * @param options How a stream reads values that are still arriving.
+   * @throws {A2uiConfigurationError} If no validator is given.
    * @throws {A2uiCatalogError} If no catalogs are given or their versions are incompatible.
    */
-  constructor(catalogs: CatalogApi[], options: DirectJsonParserOptions = {}) {
+  constructor(
+    catalogs: CatalogApi[],
+    validator: JsonSchemaValidator,
+    options: DirectJsonParserOptions = {},
+  ) {
     super();
+    requireValidator(validator, 'DirectJsonParser');
+    this.validator = validator;
     checkParserCatalogs(catalogs);
     this.catalogs = catalogs;
     this.progressiveKeys = new Set(options.progressiveKeys ?? []);

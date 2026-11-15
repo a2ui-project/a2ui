@@ -21,12 +21,16 @@
  * delegating compilation to ExpressCompiler and decompilation to ExpressDecompiler.
  */
 
-import {AgentToRendererMessage, CatalogApi} from '../../internal/web-core.js';
+import {
+  AgentToRendererMessage,
+  CatalogApi,
+  type JsonSchemaValidator,
+} from '../../internal/web-core.js';
 import {A2UI_INFERENCE_CLOSE_TAG, A2UI_INFERENCE_OPEN_TAG} from '../../parser/constants.js';
 import {BlockLexer, EXPRESS_PAYLOAD_START_RE} from '../../parser/lexer.js';
 import {ContinuingStreamOptions, Parser, StreamOptions} from '../../parser/parser.js';
 import {RawResponsePart, StreamPart} from '../../parser/response-part.js';
-import {RendererState} from '../../utils/renderer-state.js';
+import {requireValidator} from '../../utils/validator.js';
 import {resolveExpressVersion, toCatalogList} from './catalogs.js';
 import {ExpressCompiler} from './compiler.js';
 import {ExpressDecompiler} from './decompiler.js';
@@ -46,6 +50,7 @@ export interface ExpressParserOptions {
  */
 export class ExpressParser extends Parser {
   readonly catalogs: CatalogApi[];
+  readonly validator: JsonSchemaValidator;
   readonly surfaceId: string;
   readonly version: string;
   readonly progressiveKeys: ReadonlySet<string>;
@@ -56,17 +61,23 @@ export class ExpressParser extends Parser {
    * Initializes the Express parser with catalog schemas and target version.
    *
    * @param catalogs The component catalog, or several. A `surface(...)` line picks one by id.
+   * @param validator The JSON Schema validator compiled messages are checked with, such as
+   *     `createAjvValidator()` from `@a2ui/validator-ajv`.
    * @param surfaceId Surface identifier for compiled messages.
    * @param version Target A2UI protocol version ("v0.9", "v0.9.1", or "v1.0").
    * @param options Optional streaming and parser configuration.
+   * @throws {A2uiConfigurationError} If no validator is given.
    */
   constructor(
     catalogs: CatalogApi | CatalogApi[],
+    validator: JsonSchemaValidator,
     surfaceId = 'main',
     version?: string,
     options: ExpressParserOptions = {},
   ) {
     super();
+    requireValidator(validator, 'ExpressParser');
+    this.validator = validator;
     this.catalogs = toCatalogList(catalogs);
     this.version = resolveExpressVersion(this.catalogs, version);
     this.surfaceId = surfaceId;
@@ -102,7 +113,7 @@ export class ExpressParser extends Parser {
   }: StreamOptions = {}): ExpressResponseStream<StreamPart> {
     return new ExpressResponseStream<StreamPart>(this, {
       wrapped,
-      state: state ?? new RendererState(this.catalogs),
+      state: state ?? this.emptyState(),
       afterRejectedBlock,
       progressiveKeys: this.progressiveKeys,
     });

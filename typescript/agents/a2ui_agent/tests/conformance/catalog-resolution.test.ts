@@ -30,6 +30,7 @@ import {
   KNOWN_FAILURES,
   loadRegistrations,
 } from './suite-helpers.js';
+import {validator} from '../helpers/validator.js';
 
 const RESOLVE_CATALOGS_CASE_KEYS = new Set([
   ...CASE_METADATA_KEYS,
@@ -62,7 +63,12 @@ describeSuite(
     const configs = loadRegistrations(args.catalogs);
 
     const resolve = () =>
-      resolveCatalogs(configs, args.renderer_capabilities, args.accepts_inline_catalogs ?? false);
+      resolveCatalogs(
+        configs,
+        validator,
+        args.renderer_capabilities,
+        args.accepts_inline_catalogs ?? false,
+      );
 
     if (testCase.expect_error) {
       assertExpectedError(resolve, testCase);

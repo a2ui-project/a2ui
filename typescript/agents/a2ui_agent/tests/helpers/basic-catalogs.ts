@@ -26,6 +26,7 @@ import {fileURLToPath} from 'url';
 
 import {CatalogApi} from '../../src/internal/web-core.js';
 import {FileSystemCatalogProvider} from '../../src/index.js';
+import {validator} from './validator.js';
 
 export const REPO_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -49,11 +50,13 @@ export function loadBasicCatalog(version: 'v0.9' | 'v0.9.1' | '1.0'): CatalogApi
     const dir = version === 'v0.9' ? 'v0_9' : 'v0_9_1';
     return new FileSystemCatalogProvider(
       path.join(REPO_ROOT, `specification/${dir}/catalogs/basic/catalog.json`),
+      validator,
       version,
       BASIC_CATALOG_IDS['v0.9'],
     ).load();
   }
   return new FileSystemCatalogProvider(
     path.join(REPO_ROOT, 'catalogs/basic/v1/catalog.json'),
+    validator,
   ).load();
 }

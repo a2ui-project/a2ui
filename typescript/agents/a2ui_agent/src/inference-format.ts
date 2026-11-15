@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {AgentToRendererMessage, CatalogApi} from './internal/web-core.js';
+import {AgentToRendererMessage, CatalogApi, type JsonSchemaValidator} from './internal/web-core.js';
 import {Parser} from './parser/parser.js';
 import {PromptGenerator} from './prompt/generator.js';
 
@@ -38,10 +38,12 @@ export interface InferenceFormatFactory {
    * Creates a new inference format instance.
    *
    * @param catalogs The negotiated active catalogs for this session.
+   * @param validator The JSON Schema validator the format's parsers check messages with.
    * @param examples Optional few-shot examples for prompt generation.
    */
   createFormat(
     catalogs: CatalogApi[],
+    validator: JsonSchemaValidator,
     examples?: Record<string, AgentToRendererMessage[] | string>,
   ): InferenceFormat;
 }

@@ -36,6 +36,7 @@ import {
   catalogFromTestDocument,
   loadConformanceCatalog,
 } from '../../../helpers/conformance-catalogs.js';
+import {validator} from '../../../helpers/validator.js';
 
 const basicCatalogV10 = loadBasicCatalog('1.0');
 const basicCatalogV09 = loadBasicCatalog('v0.9');
@@ -45,20 +46,22 @@ describe('ExpressFormat', () => {
   const catalog2 = basicCatalogV09;
 
   it('throws A2uiCatalogError when no catalogs are provided', () => {
-    expect(() => new ExpressFormat([])).toThrow(A2uiCatalogError);
-    expect(() => new ExpressFormat([])).toThrow('Express requires at least one catalog.');
+    expect(() => new ExpressFormat([], validator)).toThrow(A2uiCatalogError);
+    expect(() => new ExpressFormat([], validator)).toThrow(
+      'Express requires at least one catalog.',
+    );
   });
 
   it('throws A2uiCatalogError when catalogs have different protocol versions', () => {
-    expect(() => new ExpressFormat([catalog1, catalog2])).toThrow(A2uiCatalogError);
-    expect(() => new ExpressFormat([catalog1, catalog2])).toThrow(
+    expect(() => new ExpressFormat([catalog1, catalog2], validator)).toThrow(A2uiCatalogError);
+    expect(() => new ExpressFormat([catalog1, catalog2], validator)).toThrow(
       `Express catalogs must share one protocol version, but '${catalog1.id}' is '1.0' and '${catalog2.id}' is 'v0.9'.`,
     );
   });
 
   it('throws A2uiCatalogError when duplicate catalog IDs are provided', () => {
-    expect(() => new ExpressFormat([catalog1, catalog1])).toThrow(A2uiCatalogError);
-    expect(() => new ExpressFormat([catalog1, catalog1])).toThrow(
+    expect(() => new ExpressFormat([catalog1, catalog1], validator)).toThrow(A2uiCatalogError);
+    expect(() => new ExpressFormat([catalog1, catalog1], validator)).toThrow(
       `Duplicate catalog ID: '${catalog1.id}'`,
     );
   });
@@ -71,8 +74,8 @@ describe('ExpressFormat', () => {
       components: {},
       functions: {},
     });
-    expect(() => new ExpressFormat([catalog2, customV09])).toThrow(A2uiCatalogError);
-    expect(() => new ExpressFormat([catalog2, customV09])).toThrow(
+    expect(() => new ExpressFormat([catalog2, customV09], validator)).toThrow(A2uiCatalogError);
+    expect(() => new ExpressFormat([catalog2, customV09], validator)).toThrow(
       /Several catalogs need A2UI v1\.0 or later/,
     );
   });
@@ -94,7 +97,7 @@ describe('ExpressFormat', () => {
   });
 
   it('constructs successfully with exactly one catalog', () => {
-    const format = new ExpressFormat([catalog1], {
+    const format = new ExpressFormat([catalog1], validator, {
       surfaceId: 'custom_surface',
       version: '1.0',
     });
@@ -103,7 +106,7 @@ describe('ExpressFormat', () => {
   });
 
   it('createParser returns configured ExpressParser', () => {
-    const format = new ExpressFormat([catalog1], {
+    const format = new ExpressFormat([catalog1], validator, {
       surfaceId: 'custom_surface',
       version: '1.0',
       progressiveKeys: ['text', 'label'],
@@ -117,7 +120,7 @@ describe('ExpressFormat', () => {
   });
 
   it('createParser result has supportsStreaming true and openStream returns ExpressResponseStream', () => {
-    const format = new ExpressFormat([catalog1]);
+    const format = new ExpressFormat([catalog1], validator);
     const parser = format.createParser();
     expect(parser.supportsStreaming).toBe(true);
     expect(parser.openStream()).toBeInstanceOf(ExpressResponseStream);
@@ -125,19 +128,19 @@ describe('ExpressFormat', () => {
 
   describe('Version handling', () => {
     it('defaults to catalog version v0.9', () => {
-      const format = new ExpressFormat([catalog2]);
+      const format = new ExpressFormat([catalog2], validator);
       const parser = format.createParser();
       expect((parser as unknown as {version: string}).version).toBe('v0.9');
     });
 
     it('throws A2uiCatalogError on explicit version mismatch', () => {
-      expect(() => new ExpressFormat([catalog2], {version: '1.0'})).toThrow(
+      expect(() => new ExpressFormat([catalog2], validator, {version: '1.0'})).toThrow(
         /Requested protocol version '1.0' does not match catalog version 'v0.9'/,
       );
     });
 
     it('accepts v0.9.1 for a v0.9 catalog', () => {
-      const parser = new ExpressFormat([catalog2], {version: 'v0.9.1'}).createParser();
+      const parser = new ExpressFormat([catalog2], validator, {version: 'v0.9.1'}).createParser();
       expect((parser as ExpressParser).version).toBe('v0.9.1');
     });
   });
@@ -150,7 +153,7 @@ describe('ExpressFormat', () => {
         progressiveKeys: ['title'],
       });
       expect(factory.progressiveKeys).toEqual(new Set(['title']));
-      const format = factory.createFormat([catalog1]);
+      const format = factory.createFormat([catalog1], validator);
       expect(format).toBeInstanceOf(ExpressFormat);
       const parser = format.createParser() as ExpressParser;
       expect(parser.surfaceId).toBe('factory_surface');
@@ -183,7 +186,7 @@ describe('ExpressFormat', () => {
           },
         },
       ];
-      const format = factory.createFormat([simplified], {
+      const format = factory.createFormat([simplified], validator, {
         [simplified.id]: [turn1, turn2] as never,
       });
       const snippet = format.promptGenerator.generate();
@@ -194,7 +197,7 @@ describe('ExpressFormat', () => {
 
     it('factory propagates single-catalog error on invalid catalogs', () => {
       const factory = new ExpressFormatFactory();
-      expect(() => factory.createFormat([])).toThrow(A2uiCatalogError);
+      expect(() => factory.createFormat([], validator)).toThrow(A2uiCatalogError);
     });
   });
 });

@@ -40,32 +40,10 @@ export type {
 export {Schemas as V08Schemas} from '@a2ui/web_core/v0_8';
 
 // ./v0_9
-export {
-  CreateSurfaceMessageSchema as V09CreateSurfaceMessageSchema,
-  UpdateComponentsMessageSchema as V09UpdateComponentsMessageSchema,
-  UpdateDataModelMessageSchema as V09UpdateDataModelMessageSchema,
-  DeleteSurfaceMessageSchema as V09DeleteSurfaceMessageSchema,
-  Schemas as V09Schemas,
-  V09_STANDARD_DEFS,
-} from '@a2ui/web_core/v0_9';
+export {Schemas as V09Schemas, V09_STANDARD_DEFS} from '@a2ui/web_core/v0_9';
 
 // ./v1_0
-export {
-  CreateSurfaceMessageSchema as V10CreateSurfaceMessageSchema,
-  UpdateComponentsMessageSchema as V10UpdateComponentsMessageSchema,
-  UpdateDataModelMessageSchema as V10UpdateDataModelMessageSchema,
-  DeleteSurfaceMessageSchema as V10DeleteSurfaceMessageSchema,
-  CallRendererFunctionMessageSchema as V10CallRendererFunctionMessageSchema,
-  AgentFunctionResponseMessageSchema as V10AgentFunctionResponseMessageSchema,
-  RendererFunctionResponseMessageSchema as V10RendererFunctionResponseMessageSchema,
-  ActionMessageSchema as V10ActionMessageSchema,
-  ErrorMessageSchema as V10ErrorMessageSchema,
-  AgentToRendererMessageSchema,
-  RendererToAgentMessageSchema,
-  Schemas as V10Schemas,
-  V10RendererCapabilitiesSchema,
-  V10_STANDARD_DEFS,
-} from '@a2ui/web_core/v1_0';
+export {Schemas as V10Schemas, V10_STANDARD_DEFS} from '@a2ui/web_core/v1_0';
 import type {
   ActionMessage,
   AgentFunctionResponseMessage,
@@ -125,6 +103,7 @@ export {PayloadValidator} from '@a2ui/web_core/validation';
 // ./errors
 export {
   A2uiCatalogError,
+  A2uiConfigurationError,
   A2uiError,
   A2uiValidationError,
   A2uiDataError,
@@ -134,10 +113,22 @@ export {
   A2uiRecursionError,
   A2uiRpcError,
   RpcErrorCode,
+  noValidatorError,
 } from '@a2ui/web_core/errors';
+export type {A2uiErrorDetail} from '@a2ui/web_core/errors';
 
 // ./adapters
-export type {ProtocolVersion} from '@a2ui/web_core/adapters';
+export {
+  V0_9_MESSAGE_SPEC,
+  V1_0_MESSAGE_SPEC,
+  compileMessageSpec,
+  validateProtocolMessage,
+} from '@a2ui/web_core/adapters';
+export type {ProtocolMessageSpec, ProtocolVersion} from '@a2ui/web_core/adapters';
+
+// ./schema-engine
+export {commonTypesDocument, messageForIssue, pickIssue} from '@a2ui/web_core/schema-engine';
+export type {A2uiIssue, JsonSchema, JsonSchemaValidator} from '@a2ui/web_core/schema-engine';
 
 // ./semver
 export {

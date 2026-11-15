@@ -26,6 +26,8 @@ import assert from 'node:assert/strict';
 import * as path from 'node:path';
 import {describe, it} from 'node:test';
 
+import {createAjvValidator} from '@a2ui/validator-ajv';
+
 // Test-only import of web_core's shared timing helper.
 import {
   CONFORMANCE_DIR,
@@ -41,21 +43,25 @@ import {
   RendererState,
 } from '../../dist/src/index.js';
 
+const validator = createAjvValidator();
+
 const SUITES = ['agent/direct_json/scaling.yaml', 'agent/express/scaling.yaml'];
 
 /** Builds the format a case names, before the timing starts. */
 function makeFormat(args) {
-  const catalogs = [new FileSystemCatalogProvider(path.join(CONFORMANCE_DIR, args.catalog)).load()];
+  const catalogs = [
+    new FileSystemCatalogProvider(path.join(CONFORMANCE_DIR, args.catalog), validator).load(),
+  ];
   switch (args.format) {
     case 'direct_json':
       return {
         catalogs,
         format: new DirectJsonFormatFactory({
           progressiveKeys: args.progressive_keys ?? [],
-        }).createFormat(catalogs),
+        }).createFormat(catalogs, validator),
       };
     case 'express':
-      return {catalogs, format: new ExpressFormatFactory().createFormat(catalogs)};
+      return {catalogs, format: new ExpressFormatFactory().createFormat(catalogs, validator)};
     default:
       throw new Error(`Unknown format ${args.format}`);
   }
@@ -106,7 +112,7 @@ function prepare(testCase, setup, operation, payload) {
   const {format, catalogs} = setup;
   const earlier = earlierResponse(testCase, payload, catalogs);
   const newState = () => {
-    const state = new RendererState(catalogs);
+    const state = new RendererState(catalogs, validator);
     if (earlier.length > 0) state.apply(earlier);
     return state;
   };

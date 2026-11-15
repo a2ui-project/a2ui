@@ -77,7 +77,7 @@ export class StreamedAnswer<T extends ComponentApi = ComponentApi> {
   constructor(processor: A2uiRequestProcessor, {renderer}: StreamedAnswerOptions<T>) {
     this.renderer = renderer;
     this.stream = processor.openStream({
-      state: RendererState.of(renderer),
+      state: RendererState.of(renderer, processor.validator),
       afterRejectedBlock: 'continue',
     });
   }
@@ -129,7 +129,7 @@ export class StreamedAnswer<T extends ComponentApi = ComponentApi> {
         parts.push(part);
         continue;
       }
-      for (const message of part.a2ui as Record<string, unknown>[]) {
+      for (const message of part.a2ui as unknown as Record<string, unknown>[]) {
         const created = surfaceIdOf(message, 'createSurface');
         const surface = created === undefined ? undefined : this.renderer.model.getSurface(created);
         if (surface) parts.push({type: 'surface', surface});

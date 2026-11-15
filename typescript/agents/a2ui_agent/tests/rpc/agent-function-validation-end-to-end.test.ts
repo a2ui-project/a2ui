@@ -16,7 +16,6 @@
 
 import {MessageProcessor} from '@a2ui/web_core';
 import {describe, expect, test} from 'vitest';
-import {z} from 'zod';
 
 import {
   A2uiGenerator,
@@ -36,64 +35,70 @@ import {
   resolveCatalogs,
   validatePayload,
 } from '../../src/index.js';
+import {validator} from '../helpers/validator.js';
 
 function createTestCatalog(): CatalogApi {
-  const baseCatalog = Catalog.fromJson({
-    $schema: 'https://json-schema.org/draft/2020-12/schema',
-    catalogId: 'https://example.com/finance/catalog.json',
-    protocolVersion: '1.0',
-    components: {
-      Text: {
-        type: 'object',
-        allOf: [
-          {$ref: 'common_types.json#/$defs/ComponentCommon'},
-          {
-            properties: {
-              component: {const: 'Text'},
-              text: {$ref: 'common_types.json#/$defs/DynamicString'},
-            },
-            required: ['component', 'text'],
-          },
-        ],
-        unevaluatedProperties: false,
-      },
-    },
-    functions: {
-      declaredRate: {
-        type: 'object',
-        description: 'Declared exchange rate lookup.',
-        returnType: 'string',
-        allOf: [
-          {$ref: 'common_types.json#/$defs/FunctionCommon'},
-          {
-            properties: {
-              '@call': {const: 'declaredRate'},
-              args: {
-                type: 'object',
-                properties: {
-                  base: {type: 'string'},
-                  target: {type: 'string', default: 'USD'},
-                },
-                required: ['base'],
-                unevaluatedProperties: false,
+  const baseCatalog = Catalog.fromJson(
+    {
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      catalogId: 'https://example.com/finance/catalog.json',
+      protocolVersion: '1.0',
+      components: {
+        Text: {
+          type: 'object',
+          allOf: [
+            {$ref: 'common_types.json#/$defs/ComponentCommon'},
+            {
+              properties: {
+                component: {const: 'Text'},
+                text: {$ref: 'common_types.json#/$defs/DynamicString'},
               },
+              required: ['component', 'text'],
             },
-            required: ['@call', 'args'],
-          },
-        ],
-        unevaluatedProperties: false,
+          ],
+          unevaluatedProperties: false,
+        },
+      },
+      functions: {
+        declaredRate: {
+          type: 'object',
+          description: 'Declared exchange rate lookup.',
+          returnType: 'string',
+          allOf: [
+            {$ref: 'common_types.json#/$defs/FunctionCommon'},
+            {
+              properties: {
+                '@call': {const: 'declaredRate'},
+                args: {
+                  type: 'object',
+                  properties: {
+                    base: {type: 'string'},
+                    target: {type: 'string', default: 'USD'},
+                  },
+                  required: ['base'],
+                  unevaluatedProperties: false,
+                },
+              },
+              required: ['@call', 'args'],
+            },
+          ],
+          unevaluatedProperties: false,
+        },
+      },
+      $defs: {
+        anyComponent: {
+          oneOf: [{$ref: '#/components/Text'}],
+          discriminator: {propertyName: 'component'},
+        },
+        anyFunction: {
+          oneOf: [{$ref: '#/functions/declaredRate'}],
+        },
       },
     },
-    $defs: {
-      anyComponent: {
-        oneOf: [{$ref: '#/components/Text'}],
-        discriminator: {propertyName: 'component'},
-      },
-      anyFunction: {
-        oneOf: [{$ref: '#/functions/declaredRate'}],
-      },
-    },
-  });
+    undefined,
+    undefined,
+    {validator},
+  );
 
   const declaredFn = baseCatalog.functions.get('declaredRate')!;
   const boundDeclared = AgentFunction.fromApi(
@@ -104,7 +109,12 @@ function createTestCatalog(): CatalogApi {
     name: 'fetchTicker',
     returnType: 'string',
     description: 'Fetches a ticker price.',
-    schema: z.object({symbol: z.string()}).strict(),
+    schema: {
+      type: 'object',
+      properties: {symbol: {type: 'string'}},
+      required: ['symbol'],
+      additionalProperties: false,
+    },
     handler: args => `${args.symbol}:150.00`,
   });
 
@@ -115,19 +125,19 @@ describe('Agent Functions End-to-End Integration', () => {
   test('DirectJsonPromptGenerator and ExpressPromptGenerator include agent functions', () => {
     const catalog = createTestCatalog();
 
-    const directPrompt = new DirectJsonFormat([catalog]).promptGenerator.generate();
+    const directPrompt = new DirectJsonFormat([catalog], validator).promptGenerator.generate();
     expect(directPrompt).toContain('declaredRate');
     expect(directPrompt).toContain('fetchTicker');
 
-    const expressPrompt = new ExpressFormat([catalog]).promptGenerator.generate();
+    const expressPrompt = new ExpressFormat([catalog], validator).promptGenerator.generate();
     expect(expressPrompt).toContain('declaredRate');
     expect(expressPrompt).toContain('fetchTicker');
   });
 
   test('DirectJsonParser and ExpressParser compile calls to agent functions and reject bad args', () => {
     const catalog = createTestCatalog();
-    const directParser = new DirectJsonParser([catalog]);
-    const expressParser = new ExpressParser([catalog]);
+    const directParser = new DirectJsonParser([catalog], validator);
+    const expressParser = new ExpressParser([catalog], validator);
 
     const directBlock = JSON.stringify([
       {
@@ -146,34 +156,31 @@ describe('Agent Functions End-to-End Integration', () => {
       },
     ]);
     const compiledDirect = directParser.compile(directBlock);
-    validatePayload([catalog], compiledDirect);
+    validatePayload([catalog], validator, compiledDirect);
     expect(compiledDirect).toHaveLength(1);
 
     const expressBlock = `root = Text(text=fetchTicker(symbol="GOOG"))`;
     const compiledExpress = expressParser.compile(expressBlock);
-    validatePayload([catalog], compiledExpress);
+    validatePayload([catalog], validator, compiledExpress);
     expect(compiledExpress).toHaveLength(1);
 
     expect(() =>
-      validatePayload(
-        [catalog],
-        [
-          {
-            version: '1.0',
-            createSurface: {
-              surfaceId: 's1',
-              catalogId: catalog.id,
-              components: [
-                {
-                  id: 'root',
-                  component: 'Text',
-                  text: {'@call': 'fetchTicker', args: {wrongArg: 123}},
-                },
-              ],
-            },
+      validatePayload([catalog], validator, [
+        {
+          version: '1.0',
+          createSurface: {
+            surfaceId: 's1',
+            catalogId: catalog.id,
+            components: [
+              {
+                id: 'root',
+                component: 'Text',
+                text: {'@call': 'fetchTicker', args: {wrongArg: 123}},
+              },
+            ],
           },
-        ],
-      ),
+        },
+      ]),
     ).toThrow(A2uiValidationError);
   });
 
@@ -187,6 +194,7 @@ describe('Agent Functions End-to-End Integration', () => {
 
     const resolved = resolveCatalogs(
       [new CatalogConfig(catalog, [new FunctionPruningTransformer(['declaredRate'])])],
+      validator,
       {'1.0': {supportedCatalogIds: [catalog.id]}},
     );
     expect(resolved).toHaveLength(1);
@@ -194,6 +202,7 @@ describe('Agent Functions End-to-End Integration', () => {
 
     const generator = new A2uiGenerator(
       [new CatalogConfig(catalog)],
+      validator,
       undefined,
       new DirectJsonFormatFactory(),
     );
@@ -205,11 +214,12 @@ describe('Agent Functions End-to-End Integration', () => {
 
   test('Round trip of a callAgentFunction between MessageProcessor and RendererToAgentMessageProcessor', async () => {
     const catalog = createTestCatalog();
-    const agent = new RendererToAgentMessageProcessor({catalogs: [catalog]});
+    const agent = new RendererToAgentMessageProcessor({validator, catalogs: [catalog]});
 
     const outboundFromRenderer: Array<Record<string, unknown>> = [];
     // The renderer holds the same catalog; its agent functions route to the agent.
     const processor = new MessageProcessor([catalog as never], undefined, {
+      validator,
       version: '1.0',
       outboundListener: msg => {
         outboundFromRenderer.push(msg as unknown as Record<string, unknown>);

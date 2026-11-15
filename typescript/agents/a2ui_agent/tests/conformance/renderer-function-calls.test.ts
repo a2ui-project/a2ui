@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
+import {fromJsonSchema} from '@a2ui/web_core/schema-engine';
 import {afterEach, expect, test, vi} from 'vitest';
-import {z} from 'zod';
 
 import {
   A2uiRpcError,
@@ -28,6 +28,7 @@ import {
 } from '../../src/index.js';
 import {classify, loadCases, type LoadedCase} from './loader.js';
 import {conformancePath, describeSuite, errorClassFor} from './suite-helpers.js';
+import {validator} from '../helpers/validator.js';
 
 const KNOWN_FAILURES = new Map<string, string>();
 
@@ -93,7 +94,7 @@ function buildCatalog(spec: CatalogSpec): CatalogApi {
   const functions = Object.entries(spec.functions ?? {}).map(([name, fn]) => ({
     name,
     returnType: 'any' as const,
-    schema: z.object({}).passthrough(),
+    schema: fromJsonSchema({type: 'object'}, validator),
     ...(fn.allowedCallers !== undefined ? {allowedCallers: fn.allowedCallers} : {}),
     ...(fn.requiresUserActivation !== undefined
       ? {requiresUserActivation: fn.requiresUserActivation}
@@ -174,6 +175,7 @@ async function runCallRendererFunction(testCase: LoadedCase): Promise<void> {
 
   const calls = build();
   const processor = new RendererToAgentMessageProcessor({
+    validator,
     catalogs: [],
     onRendererFunctionResponse: calls.resolve,
   });

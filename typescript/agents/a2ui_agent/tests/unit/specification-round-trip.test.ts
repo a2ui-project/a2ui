@@ -21,6 +21,7 @@ import {describe, expect, it} from 'vitest';
 
 import {type AgentToRendererMessage, ExpressFormat} from '../../src/index.js';
 import {loadBasicCatalog, REPO_ROOT} from '../helpers/basic-catalogs.js';
+import {validator} from '../helpers/validator.js';
 
 interface SpecificationExample {
   name?: string;
@@ -108,7 +109,7 @@ const EXAMPLE_FILES = findSpecificationExampleFiles();
 
 describe('Specification v1.0 example corpus Express round-trip', () => {
   const catalog = loadBasicCatalog('1.0');
-  const expressFormat = new ExpressFormat([catalog], {version: '1.0'});
+  const expressFormat = new ExpressFormat([catalog], validator, {version: '1.0'});
 
   it('discovers all 43 specification v1.0 example files', () => {
     expect(EXAMPLE_FILES.length).toBe(43);

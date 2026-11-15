@@ -38,6 +38,7 @@ import {
   conformancePath,
   describeSuite,
 } from './suite-helpers.js';
+import {validator} from '../helpers/validator.js';
 
 const basicCatalogV10 = loadBasicCatalog('1.0');
 
@@ -76,15 +77,15 @@ function buildSkillContext(testCase: LoadedCase): SkillCaseContext {
   const catRelPaths =
     (args.catalogs as string[] | undefined) ?? (args.catalog ? [args.catalog as string] : []);
   const catalogs = catRelPaths.map(
-    rel => CatalogConfig.fromPath(resolve(REPO_ROOT, rel)).transformedCatalog,
+    rel => CatalogConfig.fromPath(resolve(REPO_ROOT, rel), validator).transformedCatalog,
   );
   const catalog: CatalogApi | undefined = catalogs[0];
 
   const fmtName = (args.format as string | undefined) ?? 'express';
   const format =
     fmtName === 'express'
-      ? new ExpressFormat(catalogs)
-      : new DirectJsonFormat(catalogs.length > 0 ? catalogs : [basicCatalogV10]);
+      ? new ExpressFormat(catalogs, validator)
+      : new DirectJsonFormat(catalogs.length > 0 ? catalogs : [basicCatalogV10], validator);
   const generator = new SkillGenerator(format);
   return {args, catalog, format, generator};
 }

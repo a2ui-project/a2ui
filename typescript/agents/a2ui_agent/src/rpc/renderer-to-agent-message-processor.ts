@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-import type {z} from 'zod';
-
 import {
   A2uiValidationError,
   type ActionMessage,
@@ -24,12 +22,27 @@ import {
   type ComponentApi,
   type ErrorMessage,
   type FunctionApi,
+  type JsonSchema,
+  type JsonSchemaValidator,
+  messageForIssue,
+  pickIssue,
+  type ProtocolMessageSpec,
   type RendererFunctionResponseMessage,
-  V10ActionMessageSchema,
-  V10ErrorMessageSchema,
-  V10RendererFunctionResponseMessageSchema,
+  V1_0_MESSAGE_SPEC,
+  validateProtocolMessage,
 } from '../internal/web-core.js';
+import RendererToAgent from '../schemas/v1_0/renderer_to_agent.json' with {type: 'json'};
+import {requireValidator} from '../utils/validator.js';
 import {AgentFunctionRegistry} from './agent-function-registry.js';
+
+/**
+ * The specification's v1.0 `renderer_to_agent.json`, with the common types and envelope
+ * catalog web_core validates agent-to-renderer messages with.
+ */
+const RENDERER_TO_AGENT_SPEC: ProtocolMessageSpec = {
+  schema: RendererToAgent as JsonSchema,
+  defs: V1_0_MESSAGE_SPEC.defs,
+};
 
 const MESSAGE_KEYS = ['action', 'callAgentFunction', 'error', 'rendererFunctionResponse'] as const;
 
@@ -58,6 +71,11 @@ export interface ProcessResult {
 export interface RendererToAgentMessageProcessorOptions {
   /** The catalogs whose `agentFunctions` answer `callAgentFunction` messages. */
   readonly catalogs: Iterable<CatalogInterface<ComponentApi, FunctionApi>>;
+  /**
+   * The JSON Schema validator the `action`, `error` and `rendererFunctionResponse` messages
+   * are checked with, such as `createAjvValidator()` from `@a2ui/validator-ajv`.
+   */
+  readonly validator: JsonSchemaValidator;
   /**
    * How long an agent function may run, in milliseconds, before its call is
    * answered with an `EXECUTION_ERROR`. No timeout when omitted.
@@ -109,6 +127,7 @@ export type RendererMessageCallback<T> = (message: T) => boolean | void | Promis
  */
 export class RendererToAgentMessageProcessor {
   private readonly _registry: AgentFunctionRegistry;
+  private readonly _validator: JsonSchemaValidator;
   private readonly _onAction?: RendererMessageCallback<ActionMessage>;
   private readonly _onError?: RendererMessageCallback<ErrorMessage>;
   private readonly _onRendererFunctionResponse?: RendererMessageCallback<RendererFunctionResponseMessage>;
@@ -116,12 +135,15 @@ export class RendererToAgentMessageProcessor {
   /**
    * Initializes a new `RendererToAgentMessageProcessor`.
    *
-   * @param options The catalogs, the agent function timeout and the callbacks.
+   * @param options The catalogs, the validator, the agent function timeout and the callbacks.
+   * @throws {A2uiConfigurationError} If no validator is given.
    * @throws {RangeError} If `agentFunctionTimeoutMs` is not a finite number
    *   greater than 0.
    * @throws {A2uiCatalogError} If two catalogs have the same id.
    */
   constructor(options: RendererToAgentMessageProcessorOptions) {
+    requireValidator(options.validator, 'RendererToAgentMessageProcessorOptions.validator');
+    this._validator = options.validator;
     this._registry = new AgentFunctionRegistry(options.catalogs, {
       timeoutMs: options.agentFunctionTimeoutMs,
     });
@@ -177,35 +199,32 @@ export class RendererToAgentMessageProcessor {
       case 'callAgentFunction':
         return {handled: true, replies: [await this._registry.handle(message)]};
       case 'action':
-        return await dispatch(message, V10ActionMessageSchema, this._onAction);
+        return await this.dispatch(message, this._onAction);
       case 'error':
-        return await dispatch(message, V10ErrorMessageSchema, this._onError);
+        return await this.dispatch(message, this._onError);
       case 'rendererFunctionResponse':
-        return await dispatch(
-          message,
-          V10RendererFunctionResponseMessageSchema,
-          this._onRendererFunctionResponse,
-        );
+        return await this.dispatch(message, this._onRendererFunctionResponse);
     }
   }
-}
 
-async function dispatch<T>(
-  message: object,
-  schema: z.ZodType<T>,
-  callback: RendererMessageCallback<T> | undefined,
-): Promise<ProcessResult> {
-  if (callback === undefined) {
-    return {handled: false, replies: []};
+  private async dispatch<T>(
+    message: object,
+    callback: RendererMessageCallback<T> | undefined,
+  ): Promise<ProcessResult> {
+    if (callback === undefined) {
+      return {handled: false, replies: []};
+    }
+    const issues = validateProtocolMessage(this._validator, RENDERER_TO_AGENT_SPEC, message);
+    if (issues.length > 0) {
+      const issue = pickIssue(issues);
+      const at = issue.path.length > 0 ? ` at '${issue.path.join('.')}'` : '';
+      throw new A2uiValidationError(
+        `Invalid ${Object.keys(message)
+          .filter(key => key !== 'version')
+          .join(', ')} message: ${messageForIssue(issue)}${at}`,
+      );
+    }
+    const handled = (await callback(message as T)) !== false;
+    return {handled, replies: []};
   }
-  const parsed = schema.safeParse(message);
-  if (!parsed.success) {
-    throw new A2uiValidationError(
-      `Invalid ${Object.keys(message)
-        .filter(key => key !== 'version')
-        .join(', ')} message: ${parsed.error.message}`,
-    );
-  }
-  const handled = (await callback(parsed.data)) !== false;
-  return {handled, replies: []};
 }

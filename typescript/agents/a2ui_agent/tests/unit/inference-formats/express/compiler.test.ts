@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {basicCatalog as codeDefinedBasicCatalogV10} from '@a2ui/web_core/catalogs/basic/v1';
+import {createBasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
 import {describe, expect, it} from 'vitest';
 
 import {A2uiCatalogError} from '../../../../src/errors.js';
@@ -39,6 +39,7 @@ import {
   catalogFromTestDocument,
   loadConformanceCatalog,
 } from '../../../helpers/conformance-catalogs.js';
+import {validator} from '../../../helpers/validator.js';
 
 const basicCatalogV10 = loadBasicCatalog('1.0');
 const basicCatalogV09 = loadBasicCatalog('v0.9');
@@ -886,7 +887,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
         },
       },
     };
-    const labelsCatalog = Catalog.fromJson(labelsDoc);
+    const labelsCatalog = Catalog.fromJson(labelsDoc, undefined, undefined, {validator});
 
     it('resolves unique components, functions, and checks across active catalogs and omits createSurface.catalogId', () => {
       const compiler = new ExpressCompiler([simplifiedCatalog, customCatalog, formsCatalog]);
@@ -1181,7 +1182,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
       'root = Column([t1, b1])\nt1 = Text("Title", "body")\nb1 = Button(Text("Click"), action=Event("btn_click", {"id": 1}))';
 
     it('compiles against a catalog defined in code as against its published document', () => {
-      const codeDefined = codeDefinedBasicCatalogV10 as unknown as CatalogApi;
+      const codeDefined = createBasicCatalog(validator) as unknown as CatalogApi;
       const fromCode = new ExpressCompiler([codeDefined], '1.0').compile(columnSource);
       const fromDocument = new ExpressCompiler([basicCatalogV10], '1.0').compile(columnSource);
       expect(fromCode).toEqual(fromDocument);
@@ -1189,7 +1190,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
     });
 
     it('decompiles against a catalog defined in code', () => {
-      const codeDefined = codeDefinedBasicCatalogV10 as unknown as CatalogApi;
+      const codeDefined = createBasicCatalog(validator) as unknown as CatalogApi;
       const messages = new ExpressCompiler([codeDefined], '1.0').compile(columnSource);
       const dsl = new ExpressDecompiler([codeDefined], '1.0').decompile(messages);
       expect(new ExpressCompiler([codeDefined], '1.0').compile(dsl)).toEqual(messages);
@@ -1197,7 +1198,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
 
     it.each([
       ['loaded from a document', () => basicCatalogV10],
-      ['defined in code', () => codeDefinedBasicCatalogV10 as unknown as CatalogApi],
+      ['defined in code', () => createBasicCatalog(validator) as unknown as CatalogApi],
     ])('compiles against a pruned catalog %s', (_, source) => {
       const pruned = new FunctionPruningTransformer([]).transform(
         new ComponentPruningTransformer(['Column', 'Text']).transform(source()),
@@ -1226,7 +1227,7 @@ root = Tabs([{title: "Static Title", child: $/dynamic_child}])
           },
         },
       };
-      const catalog = new InMemoryCatalogProvider(document).load();
+      const catalog = new InMemoryCatalogProvider(document, validator).load();
       const label = (document.components as Record<string, Record<string, unknown>>).Label;
       label.properties = {component: {const: 'Label'}, caption: {type: 'string'}};
       label.required = ['component', 'caption'];

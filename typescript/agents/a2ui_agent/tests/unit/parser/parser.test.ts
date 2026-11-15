@@ -24,12 +24,14 @@ import {
   RendererState,
 } from '../../../src/index.js';
 import {loadBasicCatalog} from '../../helpers/basic-catalogs.js';
+import {validator} from '../../helpers/validator.js';
 
 const BASIC = loadBasicCatalog('1.0');
 
 /** A parser whose blocks each name the surface their `createSurface` creates. */
 class TestParser extends Parser {
   readonly catalogs = [BASIC];
+  readonly validator = validator;
   unwrapped: RawResponsePart[] = [];
 
   unwrap(_content: string): RawResponsePart[] {
@@ -89,7 +91,7 @@ describe('Parser', () => {
   });
 
   it('applies the messages to the state it is given', () => {
-    const state = new RendererState([BASIC]);
+    const state = new RendererState([BASIC], validator);
 
     new TestParser().parseResponse('s', {wrapped: false, state});
 
@@ -98,7 +100,7 @@ describe('Parser', () => {
 
   it('applies a response all or nothing', () => {
     const parser = new TestParser();
-    const state = new RendererState([BASIC]);
+    const state = new RendererState([BASIC], validator);
     // The second block creates the surface the first one created.
     parser.unwrapped = [
       {type: 'a2ui', a2uiRaw: 's', isFinal: true},

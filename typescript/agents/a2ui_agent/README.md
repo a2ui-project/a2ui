@@ -6,17 +6,21 @@ This package targets A2UI protocol **v0.9** and **v1.0**, and supports the **Dir
 
 ## Getting started
 
+The SDK checks messages and catalogs against their JSON Schemas with a `JsonSchemaValidator` that your app provides, such as `createAjvValidator()` from `@a2ui/validator-ajv`. Create one at startup and pass it wherever the SDK asks for one; the SDK never picks a validator itself.
+
 Load your catalogs once at startup and create an `A2uiGenerator`. On each turn, create a request processor for the client's capabilities, include its `promptSnippet` in your system prompt, and pass the model's response to `parseResponse`:
 
 ```ts
 import {A2uiGenerator, CatalogConfig, readRendererCapabilities} from '@a2ui/agent';
+import {createAjvValidator} from '@a2ui/validator-ajv';
 
 // 1. Load catalogs and build the generator once at startup.
-const componentCatalog = CatalogConfig.fromPath('path/to/catalog.json');
-const generator = new A2uiGenerator([componentCatalog]);
+const validator = createAjvValidator();
+const componentCatalog = CatalogConfig.fromPath('path/to/catalog.json', validator);
+const generator = new A2uiGenerator([componentCatalog], validator);
 
 // 2. Per request, extract client capabilities from transport metadata.
-const capabilities = readRendererCapabilities(requestMetadata);
+const capabilities = readRendererCapabilities(requestMetadata, validator);
 if (!capabilities) {
   // Client did not request A2UI on this turn; reply with plain text.
   return;
@@ -57,7 +61,7 @@ const canvas = generator.createProcessor(capabilities, undefined, {state});
 canvas.parseResponse(thirdReply);
 ```
 
-A response parsed whole is applied to the state all or nothing. To check one payload with no record of earlier ones, such as the argument of a tool call, use `validatePayload(catalogs, messages)`.
+A response parsed whole is applied to the state all or nothing. To check one payload with no record of earlier ones, such as the argument of a tool call, use `validatePayload(catalogs, validator, messages)`.
 
 ## Streaming
 
@@ -95,12 +99,13 @@ An app that calls the model and renders its answer itself, such as a chat in the
 import {MessageProcessor} from '@a2ui/web_core';
 
 const renderer = new MessageProcessor([catalog], undefined, {
+  validator,
   outboundListener: message => {
     if (!('error' in message)) sendToAgent(message);
   },
   unifiedOutbound: true,
 });
-const stream = processor.openStream({state: RendererState.of(renderer)});
+const stream = processor.openStream({state: RendererState.of(renderer, validator)});
 stream.feed(chunk); // the surfaces show up in renderer.model
 ```
 
@@ -109,6 +114,7 @@ stream.feed(chunk); // the surfaces show up in renderer.model
 ```ts
 const answer = new StreamedAnswer(processor, {
   renderer: new MessageProcessor([catalog], undefined, {
+    validator,
     outboundListener: message => {
       if (!('error' in message)) sendToAgent(message);
     },
@@ -129,6 +135,7 @@ The emitted protocol version is taken from the catalog. Because the v0.9 basic c
 ```ts
 const v09Catalog = CatalogConfig.fromPath(
   'specification/v0_9/catalogs/basic/catalog.json',
+  validator,
   [],
   'v0.9',
   'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json',
@@ -137,10 +144,11 @@ const v09Catalog = CatalogConfig.fromPath(
 
 ## Agent functions
 
-From v1.0, a catalog can declare functions that run on the agent: a renderer that doesn't implement a function sends `callAgentFunction` and waits for the agent's `agentFunctionResponse`. Add agent functions to your copy of a catalog with `copyWith`. `AgentFunction.fromApi` binds a handler to a function the catalog already declares, and `new AgentFunction(...)` adds a new one, with its arguments as a Zod schema (which types the handler) or a JSON Schema object. A v1.0 catalog checks that the parameter names are UAX #31 identifiers when it gets the function. A handler takes `(args)` or `(args, context)`, where `context` has the catalog, surface and call IDs. `withHandler` returns a copy bound to another handler, such as a test double.
+From v1.0, a catalog can declare functions that run on the agent: a renderer that doesn't implement a function sends `callAgentFunction` and waits for the agent's `agentFunctionResponse`. Add agent functions to your copy of a catalog with `copyWith`. `AgentFunction.fromApi` binds a handler to a function the catalog already declares, and `new AgentFunction(...)` adds a new one, with its arguments as a JSON Schema object, compiled with the catalog's validator, or a schema such as `catalogSchema(z.object(...))` from `@a2ui/schema-zod4` (zod 4), which types the handler. A v1.0 catalog checks that the parameter names are UAX #31 identifiers when it gets the function. A handler takes `(args)` or `(args, context)`, where `context` has the catalog, surface and call IDs. `withHandler` returns a copy bound to another handler, such as a test double.
 
 ```ts
 import {AgentFunction} from '@a2ui/agent';
+import {catalogSchema} from '@a2ui/schema-zod4';
 import {z} from 'zod';
 
 const catalog = loaded.copyWith({
@@ -151,7 +159,7 @@ const catalog = loaded.copyWith({
     new AgentFunction({
       name: 'fetchFxRate',
       returnType: 'number',
-      schema: z.object({base: z.string()}),
+      schema: catalogSchema(z.object({base: z.string()})),
       // `base` is a string, and the handler must return a number.
       handler: async ({base}) => fetchRate(base),
     }),
@@ -159,11 +167,12 @@ const catalog = loaded.copyWith({
 });
 ```
 
-`RendererToAgentMessageProcessor` takes each message the renderer sends and returns whether it handled it and the messages to send back. It answers `callAgentFunction` itself, and passes `action`, `error` and `rendererFunctionResponse` messages to their callback, after checking them against the v1.0 schema. A message whose callback isn't set, or whose callback returns `false` to decline it, comes back with `handled: false`, so the app can pass it on to the model.
+`RendererToAgentMessageProcessor` takes each message the renderer sends and returns whether it handled it and the messages to send back. It answers `callAgentFunction` itself, and passes `action`, `error` and `rendererFunctionResponse` messages to their callback, after checking them against the v1.0 schema with the processor's `validator`. The arguments of `callAgentFunction` are checked with the validator of the function's catalog, such as the one `Catalog.fromJson` was given. A message whose callback isn't set, or whose callback returns `false` to decline it, comes back with `handled: false`, so the app can pass it on to the model.
 
 ```ts
 const messages = new RendererToAgentMessageProcessor({
   catalogs: [catalog],
+  validator,
   agentFunctionTimeoutMs: 10_000,
   onError: message => log.warn(message.error),
   // Handle the button that saves locally; let the model answer the others.
@@ -187,6 +196,7 @@ An agent calls a function the renderer implements with `callRendererFunction`. `
 const calls = new RendererFunctionCalls({defaultTimeoutMs: 10_000});
 const messages = new RendererToAgentMessageProcessor({
   catalogs: [catalog],
+  validator,
   onRendererFunctionResponse: calls.resolve,
 });
 

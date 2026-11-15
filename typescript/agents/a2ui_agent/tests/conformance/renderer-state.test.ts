@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import {isDeepStrictEqual} from 'node:util';
+
 import {expect} from 'vitest';
 
 import {
@@ -23,7 +25,7 @@ import {
   InferenceFormat,
   RendererState,
 } from '../../src/index.js';
-import {CatalogApi} from '../../src/internal/web-core.js';
+import {CatalogApi, ComponentModel} from '../../src/internal/web-core.js';
 import {loadCases} from './loader.js';
 import {firstCatalogId, liftValueKeys, lowerMessages, lowerText} from './lowering.js';
 import {
@@ -34,6 +36,7 @@ import {
   forEachSuiteVersion,
   loadCatalogEntry,
 } from './suite-helpers.js';
+import {validator} from '../helpers/validator.js';
 
 const DEFAULT_CATALOG = 'test_data/catalogs/simplified_catalog_v1_0.json';
 
@@ -48,11 +51,36 @@ const RENDERER_STATE_TURN_KEYS = new Set([
 ]);
 const RENDERER_STATE_SURFACE_EXPECT_KEYS = new Set(['components', 'data']);
 
+/**
+ * A component's properties without the ones its schema filled in with their default.
+ *
+ * web_core stores the value a component's schema validated, defaults included, where the
+ * suite states the properties as written. A property the case does not expect is dropped
+ * only when the schema gives it exactly that value once it is left out.
+ */
+function withoutSchemaDefaults(
+  comp: ComponentModel,
+  expectedKeys: readonly string[],
+): Record<string, unknown> {
+  const props: Record<string, unknown> = {...comp.properties};
+  const schema = comp.catalog.components.get(comp.type)?.schema;
+  if (!schema) return props;
+  for (const key of Object.keys(props)) {
+    if (expectedKeys.includes(key)) continue;
+    const {[key]: value, ...rest} = props;
+    const result = schema['~standard'].validate(rest) as {value?: Record<string, unknown>};
+    if (result.value !== undefined && isDeepStrictEqual(result.value[key], value)) {
+      delete props[key];
+    }
+  }
+  return props;
+}
+
 function makeFormat(formatName: unknown, catalogs: CatalogApi[]): InferenceFormat {
   if (formatName === 'express') {
-    return new ExpressFormatFactory().createFormat(catalogs);
+    return new ExpressFormatFactory().createFormat(catalogs, validator);
   }
-  return new DirectJsonFormatFactory().createFormat(catalogs);
+  return new DirectJsonFormatFactory().createFormat(catalogs, validator);
 }
 
 function assertExpectedSurfaces(
@@ -78,7 +106,8 @@ function assertExpectedSurfaces(
         const comp = surface.componentsModel.get(compId);
         expect(comp).toBeDefined();
         if (!comp) continue;
-        const props = isLowered ? liftValueKeys(comp.properties) : comp.properties;
+        const asWritten = withoutSchemaDefaults(comp, Object.keys(expectedComp));
+        const props = isLowered ? liftValueKeys(asWritten) : asWritten;
         expect({component: comp.type, ...props}).toEqual(expectedComp);
       }
     }
@@ -107,7 +136,7 @@ forEachSuiteVersion(
     const catalogs = rawCatalogs.map(
       entry => loadCatalogEntry(entry, isLowered).transformedCatalog,
     );
-    const state = new RendererState(catalogs);
+    const state = new RendererState(catalogs, validator);
 
     const turns = tc.turns as Array<Record<string, unknown>>;
     for (const turn of turns) {

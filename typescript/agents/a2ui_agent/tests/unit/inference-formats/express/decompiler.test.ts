@@ -30,6 +30,7 @@ import {
   catalogFromTestDocument,
   loadConformanceCatalog,
 } from '../../../helpers/conformance-catalogs.js';
+import {validator} from '../../../helpers/validator.js';
 
 const catalogInfo: Record<string, {catalog: CatalogApi; version: string}> = {
   basic_v0_9: {catalog: loadBasicCatalog('v0.9'), version: 'v0.9'},
@@ -83,13 +84,15 @@ describe('ExpressDecompiler', () => {
       expect(decompiler.decompile(messages)).toBe(expected);
       expect(decompiler.decompile([messages[1]])).toBe('surface("default")\n$/zero = 0');
       expect(decompiler.decompile([messages[4]])).toBe('surface("default")\n$/nothing = {}');
-      expect(new ExpressParser([catalog], 'default', version).compile(expected)).toEqual(messages);
+      expect(new ExpressParser([catalog], validator, 'default', version).compile(expected)).toEqual(
+        messages,
+      );
     });
 
     it('writes null when updateDataModel has a non-root path and no value, and writes $/ = {} for an empty root updateDataModel', () => {
       const {catalog, version} = getCatalogInfo('simplified');
       const decompiler = new ExpressDecompiler([catalog], version);
-      const parser = new ExpressParser([catalog], 's1', version);
+      const parser = new ExpressParser([catalog], validator, 's1', version);
 
       const valueless = {
         version: '1.0',
@@ -137,7 +140,7 @@ describe('ExpressDecompiler', () => {
       } as unknown as AgentToRendererMessage;
       const dsl = decompiler.decompile([message]);
       expect(dsl).toBe(`surface("default")\n$/n = ${text}`);
-      const [compiled] = new ExpressParser([catalog], 'default', version).compile(dsl);
+      const [compiled] = new ExpressParser([catalog], validator, 'default', version).compile(dsl);
       const {updateDataModel} = compiled as {updateDataModel: {path: string; value: number}};
       expect(updateDataModel.path).toBe('/n');
       expect(updateDataModel.value).toBe(value);
@@ -352,7 +355,7 @@ describe('ExpressDecompiler', () => {
     it('derives a variable name and emits id= for a reserved word component id', () => {
       const {catalog, version} = getCatalogInfo('simplified');
       const decompiler = new ExpressDecompiler([catalog], version);
-      const parser = new ExpressParser([catalog], 'default_surface', version);
+      const parser = new ExpressParser([catalog], validator, 'default_surface', version);
       const msg = {
         version: '1.0',
         createSurface: {
@@ -380,7 +383,7 @@ describe('ExpressDecompiler', () => {
     it('derives variable names with deduplication for pre-v1.0 non-identifier component ids', () => {
       const {catalog, version} = getCatalogInfo('basic_v0_9');
       const decompiler = new ExpressDecompiler([catalog], version);
-      const parser = new ExpressParser([catalog], 'default', version);
+      const parser = new ExpressParser([catalog], validator, 'default', version);
       const messages = [
         {
           version: 'v0.9',
@@ -423,7 +426,7 @@ describe('ExpressDecompiler', () => {
     it('round-trips non-ASCII UAX 31 identifiers as bare variable and map key names', () => {
       const {catalog, version} = getCatalogInfo('simplified');
       const decompiler = new ExpressDecompiler([catalog], version);
-      const parser = new ExpressParser([catalog], 's1', version);
+      const parser = new ExpressParser([catalog], validator, 's1', version);
       const msg = {
         version: '1.0',
         createSurface: {
@@ -511,7 +514,7 @@ describe('ExpressDecompiler', () => {
       } as unknown as AgentToRendererMessage;
       const notation = new ExpressDecompiler([catalog], version).decompile([msg]);
       expect(notation).toContain('Event("go", {})');
-      const recompiled = new ExpressParser([catalog], 's1', version).compile(notation);
+      const recompiled = new ExpressParser([catalog], validator, 's1', version).compile(notation);
       expect(recompiled).toEqual([msg]);
     });
 
@@ -530,7 +533,7 @@ describe('ExpressDecompiler', () => {
         },
       } as unknown as AgentToRendererMessage;
       const notation = new ExpressDecompiler([catalog], version).decompile([msg]);
-      const recompiled = new ExpressParser([catalog], 's1', version).compile(notation);
+      const recompiled = new ExpressParser([catalog], validator, 's1', version).compile(notation);
       const components = (
         recompiled[0] as unknown as {createSurface: {components: Array<Record<string, unknown>>}}
       ).createSurface.components;
@@ -561,7 +564,7 @@ describe('ExpressDecompiler', () => {
         },
       } as unknown as AgentToRendererMessage;
       const notation = new ExpressDecompiler([catalog], version).decompile([msg]);
-      const recompiled = new ExpressParser([catalog], 's1', version).compile(notation);
+      const recompiled = new ExpressParser([catalog], validator, 's1', version).compile(notation);
       const components = (
         recompiled[0] as unknown as {createSurface: {components: Array<Record<string, unknown>>}}
       ).createSurface.components;
@@ -608,7 +611,7 @@ describe('ExpressDecompiler', () => {
       } as unknown as AgentToRendererMessage;
       const notation = new ExpressDecompiler([catalog], version).decompile([msg]);
       expect(notation).toContain('Event("reply", userMessage=formatString("Hi ${/n}"))');
-      const recompiled = new ExpressParser([catalog], 's1', version).compile(notation);
+      const recompiled = new ExpressParser([catalog], validator, 's1', version).compile(notation);
       const components = (
         recompiled[0] as unknown as {createSurface: {components: Array<Record<string, unknown>>}}
       ).createSurface.components;
@@ -653,7 +656,7 @@ describe('ExpressDecompiler', () => {
     it('replaces rather than merges successive root updateDataModel messages and createSurface.dataModel', () => {
       const {catalog, version} = getCatalogInfo('simplified');
       const decompiler = new ExpressDecompiler([catalog], version);
-      const parser = new ExpressParser([catalog], 's1', version);
+      const parser = new ExpressParser([catalog], validator, 's1', version);
 
       const twoRootUpdates = [
         {
@@ -736,7 +739,7 @@ describe('ExpressDecompiler', () => {
     it('emits surface("default_surface") when default_surface follows another surface', () => {
       const {catalog, version} = getCatalogInfo('simplified');
       const decompiler = new ExpressDecompiler([catalog], version);
-      const parser = new ExpressParser([catalog], 'default_surface', version);
+      const parser = new ExpressParser([catalog], validator, 'default_surface', version);
 
       const csADoc = {
         version: '1.0',
@@ -1161,7 +1164,7 @@ describe('ExpressDecompiler', () => {
     it('decompiles a bare check rule without a condition wrapper and supports checks= in keyword mode', () => {
       const {catalog, version} = getCatalogInfo('forms');
       const decompiler = new ExpressDecompiler([catalog], version);
-      const parser = new ExpressParser([catalog], 's1', version);
+      const parser = new ExpressParser([catalog], validator, 's1', version);
       const msg = {
         version: '1.0',
         createSurface: {
@@ -1254,7 +1257,7 @@ describe('ExpressDecompiler', () => {
     it('decompiles and round-trips surface and component metadata.extensions in v1.0 mode', () => {
       const {catalog, version} = getCatalogInfo('simplified');
       const decompiler = new ExpressDecompiler([catalog], version);
-      const parser = new ExpressParser([catalog], 's1', version);
+      const parser = new ExpressParser([catalog], validator, 's1', version);
 
       const msg: AgentToRendererMessage = {
         version: '1.0',
@@ -1314,7 +1317,7 @@ describe('ExpressDecompiler', () => {
       });
 
       const decompiler = new ExpressDecompiler([catA, catB], '1.0');
-      const parser = new ExpressParser([catA, catB], 's1', '1.0');
+      const parser = new ExpressParser([catA, catB], validator, 's1', '1.0');
       const msg: AgentToRendererMessage = {
         version: '1.0',
         createSurface: {

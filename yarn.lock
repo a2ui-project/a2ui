@@ -58,6 +58,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@a2ui/agent@workspace:typescript/agents/a2ui_agent"
   dependencies:
+    "@a2ui/validator-ajv": "workspace:*"
     "@a2ui/web_core": "workspace:*"
     "@types/js-yaml": "npm:^4.0.9"
     "@types/node": "npm:^25.9.3"

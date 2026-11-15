@@ -24,6 +24,7 @@ import {InMemoryCatalogProvider} from '../../../src/processor/catalog-providers.
 import {A2uiGenerator} from '../../../src/processor/generator.js';
 import {RendererState} from '../../../src/utils/renderer-state.js';
 import {loadBasicCatalog} from '../../helpers/basic-catalogs.js';
+import {validator} from '../../helpers/validator.js';
 
 const basicCatalogV10 = loadBasicCatalog('1.0');
 
@@ -34,7 +35,7 @@ describe('A2uiGenerator', () => {
 
   test('defaults to the Express format and supports overriding with DirectJsonFormatFactory', () => {
     const config = new CatalogConfig(basicCatalogV10);
-    const generator = new A2uiGenerator([config]);
+    const generator = new A2uiGenerator([config], validator);
 
     const expressProcessor = generator.createProcessor(mockCapabilities);
     expect(expressProcessor.promptSnippet).toContain('<a2ui>');
@@ -69,7 +70,7 @@ describe('A2uiGenerator', () => {
       ],
     };
 
-    const generator = new A2uiGenerator([config], examples);
+    const generator = new A2uiGenerator([config], validator, examples);
     const processor = generator.createProcessor(mockCapabilities);
 
     expect(processor).toBeDefined();
@@ -98,14 +99,14 @@ describe('A2uiGenerator', () => {
       ],
     };
 
-    const generator = new A2uiGenerator([config], examples);
+    const generator = new A2uiGenerator([config], validator, examples);
 
     expect(() => generator.createProcessor(mockCapabilities)).toThrow(A2uiValidationError);
     expect(() => generator.createProcessor(mockCapabilities)).toThrow(/MagicUnicorn/);
   });
 
   test('throws a catalog error when capabilities are missing', () => {
-    const generator = new A2uiGenerator([new CatalogConfig(basicCatalogV10)]);
+    const generator = new A2uiGenerator([new CatalogConfig(basicCatalogV10)], validator);
     const missing = undefined as unknown as V10RendererCapabilities;
 
     expect(() => generator.createProcessor(missing)).toThrow(A2uiCatalogError);
@@ -126,7 +127,7 @@ describe('A2uiGenerator', () => {
         },
       ],
     };
-    const generator = new A2uiGenerator([config], examples);
+    const generator = new A2uiGenerator([config], validator, examples);
 
     expect(() => generator.createProcessor(mockCapabilities)).toThrow(A2uiValidationError);
     expect(() => generator.createProcessor(mockCapabilities)).toThrow(
@@ -139,15 +140,15 @@ describe('A2uiGenerator', () => {
     // Examples loaded from JSON bypass the type, so a null entry can reach the generator.
     const examples = {'broken_turn': [null]} as unknown as ConstructorParameters<
       typeof A2uiGenerator
-    >[1];
-    const generator = new A2uiGenerator([config], examples);
+    >[2];
+    const generator = new A2uiGenerator([config], validator, examples);
 
     expect(() => generator.createProcessor(mockCapabilities)).toThrow(A2uiValidationError);
     expect(() => generator.createProcessor(mockCapabilities)).toThrow(/broken_turn/);
   });
 
   test('binds the state to the processor', () => {
-    const generator = new A2uiGenerator([new CatalogConfig(basicCatalogV10)]);
+    const generator = new A2uiGenerator([new CatalogConfig(basicCatalogV10)], validator);
     const state = generator.createProcessor(mockCapabilities).createState();
 
     const processor = generator.createProcessor(mockCapabilities, undefined, {state});
@@ -156,10 +157,11 @@ describe('A2uiGenerator', () => {
   });
 
   test('rejects a state for other catalogs', () => {
-    const generator = new A2uiGenerator([new CatalogConfig(basicCatalogV10)]);
-    const other = new RendererState([
-      new InMemoryCatalogProvider({catalogId: 'other', components: {}}, '1.0').load(),
-    ]);
+    const generator = new A2uiGenerator([new CatalogConfig(basicCatalogV10)], validator);
+    const other = new RendererState(
+      [new InMemoryCatalogProvider({catalogId: 'other', components: {}}, validator, '1.0').load()],
+      validator,
+    );
 
     expect(() => generator.createProcessor(mockCapabilities, undefined, {state: other})).toThrow(
       A2uiCatalogError,
@@ -170,7 +172,7 @@ describe('A2uiGenerator', () => {
   });
 
   test('accepts version-keyed renderer capabilities and rejects capabilities lacking the catalogs version', () => {
-    const generator = new A2uiGenerator([new CatalogConfig(basicCatalogV10)]);
+    const generator = new A2uiGenerator([new CatalogConfig(basicCatalogV10)], validator);
 
     const processor = generator.createProcessor({
       '1.0': {supportedCatalogIds: [basicCatalogV10.id]},

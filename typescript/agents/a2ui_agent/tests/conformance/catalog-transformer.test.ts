@@ -32,6 +32,7 @@ import {
   expectCatalogContents,
   KNOWN_FAILURES,
 } from './suite-helpers.js';
+import {validator} from '../helpers/validator.js';
 
 const TRANSFORM_CATALOG_CASE_KEYS = new Set([...CASE_METADATA_KEYS, 'args', 'expect']);
 const TRANSFORM_CATALOG_ARGS_KEYS = new Set(['catalog', 'transformers']);
@@ -58,6 +59,7 @@ describeSuite(
     const doc = JSON.parse(readFileSync(filePath, 'utf8')) as Record<string, unknown>;
     let transformed = new FileSystemCatalogProvider(
       filePath,
+      validator,
       typeof doc.protocolVersion === 'string' ? undefined : '1.0',
       typeof doc.catalogId === 'string' ? undefined : args.catalog,
     ).load();

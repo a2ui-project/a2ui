@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {CatalogApi} from '../internal/web-core.js';
+import {CatalogApi, type JsonSchemaValidator} from '../internal/web-core.js';
 import {ProtocolVersion} from '../types.js';
 import {CatalogTransformer} from '../catalog-transformers/base.js';
 import {FileSystemCatalogProvider} from './catalog-providers.js';
@@ -61,6 +61,8 @@ export class CatalogConfig {
    * Loads a catalog from disk into a CatalogConfig.
    *
    * @param catalogPath Path to the catalog JSON file.
+   * @param validator The JSON Schema validator the catalog compiles its schemas with, such as
+   *     `createAjvValidator()` from `@a2ui/validator-ajv`.
    * @param transformers Optional list of catalog transformers.
    * @param protocolVersion Protocol version to use when the document states none.
    * @param catalogId Catalog id to use when the document states none.
@@ -68,11 +70,17 @@ export class CatalogConfig {
    */
   static fromPath(
     catalogPath: string,
+    validator: JsonSchemaValidator,
     transformers?: CatalogTransformer[],
     protocolVersion?: ProtocolVersion,
     catalogId?: string,
   ): CatalogConfig {
-    const provider = new FileSystemCatalogProvider(catalogPath, protocolVersion, catalogId);
+    const provider = new FileSystemCatalogProvider(
+      catalogPath,
+      validator,
+      protocolVersion,
+      catalogId,
+    );
     const catalog = provider.load();
     return new CatalogConfig(catalog, transformers);
   }

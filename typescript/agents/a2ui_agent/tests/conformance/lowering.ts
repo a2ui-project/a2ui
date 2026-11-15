@@ -25,6 +25,7 @@ import {AgentToRendererMessage, InMemoryCatalogProvider} from '../../src/index.j
 import {CatalogApi} from '../../src/internal/web-core.js';
 import {LoadedCase} from './loader.js';
 import {conformancePath} from './suite-helpers.js';
+import {validator} from '../helpers/validator.js';
 
 export type SuiteVersion = 'v1.0' | 'v0.9-lowered';
 
@@ -253,7 +254,7 @@ export function loadCatalogFromRelativePath(relativePath: string, lower = false)
   const raw = JSON.parse(readFileSync(fullPath, 'utf8')) as Record<string, unknown>;
   const defaultId = basename(relativePath, '.json');
   const doc = lower ? lowerCatalogDocument(raw, defaultId) : raw;
-  return new InMemoryCatalogProvider(doc).load();
+  return new InMemoryCatalogProvider(doc, validator).load();
 }
 
 function readRawCatalogDoc(entry: unknown): {doc: Record<string, unknown>; defaultId?: string} {

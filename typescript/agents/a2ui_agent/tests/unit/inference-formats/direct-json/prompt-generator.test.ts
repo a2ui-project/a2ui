@@ -23,6 +23,7 @@ import {
   Catalog,
 } from '../../../../src/internal/web-core.js';
 import {loadBasicCatalog} from '../../../helpers/basic-catalogs.js';
+import {validator} from '../../../helpers/validator.js';
 
 const basicCatalogV10 = loadBasicCatalog('1.0');
 
@@ -77,7 +78,7 @@ describe('DirectJsonPromptGenerator', () => {
 
   it('describes multiple v0.9 catalogs and their examples in the prompt', () => {
     const catalogs = ['a', 'b'].map(catalogId =>
-      Catalog.fromJson({catalogId, components: {}}, '0.9'),
+      Catalog.fromJson({catalogId, components: {}}, '0.9', undefined, {validator}),
     );
     const v09Examples = {
       a: [

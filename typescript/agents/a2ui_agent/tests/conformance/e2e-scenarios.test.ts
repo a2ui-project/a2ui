@@ -31,6 +31,7 @@ import {
 import {CatalogApi} from '../../src/internal/web-core.js';
 import {CONFORMANCE_ROOT, LoadedCase, loadCases} from './loader.js';
 import {categoryOf, conformancePath, describeSuite} from './suite-helpers.js';
+import {validator} from '../helpers/validator.js';
 
 const KNOWN_FAILURES = new Map<string, string>();
 
@@ -139,20 +140,20 @@ function loadScenarioCatalogs(testCase: LoadedCase): CatalogApi[] {
   const rawVersion = String(testCase.protocolVersion ?? '1.0');
   const version = (rawVersion === 'v0.9.1' ? 'v0.9' : rawVersion) as ProtocolVersion;
   return paths.map(catPath =>
-    new FileSystemCatalogProvider(resolveCatalogPath(catPath), version).load(),
+    new FileSystemCatalogProvider(resolveCatalogPath(catPath), validator, version).load(),
   );
 }
 
 function makeParser(formatName: string, catalogs: CatalogApi[], protocolVersion: string): Parser {
   if (formatName === 'direct_json') {
-    return new DirectJsonFormatFactory().createFormat(catalogs).createParser();
+    return new DirectJsonFormatFactory().createFormat(catalogs, validator).createParser();
   }
   if (formatName === 'express') {
     return new ExpressFormatFactory({
       surfaceId: 'default_surface',
       version: protocolVersion,
     })
-      .createFormat(catalogs)
+      .createFormat(catalogs, validator)
       .createParser();
   }
   throw new Error(`Unsupported inference format '${formatName}'`);
@@ -185,8 +186,8 @@ function runFormat(
   protocolVersion: string,
 ): void {
   const parser = makeParser(formatName, catalogs, protocolVersion);
-  const streamState = new RendererState(catalogs);
-  const singleShotState = new RendererState(catalogs);
+  const streamState = new RendererState(catalogs, validator);
+  const singleShotState = new RendererState(catalogs, validator);
   const turns = testCase.turns as E2eTurn[];
 
   for (const [turnIdx, turn] of turns.entries()) {

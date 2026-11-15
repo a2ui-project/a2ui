@@ -15,7 +15,12 @@
  */
 
 import {A2uiCompilationError, withPartialResults} from '../errors.js';
-import {A2uiError, AgentToRendererMessage, CatalogApi} from '../internal/web-core.js';
+import {
+  A2uiError,
+  AgentToRendererMessage,
+  CatalogApi,
+  type JsonSchemaValidator,
+} from '../internal/web-core.js';
 import {RendererState} from '../utils/renderer-state.js';
 import {RawResponsePart, ResponsePart, StreamPart} from './response-part.js';
 import {ResponseStream} from './response-stream.js';
@@ -63,6 +68,9 @@ export type ContinuingStreamOptions = StreamOptions & {afterRejectedBlock: 'cont
 export abstract class Parser {
   /** The active catalogs in priority order. */
   abstract readonly catalogs: CatalogApi[];
+
+  /** The JSON Schema validator the states the parser makes check messages with. */
+  abstract readonly validator: JsonSchemaValidator;
 
   /**
    * Unwraps a raw model response string into a sequence of text and raw format blocks.
@@ -113,7 +121,7 @@ export abstract class Parser {
    * the response did not create is rejected.
    */
   protected emptyState(): RendererState {
-    return new RendererState(this.catalogs);
+    return new RendererState(this.catalogs, this.validator);
   }
 
   /**

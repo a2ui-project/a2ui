@@ -18,8 +18,8 @@
  * Checks of v1.0 `callRendererFunction` messages by the agent's validators.
  */
 
+import {fromJsonSchema} from '@a2ui/web_core/schema-engine';
 import {describe, expect, it, vi} from 'vitest';
-import {z} from 'zod';
 
 import {
   A2uiValidationError,
@@ -29,6 +29,7 @@ import {
 } from '../../../src/index.js';
 import {Catalog, CatalogApi, MessageProcessor} from '../../../src/internal/web-core.js';
 import {BASIC_CATALOG_IDS, loadBasicCatalog} from '../../helpers/basic-catalogs.js';
+import {validator} from '../../helpers/validator.js';
 
 type Message = Record<string, unknown>;
 
@@ -103,6 +104,7 @@ const CUSTOM = new InMemoryCatalogProvider(
       },
     },
   },
+  validator,
   '1.0',
 ).load();
 const CATALOGS = [BASIC, CUSTOM];
@@ -149,7 +151,10 @@ function recordingCatalog(
       {
         name: 'record',
         returnType: 'void',
-        schema: z.object({note: z.string().optional()}).strict(),
+        schema: fromJsonSchema(
+          {type: 'object', properties: {note: {type: 'string'}}, additionalProperties: false},
+          validator,
+        ),
         execute: (args: Record<string, unknown>) => {
           calls.push(args);
         },
@@ -166,7 +171,7 @@ describe('callRendererFunction validation', () => {
     ['agentOnly', call('getMoonPhase', {args: {date: '2026-11-05'}})],
     ['agentOnly without args', call('getMoonPhase')],
   ])('accepts a call the agent may make: %s', (_, message) => {
-    expect(() => validatePayload(CATALOGS, [message])).not.toThrow();
+    expect(() => validatePayload(CATALOGS, validator, [message])).not.toThrow();
   });
 
   it.each([
@@ -178,7 +183,7 @@ describe('callRendererFunction validation', () => {
     [
       'wrong arg type',
       call('getMoonPhase', {args: {date: 42}}),
-      /does not match the arguments of 'getMoonPhase'.*Expected string, received number/,
+      /does not match the arguments of 'getMoonPhase'.*date: must be string/,
     ],
     [
       'extra arg',
@@ -188,7 +193,7 @@ describe('callRendererFunction validation', () => {
     [
       'missing required arg',
       call('scrollTo'),
-      /does not match the arguments of 'scrollTo'.*id: Expected string, received undefined/,
+      /does not match the arguments of 'scrollTo'.*missing required property 'id'/,
     ],
     [
       'renderer only',
@@ -208,17 +213,18 @@ describe('callRendererFunction validation', () => {
     [
       'system function',
       call('@index', {catalogId: CUSTOM_ID}),
-      /names '@index', which catalog .* does not declare/,
+      // The message schema reserves `@`-prefixed names for system functions.
+      /must not match the disallowed schema at 'callRendererFunction\.callFunction\.@call'/,
     ],
   ])('rejects a call the renderer would refuse: %s', (_, message, match) => {
-    expect(() => validatePayload(CATALOGS, [message])).toThrow(match);
-    expect(() => validatePayload(CATALOGS, [message])).toThrow(A2uiValidationError);
+    expect(() => validatePayload(CATALOGS, validator, [message])).toThrow(match);
+    expect(() => validatePayload(CATALOGS, validator, [message])).toThrow(A2uiValidationError);
   });
 
   it('rejects a call without a catalogId', () => {
     const message = call('scrollTo', {args: {id: 'x'}});
     delete ((message.callRendererFunction as Message).callFunction as Message).catalogId;
-    expect(() => validatePayload(CATALOGS, [message])).toThrow(/catalogId/);
+    expect(() => validatePayload(CATALOGS, validator, [message])).toThrow(/catalogId/);
   });
 
   it('rejects a function that requires a user activation', () => {
@@ -226,34 +232,42 @@ describe('callRendererFunction validation', () => {
       allowedCallers: 'rendererOrAgent',
       requiresUserActivation: true,
     });
-    expect(() => validatePayload([catalog], [call('record', {catalogId: RECORDING_ID})])).toThrow(
+    expect(() =>
+      validatePayload([catalog], validator, [call('record', {catalogId: RECORDING_ID})]),
+    ).toThrow(
       /names 'record', which requires a user activation, and a call from the agent has none/,
     );
   });
 
   it('takes a function with no allowedCallers to be rendererOnly', () => {
     const catalog = recordingCatalog([], {});
-    expect(() => validatePayload([catalog], [call('record', {catalogId: RECORDING_ID})])).toThrow(
-      /allowedCallers is rendererOnly/,
-    );
+    expect(() =>
+      validatePayload([catalog], validator, [call('record', {catalogId: RECORDING_ID})]),
+    ).toThrow(/allowedCallers is rendererOnly/);
   });
 
   it('checks the arguments as written', () => {
     expect(() =>
-      validatePayload(CATALOGS, [call('getMoonPhase', {args: {date: {'@path': '/date'}}})]),
-    ).toThrow(/Expected string, received object/);
+      validatePayload(CATALOGS, validator, [
+        call('getMoonPhase', {args: {date: {'@path': '/date'}}}),
+      ]),
+    ).toThrow(/date: must be string/);
   });
 
   it.each([
     ['data binding', {'@path': '/name'}],
     ['call', {'@call': 'scrollTo', args: {id: 'x'}}],
   ])('accepts an argument the renderer resolves: %s', (_, text) => {
-    expect(() => validatePayload(CATALOGS, [call('describe', {args: {text}})])).not.toThrow();
+    expect(() =>
+      validatePayload(CATALOGS, validator, [call('describe', {args: {text}})]),
+    ).not.toThrow();
   });
 
   it('checks the calls an argument schema admits', () => {
     expect(() =>
-      validatePayload(CATALOGS, [call('describe', {args: {text: {'@call': 'summonDragon'}}})]),
+      validatePayload(CATALOGS, validator, [
+        call('describe', {args: {text: {'@call': 'summonDragon'}}}),
+      ]),
     ).toThrow(A2uiValidationError);
   });
 
@@ -261,7 +275,9 @@ describe('callRendererFunction validation', () => {
     ['same catalog', {'@call': 'scrollTo', args: {id: 'x'}}],
     ['another catalog', {'@call': 'formatString', catalogId: BASIC_ID, args: {value: 'hi'}}],
   ])('accepts a call nested in untyped arguments: %s', (_, value) => {
-    expect(() => validatePayload(CATALOGS, [call('echo', {args: {value}})])).not.toThrow();
+    expect(() =>
+      validatePayload(CATALOGS, validator, [call('echo', {args: {value}})]),
+    ).not.toThrow();
   });
 
   it.each([
@@ -305,14 +321,18 @@ describe('callRendererFunction validation', () => {
       /holds a data binding with unrecognized field 'bogus'/,
     ],
   ])('checks a call nested in the arguments: %s', (_, value, match) => {
-    expect(() => validatePayload(CATALOGS, [call('echo', {args: {value}})])).toThrow(match);
+    expect(() => validatePayload(CATALOGS, validator, [call('echo', {args: {value}})])).toThrow(
+      match,
+    );
   });
 
   it.each([
     ['absolute path', {'@path': '/user/name'}],
     ['relative path', {'@path': 'name'}],
   ])('accepts a data binding in the arguments: %s', (_, value) => {
-    expect(() => validatePayload(CATALOGS, [call('echo', {args: {value}})])).not.toThrow();
+    expect(() =>
+      validatePayload(CATALOGS, validator, [call('echo', {args: {value}})]),
+    ).not.toThrow();
   });
 
   it('does not run the function', async () => {
@@ -320,8 +340,8 @@ describe('callRendererFunction validation', () => {
     const catalog = recordingCatalog(calls);
     const message = call('record', {catalogId: RECORDING_ID, args: {note: 'hi'}});
 
-    validatePayload([catalog], [message]);
-    const state = new RendererState([catalog]);
+    validatePayload([catalog], validator, [message]);
+    const state = new RendererState([catalog], validator);
     state.apply([message]);
     state.transaction(() => state.apply([message]));
     // A call the processor received would run by now.
@@ -335,7 +355,7 @@ describe('callRendererFunction validation', () => {
     const catalog = recordingCatalog(calls, {allowedCallers: 'rendererOnly'});
     const message = call('record', {catalogId: RECORDING_ID, args: {note: 'hi'}});
 
-    expect(() => validatePayload([catalog], [message])).toThrow(A2uiValidationError);
+    expect(() => validatePayload([catalog], validator, [message])).toThrow(A2uiValidationError);
     await new Promise(resolve => setTimeout(resolve, 0));
 
     expect(calls).toEqual([]);
@@ -343,19 +363,22 @@ describe('callRendererFunction validation', () => {
 
   it('accepts a call on a surface the payload never named', () => {
     expect(() =>
-      validatePayload(CATALOGS, [call('scrollTo', {args: {id: 'x'}, surfaceId: 's'})]),
+      validatePayload(CATALOGS, validator, [call('scrollTo', {args: {id: 'x'}, surfaceId: 's'})]),
     ).not.toThrow();
   });
 
   it('accepts a call on a surface the payload created', () => {
     expect(() =>
-      validatePayload(CATALOGS, [create(), call('scrollTo', {args: {id: 'x'}, surfaceId: 's'})]),
+      validatePayload(CATALOGS, validator, [
+        create(),
+        call('scrollTo', {args: {id: 'x'}, surfaceId: 's'}),
+      ]),
     ).not.toThrow();
   });
 
   it('rejects a call on a surface the payload deleted', () => {
     expect(() =>
-      validatePayload(CATALOGS, [
+      validatePayload(CATALOGS, validator, [
         create(),
         del(),
         call('scrollTo', {args: {id: 'x'}, surfaceId: 's'}),
@@ -365,12 +388,15 @@ describe('callRendererFunction validation', () => {
 
   it('rejects a call before the payload creates its surface', () => {
     expect(() =>
-      validatePayload(CATALOGS, [call('scrollTo', {args: {id: 'x'}, surfaceId: 's'}), create()]),
+      validatePayload(CATALOGS, validator, [
+        call('scrollTo', {args: {id: 'x'}, surfaceId: 's'}),
+        create(),
+      ]),
     ).toThrow(/names surface 's', which does not exist/);
   });
 
   it('checks the call in a renderer state', () => {
-    const state = new RendererState(CATALOGS);
+    const state = new RendererState(CATALOGS, validator);
     expect(() =>
       state.apply([call('formatString', {catalogId: BASIC_ID, args: {value: 'x'}})]),
     ).toThrow(/only the renderer may call/);
@@ -378,7 +404,7 @@ describe('callRendererFunction validation', () => {
   });
 
   it('requires the surface to exist in a renderer state', () => {
-    const state = new RendererState(CATALOGS);
+    const state = new RendererState(CATALOGS, validator);
     const message = call('scrollTo', {args: {id: 'x'}, surfaceId: 's'});
     expect(() => state.apply([message])).toThrow(/names surface 's', which does not exist/);
 
@@ -387,13 +413,13 @@ describe('callRendererFunction validation', () => {
   });
 
   it('rolls back the messages before a rejected call', () => {
-    const state = new RendererState(CATALOGS);
+    const state = new RendererState(CATALOGS, validator);
     expect(() => state.apply([create(), call('summonDragon')])).toThrow(/does not declare/);
     expect(state.surfaceIds).toEqual([]);
   });
 
   it('rolls back a transaction that a rejected call ends', () => {
-    const state = new RendererState(CATALOGS);
+    const state = new RendererState(CATALOGS, validator);
     expect(() =>
       state.transaction(() => {
         state.apply([create()]);
@@ -423,7 +449,7 @@ describe('callRendererFunction validation', () => {
         },
       },
     ];
-    expect(() => validatePayload(CATALOGS, payload)).toThrow(
+    expect(() => validatePayload(CATALOGS, validator, payload)).toThrow(
       /Function 'getMoonPhase' cannot be called by renderer \(allowedCallers is agentOnly\)/,
     );
   });
@@ -431,13 +457,13 @@ describe('callRendererFunction validation', () => {
   it("hands an accepted call to the renderer's processor, and only that one", () => {
     const calls: unknown[] = [];
     const catalog = recordingCatalog(calls);
-    const processor = new MessageProcessor([catalog as never]);
+    const processor = new MessageProcessor([catalog as never], undefined, {validator});
     const handled: unknown[] = [];
     vi.spyOn(processor.rpc, 'handleCallRendererFunction').mockImplementation(message => {
       handled.push(message);
       return new Promise(() => {});
     });
-    const state = RendererState.of(processor);
+    const state = RendererState.of(processor, validator);
 
     expect(() =>
       state.apply([call('record', {catalogId: RECORDING_ID, args: {note: 42}})]),
@@ -452,7 +478,7 @@ describe('callRendererFunction validation', () => {
     [
       'missing @call',
       {call: 'scrollTo', catalogId: CUSTOM_ID},
-      /is missing a string '@call' field/,
+      /'@call' is a required property at 'callRendererFunction\.callFunction'/,
     ],
     ['non-string @call', {'@call': 42, catalogId: CUSTOM_ID}, /callFunction\.@call/],
     [
@@ -472,8 +498,10 @@ describe('callRendererFunction validation', () => {
     ],
   ])('rejects a malformed callFunction: %s', (_, callFunction, match) => {
     const message = {version: '1.0', callRendererFunction: {functionCallId: 'f1', callFunction}};
-    expect(() => validatePayload(CATALOGS, [message])).toThrow(match);
-    expect(() => new RendererState(CATALOGS).apply([message])).toThrow(A2uiValidationError);
+    expect(() => validatePayload(CATALOGS, validator, [message])).toThrow(match);
+    expect(() => new RendererState(CATALOGS, validator).apply([message])).toThrow(
+      A2uiValidationError,
+    );
   });
 
   it.each([
@@ -481,7 +509,7 @@ describe('callRendererFunction validation', () => {
     ['calls nested too deep', nestCalls(7)],
     ['objects nested too deep', nestObjects(60)],
   ])('rejects arguments the processor would refuse: %s', (_, value) => {
-    expect(() => validatePayload(CATALOGS, [call('echo', {args: {value}})])).toThrow(
+    expect(() => validatePayload(CATALOGS, validator, [call('echo', {args: {value}})])).toThrow(
       A2uiValidationError,
     );
   });
@@ -539,16 +567,20 @@ describe('callRendererFunction validation', () => {
       /holds a call to 'openUrl' that the renderer can't make: Function 'openUrl' requires a user activation, and a call from the agent has none\./,
     ],
   ])('checks every object in the arguments: %s', (_, value, match) => {
-    expect(() => validatePayload(CATALOGS, [call('echo', {args: {value}})])).toThrow(match);
+    expect(() => validatePayload(CATALOGS, validator, [call('echo', {args: {value}})])).toThrow(
+      match,
+    );
   });
 
   it('checks a call nested in a typed dynamic argument against its own catalog', () => {
     // `describe` is in CUSTOM, whose catalog lacks formatString; the argument schema must
     // not resolve the nested call against CUSTOM.
     const text = {'@call': 'formatString', catalogId: BASIC_ID, args: {value: 'hi'}};
-    expect(() => validatePayload(CATALOGS, [call('describe', {args: {text}})])).not.toThrow();
     expect(() =>
-      validatePayload(CATALOGS, [
+      validatePayload(CATALOGS, validator, [call('describe', {args: {text}})]),
+    ).not.toThrow();
+    expect(() =>
+      validatePayload(CATALOGS, validator, [
         create(),
         call('describe', {
           args: {text: {'@call': 'formatString', args: {value: 'hi'}}},
@@ -563,27 +595,30 @@ describe('callRendererFunction validation', () => {
 
     it("runs in the call's catalog when the call names no surface", () => {
       expect(() =>
-        validatePayload(CATALOGS, [call('echo', {args: {label: formatString}})]),
+        validatePayload(CATALOGS, validator, [call('echo', {args: {label: formatString}})]),
       ).toThrow(/Unrecognized function 'formatString'/);
     });
 
     it('runs in the default catalog of the surface the call names', () => {
       const onSurface = call('echo', {args: {label: formatString}, surfaceId: 's'});
-      expect(() => validatePayload(CATALOGS, [create(), onSurface])).not.toThrow();
-      const state = new RendererState(CATALOGS);
+      expect(() => validatePayload(CATALOGS, validator, [create(), onSurface])).not.toThrow();
+      const state = new RendererState(CATALOGS, validator);
       state.apply([create()]);
       expect(() => state.apply([onSurface])).not.toThrow();
 
       const scrollTo = {'@call': 'scrollTo', args: {id: 'x'}};
       expect(() =>
-        validatePayload(CATALOGS, [create(), call('echo', {args: {scrollTo}, surfaceId: 's'})]),
+        validatePayload(CATALOGS, validator, [
+          create(),
+          call('echo', {args: {scrollTo}, surfaceId: 's'}),
+        ]),
       ).toThrow(/Unrecognized function 'scrollTo'/);
     });
 
     it('is rejected on a surface with no default catalog', () => {
       const bare = {version: '1.0', createSurface: {surfaceId: 's'}};
       expect(() =>
-        validatePayload(CATALOGS, [
+        validatePayload(CATALOGS, validator, [
           bare,
           call('echo', {args: {label: formatString}, surfaceId: 's'}),
         ]),
@@ -592,7 +627,10 @@ describe('callRendererFunction validation', () => {
       );
       const named = {...formatString, catalogId: BASIC_ID};
       expect(() =>
-        validatePayload(CATALOGS, [bare, call('echo', {args: {label: named}, surfaceId: 's'})]),
+        validatePayload(CATALOGS, validator, [
+          bare,
+          call('echo', {args: {label: named}, surfaceId: 's'}),
+        ]),
       ).not.toThrow();
     });
 
@@ -619,9 +657,9 @@ describe('callRendererFunction validation', () => {
         ],
       ]) {
         if (match) {
-          expect(() => validatePayload(CATALOGS, payload)).toThrow(match);
+          expect(() => validatePayload(CATALOGS, validator, payload)).toThrow(match);
         } else {
-          expect(() => validatePayload(CATALOGS, payload)).not.toThrow();
+          expect(() => validatePayload(CATALOGS, validator, payload)).not.toThrow();
         }
       }
     });
@@ -636,13 +674,15 @@ describe('callRendererFunction validation', () => {
     (_, value) => {
       const calls: unknown[] = [];
       const catalog = recordingCatalog(calls);
-      const processor = new MessageProcessor([catalog as never, BASIC as never]);
+      const processor = new MessageProcessor([catalog as never, BASIC as never], undefined, {
+        validator,
+      });
       const handled: unknown[] = [];
       vi.spyOn(processor.rpc, 'handleCallRendererFunction').mockImplementation(message => {
         handled.push(message);
         return new Promise(() => {});
       });
-      const state = RendererState.of(processor);
+      const state = RendererState.of(processor, validator);
       const message = call('record', {catalogId: RECORDING_ID});
       const callFunction = (message.callRendererFunction as Message).callFunction as Message;
       callFunction.args = value === null ? null : {note: value};

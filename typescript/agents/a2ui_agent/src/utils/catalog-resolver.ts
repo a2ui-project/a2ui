@@ -15,7 +15,7 @@
  */
 
 import {A2uiCatalogError, A2uiValidationError} from '../errors.js';
-import {CatalogApi, RendererCapabilities} from '../internal/web-core.js';
+import {CatalogApi, type JsonSchemaValidator, RendererCapabilities} from '../internal/web-core.js';
 import {CatalogConfig} from '../processor/catalog-config.js';
 import {catalogFromDocument} from '../processor/catalog-providers.js';
 import {toWireProtocolVersion} from './protocol-version.js';
@@ -86,6 +86,8 @@ function extractCapabilitiesEntry(
  * not accept inline catalogs.
  *
  * @param catalogs Registered catalog configurations supported by the agent.
+ * @param validator The JSON Schema validator inline catalogs compile their schemas with, such
+ *     as `createAjvValidator()` from `@a2ui/validator-ajv`.
  * @param rendererCapabilities Capabilities sent by the client renderer (either keyed by
  *     protocol version, such as `{"v1.0": {"supportedCatalogIds": [...]}}`, or a single
  *     capabilities entry), or `undefined` when the request carried none. With no
@@ -101,6 +103,7 @@ function extractCapabilitiesEntry(
  */
 export function resolveCatalogs(
   catalogs: CatalogConfig[],
+  validator: JsonSchemaValidator,
   rendererCapabilities: Record<string, RendererCapabilities> | RendererCapabilities | undefined,
   acceptsInlineCatalogs = false,
 ): CatalogApi[] {
@@ -136,6 +139,7 @@ export function resolveCatalogs(
     return catalogFromDocument(
       document as Record<string, unknown>,
       'inline catalog',
+      validator,
       key === 'v0.9' ? 'v0.9' : undefined,
     );
   });

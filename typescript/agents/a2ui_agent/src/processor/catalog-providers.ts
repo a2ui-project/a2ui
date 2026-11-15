@@ -17,9 +17,10 @@
 import * as fs from 'fs';
 
 import {A2uiCatalogError} from '../errors.js';
-import {Catalog, CatalogApi} from '../internal/web-core.js';
+import {Catalog, CatalogApi, type JsonSchemaValidator} from '../internal/web-core.js';
 import {ProtocolVersion} from '../types.js';
 import {toReleaseLine, toWireProtocolVersion} from '../utils/protocol-version.js';
+import {requireValidator} from '../utils/validator.js';
 
 /**
  * Builds a catalog from a parsed catalog document, filling in the id and protocol version
@@ -40,6 +41,7 @@ import {toReleaseLine, toWireProtocolVersion} from '../utils/protocol-version.js
  *
  * @param document The parsed catalog document.
  * @param source Describes where the document came from, for error messages.
+ * @param validator The JSON Schema validator the catalog compiles its schemas with.
  * @param protocolVersion Version to use when the document states none.
  * @param catalogId Id to use when the document states none.
  * @returns The catalog, with its protocol version in the `v`-prefixed wire form.
@@ -49,9 +51,11 @@ import {toReleaseLine, toWireProtocolVersion} from '../utils/protocol-version.js
 export function catalogFromDocument(
   document: Record<string, unknown>,
   source: string,
+  validator: JsonSchemaValidator,
   protocolVersion?: ProtocolVersion,
   catalogId?: string,
 ): CatalogApi {
+  requireValidator(validator, 'the catalog provider');
   const documentId = typeof document.catalogId === 'string' ? document.catalogId : undefined;
   if (catalogId !== undefined && documentId !== undefined && catalogId !== documentId) {
     throw new A2uiCatalogError(
@@ -85,7 +89,7 @@ export function catalogFromDocument(
 
   let catalog: CatalogApi;
   try {
-    catalog = Catalog.fromJson(document, toWireProtocolVersion(version), id);
+    catalog = Catalog.fromJson(document, toWireProtocolVersion(version), id, {validator});
   } catch (e: unknown) {
     throw new A2uiCatalogError(
       `Failed to build catalog from schema in ${source}: ${(e as Error).message}`,
@@ -114,6 +118,8 @@ export class FileSystemCatalogProvider implements CatalogProvider {
    * Initializes the filesystem catalog provider.
    *
    * @param path File path to load the catalog from.
+   * @param validator The JSON Schema validator the catalog compiles its schemas with, such as
+   *     `createAjvValidator()` from `@a2ui/validator-ajv`.
    * @param protocolVersion Protocol version to use when the document states none, as v0.9
    *     documents do. Throws on load if the document states a different one.
    * @param catalogId Catalog id to use when the document states none, as v0.8 documents
@@ -121,6 +127,7 @@ export class FileSystemCatalogProvider implements CatalogProvider {
    */
   constructor(
     readonly path: string,
+    readonly validator: JsonSchemaValidator,
     readonly protocolVersion?: ProtocolVersion,
     readonly catalogId?: string,
   ) {}
@@ -151,7 +158,13 @@ export class FileSystemCatalogProvider implements CatalogProvider {
       );
     }
 
-    return catalogFromDocument(parsed, this.path, this.protocolVersion, this.catalogId);
+    return catalogFromDocument(
+      parsed,
+      this.path,
+      this.validator,
+      this.protocolVersion,
+      this.catalogId,
+    );
   }
 }
 
@@ -163,6 +176,8 @@ export class InMemoryCatalogProvider implements CatalogProvider {
    * Initializes the in-memory provider.
    *
    * @param catalog Raw catalog schema dictionary.
+   * @param validator The JSON Schema validator the catalog compiles its schemas with, such as
+   *     `createAjvValidator()` from `@a2ui/validator-ajv`.
    * @param protocolVersion Protocol version to use when the schema states none. Throws on
    *     load if the schema states a different one.
    * @param catalogId Catalog id to use when the schema states none. Throws on load if the
@@ -170,6 +185,7 @@ export class InMemoryCatalogProvider implements CatalogProvider {
    */
   constructor(
     readonly catalog: Record<string, unknown>,
+    readonly validator: JsonSchemaValidator,
     readonly protocolVersion?: ProtocolVersion,
     readonly catalogId?: string,
   ) {}
@@ -185,6 +201,7 @@ export class InMemoryCatalogProvider implements CatalogProvider {
     return catalogFromDocument(
       this.catalog,
       'in-memory schema',
+      this.validator,
       this.protocolVersion,
       this.catalogId,
     );

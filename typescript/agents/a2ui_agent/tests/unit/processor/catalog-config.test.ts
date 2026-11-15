@@ -20,6 +20,7 @@ import {CatalogTransformer} from '../../../src/catalog-transformers/base.js';
 import {Catalog} from '../../../src/internal/web-core.js';
 import {CatalogConfig} from '../../../src/processor/catalog-config.js';
 import {conformancePath} from '../../conformance/suite-helpers.js';
+import {validator} from '../../helpers/validator.js';
 
 describe('CatalogConfig', () => {
   const baseCatalog = new Catalog('base', '1.0', [], []);
@@ -66,6 +67,7 @@ describe('CatalogConfig', () => {
   it('fromPath loads catalog and creates config', () => {
     const config = CatalogConfig.fromPath(
       conformancePath('test_data/catalogs/simplified_catalog_v1_0.json'),
+      validator,
     );
     expect(config.catalog.id).toBe('conformance/simplified');
     expect(config.catalog.protocolVersion).toBe('1.0');

@@ -33,6 +33,7 @@ import {
   conformancePath,
   describeSuite,
 } from './suite-helpers.js';
+import {validator} from '../helpers/validator.js';
 
 const CASE_KEYS: ReadonlySet<string> = new Set([
   ...CASE_METADATA_KEYS,
@@ -53,6 +54,7 @@ describe('renderer_capabilities.yaml invariants', () => {
   test('passes extracted capabilities directly to resolveCatalogs', () => {
     const config = CatalogConfig.fromPath(
       conformancePath('test_data/catalogs/simplified_catalog_v1_0.json'),
+      validator,
     );
     const capabilities = readRendererCapabilities(
       {
@@ -60,9 +62,10 @@ describe('renderer_capabilities.yaml invariants', () => {
           '1.0': {supportedCatalogIds: ['conformance/simplified']},
         },
       },
+      validator,
       '1.0',
     );
-    const resolved = resolveCatalogs([config], capabilities);
+    const resolved = resolveCatalogs([config], validator, capabilities);
     expect(resolved.map(c => c.id)).toEqual(['conformance/simplified']);
   });
 
@@ -74,6 +77,7 @@ describe('renderer_capabilities.yaml invariants', () => {
             '1.0': {supportedCatalogIds: ['cat-v10']},
           },
         },
+        validator,
         '1.0.0',
       ),
     ).toEqual({'1.0': {supportedCatalogIds: ['cat-v10']}});
@@ -85,6 +89,7 @@ describe('renderer_capabilities.yaml invariants', () => {
             'v0.9': {supportedCatalogIds: ['cat-v09']},
           },
         },
+        validator,
         '0.9.1',
       ),
     ).toEqual({'v0.9': {supportedCatalogIds: ['cat-v09']}});
@@ -108,6 +113,7 @@ describe('renderer_capabilities.yaml invariants', () => {
         const agentConfig = new CatalogConfig(
           new InMemoryCatalogProvider(
             {...inlineSchema, catalogId: 'agent/v09'},
+            validator,
             targetVersion,
           ).load(),
         );
@@ -120,9 +126,10 @@ describe('renderer_capabilities.yaml invariants', () => {
               },
             },
           },
+          validator,
           targetVersion,
         );
-        const resolved = resolveCatalogs([agentConfig], caps, true);
+        const resolved = resolveCatalogs([agentConfig], validator, caps, true);
         expect(resolved.map(c => c.id)).toEqual(['inline/v09-compat']);
       }
     }
@@ -151,6 +158,7 @@ describe('renderer_capabilities.yaml invariants', () => {
             },
           },
         },
+        validator,
         '1.0',
       ),
     ).toThrow(A2uiCatalogError);
@@ -158,17 +166,21 @@ describe('renderer_capabilities.yaml invariants', () => {
 
   test('throws A2uiCatalogError for unsupported or invalid version strings', () => {
     for (const badVersion of ['v0.8', '0.8', '2.0', 'banana', '']) {
-      expect(() => readRendererCapabilities({}, badVersion)).toThrow(A2uiCatalogError);
+      expect(() => readRendererCapabilities({}, validator, badVersion)).toThrow(A2uiCatalogError);
     }
   });
 
   test('throws A2uiCatalogError for non-plain object instances', () => {
-    expect(() => readRendererCapabilities(new Date(), '1.0')).toThrow(A2uiCatalogError);
+    expect(() => readRendererCapabilities(new Date(), validator, '1.0')).toThrow(A2uiCatalogError);
     expect(() =>
-      readRendererCapabilities({[A2UI_RENDERER_CAPABILITIES_KEY]: new Map()}, '1.0'),
+      readRendererCapabilities({[A2UI_RENDERER_CAPABILITIES_KEY]: new Map()}, validator, '1.0'),
     ).toThrow(A2uiCatalogError);
     expect(() =>
-      readRendererCapabilities({[A2UI_RENDERER_CAPABILITIES_KEY]: {'1.0': new Date()}}, '1.0'),
+      readRendererCapabilities(
+        {[A2UI_RENDERER_CAPABILITIES_KEY]: {'1.0': new Date()}},
+        validator,
+        '1.0',
+      ),
     ).toThrow(A2uiCatalogError);
   });
 });
@@ -187,7 +199,7 @@ describeSuite(
     assertKnownKeys(args, ARGS_KEYS, 'read_renderer_capabilities args');
 
     const version = args.version as string;
-    const read = () => readRendererCapabilities(args.metadata ?? null, version);
+    const read = () => readRendererCapabilities(args.metadata ?? null, validator, version);
 
     if (testCase.expect_error) {
       assertExpectedError(read, testCase);

@@ -61,6 +61,7 @@ import {
   forEachSuiteVersion,
   loadCatalogEntry,
 } from './suite-helpers.js';
+import {validator} from '../helpers/validator.js';
 
 const CONFORMANCE_SURFACE_ID = 'default_surface';
 const DEFAULT_CATALOG = 'test_data/catalogs/simplified_catalog_v1_0.json';
@@ -225,13 +226,13 @@ function makeFormat(args: Record<string, unknown>, lower = false): InferenceForm
   const formatName = (args.format as string) ?? 'express';
 
   if (formatName === 'express') {
-    return new ExpressFormat(catalogs, {
+    return new ExpressFormat(catalogs, validator, {
       surfaceId: CONFORMANCE_SURFACE_ID,
       examples,
     });
   }
   if (formatName === 'direct_json') {
-    return new DirectJsonFormat(catalogs, examples);
+    return new DirectJsonFormat(catalogs, validator, examples);
   }
   throw new Error(`Unsupported format: ${formatName}`);
 }
@@ -253,7 +254,7 @@ function sortComponentsById(
     if (!msg || typeof msg !== 'object') {
       return msg;
     }
-    const cloned = structuredClone(msg) as Record<string, unknown>;
+    const cloned = structuredClone(msg) as unknown as Record<string, unknown>;
     for (const key of ['createSurface', 'updateComponents']) {
       const body = cloned[key] as Record<string, unknown> | undefined;
       if (body && Array.isArray(body.components)) {
@@ -457,7 +458,7 @@ function runFormatCase(testCase: LoadedCase, version: SuiteVersion = 'v1.0'): vo
       ? makeFactory(args.format_override as string)
       : undefined;
 
-    const generator = new A2uiGenerator(configs, examples, baseFactory);
+    const generator = new A2uiGenerator(configs, validator, examples, baseFactory);
 
     const rawCapabilities = args.renderer_capabilities as
       | Record<string, RendererCapabilities>

@@ -32,9 +32,10 @@ import {
   RendererToAgentMessageProcessor,
   RpcErrorCode,
 } from '../../src/index.js';
+import {validator} from '../helpers/validator.js';
 
 function catalogWith(id: string, ...agentFunctions: AgentFunction[]): CatalogApi {
-  return new Catalog(id, '1.0', [], []).copyWith({agentFunctions});
+  return new Catalog(id, '1.0', [], [], {validator}).copyWith({agentFunctions});
 }
 
 function call(
@@ -130,7 +131,10 @@ describe('RendererToAgentMessageProcessor', () => {
 
   describe('callAgentFunction', () => {
     test('runs the handler with defaulted arguments and the call context', async () => {
-      const processor = new RendererToAgentMessageProcessor({catalogs: [catalogWith('cat', echo)]});
+      const processor = new RendererToAgentMessageProcessor({
+        validator,
+        catalogs: [catalogWith('cat', echo)],
+      });
 
       const body = onlyResponse(
         await processor.processMessage(
@@ -156,6 +160,7 @@ describe('RendererToAgentMessageProcessor', () => {
       });
       const noop = new AgentFunction({name: 'noop', returnType: 'void', handler: () => undefined});
       const processor = new RendererToAgentMessageProcessor({
+        validator,
         catalogs: [catalogWith('cat', sync, oneArg, noop)],
       });
 
@@ -174,6 +179,7 @@ describe('RendererToAgentMessageProcessor', () => {
       const inB = new AgentFunction({name: 'whoAmI', handler: () => 'b'});
       const onlyB = new AgentFunction({name: 'onlyB', handler: (_args, ctx) => ctx.catalogId});
       const processor = new RendererToAgentMessageProcessor({
+        validator,
         catalogs: [catalogWith('a', inA), catalogWith('b', inB, onlyB)],
       });
 
@@ -197,7 +203,7 @@ describe('RendererToAgentMessageProcessor', () => {
         [],
         [{name: 'formatRate', returnType: 'string', schema: echo.schema}],
       ).copyWith({agentFunctions: [echo]});
-      const processor = new RendererToAgentMessageProcessor({catalogs: [catalog]});
+      const processor = new RendererToAgentMessageProcessor({validator, catalogs: [catalog]});
 
       for (const message of [
         call('echo', {catalogId: 'nope'}),
@@ -222,7 +228,7 @@ describe('RendererToAgentMessageProcessor', () => {
       });
       const catalog = catalogWith('cat', fn);
       (fn as {allowedCallers: string}).allowedCallers = 'agentOnly';
-      const processor = new RendererToAgentMessageProcessor({catalogs: [catalog]});
+      const processor = new RendererToAgentMessageProcessor({validator, catalogs: [catalog]});
 
       const body = onlyResponse(await processor.processMessage(call('agentOnlyFn')));
 
@@ -231,7 +237,10 @@ describe('RendererToAgentMessageProcessor', () => {
     });
 
     test('replies INVALID_FUNCTION_CALL for arguments that fail validation', async () => {
-      const processor = new RendererToAgentMessageProcessor({catalogs: [catalogWith('cat', echo)]});
+      const processor = new RendererToAgentMessageProcessor({
+        validator,
+        catalogs: [catalogWith('cat', echo)],
+      });
 
       for (const args of [{}, {text: 1}, {text: 'hi', extra: true}]) {
         const body = onlyResponse(await processor.processMessage(call('echo', {args})));
@@ -254,6 +263,7 @@ describe('RendererToAgentMessageProcessor', () => {
         },
       });
       const processor = new RendererToAgentMessageProcessor({
+        validator,
         catalogs: [catalogWith('cat', greet)],
       });
 
@@ -270,6 +280,7 @@ describe('RendererToAgentMessageProcessor', () => {
         handler: args => args,
       });
       const processor = new RendererToAgentMessageProcessor({
+        validator,
         catalogs: [catalogWith('cat', store)],
       });
       const args = {record: {'@type': 'x', '@path': '/a', nested: {'@call': 'f'}}};
@@ -292,6 +303,7 @@ describe('RendererToAgentMessageProcessor', () => {
         handler: args => args,
       });
       const processor = new RendererToAgentMessageProcessor({
+        validator,
         catalogs: [catalogWith('cat', tally)],
       });
 
@@ -326,6 +338,7 @@ describe('RendererToAgentMessageProcessor', () => {
         },
       });
       const processor = new RendererToAgentMessageProcessor({
+        validator,
         catalogs: [catalogWith('cat', rateLimited, broken, throwsString)],
       });
 
@@ -350,6 +363,7 @@ describe('RendererToAgentMessageProcessor', () => {
         handler: () => new Promise(resolve => setTimeout(() => resolve('done'), 1000)),
       });
       const processor = new RendererToAgentMessageProcessor({
+        validator,
         catalogs: [catalogWith('cat', slow)],
         agentFunctionTimeoutMs: 20,
       });
@@ -366,6 +380,7 @@ describe('RendererToAgentMessageProcessor', () => {
     test('clears the timeout when the handler finishes first', async () => {
       vi.useFakeTimers();
       const processor = new RendererToAgentMessageProcessor({
+        validator,
         catalogs: [catalogWith('cat', new AgentFunction({name: 'fast', handler: () => 'ok'}))],
         agentFunctionTimeoutMs: 1000,
       });
@@ -380,7 +395,10 @@ describe('RendererToAgentMessageProcessor', () => {
         name: 'slow',
         handler: () => new Promise(resolve => setTimeout(() => resolve('done'), 60_000)),
       });
-      const processor = new RendererToAgentMessageProcessor({catalogs: [catalogWith('cat', slow)]});
+      const processor = new RendererToAgentMessageProcessor({
+        validator,
+        catalogs: [catalogWith('cat', slow)],
+      });
 
       const pending = processor.processMessage(call('slow'));
       await vi.advanceTimersByTimeAsync(60_000);
@@ -396,6 +414,7 @@ describe('RendererToAgentMessageProcessor', () => {
         },
       });
       const processor = new RendererToAgentMessageProcessor({
+        validator,
         catalogs: [catalogWith('cat', strict)],
       });
 
@@ -415,6 +434,7 @@ describe('RendererToAgentMessageProcessor', () => {
       });
       for (const agentFunctionTimeoutMs of [undefined, 30_000]) {
         const processor = new RendererToAgentMessageProcessor({
+          validator,
           catalogs: [catalogWith('cat', upstream)],
           agentFunctionTimeoutMs,
         });
@@ -438,7 +458,10 @@ describe('RendererToAgentMessageProcessor', () => {
           return 1;
         },
       });
-      const processor = new RendererToAgentMessageProcessor({catalogs: [catalogWith('cat', fn)]});
+      const processor = new RendererToAgentMessageProcessor({
+        validator,
+        catalogs: [catalogWith('cat', fn)],
+      });
 
       const body = onlyResponse(
         await processor.processMessage({
@@ -461,24 +484,33 @@ describe('RendererToAgentMessageProcessor', () => {
       expect(
         () =>
           new RendererToAgentMessageProcessor({
+            validator,
             catalogs: [catalogWith('cat', echo), new Catalog('cat', '1.0', [], [])],
           }),
       ).toThrow(A2uiCatalogError);
       expect(
-        () => new RendererToAgentMessageProcessor({catalogs: [catalogWith('a'), catalogWith('b')]}),
+        () =>
+          new RendererToAgentMessageProcessor({
+            validator,
+            catalogs: [catalogWith('a'), catalogWith('b')],
+          }),
       ).not.toThrow();
     });
 
     test('rejects a timeout that is not greater than 0', () => {
       for (const agentFunctionTimeoutMs of [0, -50, Number.NaN, Number.POSITIVE_INFINITY]) {
         expect(
-          () => new RendererToAgentMessageProcessor({catalogs: [], agentFunctionTimeoutMs}),
+          () =>
+            new RendererToAgentMessageProcessor({validator, catalogs: [], agentFunctionTimeoutMs}),
         ).toThrow(RangeError);
       }
     });
 
     test('raises a validation error for a missing or empty functionCallId', async () => {
-      const processor = new RendererToAgentMessageProcessor({catalogs: [catalogWith('cat', echo)]});
+      const processor = new RendererToAgentMessageProcessor({
+        validator,
+        catalogs: [catalogWith('cat', echo)],
+      });
 
       await expect(
         processor.processMessage(call('echo', {functionCallId: ''})),
@@ -502,7 +534,10 @@ describe('RendererToAgentMessageProcessor', () => {
           ran = true;
         },
       });
-      const processor = new RendererToAgentMessageProcessor({catalogs: [catalogWith('cat', fn)]});
+      const processor = new RendererToAgentMessageProcessor({
+        validator,
+        catalogs: [catalogWith('cat', fn)],
+      });
 
       const body = onlyResponse(
         await processor.processMessage(call('tracked', {surfaceId: '', functionCallId: 'c-9'})),
@@ -515,7 +550,10 @@ describe('RendererToAgentMessageProcessor', () => {
     });
 
     test('replies INVALID_FUNCTION_CALL for a malformed call that carries a functionCallId', async () => {
-      const processor = new RendererToAgentMessageProcessor({catalogs: [catalogWith('cat', echo)]});
+      const processor = new RendererToAgentMessageProcessor({
+        validator,
+        catalogs: [catalogWith('cat', echo)],
+      });
       const body = (extra: Record<string, unknown>) => ({
         surfaceId: 's1',
         functionCallId: 'c-bad',
@@ -559,6 +597,7 @@ describe('RendererToAgentMessageProcessor', () => {
       test(`passes a valid ${kind} to ${option} and awaits it`, async () => {
         const received: unknown[] = [];
         const processor = new RendererToAgentMessageProcessor({
+          validator,
           catalogs: [],
           [option]: async (m: unknown) => {
             await new Promise(resolve => setTimeout(resolve, 5));
@@ -573,7 +612,7 @@ describe('RendererToAgentMessageProcessor', () => {
       });
 
       test(`leaves a ${kind} unhandled, without validating it, when ${option} is not set`, async () => {
-        const processor = new RendererToAgentMessageProcessor({catalogs: []});
+        const processor = new RendererToAgentMessageProcessor({validator, catalogs: []});
 
         expect(await processor.processMessage(message)).toEqual({handled: false, replies: []});
         expect(await processor.processMessage({version: '1.0', ...malformed})).toEqual({
@@ -584,7 +623,11 @@ describe('RendererToAgentMessageProcessor', () => {
 
       test(`raises a validation error for a malformed ${kind} when ${option} is set`, async () => {
         const callback = vi.fn();
-        const processor = new RendererToAgentMessageProcessor({catalogs: [], [option]: callback});
+        const processor = new RendererToAgentMessageProcessor({
+          validator,
+          catalogs: [],
+          [option]: callback,
+        });
 
         await expect(
           processor.processMessage({version: '1.0', ...malformed}),
@@ -602,6 +645,7 @@ describe('RendererToAgentMessageProcessor', () => {
         test(`leaves a ${kind} unhandled when ${option} returns ${label}`, async () => {
           const received: unknown[] = [];
           const processor = new RendererToAgentMessageProcessor({
+            validator,
             catalogs: [],
             [option]: (m: unknown) => {
               received.push(m);
@@ -617,6 +661,7 @@ describe('RendererToAgentMessageProcessor', () => {
       test(`handles a ${kind} when ${option} returns true or nothing`, async () => {
         for (const returned of [true, undefined, Promise.resolve(true), Promise.resolve()]) {
           const processor = new RendererToAgentMessageProcessor({
+            validator,
             catalogs: [],
             [option]: () => returned,
           });
@@ -626,6 +671,7 @@ describe('RendererToAgentMessageProcessor', () => {
 
       test(`propagates an error thrown by ${option}`, async () => {
         const processor = new RendererToAgentMessageProcessor({
+          validator,
           catalogs: [],
           [option]: () => {
             throw new Error(`${kind} failed`);
@@ -639,7 +685,7 @@ describe('RendererToAgentMessageProcessor', () => {
 
   describe('other messages', () => {
     test('raises a validation error for a message that is not an object', async () => {
-      const processor = new RendererToAgentMessageProcessor({catalogs: []});
+      const processor = new RendererToAgentMessageProcessor({validator, catalogs: []});
 
       for (const message of ['text', 42, null, undefined, [ACTION]]) {
         await expect(processor.processMessage(message)).rejects.toBeInstanceOf(A2uiValidationError);
@@ -649,11 +695,12 @@ describe('RendererToAgentMessageProcessor', () => {
     test("raises a validation error for a message whose version isn't '1.0'", async () => {
       const onAction = vi.fn();
       const processor = new RendererToAgentMessageProcessor({
+        validator,
         catalogs: [catalogWith('cat', echo)],
         onAction,
       });
-      const withoutVersion = (message: Record<string, unknown>) => {
-        const copy = {...message};
+      const withoutVersion = (message: object) => {
+        const copy: Record<string, unknown> = {...message};
         delete copy['version'];
         return copy;
       };
@@ -675,7 +722,7 @@ describe('RendererToAgentMessageProcessor', () => {
       }
       // Checked even when the kind's callback isn't set.
       await expect(
-        new RendererToAgentMessageProcessor({catalogs: []}).processMessage({
+        new RendererToAgentMessageProcessor({validator, catalogs: []}).processMessage({
           ...ERROR,
           version: 'v1.0',
         }),
@@ -684,7 +731,11 @@ describe('RendererToAgentMessageProcessor', () => {
     });
 
     test('raises a validation error for an unknown message key or none', async () => {
-      const processor = new RendererToAgentMessageProcessor({catalogs: [], onAction: vi.fn()});
+      const processor = new RendererToAgentMessageProcessor({
+        validator,
+        catalogs: [],
+        onAction: vi.fn(),
+      });
 
       await expect(
         processor.processMessage({version: '1.0', updateComponents: {}}),
@@ -697,6 +748,7 @@ describe('RendererToAgentMessageProcessor', () => {
     test('raises a validation error for more than one message key', async () => {
       const onAction = vi.fn();
       const processor = new RendererToAgentMessageProcessor({
+        validator,
         catalogs: [catalogWith('cat', echo)],
         onAction,
       });
@@ -711,7 +763,7 @@ describe('RendererToAgentMessageProcessor', () => {
         processor.processMessage({...call('echo', {args: {text: 'hi'}}), extra: 1}),
       ).rejects.toBeInstanceOf(A2uiValidationError);
       await expect(
-        new RendererToAgentMessageProcessor({catalogs: []}).processMessage({
+        new RendererToAgentMessageProcessor({validator, catalogs: []}).processMessage({
           ...ACTION,
           extra: 1,
         }),

@@ -16,12 +16,18 @@
 
 import {InferenceFormat, InferenceFormatFactory} from '../inference-format.js';
 import {ExpressFormatFactory} from '../inference-formats/express/format.js';
-import {A2uiCatalogError, AgentToRendererMessage, CatalogApi} from '../internal/web-core.js';
+import {
+  A2uiCatalogError,
+  AgentToRendererMessage,
+  CatalogApi,
+  type JsonSchemaValidator,
+} from '../internal/web-core.js';
 import {ContinuingStreamOptions, ParseOptions, Parser, StreamOptions} from '../parser/parser.js';
 import {ResponsePart, StreamPart} from '../parser/response-part.js';
 import {ResponseStream} from '../parser/response-stream.js';
 import {toReleaseLine, toWireProtocolVersion} from '../utils/protocol-version.js';
 import {RendererState} from '../utils/renderer-state.js';
+import {requireValidator} from '../utils/validator.js';
 
 /** Options for a request processor. */
 export interface A2uiRequestProcessorOptions {
@@ -43,20 +49,25 @@ export class A2uiRequestProcessor {
 
   /**
    * @param catalogs The negotiated catalogs active for this request.
+   * @param validator The JSON Schema validator responses are checked with, such as
+   *     `createAjvValidator()` from `@a2ui/validator-ajv`.
    * @param _examples Prompt examples, keyed by name.
    * @param formatFactory The inference format. Express by default.
    * @param options The renderer state to bind, if any.
+   * @throws {A2uiConfigurationError} If no validator is given.
    * @throws {A2uiCatalogError} If `options.state` holds other catalogs than `catalogs`.
    */
   constructor(
     catalogs: CatalogApi[],
+    readonly validator: JsonSchemaValidator,
     private readonly _examples?: Record<string, AgentToRendererMessage[] | string>,
     formatFactory?: InferenceFormatFactory,
     options: A2uiRequestProcessorOptions = {},
   ) {
+    requireValidator(validator, 'A2uiRequestProcessor');
     this._catalogs = [...catalogs];
     const factory = formatFactory || new ExpressFormatFactory();
-    this._format = factory.createFormat([...this._catalogs], _examples);
+    this._format = factory.createFormat([...this._catalogs], validator, _examples);
     this.checkState(options.state);
     this._state = options.state;
   }
@@ -102,7 +113,7 @@ export class A2uiRequestProcessor {
    * `parseResponse` or `openStream` on every turn, or binds it to the processor.
    */
   createState(): RendererState {
-    return new RendererState(this._catalogs);
+    return new RendererState(this._catalogs, this.validator);
   }
 
   /**

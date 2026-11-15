@@ -54,6 +54,7 @@ import {
   KNOWN_FAILURES,
   UNSUPPORTED,
 } from './suite-helpers.js';
+import {validator} from '../helpers/validator.js';
 
 const CONFORMANCE_SURFACE_ID = 'default_surface';
 const DEFAULT_CATALOG = 'test_data/catalogs/simplified_catalog_v1_0.json';
@@ -193,10 +194,12 @@ async function getParser(
   const catalogs = catalogSpecs.map(spec =>
     typeof spec === 'string'
       ? loadCatalogFromRelativePath(spec, lower)
-      : Catalog.fromJson(lower ? lowerCatalogDocument(spec) : spec),
+      : Catalog.fromJson(lower ? lowerCatalogDocument(spec) : spec, undefined, undefined, {
+          validator,
+        }),
   );
 
-  return new ExpressParser(catalogs, CONFORMANCE_SURFACE_ID);
+  return new ExpressParser(catalogs, validator, CONFORMANCE_SURFACE_ID);
 }
 
 function assertRawPartsMatch(
@@ -392,7 +395,7 @@ forEachSuiteVersion(
         const fullPath = resolve(CONFORMANCE_ROOT, entry.catalog);
         const rawSchema = JSON.parse(readFileSync(fullPath, 'utf8')) as Record<string, unknown>;
         const schema = isLowered ? lowerCatalogDocument(rawSchema) : rawSchema;
-        let catalog = Catalog.fromJson(schema);
+        let catalog = Catalog.fromJson(schema, undefined, undefined, {validator});
 
         if (entry.transformers) {
           for (const trans of entry.transformers) {
@@ -425,7 +428,7 @@ forEachSuiteVersion(
       }
 
       const buildFormat = () =>
-        new ExpressFormat(loadedCatalogs, {
+        new ExpressFormat(loadedCatalogs, validator, {
           surfaceId: CONFORMANCE_SURFACE_ID,
           examples,
           allowedMessages: args.allowed_messages as string[] | undefined,

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
+import {fromJsonSchema} from '@a2ui/web_core/schema-engine';
 import {describe, expect, it, vi} from 'vitest';
-import {z} from 'zod';
 
 import {
   A2uiCatalogError,
@@ -27,6 +27,7 @@ import {
 } from '../../../src/index.js';
 import {Catalog, MessageProcessor} from '../../../src/internal/web-core.js';
 import {BASIC_CATALOG_IDS, loadBasicCatalog} from '../../helpers/basic-catalogs.js';
+import {validator} from '../../helpers/validator.js';
 
 type Message = Record<string, unknown>;
 type Component = Record<string, unknown>;
@@ -81,7 +82,7 @@ function snapshot(state: RendererState): Record<string, unknown> {
 
 /** A state holding a surface whose root column shows one text. */
 function canvas(): RendererState {
-  const state = new RendererState([BASIC]);
+  const state = new RendererState([BASIC], validator);
   turn(state, CREATE, update(column(['a']), text('a')));
   return state;
 }
@@ -100,7 +101,7 @@ describe('RendererState', () => {
     const payload = [update(column(['a', 'missing']))];
 
     // Checked on its own, the update may refer to anything the renderer holds.
-    validatePayload([BASIC], payload);
+    validatePayload([BASIC], validator, payload);
     expect(() => turn(state, ...payload)).toThrow(A2uiIntegrityError);
     expect(() => turn(state, ...payload)).toThrow(/Dangling reference/);
   });
@@ -130,7 +131,7 @@ describe('RendererState', () => {
   });
 
   it('rejects one payload that adds a component it leaves unreachable', () => {
-    const state = new RendererState([BASIC]);
+    const state = new RendererState([BASIC], validator);
 
     expect(() =>
       turn(state, CREATE, update(column(['a']), text('a')), update(column(['b']), text('b'))),
@@ -155,7 +156,7 @@ describe('RendererState', () => {
   });
 
   it('rejects an update to a surface it never saw created', () => {
-    const state = new RendererState([BASIC]);
+    const state = new RendererState([BASIC], validator);
 
     expect(() => state.apply(update(column(['a'])))).toThrow(A2uiIntegrityError);
     expect(() => state.apply(update(column(['a'])))).toThrow(/Surface not found/);
@@ -163,7 +164,7 @@ describe('RendererState', () => {
   });
 
   it('returns the surfaces the messages touch, in order', () => {
-    const state = new RendererState([BASIC]);
+    const state = new RendererState([BASIC], validator);
     const other: Message = {
       version: 'v0.9',
       createSurface: {surfaceId: 'other', catalogId: BASIC_CATALOG_IDS['v0.9']},
@@ -189,7 +190,7 @@ describe('RendererState', () => {
   });
 
   it('restores every call inside a failed transaction', () => {
-    const state = new RendererState([BASIC]);
+    const state = new RendererState([BASIC], validator);
 
     expect(() =>
       state.transaction(() => {
@@ -202,7 +203,7 @@ describe('RendererState', () => {
   });
 
   it('keeps the calls of a successful transaction and returns its result', () => {
-    const state = new RendererState([BASIC]);
+    const state = new RendererState([BASIC], validator);
 
     const result = state.transaction(inner => {
       inner.apply(CREATE);
@@ -214,7 +215,7 @@ describe('RendererState', () => {
   });
 
   it('rejects an asynchronous transaction and restores the state', () => {
-    const state = new RendererState([BASIC]);
+    const state = new RendererState([BASIC], validator);
 
     expect(() =>
       // @ts-expect-error The type of `fn` rejects a promise; JavaScript callers hit the runtime check.
@@ -226,14 +227,16 @@ describe('RendererState', () => {
   });
 
   it('rejects catalogs of incompatible versions', () => {
-    expect(() => new RendererState([BASIC, loadBasicCatalog('1.0')])).toThrow(A2uiCatalogError);
-    expect(() => new RendererState([BASIC, loadBasicCatalog('1.0')])).toThrow(
+    expect(() => new RendererState([BASIC, loadBasicCatalog('1.0')], validator)).toThrow(
+      A2uiCatalogError,
+    );
+    expect(() => new RendererState([BASIC, loadBasicCatalog('1.0')], validator)).toThrow(
       /incompatible protocol versions/,
     );
   });
 
   it('rejects an empty catalog list', () => {
-    expect(() => new RendererState([])).toThrow(A2uiCatalogError);
+    expect(() => new RendererState([], validator)).toThrow(A2uiCatalogError);
   });
 
   it('rejects a message that states the wrong version', () => {
@@ -449,7 +452,7 @@ describe('RendererState', () => {
   it('restores the components of a v1.0 surface from several catalogs', () => {
     const primary = v10Catalog('urn:primary', 'Panel');
     const extra = v10Catalog('urn:extra', 'Badge');
-    const state = new RendererState([primary, extra]);
+    const state = new RendererState([primary, extra], validator);
     state.apply([
       {version: '1.0', createSurface: {surfaceId: 's', catalogId: 'urn:primary'}},
       {
@@ -515,7 +518,7 @@ describe('RendererState', () => {
   });
 
   it('restores the order of the components after an undone deleteSurface', () => {
-    const state = new RendererState([BASIC]);
+    const state = new RendererState([BASIC], validator);
     turn(state, CREATE, update(column(['b', 'a']), text('b'), text('a')));
     const before = order(state);
 
@@ -525,7 +528,7 @@ describe('RendererState', () => {
   });
 
   it('keeps the position of a component whose type change is undone', () => {
-    const state = new RendererState([BASIC]);
+    const state = new RendererState([BASIC], validator);
     state.apply([CREATE, update(column(['a', 'b']), column(['x'], 'a'), column(['y'], 'b'))]);
     const before = order(state);
     const firstProblem = () => {
@@ -545,7 +548,7 @@ describe('RendererState', () => {
   });
 
   it('keeps the order when an update in place is undone after a later deleteSurface', () => {
-    const state = new RendererState([BASIC]);
+    const state = new RendererState([BASIC], validator);
     state.apply([CREATE, update(column(['a', 'b']), text('a'), text('b'))]);
     const before = order(state);
 
@@ -556,7 +559,7 @@ describe('RendererState', () => {
   });
 
   it('keeps the order when an update in place is undone after a later type change', () => {
-    const state = new RendererState([BASIC]);
+    const state = new RendererState([BASIC], validator);
     state.apply([CREATE, update(column(['a', 'b']), text('a'), text('b'))]);
     const before = order(state);
 
@@ -569,7 +572,7 @@ describe('RendererState', () => {
   });
 
   it('keeps the positions of several components whose type changes one message undoes', () => {
-    const state = new RendererState([BASIC]);
+    const state = new RendererState([BASIC], validator);
     turn(
       state,
       CREATE,
@@ -595,7 +598,7 @@ describe('RendererState', () => {
   it('keeps the position of a v1.0 component whose catalog change is undone', () => {
     const primary = v10Catalog('urn:primary', 'Panel', 'Badge');
     const extra = v10Catalog('urn:extra', 'Badge');
-    const state = new RendererState([primary, extra]);
+    const state = new RendererState([primary, extra], validator);
     const v10Update = (...components: Component[]): Message => ({
       version: '1.0',
       updateComponents: {surfaceId: 's', components},
@@ -706,9 +709,9 @@ describe('RendererState', () => {
   it('rejects catalogs of a protocol version it does not support', () => {
     const v08 = new Catalog('urn:x', 'v0.8', []);
 
-    expect(() => new RendererState([v08])).toThrow(A2uiCatalogError);
+    expect(() => new RendererState([v08], validator)).toThrow(A2uiCatalogError);
     expect(() =>
-      validatePayload([v08], [{version: 'v0.8', deleteSurface: {surfaceId: 's'}}]),
+      validatePayload([v08], validator, [{version: 'v0.8', deleteSurface: {surfaceId: 's'}}]),
     ).toThrow(A2uiCatalogError);
   });
 });
@@ -748,6 +751,7 @@ function v10Catalog(catalogId: string, ...components: string[]) {
         ]),
       ),
     },
+    validator,
     '1.0',
   ).load();
 }
@@ -762,7 +766,7 @@ describe('RendererState.of', () => {
         name: 'ping',
         returnType: 'string',
         allowedCallers: 'rendererOrAgent',
-        schema: z.object({}),
+        schema: fromJsonSchema({type: 'object'}, validator),
         execute: () => 'pong',
       },
     ],
@@ -777,7 +781,7 @@ describe('RendererState.of', () => {
 
   /** A renderer's processor, and the calls its RPC handler receives. */
   function renderer(catalogs: Catalog<never>[]): {processor: MessageProcessor; calls: unknown[]} {
-    const processor = new MessageProcessor(catalogs);
+    const processor = new MessageProcessor(catalogs, undefined, {validator});
     const calls: unknown[] = [];
     vi.spyOn(processor.rpc, 'handleCallRendererFunction').mockImplementation(message => {
       calls.push(message);
@@ -788,7 +792,7 @@ describe('RendererState.of', () => {
 
   it("applies the messages it accepts to the processor's model", () => {
     const {processor} = renderer([BASIC as never]);
-    const state = RendererState.of(processor);
+    const state = RendererState.of(processor, validator);
 
     turn(state, CREATE, update(column(['t']), text('t')));
 
@@ -802,7 +806,7 @@ describe('RendererState.of', () => {
 
   it("checks messages by its own rules, whatever the processor's", () => {
     const {processor} = renderer([BASIC as never]);
-    const state = RendererState.of(processor);
+    const state = RendererState.of(processor, validator);
     state.apply(CREATE);
 
     expect(() => state.apply(update({id: 'root', component: 'Bogus'}))).toThrow(
@@ -816,7 +820,7 @@ describe('RendererState.of', () => {
 
   it("takes a rolled-back message back out of the processor's model", () => {
     const {processor} = renderer([BASIC as never]);
-    const state = RendererState.of(processor);
+    const state = RendererState.of(processor, validator);
 
     expect(() =>
       state.transaction(() => {
@@ -830,7 +834,7 @@ describe('RendererState.of', () => {
 
   it('runs a function call once the outermost transaction succeeds', () => {
     const {processor, calls} = renderer([FN_CATALOG as never]);
-    const state = RendererState.of(processor);
+    const state = RendererState.of(processor, validator);
 
     state.transaction(() => {
       state.apply(CALL);
@@ -842,7 +846,7 @@ describe('RendererState.of', () => {
 
   it('never runs a function call that a failed transaction applied', () => {
     const {processor, calls} = renderer([FN_CATALOG as never]);
-    const state = RendererState.of(processor);
+    const state = RendererState.of(processor, validator);
 
     expect(() =>
       state.transaction(() => {
@@ -857,7 +861,7 @@ describe('RendererState.of', () => {
 
   it('runs a function call that a failed inner transaction did not apply', () => {
     const {processor, calls} = renderer([FN_CATALOG as never]);
-    const state = RendererState.of(processor);
+    const state = RendererState.of(processor, validator);
 
     state.transaction(() => {
       state.apply(CALL);
@@ -873,6 +877,8 @@ describe('RendererState.of', () => {
   });
 
   it("rejects a processor whose catalogs can't make a state", () => {
-    expect(() => RendererState.of(new MessageProcessor([]))).toThrow(A2uiCatalogError);
+    expect(() =>
+      RendererState.of(new MessageProcessor([], undefined, {validator}), validator),
+    ).toThrow(A2uiCatalogError);
   });
 });
