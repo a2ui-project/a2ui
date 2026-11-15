@@ -27,6 +27,7 @@ import {
   Catalog,
   type CatalogApi,
   type ErrorMessage,
+  type JsonSchemaValidator,
   type ProcessResult,
   type RendererFunctionResponseMessage,
   RendererToAgentMessageProcessor,
@@ -35,7 +36,7 @@ import {
 import {validator} from '../helpers/validator.js';
 
 function catalogWith(id: string, ...agentFunctions: AgentFunction[]): CatalogApi {
-  return new Catalog(id, '1.0', [], [], {validator}).copyWith({agentFunctions});
+  return new Catalog(id, '1.0', [], []).copyWith({agentFunctions});
 }
 
 function call(
@@ -149,6 +150,72 @@ describe('RendererToAgentMessageProcessor', () => {
           context: {catalogId: 'cat', surfaceId: 's1', functionCallId: 'Call_ABC-1'},
         },
       });
+    });
+
+    test('checks plain JSON Schema arguments with its validator, in a catalog built without one', async () => {
+      const compiled: unknown[] = [];
+      const spying: JsonSchemaValidator = {
+        compile: (schema, opts) => {
+          compiled.push(schema);
+          return validator.compile(schema, opts);
+        },
+      };
+      const shout = new AgentFunction({
+        name: 'shout',
+        returnType: 'string',
+        schema: {
+          type: 'object',
+          properties: {text: {type: 'string'}},
+          required: ['text'],
+          additionalProperties: false,
+        },
+        handler: args => String(args['text']).toUpperCase(),
+      });
+      const catalog = new Catalog('plain', '1.0', [], []).copyWith({agentFunctions: [shout]});
+      const processor = new RendererToAgentMessageProcessor({
+        validator: spying,
+        catalogs: [catalog],
+      });
+
+      const ok = onlyResponse(
+        await processor.processMessage(
+          call('shout', {catalogId: 'plain', args: {text: 'hi'}, functionCallId: 'c1'}),
+        ),
+      );
+      expect(ok).toEqual({functionCallId: 'c1', value: 'HI'});
+      expect(compiled.length).toBeGreaterThan(0);
+
+      const bad = onlyResponse(
+        await processor.processMessage(
+          call('shout', {catalogId: 'plain', args: {text: 3}, functionCallId: 'c2'}),
+        ),
+      );
+      expect(bad).toMatchObject({functionCallId: 'c2', error: {code: 'INVALID_FUNCTION_CALL'}});
+      expect(JSON.stringify(bad)).not.toContain('no JsonSchemaValidator');
+    });
+
+    test('keeps the validator a catalog was given over its own', async () => {
+      const compiledByProcessor: unknown[] = [];
+      const processorValidator: JsonSchemaValidator = {
+        compile: (schema, opts) => {
+          compiledByProcessor.push(schema);
+          return validator.compile(schema, opts);
+        },
+      };
+      const catalog = new Catalog('given', '1.0', [], [], {validator}).copyWith({
+        agentFunctions: [echo],
+      });
+      const processor = new RendererToAgentMessageProcessor({
+        validator: processorValidator,
+        catalogs: [catalog],
+      });
+      const body = onlyResponse(
+        await processor.processMessage(
+          call('echo', {catalogId: 'given', args: {text: 'hi'}, functionCallId: 'c3'}),
+        ),
+      );
+      expect(body).toMatchObject({functionCallId: 'c3', value: {args: {text: 'hi'}}});
+      expect(compiledByProcessor).toEqual([]);
     });
 
     test('runs sync handlers, one-argument handlers, and replies null for undefined', async () => {

@@ -23,7 +23,12 @@
  */
 
 // ./catalog
-export {AgentFunction, Catalog, isAgentFunction} from '@a2ui/web_core/catalog';
+export {
+  AgentFunction,
+  bindCatalogValidator,
+  Catalog,
+  isAgentFunction,
+} from '@a2ui/web_core/catalog';
 export type {
   AgentFunctionContext,
   AgentFunctionHandler,

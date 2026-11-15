@@ -167,7 +167,7 @@ const catalog = loaded.copyWith({
 });
 ```
 
-`RendererToAgentMessageProcessor` takes each message the renderer sends and returns whether it handled it and the messages to send back. It answers `callAgentFunction` itself, and passes `action`, `error` and `rendererFunctionResponse` messages to their callback, after checking them against the v1.0 schema with the processor's `validator`. The arguments of `callAgentFunction` are checked with the validator of the function's catalog, such as the one `Catalog.fromJson` was given. A message whose callback isn't set, or whose callback returns `false` to decline it, comes back with `handled: false`, so the app can pass it on to the model.
+`RendererToAgentMessageProcessor` takes each message the renderer sends and returns whether it handled it and the messages to send back. It answers `callAgentFunction` itself, and passes `action`, `error` and `rendererFunctionResponse` messages to their callback, after checking them against the v1.0 schema with the processor's `validator`. The arguments of `callAgentFunction` are checked with the processor's `validator` too, unless the function's catalog was given its own (such as the one `Catalog.fromJson` was given). A message whose callback isn't set, or whose callback returns `false` to decline it, comes back with `handled: false`, so the app can pass it on to the model.
 
 ```ts
 const messages = new RendererToAgentMessageProcessor({

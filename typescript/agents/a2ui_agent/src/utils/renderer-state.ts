@@ -213,7 +213,9 @@ export class RendererState {
    *
    * @param processor The renderer's processor. Its catalogs are the state's catalogs.
    * @param validator The JSON Schema validator the state checks messages with before it
-   *     applies them to `processor`, typically the one the processor was created with.
+   *     applies them to `processor`. It must be the validator `processor` was created with
+   *     (its `MessageProcessorOptions.validator`), so the state accepts exactly what the
+   *     processor accepts; web_core does not expose a processor's validator to check this.
    * @throws {A2uiConfigurationError} If no validator is given.
    * @throws {A2uiCatalogError} If the processor's catalogs could not make a state, as for the
    *     constructor.

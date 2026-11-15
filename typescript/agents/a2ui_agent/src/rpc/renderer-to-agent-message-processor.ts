@@ -18,6 +18,7 @@ import {
   A2uiValidationError,
   type ActionMessage,
   type AgentToRendererMessage,
+  bindCatalogValidator,
   type CatalogInterface,
   type ComponentApi,
   type ErrorMessage,
@@ -72,8 +73,11 @@ export interface RendererToAgentMessageProcessorOptions {
   /** The catalogs whose `agentFunctions` answer `callAgentFunction` messages. */
   readonly catalogs: Iterable<CatalogInterface<ComponentApi, FunctionApi>>;
   /**
-   * The JSON Schema validator the `action`, `error` and `rendererFunctionResponse` messages
-   * are checked with, such as `createAjvValidator()` from `@a2ui/validator-ajv`.
+   * The JSON Schema validator the messages are checked with, such as `createAjvValidator()`
+   * from `@a2ui/validator-ajv`: the `action`, `error` and `rendererFunctionResponse` messages,
+   * and the arguments of `callAgentFunction`. As with web_core's `MessageProcessor`, it is
+   * bound to each catalog, so it wins over a validator a catalog borrows from its entries;
+   * a validator a catalog was given (`CatalogOptions.validator`, `Catalog.fromJson`) is kept.
    */
   readonly validator: JsonSchemaValidator;
   /**
@@ -144,7 +148,11 @@ export class RendererToAgentMessageProcessor {
   constructor(options: RendererToAgentMessageProcessorOptions) {
     requireValidator(options.validator, 'RendererToAgentMessageProcessorOptions.validator');
     this._validator = options.validator;
-    this._registry = new AgentFunctionRegistry(options.catalogs, {
+    const catalogs = [...options.catalogs];
+    // The catalogs' plain JSON Schemas compile with this validator unless the catalog was
+    // given one, as for a catalog registered with web_core's MessageProcessor.
+    for (const catalog of catalogs) bindCatalogValidator(catalog, options.validator, true);
+    this._registry = new AgentFunctionRegistry(catalogs, {
       timeoutMs: options.agentFunctionTimeoutMs,
     });
     this._onAction = options.onAction;
