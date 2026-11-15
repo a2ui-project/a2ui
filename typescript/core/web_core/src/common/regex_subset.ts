@@ -722,7 +722,7 @@ function hasNestedQuantifier(node: RegexNode): boolean {
  */
 function boundedRunIsAmbiguous(node: RegexNode): boolean {
   if (!nullable(node)) return false;
-  return hasMatchShorterThanItsLongest(node, new Set());
+  return hasMatchShorterThanItsLongest(node);
 }
 
 /**
@@ -730,9 +730,7 @@ function boundedRunIsAmbiguous(node: RegexNode): boolean {
  * length, so a second derivation exists exactly when a shorter match of the same string does. This
  * walks the tree looking for the place where that shorter match can come from.
  */
-function hasMatchShorterThanItsLongest(node: RegexNode, seen: ReadonlySet<RegexNode>): boolean {
-  if (seen.has(node)) return false;
-  const next = new Set(seen).add(node);
+function hasMatchShorterThanItsLongest(node: RegexNode): boolean {
   switch (node.kind) {
     case 'empty':
     case 'anchor':
@@ -740,22 +738,22 @@ function hasMatchShorterThanItsLongest(node: RegexNode, seen: ReadonlySet<RegexN
       return false;
     case 'lookahead':
     case 'group':
-      return hasMatchShorterThanItsLongest(node.child, next);
+      return hasMatchShorterThanItsLongest(node.child);
     case 'repeat':
       // `a?` adds one derivation, the empty string. A quantifier that admits a count above one adds
       // more (`a{0,2}` matches `a` and the empty string), and a repeated group multiplies them.
       if (node.max === null || node.max > 1) return true;
-      return node.min === 0 || hasMatchShorterThanItsLongest(node.child, next);
+      return node.min === 0 || hasMatchShorterThanItsLongest(node.child);
     case 'concat':
-      return node.items.every(nullable) || hasShorterMatchInAny(node.items, next);
+      return node.items.every(nullable) || hasShorterMatchInAny(node.items);
     case 'alt':
-      return node.branches.some(nullable) || hasShorterMatchInAny(node.branches, next);
+      return node.branches.some(nullable) || hasShorterMatchInAny(node.branches);
   }
 }
 
 /** True when any `part` has a match shorter than its longest, which the enclosing choice must weigh. */
-function hasShorterMatchInAny(parts: readonly RegexNode[], seen: ReadonlySet<RegexNode>): boolean {
-  return parts.some(part => hasMatchShorterThanItsLongest(part, seen));
+function hasShorterMatchInAny(parts: readonly RegexNode[]): boolean {
+  return parts.some(part => hasMatchShorterThanItsLongest(part));
 }
 
 function branchesOverlap(branches: readonly RegexNode[]): boolean {
