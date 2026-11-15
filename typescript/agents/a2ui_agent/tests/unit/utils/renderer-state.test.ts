@@ -27,6 +27,7 @@ import {
 } from '../../../src/index.js';
 import {Catalog, MessageProcessor} from '../../../src/internal/web-core.js';
 import {BASIC_CATALOG_IDS, loadBasicCatalog} from '../../helpers/basic-catalogs.js';
+import {loadConformanceCatalog} from '../../helpers/conformance-catalogs.js';
 import {validator} from '../../helpers/validator.js';
 
 type Message = Record<string, unknown>;
@@ -880,5 +881,58 @@ describe('RendererState.of', () => {
     expect(() =>
       RendererState.of(new MessageProcessor([], undefined, {validator}), validator),
     ).toThrow(A2uiCatalogError);
+  });
+});
+
+describe('the components a RendererState stores', () => {
+  // The simplified catalog's Text gives `variant` the default 'body'.
+  const SIMPLIFIED = loadConformanceCatalog('simplified_catalog_v1_0.json');
+  const messages = [
+    {version: '1.0', createSurface: {surfaceId: 's', catalogId: SIMPLIFIED.id}},
+    {
+      version: '1.0',
+      updateComponents: {
+        surfaceId: 's',
+        components: [{id: 'root', component: 'Text', text: 'Hello'}],
+      },
+    },
+  ];
+
+  it('are the components as the messages wrote them, without schema defaults', () => {
+    const state = new RendererState([SIMPLIFIED], validator);
+    state.checkTopology(state.apply(messages));
+    expect(state.getSurface('s')!.componentsModel.get('root')!.properties).toEqual({
+      text: 'Hello',
+    });
+  });
+
+  it("keep a v1.0 createSurface's own components as written", () => {
+    const state = new RendererState([SIMPLIFIED], validator);
+    state.checkTopology(
+      state.apply([
+        {
+          version: '1.0',
+          createSurface: {
+            surfaceId: 's',
+            catalogId: SIMPLIFIED.id,
+            components: [{id: 'root', component: 'Text', text: 'Hi', variant: 'caption'}],
+          },
+        },
+      ]),
+    );
+    expect(state.getSurface('s')!.componentsModel.get('root')!.properties).toEqual({
+      text: 'Hi',
+      variant: 'caption',
+    });
+  });
+
+  it("keep the renderer's validated values in a state made by RendererState.of", () => {
+    const renderer = new MessageProcessor([SIMPLIFIED as never], undefined, {validator});
+    const state = RendererState.of(renderer, validator);
+    state.checkTopology(state.apply(messages));
+    expect(renderer.model.getSurface('s')!.componentsModel.get('root')!.properties).toEqual({
+      text: 'Hello',
+      variant: 'body',
+    });
   });
 });

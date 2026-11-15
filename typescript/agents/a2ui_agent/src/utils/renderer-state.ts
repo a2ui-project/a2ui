@@ -630,6 +630,7 @@ export class RendererState {
     const undo = this.undoFor(message);
     try {
       this.processUnlogged([message]);
+      if (!this.runsCalls) this.keepAsWritten(message);
     } catch (e) {
       try {
         undo?.();
@@ -639,6 +640,50 @@ export class RendererState {
       throw e;
     }
     if (undo) this.record(undo);
+  }
+
+  /**
+   * Stores the components of an `updateComponents` (or v1.0 `createSurface`) message as the
+   * message wrote them.
+   *
+   * web_core's `MessageProcessor` stores the value each component's schema validated, schema
+   * defaults included, which is what a renderer's components receive. The state records what
+   * the agent sent, as the other SDKs' renderer states do, so a property the message left out
+   * stays out. Only a state's own processor is changed: a state made by `RendererState.of`
+   * shares the renderer's processor, whose components keep their validated values.
+   */
+  private keepAsWritten(message: Message): void {
+    // From v1.0 a `createSurface` can carry its first components too.
+    const body = bodyOf(message, 'updateComponents') ?? bodyOf(message, 'createSurface');
+    const components = body?.['components'];
+    if (typeof body?.['surfaceId'] !== 'string' || !Array.isArray(components)) return;
+    const surface = this.processor.model.getSurface(body['surfaceId']);
+    if (!surface) return;
+    for (const written of components) {
+      if (!written || typeof written !== 'object' || typeof written.id !== 'string') continue;
+      const wire = written as Message;
+      const model = surface.componentsModel.get(written.id);
+      if (!model) continue;
+      const stored = model.properties as Record<string, unknown>;
+      const asWritten: Record<string, unknown> = {};
+      let changed = false;
+      for (const [key, value] of Object.entries(stored)) {
+        if (Object.prototype.hasOwnProperty.call(wire, key)) {
+          asWritten[key] = structuredClone(wire[key]);
+          changed ||= !jsonEqual(asWritten[key], value);
+        } else if (
+          key.startsWith('@') &&
+          Object.prototype.hasOwnProperty.call(wire, key.slice(1))
+        ) {
+          // An envelope field the message wrote in its legacy bare spelling.
+          asWritten[key] = value;
+        } else {
+          // A property the schema filled in with its default.
+          changed = true;
+        }
+      }
+      if (changed) model.properties = asWritten;
+    }
   }
 
   /** Runs messages through the processor, logging nothing. */
@@ -1509,6 +1554,23 @@ function componentTypes(messages: Message[]): Set<string> {
 }
 
 /** Returns the body of a message's action, if the message holds that action. */
+/** Whether two JSON values are equal, objects compared key by key in any order. */
+function jsonEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  const aKeys = Object.keys(a);
+  const bKeys = Object.keys(b);
+  return (
+    aKeys.length === bKeys.length &&
+    aKeys.every(
+      key =>
+        Object.prototype.hasOwnProperty.call(b, key) &&
+        jsonEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]),
+    )
+  );
+}
+
 function bodyOf(message: Message, action: string): Message | undefined {
   const body = message[action];
   return body && typeof body === 'object' && !Array.isArray(body) ? (body as Message) : undefined;
