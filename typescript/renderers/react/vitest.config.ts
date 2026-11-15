@@ -25,14 +25,6 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./tests/setup.ts'],
-    server: {
-      deps: {
-        // Load the workspace's built web_core with Node's own ESM loader, as
-        // an installed package is. Its modules import each other in cycles
-        // that Vite's SSR module runner evaluates out of order.
-        external: [/\/core\/web_core\/dist\//],
-      },
-    },
     include: ['tests/**/*.test.{ts,tsx}'],
     exclude: testDist
       ? [

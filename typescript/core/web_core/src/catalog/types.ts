@@ -16,8 +16,12 @@
 
 import type {StandardSchemaV1} from '@standard-schema/spec';
 import type {ProtocolVersion} from '../processing/adapters/base.js';
-import {DataContext} from '../resolution/data-context.js';
-import {allowsAgentRouting, withActiveCallCatalogId} from '../resolution/data-context-internal.js';
+import type {DataContext} from '../resolution/data-context.js';
+import {
+  allowsAgentRouting,
+  isDataContext,
+  withActiveCallCatalogId,
+} from '../resolution/data-context-internal.js';
 import type {SurfaceModel} from '../state/surface-model.js';
 import {Signal} from '../reactivity/signals.js';
 import {A2uiCatalogError, A2uiExpressionError} from '../errors.js';
@@ -28,7 +32,6 @@ import {assertUax31Identifier} from '../common/uax31.js';
 import {SpecVersion} from '../spec_versions.js';
 import {AgentFunction, bindAgentFunctionDefs, isAgentFunction} from './agent_function.js';
 import {parseCatalogSchema, type FromJsonOptions} from './from-json.js';
-import {copyLoadedDefinition} from './loaded_definitions.js';
 import type {JsonSchemaObject} from './loaded_definitions.js';
 import {generateValidationSchema} from './schema_generator.js';
 import {
@@ -45,6 +48,7 @@ import {
 import {V08_CHILD_REF_OPTIONS} from '../v0_8/standard_defs.js';
 import {V09_CHILD_REF_OPTIONS} from '../v0_9/standard_defs.js';
 import {IndexImplementation} from '../v1_0/functions/system_functions.js';
+import {createFunctionImplementation} from './function_implementation.js';
 import {V10_CHILD_REF_OPTIONS} from '../v1_0/standard_defs.js';
 import {coerceDynamicBooleans} from './validation_result_coercion.js';
 import {
@@ -159,51 +163,9 @@ export type ResolvedDynamic<T> = T extends (infer U)[]
 export type ResolvedFunctionArgs<Schema extends AuthoredSchema> =
   StandardSchemaV1.InferOutput<Schema>;
 
-/**
- * Creates a typed FunctionImplementation from an API definition and an execution callback.
- *
- * @param api The function API definition containing name, schema, and metadata.
- * @param execute The execution handler callback.
- * @returns A complete FunctionImplementation object.
- */
-export function createFunctionImplementation<
-  Schema extends AuthoredSchema = AuthoredSchema,
-  TReturn extends A2uiReturnType = A2uiReturnType,
->(
-  api: {
-    name: string;
-    returnType: TReturn;
-    schema: Schema;
-    allowedCallers?: 'rendererOnly' | 'agentOnly' | 'rendererOrAgent';
-    requiresUserActivation?: boolean;
-    description?: string;
-  },
-  execute: (
-    args: ResolvedFunctionArgs<Schema>,
-    context: DataContext,
-    abortSignal?: AbortSignal,
-  ) => InferA2uiReturnType<TReturn> | Signal<InferA2uiReturnType<TReturn>>,
-): FunctionImplementation {
-  const implementation: FunctionImplementation = {
-    name: api.name,
-    returnType: api.returnType,
-    schema: api.schema,
-    allowedCallers: api.allowedCallers,
-    requiresUserActivation: api.requiresUserActivation,
-    description: api.description,
-    execute: execute as (
-      args: Record<string, unknown>,
-      ctx: DataContext,
-      ab?: AbortSignal,
-    ) => unknown,
-  };
-  // An implementation of a function `Catalog.fromJson` loaded keeps its
-  // definition, so `toJson` writes it as the catalog document does.
-  copyLoadedDefinition(api, implementation);
-  return implementation;
-}
+export {createFunctionImplementation};
 
-import {FunctionInvoker} from './function_invoker.js';
+import type {FunctionInvoker} from './function_invoker.js';
 
 /**
  * Contract for a component's capabilities and properties, independent of rendering implementation.
@@ -1286,7 +1248,7 @@ function createCatalogInvoker<F extends FunctionApi>(
     }
 
     const callCtx =
-      atLeastV10 && !name.startsWith('@') && catalogId && ctx instanceof DataContext
+      atLeastV10 && !name.startsWith('@') && catalogId && isDataContext(ctx)
         ? withActiveCallCatalogId(ctx, catalogId, catalog)
         : ctx;
 

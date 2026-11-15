@@ -150,7 +150,7 @@
     "test:coverage": "c8 node --test \"dist/**/*.test.js\"",
     "generate": "wireit",
     "compile": "tsc",
-    "lint": "eslint .",
+    "lint": "eslint . && node scripts/check-cycles.mjs",
     "lint:fix": "eslint . --fix",
     "fix": "gts fix",
     "format": "wireit",

@@ -15,9 +15,10 @@
  */
 
 import {unboundJsonSchema} from '../../catalog/catalog-validator.js';
-import {createFunctionImplementation, FunctionImplementation} from '../../catalog/types.js';
+import {createFunctionImplementation} from '../../catalog/function_implementation.js';
+import type {FunctionImplementation} from '../../catalog/types.js';
 import {A2uiValidationError} from '../../errors.js';
-import {resolveContextIndex} from '../../resolution/data-context.js';
+import {resolveContextIndex} from '../../resolution/context-index.js';
 
 /**
  * The arguments of the `@index` system function, as the v1.0 common types'

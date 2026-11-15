@@ -52,6 +52,7 @@ interface DataContextInternals {
   ): Signal<unknown>;
   activeCatalogId(ctx: DataContext): string | undefined;
   activeCatalog(ctx: DataContext): Catalog<any> | undefined;
+  isDataContext(value: unknown): value is DataContext;
 }
 
 let internals: DataContextInternals | undefined;
@@ -66,6 +67,18 @@ function getInternals(): DataContextInternals {
 /** Registers `DataContext`'s package-internal callbacks from its `static` initializer. */
 export function registerDataContextInternals(impl: DataContextInternals): void {
   internals = impl;
+}
+
+/**
+ * Whether `value` is a `DataContext`. Lets `catalog/types` test for one without
+ * importing `data-context` (which would make the two modules import each other).
+ *
+ * @param value The value to test.
+ * @returns Whether it is a `DataContext`.
+ */
+export function isDataContext(value: unknown): value is DataContext {
+  // Until `data-context` has loaded no `DataContext` can exist.
+  return internals !== undefined && internals.isDataContext(value);
 }
 
 /**
@@ -104,7 +117,8 @@ export function resolveArgumentValue(
  * @returns Whether the call may be routed.
  */
 export function allowsAgentRouting(ctx: DataContext): boolean {
-  return getInternals().allowsAgentRouting(ctx);
+  // Until `data-context` has loaded no `DataContext` exists to route from.
+  return internals !== undefined && internals.allowsAgentRouting(ctx);
 }
 
 /**
