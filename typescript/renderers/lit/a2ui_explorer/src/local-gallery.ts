@@ -20,7 +20,7 @@ import {customElement, state} from 'lit/decorators.js';
 import {MessageProcessor} from '@a2ui/web_core/v1_0';
 import type {A2uiClientAction} from '@a2ui/web_core/v0_9';
 import {Context} from '@a2ui/lit';
-import {mcpCatalog} from '@a2ui/catalog-mcp';
+import {createMcpCatalog} from '@a2ui/catalog-mcp';
 import {createBasicCatalog as createBasicCatalogV10} from '@a2ui/web_core/catalogs/basic/v1';
 import {renderMarkdown} from '@a2ui/markdown-it';
 import {demoCatalog} from './demo-catalog.js';
@@ -70,7 +70,7 @@ export class LocalGallery extends LitElement {
   private markdownRenderer = renderMarkdown;
 
   private processor = new MessageProcessor(
-    [demoCatalog, createBasicCatalogV10(validator), mcpCatalog],
+    [demoCatalog, createBasicCatalogV10(validator), createMcpCatalog(validator)],
     (action: A2uiClientAction) => {
       this.log(`Action dispatched: ${action.surfaceId}`, action, action.name || 'Action');
       this.actionLog.push(action);
