@@ -18,6 +18,7 @@
     "@a2a-js/sdk": "^0.3.13",
     "@a2ui/markdown-it": "workspace:*",
     "@a2ui/react": "workspace:*",
+    "@a2ui/validator-ajv": "workspace:*",
     "@a2ui/web_core": "workspace:*",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
@@ -41,7 +42,8 @@
     "build": {
       "command": "tsc -b && vite build",
       "dependencies": [
-        "../../../../typescript/renderers/react:build"
+        "../../../../typescript/renderers/react:build",
+        "../../../../typescript/validators/ajv:build"
       ],
       "files": [
         "src/**/*",

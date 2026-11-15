@@ -14,7 +14,13 @@
  * limitations under the License.
  */
 
-import {BasicCatalog, provideA2Ui, provideMarkdownRenderer} from '@a2ui/angular/v0_9';
+import {
+  BasicCatalog,
+  provideA2Ui,
+  provideA2uiValidator,
+  provideMarkdownRenderer,
+} from '@a2ui/angular/v0_9';
+import {createAjvValidator} from '@a2ui/validator-ajv';
 import {Client} from './client';
 import {inject, Injector} from '@angular/core';
 import {IMAGE_CONFIG} from '@angular/common';
@@ -32,6 +38,7 @@ export const appConfig: ApplicationConfig = {
     provideBrowserGlobalErrorListeners(),
     provideZonelessChangeDetection(),
     provideClientHydration(withEventReplay()),
+    provideA2uiValidator(createAjvValidator()),
     provideA2Ui(() => {
       const injector = inject(Injector);
       return {

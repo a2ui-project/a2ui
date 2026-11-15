@@ -21,8 +21,10 @@ import {
   A2uiRendererService,
   BasicCatalog,
   provideA2Ui,
+  provideA2uiValidator,
   provideMarkdownRenderer,
 } from '@a2ui/angular/v0_9';
+import {createAjvValidator} from '@a2ui/validator-ajv';
 import {A2uiMessage} from '@a2ui/web_core/v0_9';
 
 import {App} from './app';
@@ -68,6 +70,7 @@ describe('App', () => {
       imports: [App],
       providers: [
         provideZonelessChangeDetection(),
+        provideA2uiValidator(createAjvValidator()),
         provideA2Ui(() => ({
           catalogs: [new BasicCatalog()],
           actionHandler: () => {},

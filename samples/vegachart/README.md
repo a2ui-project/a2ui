@@ -12,7 +12,9 @@ Basic Catalog (`@a2ui/lit/v0_9`), with no LLM agent involved.
 
 - **Catalog composition**: A v0.9 surface uses exactly one catalog, so
   [`app.ts`](app.ts) builds one from the components, functions and theme of
-  `basicCatalog` plus the `VegaChart` component of `vegachartCatalog`, under
+  `createBasicCatalog(validator)` plus the `VegaChart` component of
+  `createVegaChartCatalog(validator)`, with `validator` from
+  `createAjvValidator()` (`@a2ui/validator-ajv`), under
   the id `https://a2ui.org/samples/vegachart/catalog.json`. The payload's
   `createSurface` names that id, and layout, typography and chart components
   all resolve from it.

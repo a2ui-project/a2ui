@@ -16,7 +16,8 @@
 
 import {useState, useEffect, useCallback, useMemo, useRef, FormEvent} from 'react';
 import {A2uiSurface, MarkdownContext, ReactCatalogComponent} from '@a2ui/react/v0_9';
-import {basicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
+import {createAjvValidator} from '@a2ui/validator-ajv';
+import {createBasicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
 import {A2uiClientMessage, A2uiMessage, MessageProcessor, SurfaceModel} from '@a2ui/web_core/v0_9';
 import {renderMarkdown} from '@a2ui/markdown-it';
 import {A2UIClient} from './client';
@@ -28,6 +29,8 @@ import {
 } from './mock';
 
 import './App.css';
+
+const validator = createAjvValidator();
 
 // Available app configs
 const configs: Record<string, AppConfig> = {
@@ -62,12 +65,16 @@ export function App() {
   );
 
   const processor = useMemo(() => {
-    return new MessageProcessor<ReactCatalogComponent>([basicCatalog], action => {
-      console.log('User action:', action);
-      if (sendAndProcessRef.current) {
-        sendAndProcessRef.current({version: 'v0.9', action});
-      }
-    });
+    return new MessageProcessor<ReactCatalogComponent>(
+      [createBasicCatalog(validator)],
+      action => {
+        console.log('User action:', action);
+        if (sendAndProcessRef.current) {
+          sendAndProcessRef.current({version: 'v0.9', action});
+        }
+      },
+      {validator},
+    );
   }, []);
 
   return (

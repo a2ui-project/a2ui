@@ -35,6 +35,7 @@ import {describe, expect, it} from 'vitest';
 import {loadBasicCatalogs} from '../src/catalogs.js';
 import type {A2uiFormat} from '../src/config.js';
 import {loadExamples} from '../src/examples.js';
+import {validator} from '../src/validator.js';
 import {VERSIONS, type VersionProfile} from '../src/versions.js';
 
 const packageRoot = fileURLToPath(new URL('..', import.meta.url));
@@ -44,7 +45,7 @@ const catalogs = loadBasicCatalogs();
 /** Parses a model response the way the agent does, throwing if it is invalid. */
 function validate(profile: VersionProfile, format: A2uiFormat, response: string) {
   const catalog = catalogs.get(profile.version)!;
-  const generator = new A2uiGenerator([new CatalogConfig(catalog)]);
+  const generator = new A2uiGenerator([new CatalogConfig(catalog)], validator);
   const capabilities = {supportedCatalogIds: [catalog.id]};
   const processor =
     format === 'express'

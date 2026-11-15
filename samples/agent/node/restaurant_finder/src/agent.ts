@@ -33,6 +33,7 @@ import type {ModelBackend, TurnInput} from './model.js';
 import {pickA2ui} from './pick-a2ui.js';
 import {buildSystemPrompt, FALLBACK_TEXT, retryQuery} from './prompt.js';
 import {buildUserQuery} from './user-query.js';
+import {validator} from './validator.js';
 import {VERSIONS, type VersionProfile} from './versions.js';
 
 /** How many times a turn is tried: once, plus one retry after a validation failure, as in Python. */
@@ -58,7 +59,7 @@ export class RestaurantExecutor implements AgentExecutor {
       const examples = loadExamples(profile, catalog, format);
       this.generators.set(
         profile.version,
-        new A2uiGenerator([new CatalogConfig(catalog)], {
+        new A2uiGenerator([new CatalogConfig(catalog)], validator, {
           [catalog.id]: examples.catalogExamplesString,
         }),
       );

@@ -43,6 +43,7 @@ __metadata:
   dependencies:
     "@a2a-js/sdk": "npm:^0.3.13"
     "@a2ui/agent": "workspace:*"
+    "@a2ui/validator-ajv": "workspace:*"
     "@a2ui/web_core": "workspace:*"
     "@google/genai": "npm:^2.8.0"
     "@types/express": "npm:^5.0.6"
@@ -350,6 +351,7 @@ __metadata:
     "@a2a-js/sdk": "npm:^0.3.13"
     "@a2ui/markdown-it": "workspace:*"
     "@a2ui/react": "workspace:*"
+    "@a2ui/validator-ajv": "workspace:*"
     "@a2ui/web_core": "workspace:*"
     "@types/node": "npm:^25.9.3"
     "@types/react": "npm:^19.2.17"
@@ -418,6 +420,7 @@ __metadata:
   dependencies:
     "@a2ui/angular": "workspace:*"
     "@a2ui/markdown-it": "workspace:*"
+    "@a2ui/validator-ajv": "workspace:*"
     "@a2ui/web_core": "workspace:*"
     wireit: "npm:^0.15.0-pre.2"
   languageName: unknown
@@ -467,6 +470,7 @@ __metadata:
     "@a2a-js/sdk": "npm:^0.3.13"
     "@a2ui/lit": "workspace:*"
     "@a2ui/markdown-it": "workspace:*"
+    "@a2ui/validator-ajv": "workspace:*"
     "@a2ui/web_core": "workspace:*"
     "@google/genai": "npm:^2.8.0"
     "@lit-labs/signals": "npm:^0.3.0"
@@ -561,6 +565,7 @@ __metadata:
     "@a2ui/catalog-vegachart": "workspace:*"
     "@a2ui/lit": "workspace:*"
     "@a2ui/markdown-it": "workspace:*"
+    "@a2ui/validator-ajv": "workspace:*"
     "@a2ui/web_core": "workspace:*"
     "@lit/context": "npm:^1.1.6"
     "@types/node": "npm:^25.9.3"
@@ -10345,6 +10350,7 @@ __metadata:
   dependencies:
     "@a2a-js/sdk": "npm:^0.3.13"
     "@a2ui/markdown-it": "workspace:*"
+    "@a2ui/validator-ajv": "workspace:*"
     "@a2ui/web_core": "workspace:*"
     "@angular/build": "npm:^21.2.5"
     "@angular/cdk": "npm:^21.2.5"

@@ -32,7 +32,8 @@
     "build:tsc": {
       "command": "tsc -b --pretty",
       "dependencies": [
-        "../../../../typescript/agents/a2ui_agent:build"
+        "../../../../typescript/agents/a2ui_agent:build",
+        "../../../../typescript/validators/ajv:build"
       ],
       "files": [
         "src/**/*.ts",
@@ -91,6 +92,7 @@
   "dependencies": {
     "@a2a-js/sdk": "^0.3.13",
     "@a2ui/agent": "workspace:*",
+    "@a2ui/validator-ajv": "workspace:*",
     "@a2ui/web_core": "workspace:*",
     "@google/genai": "^2.8.0",
     "express": "^5.2.1"

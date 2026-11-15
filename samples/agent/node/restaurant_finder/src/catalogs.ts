@@ -20,6 +20,7 @@ import {FileSystemCatalogProvider} from '@a2ui/agent';
 import {type CatalogApi} from '@a2ui/web_core/catalog';
 
 import {getRepoRootDir} from './tools.js';
+import {validator} from './validator.js';
 import {VERSIONS, type VersionProfile} from './versions.js';
 
 /** The basic catalog of each served version, keyed by version. */
@@ -37,6 +38,7 @@ export function loadBasicCatalogs(repoRoot: string = getRepoRootDir()): BasicCat
   for (const profile of VERSIONS) {
     const provider = new FileSystemCatalogProvider(
       path.join(repoRoot, profile.basicCatalogPath),
+      validator,
       profile.version,
       profile.basicCatalogId,
     );

@@ -17,8 +17,9 @@
 /**
  * Client application for the standalone A2UI VegaChart catalog sample.
  *
- * Combines the components of `basicCatalog` (`@a2ui/lit/v0_9`) and
- * `vegachartCatalog` (`@a2ui/catalog-vegachart/v0_9`) into one catalog,
+ * Combines the components of `createBasicCatalog(validator)` (`@a2ui/lit/v0_9`)
+ * and `createVegaChartCatalog(validator)` (`@a2ui/catalog-vegachart/v0_9`) into
+ * one catalog,
  * registers it with a `MessageProcessor`, and renders a static A2UI payload
  * (`a2ui_vegachart.json`) without an LLM agent.
  */
@@ -27,13 +28,13 @@ import {provide} from '@lit/context';
 import {css, html, LitElement} from 'lit';
 import {customElement, state} from 'lit/decorators.js';
 
-import {vegachartCatalog} from '@a2ui/catalog-vegachart/v0_9';
-import {basicCatalog, Context} from '@a2ui/lit/v0_9';
+import {createVegaChartCatalog} from '@a2ui/catalog-vegachart/v0_9';
+import {createBasicCatalog, Context} from '@a2ui/lit/v0_9';
 import '@a2ui/lit/v0_9'; // Registers <a2ui-surface>.
 import {renderMarkdown} from '@a2ui/markdown-it';
+import {createAjvValidator} from '@a2ui/validator-ajv';
 import {
   type A2uiMessage,
-  Catalog,
   type ComponentApi,
   MessageProcessor,
   type SurfaceModel,
@@ -47,18 +48,23 @@ export const DASHBOARD_SURFACE_ID = 'vegachart-dashboard';
 /** Catalog ID declared in `a2ui_vegachart.json`. */
 export const SAMPLE_CATALOG_ID = 'https://a2ui.org/samples/vegachart/catalog.json';
 
+/** The JSON Schema validator the sample checks messages and catalogs with. */
+export const validator = createAjvValidator();
+
+const basicCatalog = createBasicCatalog(validator);
+
 /**
  * The basic catalog's components, functions and theme, plus `VegaChart`. A
  * v0.9 surface uses exactly one catalog, so the sample cannot take `VegaChart`
  * from a second catalog.
  */
-export const sampleCatalog = new Catalog(
-  SAMPLE_CATALOG_ID,
-  '0.9',
-  [...basicCatalog.components.values(), ...vegachartCatalog.components.values()],
-  [...basicCatalog.functions.values()],
-  basicCatalog.themeSchema,
-);
+export const sampleCatalog = basicCatalog.copyWith({
+  catalogId: SAMPLE_CATALOG_ID,
+  components: [
+    ...basicCatalog.components.values(),
+    ...createVegaChartCatalog(validator).components.values(),
+  ],
+});
 
 @customElement('a2ui-vegachart-app')
 export class A2uiVegachartApp extends LitElement {
@@ -74,7 +80,7 @@ export class A2uiVegachartApp extends LitElement {
 
   constructor() {
     super();
-    this.processor = new MessageProcessor<ComponentApi>([sampleCatalog]);
+    this.processor = new MessageProcessor<ComponentApi>([sampleCatalog], undefined, {validator});
 
     this.processor.onSurfaceCreated(surface => {
       this.surface = surface;

@@ -24,13 +24,16 @@ import {repeat} from 'lit/directives/repeat.js';
 
 // A2UI
 import * as v0_9 from '@a2ui/web_core/v0_9';
-import {basicCatalog, Context} from '@a2ui/lit/v0_9';
+import {createBasicCatalog, Context} from '@a2ui/lit/v0_9';
+import {createAjvValidator} from '@a2ui/validator-ajv';
 import {renderMarkdown} from '@a2ui/markdown-it';
 
 // Configurations
 import {A2UIClient} from './client.js';
 import {restaurantConfig, localConfig, AppConfig} from './configs/configs.js';
 import {styleMap} from 'lit/directives/style-map.js';
+const validator = createAjvValidator();
+
 const configs: Record<string, AppConfig> = {
   restaurant: restaurantConfig,
   local: localConfig,
@@ -512,7 +515,7 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
 
   // Create a Message Processor that uses the catalogs.
   private _processor = new v0_9.MessageProcessor(
-    [basicCatalog],
+    [createBasicCatalog(validator)],
     async (action: v0_9.A2uiClientAction): Promise<any> => {
       console.debug('Handling action', action);
 
@@ -536,6 +539,7 @@ export class A2UILayoutEditor extends SignalWatcher(LitElement) {
 
       await this.#sendAndProcessMessage(message);
     },
+    {validator},
   );
   private _a2uiClient!: A2UIClient;
   @query('ui-snackbar')

@@ -17,7 +17,7 @@
 /**
  * Integration tests for the standalone VegaChart sample (`a2ui_vegachart.json`).
  *
- * Verifies the combined catalog (`basicCatalog` + `vegachartCatalog`),
+ * Verifies the combined catalog (the basic catalog + `VegaChart`),
  * static payload validation, component creation, and reactive data model
  * bindings for `VegaChart` specs.
  */
@@ -25,10 +25,16 @@
 import {afterEach, beforeEach, describe, expect, it} from 'vitest';
 
 import {A2uiVegaChartElement} from '@a2ui/catalog-vegachart';
-import {basicCatalog} from '@a2ui/lit/v0_9';
+import {createBasicCatalog} from '@a2ui/lit/v0_9';
 import {DataContext} from '@a2ui/web_core/v0_9';
 
-import {A2uiVegachartApp, DASHBOARD_SURFACE_ID, SAMPLE_CATALOG_ID, sampleCatalog} from './app.js';
+import {
+  A2uiVegachartApp,
+  DASHBOARD_SURFACE_ID,
+  SAMPLE_CATALOG_ID,
+  sampleCatalog,
+  validator,
+} from './app.js';
 
 if (!(document as unknown as Record<string, unknown>)['adoptedStyleSheets']) {
   (document as unknown as Record<string, unknown>)['adoptedStyleSheets'] = [];
@@ -67,7 +73,7 @@ describe('the VegaChart sample payload', () => {
       app.processor.getClientCapabilities({versions: ['v0.9']})['v0.9']?.supportedCatalogIds ?? [];
     expect(supported).toEqual([SAMPLE_CATALOG_ID]);
     expect(sampleCatalog.components.has('VegaChart')).toBe(true);
-    for (const name of basicCatalog.components.keys()) {
+    for (const name of createBasicCatalog(validator).components.keys()) {
       expect(sampleCatalog.components.has(name)).toBe(true);
     }
   });
