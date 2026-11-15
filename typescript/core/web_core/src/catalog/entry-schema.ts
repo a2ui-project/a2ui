@@ -16,8 +16,8 @@
 
 import type {StandardSchemaV1} from '@standard-schema/spec';
 
-import {isAtLeastVersion} from '../common/semver.js';
 import {A2uiConfigurationError} from '../errors.js';
+import {commonTypesDocument, envelopeCatalogDocument} from '../schema-engine/common-types.js';
 import {assertSync} from '../schema-engine/issues.js';
 import {
   isJsonBackedSchema,
@@ -26,11 +26,6 @@ import {
 } from '../schema-engine/from-json-schema.js';
 import type {SchemaCursor} from '../schema-engine/nav.js';
 import type {CatalogSchema, JsonSchema, JsonSchemaValidator} from '../schema-engine/types.js';
-import V09CommonTypes from '../v0_9/schemas/common_types.json' with {type: 'json'};
-import V091CommonTypes from '../v0_9_1/schemas/common_types.json' with {type: 'json'};
-import V09EnvelopeCatalog from '../v0_9/envelope_catalog.json' with {type: 'json'};
-import V10CommonTypes from '../v1_0/schemas/common_types.json' with {type: 'json'};
-import V10EnvelopeCatalog from '../v1_0/envelope_catalog.json' with {type: 'json'};
 import {bindUnboundSchema, catalogValidator} from './catalog-validator.js';
 
 /**
@@ -74,11 +69,7 @@ const CATALOG = 'catalog.json';
  * `ComponentId`/`ChildList` targets a converted schema is written as.
  */
 export function commonTypesFor(protocolVersion: string | undefined): JsonSchema {
-  if (!protocolVersion || isAtLeastVersion(protocolVersion, '1.0')) {
-    return V10CommonTypes as JsonSchema;
-  }
-  if (isAtLeastVersion(protocolVersion, '0.9.1')) return V091CommonTypes as JsonSchema;
-  return V09CommonTypes as JsonSchema;
+  return (commonTypesDocument(protocolVersion || '1.0') ?? commonTypesDocument('0.9'))!;
 }
 
 interface Converted {
@@ -299,11 +290,8 @@ function compileDocuments(
 ): Record<string, JsonSchema> {
   let docs = compileDocs.get(prepared);
   if (!docs) {
-    const envelope = (
-      !context?.protocolVersion || isAtLeastVersion(context.protocolVersion, '1.0')
-        ? V10EnvelopeCatalog
-        : V09EnvelopeCatalog
-    ) as {$defs: Record<string, unknown>};
+    const envelope = (envelopeCatalogDocument(context?.protocolVersion || '1.0') ??
+      envelopeCatalogDocument('0.9')) as {$defs: Record<string, unknown>};
     const catalog: JsonSchema = {$defs: {...envelope.$defs, ...context?.defs}};
     docs = {};
     for (const [name, doc] of Object.entries(prepared.cursor.doc.defs)) {

@@ -20,8 +20,7 @@ import {assertUax31Identifier} from '../common/uax31.js';
 import {A2uiCatalogError, noValidatorError} from '../errors.js';
 import {namedJsonSchema} from '../schema-engine/from-json-schema.js';
 import type {CatalogSchema, JsonSchema, JsonSchemaValidator} from '../schema-engine/types.js';
-import V09EnvelopeCatalog from '../v0_9/envelope_catalog.json' with {type: 'json'};
-import V10EnvelopeCatalog from '../v1_0/envelope_catalog.json' with {type: 'json'};
+import {envelopeCatalogDocument} from '../schema-engine/common-types.js';
 import {basename, commonTypesFor, externalDocuments} from './entry-schema.js';
 import {JsonComponentApi, JsonFunctionApi} from './json_entries.js';
 import {
@@ -223,7 +222,7 @@ function entryDocuments(
   protocolVersion: string,
 ): Record<string, JsonSchema> {
   const atLeastV10 = isAtLeastVersion(protocolVersion, '1.0');
-  const envelope = (atLeastV10 ? V10EnvelopeCatalog : V09EnvelopeCatalog) as {
+  const envelope = envelopeCatalogDocument(atLeastV10 ? '1.0' : '0.9') as {
     $defs: Record<string, unknown>;
   };
   const specCommonTypes = commonTypesFor(protocolVersion) as Record<string, unknown>;

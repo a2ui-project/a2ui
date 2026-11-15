@@ -108,6 +108,11 @@ export interface FromJsonSchemaOptions extends CompileOptions {
    * A protocol version whose `common_types.json` (see `commonTypesDocument`)
    * is added to `defs`, with the version's envelope `catalog.json` that it
    * references, unless `defs` already has those keys. v0.8 has none.
+   *
+   * The default `catalog.json` is the permissive envelope: its `anyFunction`
+   * and `anyComponent` accept any object, so function and component `$ref`s
+   * are not checked at schema level. To check them, supply your own catalog
+   * document as `catalog.json` in `defs`.
    */
   version?: ProtocolVersion;
 }

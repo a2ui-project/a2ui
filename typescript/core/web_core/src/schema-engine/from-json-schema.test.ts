@@ -154,10 +154,34 @@ describe('fromJsonSchema opts.version', async () => {
     assert.strictEqual(jsonSchemaDocuments(s)!['common_types.json'], own);
   });
 
+  it('defaults catalog.json to the permissive envelope', () => {
+    const s = fromJsonSchema(schema, createAjvValidator(), {version: 'v1.0'});
+    const catalog = jsonSchemaDocuments(s)!['catalog.json'] as {$defs: Record<string, unknown>};
+    assert.ok(catalog.$defs['anyFunction'] && catalog.$defs['anyComponent']);
+    const call = fromJsonSchema(
+      {$ref: 'common_types.json#/$defs/DynamicString'},
+      createAjvValidator(),
+      {version: 'v1.0'},
+    )['~standard'].validate({'@call': 'anything', args: {}});
+    assert.ok(!(call instanceof Promise) && !call.issues);
+  });
+
+  it('keeps a caller supplied catalog.json', () => {
+    const own = {$defs: {anyFunction: {not: {}}, anyComponent: {not: {}}}};
+    const s = fromJsonSchema(schema, createAjvValidator(), {
+      version: 'v1.0',
+      defs: {'catalog.json': own},
+    });
+    assert.strictEqual(jsonSchemaDocuments(s)!['catalog.json'], own);
+    const call = s['~standard'].validate({'@call': 'anything', args: {}});
+    assert.ok(!(call instanceof Promise) && call.issues);
+  });
+
   it('commonTypesDocument is undefined for v0.8 and defined for v0.9 and v1.0', () => {
     assert.strictEqual(commonTypesDocument('v0.8'), undefined);
     assert.ok(commonTypesDocument('v0.9'));
     assert.ok(commonTypesDocument('v1.0'));
+    assert.strictEqual(commonTypesDocument('1.0'), commonTypesDocument('v1.0'));
     assert.notStrictEqual(commonTypesDocument('v0.9'), commonTypesDocument('v1.0'));
   });
 });
