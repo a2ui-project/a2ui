@@ -26,6 +26,7 @@ import {v1BasicCatalog} from '../test/basic_catalogs.js';
 import {createAjvValidator, testValidator} from '../test/validator.js';
 import {IndexApi} from '../v1_0/functions/system_functions.js';
 import {catalogValidator, unboundJsonSchema} from './catalog-validator.js';
+import {bindCatalogValidator as exportedBindCatalogValidator} from './index.js';
 import {Catalog} from './types.js';
 
 /** A catalog whose one component was compiled with `validator`. */
@@ -70,6 +71,17 @@ describe('catalog validator precedence', () => {
     // A processor's validator still wins over the derived catalog's entries.
     new MessageProcessor([derived], undefined, {validator: createAjvValidator()}).dispose();
     assert.equal(catalogValidator(derived), processor);
+  });
+  it('lets a host other than a MessageProcessor bind its validator, from the catalog subpath', () => {
+    const entries = createAjvValidator();
+    const host = createAjvValidator();
+    const borrowed = catalogBorrowing(entries);
+    exportedBindCatalogValidator(borrowed, host, true);
+    assert.equal(catalogValidator(borrowed), host);
+    const given = createAjvValidator();
+    const explicit = catalogBorrowing(entries, {validator: given});
+    exportedBindCatalogValidator(explicit, host, true);
+    assert.equal(catalogValidator(explicit), given);
   });
 });
 
