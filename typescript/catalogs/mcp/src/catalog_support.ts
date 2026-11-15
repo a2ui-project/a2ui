@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {type ComponentApi, JsonComponentApi} from '@a2ui/web_core/catalog';
+import {type ComponentApi, createFunctionImplementation} from '@a2ui/web_core/catalog';
 import type {JsonSchemaValidator} from '@a2ui/web_core/schema-engine';
 import type {WebComponentImplementation} from '@a2ui/web_core/universal';
 
@@ -45,37 +45,39 @@ interface TaggedElement extends CustomElementConstructor {
 }
 
 /**
- * Returns the Web Component implementation of a component `Catalog.fromJson`
- * loaded: the same entry, with `element` and its `tagName`.
+ * Returns the Web Component implementation of a component `Catalog.fromJson` loaded: a plain
+ * object with the component's fields (as an object spread of it has them), `element` and its
+ * `tagName`, which keeps the component's definition, so `Catalog.toJson` writes the component as
+ * its catalog document does.
  *
- * It stays a `JsonComponentApi` (an object spread would not), so
- * `Catalog.toJson` writes the component as its catalog document does.
+ * web_core keeps the definition of a loaded entry beside the entry, and copies it to an
+ * implementation built from the entry with `toWebComponentImplementation` or
+ * `createFunctionImplementation`. Only the latter is exported, so the implementation is built
+ * with it and then given the fields of a component instead of a function's.
  *
  * @param api The loaded component.
  * @param element The custom element that renders it.
- * @param defs The `$defs` of the catalog document it was loaded from.
  */
 export function implementLoadedComponent<Api extends ComponentApi>(
   api: Api,
   element: TaggedElement,
-  defs: Readonly<Record<string, unknown>> | undefined,
 ): WebComponentImplementation<Api['schema']> {
-  if (!(api instanceof JsonComponentApi)) {
-    throw new Error(`Component '${api.name}' was not loaded from a catalog document.`);
+  const {name, schema, allowedParents, allowedChildren, metadata} = api;
+  const implementation: Record<string, unknown> = createFunctionImplementation(
+    api as unknown as Parameters<typeof createFunctionImplementation>[0],
+    () => undefined,
+  ) as unknown as Record<string, unknown>;
+  for (const key of Object.keys(implementation)) {
+    delete implementation[key];
   }
-  class LoadedWebComponent extends JsonComponentApi {
-    get tagName(): string {
-      return element.tagName;
-    }
-    get element(): CustomElementConstructor {
-      return element;
-    }
-  }
-  const loaded = api;
-  return new LoadedWebComponent(
-    loaded.name,
-    loaded.jsonSchema,
-    () => loaded.schema,
-    defs,
-  ) as unknown as WebComponentImplementation<Api['schema']>;
+  Object.assign(implementation, {
+    name,
+    schema,
+    ...(allowedParents !== undefined ? {allowedParents} : {}),
+    ...(allowedChildren !== undefined ? {allowedChildren} : {}),
+    ...(metadata !== undefined ? {metadata} : {}),
+    tagName: element.tagName,
+    element,
+  });
+  return implementation as unknown as WebComponentImplementation<Api['schema']>;
 }

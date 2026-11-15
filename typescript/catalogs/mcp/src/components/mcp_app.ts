@@ -229,5 +229,5 @@ export const createMcpAppImplementation: (validator: JsonSchemaValidator) => A2u
     if (!api) {
       throw new Error("The MCP catalog document has no component 'McpApp'.");
     }
-    return implementLoadedComponent(api, A2uiMcpAppElement, catalog.defs);
+    return implementLoadedComponent(api, A2uiMcpAppElement);
   });

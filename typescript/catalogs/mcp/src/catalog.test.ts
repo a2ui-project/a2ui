@@ -166,6 +166,8 @@ describe('mcpCatalog', () => {
     expect([...mcpCatalog.components.keys()]).toEqual(Object.keys(catalogJson['components']));
     expect(mcpCatalog.components.get('McpApp')).toBe(createMcpAppImplementation(validator));
     expect(mcpCatalog.components.get('McpApp')?.element).toBe(A2uiMcpAppElement);
+    // A copy made with object spread, as renderers make, keeps the element.
+    expect({...mcpCatalog.components.get('McpApp')!}.tagName).toBe('a2ui-mcp-app');
   });
 
   it('implements every function of the catalog schema, and nothing else', () => {

@@ -58,6 +58,8 @@ describe('VegaChart v1.0 catalog', () => {
     assert.strictEqual(chart.name, 'VegaChart');
     assert.strictEqual(chart.tagName, 'a2ui-vega-chart');
     assert.strictEqual(chart.element, A2uiVegaChartElement);
+    // A copy made with object spread, as renderers make, keeps the element.
+    assert.strictEqual({...chart}.tagName, 'a2ui-vega-chart');
   });
 
   it('is memoised per validator', () => {

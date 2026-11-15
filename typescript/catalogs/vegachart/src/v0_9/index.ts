@@ -73,6 +73,6 @@ export const createVegaChartCatalog: (validator: JsonSchemaValidator) => VegaCha
       validator,
     });
     const api = loaded.components.get('VegaChart') as VegaChartApi;
-    const chart: A2uiVegaChart = implementLoadedComponent(api, A2uiVegaChartElement, loaded.defs);
+    const chart: A2uiVegaChart = implementLoadedComponent(api, A2uiVegaChartElement);
     return loaded.withEntries<A2uiVegaChart, FunctionImplementation>([chart], []);
   });
