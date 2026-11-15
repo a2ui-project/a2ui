@@ -47,3 +47,5 @@ export {
 export type {FunctionInvoker} from './function_invoker.js';
 export type {FromJsonOptions} from './from-json.js';
 export {JsonComponentApi, JsonFunctionApi} from './json_entries.js';
+export {copyLoadedDefinition} from './loaded_definitions.js';
+export {memoizeByValidator} from './basic_catalog_factory.js';

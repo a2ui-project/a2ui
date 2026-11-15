@@ -43,3 +43,7 @@ export {
   setMarkdownRenderer,
 } from './basic_catalog/directives/directives.js';
 export type {WebComponentImplementation} from './web_component_implementation.js';
+export {
+  toWebComponentImplementation,
+  type TaggedCustomElementConstructor,
+} from './to_web_component_implementation.js';
