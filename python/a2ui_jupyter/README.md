@@ -156,9 +156,12 @@ and `a2ui-jupyter` wheels. The notebook imports and displays a surface there.
 
 ## After the user submits
 
-The renderer does not hide or disable a surface after an action. As with the
-other A2UI renderers, the code that receives the action decides what happens
-next, by sending more messages to the surface. Common choices:
+In the Jupyter renderer, a surface is hidden after an action whose name
+contains `submit`, preventing repeat submissions while the action is handled.
+The surface becomes visible again when the agent sends `updateComponents` or
+`createSurface` for it. Other actions do not hide the surface. The code that
+receives an action still decides what happens next by sending more messages.
+Common choices:
 
 1. Replace the form with a confirmation by sending `updateComponents` with new
    children for the root component. The [example notebook](./examples/manual_smoke_test.ipynb)
