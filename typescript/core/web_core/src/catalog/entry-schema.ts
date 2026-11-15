@@ -292,7 +292,7 @@ function compileDocuments(
   if (!docs) {
     const envelope = (envelopeCatalogDocument(context?.protocolVersion || '1.0') ??
       envelopeCatalogDocument('0.9')) as {$defs: Record<string, unknown>};
-    const catalog: JsonSchema = {$defs: {...envelope.$defs, ...context?.defs}};
+    const catalog: JsonSchema = {$defs: {...context?.defs, ...envelope.$defs}};
     docs = {};
     for (const [name, doc] of Object.entries(prepared.cursor.doc.defs)) {
       docs[name] = basename(name) === CATALOG ? catalog : doc;

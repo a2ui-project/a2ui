@@ -126,4 +126,57 @@ describe('@index', () => {
     );
     proc.dispose();
   });
+  it("compiles against a catalog whose own anyFunction union refers to the document's functions", () => {
+    // A union with a discriminator is not the one `toJson` computes, so the
+    // catalog keeps it in `defs` as written, `#/functions/...` refs included.
+    const catalog = Catalog.fromJson(
+      {
+        catalogId: 'handwritten-unions',
+        protocolVersion: '1.0',
+        components: {
+          Text: {
+            type: 'object',
+            properties: {
+              component: {const: 'Text'},
+              text: {$ref: 'common_types.json#/$defs/DynamicString'},
+            },
+            required: ['component', 'text'],
+          },
+        },
+        functions: {
+          required: {
+            type: 'object',
+            returnType: 'boolean',
+            properties: {
+              '@call': {const: 'required'},
+              args: {type: 'object', properties: {value: {}}, required: ['value']},
+            },
+            required: ['@call', 'args'],
+          },
+        },
+        $defs: {
+          anyFunction: {
+            oneOf: [{$ref: '#/functions/required'}],
+            discriminator: {propertyName: '@call'},
+          },
+        },
+      },
+      undefined,
+      undefined,
+      {validator: testValidator},
+    );
+    const proc = new MessageProcessor([catalog], undefined, {validator: testValidator});
+    proc.processMessages([
+      {version: '1.0', createSurface: {surfaceId: 's', catalogId: catalog.id}},
+      {
+        version: '1.0',
+        updateComponents: {
+          surfaceId: 's',
+          components: [{id: 'root', component: 'Text', text: {'@call': '@index'}}],
+        },
+      },
+    ]);
+    assert.ok(proc.model.getSurface('s')?.componentsModel.get('root'));
+    proc.dispose();
+  });
 });
