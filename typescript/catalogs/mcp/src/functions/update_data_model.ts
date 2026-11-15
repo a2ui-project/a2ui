@@ -16,24 +16,13 @@
 
 import {
   A2uiExpressionError,
-  DynamicValueSchema,
   createFunctionImplementation,
   type FunctionImplementation,
 } from '@a2ui/web_core/v1_0';
-import {z} from 'zod';
+import type {JsonSchemaValidator} from '@a2ui/web_core/schema-engine';
 
-/** Function API definition for `updateDataModel`. */
-export const UpdateDataModelApi = {
-  name: 'updateDataModel' as const,
-  returnType: 'any' as const,
-  schema: z.object({
-    // Quoted to prevent Google Closure Compiler property renaming.
-    'updates': DynamicValueSchema.describe(
-      'An object mapping data model paths to the values to write (e.g., {"/entries": [...], "/title": "Home"}). Paths starting with "/" are absolute; relative paths resolve against the current data context.',
-    ),
-  }),
-  description: 'Writes key-value pairs to the surface data model.',
-};
+import {memoizeByValidator} from '../catalog_support.js';
+import {mcpFunctionApi} from '../document.js';
 
 /**
  * Path segments that would reach the prototype chain instead of the data model. `DataModel`
@@ -72,10 +61,14 @@ function validateUpdatePath(path: string): void {
  *
  * @throws A2uiExpressionError if `updates` is a primitive or an array, or if a key is empty or
  *     contains a `__proto__`, `constructor` or `prototype` segment.
+ *
+ * Builds the `updateDataModel` function of the MCP catalog, with `validator` checking its
+ * arguments against the catalog document. Memoised per validator.
  */
-export const UpdateDataModelImplementation: FunctionImplementation = createFunctionImplementation(
-  UpdateDataModelApi,
-  (args, context) => {
+export const createUpdateDataModelImplementation: (
+  validator: JsonSchemaValidator,
+) => FunctionImplementation = memoizeByValidator(validator =>
+  createFunctionImplementation(mcpFunctionApi(validator, 'updateDataModel'), (args, context) => {
     const updates: unknown = args['updates'];
     if (Array.isArray(updates) || typeof updates !== 'object' || updates === null) {
       const kind = Array.isArray(updates) ? 'array' : updates === null ? 'null' : typeof updates;
@@ -94,5 +87,5 @@ export const UpdateDataModelImplementation: FunctionImplementation = createFunct
         typeof value === 'object' && value !== null ? structuredClone(value) : value,
       );
     }
-  },
+  }),
 );

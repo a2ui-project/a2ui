@@ -20,9 +20,8 @@
  * JSON-RPC messages it receives.
  */
 
+import {createBasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
 import {
-  AgentToRendererMessageSchema,
-  basicCatalog,
   Catalog,
   ComponentContext,
   MessageProcessor,
@@ -35,15 +34,17 @@ import {
 } from '@a2ui/web_core/v1_0';
 import {render, type LitElement} from 'lit';
 import catalogJson from '../catalog.json' with {type: 'json'};
-import {mcpCatalog} from '../catalog.js';
+import {createMcpCatalog} from '../catalog.js';
+import {validator} from './validator.js';
+
+export {validator} from './validator.js';
 
 /**
- * The property names a component of the bundled catalog schema accepts, apart from `id` and
- * `component`: those declared on the component entry and `accessibility`, which the envelope's
- * `ComponentCommon` adds to every component.
+ * The property names a component of the bundled catalog schema declares, apart from `id` and
+ * `component`. The envelope's `ComponentCommon` adds `@accessibility` to every component.
  */
 export function catalogPropertyNames(component: keyof typeof catalogJson.components): string[] {
-  const names = new Set<string>(['accessibility']);
+  const names = new Set<string>();
   for (const name of Object.keys(catalogJson.components[component].properties)) {
     if (name !== 'component') {
       names.add(name);
@@ -58,19 +59,19 @@ export function catalogPropertyNames(component: keyof typeof catalogJson.compone
  * with their own `catalogId`.
  */
 export const EXAMPLE_CATALOGS: ReadonlyArray<Catalog<WebComponentImplementation>> = [
-  basicCatalog,
-  mcpCatalog,
+  createBasicCatalog(validator),
+  createMcpCatalog(validator),
 ];
 
 /**
- * Parses the `messages` of an example file with the message schema, so a stale example fails
- * loudly. The messages are copied first: the data model keeps the objects it is given, and a
- * fixture module must not carry the writes of one test into the next.
+ * Copies the `messages` of an example file. The data model keeps the objects it is given, and a
+ * fixture module must not carry the writes of one test into the next. The message processor
+ * validates them against the message schema, so a stale example fails loudly.
  */
 export function parseExampleMessages(example: {
   readonly messages: readonly unknown[];
 }): AgentToRendererMessage[] {
-  return AgentToRendererMessageSchema.array().parse(structuredClone(example.messages));
+  return structuredClone(example.messages) as AgentToRendererMessage[];
 }
 
 /** Polls until the predicate holds, failing the spec with `what` after about four seconds. */
@@ -196,9 +197,13 @@ export class FrameTestHarness {
     this.container = document.createElement('div');
     this.container.style.width = '600px';
     document.body.appendChild(this.container);
-    this.processor = new MessageProcessor<WebComponentImplementation>([...catalogs], action => {
-      this.actions.push(action);
-    });
+    this.processor = new MessageProcessor<WebComponentImplementation>(
+      [...catalogs],
+      action => {
+        this.actions.push(action);
+      },
+      {validator},
+    );
     this.processor.processMessages([...messages]);
     const surface = this.processor.model.getSurface(surfaceId);
     if (!surface) {

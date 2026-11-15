@@ -93,7 +93,8 @@
       "dependencies": [
         "../../../typescript/core/web_core:build",
         "copy-catalog",
-        "copy-shared"
+        "copy-shared",
+        "../../validators/ajv:build"
       ],
       "files": [
         "src/**/*.ts",
@@ -201,13 +202,14 @@
     "@modelcontextprotocol/sdk": "^1.29.0",
     "ajv": "^8.17.1",
     "jmespath": "^0.16.0",
-    "zod": "^3.25.76"
+    "zod": "^3.25.76 || ^4.0.0"
   },
   "peerDependencies": {
     "@a2ui/web_core": "workspace:*",
     "lit": "^3.3.3"
   },
   "devDependencies": {
+    "@a2ui/validator-ajv": "workspace:*",
     "@a2ui/web_core": "workspace:*",
     "@types/jasmine": "^6.0.0",
     "@types/jmespath": "^0.15.2",

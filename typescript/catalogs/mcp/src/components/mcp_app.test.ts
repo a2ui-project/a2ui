@@ -36,13 +36,14 @@ import {
   settle,
   waitFor,
   type FrameInbox,
+  validator,
 } from '../testing/frame_test_support.js';
 import {
-  A2uiMcpApp,
+  A2uiMcpAppElement,
+  createMcpAppImplementation,
   decodeHtmlContent,
   DEFAULT_MCP_APP_TITLE,
   MCP_APP_INNER_SANDBOX,
-  McpAppApi,
 } from './mcp_app.js';
 import {
   DATA_MODEL_CHANGE_METHOD,
@@ -196,9 +197,16 @@ describe('McpApp', () => {
   });
 
   it('declares exactly the properties of the catalog schema', () => {
-    expect(Object.keys(McpAppApi.schema.shape).sort()).toEqual(catalogPropertyNames('McpApp'));
-    expect(A2uiMcpApp.name).toBe('McpApp');
-    expect(A2uiMcpApp.tagName).toBe('a2ui-mcp-app');
+    const mcpApp = createMcpAppImplementation(validator);
+    const declared = mcpApp.schema['~standard'].jsonSchema.input({target: 'draft-2020-12'});
+    expect(
+      Object.keys(declared['properties'] as object)
+        .filter(name => name !== 'component')
+        .sort(),
+    ).toEqual(catalogPropertyNames('McpApp'));
+    expect(mcpApp.name).toBe('McpApp');
+    expect(mcpApp.tagName).toBe('a2ui-mcp-app');
+    expect(mcpApp.element).toBe(A2uiMcpAppElement);
   });
 
   it('renders the HTML-mode proxy frame, titled after the component', async () => {
@@ -215,11 +223,11 @@ describe('McpApp', () => {
   it('prefers the accessibility label as the frame title and falls back to a default', async () => {
     const {element, frame} = await renderExample();
 
-    harness.updateComponent({...exampleComponent(), accessibility: {label: 'Points'}});
+    harness.updateComponent({...exampleComponent(), '@accessibility': {label: 'Points'}});
     await element.updateComplete;
     expect(frame.title).toBe('Points');
 
-    harness.updateComponent({...exampleComponent(), title: undefined, accessibility: undefined});
+    harness.updateComponent({...exampleComponent(), title: undefined});
     await element.updateComplete;
     expect(frame.title).toBe(DEFAULT_MCP_APP_TITLE);
   });

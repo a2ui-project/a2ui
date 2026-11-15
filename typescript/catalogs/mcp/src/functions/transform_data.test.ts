@@ -17,13 +17,14 @@
 import {describe, it} from 'node:test';
 import * as assert from 'node:assert';
 import {A2uiExpressionError, Catalog, DataContext, DataModel} from '@a2ui/web_core/v1_0';
-import {TransformDataApi, TransformDataImplementation} from './transform_data.js';
+import {validator} from '../testing/validator.js';
+import {createTransformDataImplementation} from './transform_data.js';
 
 const catalog = new Catalog<never>(
   'https://a2ui.org/test/transform-data',
   '1.0',
   [],
-  [TransformDataImplementation],
+  [createTransformDataImplementation(validator)],
 );
 
 const call = (args: Record<string, unknown>, model = new DataModel({})) =>
@@ -31,9 +32,13 @@ const call = (args: Record<string, unknown>, model = new DataModel({})) =>
 
 describe('transformData', () => {
   it('has the metadata the catalog schema publishes', () => {
-    assert.strictEqual(TransformDataApi.name, 'transformData');
-    assert.strictEqual(TransformDataApi.returnType, 'any');
-    assert.ok(TransformDataApi.description.includes('https://jmespath.org/specification.html'));
+    assert.strictEqual(createTransformDataImplementation(validator).name, 'transformData');
+    assert.strictEqual(createTransformDataImplementation(validator).returnType, 'any');
+    assert.ok(
+      createTransformDataImplementation(validator).description?.includes(
+        'https://jmespath.org/specification.html',
+      ),
+    );
   });
 
   it('evaluates an expression against the document', () => {

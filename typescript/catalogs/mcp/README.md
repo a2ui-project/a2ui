@@ -15,7 +15,7 @@ A2UI separates UI layout from backend logic through catalogs. This catalog provi
 
 ## Catalog specification
 
-The canonical schema lives at [`catalogs/mcp/v1/catalog.json`](../../../catalogs/mcp/v1/catalog.json) and is bundled into this package at build time as `@a2ui/catalog-mcp/catalog.json`. The catalog ID is `https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json`, available as `mcpCatalog.id`.
+The canonical schema lives at [`catalogs/mcp/v1/catalog.json`](../../../catalogs/mcp/v1/catalog.json) and is bundled into this package at build time as `@a2ui/catalog-mcp/catalog.json`. The catalog ID is `https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json`, available as `MCP_CATALOG_ID`.
 
 `callMcpTool` takes three arguments:
 
@@ -76,24 +76,30 @@ The set is closed. Every function of the catalog has to be specified, tested and
 
 ### Need a different function?
 
-Define it in a catalog of your own instead of asking for it here. Write it with `createFunctionImplementation`, give its catalog an id of your own, and register that catalog next to `mcpCatalog`:
+Define it in a catalog of your own instead of asking for it here. Write it with `createFunctionImplementation`, give its catalog an id of your own, and register that catalog next to the MCP catalog:
 
 ```typescript
-import {
-  Catalog,
-  createFunctionImplementation,
-  DynamicStringSchema,
-  MessageProcessor,
-  basicCatalog,
-} from '@a2ui/web_core/v1_0';
-import {mcpCatalog} from '@a2ui/catalog-mcp';
-import {z} from 'zod';
+import {createMcpCatalog} from '@a2ui/catalog-mcp';
+import {createAjvValidator} from '@a2ui/validator-ajv';
+import {createBasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+import {fromJsonSchema} from '@a2ui/web_core/schema-engine';
+import {Catalog, createFunctionImplementation, MessageProcessor} from '@a2ui/web_core/v1_0';
+
+const validator = createAjvValidator();
 
 const ParseCsvImplementation = createFunctionImplementation(
   {
     name: 'parseCsv',
     returnType: 'any',
-    schema: z.object({value: DynamicStringSchema}),
+    schema: fromJsonSchema(
+      {
+        type: 'object',
+        properties: {value: {$ref: 'common_types.json#/$defs/DynamicString'}},
+        required: ['value'],
+      },
+      validator,
+      {version: '1.0'},
+    ),
     description: 'Splits CSV text into rows of cells.',
   },
   ({value}) =>
@@ -109,10 +115,11 @@ const myCatalog = new Catalog(
   [ParseCsvImplementation],
 );
 
-const processor = new MessageProcessor([basicCatalog, mcpCatalog, myCatalog], undefined, {
-  outboundListener: send,
-  unifiedOutbound: true,
-});
+const processor = new MessageProcessor(
+  [createBasicCatalog(validator), createMcpCatalog(validator), myCatalog],
+  undefined,
+  {validator, outboundListener: send, unifiedOutbound: true},
+);
 ```
 
 A payload calls it with that `catalogId`, and it composes with the MCP functions like any other call:
@@ -153,16 +160,24 @@ await client.connect(new SSEClientTransport(new URL('http://127.0.0.1:8000/sse')
 
 ### Register the catalog and configure the host
 
-`mcpCatalog` holds the `McpApp` component and the `callMcpTool` function. Register it with the `MessageProcessor`, then tell the catalog how to reach your MCP servers with `configureMcpCatalog`. `callMcpTool` reads that configuration when it runs, so the order of the two calls does not matter as long as both happen before the first tool call:
+`createMcpCatalog(validator)` builds the catalog, with the `McpApp` component and the catalog's functions, from the published catalog document; it is memoised per validator. Register it with the `MessageProcessor`, then tell the catalog how to reach your MCP servers with `configureMcpCatalog`. `callMcpTool` reads that configuration when it runs, so the order of the two calls does not matter as long as both happen before the first tool call:
 
 ```typescript
-import {basicCatalog, MessageProcessor} from '@a2ui/web_core/v1_0';
-import {configureMcpCatalog, mcpCatalog} from '@a2ui/catalog-mcp';
+import {configureMcpCatalog, createMcpCatalog} from '@a2ui/catalog-mcp';
+import {createAjvValidator} from '@a2ui/validator-ajv';
+import {createBasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+import {MessageProcessor} from '@a2ui/web_core/v1_0';
 
-const processor = new MessageProcessor([basicCatalog, mcpCatalog], undefined, {
-  outboundListener: send, // forward to your agent; feed its replies to processor.processMessages
-  unifiedOutbound: true,
-});
+const validator = createAjvValidator();
+const processor = new MessageProcessor(
+  [createBasicCatalog(validator), createMcpCatalog(validator)],
+  undefined,
+  {
+    validator,
+    outboundListener: send, // forward to your agent; feed its replies to processor.processMessages
+    unifiedOutbound: true,
+  },
+);
 
 configureMcpCatalog({
   getMcpClientForTool: toolName => client,
@@ -176,12 +191,17 @@ Push every catalog before the first message arrives, since `getClientCapabilitie
 
 A surface resolves components and function calls through its default catalog, the `catalogId` of its `createSurface` message, unless the component or the `@call` object names another registered catalog with its own `catalogId`. A payload that mixes basic components with `McpApp` and the MCP functions therefore needs no composed catalog: it creates the surface with the basic catalog id and sets `"catalogId": "https://a2ui.org/specification/v1_0/catalogs/mcp/catalog.json"` on the `McpApp` component and on each MCP function call, as the [catalog examples](../../../catalogs/mcp/v1/examples) do.
 
-Function calls inside `${...}` string expressions are the exception: they resolve through the surface's default catalog. A payload that calls `callMcpTool` that way next to basic components creates its surface with a catalog that carries both; build one under the id the agent uses (`mcpCatalog.id` is the canonical one):
+Function calls inside `${...}` string expressions are the exception: they resolve through the surface's default catalog. A payload that calls `callMcpTool` that way next to basic components creates its surface with a catalog that carries both; build one under the id the agent uses (`MCP_CATALOG_ID` is the canonical one):
 
 ```typescript
-import {basicCatalog, Catalog, MessageProcessor} from '@a2ui/web_core/v1_0';
-import {configureMcpCatalog, mcpCatalog} from '@a2ui/catalog-mcp';
+import {configureMcpCatalog, createMcpCatalog} from '@a2ui/catalog-mcp';
+import {createAjvValidator} from '@a2ui/validator-ajv';
+import {createBasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+import {Catalog, MessageProcessor} from '@a2ui/web_core/v1_0';
 
+const validator = createAjvValidator();
+const basicCatalog = createBasicCatalog(validator);
+const mcpCatalog = createMcpCatalog(validator);
 const processor = new MessageProcessor(
   [
     new Catalog(
@@ -192,12 +212,12 @@ const processor = new MessageProcessor(
     ),
   ],
   undefined,
-  {outboundListener: send, unifiedOutbound: true},
+  {validator, outboundListener: send, unifiedOutbound: true},
 );
 configureMcpCatalog({getMcpClientForTool: () => client, processor});
 ```
 
-A host that only wants some of the functions registers the `*Implementation` exports it needs (`CallMcpToolImplementation`, `TransformDataImplementation`, `UpdateDataModelImplementation`, `SplitImplementation`, `RegexCaptureImplementation`) in a catalog of its own instead of `mcpCatalog`.
+A host that only wants some of the functions registers the ones it needs, built by `createCallMcpToolImplementation`, `createTransformDataImplementation`, `createUpdateDataModelImplementation`, `createSplitImplementation` and `createRegexCaptureImplementation` (each takes the validator), in a catalog of its own instead of the MCP catalog.
 
 For multi-server setups, keep a registry of which server advertises each tool, usually built from `listTools()` at connection time, and resolve it in the same hook:
 
@@ -245,10 +265,10 @@ A host with no surface at all evaluates the function directly against a scratch 
 
 ```typescript
 import {DataContext, DataModel} from '@a2ui/web_core/v0_9';
-import {CallMcpToolImplementation} from '@a2ui/catalog-mcp';
+import {createCallMcpToolImplementation} from '@a2ui/catalog-mcp';
 
 const context = new DataContext({dataModel: new DataModel({}), catalog} as any, '/');
-await CallMcpToolImplementation.execute(
+await createCallMcpToolImplementation(validator).execute(
   {name: 'get_recipe_form', arguments: {cuisine: 'italian'}},
   context,
 );
@@ -256,7 +276,7 @@ await CallMcpToolImplementation.execute(
 
 ### Trigger tools from A2UI payloads
 
-A v1.0 payload calls `callMcpTool` from any surface whose host registered `mcpCatalog`, naming the catalog on the call. Arguments may be data bindings, which resolve against the calling surface, and `targetDataPath` writes the returned payload into the data model so components can bind to its fields (such as `/weather/json/temperature` or `/weather/text`):
+A v1.0 payload calls `callMcpTool` from any surface whose host registered the MCP catalog, naming the catalog on the call. Arguments may be data bindings, which resolve against the calling surface, and `targetDataPath` writes the returned payload into the data model so components can bind to its fields (such as `/weather/json/temperature` or `/weather/text`):
 
 ```json
 {
@@ -341,13 +361,20 @@ A tool that answers in plain text goes through `split` and `regexCapture`. [mcp-
 
 ### Registration
 
-The component is a custom element that any renderer able to host universal components can render. `mcpCatalog` holds the component and every function of the catalog under the MCP catalog id; register it next to the catalogs you already use:
+The component is a custom element that any renderer able to host universal components can render. `createMcpCatalog(validator)` holds the component (rendered by `A2uiMcpAppElement`) and every function of the catalog under the MCP catalog id; register it next to the catalogs you already use:
 
 ```typescript
-import {basicCatalog, MessageProcessor} from '@a2ui/web_core/v1_0';
-import {mcpCatalog} from '@a2ui/catalog-mcp';
+import {createMcpCatalog} from '@a2ui/catalog-mcp';
+import {createAjvValidator} from '@a2ui/validator-ajv';
+import {createBasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+import {MessageProcessor} from '@a2ui/web_core/v1_0';
 
-const processor = new MessageProcessor([basicCatalog, mcpCatalog]);
+const validator = createAjvValidator();
+const processor = new MessageProcessor(
+  [createBasicCatalog(validator), createMcpCatalog(validator)],
+  undefined,
+  {validator},
+);
 ```
 
 A surface resolves components through its default catalog (the `catalogId` of `createSurface`), and a component can name another registered catalog with its own `catalogId`. A payload that shows an app next to basic components creates the surface with the basic catalog id and marks the `McpApp` component, as the [3D geometry example](../../../catalogs/mcp/v1/examples/mcp-app-3d-geometry.json) does:

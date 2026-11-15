@@ -30,7 +30,8 @@ import {
   type Request,
   type Result,
 } from '@modelcontextprotocol/sdk/types.js';
-import {z} from 'zod';
+// The MCP SDK's `App` handlers parse with zod; the test app uses the zod 4 API the SDK uses.
+import * as z from 'zod/v4';
 import {FakeFrameHost} from '../shared/sandbox/testing/fake_frame_host.js';
 import {
   DATA_MODEL_CHANGE_METHOD,
@@ -48,7 +49,7 @@ const DataModelUpdateNotificationSchema = z.object({
 
 const FunctionCallResultSchema = z
   .object({status: z.literal('success'), result: z.unknown()})
-  .passthrough();
+  .loose();
 
 /** One end of an in-memory JSON-RPC channel; messages reach the other end asynchronously. */
 class LinkedTransport implements Transport {

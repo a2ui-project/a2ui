@@ -16,7 +16,6 @@
 
 import {describe, it} from 'node:test';
 import * as assert from 'node:assert';
-import {z} from 'zod';
 import {
   Catalog,
   DataContext,
@@ -24,6 +23,7 @@ import {
   createFunctionImplementation,
   type ComponentApi,
 } from '@a2ui/web_core/v0_9';
+import {fromJsonSchema} from '@a2ui/web_core/schema-engine';
 import {
   isDataBinding,
   isDynamicExpression,
@@ -31,6 +31,7 @@ import {
   resolveDynamicRecord,
   resolveDynamicValueDeep,
 } from './dynamic-values.js';
+import {validator} from './testing/validator.js';
 
 /** A catalog exposing `shout`, used to exercise function call resolution. */
 const testCatalog = new Catalog<ComponentApi>(
@@ -42,7 +43,10 @@ const testCatalog = new Catalog<ComponentApi>(
       {
         name: 'shout',
         returnType: 'string' as const,
-        schema: z.object({text: z.string()}),
+        schema: fromJsonSchema<{text: string}>(
+          {type: 'object', properties: {text: {type: 'string'}}, required: ['text']},
+          validator,
+        ),
       },
       args => `${args.text}!`,
     ),

@@ -19,19 +19,20 @@
  * `dist/sandbox/` at the default `/a2ui-sandbox/` path.
  */
 
+import {createAjvValidator} from '@a2ui/validator-ajv';
+import {fromJsonSchema, type CatalogSchema} from '@a2ui/web_core/schema-engine';
 import {
-  AccessibilityAttributesSchema,
   Catalog,
   ComponentContext,
-  DynamicNumberSchema,
   MessageProcessor,
   renderA2uiNode,
+  type AccessibilityAttributes,
   type ComponentApi,
+  type DynamicNumber,
   type SurfaceModel,
   type WebComponentImplementation,
 } from '@a2ui/web_core/v1_0';
 import {render} from 'lit';
-import {z} from 'zod';
 import type {SandboxProtocol, SandboxResource} from './sandbox_bootstrap.js';
 import {resetSandboxConfig, resolveSandboxUrl, type SandboxMode} from './sandbox_config.js';
 import {
@@ -44,19 +45,35 @@ const CATALOG_ID = 'https://example.com/catalogs/sandboxed-frame-test.json';
 const SURFACE_ID = 'sandboxed-frame-surface';
 const COMPONENT_ID = 'frame';
 
-const TestFrameApi = {
+const validator = createAjvValidator();
+
+/** The properties of the test component. */
+interface TestFrameProps {
+  content?: string;
+  height?: DynamicNumber;
+  accessibility?: AccessibilityAttributes;
+  csp?: {connectDomains?: string[]};
+}
+
+const TestFrameApi: ComponentApi<CatalogSchema<TestFrameProps>> = {
   name: 'TestFrame',
-  schema: z.object({
-    'content': z.string().optional(),
-    'height': DynamicNumberSchema.optional(),
-    'accessibility': AccessibilityAttributesSchema.optional(),
-    'csp': z
-      .object({
-        'connectDomains': z.array(z.string()).optional(),
-      })
-      .optional(),
-  }),
-} satisfies ComponentApi;
+  schema: fromJsonSchema<TestFrameProps>(
+    {
+      type: 'object',
+      properties: {
+        content: {type: 'string'},
+        height: {$ref: 'common_types.json#/$defs/DynamicNumber'},
+        accessibility: {$ref: 'common_types.json#/$defs/AccessibilityAttributes'},
+        csp: {
+          type: 'object',
+          properties: {connectDomains: {type: 'array', items: {type: 'string'}}},
+        },
+      },
+    },
+    validator,
+    {version: '1.0'},
+  ),
+};
 
 /** One call to `connectFrame` and whether its disconnect function has run. */
 interface Connection {
@@ -188,7 +205,7 @@ describe('SandboxedFrameElement', () => {
     document.body.appendChild(container);
 
     catalog = new Catalog<WebComponentImplementation>(CATALOG_ID, '1.0', [TestFrame]);
-    processor = new MessageProcessor([catalog]);
+    processor = new MessageProcessor([catalog], undefined, {validator});
     processor.processMessages([
       {version: '1.0', createSurface: {surfaceId: SURFACE_ID, catalogId: CATALOG_ID}},
     ]);

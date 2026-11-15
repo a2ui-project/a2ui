@@ -14,8 +14,10 @@
  * limitations under the License.
  */
 
+import {createAjvValidator} from '@a2ui/validator-ajv';
+import {createBasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+import {fromJsonSchema} from '@a2ui/web_core/schema-engine';
 import {
-  basicCatalog,
   Catalog,
   ComponentContext,
   MessageProcessor,
@@ -24,8 +26,15 @@ import {
   type FunctionImplementation,
   type SurfaceModel,
 } from '@a2ui/web_core/v1_0';
-import {z} from 'zod';
 import {ComponentContextFrameHost} from './component_context_frame_host.js';
+
+const validator = createAjvValidator();
+const basicCatalog = createBasicCatalog(validator);
+
+/** The JSON Schema of an object whose properties are all required. */
+function argsSchema(properties: Record<string, unknown>) {
+  return fromJsonSchema({type: 'object', properties, required: Object.keys(properties)}, validator);
+}
 
 const CATALOG_ID = 'https://example.com/catalogs/frame-host-test.json';
 const SURFACE_ID = 'frame-host-surface';
@@ -34,7 +43,7 @@ const SURFACE_ID = 'frame-host-surface';
 const add: FunctionImplementation = {
   name: 'add',
   returnType: 'number',
-  schema: z.object({a: z.number(), b: z.number()}),
+  schema: argsSchema({a: {type: 'number'}, b: {type: 'number'}}),
   execute: args => (args['a'] as number) + (args['b'] as number),
 };
 
@@ -42,7 +51,7 @@ const add: FunctionImplementation = {
 const reactiveDouble: FunctionImplementation = {
   name: 'reactiveDouble',
   returnType: 'number',
-  schema: z.object({n: z.number()}),
+  schema: argsSchema({n: {type: 'number'}}),
   execute: args => signal((args['n'] as number) * 2),
 };
 
@@ -50,7 +59,7 @@ const reactiveDouble: FunctionImplementation = {
 const asyncGreeting: FunctionImplementation = {
   name: 'asyncGreeting',
   returnType: 'string',
-  schema: z.object({who: z.string()}),
+  schema: argsSchema({who: {type: 'string'}}),
   execute: args => Promise.resolve(`hello ${args['who']}`),
 };
 
@@ -67,9 +76,13 @@ describe('ComponentContextFrameHost', () => {
       [...basicCatalog.components.values()],
       [...basicCatalog.functions.values(), add, reactiveDouble, asyncGreeting],
     );
-    const processor = new MessageProcessor([catalog], action => {
-      actions.push(action);
-    });
+    const processor = new MessageProcessor(
+      [catalog],
+      action => {
+        actions.push(action);
+      },
+      {validator},
+    );
     processor.processMessages([
       {version: '1.0', createSurface: {surfaceId: SURFACE_ID, catalogId: CATALOG_ID}},
       {

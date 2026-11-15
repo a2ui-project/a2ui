@@ -14,42 +14,28 @@
  * limitations under the License.
  */
 
-import {
-  DynamicStringSchema,
-  DynamicValueSchema,
-  createFunctionImplementation,
-  type FunctionImplementation,
-} from '@a2ui/web_core/v1_0';
-import {z} from 'zod';
+import {createFunctionImplementation, type FunctionImplementation} from '@a2ui/web_core/v1_0';
+import type {JsonSchemaValidator} from '@a2ui/web_core/schema-engine';
 
+import {memoizeByValidator} from '../catalog_support.js';
+import {mcpFunctionApi} from '../document.js';
 import {mapTextValue} from './regex_support.js';
-
-/** Function API definition for `split`. */
-export const SplitApi = {
-  name: 'split' as const,
-  returnType: 'any' as const,
-  schema: z.object({
-    // Quoted to prevent Google Closure Compiler property renaming.
-    'value': DynamicValueSchema.describe('The string or array of strings to split.'),
-    'separator': DynamicStringSchema.describe(
-      'The delimiter string to split on. An empty string splits into individual characters (Unicode code points).',
-    ),
-  }),
-  description: 'Splits a string into an array of substrings using a literal separator.',
-};
 
 /**
  * Splits a string on a literal separator, or each element of an array of strings, giving an
  * array of arrays. An empty separator splits into Unicode code points, so an emoji or other
  * character outside the Basic Multilingual Plane stays whole instead of becoming two surrogate
  * halves.
+ *
+ * Builds the `split` function of the MCP catalog, with `validator` checking its
+ * arguments against the catalog document. Memoised per validator.
  */
-export const SplitImplementation: FunctionImplementation = createFunctionImplementation(
-  SplitApi,
-  args => {
-    const separator = String(args['separator']);
-    return mapTextValue(args['value'], item =>
-      separator === '' ? Array.from(item) : item.split(separator),
-    );
-  },
-);
+export const createSplitImplementation: (validator: JsonSchemaValidator) => FunctionImplementation =
+  memoizeByValidator(validator =>
+    createFunctionImplementation(mcpFunctionApi(validator, 'split'), args => {
+      const separator = String(args['separator']);
+      return mapTextValue(args['value'], item =>
+        separator === '' ? Array.from(item) : item.split(separator),
+      );
+    }),
+  );

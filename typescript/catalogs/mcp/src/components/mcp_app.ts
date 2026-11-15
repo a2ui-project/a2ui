@@ -14,14 +14,16 @@
  * limitations under the License.
  */
 
-import {
-  AccessibilityAttributesSchema,
-  DynamicStringSchema,
-  type ComponentApi,
-  type WebComponentImplementation,
+import type {CatalogSchema, JsonSchemaValidator} from '@a2ui/web_core/schema-engine';
+import type {
+  AccessibilityAttributes,
+  ComponentApi,
+  DynamicString,
+  WebComponentImplementation,
 } from '@a2ui/web_core/v1_0';
 import type {CallToolResult} from '@modelcontextprotocol/sdk/types.js';
-import {z} from 'zod';
+import {implementLoadedComponent, memoizeByValidator} from '../catalog_support.js';
+import {loadMcpCatalogApi} from '../document.js';
 import type {McpToolDataPayload} from '../functions/callMcpTool.js';
 import {getMcpCatalogConfig} from '../mcp_catalog_config.js';
 import {ComponentContextFrameHost} from '../shared/sandbox/component_context_frame_host.js';
@@ -63,29 +65,26 @@ export function decodeHtmlContent(htmlContent: string): string {
 }
 
 /** Per-resource Content Security Policy domain allowlists from `_meta.ui.csp`. */
-export const McpAppCspSchema = z
-  .object({
-    'connectDomains': z.array(z.string()).optional(),
-    'resourceDomains': z.array(z.string()).optional(),
-    'frameDomains': z.array(z.string()).optional(),
-    'baseUriDomains': z.array(z.string()).optional(),
-  })
-  .strict();
+export interface McpAppCsp {
+  connectDomains?: string[];
+  resourceDomains?: string[];
+  frameDomains?: string[];
+  baseUriDomains?: string[];
+}
 
-const PermissionFlagSchema = z.union([z.boolean(), z.record(z.unknown())]);
+/** A delegated permission: `true`, or an object of options (an empty object delegates it too). */
+type PermissionFlag = boolean | Record<string, unknown>;
 
 /** Browser capability permissions delegated to the inner sandboxed iframe from `_meta.ui.permissions`. */
-export const McpAppPermissionsSchema = z
-  .object({
-    'camera': PermissionFlagSchema.optional(),
-    'microphone': PermissionFlagSchema.optional(),
-    'geolocation': PermissionFlagSchema.optional(),
-    'clipboardWrite': PermissionFlagSchema.optional(),
-  })
-  .strict();
+export interface McpAppPermissions {
+  camera?: PermissionFlag;
+  microphone?: PermissionFlag;
+  geolocation?: PermissionFlag;
+  clipboardWrite?: PermissionFlag;
+}
 
 function toSandboxPermissions(
-  permissions: z.infer<typeof McpAppPermissionsSchema> | undefined,
+  permissions: McpAppPermissions | undefined,
 ): SandboxPermissions | undefined {
   if (!permissions) {
     return undefined;
@@ -98,55 +97,36 @@ function toSandboxPermissions(
   };
 }
 
-/** The `McpApp` component of the MCP catalog: a sandboxed MCP App in a surface. */
-export const McpAppApi = {
-  name: 'McpApp',
-  schema: z
-    .object({
-      'accessibility': AccessibilityAttributesSchema.optional(),
-      'htmlContent': DynamicStringSchema.describe(
-        'The HTML content of the app, rendered via srcdoc inside the sandbox. A value prefixed with `url_encoded:` is decoded with decodeURIComponent before rendering.',
-      ),
-      'title': DynamicStringSchema.optional().describe(
-        'The title of the app, used as the accessible title of the frame.',
-      ),
-      'allowedTools': z
-        .array(z.string())
-        .optional()
-        .describe(
-          'The names of the MCP tools the app is allowed to call. The host dispatches an authorized `tools/call` request as an A2UI action named after the tool, with the tool arguments as its context, and rejects any other tool call.',
-        ),
-      'allowedFunctions': z
-        .record(z.unknown())
-        .optional()
-        .describe(
-          'A map of authorized host client function names to JSON Schemas describing their expected arguments. The host rejects a `ui/requests/function-call` request whose function is not listed or whose arguments fail validation. The functions must exist in the surface catalog.',
-        ),
-      'data': z
-        .object({
-          paths: z
-            .record(z.string())
-            .describe(
-              'A dictionary mapping custom state keys to distinct JSON Pointer paths in the data model. The host pushes a `ui/notifications/data-model-update` notification whenever a bound value changes and writes authorized `ui/notifications/data-model-change` notifications back to the path.',
-            ),
-        })
-        .optional()
-        .describe('Data binding configuration for the component.'),
-      'csp': McpAppCspSchema.optional().describe(
-        'Per-resource Content Security Policy domain allowlists from `_meta.ui.csp`.',
-      ),
-      'permissions': McpAppPermissionsSchema.optional().describe(
-        'Browser capability permissions delegated to the inner sandboxed iframe from `_meta.ui.permissions`.',
-      ),
-    })
-    .strict(),
-} satisfies ComponentApi;
+/**
+ * The properties of the `McpApp` component, as the MCP catalog document defines them, plus the
+ * envelope's accessibility attributes.
+ */
+export interface McpAppProps {
+  accessibility?: AccessibilityAttributes;
+  /** The HTML of the app; a value prefixed with `url_encoded:` is decoded first. */
+  htmlContent: DynamicString;
+  /** The accessible title of the frame. */
+  title?: DynamicString;
+  /** The MCP tools the app may call. */
+  allowedTools?: string[];
+  /** The host functions the app may call, each with the JSON Schema of its arguments. */
+  allowedFunctions?: Record<string, Record<string, unknown>>;
+  /** The data model paths bound to the app. */
+  data?: {paths: Record<string, string>};
+  csp?: McpAppCsp;
+  permissions?: McpAppPermissions;
+}
 
-/** Properties of `McpApp`, as declared in the catalog. */
-export type McpAppProps = z.infer<typeof McpAppApi.schema>;
+/** The API of the `McpApp` component of the MCP catalog. */
+export type McpAppApi = ComponentApi<CatalogSchema<McpAppProps>>;
 
-class McpAppElement extends SandboxedFrameElement<typeof McpAppApi> {
-  protected override readonly api = McpAppApi;
+/** The `McpApp` component of the MCP catalog, with its element. */
+export type A2uiMcpApp = WebComponentImplementation<CatalogSchema<McpAppProps>>;
+
+/** The custom element that renders `McpApp`: the app in a sandboxed double iframe. */
+export class A2uiMcpAppElement extends SandboxedFrameElement<McpAppApi> {
+  static readonly tagName = 'a2ui-mcp-app';
+
   protected readonly sandboxMode: SandboxMode = 'html';
   protected readonly sandboxProtocol: SandboxProtocol = 'mcp';
 
@@ -223,7 +203,7 @@ class McpAppElement extends SandboxedFrameElement<typeof McpAppApi> {
           // tool names, so anything else is dropped.
           allowedTools: allowedTools?.filter((tool): tool is string => typeof tool === 'string'),
           allowedFunctions,
-          dataPaths: data?.paths,
+          dataPaths: data?.paths as Readonly<Record<string, string>> | undefined,
         };
       },
       callTool: this.resolveCallTool(),
@@ -238,9 +218,16 @@ class McpAppElement extends SandboxedFrameElement<typeof McpAppApi> {
   }
 }
 
-/** Registration entry of `McpApp` for a `Catalog`. */
-export const A2uiMcpApp: WebComponentImplementation<typeof McpAppApi.schema> = {
-  ...McpAppApi,
-  tagName: 'a2ui-mcp-app',
-  element: McpAppElement,
-};
+/**
+ * Builds the `McpApp` component of the MCP catalog: its definition in the catalog document,
+ * rendered by `A2uiMcpAppElement`. Memoised per validator.
+ */
+export const createMcpAppImplementation: (validator: JsonSchemaValidator) => A2uiMcpApp =
+  memoizeByValidator(validator => {
+    const catalog = loadMcpCatalogApi(validator);
+    const api = catalog.components.get('McpApp') as McpAppApi | undefined;
+    if (!api) {
+      throw new Error("The MCP catalog document has no component 'McpApp'.");
+    }
+    return implementLoadedComponent(api, A2uiMcpAppElement, catalog.defs);
+  });

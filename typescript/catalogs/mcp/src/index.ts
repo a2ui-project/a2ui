@@ -20,19 +20,33 @@
  * with `configureMcpCatalog`.
  */
 
-export {MCP_CATALOG_ID, mcpCatalog} from './catalog.js';
-export {A2uiMcpApp} from './components/mcp_app.js';
+export {
+  createMcpCatalog,
+  loadMcpCatalogApi,
+  MCP_CATALOG_DOCUMENT,
+  MCP_CATALOG_ID,
+  type McpCatalog,
+} from './catalog.js';
+export {
+  type A2uiMcpApp,
+  A2uiMcpAppElement,
+  createMcpAppImplementation,
+  type McpAppApi,
+  type McpAppCsp,
+  type McpAppPermissions,
+  type McpAppProps,
+} from './components/mcp_app.js';
 export {configureMcpCatalog, type McpCatalogConfig} from './mcp_catalog_config.js';
 export type {SandboxConfig} from './shared/sandbox/sandbox_config.js';
 export {
-  CallMcpToolImplementation,
+  createCallMcpToolImplementation,
   type CallMcpToolOptions,
   type McpAppResourcePayload,
   type McpClientResolver,
   type McpToolDataPayload,
   type McpToolClient,
 } from './functions/callMcpTool.js';
-export {RegexCaptureApi, RegexCaptureImplementation} from './functions/regex_capture.js';
-export {SplitApi, SplitImplementation} from './functions/split.js';
-export {TransformDataApi, TransformDataImplementation} from './functions/transform_data.js';
-export {UpdateDataModelApi, UpdateDataModelImplementation} from './functions/update_data_model.js';
+export {createRegexCaptureImplementation} from './functions/regex_capture.js';
+export {createSplitImplementation} from './functions/split.js';
+export {createTransformDataImplementation} from './functions/transform_data.js';
+export {createUpdateDataModelImplementation} from './functions/update_data_model.js';

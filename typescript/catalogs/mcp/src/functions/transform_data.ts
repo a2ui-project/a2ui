@@ -16,21 +16,19 @@
 
 import {
   A2uiExpressionError,
-  DynamicStringSchema,
-  DynamicValueSchema,
   createFunctionImplementation,
   type FunctionImplementation,
 } from '@a2ui/web_core/v1_0';
+import type {JsonSchemaValidator} from '@a2ui/web_core/schema-engine';
 import {compile, search} from 'jmespath';
-import {z} from 'zod';
+
+import {memoizeByValidator} from '../catalog_support.js';
+import {mcpFunctionApi} from '../document.js';
 
 declare module 'jmespath' {
   /** Parses `expression` and throws when it is not valid JMESPath. Exported by the library, not declared by `@types/jmespath`. */
   export function compile(expression: string): unknown;
 }
-
-/** The JMESPath specification that `transformData` implements, with no extensions. */
-const JMESPATH_SPEC_URL = 'https://jmespath.org/specification.html';
 
 /** Maximum number of validated expressions remembered. */
 const MAX_CACHED_EXPRESSIONS = 100;
@@ -71,30 +69,20 @@ function assertValidExpression(expression: string): void {
   validatedExpressions.add(expression);
 }
 
-/** Function API definition for `transformData`. */
-export const TransformDataApi = {
-  name: 'transformData' as const,
-  returnType: 'any' as const,
-  schema: z.object({
-    // Quoted to prevent Google Closure Compiler property renaming.
-    'jmespath': DynamicStringSchema.describe(
-      `A JMESPath expression (${JMESPATH_SPEC_URL}) evaluated against \`data\`. Standard JMESPath only, no extensions.`,
-    ),
-    'data': DynamicValueSchema.describe('The input data to evaluate the expression against.'),
-  }),
-  description: `Evaluates a JMESPath expression (${JMESPATH_SPEC_URL}) against \`data\`. Standard JMESPath only, no extensions.`,
-};
-
 /**
  * Evaluates the JMESPath expression in `jmespath` against `data` and returns the result, or `null`
  * when the expression selects nothing.
  *
  * @throws A2uiExpressionError if the expression does not parse, or if evaluating it fails, such as
  *   a function called with an argument of the wrong type.
+ *
+ * Builds the `transformData` function of the MCP catalog, with `validator` checking its
+ * arguments against the catalog document. Memoised per validator.
  */
-export const TransformDataImplementation: FunctionImplementation = createFunctionImplementation(
-  TransformDataApi,
-  args => {
+export const createTransformDataImplementation: (
+  validator: JsonSchemaValidator,
+) => FunctionImplementation = memoizeByValidator(validator =>
+  createFunctionImplementation(mcpFunctionApi(validator, 'transformData'), args => {
     const expression = String(args['jmespath']);
     assertValidExpression(expression);
     try {
@@ -106,5 +94,5 @@ export const TransformDataImplementation: FunctionImplementation = createFunctio
         error,
       );
     }
-  },
+  }),
 );

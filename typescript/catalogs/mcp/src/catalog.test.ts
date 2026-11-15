@@ -25,15 +25,18 @@ import {
 } from '@a2ui/web_core/v1_0';
 import type {CallToolResult} from '@modelcontextprotocol/sdk/types.js';
 import catalogJson from './catalog.json' with {type: 'json'};
-import {MCP_CATALOG_ID, mcpCatalog} from './catalog.js';
-import {A2uiMcpApp} from './components/mcp_app.js';
-import {CallMcpToolImplementation, type McpToolClient} from './functions/callMcpTool.js';
-import {TransformDataImplementation} from './functions/transform_data.js';
-import {RegexCaptureImplementation} from './functions/regex_capture.js';
-import {SplitImplementation} from './functions/split.js';
-import {UpdateDataModelImplementation} from './functions/update_data_model.js';
+import {createAjvValidator} from '@a2ui/validator-ajv';
+import {createMcpCatalog, MCP_CATALOG_ID} from './catalog.js';
+import {A2uiMcpAppElement, createMcpAppImplementation} from './components/mcp_app.js';
+import {createCallMcpToolImplementation, type McpToolClient} from './functions/callMcpTool.js';
+import {createTransformDataImplementation} from './functions/transform_data.js';
+import {createRegexCaptureImplementation} from './functions/regex_capture.js';
+import {createSplitImplementation} from './functions/split.js';
+import {createUpdateDataModelImplementation} from './functions/update_data_model.js';
 import {configureMcpCatalog, resetMcpCatalogConfig} from './mcp_catalog_config.js';
-import {EXAMPLE_CATALOGS, parseExampleMessages} from './testing/frame_test_support.js';
+import {EXAMPLE_CATALOGS, parseExampleMessages, validator} from './testing/frame_test_support.js';
+
+const mcpCatalog = createMcpCatalog(validator);
 
 /**
  * An MCP client whose only tool returns `result`, the shape of a headless tool, recording the calls
@@ -161,18 +164,36 @@ describe('mcpCatalog', () => {
 
   it('implements every component of the catalog schema, and nothing else', () => {
     expect([...mcpCatalog.components.keys()]).toEqual(Object.keys(catalogJson['components']));
-    expect(mcpCatalog.components.get('McpApp')).toBe(A2uiMcpApp);
+    expect(mcpCatalog.components.get('McpApp')).toBe(createMcpAppImplementation(validator));
+    expect(mcpCatalog.components.get('McpApp')?.element).toBe(A2uiMcpAppElement);
   });
 
   it('implements every function of the catalog schema, and nothing else', () => {
     expect([...mcpCatalog.functions.keys()].sort()).toEqual(
       Object.keys(catalogJson['functions']).sort(),
     );
-    expect(mcpCatalog.functions.get('callMcpTool')).toBe(CallMcpToolImplementation);
-    expect(mcpCatalog.functions.get('transformData')).toBe(TransformDataImplementation);
-    expect(mcpCatalog.functions.get('updateDataModel')).toBe(UpdateDataModelImplementation);
-    expect(mcpCatalog.functions.get('split')).toBe(SplitImplementation);
-    expect(mcpCatalog.functions.get('regexCapture')).toBe(RegexCaptureImplementation);
+    expect(mcpCatalog.functions.get('callMcpTool')).toBe(
+      createCallMcpToolImplementation(validator),
+    );
+    expect(mcpCatalog.functions.get('transformData')).toBe(
+      createTransformDataImplementation(validator),
+    );
+    expect(mcpCatalog.functions.get('updateDataModel')).toBe(
+      createUpdateDataModelImplementation(validator),
+    );
+    expect(mcpCatalog.functions.get('split')).toBe(createSplitImplementation(validator));
+    expect(mcpCatalog.functions.get('regexCapture')).toBe(
+      createRegexCaptureImplementation(validator),
+    );
+  });
+
+  it('is memoised per validator', () => {
+    expect(createMcpCatalog(validator)).toBe(mcpCatalog);
+    expect(createMcpCatalog(createAjvValidator())).not.toBe(mcpCatalog);
+  });
+
+  it('serializes to the canonical catalogs/mcp/v1/catalog.json', () => {
+    expect(mcpCatalog.toJson()).toEqual(catalogJson);
   });
 
   it('registers universal components with a2ui- prefixed tag names', () => {
@@ -185,7 +206,9 @@ describe('mcpCatalog', () => {
   });
 
   it('is enough on its own to process the messages of the tool call example', () => {
-    const processor = new MessageProcessor<WebComponentImplementation>([mcpCatalog]);
+    const processor = new MessageProcessor<WebComponentImplementation>([mcpCatalog], undefined, {
+      validator,
+    });
 
     processor.processMessages(parseExampleMessages(toolCallExample));
 
@@ -196,7 +219,11 @@ describe('mcpCatalog', () => {
   });
 
   it('processes the data binding example next to the basic catalog', () => {
-    const processor = new MessageProcessor<WebComponentImplementation>([...EXAMPLE_CATALOGS]);
+    const processor = new MessageProcessor<WebComponentImplementation>(
+      [...EXAMPLE_CATALOGS],
+      undefined,
+      {validator},
+    );
 
     processor.processMessages(parseExampleMessages(dataBindingExample));
 
@@ -208,7 +235,11 @@ describe('mcpCatalog', () => {
   });
 
   it('processes the 3D geometry showcase example next to the basic catalog', () => {
-    const processor = new MessageProcessor<WebComponentImplementation>([...EXAMPLE_CATALOGS]);
+    const processor = new MessageProcessor<WebComponentImplementation>(
+      [...EXAMPLE_CATALOGS],
+      undefined,
+      {validator},
+    );
     processor.processMessages(parseExampleMessages(scene3dExample));
     const surface = processor.model.getSurface('gallery-mcp-app-3d-geometry')!;
     expect(surface).toBeDefined();
@@ -228,7 +259,11 @@ describe('mcpCatalog', () => {
     let errors: unknown[];
 
     beforeEach(() => {
-      processor = new MessageProcessor<WebComponentImplementation>([...EXAMPLE_CATALOGS]);
+      processor = new MessageProcessor<WebComponentImplementation>(
+        [...EXAMPLE_CATALOGS],
+        undefined,
+        {validator},
+      );
       // The tool sends the issues both as JSON text and as structured content.
       client = createToolClient({
         content: [{type: 'text', text: JSON.stringify(issues)}],
@@ -303,7 +338,11 @@ describe('mcpCatalog', () => {
     let errors: unknown[];
 
     beforeEach(() => {
-      processor = new MessageProcessor<WebComponentImplementation>([...EXAMPLE_CATALOGS]);
+      processor = new MessageProcessor<WebComponentImplementation>(
+        [...EXAMPLE_CATALOGS],
+        undefined,
+        {validator},
+      );
       client = createToolClient({content: [{type: 'text', text: searchOutput}]});
       configureMcpCatalog({getMcpClientForTool: () => client, processor});
       errors = [];

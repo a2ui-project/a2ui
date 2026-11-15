@@ -14,43 +14,30 @@
  * limitations under the License.
  */
 
-import {
-  DynamicStringSchema,
-  DynamicValueSchema,
-  createFunctionImplementation,
-  type FunctionImplementation,
-} from '@a2ui/web_core/v1_0';
-import {z} from 'zod';
+import {createFunctionImplementation, type FunctionImplementation} from '@a2ui/web_core/v1_0';
+import type {JsonSchemaValidator} from '@a2ui/web_core/schema-engine';
 
+import {memoizeByValidator} from '../catalog_support.js';
+import {mcpFunctionApi} from '../document.js';
 import {compileSafeRegex, mapTextValue} from './regex_support.js';
-
-/** Function API definition for `regexCapture`. */
-export const RegexCaptureApi = {
-  name: 'regexCapture' as const,
-  returnType: 'any' as const,
-  schema: z.object({
-    // Quoted to prevent Google Closure Compiler property renaming.
-    'value': DynamicValueSchema.describe('The string or array of strings to match against.'),
-    'pattern': DynamicStringSchema.describe(
-      'A regular expression in the A2UI regex dialect: a portable subset of ECMAScript pattern syntax in Unicode mode with no flags. Returns an array of capture groups from the first match, or null if there is no match. Unmatched optional groups return empty strings.',
-    ),
-  }),
-  description: 'Extracts capture groups from the first regular expression match.',
-};
 
 /**
  * Matches a string, or each element of an array of strings, against a pattern and returns the
  * capture groups of the first match, or `null` when there is none.
  *
  * @throws A2uiExpressionError if `pattern` is not a valid, safe and portable regular expression.
+ *
+ * Builds the `regexCapture` function of the MCP catalog, with `validator` checking its
+ * arguments against the catalog document. Memoised per validator.
  */
-export const RegexCaptureImplementation: FunctionImplementation = createFunctionImplementation(
-  RegexCaptureApi,
-  args => {
+export const createRegexCaptureImplementation: (
+  validator: JsonSchemaValidator,
+) => FunctionImplementation = memoizeByValidator(validator =>
+  createFunctionImplementation(mcpFunctionApi(validator, 'regexCapture'), args => {
     const compiled = compileSafeRegex(String(args['pattern']), 'regexCapture');
     return mapTextValue(args['value'], item => {
       const match = compiled.exec(item);
       return match ? match.slice(1).map(group => group ?? '') : null;
     });
-  },
+  }),
 );

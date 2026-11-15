@@ -17,14 +17,15 @@
 import {describe, it} from 'node:test';
 import * as assert from 'node:assert';
 import {A2uiExpressionError, Catalog, DataContext, DataModel} from '@a2ui/web_core/v1_0';
-import {RegexCaptureApi, RegexCaptureImplementation} from './regex_capture.js';
-import {TransformDataImplementation} from './transform_data.js';
+import {validator} from '../testing/validator.js';
+import {createRegexCaptureImplementation} from './regex_capture.js';
+import {createTransformDataImplementation} from './transform_data.js';
 
 const catalog = new Catalog<never>(
   'https://a2ui.org/test/regexCapture',
   '1.0',
   [],
-  [RegexCaptureImplementation, TransformDataImplementation],
+  [createRegexCaptureImplementation(validator), createTransformDataImplementation(validator)],
 );
 
 const call = (name: string, args: Record<string, unknown>) =>
@@ -32,8 +33,8 @@ const call = (name: string, args: Record<string, unknown>) =>
 
 describe('regexCapture', () => {
   it('has the metadata the catalog schema publishes', () => {
-    assert.strictEqual(RegexCaptureApi.name, 'regexCapture');
-    assert.strictEqual(RegexCaptureApi.returnType, 'any');
+    assert.strictEqual(createRegexCaptureImplementation(validator).name, 'regexCapture');
+    assert.strictEqual(createRegexCaptureImplementation(validator).returnType, 'any');
   });
 
   it('returns the capture groups of the first match', () => {

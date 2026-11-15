@@ -40,7 +40,10 @@ import {
   type Implementation,
   type LoggingMessageNotification,
 } from '@modelcontextprotocol/sdk/types.js';
-import {z} from 'zod';
+// The MCP SDK's `setNotificationHandler` and `setRequestHandler` take a zod object schema, so the
+// bridge's two custom methods are declared with the zod 4 API the SDK itself uses (`zod/v4`).
+// These schemas only parse bridge messages; no catalog schema uses zod.
+import * as z from 'zod/v4';
 import {DataModelSync, type DataModelUpdate} from '../shared/sandbox/data_model_sync.js';
 import type {FrameHost} from '../shared/sandbox/frame_host.js';
 import {
@@ -78,7 +81,7 @@ export const FunctionCallRequestSchema = z.object({
   method: z.literal(FUNCTION_CALL_METHOD),
   params: z.object({
     call: z.string(),
-    args: z.record(z.unknown()).optional(),
+    args: z.record(z.string(), z.unknown()).optional(),
   }),
 });
 

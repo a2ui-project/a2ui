@@ -25,13 +25,11 @@ import {
   createFunctionImplementation,
 } from '@a2ui/web_core/v0_9';
 import type {CallToolResult, ReadResourceResult} from '@modelcontextprotocol/sdk/types.js';
-import {z} from 'zod';
+import {fromJsonSchema} from '@a2ui/web_core/schema-engine';
 import {MCP_CATALOG_ID} from '../catalog.js';
 import {configureMcpCatalog, resetMcpCatalogConfig} from '../mcp_catalog_config.js';
 import {
   A2UI_MIME_TYPE,
-  CallMcpToolApi,
-  CallMcpToolImplementation,
   MCP_APP_MIME_TYPE,
   createCallMcpToolImplementation,
   ensureMessageVersion,
@@ -47,10 +45,29 @@ import {
   type McpToolDataPayload,
 } from './callMcpTool.js';
 import mcpCatalogJson from '../catalog.json' with {type: 'json'};
-import {TransformDataImplementation} from './transform_data.js';
-import {RegexCaptureImplementation} from './regex_capture.js';
-import {SplitImplementation} from './split.js';
-import {UpdateDataModelImplementation} from './update_data_model.js';
+import {createTransformDataImplementation} from './transform_data.js';
+import {createRegexCaptureImplementation} from './regex_capture.js';
+import {createSplitImplementation} from './split.js';
+import {createUpdateDataModelImplementation} from './update_data_model.js';
+import {parseWith, validator} from '../testing/validator.js';
+
+const CallMcpToolImplementation = createCallMcpToolImplementation(validator);
+const TransformDataImplementation = createTransformDataImplementation(validator);
+const RegexCaptureImplementation = createRegexCaptureImplementation(validator);
+const SplitImplementation = createSplitImplementation(validator);
+const UpdateDataModelImplementation = createUpdateDataModelImplementation(validator);
+/** The `callMcpTool` definition of the catalog document, as the implementation validates it. */
+const CallMcpToolApi = CallMcpToolImplementation;
+
+/** The properties of the JSON Schema of a function's arguments. */
+function argumentProperties(schema: {
+  readonly '~standard': {
+    readonly jsonSchema: {input(options: {target: 'draft-2020-12'}): Record<string, unknown>};
+  };
+}): Record<string, Record<string, unknown>> {
+  const json = schema['~standard'].jsonSchema.input({target: 'draft-2020-12'});
+  return (json['properties'] ?? {}) as Record<string, Record<string, unknown>>;
+}
 
 const SURFACE_CATALOG_ID = 'https://a2ui.org/specification/v0_9/catalogs/basic/catalog.json';
 
@@ -70,7 +87,11 @@ const mcpCatalog = new Catalog<any>(
 
 /** A function that returns `{path: data}`, the shape a tool argument named `path` needs. */
 const PathArgumentImplementation = createFunctionImplementation(
-  {name: 'pathArgument', returnType: 'any', schema: z.object({data: z.any()})} as const,
+  {
+    name: 'pathArgument',
+    returnType: 'any',
+    schema: fromJsonSchema<{data?: unknown}>({type: 'object', properties: {data: {}}}, validator),
+  } as const,
   (args, context) => ({path: context.resolveDynamicValue(args['data'])}),
 );
 const UI_RESOURCE_URI = 'a2ui://sample-ui';
@@ -176,7 +197,7 @@ function createFakeClient(options: FakeClientOptions = {}): FakeClient {
 const createTestDataContext = (model: DataModel, catalog: Catalog<any>, path = '/') => {
   const mockSurface = {
     dataModel: model,
-    defaultCatalog: {invoker: catalog.invoker},
+    defaultCatalog: {invoker: catalog.invoker, protocolVersion: catalog.protocolVersion},
     availableCatalogs: new Map(),
     dispatchError: () => {},
   } as any;
@@ -193,7 +214,7 @@ describe('callMcpTool', () => {
       '0.9',
       [],
       [
-        createCallMcpToolImplementation(() => ({
+        createCallMcpToolImplementation(validator, () => ({
           defaultVersion: 'v0.9',
           getMcpClientForTool: () => asClient(client),
           processor,
@@ -218,6 +239,7 @@ describe('callMcpTool', () => {
     processor = new MessageProcessor<any>(
       [new Catalog(SURFACE_CATALOG_ID, '0.9', [], [])],
       async () => {},
+      {validator},
     );
   });
 
@@ -227,13 +249,15 @@ describe('callMcpTool', () => {
       assert.strictEqual(CallMcpToolApi.returnType, 'any');
     });
 
-    it('parses valid minimal arguments with default empty arguments object', () => {
-      const parsed = CallMcpToolApi.schema.parse({name: 'get_time'});
-      assert.deepStrictEqual(parsed, {name: 'get_time', arguments: {}});
+    it('parses valid minimal arguments, leaving out arguments', () => {
+      // The catalog document gives `arguments` no default; the implementation calls the tool
+      // with `{}` when it is absent (see 'passes an empty arguments object ...').
+      const parsed = parseWith(CallMcpToolApi.schema, {name: 'get_time'});
+      assert.deepStrictEqual(parsed, {name: 'get_time'});
     });
 
     it('parses arguments with arguments payload', () => {
-      const parsed = CallMcpToolApi.schema.parse({
+      const parsed = parseWith(CallMcpToolApi.schema, {
         name: 'fetch_weather',
         arguments: {location: 'Tokyo', units: 'celsius'},
       });
@@ -244,33 +268,31 @@ describe('callMcpTool', () => {
     });
 
     it('parses dynamic data bindings in name and arguments', () => {
-      const parsed = CallMcpToolApi.schema.parse({
-        name: {path: '/selectedTool'},
-        arguments: {city: {path: '/user/city'}, count: 10},
+      const parsed = parseWith(CallMcpToolApi.schema, {
+        name: {'@path': '/selectedTool'},
+        arguments: {city: {'@path': '/user/city'}, count: 10},
       });
       assert.deepStrictEqual(parsed, {
-        name: {path: '/selectedTool'},
-        arguments: {city: {path: '/user/city'}, count: 10},
+        name: {'@path': '/selectedTool'},
+        arguments: {city: {'@path': '/user/city'}, count: 10},
       });
     });
 
     it('parses a function call as the whole arguments object', () => {
       const call = {call: 'transformData', args: {jmespath: '{path: @}', data: {path: '/dir'}}};
-      const parsed = CallMcpToolApi.schema.parse({name: 'list_directory', arguments: call});
+      const parsed = parseWith(CallMcpToolApi.schema, {name: 'list_directory', arguments: call});
       assert.deepStrictEqual(parsed, {name: 'list_directory', arguments: call});
     });
 
-    it('drops a server argument, since servers are resolved by the host', () => {
-      const parsed = CallMcpToolApi.schema.parse({
-        name: 'fetch_weather',
-        server: 'weather-service',
-      } as any);
-      assert.deepStrictEqual(parsed, {name: 'fetch_weather', arguments: {}});
+    it('rejects a server argument, since servers are resolved by the host', () => {
+      assert.throws(() =>
+        parseWith(CallMcpToolApi.schema, {name: 'fetch_weather', server: 'weather-service'}),
+      );
     });
 
     it('throws validation error when name is missing', () => {
       assert.throws(() => {
-        CallMcpToolApi.schema.parse({});
+        parseWith(CallMcpToolApi.schema, {});
       });
     });
   });
@@ -304,7 +326,7 @@ describe('callMcpTool', () => {
         '0.9',
         [],
         [
-          createCallMcpToolImplementation(() => ({
+          createCallMcpToolImplementation(validator, () => ({
             defaultVersion: 'v0.9',
             getMcpClientForTool: () => asClient(client),
             processor,
@@ -345,7 +367,7 @@ describe('callMcpTool', () => {
         '0.9',
         [],
         [
-          createCallMcpToolImplementation(() => ({
+          createCallMcpToolImplementation(validator, () => ({
             defaultVersion: 'v0.9',
             getMcpClientForTool: toolName => asClient(toolName === 'get_time' ? clock : weather),
             processor,
@@ -367,7 +389,7 @@ describe('callMcpTool', () => {
         '0.9',
         [],
         [
-          createCallMcpToolImplementation(() => ({
+          createCallMcpToolImplementation(validator, () => ({
             defaultVersion: 'v0.9',
             getMcpClientForTool: async () => asClient(client),
             processor,
@@ -387,7 +409,7 @@ describe('callMcpTool', () => {
         '0.9',
         [],
         [
-          createCallMcpToolImplementation(() => ({
+          createCallMcpToolImplementation(validator, () => ({
             defaultVersion: 'v0.9',
             getMcpClientForTool: () => {
               throw new Error('No MCP client connected');
@@ -417,7 +439,7 @@ describe('callMcpTool', () => {
         '0.9',
         [],
         [
-          createCallMcpToolImplementation(() => ({
+          createCallMcpToolImplementation(validator, () => ({
             defaultVersion: 'v0.9',
             getMcpClientForTool: () => undefined,
             processor,
@@ -878,7 +900,7 @@ describe('callMcpTool', () => {
         '0.9',
         [],
         [
-          createCallMcpToolImplementation(() => ({
+          createCallMcpToolImplementation(validator, () => ({
             defaultVersion: 'v0.9',
             getMcpClientForTool: () => asClient(client),
             processor,
@@ -955,7 +977,7 @@ describe('callMcpTool', () => {
         '0.9',
         [],
         [
-          createCallMcpToolImplementation(() => ({
+          createCallMcpToolImplementation(validator, () => ({
             defaultVersion: 'v0.9',
             getMcpClientForTool: () => asClient(client),
             processor,
@@ -978,7 +1000,19 @@ describe('callMcpTool', () => {
   describe('dynamic values', () => {
     it('resolves dynamic data bindings for name and arguments via DataContext', async () => {
       const client = createFakeClient();
-      const catalog = catalogFor(client);
+      // The catalog document defines `name` as a v1.0 `DynamicString`, so the binding is a v1.0
+      // `@path` on a v1.0 surface.
+      const catalog = new Catalog<any>(
+        MCP_CATALOG_ID,
+        '1.0',
+        [],
+        [
+          createCallMcpToolImplementation(validator, () => ({
+            getMcpClientForTool: () => asClient(client),
+            processor,
+          })),
+        ],
+      );
 
       const dataModel = new DataModel({
         toolName: 'get_forecast',
@@ -987,14 +1021,18 @@ describe('callMcpTool', () => {
       });
       const context = createTestDataContext(dataModel, catalog);
 
-      await catalog.invoker(
-        'callMcpTool',
-        {
-          name: {path: '/toolName'},
-          arguments: {city: {path: '/location'}, days: {path: '/options/days'}, unit: 'metric'},
+      // The data context resolves the bindings of a call's arguments before it invokes it.
+      await context.resolveDynamicValue({
+        '@call': 'callMcpTool',
+        args: {
+          name: {'@path': '/toolName'},
+          arguments: {
+            city: {'@path': '/location'},
+            days: {'@path': '/options/days'},
+            unit: 'metric',
+          },
         },
-        context,
-      );
+      } as never);
 
       assert.strictEqual(client.calls[0].toolName, 'get_forecast');
       assert.deepStrictEqual(client.calls[0].args, {city: 'Paris', days: 3, unit: 'metric'});
@@ -1019,7 +1057,7 @@ describe('callMcpTool', () => {
 
     it('passes literal objects that merely contain a path property through untouched', async () => {
       const client = createFakeClient();
-      const impl = createCallMcpToolImplementation(() => ({
+      const impl = createCallMcpToolImplementation(validator, () => ({
         defaultVersion: 'v0.9',
         getMcpClientForTool: () => asClient(client),
         processor,
@@ -1046,7 +1084,7 @@ describe('callMcpTool', () => {
 
   describe('catalog.json Schema Verification', () => {
     it('loads schema into a valid Catalog using Catalog.fromJson', () => {
-      const schemaCatalog = Catalog.fromJson(mcpCatalogJson);
+      const schemaCatalog = Catalog.fromJson(mcpCatalogJson, undefined, undefined, {validator});
       assert.strictEqual(schemaCatalog.id, MCP_CATALOG_ID);
       assert.strictEqual(schemaCatalog.functions.has('callMcpTool'), true);
 
@@ -1055,7 +1093,10 @@ describe('callMcpTool', () => {
       assert.strictEqual(fnApi.name, 'callMcpTool');
       assert.strictEqual(fnApi.returnType, 'any');
 
-      const valid = fnApi.schema.parse({name: 'read_resource', arguments: {uri: 'a2ui://form'}});
+      const valid = parseWith(fnApi.schema, {
+        name: 'read_resource',
+        arguments: {uri: 'a2ui://form'},
+      });
       assert.deepStrictEqual(valid, {name: 'read_resource', arguments: {uri: 'a2ui://form'}});
     });
 
@@ -1069,7 +1110,7 @@ describe('callMcpTool', () => {
     it('no longer publishes a result expression, which the data functions replace', () => {
       const args = (mcpCatalogJson as any).functions.callMcpTool.properties.args;
       assert.strictEqual(args.properties.dataModelUpdate, undefined);
-      assert.strictEqual('dataModelUpdate' in CallMcpToolApi.schema.shape, false);
+      assert.strictEqual('dataModelUpdate' in argumentProperties(CallMcpToolApi.schema), false);
     });
 
     it('publishes every function a host registers', () => {
@@ -1091,20 +1132,17 @@ describe('callMcpTool', () => {
         assert.strictEqual(published.returnType, api.returnType);
 
         const args = published.properties.args;
-        const shape = (api.schema as z.ZodObject<Record<string, z.ZodTypeAny>>).shape;
+        const schema = api.schema['~standard'].jsonSchema.input({target: 'draft-2020-12'});
+        const shape = argumentProperties(api.schema);
         const fields = Object.keys(shape);
         assert.deepStrictEqual(Object.keys(args.properties), fields, `${api.name} arguments`);
-        assert.deepStrictEqual(
-          args.required,
-          fields.filter(field => !shape[field].isOptional()),
-          `${api.name} required arguments`,
-        );
+        assert.deepStrictEqual(args.required, schema['required'], `${api.name} required arguments`);
         assert.strictEqual(args.additionalProperties, false);
 
         for (const field of fields) {
           assert.strictEqual(
             args.properties[field].description,
-            shape[field].description,
+            shape[field]['description'],
             `${api.name}.${field} description`,
           );
         }
@@ -1123,6 +1161,7 @@ describe('callMcpTool', () => {
       processor = new MessageProcessor(
         [new Catalog(SURFACE_CATALOG_ID, '0.9', [], []), mcpCatalog],
         async () => {},
+        {validator},
       );
 
       processor.processMessages([
@@ -1441,7 +1480,7 @@ describe('createCallMcpToolImplementation defaultVersion option', () => {
       '0.9',
       [],
       [
-        createCallMcpToolImplementation(() => ({
+        createCallMcpToolImplementation(validator, () => ({
           getMcpClientForTool: () => asClient(client),
           processor,
           ...options,
@@ -1491,7 +1530,7 @@ describe('CallMcpToolImplementation', () => {
   it('calls the client the host configured, reading the configuration on each call', async () => {
     const first = createFakeClient();
     const second = createFakeClient();
-    const processor = new MessageProcessor([], async () => {});
+    const processor = new MessageProcessor([], async () => {}, {validator});
     const context = createTestDataContext(new DataModel({}), catalog);
 
     configureMcpCatalog({getMcpClientForTool: () => asClient(first), processor});
@@ -1509,7 +1548,7 @@ describe('MCP App HTML resources in callMcpTool', () => {
   const APP_HTML = '<!doctype html><div id="app">Dashboard</div>';
 
   it('extracts MCP App HTML from resources/read and writes it to targetDataPath and onMcpAppResource', async () => {
-    const processor = new MessageProcessor([], async () => {});
+    const processor = new MessageProcessor([], async () => {}, {validator});
     const client = createFakeClient({
       result: {
         content: [{type: 'text', text: 'Loaded dashboard'}],
@@ -1536,7 +1575,7 @@ describe('MCP App HTML resources in callMcpTool', () => {
     });
 
     const received: McpAppResourcePayload[] = [];
-    const impl = createCallMcpToolImplementation(() => ({
+    const impl = createCallMcpToolImplementation(validator, () => ({
       defaultVersion: 'v0.9',
       getMcpClientForTool: () => asClient(client),
       processor,
@@ -1567,7 +1606,7 @@ describe('MCP App HTML resources in callMcpTool', () => {
   });
 
   it('resolves resource_link content blocks and inline MCP App resources', async () => {
-    const processor = new MessageProcessor([], async () => {});
+    const processor = new MessageProcessor([], async () => {}, {validator});
     const linkUri = 'ui://server/linked-widget';
     const inlineUri = 'ui://server/inline-widget';
     const client = createFakeClient({
@@ -1592,7 +1631,7 @@ describe('MCP App HTML resources in callMcpTool', () => {
     });
 
     const received: McpAppResourcePayload[] = [];
-    const impl = createCallMcpToolImplementation(() => ({
+    const impl = createCallMcpToolImplementation(validator, () => ({
       defaultVersion: 'v0.9',
       getMcpClientForTool: () => asClient(client),
       processor,

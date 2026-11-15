@@ -124,27 +124,24 @@
  * A failed call writes nothing to `targetDataPath`.
  */
 
-// The argument schemas come from the v1.0 entry point: its `DynamicValue` accepts both the v1.0
-// `@path`/`@call` directives and the v0.9 `path`/`call` ones, so a v1.0 payload binding a tool
-// argument validates when the surface is processed. The message types stay the v0.9 ones, which
-// describe every payload a tool result may carry.
-import type {A2uiMessage, CreateSurfaceMessage} from '@a2ui/web_core/v0_9';
+// The argument schema is the `callMcpTool` definition of the MCP catalog document. The message
+// types stay the v0.9 ones, which describe every payload a tool result may carry.
+import type {A2uiMessage, CreateSurfaceMessage, FunctionCall} from '@a2ui/web_core/v0_9';
 import {
   A2uiExpressionError,
-  DynamicStringSchema,
-  DynamicValueSchema,
   createFunctionImplementation,
   type DataContext,
-  type FunctionCall,
   type FunctionImplementation,
   type MessageProcessor,
 } from '@a2ui/web_core/v1_0';
 import type {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {CallToolResultSchema} from '@modelcontextprotocol/sdk/types.js';
 import type {CallToolResult, ReadResourceResult} from '@modelcontextprotocol/sdk/types.js';
-import {z} from 'zod';
+import type {JsonSchemaValidator} from '@a2ui/web_core/schema-engine';
 
+import {memoizeByValidator} from '../catalog_support.js';
 import {isFunctionCall, isRecord, resolveDynamicRecord} from '../dynamic-values.js';
+import {mcpFunctionApi} from '../document.js';
 import {DEFAULT_MESSAGE_VERSION, getMcpCatalogConfig} from '../mcp_catalog_config.js';
 
 /** MIME type identifying an A2UI payload in an MCP resource. */
@@ -224,33 +221,6 @@ export type McpClientResolver = (
 ) => McpToolClient | undefined | null | Promise<McpToolClient | undefined | null>;
 
 /**
- * Function API definition for `callMcpTool`.
- *
- * Payloads reference tools by name; the host application is responsible for
- * routing each tool name to the appropriate MCP server client.
- */
-export const CallMcpToolApi = {
-  name: 'callMcpTool' as const,
-  returnType: 'any' as const,
-  schema: z.object({
-    // Quoted to prevent Google Closure Compiler property renaming.
-    'name': DynamicStringSchema.describe('The name of the MCP tool to execute.'),
-    'arguments': z
-      .union([z.custom<FunctionCall>(isArgumentsCall), z.record(DynamicValueSchema)])
-      .optional()
-      .default({})
-      .describe(
-        'The arguments to pass to the MCP tool: an object of dynamic values, or a function call that returns one.',
-      ),
-    'targetDataPath': DynamicStringSchema.optional().describe(
-      'Optional JSON Pointer path on the surface data model where the payload of each successful call is written, replacing the object at that path. A call whose response arrives after a newer call to the same path has started does not write, so the latest call wins.',
-    ),
-  }),
-  description:
-    'Invokes a tool on a connected Model Context Protocol (MCP) server and returns a payload with `toolName`, `toolInput`, `toolResult` (the raw result), `structuredContent` (when the server sends one), `text` (the text blocks joined with newlines) and `json` (the parsed value of `text` when it is a JSON object or array; otherwise, for a result with several text blocks, the array of the parsed values of the blocks that are JSON, absent when none is), plus `resourceUri`, `html`, `csp` and `permissions` when the result has an MCP App resource. A result flagged `isError` fails the call and writes nothing.',
-};
-
-/**
  * Checks whether `arguments` is a function call that produces the whole arguments object rather
  * than a record of tool arguments. A record that merely has a `call` key next to other arguments
  * stays a record.
@@ -312,9 +282,29 @@ interface DecodedUiResource {
  * invokes the named MCP tool, processes any referenced or inline `application/a2ui+json`
  * resources through the configured processor, and returns an `McpToolDataPayload`.
  *
- * @param getOptions Returns the current options; see `CallMcpToolOptions`.
+ * @param validator Checks the call's arguments against the `callMcpTool` definition of the MCP
+ *     catalog document.
+ * @param getOptions Returns the current options; see `CallMcpToolOptions`. Defaults to the
+ *     configuration set with `configureMcpCatalog`, in which case the implementation is memoised
+ *     per validator.
  */
 export function createCallMcpToolImplementation(
+  validator: JsonSchemaValidator,
+  getOptions: () => CallMcpToolOptions = getMcpCatalogConfig,
+): FunctionImplementation {
+  if (getOptions === getMcpCatalogConfig) {
+    return configuredCallMcpTool(validator);
+  }
+  return buildCallMcpTool(validator, getOptions);
+}
+
+/** `callMcpTool` bound to `configureMcpCatalog`, one per validator. */
+const configuredCallMcpTool = memoizeByValidator(validator =>
+  buildCallMcpTool(validator, getMcpCatalogConfig),
+);
+
+function buildCallMcpTool(
+  validator: JsonSchemaValidator,
   getOptions: () => CallMcpToolOptions,
 ): FunctionImplementation {
   /** Cache of decoded UI resources per MCP client, keyed by resource URI. */
@@ -393,111 +383,119 @@ export function createCallMcpToolImplementation(
     return discovery;
   }
 
-  return createFunctionImplementation(CallMcpToolApi, async (args, context) => {
-    const toolName = context.resolveDynamicValue<string>(args['name']);
-    const targetDataPath =
-      args['targetDataPath'] !== undefined
-        ? context.resolveDynamicValue<string>(args['targetDataPath'])
-        : undefined;
-    const {
-      getMcpClientForTool,
-      processor,
-      defaultVersion = DEFAULT_MESSAGE_VERSION,
-      onMcpAppResource,
-    } = getOptions();
-    if (!getMcpClientForTool || !processor) {
-      throw new A2uiExpressionError(
-        `Cannot execute MCP tool '${toolName}': callMcpTool is not configured. Call configureMcpCatalog({getMcpClientForTool, processor}) first.`,
-        'callMcpTool',
-      );
-    }
-    const withVersion = (message: A2uiMessage) => ensureMessageVersion(message, defaultVersion);
-    const isLatestCall = targetDataPath
-      ? startCall(context.dataModel, context.resolvePath(targetDataPath))
-      : () => true;
-
-    try {
-      const resolvedArguments = await resolveToolArguments(args['arguments'] ?? {}, context);
-      if (!isRecord(resolvedArguments)) {
-        throw new Error(
-          `MCP tool '${toolName}' arguments must resolve to an object, got ${JSON.stringify(resolvedArguments)}.`,
+  return createFunctionImplementation(
+    mcpFunctionApi(validator, 'callMcpTool'),
+    async (args, context) => {
+      const toolName = context.resolveDynamicValue<string>(args['name']);
+      const targetDataPath =
+        args['targetDataPath'] !== undefined
+          ? context.resolveDynamicValue<string>(args['targetDataPath'])
+          : undefined;
+      const {
+        getMcpClientForTool,
+        processor,
+        defaultVersion = DEFAULT_MESSAGE_VERSION,
+        onMcpAppResource,
+      } = getOptions();
+      if (!getMcpClientForTool || !processor) {
+        throw new A2uiExpressionError(
+          `Cannot execute MCP tool '${toolName}': callMcpTool is not configured. Call configureMcpCatalog({getMcpClientForTool, processor}) first.`,
+          'callMcpTool',
         );
       }
+      const withVersion = (message: A2uiMessage) => ensureMessageVersion(message, defaultVersion);
+      const isLatestCall = targetDataPath
+        ? startCall(context.dataModel, context.resolvePath(targetDataPath))
+        : () => true;
 
-      const client = await getMcpClientForTool(toolName);
-      if (!client) {
-        throw new Error(`MCP client for tool '${toolName}' could not be resolved.`);
-      }
-      const result: CallToolResult = await client.request(
-        {method: 'tools/call', params: {name: toolName, arguments: resolvedArguments}},
-        CallToolResultSchema,
-        // Reset the request timeout on progress notifications to support long-running tools.
-        {onprogress: () => {}, resetTimeoutOnProgress: true},
-      );
-
-      if (!result) {
-        throw new Error(`MCP tool '${toolName}' did not return a result.`);
-      }
-      if (result.isError) {
-        throw new Error(`MCP tool '${toolName}' execution failed: ${JSON.stringify(result)}`);
-      }
-
-      const data: McpToolDataPayload = {
-        toolName,
-        toolInput: resolvedArguments,
-        toolResult: result as unknown as Record<string, unknown>,
-        ...extractToolResultContent(result),
-      };
-      const appPayloads: McpAppResourcePayload[] = [];
-
-      // Prefer resource URIs from the tool result, falling back to tool-declared URIs.
-      const named = readUiResourceUris(result);
-      const resourceLinkUris = extractMcpAppResourceLinkUris(result.content);
-      const baseUris =
-        named.length > 0 ? named : ((await getDeclaredUiResourceUris(client)).get(toolName) ?? []);
-      const uris = [...new Set([...baseUris, ...resourceLinkUris])];
-      for (const uri of uris) {
-        const {a2uiMessages, mcpAppResources} = await readUiResource(client, uri);
-        // Skip recreating surfaces that already exist to avoid throwing A2uiStateError.
-        if (a2uiMessages.length > 0 && !createsExistingSurface(a2uiMessages, processor)) {
-          processor.processMessages(a2uiMessages.map(withVersion));
+      try {
+        const resolvedArguments = await resolveToolArguments(
+          (args['arguments'] ?? {}) as FunctionCall | Record<string, unknown>,
+          context,
+        );
+        if (!isRecord(resolvedArguments)) {
+          throw new Error(
+            `MCP tool '${toolName}' arguments must resolve to an object, got ${JSON.stringify(resolvedArguments)}.`,
+          );
         }
-        for (const appResource of mcpAppResources) {
-          appPayloads.push({...data, ...appResource});
-        }
-      }
 
-      const messages = extractA2uiMessages(result.content);
-      if (messages.length > 0) {
-        processor.processMessages(messages.map(withVersion));
-      }
-      for (const inlineAppResource of extractInlineMcpAppResources(result.content)) {
-        appPayloads.push({...data, ...inlineAppResource});
-      }
+        const client = await getMcpClientForTool(toolName);
+        if (!client) {
+          throw new Error(`MCP client for tool '${toolName}' could not be resolved.`);
+        }
+        const result: CallToolResult = await client.request(
+          {method: 'tools/call', params: {name: toolName, arguments: resolvedArguments}},
+          CallToolResultSchema,
+          // Reset the request timeout on progress notifications to support long-running tools.
+          {onprogress: () => {}, resetTimeoutOnProgress: true},
+        );
 
-      const payload: McpToolDataPayload = appPayloads.at(-1) ?? data;
-      // A superseded call neither writes nor hands its MCP App to the host, but still returns.
-      if (isLatestCall()) {
-        if (targetDataPath) {
-          context.set(targetDataPath, payload);
+        if (!result) {
+          throw new Error(`MCP tool '${toolName}' did not return a result.`);
         }
-        for (const appPayload of appPayloads) {
-          onMcpAppResource?.(appPayload, context);
+        if (result.isError) {
+          throw new Error(`MCP tool '${toolName}' execution failed: ${JSON.stringify(result)}`);
         }
+
+        const data: McpToolDataPayload = {
+          toolName,
+          toolInput: resolvedArguments,
+          toolResult: result as unknown as Record<string, unknown>,
+          ...extractToolResultContent(result),
+        };
+        const appPayloads: McpAppResourcePayload[] = [];
+
+        // Prefer resource URIs from the tool result, falling back to tool-declared URIs.
+        const named = readUiResourceUris(result);
+        const resourceLinkUris = extractMcpAppResourceLinkUris(result.content);
+        const baseUris =
+          named.length > 0
+            ? named
+            : ((await getDeclaredUiResourceUris(client)).get(toolName) ?? []);
+        const uris = [...new Set([...baseUris, ...resourceLinkUris])];
+        for (const uri of uris) {
+          const {a2uiMessages, mcpAppResources} = await readUiResource(client, uri);
+          // Skip recreating surfaces that already exist to avoid throwing A2uiStateError.
+          if (a2uiMessages.length > 0 && !createsExistingSurface(a2uiMessages, processor)) {
+            processor.processMessages(a2uiMessages.map(withVersion));
+          }
+          for (const appResource of mcpAppResources) {
+            appPayloads.push({...data, ...appResource});
+          }
+        }
+
+        const messages = extractA2uiMessages(result.content);
+        if (messages.length > 0) {
+          processor.processMessages(messages.map(withVersion));
+        }
+        for (const inlineAppResource of extractInlineMcpAppResources(result.content)) {
+          appPayloads.push({...data, ...inlineAppResource});
+        }
+
+        const payload: McpToolDataPayload = appPayloads.at(-1) ?? data;
+        // A superseded call neither writes nor hands its MCP App to the host, but still returns.
+        if (isLatestCall()) {
+          if (targetDataPath) {
+            context.set(targetDataPath, payload);
+          }
+          for (const appPayload of appPayloads) {
+            onMcpAppResource?.(appPayload, context);
+          }
+        }
+        return payload;
+      } catch (error: unknown) {
+        if (error instanceof A2uiExpressionError) {
+          throw error;
+        }
+        const message = error instanceof Error ? error.message : String(error);
+        throw new A2uiExpressionError(
+          `Failed to execute MCP tool '${toolName}': ${message}`,
+          'callMcpTool',
+          error,
+        );
       }
-      return payload;
-    } catch (error: unknown) {
-      if (error instanceof A2uiExpressionError) {
-        throw error;
-      }
-      const message = error instanceof Error ? error.message : String(error);
-      throw new A2uiExpressionError(
-        `Failed to execute MCP tool '${toolName}': ${message}`,
-        'callMcpTool',
-        error,
-      );
-    }
-  });
+    },
+  );
 }
 
 /**
@@ -816,10 +814,3 @@ export function ensureMessageVersion(
   }
   return message;
 }
-
-/**
- * The `callMcpTool` function of the MCP catalog, bound to the host configuration set with
- * `configureMcpCatalog`. It fails until the host provides `getMcpClientForTool` and `processor`.
- */
-export const CallMcpToolImplementation: FunctionImplementation =
-  createCallMcpToolImplementation(getMcpCatalogConfig);

@@ -17,17 +17,23 @@
 import {describe, it} from 'node:test';
 import * as assert from 'node:assert';
 import {A2uiExpressionError, Catalog, DataContext, DataModel} from '@a2ui/web_core/v1_0';
-import {SplitApi, SplitImplementation} from './split.js';
+import {validator} from '../testing/validator.js';
+import {createSplitImplementation} from './split.js';
 
-const catalog = new Catalog<never>('https://a2ui.org/test/split', '1.0', [], [SplitImplementation]);
+const catalog = new Catalog<never>(
+  'https://a2ui.org/test/split',
+  '1.0',
+  [],
+  [createSplitImplementation(validator)],
+);
 
 const call = (args: Record<string, unknown>) =>
   catalog.invoker('split', args, new DataContext(new DataModel({}), '/'));
 
 describe('split', () => {
   it('has the metadata the catalog schema publishes', () => {
-    assert.strictEqual(SplitApi.name, 'split');
-    assert.strictEqual(SplitApi.returnType, 'any');
+    assert.strictEqual(createSplitImplementation(validator).name, 'split');
+    assert.strictEqual(createSplitImplementation(validator).returnType, 'any');
   });
 
   it('splits a string on a separator', () => {

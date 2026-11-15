@@ -17,13 +17,14 @@
 import {describe, it} from 'node:test';
 import * as assert from 'node:assert';
 import {A2uiExpressionError, Catalog, DataContext, DataModel} from '@a2ui/web_core/v1_0';
-import {UpdateDataModelApi, UpdateDataModelImplementation} from './update_data_model.js';
+import {validator} from '../testing/validator.js';
+import {createUpdateDataModelImplementation} from './update_data_model.js';
 
 const catalog = new Catalog<never>(
   'https://a2ui.org/test/updateDataModel',
   '1.0',
   [],
-  [UpdateDataModelImplementation],
+  [createUpdateDataModelImplementation(validator)],
 );
 
 const call = (args: Record<string, unknown>, model: DataModel, path = '/') =>
@@ -31,8 +32,8 @@ const call = (args: Record<string, unknown>, model: DataModel, path = '/') =>
 
 describe('updateDataModel', () => {
   it('has the metadata the catalog schema publishes', () => {
-    assert.strictEqual(UpdateDataModelApi.name, 'updateDataModel');
-    assert.strictEqual(UpdateDataModelApi.returnType, 'any');
+    assert.strictEqual(createUpdateDataModelImplementation(validator).name, 'updateDataModel');
+    assert.strictEqual(createUpdateDataModelImplementation(validator).returnType, 'any');
   });
 
   it('writes several paths from one call and leaves the rest alone', () => {
