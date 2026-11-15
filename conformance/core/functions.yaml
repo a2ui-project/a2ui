@@ -296,8 +296,6 @@
     value: {}
   expect: true
 
-# --- RegexFunction (D21) ---
-
 - name: test_evaluate_function_required_object_empty_v10
   description: Verifies required returns true for empty object (D20).
   protocolVersion: "1.0"
@@ -744,8 +742,6 @@
     value: "test@test.c"
   expect: false
 
-# --- LengthFunction (D24) ---
-
 - name: test_evaluate_function_email_invalid_single_char_tld_v10
   description: Verifies email returns false on single-character TLD (D22).
   protocolVersion: "1.0"
@@ -987,8 +983,6 @@
   args:
     value: "not_a_number"
   expect: false
-
-# --- AndFunction (D25, D26) ---
 
 - name: test_evaluate_function_numeric_unparseable_string_v10
   description: Verifies numeric returns false for unparseable string without raising (D23).
