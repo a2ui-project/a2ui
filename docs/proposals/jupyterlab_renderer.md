@@ -148,7 +148,7 @@ Not independently verified:
 3. **Bundle size:** 709,076 bytes minified and 198,002 bytes gzipped were reported for an esbuild production bundle with React inlined. The bundle entry, command, and generated artifact are not checked in, so the measurement cannot be repeated from this checkout.
 4. **IOPub limit:** the cited `jupyter_server` source and version are not available here. Verify the defaults and end-to-end delivery behavior against each supported host configuration.
 5. **Replay:** replaying 1,302 messages into a newly displayed view took 78 ms, but notebook save/reopen behavior and a log retention policy have not been tested.
-6. **Browser and action flow:** JupyterLab rendering, action dispatch, asynchronous context resolution, and the full agent-function round trip remain untested.
+6. **Browser and action flow:** a live smoke test with JupyterLab 4.6.6 and IPython kernel 7.4.0 verified surface rendering, text-field binding, action dispatch, and awaited `next_action()` resumption with the resolved context. The first run exposed an invalid test component ID (`submit-label`); changing it to the valid UAX #31 identifier `submit_label` passed. Asynchronous context resolution through `callAgentFunction`, replay/save-and-reopen, and other JupyterLab or kernel versions remain untested.
 7. **Compatibility:** the kernel versions in [Kernel compatibility](#kernel-compatibility) were tested locally. CI runs only the version resolved in `uv.lock`, and only JupyterLab 4.6 was tried in a browser.
 
 ## Relationship to xeus-x
