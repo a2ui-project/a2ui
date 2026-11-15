@@ -53,9 +53,10 @@ const testCatalog = new Catalog<ComponentApi>(
   ],
 );
 
-function createContext(data: Record<string, unknown> = {}): DataContext {
+function createContext(data: Record<string, unknown> = {}, protocolVersion?: string): DataContext {
   const surface = {
     dataModel: new DataModel(data),
+    protocolVersion,
     defaultCatalog: {invoker: testCatalog.invoker},
     availableCatalogs: new Map(),
     dispatchError: () => {},
@@ -79,6 +80,14 @@ describe('dynamic-values', () => {
       assert.strictEqual(isDataBinding([{path: '/a'}]), false);
       assert.strictEqual(isDataBinding('/user/name'), false);
       assert.strictEqual(isDataBinding(null), false);
+    });
+  });
+
+  describe('isDataBinding from v1.0', () => {
+    it('accepts the v1.0 @path spelling only', () => {
+      assert.strictEqual(isDataBinding({'@path': '/user/name'}, true), true);
+      assert.strictEqual(isDataBinding({path: '/user/name'}, true), false);
+      assert.strictEqual(isDataBinding({'@path': '/user/name'}), false);
     });
   });
 
@@ -203,6 +212,30 @@ describe('dynamic-values', () => {
       const resolved = resolveDynamicValueDeep({path: '/ping'}, context);
 
       assert.strictEqual(isDataBinding(resolved), true);
+    });
+  });
+
+  describe('resolveDynamicValueDeep on a v1.0 context', () => {
+    it('resolves nested @path bindings and @call calls', () => {
+      const context = createContext({city: 'Paris'}, '1.0');
+      assert.deepStrictEqual(
+        resolveDynamicValueDeep(
+          {
+            where: {'@path': '/city'},
+            loud: {'@call': 'shout', args: {text: 'hi'}},
+            list: [{'@path': '/city'}],
+          },
+          context,
+        ),
+        {where: 'Paris', loud: 'hi!', list: ['Paris']},
+      );
+    });
+
+    it('keeps the v0.9 spelling as literal objects', () => {
+      const context = createContext({city: 'Paris'}, '1.0');
+      assert.deepStrictEqual(resolveDynamicValueDeep({where: {path: '/city'}}, context), {
+        where: {path: '/city'},
+      });
     });
   });
 

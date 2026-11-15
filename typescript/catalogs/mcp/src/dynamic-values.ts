@@ -35,20 +35,36 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/**
- * Checks whether `value` is a `DataBinding` (`{path: string}`).
- *
- * Objects with additional properties alongside `path` are treated as literal objects.
- */
-export function isDataBinding(value: unknown): value is DataBinding {
-  return isRecord(value) && typeof value['path'] === 'string' && Object.keys(value).length === 1;
+/** The key of a data binding's path: `@path` from protocol v1.0, `path` before. */
+function pathKey(atLeastV10: boolean): string {
+  return atLeastV10 ? '@path' : 'path';
+}
+
+/** The key of a function call's name: `@call` from protocol v1.0, `call` before. */
+export function callKey(atLeastV10: boolean): string {
+  return atLeastV10 ? '@call' : 'call';
 }
 
 /**
- * Checks whether `value` is a `FunctionCall` (`{call: string, args?, returnType?}`).
+ * Checks whether `value` is a `DataBinding`: `{path: string}`, or `{"@path": string}` when
+ * `atLeastV10`.
+ *
+ * Objects with additional properties alongside the path are treated as literal objects.
  */
-export function isFunctionCall(value: unknown): value is FunctionCall {
-  if (!isRecord(value) || typeof value['call'] !== 'string') {
+export function isDataBinding(value: unknown, atLeastV10 = false): value is DataBinding {
+  return (
+    isRecord(value) &&
+    typeof value[pathKey(atLeastV10)] === 'string' &&
+    Object.keys(value).length === 1
+  );
+}
+
+/**
+ * Checks whether `value` is a `FunctionCall`: `{call: string, args?, returnType?}`, or
+ * `{"@call": string, args?, returnType?}` when `atLeastV10`.
+ */
+export function isFunctionCall(value: unknown, atLeastV10 = false): value is FunctionCall {
+  if (!isRecord(value) || typeof value[callKey(atLeastV10)] !== 'string') {
     return false;
   }
   const args = value['args'];
@@ -59,9 +75,12 @@ export function isFunctionCall(value: unknown): value is FunctionCall {
   );
 }
 
-/** Checks whether `value` is a `DataBinding` or a `FunctionCall`. */
-export function isDynamicExpression(value: unknown): value is DynamicExpression {
-  return isDataBinding(value) || isFunctionCall(value);
+/** Checks whether `value` is a `DataBinding` or a `FunctionCall`, in the spelling of the version. */
+export function isDynamicExpression(
+  value: unknown,
+  atLeastV10 = false,
+): value is DynamicExpression {
+  return isDataBinding(value, atLeastV10) || isFunctionCall(value, atLeastV10);
 }
 
 /**
@@ -94,24 +113,31 @@ export function resolveDynamicValueDeep<T = unknown>(
   if (Array.isArray(value)) {
     return value.map(item => resolveDynamicValueDeep(item, context, depth + 1)) as unknown as T;
   }
-  if (isDataBinding(value)) {
+  // A v1.0 context resolves the v1.0 spelling (`@path`, `@call`); the other is a literal object.
+  const atLeastV10 = context.atLeastV10;
+  if (isDataBinding(value, atLeastV10)) {
+    const key = pathKey(atLeastV10);
     const resolved = context.resolveDynamicValue(value);
     // Stop if the binding could not be resolved to avoid an infinite loop.
-    if (resolved === value || (isDataBinding(resolved) && resolved.path === value.path)) {
+    if (
+      resolved === value ||
+      (isDataBinding(resolved, atLeastV10) &&
+        (resolved as Record<string, unknown>)[key] === (value as Record<string, unknown>)[key])
+    ) {
       return resolved as unknown as T;
     }
     return resolveDynamicValueDeep(resolved, context, depth + 1);
   }
-  if (isFunctionCall(value)) {
+  if (isFunctionCall(value, atLeastV10)) {
     // Supply default values for optional `args` and `returnType` fields before resolving.
     const dynamicCall =
       value.args !== undefined && value.returnType !== undefined
         ? value
-        : {
-            call: value.call,
+        : ({
+            ...value,
             args: value.args ?? {},
             returnType: value.returnType ?? 'any',
-          };
+          } as FunctionCall);
     const resolved = context.resolveDynamicValue(dynamicCall);
     if (resolved === value || resolved === dynamicCall) {
       return resolved as unknown as T;
@@ -125,8 +151,8 @@ export function resolveDynamicValueDeep<T = unknown>(
  * Resolves each property value in a key-value record (such as function arguments).
  *
  * Resolves entries individually rather than evaluating the record itself as a
- * dynamic expression, so records containing `path` or `call` keys are preserved
- * as plain objects.
+ * dynamic expression, so records containing `path` or `call` keys (`@path` or `@call` from
+ * v1.0) are preserved as plain objects.
  */
 export function resolveDynamicRecord(
   record: Record<string, unknown>,

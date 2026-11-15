@@ -1021,10 +1021,9 @@ describe('callMcpTool', () => {
       });
       const context = createTestDataContext(dataModel, catalog);
 
-      // The data context resolves the bindings of a call's arguments before it invokes it.
-      await context.resolveDynamicValue({
-        '@call': 'callMcpTool',
-        args: {
+      await catalog.invoker(
+        'callMcpTool',
+        {
           name: {'@path': '/toolName'},
           arguments: {
             city: {'@path': '/location'},
@@ -1032,10 +1031,39 @@ describe('callMcpTool', () => {
             unit: 'metric',
           },
         },
-      } as never);
+        context,
+      );
 
       assert.strictEqual(client.calls[0].toolName, 'get_forecast');
       assert.deepStrictEqual(client.calls[0].args, {city: 'Paris', days: 3, unit: 'metric'});
+    });
+
+    it('takes the result of a v1.0 @call as the arguments on a v1.0 surface', async () => {
+      const client = createFakeClient();
+      const catalog = new Catalog<any>(
+        MCP_CATALOG_ID,
+        '1.0',
+        [],
+        [
+          createCallMcpToolImplementation(validator, () => ({
+            getMcpClientForTool: () => asClient(client),
+            processor,
+          })),
+          PathArgumentImplementation,
+        ],
+      );
+      const context = createTestDataContext(new DataModel({dir: '/home'}), catalog);
+
+      await catalog.invoker(
+        'callMcpTool',
+        {
+          name: 'list_directory',
+          arguments: {'@call': 'pathArgument', args: {data: {'@path': '/dir'}}},
+        },
+        context,
+      );
+
+      assert.deepStrictEqual(client.calls[0].args, {path: '/home'});
     });
 
     it('treats "path" and "call" argument keys as literal tool arguments', async () => {

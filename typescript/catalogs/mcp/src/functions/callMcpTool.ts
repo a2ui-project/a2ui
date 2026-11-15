@@ -140,7 +140,7 @@ import {CallToolResultSchema} from '@modelcontextprotocol/sdk/types.js';
 import type {CallToolResult, ReadResourceResult} from '@modelcontextprotocol/sdk/types.js';
 import type {JsonSchemaValidator} from '@a2ui/web_core/schema-engine';
 
-import {isFunctionCall, isRecord, resolveDynamicRecord} from '../dynamic-values.js';
+import {callKey, isFunctionCall, isRecord, resolveDynamicRecord} from '../dynamic-values.js';
 import {mcpFunctionApi} from '../document.js';
 import {DEFAULT_MESSAGE_VERSION, getMcpCatalogConfig} from '../mcp_catalog_config.js';
 
@@ -225,30 +225,37 @@ export type McpClientResolver = (
  * than a record of tool arguments. A record that merely has a `call` key next to other arguments
  * stays a record.
  */
-function isArgumentsCall(value: unknown): value is FunctionCall {
+function isArgumentsCall(value: unknown, atLeastV10: boolean): value is FunctionCall {
+  const call = callKey(atLeastV10);
   return (
-    isFunctionCall(value) &&
-    Object.keys(value).every(key => key === 'call' || key === 'args' || key === 'returnType')
+    isFunctionCall(value, atLeastV10) &&
+    Object.keys(value).every(
+      key =>
+        key === call ||
+        key === 'args' ||
+        key === 'returnType' ||
+        (atLeastV10 && key === 'catalogId'),
+    )
   );
 }
 
 /**
  * Resolves the `arguments` of a `callMcpTool` call: a function call is invoked once and its result
- * is the whole arguments object (tool arguments named `path` or `call` stay literal that way), and a
- * record resolves each of its values.
+ * is the whole arguments object (tool arguments named `path` or `call`, or `@path` and `@call`
+ * from v1.0, stay literal that way), and a record resolves each of its values.
  */
 function resolveToolArguments(
   value: FunctionCall | Record<string, unknown>,
   context: DataContext,
 ): unknown {
-  if (!isArgumentsCall(value)) {
+  if (!isArgumentsCall(value, context.atLeastV10)) {
     return resolveDynamicRecord(value, context);
   }
   return context.resolveDynamicValue({
-    call: value.call,
+    ...value,
     args: value.args ?? {},
     returnType: value.returnType ?? 'any',
-  });
+  } as FunctionCall);
 }
 
 /** Options of `createCallMcpToolImplementation`. */
