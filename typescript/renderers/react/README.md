@@ -7,15 +7,20 @@ generate rich, interactive user interfaces through declarative JSON.
 
 - **Multi-version**: Renders A2UI v0.9, v0.9.1 and v1.0 surfaces from the same package, with improved modularity and type safety.
 - **Deep Reactivity**: Powered by the A2UI Generic Binder for automatic, fine-grained updates.
-- **Strongly Typed**: Inferred property types from Zod schemas ensure compile-time safety.
+- **Strongly Typed**: Property types inferred from the component schemas ensure compile-time safety.
 - **Extensible**: Easily define custom component catalogs and logic functions.
 - **Multi-Surface**: Built-in support for managing independent UI surfaces.
 
 ## Installation
 
 ```bash
-yarn add @a2ui/react @a2ui/web_core
+yarn add @a2ui/react @a2ui/web_core @a2ui/validator-ajv
 ```
+
+`@a2ui/web_core` validates messages and component properties against the
+specification's JSON Schemas with a `JsonSchemaValidator` that the application
+passes in, such as `createAjvValidator()` from `@a2ui/validator-ajv`. `@a2ui/react`
+has no default validator.
 
 ## Protocol Versioning
 
@@ -31,9 +36,9 @@ import {A2uiSurface} from '@a2ui/react';
 import {MessageProcessor} from '@a2ui/web_core';
 
 // Basic catalog for v1.0:
-import {basicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+import {createBasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
 // ...or for v0.9 and v0.9.1:
-// import {basicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
+// import {createBasicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
 ```
 
 The `@a2ui/react/v0_9` entry point still works but only re-exports the package
@@ -47,18 +52,22 @@ The React renderer works alongside the `MessageProcessor` from `@a2ui/web_core`.
 - **Surface** — an independent rendering area, uniquely identified by a string ID, that the agent creates and populates with components.
 - **Catalog** — the set of components (e.g. `Text`, `Column`, `Button`) available for a surface to use.
 
-The example below creates a processor with the `basicCatalog` from `@a2ui/web_core/catalogs/basic/v1`, feeds it a sequence of hardcoded messages, and renders the resulting surface.
+The example below creates a processor with the basic catalog from `@a2ui/web_core/catalogs/basic/v1`, feeds it a sequence of hardcoded messages, and renders the resulting surface.
 
 ```tsx
 import {useState, useEffect} from 'react';
 import {MessageProcessor} from '@a2ui/web_core';
-import {basicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+import {createBasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+import {createAjvValidator} from '@a2ui/validator-ajv';
 import {A2uiSurface} from '@a2ui/react';
+
+const validator = createAjvValidator();
+const basicCatalog = createBasicCatalog(validator);
 
 export default function App() {
   // 1. Create the processor and feed it messages.
   const [processor] = useState(() => {
-    const p = new MessageProcessor([basicCatalog]);
+    const p = new MessageProcessor([basicCatalog], undefined, {validator});
     p.processMessages(sampleAgentMessages);
     return p;
   });
@@ -132,27 +141,43 @@ A2UI separates a component's API (Schema) from its implementation.
 
 ### 1. Define the Component API
 
-Use Zod to define the properties. Using `CommonSchemas` from `@a2ui/web_core/v1_0` (or `@a2ui/web_core/v0_9` for v0.9 catalogs) enables automatic binding for A2UI primitives.
+The schema is a `CatalogSchema`: a Standard Schema that implements Standard JSON Schema. Properties written as the protocol's common types (`DynamicString`, `Action`, `ChildList`, ...), as `$ref`s into its `common_types.json`, get automatic binding. The zod 4 helpers of `@a2ui/schema-zod4` write them so (`@a2ui/schema-zod4/v1_0`, or `@a2ui/schema-zod4/v0_9` for v0.9 catalogs):
 
 ```typescript
+import {component, Action, CheckRule, DynamicBoolean, DynamicString} from '@a2ui/schema-zod4/v1_0';
 import {z} from 'zod';
-import {CommonSchemas} from '@a2ui/web_core/v1_0';
 
 export const MyProfileApi = {
   name: 'Profile',
-  schema: z.object({
-    username: CommonSchemas.DynamicString, // Can be literal "Alice" or {'@path': "/user/name"}
-    bio: CommonSchemas.DynamicString,
-    avatarUrl: CommonSchemas.DynamicString,
-    onEdit: CommonSchemas.Action, // Resolves to a clickable () => void
-    isEditable: CommonSchemas.DynamicBoolean,
+  schema: component({
+    username: DynamicString, // Can be literal "Alice" or {'@path': "/user/name"}
+    bio: DynamicString,
+    avatarUrl: DynamicString,
+    onEdit: Action, // Resolves to a clickable () => void
+    isEditable: DynamicBoolean,
     // Add 'checks' if you want validation support
-    checks: CommonSchemas.Checkable.shape.checks,
+    checks: z.array(CheckRule).optional(),
   }),
 };
 ```
 
-The API can also restrict where the component appears, with `allowedParents` and `allowedChildren` lists of component names. The message processor then rejects a payload that places the component under another parent with `UNALLOWED_PARENT`, or gives it a child of another type with `UNALLOWED_CHILD`. A root component's parent is `Surface`. Only properties declared with `CommonSchemas.ComponentId` or `CommonSchemas.ChildList` hold children, so an id in a plain `z.string()` property is not checked against `allowedChildren`.
+Plain JSON Schema works too, with `fromJsonSchema` from `@a2ui/web_core`. Its `version` option resolves `common_types.json` refs to that protocol version's common types; the type parameter types the props:
+
+```typescript
+import {fromJsonSchema} from '@a2ui/web_core';
+import type {DynamicString} from '@a2ui/web_core/v1_0';
+
+export const GreetingApi = {
+  name: 'Greeting',
+  schema: fromJsonSchema<{name?: DynamicString}>(
+    {type: 'object', properties: {name: {$ref: 'common_types.json#/$defs/DynamicString'}}},
+    validator,
+    {version: '1.0'},
+  ),
+};
+```
+
+The API can also restrict where the component appears, with `allowedParents` and `allowedChildren` lists of component names. The message processor then rejects a payload that places the component under another parent with `UNALLOWED_PARENT`, or gives it a child of another type with `UNALLOWED_CHILD`. A root component's parent is `Surface`. Only properties declared as the common types `ComponentId`, `Child` or `ChildList` hold children, so an id in a plain string property is not checked against `allowedChildren`.
 
 ### 2. Create the React Implementation
 
@@ -162,7 +187,7 @@ The `createComponentImplementation` factory uses a **Generic Binder** to resolve
 import {createComponentImplementation} from '@a2ui/react';
 
 export const MyProfile = createComponentImplementation(MyProfileApi, ({props, buildChild}) => {
-  // 'props' is strictly inferred from the Zod schema:
+  // 'props' is strictly inferred from the schema:
   // props.username is 'string' (resolved from DynamicString)
   // props.onEdit is '() => void' (resolved from Action)
 
@@ -264,15 +289,17 @@ export const RawInspector = createBinderlessComponentImplementation(InspectorApi
 Group your components and logic functions into a `Catalog` to be used by the `MessageProcessor`.
 
 ```typescript
-import {Catalog, createFunctionImplementation} from '@a2ui/web_core';
-import {z} from 'zod';
+import {Catalog, createFunctionImplementation, fromJsonSchema} from '@a2ui/web_core';
 
 // 1. Implement a custom logic function
 const myCheckFunc = createFunctionImplementation(
   {
     name: 'is_admin',
     returnType: 'boolean',
-    schema: z.object({role: z.string()}),
+    schema: fromJsonSchema<{role: string}>(
+      {type: 'object', properties: {role: {type: 'string'}}, required: ['role']},
+      validator,
+    ),
   },
   args => args.role === 'admin',
 );
@@ -288,7 +315,7 @@ export const myCatalog = new Catalog(
 
 ## Basic Catalog Components
 
-`@a2ui/web_core/catalogs/basic/v1` (v1.0) and `@a2ui/web_core/v0_9/basic_catalog` (v0.9 and v0.9.1) each provide a `basicCatalog` with the same standard components. They are W3C Custom Elements, and the React renderer renders them as elements:
+`@a2ui/web_core/catalogs/basic/v1` (v1.0) and `@a2ui/web_core/v0_9/basic_catalog` (v0.9 and v0.9.1) each provide a `createBasicCatalog(validator)` factory for the catalog of the same standard components. They are W3C Custom Elements, and the React renderer renders them as elements:
 
 - **Layout**: `Row`, `Column`, `List`, `Card`, `Tabs`, `Modal`, `Divider`
 - **Content**: `Text`, `Image`, `Icon`, `Video`, `AudioPlayer`
@@ -349,15 +376,18 @@ To use the v0.8 renderer, you use the `A2UIProvider` and `A2UIRenderer` componen
 
 ```tsx
 import {A2UIProvider, A2UIRenderer, injectStyles} from '@a2ui/react/v0_8';
+import {createAjvValidator} from '@a2ui/validator-ajv';
 
 // Inject v0.8 styles
 injectStyles();
+
+const validator = createAjvValidator();
 
 function LegacyApp() {
   const handleAction = msg => console.log('Action:', msg);
 
   return (
-    <A2UIProvider onAction={handleAction}>
+    <A2UIProvider validator={validator} onAction={handleAction}>
       {/* Renders the surface using v0.8 logic */}
       <A2UIRenderer surfaceId="main" />
     </A2UIProvider>
@@ -371,7 +401,7 @@ function LegacyApp() {
 | :-------------- | :-------------------------------------- | :--------------------------------------------------------------- |
 | **Protocol**    | Uses `BeginRendering`, `SurfaceUpdate`. | Uses `createSurface`, `updateComponents`, `updateDataModel`.     |
 | **Data Flow**   | Unidirectional surface updates.         | Bidirectional synchronization (`sendDataModel`).                 |
-| **Type Safety** | Props accessed via `node.properties`.   | Strongly typed `props` inferred from Zod schemas.                |
+| **Type Safety** | Props accessed via `node.properties`.   | Strongly typed `props` inferred from the component schemas.      |
 | **Logic**       | Limited client-side logic.              | Extensible `Function` system (e.g., `formatString`, `required`). |
 | **Reactivity**  | Hooks-based (`useA2UIComponent`).       | Automatic via the **Generic Binder** middleware.                 |
 | **Binding**     | Manual resolution in component body.    | Declarative two-way binding with injected setters.               |

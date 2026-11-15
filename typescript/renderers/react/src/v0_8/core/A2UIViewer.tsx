@@ -17,6 +17,7 @@
 'use client';
 
 import React, {useEffect, useMemo, useRef} from 'react';
+import type {JsonSchemaValidator} from '@a2ui/web_core';
 import type * as Types from '@a2ui/web_core/types/types';
 import {useIdCompat} from '../hooks/useIdCompat';
 import {litTheme} from '../theme/litTheme';
@@ -43,6 +44,11 @@ export interface A2UIActionEvent {
 }
 
 export interface A2UIViewerProps {
+  /**
+   * The JSON Schema validator the viewer's messages are checked with, such as
+   * `createAjvValidator()` from `@a2ui/validator-ajv`.
+   */
+  validator: JsonSchemaValidator;
   /** The root component ID */
   root: string;
   /** Array of component definitions */
@@ -72,6 +78,7 @@ export interface A2UIViewerProps {
  * ];
  *
  * <A2UIViewer
+ *   validator={validator}
  *   root="root"
  *   components={components}
  *   data={{ message: 'Hello World!' }}
@@ -80,6 +87,7 @@ export interface A2UIViewerProps {
  * ```
  */
 export function A2UIViewer({
+  validator,
   root,
   components,
   data = {},
@@ -116,7 +124,7 @@ export function A2UIViewer({
   }, [onAction]);
 
   return (
-    <A2UIProvider onAction={handleAction} theme={theme}>
+    <A2UIProvider validator={validator} onAction={handleAction} theme={theme}>
       <A2UIViewerInner
         surfaceId={surfaceId}
         root={root}

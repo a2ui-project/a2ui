@@ -19,6 +19,7 @@ import {render, screen, waitFor} from '@testing-library/react';
 import React, {useEffect} from 'react';
 import {A2UIProvider, A2UIRenderer, useA2UI} from '../../../src/v0_8';
 import {createSurfaceUpdate, createBeginRendering} from '../utils';
+import {validator} from '../../validator';
 
 /**
  * Property Updates Integration Tests
@@ -72,7 +73,7 @@ describe('Property Updates via surfaceUpdate', () => {
       }
 
       render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <TextUpdateRenderer />
         </A2UIProvider>,
       );
@@ -124,7 +125,7 @@ describe('Property Updates via surfaceUpdate', () => {
       }
 
       const {container} = render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <TextUsageRenderer />
         </A2UIProvider>,
       );
@@ -188,7 +189,7 @@ describe('Property Updates via surfaceUpdate', () => {
       }
 
       const {container} = render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <ImageUpdateRenderer />
         </A2UIProvider>,
       );
@@ -252,7 +253,7 @@ describe('Property Updates via surfaceUpdate', () => {
       }
 
       const {container} = render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <ImageUsageRenderer />
         </A2UIProvider>,
       );
@@ -300,7 +301,7 @@ describe('Property Updates via surfaceUpdate', () => {
       }
 
       const {container} = render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <IconUpdateRenderer />
         </A2UIProvider>,
       );
@@ -361,7 +362,7 @@ describe('Property Updates via surfaceUpdate', () => {
       }
 
       render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <ButtonUpdateRenderer />
         </A2UIProvider>,
       );
@@ -413,7 +414,7 @@ describe('Property Updates via surfaceUpdate', () => {
       }
 
       render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <TextFieldLabelRenderer />
         </A2UIProvider>,
       );
@@ -475,7 +476,7 @@ describe('Property Updates via surfaceUpdate', () => {
       }
 
       render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <CheckBoxLabelRenderer />
         </A2UIProvider>,
       );
@@ -537,7 +538,7 @@ describe('Property Updates via surfaceUpdate', () => {
       }
 
       render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <CheckBoxStateRenderer />
         </A2UIProvider>,
       );
@@ -600,7 +601,7 @@ describe('Property Updates via surfaceUpdate', () => {
       }
 
       render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <SliderValueRenderer />
         </A2UIProvider>,
       );
@@ -663,7 +664,7 @@ describe('Property Updates via surfaceUpdate', () => {
       }
 
       render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <SliderRangeRenderer />
         </A2UIProvider>,
       );
@@ -731,7 +732,7 @@ describe('Property Updates via surfaceUpdate', () => {
       }
 
       const {container} = render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <ColumnAlignmentRenderer />
         </A2UIProvider>,
       );
@@ -797,7 +798,7 @@ describe('Property Updates via surfaceUpdate', () => {
       }
 
       const {container} = render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <ColumnDistributionRenderer />
         </A2UIProvider>,
       );
@@ -861,7 +862,7 @@ describe('Property Updates via surfaceUpdate', () => {
       }
 
       const {container} = render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <RowAlignmentRenderer />
         </A2UIProvider>,
       );
@@ -924,7 +925,7 @@ describe('Property Updates via surfaceUpdate', () => {
       }
 
       const {container} = render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <ListDirectionRenderer />
         </A2UIProvider>,
       );
@@ -1000,7 +1001,7 @@ describe('Property Updates via surfaceUpdate', () => {
       }
 
       render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <TabsTitleRenderer />
         </A2UIProvider>,
       );
@@ -1075,7 +1076,7 @@ describe('Property Updates via surfaceUpdate', () => {
       }
 
       render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <TabsAddRenderer />
         </A2UIProvider>,
       );

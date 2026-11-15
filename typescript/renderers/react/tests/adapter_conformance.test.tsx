@@ -42,6 +42,7 @@ import {
   type AdapterTestCase,
   type ManifestRecord,
 } from './adapter_harness';
+import {validator} from './validator';
 
 const CONFORMANCE_DIR = path.resolve(import.meta.dirname, '../../../../conformance/core');
 
@@ -106,9 +107,11 @@ describe('@a2ui/react Accessibility Conformance (conformance/core/accessibility.
         }
         assertKnownAccessibilityCase(testCase);
 
-        const processor = new MessageProcessor<ReactCatalogComponent>([
-          createDefaultAdapterCatalog(),
-        ]);
+        const processor = new MessageProcessor<ReactCatalogComponent>(
+          [createDefaultAdapterCatalog()],
+          undefined,
+          {validator},
+        );
 
         for (const step of steps) {
           await act(async () => {

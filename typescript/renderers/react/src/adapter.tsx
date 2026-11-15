@@ -19,6 +19,7 @@ import {
   type A2uiMetadata,
   type ComponentApi,
   type ComponentContext,
+  componentSchemaCursor,
   GenericBinder,
   type InferredComponentApiSchemaType,
   type ResolveA2uiProps,
@@ -34,6 +35,24 @@ import type {
 import {useSyncExternalStore} from './use_sync_external_store';
 
 // --- Component Factories ---
+
+const EMPTY_CURSOR = {node: {}, doc: {root: {}, defs: {}}};
+
+/**
+ * The schema cursor a binder for `api` reads: `api`'s schema, as its catalog
+ * (the context's component catalog, else the surface's default catalog)
+ * would prepare it for its protocol version and `$defs`.
+ */
+function binderCursor(api: ComponentApi, context: ComponentContext) {
+  const catalog = context.componentModel?.catalog ?? context.dataContext?.surface?.defaultCatalog;
+  const protocolVersion = catalog?.protocolVersion ?? context.dataContext?.surface?.protocolVersion;
+  return (
+    componentSchemaCursor(
+      {protocolVersion, defs: catalog?.defs, components: new Map([[api.name, api]])},
+      api.name,
+    ) ?? EMPTY_CURSOR
+  );
+}
 
 type MemoizedRenderInternalProps<Props> = {
   props: Props;
@@ -118,10 +137,10 @@ export function createComponentImplementation<Api extends ComponentApi>(
     // memoize `context`, so a new reference means the component's model or its
     // data path changed.
     if (!bindingRef.current) {
-      bindingRef.current = new GenericBinder<Props>(context, api.schema);
+      bindingRef.current = new GenericBinder<Props>(context, binderCursor(api, context));
     } else if ((bindingRef.current as unknown as {context: ComponentContext}).context !== context) {
       bindingRef.current.dispose();
-      bindingRef.current = new GenericBinder<Props>(context, api.schema);
+      bindingRef.current = new GenericBinder<Props>(context, binderCursor(api, context));
     }
     const binding = bindingRef.current;
 

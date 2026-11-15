@@ -17,14 +17,8 @@
 import {describe, it, expect, beforeEach} from 'vitest';
 import React, {createContext, useContext} from 'react';
 import {render, screen, act, fireEvent, within} from '@testing-library/react';
-import {z} from 'zod';
 import {Catalog, ComponentModel, NodeResolver, SurfaceModel, getValue} from '@a2ui/web_core';
-import {
-  ChildListSchema,
-  CommonSchemas,
-  ComponentIdSchema,
-  type A2uiClientAction,
-} from '@a2ui/web_core/v0_9';
+import {type A2uiClientAction} from '@a2ui/web_core/v0_9';
 import {
   createComponentImplementation,
   type ReactCatalogComponent,
@@ -35,7 +29,10 @@ import type {ReactHostElement} from '../../src/catalog/react_host_element';
 import {toWebComponent} from '../../src/catalog/to_web_component';
 import {A2uiSurface} from '../../src/A2uiSurface';
 import {HostRegistry} from '../../src/host_registry';
-import {basicCatalog as webCoreBasicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
+import {createBasicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
+import {commonType, objectSchema, validator} from '../validator';
+
+const webCoreBasicCatalog = createBasicCatalog(validator);
 
 /** View render counts, keyed per component instance. */
 const renders = new Map<string, number>();
@@ -52,7 +49,7 @@ function tagOf(implementation: ReactComponentImplementation): string {
 }
 
 const TextImpl = createComponentImplementation(
-  {name: 'Text', schema: z.object({text: CommonSchemas.DynamicString.optional()})},
+  {name: 'Text', schema: objectSchema({text: commonType('DynamicString')})},
   ({props, context}) => {
     bump(`Text:${context.componentModel.id}@${context.dataContext.path}`);
     return <span>{String(props.text ?? '')}</span>;
@@ -60,7 +57,7 @@ const TextImpl = createComponentImplementation(
 );
 
 const ColumnImpl = createComponentImplementation(
-  {name: 'Column', schema: z.object({children: ChildListSchema.optional()})},
+  {name: 'Column', schema: objectSchema({children: commonType('ChildList')})},
   ({props, buildChild, context}) => {
     bump(`Column:${context.componentModel.id}`);
     const children = props.children as Array<string | {id: string; basePath: string}> | undefined;
@@ -83,7 +80,7 @@ const ColumnImpl = createComponentImplementation(
 );
 
 const CardImpl = createComponentImplementation(
-  {name: 'Card', schema: z.object({child: ComponentIdSchema.optional()})},
+  {name: 'Card', schema: objectSchema({child: commonType('ComponentId')})},
   ({props, buildChild, context}) => {
     bump(`Card:${context.componentModel.id}`);
     return <div>{props.child ? buildChild(props.child as string) : null}</div>;
@@ -91,7 +88,7 @@ const CardImpl = createComponentImplementation(
 );
 
 const TextFieldImpl = createComponentImplementation(
-  {name: 'TextField', schema: z.object({value: CommonSchemas.DynamicString.optional()})},
+  {name: 'TextField', schema: objectSchema({value: commonType('DynamicString')})},
   ({props, context}) => {
     bump(`TextField:${context.componentModel.id}@${context.dataContext.path}`);
     // The missing optional chaining is deliberate: shipped input views call
@@ -109,7 +106,7 @@ const TextFieldImpl = createComponentImplementation(
 );
 
 const ButtonImpl = createComponentImplementation(
-  {name: 'Button', schema: z.object({action: CommonSchemas.Action.optional()})},
+  {name: 'Button', schema: objectSchema({action: commonType('Action')})},
   ({props, context}) => {
     bump(`Button:${context.componentModel.id}`);
     return (
@@ -126,7 +123,7 @@ const ButtonImpl = createComponentImplementation(
 /** Renders its own node's instanceId, making node identity visible in the DOM. */
 const ProbeImpl: ReactComponentImplementation = {
   name: 'Probe',
-  schema: z.object({}),
+  schema: objectSchema(),
   render: () => <span>probe</span>,
   view: ({node}) => <span>{`id:${node.instanceId}`}</span>,
 };
@@ -134,7 +131,7 @@ const ProbeImpl: ReactComponentImplementation = {
 // A factory-created implementation with `view` removed: the shape an older
 // catalog holds, rendering through ReactWrapper and MemoizedRender.
 const factoryItem = createComponentImplementation(
-  {name: 'FactoryItem', schema: z.object({child: ComponentIdSchema.optional()})},
+  {name: 'FactoryItem', schema: objectSchema({child: commonType('ComponentId')})},
   ({props, buildChild}) => <div>{props.child ? buildChild(props.child as string) : null}</div>,
 );
 const FactoryRenderOnlyImpl: ReactComponentImplementation = {
@@ -145,7 +142,7 @@ const FactoryRenderOnlyImpl: ReactComponentImplementation = {
 
 const DashCollidingScoperImpl: ReactComponentImplementation = {
   name: 'DashCollidingScoper',
-  schema: z.object({first: ComponentIdSchema.optional(), second: ComponentIdSchema.optional()}),
+  schema: objectSchema({first: commonType('ComponentId'), second: commonType('ComponentId')}),
   render: ({buildChild}) => (
     <div>
       {buildChild('a', '/b-/c')}
@@ -156,7 +153,7 @@ const DashCollidingScoperImpl: ReactComponentImplementation = {
 
 const CollidingScoperImpl: ReactComponentImplementation = {
   name: 'CollidingScoper',
-  schema: z.object({first: ComponentIdSchema.optional(), second: ComponentIdSchema.optional()}),
+  schema: objectSchema({first: commonType('ComponentId'), second: commonType('ComponentId')}),
   render: ({buildChild}) => (
     <div>
       {buildChild('kid@x', '/y')}
@@ -168,10 +165,7 @@ const CollidingScoperImpl: ReactComponentImplementation = {
 /** Render-only: no `view`, reads raw component ids from the model. */
 const RawItemImpl: ReactComponentImplementation = {
   name: 'RawItem',
-  schema: z.object({
-    child: ComponentIdSchema.optional(),
-    children: ChildListSchema.optional(),
-  }),
+  schema: objectSchema({child: commonType('ComponentId'), children: commonType('ChildList')}),
   render: ({context, buildChild}) => {
     const properties = context.componentModel.properties;
     const childId = properties.child as string | undefined;
@@ -196,7 +190,7 @@ const RawItemImpl: ReactComponentImplementation = {
  * so the id reaches `buildChild`.
  */
 const UnmarkedParentImpl = createComponentImplementation(
-  {name: 'UnmarkedParent', schema: z.object({content: z.string().optional()})},
+  {name: 'UnmarkedParent', schema: objectSchema({content: {type: 'string'}})},
   ({props, buildChild}) => <div>{props.content ? buildChild(props.content as string) : null}</div>,
 );
 
@@ -204,7 +198,7 @@ const Theme = createContext('no provider');
 const PanelTheme = createContext('no panel provider');
 
 /** Reads React context, to show what reaches a nested component. */
-const ThemedImpl = createComponentImplementation({name: 'Themed', schema: z.object({})}, () => {
+const ThemedImpl = createComponentImplementation({name: 'Themed', schema: objectSchema()}, () => {
   const theme = useContext(Theme);
   const panelTheme = useContext(PanelTheme);
   return <span data-testid="themed">{`${theme}/${panelTheme}`}</span>;
@@ -212,7 +206,7 @@ const ThemedImpl = createComponentImplementation({name: 'Themed', schema: z.obje
 
 /** Provides React context around its child, which reaches the child. */
 const PanelImpl = createComponentImplementation(
-  {name: 'Panel', schema: z.object({child: ComponentIdSchema.optional()})},
+  {name: 'Panel', schema: objectSchema({child: commonType('ComponentId')})},
   ({props, buildChild}) => (
     <PanelTheme.Provider value="from panel">
       {props.child ? buildChild(props.child as string) : null}
@@ -419,7 +413,7 @@ describe('A2uiSurface', () => {
     // component model, so this pins that they still resolve.
     const RenderOnly: ReactComponentImplementation = {
       name: 'RenderOnly',
-      schema: z.object({child: ComponentIdSchema.optional()}),
+      schema: objectSchema({child: commonType('ComponentId')}),
       render: ({context, buildChild}) => {
         const childId = context.componentModel.properties.child as string | undefined;
         return <div>{childId ? buildChild(childId) : null}</div>;
@@ -442,7 +436,10 @@ describe('A2uiSurface', () => {
     // z.array(ComponentIdSchema): the marker sits on the elements, not the
     // property. The resolver classifies it as a child list.
     const PlainList = createComponentImplementation(
-      {name: 'PlainList', schema: z.object({children: z.array(ComponentIdSchema).optional()})},
+      {
+        name: 'PlainList',
+        schema: objectSchema({children: {type: 'array', items: commonType('ComponentId')}}),
+      },
       ({props, buildChild}) => (
         <div>
           {Array.isArray(props.children)
@@ -527,7 +524,7 @@ describe('A2uiSurface', () => {
     // path names the instances that do exist instead of blaming the schema.
     const Scoper: ReactComponentImplementation = {
       name: 'Scoper',
-      schema: z.object({child: ComponentIdSchema.optional()}),
+      schema: objectSchema({child: commonType('ComponentId')}),
       render: ({context, buildChild}) => {
         const childId = context.componentModel.properties.child as string | undefined;
         return <div>{childId ? buildChild(childId, '/somewhere/else') : null}</div>;
@@ -723,8 +720,8 @@ describe('A2uiSurface', () => {
     const Grouped = createComponentImplementation(
       {
         name: 'Grouped',
-        schema: z.object({
-          group: z.object({value: CommonSchemas.DynamicString.optional()}).optional(),
+        schema: objectSchema({
+          group: {type: 'object', properties: {value: commonType('DynamicString')}},
         }),
       },
       ({props}) => {
@@ -852,7 +849,7 @@ describe('host elements', () => {
   });
 
   it('defines and renders a component from another available catalog in its host', () => {
-    const ExtraImpl = createComponentImplementation({name: 'Extra', schema: z.object({})}, () => (
+    const ExtraImpl = createComponentImplementation({name: 'Extra', schema: objectSchema()}, () => (
       <span>extra</span>
     ));
     const extraCatalog = new Catalog<ReactComponentImplementation>('node-extra-test', '0.9', [
@@ -878,7 +875,7 @@ describe('host elements', () => {
   it('renders a hand-written implementation, with no tag name or element, inside its host', () => {
     const HandWrittenImpl: ReactComponentImplementation = {
       name: 'HandWritten',
-      schema: z.object({}),
+      schema: objectSchema(),
       render: () => <span>hand-written</span>,
     };
     const surface = new SurfaceModel<ReactComponentImplementation>(

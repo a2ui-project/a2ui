@@ -26,6 +26,7 @@ import {
   createBeginRendering,
   createDeleteSurface,
 } from '../utils';
+import {validator} from '../../validator';
 
 /**
  * Message Processing Integration Tests
@@ -73,7 +74,7 @@ describe('Message Processing', () => {
       }
 
       render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <StagedRenderer />
         </A2UIProvider>,
       );
@@ -139,7 +140,7 @@ describe('Message Processing', () => {
       }
 
       render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <SequentialRenderer />
         </A2UIProvider>,
       );
@@ -169,7 +170,7 @@ describe('Message Processing', () => {
       }
 
       render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <EmptyMessagesRenderer />
         </A2UIProvider>,
       );
@@ -225,7 +226,7 @@ describe('Message Processing', () => {
       }
 
       render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <MultiSurfaceRenderer />
         </A2UIProvider>,
       );
@@ -300,7 +301,7 @@ describe('Message Processing', () => {
       }
 
       render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <IndependentSurfaceRenderer />
         </A2UIProvider>,
       );
@@ -311,7 +312,7 @@ describe('Message Processing', () => {
 
     it('should render nothing for non-existent surface', () => {
       render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <A2UIRenderer surfaceId="does-not-exist" />
         </A2UIProvider>,
       );
@@ -356,7 +357,7 @@ describe('Message Processing', () => {
       }
 
       render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <DeleteSurfaceRenderer />
         </A2UIProvider>,
       );
@@ -385,7 +386,7 @@ describe('Message Processing', () => {
 
       // Should not throw an error
       render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <DeleteNonExistentRenderer />
         </A2UIProvider>,
       );
@@ -444,7 +445,7 @@ describe('Message Processing', () => {
       }
 
       render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <MultiSurfaceDeleteRenderer />
         </A2UIProvider>,
       );
@@ -519,7 +520,7 @@ describe('Message Processing', () => {
       }
 
       render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <RecreateAfterDeleteRenderer />
         </A2UIProvider>,
       );
@@ -570,7 +571,7 @@ describe('Message Processing', () => {
       }
 
       render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <ClearRenderer />
         </A2UIProvider>,
       );
@@ -622,7 +623,7 @@ describe('Message Processing', () => {
       }
 
       render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <ClearAndRefillRenderer />
         </A2UIProvider>,
       );

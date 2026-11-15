@@ -20,6 +20,7 @@ import React, {useEffect} from 'react';
 import {A2UIProvider, A2UIRenderer, useA2UI} from '../../../src/v0_8';
 import type * as Types from '@a2ui/web_core/types/types';
 import {TestWrapper, TestRenderer, createSurfaceUpdate, createBeginRendering} from '../utils';
+import {validator} from '../../validator';
 
 /**
  * Component Integration Tests
@@ -71,7 +72,7 @@ describe('Component Updates', () => {
     }
 
     render(
-      <A2UIProvider>
+      <A2UIProvider validator={validator}>
         <UpdateWithoutBeginRenderingRenderer />
       </A2UIProvider>,
     );
@@ -119,7 +120,7 @@ describe('Component Updates', () => {
     }
 
     render(
-      <A2UIProvider>
+      <A2UIProvider validator={validator}>
         <UpdateRenderer />
       </A2UIProvider>,
     );
@@ -167,7 +168,7 @@ describe('Component Updates', () => {
     }
 
     render(
-      <A2UIProvider>
+      <A2UIProvider validator={validator}>
         <TypeChangeRenderer />
       </A2UIProvider>,
     );
@@ -219,7 +220,7 @@ describe('Component Updates', () => {
     }
 
     render(
-      <A2UIProvider>
+      <A2UIProvider validator={validator}>
         <AddComponentRenderer />
       </A2UIProvider>,
     );
@@ -290,7 +291,7 @@ describe('Component Updates', () => {
     }
 
     render(
-      <A2UIProvider>
+      <A2UIProvider validator={validator}>
         <RemoveElementsRenderer />
       </A2UIProvider>,
     );
@@ -377,7 +378,7 @@ describe('Component Updates', () => {
     }
 
     const {container} = render(
-      <A2UIProvider>
+      <A2UIProvider validator={validator}>
         <ReorderElementsRenderer />
       </A2UIProvider>,
     );
@@ -443,7 +444,7 @@ describe('Component Updates', () => {
     }
 
     render(
-      <A2UIProvider>
+      <A2UIProvider validator={validator}>
         <EmptySurfaceRenderer />
       </A2UIProvider>,
     );

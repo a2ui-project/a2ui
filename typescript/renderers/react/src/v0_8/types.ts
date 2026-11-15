@@ -15,6 +15,7 @@
  */
 
 import type {ComponentType} from 'react';
+import type {JsonSchemaValidator} from '@a2ui/web_core';
 import type * as Types from '@a2ui/web_core/types/types';
 import type * as Primitives from '@a2ui/web_core/types/primitives';
 
@@ -74,6 +75,8 @@ export type OnActionCallback = (message: Types.A2UIClientEventMessage) => void |
  * Configuration options for the A2UI provider.
  */
 export interface A2UIProviderConfig {
+  /** The JSON Schema validator messages are checked with. */
+  validator: JsonSchemaValidator;
   /** Callback invoked when a user action is dispatched (button click, etc.) */
   onAction?: OnActionCallback;
   /** Initial theme configuration */

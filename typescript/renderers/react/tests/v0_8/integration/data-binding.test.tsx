@@ -26,6 +26,7 @@ import {
   createBeginRendering,
   createDataModelUpdate,
 } from '../utils';
+import {validator} from '../../validator';
 
 /**
  * Data Binding Integration Tests
@@ -58,7 +59,7 @@ describe('Data Binding', () => {
       }
 
       render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <DataModelRenderer />
         </A2UIProvider>,
       );
@@ -95,7 +96,7 @@ describe('Data Binding', () => {
       }
 
       render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <DataUpdateRenderer />
         </A2UIProvider>,
       );
@@ -144,7 +145,7 @@ describe('Data Binding', () => {
       }
 
       const {container} = render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <SharedDataRenderer />
         </A2UIProvider>,
       );
@@ -257,7 +258,7 @@ describe('Data Binding', () => {
       }
 
       const {container} = render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <TextFieldDataUpdateRenderer />
         </A2UIProvider>,
       );
@@ -310,7 +311,7 @@ describe('Data Binding', () => {
       }
 
       render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <CheckBoxDataUpdateRenderer />
         </A2UIProvider>,
       );
@@ -361,7 +362,7 @@ describe('Data Binding', () => {
       }
 
       render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <SliderDataUpdateRenderer />
         </A2UIProvider>,
       );
@@ -421,7 +422,7 @@ describe('Data Binding', () => {
       }
 
       const {container} = render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <MultiComponentDataUpdateRenderer />
         </A2UIProvider>,
       );
@@ -485,7 +486,7 @@ describe('Data Binding', () => {
       }
 
       render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <MultiKeyDataUpdateRenderer />
         </A2UIProvider>,
       );
@@ -540,7 +541,7 @@ describe('Data Binding', () => {
       }
 
       render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <NestedPathRenderer />
         </A2UIProvider>,
       );
@@ -594,7 +595,7 @@ describe('Data Binding', () => {
       }
 
       const {container} = render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <DateTimeInputDataUpdateRenderer />
         </A2UIProvider>,
       );
@@ -646,7 +647,7 @@ describe('Data Binding', () => {
       }
 
       const {container} = render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <MultipleChoiceDataUpdateRenderer />
         </A2UIProvider>,
       );
@@ -701,7 +702,7 @@ describe('Data Binding', () => {
       }
 
       const {container} = render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <ImageDataUpdateRenderer />
         </A2UIProvider>,
       );
@@ -751,7 +752,7 @@ describe('Data Binding', () => {
       }
 
       const {container} = render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <IconDataUpdateRenderer />
         </A2UIProvider>,
       );
@@ -804,7 +805,7 @@ describe('Data Binding', () => {
       }
 
       const {container} = render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <VideoDataUpdateRenderer />
         </A2UIProvider>,
       );
@@ -861,7 +862,7 @@ describe('Data Binding', () => {
       }
 
       const {container} = render(
-        <A2UIProvider>
+        <A2UIProvider validator={validator}>
           <AudioPlayerDataUpdateRenderer />
         </A2UIProvider>,
       );

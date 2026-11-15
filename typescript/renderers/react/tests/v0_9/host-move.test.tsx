@@ -17,17 +17,18 @@
 import {act, fireEvent, render, screen} from '@testing-library/react';
 import React, {useState} from 'react';
 import {describe, expect, it} from 'vitest';
-import {z} from 'zod';
 import {Catalog, ComponentModel, SurfaceModel} from '@a2ui/web_core';
-import {CommonSchemas} from '@a2ui/web_core/v0_9';
-import {basicCatalog as webCoreBasicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
+import {createBasicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
 import {createComponentImplementation, type ReactCatalogComponent} from '../../src';
 import {A2uiSurface} from '../../src/A2uiSurface';
 import {toWebComponent} from '../../src/catalog/to_web_component';
 import {HostRegistry} from '../../src/host_registry';
+import {commonType, objectSchema, validator} from '../validator';
+
+const webCoreBasicCatalog = createBasicCatalog(validator);
 
 const StatefulCounterImpl = createComponentImplementation(
-  {name: 'StatefulCounter', schema: z.object({label: CommonSchemas.DynamicString.optional()})},
+  {name: 'StatefulCounter', schema: objectSchema({label: commonType('DynamicString')})},
   ({props}) => {
     const [count, setCount] = useState(0);
     return (

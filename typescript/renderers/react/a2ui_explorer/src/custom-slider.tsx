@@ -16,18 +16,36 @@
 
 import type {ChangeEvent} from 'react';
 import {createComponentImplementation} from '@a2ui/react';
-import z from 'zod';
-import type {ComponentApi} from '@a2ui/web_core';
-import {DynamicStringSchema, DynamicNumberSchema} from '@a2ui/web_core/v0_9';
+import {fromJsonSchema, type ComponentApi} from '@a2ui/web_core';
+import type {DynamicNumber, DynamicString} from '@a2ui/web_core/v0_9';
+import {validator} from './validator';
+
+/** The properties of `CustomSlider` as a message writes them. */
+export interface CustomSliderProps {
+  label?: DynamicString;
+  value?: DynamicNumber;
+  min?: DynamicNumber;
+  max?: DynamicNumber;
+}
+
+const DYNAMIC_STRING = {$ref: 'common_types.json#/$defs/DynamicString'};
+const DYNAMIC_NUMBER = {$ref: 'common_types.json#/$defs/DynamicNumber'};
 
 export const customSliderApi = {
   name: 'CustomSlider',
-  schema: z.object({
-    label: DynamicStringSchema.optional(),
-    value: DynamicNumberSchema.optional(),
-    min: DynamicNumberSchema.optional(),
-    max: DynamicNumberSchema.optional(),
-  }),
+  schema: fromJsonSchema<CustomSliderProps>(
+    {
+      type: 'object',
+      properties: {
+        label: DYNAMIC_STRING,
+        value: DYNAMIC_NUMBER,
+        min: DYNAMIC_NUMBER,
+        max: DYNAMIC_NUMBER,
+      },
+    },
+    validator,
+    {version: '0.9'},
+  ),
 } satisfies ComponentApi;
 
 /**

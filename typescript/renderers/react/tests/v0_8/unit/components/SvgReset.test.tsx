@@ -18,13 +18,14 @@ import {render} from '@testing-library/react';
 import React from 'react';
 import {A2UIProvider} from '../../../../src/v0_8';
 import {resetStyles} from '../../../../src/v0_8/styles/reset';
+import {validator} from '../../../validator';
 describe('SVG Reset Exclusion', () => {
   it('should have the correct CSS selector in resetStyles', () => {
     expect(resetStyles).toContain(':not(svg, svg *:not(foreignObject *))');
   });
   it('should allow presentational attributes on SVG elements', () => {
     const {container} = render(
-      <A2UIProvider>
+      <A2UIProvider validator={validator}>
         <div className="a2ui-surface">
           <svg fill="red" data-testid="test-svg" width="100" height="100">
             <circle cx="50" cy="50" r="40" />

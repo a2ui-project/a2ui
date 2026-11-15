@@ -40,7 +40,7 @@ export const TextField = memo(function TextField({
   const label = resolveString(props.label);
   const textPath = props.text?.path;
   const initialValue = resolveString(props.text) ?? '';
-  const propsRecord = props as Record<string, unknown>;
+  const propsRecord = props as unknown as Record<string, unknown>;
   const fieldType = (propsRecord.textFieldType || propsRecord.type) as TextFieldType;
   const validationRegexp = props.validationRegexp;
 

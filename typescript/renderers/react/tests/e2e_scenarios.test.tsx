@@ -24,9 +24,7 @@ import React from 'react';
 import {afterEach, describe, expect, it} from 'vitest';
 
 import {A2uiError, Catalog} from '@a2ui/web_core';
-import {basicCatalog as v09BasicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
-import {A2uiClientMessageSchema} from '@a2ui/web_core/v0_9';
-import {RendererToAgentMessageSchema} from '@a2ui/web_core/v1_0';
+import {createBasicCatalog as createV09BasicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
 
 import {A2uiSurface, type ReactCatalogComponent} from '../src';
 import {
@@ -46,6 +44,7 @@ import {
   type HarnessState,
   type ManifestRecord,
 } from './adapter_harness';
+import {outboundIssues, validator} from './validator';
 
 const CONFORMANCE_ROOT = path.resolve(import.meta.dirname, '../../../../conformance');
 const REPO_ROOT = path.resolve(CONFORMANCE_ROOT, '..');
@@ -258,16 +257,11 @@ export function assertOutbound(
   expected: Array<Record<string, unknown>>,
   protocolVersion: string,
 ): void {
-  const isV09 = protocolVersion.startsWith('v0.9') || protocolVersion.startsWith('0.9');
   for (let i = 0; i < actual.length; i++) {
-    const parsed = isV09
-      ? A2uiClientMessageSchema.safeParse(actual[i])
-      : RendererToAgentMessageSchema.safeParse(actual[i]);
+    const issues = outboundIssues(actual[i], protocolVersion);
     expect(
-      parsed.success,
-      `outbound[${i}] failed protocol schema validation: ${
-        parsed.success ? '' : JSON.stringify(parsed.error.issues)
-      }`,
+      issues.length === 0,
+      `outbound[${i}] failed protocol schema validation: ${JSON.stringify(issues)}`,
     ).toBe(true);
   }
   expect(actual, 'expectOutbound length').toHaveLength(expected.length);
@@ -303,13 +297,10 @@ function loadExtraCatalogs(catalogPaths: string[]): ExtraCatalogEntry[] {
 }
 
 function registerV09BasicCatalog(state: HarnessState): void {
-  const v09Cat = new Catalog<ReactCatalogComponent>(
-    v09BasicCatalog.id,
-    v09BasicCatalog.protocolVersion ?? 'v0.9',
-    Array.from(v09BasicCatalog.components.values()) as unknown as ReactCatalogComponent[],
-    Array.from(v09BasicCatalog.functions.values()),
-    v09BasicCatalog.themeSchema,
-    v09BasicCatalog.instructions,
+  const base = createV09BasicCatalog(validator) as unknown as Catalog<ReactCatalogComponent>;
+  const v09Cat = base.withEntries(
+    Array.from(base.components.values()),
+    Array.from(base.functions.values()),
   );
   const internal = state.processor as unknown as {
     registeredCatalogs: Array<Catalog<ReactCatalogComponent>>;

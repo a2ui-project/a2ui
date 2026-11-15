@@ -16,12 +16,12 @@
 
 import React from 'react';
 import {render} from '@testing-library/react';
-import {z} from 'zod';
 import {SurfaceModel, ComponentModel, Catalog, type ComponentChildRefs} from '@a2ui/web_core';
-import {BASIC_FUNCTIONS} from '@a2ui/web_core/v0_9/basic_catalog';
+import {createBasicCatalogFunctions} from '@a2ui/web_core/v0_9/basic_catalog';
 import {A2uiSurface} from '../src/A2uiSurface';
 import {createComponentImplementation} from '../src/adapter';
 import type {ReactComponentImplementation} from '../src/react_component_implementation';
+import {objectSchema, validator} from './validator';
 
 /** The resolver builds its tree from the component with this id. */
 const ROOT_ID = 'root';
@@ -34,7 +34,7 @@ const STUB_TYPE = '__TestChild';
  * defining a component to receive it.
  */
 const StubChild = createComponentImplementation(
-  {name: STUB_TYPE, schema: z.object({})},
+  {name: STUB_TYPE, schema: objectSchema()},
   ({context}) => (
     <div
       data-testid={`child-${context.componentModel.id}`}
@@ -70,7 +70,7 @@ export function renderA2uiComponent(
     initialData = {},
     additionalImpls = [],
     additionalComponents = [],
-    functions = BASIC_FUNCTIONS,
+    functions = createBasicCatalogFunctions(validator),
   } = options;
 
   const catalog = new Catalog<ReactComponentImplementation>(

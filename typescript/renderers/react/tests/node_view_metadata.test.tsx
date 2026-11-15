@@ -17,9 +17,7 @@
 import React from 'react';
 import {describe, it, expect} from 'vitest';
 import {render, act, waitFor} from '@testing-library/react';
-import {z} from 'zod';
 import {Catalog, MessageProcessor} from '@a2ui/web_core';
-import {ChildListSchema, CommonSchemas} from '@a2ui/web_core/v1_0';
 import {A2uiSurface, useA2uiSurface} from '../src/A2uiSurface';
 import {
   createBinderlessComponentImplementation,
@@ -27,6 +25,7 @@ import {
 } from '../src/adapter';
 import {useNodeView, useSignalValue} from '../src/node-view';
 import type {ReactComponentImplementation} from '../src/react_component_implementation';
+import {commonType, objectSchema, validator} from './validator';
 
 describe('useNodeView & useA2uiSurface metadata reactivity', () => {
   it('re-renders custom components on node.metadata and surface.metadataSignal changes without re-rendering sibling basic components', async () => {
@@ -34,7 +33,7 @@ describe('useNodeView & useA2uiSurface metadata reactivity', () => {
     let metaViewRenders = 0;
 
     const BasicTextImpl = createComponentImplementation(
-      {name: 'Text', schema: z.object({text: CommonSchemas.DynamicString.optional()})},
+      {name: 'Text', schema: objectSchema({text: commonType('DynamicString')}, {version: '1.0'})},
       ({props}) => {
         basicRenders++;
         return <span data-testid="basic-text">{String(props.text ?? '')}</span>;
@@ -42,7 +41,7 @@ describe('useNodeView & useA2uiSurface metadata reactivity', () => {
     );
 
     const ColumnImpl = createComponentImplementation(
-      {name: 'Column', schema: z.object({children: ChildListSchema.optional()})},
+      {name: 'Column', schema: objectSchema({children: commonType('ChildList')}, {version: '1.0'})},
       ({props, buildChild}) => {
         const children = props.children as string[] | undefined;
         return (
@@ -59,7 +58,7 @@ describe('useNodeView & useA2uiSurface metadata reactivity', () => {
 
     const MetaProbeImpl: ReactComponentImplementation = {
       name: 'MetaProbe',
-      schema: z.object({label: CommonSchemas.DynamicString.optional()}),
+      schema: objectSchema({label: commonType('DynamicString')}, {version: '1.0'}),
       metadata: {extensions: {catalog_hint: 'static-v1'}},
       render: () => null,
       view: ({node, buildChild}) => {
@@ -85,7 +84,7 @@ describe('useNodeView & useA2uiSurface metadata reactivity', () => {
       MetaProbeImpl,
     ]);
 
-    const processor = new MessageProcessor([customCatalog]);
+    const processor = new MessageProcessor([customCatalog], undefined, {validator});
     processor.processMessages([
       {
         version: '1.0',
@@ -173,7 +172,7 @@ describe('useNodeView & useA2uiSurface metadata reactivity', () => {
     let siblingRenders = 0;
 
     const SiblingTextImpl = createComponentImplementation(
-      {name: 'Text', schema: z.object({text: CommonSchemas.DynamicString.optional()})},
+      {name: 'Text', schema: objectSchema({text: commonType('DynamicString')}, {version: '1.0'})},
       ({props}) => {
         siblingRenders++;
         return <span data-testid="sibling-text">{String(props.text ?? '')}</span>;
@@ -181,7 +180,7 @@ describe('useNodeView & useA2uiSurface metadata reactivity', () => {
     );
 
     const ColumnImpl = createComponentImplementation(
-      {name: 'Column', schema: z.object({children: ChildListSchema.optional()})},
+      {name: 'Column', schema: objectSchema({children: commonType('ChildList')}, {version: '1.0'})},
       ({props, buildChild}) => {
         const children = props.children as string[] | undefined;
         return (
@@ -199,7 +198,7 @@ describe('useNodeView & useA2uiSurface metadata reactivity', () => {
     const FactoryProbeImpl = createComponentImplementation(
       {
         name: 'FactoryProbe',
-        schema: z.object({label: CommonSchemas.DynamicString.optional()}),
+        schema: objectSchema({label: commonType('DynamicString')}, {version: '1.0'}),
         metadata: {extensions: {catalog_hint: 'factory-v1'}},
       },
       ({props, metadata}) => {
@@ -212,7 +211,7 @@ describe('useNodeView & useA2uiSurface metadata reactivity', () => {
     const BinderlessProbeImpl = createBinderlessComponentImplementation(
       {
         name: 'BinderlessProbe',
-        schema: z.object({}),
+        schema: objectSchema({}, {version: '1.0'}),
       },
       ({context}) => {
         binderlessRenders++;
@@ -228,7 +227,7 @@ describe('useNodeView & useA2uiSurface metadata reactivity', () => {
       BinderlessProbeImpl,
     ]);
 
-    const processor = new MessageProcessor([customCatalog]);
+    const processor = new MessageProcessor([customCatalog], undefined, {validator});
     processor.processMessages([
       {
         version: '1.0',

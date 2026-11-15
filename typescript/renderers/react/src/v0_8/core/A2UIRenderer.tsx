@@ -54,7 +54,7 @@ export interface A2UIRendererProps {
  * ```tsx
  * function App() {
  *   return (
- *     <A2UIProvider onAction={handleAction}>
+ *     <A2UIProvider validator={validator} onAction={handleAction}>
  *       <A2UIRenderer surfaceId="main" />
  *     </A2UIProvider>
  *   );

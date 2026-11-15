@@ -24,8 +24,13 @@
  */
 
 import type React from 'react';
-import type {ZodTypeAny} from 'zod';
-import type {A2uiMetadata, ComponentApi, ComponentContext, ComponentNode} from '@a2ui/web_core';
+import type {
+  A2uiMetadata,
+  CatalogSchema,
+  ComponentApi,
+  ComponentContext,
+  ComponentNode,
+} from '@a2ui/web_core';
 import type {WebComponentImplementation} from '@a2ui/web_core/universal';
 
 /** Renders a resolved child node, or falls back for an unresolved id. */
@@ -69,7 +74,7 @@ export type ReactRenderProps = {
 
 /** A catalog entry implemented as a React component. */
 export interface ReactComponentImplementation<
-  Schema extends ZodTypeAny = ZodTypeAny,
+  Schema extends CatalogSchema<any> = CatalogSchema<any>,
 > extends ComponentApi<Schema> {
   /**
    * The framework-specific rendering wrapper.
@@ -87,7 +92,7 @@ export interface ReactComponentImplementation<
 }
 
 /** Any entry a React catalog can hold: a React component or a Web Component. */
-export type ReactCatalogComponent<Schema extends ZodTypeAny = ZodTypeAny> =
+export type ReactCatalogComponent<Schema extends CatalogSchema<any> = CatalogSchema<any>> =
   | ReactComponentImplementation<Schema>
   | WebComponentImplementation<Schema>;
 

@@ -23,26 +23,27 @@
 
 import {describe, it, expect} from 'vitest';
 import {act, render, waitFor} from '@testing-library/react';
-import {z} from 'zod';
 import {Catalog, ComponentModel, SurfaceModel} from '@a2ui/web_core';
-import {CommonSchemas} from '@a2ui/web_core/v0_9';
-import {basicCatalog as webCoreBasicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
+import {createBasicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
 import {
   A2uiSurface,
   createBinderlessComponentImplementation,
   createComponentImplementation,
   type ReactCatalogComponent,
 } from '../../src';
+import {commonType, objectSchema, validator} from '../validator';
+
+const webCoreBasicCatalog = createBasicCatalog(validator);
 
 /** Passes no `accessibilityRef`, so its host is labelled. */
 const Card = createComponentImplementation(
-  {name: 'Card', schema: z.object({title: CommonSchemas.DynamicString.optional()})},
+  {name: 'Card', schema: objectSchema({title: commonType('DynamicString')})},
   ({props}) => <div data-testid="card">{String(props.title ?? '')}</div>,
 );
 
 /** Labels its input, and drops the input when `showInput` is `false`. */
 const Field = createComponentImplementation(
-  {name: 'Field', schema: z.object({showInput: z.boolean().optional()})},
+  {name: 'Field', schema: objectSchema({showInput: {type: 'boolean'}})},
   ({props, accessibilityRef}) => (
     <div data-testid="field">
       {props.showInput === false ? null : <input data-testid="input" ref={accessibilityRef} />}
@@ -52,7 +53,7 @@ const Field = createComponentImplementation(
 
 /** A binderless component that labels its button. */
 const RawButton = createBinderlessComponentImplementation(
-  {name: 'RawButton', schema: z.object({})},
+  {name: 'RawButton', schema: objectSchema()},
   ({accessibilityRef}) => (
     <button data-testid="button" ref={accessibilityRef}>
       Go
@@ -64,9 +65,9 @@ const RawButton = createBinderlessComponentImplementation(
 const CheckedField = createComponentImplementation(
   {
     name: 'CheckedField',
-    schema: z.object({
-      value: CommonSchemas.DynamicString.optional(),
-      checks: CommonSchemas.Checkable.shape.checks,
+    schema: objectSchema({
+      value: commonType('DynamicString'),
+      checks: {type: 'array', items: commonType('CheckRule')},
     }),
   },
   ({props, accessibilityRef, validationErrorsRef}) => (
@@ -329,7 +330,10 @@ describe('React host accessibility', () => {
 
     it('keeps an id the errors element already has', () => {
       const WithId = createComponentImplementation(
-        {name: 'WithId', schema: z.object({checks: CommonSchemas.Checkable.shape.checks})},
+        {
+          name: 'WithId',
+          schema: objectSchema({checks: {type: 'array', items: commonType('CheckRule')}}),
+        },
         ({accessibilityRef, validationErrorsRef}) => (
           <>
             <input data-testid="input" ref={accessibilityRef} />

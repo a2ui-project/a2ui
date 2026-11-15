@@ -17,6 +17,7 @@
 import React, {useEffect, type ReactNode} from 'react';
 import {A2UIProvider, A2UIRenderer, useA2UI} from '../../../src/v0_8';
 import type * as Types from '@a2ui/web_core/types/types';
+import {validator} from '../../validator';
 
 /**
  * Helper component that processes messages and renders a surface.
@@ -50,7 +51,7 @@ export function TestWrapper({
   theme?: Types.Theme;
 }) {
   return (
-    <A2UIProvider onAction={onAction} theme={theme}>
+    <A2UIProvider validator={validator} onAction={onAction} theme={theme}>
       {children}
     </A2UIProvider>
   );

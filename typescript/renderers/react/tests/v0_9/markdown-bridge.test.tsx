@@ -19,7 +19,7 @@ import {act, render, screen} from '@testing-library/react';
 import React, {createContext, useContext} from 'react';
 import {Catalog, ComponentModel, SurfaceModel} from '@a2ui/web_core';
 import {getMarkdownRenderer, setMarkdownRenderer} from '@a2ui/web_core/universal';
-import {basicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
+import {createBasicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
 import {
   A2uiSurface,
   MarkdownComponentContext,
@@ -27,6 +27,9 @@ import {
   type MarkdownComponentProps,
   type ReactCatalogComponent,
 } from '../../src';
+import {validator} from '../validator';
+
+const basicCatalog = createBasicCatalog(validator);
 
 const Text = basicCatalog.components.get('Text')!;
 const catalog = new Catalog<ReactCatalogComponent>('markdown-bridge', '0.9', [Text]);

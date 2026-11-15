@@ -19,8 +19,7 @@ import {render, screen, act} from '@testing-library/react';
 import {createComponentImplementation} from '../../src/adapter';
 import {A2uiSurface} from '../../src/A2uiSurface';
 import {Catalog, ComponentContext, ComponentModel, SurfaceModel} from '@a2ui/web_core';
-import {CommonSchemas} from '@a2ui/web_core/v0_9';
-import {z} from 'zod';
+import {commonType, objectSchema} from '../validator';
 
 const mockCatalog = new Catalog('test', '0.9', [], []);
 
@@ -42,10 +41,10 @@ describe('adapter', () => {
 
     const TestApiDef = {
       name: 'TestComp',
-      schema: z.object({
-        text: CommonSchemas.DynamicString,
-        child: CommonSchemas.ComponentId,
-      }),
+      schema: objectSchema(
+        {text: commonType('DynamicString'), child: commonType('ComponentId')},
+        {required: ['text', 'child']},
+      ),
     };
 
     const TestComponent = createComponentImplementation(TestApiDef, ({props, buildChild}) => {
@@ -82,9 +81,7 @@ describe('adapter', () => {
 
     const TestApiDef = {
       name: 'TestComp',
-      schema: z.object({
-        text: CommonSchemas.DynamicString,
-      }),
+      schema: objectSchema({text: commonType('DynamicString')}, {required: ['text']}),
     };
 
     const TestComponent = createComponentImplementation(TestApiDef, ({props}) => {
@@ -125,9 +122,7 @@ describe('adapter', () => {
 
     const TestApiDef = {
       name: 'TestComp',
-      schema: z.object({
-        text: CommonSchemas.DynamicString,
-      }),
+      schema: objectSchema({text: commonType('DynamicString')}, {required: ['text']}),
     };
 
     const TestComponent = createComponentImplementation(TestApiDef, ({props}) => {
@@ -146,11 +141,11 @@ describe('adapter', () => {
   it('preserves progressive rendering (avoids stale closures from over-memoization)', async () => {
     const ParentApiDef = {
       name: 'TestParent',
-      schema: z.object({child: CommonSchemas.ComponentId}),
+      schema: objectSchema({child: commonType('ComponentId')}, {required: ['child']}),
     };
     const ChildApiDef = {
       name: 'TestChild',
-      schema: z.object({text: CommonSchemas.DynamicString}),
+      schema: objectSchema({text: commonType('DynamicString')}, {required: ['text']}),
     };
 
     let parentRenderCount = 0;

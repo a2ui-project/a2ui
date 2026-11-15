@@ -37,7 +37,7 @@ import type * as Types from '@a2ui/web_core/types/types';
  *
  * function App() {
  *   return (
- *     <A2UIProvider>
+ *     <A2UIProvider validator={validator}>
  *       <A2UIRenderer surfaceId="main" />
  *     </A2UIProvider>
  *   );

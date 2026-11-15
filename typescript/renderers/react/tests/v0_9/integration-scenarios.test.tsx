@@ -18,19 +18,22 @@ import {describe, it, expect} from 'vitest';
 import {render, screen, act, fireEvent} from '@testing-library/react';
 import React from 'react';
 import {MessageProcessor} from '@a2ui/web_core';
-import {basicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
+import {createBasicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
 import {A2uiSurface} from '@a2ui/react/v0_9';
 
 import exMarkdown from '../../../../../specification/v0_9/catalogs/basic/examples/markdown-text.json';
 import exTaskCard from '../../../../../specification/v0_9/catalogs/basic/examples/task-card.json';
 import exLoginForm from '../../../../../specification/v0_9/catalogs/basic/examples/login-form.json';
+import {validator} from '../validator';
+
+const basicCatalog = createBasicCatalog(validator);
 
 // The basic catalog renders as Custom Elements, whose first paint lands after
 // Lit's update cycle, so every assertion below waits rather than reading the
 // DOM synchronously.
 describe('Gallery Integration Tests', () => {
   it('renders Markdown Text -> "Markdown Rendering"', async () => {
-    const processor = new MessageProcessor([basicCatalog as any], async () => {});
+    const processor = new MessageProcessor([basicCatalog as any], async () => {}, {validator});
     processor.processMessages(exMarkdown.messages as any[]);
 
     const surface = processor.model.getSurface('gallery-markdown-text');
@@ -46,7 +49,7 @@ describe('Gallery Integration Tests', () => {
   });
 
   it('renders Task Card -> content visibility', async () => {
-    const processor = new MessageProcessor([basicCatalog as any], async () => {});
+    const processor = new MessageProcessor([basicCatalog as any], async () => {}, {validator});
     processor.processMessages(exTaskCard.messages as any[]);
 
     const surface = processor.model.getSurface('gallery-task-card');
@@ -63,7 +66,7 @@ describe('Gallery Integration Tests', () => {
   });
 
   it('handles Login form -> input updates data model', async () => {
-    const processor = new MessageProcessor([basicCatalog as any], async () => {});
+    const processor = new MessageProcessor([basicCatalog as any], async () => {}, {validator});
     processor.processMessages(exLoginForm.messages as any[]);
 
     const surface = processor.model.getSurface('gallery-login-form');

@@ -14,19 +14,20 @@
  * limitations under the License.
  */
 
-import {Catalog} from '@a2ui/web_core';
-import {basicCatalog, BASIC_FUNCTIONS} from '@a2ui/web_core/v0_9/basic_catalog';
+import type {Catalog} from '@a2ui/web_core';
+import {createBasicCatalog, createBasicCatalogFunctions} from '@a2ui/web_core/v0_9/basic_catalog';
+import type {ReactCatalogComponent} from '@a2ui/react';
 import {customSliderComponent} from './custom-slider';
 import {customGridComponent} from './custom-grid';
+import {validator} from './validator';
+
+const basicCatalog = createBasicCatalog(validator) as unknown as Catalog<ReactCatalogComponent>;
 
 /**
  * A catalog specific to the React demo explorer, extending the basic catalog
  * with custom components.
  */
-export const demoCatalog = new Catalog(
-  basicCatalog.id,
-  '0.9',
+export const demoCatalog = basicCatalog.withEntries(
   [...basicCatalog.components.values(), customSliderComponent, customGridComponent],
-  BASIC_FUNCTIONS,
-  basicCatalog.themeSchema,
+  createBasicCatalogFunctions(validator),
 );

@@ -17,7 +17,6 @@
 import {describe, it, expect, afterEach, beforeAll, vi} from 'vitest';
 import {render, act, cleanup, fireEvent, within} from '@testing-library/react';
 import React, {useState} from 'react';
-import {z} from 'zod';
 import {
   Catalog,
   ComponentModel,
@@ -29,7 +28,6 @@ import {
   peekValue,
 } from '@a2ui/web_core';
 import {registerUniversalElement, type WebComponentImplementation} from '@a2ui/web_core/universal';
-import {ChildListSchema, CommonSchemas} from '@a2ui/web_core/v0_9';
 import {prepareCatalogs} from '../../src/catalog/prepare_catalogs';
 import type {ReactHostElement} from '../../src/catalog/react_host_element';
 import {toWebComponent} from '../../src/catalog/to_web_component';
@@ -40,14 +38,15 @@ import {
 } from '../../src';
 import {A2uiSurface} from '../../src/A2uiSurface';
 import {HostRegistry} from '../../src/host_registry';
+import {commonType, objectSchema} from '../validator';
 
 const Label = createComponentImplementation(
-  {name: 'HostLabel', schema: z.object({text: CommonSchemas.DynamicString.optional()})},
+  {name: 'HostLabel', schema: objectSchema({text: commonType('DynamicString')})},
   ({props}) => <span data-testid="label">{String(props.text ?? '')}</span>,
 );
 
 /** Holds React state, to show whether the portal survives a DOM move. */
-const Counter = createComponentImplementation({name: 'HostCounter', schema: z.object({})}, () => {
+const Counter = createComponentImplementation({name: 'HostCounter', schema: objectSchema()}, () => {
   const [count, setCount] = useState(0);
   return (
     <button data-testid="counter" onClick={() => setCount(c => c + 1)}>
@@ -57,10 +56,10 @@ const Counter = createComponentImplementation({name: 'HostCounter', schema: z.ob
 });
 
 const List = createComponentImplementation(
-  {name: 'HostList', schema: z.object({children: ChildListSchema.optional()})},
+  {name: 'HostList', schema: objectSchema({children: commonType('ChildList')})},
   ({props, buildChild}) => (
     <div data-testid="list">
-      {(props.children ?? []).map(ref =>
+      {(props.children ?? []).map((ref: unknown) =>
         typeof ref === 'string' ? (
           <React.Fragment key={ref}>{buildChild(ref)}</React.Fragment>
         ) : null,
@@ -163,7 +162,10 @@ afterEach(() => {
 describe('toWebComponent', () => {
   it('names the host element after the implementation', () => {
     const SimpleButton = createComponentImplementation(
-      {name: 'SimpleButton', schema: z.object({label: z.string()})},
+      {
+        name: 'SimpleButton',
+        schema: objectSchema({label: {type: 'string'}}, {required: ['label']}),
+      },
       ({props}) => <button>{props.label}</button>,
     );
 
@@ -182,7 +184,7 @@ describe('toWebComponent', () => {
   it('returns an entry that already names its element as is', () => {
     const handWritten: ReactComponentImplementation = {
       name: 'HandWrittenHost',
-      schema: z.object({}),
+      schema: objectSchema(),
       render: () => null,
     };
     const ownElement: ReactComponentImplementation & WebComponentImplementation = {
@@ -200,7 +202,7 @@ describe('toWebComponent', () => {
   });
 
   it('suffixes the tag names of implementations that share a name', () => {
-    const api = {name: 'MultiCollision', schema: z.object({})};
+    const api = {name: 'MultiCollision', schema: objectSchema()};
     const first = createComponentImplementation(api, () => <div>1</div>);
     const second = createComponentImplementation(api, () => <div>2</div>);
     const third = createComponentImplementation(api, () => <div>3</div>);
@@ -211,9 +213,10 @@ describe('toWebComponent', () => {
   });
 
   it('does not define the host element until it renders', () => {
-    const Late = createComponentImplementation({name: 'LateDefined', schema: z.object({})}, () => (
-      <span data-testid="late">late</span>
-    ));
+    const Late = createComponentImplementation(
+      {name: 'LateDefined', schema: objectSchema()},
+      () => <span data-testid="late">late</span>,
+    );
     const lateCatalog = new Catalog<ReactComponentImplementation>('late-test', '0.9', [Late]);
     const surface = new SurfaceModel<ReactComponentImplementation>('surf-late', lateCatalog);
     surface.componentsModel.addComponent(
@@ -232,11 +235,11 @@ describe('toWebComponent', () => {
     vi.stubGlobal('customElements', undefined);
 
     const bound = createComponentImplementation(
-      {name: 'NoRegistry', schema: z.object({})},
+      {name: 'NoRegistry', schema: objectSchema()},
       () => null,
     );
     const binderless = createBinderlessComponentImplementation(
-      {name: 'NoRegistryBinderless', schema: z.object({})},
+      {name: 'NoRegistryBinderless', schema: objectSchema()},
       () => null,
     );
 
@@ -249,12 +252,12 @@ describe('prepareCatalogs', () => {
   it('replaces every React entry of every catalog with its web component form, once', () => {
     const Plain: ReactComponentImplementation = {
       name: 'PreparedPlain',
-      schema: z.object({}),
+      schema: objectSchema(),
       render: () => null,
     };
     const foreign: WebComponentImplementation = {
       name: 'PreparedForeign',
-      schema: z.object({}),
+      schema: objectSchema(),
       tagName: 'prepared-foreign',
       element: class extends HTMLElement {},
     };

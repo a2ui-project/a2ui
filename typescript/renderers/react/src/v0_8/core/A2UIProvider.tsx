@@ -15,6 +15,7 @@
  */
 
 import {createContext, useContext, useRef, useState, useMemo, type ReactNode} from 'react';
+import type {JsonSchemaValidator} from '@a2ui/web_core';
 import type * as Types from '@a2ui/web_core/types/types';
 import {A2uiMessageProcessor} from '@a2ui/web_core/data/model-processor';
 import type {A2UIContextValue, A2UIActions} from './store';
@@ -49,6 +50,12 @@ const A2UIStateContext = createContext<{version: number} | null>(null);
  * Props for the A2UIProvider component.
  */
 export interface A2UIProviderProps {
+  /**
+   * The JSON Schema validator messages are checked with against the v0.8
+   * specification, such as `createAjvValidator()` from `@a2ui/validator-ajv`.
+   * Read once, when the provider mounts.
+   */
+  validator: JsonSchemaValidator;
   /** Callback invoked when a user action is dispatched (button click, etc.) */
   onAction?: OnActionCallback;
   /** Theme configuration. Falls back to default theme if not provided. */
@@ -76,20 +83,20 @@ export interface A2UIProviderProps {
  *   };
  *
  *   return (
- *     <A2UIProvider onAction={handleAction}>
+ *     <A2UIProvider validator={validator} onAction={handleAction}>
  *       <A2UIRenderer surfaceId="main" />
  *     </A2UIProvider>
  *   );
  * }
  * ```
  */
-export function A2UIProvider({onAction, theme, children}: A2UIProviderProps) {
+export function A2UIProvider({validator, onAction, theme, children}: A2UIProviderProps) {
   ensureInitialized();
 
   // Create message processor only once using ref
   const processorRef = useRef<Types.MessageProcessor | null>(null);
   if (!processorRef.current) {
-    processorRef.current = new A2uiMessageProcessor();
+    processorRef.current = new A2uiMessageProcessor({validator});
   }
   const processor = processorRef.current;
 

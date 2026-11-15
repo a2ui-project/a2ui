@@ -26,6 +26,7 @@ import {
   getMockCallArg,
   getElement,
 } from '../utils';
+import {validator} from '../../validator';
 
 /**
  * Template Integration Tests
@@ -76,7 +77,7 @@ describe('Template Integration', () => {
     }
 
     render(
-      <A2UIProvider>
+      <A2UIProvider validator={validator}>
         <TemplateRenderer />
       </A2UIProvider>,
     );
@@ -127,7 +128,7 @@ describe('Template Integration', () => {
     }
 
     render(
-      <A2UIProvider>
+      <A2UIProvider validator={validator}>
         <PrimitiveTemplateRenderer />
       </A2UIProvider>,
     );
@@ -208,7 +209,7 @@ describe('Template Integration', () => {
     }
 
     render(
-      <A2UIProvider>
+      <A2UIProvider validator={validator}>
         <NestedTemplateRenderer />
       </A2UIProvider>,
     );
@@ -270,7 +271,7 @@ describe('Template Integration', () => {
     }
 
     render(
-      <A2UIProvider>
+      <A2UIProvider validator={validator}>
         <LateDataRenderer />
       </A2UIProvider>,
     );
@@ -349,7 +350,7 @@ describe('Template Integration', () => {
     }
 
     render(
-      <A2UIProvider>
+      <A2UIProvider validator={validator}>
         <MapTemplateRenderer />
       </A2UIProvider>,
     );
@@ -438,7 +439,7 @@ describe('Template Integration', () => {
     }
 
     render(
-      <A2UIProvider onAction={mockOnAction}>
+      <A2UIProvider validator={validator} onAction={mockOnAction}>
         <ComplexTemplateRenderer />
       </A2UIProvider>,
     );
@@ -513,7 +514,7 @@ describe('Template Integration', () => {
     }
 
     render(
-      <A2UIProvider>
+      <A2UIProvider validator={validator}>
         <EmptyDataRenderer />
       </A2UIProvider>,
     );
@@ -577,7 +578,7 @@ describe('Template Integration', () => {
     }
 
     render(
-      <A2UIProvider>
+      <A2UIProvider validator={validator}>
         <DataChangeRenderer />
       </A2UIProvider>,
     );

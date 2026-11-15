@@ -17,7 +17,6 @@
 import {describe, it, expect, afterEach} from 'vitest';
 import {render} from '@testing-library/react';
 import React from 'react';
-import {z} from 'zod';
 import {
   Catalog,
   ComponentModel,
@@ -28,10 +27,11 @@ import {
 } from '@a2ui/web_core';
 import type {A2uiWebComponentElement, WebComponentImplementation} from '@a2ui/web_core/universal';
 import {WebComponentNode} from '../../src/web_component_node';
+import {objectSchema} from '../validator';
 
 const TestComp: WebComponentImplementation = {
   name: 'TestComp',
-  schema: z.object({}),
+  schema: objectSchema(),
   tagName: 'test-wc-node-el',
   element: class extends HTMLElement implements A2uiWebComponentElement {},
 };

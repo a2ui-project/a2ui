@@ -29,11 +29,9 @@
 import {describe, it, expect, afterEach, vi} from 'vitest';
 import {act, fireEvent, render, waitFor, within} from '@testing-library/react';
 import React, {createContext, useContext, useLayoutEffect, useRef} from 'react';
-import {z} from 'zod';
 import {Catalog, ComponentModel, SurfaceModel} from '@a2ui/web_core';
 import type {A2uiWebComponentElement} from '@a2ui/web_core/universal';
-import {CommonSchemas, ComponentIdSchema} from '@a2ui/web_core/v0_9';
-import {basicCatalog as webCoreBasicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
+import {createBasicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
 import {
   A2uiSurface,
   createComponentImplementation,
@@ -41,27 +39,30 @@ import {
   type ReactComponentImplementation,
 } from '../../src';
 import type {ReactHostElement} from '../../src/catalog/react_host_element';
+import {commonType, objectSchema, validator} from '../validator';
+
+const webCoreBasicCatalog = createBasicCatalog(validator);
 
 const Theme = createContext('no provider');
 
 const Badge = createComponentImplementation(
-  {name: 'Badge', schema: z.object({label: CommonSchemas.DynamicString.optional()})},
+  {name: 'Badge', schema: objectSchema({label: commonType('DynamicString')})},
   ({props}) => <span data-testid="badge">{String(props.label ?? '')}</span>,
 );
 
 const Panel = createComponentImplementation(
-  {name: 'Panel', schema: z.object({child: ComponentIdSchema.optional()})},
+  {name: 'Panel', schema: objectSchema({child: commonType('ComponentId')})},
   ({props, buildChild}) => (
     <div data-testid="panel">{props.child ? buildChild(props.child) : null}</div>
   ),
 );
 
-const Themed = createComponentImplementation({name: 'Themed', schema: z.object({})}, () => (
+const Themed = createComponentImplementation({name: 'Themed', schema: objectSchema()}, () => (
   <span data-testid="themed">{useContext(Theme)}</span>
 ));
 
 const ThemedPanel = createComponentImplementation(
-  {name: 'ThemedPanel', schema: z.object({child: ComponentIdSchema.optional()})},
+  {name: 'ThemedPanel', schema: objectSchema({child: commonType('ComponentId')})},
   ({props, buildChild}) => (
     <Theme.Provider value="from panel">
       {props.child ? buildChild(props.child) : null}
@@ -69,14 +70,14 @@ const ThemedPanel = createComponentImplementation(
   ),
 );
 
-const Thrower = createComponentImplementation({name: 'Thrower', schema: z.object({})}, () => {
+const Thrower = createComponentImplementation({name: 'Thrower', schema: objectSchema()}, () => {
   throw new Error('nested component failed');
 });
 
 /** A clickable React wrapper that counts its own clicks. */
 const clicks = new Map<string, number>();
 const Clicker = createComponentImplementation(
-  {name: 'Clicker', schema: z.object({child: ComponentIdSchema.optional()})},
+  {name: 'Clicker', schema: objectSchema({child: commonType('ComponentId')})},
   ({props, buildChild, context}) => (
     <div
       data-testid={`clicker-${context.componentModel.id}`}
@@ -92,7 +93,7 @@ const Clicker = createComponentImplementation(
 /** Records what its layout effect finds inside its child's host on mount. */
 const layoutLog: string[] = [];
 const Measurer = createComponentImplementation(
-  {name: 'Measurer', schema: z.object({child: ComponentIdSchema.optional()})},
+  {name: 'Measurer', schema: objectSchema({child: commonType('ComponentId')})},
   ({props, buildChild}) => {
     const ref = useRef<HTMLDivElement>(null);
     useLayoutEffect(() => {
@@ -102,7 +103,7 @@ const Measurer = createComponentImplementation(
   },
 );
 const LoggingBadge = createComponentImplementation(
-  {name: 'LoggingBadge', schema: z.object({})},
+  {name: 'LoggingBadge', schema: objectSchema()},
   () => {
     useLayoutEffect(() => {
       layoutLog.push('badge');
@@ -117,7 +118,7 @@ const LoggingBadge = createComponentImplementation(
  */
 const HandPanel: ReactComponentImplementation = {
   name: 'HandPanel',
-  schema: z.object({child: ComponentIdSchema.optional()}),
+  schema: objectSchema({child: commonType('ComponentId')}),
   render: ({context, buildChild}) => {
     const child = context.componentModel.properties.child as string | undefined;
     return <div data-testid="hand-panel">{child ? buildChild(child) : null}</div>;
@@ -141,7 +142,7 @@ class CatchBoundary extends React.Component<{children: React.ReactNode}, {error:
 
 /** A catalog component that is itself an error boundary around its child. */
 const Guarded = createComponentImplementation(
-  {name: 'Guarded', schema: z.object({child: ComponentIdSchema.optional()})},
+  {name: 'Guarded', schema: objectSchema({child: commonType('ComponentId')})},
   ({props, buildChild}) => (
     <CatchBoundary>{props.child ? buildChild(props.child) : null}</CatchBoundary>
   ),

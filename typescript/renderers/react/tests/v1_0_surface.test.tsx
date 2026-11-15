@@ -16,7 +16,6 @@
 
 import {describe, it, expect} from 'vitest';
 import {render, act, waitFor} from '@testing-library/react';
-import {z} from 'zod';
 import {
   A2uiSurface,
   createBinderlessComponentImplementation,
@@ -24,14 +23,16 @@ import {
   type ReactCatalogComponent,
 } from '../src/index';
 import {Catalog, ComponentModel, MessageProcessor, SurfaceModel} from '@a2ui/web_core';
-import {CommonSchemas} from '@a2ui/web_core/v1_0';
-import {basicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+import {createBasicCatalog as createV1BasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+import {commonType, objectSchema, validator} from './validator';
+
+const basicCatalog = createV1BasicCatalog(validator);
 
 const V1_0_CATALOG_ID = basicCatalog.id;
 
 describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
   it('renders a v1.0 createSurface payload with universal basicCatalog and reacts to data updates', async () => {
-    const processor = new MessageProcessor([basicCatalog]);
+    const processor = new MessageProcessor([basicCatalog], undefined, {validator});
     processor.processMessages([
       {
         version: '1.0',
@@ -93,7 +94,7 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
   });
 
   it('renders v1.0 TextField.placeholder, Video.posterUrl, and Slider.steps with validation errors', async () => {
-    const processor = new MessageProcessor([basicCatalog]);
+    const processor = new MessageProcessor([basicCatalog], undefined, {validator});
     processor.processMessages([
       {
         version: '1.0',
@@ -199,7 +200,7 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
   });
 
   it('applies v1.0 accessibility ARIA attributes onto rendered elements', async () => {
-    const processor = new MessageProcessor([basicCatalog]);
+    const processor = new MessageProcessor([basicCatalog], undefined, {validator});
     processor.processMessages([
       {
         version: '1.0',
@@ -266,7 +267,7 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
   });
 
   it('resolves @index in a v1.0 List template', async () => {
-    const processor = new MessageProcessor([basicCatalog]);
+    const processor = new MessageProcessor([basicCatalog], undefined, {validator});
     processor.processMessages([
       {
         version: '1.0',
@@ -335,10 +336,10 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
     const CustomReactContainer = createComponentImplementation(
       {
         name: 'CustomReactContainer',
-        schema: z.object({
-          title: CommonSchemas.DynamicString,
-          child: CommonSchemas.ComponentId,
-        }),
+        schema: objectSchema(
+          {title: commonType('DynamicString'), child: commonType('ComponentId')},
+          {required: ['title', 'child'], version: '1.0'},
+        ),
       },
       ({props, buildChild}) => (
         <section data-testid="custom-react-container">
@@ -351,9 +352,10 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
     const CustomBinderlessWrapper = createBinderlessComponentImplementation(
       {
         name: 'CustomBinderlessWrapper',
-        schema: z.object({
-          child: CommonSchemas.ComponentId,
-        }),
+        schema: objectSchema(
+          {child: commonType('ComponentId')},
+          {required: ['child'], version: '1.0'},
+        ),
       },
       ({context, buildChild}) => {
         const childId = context.componentModel.properties.child as string;
@@ -376,7 +378,7 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
       Array.from(basicCatalog.functions.values()),
     );
 
-    const processor = new MessageProcessor([mixedCatalog]);
+    const processor = new MessageProcessor([mixedCatalog], undefined, {validator});
     processor.processMessages([
       {
         version: '1.0',
@@ -452,24 +454,35 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
     const Box = createBinderlessComponentImplementation(
       {
         name: 'Box',
-        schema: z.object({children: CommonSchemas.ChildList}),
+        schema: objectSchema(
+          {children: commonType('ChildList')},
+          {required: ['children'], version: '1.0'},
+        ),
         allowedChildren: ['Rune'],
       },
       () => null,
     );
     const Card = createComponentImplementation(
-      {name: 'Card', schema: z.object({child: CommonSchemas.ComponentId})},
+      {
+        name: 'Card',
+        schema: objectSchema(
+          {child: commonType('ComponentId')},
+          {required: ['child'], version: '1.0'},
+        ),
+      },
       () => null,
     );
     const Rune = createComponentImplementation(
-      {name: 'Rune', schema: z.object({}), allowedParents: ['Box']},
+      {name: 'Rune', schema: objectSchema({}, {version: '1.0'}), allowedParents: ['Box']},
       () => null,
     );
 
     function createSurface(components: Array<Record<string, unknown>>) {
-      const processor = new MessageProcessor([
-        new Catalog<ReactCatalogComponent>(CATALOG_ID, '1.0', [Box, Card, Rune], []),
-      ]);
+      const processor = new MessageProcessor(
+        [new Catalog<ReactCatalogComponent>(CATALOG_ID, '1.0', [Box, Card, Rune], [])],
+        undefined,
+        {validator},
+      );
       processor.processMessages([
         {version: '1.0', createSurface: {surfaceId: 's1', catalogId: CATALOG_ID, components}},
       ]);
@@ -520,9 +533,11 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
       ({props}) => <span data-testid="react-text">{props.text}</span>,
     );
     const catalogId = 'https://example.com/react_text_v1_0.json';
-    const processor = new MessageProcessor([
-      new Catalog<ReactCatalogComponent>(catalogId, '1.0', [ReactText], []),
-    ]);
+    const processor = new MessageProcessor(
+      [new Catalog<ReactCatalogComponent>(catalogId, '1.0', [ReactText], [])],
+      undefined,
+      {validator},
+    );
     processor.processMessages([
       {
         version: '1.0',
@@ -541,7 +556,7 @@ describe('A2uiSurface v1.0 & Universal Custom Elements', () => {
   });
 
   it('renders a v1.0 surface with no default catalog whose root names its catalog', async () => {
-    const processor = new MessageProcessor([basicCatalog]);
+    const processor = new MessageProcessor([basicCatalog], undefined, {validator});
     processor.processMessages([
       {version: '1.0', createSurface: {surfaceId: 'no-default'}},
       {

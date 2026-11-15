@@ -21,7 +21,6 @@ import * as path from 'node:path';
 import {act, fireEvent, render, type RenderResult} from '@testing-library/react';
 import React from 'react';
 import {expect} from 'vitest';
-import {z} from 'zod';
 
 import {
   Catalog,
@@ -29,18 +28,18 @@ import {
   createFunctionImplementation,
   type FunctionImplementation,
   isComponentNode,
+  type JsonSchema,
   MessageProcessor,
   peekValue,
   type ProcessableMessage,
   ResolvedBinding,
   type SurfaceModel,
 } from '@a2ui/web_core';
-import {basicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
-import {basicCatalog as v09BasicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
-import {A2uiClientMessageSchema, CommonSchemas} from '@a2ui/web_core/v0_9';
+import {createBasicCatalog as createV1BasicCatalog} from '@a2ui/web_core/catalogs/basic/v1';
+import {createBasicCatalog as createV09BasicCatalog} from '@a2ui/web_core/v0_9/basic_catalog';
 import type {A2uiWebComponentElement} from '@a2ui/web_core/universal';
-import {RendererToAgentMessageSchema} from '@a2ui/web_core/v1_0';
 import {A2uiSurface, createComponentImplementation, type ReactCatalogComponent} from '../src';
+import {commonType, objectSchema, outboundIssues, validator} from './validator';
 
 export interface ExpectedAccessibilityNode {
   label?: string;
@@ -510,16 +509,18 @@ export function writeManifestRecord(rec: ManifestRecord): void {
 export function createDefaultAdapterCatalog(
   protocolVersion?: string,
 ): Catalog<ReactCatalogComponent> {
-  const base = protocolVersion === 'v0.9' ? v09BasicCatalog : basicCatalog;
+  const base = (protocolVersion === 'v0.9'
+    ? createV09BasicCatalog(validator)
+    : createV1BasicCatalog(validator)) as unknown as Catalog<ReactCatalogComponent>;
   const incrementCounter = createFunctionImplementation(
     {
       name: 'incrementCounter',
       returnType: 'void',
-      schema: z.object({
-        path: z.string().optional(),
-        targetPath: z.string().optional(),
-        step: z.any().optional(),
-        amount: z.any().optional(),
+      schema: objectSchema({
+        path: {type: 'string'},
+        targetPath: {type: 'string'},
+        step: {},
+        amount: {},
       }),
     },
     (args: {path?: string; targetPath?: string; step?: unknown; amount?: unknown}, context) => {
@@ -534,29 +535,26 @@ export function createDefaultAdapterCatalog(
       context.dataModel.set(targetPath, current + delta);
     },
   );
-  return new Catalog<ReactCatalogComponent>(
-    base.id,
-    base.protocolVersion ?? protocolVersion ?? '1.0',
-    Array.from(base.components.values()) as unknown as ReactCatalogComponent[],
-    [...Array.from(base.functions.values()), incrementCounter],
-    base.themeSchema,
-    base.instructions,
-  );
+  return base.withEntries(Array.from(base.components.values()), [
+    ...Array.from(base.functions.values()),
+    incrementCounter,
+  ]);
 }
 
 export function buildExtraCatalog(entry: ExtraCatalogEntry): Catalog<ReactCatalogComponent> {
+  const version = (entry.protocolVersion ?? '1.0').replace(/^v/, '').startsWith('0.9')
+    ? '0.9'
+    : '1.0';
   const implementations = Object.entries(entry.components ?? {}).map(([name, def]) => {
-    const shape: Record<string, z.ZodTypeAny> = {};
+    const shape: Record<string, JsonSchema> = {};
     for (const [propKey, propSchema] of Object.entries(def.properties ?? {})) {
       if (propKey === 'component') {
         continue;
       }
-      shape[propKey] =
-        propSchema.type === 'number'
-          ? CommonSchemas.DynamicNumber.optional()
-          : CommonSchemas.DynamicString.optional();
+      shape[propKey] = commonType(propSchema.type === 'number' ? 'DynamicNumber' : 'DynamicString');
     }
-    return createComponentImplementation({name, schema: z.object(shape)}, ({props}) => (
+    const schema = objectSchema(shape, {version});
+    return createComponentImplementation({name, schema}, ({props}) => (
       <span data-testid={`custom-${name}`}>
         {Object.entries(props)
           .filter(
@@ -573,7 +571,7 @@ export function buildExtraCatalog(entry: ExtraCatalogEntry): Catalog<ReactCatalo
         return {
           name,
           returnType: (record['returnType'] as string) ?? 'any',
-          schema: z.object({}).passthrough(),
+          schema: objectSchema({}, {version}),
           allowedCallers: record['allowedCallers'] as
             | 'rendererOnly'
             | 'agentOnly'
@@ -1299,17 +1297,11 @@ function validateOutboundEnvelopes(
   envelopes: Array<Record<string, unknown>>,
   protocolVersion: string,
 ): void {
-  const isV09 = protocolVersion.startsWith('v0.9') || protocolVersion.startsWith('0.9');
   for (let i = 0; i < envelopes.length; i++) {
-    const env = envelopes[i];
-    const parsed = isV09
-      ? A2uiClientMessageSchema.safeParse(env)
-      : RendererToAgentMessageSchema.safeParse(env);
+    const issues = outboundIssues(envelopes[i], protocolVersion);
     expect(
-      parsed.success,
-      `outbound[${i}] failed protocol schema validation: ${
-        parsed.success ? '' : JSON.stringify(parsed.error.issues)
-      }`,
+      issues.length === 0,
+      `outbound[${i}] failed protocol schema validation: ${JSON.stringify(issues)}`,
     ).toBe(true);
   }
 }
@@ -1352,6 +1344,7 @@ export function mountSurface(caseSpec?: Partial<AdapterTestCase>): HarnessState 
         : undefined;
   let lastCapturedCallId: string | undefined;
   const processor = new MessageProcessor<ReactCatalogComponent>(catalogs, undefined, {
+    validator,
     validationConfig,
     outboundListener: msg => {
       outbound.push(structuredClone(msg) as unknown as Record<string, unknown>);

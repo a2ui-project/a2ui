@@ -92,15 +92,14 @@
     "@a2ui/markdown-it": "workspace:*",
     "@a2ui/web_core": "workspace:*",
     "clsx": "^2.1.1",
-    "markdown-it": "^14.2.0",
-    "zod": "^3.25.76"
+    "markdown-it": "^14.2.0"
   },
   "peerDependencies": {
     "react": "^17.0.0 || ^18.0.0 || ^19.0.0",
-    "react-dom": "^17.0.0 || ^18.0.0 || ^19.0.0",
-    "zod": "^3.25.76"
+    "react-dom": "^17.0.0 || ^18.0.0 || ^19.0.0"
   },
   "devDependencies": {
+    "@a2ui/validator-ajv": "workspace:*",
     "@eslint/js": "^10.0.1",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
@@ -155,7 +154,8 @@
       "dependencies": [
         "build",
         "../../core/web_core:build",
-        "../markdown-it:build"
+        "../markdown-it:build",
+        "../../validators/ajv:build"
       ],
       "files": [
         "src/**/*",
@@ -174,7 +174,8 @@
     "test:unit": {
       "command": "vitest run",
       "dependencies": [
-        "build"
+        "build",
+        "../../validators/ajv:build"
       ],
       "files": [
         "src/**/*",
