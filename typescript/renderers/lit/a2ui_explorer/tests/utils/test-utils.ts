@@ -26,7 +26,7 @@ setMarkdownRenderer(renderMarkdown);
  * Mounts the <local-gallery> element on the specified example.
  *
  * @param filename The exact filename of the A2UI JSON example (e.g.,
- *                 "02_email-compose.json") as defined in the specification
+ *                 "email-compose.json") as defined in the specification
  *                 catalogs directory.
  *
  * @returns A promise that resolves to the <local-gallery> element after the

@@ -321,7 +321,9 @@ class ChatSession extends ChangeNotifier {
               'error ${error.code}',
             CallAgentFunctionMessage(:final String functionCallId) =>
               'function call $functionCallId',
-            RendererFunctionResponseMessage(:final response) =>
+            RendererFunctionResponseMessage(
+              :final A2uiFunctionResponse response,
+            ) =>
               'function response ${response.functionCallId}',
             _ => message.runtimeType.toString(),
           },
