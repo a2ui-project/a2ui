@@ -270,7 +270,12 @@ export class ExpressionParser {
       }
       scanner.skipWhitespace();
 
-      args[argName] = this.parseExpressionInternal(scanner, depth + 1);
+      Object.defineProperty(args, argName, {
+        value: this.parseExpressionInternal(scanner, depth + 1),
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
 
       scanner.skipWhitespace();
       if (scanner.peek() === ',') {

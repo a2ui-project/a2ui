@@ -1371,6 +1371,29 @@
         - code: "EXPRESSION_ERROR"
           message: "fetchRate"
 
+- name: test_agent_routing_template_part_does_not_fall_back_to_default_catalog
+  description: >-
+    Verifies a formatString template call inherits formatString's explicit catalogId and fails with EXPRESSION_ERROR when missing from that catalog, rather than falling back to the surface default catalog even when the default catalog implements the function locally.
+  action: route_agent_function
+  protocolVersion: "1.0"
+  catalogs:
+    - catalogId: "conformance/default"
+      localFunctions: [pluralize]
+    - catalogId: "conformance/explicit"
+      localFunctions: [formatString]
+  surface:
+    catalogId: "conformance/default"
+  steps:
+    - evaluate:
+        "@call": "formatString"
+        catalogId: "conformance/explicit"
+        args:
+          value: "Count: ${pluralize(value: 2, one: 'drop', other: 'drops')}"
+      expectValues: ["Count: "]
+      expectErrors:
+        - code: "EXPRESSION_ERROR"
+          message: "pluralize"
+
 - name: test_agent_routing_sibling_agent_arguments_are_sent_together
   description: >-
     Verifies agent calls in sibling arguments of one function are all sent, in any order, before any is answered, and that when one fails the enclosing call is not sent, the failure is reported once, and the other sibling's later answer changes nothing.

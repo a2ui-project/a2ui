@@ -211,6 +211,7 @@ class ReferenceSchemaReader {
   bool isCheckable(List<Map<String, Object?>> schemas) {
     if (referencesType(schemas, 'CheckRule')) return true;
     if (referencesType(schemas, 'Checkable') &&
+        !properties(schemas).containsKey('@checks') &&
         !properties(schemas).containsKey('checks')) {
       return true;
     }

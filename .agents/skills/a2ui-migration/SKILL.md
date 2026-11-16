@@ -74,7 +74,7 @@ way as the source.
 
 | Language | From                               | To                                                          | Guide                                                                                                                                                                                                                                                                                                                                    |
 | -------- | ---------------------------------- | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Dart     | `package:genui` 0.10.x (A2UI v0.9) | `a2ui_core` + `a2ui_flutter` (+ `a2ui_agent`), v0.9 or v1.0 | [`references/dart_genui_to_1_0.md`](references/dart_genui_to_1_0.md)                                                                                                                                                                                                                                                                     |
+| Dart     | `genui` 0.9.x / 0.10.x (A2UI v0.9) | `a2ui_core` + `a2ui_flutter` (+ `a2ui_agent`), v0.9 or v1.0 | [`references/dart_genui_to_1_0.md`](references/dart_genui_to_1_0.md)                                                                                                                                                                                                                                                                     |
 | any      | protocol v0.8                      | protocol v0.9                                               | [`specification/v0_9/docs/evolution_guide.md`](../../../specification/v0_9/docs/evolution_guide.md); Python payload converter [`samples/agent/adk/migrate_v08_to_v09.py`](../../../samples/agent/adk/migrate_v08_to_v09.py); Lit renderer example in [`typescript/renderers/lit/README.md`](../../../typescript/renderers/lit/README.md) |
 | any      | protocol v0.9                      | protocol v0.9.1                                             | [`specification/v0_9_1/docs/evolution_guide.md`](../../../specification/v0_9_1/docs/evolution_guide.md)                                                                                                                                                                                                                                  |
 | any      | protocol v0.9 / v0.9.1             | protocol v1.0                                               | [`specification/v1_0/docs/evolution_guide.md`](../../../specification/v1_0/docs/evolution_guide.md), then the SDK's `CHANGELOG.md`                                                                                                                                                                                                       |
@@ -110,6 +110,63 @@ guide:
 7. **Record.** Note in the change description which case was applied, which
    behavioral differences needed app changes, and anything the guide did not
    cover.
+
+## Migrating a package you do not own
+
+When the migration is a pull request to someone else's repository, such as a
+package on pub.dev that depends on `genui`:
+
+1. Read the repository's CI workflows, its task runner and local gate
+   scripts, its agent instructions (`AGENTS.md`, `CLAUDE.md`,
+   `.cursor/rules/` and the like), its `CONTRIBUTING.md` (some require a
+   signed CLA before a PR is merged) and its commit and PR title conventions
+   first (some repositories check PR titles against Conventional Commits;
+   follow the history's language too). Run the CI steps locally before and
+   after the change, including in examples and in every package of the
+   repository that depends on the migrated one, even when CI skips them.
+   Use the toolchain release CI uses. When the repository pins a toolchain
+   release you cannot install, relax the pin only to run the checks, then
+   restore it everywhere it is recorded.
+2. Keep the package's name and public class names. Keep its API shape where
+   the new SDK allows, and list each breaking change in its `CHANGELOG.md`
+   under an `Unreleased` heading; leave the version number to the maintainer.
+3. Update the README, examples and agent instructions that show the old
+   SDK's API, so they do not teach code that no longer compiles.
+4. Commit only the migration:
+   - Include the manifests, the tracked lock files, and generated files
+     that change because a dependency was added or dropped, such as plugin
+     registrations.
+   - Leave out edits that tools make on their own (configuration rewrites,
+     lock changes that a plain install on a newer toolchain makes before
+     any edit; mention those in the change description), unrelated
+     generated changes, and generated files that hold local paths. In a
+     repository without a complete ignore file, stage files by name.
+   - When the change only removes dependencies, the lock loses exactly the
+     packages that nothing else needs; check that a fresh resolve changes
+     nothing more.
+   - A lock resolved with a newer toolchain can pick releases that the
+     project's own toolchain (CI, version files) cannot use. Check each new
+     package against it, and hold back the ones it cannot use.
+5. Keep the package's minimum language or SDK version even when the new
+   dependencies need a newer one. The package manager already refuses a
+   toolchain older than a dependency needs, while a higher bound can change
+   language semantics or formatting across the whole package.
+6. Read the APIs of the published SDK releases (in the package manager's
+   cache), not this repository's sources, which may be ahead of the release.
+7. Leave behavior the migration did not have to change as it is, including
+   bugs you notice, and mention them in the change description instead.
+8. In an app repository, update living docs (architecture notes, READMEs,
+   comments in other languages) but leave decision records, specs and plans
+   of their time as they are, and dated experiments outside the workspace
+   and CI when the project's tooling says to. When the repository requires a decision
+   record for a changed dependency, add one as proposed and leave the
+   decision to the owner. When the agent side is in another language and
+   the client translates its records to the wire version, keep that
+   translation, so the agent and its stored data do not change.
+
+A case guide lists what these rules mean on its platform; for Dart and
+Flutter, see
+[In a package you do not own](references/dart_genui_to_1_0.md#in-a-package-you-do-not-own).
 
 ## Adding a case
 

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 - name: test_converter_emits_failed_event
+  features: [F-AGT-34]
   action: convert_event
   args:
     errorCode: "some_error"
@@ -24,6 +25,7 @@
     message: "Server crash"
 
 - name: test_converter_emits_working_event
+  features: [F-AGT-34]
   action: convert_event
   args:
     contentText: "Regular text response"
@@ -34,12 +36,14 @@
     message: "Regular text response"
 
 - name: test_converter_returns_empty_when_no_catalog
+  features: [F-AGT-34]
   action: convert_event
   args:
     hasCatalog: false
   expectEmpty: true
 
 - name: test_toolset_execute_valid_payload
+  features: [F-AGT-33]
   action: execute_tool
   args:
     a2uiJson: '{"beginRendering": {"surfaceId": "dummy-surface", "root": "1"}}'
@@ -48,6 +52,7 @@
     containsValidatedJson: true
 
 - name: test_toolset_execute_invalid_payload
+  features: [F-AGT-33]
   action: execute_tool
   args:
     wrongArg: "b"
@@ -56,6 +61,7 @@
     errorContains: "missing required arg"
 
 - name: test_subagent_map_record_surface_ownership
+  features: [F-AGT-35]
   description: Verifies surface creation assigns ownership to authoring subagent in session state.
   action: convert_event
   args:
@@ -69,6 +75,7 @@
       a2ui_surface_id_surface1: "agent_alpha"
 
 - name: test_subagent_map_surface_collision_error
+  features: [F-AGT-35]
   description: Verifies attempting to create a surface with an existing ID owned by another agent raises SurfaceIdAlreadyExistsError.
   action: convert_event
   args:
@@ -84,6 +91,7 @@
     message: "already exists"
 
 - name: test_subagent_map_strip_unowned_surfaces
+  features: [F-AGT-35]
   description: Verifies client data models strip surfaces not owned by the recipient subagent.
   action: data_model
   args:

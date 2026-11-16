@@ -23,7 +23,6 @@ from .._json_schema import INLINE_DEF_MARKER, SchemaKeywords, SpecAllOf, def_ref
 from .common_types import StrictBaseModel, CallId, ComponentCommon, Extensions, FunctionCall, FunctionResponse
 from .constants import PROTOCOL_VERSION, PROTOCOL_VERSION_TYPE
 
-
 Component = TypeAliasType(
     "Component",
     Annotated[
@@ -91,9 +90,9 @@ class CreateSurface(StrictBaseModel):
         description=(
             "A string that uniquely identifies the default catalog for this surface. It"
             " is recommended to prefix this with an internet domain that you own, to"
-            " avoid conflicts e.g. 'mycompany.com:somecatalog'. Components and function"
-            " calls that do not explicitly specify a catalogId will use this"
-            " surface-level default catalogId."
+            " avoid conflicts e.g. 'mycompany.com:somecatalog'. Components that do not"
+            " explicitly specify @catalogId and function calls that do not explicitly"
+            " specify catalogId will use this surface-level default catalogId."
         ),
     )
     send_data_model: bool | None = Field(

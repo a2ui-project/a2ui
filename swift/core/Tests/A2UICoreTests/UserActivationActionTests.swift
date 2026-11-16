@@ -171,8 +171,8 @@ struct UserActivationActionTests {
     #expect(actionHandler.capturedActions.isEmpty)
     #expect(actionHandler.capturedErrors.isEmpty)
 
-    let legacyAction = try #require(root.action(for: "action"))
-    legacyAction()
+    let defaultAction = try #require(root.action(for: "action"))
+    defaultAction()
 
     #expect(gatedFunction.callCount == 2)
     #expect(actionHandler.capturedErrors.isEmpty)

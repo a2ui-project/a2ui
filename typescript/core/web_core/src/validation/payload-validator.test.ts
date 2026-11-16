@@ -288,15 +288,28 @@ describe('PayloadValidator', () => {
         {name: 'Tag', schema: z.object({label: z.string()}).strict()},
       ]);
       const validator = new PayloadValidator(closed, STRICT_VALIDATION);
-      assert.doesNotThrow(() =>
-        validator.validateComponent({
-          id: 'root',
-          component: 'Tag',
-          catalogId: CATALOG_ID,
-          metadata: {note: 'x'},
-          label: 'Hello',
-        }),
-      );
+      for (const prefix of ['', '@']) {
+        assert.doesNotThrow(() =>
+          validator.validateComponent({
+            'id': 'root',
+            'component': 'Tag',
+            [`${prefix}catalogId`]: CATALOG_ID,
+            [`${prefix}metadata`]: {extensions: {note: 'x'}},
+            'label': 'Hello',
+          }),
+        );
+        // The metadata envelope holds only extensions (#3466).
+        assert.throws(
+          () =>
+            validator.validateComponent({
+              'id': 'root',
+              'component': 'Tag',
+              [`${prefix}metadata`]: {note: 'x'},
+              'label': 'Hello',
+            }),
+          A2uiValidationError,
+        );
+      }
     });
 
     it('walks nested objects whose keys are named id or component', () => {
@@ -413,6 +426,258 @@ describe('PayloadValidator', () => {
           /Unrecognized function 'notAFunction'/,
         );
       }
+    });
+  });
+
+  describe('component envelope mixins', () => {
+    /** A v0.9 or v1.0 catalog with a `GcbpTable` declaring its own `metadata` and `catalogId`. */
+    function gcbpCatalog(protocolVersion: string) {
+      return Catalog.fromJson({
+        catalogId: 'https://example.com/gcbp.json',
+        protocolVersion,
+        components: {
+          GcbpTable: {
+            type: 'object',
+            properties: {
+              metadata: {
+                anyOf: [
+                  {
+                    type: 'object',
+                    properties: {pageNumber: {type: 'number'}, pageSize: {type: 'number'}},
+                    additionalProperties: false,
+                  },
+                  {$ref: 'common_types.json#/$defs/DataBinding'},
+                ],
+              },
+              catalogId: {type: 'string'},
+              accessibility: {type: 'string'},
+              checks: {type: 'array', items: {type: 'string'}},
+            },
+            additionalProperties: false,
+          },
+          Plain: {
+            type: 'object',
+            properties: {label: {type: 'string'}},
+            additionalProperties: false,
+          },
+          Checked: {
+            type: 'object',
+            allOf: [
+              {$ref: 'common_types.json#/$defs/Checkable'},
+              {type: 'object', properties: {label: {type: 'string'}}},
+            ],
+            unevaluatedProperties: false,
+          },
+        },
+      });
+    }
+
+    describe('below v1.0', () => {
+      const validator = new PayloadValidator(gcbpCatalog('0.9'), STRICT_VALIDATION);
+
+      it('checks custom metadata and catalogId properties against the component schema', () => {
+        assert.doesNotThrow(() =>
+          validator.validateComponent({
+            id: 'root',
+            component: 'GcbpTable',
+            metadata: {pageNumber: 0, pageSize: 10},
+            catalogId: 'source-catalog',
+          }),
+        );
+        assert.doesNotThrow(() =>
+          validator.validateComponent({
+            id: 'root',
+            component: 'GcbpTable',
+            metadata: {path: '/table/metadata'},
+          }),
+        );
+        assert.throws(
+          () =>
+            validator.validateComponent({
+              id: 'root',
+              component: 'GcbpTable',
+              metadata: {extensions: {com_example: 1}},
+            }),
+          A2uiValidationError,
+        );
+      });
+
+      it('rejects @-prefixed envelope keys as unknown properties', () => {
+        for (const key of ['@metadata', '@catalogId', '@accessibility', '@checks']) {
+          assert.throws(
+            () => validator.validateComponent({id: 'root', component: 'Plain', [key]: {}}),
+            A2uiValidationError,
+            key,
+          );
+        }
+      });
+
+      it('rejects a metadata property the component does not declare', () => {
+        assert.throws(
+          () =>
+            validator.validateComponent({
+              id: 'root',
+              component: 'Plain',
+              metadata: {extensions: {com_example: 1}},
+            }),
+          A2uiValidationError,
+        );
+      });
+    });
+
+    describe('from v1.0', () => {
+      const validator = new PayloadValidator(gcbpCatalog('1.0'), STRICT_VALIDATION);
+
+      it('accepts @-prefixed mixins and legacy bare mixins', () => {
+        assert.doesNotThrow(() =>
+          validator.validateComponent({
+            'id': 'root',
+            'component': 'Checked',
+            '@metadata': {extensions: {com_example_trace: 't1'}},
+            '@accessibility': {label: 'Name'},
+            '@checks': [{condition: true, message: 'Required'}],
+          }),
+        );
+        assert.doesNotThrow(() =>
+          validator.validateComponent({
+            id: 'root',
+            component: 'Checked',
+            metadata: {extensions: {com_example_trace: 't1'}},
+            accessibility: {label: 'Name'},
+            checks: [{condition: true, message: 'Required'}],
+          }),
+        );
+      });
+
+      it('validates @metadata extension keys as UAX #31 identifiers (#3466)', () => {
+        for (const key of ['@metadata', 'metadata']) {
+          assert.throws(
+            () =>
+              validator.validateComponent({
+                id: 'root',
+                component: 'Plain',
+                [key]: {extensions: {'com.example.bad': 1}},
+              }),
+            A2uiValidationError,
+            key,
+          );
+        }
+      });
+
+      it('rejects both @foo and legacy foo when foo is not a custom property', () => {
+        assert.throws(
+          () =>
+            validator.validateComponent({
+              'id': 'root',
+              'component': 'Plain',
+              '@accessibility': {label: 'New'},
+              'accessibility': {label: 'Old'},
+            }),
+          (err: unknown) => {
+            assert.ok(err instanceof A2uiValidationError);
+            assert.match(
+              err.message,
+              /cannot specify both '@accessibility' and legacy 'accessibility'/,
+            );
+            assert.match(err.details[0].path, /\/@accessibility$/);
+            return true;
+          },
+        );
+        assert.throws(
+          () =>
+            validator.validateComponent({
+              'id': 'root',
+              'component': 'Plain',
+              '@metadata': {},
+              'metadata': {},
+            }),
+          (err: unknown) => {
+            assert.ok(err instanceof A2uiValidationError);
+            assert.match(err.message, /cannot specify both '@metadata' and legacy 'metadata'/);
+            assert.match(err.details[0].path, /\/@metadata$/);
+            return true;
+          },
+        );
+      });
+
+      it('keeps custom properties beside the @-prefixed mixins', () => {
+        assert.doesNotThrow(() =>
+          validator.validateComponent({
+            'id': 'root',
+            'component': 'GcbpTable',
+            'metadata': {pageNumber: 0},
+            'catalogId': 'custom-value',
+            'accessibility': 'compact',
+            'checks': ['non_empty'],
+            '@metadata': {extensions: {com_example_vendor: 'acme'}},
+            '@accessibility': {label: 'Table'},
+          }),
+        );
+        assert.throws(
+          () =>
+            validator.validateComponent({
+              id: 'root',
+              component: 'GcbpTable',
+              metadata: {extensions: {com_example_vendor: 'acme'}},
+            }),
+          A2uiValidationError,
+        );
+      });
+
+      it('rejects check rules on a component that is not checkable', () => {
+        assert.throws(
+          () =>
+            validator.validateComponent({
+              'id': 'root',
+              'component': 'Plain',
+              '@checks': [{condition: true, message: 'x'}],
+            }),
+          /is not checkable/,
+        );
+        assert.throws(
+          () =>
+            validator.validateComponent({
+              id: 'root',
+              component: 'Plain',
+              checks: [{condition: true, message: 'x'}],
+            }),
+          A2uiValidationError,
+        );
+      });
+
+      it('rejects a non-string @catalogId', () => {
+        assert.throws(
+          () => validator.validateComponent({'id': 'root', 'component': 'Plain', '@catalogId': 3}),
+          /non-string '@catalogId'/,
+        );
+      });
+
+      it('rejects @-prefixed mixin names nested inside a property', () => {
+        const catalog = Catalog.fromJson({
+          catalogId: 'https://example.com/nested.json',
+          protocolVersion: '1.0',
+          components: {
+            Card: {
+              type: 'object',
+              properties: {details: {$ref: 'common_types.json#/$defs/DynamicValue'}},
+            },
+          },
+        });
+        const nested = new PayloadValidator(catalog, STRICT_VALIDATION);
+        assert.throws(
+          () =>
+            nested.validateComponent({
+              id: 'root',
+              component: 'Card',
+              details: {'@metadata': {extensions: {}}},
+            }),
+          (err: unknown) =>
+            err instanceof A2uiValidationError && err.code === 'INVALID_RESERVED_KEY',
+        );
+        assert.doesNotThrow(() =>
+          nested.validateComponent({id: 'root', component: 'Card', details: {'@@metadata': 'x'}}),
+        );
+      });
     });
   });
 });

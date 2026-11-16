@@ -18,7 +18,7 @@ import JSONSchema
 import Testing
 
 /// Resolves the submit check of the basic catalog's v1.0 login form example
-/// (`catalogs/basic/v1/examples/09_login-form.json`), whose `and` combines the
+/// (`catalogs/basic/v1/examples/login-form.json`), whose `and` combines the
 /// ValidationResult objects returned by `email` and `length`.
 @MainActor
 struct V10LogicalCheckTests {

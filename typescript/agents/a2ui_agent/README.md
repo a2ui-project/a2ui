@@ -9,16 +9,18 @@ This package targets A2UI protocol **v0.9** and **v1.0**, and supports the **Dir
 Load your catalogs once at startup and create an `A2uiGenerator`. On each turn, create a request processor for the client's capabilities, include its `promptSnippet` in your system prompt, and pass the model's response to `parseResponse`:
 
 ```ts
-import {A2uiGenerator, CatalogConfig, type RendererCapabilities} from '@a2ui/agent';
+import {A2uiGenerator, CatalogConfig, readRendererCapabilities} from '@a2ui/agent';
 
 // 1. Load catalogs and build the generator once at startup.
 const componentCatalog = CatalogConfig.fromPath('path/to/catalog.json');
 const generator = new A2uiGenerator([componentCatalog]);
 
-// 2. Per request, negotiate active catalogs for the client's capabilities.
-const capabilities: RendererCapabilities = {
-  v1_0: {supportedCatalogIds: [componentCatalog.catalog.id]},
-};
+// 2. Per request, extract client capabilities from transport metadata.
+const capabilities = readRendererCapabilities(requestMetadata);
+if (!capabilities) {
+  // Client did not request A2UI on this turn; reply with plain text.
+  return;
+}
 const processor = generator.createProcessor(capabilities);
 
 // 3. Append processor.promptSnippet to your LLM system prompt, then parse the reply.
@@ -92,7 +94,12 @@ An app that calls the model and renders its answer itself, such as a chat in the
 ```ts
 import {MessageProcessor} from '@a2ui/web_core';
 
-const renderer = new MessageProcessor([catalog], onAction);
+const renderer = new MessageProcessor([catalog], undefined, {
+  outboundListener: message => {
+    if (!('error' in message)) sendToAgent(message);
+  },
+  unifiedOutbound: true,
+});
 const stream = processor.openStream({state: RendererState.of(renderer)});
 stream.feed(chunk); // the surfaces show up in renderer.model
 ```
@@ -100,7 +107,14 @@ stream.feed(chunk); // the surfaces show up in renderer.model
 `StreamedAnswer` does this for one answer and keeps its parts in the order the model wrote them: its text, a part for each surface it creates, and an `ErrorPart` where it rejected a block, followed by the text and surfaces after it.
 
 ```ts
-const answer = new StreamedAnswer(processor, {renderer: new MessageProcessor([catalog], onAction)});
+const answer = new StreamedAnswer(processor, {
+  renderer: new MessageProcessor([catalog], undefined, {
+    outboundListener: message => {
+      if (!('error' in message)) sendToAgent(message);
+    },
+    unifiedOutbound: true,
+  }),
+});
 answer.feed(chunk);
 answer.close();
 answer.parts; // text, surfaces and errors, in order

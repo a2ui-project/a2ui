@@ -22,17 +22,19 @@ import {A2uiErrorDetail, A2uiValidationError} from '../errors.js';
 import {formatZodIssue} from '../processing/format-zod-issue.js';
 import {getKnownSchemaKeys} from '../resolution/data-context.js';
 import {AccessibilityAttributesSchema, ComponentCommonSchema} from '../types/common-types.js';
+import {
+  AT_COMPONENT_MIXIN_KEYS,
+  ComponentMixinLayout,
+  ComponentMixinValue,
+  SplitComponent,
+  componentMixinLayout,
+  splitComponentEnvelope,
+} from '../catalog/component_envelope.js';
+import {validateMetadata} from '../common/metadata.js';
 import {MAX_FUNCTION_CALL_ARGS} from '../types/helpers.js';
 import {IndexApi} from '../v1_0/functions/system_functions.js';
 import type {ValidationConfig} from './integrity-checker.js';
 import {validateReservedDirectives} from '../resolution/data-context.js';
-
-/**
- * Envelope keys that are addressed by the processor rather than described by a
- * component's property schema, and so must be removed before the payload is
- * checked against that schema.
- */
-const COMPONENT_ENVELOPE_KEYS = ['id', 'component', 'catalogId', 'metadata'] as const;
 
 /**
  * Looks up a reserved `@`-prefixed system function, which belongs to no
@@ -249,13 +251,20 @@ export class PayloadValidator {
       '/component',
     );
 
+    const componentApi = this.catalog.components.get(componentType);
+    // From v1.0 the envelope mixins (`@metadata`, `@catalogId`,
+    // `@accessibility`, `@checks`, or their legacy bare names) are split from
+    // the component's own properties. Below v1.0 every key but `id` and
+    // `component` is a property.
+    const split: SplitComponent = this.enforceIdentifiers
+      ? splitComponentEnvelope(comp, componentMixinLayout(componentApi?.schema))
+      : {properties: stripStructuralKeys(comp), mixins: {}};
+    const properties = split.properties;
     // Decides which nested calls run in this catalog; see
     // `nestedCallRunsInCatalog`.
-    const rawCatalogId = comp['catalogId'];
+    const rawCatalogId = split.mixins.catalogId?.value;
     const componentCatalogId = typeof rawCatalogId === 'string' ? rawCatalogId : undefined;
-    const properties = stripEnvelopeKeys(comp);
 
-    const componentApi = this.catalog.components.get(componentType);
     if (!componentApi) {
       if (!this.allowUnknown) {
         const msg = `Unknown component type '${componentType}' not found in catalog '${this.catalog.id}'.`;
@@ -270,14 +279,37 @@ export class PayloadValidator {
       // the function calls in them still run, so they are checked all the
       // same. `MessageProcessor` relies on this for the calls it leaves to
       // component validation.
+      this.validateEnvelopeMixins(
+        split.mixins,
+        undefined,
+        properties,
+        componentType,
+        id,
+        componentCatalogId,
+      );
       if (!options?.skipNestedFunctions) {
         this.validateNestedFunctions(properties, componentCatalogId);
       }
       return;
     }
 
-    const knownKeys = getKnownSchemaKeys(componentApi.schema);
-    this.validateCommonEnvelopeFields(properties, knownKeys, componentType, id, componentCatalogId);
+    if (this.enforceIdentifiers) {
+      this.validateEnvelopeMixins(
+        split.mixins,
+        componentMixinLayout(componentApi.schema),
+        properties,
+        componentType,
+        id,
+        componentCatalogId,
+      );
+    } else {
+      this.validateLegacyAccessibility(
+        properties,
+        getKnownSchemaKeys(componentApi.schema),
+        componentType,
+        id,
+      );
+    }
 
     const result = componentApi.schema.safeParse(properties);
     if (!result.success) {
@@ -298,49 +330,138 @@ export class PayloadValidator {
   }
 
   /**
-   * Validates `accessibility` and `metadata` from `ComponentCommon` when the
-   * component schema does not explicitly declare them, removing them from
-   * `properties` before strict component schema parsing.
+   * Validates a pre-1.0 component's `ComponentCommon` `accessibility` when the
+   * component schema does not declare it, removing it from `properties`
+   * before strict component schema parsing.
+   *
+   * Below v1.0 `metadata` and `catalogId` are not part of the protocol, so a
+   * component carrying them is checked against its own schema like any other
+   * property.
    */
-  private validateCommonEnvelopeFields(
+  private validateLegacyAccessibility(
     properties: Record<string, unknown>,
     knownKeys: Set<string> | null | undefined,
     componentType: string,
     id: string,
-    componentCatalogId: string | undefined,
   ): void {
-    if ('accessibility' in properties && !knownKeys?.has('accessibility')) {
-      const accVal = properties['accessibility'];
-      delete properties['accessibility'];
-      const accResult = AccessibilityAttributesSchema.optional().safeParse(accVal);
-      if (!accResult.success) {
-        const formattedErrors = accResult.error.errors.map(formatZodIssue).join(', ');
-        const details = zodIssuesToDetails(accResult.error.issues, '/accessibility');
-        throw new A2uiValidationError(
-          `Validation failed for component '${componentType}' (${id}): ${formattedErrors}`,
-          details,
-          'VALIDATION_ERROR',
-          {path: details[0]?.path},
-        );
-      }
-      this.validateNestedFunctions(accVal, componentCatalogId, '/accessibility');
-    }
+    if (!('accessibility' in properties) || knownKeys?.has('accessibility')) return;
+    const accVal = properties['accessibility'];
+    delete properties['accessibility'];
+    this.parseEnvelopeValue(AccessibilityAttributesSchema.optional(), accVal, '/accessibility', {
+      componentType,
+      id,
+    });
+    this.validateNestedFunctions(accVal, undefined, '/accessibility');
+  }
 
-    if ('metadata' in properties && !knownKeys?.has('metadata')) {
-      const metaVal = properties['metadata'];
-      delete properties['metadata'];
-      const metaResult = ComponentCommonSchema.shape.metadata.safeParse(metaVal);
-      if (!metaResult.success) {
-        const formattedErrors = metaResult.error.errors.map(formatZodIssue).join(', ');
-        const details = zodIssuesToDetails(metaResult.error.issues, '/metadata');
-        throw new A2uiValidationError(
-          `Validation failed for component '${componentType}' (${id}): ${formattedErrors}`,
-          details,
-          'VALIDATION_ERROR',
-          {path: details[0]?.path},
+  /**
+   * Validates the v1.0 envelope mixins a component carries.
+   *
+   * A mixin the component's schema declares with its standard schema (such
+   * as `checks` on a `Checkable` component) is put back into `properties`
+   * under that schema's key, so the component schema checks it. Any other
+   * mixin is checked here: `@metadata` against `ComponentCommon` (including
+   * the UAX #31 `extensions` keys), `@catalogId` as a string,
+   * `@accessibility` against `AccessibilityAttributes`. `@checks` is
+   * rejected on a component that is not checkable.
+   *
+   * @param mixins The component's envelope mixins.
+   * @param layout The component's mixin layout, or `undefined` when the
+   *   component type is unknown to the catalog.
+   * @param properties The component's own properties, which this may extend.
+   * @param componentType The component's type, for error messages.
+   * @param id The component's id, for error messages.
+   * @param componentCatalogId The catalog the component names, if any.
+   * @throws {A2uiValidationError} If a mixin is invalid.
+   */
+  private validateEnvelopeMixins(
+    mixins: SplitComponent['mixins'],
+    layout: ComponentMixinLayout | undefined,
+    properties: Record<string, unknown>,
+    componentType: string,
+    id: string,
+    componentCatalogId?: string,
+  ): void {
+    const subject = {componentType, id};
+    for (const [key, mixin] of Object.entries(mixins) as Array<
+      [keyof SplitComponent['mixins'], ComponentMixinValue]
+    >) {
+      const path = `/${mixin.wireKey}`;
+      if (key === 'metadata') {
+        this.parseEnvelopeValue(
+          ComponentCommonSchema.shape['@metadata'],
+          mixin.value,
+          path,
+          subject,
         );
+        rethrowAt(path, () => validateMetadata(mixin.value));
+      }
+      const schemaKey = layout?.schemaKeys.get(key);
+      if (schemaKey !== undefined) {
+        properties[schemaKey] = mixin.value;
+        continue;
+      }
+      switch (key) {
+        case 'catalogId':
+          if (typeof mixin.value !== 'string') {
+            const msg = `Component '${id}' has a non-string '${mixin.wireKey}'.`;
+            throw new A2uiValidationError(
+              msg,
+              [{path, code: 'invalid_value', message: msg}],
+              'VALIDATION_ERROR',
+              {path},
+            );
+          }
+          break;
+        case 'accessibility':
+          this.parseEnvelopeValue(
+            AccessibilityAttributesSchema.optional(),
+            mixin.value,
+            path,
+            subject,
+          );
+          this.validateNestedFunctions(mixin.value, componentCatalogId, path);
+          break;
+        case 'checks':
+          if (layout) {
+            const msg = `Component '${componentType}' (${id}) is not checkable and does not accept '${mixin.wireKey}'.`;
+            throw new A2uiValidationError(
+              msg,
+              [{path, code: 'invalid_value', message: msg}],
+              'VALIDATION_ERROR',
+              {path},
+            );
+          }
+          this.validateNestedFunctions(mixin.value, componentCatalogId, path);
+          break;
+        default:
+          break;
       }
     }
+  }
+
+  /**
+   * Parses an envelope value against its schema.
+   *
+   * @throws {A2uiValidationError} If the value does not satisfy the schema,
+   *   with paths under `path`.
+   */
+  private parseEnvelopeValue(
+    schema: z.ZodTypeAny,
+    value: unknown,
+    path: string,
+    {componentType, id}: {componentType: string; id: string},
+  ): void {
+    const result = schema.safeParse(value);
+    if (result.success) return;
+    const formattedErrors = result.error.errors.map(formatZodIssue).join(', ');
+    const details = zodIssuesToDetails(result.error.issues, path);
+    throw new A2uiValidationError(
+      `Validation failed for component '${componentType}' (${id}): ${formattedErrors}`,
+      details,
+      'VALIDATION_ERROR',
+      {path: details[0]?.path},
+    );
   }
 
   /**
@@ -450,7 +571,14 @@ export class PayloadValidator {
 
     const record = val as Record<string, unknown>;
     if (this.enforceIdentifiers) {
-      validateReservedDirectives(Object.keys(record), this.catalog.protocolVersion);
+      // The component envelope mixins (`@metadata` and the like) are allowed
+      // at the root of a component only; nested anywhere else they are
+      // unrecognized directives.
+      const keys = Object.keys(record);
+      validateReservedDirectives(
+        currentPath === '' ? keys.filter(key => !AT_COMPONENT_MIXIN_KEYS.has(key)) : keys,
+        this.catalog.protocolVersion,
+      );
     }
     const rawName = this.enforceIdentifiers
       ? record['@call']
@@ -605,16 +733,33 @@ function zodIssuesToDetails(issues: readonly z.ZodIssue[], prefix = ''): A2uiErr
 }
 
 /**
- * Strips processor envelope keys from a component payload, returning only component properties.
+ * Strips the structural `id` and `component` keys from a pre-1.0 component
+ * payload, returning only component properties.
+ *
+ * Below v1.0 `metadata` and `catalogId` are not envelope fields, so a
+ * component that declares them keeps them as properties.
  *
  * @param comp Raw component payload.
- * @returns New object holding only schema-described properties.
+ * @returns New object without `id` or `component`.
  */
-function stripEnvelopeKeys(comp: Record<string, unknown>): Record<string, unknown> {
-  const properties: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(comp)) {
-    if ((COMPONENT_ENVELOPE_KEYS as readonly string[]).includes(key)) continue;
-    properties[key] = value;
-  }
+function stripStructuralKeys(comp: Record<string, unknown>): Record<string, unknown> {
+  const {id: _id, component: _component, ...properties} = comp;
   return properties;
+}
+
+/**
+ * Runs `check`, prefixing the path of any `A2uiValidationError` it throws.
+ *
+ * @param path JSON Pointer of the value `check` validates.
+ * @param check The check to run.
+ */
+function rethrowAt(path: string, check: () => void): void {
+  try {
+    check();
+  } catch (err: unknown) {
+    if (err instanceof A2uiValidationError) {
+      err.path = err.path && err.path !== '/' ? `${path}${err.path}` : path;
+    }
+    throw err;
+  }
 }

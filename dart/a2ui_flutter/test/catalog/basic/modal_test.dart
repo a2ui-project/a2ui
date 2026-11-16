@@ -43,7 +43,7 @@ List<Map<String, Object?>> _example() {
       jsonDecode(
             File(
               '../../specification/v0_9/catalogs/basic/examples/'
-              '36_modal.json',
+              'modal.json',
             ).readAsStringSync(),
           )
           as Map<String, Object?>;

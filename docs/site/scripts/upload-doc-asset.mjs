@@ -100,6 +100,45 @@ export function buildReleaseAssetUrl(repo, releaseTag, filename) {
 }
 
 /**
+ * Extracts visual track dimensions (`width`, `height`) from an ISO BMFF (`.mp4`)
+ * buffer by reading `tkhd` (TrackHeaderBox) 16.16 fixed-point fields.
+ */
+export function parseMp4Dimensions(buf) {
+  function scanBoxes(start, end) {
+    let offset = start;
+    while (offset + 8 <= end) {
+      let size = buf.readUInt32BE(offset);
+      const type = buf.toString('ascii', offset + 4, offset + 8);
+      let headerSize = 8;
+      if (size === 1) {
+        if (offset + 16 > end) break;
+        size = Number(buf.readBigUInt64BE(offset + 8));
+        headerSize = 16;
+      } else if (size === 0) {
+        size = end - offset;
+      }
+      if (size < headerSize || offset + size > end) break;
+      const boxEnd = offset + size;
+      if (type === 'moov' || type === 'trak') {
+        const found = scanBoxes(offset + headerSize, boxEnd);
+        if (found) return found;
+      } else if (type === 'tkhd' && boxEnd - (offset + headerSize) >= 84) {
+        const width = Math.round(buf.readUInt32BE(boxEnd - 8) / 65536);
+        const height = Math.round(buf.readUInt32BE(boxEnd - 4) / 65536);
+        if (width > 0 && height > 0) return {width, height};
+      }
+      offset = boxEnd;
+    }
+    return null;
+  }
+  const dims = scanBoxes(0, buf.length);
+  if (!dims) {
+    throw new Error('Could not determine video dimensions from MP4 tkhd atom.');
+  }
+  return dims;
+}
+
+/**
  * Converts a local raster image to WebP via `sharp` and computes its SHA-256
  * digest and dimensions.
  */
@@ -110,6 +149,18 @@ export async function optimizeImageToWebp(inputPath, {maxWidth = 1920, quality =
   const inputBuffer = fs.readFileSync(inputPath);
   let pipeline = sharp(inputBuffer);
   const meta = await pipeline.metadata();
+
+  if (extOf(inputPath) === '.webp' && (!meta.width || !maxWidth || meta.width <= maxWidth)) {
+    const sha256 = crypto.createHash('sha256').update(inputBuffer).digest('hex');
+    return {
+      buffer: inputBuffer,
+      width: meta.width,
+      height: meta.height,
+      bytes: inputBuffer.length,
+      sha256,
+      ext: 'webp',
+    };
+  }
 
   if (meta.width && maxWidth && meta.width > maxWidth) {
     pipeline = pipeline.resize({width: maxWidth, withoutEnlargement: true});
@@ -126,6 +177,54 @@ export async function optimizeImageToWebp(inputPath, {maxWidth = 1920, quality =
     sha256,
     ext: 'webp',
   };
+}
+
+function extOf(filePath) {
+  return path.extname(filePath).toLowerCase();
+}
+
+/**
+ * Prepares a documentation media asset for upload:
+ * - `.png`, `.jpg`, `.jpeg`, `.webp`: optimized `.webp`
+ * - `.svg`: passthrough `.svg` with vector dimensions
+ * - `.mp4`: passthrough `.mp4` with `tkhd` video dimensions
+ */
+export async function prepareDocAsset(inputPath, {maxWidth = 1920, quality = 85} = {}) {
+  const ext = extOf(inputPath);
+  if (['.png', '.jpg', '.jpeg', '.webp'].includes(ext)) {
+    return optimizeImageToWebp(inputPath, {maxWidth, quality});
+  }
+  if (ext === '.svg') {
+    const sharpMod = await import('sharp');
+    const sharp = sharpMod.default || sharpMod;
+    const inputBuffer = fs.readFileSync(inputPath);
+    const meta = await sharp(inputBuffer).metadata();
+    const sha256 = crypto.createHash('sha256').update(inputBuffer).digest('hex');
+    return {
+      buffer: inputBuffer,
+      width: Math.max(1, Math.round(meta.width || 1)),
+      height: Math.max(1, Math.round(meta.height || 1)),
+      bytes: inputBuffer.length,
+      sha256,
+      ext: 'svg',
+    };
+  }
+  if (ext === '.mp4') {
+    const inputBuffer = fs.readFileSync(inputPath);
+    const {width, height} = parseMp4Dimensions(inputBuffer);
+    const sha256 = crypto.createHash('sha256').update(inputBuffer).digest('hex');
+    return {
+      buffer: inputBuffer,
+      width,
+      height,
+      bytes: inputBuffer.length,
+      sha256,
+      ext: 'mp4',
+    };
+  }
+  throw new Error(
+    `Unsupported asset file extension "${ext}" for ${inputPath}. Supported: .png, .jpg, .jpeg, .webp, .svg, .mp4`,
+  );
 }
 
 export function loadManifest(manifestPath = defaultManifestPath) {
@@ -374,7 +473,7 @@ async function runCli() {
     const absDir = path.resolve(dir);
     for (const entry of fs.readdirSync(absDir).sort()) {
       const ext = path.extname(entry).toLowerCase();
-      if (['.png', '.jpg', '.jpeg', '.webp'].includes(ext)) {
+      if (['.png', '.jpg', '.jpeg', '.webp', '.svg', '.mp4'].includes(ext)) {
         const baseName = path.basename(entry, ext);
         const cleanNs = namespace.replace(/^\/+|\/+$/g, '');
         items.push({
@@ -398,15 +497,15 @@ async function runCli() {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'a2ui-doc-assets-'));
   try {
     for (const item of items) {
-      const optimized = await optimizeImageToWebp(item.filePath, {maxWidth, quality});
-      const filename = formatAssetFilename(item.id, optimized.sha256, optimized.ext);
+      const prepared = await prepareDocAsset(item.filePath, {maxWidth, quality});
+      const filename = formatAssetFilename(item.id, prepared.sha256, prepared.ext);
       const url = buildReleaseAssetUrl(repo, releaseTag, filename);
       const tmpOut = path.join(tmpDir, filename);
-      fs.writeFileSync(tmpOut, optimized.buffer);
+      fs.writeFileSync(tmpOut, prepared.buffer);
 
       if (dryRun) {
         console.log(
-          `[upload-doc-asset] [DRY-RUN] ${item.id} -> ${filename} (${(optimized.bytes / 1024).toFixed(1)} KB, ${optimized.width}x${optimized.height})`,
+          `[upload-doc-asset] [DRY-RUN] ${item.id} -> ${filename} (${(prepared.bytes / 1024).toFixed(1)} KB, ${prepared.width}x${prepared.height})`,
         );
       } else if (existingAssets.has(filename)) {
         console.log(
@@ -414,7 +513,7 @@ async function runCli() {
         );
       } else {
         console.log(
-          `[upload-doc-asset] ↑ Uploading ${filename} (${(optimized.bytes / 1024).toFixed(1)} KB, ${optimized.width}x${optimized.height}) to ${repo}@${releaseTag}...`,
+          `[upload-doc-asset] ↑ Uploading ${filename} (${(prepared.bytes / 1024).toFixed(1)} KB, ${prepared.width}x${prepared.height}) to ${repo}@${releaseTag}...`,
         );
         // Never pass --clobber: content-addressed filenames are immutable.
         runGh(['release', 'upload', releaseTag, tmpOut, '-R', repo]);
@@ -424,18 +523,21 @@ async function runCli() {
       manifest.assets[item.id] = {
         filename,
         url,
-        sha256: optimized.sha256,
-        width: optimized.width,
-        height: optimized.height,
-        bytes: optimized.bytes,
+        sha256: prepared.sha256,
+        ...(prepared.ext !== 'webp' ? {ext: prepared.ext} : {}),
+        width: prepared.width,
+        height: prepared.height,
+        bytes: prepared.bytes,
       };
     }
   } finally {
     fs.rmSync(tmpDir, {recursive: true, force: true});
   }
 
-  saveManifest(manifest);
-  console.log(`[upload-doc-asset] Updated ${path.relative(process.cwd(), defaultManifestPath)}.`);
+  if (!dryRun) {
+    saveManifest(manifest);
+    console.log(`[upload-doc-asset] Updated ${path.relative(process.cwd(), defaultManifestPath)}.`);
+  }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {

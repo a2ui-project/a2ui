@@ -200,8 +200,8 @@ bool _isValidCommonType({
   }
   if (definition == 'ComponentCommon' &&
       value is Map &&
-      value['metadata'] is Map) {
-    final Object? extensions = (value['metadata']! as Map)['extensions'];
+      value['@metadata'] is Map) {
+    final Object? extensions = (value['@metadata']! as Map)['extensions'];
     if (extensions is Map) {
       return extensions.keys.every(
         (Object? key) => key is String && isValidUax31Identifier(key),

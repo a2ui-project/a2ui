@@ -14,6 +14,19 @@ The `@a2ui/web_core` package provides state management, protocol parsing, and sc
 
 Rendering is driven by a `SurfaceGroupModel` and its constituent `SurfaceModel` instances, with `DataModel` managing reactive state, `DataContext` providing expression evaluation, and `MessageProcessor` validating and applying incoming protocol messages.
 
+### Outbound Agent Messages
+
+Pass `outboundListener` with `unifiedOutbound: true` to route all renderer-to-agent wire messages (actions, processing errors, `callAgentFunction` requests, and `rendererFunctionResponse` replies) through a single callback:
+
+```ts
+import {MessageProcessor} from '@a2ui/web_core';
+
+const processor = new MessageProcessor(catalogs, undefined, {
+  outboundListener: send,
+  unifiedOutbound: true,
+});
+```
+
 ## Schema & Code Generation
 
 Protocol message schemas, common types, and catalog definitions are generated directly from the JSON schemas in the `specification/` directory.

@@ -28,7 +28,6 @@ import regex
 
 from ..exceptions import A2uiCatalogError
 
-
 # JSON Schema patterns are ECMA-262 regular expressions. `regex` natively
 # supports Unicode property escapes such as `\p{XID_Start}` and
 # `\p{XID_Continue}` (UAX #31); rewriting unescaped `$` outside character

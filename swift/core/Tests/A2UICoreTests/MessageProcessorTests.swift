@@ -218,6 +218,78 @@ struct MessageProcessorTests {
     #expect(try processor.getRendererDataModel() == nil)
   }
 
+  // MARK: - v1.0 createSurface theme
+
+  private static let v10CreateSurfaceWithTheme = """
+    {
+      "version": "1.0",
+      "createSurface": {
+        "surfaceId": "s1",
+        "catalogId": "cat-v10",
+        "theme": { "primaryColor": "#FF00AA" }
+      }
+    }
+    """
+
+  private func makeV10Catalog() throws -> Catalog<AnyComponentAPI> {
+    Catalog(
+      id: "cat-v10",
+      protocolVersion: .v10,
+      components: [
+        AnyComponentAPI(name: "Text", schema: try Schema(instance: "{\"type\": \"object\"}"))
+      ]
+    )
+  }
+
+  @Test func relaxedProcessorDropsV10CreateSurfaceTheme() throws {
+    let processor = MessageProcessor(catalogs: [try makeV10Catalog()])
+    try processor.processMessages(try JSONValue.parse(Self.v10CreateSurfaceWithTheme))
+    let surface = try #require(processor.surfaceGroupModel["s1"])
+    #expect(surface.theme == nil)
+  }
+
+  @Test func strictProcessorRejectsV10CreateSurfaceTheme() throws {
+    let processor = MessageProcessor(
+      catalogs: [try makeV10Catalog()],
+      validationConfig: .strict
+    )
+    let error = try #require(throws: A2UIValidationError.self) {
+      try processor.processMessages(try JSONValue.parse(Self.v10CreateSurfaceWithTheme))
+    }
+    #expect(error.message.contains("unrecognized property 'theme'"))
+    #expect(processor.surfaceGroupModel["s1"] == nil)
+  }
+
+  @Test(arguments: [true, false])
+  func processMessageAppliesUnknownElementPolicyToV10CreateSurfaceTheme(
+    allowUnknownElements: Bool
+  ) throws {
+    let handler = TestProcessorActionHandler()
+    let processor = MessageProcessor(
+      catalogs: [try makeV10Catalog()],
+      actionHandler: handler,
+      validationConfig: allowUnknownElements ? .relaxed : .strict
+    )
+    processor.process(
+      message: .createSurface(
+        CreateSurfaceMessage(
+          surfaceID: "s1",
+          catalogID: "cat-v10",
+          theme: ["primaryColor": .string("#FF00AA")],
+          version: .v10
+        )
+      )
+    )
+    if allowUnknownElements {
+      let surface = try #require(processor.surfaceGroupModel["s1"])
+      #expect(surface.theme == nil)
+      #expect(handler.capturedErrors.isEmpty)
+    } else {
+      #expect(processor.surfaceGroupModel["s1"] == nil)
+      #expect(handler.capturedErrors.count == 1)
+    }
+  }
+
   @Test func getRendererDataModelMultiVersionRequiresExplicitVersion() throws {
     let v091Catalog = Catalog(
       id: "cat-v091",
@@ -493,6 +565,177 @@ struct MessageProcessorTests {
       functionsV10?["openUrl"]?["required"] == .array([.string("@call"), .string("args")]))
     #expect(functionsV10?["@index"] == nil)
     #expect(functionsV10?.count == 2)
+
+    #expect(inlineCatalogV091?["$defs"] == nil)
+    let expectedDefsV10: JSONValue = .object([
+      "anyComponent": .object([
+        "oneOf": .array([.object(["$ref": .string("#/components/Button")])]),
+        "discriminator": .object(["propertyName": .string("component")]),
+      ]),
+      "anyFunction": .object([
+        "oneOf": .array([
+          .object(["$ref": .string("#/functions/add")]),
+          .object(["$ref": .string("#/functions/openUrl")]),
+        ])
+      ]),
+    ])
+    #expect(inlineCatalogV10?["$defs"] == expectedDefsV10)
+  }
+
+  @Test func getRendererCapabilitiesAlwaysWritesBothUnionsForV10() throws {
+    let buttonSchema = try Schema(instance: "{\"type\": \"object\"}")
+    let componentsOnly = Catalog(
+      id: "cat-components-only",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI(name: "Button", schema: buttonSchema)]
+    )
+    let empty = Catalog(
+      id: "cat-empty",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI]()
+    )
+    let processor = MessageProcessor(catalogs: [componentsOnly, empty])
+    let capabilities = try processor.getRendererCapabilities(
+      options: MessageProcessor.CapabilitiesOptions(
+        protocolVersion: .v10,
+        includeInlineCatalogs: true
+      )
+    )
+
+    let inlineCatalogs = try #require(capabilities["1.0"]?["inlineCatalogs"]?.arrayValue)
+    #expect(inlineCatalogs.count == 2)
+    let emptyUnion: JSONValue = .object(["not": .object([:])])
+
+    let componentsOnlyCatalog = try #require(
+      inlineCatalogs.first { $0["catalogId"]?.stringValue == "cat-components-only" }
+    )
+    let expectedComponentsOnlyDefs: JSONValue = .object([
+      "anyComponent": .object([
+        "oneOf": .array([.object(["$ref": .string("#/components/Button")])]),
+        "discriminator": .object(["propertyName": .string("component")]),
+      ]),
+      "anyFunction": emptyUnion,
+    ])
+    #expect(componentsOnlyCatalog["functions"] == nil)
+    #expect(componentsOnlyCatalog["$defs"] == expectedComponentsOnlyDefs)
+
+    let emptyCatalog = try #require(
+      inlineCatalogs.first { $0["catalogId"]?.stringValue == "cat-empty" }
+    )
+    let expectedEmptyDefs: JSONValue = .object([
+      "anyComponent": emptyUnion,
+      "anyFunction": emptyUnion,
+    ])
+    #expect(emptyCatalog["components"] == nil)
+    #expect(emptyCatalog["$defs"] == expectedEmptyDefs)
+  }
+
+  @Test func getRendererCapabilitiesEscapesUnionReferencesForV10() throws {
+    let schema = try Schema(instance: "{\"type\": \"object\"}")
+    let catalog = Catalog(
+      id: "cat-escaped",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI(name: "a~1/b", schema: schema)],
+      functions: [TestNamedFunction(name: "x~0/y", schema: schema)]
+    )
+    let processor = MessageProcessor(catalogs: [catalog])
+    let capabilities = try processor.getRendererCapabilities(
+      options: MessageProcessor.CapabilitiesOptions(
+        protocolVersion: .v10,
+        includeInlineCatalogs: true
+      )
+    )
+
+    let inlineCatalog = try #require(capabilities["1.0"]?["inlineCatalogs"]?.arrayValue?.first)
+    let componentRef = try #require(
+      inlineCatalog["$defs"]?["anyComponent"]?["oneOf"]?.arrayValue?.first?["$ref"]?.stringValue
+    )
+    let functionRef = try #require(
+      inlineCatalog["$defs"]?["anyFunction"]?["oneOf"]?.arrayValue?.first?["$ref"]?.stringValue
+    )
+    #expect(componentRef == "#/components/a~01~1b")
+    #expect(functionRef == "#/functions/x~00~1y")
+
+    // Each reference, read as a JSON pointer into the inline catalog, reaches its entry.
+    let resolvedComponent = inlineCatalog[String(componentRef.dropFirst())]
+    let resolvedFunction = inlineCatalog[String(functionRef.dropFirst())]
+    #expect(resolvedComponent == inlineCatalog["components"]?.objectValue?["a~1/b"])
+    #expect(resolvedComponent != nil)
+    #expect(resolvedFunction == inlineCatalog["functions"]?.objectValue?["x~0/y"])
+    #expect(resolvedFunction != nil)
+  }
+
+  @Test func getRendererCapabilitiesV10InlineCatalogsMatchCatalogDefinition() throws {
+    let buttonSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "label": { "type": "string" }
+          },
+          "required": ["label"]
+        }
+        """
+    )
+    let addSchema = try Schema(
+      instance: """
+        {
+          "type": "object",
+          "properties": {
+            "a": { "type": "number" },
+            "b": { "type": "number" }
+          }
+        }
+        """
+    )
+    let withFunctions = Catalog(
+      id: "cat-with-functions",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI(name: "Button", schema: buttonSchema)],
+      functions: [TestAddFunction(schema: addSchema)]
+    )
+    let withoutFunctions = Catalog(
+      id: "cat-without-functions",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI(name: "Button", schema: buttonSchema)]
+    )
+    let withoutComponents = Catalog(
+      id: "cat-without-components",
+      protocolVersion: .v10,
+      components: [AnyComponentAPI](),
+      functions: [TestAddFunction(schema: addSchema)]
+    )
+    let processor = MessageProcessor(
+      catalogs: [withFunctions, withoutFunctions, withoutComponents]
+    )
+    let capabilities = try processor.getRendererCapabilities(
+      options: MessageProcessor.CapabilitiesOptions(
+        protocolVersion: .v10,
+        includeInlineCatalogs: true
+      )
+    )
+
+    let catalogDefinition = try Schema(
+      rawSchema: A2UICommonSchema.v10CatalogDefinitionDocument,
+      context: A2UISchemaRegistry.makeContext()
+    )
+    let inlineCatalogs = try #require(capabilities["1.0"]?["inlineCatalogs"]?.arrayValue)
+    #expect(inlineCatalogs.count == 3)
+    for inlineCatalog in inlineCatalogs {
+      let result = catalogDefinition.validate(inlineCatalog)
+      #expect(result.isValid, "\(inlineCatalog["catalogId"] ?? .null): \(result)")
+    }
+
+    // The schema rejects `$defs` that leave out either union.
+    let baseCatalog = try #require(inlineCatalogs.first?.objectValue)
+    let baseDefs = try #require(baseCatalog["$defs"]?.objectValue)
+    for unionKey in ["anyComponent", "anyFunction"] {
+      var missingUnionCatalog = baseCatalog
+      var defs = baseDefs
+      defs.removeValue(forKey: unionKey)
+      missingUnionCatalog["$defs"] = .object(defs)
+      #expect(!catalogDefinition.validate(.object(missingUnionCatalog)).isValid)
+    }
   }
 
   @Test func getRendererCapabilitiesWrapsComponentEnvelopeOnlyBeforeV10() throws {
@@ -951,6 +1194,88 @@ struct MessageProcessorTests {
     #expect(surface.rootNode?.box.propsRevision == 0)
   }
 
+  @Test func componentMetadataIsAnOrdinaryPropertyBeforeV10() throws {
+    let cardSchema = try Schema(instance: "{\"type\": \"object\"}")
+    let processor = MessageProcessor(catalogs: [
+      Catalog(
+        id: "cat-v09",
+        protocolVersion: .v09,
+        components: [AnyComponentAPI(name: "Card", schema: cardSchema)]
+      ),
+      Catalog(
+        id: "cat-v10",
+        protocolVersion: .v10,
+        components: [AnyComponentAPI(name: "Card", schema: cardSchema)]
+      ),
+    ])
+
+    try processor.processMessages(
+      JSONValue.parse(
+        """
+        [
+          {
+            "version": "v0.9",
+            "createSurface": { "surfaceId": "s09", "catalogId": "cat-v09" }
+          },
+          {
+            "version": "v0.9",
+            "updateComponents": {
+              "surfaceId": "s09",
+              "components": [
+                {
+                  "id": "plain",
+                  "component": "Card",
+                  "metadata": { "source": "crm" }
+                },
+                {
+                  "id": "shaped",
+                  "component": "Card",
+                  "metadata": { "extensions": { "trace": "t1" } }
+                }
+              ]
+            }
+          }
+        ]
+        """
+      )
+    )
+    try processor.processMessages(
+      JSONValue.parse(
+        """
+        {
+          "version": "1.0",
+          "createSurface": {
+            "surfaceId": "s10",
+            "catalogId": "cat-v10",
+            "components": [
+              {
+                "id": "root",
+                "component": "Card",
+                "metadata": { "extensions": { "trace": "t1" } }
+              }
+            ]
+          }
+        }
+        """
+      )
+    )
+
+    let v09Components = try #require(processor.surfaceGroupModel["s09"]).componentsModel
+    let plain = try #require(v09Components.get("plain"))
+    #expect(plain.properties["metadata"] == .object(["source": .string("crm")]))
+    #expect(plain.metadata == nil)
+    let shaped = try #require(v09Components.get("shaped"))
+    #expect(
+      shaped.properties["metadata"]
+        == .object(["extensions": .object(["trace": .string("t1")])])
+    )
+    #expect(shaped.metadata == nil)
+
+    let v10Root = try #require(processor.surfaceGroupModel["s10"]?.componentsModel.get("root"))
+    #expect(v10Root.properties["metadata"] == nil)
+    #expect(v10Root.extensions == ["trace": .string("t1")])
+  }
+
   @Test func processPayloadResolvesLenientV10VersionOnError() throws {
     let handler = TestProcessorActionHandler()
     let catalogV09 = Catalog(
@@ -995,6 +1320,18 @@ private struct TestAddFunction: FunctionImplementation {
 
   init(schema: Schema) {
     self.api = FunctionAPI(name: "add", returnType: .number, schema: schema)
+  }
+
+  func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {
+    .null
+  }
+}
+
+private struct TestNamedFunction: FunctionImplementation {
+  let api: FunctionAPI
+
+  init(name: String, schema: Schema) {
+    self.api = FunctionAPI(name: name, returnType: .any, schema: schema)
   }
 
   func evaluate(arguments: [String: JSONValue], context: DataContext) throws -> JSONValue {

@@ -62,6 +62,7 @@
 # surface that the block updates without creating is assumed to exist.
 
 - name: test_compile_json_message_list
+  features: [F-AGT-19]
   description: A well formed message list compiles to those messages.
   action: compile
   args:
@@ -86,6 +87,7 @@
             text: "Hello"
 
 - name: test_compile_json_single_object_is_wrapped_in_a_list
+  features: [F-AGT-19]
   description: A payload that is one message rather than a list compiles to a list of one.
   action: compile
   args:
@@ -98,6 +100,7 @@
         surfaceId: "s1"
 
 - name: test_compile_json_trailing_commas_removed
+  features: [F-AGT-19]
   description: Trailing commas in a list and an object are dropped rather than failing the parse.
   action: compile
   args:
@@ -114,6 +117,7 @@
             text: "Hello"
 
 - name: test_compile_json_smart_quotes_normalised
+  features: [F-AGT-19]
   description: Curly quotes a model reached for are read as straight quotes.
   action: compile
   args:

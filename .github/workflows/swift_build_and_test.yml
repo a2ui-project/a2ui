@@ -66,12 +66,22 @@ jobs:
             --harness swift-core \
             --corpus core \
             --exclude "core/message_processor_scaling.yaml=performance: runs in the test (performance) job with A2UI_RUN_TIMING=1"
+          uv run --project conformance python conformance/scripts/check_feature_coverage.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --harness swift-core
       - name: Check executed adapter conformance cases
         run: |
           uv run --project conformance python conformance/scripts/check_executed_cases.py \
             --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
             --harness swiftui \
             --corpus adapter
+          uv run --project conformance python conformance/scripts/check_executed_cases.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --harness swiftui \
+            --corpus e2e
+          uv run --project conformance python conformance/scripts/check_feature_coverage.py \
+            --manifest-dir "${{ runner.temp }}/a2ui-manifest" \
+            --harness swiftui
 
   ios-build:
     # `swift test` above builds for macOS only, so `#if os(iOS)` and UIKit code

@@ -39,7 +39,7 @@ import {
 } from './catalogs.js';
 import {ExpressValidationError} from './errors.js';
 import {assignVariableNames, isExpressIdentifier} from './identifier.js';
-import {CatalogSchemaHelper, commonDefName} from './schema-helper.js';
+import {CatalogSchemaHelper, commonDefName, getEnvelopeValue} from './schema-helper.js';
 
 /**
  * Wrapper for numeric literals that must retain raw formatting (e.g. floats like 1500.0).
@@ -279,6 +279,32 @@ export class ExpressDecompiler {
     this.helpers = buildSchemaHelpers(this.catalogs, protocolVersion);
     this.soleCatalogId = this.catalogs.length === 1 ? this.catalogs[0].id : undefined;
     this.isV1 = compareSemVer(this.protocolVersion, '1.0.0') >= 0;
+  }
+
+  /**
+   * Returns a helper that reads the system function a call names.
+   *
+   * A system function, such as `@index`, is defined by the protocol rather than a
+   * catalog, so every helper of the version reads it.
+   *
+   * @throws {A2uiValidationError} If the version defines no system function of
+   *   that name, or the call names a `catalogId`.
+   */
+  private systemFunctionHelper(
+    funcCall: Record<string, unknown>,
+    name: string,
+  ): CatalogSchemaHelper {
+    const helper = this.helpers.values().next().value!;
+    if (!helper.systemFunctions.has(name)) {
+      throw new A2uiValidationError(`Unknown system function '${name}'.`);
+    }
+    if ('catalogId' in funcCall) {
+      throw new A2uiValidationError(
+        `System function '${name}' is defined by the protocol, not a catalog, so it takes` +
+          ' no catalogId.',
+      );
+    }
+    return helper;
   }
 
   /**
@@ -746,6 +772,47 @@ export class ExpressDecompiler {
   }
 
   /**
+   * Returns the catalog override of a component, or undefined when it names none.
+   *
+   * From v1.0 the override is `@catalogId`. A bare `catalogId`, which v1.0
+   * payloads used before the cutover, is read too, unless the component's
+   * surface catalog declares `catalogId` as a property of the component.
+   */
+  private getComponentCatalogId(
+    comp: Record<string, unknown>,
+    surfaceCatalogId: string | undefined,
+  ): unknown {
+    if (!this.isV1) {
+      return comp.catalogId;
+    }
+    if (Object.hasOwn(comp, '@catalogId')) {
+      return comp['@catalogId'];
+    }
+    const legacy = comp.catalogId;
+    if (legacy === undefined) {
+      return undefined;
+    }
+    const home = surfaceCatalogId ? this.helpers.get(surfaceCatalogId) : undefined;
+    const compName = comp.component;
+    if (typeof compName === 'string') {
+      if (home && home.components.has(compName)) {
+        if (home.getCustomEnvelopeProperties(compName).has('catalogId')) {
+          return undefined;
+        }
+      } else {
+        const declaring = [...this.helpers.values()].filter(h => h.components.has(compName));
+        if (
+          declaring.length > 0 &&
+          declaring.every(h => h.getCustomEnvelopeProperties(compName).has('catalogId'))
+        ) {
+          return undefined;
+        }
+      }
+    }
+    return legacy;
+  }
+
+  /**
    * Formats a single component definition into an Express assignment line.
    */
   private formatComponent(
@@ -761,40 +828,59 @@ export class ExpressDecompiler {
     const {helper, catalogId: emitCatalogId} = this.resolveSymbol(
       'component',
       compName,
-      comp.catalogId,
+      this.getComponentCatalogId(comp, surfaceCatalogId),
       surfaceCatalogId,
     );
 
     const properties = helper.getComponentProperties(compName);
+    const customEnvelope = helper.getCustomEnvelopeProperties(compName);
     const checkProp = helper.getCheckRuleProperty(compName);
     const argsReprs: string[] = [];
-    const metaRecord = this.isV1 ? asRecord(comp.metadata) : undefined;
+    const metaRecord = this.isV1
+      ? asRecord(getEnvelopeValue(comp, 'metadata', true, customEnvelope))
+      : undefined;
     const compExtensions = metaRecord ? asRecord(metaRecord.extensions) : undefined;
 
-    for (const propName of properties) {
-      if (propName === 'metadata' && compExtensions !== undefined) {
+    // The `catalogId=` keyword names the component's catalog, so a property the
+    // component declares as `catalogId` is written positionally, along with
+    // every property before it.
+    const positionalUntil =
+      useKeywordArgs && properties.includes('catalogId') && 'catalogId' in comp
+        ? properties.indexOf('catalogId')
+        : -1;
+
+    for (let propIdx = 0; propIdx < properties.length; propIdx++) {
+      const propName = properties[propIdx];
+      const keyword = useKeywordArgs && propIdx > positionalUntil;
+      if (
+        propName === 'metadata' &&
+        !customEnvelope.has('metadata') &&
+        compExtensions !== undefined
+      ) {
         continue;
       }
       const arg =
-        checkProp && propName === checkProp
+        checkProp && propName === checkProp && !customEnvelope.has(checkProp)
           ? this.formatCheckPropertyArg(
               propName,
-              comp[checkProp],
+              checkProp === 'checks'
+                ? getEnvelopeValue(comp, 'checks', this.isV1, customEnvelope)
+                : comp[checkProp],
               comp,
               varNames,
               surfaceCatalogId,
-              useKeywordArgs,
+              keyword,
             )
           : this.formatRegularPropertyArg(
               comp,
               compName,
               propName,
               properties,
-              checkProp,
+              checkProp && !customEnvelope.has(checkProp) ? checkProp : undefined,
               varNames,
               helper,
               surfaceCatalogId,
-              useKeywordArgs,
+              keyword,
             );
       if (arg !== undefined) {
         argsReprs.push(arg);
@@ -802,6 +888,20 @@ export class ExpressDecompiler {
     }
 
     this.trimTrailingPlaceholders(argsReprs);
+
+    if (checkProp === 'checks' && customEnvelope.has('checks')) {
+      const checkArg = this.formatCheckPropertyArg(
+        'checks',
+        getEnvelopeValue(comp, 'checks', this.isV1, customEnvelope),
+        comp,
+        varNames,
+        surfaceCatalogId,
+        false,
+      );
+      if (checkArg !== undefined && checkArg !== '_') {
+        argsReprs.push(checkArg);
+      }
+    }
 
     if (emitCatalogId !== undefined) {
       argsReprs.push(`catalogId=${decompileString(emitCatalogId)}`);
@@ -913,12 +1013,9 @@ export class ExpressDecompiler {
       ? {}
       : optionalObjectField(rawArgs, `Function call '${funcName}'`, 'args');
 
-    const {helper, catalogId: emitCatalogId} = this.resolveSymbol(
-      'function',
-      funcName,
-      funcCall.catalogId,
-      surfaceCatalogId,
-    );
+    const {helper, catalogId: emitCatalogId} = funcName.startsWith('@')
+      ? {helper: this.systemFunctionHelper(funcCall, funcName), catalogId: undefined}
+      : this.resolveSymbol('function', funcName, funcCall.catalogId, surfaceCatalogId);
 
     const fnProps = helper.getFunctionProperties(funcName);
     const argsReprs: string[] = [];

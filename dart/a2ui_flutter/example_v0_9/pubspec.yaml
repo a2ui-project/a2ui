@@ -38,6 +38,7 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  yaml: ^3.1.4
 
 flutter:
   uses-material-design: true

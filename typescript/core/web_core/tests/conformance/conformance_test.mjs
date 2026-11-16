@@ -27,7 +27,7 @@ import {
   BASIC_COMPONENTS as V1_0_BASIC_COMPONENTS,
   BASIC_FUNCTIONS as V1_0_BASIC_FUNCTIONS,
 } from '../../dist/src/catalogs/basic/v1/index.js';
-import {toCanonicalVersion} from '../../dist/src/common/semver.js';
+import {isAtLeastVersion, toCanonicalVersion} from '../../dist/src/common/semver.js';
 import {
   A2uiCatalogError,
   A2uiDataError,
@@ -185,6 +185,15 @@ const KNOWN_DIVERGENCES = new Map([
       ],
     ]),
   ],
+  [
+    'core/message_processor_v1_0.yaml',
+    new Map([
+      [
+        'test_v10_custom_envelope_properties_declared_in_combiner_branches',
+        "TS Catalog.fromJson does not load oneOf/anyOf nested in a component's allOf",
+      ],
+    ]),
+  ],
 ]);
 
 /**
@@ -293,6 +302,10 @@ const UNIMPLEMENTED_ACTIONS = new Map([
   ['transform_catalog', 'catalog transformers are agent-side only'],
   ['provide_catalog', 'catalog providers are agent-side only'],
   ['resolve_catalogs', 'catalog resolution is agent-side only'],
+  [
+    'read_renderer_capabilities',
+    'reading renderer capabilities from transport metadata is agent-side only',
+  ],
   ['common_types_schema', 'no schema generation from models'],
   ['declare_agent_functions', 'agent functions are agent-side only'],
   ['handle_agent_function', 'agent functions are agent-side only'],
@@ -2836,7 +2849,8 @@ function validateToJsonTestCase(testCase) {
  * require permissive validation so test vectors can evaluate message processor semantics,
  * surface lifecycles, and state handling without failing on strict component prop validation.
  *
- * Also includes non-standard component types like `CustomComponent` referenced by test cases.
+ * Also includes non-standard component types like `CustomComponent` and `PieChart`
+ * referenced by ad-hoc catalog test cases.
  */
 const flexibleComponents = [
   'Button',
@@ -2851,6 +2865,7 @@ const flexibleComponents = [
   'CheckBox',
   'ChoicePicker',
   'CustomComponent',
+  'PieChart',
 ].map(name => ({
   name,
   schema: z.object({}).passthrough(),
@@ -3374,6 +3389,19 @@ const SURFACE_EXPECT_KNOWN_KEYS = {
   validationResult: new Set(['code', 'message', 'severity', 'valid']),
 };
 
+/**
+ * Whether an expected component key names the component's envelope metadata
+ * rather than one of its properties.
+ *
+ * Decided by the expectation key alone, so a processor that stores envelope
+ * metadata as a property, or the reverse, fails the case: from v1.0
+ * `@metadata` names the envelope metadata and a bare `metadata` names a
+ * component property. Below v1.0 `metadata` is always an ordinary property.
+ */
+function isEnvelopeMetadataExpectation(propKey, atLeastV1) {
+  return atLeastV1 && propKey === '@metadata';
+}
+
 function assertSurfacesMatch(processor, expect) {
   assertKnownKeys(expect, SURFACE_EXPECT_KNOWN_KEYS.expect, 'expect');
   assertKnownKeysRecord(expect?.surfaces, SURFACE_EXPECT_KNOWN_KEYS.surface, 'expect.surfaces');
@@ -3440,16 +3468,26 @@ function assertSurfacesMatch(processor, expect) {
               );
             }
             const actualProps = node ? (peekValue(node.props) ?? {}) : (comp.properties ?? {});
+            const actualMeta = (node ? peekValue(node.metadata) : comp.metadata) ?? null;
+            const atLeastV1 = isAtLeastVersion(surface.protocolVersion, '1.0');
             for (const [propKey, expectedVal] of Object.entries(expectedComp)) {
               if (propKey === 'id' || propKey === 'component') continue;
-              if (propKey === 'metadata') {
-                const actualMeta = (node ? peekValue(node.metadata) : comp.metadata) ?? null;
+              if (isEnvelopeMetadataExpectation(propKey, atLeastV1)) {
                 assert.deepStrictEqual(
                   actualMeta,
                   expectedVal,
                   `Metadata mismatch on component '${expectedComp.id}'`,
                 );
                 continue;
+              }
+              if (propKey === 'metadata' && !atLeastV1) {
+                // Below v1.0 a component has no envelope metadata, and a
+                // `metadata` it declares is an ordinary property.
+                assert.strictEqual(
+                  actualMeta,
+                  null,
+                  `Component '${expectedComp.id}' on a pre-1.0 surface has envelope metadata`,
+                );
               }
               const actualVal = normalizeComponentRefs(actualProps[propKey]);
               if (!propertyValuesMatch(actualVal, expectedVal)) {

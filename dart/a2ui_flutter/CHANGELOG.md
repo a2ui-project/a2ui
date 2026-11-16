@@ -18,6 +18,19 @@
 
 ## Unreleased
 
+- `NodeView` reads `@accessibility` with a fallback to `accessibility` so v1.0 surfaces resolve `@`-prefixed accessibility attributes alongside custom `accessibility` component properties ([#1376](https://github.com/a2ui-project/a2ui/issues/1376), [#4037](https://github.com/a2ui-project/a2ui/pull/4037)).
+- Add explicit type annotation in `example/lib/chat_session.dart` to satisfy the `specify_nonobvious_local_variable_types` analyzer lint on Dart 3.15+ ([#4233](https://github.com/a2ui-project/a2ui/pull/4233)).
+
+## 0.3.0
+
+- **Breaking:** Requires `a2ui_core` `^0.7.0`, whose types this library
+  re-exports.
+
+## 0.2.0
+
+- **Breaking:** Requires `a2ui_core` `^0.6.0`, whose types this library
+  re-exports.
+
 ## 0.1.0
 
 - Requires `a2ui_core` `^0.5.0`.

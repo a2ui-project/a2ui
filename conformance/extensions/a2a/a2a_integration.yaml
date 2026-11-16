@@ -13,6 +13,7 @@
 # limitations under the License.
 
 - name: test_create_a2ui_part
+  features: [F-AGT-28, F-AGT-29]
   action: create_a2ui_part
   args:
     data: {"foo": "bar"}
@@ -21,6 +22,7 @@
     mimeType: "application/a2ui+json"
 
 - name: test_create_a2ui_part_legacy_default
+  features: [F-AGT-28]
   action: create_a2ui_part
   args:
     data: {"foo": "bar"}
@@ -28,24 +30,28 @@
     mimeType: "application/json+a2ui"
 
 - name: test_is_a2ui_part
+  features: [F-AGT-28, F-AGT-29]
   action: is_a2ui_part
   args:
     mimeType: "application/a2ui+json"
   expect: true
 
 - name: test_try_activate_extension_success
+  features: [F-AGT-27, F-AGT-31]
   action: try_activate_extension
   args:
     uris: ["https://a2ui.org/a2a-extension/a2ui/v0.8"]
   expect: true
 
 - name: test_try_activate_extension_failure
+  features: [F-AGT-31]
   action: try_activate_extension
   args:
     uris: ["other"]
   expect: false
 
 - name: test_get_extension_minimal
+  features: [F-AGT-32]
   action: get_extension
   args:
     version: "0.8"
@@ -54,6 +60,7 @@
     params: null
 
 - name: test_get_extension_with_inline
+  features: [F-AGT-32]
   action: get_extension
   args:
     version: "0.8"
@@ -64,6 +71,7 @@
       acceptsInlineCatalogs: true
 
 - name: test_get_extension_with_catalogs
+  features: [F-AGT-32]
   action: get_extension
   args:
     version: "0.8"
@@ -74,6 +82,7 @@
       supportedCatalogIds: ["a", "b", "c"]
 
 - name: test_try_activate_success
+  features: [F-AGT-31]
   action: try_activate
   args:
     requested: ["https://a2ui.org/a2a-extension/a2ui/v0.8"]
@@ -83,6 +92,7 @@
     version: "0.8"
 
 - name: test_try_activate_not_requested
+  features: [F-AGT-31]
   action: try_activate
   args:
     requested: []
@@ -91,6 +101,7 @@
     activated: null
 
 - name: test_select_newest
+  features: [F-AGT-27]
   action: select_newest
   args:
     requested:

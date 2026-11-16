@@ -30,7 +30,7 @@ import yaml
 
 from a2ui.core.basic_catalog import v0_8, v0_9, v1_0
 from a2ui.core.catalog import Catalog, CatalogApi, FunctionApi
-from a2ui.core.common import to_canonical_version
+from a2ui.core.common import is_at_least_version, to_canonical_version
 from a2ui.core.exceptions import (
     A2uiCatalogError,
     A2uiDataError,
@@ -1246,14 +1246,25 @@ def _assert_single_component_state(
     c_type = comp.type if comp else (node_info["type"] if node_info else "")
     if "component" in c_exp:
         assert c_type == c_exp["component"]
-    if "metadata" in c_exp:
+    is_at_least_v10 = bool(
+        surface.protocol_version
+        and is_at_least_version(surface.protocol_version, ProtocolVersion.V1_0)
+    )
+    node_props = node_info["props"] if node_info else {}
+    skip_keys = {"id", "component", "@metadata"}
+    if not is_at_least_v10:
+        if "metadata" in c_exp and comp is not None:
+            assert comp.metadata is None
+    elif "@metadata" in c_exp:
+        # On v1.0, `@metadata` is always envelope metadata and a bare
+        # `metadata` is always a component property, whatever the component
+        # ended up with.
         assert comp is not None
-        assert comp.metadata == c_exp["metadata"]
+        assert comp.metadata == c_exp["@metadata"]
     if not node_info:
         return
-    node_props = node_info["props"]
     for p_key, p_val in c_exp.items():
-        if p_key in ("id", "component", "metadata"):
+        if p_key in skip_keys:
             continue
         norm_val = _normalize_prop_value(node_props.get(p_key))
         assert _prop_value_matches(norm_val, p_val), (
@@ -3687,6 +3698,12 @@ class _RaisingSurfaceModel(SurfaceModel):
     """
 
     def dispatch_error(self, error: dict[str, Any]) -> None:
+        code = error.get("code")
+        message = str(error.get("message") or "")
+        if code == "CATALOG_ERROR":
+            raise A2uiCatalogError(message)
+        if code in ("EXPRESSION_ERROR", "EXECUTION_ERROR"):
+            raise A2uiExpressionError(message)
         exc = sys.exc_info()[1]
         if exc is None:
             super().dispatch_error(error)

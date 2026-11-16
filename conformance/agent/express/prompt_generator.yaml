@@ -73,6 +73,7 @@
 # --- What the catalog contributes ---
 
 - name: test_express_snippet_names_every_function_of_the_catalog
+  features: [F-AGT-04, F-AGT-21]
   description: The snippet names each function of the active catalog alongside its components, since a function the model is not given is a function it cannot call. `required` is left out of the assertion because it is also a JSON Schema keyword, so asserting it would pass for any snippet that embeds the catalog document.
   action: generate_prompt_snippet
   args:
@@ -106,6 +107,7 @@
   expect_absent: ["openUrl"]
 
 - name: test_express_snippet_names_both_catalogs_and_their_ids
+  features: [F-AGT-05]
   description: With two catalogs active the snippet names both sets of members and both catalog ids, so the model can say which catalog a component came from.
   action: generate_prompt_snippet
   args:
@@ -124,6 +126,7 @@
     - "percent"
 
 - name: test_express_snippet_with_two_catalogs_and_pruning
+  features: [F-AGT-05]
   description: When multiple catalogs are active and transformed, each catalog section reflects its own component and function pruning rules.
   action: generate_prompt_snippet
   args:
@@ -152,6 +155,7 @@
 # --- Examples ---
 
 - name: test_express_snippet_renders_supplied_examples
+  features: [F-AGT-04, F-AGT-50]
   description: An example is supplied as messages but has to reach the model in the notation it is being asked to write, so the Express snippet carries the decompiled Express of its payload rather than the messages themselves.
   action: generate_prompt_snippet
   args:
@@ -165,6 +169,7 @@
     - 'root = Text("Hello")'
 
 - name: test_express_snippet_renders_multi_catalog_examples
+  features: [F-AGT-05, F-AGT-50]
   description: Examples spanning multiple active catalogs decompile using each example surface's respective catalog schema.
   action: generate_prompt_snippet
   args:
@@ -201,6 +206,7 @@
       root = Text("Hello")
 
 - name: test_express_snippet_without_examples_carries_no_example
+  features: [F-AGT-50]
   description: The same catalog without examples carries none of the example payload. The whole statement is asserted absent rather than the bare name, since the signature block legitimately carries `Text(`.
   action: generate_prompt_snippet
   args:
@@ -225,6 +231,7 @@
   expect_absent: ["<a2ui-json>"]
 
 - name: test_express_snippet_describes_positional_signatures
+  features: [F-AGT-04, F-AGT-21]
   description: An Express snippet gives each component as a call signature, because Express omits property keys and the model has to know the argument order.
   action: generate_prompt_snippet
   args:
@@ -234,6 +241,7 @@
   expect_contains: ["Text(", "Button(", "Card(", "Column("]
 
 - name: test_express_snippet_teaches_event_user_message_from_v1_0
+  features: [F-AGT-04, F-AGT-21]
   description: From v1.0, Action.event carries an optional userMessage field, and the Express snippet teaches the userMessage= keyword argument on Event(...).
   action: generate_prompt_snippet
   args:
@@ -243,6 +251,7 @@
   expect_contains: ["Event(", "userMessage="]
 
 - name: test_express_snippet_omits_event_user_message_before_v1_0
+  features: [F-AGT-04, F-AGT-21]
   description: Before v1.0, Action.event has only name and context and the Express compiler rejects userMessage=, so a v0.9 snippet does not tell the model to emit userMessage=.
   action: generate_prompt_snippet
   args:
@@ -251,6 +260,24 @@
       - catalog: "test_data/catalogs/list_item_action_catalog_v09.json"
   expect_contains: ["Event("]
   expect_absent: ["userMessage="]
+
+- name: test_express_snippet_lists_system_functions_from_v1_0
+  description: From v1.0, the snippet lists the protocol's system functions, such as `@index`, in the same signature format as catalog functions, although no catalog defines them.
+  action: generate_prompt_snippet
+  args:
+    format: express
+    catalogs:
+      - catalog: "test_data/catalogs/simplified_catalog_v1_0.json"
+  expect_contains: ["@index(offset?)"]
+
+- name: test_express_snippet_omits_system_functions_before_v1_0
+  description: Before v1.0 the protocol defines no system functions, so the snippet does not mention `@index`.
+  action: generate_prompt_snippet
+  args:
+    format: express
+    catalogs:
+      - catalog: "test_data/catalogs/list_item_action_catalog_v09.json"
+  expect_absent: ["@index"]
 
 - name: test_express_snippet_describes_only_the_allowed_envelopes
   description: An allowlist of payload envelopes decides which of them the snippet describes, and Express describes an envelope by the statement that compiles to it.
@@ -318,6 +345,7 @@
 # --- Determinism ---
 
 - name: test_express_snippet_is_deterministic
+  features: [F-AGT-04, F-AGT-21]
   description: The Express snippet is stable across calls, including the order it lists two catalogs in and the rendering of an example, which is the part most likely to vary if a decompiler walks an unordered map.
   action: generate_prompt_snippet
   args:
@@ -333,6 +361,7 @@
 # --- Errors ---
 
 - name: test_express_no_active_catalogs_is_an_error
+  features: [F-AGT-04]
   description: Generating a snippet with no active catalogs fails, because there is no component the model could be told to write.
   action: generate_prompt_snippet
   args:

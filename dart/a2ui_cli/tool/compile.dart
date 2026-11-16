@@ -26,7 +26,7 @@ String detectTarget() => switch (Abi.current()) {
   Abi.macosArm64 => 'darwin-arm64',
   Abi.windowsX64 => 'windows-x64',
   Abi.windowsArm64 => 'windows-arm64',
-  final abi => throw UnsupportedError('Unsupported host ABI: $abi'),
+  final Abi abi => throw UnsupportedError('Unsupported host ABI: $abi'),
 };
 
 /// Reads package version from pubspec.yaml.

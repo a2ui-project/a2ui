@@ -21,6 +21,7 @@
 # --- Calling renderer functions ---
 
 - name: test_call_renderer_function_builds_the_message_without_waiting
+  features: [F-AGT-42, F-AGT-61]
   description: >-
     A call returns its callRendererFunction message at once, with a generated functionCallId and the catalogId the message requires, and stays pending until the renderer answers.
   action: call_renderer_function
@@ -92,6 +93,7 @@
       expect_pending_count: 0
 
 - name: test_call_renderer_function_settled_by_its_response
+  features: [F-AGT-42, F-AGT-61]
   description: >-
     A rendererFunctionResponse settles the call whose functionCallId it copies with its value, and leaves the other calls pending.
   action: call_renderer_function
@@ -120,6 +122,7 @@
         a: {value: null}
 
 - name: test_call_renderer_function_failed_by_an_error_response
+  features: [F-AGT-42, F-AGT-61]
   description: A response that carries an error fails the call with the renderer's code.
   action: call_renderer_function
   steps:
@@ -153,6 +156,7 @@
         a: {value: en}
 
 - name: test_call_renderer_function_times_out_after_thirty_seconds_by_default
+  features: [F-AGT-42, F-AGT-61]
   description: >-
     A call waits 30 seconds for its response by default, the same as the renderer waits for the agent, then fails with TIMEOUT and stops being pending.
   action: call_renderer_function
@@ -259,6 +263,7 @@
 # sent. Each catalog is built in code from its id and its functions.
 
 - name: test_call_renderer_function_checked_rejects_a_renderer_only_function
+  features: [F-AGT-41, F-AGT-61]
   description: >-
     A function whose allowedCallers is rendererOnly can't be called by the agent: the call fails with INVALID_FUNCTION_CALL, and nothing is sent or pending.
   action: call_renderer_function
@@ -329,6 +334,7 @@
       expect_pending_count: 0
 
 - name: test_call_renderer_function_checked_allows_a_renderer_or_agent_function
+  features: [F-AGT-41, F-AGT-61]
   description: >-
     A rendererOrAgent function without user activation passes the check: the message is built, and the call settles from its response.
   action: call_renderer_function

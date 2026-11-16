@@ -549,6 +549,18 @@ export function checkDistLinks({
   };
 }
 
+export function verifyDistCname(distDir, expectedDomain = 'a2ui.org') {
+  const cnamePath = path.join(path.resolve(distDir), 'CNAME');
+  if (!fs.existsSync(cnamePath)) {
+    return {ok: false, error: `Missing CNAME in ${distDir}`};
+  }
+  const actual = fs.readFileSync(cnamePath, 'utf8').trim();
+  if (actual !== expectedDomain) {
+    return {ok: false, error: `Expected CNAME "${expectedDomain}", found "${actual}"`};
+  }
+  return {ok: true, error: null};
+}
+
 function runCli() {
   const args = process.argv.slice(2);
   let customDist = null;
@@ -564,6 +576,12 @@ function runCli() {
 
   const distDir = customDist ? path.resolve(customDist) : path.join(defaultSiteRoot, 'dist');
   const base = customBase !== null ? customBase : process.env.ASTRO_BASE || '';
+
+  const cnameResult = verifyDistCname(distDir);
+  if (!cnameResult.ok) {
+    console.error(`\n[check-links] ${cnameResult.error}`);
+    process.exit(1);
+  }
 
   const result = checkDistLinks({
     distDir,

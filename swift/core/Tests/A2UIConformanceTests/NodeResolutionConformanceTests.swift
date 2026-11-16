@@ -144,7 +144,11 @@ struct NodeResolutionConformanceTests {
     let version: A2UIProtocolVersion = isV10 ? .v10 : .v091
 
     let capture = NodeResolutionActionCapture()
-    let catalogs = buildNodeResolutionCatalogs(capture: capture, version: version)
+    let catalogs = try buildNodeResolutionCatalogs(
+      capture: capture,
+      version: version,
+      fixtureCatalog: fixtureCatalog
+    )
     let processor = MessageProcessor(
       catalogs: catalogs,
       actionHandler: capture,
@@ -194,8 +198,9 @@ struct NodeResolutionConformanceTests {
 
   private func buildNodeResolutionCatalogs(
     capture: NodeResolutionActionCapture,
-    version: A2UIProtocolVersion
-  ) -> [AnyCatalog] {
+    version: A2UIProtocolVersion,
+    fixtureCatalog: String
+  ) throws -> [AnyCatalog] {
     let baseCatalog = BasicCatalog.makeCatalog(version: version)
     let wrappedFunctions: [any FunctionImplementation] = baseCatalog.functions.values.map { fn in
       RecordingFunctionImplementation(api: fn.api, base: fn, capture: capture)
@@ -205,6 +210,14 @@ struct NodeResolutionConformanceTests {
       components.append(AnyComponentAPI(name: "Tabs", schema: tabsSchema))
     }
     let versionString = version == .v10 ? "1.0" : "v0.9.1"
+    // A test catalog under test_data/ adds its components to the basic ones.
+    if fixtureCatalog.hasPrefix("test_data/") {
+      let testCatalog = ConformanceTestHelper.buildCatalog(
+        catalogSchema: try ConformanceTestHelper.loadJSON(filename: fixtureCatalog),
+        commonTypes: try ConformanceTestHelper.commonTypesSchema(forProtocolVersion: versionString)
+      )
+      components += testCatalog.components.values
+    }
     return ["basic", baseCatalog.id].map { id in
       Catalog(
         id: id,

@@ -40,7 +40,7 @@ export interface LoadedCase extends TestCase {
   sourceFile: string;
 }
 
-const SUPPORTED_PROTOCOL_VERSIONS = new Set(['v0.9', '1.0']);
+const SUPPORTED_PROTOCOL_VERSIONS = new Set(['v0.9', 'v0.9.1', '1.0']);
 
 /**
  * Conformance cases that run but do not yet pass, with the reason for each.
@@ -154,6 +154,7 @@ export function classify(testCase: TestCase) {
   }
 
   if (version === '0.9') version = 'v0.9';
+  if (version === '0.9.1') version = 'v0.9.1';
   if (version === 'v1.0') version = '1.0';
   if (version === '0.8') version = 'v0.8';
 

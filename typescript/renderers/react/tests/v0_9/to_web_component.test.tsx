@@ -20,8 +20,6 @@ import React, {useState} from 'react';
 import {z} from 'zod';
 import {
   Catalog,
-  ChildListSchema,
-  CommonSchemas,
   ComponentModel,
   type ComponentNode,
   NodeResolver,
@@ -29,11 +27,9 @@ import {
   SurfaceModel,
   isComponentNode,
   peekValue,
-} from '@a2ui/web_core/v0_9';
-import {
-  registerUniversalElement,
-  type WebComponentImplementation,
-} from '@a2ui/web_core/v0_9/universal';
+} from '@a2ui/web_core';
+import {registerUniversalElement, type WebComponentImplementation} from '@a2ui/web_core/universal';
+import {ChildListSchema, CommonSchemas} from '@a2ui/web_core/v0_9';
 import {prepareCatalogs} from '../../src/catalog/prepare_catalogs';
 import type {ReactHostElement} from '../../src/catalog/react_host_element';
 import {toWebComponent} from '../../src/catalog/to_web_component';

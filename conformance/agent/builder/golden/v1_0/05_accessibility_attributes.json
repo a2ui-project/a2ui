@@ -13,7 +13,7 @@
         {
           "component": "Button",
           "id": "accessible_button",
-          "accessibility": {
+          "@accessibility": {
             "label": "Submit Application",
             "description": "Transmits all form entries to the review server"
           },

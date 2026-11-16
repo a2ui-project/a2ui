@@ -178,6 +178,7 @@ Key characteristics:
 - Children: parameters annotated `Child` or `ChildList` accept nested `ComponentBuilderNode` instances, an external `ComponentRef`, or a `DynamicChildList` template. The annotation is what makes them resolve to ID references on the wire.
 - Properties: primitive properties accept static values, `DataBinding` instances, or `FunctionCall` objects.
 - Fields use Python `snake_case` names with a `serialization_alias` where the wire name differs, so `validation_regexp` emits as `validationRegexp`.
+- On v1.0 builders, the component envelope fields keep their Python names (`catalog_id`, `accessibility`, `extensions`, `checks`) and serialize under the `@`-prefixed wire keys `@catalogId`, `@accessibility`, `@metadata` and `@checks`. Validation also accepts the bare keys of payloads written before the cutover.
 
 ### Function builder classes
 
@@ -254,7 +255,7 @@ Because `MetricCard` inherits from `ComponentBuilderNode` and annotates `icon` a
 - No custom serialization code is required, or accepted: annotating the slot is the whole mechanism.
 - It passes validation when nested inside standard containers (`Card`, `Column`, `Row`).
 
-In A2UI v1.0 surfaces that mix multiple catalogs without a surface default `catalogId`, custom subclasses of `a2ui.builder.v1_0.ComponentBuilderNode` can set a default `catalog_id` directly on the class so every flattened instance emits `"catalogId"` on the wire:
+In A2UI v1.0 surfaces that mix multiple catalogs without a surface default `catalogId`, custom subclasses of `a2ui.builder.v1_0.ComponentBuilderNode` can set a default `catalog_id` directly on the class so every flattened instance emits `"@catalogId"` on the wire:
 
 ```python
 from typing import Literal, Optional

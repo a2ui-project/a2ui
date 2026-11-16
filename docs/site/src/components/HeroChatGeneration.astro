@@ -25,7 +25,7 @@
       <div class="ic-steps" id="ic-steps" role="group" aria-label="Choose a customer intent to compose">
         <button type="button" class="ic-step is-active" data-ic="dinner" aria-pressed="true">
           <span class="ic-step__head">
-            <span class="ic-step__idx">01 <em>PLAN</em></span>
+            <span class="ic-step__tag">PLAN</span>
             <span class="ic-step__play" aria-hidden="true">
               <i class="ic-step__play-ico"></i>
               <span class="ic-step__play-lbl" data-lbl-idle="Play" data-lbl-live="Live"></span>
@@ -37,7 +37,7 @@
 
         <button type="button" class="ic-step" data-ic="bill" aria-pressed="false">
           <span class="ic-step__head">
-            <span class="ic-step__idx">02 <em>EXPLAIN</em></span>
+            <span class="ic-step__tag">EXPLAIN</span>
             <span class="ic-step__play" aria-hidden="true">
               <i class="ic-step__play-ico"></i>
               <span class="ic-step__play-lbl" data-lbl-idle="Play" data-lbl-live="Live"></span>
@@ -49,7 +49,7 @@
 
         <button type="button" class="ic-step" data-ic="party" aria-pressed="false">
           <span class="ic-step__head">
-            <span class="ic-step__idx">03 <em>HOST</em></span>
+            <span class="ic-step__tag">HOST</span>
             <span class="ic-step__play" aria-hidden="true">
               <i class="ic-step__play-ico"></i>
               <span class="ic-step__play-lbl" data-lbl-idle="Play" data-lbl-live="Live"></span>
@@ -61,7 +61,7 @@
 
         <button type="button" class="ic-step" data-ic="eggs" aria-pressed="false">
           <span class="ic-step__head">
-            <span class="ic-step__idx">04 <em>FIX</em></span>
+            <span class="ic-step__tag">FIX</span>
             <span class="ic-step__play" aria-hidden="true">
               <i class="ic-step__play-ico"></i>
               <span class="ic-step__play-lbl" data-lbl-idle="Play" data-lbl-live="Live"></span>
@@ -368,19 +368,15 @@
 
     const intents = {
       dinner: {
-        idx: '01',
         quote: 'Dinner for four tonight, one vegetarian, under $40.',
       },
       bill: {
-        idx: '02',
         quote: "Why was last week's order $23 more than usual?",
       },
       party: {
-        idx: '03',
         quote: 'Hosting twelve kids Saturday afternoon — help me not forget anything.',
       },
       eggs: {
-        idx: '04',
         quote: 'Half the eggs arrived cracked.',
       },
     };
@@ -751,17 +747,11 @@
     padding-right: 8px;
   }
 
-  .ic-step__idx {
+  .ic-step__tag {
     font-family: var(--a2-font-mono);
     font-size: 10.5px;
     font-weight: 700;
     letter-spacing: 0.1em;
-    color: var(--a2-text-muted);
-  }
-
-  .ic-step__idx em {
-    font-style: normal;
-    margin-left: 8px;
     color: var(--a2-accent);
   }
 

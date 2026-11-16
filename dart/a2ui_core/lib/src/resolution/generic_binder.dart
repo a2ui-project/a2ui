@@ -116,7 +116,10 @@ class GenericBinder {
       document: catalog.validationSchema,
       commonTypes: catalog.commonTypesSchema,
     );
-    _behaviorTree = _withAccessibility(_scrapeSchemaBehavior(schema.value));
+    _behaviorTree = _withEnvelopeMixins(
+      _scrapeSchemaBehavior(schema.value),
+      isCheckable: catalog.isComponentCheckable(context.componentModel.type),
+    );
     _resolvedProps = signal<Map<String, dynamic>>({});
     connect();
   }
@@ -444,13 +447,16 @@ class GenericBinder {
           final String key = rawKey;
           final BehaviorNode childBehavior =
               shape[key] ?? BehaviorNode(Behavior.static);
-          result[key] = _resolveAndBind(
+          final Object? resolvedChild = _resolveAndBind(
             entry.value,
             childBehavior,
             [...path, key],
             isSync,
             parentResult: result,
           );
+          if (childBehavior.type != Behavior.checkable) {
+            result[key] = resolvedChild;
+          }
         }
 
         // Dynamic props always have a binding, including omitted values. Only
@@ -578,16 +584,11 @@ class GenericBinder {
       return BehaviorNode(Behavior.dynamic);
     }
 
-    bool hasEvent = schemasToInspect.any(
-      (s) =>
-          s['properties'] != null && (s['properties'] as Map)['event'] != null,
-    );
-    bool hasFunctionCall = schemasToInspect.any(
-      (s) =>
-          s['properties'] != null &&
-          (s['properties'] as Map)['functionCall'] != null,
-    );
-    if (hasEvent || hasFunctionCall) return BehaviorNode(Behavior.action);
+    // A component's own schema, the only one scraped without ancestors, is
+    // never an action.
+    if (ancestors != null && schemasToInspect.any(_isInlineAction)) {
+      return BehaviorNode(Behavior.action);
+    }
 
     final bool atLeastV10 = context.dataContext.atLeastV10;
     bool hasPath = schemasToInspect.any(
@@ -652,28 +653,38 @@ class GenericBinder {
     return BehaviorNode(Behavior.static);
   }
 
-  /// Adds the `accessibility` envelope property to a component's root
-  /// behavior when its schema does not declare one, so its `label`,
-  /// `description` and `hidden` resolve as dynamic values on every component.
-  static BehaviorNode _withAccessibility(BehaviorNode root) {
+  /// Adds the `@accessibility` / `accessibility` and `@checks` / `checks`
+  /// envelope mixin behaviors to a component's root behavior when its schema
+  /// does not declare custom properties of those names.
+  static BehaviorNode _withEnvelopeMixins(
+    BehaviorNode root, {
+    required bool isCheckable,
+  }) {
     final Map<String, BehaviorNode>? shape = root.shape;
-    if (root.type != Behavior.object ||
-        shape == null ||
-        shape.containsKey(_accessibilityProperty)) {
+    if (root.type != Behavior.object || shape == null) {
       return root;
     }
+    final accessibilityNode = BehaviorNode(
+      Behavior.object,
+      shape: {
+        'label': BehaviorNode(Behavior.dynamic),
+        'description': BehaviorNode(Behavior.dynamic),
+        'hidden': BehaviorNode(Behavior.dynamic, isBoolean: true),
+      },
+    );
+    final bool checkable = isCheckable ||
+        shape['checks']?.type == Behavior.checkable ||
+        shape['@checks']?.type == Behavior.checkable;
     return BehaviorNode(
       Behavior.object,
       shape: {
         ...shape,
-        _accessibilityProperty: BehaviorNode(
-          Behavior.object,
-          shape: {
-            'label': BehaviorNode(Behavior.dynamic),
-            'description': BehaviorNode(Behavior.dynamic),
-            'hidden': BehaviorNode(Behavior.dynamic, isBoolean: true),
-          },
-        ),
+        '@accessibility': accessibilityNode,
+        if (!shape.containsKey(_accessibilityProperty))
+          _accessibilityProperty: accessibilityNode,
+        if (checkable) '@checks': BehaviorNode(Behavior.checkable),
+        if (checkable && !shape.containsKey('checks'))
+          'checks': BehaviorNode(Behavior.checkable),
       },
     );
   }
@@ -791,4 +802,14 @@ Object? _snapshotBindingValue(Object? value) {
     );
   }
   return value;
+}
+
+/// Whether [schema] declares `event` or `functionCall` as its only property,
+/// like each branch of the spec's `Action`.
+bool _isInlineAction(Map<String, Object?> schema) {
+  final Object? properties = schema['properties'];
+  return properties is Map &&
+      properties.length == 1 &&
+      (properties.containsKey('event') ||
+          properties.containsKey('functionCall'));
 }
