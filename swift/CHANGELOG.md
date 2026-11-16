@@ -73,6 +73,10 @@
   modifier (collected through `A2UIAccessibleTextKey`). `A2UIText` reports its text without
   Markdown syntax, and custom components that render text can call the modifier too.
   [#4021](https://github.com/a2ui-project/a2ui/pull/4021)
+- Report a two-way binding write that the data model rejects, such as writing `/name/first` while
+  `/name` is a string, as a `DATA_ERROR` to the surface's `ActionHandling` and the
+  `MessageProcessor` outbound listener instead of dropping it silently. The data model stays
+  unchanged. [#XXXX](https://github.com/a2ui-project/a2ui/pull/XXXX)
 
 ## 0.10.0
 

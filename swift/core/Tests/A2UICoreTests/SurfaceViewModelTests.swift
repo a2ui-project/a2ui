@@ -507,6 +507,64 @@ struct SurfaceViewModelTests {
     #expect(updatedBinding.value == 100.0)
   }
 
+  @Test func rejectedBindingWritesReportDataErrorAndLeaveDataModelUnchanged() throws {
+    let (processor, surface, handler) = try makeProcessor()
+    processor.updateDataModel(surfaceID: surface.surfaceID, path: "/name", value: "Ada")
+    processor.updateDataModel(surfaceID: surface.surfaceID, path: "/flag", value: true)
+    processor.updateDataModel(surfaceID: surface.surfaceID, path: "/score", value: 1)
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        [
+          "id": "root",
+          "component": "button",
+          "label": ["path": "/name/first"],
+          "enabled": ["path": "/flag/on"],
+          "count": ["path": "/score/value"],
+        ]
+      ]
+    )
+    let before = surface.dataModel.get("/")
+    let node = try #require(surface.rootNode)
+    let label = try #require(node.properties["label"] as? DataBinding<String>)
+    let enabled = try #require(node.properties["enabled"] as? DataBinding<Bool>)
+    let count = try #require(node.properties["count"] as? DataBinding<Double>)
+    #expect(handler.capturedErrors.isEmpty)
+
+    label.set("Grace")
+    enabled.set(false)
+    count.set(2)
+
+    #expect(surface.dataModel.get("/") == before)
+    let errors = handler.capturedErrors.compactMap { error -> GenericError? in
+      guard case .generic(let generic) = error else { return nil }
+      return generic
+    }
+    try #require(errors.count == 3)
+    #expect(errors.map(\.code) == ["DATA_ERROR", "DATA_ERROR", "DATA_ERROR"])
+    #expect(errors.allSatisfy { $0.surfaceID == surface.surfaceID })
+    #expect(errors[0].message.contains("/name/first"))
+    #expect(errors[1].message.contains("/flag/on"))
+    #expect(errors[2].message.contains("/score/value"))
+  }
+
+  @Test func acceptedBindingWriteReportsNoError() throws {
+    let (processor, surface, handler) = try makeProcessor()
+    processor.updateDataModel(surfaceID: surface.surfaceID, path: "/name/first", value: "Ada")
+    processor.updateComponents(
+      surfaceID: surface.surfaceID,
+      components: [
+        ["id": "root", "component": "button", "label": ["path": "/name/first"]]
+      ]
+    )
+    let label = try #require(surface.rootNode?.properties["label"] as? DataBinding<String>)
+
+    label.set("Grace")
+
+    #expect(surface.dataModel.get("/name/first")?.stringValue == "Grace")
+    #expect(handler.capturedErrors.isEmpty)
+  }
+
   @Test func sliderNumberPropertiesResolution() async throws {
     let (processor, surface, _) = try makeProcessor()
     processor.updateDataModel(surfaceID: surface.surfaceID, path: "/progress", value: 0.45)

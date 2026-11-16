@@ -1118,6 +1118,57 @@ struct MessageProcessorTests {
     #expect(processor.surfaceGroupModel["s2"] == nil)
   }
 
+  @Test func rejectedBindingWriteSendsOneDataErrorToOutboundListener() throws {
+    let (processor, handler) = try makeProcessor()
+    var capturedOutbound: [RendererToAgentMessage] = []
+    processor.outboundListener = { msg in
+      MainActor.assumeIsolated {
+        capturedOutbound.append(msg)
+      }
+    }
+    try processor.processMessages(
+      JSONValue.parse(
+        """
+        [
+          {
+            "version": "v0.9.1",
+            "createSurface": { "surfaceId": "s1", "catalogId": "default" }
+          },
+          {
+            "version": "v0.9.1",
+            "updateDataModel": { "surfaceId": "s1", "path": "/name", "value": "Ada" }
+          },
+          {
+            "version": "v0.9.1",
+            "updateComponents": {
+              "surfaceId": "s1",
+              "components": [
+                { "id": "root", "component": "text", "text": { "path": "/name/first" } }
+              ]
+            }
+          }
+        ]
+        """
+      )
+    )
+    let surface = try #require(processor.surfaceGroupModel["s1"])
+    let binding = try #require(surface.rootNode?.properties["text"] as? DataBinding<String>)
+    #expect(capturedOutbound.isEmpty)
+
+    binding.set("Grace")
+
+    #expect(surface.dataModel.get("/") == .object(["name": .string("Ada")]))
+    #expect(handler.capturedErrors.count == 1)
+    #expect(capturedOutbound.count == 1)
+    guard case .error(.generic(let error)) = capturedOutbound.first else {
+      Issue.record("Expected a generic error forwarded to outboundListener")
+      return
+    }
+    #expect(error.code == "DATA_ERROR")
+    #expect(error.surfaceID == "s1")
+    #expect(error.message.contains("/name/first"))
+  }
+
   @Test func createSurfaceStoresMetadataAndEscapesDataModelKeys() throws {
     let catalog = Catalog(
       id: "cat-v10",

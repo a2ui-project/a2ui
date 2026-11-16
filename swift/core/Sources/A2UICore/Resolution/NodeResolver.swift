@@ -1774,6 +1774,23 @@ public final class NodeResolver: Sendable {
 
   // MARK: - Dynamic Type-Specific Resolvers
 
+  /// Writes a two-way binding's new value to the data model.
+  ///
+  /// A write the data model rejects, such as a child path under a primitive value, leaves the
+  /// data model unchanged and is reported to the action handler as a `DATA_ERROR`.
+  private func writeBinding(_ path: String, value: JSONValue?) {
+    do {
+      try dataModel.setThrowing(path, value: value)
+    } catch {
+      let rendererError = MessageErrorMapper.map(
+        error,
+        surfaceID: surfaceID,
+        version: effectiveProtocolVersion ?? .v09
+      )
+      actionHandler?.handle(error: rendererError, from: surfaceID)
+    }
+  }
+
   private func resolveDynamicBoolean(
     _ value: JSONValue,
     basePath: String?,
@@ -1790,7 +1807,7 @@ public final class NodeResolver: Sendable {
         identity: .path(absPath),
         value: resolvedValue,
         set: { [weak self] newValue in
-          self?.dataModel.set(absPath, value: .boolean(newValue))
+          self?.writeBinding(absPath, value: .boolean(newValue))
         }
       )
     }
@@ -1820,7 +1837,7 @@ public final class NodeResolver: Sendable {
         identity: .path(absPath),
         value: resolvedValue,
         set: { [weak self] newValue in
-          self?.dataModel.set(absPath, value: .string(newValue))
+          self?.writeBinding(absPath, value: .string(newValue))
         }
       )
     }
@@ -1849,7 +1866,7 @@ public final class NodeResolver: Sendable {
         identity: .path(absPath),
         value: resolvedValue,
         set: { [weak self] newValue in
-          self?.dataModel.set(absPath, value: .number(newValue))
+          self?.writeBinding(absPath, value: .number(newValue))
         }
       )
     }
@@ -1877,7 +1894,7 @@ public final class NodeResolver: Sendable {
         identity: .path(absPath),
         value: resolvedValue,
         set: { [weak self] newValue in
-          self?.dataModel.set(absPath, value: newValue)
+          self?.writeBinding(absPath, value: newValue)
         }
       )
     }
@@ -1907,7 +1924,7 @@ public final class NodeResolver: Sendable {
         identity: .path(absPath),
         value: resolvedValue,
         set: { [weak self] newValue in
-          self?.dataModel.set(absPath, value: .array(newValue.map { .string($0) }))
+          self?.writeBinding(absPath, value: .array(newValue.map { .string($0) }))
         }
       )
     }
@@ -2020,7 +2037,7 @@ public final class NodeResolver: Sendable {
         identity: .path(absPath),
         value: valid,
         set: { [weak self] newValue in
-          self?.dataModel.set(absPath, value: .boolean(newValue))
+          self?.writeBinding(absPath, value: .boolean(newValue))
         }
       ),
       message: fallbackMessage,
