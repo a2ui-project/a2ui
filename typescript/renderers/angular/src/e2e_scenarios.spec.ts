@@ -36,7 +36,7 @@ import {
   type HarnessState,
   type ManifestRecord,
 } from './adapter_harness';
-import {type AngularCatalog, SurfaceComponent} from './public-api';
+import {type AngularCatalog, SurfaceComponent} from './index';
 import {BasicCatalogBase as V09BasicCatalogBase} from './v0_9';
 
 const E2E_SCENARIO_KNOWN_KEYS = new Set([

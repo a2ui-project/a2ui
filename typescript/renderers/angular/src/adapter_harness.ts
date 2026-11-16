@@ -31,7 +31,6 @@ import type {A2uiWebComponentElement} from '@a2ui/web_core/universal';
 import {A2uiClientMessageSchema, CommonSchemas} from '@a2ui/web_core/v0_9';
 import {RendererToAgentMessageSchema} from '@a2ui/web_core/v1_0';
 import {z} from 'zod';
-import {BasicCatalogBase as V09BasicCatalogBase} from './v0_9';
 import {
   A2uiRendererService,
   AngularCatalog,
@@ -42,7 +41,8 @@ import {
   SurfaceComponent,
   createComponentImplementation,
   provideA2UI,
-} from './public-api';
+} from './index';
+import {BasicCatalogBase as V09BasicCatalogBase} from './v0_9';
 
 export interface ExpectedAccessibilityNode {
   label?: string;

@@ -23,7 +23,7 @@ import {
   BASIC_FUNCTIONS,
   provideA2UI,
   SurfaceComponent,
-} from './public-api';
+} from './index';
 import {isWebComponentImplementation} from '@a2ui/web_core/v1_0';
 
 describe('@a2ui/angular v1.0 & BasicCatalog', () => {

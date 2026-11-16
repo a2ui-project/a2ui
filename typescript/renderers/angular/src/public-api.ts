@@ -14,46 +14,75 @@
  * limitations under the License.
  */
 
-// Core Services and Components
 export {
+  /** @deprecated Import from `@a2ui/angular` or `./index` instead. */
   A2UI_RENDERER_CONFIG,
+  /** @deprecated Import from `@a2ui/angular` or `./index` instead. */
   A2uiRendererService,
-  provideA2Ui,
-  type RendererConfiguration,
-} from './core/a2ui-renderer.service';
-export {ComponentHostComponent, type ComponentKey} from './core/component-host.component';
-export {AccessibilityTargetDirective, ValidationErrorsDirective} from './core/accessibility';
-export {SurfaceComponent} from './core/surface.component';
-export {SurfaceNodeResolver} from './core/surface-node-resolver.service';
-export {CatalogComponent} from './core/catalog_component';
-export {type CatalogComponentInstance} from './core/catalog_component_instance';
-export {ComponentBinder, type Child} from './core/component-binder.service';
-export {
-  type BoundProperty,
-  type ComponentApiToProps,
-  type ComponentTemplate,
-  type ExtendedProps,
-} from './core/types';
-export {getNormalizedPath} from './core/utils';
-export {DefaultMarkdownRenderer, MarkdownRenderer, provideMarkdownRenderer} from './core/markdown';
-
-// Catalog Types and Web Component utilities
-export {
+  /** @deprecated Import from `@a2ui/angular` or `./index` instead. */
+  AccessibilityTargetDirective,
+  /** @deprecated Import from `@a2ui/angular` or `./index` instead. */
   AngularCatalog,
+  /** @deprecated Import from `@a2ui/angular` or `./index` instead. */
   type AngularComponentImplementation,
+  /** @deprecated Import from `@a2ui/angular` or `./index` instead. */
   type AnyDuringSchemaAlignment,
-  createComponentImplementation,
-} from './catalog/types';
-export {toWebComponent} from './catalog/to_web_component';
-export {UniversalOnlyComponent} from './catalog/universal_only.component';
-
-// Providers and v1.0 BasicCatalog
-export {
+  /** @deprecated Import from `@a2ui/angular` or `./index` instead. */
   BASIC_CATALOG_OPTIONS,
+  /** @deprecated Import from `@a2ui/angular` or `./index` instead. */
   BASIC_COMPONENTS,
+  /** @deprecated Import from `@a2ui/angular` or `./index` instead. */
   BASIC_FUNCTIONS,
+  /** @deprecated Import from `@a2ui/angular` or `./index` instead. */
   BasicCatalog,
+  /** @deprecated Import from `@a2ui/angular` or `./index` instead. */
   BasicCatalogBase,
+  /** @deprecated Import from `@a2ui/angular` or `./index` instead. */
   type BasicCatalogOptions,
+  /** @deprecated Import from `@a2ui/angular` or `./index` instead. */
+  type BoundProperty,
+  /** @deprecated Import from `@a2ui/angular` or `./index` instead. */
+  CatalogComponent,
+  /** @deprecated Import from `@a2ui/angular` or `./index` instead. */
+  type CatalogComponentInstance,
+  /** @deprecated Import from `@a2ui/angular` or `./index` instead. */
+  type Child,
+  /** @deprecated Import from `@a2ui/angular` or `./index` instead. */
+  type ComponentApiToProps,
+  /** @deprecated Import from `@a2ui/angular` or `./index` instead. */
+  ComponentBinder,
+  /** @deprecated Import from `@a2ui/angular` or `./index` instead. */
+  ComponentHostComponent,
+  /** @deprecated Import from `@a2ui/angular` or `./index` instead. */
+  type ComponentKey,
+  /** @deprecated Import from `@a2ui/angular` or `./index` instead. */
+  type ComponentTemplate,
+  /** @deprecated Import from `@a2ui/angular` or `./index` instead. */
+  createComponentImplementation,
+  /** @deprecated Import from `@a2ui/angular` or `./index` instead. */
+  DefaultMarkdownRenderer,
+  /** @deprecated Import from `@a2ui/angular` or `./index` instead. */
+  type ExtendedProps,
+  /** @deprecated Import from `@a2ui/angular` or `./index` instead. */
+  getNormalizedPath,
+  /** @deprecated Import from `@a2ui/angular` or `./index` instead. */
+  MarkdownRenderer,
+  /** @deprecated Import from `@a2ui/angular` or `./index` instead. */
   provideA2UI,
-} from './basic-catalog';
+  /** @deprecated Import from `@a2ui/angular` or `./index` instead. */
+  provideA2Ui,
+  /** @deprecated Import from `@a2ui/angular` or `./index` instead. */
+  provideMarkdownRenderer,
+  /** @deprecated Import from `@a2ui/angular` or `./index` instead. */
+  type RendererConfiguration,
+  /** @deprecated Import from `@a2ui/angular` or `./index` instead. */
+  SurfaceComponent,
+  /** @deprecated Import from `@a2ui/angular` or `./index` instead. */
+  SurfaceNodeResolver,
+  /** @deprecated Import from `@a2ui/angular` or `./index` instead. */
+  toWebComponent,
+  /** @deprecated Import from `@a2ui/angular` or `./index` instead. */
+  UniversalOnlyComponent,
+  /** @deprecated Import from `@a2ui/angular` or `./index` instead. */
+  ValidationErrorsDirective,
+} from './index';

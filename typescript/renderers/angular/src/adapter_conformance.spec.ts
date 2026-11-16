@@ -31,7 +31,7 @@ import {
   type AccessibilityStep,
   type ManifestRecord,
 } from './adapter_harness';
-import {A2uiRendererService, SurfaceComponent, provideA2UI} from './public-api';
+import {A2uiRendererService, SurfaceComponent, provideA2UI} from './index';
 
 const specMetadataByFullName = new Map<string, {suite: string; caseName: string}>();
 let reporterInstalled = false;
