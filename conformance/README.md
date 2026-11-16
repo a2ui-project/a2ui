@@ -233,7 +233,7 @@ Each function takes any object as its arguments (schema `{type: object}`) and re
 
 Before the catalog checks, `call` checks its own arguments, in this order: an empty given `functionCallId`, then (after the duplicate and pending-limit checks) an empty `name`, an empty `catalogId`, a `name` that isn't a UAX #31 identifier or starts with `@`, and `args` that aren't an object with identifier keys and JSON values. Each is `INVALID_FUNCTION_CALL`. Two cases pin the order with `expect_error.message`: an empty name and catalogId must give a message containing `function name`, and a bad argument key sent to a `rendererOnly` function must give a message containing the key. An SDK's message for a bad argument key names the key. A statically typed SDK whose `call` can't take a non-object `args` (Dart) meets `test_call_renderer_function_with_args_that_are_not_an_object` by showing that such a value can't be passed (a type error), with nothing sent or pending, instead of raising `INVALID_FUNCTION_CALL`.
 
-Only the Python agent harness runs this suite so far: the TypeScript and Dart agent harnesses (`typescript/agents/a2ui_agent` and `dart/a2ui_agent`) don't load it yet.
+The Python, TypeScript and Dart agent harnesses run this suite.
 
 ### Writing cases for the agent SDK suites
 

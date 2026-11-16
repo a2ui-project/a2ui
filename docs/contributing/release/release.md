@@ -288,7 +288,7 @@ run `swift package resolve`. `Package.resolved` should show
 
 ### Documentation website
 
-[MkDocs](https://www.mkdocs.org/), configured in [.github/workflows/docs.yml](../../../.github/workflows/docs.yml), updates https://a2ui.org/ whenever the content of [docs/public](../../public) changes.
+[Astro and Starlight](https://starlight.astro.build/), configured in [.github/workflows/docs.yml](../../../.github/workflows/docs.yml), updates https://a2ui.org/ whenever the content of [docs/site](../../site) changes.
 
 ## Internal troubleshooting and notes
 

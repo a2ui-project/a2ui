@@ -15,8 +15,8 @@
  */
 
 import {Type} from '@angular/core';
-import {ComponentApi} from '@a2ui/web_core/v0_9';
-import {WebComponentImplementation} from '@a2ui/web_core/v0_9/universal';
+import {ComponentApi} from '@a2ui/web_core';
+import {WebComponentImplementation} from '@a2ui/web_core/universal';
 import type {AngularComponentImplementation} from './types';
 import {AngularWcHost} from './angular_wc_host';
 

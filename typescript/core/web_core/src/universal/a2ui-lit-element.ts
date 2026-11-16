@@ -35,6 +35,7 @@ import {nextNodeId} from '../resolution/node-id.js';
 import {ResolvedBinding} from '../resolution/resolved-binding.js';
 import {type ComponentId} from '../types/common-types.js';
 import {A2uiController} from './a2ui-controller.js';
+import {dispatchA2uiElementConnected} from './element_connected_event.js';
 import {
   type CheckableResolvedProps,
   hasValidationErrors,
@@ -46,6 +47,18 @@ import {canRenderA2uiNode, renderA2uiNode} from './render-a2ui-node.js';
 import type {WebComponentImplementation} from './web_component_implementation.js';
 
 export type {CheckableResolvedProps, ResolvedAccessibilityAttributes};
+
+interface LightDomStyleCacheEntry {
+  processedSheet?: CSSStyleSheet;
+  processedCss: string;
+  processedStyle: CSSResult;
+  adoptedRoots: WeakSet<Node>;
+}
+
+// Scoped styles per element class. Keyed by the class itself rather than stored as static fields
+// on it, because static fields are inherited: a subclass registered under another tag would reuse
+// the parent's sheet, which is scoped to the parent's tag and never matches the subclass.
+const lightDomStyleCache = new WeakMap<Function, LightDomStyleCacheEntry>();
 
 /** The surface a child renders on, as its data context reports it. */
 type ChildSurface = NonNullable<ComponentContext['dataContext']['surface']>;
@@ -241,18 +254,14 @@ export abstract class A2uiLitElement<
     if (this.renderRoot !== this) return;
     const root = this.getRootNode() as Document | ShadowRoot;
 
-    const constructor = this.constructor as typeof A2uiLitElement & {
-      _processedSheet?: CSSStyleSheet;
-      _processedCss?: string;
-      _processedStyle?: CSSResult;
-      _adoptedRoots?: WeakSet<Node>;
-    };
-    const styles = (constructor as any).styles;
+    const constructor = this.constructor;
+    const styles = (constructor as unknown as {styles?: unknown}).styles;
     if (!styles) return;
 
     const tagName = this.tagName.toLowerCase();
 
-    if (!constructor._processedSheet && constructor._processedCss === undefined) {
+    let cacheEntry = lightDomStyleCache.get(constructor);
+    if (!cacheEntry) {
       const styleList = Array.isArray(styles) ? styles : [styles];
       const rawCss = styleList
         .map(s =>
@@ -268,6 +277,7 @@ export abstract class A2uiLitElement<
         .replace(/:host/g, tagName);
 
       let processedCss = baseCss;
+      let processedSheet: CSSStyleSheet | undefined;
 
       try {
         const sheet = new CSSStyleSheet();
@@ -306,14 +316,18 @@ export abstract class A2uiLitElement<
         processedCss = Array.from(sheet.cssRules).map(scopeRule).join('\n');
         const scopedSheet = new CSSStyleSheet();
         scopedSheet.replaceSync(processedCss);
-        constructor._processedSheet = scopedSheet;
+        processedSheet = scopedSheet;
       } catch {
         // Fallback for environments lacking CSSStyleSheet support
       }
 
-      constructor._processedCss = processedCss;
-      constructor._processedStyle = css([processedCss] as unknown as TemplateStringsArray);
-      constructor._adoptedRoots = new WeakSet();
+      cacheEntry = {
+        processedSheet,
+        processedCss,
+        processedStyle: css([processedCss] as unknown as TemplateStringsArray),
+        adoptedRoots: new WeakSet(),
+      };
+      lightDomStyleCache.set(constructor, cacheEntry);
     }
 
     const target =
@@ -323,18 +337,13 @@ export abstract class A2uiLitElement<
           ? document
           : undefined;
 
-    if (target) {
-      if (!constructor._adoptedRoots) {
-        constructor._adoptedRoots = new WeakSet();
-      }
-      if (!constructor._adoptedRoots.has(target)) {
-        constructor._adoptedRoots.add(target);
-        if (constructor._processedSheet && (target as any).adoptedStyleSheets) {
-          (target as any).adoptedStyleSheets = [
-            ...(target as any).adoptedStyleSheets,
-            constructor._processedSheet,
-          ];
-        }
+    if (target && !cacheEntry.adoptedRoots.has(target)) {
+      cacheEntry.adoptedRoots.add(target);
+      if (cacheEntry.processedSheet && (target as any).adoptedStyleSheets) {
+        (target as any).adoptedStyleSheets = [
+          ...(target as any).adoptedStyleSheets,
+          cacheEntry.processedSheet,
+        ];
       }
     }
   }
@@ -346,6 +355,7 @@ export abstract class A2uiLitElement<
   override connectedCallback() {
     super.connectedCallback();
     this.adoptLightDomStyles();
+    dispatchA2uiElementConnected(this);
   }
 
   /**
@@ -523,6 +533,7 @@ export abstract class A2uiLitElement<
 
   protected override updated(changedProperties: PropertyValues) {
     super.updated(changedProperties);
+    dispatchA2uiElementConnected(this);
     const props = this.controller?.props as CheckableResolvedProps | undefined;
     this.applyAccessibilityAttributes(resolveAccessibilityProps(props), props);
   }
