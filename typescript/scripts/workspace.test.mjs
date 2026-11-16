@@ -93,4 +93,11 @@ describe('satisfiesCaretRange', () => {
     assert.strictEqual(satisfiesCaretRange('^1.2.0', '1.3.0'), true);
     assert.strictEqual(satisfiesCaretRange('^1.2.0', '2.0.0'), false);
   });
+
+  it('handles partial caret ranges and version strings by defaulting missing minor/patch to 0', () => {
+    assert.strictEqual(satisfiesCaretRange('^1.2', '1.2.3'), true);
+    assert.strictEqual(satisfiesCaretRange('^1.2', '1.1.9'), false);
+    assert.strictEqual(satisfiesCaretRange('^0.14', '0.14.2'), true);
+    assert.strictEqual(satisfiesCaretRange('^0.14', '0.15.0'), false);
+  });
 });

@@ -209,9 +209,12 @@ function ensureWorkspaceDependencies(packageObjects, graph) {
  * @param {Object} options - Options.
  * @param {string|null} options.npmToken - The NPM token to use.
  * @param {Function} options.exec - The execSync function to use.
- * @returns {{version: string|null, dependencies: Object, peerDependencies: Object}} The package metadata on npm.
+ * @returns {{version: string|null, dependencies: Map<string, string>, peerDependencies: Map<string, string>}} The package metadata on npm.
  */
-function getNpmPackageInfo(pkg, {npmToken, exec}) {
+export function getNpmPackageInfo(pkg, {npmToken, exec}) {
+  if (pkg.private) {
+    return {version: null, dependencies: new Map(), peerDependencies: new Map()};
+  }
   try {
     const remoteJson = exec(
       `yarn npm info ${pkg.name} --fields version,dependencies,peerDependencies --json`,
@@ -224,11 +227,11 @@ function getNpmPackageInfo(pkg, {npmToken, exec}) {
     const parsed = JSON.parse(remoteJson);
     return {
       version: parsed?.version ?? null,
-      dependencies: parsed?.dependencies ?? {},
-      peerDependencies: parsed?.peerDependencies ?? {},
+      dependencies: new Map(Object.entries(parsed?.dependencies ?? {})),
+      peerDependencies: new Map(Object.entries(parsed?.peerDependencies ?? {})),
     };
   } catch {
-    return {version: null, dependencies: {}, peerDependencies: {}};
+    return {version: null, dependencies: new Map(), peerDependencies: new Map()};
   }
 }
 
@@ -293,10 +296,10 @@ function filterPublishablePackages(packages, {npmToken, exec}) {
         break;
       case 'SAME': {
         const runtimeAndPeerDeps = {...pkg.dependencies, ...pkg.peerDependencies};
-        const remoteDeps = {
-          ...(remoteInfo?.dependencies ?? {}),
-          ...(remoteInfo?.peerDependencies ?? {}),
-        };
+        const remoteDeps = new Map([
+          ...(remoteInfo?.dependencies ?? new Map()),
+          ...(remoteInfo?.peerDependencies ?? new Map()),
+        ]);
         for (const [depName, depSpec] of Object.entries(runtimeAndPeerDeps)) {
           if (
             typeof depSpec !== 'string' ||
@@ -307,11 +310,17 @@ function filterPublishablePackages(packages, {npmToken, exec}) {
           const depPkg = packageMap.get(depName);
           if (!depPkg) continue;
 
-          const remoteDepVersion = remoteInfoMap.get(depName)?.version ?? null;
-          const publishedRange =
-            remoteDeps[depName] || (remoteDepVersion ? `^${remoteDepVersion}` : null);
+          const publishedRange = remoteDeps.get(depName);
+          if (!publishedRange) {
+            console.error(
+              `❌ ERROR: ${pkg.name} (${localVersion}) declares workspace dependency ${depName} locally, but ${depName} is missing from the published ${pkg.name}@${localVersion} on npm!`,
+            );
+            throw new Error(
+              `Missing published dependency ${depName} for ${pkg.name}: bump ${pkg.name} version to publish against ${depName}@${depPkg.version}.`,
+            );
+          }
 
-          if (publishedRange && !satisfiesCaretRange(publishedRange, depPkg.version)) {
+          if (!satisfiesCaretRange(publishedRange, depPkg.version)) {
             console.error(
               `❌ ERROR: ${pkg.name} (${localVersion}) is already published on npm with ${depName}@${publishedRange}, which conflicts with local ${depName}@${depPkg.version}!`,
             );

@@ -176,9 +176,12 @@ export function satisfiesCaretRange(range, version) {
 
   const [rCore] = trimmedRange.slice(1).trim().split(/[+-]/, 1);
   const [vCore] = version.trim().split(/[+-]/, 1);
+  if (!rCore || !vCore) {
+    return true;
+  }
 
-  const [rMaj, rMin, rPat] = rCore.split('.').map(Number);
-  const [vMaj, vMin, vPat] = vCore.split('.').map(Number);
+  const [rMaj, rMin = 0, rPat = 0] = rCore.split('.').map(Number);
+  const [vMaj, vMin = 0, vPat = 0] = vCore.split('.').map(Number);
 
   if ([rMaj, rMin, rPat, vMaj, vMin, vPat].some(Number.isNaN)) {
     return true;

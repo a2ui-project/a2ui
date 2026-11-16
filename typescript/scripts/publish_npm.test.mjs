@@ -17,7 +17,7 @@
 
 import {describe, it} from 'node:test';
 import assert from 'node:assert';
-import {main} from './publish_npm.mjs';
+import {getNpmPackageInfo, main} from './publish_npm.mjs';
 
 describe('publish_npm script integration test', () => {
   it('should topologically sort packages based on dependencies', async () => {
@@ -206,6 +206,24 @@ describe('publish_npm script integration test', () => {
     }
   });
 
+  it('should skip yarn npm info calls for private packages', () => {
+    let execCalled = false;
+    const info = getNpmPackageInfo(
+      {name: '@a2ui/private-pkg', private: true},
+      {
+        npmToken: 'dummy',
+        exec: () => {
+          execCalled = true;
+          return '{}';
+        },
+      },
+    );
+    assert.strictEqual(execCalled, false);
+    assert.strictEqual(info.version, null);
+    assert.ok(info.dependencies instanceof Map);
+    assert.ok(info.peerDependencies instanceof Map);
+  });
+
   it('should throw when a skipped SAME-version workspace dependency has an incompatible peerDependency range', async () => {
     const {getPackageGraph} = await import('./lib/workspace.mjs');
     const graph = getPackageGraph();
@@ -230,6 +248,38 @@ describe('publish_npm script integration test', () => {
       () => main(['--package=react', '--skip-tests'], mocks),
       err => {
         assert.match(err.message, /Incompatible dependency version for @a2ui\/markdown-it/);
+        return true;
+      },
+    );
+  });
+
+  it('should throw when a skipped SAME-version workspace dependency is missing a local workspace dependency on npm', async () => {
+    const {getPackageGraph} = await import('./lib/workspace.mjs');
+    const graph = getPackageGraph();
+    const mdVersion = graph['@a2ui/markdown-it'].version;
+
+    const mocks = {
+      runCommand: () => {},
+      execSync: cmd => {
+        if (cmd.includes('gcloud auth')) return 'dummy_token\n';
+        if (cmd.includes('npm info @a2ui/markdown-it')) {
+          return JSON.stringify({
+            version: mdVersion,
+            peerDependencies: {},
+          });
+        }
+        if (cmd.includes('npm info')) return JSON.stringify({version: '0.14.0'});
+        return '';
+      },
+    };
+
+    await assert.rejects(
+      () => main(['--package=react', '--skip-tests'], mocks),
+      err => {
+        assert.match(
+          err.message,
+          /Missing published dependency @a2ui\/web_core for @a2ui\/markdown-it/,
+        );
         return true;
       },
     );
