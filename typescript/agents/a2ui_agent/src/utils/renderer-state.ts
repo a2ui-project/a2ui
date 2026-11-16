@@ -682,7 +682,7 @@ export class RendererState {
           changed = true;
         }
       }
-      if (changed) model.properties = asWritten;
+      if (changed) replaceQuietly(model, asWritten);
     }
   }
 
@@ -1554,6 +1554,26 @@ function componentTypes(messages: Message[]): Set<string> {
 }
 
 /** Returns the body of a message's action, if the message holds that action. */
+/**
+ * Replaces a component's properties with the same component as written, without telling the
+ * model's subscribers it changed.
+ *
+ * The replacement only leaves out the values the schema filled in, so nothing the surface
+ * derives from its components (references, the tree, the catalogs in use) changes. The
+ * `properties` setter would count a change all the same, and the surface then rebuilds what
+ * it derives from every component on the next message, which makes applying a long stream
+ * of messages quadratic. web_core has no setter that does not notify, so the state writes
+ * the field the setter writes, and falls back to the setter if the field is not there.
+ */
+function replaceQuietly(model: ComponentModel, properties: Record<string, unknown>): void {
+  const fields = model as unknown as {_properties?: Record<string, unknown>};
+  if (Object.prototype.hasOwnProperty.call(fields, '_properties')) {
+    fields._properties = properties;
+  } else {
+    model.properties = properties;
+  }
+}
+
 /** Whether two JSON values are equal, objects compared key by key in any order. */
 function jsonEqual(a: unknown, b: unknown): boolean {
   if (a === b) return true;
