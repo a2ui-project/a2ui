@@ -910,10 +910,11 @@ RegexNode parseRegexSubset(String pattern) {
 bool isNullable(RegexNode node) => switch (node) {
       EmptyRegexNode() || AnchorRegexNode() || LookaheadRegexNode() => true,
       CharSetRegexNode() => false,
-      GroupRegexNode(:final body) => isNullable(body),
-      ConcatRegexNode(:final items) => items.every(isNullable),
-      AltRegexNode(:final branches) => branches.any(isNullable),
-      RepeatRegexNode(:final min, :final body) => min == 0 || isNullable(body),
+      GroupRegexNode(:final RegexNode body) => isNullable(body),
+      ConcatRegexNode(:final List<RegexNode> items) => items.every(isNullable),
+      AltRegexNode(:final List<RegexNode> branches) => branches.any(isNullable),
+      RepeatRegexNode(:final int min, :final RegexNode body) =>
+        min == 0 || isNullable(body),
     };
 
 /// Returns the union of code points that can appear as the first consumed
@@ -923,15 +924,16 @@ List<CodePointRange> firstSet(RegexNode node) => switch (node) {
       AnchorRegexNode() ||
       LookaheadRegexNode() =>
         const <CodePointRange>[],
-      CharSetRegexNode(:final ranges) => ranges,
-      GroupRegexNode(:final body) => firstSet(body),
-      AltRegexNode(:final branches) => branches.fold<List<CodePointRange>>(
+      CharSetRegexNode(:final List<CodePointRange> ranges) => ranges,
+      GroupRegexNode(:final RegexNode body) => firstSet(body),
+      AltRegexNode(:final List<RegexNode> branches) =>
+        branches.fold<List<CodePointRange>>(
           const <CodePointRange>[],
           (acc, branch) => _unionRanges(acc, firstSet(branch)),
         ),
-      RepeatRegexNode(:final max, :final body) =>
+      RepeatRegexNode(:final int? max, :final RegexNode body) =>
         max == 0 ? const <CodePointRange>[] : firstSet(body),
-      ConcatRegexNode(:final items) => _concatFirstSet(items),
+      ConcatRegexNode(:final List<RegexNode> items) => _concatFirstSet(items),
     };
 
 List<CodePointRange> _concatFirstSet(List<RegexNode> items) {
@@ -950,17 +952,19 @@ List<CodePointRange> charsSet(RegexNode node) => switch (node) {
       AnchorRegexNode() ||
       LookaheadRegexNode() =>
         const <CodePointRange>[],
-      CharSetRegexNode(:final ranges) => ranges,
-      GroupRegexNode(:final body) => charsSet(body),
-      ConcatRegexNode(:final items) => items.fold<List<CodePointRange>>(
+      CharSetRegexNode(:final List<CodePointRange> ranges) => ranges,
+      GroupRegexNode(:final RegexNode body) => charsSet(body),
+      ConcatRegexNode(:final List<RegexNode> items) =>
+        items.fold<List<CodePointRange>>(
           const <CodePointRange>[],
           (acc, item) => _unionRanges(acc, charsSet(item)),
         ),
-      AltRegexNode(:final branches) => branches.fold<List<CodePointRange>>(
+      AltRegexNode(:final List<RegexNode> branches) =>
+        branches.fold<List<CodePointRange>>(
           const <CodePointRange>[],
           (acc, branch) => _unionRanges(acc, charsSet(branch)),
         ),
-      RepeatRegexNode(:final max, :final body) =>
+      RepeatRegexNode(:final int? max, :final RegexNode body) =>
         max == 0 ? const <CodePointRange>[] : charsSet(body),
     };
 
@@ -969,23 +973,26 @@ bool _isRepeatingQuantifier(RepeatRegexNode node) =>
 
 bool _hasUnbounded(RegexNode node) => switch (node) {
       EmptyRegexNode() || CharSetRegexNode() || AnchorRegexNode() => false,
-      GroupRegexNode(:final body) ||
-      LookaheadRegexNode(:final body) =>
+      GroupRegexNode(:final RegexNode body) ||
+      LookaheadRegexNode(:final RegexNode body) =>
         _hasUnbounded(body),
-      ConcatRegexNode(:final items) => items.any(_hasUnbounded),
-      AltRegexNode(:final branches) => branches.any(_hasUnbounded),
-      RepeatRegexNode(:final max, :final body) =>
+      ConcatRegexNode(:final List<RegexNode> items) => items.any(_hasUnbounded),
+      AltRegexNode(:final List<RegexNode> branches) =>
+        branches.any(_hasUnbounded),
+      RepeatRegexNode(:final int? max, :final RegexNode body) =>
         max == null || _hasUnbounded(body),
     };
 
 bool _hasNestedQuantifier(RegexNode node) => switch (node) {
       EmptyRegexNode() || CharSetRegexNode() || AnchorRegexNode() => false,
-      GroupRegexNode(:final body) ||
-      LookaheadRegexNode(:final body) =>
+      GroupRegexNode(:final RegexNode body) ||
+      LookaheadRegexNode(:final RegexNode body) =>
         _hasNestedQuantifier(body),
-      ConcatRegexNode(:final items) => items.any(_hasNestedQuantifier),
-      AltRegexNode(:final branches) => branches.any(_hasNestedQuantifier),
-      RepeatRegexNode(:final body) =>
+      ConcatRegexNode(:final List<RegexNode> items) =>
+        items.any(_hasNestedQuantifier),
+      AltRegexNode(:final List<RegexNode> branches) =>
+        branches.any(_hasNestedQuantifier),
+      RepeatRegexNode(:final RegexNode body) =>
         (_isRepeatingQuantifier(node) && _hasUnbounded(body)) ||
             _hasNestedQuantifier(body),
     };
@@ -1012,14 +1019,14 @@ bool _branchesOverlap(List<RegexNode> branches) {
 
 bool _hasOverlappingAlternationInRepeat(RegexNode node) => switch (node) {
       EmptyRegexNode() || CharSetRegexNode() || AnchorRegexNode() => false,
-      GroupRegexNode(:final body) ||
-      LookaheadRegexNode(:final body) =>
+      GroupRegexNode(:final RegexNode body) ||
+      LookaheadRegexNode(:final RegexNode body) =>
         _hasOverlappingAlternationInRepeat(body),
-      ConcatRegexNode(:final items) =>
+      ConcatRegexNode(:final List<RegexNode> items) =>
         items.any(_hasOverlappingAlternationInRepeat),
-      AltRegexNode(:final branches) =>
+      AltRegexNode(:final List<RegexNode> branches) =>
         branches.any(_hasOverlappingAlternationInRepeat),
-      RepeatRegexNode(:final max, :final body) => () {
+      RepeatRegexNode(:final int? max, :final RegexNode body) => () {
           final RegexNode inner = _unwrapSingle(body);
           if (max == null &&
               inner is AltRegexNode &&
@@ -1049,12 +1056,13 @@ bool _concatHasAdjacentOverlap(List<RegexNode> items) {
 
 bool _hasAdjacentOverlap(RegexNode node) => switch (node) {
       EmptyRegexNode() || CharSetRegexNode() || AnchorRegexNode() => false,
-      GroupRegexNode(:final body) ||
-      LookaheadRegexNode(:final body) ||
-      RepeatRegexNode(:final body) =>
+      GroupRegexNode(:final RegexNode body) ||
+      LookaheadRegexNode(:final RegexNode body) ||
+      RepeatRegexNode(:final RegexNode body) =>
         _hasAdjacentOverlap(body),
-      AltRegexNode(:final branches) => branches.any(_hasAdjacentOverlap),
-      ConcatRegexNode(:final items) =>
+      AltRegexNode(:final List<RegexNode> branches) =>
+        branches.any(_hasAdjacentOverlap),
+      ConcatRegexNode(:final List<RegexNode> items) =>
         _concatHasAdjacentOverlap(items) || items.any(_hasAdjacentOverlap),
     };
 
