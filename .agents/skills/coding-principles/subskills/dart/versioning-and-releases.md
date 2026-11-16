@@ -24,7 +24,7 @@ The Dart packages under `dart/`, such as `a2ui_core` and `a2ui_agent`, are publi
 
 ## Releasing
 
-A release is a pull request of its own. It moves the notes from `## Unreleased` under a heading with the new version, adding that heading above the newest version if there are no notes, leaves an empty `## Unreleased` above it, and sets `version:` in `pubspec.yaml` to the same value. After it merges, the maintainer runs `flutter pub publish` from the commit of that pull request.
+A release is a pull request of its own. It moves the notes from `## Unreleased` under a heading with the new version, adding that heading above the newest version if there are no notes, leaves an empty `## Unreleased` above it, and sets `version:` in `pubspec.yaml` to the same value. For `a2ui_cli`, it also sets `_defaultPackageVersion` in `lib/src/cli.dart` and the `--version` output expected by `test/cli_test.dart`. After it merges, the maintainer runs `flutter pub publish` from the commit of that pull request, and for `a2ui_cli` pushes the tag `cli-v<version>` on that commit, which publishes the CLI binaries as a GitHub release.
 
 When `a2ui_core` is released, the packages that depend on it are handled as follows:
 

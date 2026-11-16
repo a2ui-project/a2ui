@@ -43,6 +43,8 @@ In one pull request, for each package to release:
 - Set the `a2ui_core` constraint to `^<new a2ui_core version>` if `a2ui_core`
   has a breaking change or the package's notes say it needs the new
   `a2ui_core`, and note the new constraint under `## <version>`.
+- For `a2ui_cli`, also set `_defaultPackageVersion` in `lib/src/cli.dart` and
+  the `--version` output expected by `test/cli_test.dart` to the same version.
 
 Change nothing else, and merge the pull request.
 
@@ -57,6 +59,10 @@ on pub.dev before publishing the packages that depend on it. For each package:
 - Run `flutter pub publish` in the package directory, making sure the console
   shows no warnings.
 - Verify that the correct version was uploaded to pub.dev.
+
+After publishing `a2ui_cli`, push the tag `cli-v<version>` on the same commit.
+The [Release CLI Binaries](../../../.github/workflows/release-cli-binaries.yml)
+workflow then builds the CLI binaries and attaches them to a GitHub release.
 
 If any step fails, file a GitHub issue and inform the team.
 
