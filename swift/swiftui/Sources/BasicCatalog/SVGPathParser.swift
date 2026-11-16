@@ -145,6 +145,30 @@ public enum SVGPathParser {
           currentPoint = endPoint
         }
 
+      case "A", "a":
+        let isRelative = (command == "a")
+        while let radiusX = nextNumber(),
+          let radiusY = nextNumber(),
+          let xAxisRotation = nextNumber(),
+          let largeArcFlag = nextNumber(),
+          let sweepFlag = nextNumber(),
+          let endPoint = nextPoint(relative: isRelative)
+        {
+          appendArc(
+            to: &path,
+            from: currentPoint,
+            to: endPoint,
+            radiusX: radiusX,
+            radiusY: radiusY,
+            xAxisRotationDegrees: xAxisRotation,
+            largeArc: largeArcFlag != 0,
+            sweep: sweepFlag != 0
+          )
+          lastCubicControlPoint = nil
+          lastQuadraticControlPoint = nil
+          currentPoint = endPoint
+        }
+
       case "Z", "z":
         path.closeSubpath()
         currentPoint = startPoint
@@ -158,6 +182,100 @@ public enum SVGPathParser {
     }
 
     return path
+  }
+
+  /// Appends an SVG elliptical arc to `path` as a series of cubic Bézier curves, each spanning at
+  /// most 90 degrees, following the endpoint-to-center conversion and out-of-range parameter rules
+  /// in SVG 1.1 Appendix F.6.
+  private static func appendArc(
+    to path: inout Path,
+    from start: CGPoint,
+    to end: CGPoint,
+    radiusX: CGFloat,
+    radiusY: CGFloat,
+    xAxisRotationDegrees: CGFloat,
+    largeArc: Bool,
+    sweep: Bool
+  ) {
+    // F.6.2: identical endpoints omit the arc; a zero radius turns it into a straight line.
+    if start == end { return }
+    var rx = abs(radiusX)
+    var ry = abs(radiusY)
+    if rx == 0 || ry == 0 {
+      path.addLine(to: end)
+      return
+    }
+
+    let phi = xAxisRotationDegrees * .pi / 180
+    let cosPhi = cos(phi)
+    let sinPhi = sin(phi)
+
+    // F.6.5.1: move the start point into the ellipse's unrotated coordinate system.
+    let halfDeltaX = (start.x - end.x) / 2
+    let halfDeltaY = (start.y - end.y) / 2
+    let x1Prime = cosPhi * halfDeltaX + sinPhi * halfDeltaY
+    let y1Prime = -sinPhi * halfDeltaX + cosPhi * halfDeltaY
+
+    // F.6.6.2: scale the radii up when they are too small to reach the end point.
+    let lambda = (x1Prime * x1Prime) / (rx * rx) + (y1Prime * y1Prime) / (ry * ry)
+    if lambda > 1 {
+      let scale = sqrt(lambda)
+      rx *= scale
+      ry *= scale
+    }
+
+    // F.6.5.2: compute the transformed center.
+    let rxSquared = rx * rx
+    let rySquared = ry * ry
+    let numerator =
+      rxSquared * rySquared - rxSquared * y1Prime * y1Prime - rySquared * x1Prime * x1Prime
+    let denominator = rxSquared * y1Prime * y1Prime + rySquared * x1Prime * x1Prime
+    let sign: CGFloat = largeArc == sweep ? -1 : 1
+    let coefficient = sign * sqrt(max(0, numerator / denominator))
+    let centerXPrime = coefficient * (rx * y1Prime / ry)
+    let centerYPrime = coefficient * -(ry * x1Prime / rx)
+
+    // F.6.5.3: rotate the center back into user space.
+    let centerX = cosPhi * centerXPrime - sinPhi * centerYPrime + (start.x + end.x) / 2
+    let centerY = sinPhi * centerXPrime + cosPhi * centerYPrime + (start.y + end.y) / 2
+
+    // F.6.5.5 and F.6.5.6: start angle and sweep angle on the unit circle.
+    let startAngle = atan2((y1Prime - centerYPrime) / ry, (x1Prime - centerXPrime) / rx)
+    let endAngle = atan2((-y1Prime - centerYPrime) / ry, (-x1Prime - centerXPrime) / rx)
+    var sweepAngle = endAngle - startAngle
+    if sweep && sweepAngle < 0 {
+      sweepAngle += 2 * .pi
+    } else if !sweep && sweepAngle > 0 {
+      sweepAngle -= 2 * .pi
+    }
+
+    func userSpacePoint(unitX: CGFloat, unitY: CGFloat) -> CGPoint {
+      CGPoint(
+        x: centerX + rx * cosPhi * unitX - ry * sinPhi * unitY,
+        y: centerY + rx * sinPhi * unitX + ry * cosPhi * unitY
+      )
+    }
+
+    let segmentCount = max(1, Int((abs(sweepAngle) / (.pi / 2)).rounded(.up)))
+    let segmentAngle = sweepAngle / CGFloat(segmentCount)
+    let handleLength = 4 / 3 * tan(segmentAngle / 4)
+    var angle = startAngle
+    for segment in 0..<segmentCount {
+      let nextAngle = angle + segmentAngle
+      let control1 = userSpacePoint(
+        unitX: cos(angle) - handleLength * sin(angle),
+        unitY: sin(angle) + handleLength * cos(angle)
+      )
+      let control2 = userSpacePoint(
+        unitX: cos(nextAngle) + handleLength * sin(nextAngle),
+        unitY: sin(nextAngle) - handleLength * cos(nextAngle)
+      )
+      let segmentEnd =
+        segment == segmentCount - 1
+        ? end : userSpacePoint(unitX: cos(nextAngle), unitY: sin(nextAngle))
+      path.addCurve(to: segmentEnd, control1: control1, control2: control2)
+      angle = nextAngle
+    }
   }
 
   private enum Token {
@@ -174,11 +292,20 @@ public enum SVGPathParser {
     var currentNumber = ""
     var hasDecimalInCurrent = false
     var hasExponentInCurrent = false
+    // Position within the current arc's 7-number argument set, or `nil` outside `A`/`a`.
+    var arcArgumentIndex: Int? = nil
+
+    func appendNumber(_ number: Double) {
+      tokens.append(.number(number))
+      if let index = arcArgumentIndex {
+        arcArgumentIndex = (index + 1) % 7
+      }
+    }
 
     func flushNumber() {
       guard !currentNumber.isEmpty else { return }
       if let number = Double(currentNumber) {
-        tokens.append(.number(number))
+        appendNumber(number)
       }
       currentNumber = ""
       hasDecimalInCurrent = false
@@ -186,7 +313,13 @@ public enum SVGPathParser {
     }
 
     for character in input {
-      if character == "e" || character == "E",
+      if let index = arcArgumentIndex, index == 3 || index == 4, currentNumber.isEmpty,
+        character == "0" || character == "1"
+      {
+        // Arc flags are single characters and may be written without separators,
+        // so "a1 1 0 011 1" reads the flags as 0 and 1, followed by the end point 1 1.
+        appendNumber(character == "1" ? 1 : 0)
+      } else if character == "e" || character == "E",
         !hasExponentInCurrent,
         currentNumber.contains(where: { $0.isASCII && $0.isWholeNumber })
       {
@@ -195,6 +328,7 @@ public enum SVGPathParser {
       } else if commandCharacters.contains(character) {
         flushNumber()
         tokens.append(.command(character))
+        arcArgumentIndex = (character == "A" || character == "a") ? 0 : nil
       } else if character.isWhitespace || character == "," {
         flushNumber()
       } else if character == "-" || character == "+" {
